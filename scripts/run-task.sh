@@ -67,7 +67,7 @@ PUSHED=false
 finish() { # finish <state> — move task file, commit, push
   local state="$1" id="$2"
   git mv "tasks/active/$id.md" "tasks/$state/$id.md"
-  [[ -f "tasks/active/$id.log" ]] && git mv "tasks/active/$id.log" "tasks/$state/$id.log" || true
+  [[ -f "tasks/active/$id.log" ]] && git add -q "tasks/active/$id.log" 2>/dev/null; git mv "tasks/active/$id.log" "tasks/$state/$id.log" || true
   git commit -qm "chore: $id → $state"
   git push -q origin HEAD || true
 }
