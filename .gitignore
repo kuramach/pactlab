@@ -1,8 +1,14 @@
 node_modules/
 dist/
 .turbo/
+.next/
+next-env.d.ts
+cdk.out/
+coverage/
+*.tsbuildinfo
+packages/db/src/generated/
 .env
 .env.local
+.env.*.local
 *.log
 .DS_Store
-coverage/

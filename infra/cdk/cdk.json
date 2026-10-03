@@ -1,0 +1,7 @@
+{
+  "app": "tsx bin/pactlab.ts",
+  "output": "cdk.out",
+  "context": {
+    "@aws-cdk/core:enablePartitionLiterals": true
+  }
+}

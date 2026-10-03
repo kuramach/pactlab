@@ -1,0 +1,31 @@
+# Local PostgreSQL + Redis for `pnpm dev` and `pnpm test:integration`.
+# Synthetic data only. Credentials here are local-only development defaults.
+name: pactlab-local
+services:
+  postgres:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: pactlab_owner
+      POSTGRES_PASSWORD: pactlab_owner_local
+      POSTGRES_DB: pactlab
+    ports:
+      - '5432:5432'
+    volumes:
+      - ./postgres-init:/docker-entrypoint-initdb.d:ro
+      - pactlab-postgres:/var/lib/postgresql
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U pactlab_owner -d pactlab']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+  redis:
+    image: redis:7.4-alpine
+    ports:
+      - '6379:6379'
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+volumes:
+  pactlab-postgres:

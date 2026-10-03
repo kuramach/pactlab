@@ -1,0 +1,34 @@
+{
+  "name": "pactlab",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@12.8.1",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev --filter=@pactlab/web --filter=@pactlab/api --filter=@pactlab/worker",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "test:integration": "turbo run test:integration --concurrency=1",
+    "test:fixtures": "turbo run test:fixtures",
+    "seed": "turbo run seed",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "local:up": "docker compose -f infra/local/docker-compose.yml up -d --wait",
+    "local:down": "docker compose -f infra/local/docker-compose.yml down",
+    "db:migrate": "pnpm --filter @pactlab/db migrate:deploy"
+  },
+  "prettier": {
+    "singleQuote": true,
+    "trailingComma": "all",
+    "printWidth": 100
+  },
+  "devDependencies": {
+    "prettier": "3.9.9",
+    "turbo": "2.11.7",
+    "typescript": "6.0.3"
+  }
+}

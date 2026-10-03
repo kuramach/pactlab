@@ -1,8 +1,35 @@
 name: ci
 on: [push, pull_request]
+
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: pactlab_owner
+          POSTGRES_PASSWORD: pactlab_owner_ci
+          POSTGRES_DB: pactlab
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U pactlab_owner -d pactlab"
+          --health-interval 2s --health-timeout 3s --health-retries 30
+      redis:
+        image: redis:7.4-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 2s --health-timeout 3s --health-retries 30
+    env:
+      DATABASE_MIGRATION_URL: postgresql://pactlab_owner:pactlab_owner_ci@localhost:5432/pactlab
+      DATABASE_URL: postgresql://pactlab_api:pactlab_api_ci@localhost:5432/pactlab
+      REDIS_URL: redis://localhost:6379
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -14,3 +41,15 @@ jobs:
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test
+      - run: pnpm test:fixtures
+      - name: Provision runtime database roles (CI only)
+        run: |
+          psql "$DATABASE_MIGRATION_URL" -v ON_ERROR_STOP=1 <<'SQL'
+          CREATE ROLE pactlab_app NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS;
+          CREATE ROLE pactlab_api LOGIN PASSWORD 'pactlab_api_ci' NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS NOINHERIT;
+          GRANT pactlab_app TO pactlab_api;
+          SQL
+      - run: pnpm db:migrate
+      - run: pnpm test:integration
+      - name: Synthesize CDK (no deploy)
+        run: pnpm --filter @pactlab/cdk synth
