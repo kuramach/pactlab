@@ -1,0 +1,30 @@
+{
+  "manifestVersion": 1,
+  "company": "HealthyCo",
+  "companyId": "01900000-0000-7000-8000-0000000c0001",
+  "displayName": "HealthyCo (synthetic)",
+  "deal": {
+    "id": "01900000-0000-7000-8000-0000000d0001",
+    "name": "Project Healthy",
+    "transactionType": "PRIVATE_ACQUIRER"
+  },
+  "connection": {
+    "id": "01900000-0000-7000-8000-0000000e0001",
+    "provider": "csv",
+    "displayName": "HealthyCo billing & KPI export (fixture)"
+  },
+  "datasets": [
+    {
+      "dataset": "HealthyCo/customers.csv",
+      "evidenceType": "billing.customer",
+      "recordIdColumn": "customer_id",
+      "observedAtColumn": "as_of"
+    },
+    {
+      "dataset": "HealthyCo/management-kpis.csv",
+      "evidenceType": "management.kpi",
+      "recordIdColumn": "kpi_id",
+      "observedAtColumn": "as_of"
+    }
+  ]
+}

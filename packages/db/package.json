@@ -15,7 +15,8 @@
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "migrate:deploy": "prisma migrate deploy",
     "migrate:diff": "prisma migrate diff --from-empty --to-schema prisma/schema.prisma --script",
-    "seed": "tsx --env-file-if-exists=../../.env src/seed.ts"
+    "seed": "tsx --env-file-if-exists=../../.env src/seed/cli.ts",
+    "test:fixtures": "vitest run --config vitest.fixtures.config.ts"
   },
   "dependencies": {
     "@pactlab/domain": "workspace:*",

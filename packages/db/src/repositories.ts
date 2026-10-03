@@ -35,6 +35,15 @@ export const deals = {
     return tx.deal.findUnique({ where: { id: dealId }, select: dealSelect });
   },
 
+  async update(
+    tx: TransactionClient,
+    dealId: string,
+    input: Partial<Pick<DealRecord, 'name' | 'targetName' | 'stage' | 'status'>>,
+  ): Promise<DealRecord | null> {
+    const updated = await tx.deal.updateMany({ where: { id: dealId }, data: input });
+    return updated.count === 0 ? null : deals.get(tx, dealId);
+  },
+
   /** Full-text search. RLS removes other tenants' rows before ranking. */
   async search(tx: TransactionClient, query: string): Promise<DealRecord[]> {
     const ids = await tx.$queryRaw<{ id: string }[]>`

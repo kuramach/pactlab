@@ -72,3 +72,36 @@ export async function createSyntheticTenant(db: Executor, label: string): Promis
     },
   };
 }
+
+/** Add another user to a synthetic tenant's deal with the given role. */
+export async function addSyntheticDealMember(
+  db: Executor,
+  tenant: SyntheticTenant,
+  role: 'ANALYST' | 'REVIEWER' | 'ADVISER' | 'TARGET_CONTRIBUTOR' | 'VIEWER',
+): Promise<{ userId: string; subject: string; context: TenantContext }> {
+  const userId = newId();
+  const subject = `auth0|${role.toLowerCase()}-${userId.slice(-8)}`;
+  await db.query(`INSERT INTO users (id, auth0_subject, display_name) VALUES ($1, $2, $3)`, [userId, subject, `${role} (synthetic)`]);
+  await db.query(`INSERT INTO organization_memberships (id, organization_id, user_id, role) VALUES ($1, $2, $3, 'MEMBER')`, [
+    newId(),
+    tenant.organizationId,
+    userId,
+  ]);
+  await db.query(`INSERT INTO deal_memberships (id, organization_id, deal_id, user_id, role) VALUES ($1, $2, $3, $4, $5)`, [
+    newId(),
+    tenant.organizationId,
+    tenant.dealId,
+    userId,
+    role,
+  ]);
+  return {
+    userId,
+    subject,
+    context: {
+      organizationId: tenant.organizationId as OrganizationId,
+      userId: userId as UserId,
+      organizationRole: 'MEMBER',
+      dealIds: [tenant.dealId as DealId],
+    },
+  };
+}

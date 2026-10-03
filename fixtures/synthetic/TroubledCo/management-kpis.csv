@@ -1,0 +1,4 @@
+kpi_id,metric,period,value,currency,as_of
+tc-kpi-arr-2026q3,ARR,2026-Q3,1450000.00,USD,2026-09-30
+tc-kpi-nrr-2026q3,NRR,2026-Q3,1.31,,2026-09-30
+tc-kpi-logos-2026q3,CUSTOMER_COUNT,2026-Q3,41,,2026-09-30

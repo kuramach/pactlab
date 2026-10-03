@@ -13,3 +13,12 @@ across every provider fixture so joins (billing ↔ CRM ↔ Git ↔ HRIS) resolv
 Seeding (`pnpm seed`) creates these idempotently from T-002 onward. Fixture
 and live adapters share one normalized interface; downstream logic never
 branches on `FIXTURE` vs `LIVE` mode.
+
+## Layout
+
+Each company directory holds a versioned `manifest.json` (stable company,
+deal and connection UUIDs, plus the CSV column mappings) and its CSV datasets.
+`pnpm seed` ingests them through the real sync engine under RLS;
+`pnpm test:fixtures` checks every manifest, the expected per-company
+conditions, and that seeding twice changes nothing. Money columns are decimal
+strings — never floats.
