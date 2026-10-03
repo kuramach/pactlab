@@ -29,7 +29,7 @@ elif [[ ! -f "$ACTIVE" ]]; then
   echo "task not found: $TASK_ID"; exit 1
 fi
 
-LOG="tasks/active/${TASK_ID}.log"
+LOG="$REPO_ROOT/tasks/active/${TASK_ID}.log"
 : > "$LOG"
 
 BRANCH="agent/$TASK_ID"
@@ -50,6 +50,10 @@ echo "=== launching claude for $TASK_ID ===" | tee -a "$LOG"
 (cd "$WT" && claude -p "$PROMPT" ${CLAUDE_FLAGS:-} 2>&1 | tee -a "$LOG") \
   || echo "warn: claude exited non-zero" | tee -a "$LOG"
 
+# --- install deps before checks (agent may not have run it) ---
+echo "=== pnpm install ===" | tee -a "$LOG"
+(cd "$WT" && pnpm install 2>&1 | tee -a "$LOG") || echo "warn: pnpm install failed" | tee -a "$LOG"
+
 # --- checks ---
 CHECKS="$(grep -E '^Checks:' "$ACTIVE" | head -1 | sed 's/^Checks:[[:space:]]*//')"
 CHECKS_OK=true
@@ -67,7 +71,7 @@ PUSHED=false
 finish() { # finish <state> — move task file, commit, push
   local state="$1" id="$2"
   git mv "tasks/active/$id.md" "tasks/$state/$id.md"
-  [[ -f "tasks/active/$id.log" ]] && git add -q "tasks/active/$id.log" 2>/dev/null; git mv "tasks/active/$id.log" "tasks/$state/$id.log" || true
+  if [[ -f "tasks/active/$id.log" ]]; then git add -q "tasks/active/$id.log" 2>/dev/null || true; git mv "tasks/active/$id.log" "tasks/$state/$id.log" || true; fi
   git commit -qm "chore: $id → $state"
   git push -q origin HEAD || true
 }

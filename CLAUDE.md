@@ -27,7 +27,7 @@ Every result must remain traceable to source evidence and a reviewer decision. D
 | Data | PostgreSQL + RLS |
 | ORM | Prisma |
 | Jobs | BullMQ + Redis |
-| AI | Anthropic Claude |
+| AI | Claude via AWS Bedrock |
 | Infrastructure | AWS CDK TypeScript |
 | Identity | Auth0 |
 | Monorepo | pnpm + Turborepo |
