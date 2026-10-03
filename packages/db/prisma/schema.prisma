@@ -1,0 +1,240 @@
+// Pactlab system of record. Every deal-scoped row carries organization_id and
+// deal_id; composite foreign keys make cross-tenant references impossible.
+// Row-level security policies live in the SQL migrations (see migrations/).
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum TransactionType {
+  PUBLIC_ACQUIRER
+  PRIVATE_ACQUIRER
+  TAKE_PRIVATE
+
+  @@map("transaction_type")
+}
+
+enum OrganizationRole {
+  ORG_OWNER
+  ORG_ADMIN
+  MEMBER
+
+  @@map("organization_role")
+}
+
+enum DealRole {
+  DEAL_LEAD
+  ANALYST
+  REVIEWER
+  ADVISER
+  TARGET_CONTRIBUTOR
+  VIEWER
+
+  @@map("deal_role")
+}
+
+enum MembershipStatus {
+  ACTIVE
+  SUSPENDED
+  REVOKED
+
+  @@map("membership_status")
+}
+
+enum JobStatus {
+  QUEUED
+  RUNNING
+  SUCCEEDED
+  FAILED
+  DEAD_LETTERED
+
+  @@map("job_status")
+}
+
+model Organization {
+  id                  String   @id @default(uuid(7)) @db.Uuid
+  name                String
+  slug                String   @unique
+  /// External identity-provider organization reference (Auth0 `org_id` claim).
+  auth0OrganizationId String   @unique @map("auth0_organization_id")
+  region              String   @default("us-east-1")
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt           DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  memberships     OrganizationMembership[]
+  deals           Deal[]
+  dealMemberships DealMembership[]
+  auditEvents     AuditEvent[]
+  outboxEvents    OutboxEvent[]
+  jobRuns         JobRun[]
+  storedFiles     StoredFile[]
+
+  @@map("organizations")
+}
+
+model User {
+  id           String   @id @default(uuid(7)) @db.Uuid
+  /// Verified `sub` claim from the identity provider.
+  auth0Subject String   @unique @map("auth0_subject")
+  displayName  String   @map("display_name")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  organizationMemberships OrganizationMembership[]
+  dealMemberships         DealMembership[]
+
+  @@map("users")
+}
+
+model OrganizationMembership {
+  id             String           @id @default(uuid(7)) @db.Uuid
+  organizationId String           @map("organization_id") @db.Uuid
+  userId         String           @map("user_id") @db.Uuid
+  role           OrganizationRole
+  status         MembershipStatus @default(ACTIVE)
+  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@unique([organizationId, userId])
+  @@index([userId])
+  @@map("organization_memberships")
+}
+
+model Deal {
+  id              String          @id @default(uuid(7)) @db.Uuid
+  organizationId  String          @map("organization_id") @db.Uuid
+  name            String
+  targetName      String          @map("target_name")
+  transactionType TransactionType @map("transaction_type")
+  stage           String          @default("SCREENING")
+  status          String          @default("ACTIVE")
+  baseCurrency    String          @default("USD") @map("base_currency") @db.Char(3)
+  createdBy       String          @map("created_by") @db.Uuid
+  createdAt       DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  memberships  DealMembership[]
+  jobRuns      JobRun[]
+  storedFiles  StoredFile[]
+  auditEvents  AuditEvent[]
+  outboxEvents OutboxEvent[]
+
+  @@unique([organizationId, id])
+  @@index([organizationId, createdAt])
+  @@map("deals")
+}
+
+model DealMembership {
+  id             String           @id @default(uuid(7)) @db.Uuid
+  organizationId String           @map("organization_id") @db.Uuid
+  dealId         String           @map("deal_id") @db.Uuid
+  userId         String           @map("user_id") @db.Uuid
+  role           DealRole
+  status         MembershipStatus @default(ACTIVE)
+  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  deal         Deal         @relation(fields: [organizationId, dealId], references: [organizationId, id], onDelete: Restrict)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@unique([organizationId, dealId, userId])
+  @@index([userId])
+  @@map("deal_memberships")
+}
+
+/// Append-only, hash-chained audit trail. UPDATE and DELETE are revoked.
+model AuditEvent {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  dealId         String?  @map("deal_id") @db.Uuid
+  actorUserId    String?  @map("actor_user_id") @db.Uuid
+  action         String
+  targetType     String   @map("target_type")
+  targetId       String?  @map("target_id")
+  outcome        String
+  requestId      String?  @map("request_id")
+  ipAddress      String?  @map("ip_address")
+  occurredAt     DateTime @default(now()) @map("occurred_at") @db.Timestamptz(3)
+  /// Chain fields are assigned by the audit_events_chain trigger; client values are overwritten.
+  chainSeq       BigInt   @default(0) @map("chain_seq")
+  prevHash       String?  @map("prev_hash")
+  hash           String   @default("")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  deal         Deal?        @relation(fields: [organizationId, dealId], references: [organizationId, id], onDelete: Restrict)
+
+  @@index([organizationId, occurredAt])
+  @@index([organizationId, dealId, occurredAt])
+  @@map("audit_events")
+}
+
+/// Transactional outbox: domain events written in the same transaction as the change.
+model OutboxEvent {
+  id             String    @id @default(uuid(7)) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  dealId         String?   @map("deal_id") @db.Uuid
+  aggregateType  String    @map("aggregate_type")
+  aggregateId    String    @map("aggregate_id")
+  eventType      String    @map("event_type")
+  payload        Json
+  idempotencyKey String    @map("idempotency_key")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  publishedAt    DateTime? @map("published_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  deal         Deal?        @relation(fields: [organizationId, dealId], references: [organizationId, id], onDelete: Restrict)
+
+  @@unique([organizationId, idempotencyKey])
+  @@index([publishedAt, createdAt])
+  @@map("outbox_events")
+}
+
+/// Durable record of async jobs; uniqueness on idempotency key makes replays safe.
+model JobRun {
+  id             String    @id @default(uuid(7)) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  dealId         String    @map("deal_id") @db.Uuid
+  type           String
+  schemaVersion  Int       @map("schema_version")
+  idempotencyKey String    @map("idempotency_key")
+  status         JobStatus @default(QUEUED)
+  attempt        Int       @default(0)
+  requestedBy    String    @map("requested_by") @db.Uuid
+  correlationId  String    @map("correlation_id")
+  errorClass     String?   @map("error_class")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  completedAt    DateTime? @map("completed_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  deal         Deal         @relation(fields: [organizationId, dealId], references: [organizationId, id], onDelete: Restrict)
+
+  @@unique([organizationId, dealId, idempotencyKey])
+  @@map("job_runs")
+}
+
+/// Metadata for tenant-scoped objects. Bytes live in the object store under
+/// `<organization_id>/<deal_id>/...`; a check constraint enforces the prefix.
+model StoredFile {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  dealId         String   @map("deal_id") @db.Uuid
+  objectKey      String   @map("object_key")
+  fileName       String   @map("file_name")
+  contentType    String   @map("content_type")
+  sizeBytes      BigInt   @map("size_bytes")
+  sha256         String
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  deal         Deal         @relation(fields: [organizationId, dealId], references: [organizationId, id], onDelete: Restrict)
+
+  @@unique([objectKey])
+  @@map("stored_files")
+}

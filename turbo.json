@@ -1,0 +1,91 @@
+{
+  "$schema": "https://turborepo.com/schema.json",
+  "agentGuidance": false,
+  "globalEnv": [
+    "APP_ENV",
+    "NODE_ENV"
+  ],
+  "globalPassThroughEnv": [
+    "APP_*",
+    "DATABASE_*",
+    "REDIS_*",
+    "AUTH0_*",
+    "AWS_*",
+    "LOG_LEVEL",
+    "API_PORT",
+    "WORKER_CONCURRENCY",
+    "NEXT_PUBLIC_*"
+  ],
+  "tasks": {
+    "generate": {
+      "inputs": [
+        "prisma/**",
+        "prisma.config.ts"
+      ],
+      "outputs": [
+        "src/generated/**"
+      ]
+    },
+    "build": {
+      "dependsOn": [
+        "^generate",
+        "generate",
+        "^build"
+      ],
+      "outputs": [
+        ".next/**",
+        "!.next/cache/**",
+        "dist/**",
+        "cdk.out/**"
+      ]
+    },
+    "lint": {
+      "dependsOn": [
+        "^generate",
+        "generate"
+      ]
+    },
+    "typecheck": {
+      "dependsOn": [
+        "^generate",
+        "generate"
+      ]
+    },
+    "test": {
+      "dependsOn": [
+        "^generate",
+        "generate"
+      ],
+      "outputs": []
+    },
+    "test:integration": {
+      "dependsOn": [
+        "^generate",
+        "generate"
+      ],
+      "cache": false
+    },
+    "test:fixtures": {
+      "dependsOn": [
+        "^generate",
+        "generate"
+      ],
+      "outputs": []
+    },
+    "seed": {
+      "dependsOn": [
+        "^generate",
+        "generate"
+      ],
+      "cache": false
+    },
+    "dev": {
+      "dependsOn": [
+        "^generate",
+        "generate"
+      ],
+      "cache": false,
+      "persistent": true
+    }
+  }
+}
