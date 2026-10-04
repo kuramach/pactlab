@@ -1,0 +1,86 @@
+line_id,invoice_id,customer_id,customer_name,subscription_id,price_id,currency,amount,interval,interval_count,period_start,period_end,invoice_status,created
+il_tc_00001,in_tc_202507_0001,tc-cus-0001,Granite Payroll (synthetic),sub_tc_0001,price_tc_enterprise_m,USD,14000.00,month,1,2025-07-01,2025-08-01,paid,2025-07-01
+il_tc_00002,in_tc_202508_0001,tc-cus-0001,Granite Payroll (synthetic),sub_tc_0001,price_tc_enterprise_m,USD,14000.00,month,1,2025-08-01,2025-09-01,paid,2025-08-01
+il_tc_00003,in_tc_202509_0001,tc-cus-0001,Granite Payroll (synthetic),sub_tc_0001,price_tc_enterprise_m,USD,14000.00,month,1,2025-09-01,2025-10-01,paid,2025-09-01
+il_tc_00004,in_tc_202510_0001,tc-cus-0001,Granite Payroll (synthetic),sub_tc_0001,price_tc_enterprise_m,USD,14000.00,month,1,2025-10-01,2025-11-01,paid,2025-10-01
+il_tc_00005,in_tc_202511_0001,tc-cus-0001,Granite Payroll (synthetic),sub_tc_0001,price_tc_enterprise_m,USD,14000.00,month,1,2025-11-01,2025-12-01,paid,2025-11-01
+il_tc_00006,in_tc_202512_0001,tc-cus-0001,Granite Payroll (synthetic),sub_tc_0001,price_tc_enterprise_m,USD,14000.00,month,1,2025-12-01,2026-01-01,paid,2025-12-01
+il_tc_00007,in_tc_202601_0001,tc-cus-0001,Granite Payroll (synthetic),sub_tc_0001,price_tc_enterprise_m,USD,14000.00,month,1,2026-01-01,2026-02-01,paid,2026-01-01
+il_tc_00008,in_tc_202602_0001,tc-cus-0001,Granite Payroll (synthetic),sub_tc_0001,price_tc_enterprise_m,USD,14000.00,month,1,2026-02-01,2026-03-01,paid,2026-02-01
+il_tc_00009,in_tc_202603_0001,tc-cus-0001,Granite Payroll (synthetic),sub_tc_0001,price_tc_enterprise_m,USD,14000.00,month,1,2026-03-01,2026-04-01,paid,2026-03-01
+il_tc_00010,in_tc_202604_0001,tc-cus-0001,Granite Payroll (synthetic),sub_tc_0001,price_tc_enterprise_m,USD,9800.00,month,1,2026-04-01,2026-05-01,paid,2026-04-01
+il_tc_00011,in_tc_202605_0001,tc-cus-0001,Granite Payroll (synthetic),sub_tc_0001,price_tc_enterprise_m,USD,9800.00,month,1,2026-05-01,2026-06-01,paid,2026-05-01
+il_tc_00012,in_tc_202606_0001,tc-cus-0001,Granite Payroll (synthetic),sub_tc_0001,price_tc_enterprise_m,USD,9800.00,month,1,2026-06-01,2026-07-01,paid,2026-06-01
+il_tc_00013,in_tc_202607_0001,tc-cus-0001,Granite Payroll (synthetic),sub_tc_0001,price_tc_enterprise_m,USD,9800.00,month,1,2026-07-01,2026-08-01,paid,2026-07-01
+il_tc_00014,in_tc_202608_0001,tc-cus-0001,Granite Payroll (synthetic),sub_tc_0001,price_tc_enterprise_m,USD,9800.00,month,1,2026-08-01,2026-09-01,paid,2026-08-01
+il_tc_00015,in_tc_202609_0001,tc-cus-0001,Granite Payroll (synthetic),sub_tc_0001,price_tc_enterprise_m,USD,9800.00,month,1,2026-09-01,2026-10-01,paid,2026-09-01
+il_tc_00016,in_tc_202507_0002,tc-cus-0002,Harbor Dental (synthetic),sub_tc_0002,price_tc_starter_m,USD,450.00,month,1,2025-07-01,2025-08-01,paid,2025-07-01
+il_tc_00017,in_tc_202508_0002,tc-cus-0002,Harbor Dental (synthetic),sub_tc_0002,price_tc_starter_m,USD,450.00,month,1,2025-08-01,2025-09-01,paid,2025-08-01
+il_tc_00018,in_tc_202509_0002,tc-cus-0002,Harbor Dental (synthetic),sub_tc_0002,price_tc_starter_m,USD,450.00,month,1,2025-09-01,2025-10-01,paid,2025-09-01
+il_tc_00019,in_tc_202510_0002,tc-cus-0002,Harbor Dental (synthetic),sub_tc_0002,price_tc_starter_m,USD,450.00,month,1,2025-10-01,2025-11-01,paid,2025-10-01
+il_tc_00020,in_tc_202511_0002,tc-cus-0002,Harbor Dental (synthetic),sub_tc_0002,price_tc_starter_m,USD,450.00,month,1,2025-11-01,2025-12-01,paid,2025-11-01
+il_tc_00021,in_tc_202512_0002,tc-cus-0002,Harbor Dental (synthetic),sub_tc_0002,price_tc_starter_m,USD,450.00,month,1,2025-12-01,2026-01-01,paid,2025-12-01
+il_tc_00022,in_tc_202601_0002,tc-cus-0002,Harbor Dental (synthetic),sub_tc_0002,price_tc_starter_m,USD,450.00,month,1,2026-01-01,2026-02-01,paid,2026-01-01
+il_tc_00023,in_tc_202602_0002,tc-cus-0002,Harbor Dental (synthetic),sub_tc_0002,price_tc_starter_m,USD,450.00,month,1,2026-02-01,2026-03-01,paid,2026-02-01
+il_tc_00024,in_tc_202603_0002,tc-cus-0002,Harbor Dental (synthetic),sub_tc_0002,price_tc_starter_m,USD,450.00,month,1,2026-03-01,2026-04-01,paid,2026-03-01
+il_tc_00025,in_tc_202604_0002,tc-cus-0002,Harbor Dental (synthetic),sub_tc_0002,price_tc_starter_m,USD,450.00,month,1,2026-04-01,2026-05-01,paid,2026-04-01
+il_tc_00026,in_tc_202605_0002,tc-cus-0002,Harbor Dental (synthetic),sub_tc_0002,price_tc_starter_m,USD,450.00,month,1,2026-05-01,2026-06-01,paid,2026-05-01
+il_tc_00027,in_tc_202606_0002,tc-cus-0002,Harbor Dental (synthetic),sub_tc_0002,price_tc_starter_m,USD,450.00,month,1,2026-06-01,2026-07-01,paid,2026-06-01
+il_tc_00028,in_tc_202607_0002,tc-cus-0002,Harbor Dental (synthetic),sub_tc_0002,price_tc_starter_m,USD,450.00,month,1,2026-07-01,2026-08-01,paid,2026-07-01
+il_tc_00029,in_tc_202608_0002,tc-cus-0002,Harbor Dental (synthetic),sub_tc_0002,price_tc_starter_m,USD,450.00,month,1,2026-08-01,2026-09-01,paid,2026-08-01
+il_tc_00030,in_tc_202609_0002,tc-cus-0002,Harbor Dental (synthetic),sub_tc_0002,price_tc_starter_m,USD,450.00,month,1,2026-09-01,2026-10-01,paid,2026-09-01
+il_tc_00031,in_tc_202507_0003,tc-cus-0003,Ironleaf Retail (synthetic),sub_tc_0003,price_tc_growth_m,USD,2100.00,month,1,2025-07-01,2025-08-01,paid,2025-07-01
+il_tc_00032,in_tc_202508_0003,tc-cus-0003,Ironleaf Retail (synthetic),sub_tc_0003,price_tc_growth_m,USD,2100.00,month,1,2025-08-01,2025-09-01,paid,2025-08-01
+il_tc_00033,in_tc_202509_0003,tc-cus-0003,Ironleaf Retail (synthetic),sub_tc_0003,price_tc_growth_m,USD,2100.00,month,1,2025-09-01,2025-10-01,paid,2025-09-01
+il_tc_00034,in_tc_202510_0003,tc-cus-0003,Ironleaf Retail (synthetic),sub_tc_0003,price_tc_growth_m,USD,2100.00,month,1,2025-10-01,2025-11-01,paid,2025-10-01
+il_tc_00035,in_tc_202511_0003,tc-cus-0003,Ironleaf Retail (synthetic),sub_tc_0003,price_tc_growth_m,USD,2100.00,month,1,2025-11-01,2025-12-01,paid,2025-11-01
+il_tc_00036,in_tc_202512_0003,tc-cus-0003,Ironleaf Retail (synthetic),sub_tc_0003,price_tc_growth_m,USD,2100.00,month,1,2025-12-01,2026-01-01,paid,2025-12-01
+il_tc_00037,in_tc_202601_0003,tc-cus-0003,Ironleaf Retail (synthetic),sub_tc_0003,price_tc_growth_m,USD,2100.00,month,1,2026-01-01,2026-02-01,paid,2026-01-01
+il_tc_00038,in_tc_202602_0003,tc-cus-0003,Ironleaf Retail (synthetic),sub_tc_0003,price_tc_growth_m,USD,2100.00,month,1,2026-02-01,2026-03-01,paid,2026-02-01
+il_tc_00039,in_tc_202603_0003,tc-cus-0003,Ironleaf Retail (synthetic),sub_tc_0003,price_tc_growth_m,USD,2100.00,month,1,2026-03-01,2026-04-01,paid,2026-03-01
+il_tc_00040,in_tc_202604_0003,tc-cus-0003,Ironleaf Retail (synthetic),sub_tc_0003,price_tc_growth_m,USD,2100.00,month,1,2026-04-01,2026-05-01,paid,2026-04-01
+il_tc_00041,in_tc_202605_0003,tc-cus-0003,Ironleaf Retail (synthetic),sub_tc_0003,price_tc_growth_m,USD,2100.00,month,1,2026-05-01,2026-06-01,paid,2026-05-01
+il_tc_00042,in_tc_202606_0003,tc-cus-0003,Ironleaf Retail (synthetic),sub_tc_0003,price_tc_growth_m,USD,2100.00,month,1,2026-06-01,2026-07-01,paid,2026-06-01
+il_tc_00043,in_tc_202607_0003,tc-cus-0003,Ironleaf Retail (synthetic),sub_tc_0003,price_tc_growth_m,USD,2100.00,month,1,2026-07-01,2026-08-01,paid,2026-07-01
+il_tc_00044,in_tc_202608_0003,tc-cus-0003,Ironleaf Retail (synthetic),sub_tc_0003,price_tc_growth_m,USD,2100.00,month,1,2026-08-01,2026-09-01,paid,2026-08-01
+il_tc_00045,in_tc_202609_0003,tc-cus-0003,Ironleaf Retail (synthetic),sub_tc_0003,price_tc_growth_m,USD,2100.00,month,1,2026-09-01,2026-10-01,paid,2026-09-01
+il_tc_00046,in_tc_202601_0004,tc-cus-0004,Juniper & Co (synthetic),sub_tc_0004,price_tc_starter_m,USD,300.00,month,1,2026-01-01,2026-02-01,paid,2026-01-01
+il_tc_00047,in_tc_202602_0004,tc-cus-0004,Juniper & Co (synthetic),sub_tc_0004,price_tc_starter_m,USD,300.00,month,1,2026-02-01,2026-03-01,paid,2026-02-01
+il_tc_00048,in_tc_202603_0004,tc-cus-0004,Juniper & Co (synthetic),sub_tc_0004,price_tc_starter_m,USD,300.00,month,1,2026-03-01,2026-04-01,paid,2026-03-01
+il_tc_00049,in_tc_202604_0004,tc-cus-0004,Juniper & Co (synthetic),sub_tc_0004,price_tc_starter_m,USD,300.00,month,1,2026-04-01,2026-05-01,paid,2026-04-01
+il_tc_00050,in_tc_202605_0004,tc-cus-0004,Juniper & Co (synthetic),sub_tc_0004,price_tc_starter_m,USD,300.00,month,1,2026-05-01,2026-06-01,paid,2026-05-01
+il_tc_00051,in_tc_202606_0004,tc-cus-0004,Juniper & Co (synthetic),sub_tc_0004,price_tc_starter_m,USD,300.00,month,1,2026-06-01,2026-07-01,paid,2026-06-01
+il_tc_00052,in_tc_202607_0004,tc-cus-0004,Juniper & Co (synthetic),sub_tc_0004,price_tc_starter_m,USD,300.00,month,1,2026-07-01,2026-08-01,paid,2026-07-01
+il_tc_00053,in_tc_202608_0004,tc-cus-0004,Juniper & Co (synthetic),sub_tc_0004,price_tc_starter_m,USD,300.00,month,1,2026-08-01,2026-09-01,paid,2026-08-01
+il_tc_00054,in_tc_202609_0004,tc-cus-0004,Juniper & Co (synthetic),sub_tc_0004,price_tc_starter_m,USD,300.00,month,1,2026-09-01,2026-10-01,paid,2026-09-01
+il_tc_00055,in_tc_202507_0005,tc-cus-0005,Kestrel Insurance UK (synthetic),sub_tc_0005,price_tc_growth_gbp_m,GBP,1500.00,month,1,2025-07-01,2025-08-01,paid,2025-07-01
+il_tc_00056,in_tc_202508_0005,tc-cus-0005,Kestrel Insurance UK (synthetic),sub_tc_0005,price_tc_growth_gbp_m,GBP,1500.00,month,1,2025-08-01,2025-09-01,paid,2025-08-01
+il_tc_00057,in_tc_202509_0005,tc-cus-0005,Kestrel Insurance UK (synthetic),sub_tc_0005,price_tc_growth_gbp_m,GBP,1500.00,month,1,2025-09-01,2025-10-01,paid,2025-09-01
+il_tc_00058,in_tc_202510_0005,tc-cus-0005,Kestrel Insurance UK (synthetic),sub_tc_0005,price_tc_growth_gbp_m,GBP,1500.00,month,1,2025-10-01,2025-11-01,paid,2025-10-01
+il_tc_00059,in_tc_202511_0005,tc-cus-0005,Kestrel Insurance UK (synthetic),sub_tc_0005,price_tc_growth_gbp_m,GBP,1500.00,month,1,2025-11-01,2025-12-01,paid,2025-11-01
+il_tc_00060,in_tc_202512_0005,tc-cus-0005,Kestrel Insurance UK (synthetic),sub_tc_0005,price_tc_growth_gbp_m,GBP,1500.00,month,1,2025-12-01,2026-01-01,paid,2025-12-01
+il_tc_00061,in_tc_202601_0005,tc-cus-0005,Kestrel Insurance UK (synthetic),sub_tc_0005,price_tc_growth_gbp_m,GBP,1500.00,month,1,2026-01-01,2026-02-01,paid,2026-01-01
+il_tc_00062,in_tc_202602_0005,tc-cus-0005,Kestrel Insurance UK (synthetic),sub_tc_0005,price_tc_growth_gbp_m,GBP,1500.00,month,1,2026-02-01,2026-03-01,paid,2026-02-01
+il_tc_00063,in_tc_202603_0005,tc-cus-0005,Kestrel Insurance UK (synthetic),sub_tc_0005,price_tc_growth_gbp_m,GBP,1500.00,month,1,2026-03-01,2026-04-01,paid,2026-03-01
+il_tc_00064,in_tc_202604_0005,tc-cus-0005,Kestrel Insurance UK (synthetic),sub_tc_0005,price_tc_growth_gbp_m,GBP,1500.00,month,1,2026-04-01,2026-05-01,paid,2026-04-01
+il_tc_00065,in_tc_202605_0005,tc-cus-0005,Kestrel Insurance UK (synthetic),sub_tc_0005,price_tc_growth_gbp_m,GBP,1500.00,month,1,2026-05-01,2026-06-01,paid,2026-05-01
+il_tc_00066,in_tc_202606_0005,tc-cus-0005,Kestrel Insurance UK (synthetic),sub_tc_0005,price_tc_growth_gbp_m,GBP,1500.00,month,1,2026-06-01,2026-07-01,paid,2026-06-01
+il_tc_00067,in_tc_202607_0005,tc-cus-0005,Kestrel Insurance UK (synthetic),sub_tc_0005,price_tc_growth_gbp_m,GBP,1500.00,month,1,2026-07-01,2026-08-01,paid,2026-07-01
+il_tc_00068,in_tc_202608_0005,tc-cus-0005,Kestrel Insurance UK (synthetic),sub_tc_0005,price_tc_growth_gbp_m,GBP,1500.00,month,1,2026-08-01,2026-09-01,paid,2026-08-01
+il_tc_00069,in_tc_202609_0005,tc-cus-0005,Kestrel Insurance UK (synthetic),sub_tc_0005,price_tc_growth_gbp_m,GBP,1500.00,month,1,2026-09-01,2026-10-01,paid,2026-09-01
+il_tc_00070,in_tc_202607_0006,tc-cus-0006,Lumen Bank (synthetic),sub_tc_0006,price_tc_enterprise_m,USD,60000.00,month,1,2026-07-01,2026-08-01,void,2026-07-01
+il_tc_00071,in_tc_202608_0006,tc-cus-0006,Lumen Bank (synthetic),sub_tc_0006,price_tc_enterprise_m,USD,60000.00,month,1,2026-08-01,2026-09-01,void,2026-08-01
+il_tc_00072,in_tc_202609_0006,tc-cus-0006,Lumen Bank (synthetic),sub_tc_0006,price_tc_enterprise_m,USD,60000.00,month,1,2026-09-01,2026-10-01,void,2026-09-01
+il_tc_00073,in_tc_202606_0007,tc-cus-0007,Mesa Health (synthetic),sub_tc_0007,price_tc_enterprise_m,USD,25000.00,month,1,2026-06-01,2026-07-01,uncollectible,2026-06-01
+il_tc_00074,in_tc_202607_0007,tc-cus-0007,Mesa Health (synthetic),sub_tc_0007,price_tc_enterprise_m,USD,25000.00,month,1,2026-07-01,2026-08-01,uncollectible,2026-07-01
+il_tc_00075,in_tc_202608_0007,tc-cus-0007,Mesa Health (synthetic),sub_tc_0007,price_tc_enterprise_m,USD,25000.00,month,1,2026-08-01,2026-09-01,uncollectible,2026-08-01
+il_tc_00076,in_tc_202609_0007,tc-cus-0007,Mesa Health (synthetic),sub_tc_0007,price_tc_enterprise_m,USD,25000.00,month,1,2026-09-01,2026-10-01,uncollectible,2026-09-01
+il_tc_00077,in_tc_202609_ps07,tc-cus-0007,Mesa Health (synthetic),,price_tc_services,USD,150000.00,,,2026-09-15,2026-09-15,paid,2026-09-15
+il_tc_00078,in_tc_202507_0008,tc-cus-0008,Nimbus Travel (synthetic),sub_tc_0008,price_tc_growth_m,USD,3200.00,month,1,2025-07-01,2025-08-01,paid,2025-07-01
+il_tc_00079,in_tc_202508_0008,tc-cus-0008,Nimbus Travel (synthetic),sub_tc_0008,price_tc_growth_m,USD,3200.00,month,1,2025-08-01,2025-09-01,paid,2025-08-01
+il_tc_00080,in_tc_202509_0008,tc-cus-0008,Nimbus Travel (synthetic),sub_tc_0008,price_tc_growth_m,USD,3200.00,month,1,2025-09-01,2025-10-01,paid,2025-09-01
+il_tc_00081,in_tc_202510_0008,tc-cus-0008,Nimbus Travel (synthetic),sub_tc_0008,price_tc_growth_m,USD,3200.00,month,1,2025-10-01,2025-11-01,paid,2025-10-01
+il_tc_00082,in_tc_202511_0008,tc-cus-0008,Nimbus Travel (synthetic),sub_tc_0008,price_tc_growth_m,USD,3200.00,month,1,2025-11-01,2025-12-01,paid,2025-11-01
+il_tc_00083,in_tc_202512_0008,tc-cus-0008,Nimbus Travel (synthetic),sub_tc_0008,price_tc_growth_m,USD,3200.00,month,1,2025-12-01,2026-01-01,paid,2025-12-01
+il_tc_00084,in_tc_202601_0008,tc-cus-0008,Nimbus Travel (synthetic),sub_tc_0008,price_tc_growth_m,USD,3200.00,month,1,2026-01-01,2026-02-01,paid,2026-01-01
+il_tc_00085,in_tc_202602_0008,tc-cus-0008,Nimbus Travel (synthetic),sub_tc_0008,price_tc_growth_m,USD,3200.00,month,1,2026-02-01,2026-03-01,paid,2026-02-01

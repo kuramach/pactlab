@@ -190,6 +190,9 @@ importers:
       '@pactlab/ai':
         specifier: workspace:*
         version: link:../../packages/ai
+      '@pactlab/calculations':
+        specifier: workspace:*
+        version: link:../../packages/calculations
       '@pactlab/config':
         specifier: workspace:*
         version: link:../../packages/config
@@ -245,13 +248,19 @@ importers:
       '@pactlab/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@pactlab/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
+      zod:
+        specifier: 4.6.5
+        version: 4.6.5
     devDependencies:
       '@pactlab/config':
         specifier: workspace:*
         version: link:../../packages/config
-      '@pactlab/domain':
+      '@pactlab/connectors':
         specifier: workspace:*
-        version: link:../../packages/domain
+        version: link:../../packages/connectors
       '@types/node':
         specifier: 22.20.5
         version: 22.20.5

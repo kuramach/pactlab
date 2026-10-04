@@ -25,6 +25,12 @@
       "evidenceType": "management.kpi",
       "recordIdColumn": "kpi_id",
       "observedAtColumn": "as_of"
+    },
+    {
+      "dataset": "HealthyCo/stripe-invoice-lines.csv",
+      "evidenceType": "billing.invoice_line",
+      "recordIdColumn": "line_id",
+      "observedAtColumn": "created"
     }
   ]
 }
