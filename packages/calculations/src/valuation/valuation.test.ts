@@ -291,7 +291,8 @@ describe('stale propagation', () => {
       high: adjustment.high,
     },
   });
-  const current = () => new Map(adjustments.map((a) => [a.findingId, accepted(a)]));
+  const current = (): Map<string, LinkedFindingState | null> =>
+    new Map(adjustments.map((a) => [a.findingId, accepted(a)]));
   const base = { resultAssumptionVersion: 2, currentAssumptionVersion: 2, adjustments };
 
   it('is fresh while assumptions and every linked accepted risk are unchanged', () => {
