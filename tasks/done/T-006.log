@@ -1,0 +1,347 @@
+Preparing worktree (new branch 'agent/T-006')
+HEAD is now at 7400fd7 chore: claim T-006
+=== launching claude for T-006 ===
+T-006 is built and all three checks pass. The branch is pushed to `origin/agent/T-006` (commit `d745eb9`). I didn't merge, touch `main` or open a PR, since you asked only for a push. CLAUDE.md does say a PR is required for "done", so a PR still needs to be opened.
+
+**Before merge: two edits outside the `Touches:` list, plus a module that is coded but not switched on**
+- **Changed `apps/api/package.json` and `pnpm-lock.yaml`.** I added the `@pactlab/ai` workspace dependency (3 lines in the lockfile). Without it the documents code can't import the AI gateway.
+- **Documents are not saved to a database yet.** Storage goes through an interface, and tests use an in-memory version. The tables for documents, pages, AI runs and document findings need a schema task, because `packages/db` isn't in my scope.
+- **The documents module isn't mounted in the API.** That needs a change to `app.module.ts`, which is also out of scope. T-004 left its findings module in the same state.
+- **No live connection to Claude.** The gateway sends requests through a pluggable "transport", and tests replay recorded responses with no network access. The real AWS Bedrock connection is left for T-007. Model IDs come from spec §11: Sonnet 5.5 is the default, and `anthropic.claude-opus-5-5` is my assumption from the spec's naming pattern.
+- **Uploads accept text and Markdown only.** PDFs need an extraction library, which I didn't add. The API rejects them with 415.
+
+**What's covered**
+- **Uploads:** checks on file type, size and encoding; a virus-scan hook that refuses the upload if the scanner is down; storage under organization/deal-scoped keys; retention classes, with purge blocked under legal hold. The same file uploaded twice returns the existing document.
+- **Q&A and contract extraction:** answers and extracted terms cite exact pages, and every quote must appear word-for-word on the cited page. Extraction only ever creates DRAFT findings.
+- **Review:** only a deal lead or reviewer can accept or reject, and acceptance re-checks every citation against the current page text. HR-classified or AI-excluded documents never reach the model.
+- **Acceptance criteria, tested:**
+  - Every accepted finding has exact page citations and a named human reviewer. AI or unnamed reviewers are refused.
+  - Citations to sources the model wasn't given, wrong-page quotes, paraphrases and quotes of injected instructions are all rejected.
+  - Model output that tries to set a review status fails validation after one repair attempt, and text can't break out of the source markers.
+- **Evals:** a small synthetic golden set runs in `pnpm test`. It requires 100% correct page citations and every probe blocked. It also fails if a prompt changes without re-recording the saved responses.
+- **Web:** `/documents` shows the page on the left with cited quotes highlighted, and the review queue on the right with citation links and model/prompt labels. It shows the signed-out state for now, because web sign-in isn't wired yet.
+
+**Files**
+- `packages/ai/src/`: gateway, models, transport, context, citations, injection, grounding, hash, `prompts/{registry,document-qa,contract-extract,index}`, `evals/{golden,run,evals.test}`, plus tests (`gateway.test.ts`, `citations.test.ts`)
+- `apps/api/src/documents/`: types, upload-policy, extraction, document-findings, repository, schemas, service, controller, module, testing doubles, `documents.unit.test.ts`, `documents.api.test.ts`
+- `apps/web/app/(app)/documents/`: `page.tsx`, `_lib/view.ts`, `_lib/view.test.ts`
+- `apps/api/package.json`, `pnpm-lock.yaml`
+
+**Commands**
+- `pnpm install`, then `pnpm --filter @pactlab/db generate`: both succeeded
+- `pnpm lint`: exit 0, 15/15 tasks
+- `pnpm typecheck`: exit 0, 15/15 tasks
+- `pnpm test`: exit 0, 15/15 tasks (ai 35, api 54, web 9 tests; all other packages green)
+- `prettier --write` on the new files only
+- `git push -u origin agent/T-006`: succeeded
+
+`tasks/active/T-006.md` hasn't been moved to `tasks/review`; I left that for the loop.
+
+Separately: the Google Drive, Resend and Vercel connections need authorizing in their connector settings before they can be used. Nothing in this task depended on them.
+=== pnpm install ===
+Scope: all 15 workspace projects
+Already up to date
+Done in 5ms using pnpm v12.8.1
+=== checks: pnpm lint && pnpm typecheck && pnpm test ===
+$ turbo run lint
+
+   • turbo 2.11.7
+   • Packages in scope: @pactlab/ai, @pactlab/api, @pactlab/calculations, @pactlab/cdk, @pactlab/config, @pactlab/connectors, @pactlab/contracts, @pactlab/db, @pactlab/domain, @pactlab/observability, @pactlab/scanner-orchestrator, @pactlab/ui, @pactlab/web, @pactlab/worker
+   • Running lint in 14 packages
+   • Remote caching disabled, using shared worktree cache
+
+@pactlab/scanner-orchestrator:lint: cache hit, replaying logs 691df08746dd6ec4
+@pactlab/connectors:lint: cache hit, replaying logs 2f905df6b4e2e541
+@pactlab/web:lint: cache hit, replaying logs 22df6aebbc26f58f
+@pactlab/observability:lint: cache hit, replaying logs 59e919454233cb89
+@pactlab/scanner-orchestrator:lint: $ eslint .
+@pactlab/cdk:lint: cache hit, replaying logs c9831f13022ff05e
+@pactlab/connectors:lint: $ eslint .
+@pactlab/web:lint: $ eslint .
+@pactlab/db:generate: cache hit, replaying logs f70d92ff592b3f17
+@pactlab/domain:lint: cache hit, replaying logs d4257ea80e8f4a04
+@pactlab/observability:lint: $ eslint .
+@pactlab/contracts:lint: cache hit, replaying logs dabd65593a8d368d
+@pactlab/cdk:lint: $ eslint .
+@pactlab/domain:lint: $ eslint .
+@pactlab/ui:lint: cache hit, replaying logs 9926180e01858a2d
+@pactlab/ai:lint: cache hit, replaying logs 7fceed32d8cc0ec9
+@pactlab/db:generate: $ prisma generate
+@pactlab/db:generate: [2mLoaded Prisma config from prisma.config.ts.
+@pactlab/db:generate: [22m
+@pactlab/db:generate: [2mPrisma schema loaded from prisma/schema.prisma.[22m
+@pactlab/db:generate: 
+@pactlab/db:generate: ✔ Generated [1mPrisma Client[22m (7.10.0)[2m to ./src/generated/prisma[22m in 72ms
+@pactlab/db:generate: 
+@pactlab/contracts:lint: $ eslint .
+@pactlab/ai:lint: $ eslint .
+@pactlab/calculations:lint: cache hit, replaying logs d1ab4b91cf222448
+@pactlab/ui:lint: $ eslint .
+@pactlab/api:lint: cache miss, executing cad1f26ae56fbfa1
+@pactlab/config:lint: cache hit, replaying logs 4c61e1fc4ace7e08
+@pactlab/calculations:lint: $ eslint .
+@pactlab/config:lint: $ eslint .
+@pactlab/worker:lint: cache hit, replaying logs 881c4c3ca878a218
+@pactlab/db:lint: cache hit, replaying logs fe08691acd207663
+@pactlab/worker:lint: $ eslint .
+@pactlab/db:lint: $ eslint .
+@pactlab/api:lint: $ eslint .
+
+ Tasks:    15 successful, 15 total
+Cached:    14 cached, 15 total
+  Time:    575ms 
+
+$ turbo run typecheck
+
+   • turbo 2.11.7
+   • Packages in scope: @pactlab/ai, @pactlab/api, @pactlab/calculations, @pactlab/cdk, @pactlab/config, @pactlab/connectors, @pactlab/contracts, @pactlab/db, @pactlab/domain, @pactlab/observability, @pactlab/scanner-orchestrator, @pactlab/ui, @pactlab/web, @pactlab/worker
+   • Running typecheck in 14 packages
+   • Remote caching disabled, using shared worktree cache
+
+@pactlab/db:generate: cache hit, replaying logs f70d92ff592b3f17
+@pactlab/db:generate: $ prisma generate
+@pactlab/db:generate: [2mLoaded Prisma config from prisma.config.ts.
+@pactlab/db:generate: [22m
+@pactlab/db:generate: [2mPrisma schema loaded from prisma/schema.prisma.[22m
+@pactlab/db:generate: 
+@pactlab/db:generate: ✔ Generated [1mPrisma Client[22m (7.10.0)[2m to ./src/generated/prisma[22m in 72ms
+@pactlab/db:generate: 
+@pactlab/config:typecheck: cache hit, replaying logs 769f7b119a5adf7e
+@pactlab/scanner-orchestrator:typecheck: cache hit, replaying logs c809b88fbb6bd438
+@pactlab/ui:typecheck: cache hit, replaying logs 7ecb444c38f0da08
+@pactlab/connectors:typecheck: cache hit, replaying logs 8686df26534e112c
+@pactlab/calculations:typecheck: cache hit, replaying logs cae4de42fc1d08e8
+@pactlab/contracts:typecheck: cache hit, replaying logs a80efe86b0f09a50
+@pactlab/scanner-orchestrator:typecheck: $ tsc -p tsconfig.json
+@pactlab/config:typecheck: $ tsc -p tsconfig.json
+@pactlab/ui:typecheck: $ tsc -p tsconfig.json
+@pactlab/calculations:typecheck: $ tsc -p tsconfig.json
+@pactlab/connectors:typecheck: $ tsc -p tsconfig.json
+@pactlab/contracts:typecheck: $ tsc -p tsconfig.json
+@pactlab/cdk:typecheck: cache hit, replaying logs 55af0af7158791ad
+@pactlab/ai:typecheck: cache hit, replaying logs 566634ad6893e4cb
+@pactlab/observability:typecheck: cache hit, replaying logs 91df922148fd580b
+@pactlab/domain:typecheck: cache hit, replaying logs 75253eca35417c5c
+@pactlab/cdk:typecheck: $ tsc -p tsconfig.json
+@pactlab/ai:typecheck: $ tsc -p tsconfig.json
+@pactlab/domain:typecheck: $ tsc -p tsconfig.json
+@pactlab/api:typecheck: cache miss, executing 5f5004074a2037dc
+@pactlab/observability:typecheck: $ tsc -p tsconfig.json
+@pactlab/web:typecheck: cache hit, replaying logs d7d9b0c497817ee0
+@pactlab/web:typecheck: $ tsc -p tsconfig.json
+@pactlab/db:typecheck: cache hit, replaying logs c75b9c61c470a609
+@pactlab/worker:typecheck: cache hit, replaying logs f645d715e08f9642
+@pactlab/db:typecheck: $ tsc -p tsconfig.json
+@pactlab/worker:typecheck: $ tsc -p tsconfig.json
+@pactlab/api:typecheck: $ tsc -p tsconfig.json
+
+ Tasks:    15 successful, 15 total
+Cached:    14 cached, 15 total
+  Time:    1.174s 
+
+$ turbo run test
+
+   • turbo 2.11.7
+   • Packages in scope: @pactlab/ai, @pactlab/api, @pactlab/calculations, @pactlab/cdk, @pactlab/config, @pactlab/connectors, @pactlab/contracts, @pactlab/db, @pactlab/domain, @pactlab/observability, @pactlab/scanner-orchestrator, @pactlab/ui, @pactlab/web, @pactlab/worker
+   • Running test in 14 packages
+   • Remote caching disabled, using shared worktree cache
+
+@pactlab/db:generate: cache hit, replaying logs f70d92ff592b3f17
+@pactlab/db:generate: $ prisma generate
+@pactlab/db:generate: [2mLoaded Prisma config from prisma.config.ts.
+@pactlab/db:generate: [22m
+@pactlab/db:generate: [2mPrisma schema loaded from prisma/schema.prisma.[22m
+@pactlab/db:generate: 
+@pactlab/db:generate: ✔ Generated [1mPrisma Client[22m (7.10.0)[2m to ./src/generated/prisma[22m in 72ms
+@pactlab/db:generate: 
+@pactlab/ui:test: cache hit, replaying logs d642db01359d2c81
+@pactlab/contracts:test: cache hit, replaying logs 786d3dc66dae4d03
+@pactlab/scanner-orchestrator:test: cache hit, replaying logs 5553f6c0d3965048
+@pactlab/domain:test: cache hit, replaying logs 6eadd1f3c2fcb24e
+@pactlab/observability:test: cache hit, replaying logs 8bf0098eff62b5d3
+@pactlab/ui:test: $ vitest run
+@pactlab/ui:test: 
+@pactlab/ui:test: [1m[30m[46m RUN [49m[39m[22m [36mv5.0.3 [39m[90m/Users/kumar/projects/pactlab-wt-T-001/packages/ui[39m
+@pactlab/ui:test: 
+@pactlab/ui:test:  [32m✓[39m src/ui.test.tsx [2m([22m[2m4 tests[22m[2m)[22m[32m 14[2mms[22m[39m
+@pactlab/scanner-orchestrator:test: $ vitest run
+@pactlab/ui:test: 
+@pactlab/ui:test: [2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+@pactlab/contracts:test: $ vitest run
+@pactlab/domain:test: $ vitest run
+@pactlab/domain:test: 
+@pactlab/domain:test: [1m[30m[46m RUN [49m[39m[22m [36mv5.0.3 [39m[90m/Users/kumar/projects/pactlab-wt-T-002/packages/domain[39m
+@pactlab/domain:test: 
+@pactlab/observability:test: $ vitest run
+@pactlab/domain:test:  [32m✓[39m src/object-keys.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 2[2mms[22m[39m
+@pactlab/domain:test:  [32m✓[39m src/roles.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 4[2mms[22m[39m
+@pactlab/cdk:test: cache hit, replaying logs 7b1d3f89de54612e
+@pactlab/domain:test:  [32m✓[39m src/evidence/evidence.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+@pactlab/domain:test: 
+@pactlab/domain:test: [2m Test Files [22m [1m[32m3 passed[39m[22m[90m (3)[39m
+@pactlab/web:test: cache hit, replaying logs 736c759f6f65abbc
+@pactlab/ui:test: [2m      Tests [22m [1m[32m4 passed[39m[22m[90m (4)[39m
+@pactlab/scanner-orchestrator:test: 
+@pactlab/calculations:test: cache hit, replaying logs 6d58018d8e8ae70d
+@pactlab/contracts:test: 
+@pactlab/scanner-orchestrator:test: [1m[30m[46m RUN [49m[39m[22m [36mv5.0.3 [39m[90m/Users/kumar/projects/pactlab-wt-T-001/apps/scanner-orchestrator[39m
+@pactlab/scanner-orchestrator:test: 
+@pactlab/scanner-orchestrator:test:  [32m✓[39m src/orchestrator.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+@pactlab/scanner-orchestrator:test: 
+@pactlab/scanner-orchestrator:test: [2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+@pactlab/scanner-orchestrator:test: [2m      Tests [22m [1m[32m2 passed[39m[22m[90m (2)[39m
+@pactlab/scanner-orchestrator:test: [2m   Start at [22m 16:08:38
+@pactlab/scanner-orchestrator:test: [2m   Duration [22m 287ms[2m (transform 65%, import 30%, tests 3%, worker 2%)[22m
+@pactlab/observability:test: 
+@pactlab/observability:test: [1m[30m[46m RUN [49m[39m[22m [36mv5.0.3 [39m[90m/Users/kumar/projects/pactlab-wt-T-001/packages/observability[39m
+@pactlab/observability:test: 
+@pactlab/observability:test:  [32m✓[39m src/logger.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+@pactlab/ai:test: cache hit, replaying logs ba34f24daa63aa2c
+@pactlab/domain:test: [2m      Tests [22m [1m[32m14 passed[39m[22m[90m (14)[39m
+@pactlab/domain:test: [2m   Start at [22m 18:43:27
+@pactlab/domain:test: [2m   Duration [22m 167ms[2m (transform 70%, import 18%, tests 7%, worker 5%)[22m
+@pactlab/config:test: cache hit, replaying logs e82e9fa432b33f37
+@pactlab/ui:test: [2m   Start at [22m 16:08:38
+@pactlab/web:test: $ vitest run
+@pactlab/ui:test: [2m   Duration [22m 256ms[2m (transform 68%, import 20%, tests 9%, worker 3%)[22m
+@pactlab/observability:test: 
+@pactlab/scanner-orchestrator:test: 
+@pactlab/domain:test: 
+@pactlab/ui:test: 
+@pactlab/observability:test: [2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+@pactlab/calculations:test: $ vitest run
+@pactlab/config:test: $ vitest run
+@pactlab/contracts:test: [1m[30m[46m RUN [49m[39m[22m [36mv5.0.3 [39m[90m/Users/kumar/projects/pactlab-wt-T-001/packages/contracts[39m
+@pactlab/observability:test: [2m      Tests [22m [1m[32m2 passed[39m[22m[90m (2)[39m
+@pactlab/ai:test: $ vitest run
+@pactlab/observability:test: [2m   Start at [22m 16:08:38
+@pactlab/observability:test: [2m   Duration [22m 114ms[2m (import 42%, transform 37%, tests 16%, worker 5%)[22m
+@pactlab/observability:test: 
+@pactlab/web:test: 
+@pactlab/ai:test: 
+@pactlab/cdk:test: $ vitest run
+@pactlab/web:test: [1m[30m[46m RUN [49m[39m[22m [36mv5.0.3 [39m[90m/Users/kumar/projects/pactlab-wt-T-006/apps/web[39m
+@pactlab/ai:test: [1m[30m[46m RUN [49m[39m[22m [36mv5.0.3 [39m[90m/Users/kumar/projects/pactlab-wt-T-006/packages/ai[39m
+@pactlab/web:test: 
+@pactlab/config:test: [33m(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+@pactlab/contracts:test: 
+@pactlab/ai:test: 
+@pactlab/config:test:   - import "./vitest.shared" without a file extension (vitest.config.ts:1:28). Add the file extension
+@pactlab/contracts:test:  [32m✓[39m src/contracts.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+@pactlab/contracts:test: 
+@pactlab/calculations:test: 
+@pactlab/contracts:test: [2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+@pactlab/web:test:  [32m✓[39m app/(app)/documents/_lib/view.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 2[2mms[22m[39m
+@pactlab/cdk:test: 
+@pactlab/calculations:test: [1m[30m[46m RUN [49m[39m[22m [36mv5.0.3 [39m[90m/Users/kumar/projects/pactlab-wt-T-001/packages/calculations[39m
+@pactlab/api:test: cache miss, executing 1a91c7a6e541cb60
+@pactlab/cdk:test: [1m[30m[46m RUN [49m[39m[22m [36mv5.0.3 [39m[90m/Users/kumar/projects/pactlab-wt-T-001/infra/cdk[39m
+@pactlab/calculations:test: 
+@pactlab/ai:test:  [32m✓[39m src/citations.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 4[2mms[22m[39m
+@pactlab/ai:test:  [32m✓[39m src/gateway.test.ts [2m([22m[2m12 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+@pactlab/calculations:test:  [32m✓[39m src/money.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+@pactlab/contracts:test: [2m      Tests [22m [1m[32m3 passed[39m[22m[90m (3)[39m
+@pactlab/calculations:test: 
+@pactlab/web:test:  [32m✓[39m app/(app)/deals/_lib/filters.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 3[2mms[22m[39m
+@pactlab/calculations:test: [2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+@pactlab/web:test:  [32m✓[39m lib/navigation.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 2[2mms[22m[39m
+@pactlab/cdk:test: 
+@pactlab/config:test: Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.[39m
+@pactlab/contracts:test: [2m   Start at [22m 16:08:38
+@pactlab/web:test: 
+@pactlab/config:test: 
+@pactlab/web:test: [2m Test Files [22m [1m[32m3 passed[39m[22m[90m (3)[39m
+@pactlab/web:test: [2m      Tests [22m [1m[32m9 passed[39m[22m[90m (9)[39m
+@pactlab/ai:test:  [32m✓[39m src/evals/evals.test.ts [2m([22m[2m15 tests[22m[2m)[22m[32m 3[2mms[22m[39m
+@pactlab/ai:test: 
+@pactlab/calculations:test: [2m      Tests [22m [1m[32m9 passed[39m[22m[90m (9)[39m
+@pactlab/ai:test: [2m Test Files [22m [1m[32m3 passed[39m[22m[90m (3)[39m
+@pactlab/calculations:test: [2m   Start at [22m 16:08:39
+@pactlab/contracts:test: [2m   Duration [22m 338ms[2m (transform 75%, import 21%, tests 3%, worker 1%)[22m
+@pactlab/config:test: [1m[30m[46m RUN [49m[39m[22m [36mv5.0.3 [39m[90m/Users/kumar/projects/pactlab-wt-T-001/packages/config[39m
+@pactlab/web:test: [2m   Start at [22m 04:52:08
+@pactlab/cdk:test:  [32m✓[39m test/dev-stack.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 1437[2mms[22m[39m
+@pactlab/calculations:test: [2m   Duration [22m 167ms[2m (transform 57%, import 23%, tests 14%, worker 5%)[22m
+@pactlab/contracts:test: 
+@pactlab/ai:test: [2m      Tests [22m [1m[32m35 passed[39m[22m[90m (35)[39m
+@pactlab/config:test: 
+@pactlab/config:test:  [32m✓[39m src/env.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+@pactlab/cdk:test: 
+@pactlab/cdk:test: [2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+@pactlab/config:test: 
+@pactlab/cdk:test: [2m      Tests [22m [1m[32m5 passed[39m[22m[90m (5)[39m
+@pactlab/cdk:test: [2m   Start at [22m 16:08:38
+@pactlab/calculations:test: 
+@pactlab/config:test: [2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+@pactlab/ai:test: [2m   Start at [22m 04:52:08
+@pactlab/ai:test: [2m   Duration [22m 258ms[2m (transform 60%, import 35%, tests 4%, worker 1%)[22m
+@pactlab/cdk:test: [2m   Duration [22m 1.83s[2m (tests 81%, import 17%, transform 1%)[22m
+@pactlab/cdk:test: 
+@pactlab/web:test: [2m   Duration [22m 183ms[2m (transform 69%, import 22%, worker 6%, tests 4%)[22m
+@pactlab/config:test: [2m      Tests [22m [1m[32m4 passed[39m[22m[90m (4)[39m
+@pactlab/ai:test: 
+@pactlab/config:test: [2m   Start at [22m 16:08:38
+@pactlab/config:test: [2m   Duration [22m 159ms[2m (import 60%, transform 29%, tests 9%, worker 2%)[22m
+@pactlab/config:test: 
+@pactlab/web:test: 
+@pactlab/connectors:test: cache hit, replaying logs 1ec5ee1ad9c59a1e
+@pactlab/connectors:test: $ vitest run
+@pactlab/connectors:test: 
+@pactlab/connectors:test: [1m[30m[46m RUN [49m[39m[22m [36mv5.0.3 [39m[90m/Users/kumar/projects/pactlab-wt-T-001/packages/connectors[39m
+@pactlab/connectors:test: 
+@pactlab/connectors:test:  [32m✓[39m src/contract.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 3[2mms[22m[39m
+@pactlab/connectors:test: 
+@pactlab/connectors:test: [2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+@pactlab/connectors:test: [2m      Tests [22m [1m[32m3 passed[39m[22m[90m (3)[39m
+@pactlab/connectors:test: [2m   Start at [22m 16:08:39
+@pactlab/connectors:test: [2m   Duration [22m 224ms[2m (transform 67%, import 28%, worker 3%, tests 2%)[22m
+@pactlab/connectors:test: 
+@pactlab/db:test: cache hit, replaying logs 36642621098f926f
+@pactlab/worker:test: cache hit, replaying logs 8ae6426969bee5ac
+@pactlab/db:test: $ vitest run
+@pactlab/db:test: 
+@pactlab/db:test: [1m[30m[46m RUN [49m[39m[22m [36mv5.0.3 [39m[90m/Users/kumar/projects/pactlab-wt-T-002/packages/db[39m
+@pactlab/db:test: 
+@pactlab/db:test:  [32m✓[39m src/rls.test.ts [2m([22m[2m23 tests[22m[2m)[22m[33m 2397[2mms[22m[39m
+@pactlab/db:test:  [32m✓[39m src/evidence.test.ts [2m([22m[2m14 tests[22m[2m)[22m[33m 2535[2mms[22m[39m
+@pactlab/db:test: 
+@pactlab/db:test: [2m Test Files [22m [1m[32m2 passed[39m[22m[90m (2)[39m
+@pactlab/db:test: [2m      Tests [22m [1m[32m37 passed[39m[22m[90m (37)[39m
+@pactlab/db:test: [2m   Start at [22m 18:43:27
+@pactlab/db:test: [2m   Duration [22m 2.86s[2m (tests 91%, transform 6%, import 2%)[22m
+@pactlab/db:test: 
+@pactlab/worker:test: $ vitest run
+@pactlab/worker:test: 
+@pactlab/worker:test: [1m[30m[46m RUN [49m[39m[22m [36mv5.0.3 [39m[90m/Users/kumar/projects/pactlab-wt-T-002/apps/worker[39m
+@pactlab/worker:test: 
+@pactlab/worker:test:  [32m✓[39m test/noop-job.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 2195[2mms[22m[39m
+@pactlab/worker:test: 
+@pactlab/worker:test: [2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+@pactlab/worker:test: [2m      Tests [22m [1m[32m4 passed[39m[22m[90m (4)[39m
+@pactlab/worker:test: [2m   Start at [22m 18:43:27
+@pactlab/worker:test: [2m   Duration [22m 2.61s[2m (tests 88%, transform 8%, import 4%)[22m
+@pactlab/worker:test: 
+@pactlab/api:test: $ vitest run
+@pactlab/api:test: 
+@pactlab/api:test: [1m[30m[46m RUN [49m[39m[22m [36mv5.0.3 [39m[90m/Users/kumar/projects/pactlab-wt-T-006/apps/api[39m
+@pactlab/api:test: 
+@pactlab/api:test:  [32m✓[39m src/documents/documents.unit.test.ts [2m([22m[2m19 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+@pactlab/api:test:  [32m✓[39m test/tenant-isolation.test.ts [2m([22m[2m10 tests[22m[2m)[22m[33m 1602[2mms[22m[39m
+@pactlab/api:test:  [32m✓[39m src/documents/documents.api.test.ts [2m([22m[2m15 tests[22m[2m)[22m[33m 1785[2mms[22m[39m
+@pactlab/api:test:  [32m✓[39m src/evidence/deal-evidence.api.test.ts [2m([22m[2m10 tests[22m[2m)[22m[33m 1843[2mms[22m[39m
+@pactlab/api:test: 
+@pactlab/api:test: [2m Test Files [22m [1m[32m4 passed[39m[22m[90m (4)[39m
+@pactlab/api:test: [2m      Tests [22m [1m[32m54 passed[39m[22m[90m (54)[39m
+@pactlab/api:test: [2m   Start at [22m 04:52:54
+@pactlab/api:test: [2m   Duration [22m 2.23s[2m (tests 82%, import 12%, transform 6%)[22m
+@pactlab/api:test: 
+
+ Tasks:    15 successful, 15 total
+Cached:    14 cached, 15 total
+  Time:    2.433s 
+
+https://github.com/kuramach/pactlab/pull/5
+### PR: https://github.com/kuramach/pactlab/pull/5
+out of scope: apps/api/package.json
+out of scope: pnpm-lock.yaml
+### T-006 → review (diff left task scope; needs human)
