@@ -56,6 +56,43 @@ enum JobStatus {
   @@map("job_status")
 }
 
+enum ConnectionMode {
+  FIXTURE
+  LIVE
+
+  @@map("connection_mode")
+}
+
+enum ConnectionStatus {
+  ACTIVE
+  DISABLED
+
+  @@map("connection_status")
+}
+
+enum SyncRunStatus {
+  QUEUED
+  RUNNING
+  SUCCEEDED
+  FAILED
+
+  @@map("sync_run_status")
+}
+
+enum EvidenceVisibility {
+  BUYER_ONLY
+  SHARED
+
+  @@map("evidence_visibility")
+}
+
+enum EvidenceEdgeType {
+  SUPERSEDES
+  DERIVED_FROM
+
+  @@map("evidence_edge_type")
+}
+
 model Organization {
   id                  String   @id @default(uuid(7)) @db.Uuid
   name                String
@@ -73,6 +110,11 @@ model Organization {
   outboxEvents    OutboxEvent[]
   jobRuns         JobRun[]
   storedFiles     StoredFile[]
+  connections     Connection[]
+  syncRuns        SyncRun[]
+  evidenceItems   EvidenceItem[]
+  evidenceEdges   EvidenceEdge[]
+  citations       Citation[]
 
   @@map("organizations")
 }
@@ -119,12 +161,17 @@ model Deal {
   createdAt       DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt       DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  memberships  DealMembership[]
-  jobRuns      JobRun[]
-  storedFiles  StoredFile[]
-  auditEvents  AuditEvent[]
-  outboxEvents OutboxEvent[]
+  organization  Organization     @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  memberships   DealMembership[]
+  jobRuns       JobRun[]
+  storedFiles   StoredFile[]
+  auditEvents   AuditEvent[]
+  outboxEvents  OutboxEvent[]
+  connections   Connection[]
+  syncRuns      SyncRun[]
+  evidenceItems EvidenceItem[]
+  evidenceEdges EvidenceEdge[]
+  citations     Citation[]
 
   @@unique([organizationId, id])
   @@index([organizationId, createdAt])
@@ -237,4 +284,146 @@ model StoredFile {
 
   @@unique([objectKey])
   @@map("stored_files")
+}
+
+/// A source connected to a deal. Mode is persisted and every change audited;
+/// downstream logic never branches on it. Secrets live in the managed store —
+/// only a revocable reference is kept here.
+model Connection {
+  id                 String             @id @default(uuid(7)) @db.Uuid
+  organizationId     String             @map("organization_id") @db.Uuid
+  dealId             String             @map("deal_id") @db.Uuid
+  provider           String
+  displayName        String             @map("display_name")
+  mode               ConnectionMode
+  credentialRef      String?            @map("credential_ref")
+  /// Provider-specific, non-secret settings (e.g. which datasets to read).
+  config             Json
+  status             ConnectionStatus   @default(ACTIVE)
+  /// Default visibility of evidence this connection produces.
+  evidenceVisibility EvidenceVisibility @default(BUYER_ONLY) @map("evidence_visibility")
+  createdBy          String             @map("created_by") @db.Uuid
+  createdAt          DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  organization  Organization   @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  deal          Deal           @relation(fields: [organizationId, dealId], references: [organizationId, id], onDelete: Restrict)
+  syncRuns      SyncRun[]
+  evidenceItems EvidenceItem[]
+
+  @@unique([organizationId, dealId, id])
+  @@index([organizationId, dealId, createdAt])
+  @@map("connections")
+}
+
+/// One idempotent pull from a connection. Replaying the same idempotency key
+/// returns the existing run; re-pulling unchanged records creates nothing.
+model SyncRun {
+  id               String        @id @default(uuid(7)) @db.Uuid
+  organizationId   String        @map("organization_id") @db.Uuid
+  dealId           String        @map("deal_id") @db.Uuid
+  connectionId     String        @map("connection_id") @db.Uuid
+  connectorVersion String        @map("connector_version")
+  idempotencyKey   String        @map("idempotency_key")
+  status           SyncRunStatus @default(QUEUED)
+  cursor           String?
+  recordsSeen      Int           @default(0) @map("records_seen")
+  recordsCreated   Int           @default(0) @map("records_created")
+  recordsUnchanged Int           @default(0) @map("records_unchanged")
+  issuesCount      Int           @default(0) @map("issues_count")
+  errorClass       String?       @map("error_class")
+  requestedBy      String        @map("requested_by") @db.Uuid
+  correlationId    String        @map("correlation_id")
+  createdAt        DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  startedAt        DateTime?     @map("started_at") @db.Timestamptz(3)
+  completedAt      DateTime?     @map("completed_at") @db.Timestamptz(3)
+
+  organization       Organization   @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  deal               Deal           @relation(fields: [organizationId, dealId], references: [organizationId, id], onDelete: Restrict)
+  connection         Connection     @relation(fields: [organizationId, dealId, connectionId], references: [organizationId, dealId, id], onDelete: Restrict)
+  firstEvidenceItems EvidenceItem[] @relation("FirstSyncRun")
+  lastEvidenceItems  EvidenceItem[] @relation("LastSyncRun")
+
+  @@unique([organizationId, dealId, id])
+  @@unique([organizationId, dealId, idempotencyKey])
+  @@index([organizationId, dealId, connectionId, createdAt])
+  @@map("sync_runs")
+}
+
+/// Normalized evidence. Immutable except for last-seen and sharing columns;
+/// changed source content creates a new item linked by a SUPERSEDES edge.
+model EvidenceItem {
+  id             String             @id @default(uuid(7)) @db.Uuid
+  organizationId String             @map("organization_id") @db.Uuid
+  dealId         String             @map("deal_id") @db.Uuid
+  connectionId   String             @map("connection_id") @db.Uuid
+  firstSyncRunId String             @map("first_sync_run_id") @db.Uuid
+  lastSyncRunId  String             @map("last_sync_run_id") @db.Uuid
+  evidenceType   String             @map("evidence_type")
+  sourceSystem   String             @map("source_system")
+  sourceRecordId String             @map("source_record_id")
+  observedAt     DateTime?          @map("observed_at") @db.Timestamptz(3)
+  canonical      Json
+  /// sha256 of the canonical JSON.
+  contentHash    String             @map("content_hash") @db.Char(64)
+  sensitivity    String             @default("STANDARD")
+  visibility     EvidenceVisibility @default(BUYER_ONLY)
+  sharedBy       String?            @map("shared_by") @db.Uuid
+  sharedAt       DateTime?          @map("shared_at") @db.Timestamptz(3)
+  createdAt      DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  deal         Deal           @relation(fields: [organizationId, dealId], references: [organizationId, id], onDelete: Restrict)
+  connection   Connection     @relation(fields: [organizationId, dealId, connectionId], references: [organizationId, dealId, id], onDelete: Restrict)
+  firstSyncRun SyncRun        @relation("FirstSyncRun", fields: [organizationId, dealId, firstSyncRunId], references: [organizationId, dealId, id], onDelete: Restrict)
+  lastSyncRun  SyncRun        @relation("LastSyncRun", fields: [organizationId, dealId, lastSyncRunId], references: [organizationId, dealId, id], onDelete: Restrict)
+  citations    Citation[]
+  edgesFrom    EvidenceEdge[] @relation("EdgeFrom")
+  edgesTo      EvidenceEdge[] @relation("EdgeTo")
+
+  @@unique([organizationId, dealId, id])
+  @@unique([organizationId, dealId, connectionId, sourceRecordId, contentHash])
+  @@index([organizationId, dealId, evidenceType])
+  @@index([organizationId, dealId, connectionId, sourceRecordId])
+  @@map("evidence_items")
+}
+
+/// Relational lineage between evidence items; traversed with recursive CTEs.
+model EvidenceEdge {
+  id             String           @id @default(uuid(7)) @db.Uuid
+  organizationId String           @map("organization_id") @db.Uuid
+  dealId         String           @map("deal_id") @db.Uuid
+  fromEvidenceId String           @map("from_evidence_id") @db.Uuid
+  toEvidenceId   String           @map("to_evidence_id") @db.Uuid
+  edgeType       EvidenceEdgeType @map("edge_type")
+  reason         String
+  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  deal         Deal         @relation(fields: [organizationId, dealId], references: [organizationId, id], onDelete: Restrict)
+  from         EvidenceItem @relation("EdgeFrom", fields: [organizationId, dealId, fromEvidenceId], references: [organizationId, dealId, id], onDelete: Restrict)
+  to           EvidenceItem @relation("EdgeTo", fields: [organizationId, dealId, toEvidenceId], references: [organizationId, dealId, id], onDelete: Restrict)
+
+  @@unique([organizationId, dealId, fromEvidenceId, toEvidenceId, edgeType])
+  @@index([organizationId, dealId, toEvidenceId])
+  @@map("evidence_edges")
+}
+
+/// Exact pointer into a source (CSV row today; document pages arrive later)
+/// plus the hash of the quoted source text, verified at display time.
+model Citation {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  dealId         String   @map("deal_id") @db.Uuid
+  evidenceItemId String   @map("evidence_item_id") @db.Uuid
+  locator        Json
+  quoteHash      String   @map("quote_hash") @db.Char(64)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  deal         Deal         @relation(fields: [organizationId, dealId], references: [organizationId, id], onDelete: Restrict)
+  evidenceItem EvidenceItem @relation(fields: [organizationId, dealId, evidenceItemId], references: [organizationId, dealId, id], onDelete: Restrict)
+
+  @@unique([organizationId, dealId, evidenceItemId, quoteHash])
+  @@map("citations")
 }

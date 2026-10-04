@@ -1,0 +1,30 @@
+{
+  "manifestVersion": 1,
+  "company": "TroubledCo",
+  "companyId": "01900000-0000-7000-8000-0000000c0002",
+  "displayName": "TroubledCo (synthetic)",
+  "deal": {
+    "id": "01900000-0000-7000-8000-0000000d0002",
+    "name": "Project Troubled",
+    "transactionType": "PRIVATE_ACQUIRER"
+  },
+  "connection": {
+    "id": "01900000-0000-7000-8000-0000000e0002",
+    "provider": "csv",
+    "displayName": "TroubledCo billing & KPI export (fixture)"
+  },
+  "datasets": [
+    {
+      "dataset": "TroubledCo/customers.csv",
+      "evidenceType": "billing.customer",
+      "recordIdColumn": "customer_id",
+      "observedAtColumn": "as_of"
+    },
+    {
+      "dataset": "TroubledCo/management-kpis.csv",
+      "evidenceType": "management.kpi",
+      "recordIdColumn": "kpi_id",
+      "observedAtColumn": "as_of"
+    }
+  ]
+}

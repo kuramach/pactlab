@@ -1,0 +1,30 @@
+{
+  "manifestVersion": 1,
+  "company": "SparseCo",
+  "companyId": "01900000-0000-7000-8000-0000000c0003",
+  "displayName": "SparseCo (synthetic)",
+  "deal": {
+    "id": "01900000-0000-7000-8000-0000000d0003",
+    "name": "Project Sparse",
+    "transactionType": "TAKE_PRIVATE"
+  },
+  "connection": {
+    "id": "01900000-0000-7000-8000-0000000e0003",
+    "provider": "csv",
+    "displayName": "SparseCo billing & KPI export (fixture)"
+  },
+  "datasets": [
+    {
+      "dataset": "SparseCo/customers.csv",
+      "evidenceType": "billing.customer",
+      "recordIdColumn": "customer_id",
+      "observedAtColumn": "as_of"
+    },
+    {
+      "dataset": "SparseCo/management-kpis.csv",
+      "evidenceType": "management.kpi",
+      "recordIdColumn": "kpi_id",
+      "observedAtColumn": "as_of"
+    }
+  ]
+}

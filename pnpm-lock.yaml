@@ -190,6 +190,9 @@ importers:
       '@pactlab/config':
         specifier: workspace:*
         version: link:../../packages/config
+      '@pactlab/connectors':
+        specifier: workspace:*
+        version: link:../../packages/connectors
       '@pactlab/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
