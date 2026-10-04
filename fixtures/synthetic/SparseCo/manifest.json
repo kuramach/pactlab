@@ -25,6 +25,18 @@
       "evidenceType": "management.kpi",
       "recordIdColumn": "kpi_id",
       "observedAtColumn": "as_of"
+    },
+    {
+      "dataset": "SparseCo/stripe-invoice-lines.csv",
+      "evidenceType": "billing.invoice_line",
+      "recordIdColumn": "line_id",
+      "observedAtColumn": "created"
+    },
+    {
+      "dataset": "SparseCo/fx-rates.csv",
+      "evidenceType": "fx.rate",
+      "recordIdColumn": "rate_id",
+      "observedAtColumn": "rate_date"
     }
   ]
 }
