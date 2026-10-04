@@ -71,7 +71,7 @@ PUSHED=false
 finish() { # finish <state> — move task file, commit, push
   local state="$1" id="$2"
   git mv "tasks/active/$id.md" "tasks/$state/$id.md"
-  if [[ -f "tasks/active/$id.log" ]]; then git add -q "tasks/active/$id.log" 2>/dev/null || true; git mv "tasks/active/$id.log" "tasks/$state/$id.log" || true; fi
+  if [[ -f "tasks/active/$id.log" ]]; then git add -f -q "tasks/active/$id.log" 2>/dev/null || true; git mv "tasks/active/$id.log" "tasks/$state/$id.log" || true; fi
   git commit -qm "chore: $id → $state"
   git push -q origin HEAD || true
 }
@@ -85,11 +85,20 @@ if ! $PUSHED; then
   finish blocked "$TASK_ID"; exit 1
 fi
 
-# --- PR ---
+# --- PR (retries on transient GitHub API failures) ---
 TITLE="$(head -1 "$ACTIVE" | sed 's/^# //')"
-PR_URL="$(gh pr create --title "$TITLE" \
-  --body "Agent-built. Task: $ACTIVE. Checks: \`$CHECKS\`" \
-  --head "$BRANCH" 2>&1 | tee -a "$LOG" | grep -oE 'https://[^ ]+/pull/[0-9]+' | head -1)" || PR_URL=""
+PR_URL=""
+for attempt in 1 2 3; do
+  PR_URL="$(gh pr create --title "$TITLE" \
+    --body "Agent-built. Task: $ACTIVE. Checks: \`$CHECKS\`" \
+    --head "$BRANCH" 2>&1 | tee -a "$LOG" | grep -oE 'https://[^ ]+/pull/[0-9]+' | head -1)" || PR_URL=""
+  if [[ -z "$PR_URL" ]]; then
+    PR_URL="$(gh pr list --head "$BRANCH" --json url -q '.[0].url' 2>/dev/null)"
+  fi
+  [[ -n "$PR_URL" ]] && break
+  echo "### PR create attempt $attempt failed; retrying in 15s..." | tee -a "$LOG"
+  sleep 15
+done
 [[ -z "$PR_URL" ]] && { echo "### $TASK_ID BLOCKED: PR creation failed" | tee -a "$LOG"; finish blocked "$TASK_ID"; exit 1; }
 echo "### PR: $PR_URL" | tee -a "$LOG"
 
