@@ -1,0 +1,14 @@
+rate_id,base_currency,quote_currency,rate,rate_date,source
+fx-sc-eurusd-2025-07-31,EUR,USD,1.1410,2025-07-31,ECB
+fx-sc-eurusd-2025-08-29,EUR,USD,1.1680,2025-08-29,ECB
+fx-sc-eurusd-2025-09-30,EUR,USD,1.1730,2025-09-30,ECB
+fx-sc-eurusd-2025-10-31,EUR,USD,1.1560,2025-10-31,ECB
+fx-sc-eurusd-2025-11-28,EUR,USD,1.1590,2025-11-28,ECB
+fx-sc-eurusd-2025-12-31,EUR,USD,1.1750,2025-12-31,ECB
+fx-sc-eurusd-2026-01-30,EUR,USD,1.1820,2026-01-30,ECB
+fx-sc-eurusd-2026-02-27,EUR,USD,1.1780,2026-02-27,ECB
+fx-sc-eurusd-2026-03-31,EUR,USD,1.1650,2026-03-31,ECB
+fx-sc-eurusd-2026-04-30,EUR,USD,1.1710,2026-04-30,ECB
+fx-sc-eurusd-2026-05-29,EUR,USD,1.1690,2026-05-29,ECB
+fx-sc-eurusd-2026-06-30,EUR,USD,1.1740,2026-06-30,ECB
+fx-sc-eurusd-2026-07-31,EUR,USD,1.1680,2026-07-31,ECB

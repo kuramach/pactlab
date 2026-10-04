@@ -6,6 +6,7 @@ import { AuthGuard } from './auth/auth.guard';
 import type { IdentityVerifier } from './auth/identity';
 import { DealsModule } from './deals/deals.module';
 import { HealthController } from './health/health.controller';
+import { MetricsModule } from './metrics/metrics.module';
 import { IDENTITY_VERIFIER, LOGGER, PRISMA } from './tokens';
 
 export interface AppDependencies {
@@ -35,7 +36,7 @@ export class AppModule {
   static register(deps: AppDependencies): DynamicModule {
     return {
       module: AppModule,
-      imports: [InfrastructureModule.register(deps), DealsModule],
+      imports: [InfrastructureModule.register(deps), DealsModule, MetricsModule],
       controllers: [HealthController],
       providers: [{ provide: APP_GUARD, useClass: AuthGuard }],
     };
