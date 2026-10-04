@@ -1,4 +1,5 @@
 export * from './evidence';
+export * from './findings';
 export * from './ids';
 export * from './object-keys';
 export * from './roles';

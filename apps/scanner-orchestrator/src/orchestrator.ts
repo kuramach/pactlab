@@ -1,10 +1,9 @@
 import { scanRequestSchema, type ScanResult } from '@pactlab/contracts';
 
 /**
- * Scan intake. Real runners (one ephemeral, isolated task per scan; workspace
- * destroyed on every exit path; findings only, never source) arrive in T-004.
- * Until then a valid request returns a typed NOT_IMPLEMENTED result and
- * nothing is cloned, executed or persisted.
+ * Scan intake for the shared contract. The contract does not yet carry the
+ * resolved commit and approved tools, so a valid request still returns
+ * NOT_IMPLEMENTED; execution goes through `runScan` with a full manifest.
  */
 export function requestScan(input: unknown): ScanResult {
   const parsed = scanRequestSchema.safeParse(input);

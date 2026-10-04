@@ -9,11 +9,13 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@pactlab/contracts": "workspace:*"
+    "@pactlab/contracts": "workspace:*",
+    "@pactlab/domain": "workspace:*",
+    "zod": "4.6.5"
   },
   "devDependencies": {
     "@pactlab/config": "workspace:*",
-    "@pactlab/domain": "workspace:*",
+    "@pactlab/connectors": "workspace:*",
     "@types/node": "22.20.5",
     "eslint": "10.12.0",
     "typescript": "6.0.3",
