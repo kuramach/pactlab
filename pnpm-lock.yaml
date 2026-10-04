@@ -187,6 +187,9 @@ importers:
       '@nestjs/platform-fastify':
         specifier: 12.1.2
         version: 12.1.2(@nestjs/common@12.1.2(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@12.1.2(@nestjs/common@12.1.2(reflect-metadata@0.2.2)(rxjs@7.8.2))(reflect-metadata@0.2.2)(rxjs@7.8.2))
+      '@pactlab/ai':
+        specifier: workspace:*
+        version: link:../../packages/ai
       '@pactlab/config':
         specifier: workspace:*
         version: link:../../packages/config
