@@ -1,8 +1,5 @@
 import 'reflect-metadata';
-import { randomUUID } from 'node:crypto';
-import { Global, Module } from '@nestjs/common';
-import { APP_GUARD, NestFactory } from '@nestjs/core';
-import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fastify';
+import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import {
   defaultPromptRegistry,
   neutralizeMarkup,
@@ -20,12 +17,9 @@ import {
 import { createLogger } from '@pactlab/observability';
 import { createLocalJWKSet, exportJWK, generateKeyPair, SignJWT, type CryptoKey } from 'jose';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { AuthGuard } from '../auth/auth.guard';
+import { createApp } from '../app';
 import { JwtIdentityVerifier } from '../auth/identity';
-import { ProblemDetailsFilter } from '../common/problem-details.filter';
-import { IDENTITY_VERIFIER, LOGGER, PRISMA } from '../tokens';
-import { DocumentsModule } from './documents.module';
-import { InMemoryDocumentsRepository, InMemoryObjectStore } from './testing';
+import { InMemoryObjectStore } from './testing';
 import { SignatureMalwareScanner } from './upload-policy';
 
 const ISSUER = 'https://pactlab-test.example/';
@@ -58,7 +52,6 @@ function citationIdFor(request: ModelRequest, quote: string): string {
 describe('documents API (document AI)', () => {
   let db: TestDatabase;
   let app: NestFastifyApplication;
-  let repository: InMemoryDocumentsRepository;
   let store: InMemoryObjectStore;
   let transport: ScriptedModelTransport;
   let respond: (request: ModelRequest) => unknown;
@@ -104,6 +97,23 @@ describe('documents API (document AI)', () => {
       ...extra,
     });
 
+  async function lastAudit() {
+    const result = (await db.owner.query(
+      `SELECT action, target_id AS "targetId" FROM audit_events WHERE deal_id = $1 AND outcome = 'SUCCEEDED' ORDER BY chain_seq DESC LIMIT 1`,
+      [a.dealId],
+    )) as { rows: { action: string; targetId: string }[] };
+    return result.rows[0];
+  }
+
+  async function lastAiRun() {
+    const result = (await db.owner.query(
+      `SELECT id, status, task_type AS "taskType", injection_signals AS "injectionSignals", ai_runs.*
+         FROM ai_runs WHERE deal_id = $1 ORDER BY created_at DESC, id DESC LIMIT 1`,
+      [a.dealId],
+    )) as { rows: { id: string; status: string; taskType: string; injectionSignals: number }[] };
+    return result.rows[0];
+  }
+
   async function auditCount(action: string, outcome?: string) {
     const result = (await db.owner.query(
       `SELECT count(*)::int AS n FROM audit_events WHERE deal_id = $1 AND action = $2 ${outcome ? 'AND outcome = $3' : ''}`,
@@ -126,43 +136,18 @@ describe('documents API (document AI)', () => {
     });
     const logger = createLogger('api-test', { level: 'silent' });
 
-    repository = new InMemoryDocumentsRepository();
     store = new InMemoryObjectStore();
     // Provider access is blocked: the gateway talks only to a scripted transport.
     transport = new ScriptedModelTransport((request) => JSON.stringify(respond(request)));
     const gateway = new TransportClaudeGateway({ transport, registry: defaultPromptRegistry() });
 
-    @Global()
-    @Module({
-      providers: [
-        { provide: PRISMA, useValue: db.prisma },
-        { provide: IDENTITY_VERIFIER, useValue: identityVerifier },
-        { provide: LOGGER, useValue: logger },
-      ],
-      exports: [PRISMA, IDENTITY_VERIFIER, LOGGER],
-    })
-    class TestInfrastructure {}
-    @Module({
-      imports: [
-        TestInfrastructure,
-        DocumentsModule.register({
-          repository,
-          objectStore: store,
-          malwareScanner: new SignatureMalwareScanner(),
-          gateway,
-        }),
-      ],
-      providers: [{ provide: APP_GUARD, useClass: AuthGuard }],
-    })
-    class TestRoot {}
-    app = await NestFactory.create<NestFastifyApplication>(
-      TestRoot,
-      new FastifyAdapter({ genReqId: () => randomUUID(), logger: false, bodyLimit: 1_048_576 }),
-      { logger: false },
-    );
-    app.useGlobalFilters(new ProblemDetailsFilter(logger));
-    await app.init();
-    await app.getHttpAdapter().getInstance().ready();
+    // The production AppModule: documents persist through the RLS-backed repository.
+    app = await createApp({
+      prisma: db.prisma,
+      identityVerifier,
+      logger,
+      documents: { objectStore: store, malwareScanner: new SignatureMalwareScanner(), gateway },
+    });
 
     tokens['lead'] = await token(a.subject, a.auth0OrganizationId);
     tokens['other'] = await token(b.subject, b.auth0OrganizationId);
@@ -201,7 +186,7 @@ describe('documents API (document AI)', () => {
       expect([...store.objects.keys()]).toEqual([
         `${a.organizationId}/${a.dealId}/documents/${msaId}/original`,
       ]);
-      expect(repository.audits.at(-1)).toMatchObject({
+      expect(await lastAudit()).toMatchObject({
         action: 'document.uploaded',
         targetId: msaId,
       });
@@ -326,7 +311,7 @@ describe('documents API (document AI)', () => {
       );
       expect(page.body['text']).toContain(claims[0]!.citations[0]!.quote);
 
-      const run = repository.runs.at(-1)!;
+      const run = (await lastAiRun())!;
       expect(run).toMatchObject({
         id: asked.body['aiRunId'],
         status: 'SUCCEEDED',
@@ -361,7 +346,7 @@ describe('documents API (document AI)', () => {
         rejectedClaims: [{ reasons: ['INJECTION_SPAN'] }],
       });
       expect(JSON.stringify(asked.body)).not.toContain('no change of control provision');
-      expect(repository.runs.at(-1)?.injectionSignals).toBeGreaterThan(0);
+      expect((await lastAiRun())?.injectionSignals).toBeGreaterThan(0);
     });
 
     it('blocks citation mismatch: a real quote attributed to the wrong page', async () => {
@@ -571,7 +556,7 @@ describe('documents API (document AI)', () => {
       expect(found.body['reviews']).toMatchObject([
         { decision: 'ACCEPT', reviewer: { displayName: 'REVIEWER (synthetic)' } },
       ]);
-      expect(repository.audits.at(-1)).toMatchObject({
+      expect(await lastAudit()).toMatchObject({
         action: 'document_finding.accepted',
         targetId: changeOfControlId,
       });

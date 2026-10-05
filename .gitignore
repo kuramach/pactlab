@@ -12,3 +12,6 @@ packages/db/src/generated/
 .env.*.local
 *.log
 .DS_Store
+
+# Local document originals (DOCUMENT_STORE_DIR)
+.data/

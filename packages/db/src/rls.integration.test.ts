@@ -146,4 +146,74 @@ describe.runIf(runtimeUrl && ownerUrl)('RLS against PostgreSQL', () => {
     ).rejects.toThrow(/row-level security/);
     await expect(withTenant(prisma, a.context, (tx) => tx.finding.deleteMany())).rejects.toThrow(/permission denied/);
   });
+
+  it('denies valuation scenarios across tenants', async () => {
+    const now = new Date();
+    const scenario = await withTenant(prisma, a.context, (tx) =>
+      tx.valuationScenario.create({
+        data: {
+          organizationId: a.organizationId,
+          dealId: a.dealId,
+          name: 'Integration scenario',
+          currency: 'USD',
+          transactionType: 'PRIVATE_ACQUIRER',
+          assumptionVersion: 1,
+          createdBy: a.userId,
+          createdAt: now,
+          updatedAt: now,
+          version: 1,
+        },
+      }),
+    );
+    await expect(
+      withTenant(prisma, b.context, (tx) => tx.valuationScenario.findUnique({ where: { id: scenario.id } })),
+    ).resolves.toBeNull();
+    await expect(
+      withTenant(prisma, b.context, (tx) =>
+        tx.valuationScenario.create({
+          data: {
+            organizationId: a.organizationId,
+            dealId: a.dealId,
+            name: 'Cross-tenant',
+            currency: 'USD',
+            transactionType: 'PRIVATE_ACQUIRER',
+            assumptionVersion: 1,
+            createdBy: b.userId,
+            createdAt: now,
+            updatedAt: now,
+            version: 1,
+          },
+        }),
+      ),
+    ).rejects.toThrow(/row-level security/);
+    await expect(withTenant(prisma, a.context, (tx) => tx.valuationRun.deleteMany())).rejects.toThrow(/permission denied/);
+  });
+
+  it('denies documents across tenants', async () => {
+    const id = newId();
+    await withTenant(prisma, a.context, (tx) =>
+      tx.document.create({
+        data: {
+          id,
+          organizationId: a.organizationId,
+          dealId: a.dealId,
+          fileName: 'it.txt',
+          contentType: 'text/plain',
+          sizeBytes: 1,
+          sha256: '0'.repeat(64),
+          objectKey: `${a.organizationId}/${a.dealId}/documents/${id}/original`,
+          pageCount: 1,
+          dataClass: 'BUSINESS',
+          aiExcluded: false,
+          retentionClass: 'DEAL_TERM',
+          visibility: 'SHARED',
+          malwareScanner: 'it',
+          uploadedBy: a.userId,
+          createdAt: new Date(),
+        },
+      }),
+    );
+    await expect(withTenant(prisma, b.context, (tx) => tx.document.findUnique({ where: { id } }))).resolves.toBeNull();
+    await expect(withTenant(prisma, a.context, (tx) => tx.document.deleteMany())).rejects.toThrow(/permission denied/);
+  });
 });
