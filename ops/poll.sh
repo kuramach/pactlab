@@ -6,7 +6,7 @@ set -u
 cd "$(dirname "$0")/.."
 
 while true; do
-  git pull -q --ff-only origin main 2>/dev/null || true
+  git fetch -q origin 2>/dev/null && git reset -q --hard origin/main 2>/dev/null || true
   for f in ops/inbox/*.sh; do
     [[ -e "$f" ]] || continue
     id="$(basename "$f" .sh)"
