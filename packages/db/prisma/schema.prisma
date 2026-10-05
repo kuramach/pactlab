@@ -86,6 +86,73 @@ enum EvidenceVisibility {
   @@map("evidence_visibility")
 }
 
+enum FindingDomain {
+  ARCHITECTURE
+  MAINTAINABILITY
+  SECURITY
+  OSS_LICENSE
+  TEST_QUALITY
+  OPERATIONS
+  CODE_PROVENANCE
+  KEY_PERSON
+
+  @@map("finding_domain")
+}
+
+enum FindingSeverity {
+  INFO
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+
+  @@map("finding_severity")
+}
+
+enum FindingConfidence {
+  LOW
+  MEDIUM
+  HIGH
+
+  @@map("finding_confidence")
+}
+
+enum FindingStatus {
+  DRAFT
+  IN_REVIEW
+  ACCEPTED
+  REJECTED
+
+  @@map("finding_status")
+}
+
+enum FindingOrigin {
+  SCANNER
+  HEURISTIC
+  AI
+  HUMAN
+
+  @@map("finding_origin")
+}
+
+enum ReviewDecision {
+  SUBMITTED
+  SUPPORT_REQUESTED
+  ACCEPTED
+  REJECTED
+
+  @@map("review_decision")
+}
+
+enum PricedRiskType {
+  PRICE_REDUCTION
+  ESCROW
+  INDEMNITY
+  REMEDIATION_COST
+
+  @@map("priced_risk_type")
+}
+
 enum EvidenceEdgeType {
   SUPERSEDES
   DERIVED_FROM
@@ -115,6 +182,9 @@ model Organization {
   evidenceItems   EvidenceItem[]
   evidenceEdges   EvidenceEdge[]
   citations       Citation[]
+  findings        Finding[]
+  findingLinks    FindingEvidenceLink[]
+  findingReviews  FindingReview[]
 
   @@map("organizations")
 }
@@ -161,17 +231,20 @@ model Deal {
   createdAt       DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt       DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  organization  Organization     @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  memberships   DealMembership[]
-  jobRuns       JobRun[]
-  storedFiles   StoredFile[]
-  auditEvents   AuditEvent[]
-  outboxEvents  OutboxEvent[]
-  connections   Connection[]
-  syncRuns      SyncRun[]
-  evidenceItems EvidenceItem[]
-  evidenceEdges EvidenceEdge[]
-  citations     Citation[]
+  organization   Organization          @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  memberships    DealMembership[]
+  jobRuns        JobRun[]
+  storedFiles    StoredFile[]
+  auditEvents    AuditEvent[]
+  outboxEvents   OutboxEvent[]
+  connections    Connection[]
+  syncRuns       SyncRun[]
+  evidenceItems  EvidenceItem[]
+  evidenceEdges  EvidenceEdge[]
+  citations      Citation[]
+  findings       Finding[]
+  findingLinks   FindingEvidenceLink[]
+  findingReviews FindingReview[]
 
   @@unique([organizationId, id])
   @@index([organizationId, createdAt])
@@ -372,14 +445,15 @@ model EvidenceItem {
   sharedAt       DateTime?          @map("shared_at") @db.Timestamptz(3)
   createdAt      DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
 
-  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  deal         Deal           @relation(fields: [organizationId, dealId], references: [organizationId, id], onDelete: Restrict)
-  connection   Connection     @relation(fields: [organizationId, dealId, connectionId], references: [organizationId, dealId, id], onDelete: Restrict)
-  firstSyncRun SyncRun        @relation("FirstSyncRun", fields: [organizationId, dealId, firstSyncRunId], references: [organizationId, dealId, id], onDelete: Restrict)
-  lastSyncRun  SyncRun        @relation("LastSyncRun", fields: [organizationId, dealId, lastSyncRunId], references: [organizationId, dealId, id], onDelete: Restrict)
+  organization Organization          @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  deal         Deal                  @relation(fields: [organizationId, dealId], references: [organizationId, id], onDelete: Restrict)
+  connection   Connection            @relation(fields: [organizationId, dealId, connectionId], references: [organizationId, dealId, id], onDelete: Restrict)
+  firstSyncRun SyncRun               @relation("FirstSyncRun", fields: [organizationId, dealId, firstSyncRunId], references: [organizationId, dealId, id], onDelete: Restrict)
+  lastSyncRun  SyncRun               @relation("LastSyncRun", fields: [organizationId, dealId, lastSyncRunId], references: [organizationId, dealId, id], onDelete: Restrict)
   citations    Citation[]
-  edgesFrom    EvidenceEdge[] @relation("EdgeFrom")
-  edgesTo      EvidenceEdge[] @relation("EdgeTo")
+  edgesFrom    EvidenceEdge[]        @relation("EdgeFrom")
+  edgesTo      EvidenceEdge[]        @relation("EdgeTo")
+  findingLinks FindingEvidenceLink[]
 
   @@unique([organizationId, dealId, id])
   @@unique([organizationId, dealId, connectionId, sourceRecordId, contentHash])
@@ -426,4 +500,97 @@ model Citation {
 
   @@unique([organizationId, dealId, evidenceItemId, quoteHash])
   @@map("citations")
+}
+
+/// Buyer-side finding. Status changes only through human reviews; every
+/// change bumps `version` (optimistic concurrency). Priced-risk amounts are
+/// numeric with explicit currency, all-or-none (CHECK in the migration).
+model Finding {
+  id                 String            @id @default(uuid(7)) @db.Uuid
+  organizationId     String            @map("organization_id") @db.Uuid
+  dealId             String            @map("deal_id") @db.Uuid
+  domain             FindingDomain
+  title              String
+  description        String
+  severity           FindingSeverity
+  confidence         FindingConfidence
+  status             FindingStatus     @default(DRAFT)
+  origin             FindingOrigin
+  /// Stable signal identity; replaying a scan yields the same fingerprint.
+  fingerprint        String
+  pricedRiskType     PricedRiskType?   @map("priced_risk_type")
+  pricedRiskCurrency String?           @map("priced_risk_currency") @db.Char(3)
+  pricedRiskLow      Decimal?          @map("priced_risk_low") @db.Decimal(19, 4)
+  pricedRiskHigh     Decimal?          @map("priced_risk_high") @db.Decimal(19, 4)
+  pricedRiskBasis    String?           @map("priced_risk_basis")
+  /// The FindingActor that drafted it (HUMAN, AI or SYSTEM).
+  createdBy          Json              @map("created_by")
+  /// Finding version whose evidence link set is current.
+  evidenceVersion    Int               @map("evidence_version")
+  version            Int
+  createdAt          DateTime          @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime          @map("updated_at") @db.Timestamptz(3)
+
+  organization  Organization          @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  deal          Deal                  @relation(fields: [organizationId, dealId], references: [organizationId, id], onDelete: Restrict)
+  evidenceLinks FindingEvidenceLink[]
+  reviews       FindingReview[]
+
+  @@unique([organizationId, dealId, id])
+  @@unique([organizationId, dealId, fingerprint])
+  @@index([organizationId, dealId, status, domain])
+  @@map("findings")
+}
+
+/// Insert-only provenance: evidence item, exact commit and versioned tool.
+/// An edit appends a new set stamped with the finding version; earlier sets
+/// remain as history.
+model FindingEvidenceLink {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  dealId         String   @map("deal_id") @db.Uuid
+  findingId      String   @map("finding_id") @db.Uuid
+  findingVersion Int      @map("finding_version")
+  ordinal        Int
+  evidenceItemId String   @map("evidence_item_id") @db.Uuid
+  commitSha      String   @map("commit_sha")
+  toolName       String   @map("tool_name")
+  toolVersion    String   @map("tool_version")
+  rulesetVersion String?  @map("ruleset_version")
+  /// Repository-relative path; never file contents.
+  path           String?
+  lineStart      Int?     @map("line_start")
+  lineEnd        Int?     @map("line_end")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  deal         Deal         @relation(fields: [organizationId, dealId], references: [organizationId, id], onDelete: Restrict)
+  finding      Finding      @relation(fields: [organizationId, dealId, findingId], references: [organizationId, dealId, id], onDelete: Restrict)
+  evidenceItem EvidenceItem @relation(fields: [organizationId, dealId, evidenceItemId], references: [organizationId, dealId, id], onDelete: Restrict)
+
+  @@unique([organizationId, dealId, findingId, findingVersion, ordinal])
+  @@index([organizationId, dealId, evidenceItemId])
+  @@map("finding_evidence_links")
+}
+
+/// Append-only human decision on a finding.
+model FindingReview {
+  id             String         @id @default(uuid(7)) @db.Uuid
+  organizationId String         @map("organization_id") @db.Uuid
+  dealId         String         @map("deal_id") @db.Uuid
+  findingId      String         @map("finding_id") @db.Uuid
+  decision       ReviewDecision
+  fromStatus     FindingStatus  @map("from_status")
+  toStatus       FindingStatus  @map("to_status")
+  reviewerUserId String         @map("reviewer_user_id") @db.Uuid
+  reviewerRole   DealRole       @map("reviewer_role")
+  rationale      String
+  decidedAt      DateTime       @map("decided_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  deal         Deal         @relation(fields: [organizationId, dealId], references: [organizationId, id], onDelete: Restrict)
+  finding      Finding      @relation(fields: [organizationId, dealId, findingId], references: [organizationId, dealId, id], onDelete: Restrict)
+
+  @@index([organizationId, dealId, findingId, decidedAt])
+  @@map("finding_reviews")
 }

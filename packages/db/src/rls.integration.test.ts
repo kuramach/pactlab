@@ -98,4 +98,52 @@ describe.runIf(runtimeUrl && ownerUrl)('RLS against PostgreSQL', () => {
       withTenant(prisma, a.context, (tx) => tx.auditEvent.updateMany({ data: { action: 'x' } })),
     ).rejects.toThrow(/permission denied/);
   });
+
+  it("denies findings reads and writes across tenants", async () => {
+    const now = new Date();
+    await withTenant(prisma, a.context, (tx) =>
+      tx.finding.create({
+        data: {
+          organizationId: a.organizationId,
+          dealId: a.dealId,
+          domain: 'SECURITY',
+          title: 'Integration finding',
+          description: 'Synthetic',
+          severity: 'LOW',
+          confidence: 'LOW',
+          origin: 'HUMAN',
+          fingerprint: `it:${newId()}`,
+          createdBy: { kind: 'HUMAN', userId: a.userId, role: 'DEAL_LEAD' },
+          evidenceVersion: 1,
+          version: 1,
+          createdAt: now,
+          updatedAt: now,
+        },
+      }),
+    );
+    await expect(withTenant(prisma, b.context, (tx) => tx.finding.count({ where: { dealId: a.dealId } }))).resolves.toBe(0);
+    await expect(
+      withTenant(prisma, b.context, (tx) =>
+        tx.finding.create({
+          data: {
+            organizationId: a.organizationId,
+            dealId: a.dealId,
+            domain: 'SECURITY',
+            title: 'Cross-tenant',
+            description: 'Synthetic',
+            severity: 'LOW',
+            confidence: 'LOW',
+            origin: 'HUMAN',
+            fingerprint: `it:${newId()}`,
+            createdBy: { kind: 'HUMAN', userId: b.userId, role: 'DEAL_LEAD' },
+            evidenceVersion: 1,
+            version: 1,
+            createdAt: now,
+            updatedAt: now,
+          },
+        }),
+      ),
+    ).rejects.toThrow(/row-level security/);
+    await expect(withTenant(prisma, a.context, (tx) => tx.finding.deleteMany())).rejects.toThrow(/permission denied/);
+  });
 });
