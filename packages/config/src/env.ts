@@ -28,6 +28,8 @@ export const apiEnvSchema = baseEnvSchema.extend({
   DATABASE_URL: postgresUrl,
   AUTH0_DOMAIN: nonEmpty,
   AUTH0_AUDIENCE: nonEmpty,
+  /** Local-only directory for uploaded document originals. */
+  DOCUMENT_STORE_DIR: nonEmpty.optional(),
 });
 export type ApiEnv = z.infer<typeof apiEnvSchema>;
 

@@ -1,10 +1,14 @@
 import { Global, Module, type DynamicModule } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
+import { NotConfiguredClaudeGateway } from '@pactlab/ai';
 import type { PrismaClient } from '@pactlab/db';
 import type { Logger } from '@pactlab/observability';
 import { AuthGuard } from './auth/auth.guard';
 import type { IdentityVerifier } from './auth/identity';
 import { DealsModule } from './deals/deals.module';
+import { DocumentsModule, type DocumentsModuleDependencies } from './documents/documents.module';
+import { PrismaDocumentsRepository } from './documents/prisma-documents.repository';
+import { UnavailableMalwareScanner, UnavailableObjectStore } from './documents/storage-adapters';
 import { FindingsModule } from './findings/findings.module';
 import { PrismaFindingsRepository } from './findings/prisma-findings.repository';
 import { HealthController } from './health/health.controller';
@@ -18,6 +22,11 @@ export interface AppDependencies {
   prisma: PrismaClient;
   identityVerifier: IdentityVerifier;
   logger: Logger;
+  /**
+   * Document storage, scanning and model access. Omitted adapters fail
+   * closed: uploads are rejected and AI calls report NOT_CONFIGURED.
+   */
+  documents?: Partial<Omit<DocumentsModuleDependencies, 'repository'>>;
 }
 
 @Global()
@@ -51,6 +60,12 @@ export class AppModule {
         ValuationModule.register({
           valuation: new PrismaValuationRepository(deps.prisma),
           findings,
+        }),
+        DocumentsModule.register({
+          repository: new PrismaDocumentsRepository(deps.prisma),
+          objectStore: deps.documents?.objectStore ?? new UnavailableObjectStore(),
+          malwareScanner: deps.documents?.malwareScanner ?? new UnavailableMalwareScanner(),
+          gateway: deps.documents?.gateway ?? new NotConfiguredClaudeGateway(),
         }),
       ],
       controllers: [HealthController],

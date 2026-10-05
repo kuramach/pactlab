@@ -22,9 +22,8 @@ export interface DocumentsModuleDependencies {
 
 /**
  * Documents, cited Q&A and document findings as deal sub-resources. The
- * repository is supplied by the caller: the RLS-backed implementation needs
- * the documents, pages, AI-run and finding tables, which are a separate
- * schema task. Mounting this module in AppModule happens with that task.
+ * caller supplies the adapters: `AppModule` mounts the RLS-backed
+ * `PrismaDocumentsRepository` with fail-closed defaults for the rest.
  */
 @Module({})
 export class DocumentsModule {
