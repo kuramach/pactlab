@@ -1,4 +1,5 @@
 import type { EvidenceItemView, EvidenceLineage } from '@pactlab/domain';
+import { organizationAccessToken } from '../../../../lib/auth0';
 import { publicEnv } from '../../../../lib/env';
 
 export type ApiResult<T> =
@@ -23,18 +24,9 @@ export interface EvidencePage {
   types: string[];
 }
 
-/**
- * Bearer token for API calls on behalf of the signed-in user. Web sign-in
- * (Auth0) is not wired yet, so every page renders its signed-out state; the
- * API enforces authorization regardless of what the UI shows.
- */
-async function accessToken(): Promise<string | null> {
-  return null;
-}
-
 /** Server-side API call. The browser never holds the token or calls the API directly. */
 export async function apiGet<T>(path: string): Promise<ApiResult<T>> {
-  const token = await accessToken();
+  const token = await organizationAccessToken();
   if (!token) return { kind: 'signed-out' };
   let response: Response;
   try {

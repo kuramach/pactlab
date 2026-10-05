@@ -50,6 +50,18 @@ export const webPublicEnvSchema = z.object({
 });
 export type WebPublicEnv = z.infer<typeof webPublicEnvSchema>;
 
+/** Web server-only settings (Auth0 Regular Web Application). Never exposed to the browser. */
+export const webServerEnvSchema = z.object({
+  AUTH0_DOMAIN: nonEmpty,
+  AUTH0_CLIENT_ID: nonEmpty,
+  AUTH0_CLIENT_SECRET: nonEmpty,
+  // Session-cookie encryption key; 32 bytes hex-encoded (`openssl rand -hex 32`).
+  AUTH0_SECRET: nonEmpty.min(64, 'must be at least 32 bytes, hex-encoded'),
+  APP_BASE_URL: z.url(),
+  AUTH0_AUDIENCE: nonEmpty,
+});
+export type WebServerEnv = z.infer<typeof webServerEnvSchema>;
+
 export class ConfigError extends Error {
   constructor(readonly issues: readonly string[]) {
     // Only variable names and messages — never values, which may be secrets.
