@@ -84,7 +84,7 @@ describe('normalizeCsv', () => {
       load: async () => 'customer_id,name,as_of\nc1,Acme,2026-01-01\n',
     });
     const pull = await source.pull();
-    expect(pull.records.map((record) => record.locator.dataset)).toEqual([
+    expect(pull.records.map((record) => record.locator.kind === 'csv_row' && record.locator.dataset)).toEqual([
       'SparseCo/customers.csv',
       'SparseCo/other.csv',
     ]);

@@ -19,6 +19,7 @@
     "test:fixtures": "vitest run --config vitest.fixtures.config.ts"
   },
   "dependencies": {
+    "@pactlab/connectors": "workspace:*",
     "@pactlab/domain": "workspace:*",
     "@prisma/adapter-pg": "7.10.0",
     "@prisma/client": "7.10.0",

@@ -25,6 +25,11 @@ try {
         `${sync.recordsSeen} records (${sync.recordsCreated} new) · ${sync.issuesCount} source issues\n`,
     );
   }
+  const { codeReview } = report;
+  process.stdout.write(
+    `TroubledCo code review: repository evidence ${codeReview.sync.replayed ? 'already synced' : 'synced'} · ` +
+      `${codeReview.findingsCreated} draft findings created, ${codeReview.findingsExisting} already present\n`,
+  );
 } finally {
   await client.end();
   await prisma.$disconnect();

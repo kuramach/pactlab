@@ -18,11 +18,25 @@ export const EVIDENCE_EDGE_TYPES = ['SUPERSEDES', 'DERIVED_FROM'] as const;
 export type EvidenceEdgeType = (typeof EVIDENCE_EDGE_TYPES)[number];
 
 /** Exact position of a record inside its source, e.g. one row of one CSV file. */
-export interface SourceLocator {
-  readonly kind: 'csv_row';
-  readonly dataset: string;
-  /** 1-based data row number, excluding the header row. */
-  readonly row: number;
+export type SourceLocator =
+  | {
+      readonly kind: 'csv_row';
+      readonly dataset: string;
+      /** 1-based data row number, excluding the header row. */
+      readonly row: number;
+    }
+  | {
+      /** One exact commit of one repository; never file contents. */
+      readonly kind: 'git_commit';
+      readonly repository: string;
+      readonly commitSha: string;
+    };
+
+/** Human-readable position of a locator, for lineage and citation display. */
+export function describeLocator(locator: SourceLocator): string {
+  return locator.kind === 'csv_row'
+    ? `${locator.dataset} row ${locator.row}`
+    : `${locator.repository} @ ${locator.commitSha.slice(0, 12)}`;
 }
 
 /**
