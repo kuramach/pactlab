@@ -168,6 +168,64 @@ enum SubmissionDecisionKind {
   @@map("submission_decision")
 }
 
+enum DataClassification {
+  PUBLIC
+  BUSINESS
+  FINANCIAL
+  HR
+  COMPENSATION
+  PERFORMANCE
+  NAMED_CONTRIBUTION
+
+  @@map("data_classification")
+}
+
+enum RetentionClass {
+  DEAL_TERM
+  SHORT_90D
+  LEGAL_HOLD
+
+  @@map("retention_class")
+}
+
+enum DocumentStatus {
+  AVAILABLE
+  PURGED
+
+  @@map("document_status")
+}
+
+enum AiRunStatus {
+  SUCCEEDED
+  SCHEMA_INVALID
+  PROVIDER_ERROR
+
+  @@map("ai_run_status")
+}
+
+enum DocumentFindingStatus {
+  DRAFT
+  ACCEPTED
+  REJECTED
+
+  @@map("document_finding_status")
+}
+
+enum DocumentFindingKind {
+  PARTY
+  DATE
+  CLAUSE
+
+  @@map("document_finding_kind")
+}
+
+enum DocumentReviewDecision {
+  ACCEPT
+  REJECT
+
+  @@map("document_review_decision")
+}
+
 enum EvidenceEdgeType {
   SUPERSEDES
   DERIVED_FROM
@@ -205,6 +263,11 @@ model Organization {
   valuationRuns           ValuationRun[]
   valuationSubmissions    ValuationSubmission[]
   valuationDecisions      ValuationSubmissionDecision[]
+  documents               Document[]
+  documentPages           DocumentPage[]
+  aiRuns                  AiRun[]
+  documentFindings        DocumentFinding[]
+  documentFindingReviews  DocumentFindingReview[]
 
   @@map("organizations")
 }
@@ -270,6 +333,11 @@ model Deal {
   valuationRuns           ValuationRun[]
   valuationSubmissions    ValuationSubmission[]
   valuationDecisions      ValuationSubmissionDecision[]
+  documents               Document[]
+  documentPages           DocumentPage[]
+  aiRuns                  AiRun[]
+  documentFindings        DocumentFinding[]
+  documentFindingReviews  DocumentFindingReview[]
 
   @@unique([organizationId, id])
   @@index([organizationId, createdAt])
@@ -730,4 +798,151 @@ model ValuationSubmissionDecision {
 
   @@index([organizationId, dealId, submissionId, decidedAt])
   @@map("valuation_submission_decisions")
+}
+
+/// Uploaded document metadata. Bytes live in the object store under the
+/// tenant/deal prefix (CHECK in the migration). Target uploads are SHARED.
+model Document {
+  id             String             @id @default(uuid(7)) @db.Uuid
+  organizationId String             @map("organization_id") @db.Uuid
+  dealId         String             @map("deal_id") @db.Uuid
+  fileName       String             @map("file_name")
+  contentType    String             @map("content_type")
+  sizeBytes      Int                @map("size_bytes")
+  sha256         String             @db.Char(64)
+  objectKey      String             @map("object_key")
+  pageCount      Int                @map("page_count")
+  dataClass      DataClassification @map("data_class")
+  /// Per-document AI exclusion; always true for prohibited data classes.
+  aiExcluded     Boolean            @map("ai_excluded")
+  retentionClass RetentionClass     @map("retention_class")
+  retainUntil    DateTime?          @map("retain_until") @db.Timestamptz(3)
+  visibility     EvidenceVisibility
+  malwareScanner String             @map("malware_scanner")
+  status         DocumentStatus     @default(AVAILABLE)
+  uploadedBy     String             @map("uploaded_by") @db.Uuid
+  createdAt      DateTime           @map("created_at") @db.Timestamptz(3)
+  purgedAt       DateTime?          @map("purged_at") @db.Timestamptz(3)
+
+  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  deal         Deal              @relation(fields: [organizationId, dealId], references: [organizationId, id], onDelete: Restrict)
+  pages        DocumentPage[]
+  findings     DocumentFinding[]
+
+  @@unique([organizationId, dealId, id])
+  @@unique([objectKey])
+  @@index([organizationId, dealId, sha256])
+  @@map("documents")
+}
+
+/// Extracted page. The page id is the citation source id; purge nulls the
+/// text but keeps number and checksum for provenance.
+model DocumentPage {
+  id             String  @id @default(uuid(7)) @db.Uuid
+  organizationId String  @map("organization_id") @db.Uuid
+  dealId         String  @map("deal_id") @db.Uuid
+  documentId     String  @map("document_id") @db.Uuid
+  pageNumber     Int     @map("page_number")
+  text           String?
+  checksum       String  @db.Char(64)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  deal         Deal         @relation(fields: [organizationId, dealId], references: [organizationId, id], onDelete: Restrict)
+  document     Document     @relation(fields: [organizationId, dealId, documentId], references: [organizationId, dealId, id], onDelete: Restrict)
+
+  @@unique([organizationId, dealId, documentId, pageNumber])
+  @@map("document_pages")
+}
+
+/// Insert-only record of one model invocation: hashes and counts only, never
+/// prompt or document content.
+model AiRun {
+  id               String      @id @default(uuid(7)) @db.Uuid
+  organizationId   String      @map("organization_id") @db.Uuid
+  dealId           String      @map("deal_id") @db.Uuid
+  taskType         String      @map("task_type")
+  promptId         String      @map("prompt_id")
+  promptVersion    String      @map("prompt_version")
+  promptHash       String      @map("prompt_hash")
+  modelAlias       String      @map("model_alias")
+  resolvedModelId  String      @map("resolved_model_id")
+  inputHashes      String[]    @map("input_hashes")
+  outputHash       String?     @map("output_hash")
+  status           AiRunStatus
+  repairAttempted  Boolean     @map("repair_attempted")
+  injectionSignals Int         @map("injection_signals")
+  inputTokens      Int         @map("input_tokens")
+  outputTokens     Int         @map("output_tokens")
+  latencyMs        Int         @map("latency_ms")
+  createdAt        DateTime    @map("created_at") @db.Timestamptz(3)
+
+  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  deal         Deal              @relation(fields: [organizationId, dealId], references: [organizationId, id], onDelete: Restrict)
+  findings     DocumentFinding[]
+
+  @@unique([organizationId, dealId, id])
+  @@index([organizationId, dealId, createdAt])
+  @@map("ai_runs")
+}
+
+/// AI-drafted document finding. Exact citations are stored with it; only a
+/// named human moves it out of DRAFT.
+model DocumentFinding {
+  id                  String                @id @default(uuid(7)) @db.Uuid
+  organizationId      String                @map("organization_id") @db.Uuid
+  dealId              String                @map("deal_id") @db.Uuid
+  documentId          String                @map("document_id") @db.Uuid
+  aiRunId             String                @map("ai_run_id") @db.Uuid
+  origin              String
+  kind                DocumentFindingKind
+  subtype             String
+  domain              String
+  title               String
+  summary             String
+  severity            FindingSeverity
+  status              DocumentFindingStatus @default(DRAFT)
+  fingerprint         String
+  /// ResolvedCitation[]: page, offsets, quote and quote hash.
+  citations           Json
+  promptId            String                @map("prompt_id")
+  promptVersion       String                @map("prompt_version")
+  promptHash          String                @map("prompt_hash")
+  resolvedModelId     String                @map("resolved_model_id")
+  createdBy           String                @map("created_by") @db.Uuid
+  reviewerUserId      String?               @map("reviewer_user_id") @db.Uuid
+  reviewerDisplayName String?               @map("reviewer_display_name")
+  decidedAt           DateTime?             @map("decided_at") @db.Timestamptz(3)
+  version             Int
+  createdAt           DateTime              @map("created_at") @db.Timestamptz(3)
+
+  organization Organization            @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  deal         Deal                    @relation(fields: [organizationId, dealId], references: [organizationId, id], onDelete: Restrict)
+  document     Document                @relation(fields: [organizationId, dealId, documentId], references: [organizationId, dealId, id], onDelete: Restrict)
+  aiRun        AiRun                   @relation(fields: [organizationId, dealId, aiRunId], references: [organizationId, dealId, id], onDelete: Restrict)
+  reviews      DocumentFindingReview[]
+
+  @@unique([organizationId, dealId, id])
+  @@unique([organizationId, dealId, documentId, fingerprint])
+  @@index([organizationId, dealId, status])
+  @@map("document_findings")
+}
+
+/// Append-only named human decision on a document finding.
+model DocumentFindingReview {
+  id                  String                 @id @default(uuid(7)) @db.Uuid
+  organizationId      String                 @map("organization_id") @db.Uuid
+  dealId              String                 @map("deal_id") @db.Uuid
+  findingId           String                 @map("finding_id") @db.Uuid
+  decision            DocumentReviewDecision
+  reviewerUserId      String                 @map("reviewer_user_id") @db.Uuid
+  reviewerDisplayName String                 @map("reviewer_display_name")
+  rationale           String
+  decidedAt           DateTime               @map("decided_at") @db.Timestamptz(3)
+
+  organization Organization    @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  deal         Deal            @relation(fields: [organizationId, dealId], references: [organizationId, id], onDelete: Restrict)
+  finding      DocumentFinding @relation(fields: [organizationId, dealId, findingId], references: [organizationId, dealId, id], onDelete: Restrict)
+
+  @@index([organizationId, dealId, findingId, decidedAt])
+  @@map("document_finding_reviews")
 }
