@@ -1,3 +1,4 @@
+import { organizationAccessToken } from '../../../../lib/auth0';
 import { publicEnv } from '../../../../lib/env';
 import { apiGet, type ApiResult } from '../../deals/_lib/api';
 
@@ -122,21 +123,12 @@ export interface CohortsView {
   }[];
 }
 
-/**
- * Bearer token for API writes. Same placeholder as the deals API helper:
- * web sign-in is not wired yet, so writes resolve to the signed-out state and
- * the API enforces authorization regardless.
- */
-async function accessToken(): Promise<string | null> {
-  return null;
-}
-
 /** Server-side POST; the browser never holds the token or calls the API directly. */
 export async function apiPost<T>(
   path: string,
   body: unknown,
 ): Promise<ApiResult<T> | { kind: 'conflict' } | { kind: 'invalid' }> {
-  const token = await accessToken();
+  const token = await organizationAccessToken();
   if (!token) return { kind: 'signed-out' };
   let response: Response;
   try {

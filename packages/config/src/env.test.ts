@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ConfigError, apiEnvSchema, loadConfig, workerEnvSchema } from './env';
+import { ConfigError, apiEnvSchema, loadConfig, webServerEnvSchema, workerEnvSchema } from './env';
 
 const validApi = {
   APP_ENV: 'test',
@@ -35,6 +35,37 @@ describe('loadConfig', () => {
     } catch (error) {
       expect(String(error)).not.toContain(secret);
       expect(String(error)).toContain('REDIS_URL');
+    }
+  });
+});
+
+describe('webServerEnvSchema', () => {
+  const validWeb = {
+    AUTH0_DOMAIN: 'example.invalid',
+    AUTH0_CLIENT_ID: 'client-id',
+    AUTH0_CLIENT_SECRET: 'client-secret-value',
+    AUTH0_SECRET: 'a'.repeat(64),
+    APP_BASE_URL: 'http://localhost:3000',
+    AUTH0_AUDIENCE: 'https://api.pactlab.test',
+  };
+
+  it('parses a valid web server environment', () => {
+    expect(loadConfig(webServerEnvSchema, validWeb).APP_BASE_URL).toBe('http://localhost:3000');
+  });
+
+  it('fails closed without the client secret, naming only the variable', () => {
+    const { AUTH0_CLIENT_SECRET: _omitted, ...missing } = validWeb;
+    expect(() => loadConfig(webServerEnvSchema, missing)).toThrow(/AUTH0_CLIENT_SECRET/);
+  });
+
+  it('rejects a short session secret without echoing it', () => {
+    const weak = 'too-short-session-secret';
+    try {
+      loadConfig(webServerEnvSchema, { ...validWeb, AUTH0_SECRET: weak });
+      expect.unreachable();
+    } catch (error) {
+      expect(String(error)).toContain('AUTH0_SECRET');
+      expect(String(error)).not.toContain(weak);
     }
   });
 });

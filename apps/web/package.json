@@ -12,6 +12,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@auth0/nextjs-auth0": "4.31.0",
     "@pactlab/config": "workspace:*",
     "@pactlab/domain": "workspace:*",
     "@pactlab/ui": "workspace:*",
