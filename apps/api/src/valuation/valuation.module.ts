@@ -7,8 +7,7 @@ import { ValuationService } from './valuation.service';
 
 /**
  * Valuation scenarios as deal sub-resources. Repositories are supplied by
- * the caller: the RLS-backed implementations need the valuation and
- * findings tables, which are a separate schema task.
+ * the caller: `AppModule` mounts the RLS-backed Prisma implementations.
  */
 @Module({})
 export class ValuationModule {
