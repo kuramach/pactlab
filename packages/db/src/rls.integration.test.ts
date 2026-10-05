@@ -146,4 +146,46 @@ describe.runIf(runtimeUrl && ownerUrl)('RLS against PostgreSQL', () => {
     ).rejects.toThrow(/row-level security/);
     await expect(withTenant(prisma, a.context, (tx) => tx.finding.deleteMany())).rejects.toThrow(/permission denied/);
   });
+
+  it('denies valuation scenarios across tenants', async () => {
+    const now = new Date();
+    const scenario = await withTenant(prisma, a.context, (tx) =>
+      tx.valuationScenario.create({
+        data: {
+          organizationId: a.organizationId,
+          dealId: a.dealId,
+          name: 'Integration scenario',
+          currency: 'USD',
+          transactionType: 'PRIVATE_ACQUIRER',
+          assumptionVersion: 1,
+          createdBy: a.userId,
+          createdAt: now,
+          updatedAt: now,
+          version: 1,
+        },
+      }),
+    );
+    await expect(
+      withTenant(prisma, b.context, (tx) => tx.valuationScenario.findUnique({ where: { id: scenario.id } })),
+    ).resolves.toBeNull();
+    await expect(
+      withTenant(prisma, b.context, (tx) =>
+        tx.valuationScenario.create({
+          data: {
+            organizationId: a.organizationId,
+            dealId: a.dealId,
+            name: 'Cross-tenant',
+            currency: 'USD',
+            transactionType: 'PRIVATE_ACQUIRER',
+            assumptionVersion: 1,
+            createdBy: b.userId,
+            createdAt: now,
+            updatedAt: now,
+            version: 1,
+          },
+        }),
+      ),
+    ).rejects.toThrow(/row-level security/);
+    await expect(withTenant(prisma, a.context, (tx) => tx.valuationRun.deleteMany())).rejects.toThrow(/permission denied/);
+  });
 });

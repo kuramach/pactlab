@@ -153,6 +153,21 @@ enum PricedRiskType {
   @@map("priced_risk_type")
 }
 
+enum ScenarioStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+
+  @@map("scenario_status")
+}
+
+enum SubmissionDecisionKind {
+  APPROVED
+  REJECTED
+
+  @@map("submission_decision")
+}
+
 enum EvidenceEdgeType {
   SUPERSEDES
   DERIVED_FROM
@@ -170,21 +185,26 @@ model Organization {
   createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt           DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  memberships     OrganizationMembership[]
-  deals           Deal[]
-  dealMemberships DealMembership[]
-  auditEvents     AuditEvent[]
-  outboxEvents    OutboxEvent[]
-  jobRuns         JobRun[]
-  storedFiles     StoredFile[]
-  connections     Connection[]
-  syncRuns        SyncRun[]
-  evidenceItems   EvidenceItem[]
-  evidenceEdges   EvidenceEdge[]
-  citations       Citation[]
-  findings        Finding[]
-  findingLinks    FindingEvidenceLink[]
-  findingReviews  FindingReview[]
+  memberships             OrganizationMembership[]
+  deals                   Deal[]
+  dealMemberships         DealMembership[]
+  auditEvents             AuditEvent[]
+  outboxEvents            OutboxEvent[]
+  jobRuns                 JobRun[]
+  storedFiles             StoredFile[]
+  connections             Connection[]
+  syncRuns                SyncRun[]
+  evidenceItems           EvidenceItem[]
+  evidenceEdges           EvidenceEdge[]
+  citations               Citation[]
+  findings                Finding[]
+  findingLinks            FindingEvidenceLink[]
+  findingReviews          FindingReview[]
+  valuationScenarios      ValuationScenario[]
+  valuationAssumptionSets ValuationAssumptionSet[]
+  valuationRuns           ValuationRun[]
+  valuationSubmissions    ValuationSubmission[]
+  valuationDecisions      ValuationSubmissionDecision[]
 
   @@map("organizations")
 }
@@ -231,20 +251,25 @@ model Deal {
   createdAt       DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt       DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  organization   Organization          @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  memberships    DealMembership[]
-  jobRuns        JobRun[]
-  storedFiles    StoredFile[]
-  auditEvents    AuditEvent[]
-  outboxEvents   OutboxEvent[]
-  connections    Connection[]
-  syncRuns       SyncRun[]
-  evidenceItems  EvidenceItem[]
-  evidenceEdges  EvidenceEdge[]
-  citations      Citation[]
-  findings       Finding[]
-  findingLinks   FindingEvidenceLink[]
-  findingReviews FindingReview[]
+  organization            Organization                  @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  memberships             DealMembership[]
+  jobRuns                 JobRun[]
+  storedFiles             StoredFile[]
+  auditEvents             AuditEvent[]
+  outboxEvents            OutboxEvent[]
+  connections             Connection[]
+  syncRuns                SyncRun[]
+  evidenceItems           EvidenceItem[]
+  evidenceEdges           EvidenceEdge[]
+  citations               Citation[]
+  findings                Finding[]
+  findingLinks            FindingEvidenceLink[]
+  findingReviews          FindingReview[]
+  valuationScenarios      ValuationScenario[]
+  valuationAssumptionSets ValuationAssumptionSet[]
+  valuationRuns           ValuationRun[]
+  valuationSubmissions    ValuationSubmission[]
+  valuationDecisions      ValuationSubmissionDecision[]
 
   @@unique([organizationId, id])
   @@index([organizationId, createdAt])
@@ -593,4 +618,116 @@ model FindingReview {
 
   @@index([organizationId, dealId, findingId, decidedAt])
   @@map("finding_reviews")
+}
+
+/// Valuation scenario. DRAFT is editable; submission freezes the latest run.
+/// Every change bumps `version` (optimistic concurrency).
+model ValuationScenario {
+  id                String          @id @default(uuid(7)) @db.Uuid
+  organizationId    String          @map("organization_id") @db.Uuid
+  dealId            String          @map("deal_id") @db.Uuid
+  name              String
+  currency          String          @db.Char(3)
+  transactionType   TransactionType @map("transaction_type")
+  status            ScenarioStatus  @default(DRAFT)
+  assumptionVersion Int             @map("assumption_version")
+  createdBy         String          @map("created_by") @db.Uuid
+  createdAt         DateTime        @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime        @map("updated_at") @db.Timestamptz(3)
+  version           Int
+
+  organization   Organization             @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  deal           Deal                     @relation(fields: [organizationId, dealId], references: [organizationId, id], onDelete: Restrict)
+  assumptionSets ValuationAssumptionSet[]
+  runs           ValuationRun[]
+  submissions    ValuationSubmission[]
+
+  @@unique([organizationId, dealId, id])
+  @@index([organizationId, dealId, createdAt])
+  @@map("valuation_scenarios")
+}
+
+/// Insert-only, versioned assumption set. Values are decimal strings in JSON.
+model ValuationAssumptionSet {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  dealId         String   @map("deal_id") @db.Uuid
+  scenarioId     String   @map("scenario_id") @db.Uuid
+  version        Int
+  values         Json
+  createdBy      String   @map("created_by") @db.Uuid
+  createdAt      DateTime @map("created_at") @db.Timestamptz(3)
+
+  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  deal         Deal              @relation(fields: [organizationId, dealId], references: [organizationId, id], onDelete: Restrict)
+  scenario     ValuationScenario @relation(fields: [organizationId, dealId, scenarioId], references: [organizationId, dealId, id], onDelete: Restrict)
+
+  @@unique([organizationId, dealId, scenarioId, version])
+  @@map("valuation_assumption_sets")
+}
+
+/// Insert-only engine run: the full resolved inputs and the result produced.
+model ValuationRun {
+  id                String   @id @default(uuid(7)) @db.Uuid
+  organizationId    String   @map("organization_id") @db.Uuid
+  dealId            String   @map("deal_id") @db.Uuid
+  scenarioId        String   @map("scenario_id") @db.Uuid
+  assumptionVersion Int      @map("assumption_version")
+  inputs            Json
+  result            Json
+  ranBy             String   @map("ran_by") @db.Uuid
+  ranAt             DateTime @map("ran_at") @db.Timestamptz(3)
+
+  organization Organization          @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  deal         Deal                  @relation(fields: [organizationId, dealId], references: [organizationId, id], onDelete: Restrict)
+  scenario     ValuationScenario     @relation(fields: [organizationId, dealId, scenarioId], references: [organizationId, dealId, id], onDelete: Restrict)
+  submissions  ValuationSubmission[]
+
+  @@unique([organizationId, dealId, id])
+  @@index([organizationId, dealId, scenarioId, ranAt])
+  @@map("valuation_runs")
+}
+
+/// Frozen submission. `canonical` is stored and served byte-for-byte; a
+/// CHECK ties it to its SHA-256 digest.
+model ValuationSubmission {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  dealId         String   @map("deal_id") @db.Uuid
+  scenarioId     String   @map("scenario_id") @db.Uuid
+  runId          String   @map("run_id") @db.Uuid
+  canonical      String
+  digest         String   @db.Char(64)
+  submittedBy    String   @map("submitted_by") @db.Uuid
+  submittedAt    DateTime @map("submitted_at") @db.Timestamptz(3)
+
+  organization Organization                  @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  deal         Deal                          @relation(fields: [organizationId, dealId], references: [organizationId, id], onDelete: Restrict)
+  scenario     ValuationScenario             @relation(fields: [organizationId, dealId, scenarioId], references: [organizationId, dealId, id], onDelete: Restrict)
+  run          ValuationRun                  @relation(fields: [organizationId, dealId, runId], references: [organizationId, dealId, id], onDelete: Restrict)
+  decisions    ValuationSubmissionDecision[]
+
+  @@unique([organizationId, dealId, id])
+  @@index([organizationId, dealId, scenarioId, submittedAt])
+  @@map("valuation_submissions")
+}
+
+/// Append-only human decision on a submission.
+model ValuationSubmissionDecision {
+  id             String                 @id @default(uuid(7)) @db.Uuid
+  organizationId String                 @map("organization_id") @db.Uuid
+  dealId         String                 @map("deal_id") @db.Uuid
+  submissionId   String                 @map("submission_id") @db.Uuid
+  decision       SubmissionDecisionKind
+  rationale      String
+  decidedBy      String                 @map("decided_by") @db.Uuid
+  decidedRole    DealRole               @map("decided_role")
+  decidedAt      DateTime               @map("decided_at") @db.Timestamptz(3)
+
+  organization Organization        @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  deal         Deal                @relation(fields: [organizationId, dealId], references: [organizationId, id], onDelete: Restrict)
+  submission   ValuationSubmission @relation(fields: [organizationId, dealId, submissionId], references: [organizationId, dealId, id], onDelete: Restrict)
+
+  @@index([organizationId, dealId, submissionId, decidedAt])
+  @@map("valuation_submission_decisions")
 }

@@ -10,6 +10,8 @@ import { PrismaFindingsRepository } from './findings/prisma-findings.repository'
 import { HealthController } from './health/health.controller';
 import { MeModule } from './me/me.module';
 import { MetricsModule } from './metrics/metrics.module';
+import { PrismaValuationRepository } from './valuation/prisma-valuation.repository';
+import { ValuationModule } from './valuation/valuation.module';
 import { IDENTITY_VERIFIER, LOGGER, PRISMA } from './tokens';
 
 export interface AppDependencies {
@@ -37,6 +39,7 @@ class InfrastructureModule {
 @Module({})
 export class AppModule {
   static register(deps: AppDependencies): DynamicModule {
+    const findings = new PrismaFindingsRepository(deps.prisma);
     return {
       module: AppModule,
       imports: [
@@ -44,7 +47,11 @@ export class AppModule {
         DealsModule,
         MeModule,
         MetricsModule,
-        FindingsModule.register(new PrismaFindingsRepository(deps.prisma)),
+        FindingsModule.register(findings),
+        ValuationModule.register({
+          valuation: new PrismaValuationRepository(deps.prisma),
+          findings,
+        }),
       ],
       controllers: [HealthController],
       providers: [{ provide: APP_GUARD, useClass: AuthGuard }],

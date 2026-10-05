@@ -1,10 +1,8 @@
 import 'reflect-metadata';
-import { createHash, randomUUID } from 'node:crypto';
-import { Global, Module } from '@nestjs/common';
-import { APP_GUARD, NestFactory } from '@nestjs/core';
-import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fastify';
+import { createHash } from 'node:crypto';
+import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { GitHubFixtureAdapter } from '@pactlab/connectors';
-import type { AuditEventInput } from '@pactlab/db';
+import { PrismaFindingsRepository } from '../findings/prisma-findings.repository';
 import {
   addSyntheticDealMember,
   createSyntheticTenant,
@@ -12,30 +10,16 @@ import {
   type SyntheticTenant,
   type TestDatabase,
 } from '@pactlab/db/testing';
-import { newId, type Finding, type FindingReview, type TenantContext } from '@pactlab/domain';
+import { newId, type Finding, type TenantContext } from '@pactlab/domain';
 import { createLogger } from '@pactlab/observability';
 import { createLocalJWKSet, exportJWK, generateKeyPair, SignJWT, type CryptoKey } from 'jose';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createApp } from '../app';
-import { AuthGuard } from '../auth/auth.guard';
-import { JwtIdentityVerifier, type IdentityVerifier } from '../auth/identity';
-import { ProblemDetailsFilter } from '../common/problem-details.filter';
-import { FindingsModule } from '../findings/findings.module';
+import { JwtIdentityVerifier } from '../auth/identity';
 import type {
-  FindingFilter,
-  FindingsRepository,
-  FindingWithReviews,
-} from '../findings/findings.repository';
-import { IDENTITY_VERIFIER, LOGGER, PRISMA } from '../tokens';
-import { ValuationModule } from './valuation.module';
-import type {
-  AssumptionSet,
   Scenario,
-  ScenarioChange,
-  ScenarioRecord,
   Submission,
   SubmissionDecision,
-  ValuationRepository,
   ValuationRun,
 } from './valuation.repository';
 
@@ -43,142 +27,6 @@ const ISSUER = 'https://pactlab-test.example/';
 const AUDIENCE = 'https://api.pactlab.test';
 
 type Body = Record<string, unknown>;
-
-/** Findings persistence test double: tenant-keyed and copy-on-read. */
-class InMemoryFindingsRepository implements FindingsRepository {
-  private readonly rows = new Map<string, { finding: Finding; reviews: FindingReview[] }>();
-
-  private scoped(tenant: TenantContext, dealId: string) {
-    return [...this.rows.values()].filter(
-      ({ finding }) =>
-        finding.organizationId === tenant.organizationId &&
-        finding.dealId === dealId &&
-        tenant.dealIds.includes(dealId as never),
-    );
-  }
-
-  async list(tenant: TenantContext, dealId: string, filter: FindingFilter) {
-    return this.scoped(tenant, dealId)
-      .map(({ finding }) => structuredClone(finding))
-      .filter((f) => !filter.status || f.status === filter.status);
-  }
-
-  async get(tenant: TenantContext, dealId: string, id: string): Promise<FindingWithReviews | null> {
-    const row = this.scoped(tenant, dealId).find(({ finding }) => finding.id === id);
-    return row ? structuredClone(row) : null;
-  }
-
-  async findByFingerprint(tenant: TenantContext, dealId: string, fingerprint: string) {
-    return (
-      this.scoped(tenant, dealId).find(({ finding }) => finding.fingerprint === fingerprint)
-        ?.finding ?? null
-    );
-  }
-
-  async insert(_tenant: TenantContext, finding: Finding) {
-    this.rows.set(finding.id, { finding: structuredClone(finding), reviews: [] });
-  }
-
-  async update(
-    tenant: TenantContext,
-    finding: Finding,
-    expectedVersion: number,
-    review: FindingReview | null,
-  ) {
-    const row = this.scoped(tenant, finding.dealId).find((r) => r.finding.id === finding.id);
-    if (!row || row.finding.version !== expectedVersion) return false;
-    row.finding = structuredClone(finding);
-    if (review) row.reviews.push(structuredClone(review));
-    return true;
-  }
-}
-
-/**
- * Valuation persistence test double. Assumption sets, runs, submissions and
- * decisions are append-only; submission bytes are stored as the exact string.
- */
-class InMemoryValuationRepository implements ValuationRepository {
-  private readonly scenarios = new Map<string, Scenario>();
-  private readonly assumptionSets: AssumptionSet[] = [];
-  private readonly runs: ValuationRun[] = [];
-  private readonly submissions: Submission[] = [];
-  private readonly decisions: SubmissionDecision[] = [];
-  readonly audits: AuditEventInput[] = [];
-
-  private visible(tenant: TenantContext, dealId: string, scenario: Scenario | undefined) {
-    return (
-      !!scenario &&
-      scenario.organizationId === tenant.organizationId &&
-      scenario.dealId === dealId &&
-      tenant.dealIds.includes(dealId as never)
-    );
-  }
-
-  private record(scenario: Scenario): ScenarioRecord {
-    const runs = this.runs.filter((run) => run.scenarioId === scenario.id);
-    const submissions = this.submissions.filter((s) => s.scenarioId === scenario.id);
-    return structuredClone({
-      scenario,
-      assumptionSets: this.assumptionSets.filter((set) => set.scenarioId === scenario.id),
-      latestRun: runs.at(-1) ?? null,
-      submissions,
-      decisions: this.decisions.filter((d) => submissions.some((s) => s.id === d.submissionId)),
-    });
-  }
-
-  async list(tenant: TenantContext, dealId: string) {
-    return [...this.scenarios.values()]
-      .filter((scenario) => this.visible(tenant, dealId, scenario))
-      .map((scenario) => this.record(scenario));
-  }
-
-  async get(tenant: TenantContext, dealId: string, scenarioId: string) {
-    const scenario = this.scenarios.get(scenarioId);
-    return scenario && this.visible(tenant, dealId, scenario) ? this.record(scenario) : null;
-  }
-
-  async getSubmission(
-    tenant: TenantContext,
-    dealId: string,
-    scenarioId: string,
-    submissionId: string,
-  ) {
-    if (!this.visible(tenant, dealId, this.scenarios.get(scenarioId))) return null;
-    const found = this.submissions.find((s) => s.id === submissionId && s.scenarioId === scenarioId);
-    return found ? { ...found } : null;
-  }
-
-  async insert(
-    _tenant: TenantContext,
-    scenario: Scenario,
-    assumptionSet: AssumptionSet,
-    audit: AuditEventInput,
-  ) {
-    this.scenarios.set(scenario.id, structuredClone(scenario));
-    this.assumptionSets.push(structuredClone(assumptionSet));
-    this.audits.push(audit);
-  }
-
-  async commit(
-    tenant: TenantContext,
-    scenario: Scenario,
-    expectedVersion: number,
-    change: ScenarioChange,
-    audit: AuditEventInput,
-  ) {
-    const current = this.scenarios.get(scenario.id);
-    if (!this.visible(tenant, scenario.dealId, current) || current!.version !== expectedVersion) {
-      return false;
-    }
-    this.scenarios.set(scenario.id, structuredClone(scenario));
-    if (change.kind === 'ASSUMPTIONS') this.assumptionSets.push(structuredClone(change.assumptionSet));
-    if (change.kind === 'RUN') this.runs.push(structuredClone(change.run));
-    if (change.kind === 'SUBMISSION') this.submissions.push({ ...change.submission });
-    if (change.kind === 'DECISION') this.decisions.push(structuredClone(change.decision));
-    this.audits.push(audit);
-    return true;
-  }
-}
 
 interface ScenarioView {
   scenario: Scenario;
@@ -191,10 +39,8 @@ interface ScenarioView {
 
 describe('valuation API', () => {
   let db: TestDatabase;
-  let spine: NestFastifyApplication;
   let app: NestFastifyApplication;
-  let findingsRepo: InMemoryFindingsRepository;
-  let valuationRepo: InMemoryValuationRepository;
+  let findingsRepo: PrismaFindingsRepository;
   let a: SyntheticTenant;
   let b: SyntheticTenant;
   let c: SyntheticTenant;
@@ -312,7 +158,17 @@ describe('valuation API', () => {
       pricedRisk: { ...finding.pricedRisk!, high },
       version: finding.version + 1,
     };
-    expect(await findingsRepo.update(lead, next, finding.version, null)).toBe(true);
+    expect(
+      await findingsRepo.update(lead, next, finding.version, null, {
+        organizationId: a.organizationId,
+        dealId: a.dealId,
+        actorUserId: lead.userId,
+        action: 'finding.repriced',
+        targetType: 'finding',
+        targetId: findingId,
+        outcome: 'SUCCEEDED',
+      }),
+    ).toBe(true);
   }
 
   beforeAll(async () => {
@@ -332,37 +188,9 @@ describe('valuation API', () => {
       keys: createLocalJWKSet({ keys: [jwk] }),
     });
     const logger = createLogger('api-test', { level: 'silent' });
-    spine = await createApp({ prisma: db.prisma, identityVerifier, logger });
-
-    findingsRepo = new InMemoryFindingsRepository();
-    valuationRepo = new InMemoryValuationRepository();
-    @Global()
-    @Module({
-      providers: [
-        { provide: PRISMA, useValue: db.prisma },
-        { provide: IDENTITY_VERIFIER, useValue: identityVerifier satisfies IdentityVerifier },
-        { provide: LOGGER, useValue: logger },
-      ],
-      exports: [PRISMA, IDENTITY_VERIFIER, LOGGER],
-    })
-    class TestInfrastructure {}
-    @Module({
-      imports: [
-        TestInfrastructure,
-        FindingsModule.register(findingsRepo),
-        ValuationModule.register({ valuation: valuationRepo, findings: findingsRepo }),
-      ],
-      providers: [{ provide: APP_GUARD, useClass: AuthGuard }],
-    })
-    class TestRoot {}
-    app = await NestFactory.create<NestFastifyApplication>(
-      TestRoot,
-      new FastifyAdapter({ genReqId: () => randomUUID(), logger: false }),
-      { logger: false },
-    );
-    app.useGlobalFilters(new ProblemDetailsFilter(logger));
-    await app.init();
-    await app.getHttpAdapter().getInstance().ready();
+    // The production AppModule: findings and valuation persist through RLS.
+    app = await createApp({ prisma: db.prisma, identityVerifier, logger });
+    findingsRepo = new PrismaFindingsRepository(db.prisma);
 
     tokens['lead'] = await token(a.subject, a.auth0OrganizationId);
     users['lead'] = { userId: a.userId, context: a.context };
@@ -375,21 +203,21 @@ describe('valuation API', () => {
     }
 
     const base = `/v1/deals/${a.dealId}`;
-    const connection = await call(spine, 'POST', `${base}/connections`, tokens['lead']!, {
+    const connection = await call(app, 'POST', `${base}/connections`, tokens['lead']!, {
       provider: 'csv',
       displayName: 'TroubledCo export',
       mode: 'FIXTURE',
       config: { datasets: ['TroubledCo/customers.csv'] },
     });
     await call(
-      spine,
+      app,
       'POST',
       `${base}/sync-runs`,
       tokens['lead']!,
       { connectionId: connection.body['id'] },
       { 'idempotency-key': `sync-${newId()}` },
     );
-    const items = (await call(spine, 'GET', `${base}/evidence`, tokens['lead']!)).body['items'] as {
+    const items = (await call(app, 'GET', `${base}/evidence`, tokens['lead']!)).body['items'] as {
       id: string;
     }[];
     evidenceId = items[0]!.id;
@@ -405,7 +233,6 @@ describe('valuation API', () => {
 
   afterAll(async () => {
     await app?.close();
-    await spine?.close();
     await db?.stop();
   });
 
@@ -536,13 +363,19 @@ describe('valuation API', () => {
     expect(after.rawPayload.equals(first.rawPayload)).toBe(true);
     expect((await as('lead', 'POST', `/${id}/runs`, { expectedVersion: 4 })).status).toBe(409);
 
-    expect(
-      valuationRepo.audits.filter((audit) => audit.dealId === a.dealId && audit.targetId === id)
-        .map((audit) => audit.action),
-    ).toEqual(['valuation.scenario.created', 'valuation.run', 'valuation.approved']);
-    expect(
-      valuationRepo.audits.find((audit) => audit.targetId === submission.id)?.action,
-    ).toBe('valuation.submitted');
+    const audits = async (targetId: string) =>
+      (
+        (await db.owner.query(
+          `SELECT action FROM audit_events WHERE target_id = $1 AND outcome = 'SUCCEEDED' AND action <> 'valuation.submission.exported' ORDER BY chain_seq`,
+          [targetId],
+        )) as { rows: { action: string }[] }
+      ).rows.map((row) => row.action);
+    expect(await audits(id)).toEqual([
+      'valuation.scenario.created',
+      'valuation.run',
+      'valuation.approved',
+    ]);
+    expect(await audits(submission.id)).toEqual(['valuation.submitted']);
     const exported = (await db.owner.query(
       `SELECT count(*)::int AS n FROM audit_events WHERE target_id = $1 AND action = 'valuation.submission.exported'`,
       [submission.id],
@@ -633,7 +466,11 @@ describe('valuation API', () => {
   });
 
   it('keeps valuation away from target contributors, other tenants and read-only roles', async () => {
-    const anyId = valuationRepo.audits.find((audit) => audit.dealId === a.dealId)!.targetId!;
+    const anyId = (
+      (await db.owner.query(`SELECT id FROM valuation_scenarios WHERE deal_id = $1 LIMIT 1`, [
+        a.dealId,
+      ])) as { rows: { id: string }[] }
+    ).rows[0]!.id;
     expect((await as('target_contributor', 'GET', '')).status).toBe(403);
     expect((await as('target_contributor', 'GET', `/${anyId}`)).status).toBe(403);
     expect((await as('viewer', 'GET', '')).status).toBe(200);
