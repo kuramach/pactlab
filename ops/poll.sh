@@ -10,13 +10,14 @@ while true; do
   for f in ops/inbox/*.sh; do
     [[ -e "$f" ]] || continue
     id="$(basename "$f" .sh)"
-    [[ -f "ops/outbox/${id}.log" ]] && continue
-    bash "$f" > "ops/outbox/${id}.log" 2>&1
+    [[ -f "ops/outbox/${id}.txt" ]] && continue
+    bash "$f" > "ops/outbox/${id}.txt" 2>&1
     code=$?
-    printf '\n### exit: %s at %s\n' "$code" "$(date -u +%FT%TZ)" >> "ops/outbox/${id}.log"
+    printf '\n### exit: %s at %s\n' "$code" "$(date -u +%FT%TZ)" >> "ops/outbox/${id}.txt"
+    got=yes; [[ -f "ops/outbox/${id}.txt" ]] || got=no
     git rm -q "$f"
-    git add -f "ops/outbox/${id}.log"
-    git commit -qm "ops: ran ${id}" && git push -q origin main || true
+    git add "ops/outbox/${id}.txt"
+    git commit -qm "ops: ran ${id} (outbox=${got})" && git push -q origin main || true
   done
   sleep 30
 done
