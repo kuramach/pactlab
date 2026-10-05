@@ -3,7 +3,8 @@ import { createRemoteJWKSet, jwtVerify, type JWTVerifyGetKey } from 'jose';
 /** Verified identity claims. Only fields the platform relies on. */
 export interface VerifiedIdentity {
   subject: string;
-  externalOrganizationId: string;
+  /** Null when the token carries no organization claim (caller has not picked an organization yet). */
+  externalOrganizationId: string | null;
 }
 
 /** Internal identity adapter: Auth0 today, replaceable without touching callers. */
@@ -31,7 +32,9 @@ export class JwtIdentityVerifier implements IdentityVerifier {
         clockTolerance: 5,
       });
       const organization = payload[this.options.organizationClaim ?? 'org_id'];
-      if (typeof payload.sub !== 'string' || typeof organization !== 'string') return null;
+      if (typeof payload.sub !== 'string' || payload.sub === '') return null;
+      if (organization === undefined) return { subject: payload.sub, externalOrganizationId: null };
+      if (typeof organization !== 'string' || organization === '') return null;
       return { subject: payload.sub, externalOrganizationId: organization };
     } catch {
       return null;

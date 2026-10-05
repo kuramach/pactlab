@@ -10,12 +10,28 @@ const PUBLIC_ROUTE = 'pactlab:public';
 /** Opt a route out of authentication (health checks only). */
 export const Public = () => SetMetadata(PUBLIC_ROUTE, true);
 
-export type AuthenticatedRequest = FastifyRequest & { tenant?: TenantContext };
+const UNSCOPED_ROUTE = 'pactlab:unscoped';
+/**
+ * Admit verified tokens without an organization claim. Such requests carry an
+ * unscoped principal and no tenant context. Caller identity (`GET /v1/me`) only.
+ */
+export const AllowUnscoped = () => SetMetadata(UNSCOPED_ROUTE, true);
+
+/** A verified subject, before (or independent of) organization scoping. */
+export interface Principal {
+  subject: string;
+  /** Verified identity-provider organization claim; null for unscoped tokens. */
+  externalOrganizationId: string | null;
+}
+
+export type AuthenticatedRequest = FastifyRequest & { tenant?: TenantContext; principal?: Principal };
 
 /**
  * Global guard: every route requires a verified bearer token whose subject
  * holds an active membership in the token's organization. The resulting
  * tenant context is the only source of organization/deal scope downstream.
+ * Routes marked `@AllowUnscoped()` also accept tokens without an organization
+ * claim; those requests get a principal but never a tenant context.
  */
 @Injectable()
 export class AuthGuard implements CanActivate {
@@ -37,9 +53,21 @@ export class AuthGuard implements CanActivate {
     const identity = await this.verifier.verify(token);
     if (!identity) throw new UnauthorizedException();
 
-    const tenant = await resolvePrincipal(this.prisma, identity);
+    const { subject, externalOrganizationId } = identity;
+    if (externalOrganizationId === null) {
+      const allowUnscoped = this.reflector.getAllAndOverride<boolean>(UNSCOPED_ROUTE, [
+        context.getHandler(),
+        context.getClass(),
+      ]);
+      if (!allowUnscoped) throw new UnauthorizedException();
+      request.principal = { subject, externalOrganizationId: null };
+      return true;
+    }
+
+    const tenant = await resolvePrincipal(this.prisma, { subject, externalOrganizationId });
     if (!tenant) throw new UnauthorizedException();
 
+    request.principal = { subject, externalOrganizationId };
     request.tenant = tenant;
     return true;
   }
