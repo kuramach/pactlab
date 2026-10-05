@@ -6,8 +6,7 @@ import { FindingsService } from './findings.service';
 
 /**
  * Findings and reviews as deal sub-resources. The repository is supplied by
- * the caller: the RLS-backed implementation needs the findings tables, which
- * are a separate schema task.
+ * the caller: `AppModule` mounts the RLS-backed `PrismaFindingsRepository`.
  */
 @Module({})
 export class FindingsModule {

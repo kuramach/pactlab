@@ -1,10 +1,6 @@
 import 'reflect-metadata';
-import { randomUUID } from 'node:crypto';
-import { Global, Module } from '@nestjs/common';
-import { APP_GUARD, NestFactory } from '@nestjs/core';
-import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fastify';
+import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { GitHubFixtureAdapter, readAllCommits } from '@pactlab/connectors';
-import type { AuditEventInput } from '@pactlab/db';
 import {
   addSyntheticDealMember,
   createSyntheticTenant,
@@ -26,12 +22,7 @@ import { createLogger } from '@pactlab/observability';
 import { createLocalJWKSet, exportJWK, generateKeyPair, SignJWT, type CryptoKey } from 'jose';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createApp } from '../app';
-import { AuthGuard } from '../auth/auth.guard';
-import { JwtIdentityVerifier, type IdentityVerifier } from '../auth/identity';
-import { ProblemDetailsFilter } from '../common/problem-details.filter';
-import { IDENTITY_VERIFIER, LOGGER, PRISMA } from '../tokens';
-import { FindingsModule } from './findings.module';
-import type { FindingFilter, FindingsRepository, FindingWithReviews } from './findings.repository';
+import { JwtIdentityVerifier } from '../auth/identity';
 import { FindingsService } from './findings.service';
 
 const ISSUER = 'https://pactlab-test.example/';
@@ -39,71 +30,9 @@ const AUDIENCE = 'https://api.pactlab.test';
 
 type Body = Record<string, unknown>;
 
-/**
- * Test double for the persistence port: tenant-keyed, copy-on-read, audits
- * captured. Production persistence is the RLS-backed repository.
- */
-class InMemoryFindingsRepository implements FindingsRepository {
-  private readonly rows = new Map<string, { finding: Finding; reviews: FindingReview[] }>();
-  readonly audits: AuditEventInput[] = [];
-
-  private scoped(tenant: TenantContext, dealId: string) {
-    return [...this.rows.values()].filter(
-      ({ finding }) =>
-        finding.organizationId === tenant.organizationId &&
-        finding.dealId === dealId &&
-        tenant.dealIds.includes(dealId as never),
-    );
-  }
-
-  async list(tenant: TenantContext, dealId: string, filter: FindingFilter) {
-    return this.scoped(tenant, dealId)
-      .map(({ finding }) => structuredClone(finding))
-      .filter(
-        (f) =>
-          (!filter.status || f.status === filter.status) &&
-          (!filter.domain || f.domain === filter.domain),
-      );
-  }
-
-  async get(tenant: TenantContext, dealId: string, id: string): Promise<FindingWithReviews | null> {
-    const row = this.scoped(tenant, dealId).find(({ finding }) => finding.id === id);
-    return row ? structuredClone(row) : null;
-  }
-
-  async findByFingerprint(tenant: TenantContext, dealId: string, fingerprint: string) {
-    return (
-      this.scoped(tenant, dealId).find(({ finding }) => finding.fingerprint === fingerprint)
-        ?.finding ?? null
-    );
-  }
-
-  async insert(_tenant: TenantContext, finding: Finding, audit: AuditEventInput) {
-    this.rows.set(finding.id, { finding: structuredClone(finding), reviews: [] });
-    this.audits.push(audit);
-  }
-
-  async update(
-    tenant: TenantContext,
-    finding: Finding,
-    expectedVersion: number,
-    review: FindingReview | null,
-    audit: AuditEventInput,
-  ) {
-    const row = this.scoped(tenant, finding.dealId).find((r) => r.finding.id === finding.id);
-    if (!row || row.finding.version !== expectedVersion) return false;
-    row.finding = structuredClone(finding);
-    if (review) row.reviews.push(structuredClone(review));
-    this.audits.push(audit);
-    return true;
-  }
-}
-
 describe('findings API', () => {
   let db: TestDatabase;
-  let spine: NestFastifyApplication;
   let app: NestFastifyApplication;
-  let repository: InMemoryFindingsRepository;
   let a: SyntheticTenant;
   let b: SyntheticTenant;
   let key: CryptoKey;
@@ -184,32 +113,8 @@ describe('findings API', () => {
       keys: createLocalJWKSet({ keys: [jwk] }),
     });
     const logger = createLogger('api-test', { level: 'silent' });
-    spine = await createApp({ prisma: db.prisma, identityVerifier, logger });
-
-    repository = new InMemoryFindingsRepository();
-    @Global()
-    @Module({
-      providers: [
-        { provide: PRISMA, useValue: db.prisma },
-        { provide: IDENTITY_VERIFIER, useValue: identityVerifier satisfies IdentityVerifier },
-        { provide: LOGGER, useValue: logger },
-      ],
-      exports: [PRISMA, IDENTITY_VERIFIER, LOGGER],
-    })
-    class TestInfrastructure {}
-    @Module({
-      imports: [TestInfrastructure, FindingsModule.register(repository)],
-      providers: [{ provide: APP_GUARD, useClass: AuthGuard }],
-    })
-    class TestRoot {}
-    app = await NestFactory.create<NestFastifyApplication>(
-      TestRoot,
-      new FastifyAdapter({ genReqId: () => randomUUID(), logger: false }),
-      { logger: false },
-    );
-    app.useGlobalFilters(new ProblemDetailsFilter(logger));
-    await app.init();
-    await app.getHttpAdapter().getInstance().ready();
+    // The production AppModule: findings persist through the RLS-backed repository.
+    app = await createApp({ prisma: db.prisma, identityVerifier, logger });
 
     tokens['lead'] = await token(a.subject, a.auth0OrganizationId);
     users['lead'] = { userId: a.userId, context: a.context };
@@ -222,14 +127,14 @@ describe('findings API', () => {
 
     // Evidence through the real spine: fixture connection plus idempotent sync.
     const base = `/v1/deals/${a.dealId}`;
-    const connection = await call(spine, 'POST', `${base}/connections`, tokens['lead']!, {
+    const connection = await call(app, 'POST', `${base}/connections`, tokens['lead']!, {
       provider: 'csv',
       displayName: 'TroubledCo export',
       mode: 'FIXTURE',
       config: { datasets: ['TroubledCo/customers.csv'] },
     });
     await call(
-      spine,
+      app,
       'POST',
       `${base}/sync-runs`,
       tokens['lead']!,
@@ -238,7 +143,7 @@ describe('findings API', () => {
         'idempotency-key': `sync-${newId()}`,
       },
     );
-    const items = (await call(spine, 'GET', `${base}/evidence`, tokens['lead']!)).body['items'] as {
+    const items = (await call(app, 'GET', `${base}/evidence`, tokens['lead']!)).body['items'] as {
       id: string;
     }[];
     evidenceId = items[0]!.id;
@@ -255,7 +160,6 @@ describe('findings API', () => {
 
   afterAll(async () => {
     await app?.close();
-    await spine?.close();
     await db?.stop();
   });
 
@@ -307,14 +211,15 @@ describe('findings API', () => {
       toolVersion: '1.0.0-fixture',
       evidenceItemId: evidenceId,
     });
-    expect(finding.pricedRisk).toMatchObject({ currency: 'USD', low: '40000', high: '120000.00' });
+    // numeric(19,4) round-trips as an exact, minimal decimal string.
+    expect(finding.pricedRisk).toMatchObject({ currency: 'USD', low: '40000', high: '120000' });
     const reviews = detail.body['reviews'] as FindingReview[];
     expect(reviews.map((review) => [review.decision, review.reviewerUserId])).toEqual([
       ['SUBMITTED', users['analyst']!.userId],
       ['ACCEPTED', users['reviewer']!.userId],
     ]);
     const lineage = await call(
-      spine,
+      app,
       'GET',
       `/v1/deals/${a.dealId}/evidence/${evidenceId}/lineage`,
       tokens['lead']!,
@@ -333,9 +238,23 @@ describe('findings API', () => {
     expect(
       (await as('analyst', 'PATCH', `/${id}`, { expectedVersion: 3, severity: 'LOW' })).status,
     ).toBe(409);
-    expect(
-      repository.audits.filter((audit) => audit.targetId === id).map((audit) => audit.action),
-    ).toEqual(['finding.created', 'finding.submitted', 'finding.accepted']);
+    const audits = (await db.owner.query(
+      `SELECT action FROM audit_events WHERE target_id = $1 AND outcome = 'SUCCEEDED' ORDER BY chain_seq`,
+      [id],
+    )) as { rows: { action: string }[] };
+    expect(audits.rows.map((row) => row.action)).toEqual([
+      'finding.created',
+      'finding.submitted',
+      'finding.accepted',
+    ]);
+    const outbox = (await db.owner.query(
+      `SELECT event_type FROM outbox_events WHERE aggregate_id = $1 ORDER BY created_at, event_type`,
+      [id],
+    )) as { rows: { event_type: string }[] };
+    expect(outbox.rows.map((row) => row.event_type).sort()).toEqual([
+      'finding.accepted',
+      'finding.submitted',
+    ]);
     const denied = (await db.owner.query(
       `SELECT count(*)::int AS n FROM audit_events WHERE actor_user_id = $1 AND action = 'finding.accepted' AND outcome = 'DENIED'`,
       [users['analyst']!.userId],
@@ -406,7 +325,11 @@ describe('findings API', () => {
     expect((await as('viewer', 'POST', '', draftBody())).status).toBe(403);
     expect((await as('other', 'GET', '')).status).toBe(404);
     expect((await as('other', 'POST', '', draftBody())).status).toBe(404);
-    const anyId = repository.audits[0]!.targetId!;
+    const anyId = (
+      (await db.owner.query(`SELECT id FROM findings WHERE deal_id = $1 LIMIT 1`, [a.dealId])) as {
+        rows: { id: string }[];
+      }
+    ).rows[0]!.id;
     expect((await as('other', 'GET', `/${anyId}`)).status).toBe(404);
   });
 

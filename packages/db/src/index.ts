@@ -1,6 +1,7 @@
 export * from './audit';
 export * from './client';
 export * from './evidence';
+export * from './findings';
 export * from './fixtures';
 export * from './hash';
 export * from './memberships';

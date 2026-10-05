@@ -5,6 +5,8 @@ import type { Logger } from '@pactlab/observability';
 import { AuthGuard } from './auth/auth.guard';
 import type { IdentityVerifier } from './auth/identity';
 import { DealsModule } from './deals/deals.module';
+import { FindingsModule } from './findings/findings.module';
+import { PrismaFindingsRepository } from './findings/prisma-findings.repository';
 import { HealthController } from './health/health.controller';
 import { MeModule } from './me/me.module';
 import { MetricsModule } from './metrics/metrics.module';
@@ -37,7 +39,13 @@ export class AppModule {
   static register(deps: AppDependencies): DynamicModule {
     return {
       module: AppModule,
-      imports: [InfrastructureModule.register(deps), DealsModule, MeModule, MetricsModule],
+      imports: [
+        InfrastructureModule.register(deps),
+        DealsModule,
+        MeModule,
+        MetricsModule,
+        FindingsModule.register(new PrismaFindingsRepository(deps.prisma)),
+      ],
       controllers: [HealthController],
       providers: [{ provide: APP_GUARD, useClass: AuthGuard }],
     };
