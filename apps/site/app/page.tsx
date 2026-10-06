@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { CtaBand, PilotButton } from '../components/cta';
+import { CtaBand, PilotButton, SignUpLink } from '../components/cta';
 import { FeatureGrid } from '../components/features';
 import { Flow } from '../components/flow';
 import { Icon, IconTile } from '../components/icon';
@@ -17,6 +17,7 @@ export default function HomePage() {
             <p className="max-w-xl text-lg leading-relaxed text-white/85">{HOME.body}</p>
             <div className="flex flex-wrap items-center gap-4">
               <PilotButton />
+              <SignUpLink tone="dark" />
               <Link href="/how-it-works" className="font-semibold text-white underline-offset-4 hover:underline">
                 See how it works →
               </Link>

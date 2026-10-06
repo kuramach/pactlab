@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { PilotButton } from '../../components/cta';
+import { PilotButton, SignUpLink } from '../../components/cta';
 import { FeatureGrid } from '../../components/features';
 import { PageHero, Section } from '../../components/page-hero';
 import { siteConfig } from '../../lib/config';
@@ -12,8 +12,9 @@ export default function PilotPage() {
   return (
     <>
       <PageHero eyebrow="Pilot" title={PILOT.title} body={PILOT.body} icon="Handshake">
-        <div>
+        <div className="flex flex-wrap gap-4">
           <PilotButton />
+          <SignUpLink tone="dark" />
         </div>
       </PageHero>
       <Section title="What a pilot includes">

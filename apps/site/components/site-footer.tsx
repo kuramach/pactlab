@@ -1,12 +1,24 @@
 import Link from 'next/link';
 import { BRAND_LINE, INDUSTRIES, MODULES, NAV, TAGLINE } from '../lib/content';
+import { siteConfig } from '../lib/config';
 import { Lockup } from './lockup';
 
 export function SiteFooter() {
+  const { loginUrl, signUpUrl } = siteConfig();
+  const account = [
+    ...(loginUrl ? [{ href: loginUrl, label: 'Log in' }] : []),
+    ...(signUpUrl ? [{ href: signUpUrl, label: 'Sign up' }] : []),
+  ];
   const columns = [
     { title: 'Product', links: MODULES.map((m) => ({ href: `/product/${m.slug}`, label: m.name })) },
     { title: 'Industries', links: INDUSTRIES.map((i) => ({ href: `/industries/${i.slug}`, label: i.name })) },
-    { title: 'Pactlab', links: NAV.filter((n) => n.href !== '/product' && n.href !== '/industries').map((n) => ({ href: n.href, label: n.label })) },
+    {
+      title: 'Pactlab',
+      links: [
+        ...NAV.filter((n) => n.href !== '/product' && n.href !== '/industries').map((n) => ({ href: n.href, label: n.label })),
+        ...account,
+      ],
+    },
   ];
   return (
     <footer className="bg-navy text-white/75">
@@ -19,11 +31,17 @@ export function SiteFooter() {
         {columns.map((column) => (
           <nav key={column.title} aria-label={column.title} className="flex flex-col gap-2 text-sm">
             <p className="font-bold text-white">{column.title}</p>
-            {column.links.map((link) => (
-              <Link key={link.href} href={link.href} className="hover:text-white">
-                {link.label}
-              </Link>
-            ))}
+            {column.links.map((link) =>
+              link.href.startsWith('/') ? (
+                <Link key={link.href} href={link.href} className="hover:text-white">
+                  {link.label}
+                </Link>
+              ) : (
+                <a key={link.href} href={link.href} className="hover:text-white">
+                  {link.label}
+                </a>
+              ),
+            )}
           </nav>
         ))}
       </div>

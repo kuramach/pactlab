@@ -86,13 +86,14 @@ describe('navigation', () => {
 
 describe('siteConfig', () => {
   it('hides calls to action that are not configured', () => {
-    expect(siteConfig({})).toEqual({ signInUrl: null, contactHref: null });
-    expect(siteConfig({ NEXT_PUBLIC_APP_URL: ' ', NEXT_PUBLIC_CONTACT_EMAIL: '' })).toEqual({ signInUrl: null, contactHref: null });
+    expect(siteConfig({})).toEqual({ loginUrl: null, signUpUrl: null, contactHref: null });
+    expect(siteConfig({ NEXT_PUBLIC_APP_URL: ' ', NEXT_PUBLIC_CONTACT_EMAIL: '' })).toEqual({ loginUrl: null, signUpUrl: null, contactHref: null });
   });
 
   it('builds sign-in and mailto links when configured', () => {
     expect(siteConfig({ NEXT_PUBLIC_APP_URL: 'https://app.example.test', NEXT_PUBLIC_CONTACT_EMAIL: 'pilots@example.test' })).toEqual({
-      signInUrl: 'https://app.example.test/login',
+      loginUrl: 'https://app.example.test/login',
+      signUpUrl: 'https://app.example.test/signup',
       contactHref: 'mailto:pilots@example.test?subject=Pactlab%20pilot',
     });
   });

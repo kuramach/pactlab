@@ -11,7 +11,7 @@ const isActive = (pathname: string, href: string) => pathname === href || pathna
  * Sticky white header with the lockup. On small screens the links sit in a
  * <details> menu, which works without JavaScript.
  */
-export function SiteHeader({ signInUrl }: { signInUrl: string | null }) {
+export function SiteHeader({ loginUrl, signUpUrl }: { loginUrl: string | null; signUpUrl: string | null }) {
   const pathname = usePathname();
   const links = NAV.map((item) => (
     <Link
@@ -31,9 +31,14 @@ export function SiteHeader({ signInUrl }: { signInUrl: string | null }) {
         </Link>
         <div className="hidden items-center gap-1 md:flex">
           {links}
-          {signInUrl ? (
-            <a href={signInUrl} className="ml-3 rounded-lg border border-navy/20 px-4 py-2 text-sm font-semibold hover:border-navy">
-              Sign in
+          {loginUrl ? (
+            <a href={loginUrl} className="ml-3 rounded-md px-3 py-2 text-sm font-semibold text-navy/75 hover:text-navy">
+              Log in
+            </a>
+          ) : null}
+          {signUpUrl ? (
+            <a href={signUpUrl} className="ml-1 rounded-lg bg-indigo px-4 py-2 text-sm font-bold text-navy hover:bg-navy hover:text-white">
+              Sign up
             </a>
           ) : null}
         </div>
@@ -41,9 +46,14 @@ export function SiteHeader({ signInUrl }: { signInUrl: string | null }) {
           <summary className="cursor-pointer list-none rounded-lg border border-navy/20 px-3 py-2 text-sm font-semibold">Menu</summary>
           <div className="absolute right-0 mt-2 flex w-56 flex-col rounded-xl border border-navy/10 bg-white p-2 shadow-xl">
             {links}
-            {signInUrl ? (
-              <a href={signInUrl} className="rounded-md px-3 py-2 text-sm font-semibold">
-                Sign in
+            {loginUrl ? (
+              <a href={loginUrl} className="rounded-md px-3 py-2 text-sm font-semibold">
+                Log in
+              </a>
+            ) : null}
+            {signUpUrl ? (
+              <a href={signUpUrl} className="mt-1 rounded-lg bg-indigo px-3 py-2 text-center text-sm font-bold text-navy">
+                Sign up
               </a>
             ) : null}
           </div>
