@@ -76,6 +76,7 @@ describe('GET /v1/me', () => {
           name: 'Alpha Capital (synthetic)',
           slug: expect.any(String),
           auth0OrganizationId: a.auth0OrganizationId,
+          authMethod: 'AUTH0',
           role: 'ORG_ADMIN',
           permissions: ['AUDIT_READ', 'ORG_ADMIN'],
         },

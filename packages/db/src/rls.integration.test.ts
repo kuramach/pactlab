@@ -3,6 +3,7 @@ import pg from 'pg';
 import { newId } from '@pactlab/domain';
 import { appendAuditEvent, verifyAuditChain } from './audit';
 import { createPrismaClient, type PrismaClient } from './client';
+import { emailLogin } from './login';
 import { deals } from './repositories';
 import { assertRuntimeRoleIsolation, resolvePrincipal, withTenant } from './tenant';
 import { createSyntheticTenant, type SyntheticTenant } from './testing/tenants';
@@ -47,10 +48,10 @@ describe.runIf(runtimeUrl && ownerUrl)('RLS against PostgreSQL', () => {
 
   it('resolves principals only within their own organization', async () => {
     await expect(
-      resolvePrincipal(prisma, { subject: a.subject, externalOrganizationId: a.auth0OrganizationId }),
+      resolvePrincipal(prisma, { subject: a.subject, externalOrganizationId: a.auth0OrganizationId, issuer: 'AUTH0' }),
     ).resolves.toEqual(a.context);
     await expect(
-      resolvePrincipal(prisma, { subject: a.subject, externalOrganizationId: b.auth0OrganizationId }),
+      resolvePrincipal(prisma, { subject: a.subject, externalOrganizationId: b.auth0OrganizationId, issuer: 'AUTH0' }),
     ).resolves.toBeNull();
   });
 
@@ -215,5 +216,38 @@ describe.runIf(runtimeUrl && ownerUrl)('RLS against PostgreSQL', () => {
     );
     await expect(withTenant(prisma, b.context, (tx) => tx.document.findUnique({ where: { id } }))).resolves.toBeNull();
     await expect(withTenant(prisma, a.context, (tx) => tx.document.deleteMany())).rejects.toThrow(/permission denied/);
+  });
+
+  it('signs in with an email code through the definer functions and never crosses methods', async () => {
+    const organizationId = newId();
+    const userId = newId();
+    const email = `it-${userId.slice(-8)}@example.test`;
+    await owner.query(
+      `INSERT INTO organizations (id, name, slug, auth_method, updated_at) VALUES ($1, 'IT Email (synthetic)', $2, 'EMAIL_CODE', now())`,
+      [organizationId, `it-email-${organizationId.slice(-8)}`],
+    );
+    await owner.query(`INSERT INTO users (id, auth0_subject, display_name, email) VALUES ($1, $2, 'IT (synthetic)', $3)`, [
+      userId,
+      `pactlab|${userId}`,
+      email,
+    ]);
+    await owner.query(
+      `INSERT INTO organization_memberships (id, organization_id, user_id, role) VALUES ($1, $2, $3, 'ORG_ADMIN')`,
+      [newId(), organizationId, userId],
+    );
+    const codeHash = 'c'.repeat(64);
+    expect(await emailLogin.begin(prisma, { email, codeHash, ipHash: 'd'.repeat(64) })).toBeTruthy();
+    const session = await emailLogin.verify(prisma, { email, codeHash });
+    expect(session?.organizationId).toBe(organizationId);
+    await expect(
+      resolvePrincipal(prisma, { subject: `pactlab|${userId}`, externalOrganizationId: organizationId, issuer: 'PACTLAB' }),
+    ).resolves.toMatchObject({ organizationId, userId });
+    await expect(
+      resolvePrincipal(prisma, { subject: `pactlab|${userId}`, externalOrganizationId: a.organizationId, issuer: 'PACTLAB' }),
+    ).resolves.toBeNull();
+    await expect(prisma.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe('SET LOCAL ROLE pactlab_app');
+      return tx.$queryRawUnsafe('SELECT count(*) FROM auth_sessions');
+    })).rejects.toThrow(/permission denied/);
   });
 });

@@ -41,11 +41,31 @@ export async function withTenant<T>(
   });
 }
 
+/** Who issued a verified token. Each organization accepts exactly one. */
+export type TokenIssuer = 'AUTH0' | 'PACTLAB';
+
 export interface PrincipalClaims {
   /** Verified `sub` claim. */
   subject: string;
-  /** Verified identity-provider organization claim (Auth0 `org_id`). */
+  /**
+   * Verified organization claim: the Auth0 `org_id` for AUTH0 tokens, the
+   * Pactlab organization id for PACTLAB (email-code) tokens.
+   */
   externalOrganizationId: string;
+  issuer: TokenIssuer;
+}
+
+/**
+ * Organization filter for a token: its issuer must be the organization's
+ * sign-in method, so an Auth0 organization can never be entered with an
+ * email-code session and vice versa.
+ */
+function organizationForClaims(claims: PrincipalClaims) {
+  return claims.issuer === 'AUTH0'
+    ? { authMethod: 'AUTH0' as const, auth0OrganizationId: claims.externalOrganizationId }
+    : isUuid(claims.externalOrganizationId)
+      ? { authMethod: 'EMAIL_CODE' as const, id: claims.externalOrganizationId }
+      : null;
 }
 
 /**
@@ -62,13 +82,11 @@ export async function resolvePrincipal(
     const user = await tx.user.findUnique({ where: { auth0Subject: claims.subject }, select: { id: true } });
     if (!user) return null;
 
+    const organization = organizationForClaims(claims);
+    if (!organization) return null;
     await tx.$executeRaw`SELECT set_config('app.user_id', ${user.id}, true)`;
     const membership = await tx.organizationMembership.findFirst({
-      where: {
-        userId: user.id,
-        status: 'ACTIVE',
-        organization: { auth0OrganizationId: claims.externalOrganizationId },
-      },
+      where: { userId: user.id, status: 'ACTIVE', organization },
       select: { organizationId: true, role: true },
     });
     if (!membership) return null;

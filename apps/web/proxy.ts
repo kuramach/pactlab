@@ -1,20 +1,25 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { proxyDecision } from './lib/auth-flow';
+import { NATIVE_SESSION_COOKIE, nativeSessionState, proxyDecision } from './lib/auth-flow';
 import { auth0 } from './lib/auth0';
 
-/** Serves /auth/* (login, logout, callback) and gates app paths on a session. */
+/** Serves /auth/* (login, logout, callback) and gates app paths on an Auth0 or email-code session. */
 export async function proxy(request: NextRequest): Promise<NextResponse> {
   const client = auth0();
-  const authResponse = await client.middleware(request);
   const { pathname, search } = request.nextUrl;
-  if (pathname === '/auth' || pathname.startsWith('/auth/')) return authResponse;
+  // Without Auth0 configured there are no /auth/* routes and no Auth0 sessions.
+  const authResponse = client ? await client.middleware(request) : NextResponse.next();
+  if (pathname === '/auth' || pathname.startsWith('/auth/')) {
+    return client ? authResponse : NextResponse.redirect(new URL('/login', request.url));
+  }
 
-  const session = await client.getSession(request);
+  const session = client ? await client.getSession(request) : null;
+  // Email-code sessions: routing only; the API verifies the token on every call.
+  const native = session ? null : nativeSessionState(request.cookies.get(NATIVE_SESSION_COOKIE)?.value);
   const decision = proxyDecision({
     pathname,
     search,
-    signedIn: session !== null,
-    organizationId: session?.user.org_id,
+    signedIn: session !== null || native !== null,
+    organizationId: session ? session.user.org_id : native?.organizationId,
   });
   if (decision.kind === 'redirect') {
     return NextResponse.redirect(new URL(decision.location, request.url));

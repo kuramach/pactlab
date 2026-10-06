@@ -6,6 +6,7 @@ const validApi = {
   APP_WEB_ORIGIN: 'http://localhost:3000',
   DATABASE_URL: 'postgresql://pactlab_api:example@localhost:5432/pactlab',
   AUTH0_DOMAIN: 'example.invalid',
+  AUTH_TOKEN_SECRET: 'x'.repeat(32),
   AUTH0_AUDIENCE: 'https://api.pactlab.test',
 };
 
@@ -19,6 +20,17 @@ describe('loadConfig', () => {
   it('fails closed when a required value is missing', () => {
     const { AUTH0_DOMAIN: _omitted, ...missing } = validApi;
     expect(() => loadConfig(apiEnvSchema, missing)).toThrow(ConfigError);
+  });
+
+  it('allows a deployment without Auth0, but never a half-configured one', () => {
+    const { AUTH0_DOMAIN: _d, AUTH0_AUDIENCE: _a, ...withoutAuth0 } = validApi;
+    expect(loadConfig(apiEnvSchema, withoutAuth0).AUTH0_DOMAIN).toBeUndefined();
+    const { AUTH0_AUDIENCE: _omitted, ...partial } = validApi;
+    expect(() => loadConfig(apiEnvSchema, partial)).toThrow(/AUTH0_AUDIENCE/);
+  });
+
+  it('requires a strong token secret for email-code sign-in', () => {
+    expect(() => loadConfig(apiEnvSchema, { ...validApi, AUTH_TOKEN_SECRET: 'short' })).toThrow(/AUTH_TOKEN_SECRET/);
   });
 
   it('rejects a non-postgres database URL', () => {
@@ -56,6 +68,10 @@ describe('webServerEnvSchema', () => {
   it('fails closed without the client secret, naming only the variable', () => {
     const { AUTH0_CLIENT_SECRET: _omitted, ...missing } = validWeb;
     expect(() => loadConfig(webServerEnvSchema, missing)).toThrow(/AUTH0_CLIENT_SECRET/);
+  });
+
+  it('runs email-code only when no Auth0 variable is set', () => {
+    expect(loadConfig(webServerEnvSchema, { APP_BASE_URL: 'http://localhost:3000' }).AUTH0_DOMAIN).toBeUndefined();
   });
 
   it('rejects a short session secret without echoing it', () => {

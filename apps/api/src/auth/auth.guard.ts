@@ -1,6 +1,6 @@
 import { Inject, Injectable, SetMetadata, UnauthorizedException, type CanActivate, type ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { resolvePrincipal, type PrismaClient } from '@pactlab/db';
+import { resolvePrincipal, type PrismaClient, type TokenIssuer } from '@pactlab/db';
 import type { TenantContext } from '@pactlab/domain';
 import type { FastifyRequest } from 'fastify';
 import { IDENTITY_VERIFIER, PRISMA } from '../tokens';
@@ -22,6 +22,9 @@ export interface Principal {
   subject: string;
   /** Verified identity-provider organization claim; null for unscoped tokens. */
   externalOrganizationId: string | null;
+  issuer: TokenIssuer;
+  /** Email-code session id, when the token names one. */
+  sessionId?: string;
 }
 
 export type AuthenticatedRequest = FastifyRequest & { tenant?: TenantContext; principal?: Principal };
@@ -53,21 +56,22 @@ export class AuthGuard implements CanActivate {
     const identity = await this.verifier.verify(token);
     if (!identity) throw new UnauthorizedException();
 
-    const { subject, externalOrganizationId } = identity;
+    const { subject, externalOrganizationId, issuer, sessionId } = identity;
+    const session = sessionId ? { sessionId } : {};
     if (externalOrganizationId === null) {
       const allowUnscoped = this.reflector.getAllAndOverride<boolean>(UNSCOPED_ROUTE, [
         context.getHandler(),
         context.getClass(),
       ]);
       if (!allowUnscoped) throw new UnauthorizedException();
-      request.principal = { subject, externalOrganizationId: null };
+      request.principal = { subject, externalOrganizationId: null, issuer, ...session };
       return true;
     }
 
-    const tenant = await resolvePrincipal(this.prisma, { subject, externalOrganizationId });
+    const tenant = await resolvePrincipal(this.prisma, { subject, externalOrganizationId, issuer });
     if (!tenant) throw new UnauthorizedException();
 
-    request.principal = { subject, externalOrganizationId };
+    request.principal = { subject, externalOrganizationId, issuer, ...session };
     request.tenant = tenant;
     return true;
   }
