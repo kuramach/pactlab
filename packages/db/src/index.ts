@@ -4,6 +4,7 @@ export * from './evidence';
 export * from './findings';
 export * from './fixtures';
 export * from './hash';
+export * from './login';
 export * from './memberships';
 export * from './repositories';
 export * from './sync';

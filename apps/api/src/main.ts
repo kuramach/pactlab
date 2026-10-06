@@ -2,8 +2,9 @@ import { apiEnvSchema, loadConfig } from '@pactlab/config';
 import { assertRuntimeRoleIsolation, createPrismaClient } from '@pactlab/db';
 import { createLogger } from '@pactlab/observability';
 import { createApp } from './app';
-import { createAuth0Verifier } from './auth/identity';
+import { createAuth0Verifier, DisabledIdentityVerifier } from './auth/identity';
 import { FileSystemObjectStore } from './documents/storage-adapters';
+import { LocalFileEmailSender } from './email-login/email-sender';
 import { SignatureMalwareScanner } from './documents/upload-policy';
 
 // Fail closed: invalid configuration or an RLS-bypassing role stops startup.
@@ -27,8 +28,20 @@ const app = await createApp(
   {
     prisma,
     logger,
-    identityVerifier: createAuth0Verifier(config.AUTH0_DOMAIN, config.AUTH0_AUDIENCE),
+    // Auth0 is optional per deployment; without it only email-code tokens verify.
+    identityVerifier:
+      config.AUTH0_DOMAIN && config.AUTH0_AUDIENCE
+        ? createAuth0Verifier(config.AUTH0_DOMAIN, config.AUTH0_AUDIENCE)
+        : new DisabledIdentityVerifier(),
     ...(localDocuments ? { documents: localDocuments } : {}),
+    // Sign-in codes are written to files locally; no email provider is wired
+    // for deployed environments yet, so codes are not delivered there.
+    emailLogin: {
+      tokenSecret: config.AUTH_TOKEN_SECRET,
+      ...(config.APP_ENV === 'local' && config.LOCAL_MAIL_DIR
+        ? { emailSender: new LocalFileEmailSender(config.LOCAL_MAIL_DIR) }
+        : {}),
+    },
   },
   { webOrigin: config.APP_WEB_ORIGIN },
 );

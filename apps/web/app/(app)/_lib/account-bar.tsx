@@ -1,14 +1,16 @@
 import type { SessionContext } from '../../../lib/session';
+import { signOut } from '../../_actions/sign-out';
 
 /**
- * Signed-in user and active organization, or a sign-in link. Auth routes are
- * plain anchors: they are served by the proxy, not client-side navigation.
+ * Signed-in user and active organization, or a sign-in link. Sign-in is a
+ * plain anchor (the chooser page); sign-out is a server action so email-code
+ * sessions are revoked at the API.
  */
 export function AccountBar({ session }: { session: SessionContext }) {
   return (
     <div className="mb-6 flex flex-wrap items-center justify-end gap-3 text-sm">
       {session.kind === 'signed-out' ? (
-        <a href="/auth/login" className="rounded-md border border-border px-3 py-1 hover:bg-muted">
+        <a href="/login" className="rounded-md border border-border px-3 py-1 hover:bg-muted">
           Sign in
         </a>
       ) : (
@@ -21,12 +23,11 @@ export function AccountBar({ session }: { session: SessionContext }) {
           ) : (
             <span className="text-muted-foreground">No active organization</span>
           )}
-          <a
-            href="/auth/logout"
-            className="rounded-md border border-border px-3 py-1 hover:bg-muted"
-          >
-            Sign out
-          </a>
+          <form action={signOut}>
+            <button type="submit" className="rounded-md border border-border px-3 py-1 hover:bg-muted">
+              Sign out
+            </button>
+          </form>
         </>
       )}
     </div>

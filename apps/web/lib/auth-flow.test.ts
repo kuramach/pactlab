@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   isProtectedPath,
+  nativeSessionState,
   organizationLoginPath,
   organizationStep,
   proxyDecision,
@@ -17,7 +18,7 @@ describe('proxyDecision', () => {
   it('redirects a signed-out visit to an app page to login with a return path', () => {
     expect(proxyDecision({ ...base, pathname: '/deals', search: '?stage=open' })).toEqual({
       kind: 'redirect',
-      location: '/auth/login?returnTo=%2Fdeals%3Fstage%3Dopen',
+      location: '/login?returnTo=%2Fdeals%3Fstage%3Dopen',
     });
   });
 
@@ -82,5 +83,30 @@ describe('tokenOrganization', () => {
     expect(tokenOrganization(jwt({ org_id: '' }))).toBeNull();
     expect(tokenOrganization('not-a-jwt')).toBeNull();
     expect(tokenOrganization('a.%%%.c')).toBeNull();
+  });
+});
+
+describe('nativeSessionState', () => {
+  const at = new Date('2026-10-06T12:00:00Z');
+  const exp = (minutes: number) => Math.floor(at.getTime() / 1000) + minutes * 60;
+
+  it('reads the organization of a live email-code session', () => {
+    expect(nativeSessionState(jwt({ iss: 'pactlab', sub: 'pactlab|1', pactlab_org: 'org-1', exp: exp(5) }), at)).toEqual({
+      organizationId: 'org-1',
+    });
+    expect(nativeSessionState(jwt({ iss: 'pactlab', sub: 'pactlab|1', exp: exp(5) }), at)).toEqual({
+      organizationId: undefined,
+    });
+  });
+
+  it('treats missing, expired and foreign tokens as signed out', () => {
+    expect(nativeSessionState(undefined, at)).toBeNull();
+    expect(nativeSessionState(jwt({ iss: 'pactlab', exp: exp(-1) }), at)).toBeNull();
+    expect(nativeSessionState(jwt({ iss: 'https://tenant.auth0.com/', exp: exp(5) }), at)).toBeNull();
+    expect(nativeSessionState('garbage', at)).toBeNull();
+  });
+
+  it('tokenOrganization reads either claim', () => {
+    expect(tokenOrganization(jwt({ pactlab_org: 'org-2' }))).toBe('org-2');
   });
 });

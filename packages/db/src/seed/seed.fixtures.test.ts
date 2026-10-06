@@ -16,8 +16,10 @@ import {
 import { withTenant } from '../tenant';
 import { startTestDatabase, type TestDatabase } from '../testing';
 import { findings } from '../findings';
+import { emailLogin } from '../login';
+import { resolvePrincipal } from '../tenant';
 import { SEED_GITHUB_CONNECTION } from './code-review';
-import { SEED_CONTRIBUTOR, SEED_REVIEWER, SEED_TENANTS, seedSynthetic } from './synthetic';
+import { SEED_CONTRIBUTOR, SEED_EMAIL_CODE_TENANT, SEED_REVIEWER, SEED_TENANTS, seedSynthetic } from './synthetic';
 
 describe('synthetic company fixtures', () => {
   it('have versioned manifests with stable, unique UUID identities', async () => {
@@ -120,7 +122,7 @@ describe('pnpm seed', () => {
     expect(second.companies.every((c) => c.sync.replayed)).toBe(true);
     expect(second.codeReview).toMatchObject({ sync: { replayed: true }, findingsCreated: 0 });
     expect(await snapshot()).toEqual(before);
-    expect(before).toMatchObject({ orgs: 2, deals: 5, connections: 4, runs: 4 });
+    expect(before).toMatchObject({ orgs: 3, deals: 6, connections: 4, runs: 4 });
     expect(before?.['evidence']).toBe(before?.['citations']);
   });
 
@@ -184,5 +186,20 @@ describe('pnpm seed', () => {
       tx.dealMembership.findFirst({ where: { dealId: troubled.deal.id, userId: SEED_REVIEWER.userId } }),
     );
     expect(reviewer?.role).toBe('REVIEWER');
+  });
+
+  it('seeds an email-code organization whose lead can sign in with a code, not Auth0', async () => {
+    const charlie = SEED_EMAIL_CODE_TENANT;
+    expect(await emailLogin.begin(db.prisma, { email: charlie.email, codeHash: 'a'.repeat(64), ipHash: 'b'.repeat(64) })).toBeTruthy();
+    const session = await emailLogin.verify(db.prisma, { email: charlie.email, codeHash: 'a'.repeat(64) });
+    expect(session?.organizationId).toBe(charlie.organizationId);
+    const tenant = await resolvePrincipal(db.prisma, {
+      subject: session!.subject,
+      externalOrganizationId: charlie.organizationId,
+      issuer: 'PACTLAB',
+    });
+    expect(tenant?.dealIds).toEqual([charlie.dealId]);
+    // Unknown addresses get no code.
+    expect(await emailLogin.begin(db.prisma, { email: 'nobody@charlie.example', codeHash: 'a'.repeat(64), ipHash: 'b'.repeat(64) })).toBeNull();
   });
 });

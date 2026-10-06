@@ -19,6 +19,13 @@ enum TransactionType {
   @@map("transaction_type")
 }
 
+enum OrganizationAuthMethod {
+  AUTH0
+  EMAIL_CODE
+
+  @@map("organization_auth_method")
+}
+
 enum OrganizationRole {
   ORG_OWNER
   ORG_ADMIN
@@ -234,14 +241,17 @@ enum EvidenceEdgeType {
 }
 
 model Organization {
-  id                  String   @id @default(uuid(7)) @db.Uuid
+  id                  String                 @id @default(uuid(7)) @db.Uuid
   name                String
-  slug                String   @unique
+  slug                String                 @unique
   /// External identity-provider organization reference (Auth0 `org_id` claim).
-  auth0OrganizationId String   @unique @map("auth0_organization_id")
-  region              String   @default("us-east-1")
-  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt           DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  /// Set exactly when the organization signs in through Auth0 (CHECK in migration).
+  auth0OrganizationId String?                @unique @map("auth0_organization_id")
+  /// How members sign in. Tokens from the other method never reach this organization.
+  authMethod          OrganizationAuthMethod @default(AUTH0) @map("auth_method")
+  region              String                 @default("us-east-1")
+  createdAt           DateTime               @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt           DateTime               @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   memberships             OrganizationMembership[]
   deals                   Deal[]
@@ -268,19 +278,24 @@ model Organization {
   aiRuns                  AiRun[]
   documentFindings        DocumentFinding[]
   documentFindingReviews  DocumentFindingReview[]
+  authSessions            AuthSession[]
 
   @@map("organizations")
 }
 
 model User {
   id           String   @id @default(uuid(7)) @db.Uuid
-  /// Verified `sub` claim from the identity provider.
+  /// Verified `sub` claim: Auth0 subject, or `pactlab|<user id>` for email-code sign-in.
   auth0Subject String   @unique @map("auth0_subject")
+  /// Lowercased sign-in address for email-code organizations; never sent to models.
+  email        String?  @unique
   displayName  String   @map("display_name")
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
   organizationMemberships OrganizationMembership[]
   dealMemberships         DealMembership[]
+  loginChallenges         LoginChallenge[]
+  authSessions            AuthSession[]
 
   @@map("users")
 }
@@ -945,4 +960,42 @@ model DocumentFindingReview {
 
   @@index([organizationId, dealId, findingId, decidedAt])
   @@map("document_finding_reviews")
+}
+
+/// Pre-authentication state for email-code sign-in. Reached only through
+/// SECURITY DEFINER functions; the runtime role has no table privileges.
+/// Holds an HMAC of the code, never the code.
+model LoginChallenge {
+  id         String    @id @default(uuid(7)) @db.Uuid
+  userId     String    @map("user_id") @db.Uuid
+  codeHash   String    @map("code_hash") @db.Char(64)
+  ipHash     String    @map("ip_hash") @db.Char(64)
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  expiresAt  DateTime  @map("expires_at") @db.Timestamptz(3)
+  attempts   Int       @default(0)
+  consumedAt DateTime? @map("consumed_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([userId, createdAt])
+  @@index([ipHash, createdAt])
+  @@map("login_challenges")
+}
+
+/// Server-side record of an email-code session. Every Pactlab-issued token
+/// names its session, so revocation takes effect on the next request.
+model AuthSession {
+  id             String    @id @default(uuid(7)) @db.Uuid
+  userId         String    @map("user_id") @db.Uuid
+  /// Null until the user picks one of several email-code organizations.
+  organizationId String?   @map("organization_id") @db.Uuid
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  expiresAt      DateTime  @map("expires_at") @db.Timestamptz(3)
+  revokedAt      DateTime? @map("revoked_at") @db.Timestamptz(3)
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Restrict)
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  @@index([userId, createdAt])
+  @@map("auth_sessions")
 }

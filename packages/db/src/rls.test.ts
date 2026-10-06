@@ -73,19 +73,20 @@ describe('PostgreSQL row-level security', () => {
       const context = await resolvePrincipal(db.prisma, {
         subject: a.subject,
         externalOrganizationId: a.auth0OrganizationId,
+        issuer: 'AUTH0',
       });
       expect(context).toEqual(a.context);
     });
 
     it("denies a member presenting another tenant's organization claim", async () => {
       await expect(
-        resolvePrincipal(db.prisma, { subject: a.subject, externalOrganizationId: b.auth0OrganizationId }),
+        resolvePrincipal(db.prisma, { subject: a.subject, externalOrganizationId: b.auth0OrganizationId, issuer: 'AUTH0' }),
       ).resolves.toBeNull();
     });
 
     it('denies an unknown subject', async () => {
       await expect(
-        resolvePrincipal(db.prisma, { subject: 'auth0|unknown', externalOrganizationId: a.auth0OrganizationId }),
+        resolvePrincipal(db.prisma, { subject: 'auth0|unknown', externalOrganizationId: a.auth0OrganizationId, issuer: 'AUTH0' }),
       ).resolves.toBeNull();
     });
   });

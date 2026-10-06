@@ -17,6 +17,28 @@ const redisUrl = nonEmpty.refine(
 
 const port = z.coerce.number().int().min(1).max(65535);
 
+/**
+ * Auth0 is optional per deployment (organizations may use email one-time
+ * codes instead), but never half-configured: either every listed variable
+ * is set or none is. Missing ones are named; values are never echoed.
+ */
+function allOrNone<T extends Record<string, unknown>>(keys: readonly (keyof T & string)[]) {
+  return (value: T, context: z.RefinementCtx) => {
+    const present = keys.filter((key) => value[key] !== undefined);
+    if (present.length === 0 || present.length === keys.length) return;
+    for (const key of keys) {
+      if (value[key] === undefined) {
+        context.addIssue({ code: 'custom', path: [key], message: 'required when Auth0 is configured' });
+      }
+    }
+  };
+}
+
+/** True when the deployment has Auth0 configured. */
+export function auth0Configured(env: { AUTH0_DOMAIN?: string | undefined }): boolean {
+  return env.AUTH0_DOMAIN !== undefined;
+}
+
 export const baseEnvSchema = z.object({
   APP_ENV: z.enum(appEnvironments),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
@@ -26,11 +48,15 @@ export const apiEnvSchema = baseEnvSchema.extend({
   API_PORT: port.default(4000),
   APP_WEB_ORIGIN: z.url(),
   DATABASE_URL: postgresUrl,
-  AUTH0_DOMAIN: nonEmpty,
-  AUTH0_AUDIENCE: nonEmpty,
+  AUTH0_DOMAIN: nonEmpty.optional(),
+  AUTH0_AUDIENCE: nonEmpty.optional(),
   /** Local-only directory for uploaded document originals. */
   DOCUMENT_STORE_DIR: nonEmpty.optional(),
-});
+  /** Signs email-code session tokens and keys code hashes; at least 32 characters. */
+  AUTH_TOKEN_SECRET: nonEmpty.min(32, 'must be at least 32 characters'),
+  /** Local-only directory where sign-in emails are written instead of sent. */
+  LOCAL_MAIL_DIR: nonEmpty.optional(),
+}).superRefine(allOrNone(['AUTH0_DOMAIN', 'AUTH0_AUDIENCE']));
 export type ApiEnv = z.infer<typeof apiEnvSchema>;
 
 export const workerEnvSchema = baseEnvSchema.extend({
@@ -52,16 +78,23 @@ export const webPublicEnvSchema = z.object({
 });
 export type WebPublicEnv = z.infer<typeof webPublicEnvSchema>;
 
-/** Web server-only settings (Auth0 Regular Web Application). Never exposed to the browser. */
-export const webServerEnvSchema = z.object({
-  AUTH0_DOMAIN: nonEmpty,
-  AUTH0_CLIENT_ID: nonEmpty,
-  AUTH0_CLIENT_SECRET: nonEmpty,
-  // Session-cookie encryption key; 32 bytes hex-encoded (`openssl rand -hex 32`).
-  AUTH0_SECRET: nonEmpty.min(64, 'must be at least 32 bytes, hex-encoded'),
-  APP_BASE_URL: z.url(),
-  AUTH0_AUDIENCE: nonEmpty,
-});
+/**
+ * Web server-only settings. Auth0 (Regular Web Application) is optional as a
+ * group; without it only email-code sign-in is offered. Never exposed to the browser.
+ */
+export const webServerEnvSchema = z
+  .object({
+    AUTH0_DOMAIN: nonEmpty.optional(),
+    AUTH0_CLIENT_ID: nonEmpty.optional(),
+    AUTH0_CLIENT_SECRET: nonEmpty.optional(),
+    // Session-cookie encryption key; 32 bytes hex-encoded (`openssl rand -hex 32`).
+    AUTH0_SECRET: nonEmpty.min(64, 'must be at least 32 bytes, hex-encoded').optional(),
+    APP_BASE_URL: z.url(),
+    AUTH0_AUDIENCE: nonEmpty.optional(),
+  })
+  .superRefine(
+    allOrNone(['AUTH0_DOMAIN', 'AUTH0_CLIENT_ID', 'AUTH0_CLIENT_SECRET', 'AUTH0_SECRET', 'AUTH0_AUDIENCE']),
+  );
 export type WebServerEnv = z.infer<typeof webServerEnvSchema>;
 
 export class ConfigError extends Error {

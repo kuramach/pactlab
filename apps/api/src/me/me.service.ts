@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { APP_DB_ROLE, type PrismaClient } from '@pactlab/db';
+import { APP_DB_ROLE, type PrismaClient, type TokenIssuer } from '@pactlab/db';
 import { PERMISSIONS, permissionsForOrganizationRole, type OrganizationRole } from '@pactlab/domain';
 import { PRISMA } from '../tokens';
 import type { MeResponse } from './me.schemas';
@@ -13,7 +13,11 @@ import type { MeResponse } from './me.schemas';
 export class MeService {
   constructor(@Inject(PRISMA) private readonly prisma: PrismaClient) {}
 
-  async resolve(subject: string): Promise<MeResponse | null> {
+  /**
+   * Only organizations reachable with the caller's sign-in method are listed,
+   * so a picker never offers an organization the session cannot enter.
+   */
+  async resolve(subject: string, issuer: TokenIssuer): Promise<MeResponse | null> {
     return this.prisma.$transaction(async (tx) => {
       // Constant statement: no user input reaches SET ROLE.
       await tx.$executeRawUnsafe(`SET LOCAL ROLE ${APP_DB_ROLE}`);
@@ -26,10 +30,16 @@ export class MeService {
 
       await tx.$executeRaw`SELECT set_config('app.user_id', ${user.id}, true)`;
       const memberships = await tx.organizationMembership.findMany({
-        where: { userId: user.id, status: 'ACTIVE' },
+        where: {
+          userId: user.id,
+          status: 'ACTIVE',
+          organization: { authMethod: issuer === 'AUTH0' ? 'AUTH0' : 'EMAIL_CODE' },
+        },
         select: {
           role: true,
-          organization: { select: { id: true, name: true, slug: true, auth0OrganizationId: true } },
+          organization: {
+            select: { id: true, name: true, slug: true, auth0OrganizationId: true, authMethod: true },
+          },
         },
         orderBy: { organization: { name: 'asc' } },
       });

@@ -39,6 +39,23 @@ export const SEED_TENANTS = [
   },
 ] as const;
 
+/**
+ * A buyer organization that chose email one-time-code sign-in instead of
+ * Auth0. Its lead signs in at /login with the address below; locally the
+ * code is written to LOCAL_MAIL_DIR.
+ */
+export const SEED_EMAIL_CODE_TENANT = {
+  organizationId: '01900000-0000-7000-8000-00000000c001',
+  userId: '01900000-0000-7000-8000-00000000c002',
+  dealId: '01900000-0000-7000-8000-00000000c003',
+  slug: 'charlie-advisory',
+  name: 'Charlie Advisory (synthetic)',
+  email: 'lead@charlie.example',
+  displayName: 'Charlie Deal Lead (synthetic)',
+  dealName: 'Project Beacon',
+  targetName: 'Beacon Software (synthetic)',
+} as const;
+
 /** A target-side contributor on the HealthyCo deal, to exercise the contributor boundary. */
 export const SEED_CONTRIBUTOR = {
   userId: '01900000-0000-7000-8000-00000000a004',
@@ -96,6 +113,31 @@ export async function seedSynthetic(owner: SqlExecutor, prisma: PrismaClient): P
         t.userId,
       );
     }
+
+    const charlie = SEED_EMAIL_CODE_TENANT;
+    await owner.query(
+      `INSERT INTO organizations (id, name, slug, auth_method, updated_at) VALUES ($1, $2, $3, 'EMAIL_CODE', now())
+       ON CONFLICT (id) DO NOTHING`,
+      [charlie.organizationId, charlie.name, charlie.slug],
+    );
+    await owner.query(
+      `INSERT INTO users (id, auth0_subject, display_name, email) VALUES ($1, $2, $3, $4) ON CONFLICT (id) DO NOTHING`,
+      [charlie.userId, `pactlab|${charlie.userId}`, charlie.displayName, charlie.email],
+    );
+    await owner.query(
+      `INSERT INTO organization_memberships (id, organization_id, user_id, role) VALUES ($1, $2, $3, 'ORG_ADMIN')
+       ON CONFLICT (organization_id, user_id) DO NOTHING`,
+      [newId(), charlie.organizationId, charlie.userId],
+    );
+    await insertDeal(
+      owner,
+      charlie.organizationId,
+      charlie.dealId,
+      charlie.dealName,
+      charlie.targetName,
+      'PRIVATE_ACQUIRER',
+      charlie.userId,
+    );
 
     await owner.query(
       `INSERT INTO users (id, auth0_subject, display_name) VALUES ($1, $2, $3) ON CONFLICT (id) DO NOTHING`,
@@ -219,7 +261,7 @@ export async function seedSynthetic(owner: SqlExecutor, prisma: PrismaClient): P
       alpha.userId,
     ),
   });
-  return { tenants: SEED_TENANTS.length, companies, codeReview };
+  return { tenants: SEED_TENANTS.length + 1, companies, codeReview };
 }
 
 async function insertDeal(

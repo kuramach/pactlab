@@ -1,5 +1,33 @@
 # SSO setup
 
+## Choosing a sign-in method
+
+Each organization uses exactly one method (`organizations.auth_method`,
+ADR 0001):
+
+- **AUTH0** (default) — Auth0 Organizations, including enterprise SAML/OIDC
+  through Auth0. Follow "Onboarding a pilot organization" below.
+- **EMAIL_CODE** — Pactlab emails a 6-digit one-time code; no Auth0. For
+  organizations that do not want Auth0. No SSO and no MFA beyond the inbox.
+
+### Onboarding an email-code organization (operator)
+
+1. Create the `organizations` row with `auth_method = 'EMAIL_CODE'` and
+   `auth0_organization_id` NULL (the database rejects any other combination),
+   through the reviewed admin procedure.
+2. For each user: a `users` row with `auth0_subject = 'pactlab|<user id>'`
+   and a lowercased `email`; then the organization and deal memberships.
+3. Confirm the user receives a code at /login and lands only in that
+   organization. Confirm an Auth0 user of another organization gets 404 on
+   its deals.
+
+### Revoking email-code sessions
+
+Logout revokes immediately. To cut off a user, set their membership to
+`SUSPENDED`/`REVOKED` (principal resolution then fails on the next request)
+or set `revoked_at` on their `auth_sessions` rows. Rotating
+`AUTH_TOKEN_SECRET` invalidates every email-code session at once.
+
 **Status: gap.** The API validates Auth0-issued tokens and maps the
 organization claim (`org_id`, Auth0 Organizations) to a Pactlab organization.
 Web sign-in is not wired yet (`apps/web/lib/session.ts` returns no session),

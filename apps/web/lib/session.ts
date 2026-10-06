@@ -1,14 +1,18 @@
 import type { OrganizationRole, Permission } from '@pactlab/domain';
 import { cache } from 'react';
-import { auth0, identityAccessToken } from './auth0';
+import { tokenOrganization } from './auth-flow';
+import { auth0Session, identityAccessToken } from './auth0';
 import { publicEnv } from './env';
+import { nativeSessionToken } from './native-session';
 
 /** Response of `GET /v1/me`. */
 export interface MeOrganization {
   id: string;
   name: string;
   slug: string;
-  auth0OrganizationId: string;
+  /** Null for organizations that sign in with an emailed code. */
+  auth0OrganizationId: string | null;
+  authMethod: 'AUTH0' | 'EMAIL_CODE';
   role: OrganizationRole;
   permissions: Permission[];
 }
@@ -51,24 +55,30 @@ export type SessionContext =
 
 /**
  * Signed-in user and active organization for the shell. The active
- * organization is the `org_id` the session was authorized into, matched
- * against the caller's memberships from the API — never a client value.
+ * organization is the one the session's token is scoped to (Auth0 `org_id`
+ * or email-code `pactlab_org`), matched against the caller's memberships
+ * from the API — never a client value.
  */
 export const getSessionContext = cache(async (): Promise<SessionContext> => {
-  const session = await auth0().getSession();
-  if (!session) return { kind: 'signed-out', permissions: new Set() };
+  const session = await auth0Session();
+  const nativeToken = session ? null : await nativeSessionToken();
+  if (!session && !nativeToken) return { kind: 'signed-out', permissions: new Set() };
   const me = await getMe();
+  const nativeOrganization = nativeToken ? tokenOrganization(nativeToken) : null;
   const organization =
-    me.kind === 'ok' && session.user.org_id
-      ? (me.data.organizations.find((org) => org.auth0OrganizationId === session.user.org_id) ??
-        null)
-      : null;
+    me.kind !== 'ok'
+      ? null
+      : session
+        ? (session.user.org_id
+            ? me.data.organizations.find((org) => org.auth0OrganizationId === session.user.org_id)
+            : undefined) ?? null
+        : (me.data.organizations.find((org) => org.id === nativeOrganization) ?? null);
   return {
     kind: 'signed-in',
     displayName:
       me.kind === 'ok'
         ? me.data.user.displayName
-        : (session.user.name ?? session.user.email ?? 'Signed in'),
+        : (session?.user.name ?? session?.user.email ?? 'Signed in'),
     organization,
     permissions: new Set(organization?.permissions ?? []),
   };

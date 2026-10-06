@@ -17,7 +17,11 @@ export const PROTECTED_PATH_PREFIXES = [
 ] as const;
 
 export const SELECT_ORGANIZATION_PATH = '/select-organization';
+/** Sign-in chooser: Auth0 / company SSO, or an emailed one-time code. */
+export const SIGN_IN_PATH = '/login';
 const LOGIN_PATH = '/auth/login';
+/** httpOnly cookie holding the API-signed token of an email-code session. */
+export const NATIVE_SESSION_COOKIE = 'pactlab_session';
 
 export function isProtectedPath(pathname: string): boolean {
   return PROTECTED_PATH_PREFIXES.some(
@@ -33,6 +37,11 @@ export function safeReturnTo(value: unknown): string {
   return value;
 }
 
+export function signInPath(returnTo: string): string {
+  return `${SIGN_IN_PATH}?${new URLSearchParams({ returnTo: safeReturnTo(returnTo) })}`;
+}
+
+/** Auth0 Universal Login (organizations that sign in through Auth0). */
 export function loginPath(returnTo: string): string {
   return `${LOGIN_PATH}?${new URLSearchParams({ returnTo: safeReturnTo(returnTo) })}`;
 }
@@ -66,7 +75,7 @@ export function proxyDecision(input: {
   const returnTo = `${pathname}${search}`;
   if (!signedIn) {
     return isProtectedPath(pathname)
-      ? { kind: 'redirect', location: loginPath(returnTo) }
+      ? { kind: 'redirect', location: signInPath(returnTo) }
       : { kind: 'next' };
   }
   if (!organizationId && pathname !== SELECT_ORGANIZATION_PATH) {
@@ -87,19 +96,40 @@ export function organizationStep<T>(organizations: readonly T[]): OrganizationSt
   return { kind: 'pick', organizations };
 }
 
-/**
- * The `org_id` claim of an access token, read without verification. Used only
- * to decide whether a token may be sent; the API verifies every token.
- */
-export function tokenOrganization(token: string): string | null {
+function unverifiedClaims(token: string): Record<string, unknown> | null {
   const payload = token.split('.')[1];
   if (!payload) return null;
   try {
     const claims = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as unknown;
-    if (typeof claims !== 'object' || claims === null) return null;
-    const organization = (claims as Record<string, unknown>)['org_id'];
-    return typeof organization === 'string' && organization.length > 0 ? organization : null;
+    return typeof claims === 'object' && claims !== null ? (claims as Record<string, unknown>) : null;
   } catch {
     return null;
   }
+}
+
+/**
+ * The organization claim of an access token (`org_id` for Auth0,
+ * `pactlab_org` for email-code sessions), read without verification. Used
+ * only to decide whether a token may be sent; the API verifies every token.
+ */
+export function tokenOrganization(token: string): string | null {
+  const claims = unverifiedClaims(token);
+  const organization = claims?.['org_id'] ?? claims?.['pactlab_org'];
+  return typeof organization === 'string' && organization.length > 0 ? organization : null;
+}
+
+/**
+ * Routing view of an email-code session cookie, unverified: null when absent
+ * or expired. The API re-verifies the token and its server-side session on
+ * every call, so this only decides where to send the browser.
+ */
+export function nativeSessionState(
+  token: string | undefined,
+  now: Date = new Date(),
+): { organizationId: string | undefined } | null {
+  if (!token) return null;
+  const claims = unverifiedClaims(token);
+  const exp = claims?.['exp'];
+  if (claims?.['iss'] !== 'pactlab' || typeof exp !== 'number' || exp * 1000 <= now.getTime()) return null;
+  return { organizationId: tokenOrganization(token) ?? undefined };
 }
