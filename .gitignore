@@ -15,3 +15,6 @@ packages/db/src/generated/
 
 # Local document originals (DOCUMENT_STORE_DIR)
 .data/
+
+# Static export of the marketing site (apps/site)
+apps/site/out/
