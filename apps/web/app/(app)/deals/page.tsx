@@ -38,13 +38,13 @@ export default async function DealsPage() {
                     </Link>
                     <span className="text-sm text-muted-foreground">{deal.targetName}</span>
                     <span className="mt-1 flex gap-3 text-sm">
-                      <Link href={`/deals/${deal.id}/sources`} className="text-primary hover:underline">
+                      <Link href={`/deals/${deal.id}/sources`} className="text-indigo-ink hover:underline">
                         Sources
                       </Link>
-                      <Link href={`/deals/${deal.id}/evidence`} className="text-primary hover:underline">
+                      <Link href={`/deals/${deal.id}/evidence`} className="text-indigo-ink hover:underline">
                         Evidence
                       </Link>
-                      <Link href={`/metrics/${deal.id}`} className="text-primary hover:underline">
+                      <Link href={`/metrics/${deal.id}`} className="text-indigo-ink hover:underline">
                         Finances
                       </Link>
                     </span>

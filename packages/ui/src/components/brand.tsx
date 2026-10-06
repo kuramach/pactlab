@@ -1,42 +1,50 @@
 import { cn } from '../utils';
 
-/** The spec tagline (§22). */
-export const PACTLAB_TAGLINE = 'Every deal is a pact. Make it an honest one.';
+/** Brand kit (`brand/BRAND.md`). */
+export const PACTLAB_TAGLINE = 'Test the pact before you sign it.';
+export const PACTLAB_PILLAR = 'AI diligence. Human instinct.';
+
+/** Logo files from `brand/logos`, served by the host app under `/brand`. */
+const LOGO = {
+  onLight: { src: '/brand/pactlab-logo.png', width: 800, height: 228 },
+  onDark: { src: '/brand/pactlab-logo-light.png', width: 800, height: 228 },
+  symbol: { src: '/brand/pactlab-symbol.png', width: 256, height: 256 },
+} as const;
 
 /**
- * Pactlab mark: two interlocking rings on a cobalt tile — two parties bound
- * by one pact. Decorative next to the wordmark, labelled when standalone.
+ * Pactlab wordmark: lowercase "pact" in deep navy, "lab" in indigo, the "b"
+ * a flask. `onDark` uses the reversed artwork for navy surfaces.
  */
-export function PactlabMark({ className, title }: { className?: string; title?: string }) {
+export function PactlabLogo({
+  className,
+  tone = 'onLight',
+  withTagline = false,
+}: {
+  className?: string;
+  tone?: 'onLight' | 'onDark';
+  withTagline?: boolean;
+}) {
+  const logo = LOGO[tone];
   return (
-    <svg
-      viewBox="0 0 32 32"
-      className={cn('h-8 w-8 shrink-0', className)}
-      role={title ? 'img' : undefined}
-      aria-hidden={title ? undefined : true}
-      aria-label={title}
-    >
-      <rect width="32" height="32" rx="8" fill="var(--color-primary)" />
-      <circle cx="12.75" cy="16" r="6.25" fill="none" stroke="white" strokeWidth="2.5" />
-      <circle cx="19.25" cy="16" r="6.25" fill="none" stroke="white" strokeOpacity="0.72" strokeWidth="2.5" />
-    </svg>
+    <div className={cn('flex flex-col gap-1', className)}>
+      <img src={logo.src} width={logo.width} height={logo.height} alt="Pactlab" className="h-8 w-auto self-start" />
+      {withTagline ? (
+        <p className={cn('text-xs', tone === 'onDark' ? 'text-white/80' : 'text-muted-foreground')}>{PACTLAB_TAGLINE}</p>
+      ) : null}
+    </div>
   );
 }
 
-/**
- * Mark plus lowercase wordmark. The name never depends on capitalisation
- * (spec §22), so the wordmark is set lowercase.
- */
-export function PactlabLogo({ className, withTagline = false }: { className?: string; withTagline?: boolean }) {
+/** Standalone symbol: the pact (handshake) inside the lab flask. */
+export function PactlabSymbol({ className, label }: { className?: string; label?: string }) {
   return (
-    <div className={cn('flex items-center gap-3', className)}>
-      <PactlabMark />
-      <div className="leading-tight">
-        <p className="text-lg font-semibold tracking-tight text-foreground">
-          pactlab<span className="sr-only"> (Pactlab)</span>
-        </p>
-        {withTagline ? <p className="text-xs text-muted-foreground">{PACTLAB_TAGLINE}</p> : null}
-      </div>
-    </div>
+    <img
+      src={LOGO.symbol.src}
+      width={LOGO.symbol.width}
+      height={LOGO.symbol.height}
+      alt={label ?? ''}
+      aria-hidden={label ? undefined : true}
+      className={cn('h-8 w-8', className)}
+    />
   );
 }

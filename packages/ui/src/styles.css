@@ -1,35 +1,43 @@
 /*
- * Design tokens for the Pactlab design system (Tailwind v4 theme variables).
- * Spec visual system: neutral slate surfaces, white content planes, one
- * restrained cobalt primary, Inter with tabular numerals for finance,
- * 4/8 px radii, WCAG 2.2 AA contrast.
+ * Design tokens for Pactlab (Tailwind v4 theme variables), from the brand
+ * kit (`brand/BRAND.md`): deep navy #081127, indigo #6978ff, white, light
+ * section backgrounds #f8faff / #f7f9fc, Manrope throughout.
+ *
+ * Accessibility (WCAG 2.2 AA, spec visual system): brand indigo on white is
+ * 3.66:1, below 4.5:1 for normal text. So indigo fills carry navy text
+ * (5.12:1), and indigo text on white uses the deeper "indigo-ink" #4a58e8
+ * (5.45:1). Brand indigo itself is used for accents, large type, focus rings
+ * and dark surfaces.
  */
 @theme {
-  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
 
-  --color-background: oklch(1 0 0);
-  --color-foreground: oklch(0.21 0.02 257);
-  --color-card: oklch(1 0 0);
-  --color-card-foreground: oklch(0.21 0.02 257);
-  /* Slate surfaces */
-  --color-muted: oklch(0.968 0.007 248);
-  --color-muted-foreground: oklch(0.5 0.027 257);
-  --color-border: oklch(0.912 0.012 252);
-  /* Cobalt: the single brand accent (white text on it exceeds 4.5:1) */
-  --color-primary: oklch(0.51 0.19 264);
-  --color-primary-foreground: oklch(0.99 0 0);
-  --color-ring: oklch(0.51 0.19 264);
-  --color-secondary: oklch(0.955 0.02 264);
-  --color-secondary-foreground: oklch(0.36 0.14 264);
-  --color-destructive: oklch(0.55 0.21 27);
-  --color-destructive-foreground: oklch(0.99 0 0);
+  --color-navy: #081127;
+  --color-indigo: #6978ff;
+  --color-indigo-ink: #4a58e8;
+
+  --color-background: #ffffff;
+  --color-foreground: #081127;
+  --color-card: #ffffff;
+  --color-card-foreground: #081127;
+  --color-muted: #f7f9fc;
+  --color-muted-foreground: #4b5568;
+  --color-border: #e3e8f2;
+  /* Primary action: indigo fill with navy text */
+  --color-primary: #6978ff;
+  --color-primary-foreground: #081127;
+  --color-ring: #6978ff;
+  --color-secondary: #f8faff;
+  --color-secondary-foreground: #4a58e8;
+  --color-destructive: #c42b1c;
+  --color-destructive-foreground: #ffffff;
 
   --radius-sm: 4px;
   --radius-md: 8px;
 }
 
-/* Finance reads in columns: tabular numerals wherever numbers line up. */
 @layer base {
+  /* Finance reads in columns: tabular numerals wherever numbers line up. */
   table,
   .font-mono,
   [data-numeric] {
