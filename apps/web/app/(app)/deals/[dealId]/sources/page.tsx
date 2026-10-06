@@ -93,7 +93,7 @@ export default async function DealSourcesPage({ params }: { params: Promise<{ de
                     {run ? ` · connector ${run.connectorVersion}` : ''}
                   </p>
                   {source.evidenceCount > 0 ? (
-                    <Link href={`/deals/${dealId}/evidence`} className="font-medium text-primary hover:underline">
+                    <Link href={`/deals/${dealId}/evidence`} className="font-medium text-indigo-ink hover:underline">
                       Browse evidence →
                     </Link>
                   ) : null}
