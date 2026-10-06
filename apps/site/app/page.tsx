@@ -1,5 +1,7 @@
 import { siteConfig } from '../lib/config';
-import { CAPABILITIES, CLOSING, HERO, LOOP, PILLAR, PRINCIPLES, STORY, TAGLINE } from '../lib/content';
+import { ARCS, CLOSING, HERO, LOOP, PILLAR, PRINCIPLES, STORY, TAGLINE } from '../lib/content';
+import { Demos } from './demos';
+import { FeatureIcon } from './icons';
 
 const { signInUrl, contactHref } = siteConfig();
 
@@ -30,6 +32,9 @@ export default function HomePage() {
           <div className="flex items-center gap-6 text-sm font-semibold">
             <a href="#how" className="hidden text-white/80 hover:text-white sm:inline">
               How it works
+            </a>
+            <a href="#demos" className="hidden text-white/80 hover:text-white sm:inline">
+              Demos
             </a>
             <a href="#product" className="hidden text-white/80 hover:text-white sm:inline">
               Product
@@ -85,19 +90,35 @@ export default function HomePage() {
           </div>
         </section>
 
-        <section id="product" aria-labelledby="product-title" className="bg-white">
+        <Demos />
+
+        <section id="product" aria-labelledby="product-title" className="bg-mist">
           <div className="mx-auto max-w-6xl px-6 py-20">
             <h2 id="product-title" className="text-3xl font-extrabold tracking-tight sm:text-4xl">
               What Pactlab does
             </h2>
-            <div className="mt-12 grid gap-6 md:grid-cols-2">
-              {CAPABILITIES.map((capability) => (
-                <article key={capability.title} className="rounded-2xl bg-cloud p-8">
-                  <h3 className="text-xl font-bold">{capability.title}</h3>
-                  <p className="mt-3 leading-relaxed text-slate-text">{capability.body}</p>
-                </article>
-              ))}
-            </div>
+            <p className="mt-4 max-w-2xl text-lg text-slate-text">
+              Sixteen capabilities across four arcs — one evidence loop underneath them all.
+            </p>
+
+            {ARCS.map((arc) => (
+              <div key={arc.id} className="mt-14">
+                <p className="text-sm font-bold uppercase tracking-widest text-indigo-ink">{arc.eyebrow}</p>
+                <h3 className="mt-2 text-2xl font-extrabold tracking-tight">{arc.title}</h3>
+                <p className="mt-2 max-w-2xl text-slate-text">{arc.body}</p>
+                <div className="mt-8 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+                  {arc.features.map((feature) => (
+                    <article key={feature.title} className="rounded-2xl border border-indigo/10 bg-white p-7">
+                      <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-indigo/10 text-indigo-ink">
+                        <FeatureIcon name={feature.icon} />
+                      </div>
+                      <h4 className="mt-4 text-lg font-bold">{feature.title}</h4>
+                      <p className="mt-2 leading-relaxed text-slate-text">{feature.body}</p>
+                    </article>
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
         </section>
 
