@@ -45,7 +45,29 @@ export async function apiGet<T>(path: string): Promise<ApiResult<T>> {
   return { kind: 'error', ...(problem.requestId ? { requestId: problem.requestId } : {}) };
 }
 
+/** A connected source and what it last produced (`GET /v1/deals/:id/connections`). */
+export interface DealSource {
+  id: string;
+  provider: string;
+  displayName: string;
+  mode: 'FIXTURE' | 'LIVE';
+  status: string;
+  evidenceVisibility: 'BUYER_ONLY' | 'SHARED';
+  lastSyncRun: {
+    id: string;
+    status: string;
+    connectorVersion: string;
+    recordsSeen: number;
+    recordsCreated: number;
+    issuesCount: number;
+    errorClass: string | null;
+    completedAt: string | null;
+  } | null;
+  evidenceCount: number;
+}
+
 export const dealsApi = {
+  sources: (dealId: string) => apiGet<{ items: DealSource[] }>(`/v1/deals/${encodeURIComponent(dealId)}/connections`),
   list: () => apiGet<{ items: DealListItem[] }>('/v1/deals'),
   get: (dealId: string) => apiGet<DealListItem>(`/v1/deals/${encodeURIComponent(dealId)}`),
   evidence: (dealId: string, query: string) =>

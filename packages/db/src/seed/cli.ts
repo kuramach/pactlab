@@ -27,9 +27,17 @@ try {
   }
   const { codeReview } = report;
   process.stdout.write(
-    `TroubledCo code review: repository evidence ${codeReview.sync.replayed ? 'already synced' : 'synced'} · ` +
+    `TroubledCo code review: repository evidence ${codeReview.sync?.replayed ? 'already synced' : 'synced'} · ` +
       `${codeReview.findingsCreated} draft findings created, ${codeReview.findingsExisting} already present\n`,
   );
+  for (const { holder, company, provider, sync, failed } of report.sources) {
+    process.stdout.write(
+      sync
+        ? `${holder} · ${company} · ${provider}: ${sync.replayed ? 'already complete' : 'ran'} · ` +
+            `${sync.recordsSeen} records (${sync.recordsCreated} new) · ${sync.issuesCount} source issues\n`
+        : `${holder} · ${company} · ${provider}: failed (${failed}) — expected for partial-permission fixtures\n`,
+    );
+  }
 } finally {
   await client.end();
   await prisma.$disconnect();

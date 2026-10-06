@@ -1,9 +1,20 @@
-import { GITHUB_FIXTURE_VERSION } from '@pactlab/connectors';
+import {
+  createJiraEvidenceSource,
+  GITHUB_FIXTURE_VERSION,
+  JIRA_FIXTURE_VERSION,
+  JiraFixtureAdapter,
+} from '@pactlab/connectors';
 import { createCsvEvidenceSource, newId } from '@pactlab/domain';
 import type { PrismaClient } from '../client';
-import { loadSyntheticManifest, readSyntheticDataset, SYNTHETIC_COMPANIES } from '../fixtures';
+import {
+  loadSyntheticManifest,
+  readSyntheticDataset,
+  SYNTHETIC_COMPANIES,
+  type SyntheticCompany,
+} from '../fixtures';
 import { executeSyncRun, type SyncRunOutcome } from '../sync';
 import { SEED_GITHUB_CONNECTION, seedCodeReview, type CodeReviewSeedReport } from './code-review';
+import { seedSync } from './seed-sync';
 
 export interface SqlExecutor {
   query(sql: string, params?: unknown[]): Promise<unknown>;
@@ -73,10 +84,62 @@ export const SEED_REVIEWER = {
   displayName: 'Alpha Reviewer (synthetic)',
 } as const;
 
+/**
+ * Code and delivery sources per synthetic target: a GitHub fixture repository
+ * and a Jira fixture site. SparseCo's Jira config names a project the
+ * installation cannot read, to exercise partial permissions.
+ */
+export const SEED_TARGET_SOURCES: Readonly<
+  Record<SyntheticCompany, { github: { connectionId: string; repository: string }; jira: { connectionId: string; site: string; projectKeys: string[] } }>
+> = {
+  HealthyCo: {
+    github: { connectionId: '01900000-0000-7000-8000-0000000e0101', repository: 'healthyco/platform' },
+    jira: { connectionId: '01900000-0000-7000-8000-0000000e0201', site: 'healthyco.atlassian.net', projectKeys: ['HC'] },
+  },
+  TroubledCo: {
+    github: { connectionId: SEED_GITHUB_CONNECTION.id, repository: SEED_GITHUB_CONNECTION.repository },
+    jira: { connectionId: '01900000-0000-7000-8000-0000000e0202', site: 'troubledco.atlassian.net', projectKeys: ['TC'] },
+  },
+  SparseCo: {
+    github: { connectionId: '01900000-0000-7000-8000-0000000e0103', repository: 'sparseco/app' },
+    jira: { connectionId: '01900000-0000-7000-8000-0000000e0203', site: 'sparseco.atlassian.net', projectKeys: ['SP', 'SPX'] },
+  },
+};
+
+/**
+ * Buyer organizations that each hold the three synthetic targets. Alpha uses
+ * the manifest identities; Charlie (email-code sign-in) gets its own copies
+ * with deterministically derived ids, so both sign-in paths see the same
+ * evidence without any cross-organization sharing.
+ */
+function targetHolders() {
+  return [
+    { label: 'Alpha', organizationId: SEED_TENANTS[0].organizationId, leadUserId: SEED_TENANTS[0].userId, idFor: (id: string) => id, keyPrefix: '' },
+    {
+      label: 'Charlie',
+      organizationId: SEED_EMAIL_CODE_TENANT.organizationId,
+      leadUserId: SEED_EMAIL_CODE_TENANT.userId,
+      idFor: (id: string) => id.replace('-8000-', '-8c00-'),
+      keyPrefix: 'charlie:',
+    },
+  ] as const;
+}
+
+export interface SourceSeedReport {
+  holder: string;
+  company: string;
+  provider: 'csv' | 'github' | 'jira';
+  dealId: string;
+  /** Null when the source failed; `failed` names the error class. */
+  sync: SyncRunOutcome | null;
+  failed: string | null;
+}
+
 export interface SeedReport {
   tenants: number;
   companies: { company: string; dealId: string; sync: SyncRunOutcome }[];
   codeReview: CodeReviewSeedReport;
+  sources: SourceSeedReport[];
 }
 
 /**
@@ -175,18 +238,6 @@ export async function seedSynthetic(owner: SqlExecutor, prisma: PrismaClient): P
       );
       if (company === 'TroubledCo') {
         await owner.query(
-          `INSERT INTO connections (id, organization_id, deal_id, provider, display_name, mode, config, created_by, updated_at)
-           VALUES ($1, $2, $3, 'github', $4, 'FIXTURE', $5::jsonb, $6, now()) ON CONFLICT (id) DO NOTHING`,
-          [
-            SEED_GITHUB_CONNECTION.id,
-            alpha.organizationId,
-            manifest.deal.id,
-            SEED_GITHUB_CONNECTION.displayName,
-            JSON.stringify({ repository: SEED_GITHUB_CONNECTION.repository }),
-            alpha.userId,
-          ],
-        );
-        await owner.query(
           `INSERT INTO users (id, auth0_subject, display_name) VALUES ($1, $2, $3) ON CONFLICT (id) DO NOTHING`,
           [SEED_REVIEWER.userId, SEED_REVIEWER.subject, SEED_REVIEWER.displayName],
         );
@@ -207,6 +258,36 @@ export async function seedSynthetic(owner: SqlExecutor, prisma: PrismaClient): P
            ON CONFLICT (organization_id, deal_id, user_id) DO NOTHING`,
           [newId(), alpha.organizationId, manifest.deal.id, SEED_CONTRIBUTOR.userId],
         );
+      }
+    }
+
+    // Every holder gets each target with billing CSVs, a GitHub repository and a Jira site.
+    for (const holder of targetHolders()) {
+      for (const company of SYNTHETIC_COMPANIES) {
+        const manifest = await loadSyntheticManifest(company);
+        const dealId = holder.idFor(manifest.deal.id);
+        const sources = SEED_TARGET_SOURCES[company];
+        await insertDeal(
+          owner,
+          holder.organizationId,
+          dealId,
+          manifest.deal.name,
+          manifest.displayName,
+          manifest.deal.transactionType,
+          holder.leadUserId,
+        );
+        const connections: [string, string, string, unknown][] = [
+          [holder.idFor(manifest.connection.id), 'csv', manifest.connection.displayName, { datasets: manifest.datasets.map((d) => d.dataset) }],
+          [holder.idFor(sources.github.connectionId), 'github', `${sources.github.repository} (fixture)`, { repository: sources.github.repository }],
+          [holder.idFor(sources.jira.connectionId), 'jira', `${sources.jira.site} Jira (fixture)`, { site: sources.jira.site, projectKeys: sources.jira.projectKeys }],
+        ];
+        for (const [id, provider, displayName, config] of connections) {
+          await owner.query(
+            `INSERT INTO connections (id, organization_id, deal_id, provider, display_name, mode, config, created_by, updated_at)
+             VALUES ($1, $2, $3, $4, $5, 'FIXTURE', $6::jsonb, $7, now()) ON CONFLICT (id) DO NOTHING`,
+            [id, holder.organizationId, dealId, provider, displayName, JSON.stringify(config), holder.leadUserId],
+          );
+        }
       }
     }
     await owner.query('COMMIT');
@@ -261,7 +342,67 @@ export async function seedSynthetic(owner: SqlExecutor, prisma: PrismaClient): P
       alpha.userId,
     ),
   });
-  return { tenants: SEED_TENANTS.length + 1, companies, codeReview };
+
+  const sources: SourceSeedReport[] = [];
+  for (const holder of targetHolders()) {
+    for (const company of SYNTHETIC_COMPANIES) {
+      const manifest = await loadSyntheticManifest(company);
+      const dealId = holder.idFor(manifest.deal.id);
+      const target = SEED_TARGET_SOURCES[company];
+      const job = (syncRunId: string) => ({
+        organizationId: holder.organizationId,
+        dealId,
+        requestedBy: holder.leadUserId,
+        syncRunId,
+      });
+      const run = (connectionId: string, kind: string, version: string) =>
+        stableSyncRun(
+          owner,
+          holder.organizationId,
+          dealId,
+          holder.idFor(connectionId),
+          kind === 'csv' && holder.keyPrefix === '' ? `seed:${company}:v1` : `seed:${holder.keyPrefix}${company}:${kind}:v1`,
+          version,
+          holder.leadUserId,
+        );
+
+      if (holder.keyPrefix !== '') {
+        // Alpha's CSV evidence is synced above under its original keys.
+        const csv = await seedSync(
+          prisma,
+          job(await run(manifest.connection.id, 'csv', CSV_FIXTURE_CONNECTOR_VERSION)),
+          createCsvEvidenceSource({ provider: 'csv', version: CSV_FIXTURE_CONNECTOR_VERSION, datasets: manifest.datasets, load: readSyntheticDataset }),
+        );
+        sources.push({ holder: holder.label, company, provider: 'csv', dealId, ...csv });
+      }
+
+      // TroubledCo in Alpha already ran above (codeReview); this replays as a no-op.
+      const github = await seedCodeReview(prisma, {
+        organizationId: holder.organizationId,
+        dealId,
+        leadUserId: holder.leadUserId,
+        connectionId: holder.idFor(target.github.connectionId),
+        repository: target.github.repository,
+        syncRunId: await run(target.github.connectionId, 'github', GITHUB_FIXTURE_VERSION),
+      });
+      sources.push({ holder: holder.label, company, provider: 'github', dealId, sync: github.sync, failed: github.failed });
+
+      const jira = new JiraFixtureAdapter({ site: target.jira.site, projectKeys: target.jira.projectKeys });
+      const jiraScope = {
+        organizationId: holder.organizationId,
+        dealId,
+        connectionId: holder.idFor(target.jira.connectionId),
+        credentialRef: null,
+      };
+      const jiraSync = await seedSync(
+        prisma,
+        job(await run(target.jira.connectionId, 'jira', JIRA_FIXTURE_VERSION)),
+        createJiraEvidenceSource(jira, jiraScope, jira.unreadableProjects()),
+      );
+      sources.push({ holder: holder.label, company, provider: 'jira', dealId, ...jiraSync });
+    }
+  }
+  return { tenants: SEED_TENANTS.length + 1, companies, codeReview, sources };
 }
 
 async function insertDeal(

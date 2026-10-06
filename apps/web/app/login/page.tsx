@@ -1,4 +1,4 @@
-import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle } from '@pactlab/ui';
+import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle, PactlabLogo } from '@pactlab/ui';
 import { redirect } from 'next/navigation';
 import { loginPath, safeReturnTo } from '../../lib/auth-flow';
 import { auth0 } from '../../lib/auth0';
@@ -35,7 +35,8 @@ export default async function LoginPage({
   const auth0Enabled = auth0() !== null;
 
   return (
-    <main className="flex min-h-screen items-center justify-center p-6">
+    <main className="flex min-h-screen flex-col items-center justify-center gap-8 bg-muted p-6">
+      <PactlabLogo withTagline />
       <Card className="w-full max-w-sm">
         <CardHeader>
           <CardTitle>Sign in to Pactlab</CardTitle>

@@ -16,10 +16,17 @@ import {
 import { withTenant } from '../tenant';
 import { startTestDatabase, type TestDatabase } from '../testing';
 import { findings } from '../findings';
+import { SEED_GITHUB_CONNECTION } from './code-review';
 import { emailLogin } from '../login';
 import { resolvePrincipal } from '../tenant';
-import { SEED_GITHUB_CONNECTION } from './code-review';
-import { SEED_CONTRIBUTOR, SEED_EMAIL_CODE_TENANT, SEED_REVIEWER, SEED_TENANTS, seedSynthetic } from './synthetic';
+import {
+  SEED_CONTRIBUTOR,
+  SEED_EMAIL_CODE_TENANT,
+  SEED_REVIEWER,
+  SEED_TARGET_SOURCES,
+  SEED_TENANTS,
+  seedSynthetic,
+} from './synthetic';
 
 describe('synthetic company fixtures', () => {
   it('have versioned manifests with stable, unique UUID identities', async () => {
@@ -121,8 +128,14 @@ describe('pnpm seed', () => {
     const second = await seedSynthetic(db.owner, db.prisma);
     expect(second.companies.every((c) => c.sync.replayed)).toBe(true);
     expect(second.codeReview).toMatchObject({ sync: { replayed: true }, findingsCreated: 0 });
+    expect(second.sources.every((source) => source.sync?.replayed ?? source.failed !== null)).toBe(true);
+    // SparseCo's repository is the partial-permission fixture: a recorded failure, not an abort.
+    expect(first.sources.filter((source) => source.failed).map((s) => [s.company, s.provider])).toEqual([
+      ['SparseCo', 'github'],
+      ['SparseCo', 'github'],
+    ]);
     expect(await snapshot()).toEqual(before);
-    expect(before).toMatchObject({ orgs: 3, deals: 6, connections: 4, runs: 4 });
+    expect(before).toMatchObject({ orgs: 3, deals: 9, connections: 18, runs: 18 });
     expect(before?.['evidence']).toBe(before?.['citations']);
   });
 
@@ -131,7 +144,7 @@ describe('pnpm seed', () => {
       const manifest = await loadSyntheticManifest(company);
       const scope = context([manifest.deal.id]);
       const page = await withTenant(db.prisma, scope, (tx) =>
-        evidence.list(tx, manifest.deal.id, { limit: 100 }),
+        evidence.list(tx, manifest.deal.id, { limit: 200 }),
       );
       expect(page.items.length).toBeGreaterThan(0);
       for (const item of page.items) {
@@ -139,12 +152,18 @@ describe('pnpm seed', () => {
           evidence.lineage(tx, manifest.deal.id, item.id),
         );
         const locator = lineage?.citations[0]?.locator;
-        if (lineage?.connection.id === SEED_GITHUB_CONNECTION.id) {
-          expect(locator).toMatchObject({ kind: 'git_commit', repository: SEED_GITHUB_CONNECTION.repository });
-          continue;
+        const sources = SEED_TARGET_SOURCES[company];
+        switch (lineage?.connection.id) {
+          case sources.github.connectionId:
+            expect(locator).toMatchObject({ kind: 'git_commit', repository: sources.github.repository });
+            break;
+          case sources.jira.connectionId:
+            expect(locator).toMatchObject({ kind: 'provider_record', system: 'jira', site: sources.jira.site });
+            break;
+          default:
+            expect(lineage?.connection.id).toBe(manifest.connection.id);
+            expect(locator?.kind === 'csv_row' && locator.dataset.startsWith(`${company}/`)).toBe(true);
         }
-        expect(lineage?.connection.id).toBe(manifest.connection.id);
-        expect(locator?.kind === 'csv_row' && locator.dataset.startsWith(`${company}/`)).toBe(true);
       }
     }
   });
@@ -198,8 +217,35 @@ describe('pnpm seed', () => {
       externalOrganizationId: charlie.organizationId,
       issuer: 'PACTLAB',
     });
-    expect(tenant?.dealIds).toEqual([charlie.dealId]);
+    expect(tenant?.dealIds).toContain(charlie.dealId);
     // Unknown addresses get no code.
     expect(await emailLogin.begin(db.prisma, { email: 'nobody@charlie.example', codeHash: 'a'.repeat(64), ipHash: 'b'.repeat(64) })).toBeNull();
+  });
+
+  it('gives the email-code organization its own copies of every target and source', async () => {
+    const charlie = SEED_EMAIL_CODE_TENANT;
+    const scope = {
+      organizationId: charlie.organizationId as OrganizationId,
+      userId: charlie.userId as UserId,
+      organizationRole: 'ORG_ADMIN' as const,
+      dealIds: [] as DealId[],
+    };
+    const deals = (await db.owner.query(`SELECT id FROM deals WHERE organization_id = $1`, [charlie.organizationId])) as {
+      rows: { id: string }[];
+    };
+    expect(deals.rows).toHaveLength(4);
+    const troubledId = (await loadSyntheticManifest('TroubledCo')).deal.id.replace('-8000-', '-8c00-');
+    const counts = await withTenant(db.prisma, { ...scope, dealIds: [troubledId as DealId] }, async (tx) => ({
+      connections: await tx.connection.findMany({ where: { dealId: troubledId }, select: { provider: true } }),
+      jira: await tx.evidenceItem.count({ where: { dealId: troubledId, sourceSystem: 'jira' } }),
+      github: await tx.evidenceItem.count({ where: { dealId: troubledId, sourceSystem: 'github' } }),
+      billing: await tx.evidenceItem.count({ where: { dealId: troubledId, sourceSystem: 'csv' } }),
+      findings: await tx.finding.count({ where: { dealId: troubledId } }),
+    }));
+    expect(counts.connections.map((c) => c.provider).sort()).toEqual(['csv', 'github', 'jira']);
+    expect(counts.jira).toBeGreaterThan(50);
+    expect(counts.github).toBe(1);
+    expect(counts.billing).toBeGreaterThan(0);
+    expect(counts.findings).toBe(2);
   });
 });

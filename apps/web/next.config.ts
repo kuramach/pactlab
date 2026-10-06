@@ -8,6 +8,8 @@ if (existsSync(rootEnv)) process.loadEnvFile(rootEnv);
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  // The dev server would otherwise write AGENTS.md / CLAUDE.md into this app on every start.
+  agentRules: false,
   transpilePackages: ['@pactlab/ui', '@pactlab/config', '@pactlab/domain'],
 };
 

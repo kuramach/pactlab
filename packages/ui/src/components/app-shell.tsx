@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { cn } from '../utils';
+import { PactlabLogo } from './brand';
 
 export interface ShellNavItem {
   href: string;
@@ -26,10 +27,9 @@ export function AppShell({
       ) : null}
       <div className="flex flex-1">
         <aside className="hidden w-60 shrink-0 border-r border-border bg-muted/40 p-4 md:block">
-          <div className="mb-6">
-            <p className="text-lg font-semibold tracking-tight">Pactlab</p>
-            <p className="text-xs text-muted-foreground">Test the pact before you sign it.</p>
-          </div>
+          <a href="/" className="mb-6 block rounded-md">
+            <PactlabLogo withTagline />
+          </a>
           <nav aria-label="Primary">
             <ul className="flex flex-col gap-1">
               {nav.map((item) => (
@@ -39,7 +39,7 @@ export function AppShell({
                     aria-current={item.active ? 'page' : undefined}
                     className={cn(
                       'block rounded-md px-3 py-2 text-sm hover:bg-muted',
-                      item.active && 'bg-muted font-medium',
+                      item.active && 'bg-secondary font-medium text-secondary-foreground',
                     )}
                   >
                     {item.label}

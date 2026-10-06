@@ -16,13 +16,13 @@ import {
   normalizeCsv,
   type CsvDatasetMapping,
   type EvidenceSource,
-  type NormalizedEvidence,
 } from '@pactlab/domain';
+import type { EvidenceSample } from './evidence-sample';
 
 export const CSV_FIXTURE_VERSION = 'csv-fixture-1';
 
 /** Dry-run samples expose normalized fields only; verbatim source text stays server-side. */
-export type CsvSample = Omit<NormalizedEvidence, 'quote'>;
+export type CsvSample = EvidenceSample;
 
 function companyOf(dataset: string): SyntheticCompany | null {
   const company = dataset.split('/')[0];
@@ -119,7 +119,7 @@ export class CsvFixtureAdapter implements ProviderAdapter<CsvSample> {
   }
 
   /** The same normalized records the sync engine ingests. */
-  async evidenceSource(): Promise<EvidenceSource> {
+  async evidenceSource(_scope?: ConnectionScope): Promise<EvidenceSource> {
     const { mappings, unknown } = await this.mappings();
     if (unknown.length > 0) throw new Error('Connection references unknown fixture datasets');
     return createCsvEvidenceSource({
