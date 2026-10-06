@@ -1,0 +1,32 @@
+@import 'tailwindcss';
+
+/*
+ * Brand kit (`brand/BRAND.md`): deep navy #081127, indigo #6978ff, white,
+ * light sections #f8faff / #f7f9fc, Manrope.
+ * WCAG 2.2 AA: indigo on white is 3.66:1, so indigo buttons carry navy text
+ * (5.12:1) and indigo text on white uses indigo-ink #4a58e8 (5.45:1).
+ */
+@theme {
+  --font-sans: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
+  --color-navy: #081127;
+  --color-indigo: #6978ff;
+  --color-indigo-ink: #4a58e8;
+  --color-mist: #f8faff;
+  --color-cloud: #f7f9fc;
+  --color-slate-text: #4b5568;
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-indigo);
+    outline-offset: 3px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+  }
+}
