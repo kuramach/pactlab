@@ -6,6 +6,8 @@ import type { NextConfig } from 'next';
  */
 const nextConfig: NextConfig = {
   output: 'export',
+  // product/index.html rather than product.html: serves /product on any static host.
+  trailingSlash: true,
   reactStrictMode: true,
   poweredByHeader: false,
   images: { unoptimized: true },
