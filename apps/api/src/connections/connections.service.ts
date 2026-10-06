@@ -27,7 +27,7 @@ import {
 import { DealAccess } from '../deals/deal-access';
 import { PRISMA } from '../tokens';
 import { resolveAdapter } from './adapter-registry';
-import type { CsvSample } from './adapters/csv-fixture.adapter';
+import type { EvidenceSample } from './adapters/evidence-sample';
 import type { CreateConnectionCommand, SetModeCommand } from './connections.schemas';
 
 export interface ConnectionView {
@@ -41,6 +41,22 @@ export interface ConnectionView {
   evidenceVisibility: 'BUYER_ONLY' | 'SHARED';
   createdAt: string;
   updatedAt: string;
+}
+
+/** A connection with what it last produced, for the deal's Sources view. */
+export interface ConnectionSummaryView extends ConnectionView {
+  lastSyncRun: {
+    id: string;
+    status: string;
+    connectorVersion: string;
+    recordsSeen: number;
+    recordsCreated: number;
+    issuesCount: number;
+    errorClass: string | null;
+    completedAt: string | null;
+  } | null;
+  /** Evidence items from this connection visible to the caller (RLS). */
+  evidenceCount: number;
 }
 
 export interface SyncRunView {
@@ -143,13 +159,40 @@ export class ConnectionsService {
       throw new ForbiddenException();
   }
 
-  async list(tenant: TenantContext, dealId: string, requestId: string): Promise<ConnectionView[]> {
+  async list(tenant: TenantContext, dealId: string, requestId: string): Promise<ConnectionSummaryView[]> {
     await this.access.require(tenant, dealId, 'DEAL_READ', {
       action: 'connection.list',
       requestId,
     });
-    const rows = await withTenant(this.prisma, tenant, (tx) => connections.list(tx, dealId));
-    return rows.map(toConnectionView);
+    return withTenant(this.prisma, tenant, async (tx) => {
+      const rows = await connections.list(tx, dealId);
+      // Sequential: one transaction, one connection.
+      const views: ConnectionSummaryView[] = [];
+      for (const row of rows) {
+        const run = await tx.syncRun.findFirst({
+          where: { dealId, connectionId: row.id },
+          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        });
+        const evidenceCount = await tx.evidenceItem.count({ where: { dealId, connectionId: row.id } });
+        views.push({
+          ...toConnectionView(row),
+          lastSyncRun: run
+            ? {
+                id: run.id,
+                status: run.status,
+                connectorVersion: run.connectorVersion,
+                recordsSeen: run.recordsSeen,
+                recordsCreated: run.recordsCreated,
+                issuesCount: run.issuesCount,
+                errorClass: run.errorClass,
+                completedAt: run.completedAt?.toISOString() ?? null,
+              }
+            : null,
+          evidenceCount,
+        });
+      }
+      return views;
+    });
   }
 
   async create(
@@ -250,7 +293,7 @@ export class ConnectionsService {
     connectionId: string,
     limit: number,
     requestId: string,
-  ): Promise<{ sample: readonly CsvSample[]; truncated: boolean }> {
+  ): Promise<{ sample: readonly EvidenceSample[]; truncated: boolean }> {
     const role = await this.access.require(tenant, dealId, canSupplyConnections, {
       action: 'connection.dry_run',
       requestId,
@@ -328,7 +371,7 @@ export class ConnectionsService {
             requestedBy: tenant.userId,
             syncRunId: requested.run.id,
           },
-          await adapter.evidenceSource(),
+          await adapter.evidenceSource(this.scope(connection)),
         );
       } catch {
         // The engine records FAILED with an error class; the run resource reports it.

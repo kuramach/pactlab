@@ -30,13 +30,26 @@ export type SourceLocator =
       readonly kind: 'git_commit';
       readonly repository: string;
       readonly commitSha: string;
+    }
+  | {
+      /** One record of a provider API, e.g. a Jira issue or sprint. */
+      readonly kind: 'provider_record';
+      readonly system: string;
+      readonly site: string;
+      readonly resource: string;
+      readonly id: string;
     };
 
 /** Human-readable position of a locator, for lineage and citation display. */
 export function describeLocator(locator: SourceLocator): string {
-  return locator.kind === 'csv_row'
-    ? `${locator.dataset} row ${locator.row}`
-    : `${locator.repository} @ ${locator.commitSha.slice(0, 12)}`;
+  switch (locator.kind) {
+    case 'csv_row':
+      return `${locator.dataset} row ${locator.row}`;
+    case 'git_commit':
+      return `${locator.repository} @ ${locator.commitSha.slice(0, 12)}`;
+    case 'provider_record':
+      return `${locator.system} ${locator.site} ${locator.resource} ${locator.id}`;
+  }
 }
 
 /**
@@ -63,7 +76,9 @@ export interface SourceIssue {
     | 'DUPLICATE_RECORD_ID'
     | 'MISSING_COLUMN'
     | 'MALFORMED_CSV'
-    | 'INVALID_DATE';
+    | 'INVALID_DATE'
+    | 'MISSING_FIELD'
+    | 'PERMISSION_DENIED';
   readonly detail: string;
 }
 

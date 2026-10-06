@@ -13,7 +13,7 @@ export default async function DealsPage() {
       <header className="flex flex-col gap-1">
         <h1 className="text-2xl font-semibold tracking-tight">Deals</h1>
         <p className="text-sm text-muted-foreground">
-          Deals you are a member of. Open one to browse its evidence.
+          Deals you are a member of. Open one to see its connected sources and evidence.
         </p>
       </header>
       {result.kind !== 'ok' ? (
@@ -31,12 +31,23 @@ export default async function DealsPage() {
                 <li key={deal.id} className="flex items-center justify-between gap-4 px-4 py-3">
                   <div className="flex flex-col">
                     <Link
-                      href={`/deals/${deal.id}/evidence`}
+                      href={`/deals/${deal.id}/sources`}
                       className="font-medium hover:underline"
                     >
                       {deal.name}
                     </Link>
                     <span className="text-sm text-muted-foreground">{deal.targetName}</span>
+                    <span className="mt-1 flex gap-3 text-sm">
+                      <Link href={`/deals/${deal.id}/sources`} className="text-primary hover:underline">
+                        Sources
+                      </Link>
+                      <Link href={`/deals/${deal.id}/evidence`} className="text-primary hover:underline">
+                        Evidence
+                      </Link>
+                      <Link href={`/metrics/${deal.id}`} className="text-primary hover:underline">
+                        Finances
+                      </Link>
+                    </span>
                   </div>
                   <div className="flex gap-2">
                     <Badge>{deal.transactionType.replaceAll('_', ' ').toLowerCase()}</Badge>
