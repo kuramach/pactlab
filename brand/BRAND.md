@@ -12,6 +12,7 @@ Hand this directory to Claude Code when building the marketing site or any brand
 - `pactlab-logo-keeper.webp` — primary wordmark for light backgrounds. Lowercase "pactlab": "pact" in deep navy bold, "lab" in indigo; the "b" bowl is a flask with a rising bubble.
 - `pactlab-logo-keeper-light.webp` — reversed wordmark for dark/navy backgrounds.
 - `pactlab-symbol-keeper.webp` — standalone symbol: deep-navy round-bottom flask with indigo liquid, white business handshake submerged (the pact being tested in the lab). Use for favicons, avatars, app icons, social.
+- `pactlab-symbol-flask-hands-variant.webp` — alternate symbol: line-art flask outline with two reaching hands inside. Lighter, more minimal feel; good for secondary placements, illustrations, or where the keeper feels heavy.
 
 ## Colors
 - Deep navy `#081127` — primary text, headlines, dark surfaces
