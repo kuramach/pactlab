@@ -8,7 +8,8 @@
     "start": "tsx src/main.ts",
     "lint": "eslint .",
     "typecheck": "tsc -p tsconfig.json",
-    "test": "vitest run"
+    "test": "vitest run",
+    "flow:local": "tsx --env-file-if-exists=../../.env src/local-flow.ts"
   },
   "dependencies": {
     "@nestjs/common": "12.1.2",

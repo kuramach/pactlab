@@ -4,6 +4,7 @@ import { GitHubFixtureAdapter } from './fixture.adapter';
 import { GitHubLiveAdapter } from './live.adapter';
 import { githubConnectionConfigSchema, type GitHubAdapter } from './types';
 
+export * from './evidence';
 export * from './fixture.adapter';
 export * from './live.adapter';
 export * from './types';

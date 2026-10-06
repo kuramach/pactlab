@@ -253,6 +253,7 @@ describe('deal/evidence spine', () => {
         expect(lineage!.syncRun.status).toBe('SUCCEEDED');
         expect(lineage!.citations).toHaveLength(1);
         const citation = lineage!.citations[0]!;
+        if (citation.locator.kind !== 'csv_row') throw new Error('Expected a CSV row locator');
         expect(citation.locator.dataset).toBe('HealthyCo/customers.csv');
         // The quote hash verifies against the exact source row the citation points to.
         const sourceRow = CUSTOMERS.split('\n')[citation.locator.row];

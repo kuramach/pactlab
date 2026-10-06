@@ -1,7 +1,9 @@
+import { GITHUB_FIXTURE_VERSION } from '@pactlab/connectors';
 import { createCsvEvidenceSource, newId } from '@pactlab/domain';
 import type { PrismaClient } from '../client';
 import { loadSyntheticManifest, readSyntheticDataset, SYNTHETIC_COMPANIES } from '../fixtures';
 import { executeSyncRun, type SyncRunOutcome } from '../sync';
+import { SEED_GITHUB_CONNECTION, seedCodeReview, type CodeReviewSeedReport } from './code-review';
 
 export interface SqlExecutor {
   query(sql: string, params?: unknown[]): Promise<unknown>;
@@ -44,9 +46,20 @@ export const SEED_CONTRIBUTOR = {
   displayName: 'HealthyCo Finance Contributor (synthetic)',
 } as const;
 
+/**
+ * A second buyer-side reviewer on the TroubledCo deal: findings and
+ * valuation submissions need a decision by someone other than the author.
+ */
+export const SEED_REVIEWER = {
+  userId: '01900000-0000-7000-8000-00000000a005',
+  subject: 'auth0|synthetic-alpha-reviewer',
+  displayName: 'Alpha Reviewer (synthetic)',
+} as const;
+
 export interface SeedReport {
   tenants: number;
   companies: { company: string; dealId: string; sync: SyncRunOutcome }[];
+  codeReview: CodeReviewSeedReport;
 }
 
 /**
@@ -118,6 +131,34 @@ export async function seedSynthetic(owner: SqlExecutor, prisma: PrismaClient): P
           alpha.userId,
         ],
       );
+      if (company === 'TroubledCo') {
+        await owner.query(
+          `INSERT INTO connections (id, organization_id, deal_id, provider, display_name, mode, config, created_by, updated_at)
+           VALUES ($1, $2, $3, 'github', $4, 'FIXTURE', $5::jsonb, $6, now()) ON CONFLICT (id) DO NOTHING`,
+          [
+            SEED_GITHUB_CONNECTION.id,
+            alpha.organizationId,
+            manifest.deal.id,
+            SEED_GITHUB_CONNECTION.displayName,
+            JSON.stringify({ repository: SEED_GITHUB_CONNECTION.repository }),
+            alpha.userId,
+          ],
+        );
+        await owner.query(
+          `INSERT INTO users (id, auth0_subject, display_name) VALUES ($1, $2, $3) ON CONFLICT (id) DO NOTHING`,
+          [SEED_REVIEWER.userId, SEED_REVIEWER.subject, SEED_REVIEWER.displayName],
+        );
+        await owner.query(
+          `INSERT INTO organization_memberships (id, organization_id, user_id, role) VALUES ($1, $2, $3, 'MEMBER')
+           ON CONFLICT (organization_id, user_id) DO NOTHING`,
+          [newId(), alpha.organizationId, SEED_REVIEWER.userId],
+        );
+        await owner.query(
+          `INSERT INTO deal_memberships (id, organization_id, deal_id, user_id, role) VALUES ($1, $2, $3, $4, 'REVIEWER')
+           ON CONFLICT (organization_id, deal_id, user_id) DO NOTHING`,
+          [newId(), alpha.organizationId, manifest.deal.id, SEED_REVIEWER.userId],
+        );
+      }
       if (company === 'HealthyCo') {
         await owner.query(
           `INSERT INTO deal_memberships (id, organization_id, deal_id, user_id, role) VALUES ($1, $2, $3, $4, 'TARGET_CONTRIBUTOR')
@@ -140,7 +181,8 @@ export async function seedSynthetic(owner: SqlExecutor, prisma: PrismaClient): P
       alpha.organizationId,
       manifest.deal.id,
       manifest.connection.id,
-      company,
+      `seed:${company}:v1`,
+      CSV_FIXTURE_CONNECTOR_VERSION,
       alpha.userId,
     );
     const source = createCsvEvidenceSource({
@@ -161,7 +203,23 @@ export async function seedSynthetic(owner: SqlExecutor, prisma: PrismaClient): P
     );
     companies.push({ company, dealId: manifest.deal.id, sync });
   }
-  return { tenants: SEED_TENANTS.length, companies };
+
+  const troubled = await loadSyntheticManifest('TroubledCo');
+  const codeReview = await seedCodeReview(prisma, {
+    organizationId: alpha.organizationId,
+    dealId: troubled.deal.id,
+    leadUserId: alpha.userId,
+    syncRunId: await stableSyncRun(
+      owner,
+      alpha.organizationId,
+      troubled.deal.id,
+      SEED_GITHUB_CONNECTION.id,
+      'seed:TroubledCo:github:v1',
+      GITHUB_FIXTURE_VERSION,
+      alpha.userId,
+    ),
+  });
+  return { tenants: SEED_TENANTS.length, companies, codeReview };
 }
 
 async function insertDeal(
@@ -185,16 +243,16 @@ async function insertDeal(
   );
 }
 
-/** One sync run per company under a stable idempotency key; returns its id. */
+/** One sync run per seeded connection under a stable idempotency key; returns its id. */
 async function stableSyncRun(
   owner: SqlExecutor,
   organizationId: string,
   dealId: string,
   connectionId: string,
-  company: string,
+  key: string,
+  connectorVersion: string,
   requestedBy: string,
 ): Promise<string> {
-  const key = `seed:${company}:v1`;
   await owner.query(
     `INSERT INTO sync_runs (id, organization_id, deal_id, connection_id, connector_version, idempotency_key, requested_by, correlation_id)
      VALUES ($1, $2, $3, $4, $5, $6, $7, 'seed')
@@ -204,7 +262,7 @@ async function stableSyncRun(
       organizationId,
       dealId,
       connectionId,
-      CSV_FIXTURE_CONNECTOR_VERSION,
+      connectorVersion,
       key,
       requestedBy,
     ],

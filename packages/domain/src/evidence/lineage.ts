@@ -1,9 +1,10 @@
-import type {
-  ConnectionMode,
-  EvidenceEdgeType,
-  EvidenceVisibility,
-  SourceLocator,
-  SyncRunStatus,
+import {
+  describeLocator,
+  type ConnectionMode,
+  type EvidenceEdgeType,
+  type EvidenceVisibility,
+  type SourceLocator,
+  type SyncRunStatus,
 } from './types';
 
 /** API view of one evidence item. Raw provider payloads are never included. */
@@ -83,7 +84,7 @@ export function lineageTrail(lineage: EvidenceLineage): LineageStep[] {
     },
     {
       label: 'Citation',
-      value: citation ? `${citation.locator.dataset} row ${citation.locator.row}` : 'Missing',
+      value: citation ? describeLocator(citation.locator) : 'Missing',
       detail: citation
         ? `Quote sha256 ${citation.quoteHash.slice(0, 12)}…`
         : 'No resolvable citation',

@@ -533,6 +533,9 @@ importers:
 
   packages/db:
     dependencies:
+      '@pactlab/connectors':
+        specifier: workspace:*
+        version: link:../connectors
       '@pactlab/domain':
         specifier: workspace:*
         version: link:../domain

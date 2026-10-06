@@ -15,7 +15,9 @@ import {
 } from '../fixtures';
 import { withTenant } from '../tenant';
 import { startTestDatabase, type TestDatabase } from '../testing';
-import { SEED_CONTRIBUTOR, SEED_TENANTS, seedSynthetic } from './synthetic';
+import { findings } from '../findings';
+import { SEED_GITHUB_CONNECTION } from './code-review';
+import { SEED_CONTRIBUTOR, SEED_REVIEWER, SEED_TENANTS, seedSynthetic } from './synthetic';
 
 describe('synthetic company fixtures', () => {
   it('have versioned manifests with stable, unique UUID identities', async () => {
@@ -104,7 +106,8 @@ describe('pnpm seed', () => {
       `SELECT (SELECT count(*) FROM organizations)::int AS orgs, (SELECT count(*) FROM deals)::int AS deals,
               (SELECT count(*) FROM deal_memberships)::int AS members, (SELECT count(*) FROM connections)::int AS connections,
               (SELECT count(*) FROM sync_runs)::int AS runs, (SELECT count(*) FROM evidence_items)::int AS evidence,
-              (SELECT count(*) FROM citations)::int AS citations`,
+              (SELECT count(*) FROM citations)::int AS citations, (SELECT count(*) FROM findings)::int AS findings,
+              (SELECT count(*) FROM finding_evidence_links)::int AS links, (SELECT count(*) FROM audit_events)::int AS audits`,
     )) as { rows: Record<string, number>[] };
     return result.rows[0];
   }
@@ -115,8 +118,9 @@ describe('pnpm seed', () => {
     const before = await snapshot();
     const second = await seedSynthetic(db.owner, db.prisma);
     expect(second.companies.every((c) => c.sync.replayed)).toBe(true);
+    expect(second.codeReview).toMatchObject({ sync: { replayed: true }, findingsCreated: 0 });
     expect(await snapshot()).toEqual(before);
-    expect(before).toMatchObject({ orgs: 2, deals: 5, connections: 3, runs: 3 });
+    expect(before).toMatchObject({ orgs: 2, deals: 5, connections: 4, runs: 4 });
     expect(before?.['evidence']).toBe(before?.['citations']);
   });
 
@@ -132,8 +136,13 @@ describe('pnpm seed', () => {
         const lineage = await withTenant(db.prisma, scope, (tx) =>
           evidence.lineage(tx, manifest.deal.id, item.id),
         );
+        const locator = lineage?.citations[0]?.locator;
+        if (lineage?.connection.id === SEED_GITHUB_CONNECTION.id) {
+          expect(locator).toMatchObject({ kind: 'git_commit', repository: SEED_GITHUB_CONNECTION.repository });
+          continue;
+        }
         expect(lineage?.connection.id).toBe(manifest.connection.id);
-        expect(lineage?.citations[0]?.locator.dataset.startsWith(`${company}/`)).toBe(true);
+        expect(locator?.kind === 'csv_row' && locator.dataset.startsWith(`${company}/`)).toBe(true);
       }
     }
   });
@@ -146,5 +155,34 @@ describe('pnpm seed', () => {
       (tx) => tx.evidenceItem.count(),
     );
     expect(seen).toBe(0);
+  });
+
+  it('drafts TroubledCo code findings that resolve to repository evidence and the head commit', async () => {
+    const troubled = await loadSyntheticManifest('TroubledCo');
+    const scope = context([troubled.deal.id]);
+    const drafts = await withTenant(db.prisma, scope, (tx) => findings.list(tx, troubled.deal.id, {}));
+    expect(drafts.map((f) => [f.domain, f.status, f.origin])).toEqual([
+      ['CODE_PROVENANCE', 'DRAFT', 'HEURISTIC'],
+      ['KEY_PERSON', 'DRAFT', 'HEURISTIC'],
+    ]);
+    // Seeds never review or price: those are human steps.
+    expect(drafts.every((f) => f.pricedRisk === null && f.createdBy.kind === 'SYSTEM')).toBe(true);
+    for (const finding of drafts) {
+      const [link] = finding.evidence;
+      const lineage = await withTenant(db.prisma, scope, (tx) =>
+        evidence.lineage(tx, troubled.deal.id, link!.evidenceItemId),
+      );
+      expect(lineage?.evidence.evidenceType).toBe('code.repository_head');
+      expect(lineage?.citations[0]?.locator).toEqual({
+        kind: 'git_commit',
+        repository: SEED_GITHUB_CONNECTION.repository,
+        commitSha: link!.commitSha,
+      });
+    }
+    // A distinct reviewer can decide what the lead submits.
+    const reviewer = await withTenant(db.prisma, context([troubled.deal.id], SEED_REVIEWER.userId), (tx) =>
+      tx.dealMembership.findFirst({ where: { dealId: troubled.deal.id, userId: SEED_REVIEWER.userId } }),
+    );
+    expect(reviewer?.role).toBe('REVIEWER');
   });
 });
