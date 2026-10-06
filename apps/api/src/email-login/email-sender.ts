@@ -2,16 +2,17 @@ import { randomUUID } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 
-export interface SignInEmail {
+/** A plain-text message. Bodies may carry one-time codes: never log them. */
+export interface OutboundEmail {
   readonly to: string;
-  readonly code: string;
-  readonly expiresInMinutes: number;
+  readonly subject: string;
+  readonly text: string;
 }
 
-/** Delivery port for sign-in codes. Implementations never log the code. */
+/** Delivery port for sign-in, sign-up and operator emails. */
 export interface EmailSender {
   readonly name: string;
-  sendSignInCode(message: SignInEmail): Promise<void>;
+  send(message: OutboundEmail): Promise<void>;
 }
 
 /**
@@ -26,17 +27,9 @@ export class LocalFileEmailSender implements EmailSender {
     this.dir = resolve(dir);
   }
 
-  async sendSignInCode(message: SignInEmail): Promise<void> {
+  async send(message: OutboundEmail): Promise<void> {
     await mkdir(this.dir, { recursive: true, mode: 0o700 });
-    const body = [
-      `To: ${message.to}`,
-      'Subject: Your Pactlab sign-in code',
-      '',
-      `Your Pactlab sign-in code is ${message.code}.`,
-      `It expires in ${message.expiresInMinutes} minutes and works once.`,
-      'If you did not try to sign in, ignore this email.',
-      '',
-    ].join('\n');
+    const body = [`To: ${message.to}`, `Subject: ${message.subject}`, '', message.text, ''].join('\n');
     await writeFile(join(this.dir, `${new Date().toISOString().replaceAll(':', '-')}-${randomUUID()}.txt`), body, {
       mode: 0o600,
       flag: 'wx',
@@ -44,11 +37,11 @@ export class LocalFileEmailSender implements EmailSender {
   }
 }
 
-/** No delivery configured: codes are never sent, so email-code sign-in cannot complete. */
+/** No delivery configured: nothing is sent, so code-based flows cannot complete. */
 export class UnavailableEmailSender implements EmailSender {
   readonly name = 'unavailable';
 
-  async sendSignInCode(): Promise<void> {
+  async send(): Promise<void> {
     throw new Error('Email delivery is not configured');
   }
 }

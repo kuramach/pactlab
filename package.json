@@ -19,7 +19,10 @@
     "format:check": "prettier --check .",
     "local:up": "docker compose -f infra/local/docker-compose.yml up -d --wait",
     "local:down": "docker compose -f infra/local/docker-compose.yml down",
-    "db:migrate": "pnpm --filter @pactlab/db migrate:deploy"
+    "db:migrate": "pnpm --filter @pactlab/db migrate:deploy",
+    "org:pending": "pnpm --silent --filter @pactlab/api ops:org pending",
+    "org:approve": "pnpm --silent --filter @pactlab/api ops:org approve",
+    "org:reject": "pnpm --silent --filter @pactlab/api ops:org reject"
   },
   "prettier": {
     "singleQuote": true,

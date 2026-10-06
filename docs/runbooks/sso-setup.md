@@ -10,6 +10,33 @@ ADR 0001):
 - **EMAIL_CODE** — Pactlab emails a 6-digit one-time code; no Auth0. For
   organizations that do not want Auth0. No SSO and no MFA beyond the inbox.
 
+### Self-serve sign-ups (ADR 0002)
+
+New organizations from `/signup` wait for approval:
+
+```bash
+pnpm org:pending                 # who is waiting (owner, SSO requested?)
+pnpm org:approve <slug>          # activates and emails the owner
+pnpm org:reject <slug>           # suspends; nobody can enter it
+```
+
+With `OPERATOR_EMAIL` set you also get an email per sign-up containing the
+approve command. Set `SIGNUP_REQUIRES_APPROVAL=false` to skip approval.
+
+### Moving an organization to company SSO (Auth0)
+
+When a signed-up organization asked for SSO (`sso_requested`):
+
+1. In Auth0, create an Organization for them and add their enterprise
+   connection (SAML/OIDC) from their metadata. Record its `org_…` id.
+2. In one statement (the database rejects a half-switch):
+   `UPDATE organizations SET auth_method = 'AUTH0', auth0_organization_id = '<org_…>' WHERE slug = '<slug>';`
+3. Make sure each member's Pactlab user `auth0_subject` is their Auth0 user
+   id (`auth0|…` or the connection's id) — email-code subjects
+   (`pactlab|…`) do not carry over.
+4. Members now use "Continue with Auth0 or company SSO"; email codes stop
+   working for that organization.
+
 ### Onboarding an email-code organization (operator)
 
 1. Create the `organizations` row with `auth_method = 'EMAIL_CODE'` and

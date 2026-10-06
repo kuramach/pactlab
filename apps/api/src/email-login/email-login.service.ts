@@ -1,11 +1,13 @@
-import { createHmac, randomInt } from 'node:crypto';
+import { randomInt } from 'node:crypto';
 import { Inject, Injectable, UnauthorizedException } from '@nestjs/common';
 import { authSessions, emailLogin, type PrismaClient } from '@pactlab/db';
 import type { Logger } from '@pactlab/observability';
 import type { Principal } from '../auth/auth.guard';
 import type { PactlabTokens } from '../auth/pactlab-token';
 import { LOGGER, PRISMA } from '../tokens';
+import { keyedHash, normalizeEmail as normalize } from './client-address';
 import type { EmailSender } from './email-sender';
+import { emails } from './emails';
 
 export const EMAIL_LOGIN = Symbol('EMAIL_LOGIN');
 
@@ -25,7 +27,6 @@ export interface IssuedSession {
 
 const CODE_TTL_MINUTES = 10;
 
-const normalize = (email: string) => email.trim().toLowerCase();
 
 /**
  * Pactlab email one-time-code sign-in for organizations that do not use
@@ -42,7 +43,7 @@ export class EmailLoginService {
   ) {}
 
   private hmac(value: string): string {
-    return createHmac('sha256', this.deps.hashSecret).update(value, 'utf8').digest('hex');
+    return keyedHash(this.deps.hashSecret, value);
   }
 
   private codeHash(email: string, code: string): string {
@@ -59,7 +60,7 @@ export class EmailLoginService {
     if (!challenge) return;
     // Not awaited: response time must not reveal whether a code was sent.
     void this.deps.emailSender
-      .sendSignInCode({ to: normalize(email), code, expiresInMinutes: CODE_TTL_MINUTES })
+      .send(emails.signInCode(normalize(email), code, CODE_TTL_MINUTES))
       .catch((error: unknown) => {
         // Never log the code or the address.
         this.logger.error(

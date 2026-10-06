@@ -61,10 +61,11 @@ export interface PrincipalClaims {
  * email-code session and vice versa.
  */
 function organizationForClaims(claims: PrincipalClaims) {
+  // Pending (sign-up awaiting approval) and suspended organizations cannot be entered.
   return claims.issuer === 'AUTH0'
-    ? { authMethod: 'AUTH0' as const, auth0OrganizationId: claims.externalOrganizationId }
+    ? { authMethod: 'AUTH0' as const, status: 'ACTIVE' as const, auth0OrganizationId: claims.externalOrganizationId }
     : isUuid(claims.externalOrganizationId)
-      ? { authMethod: 'EMAIL_CODE' as const, id: claims.externalOrganizationId }
+      ? { authMethod: 'EMAIL_CODE' as const, status: 'ACTIVE' as const, id: claims.externalOrganizationId }
       : null;
 }
 

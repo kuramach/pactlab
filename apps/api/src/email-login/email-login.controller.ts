@@ -3,22 +3,9 @@ import type { FastifyRequest } from 'fastify';
 import { AllowUnscoped, Public, type Principal } from '../auth/auth.guard';
 import { CurrentPrincipal } from '../auth/principal.decorator';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
+import { rateLimitAddress } from './client-address';
 import { selectOrganizationBodySchema, startBodySchema, verifyBodySchema } from './email-login.schemas';
 import { EmailLoginService, type IssuedSession } from './email-login.service';
-
-const CLIENT_IP_HEADER = 'x-pactlab-client-ip';
-const IP_LIKE = /^[0-9a-fA-F:.]{2,45}$/;
-
-/**
- * Rate-limit key for code requests. The web server calls the API on the
- * user's behalf, so it forwards the client address it saw; otherwise the
- * socket address is used. Used only to throttle, never to authorize — the
- * per-address limit and the 5-attempt lock do not depend on it.
- */
-function rateLimitAddress(request: FastifyRequest): string {
-  const forwarded = request.headers[CLIENT_IP_HEADER];
-  return typeof forwarded === 'string' && IP_LIKE.test(forwarded) ? forwarded : request.ip;
-}
 
 /** Email one-time-code sign-in for organizations that do not use Auth0. */
 @Controller('v1/auth')

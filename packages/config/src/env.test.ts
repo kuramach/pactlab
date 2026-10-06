@@ -29,6 +29,12 @@ describe('loadConfig', () => {
     expect(() => loadConfig(apiEnvSchema, partial)).toThrow(/AUTH0_AUDIENCE/);
   });
 
+  it('requires sign-up approval unless explicitly turned off', () => {
+    expect(loadConfig(apiEnvSchema, validApi).SIGNUP_REQUIRES_APPROVAL).toBe(true);
+    expect(loadConfig(apiEnvSchema, { ...validApi, SIGNUP_REQUIRES_APPROVAL: 'false' }).SIGNUP_REQUIRES_APPROVAL).toBe(false);
+    expect(() => loadConfig(apiEnvSchema, { ...validApi, SIGNUP_REQUIRES_APPROVAL: 'yes' })).toThrow(/SIGNUP_REQUIRES_APPROVAL/);
+  });
+
   it('requires a strong token secret for email-code sign-in', () => {
     expect(() => loadConfig(apiEnvSchema, { ...validApi, AUTH_TOKEN_SECRET: 'short' })).toThrow(/AUTH_TOKEN_SECRET/);
   });

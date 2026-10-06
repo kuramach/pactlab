@@ -9,6 +9,7 @@ import { PACTLAB_TOKEN_ISSUER, PactlabTokens } from './auth/pactlab-token';
 import { DealsModule } from './deals/deals.module';
 import { DocumentsModule, type DocumentsModuleDependencies } from './documents/documents.module';
 import { EmailLoginModule } from './email-login/email-login.module';
+import { SignupModule } from './signup/signup.module';
 import { UnavailableEmailSender, type EmailSender } from './email-login/email-sender';
 import { PrismaDocumentsRepository } from './documents/prisma-documents.repository';
 import { UnavailableMalwareScanner, UnavailableObjectStore } from './documents/storage-adapters';
@@ -36,6 +37,11 @@ export interface AppDependencies {
    * never delivered.
    */
   emailLogin?: { tokenSecret: string; emailSender?: EmailSender };
+  /**
+   * Self-serve sign-up (needs `emailLogin` for the hash secret and sender).
+   * Defaults: approval required, no operator email.
+   */
+  signup?: { requiresApproval?: boolean; operatorEmail?: string | null; loginUrl: string };
 }
 
 @Global()
@@ -89,6 +95,17 @@ export class AppModule {
                 tokens,
                 emailSender: deps.emailLogin.emailSender ?? new UnavailableEmailSender(),
                 hashSecret: deps.emailLogin.tokenSecret,
+              }),
+            ]
+          : []),
+        ...(deps.emailLogin && deps.signup
+          ? [
+              SignupModule.register({
+                emailSender: deps.emailLogin.emailSender ?? new UnavailableEmailSender(),
+                hashSecret: deps.emailLogin.tokenSecret,
+                requiresApproval: deps.signup.requiresApproval ?? true,
+                operatorEmail: deps.signup.operatorEmail ?? null,
+                loginUrl: deps.signup.loginUrl,
               }),
             ]
           : []),

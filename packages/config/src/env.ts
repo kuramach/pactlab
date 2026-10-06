@@ -56,6 +56,10 @@ export const apiEnvSchema = baseEnvSchema.extend({
   AUTH_TOKEN_SECRET: nonEmpty.min(32, 'must be at least 32 characters'),
   /** Local-only directory where sign-in emails are written instead of sent. */
   LOCAL_MAIL_DIR: nonEmpty.optional(),
+  /** New self-serve organizations wait for `pnpm org:approve` (default) or are active at once. */
+  SIGNUP_REQUIRES_APPROVAL: z.enum(['true', 'false']).default('true').transform((value) => value === 'true'),
+  /** Who is emailed about new sign-ups. Unset: run `pnpm org:pending` to see them. */
+  OPERATOR_EMAIL: z.email().optional(),
 }).superRefine(allOrNone(['AUTH0_DOMAIN', 'AUTH0_AUDIENCE']));
 export type ApiEnv = z.infer<typeof apiEnvSchema>;
 
