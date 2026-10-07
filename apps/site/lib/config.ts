@@ -10,8 +10,10 @@ const schema = z.object({
 });
 
 export interface SiteConfig {
-  /** Where "Sign in" goes, e.g. the app's /login. */
-  signInUrl: string | null;
+  /** The app's /login: existing organizations sign in. */
+  loginUrl: string | null;
+  /** The app's /signup: a new organization is created and picks its sign-in method. */
+  signUpUrl: string | null;
   /** mailto: link for pilot requests. */
   contactHref: string | null;
 }
@@ -23,7 +25,8 @@ export function siteConfig(source: Record<string, string | undefined> = process.
     NEXT_PUBLIC_CONTACT_EMAIL: blankToUndefined(source['NEXT_PUBLIC_CONTACT_EMAIL']),
   });
   return {
-    signInUrl: parsed.NEXT_PUBLIC_APP_URL ? new URL('/login', parsed.NEXT_PUBLIC_APP_URL).toString() : null,
+    loginUrl: parsed.NEXT_PUBLIC_APP_URL ? new URL('/login', parsed.NEXT_PUBLIC_APP_URL).toString() : null,
+    signUpUrl: parsed.NEXT_PUBLIC_APP_URL ? new URL('/signup', parsed.NEXT_PUBLIC_APP_URL).toString() : null,
     contactHref: parsed.NEXT_PUBLIC_CONTACT_EMAIL
       ? `mailto:${parsed.NEXT_PUBLIC_CONTACT_EMAIL}?subject=${encodeURIComponent('Pactlab pilot')}`
       : null,
