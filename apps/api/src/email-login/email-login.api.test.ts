@@ -13,7 +13,7 @@ import { createLocalJWKSet, exportJWK, generateKeyPair, SignJWT, type CryptoKey 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createApp } from '../app';
 import { JwtIdentityVerifier } from '../auth/identity';
-import type { EmailSender, SignInEmail } from './email-sender';
+import type { EmailSender, OutboundEmail } from './email-sender';
 
 const ISSUER = 'https://pactlab-test.example/';
 const AUDIENCE = 'https://api.pactlab.test';
@@ -24,9 +24,9 @@ type Body = Record<string, unknown>;
 /** Captures sign-in emails in memory (provider access is blocked in tests). */
 class CapturingEmailSender implements EmailSender {
   readonly name = 'capture';
-  readonly sent: SignInEmail[] = [];
-  async sendSignInCode(message: SignInEmail) {
-    this.sent.push(message);
+  readonly sent: (OutboundEmail & { code: string })[] = [];
+  async send(message: OutboundEmail) {
+    this.sent.push({ ...message, code: /\b(\d{6})\b/.exec(message.text)?.[1] ?? '' });
   }
 }
 

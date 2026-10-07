@@ -26,6 +26,21 @@ enum OrganizationAuthMethod {
   @@map("organization_auth_method")
 }
 
+enum OrganizationStatus {
+  ACTIVE
+  PENDING_APPROVAL
+  SUSPENDED
+
+  @@map("organization_status")
+}
+
+enum OrganizationOrigin {
+  OPERATOR
+  SIGNUP
+
+  @@map("organization_origin")
+}
+
 enum OrganizationRole {
   ORG_OWNER
   ORG_ADMIN
@@ -249,6 +264,11 @@ model Organization {
   auth0OrganizationId String?                @unique @map("auth0_organization_id")
   /// How members sign in. Tokens from the other method never reach this organization.
   authMethod          OrganizationAuthMethod @default(AUTH0) @map("auth_method")
+  /// Only ACTIVE organizations can be entered; sign-ups start PENDING_APPROVAL.
+  status              OrganizationStatus     @default(ACTIVE)
+  /// The organization asked for company SSO (Auth0) at sign-up; set up by an operator.
+  ssoRequested        Boolean                @default(false) @map("sso_requested")
+  createdVia          OrganizationOrigin     @default(OPERATOR) @map("created_via")
   region              String                 @default("us-east-1")
   createdAt           DateTime               @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt           DateTime               @updatedAt @map("updated_at") @db.Timestamptz(3)
@@ -998,4 +1018,27 @@ model AuthSession {
 
   @@index([userId, createdAt])
   @@map("auth_sessions")
+}
+
+/// Pending self-serve sign-up: details plus an HMAC of the emailed code.
+/// Reached only through SECURITY DEFINER functions; the runtime role has no
+/// table privileges. The organization is created only when the code verifies.
+model SignupChallenge {
+  id               String    @id @default(uuid(7)) @db.Uuid
+  email            String
+  displayName      String    @map("display_name")
+  organizationName String    @map("organization_name")
+  ssoRequested     Boolean   @map("sso_requested")
+  codeHash         String    @map("code_hash") @db.Char(64)
+  ipHash           String    @map("ip_hash") @db.Char(64)
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  expiresAt        DateTime  @map("expires_at") @db.Timestamptz(3)
+  attempts         Int       @default(0)
+  consumedAt       DateTime? @map("consumed_at") @db.Timestamptz(3)
+  /// Set when the code verified and the organization was created.
+  organizationId   String?   @map("organization_id") @db.Uuid
+
+  @@index([email, createdAt])
+  @@index([ipHash, createdAt])
+  @@map("signup_challenges")
 }

@@ -102,6 +102,12 @@ export default async function LoginPage({
           )}
         </CardContent>
       </Card>
+      <p className="text-sm text-muted-foreground">
+        New to Pactlab?{' '}
+        <a href="/signup" className="font-medium text-indigo-ink underline">
+          Create an organization
+        </a>
+      </p>
     </main>
   );
 }

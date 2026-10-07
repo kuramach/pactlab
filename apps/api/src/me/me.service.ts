@@ -33,7 +33,7 @@ export class MeService {
         where: {
           userId: user.id,
           status: 'ACTIVE',
-          organization: { authMethod: issuer === 'AUTH0' ? 'AUTH0' : 'EMAIL_CODE' },
+          organization: { authMethod: issuer === 'AUTH0' ? 'AUTH0' : 'EMAIL_CODE', status: 'ACTIVE' },
         },
         select: {
           role: true,

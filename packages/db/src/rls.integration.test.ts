@@ -4,6 +4,7 @@ import { newId } from '@pactlab/domain';
 import { appendAuditEvent, verifyAuditChain } from './audit';
 import { createPrismaClient, type PrismaClient } from './client';
 import { emailLogin } from './login';
+import { signup } from './signup';
 import { deals } from './repositories';
 import { assertRuntimeRoleIsolation, resolvePrincipal, withTenant } from './tenant';
 import { createSyntheticTenant, type SyntheticTenant } from './testing/tenants';
@@ -249,5 +250,24 @@ describe.runIf(runtimeUrl && ownerUrl)('RLS against PostgreSQL', () => {
       await tx.$executeRawUnsafe('SET LOCAL ROLE pactlab_app');
       return tx.$queryRawUnsafe('SELECT count(*) FROM auth_sessions');
     })).rejects.toThrow(/permission denied/);
+  });
+
+  it('creates a pending organization through self-serve sign-up and keeps it closed', async () => {
+    const email = `it-signup-${newId().slice(-8)}@example.test`;
+    const begun = await signup.begin(prisma, {
+      email,
+      displayName: 'IT Owner',
+      organizationName: 'IT Signup Partners',
+      ssoRequested: false,
+      codeHash: 'e'.repeat(64),
+      ipHash: newId().replaceAll('-', '').padEnd(64, '0'),
+    });
+    expect(begun.kind).toBe('code');
+    const created = await signup.verify(prisma, { email, codeHash: 'e'.repeat(64), requiresApproval: true });
+    expect(created).toMatchObject({ status: 'PENDING_APPROVAL' });
+    await expect(
+      resolvePrincipal(prisma, { subject: `pactlab|${created!.ownerUserId}`, externalOrganizationId: created!.organizationId, issuer: 'PACTLAB' }),
+    ).resolves.toBeNull();
+    await expect(emailLogin.begin(prisma, { email, codeHash: 'f'.repeat(64), ipHash: 'a'.repeat(64) })).resolves.toBeNull();
   });
 });

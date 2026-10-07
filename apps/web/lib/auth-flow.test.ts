@@ -30,6 +30,8 @@ describe('proxyDecision', () => {
 
   it('lets signed-out visitors see the overview and auth routes', () => {
     expect(proxyDecision({ ...base, pathname: '/' })).toEqual({ kind: 'next' });
+    expect(proxyDecision({ ...base, pathname: '/signup' })).toEqual({ kind: 'next' });
+    expect(proxyDecision({ ...base, pathname: '/login' })).toEqual({ kind: 'next' });
     expect(proxyDecision({ ...base, pathname: '/auth/login' })).toEqual({ kind: 'next' });
   });
 

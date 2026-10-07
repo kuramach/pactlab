@@ -2,8 +2,12 @@ import { cookies, headers } from 'next/headers';
 import { NATIVE_SESSION_COOKIE, nativeSessionState } from './auth-flow';
 import { publicEnv, serverEnv } from './env';
 
-/** Short-lived cookie remembering which address a code was sent to (kept out of URLs). */
-const PENDING_EMAIL_COOKIE = 'pactlab_login_email';
+/** Short-lived cookies remembering which address a code was sent to (kept out of URLs). */
+const PENDING_EMAIL = {
+  login: { name: 'pactlab_login_email', path: '/login' },
+  signup: { name: 'pactlab_signup_email', path: '/signup' },
+} as const;
+export type CodeFlow = keyof typeof PENDING_EMAIL;
 
 export interface IssuedSession {
   token: string;
@@ -34,22 +38,24 @@ export async function clearNativeSession(): Promise<void> {
   (await cookies()).delete(NATIVE_SESSION_COOKIE);
 }
 
-export async function rememberPendingEmail(email: string): Promise<void> {
-  (await cookies()).set(PENDING_EMAIL_COOKIE, email, {
+export async function rememberPendingEmail(email: string, flow: CodeFlow = 'login'): Promise<void> {
+  const cookie = PENDING_EMAIL[flow];
+  (await cookies()).set(cookie.name, email, {
     httpOnly: true,
     secure: secure(),
     sameSite: 'lax',
-    path: '/login',
+    path: cookie.path,
     maxAge: 10 * 60,
   });
 }
 
-export async function pendingEmail(): Promise<string | null> {
-  return (await cookies()).get(PENDING_EMAIL_COOKIE)?.value ?? null;
+export async function pendingEmail(flow: CodeFlow = 'login'): Promise<string | null> {
+  return (await cookies()).get(PENDING_EMAIL[flow].name)?.value ?? null;
 }
 
-export async function forgetPendingEmail(): Promise<void> {
-  (await cookies()).delete({ name: PENDING_EMAIL_COOKIE, path: '/login' });
+export async function forgetPendingEmail(flow: CodeFlow = 'login'): Promise<void> {
+  const cookie = PENDING_EMAIL[flow];
+  (await cookies()).delete({ name: cookie.name, path: cookie.path });
 }
 
 /** Server-side call to the API's email sign-in endpoints. */

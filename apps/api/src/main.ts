@@ -36,6 +36,11 @@ const app = await createApp(
     ...(localDocuments ? { documents: localDocuments } : {}),
     // Sign-in codes are written to files locally; no email provider is wired
     // for deployed environments yet, so codes are not delivered there.
+    signup: {
+      requiresApproval: config.SIGNUP_REQUIRES_APPROVAL,
+      operatorEmail: config.OPERATOR_EMAIL ?? null,
+      loginUrl: new URL('/login', config.APP_WEB_ORIGIN).toString(),
+    },
     emailLogin: {
       tokenSecret: config.AUTH_TOKEN_SECRET,
       ...(config.APP_ENV === 'local' && config.LOCAL_MAIL_DIR
