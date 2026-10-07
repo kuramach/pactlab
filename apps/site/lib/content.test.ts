@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { siteConfig } from './config';
 import * as content from './content';
 import { ICONS } from './icons';
+import { INDUSTRY_STORIES } from './industry-stories';
 
 const APP = join(dirname(fileURLToPath(import.meta.url)), '../app');
 const copy = JSON.stringify({ ...content, BANNED_WORDS: [] }).toLowerCase();
@@ -100,5 +101,32 @@ describe('siteConfig', () => {
 
   it('rejects malformed values instead of shipping them', () => {
     expect(() => siteConfig({ NEXT_PUBLIC_CONTACT_EMAIL: 'not-an-email' })).toThrow();
+  });
+});
+
+describe('industry stories', () => {
+  it('every industry has a full marketing story and an illustration', () => {
+    const publicDir = join(dirname(fileURLToPath(import.meta.url)), '../public/illustrations');
+    for (const industry of content.INDUSTRIES) {
+      const story = INDUSTRY_STORIES[industry.slug];
+      expect(story, industry.slug).toBeDefined();
+      expect(story!.pains.length).toBeGreaterThanOrEqual(3);
+      expect(story!.walkthrough.length).toBeGreaterThanOrEqual(4);
+      expect(story!.findings.length).toBeGreaterThanOrEqual(2);
+      expect(story!.deliverables.length).toBeGreaterThanOrEqual(3);
+      expect(story!.faq.length).toBeGreaterThanOrEqual(1);
+      expect(existsSync(join(publicDir, `${industry.slug}.svg`)), `${industry.slug}.svg`).toBe(true);
+      // Walkthrough steps are steps of the real decision loop.
+      for (const entry of story!.walkthrough) expect(content.FLOW.map((step) => step.step)).toContain(entry.step);
+    }
+  });
+
+  it('keeps the same voice rules and says plainly that packs are planned', () => {
+    const copy = JSON.stringify(INDUSTRY_STORIES).toLowerCase();
+    for (const word of content.BANNED_WORDS) expect(copy).not.toContain(word);
+    for (const claim of ['trusted by', 'our customers', '% faster', 'guarantee', 'certified']) expect(copy).not.toContain(claim);
+    for (const industry of content.INDUSTRIES.filter((entry) => entry.status === 'PLANNED')) {
+      expect(JSON.stringify(INDUSTRY_STORIES[industry.slug]!.faq)).toContain('is planned, not built');
+    }
   });
 });

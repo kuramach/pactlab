@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 420" role="img" aria-labelledby="t">
+<title id="t">Fintech: payments, banking regulators and loan-book quality</title>
+<rect width="640" height="420" rx="28" fill="#f3f5ff"/>
+<circle cx="560" cy="70" r="120" fill="#e6e9ff"/>
+<circle cx="70" cy="380" r="90" fill="#e6e9ff"/>
+<g fill="#c9cffd"><circle cx="40" cy="40" r="2.5"/><circle cx="62" cy="40" r="2.5"/><circle cx="84" cy="40" r="2.5"/><circle cx="106" cy="40" r="2.5"/><circle cx="128" cy="40" r="2.5"/><circle cx="150" cy="40" r="2.5"/><circle cx="172" cy="40" r="2.5"/><circle cx="194" cy="40" r="2.5"/></g>
+
+<g transform="rotate(-8 190 180)">
+<rect x="70" y="110" width="250" height="155" rx="18" fill="#081127"/>
+<rect x="95" y="150" width="44" height="32" rx="6" fill="#6978ff"/>
+<g fill="#ffffff" opacity=".85"><rect x="95" y="210" width="40" height="10" rx="5"/><rect x="145" y="210" width="40" height="10" rx="5"/><rect x="195" y="210" width="40" height="10" rx="5"/><rect x="245" y="210" width="40" height="10" rx="5"/></g>
+<circle cx="270" cy="150" r="16" fill="#6978ff" opacity=".9"/><circle cx="292" cy="150" r="16" fill="#c9cffd" opacity=".8"/>
+</g>
+<g transform="translate(390 90)">
+<path d="M0 50 L95 10 L190 50 Z" fill="#081127"/>
+<rect x="10" y="56" width="170" height="12" rx="3" fill="#081127"/>
+<g fill="#ffffff" stroke="#081127" stroke-width="3"><rect x="22" y="72" width="22" height="80" rx="3"/><rect x="62" y="72" width="22" height="80" rx="3"/><rect x="106" y="72" width="22" height="80" rx="3"/><rect x="146" y="72" width="22" height="80" rx="3"/></g>
+<rect x="0" y="156" width="190" height="14" rx="3" fill="#081127"/>
+</g>
+<g stroke="#6978ff" stroke-width="4" fill="none" stroke-linecap="round" stroke-dasharray="2 12">
+<path d="M300 300 C360 300 380 250 440 250"/></g>
+<path d="M432 242 L446 250 L432 258" fill="none" stroke="#6978ff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+<g transform="translate(470 270)">
+<path d="M0 -36 L32 -24 V4 C32 24 16 36 0 44 C-16 36 -32 24 -32 4 V-24 Z" fill="#6978ff"/>
+<path d="M-12 4 L-3 13 L14 -6" fill="none" stroke="#081127" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<rect x="90" y="300" width="180" height="70" rx="16" fill="#ffffff" stroke="#c9cffd" stroke-width="2"/>
+<g stroke-linecap="round" stroke-width="8"><line x1="110" y1="325" x2="200" y2="325" stroke="#081127"/><line x1="110" y1="348" x2="160" y2="348" stroke="#c9cffd"/><line x1="215" y1="325" x2="250" y2="325" stroke="#6978ff"/></g>
+
+<g transform="translate(578 358)">
+  <circle r="30" fill="#081127"/>
+  <path d="M-6 -17h12v10l11 15a10 10 0 0 1-9 15h-16a10 10 0 0 1-9-15l11-15z" fill="none" stroke="#ffffff" stroke-width="3" stroke-linejoin="round"/>
+  <path d="M-12 5h24l2 3a7 7 0 0 1-6 9h-16a7 7 0 0 1-6-9z" fill="#6978ff"/>
+</g>
+</svg>

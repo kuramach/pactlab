@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 420" role="img" aria-labelledby="t">
+<title id="t">E-commerce and DTC: acquisition cost, repeat purchase and channels</title>
+<rect width="640" height="420" rx="28" fill="#f3f5ff"/>
+<circle cx="560" cy="70" r="120" fill="#e6e9ff"/>
+<circle cx="70" cy="380" r="90" fill="#e6e9ff"/>
+<g fill="#c9cffd"><circle cx="40" cy="40" r="2.5"/><circle cx="62" cy="40" r="2.5"/><circle cx="84" cy="40" r="2.5"/><circle cx="106" cy="40" r="2.5"/><circle cx="128" cy="40" r="2.5"/><circle cx="150" cy="40" r="2.5"/><circle cx="172" cy="40" r="2.5"/><circle cx="194" cy="40" r="2.5"/></g>
+
+<g transform="translate(70 90)">
+<path d="M0 50 H220 L205 10 H15 Z" fill="#6978ff"/>
+<g fill="#ffffff" opacity=".9"><path d="M15 10 h38 l-8 40 h-38z"/><path d="M91 10 h38 l-2 40 h-38z" opacity=".6"/><path d="M167 10 h38 l6 40 h-38z"/></g>
+<rect x="10" y="50" width="200" height="150" rx="6" fill="#ffffff" stroke="#c9cffd" stroke-width="2"/>
+<rect x="30" y="80" width="70" height="120" rx="6" fill="#081127"/><rect x="120" y="80" width="70" height="60" rx="6" fill="#e6e9ff" stroke="#c9cffd" stroke-width="2"/>
+</g>
+<g transform="translate(350 70)">
+<path d="M10 50 H110 L100 160 H20 Z" fill="#081127"/>
+<path d="M35 50 V35 a25 25 0 0 1 50 0 V50" fill="none" stroke="#081127" stroke-width="8"/>
+<circle cx="60" cy="100" r="16" fill="#6978ff"/>
+</g>
+<g transform="translate(520 130)" fill="none" stroke="#6978ff" stroke-width="6" stroke-linecap="round">
+<path d="M-30 0 a30 30 0 1 1 9 21"/><path d="M-30 0 l-8 -12 m8 12 l12 -6" stroke-linejoin="round"/>
+</g>
+<rect x="290" y="262" width="230" height="90" rx="16" fill="#ffffff" stroke="#c9cffd" stroke-width="2"/>
+<text x="310" y="288" font-family="Manrope, sans-serif" font-size="13" font-weight="700" fill="#081127">Repeat purchase by cohort</text>
+<rect x="310" y="303" width="24" height="34" rx="4" fill="#6978ff"/><rect x="344" y="307" width="24" height="30" rx="4" fill="#6978ff"/><rect x="378" y="311" width="24" height="26" rx="4" fill="#6978ff"/><rect x="412" y="317" width="24" height="20" rx="4" fill="#c9cffd"/><rect x="446" y="321" width="24" height="16" rx="4" fill="#c9cffd"/><rect x="480" y="325" width="24" height="12" rx="4" fill="#c9cffd"/>
+
+<g transform="translate(578 358)">
+  <circle r="30" fill="#081127"/>
+  <path d="M-6 -17h12v10l11 15a10 10 0 0 1-9 15h-16a10 10 0 0 1-9-15l11-15z" fill="none" stroke="#ffffff" stroke-width="3" stroke-linejoin="round"/>
+  <path d="M-12 5h24l2 3a7 7 0 0 1-6 9h-16a7 7 0 0 1-6-9z" fill="#6978ff"/>
+</g>
+</svg>

@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 420" role="img" aria-labelledby="t">
+<title id="t">Software and SaaS: code, recurring revenue and commit history</title>
+<rect width="640" height="420" rx="28" fill="#f3f5ff"/>
+<circle cx="560" cy="70" r="120" fill="#e6e9ff"/>
+<circle cx="70" cy="380" r="90" fill="#e6e9ff"/>
+<g fill="#c9cffd"><circle cx="40" cy="40" r="2.5"/><circle cx="62" cy="40" r="2.5"/><circle cx="84" cy="40" r="2.5"/><circle cx="106" cy="40" r="2.5"/><circle cx="128" cy="40" r="2.5"/><circle cx="150" cy="40" r="2.5"/><circle cx="172" cy="40" r="2.5"/><circle cx="194" cy="40" r="2.5"/></g>
+
+<rect x="60" y="70" width="330" height="250" rx="16" fill="#ffffff" stroke="#c9cffd" stroke-width="2"/>
+<rect x="60" y="70" width="330" height="40" rx="16" fill="#081127"/><rect x="60" y="94" width="330" height="16" fill="#081127"/>
+<g fill="#6978ff"><circle cx="86" cy="90" r="6"/><circle cx="106" cy="90" r="6" opacity=".6"/><circle cx="126" cy="90" r="6" opacity=".35"/></g>
+<g stroke-linecap="round" stroke-width="10">
+<line x1="90" y1="140" x2="190" y2="140" stroke="#6978ff"/><line x1="205" y1="140" x2="260" y2="140" stroke="#c9cffd"/>
+<line x1="110" y1="166" x2="230" y2="166" stroke="#081127"/><line x1="110" y1="192" x2="180" y2="192" stroke="#c9cffd"/>
+<line x1="195" y1="192" x2="300" y2="192" stroke="#6978ff"/><line x1="90" y1="218" x2="160" y2="218" stroke="#081127"/>
+<line x1="110" y1="244" x2="270" y2="244" stroke="#c9cffd"/><line x1="90" y1="270" x2="200" y2="270" stroke="#6978ff"/>
+</g>
+<rect x="410" y="150" width="180" height="170" rx="16" fill="#ffffff" stroke="#c9cffd" stroke-width="2"/>
+<text x="430" y="182" font-family="Manrope, sans-serif" font-size="15" font-weight="700" fill="#081127">ARR</text>
+<g fill="#6978ff"><rect x="432" y="270" width="22" height="30" rx="4"/><rect x="464" y="252" width="22" height="48" rx="4"/><rect x="496" y="232" width="22" height="68" rx="4"/><rect x="528" y="206" width="22" height="94" rx="4" fill="#081127"/></g>
+<path d="M430 200 L560 196" stroke="#c9cffd" stroke-width="2" stroke-dasharray="5 5"/>
+<g stroke="#081127" stroke-width="4" fill="none"><path d="M430 60 H560"/><path d="M470 60 C490 60 490 100 515 100 H560"/></g>
+<g fill="#ffffff" stroke="#081127" stroke-width="4"><circle cx="430" cy="60" r="9"/><circle cx="470" cy="60" r="9"/><circle cx="520" cy="60" r="9" fill="#6978ff"/><circle cx="560" cy="60" r="9"/><circle cx="560" cy="100" r="9" fill="#6978ff"/></g>
+
+<g transform="translate(578 358)">
+  <circle r="30" fill="#081127"/>
+  <path d="M-6 -17h12v10l11 15a10 10 0 0 1-9 15h-16a10 10 0 0 1-9-15l11-15z" fill="none" stroke="#ffffff" stroke-width="3" stroke-linejoin="round"/>
+  <path d="M-12 5h24l2 3a7 7 0 0 1-6 9h-16a7 7 0 0 1-6-9z" fill="#6978ff"/>
+</g>
+</svg>
