@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 420" role="img" aria-labelledby="t">
+<title id="t">Healthcare services: clinics, reimbursement and compliance</title>
+<rect width="640" height="420" rx="28" fill="#f3f5ff"/>
+<circle cx="560" cy="70" r="120" fill="#e6e9ff"/>
+<circle cx="70" cy="380" r="90" fill="#e6e9ff"/>
+<g fill="#c9cffd"><circle cx="40" cy="40" r="2.5"/><circle cx="62" cy="40" r="2.5"/><circle cx="84" cy="40" r="2.5"/><circle cx="106" cy="40" r="2.5"/><circle cx="128" cy="40" r="2.5"/><circle cx="150" cy="40" r="2.5"/><circle cx="172" cy="40" r="2.5"/><circle cx="194" cy="40" r="2.5"/></g>
+
+<g transform="translate(70 110)">
+<rect x="0" y="40" width="220" height="190" rx="12" fill="#ffffff" stroke="#c9cffd" stroke-width="2"/>
+<path d="M-10 48 L110 0 L230 48 Z" fill="#081127"/>
+<rect x="85" y="64" width="50" height="50" rx="10" fill="#6978ff"/>
+<path d="M110 74 V104 M95 89 H125" stroke="#ffffff" stroke-width="8" stroke-linecap="round"/>
+<g fill="#e6e9ff" stroke="#c9cffd" stroke-width="2"><rect x="22" y="136" width="44" height="36" rx="5"/><rect x="154" y="136" width="44" height="36" rx="5"/></g>
+<rect x="88" y="150" width="44" height="80" rx="6" fill="#081127"/>
+</g>
+<path d="M300 220 H360 L380 170 L405 270 L430 190 L445 220 H520" fill="none" stroke="#6978ff" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="380" y="70" width="190" height="120" rx="16" fill="#ffffff" stroke="#c9cffd" stroke-width="2"/>
+<text x="400" y="100" font-family="Manrope, sans-serif" font-size="14" font-weight="700" fill="#081127">Claims</text>
+<g font-family="Manrope, sans-serif" font-size="12" fill="#081127">
+<g stroke-linecap="round" stroke-width="7"><line x1="400" y1="122" x2="490" y2="122" stroke="#c9cffd"/><line x1="400" y1="144" x2="470" y2="144" stroke="#c9cffd"/><line x1="400" y1="166" x2="500" y2="166" stroke="#c9cffd"/></g>
+</g>
+<g fill="none" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M520 116 l7 7 l13 -13" stroke="#4a58e8"/><path d="M520 138 l7 7 l13 -13" stroke="#4a58e8"/><path d="M522 160 l14 14 M536 160 l-14 14" stroke="#081127"/></g>
+<rect x="330" y="290" width="200" height="70" rx="16" fill="#ffffff" stroke="#c9cffd" stroke-width="2"/>
+<g transform="translate(350 310)"><path d="M0 0 h26 v10 a13 13 0 0 1 -26 0z" fill="#6978ff"/></g>
+<g stroke-linecap="round" stroke-width="8"><line x1="392" y1="318" x2="500" y2="318" stroke="#081127"/><line x1="392" y1="340" x2="460" y2="340" stroke="#c9cffd"/></g>
+
+<g transform="translate(578 358)">
+  <circle r="30" fill="#081127"/>
+  <path d="M-6 -17h12v10l11 15a10 10 0 0 1-9 15h-16a10 10 0 0 1-9-15l11-15z" fill="none" stroke="#ffffff" stroke-width="3" stroke-linejoin="round"/>
+  <path d="M-12 5h24l2 3a7 7 0 0 1-6 9h-16a7 7 0 0 1-6-9z" fill="#6978ff"/>
+</g>
+</svg>
