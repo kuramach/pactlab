@@ -5,6 +5,7 @@ export const PROVIDER_LABELS: Readonly<Record<string, string>> = {
   csv: 'Billing & KPI export',
   github: 'GitHub',
   jira: 'Jira',
+  billing_upload: 'Billing export (uploaded)',
 };
 
 export type SourceHealth = 'synced' | 'issues' | 'failed' | 'never';

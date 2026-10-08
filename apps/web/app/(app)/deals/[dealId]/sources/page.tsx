@@ -1,5 +1,5 @@
 import type { SourcePlanResponse } from '@pactlab/contracts';
-import { Badge, Button, Card, CardContent, CardHeader, CardTitle, EmptyState } from '@pactlab/ui';
+import { Badge, Button, buttonVariants, Card, CardContent, CardHeader, CardTitle, EmptyState } from '@pactlab/ui';
 import { COMPANY_TYPE_LABELS } from '@pactlab/domain';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
@@ -15,10 +15,10 @@ const HEALTH_VARIANT = { synced: 'calculation', issues: 'draft', failed: 'danger
 
 const number = new Intl.NumberFormat('en-US');
 
-const NEXT_RELEASE = { API: 'Live API connection is coming next.', UPLOAD: 'Upload import is coming next.' } as const;
+const NEXT_RELEASE = { API: 'Live API connection is coming next.', UPLOAD: 'File upload is coming next.' } as const;
 
 /** The checklist of sources this deal's seller type calls for, each with API and upload options. */
-function SourcePlan({ plan }: { plan: SourcePlanResponse }) {
+function SourcePlan({ plan, dealId }: { plan: SourcePlanResponse; dealId: string }) {
   const connected = plan.sources.filter((source) => source.status === 'CONNECTED').length;
   return (
     <section className="flex flex-col gap-3" aria-labelledby="source-plan">
@@ -63,26 +63,34 @@ function SourcePlan({ plan }: { plan: SourcePlanResponse }) {
                       ))}
                     </ul>
                   ) : null}
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <Button size="sm" disabled={api?.availability !== 'AVAILABLE'} title={api?.availability === 'NEXT' ? NEXT_RELEASE.API : undefined}>
-                      Connect via API
+                      Connect {source.providerLabel} API
                     </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={upload?.availability !== 'AVAILABLE'}
-                      title={upload?.availability === 'NEXT' ? NEXT_RELEASE.UPLOAD : undefined}
-                    >
-                      {source.upload.label}
-                    </Button>
+                    {source.upload && upload?.availability === 'AVAILABLE' && source.upload.format === 'CSV' ? (
+                      <Link href={`/deals/${dealId}/sources/upload`} className={buttonVariants({ size: 'sm', variant: 'outline' })}>
+                        {source.upload.label}
+                      </Link>
+                    ) : source.upload ? (
+                      <Button size="sm" variant="outline" disabled title={NEXT_RELEASE.UPLOAD}>
+                        {source.upload.label}
+                      </Button>
+                    ) : null}
                   </div>
-                  {api?.availability === 'NEXT' || upload?.availability === 'NEXT' ? (
+                  {source.kind === 'BILLING' ? (
                     <p className="text-xs text-muted-foreground">
-                      Coming next: {[api?.availability === 'NEXT' ? `${source.providerLabel} API` : null, upload?.availability === 'NEXT' ? 'upload import' : null]
-                        .filter(Boolean)
-                        .join(' and ')}
+                      Any billing system works — Stripe, NetSuite, Zuora, SAP, Oracle and more.{' '}
+                      <a href="/billing-template.csv" className="text-indigo-ink underline">
+                        Download the Pactlab standard template
+                      </a>
                       .
                     </p>
+                  ) : null}
+                  {source.upload ? null : (
+                    <p className="text-xs text-muted-foreground">Connects through its API only — history can’t be trusted from a spreadsheet.</p>
+                  )}
+                  {api?.availability === 'NEXT' ? (
+                    <p className="text-xs text-muted-foreground">Coming next: the {source.providerLabel} API connection.</p>
                   ) : null}
                 </CardContent>
               </Card>
@@ -103,10 +111,10 @@ export default async function DealSourcesPage({
   searchParams,
 }: {
   params: Promise<{ dealId: string }>;
-  searchParams: Promise<{ started?: string }>;
+  searchParams: Promise<{ started?: string; imported?: string; created?: string; unchanged?: string }>;
 }) {
   const { dealId } = await params;
-  const { started } = await searchParams;
+  const { started, imported, created, unchanged } = await searchParams;
   if (!isUuidParam(dealId)) notFound();
   const [deal, sources, plan, parties] = await Promise.all([
     dealsApi.get(dealId),
@@ -145,7 +153,14 @@ export default async function DealSourcesPage({
         </p>
       ) : null}
 
-      {plan.kind === 'ok' ? <SourcePlan plan={plan.data} /> : null}
+      {imported ? (
+        <p role="status" className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
+          Billing export imported: {Number(created ?? 0)} new lines, {Number(unchanged ?? 0)} already known. Finances now include
+          them.
+        </p>
+      ) : null}
+
+      {plan.kind === 'ok' ? <SourcePlan plan={plan.data} dealId={dealId} /> : null}
 
       <h2 className="text-lg font-semibold tracking-tight">Connected sources</h2>
 

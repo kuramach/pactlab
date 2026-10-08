@@ -11,3 +11,4 @@ export * from './repositories';
 export * from './signup';
 export * from './sync';
 export * from './tenant';
+export * from './uploads';

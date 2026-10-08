@@ -33,7 +33,7 @@ const app = await createApp(
       config.AUTH0_DOMAIN && config.AUTH0_AUDIENCE
         ? createAuth0Verifier(config.AUTH0_DOMAIN, config.AUTH0_AUDIENCE)
         : new DisabledIdentityVerifier(),
-    ...(localDocuments ? { documents: localDocuments } : {}),
+    ...(localDocuments ? { documents: localDocuments, uploads: localDocuments } : {}),
     // Sign-in codes are written to files locally; no email provider is wired
     // for deployed environments yet, so codes are not delivered there.
     signup: {

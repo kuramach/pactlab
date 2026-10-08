@@ -1,4 +1,4 @@
-import { mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, resolve, sep } from 'node:path';
 import { isUuid } from '@pactlab/domain';
 import type { DocumentObjectStore } from './documents.repository';
@@ -44,6 +44,10 @@ export class FileSystemObjectStore implements DocumentObjectStore {
 
   async delete(key: string): Promise<void> {
     await rm(this.pathFor(key), { force: true });
+  }
+
+  async get(key: string): Promise<Uint8Array> {
+    return new Uint8Array(await readFile(this.pathFor(key)));
   }
 }
 

@@ -4,7 +4,12 @@ import { COMPANY_TYPE_LABELS, type CompanyType } from './types';
 export const SOURCE_KINDS = ['BILLING', 'CODE', 'DELIVERY', 'DOCUMENTS'] as const;
 export type SourceKind = (typeof SOURCE_KINDS)[number];
 
-/** How a source gets its data in. Every source offers a live API and an upload. */
+/**
+ * How a source gets its data in. Every source has a live API adapter; only
+ * billing takes CSV exports and documents take files. Source control and
+ * delivery tools connect through adapters only — their history can't be
+ * trusted from a spreadsheet.
+ */
 export const CONNECT_METHODS = ['API', 'UPLOAD'] as const;
 export type ConnectMethod = (typeof CONNECT_METHODS)[number];
 
@@ -20,25 +25,24 @@ export interface SourceDefinition {
   readonly matchesProviders: readonly string[];
   readonly why: string;
   readonly produces: string;
-  readonly upload: { readonly format: 'CSV' | 'FILES'; readonly label: string };
-  readonly availability: Readonly<Record<ConnectMethod, MethodAvailability>>;
+  /** Null for adapter-only sources. */
+  readonly upload: { readonly format: 'CSV' | 'FILES'; readonly label: string } | null;
+  /** Only the methods this source offers. */
+  readonly availability: Readonly<Partial<Record<ConnectMethod, MethodAvailability>>>;
 }
 
-/**
- * Rollout state lives here as data. CSV import (T-026) and live API
- * connectors (T-027+) flip these to AVAILABLE as they ship.
- */
+/** Rollout state lives here as data; live API connectors (T-027+) flip API to AVAILABLE. */
 const DEFINITIONS: Readonly<Record<SourceKind, SourceDefinition>> = {
   BILLING: {
     kind: 'BILLING',
     label: 'Billing',
     provider: 'stripe',
     providerLabel: 'Stripe',
-    matchesProviders: ['stripe', 'csv'],
+    matchesProviders: ['stripe', 'csv', 'billing_upload'],
     why: 'Rebuilds MRR, ARR and retention from invoices so management ARR can be reconciled to transactions.',
     produces: 'Invoice lines, customers, subscriptions',
-    upload: { format: 'CSV', label: 'Upload billing CSV' },
-    availability: { API: 'NEXT', UPLOAD: 'NEXT' },
+    upload: { format: 'CSV', label: 'Upload billing export' },
+    availability: { API: 'NEXT', UPLOAD: 'AVAILABLE' },
   },
   CODE: {
     kind: 'CODE',
@@ -48,8 +52,8 @@ const DEFINITIONS: Readonly<Record<SourceKind, SourceDefinition>> = {
     matchesProviders: ['github'],
     why: 'Shows who builds and maintains the product, how healthy the codebase is and which licenses it carries.',
     produces: 'Repositories, commits, contributors (no source code is kept)',
-    upload: { format: 'CSV', label: 'Upload commits CSV' },
-    availability: { API: 'NEXT', UPLOAD: 'NEXT' },
+    upload: null,
+    availability: { API: 'NEXT' },
   },
   DELIVERY: {
     kind: 'DELIVERY',
@@ -59,8 +63,8 @@ const DEFINITIONS: Readonly<Record<SourceKind, SourceDefinition>> = {
     matchesProviders: ['jira'],
     why: 'Tests whether the roadmap is real: throughput, estimates and how work is spread across the team.',
     produces: 'Issues, sprints, delivery history',
-    upload: { format: 'CSV', label: 'Upload issues CSV' },
-    availability: { API: 'NEXT', UPLOAD: 'NEXT' },
+    upload: null,
+    availability: { API: 'NEXT' },
   },
   DOCUMENTS: {
     kind: 'DOCUMENTS',

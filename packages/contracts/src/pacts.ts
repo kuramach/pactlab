@@ -97,7 +97,7 @@ export const sourcePlanItemSchema = z.object({
   providerLabel: z.string(),
   why: z.string(),
   produces: z.string(),
-  upload: z.object({ format: z.enum(['CSV', 'FILES']), label: z.string() }),
+  upload: z.object({ format: z.enum(['CSV', 'FILES']), label: z.string() }).nullable(),
   methods: z.array(z.object({ method: z.enum(CONNECT_METHODS), availability: z.enum(['AVAILABLE', 'NEXT']) })),
   /** Existing connections that feed this source. */
   connections: z.array(

@@ -1,4 +1,15 @@
-import type { DealPartiesResponse, DealSummary, SourcePlanResponse, StartPactCommand } from '@pactlab/contracts';
+import type {
+  BillingSystemView,
+  DealPartiesResponse,
+  DealSummary,
+  ImportMappingBody,
+  ImportPreviewView,
+  ImportResultView,
+  SourcePlanResponse,
+  SourceUploadView,
+  StartPactCommand,
+  UploadDetailView,
+} from '@pactlab/contracts';
 import type { EvidenceItemView, EvidenceLineage } from '@pactlab/domain';
 import { organizationAccessToken } from '../../../../lib/auth0';
 import { publicEnv } from '../../../../lib/env';
@@ -74,6 +85,38 @@ export async function apiPost<T>(
   return { kind: 'error' };
 }
 
+export type UploadFailure = 'too-large' | 'not-text' | 'unreadable' | 'scanner' | 'forbidden' | 'signed-out' | 'error';
+
+/** Server-side raw CSV upload; the browser never holds the token or calls the API directly. */
+export async function apiUploadCsv(
+  path: string,
+  body: Uint8Array<ArrayBuffer>,
+): Promise<{ kind: 'ok'; data: UploadDetailView } | { kind: UploadFailure }> {
+  const token = await organizationAccessToken();
+  if (!token) return { kind: 'signed-out' };
+  let response: Response;
+  try {
+    response = await fetch(new URL(path, publicEnv().NEXT_PUBLIC_API_ORIGIN), {
+      method: 'POST',
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'text/csv' },
+      body,
+      cache: 'no-store',
+    });
+  } catch {
+    return { kind: 'error' };
+  }
+  if (response.ok) return { kind: 'ok', data: (await response.json()) as UploadDetailView };
+  const failures: Record<number, UploadFailure> = {
+    401: 'signed-out',
+    403: 'forbidden',
+    413: 'too-large',
+    415: 'not-text',
+    422: 'unreadable',
+    503: 'scanner',
+  };
+  return { kind: failures[response.status] ?? 'error' };
+}
+
 /** A connected source and what it last produced (`GET /v1/deals/:id/connections`). */
 export interface DealSource {
   id: string;
@@ -97,6 +140,25 @@ export interface DealSource {
 
 export const dealsApi = {
   startPact: (command: StartPactCommand) => apiPost<DealSummary>('/v1/pacts', command),
+  billingSystems: () => apiGet<{ items: BillingSystemView[] }>('/v1/billing-import/systems'),
+  uploads: (dealId: string) => apiGet<{ items: SourceUploadView[] }>(`/v1/deals/${encodeURIComponent(dealId)}/uploads`),
+  upload: (dealId: string, uploadId: string) =>
+    apiGet<UploadDetailView>(`/v1/deals/${encodeURIComponent(dealId)}/uploads/${encodeURIComponent(uploadId)}`),
+  uploadCsv: (dealId: string, system: string, fileName: string, body: Uint8Array<ArrayBuffer>) =>
+    apiUploadCsv(
+      `/v1/deals/${encodeURIComponent(dealId)}/uploads?${new URLSearchParams({ system, fileName }).toString()}`,
+      body,
+    ),
+  previewImport: (dealId: string, uploadId: string, mapping: ImportMappingBody) =>
+    apiPost<ImportPreviewView>(
+      `/v1/deals/${encodeURIComponent(dealId)}/uploads/${encodeURIComponent(uploadId)}/preview`,
+      { mapping },
+    ),
+  runImport: (dealId: string, uploadId: string, mapping: ImportMappingBody) =>
+    apiPost<ImportResultView>(
+      `/v1/deals/${encodeURIComponent(dealId)}/uploads/${encodeURIComponent(uploadId)}/import`,
+      { mapping },
+    ),
   parties: (dealId: string) => apiGet<DealPartiesResponse>(`/v1/deals/${encodeURIComponent(dealId)}/parties`),
   sourcePlan: (dealId: string) => apiGet<SourcePlanResponse>(`/v1/deals/${encodeURIComponent(dealId)}/source-plan`),
   sources: (dealId: string) => apiGet<{ items: DealSource[] }>(`/v1/deals/${encodeURIComponent(dealId)}/connections`),

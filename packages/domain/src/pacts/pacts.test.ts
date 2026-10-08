@@ -35,18 +35,23 @@ describe('sourcesFor', () => {
     }
   });
 
-  it('offers an API and an upload for every source', () => {
-    for (const type of COMPANY_TYPES) {
-      for (const source of sourcesFor(type).sources) {
-        expect(Object.keys(source.availability).sort()).toEqual(['API', 'UPLOAD']);
-        expect(source.upload.label).toBeTruthy();
-      }
-    }
+  it('offers an API for every source and uploads only for billing and documents', () => {
+    const methods = Object.fromEntries(
+      sourcesFor('SOFTWARE_SAAS').sources.map((source) => [source.kind, [Object.keys(source.availability).sort(), source.upload?.format ?? null]]),
+    );
+    expect(methods).toEqual({
+      BILLING: [['API', 'UPLOAD'], 'CSV'],
+      CODE: [['API'], null],
+      DELIVERY: [['API'], null],
+      DOCUMENTS: [['API', 'UPLOAD'], 'FILES'],
+    });
+    expect(sourcesFor('SOFTWARE_SAAS').sources[0]!.availability.UPLOAD).toBe('AVAILABLE');
   });
 
   it('maps existing connection providers onto sources', () => {
     expect(sourceKindForProvider('csv')).toBe('BILLING');
     expect(sourceKindForProvider('stripe')).toBe('BILLING');
+    expect(sourceKindForProvider('billing_upload')).toBe('BILLING');
     expect(sourceKindForProvider('github')).toBe('CODE');
     expect(sourceKindForProvider('jira')).toBe('DELIVERY');
     expect(sourceKindForProvider('unknown')).toBeNull();
