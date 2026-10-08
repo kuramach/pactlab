@@ -46,3 +46,18 @@ export const idempotencyKeySchema = z
   .string()
   .trim()
   .regex(/^[A-Za-z0-9:_.-]{8,200}$/);
+
+/**
+ * Connect a repository live: through Pactlab's GitHub App (installed by the
+ * seller) or a seller's fine-grained token. The token is stored once in the
+ * secret store and never returned, logged or audited.
+ */
+export const connectGitHubSchema = z.discriminatedUnion('method', [
+  z.strictObject({ method: z.literal('APP'), repository: githubConnectionConfigSchema.shape.repository }),
+  z.strictObject({
+    method: z.literal('TOKEN'),
+    repository: githubConnectionConfigSchema.shape.repository,
+    token: z.string().trim().regex(/^[A-Za-z0-9_]{20,255}$/, 'A GitHub token'),
+  }),
+]);
+export type ConnectGitHubCommand = z.infer<typeof connectGitHubSchema>;

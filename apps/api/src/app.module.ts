@@ -24,6 +24,7 @@ import { PactsModule } from './pacts/pacts.module';
 import { PrismaValuationRepository } from './valuation/prisma-valuation.repository';
 import { ValuationModule } from './valuation/valuation.module';
 import { IDENTITY_VERIFIER, LOGGER, PRISMA } from './tokens';
+import { PROVIDER_DEPENDENCIES, providerDependencies, type ProviderSettings } from './connections/provider-dependencies';
 
 export interface AppDependencies {
   prisma: PrismaClient;
@@ -34,6 +35,11 @@ export interface AppDependencies {
    * closed: uploads are rejected and AI calls report NOT_CONFIGURED.
    */
   documents?: Partial<Omit<DocumentsModuleDependencies, 'repository'>>;
+  /**
+   * Live provider access: credential store, Pactlab's GitHub App, HTTP client.
+   * Omitted: no stored credentials and no App, so live connections fail closed.
+   */
+  providers?: ProviderSettings;
   /** Billing export storage and scanning. Omitted adapters fail closed: uploads are rejected. */
   uploads?: Partial<ImportsModuleDependencies>;
   /**
@@ -59,8 +65,9 @@ class InfrastructureModule {
         { provide: PRISMA, useValue: deps.prisma },
         { provide: IDENTITY_VERIFIER, useValue: identityVerifier },
         { provide: LOGGER, useValue: deps.logger },
+        { provide: PROVIDER_DEPENDENCIES, useValue: providerDependencies(deps.providers) },
       ],
-      exports: [PRISMA, IDENTITY_VERIFIER, LOGGER],
+      exports: [PRISMA, IDENTITY_VERIFIER, LOGGER, PROVIDER_DEPENDENCIES],
     };
   }
 }

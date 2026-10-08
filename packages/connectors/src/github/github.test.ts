@@ -6,7 +6,9 @@ import {
   newId,
 } from '@pactlab/domain';
 import { describe, expect, it } from 'vitest';
+import { cassetteFetch } from '../http/cassette';
 import { checkAdapterContract } from '../testing';
+import { helloWorld, STATIC_AUTH } from './test-support';
 import {
   createGitHubAdapter,
   GitHubFixtureAdapter,
@@ -27,7 +29,8 @@ describe('GitHub adapters', () => {
     await expect(checkAdapterContract(new GitHubFixtureAdapter(config), scope())).resolves.toEqual(
       [],
     );
-    await expect(checkAdapterContract(new GitHubLiveAdapter(config), scope())).resolves.toEqual([]);
+    const live = new GitHubLiveAdapter({ repository: 'octocat/Hello-World' }, () => STATIC_AUTH, cassetteFetch(await helloWorld()));
+    await expect(checkAdapterContract(live, scope())).resolves.toEqual([]);
   });
 
   it('selects by mode with one config shape and rejects malformed config', () => {
@@ -36,13 +39,21 @@ describe('GitHub adapters', () => {
     );
     expect(createGitHubAdapter('LIVE', { repository: 'healthyco/platform' })?.mode).toBe('LIVE');
     expect(createGitHubAdapter('FIXTURE', { repository: '../../etc' })).toBeNull();
+    expect(createGitHubAdapter('LIVE', { repository: '../etc' })).toBeNull();
+    expect(createGitHubAdapter('LIVE', { repository: 'octocat/..' })).toBeNull();
+    expect(createGitHubAdapter('LIVE', { repository: 'octocat/.' })).toBeNull();
+    expect(createGitHubAdapter('LIVE', { repository: 'octo-cat/my.repo_1' })?.mode).toBe('LIVE');
     expect(createGitHubAdapter('FIXTURE', { repository: 'a/b', token: 'ghp_x' })).toBeNull();
   });
 
-  it('live adapter is configuration-only and makes no provider calls', async () => {
-    const live = new GitHubLiveAdapter({ repository: 'healthyco/platform' });
-    expect((await live.validateConnection(scope())).ok).toBe(false);
-    await expect(live.listCommits()).rejects.toMatchObject({ code: 'NOT_ENABLED' });
+  it('live adapter without a credential fails closed and calls nothing', async () => {
+    const replay = cassetteFetch(await helloWorld());
+    const live = new GitHubLiveAdapter({ repository: 'octocat/Hello-World' }, () => null, replay);
+    const validation = await live.validateConnection(scope());
+    expect(validation.ok).toBe(false);
+    expect(validation.checks.find((check) => check.name === 'credentials')?.status).toBe('FAIL');
+    await expect(live.head(scope())).rejects.toMatchObject({ code: 'NO_CREDENTIAL' });
+    expect(replay.requests).toEqual([]);
   });
 
   it('pages deterministically and returns metadata only', async () => {

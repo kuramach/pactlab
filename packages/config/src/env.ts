@@ -28,7 +28,7 @@ function allOrNone<T extends Record<string, unknown>>(keys: readonly (keyof T & 
     if (present.length === 0 || present.length === keys.length) return;
     for (const key of keys) {
       if (value[key] === undefined) {
-        context.addIssue({ code: 'custom', path: [key], message: 'required when Auth0 is configured' });
+        context.addIssue({ code: 'custom', path: [key], message: `required together with ${present.join(', ')}` });
       }
     }
   };
@@ -60,7 +60,20 @@ export const apiEnvSchema = baseEnvSchema.extend({
   SIGNUP_REQUIRES_APPROVAL: z.enum(['true', 'false']).default('true').transform((value) => value === 'true'),
   /** Who is emailed about new sign-ups. Unset: run `pnpm org:pending` to see them. */
   OPERATOR_EMAIL: z.email().optional(),
-}).superRefine(allOrNone(['AUTH0_DOMAIN', 'AUTH0_AUDIENCE']));
+  /** Local-only encrypted store for provider credentials (directory and 32-byte base64 key). */
+  LOCAL_SECRETS_DIR: nonEmpty.optional(),
+  LOCAL_SECRETS_KEY: z
+    .string()
+    .refine((value) => Buffer.from(value, 'base64').length === 32, 'must be 32 bytes, base64-encoded')
+    .optional(),
+  /** Pactlab's read-only GitHub App (optional as a group). The key file is PKCS#8 PEM. */
+  GITHUB_APP_ID: z.string().regex(/^\d+$/, 'numeric app id').optional(),
+  GITHUB_APP_SLUG: z.string().regex(/^[a-z0-9-]+$/, 'app slug from its public URL').optional(),
+  GITHUB_APP_PRIVATE_KEY_PATH: nonEmpty.optional(),
+})
+  .superRefine(allOrNone(['AUTH0_DOMAIN', 'AUTH0_AUDIENCE']))
+  .superRefine(allOrNone(['LOCAL_SECRETS_DIR', 'LOCAL_SECRETS_KEY']))
+  .superRefine(allOrNone(['GITHUB_APP_ID', 'GITHUB_APP_SLUG', 'GITHUB_APP_PRIVATE_KEY_PATH']));
 export type ApiEnv = z.infer<typeof apiEnvSchema>;
 
 export const workerEnvSchema = baseEnvSchema.extend({

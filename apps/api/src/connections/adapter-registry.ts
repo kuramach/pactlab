@@ -1,6 +1,8 @@
+import { GITHUB_APP_CREDENTIAL_REF, TokenAuth } from '@pactlab/connectors';
 import type { ConnectionRecord } from '@pactlab/db';
 import { CsvFixtureAdapter } from './adapters/csv-fixture.adapter';
 import { githubSyncAdapter, jiraSyncAdapter, type ProviderSyncAdapter } from './adapters/provider-sync.adapter';
+import type { ProviderDependencies } from './provider-dependencies';
 
 export type ResolvedAdapter = CsvFixtureAdapter | ProviderSyncAdapter;
 
@@ -21,12 +23,22 @@ function datasetsOf(config: unknown): string[] {
  */
 export function resolveAdapter(
   connection: Pick<ConnectionRecord, 'provider' | 'mode' | 'config'>,
+  providers: ProviderDependencies,
 ): ResolvedAdapter | null {
   switch (connection.provider) {
     case 'csv':
       return connection.mode === 'FIXTURE' ? new CsvFixtureAdapter(datasetsOf(connection.config)) : null;
     case 'github':
-      return githubSyncAdapter(connection.mode, connection.config);
+      return githubSyncAdapter(connection.mode, connection.config, {
+        // Pactlab's App for App-installed repositories, otherwise the seller's stored token.
+        resolveAuth: (scope) =>
+          scope.credentialRef === GITHUB_APP_CREDENTIAL_REF
+            ? (providers.githubApp?.auth ?? null)
+            : scope.credentialRef
+              ? new TokenAuth(providers.secrets)
+              : null,
+        fetch: providers.fetch,
+      });
     case 'jira':
       return jiraSyncAdapter(connection.mode, connection.config);
     default:

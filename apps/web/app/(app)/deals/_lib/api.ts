@@ -62,14 +62,15 @@ export async function apiGet<T>(path: string): Promise<ApiResult<T>> {
 export async function apiPost<T>(
   path: string,
   body: unknown,
-): Promise<ApiResult<T> | { kind: 'conflict' } | { kind: 'invalid' }> {
+  headers: Record<string, string> = {},
+): Promise<ApiResult<T> | { kind: 'conflict' } | { kind: 'invalid' } | { kind: 'unavailable' }> {
   const token = await organizationAccessToken();
   if (!token) return { kind: 'signed-out' };
   let response: Response;
   try {
     response = await fetch(new URL(path, publicEnv().NEXT_PUBLIC_API_ORIGIN), {
       method: 'POST',
-      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      headers: { ...headers, authorization: `Bearer ${token}`, 'content-type': 'application/json' },
       body: JSON.stringify(body),
       cache: 'no-store',
     });
@@ -82,6 +83,7 @@ export async function apiPost<T>(
   if (response.status === 403) return { kind: 'forbidden' };
   if (response.status === 404) return { kind: 'not-found' };
   if (response.status === 409) return { kind: 'conflict' };
+  if (response.status === 503) return { kind: 'unavailable' };
   return { kind: 'error' };
 }
 
@@ -138,7 +140,28 @@ export interface DealSource {
   evidenceCount: number;
 }
 
+export interface ValidationView {
+  ok: boolean;
+  checks: { name: 'reachability' | 'credentials' | 'scopes' | 'mappings'; status: 'PASS' | 'FAIL' | 'SKIPPED'; detail: string }[];
+}
+
+export type ConnectGitHubBody =
+  | { method: 'APP'; repository: string }
+  | { method: 'TOKEN'; repository: string; token: string };
+
 export const dealsApi = {
+  githubApp: () => apiGet<{ configured: boolean; installUrl: string | null }>('/v1/github/app'),
+  connectGitHub: (dealId: string, body: ConnectGitHubBody) =>
+    apiPost<{ connection: { id: string; displayName: string }; validation: ValidationView }>(
+      `/v1/deals/${encodeURIComponent(dealId)}/connections/github`,
+      body,
+    ),
+  requestSync: (dealId: string, connectionId: string, idempotencyKey: string) =>
+    apiPost<{ id: string; status: string; recordsCreated: number; errorClass: string | null }>(
+      `/v1/deals/${encodeURIComponent(dealId)}/sync-runs`,
+      { connectionId },
+      { 'idempotency-key': idempotencyKey },
+    ),
   startPact: (command: StartPactCommand) => apiPost<DealSummary>('/v1/pacts', command),
   billingSystems: () => apiGet<{ items: BillingSystemView[] }>('/v1/billing-import/systems'),
   uploads: (dealId: string) => apiGet<{ items: SourceUploadView[] }>(`/v1/deals/${encodeURIComponent(dealId)}/uploads`),

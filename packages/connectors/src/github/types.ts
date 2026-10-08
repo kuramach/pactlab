@@ -6,7 +6,12 @@ export const GITHUB_PROVIDER = 'github';
 
 /** Non-secret connection settings. Identical in FIXTURE and LIVE mode. */
 export const githubConnectionConfigSchema = z.strictObject({
-  repository: z.string().regex(/^[A-Za-z0-9_.-]{1,100}\/[A-Za-z0-9_.-]{1,100}$/),
+  // `owner/name`: GitHub owners are letters, digits and hyphens; a name may hold
+  // dots but is never `.` or `..`, so a repository can never become a URL path walk.
+  repository: z
+    .string()
+    .regex(/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})\/[A-Za-z0-9_.-]{1,100}$/)
+    .refine((value) => !['.', '..'].includes(value.split('/')[1] ?? ''), 'Not a repository name'),
 });
 export type GitHubConnectionConfig = z.infer<typeof githubConnectionConfigSchema>;
 
@@ -44,7 +49,15 @@ export interface GitHubAdapter extends ProviderAdapter<CommitMetadata> {
 
 export class GitHubAdapterError extends Error {
   constructor(
-    readonly code: 'NOT_ENABLED' | 'UNKNOWN_REPOSITORY' | 'PERMISSION_DENIED' | 'INVALID_CURSOR',
+    readonly code:
+      | 'NOT_ENABLED'
+      | 'UNKNOWN_REPOSITORY'
+      | 'PERMISSION_DENIED'
+      | 'INVALID_CURSOR'
+      | 'NO_CREDENTIAL'
+      | 'NOT_INSTALLED'
+      | 'RATE_LIMITED'
+      | 'UNAVAILABLE',
     message: string,
   ) {
     super(message);

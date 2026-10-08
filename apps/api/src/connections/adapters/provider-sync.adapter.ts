@@ -8,6 +8,8 @@ import {
   type ConnectionMode,
   type ConnectionScope,
   type DryRunResult,
+  type FetchLike,
+  type GitHubAuthResolver,
   type ValidationResult,
 } from '@pactlab/connectors';
 import type { EvidenceSource } from '@pactlab/domain';
@@ -23,12 +25,14 @@ interface ProviderEvidence {
 /**
  * Wraps a provider adapter (GitHub, Jira) as a sync adapter: the same
  * normalized evidence the sync engine ingests, and dry-run samples taken
- * from it. Live adapters return empty samples until live reads are enabled.
+ * from it. Live adapters without live reads (Jira) return empty samples.
  */
 export class ProviderSyncAdapter {
   constructor(
     private readonly adapter: ProviderEvidence,
     private readonly source: (scope: ConnectionScope) => EvidenceSource,
+    /** Whether the live adapter actually reads the provider yet. */
+    private readonly liveReads = false,
   ) {}
 
   get provider() {
@@ -49,7 +53,7 @@ export class ProviderSyncAdapter {
 
   async dryRun(scope: ConnectionScope, options: { limit: number }): Promise<DryRunResult<EvidenceSample>> {
     const limit = boundedLimit(options.limit);
-    if (this.adapter.mode === 'LIVE') return { sample: [], truncated: false };
+    if (this.adapter.mode === 'LIVE' && !this.liveReads) return { sample: [], truncated: false };
     const { records } = await this.source(scope).pull();
     return { sample: records.slice(0, limit).map(toSample), truncated: records.length > limit };
   }
@@ -59,9 +63,13 @@ export class ProviderSyncAdapter {
   }
 }
 
-export function githubSyncAdapter(mode: ConnectionMode, config: unknown): ProviderSyncAdapter | null {
-  const adapter = createGitHubAdapter(mode, config);
-  return adapter ? new ProviderSyncAdapter(adapter, (scope) => createGitHubEvidenceSource(adapter, scope)) : null;
+export function githubSyncAdapter(
+  mode: ConnectionMode,
+  config: unknown,
+  live: { resolveAuth?: GitHubAuthResolver; fetch?: FetchLike } = {},
+): ProviderSyncAdapter | null {
+  const adapter = createGitHubAdapter(mode, config, live);
+  return adapter ? new ProviderSyncAdapter(adapter, (scope) => createGitHubEvidenceSource(adapter, scope), true) : null;
 }
 
 export function jiraSyncAdapter(mode: ConnectionMode, config: unknown): ProviderSyncAdapter | null {

@@ -1,0 +1,366 @@
+{
+  "cassetteVersion": 1,
+  "provider": "github",
+  "source": "https://api.github.com/repos/octocat/Hello-World (public, unauthenticated)",
+  "recordedAt": "2026-10-08T22:17:27.219Z",
+  "interactions": [
+    {
+      "request": {
+        "method": "GET",
+        "path": "/repos/octocat/Hello-World",
+        "query": ""
+      },
+      "response": {
+        "status": 200,
+        "headers": {},
+        "body": {
+          "full_name": "octocat/Hello-World",
+          "default_branch": "master",
+          "visibility": "public"
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/repos/octocat/Hello-World/commits",
+        "query": "page=1&per_page=100&sha=master"
+      },
+      "response": {
+        "status": 200,
+        "headers": {},
+        "body": [
+          {
+            "sha": "7fd1a60b01f91b314f59955a4e4d4e80d8edf11d",
+            "commit": {
+              "author": {
+                "email": "author-aa9d01e5ea@example.invalid",
+                "date": "2012-03-06T23:06:50Z"
+              },
+              "committer": {
+                "date": "2012-03-06T23:06:50Z"
+              }
+            },
+            "author": {
+              "login": "author-a6658157f0"
+            }
+          },
+          {
+            "sha": "762941318ee16e59dabbacb1b4049eec22f0d303",
+            "commit": {
+              "author": {
+                "email": "author-e5f4946688@example.invalid",
+                "date": "2011-09-14T04:42:41Z"
+              },
+              "committer": {
+                "date": "2011-09-14T04:42:41Z"
+              }
+            },
+            "author": {
+              "login": "author-15353d725c"
+            }
+          },
+          {
+            "sha": "553c2077f0edc3d5dc5d17262f6aa498e69d6f8e",
+            "commit": {
+              "author": {
+                "email": "author-a3db4b5dd9@example.invalid",
+                "date": "2011-01-26T19:06:08Z"
+              },
+              "committer": {
+                "date": "2011-01-26T19:06:08Z"
+              }
+            },
+            "author": {
+              "login": "author-644175c5f2"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/repos/octocat/Hello-World/commits",
+        "query": "page=1&per_page=50&sha=master"
+      },
+      "response": {
+        "status": 200,
+        "headers": {},
+        "body": [
+          {
+            "sha": "7fd1a60b01f91b314f59955a4e4d4e80d8edf11d",
+            "commit": {
+              "author": {
+                "email": "author-aa9d01e5ea@example.invalid",
+                "date": "2012-03-06T23:06:50Z"
+              },
+              "committer": {
+                "date": "2012-03-06T23:06:50Z"
+              }
+            },
+            "author": {
+              "login": "author-a6658157f0"
+            }
+          },
+          {
+            "sha": "762941318ee16e59dabbacb1b4049eec22f0d303",
+            "commit": {
+              "author": {
+                "email": "author-e5f4946688@example.invalid",
+                "date": "2011-09-14T04:42:41Z"
+              },
+              "committer": {
+                "date": "2011-09-14T04:42:41Z"
+              }
+            },
+            "author": {
+              "login": "author-15353d725c"
+            }
+          },
+          {
+            "sha": "553c2077f0edc3d5dc5d17262f6aa498e69d6f8e",
+            "commit": {
+              "author": {
+                "email": "author-a3db4b5dd9@example.invalid",
+                "date": "2011-01-26T19:06:08Z"
+              },
+              "committer": {
+                "date": "2011-01-26T19:06:08Z"
+              }
+            },
+            "author": {
+              "login": "author-644175c5f2"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/repos/octocat/Hello-World/commits",
+        "query": "page=1&per_page=1&sha=master"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "link": "<https://api.github.com/repositories/1296269/commits?sha=master&per_page=1&page=2>; rel=\"next\", <https://api.github.com/repositories/1296269/commits?sha=master&per_page=1&page=3>; rel=\"last\""
+        },
+        "body": [
+          {
+            "sha": "7fd1a60b01f91b314f59955a4e4d4e80d8edf11d",
+            "commit": {
+              "author": {
+                "email": "author-aa9d01e5ea@example.invalid",
+                "date": "2012-03-06T23:06:50Z"
+              },
+              "committer": {
+                "date": "2012-03-06T23:06:50Z"
+              }
+            },
+            "author": {
+              "login": "author-a6658157f0"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/repos/octocat/Hello-World/commits",
+        "query": "page=2&per_page=1&sha=master"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "link": "<https://api.github.com/repositories/1296269/commits?sha=master&per_page=1&page=3>; rel=\"next\", <https://api.github.com/repositories/1296269/commits?sha=master&per_page=1&page=3>; rel=\"last\", <https://api.github.com/repositories/1296269/commits?sha=master&per_page=1&page=1>; rel=\"first\", <https://api.github.com/repositories/1296269/commits?sha=master&per_page=1&page=1>; rel=\"prev\""
+        },
+        "body": [
+          {
+            "sha": "762941318ee16e59dabbacb1b4049eec22f0d303",
+            "commit": {
+              "author": {
+                "email": "author-e5f4946688@example.invalid",
+                "date": "2011-09-14T04:42:41Z"
+              },
+              "committer": {
+                "date": "2011-09-14T04:42:41Z"
+              }
+            },
+            "author": {
+              "login": "author-15353d725c"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/repos/octocat/Hello-World/commits",
+        "query": "page=3&per_page=1&sha=master"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "link": "<https://api.github.com/repositories/1296269/commits?sha=master&per_page=1&page=4>; rel=\"next\", <https://api.github.com/repositories/1296269/commits?sha=master&per_page=1&page=3>; rel=\"last\", <https://api.github.com/repositories/1296269/commits?sha=master&per_page=1&page=1>; rel=\"first\", <https://api.github.com/repositories/1296269/commits?sha=master&per_page=1&page=2>; rel=\"prev\""
+        },
+        "body": [
+          {
+            "sha": "553c2077f0edc3d5dc5d17262f6aa498e69d6f8e",
+            "commit": {
+              "author": {
+                "email": "author-a3db4b5dd9@example.invalid",
+                "date": "2011-01-26T19:06:08Z"
+              },
+              "committer": {
+                "date": "2011-01-26T19:06:08Z"
+              }
+            },
+            "author": {
+              "login": "author-644175c5f2"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/repos/octocat/Hello-World/commits",
+        "query": "page=4&per_page=1&sha=master"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "link": "<https://api.github.com/repositories/1296269/commits?sha=master&per_page=1&page=1>; rel=\"first\", <https://api.github.com/repositories/1296269/commits?sha=master&per_page=1&page=3>; rel=\"prev\""
+        },
+        "body": []
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/repos/octocat/Hello-World/commits/7fd1a60b01f91b314f59955a4e4d4e80d8edf11d",
+        "query": ""
+      },
+      "response": {
+        "status": 200,
+        "headers": {},
+        "body": {
+          "sha": "7fd1a60b01f91b314f59955a4e4d4e80d8edf11d",
+          "commit": {
+            "author": {
+              "email": "author-aa9d01e5ea@example.invalid",
+              "date": "2012-03-06T23:06:50Z"
+            },
+            "committer": {
+              "date": "2012-03-06T23:06:50Z"
+            }
+          },
+          "author": {
+            "login": "author-a6658157f0"
+          },
+          "stats": {
+            "additions": 1,
+            "deletions": 1,
+            "total": 2
+          },
+          "files": [
+            {
+              "filename": "README"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/repos/octocat/Hello-World/commits/762941318ee16e59dabbacb1b4049eec22f0d303",
+        "query": ""
+      },
+      "response": {
+        "status": 200,
+        "headers": {},
+        "body": {
+          "sha": "762941318ee16e59dabbacb1b4049eec22f0d303",
+          "commit": {
+            "author": {
+              "email": "author-e5f4946688@example.invalid",
+              "date": "2011-09-14T04:42:41Z"
+            },
+            "committer": {
+              "date": "2011-09-14T04:42:41Z"
+            }
+          },
+          "author": {
+            "login": "author-15353d725c"
+          },
+          "stats": {
+            "additions": 1,
+            "deletions": 1,
+            "total": 2
+          },
+          "files": [
+            {
+              "filename": "README"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/repos/octocat/Hello-World/commits/553c2077f0edc3d5dc5d17262f6aa498e69d6f8e",
+        "query": ""
+      },
+      "response": {
+        "status": 200,
+        "headers": {},
+        "body": {
+          "sha": "553c2077f0edc3d5dc5d17262f6aa498e69d6f8e",
+          "commit": {
+            "author": {
+              "email": "author-a3db4b5dd9@example.invalid",
+              "date": "2011-01-26T19:06:08Z"
+            },
+            "committer": {
+              "date": "2011-01-26T19:06:08Z"
+            }
+          },
+          "author": {
+            "login": "author-644175c5f2"
+          },
+          "stats": {
+            "additions": 1,
+            "deletions": 0,
+            "total": 1
+          },
+          "files": [
+            {
+              "filename": "README"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/repos/octocat/pactlab-does-not-exist",
+        "query": ""
+      },
+      "response": {
+        "status": 404,
+        "headers": {},
+        "body": {
+          "message": "Not Found"
+        }
+      }
+    }
+  ]
+}
