@@ -39,4 +39,9 @@ export const siteConfig: SiteConfig = {
   githubSubjectPrefix: 'repo:kuramach@1686280/pactlab@1403595223',
   githubEnvironment: 'site',
   githubPlanEnvironment: 'site-diff',
+  // Requested in us-east-1 with the ACM CLI, validated by DNS at Namecheap.
+  domain: {
+    name: 'pactlab.ai',
+    certificateArn: 'arn:aws:acm:us-east-1:379959319207:certificate/f6a0cf8d-8d74-4df1-897f-076139a2ab17',
+  },
 };
