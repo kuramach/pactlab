@@ -64,7 +64,8 @@ describe('PactlabSiteStack', () => {
   });
 
   it('adds no domain until one is configured, then the us-east-1 certificate and aliases', () => {
-    siteTemplate().hasResourceProperties('AWS::CloudFront::Distribution', {
+    const { domain: _domain, ...withoutDomain } = siteConfig;
+    siteTemplate(withoutDomain).hasResourceProperties('AWS::CloudFront::Distribution', {
       DistributionConfig: Match.objectLike({ Aliases: Match.absent() }),
     });
     const certificateArn = 'arn:aws:acm:us-east-1:111111111111:certificate/00000000-0000-0000-0000-000000000000';
@@ -80,6 +81,11 @@ describe('PactlabSiteStack', () => {
 
   it('deploys where the organization allows CloudFormation', () => {
     expect(siteConfig.region).toBe('us-east-2');
+  });
+
+  it('serves pactlab.ai with a CloudFront certificate from us-east-1', () => {
+    expect(siteConfig.domain?.name).toBe('pactlab.ai');
+    expect(siteConfig.domain?.certificateArn).toMatch(/^arn:aws:acm:us-east-1:379959319207:certificate\//);
   });
 
   it('maps directory URLs onto index.html', () => {
