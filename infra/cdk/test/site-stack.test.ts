@@ -63,17 +63,23 @@ describe('PactlabSiteStack', () => {
     expect(CONTENT_SECURITY_POLICY).toContain("frame-ancestors 'none'");
   });
 
-  it('adds no domain until one is configured, then a DNS-validated certificate and aliases', () => {
-    siteTemplate().resourceCountIs('AWS::CertificateManager::Certificate', 0);
-    const withDomain = siteTemplate({ ...siteConfig, domainName: 'pactlab.ai' });
-    withDomain.hasResourceProperties('AWS::CertificateManager::Certificate', {
-      DomainName: 'pactlab.ai',
-      SubjectAlternativeNames: ['www.pactlab.ai'],
-      ValidationMethod: 'DNS',
+  it('adds no domain until one is configured, then the us-east-1 certificate and aliases', () => {
+    siteTemplate().hasResourceProperties('AWS::CloudFront::Distribution', {
+      DistributionConfig: Match.objectLike({ Aliases: Match.absent() }),
     });
+    const certificateArn = 'arn:aws:acm:us-east-1:111111111111:certificate/00000000-0000-0000-0000-000000000000';
+    const withDomain = siteTemplate({ ...siteConfig, domain: { name: 'pactlab.ai', certificateArn } });
+    withDomain.resourceCountIs('AWS::CertificateManager::Certificate', 0);
     withDomain.hasResourceProperties('AWS::CloudFront::Distribution', {
-      DistributionConfig: Match.objectLike({ Aliases: ['pactlab.ai', 'www.pactlab.ai'] }),
+      DistributionConfig: Match.objectLike({
+        Aliases: ['pactlab.ai', 'www.pactlab.ai'],
+        ViewerCertificate: Match.objectLike({ AcmCertificateArn: certificateArn }),
+      }),
     });
+  });
+
+  it('deploys where the organization allows CloudFormation', () => {
+    expect(siteConfig.region).toBe('us-east-2');
   });
 
   it('maps directory URLs onto index.html', () => {

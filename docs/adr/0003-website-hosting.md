@@ -33,3 +33,12 @@ never from a laptop.
   the stateful-resource protection that applies to customer data.
 - The deploy role can do whatever the CDK bootstrap roles can in this
   account; it is limited by which GitHub jobs can assume it.
+
+## Amendment (2026-10-08) — region and certificate
+
+The organization enforces a region guardrail (SCP): CloudFormation is allowed
+only in **us-east-2**; us-east-1 permits global services only. The site and
+deploy-access stacks therefore deploy in us-east-2 (CloudFront is global).
+CloudFront's certificate must be in us-east-1, so it is requested with the
+ACM CLI there and referenced by ARN in `SiteConfig.domain`. The site lives in
+the **PactLab Dev** account, reached through `OrganizationAccountAccessRole`.

@@ -45,6 +45,7 @@ export const CONTENT_SECURITY_POLICY = [
  * pactlab.ai: a private, SSL-only bucket served only through CloudFront
  * (Origin Access Control), HTTPS everywhere, strict security headers, and
  * the static export uploaded with a cache invalidation on every publish.
+ * Deployed in us-east-2 (organization guardrail); CloudFront is global.
  */
 export class PactlabSiteStack extends Stack {
   readonly bucket: s3.Bucket;
@@ -92,12 +93,9 @@ export class PactlabSiteStack extends Stack {
       },
     });
 
-    const certificate = config.domainName
-      ? new acm.Certificate(this, 'Certificate', {
-          domainName: config.domainName,
-          subjectAlternativeNames: [`www.${config.domainName}`],
-          validation: acm.CertificateValidation.fromDns(),
-        })
+    // Requested in us-east-1 outside CloudFormation (see SiteConfig.domain).
+    const certificate = config.domain
+      ? acm.Certificate.fromCertificateArn(this, 'Certificate', config.domain.certificateArn)
       : undefined;
 
     this.distribution = new cloudfront.Distribution(this, 'Distribution', {
@@ -106,8 +104,8 @@ export class PactlabSiteStack extends Stack {
       httpVersion: cloudfront.HttpVersion.HTTP2_AND_3,
       priceClass: cloudfront.PriceClass.PRICE_CLASS_100,
       minimumProtocolVersion: cloudfront.SecurityPolicyProtocol.TLS_V1_2_2021,
-      ...(certificate && config.domainName
-        ? { certificate, domainNames: [config.domainName, `www.${config.domainName}`] }
+      ...(certificate && config.domain
+        ? { certificate, domainNames: [config.domain.name, `www.${config.domain.name}`] }
         : {}),
       defaultBehavior: {
         origin: origins.S3BucketOrigin.withOriginAccessControl(this.bucket),
