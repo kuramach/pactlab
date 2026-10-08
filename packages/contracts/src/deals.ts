@@ -1,4 +1,4 @@
-import { TRANSACTION_TYPES } from '@pactlab/domain';
+import { OWNERSHIPS, PARTY_ROLES, TRANSACTION_TYPES } from '@pactlab/domain';
 import { z } from 'zod';
 import { isoCurrencySchema, uuidSchema } from './common';
 
@@ -14,6 +14,17 @@ export const dealSummarySchema = z.object({
   status: z.string(),
   baseCurrency: isoCurrencySchema,
   createdAt: z.iso.datetime(),
+  /** Buyer and seller, when the deal was started as a Pact (list responses only). */
+  parties: z
+    .array(
+      z.object({
+        role: z.enum(PARTY_ROLES),
+        name: z.string(),
+        ownership: z.enum(OWNERSHIPS),
+        ticker: z.string().nullable(),
+      }),
+    )
+    .optional(),
 });
 export type DealSummary = z.infer<typeof dealSummarySchema>;
 

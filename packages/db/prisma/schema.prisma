@@ -19,6 +19,33 @@ enum TransactionType {
   @@map("transaction_type")
 }
 
+enum PartyRole {
+  BUYER
+  SELLER
+
+  @@map("party_role")
+}
+
+enum CompanyOwnership {
+  PUBLIC
+  PRIVATE
+
+  @@map("company_ownership")
+}
+
+enum CompanyType {
+  SOFTWARE_SAAS
+  FINTECH
+  HEALTHCARE
+  TELECOM_MEDIA
+  PROFESSIONAL_SERVICES
+  PHARMA_BIOTECH
+  ECOMMERCE_DTC
+  OTHER
+
+  @@map("company_type")
+}
+
 enum OrganizationAuthMethod {
   AUTH0
   EMAIL_CODE
@@ -299,6 +326,7 @@ model Organization {
   documentFindings        DocumentFinding[]
   documentFindingReviews  DocumentFindingReview[]
   authSessions            AuthSession[]
+  dealParties             DealParty[]
 
   @@map("organizations")
 }
@@ -373,10 +401,34 @@ model Deal {
   aiRuns                  AiRun[]
   documentFindings        DocumentFinding[]
   documentFindingReviews  DocumentFindingReview[]
+  parties                 DealParty[]
 
   @@unique([organizationId, id])
   @@index([organizationId, createdAt])
   @@map("deals")
+}
+
+/// The buying and selling entities of a Pact. One row per role per deal;
+/// the deal's transaction type was derived from their ownership at creation.
+model DealParty {
+  id             String           @id @default(uuid(7)) @db.Uuid
+  organizationId String           @map("organization_id") @db.Uuid
+  dealId         String           @map("deal_id") @db.Uuid
+  role           PartyRole
+  name           String
+  ownership      CompanyOwnership
+  ticker         String?
+  exchange       String?
+  website        String?
+  companyType    CompanyType?     @map("company_type")
+  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  deal         Deal         @relation(fields: [organizationId, dealId], references: [organizationId, id], onDelete: Restrict)
+
+  @@unique([organizationId, dealId, role])
+  @@map("deal_parties")
 }
 
 model DealMembership {

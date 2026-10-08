@@ -6,6 +6,7 @@ export * from './fixtures';
 export * from './hash';
 export * from './login';
 export * from './memberships';
+export * from './pacts';
 export * from './repositories';
 export * from './signup';
 export * from './sync';

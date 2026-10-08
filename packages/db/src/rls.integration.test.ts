@@ -5,6 +5,7 @@ import { appendAuditEvent, verifyAuditChain } from './audit';
 import { createPrismaClient, type PrismaClient } from './client';
 import { emailLogin } from './login';
 import { signup } from './signup';
+import { dealParties } from './pacts';
 import { deals } from './repositories';
 import { assertRuntimeRoleIsolation, resolvePrincipal, withTenant } from './tenant';
 import { createSyntheticTenant, type SyntheticTenant } from './testing/tenants';
@@ -269,5 +270,40 @@ describe.runIf(runtimeUrl && ownerUrl)('RLS against PostgreSQL', () => {
       resolvePrincipal(prisma, { subject: `pactlab|${created!.ownerUserId}`, externalOrganizationId: created!.organizationId, issuer: 'PACTLAB' }),
     ).resolves.toBeNull();
     await expect(emailLogin.begin(prisma, { email, codeHash: 'f'.repeat(64), ipHash: 'a'.repeat(64) })).resolves.toBeNull();
+  });
+
+  it("keeps a deal's parties inside its tenant", async () => {
+    await withTenant(prisma, a.context, (tx) =>
+      dealParties.create(tx, {
+        organizationId: a.organizationId,
+        dealId: a.dealId,
+        role: 'SELLER',
+        name: 'IT Target Software',
+        ownership: 'PUBLIC',
+        ticker: 'ITTS',
+        exchange: null,
+        website: null,
+        companyType: 'SOFTWARE_SAAS',
+      }),
+    );
+    await expect(withTenant(prisma, a.context, (tx) => dealParties.list(tx, a.dealId))).resolves.toEqual([
+      expect.objectContaining({ role: 'SELLER', ticker: 'ITTS' }),
+    ]);
+    await expect(withTenant(prisma, b.context, (tx) => dealParties.list(tx, a.dealId))).resolves.toEqual([]);
+    await expect(
+      withTenant(prisma, b.context, (tx) =>
+        dealParties.create(tx, {
+          organizationId: a.organizationId,
+          dealId: a.dealId,
+          role: 'BUYER',
+          name: 'Intruder',
+          ownership: 'PRIVATE',
+          ticker: null,
+          exchange: null,
+          website: null,
+          companyType: null,
+        }),
+      ),
+    ).rejects.toThrow();
   });
 });

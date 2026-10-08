@@ -18,6 +18,7 @@ import { PrismaFindingsRepository } from './findings/prisma-findings.repository'
 import { HealthController } from './health/health.controller';
 import { MeModule } from './me/me.module';
 import { MetricsModule } from './metrics/metrics.module';
+import { PactsModule } from './pacts/pacts.module';
 import { PrismaValuationRepository } from './valuation/prisma-valuation.repository';
 import { ValuationModule } from './valuation/valuation.module';
 import { IDENTITY_VERIFIER, LOGGER, PRISMA } from './tokens';
@@ -78,6 +79,7 @@ export class AppModule {
         DealsModule,
         MeModule,
         MetricsModule,
+        PactsModule,
         FindingsModule.register(findings),
         ValuationModule.register({
           valuation: new PrismaValuationRepository(deps.prisma),

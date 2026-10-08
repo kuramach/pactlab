@@ -2,6 +2,7 @@ export * from './evidence';
 export * from './findings';
 export * from './ids';
 export * from './object-keys';
+export * from './pacts';
 export * from './roles';
 export * from './tenancy';
 export * from './transaction-type';

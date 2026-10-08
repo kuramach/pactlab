@@ -1,4 +1,6 @@
-import { Badge, Card, CardContent, CardHeader, CardTitle, EmptyState } from '@pactlab/ui';
+import type { SourcePlanResponse } from '@pactlab/contracts';
+import { Badge, Button, Card, CardContent, CardHeader, CardTitle, EmptyState } from '@pactlab/ui';
+import { COMPANY_TYPE_LABELS } from '@pactlab/domain';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { dealsApi } from '../../_lib/api';
@@ -13,14 +15,107 @@ const HEALTH_VARIANT = { synced: 'calculation', issues: 'draft', failed: 'danger
 
 const number = new Intl.NumberFormat('en-US');
 
+const NEXT_RELEASE = { API: 'Live API connection is coming next.', UPLOAD: 'Upload import is coming next.' } as const;
+
+/** The checklist of sources this deal's seller type calls for, each with API and upload options. */
+function SourcePlan({ plan }: { plan: SourcePlanResponse }) {
+  const connected = plan.sources.filter((source) => source.status === 'CONNECTED').length;
+  return (
+    <section className="flex flex-col gap-3" aria-labelledby="source-plan">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 id="source-plan" className="text-lg font-semibold tracking-tight">
+          Sources to collect
+        </h2>
+        <span className="text-sm text-muted-foreground">
+          {connected} of {plan.sources.length} connected
+          {plan.companyType ? ` · for ${COMPANY_TYPE_LABELS[plan.companyType]}` : ''}
+        </span>
+      </div>
+      {plan.note ? <p className="text-sm text-muted-foreground">{plan.note}</p> : null}
+      <ul className="grid gap-3 md:grid-cols-2">
+        {plan.sources.map((source) => {
+          const api = source.methods.find((method) => method.method === 'API');
+          const upload = source.methods.find((method) => method.method === 'UPLOAD');
+          return (
+            <li key={source.kind}>
+              <Card className="h-full">
+                <CardHeader className="flex flex-col gap-1">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex flex-col">
+                      <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{source.label}</span>
+                      <CardTitle className="text-base">{source.providerLabel}</CardTitle>
+                    </div>
+                    <Badge variant={source.status === 'CONNECTED' ? 'calculation' : 'neutral'}>
+                      {source.status === 'CONNECTED' ? 'Connected' : 'Not connected'}
+                    </Badge>
+                  </div>
+                </CardHeader>
+                <CardContent className="flex flex-col gap-3 text-sm">
+                  <p>{source.why}</p>
+                  <p className="text-xs text-muted-foreground">Produces: {source.produces}</p>
+                  {source.connections.length > 0 ? (
+                    <ul className="flex flex-col gap-1 text-xs">
+                      {source.connections.map((connection) => (
+                        <li key={connection.id}>
+                          {connection.displayName} · {connection.mode === 'FIXTURE' ? 'fixture data' : 'live'}
+                          {connection.lastSyncStatus ? ` · ${connection.lastSyncStatus.toLowerCase()}` : ''}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                  <div className="flex flex-wrap gap-2">
+                    <Button size="sm" disabled={api?.availability !== 'AVAILABLE'} title={api?.availability === 'NEXT' ? NEXT_RELEASE.API : undefined}>
+                      Connect via API
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={upload?.availability !== 'AVAILABLE'}
+                      title={upload?.availability === 'NEXT' ? NEXT_RELEASE.UPLOAD : undefined}
+                    >
+                      {source.upload.label}
+                    </Button>
+                  </div>
+                  {api?.availability === 'NEXT' || upload?.availability === 'NEXT' ? (
+                    <p className="text-xs text-muted-foreground">
+                      Coming next: {[api?.availability === 'NEXT' ? `${source.providerLabel} API` : null, upload?.availability === 'NEXT' ? 'upload import' : null]
+                        .filter(Boolean)
+                        .join(' and ')}
+                      .
+                    </p>
+                  ) : null}
+                </CardContent>
+              </Card>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
 /**
  * Every source connected to a deal — billing exports, GitHub, Jira — with
  * mode, last sync and what it produced. Read-only; provenance first.
  */
-export default async function DealSourcesPage({ params }: { params: Promise<{ dealId: string }> }) {
+export default async function DealSourcesPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ dealId: string }>;
+  searchParams: Promise<{ started?: string }>;
+}) {
   const { dealId } = await params;
+  const { started } = await searchParams;
   if (!isUuidParam(dealId)) notFound();
-  const [deal, sources] = await Promise.all([dealsApi.get(dealId), dealsApi.sources(dealId)]);
+  const [deal, sources, plan, parties] = await Promise.all([
+    dealsApi.get(dealId),
+    dealsApi.sources(dealId),
+    dealsApi.sourcePlan(dealId),
+    dealsApi.parties(dealId),
+  ]);
+  const buyer = parties.kind === 'ok' ? parties.data.items.find((party) => party.role === 'BUYER') : undefined;
+  const seller = parties.kind === 'ok' ? parties.data.items.find((party) => party.role === 'SELLER') : undefined;
 
   return (
     <div className="flex max-w-5xl flex-col gap-6">
@@ -31,15 +126,33 @@ export default async function DealSourcesPage({ params }: { params: Promise<{ de
         <h1 className="text-2xl font-semibold tracking-tight">
           Sources{deal.kind === 'ok' ? ` · ${deal.data.name}` : ''}
         </h1>
+        {buyer && seller ? (
+          <p className="text-sm">
+            <span className="font-medium">{buyer.name}</span>
+            {buyer.ticker ? ` (${buyer.ticker})` : ''} acquiring <span className="font-medium">{seller.name}</span>
+            {seller.ticker ? ` (${seller.ticker})` : ''}
+            {seller.companyType ? ` · ${COMPANY_TYPE_LABELS[seller.companyType]}` : ''}
+          </p>
+        ) : null}
         <p className="text-sm text-muted-foreground">
-          Systems connected to this deal and the evidence each one produced.
+          The sources this deal needs, and the evidence each connected one produced.
         </p>
       </header>
+
+      {started ? (
+        <p role="status" className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
+          Pact started. Connect the sources below to start collecting evidence.
+        </p>
+      ) : null}
+
+      {plan.kind === 'ok' ? <SourcePlan plan={plan.data} /> : null}
+
+      <h2 className="text-lg font-semibold tracking-tight">Connected sources</h2>
 
       {sources.kind !== 'ok' ? (
         <ApiState result={sources} />
       ) : sources.data.items.length === 0 ? (
-        <EmptyState title="No sources connected" description="Connect a billing export, GitHub or Jira to start collecting evidence." />
+        <EmptyState title="No sources connected yet" description="Connect the sources above to start collecting evidence." />
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
           {sources.data.items.map((source) => {
