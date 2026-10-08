@@ -424,6 +424,33 @@ async function insertDeal(
      ON CONFLICT (organization_id, deal_id, user_id) DO NOTHING`,
     [newId(), organizationId, dealId, leadUserId],
   );
+  // Describe both parties so seeded deals behave like Pacts started in the app.
+  const buyerPublic = transactionType === 'PUBLIC_ACQUIRER';
+  const sellerPublic = transactionType === 'TAKE_PRIVATE';
+  const syntheticTicker = (name: string) => `SYN${name.replace(/[^A-Za-z]/g, '').slice(0, 3).toUpperCase()}`;
+  const parties: [string, string | null, boolean, string | null][] = [
+    ['BUYER', null, buyerPublic, null],
+    ['SELLER', targetName, sellerPublic, 'SOFTWARE_SAAS'],
+  ];
+  for (const [role, name, isPublic, companyType] of parties) {
+    await owner.query(
+      `INSERT INTO deal_parties (id, organization_id, deal_id, role, name, ownership, ticker, exchange, company_type, updated_at)
+       VALUES ($1, $2, $3, $4::party_role, COALESCE($5, (SELECT name FROM organizations WHERE id = $2)),
+               $6::company_ownership, $7, $8, $9::company_type, now())
+       ON CONFLICT (organization_id, deal_id, role) DO NOTHING`,
+      [
+        newId(),
+        organizationId,
+        dealId,
+        role,
+        name,
+        isPublic ? 'PUBLIC' : 'PRIVATE',
+        isPublic ? syntheticTicker(name ?? 'buyer') : null,
+        isPublic ? 'Synthetic exchange' : null,
+        companyType,
+      ],
+    );
+  }
 }
 
 /** One sync run per seeded connection under a stable idempotency key; returns its id. */

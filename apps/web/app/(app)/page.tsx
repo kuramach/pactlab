@@ -1,4 +1,5 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, EmptyState } from '@pactlab/ui';
+import { buttonVariants, Card, CardContent, CardDescription, CardHeader, CardTitle } from '@pactlab/ui';
+import Link from 'next/link';
 
 const LOOP = [
   'Source evidence',
@@ -35,7 +36,22 @@ export default function OverviewPage() {
           </ol>
         </CardContent>
       </Card>
-      <EmptyState title="No deals yet" description="Sign in to see the deals you are a member of." />
+      <Card>
+        <CardHeader>
+          <CardTitle>Start a Pact</CardTitle>
+          <CardDescription>
+            Every Pact is a deal. Describe the buying and selling entities and Pactlab switches on the sources to collect.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-wrap gap-3">
+          <Link href="/pacts/new" className={buttonVariants()}>
+            Start a Pact
+          </Link>
+          <Link href="/deals" className={buttonVariants({ variant: 'outline' })}>
+            Open your deals
+          </Link>
+        </CardContent>
+      </Card>
     </div>
   );
 }

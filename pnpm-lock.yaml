@@ -337,6 +337,9 @@ importers:
       '@pactlab/config':
         specifier: workspace:*
         version: link:../../packages/config
+      '@pactlab/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
       '@pactlab/domain':
         specifier: workspace:*
         version: link:../../packages/domain

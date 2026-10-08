@@ -1,6 +1,6 @@
-import { organizationAccessToken } from '../../../../lib/auth0';
-import { publicEnv } from '../../../../lib/env';
-import { apiGet, type ApiResult } from '../../deals/_lib/api';
+import { apiGet, apiPost } from '../../deals/_lib/api';
+
+export { apiPost };
 
 /** Response shapes of /v1/deals/:dealId/metrics/* (deterministic engine output). */
 export interface MoneyValue {
@@ -121,33 +121,6 @@ export interface CohortsView {
     startingMrr: MoneyValue;
     cells: { offset: number; month: string; revenueRetention: string | null }[];
   }[];
-}
-
-/** Server-side POST; the browser never holds the token or calls the API directly. */
-export async function apiPost<T>(
-  path: string,
-  body: unknown,
-): Promise<ApiResult<T> | { kind: 'conflict' } | { kind: 'invalid' }> {
-  const token = await organizationAccessToken();
-  if (!token) return { kind: 'signed-out' };
-  let response: Response;
-  try {
-    response = await fetch(new URL(path, publicEnv().NEXT_PUBLIC_API_ORIGIN), {
-      method: 'POST',
-      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
-      body: JSON.stringify(body),
-      cache: 'no-store',
-    });
-  } catch {
-    return { kind: 'error' };
-  }
-  if (response.ok) return { kind: 'ok', data: (await response.json()) as T };
-  if (response.status === 400 || response.status === 422) return { kind: 'invalid' };
-  if (response.status === 401) return { kind: 'signed-out' };
-  if (response.status === 403) return { kind: 'forbidden' };
-  if (response.status === 404) return { kind: 'not-found' };
-  if (response.status === 409) return { kind: 'conflict' };
-  return { kind: 'error' };
 }
 
 const base = (dealId: string) => `/v1/deals/${encodeURIComponent(dealId)}/metrics`;

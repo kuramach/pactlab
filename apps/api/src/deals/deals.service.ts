@@ -4,6 +4,7 @@ import {
   appendAuditEvent,
   createDealWithLead,
   dealMemberships,
+  dealParties,
   deals,
   withTenant,
   type DealMemberRecord,
@@ -37,10 +38,14 @@ export class DealsService {
   ) {}
 
   async list(tenant: TenantContext, query?: string): Promise<DealSummary[]> {
-    const rows = await withTenant(this.prisma, tenant, (tx) =>
-      query ? deals.search(tx, query) : deals.list(tx),
-    );
-    return rows.map(toSummary);
+    return withTenant(this.prisma, tenant, async (tx) => {
+      const rows = await (query ? deals.search(tx, query) : deals.list(tx));
+      const parties = await dealParties.forDeals(tx, rows.map((row) => row.id));
+      return rows.map((row) => ({
+        ...toSummary(row),
+        parties: (parties.get(row.id) ?? []).map(({ role, name, ownership, ticker }) => ({ role, name, ownership, ticker })),
+      }));
+    });
   }
 
   async get(tenant: TenantContext, dealId: string): Promise<DealSummary | null> {
