@@ -77,6 +77,7 @@ export interface SourceIssue {
     | 'MISSING_COLUMN'
     | 'MALFORMED_CSV'
     | 'INVALID_DATE'
+    | 'INVALID_VALUE'
     | 'MISSING_FIELD'
     | 'PERMISSION_DENIED';
   readonly detail: string;

@@ -145,8 +145,10 @@ describe('Start a Pact through the API', () => {
     ]);
     expect(sources[0]!['methods']).toEqual([
       { method: 'API', availability: 'NEXT' },
-      { method: 'UPLOAD', availability: 'NEXT' },
+      { method: 'UPLOAD', availability: 'AVAILABLE' },
     ]);
+    expect(sources[1]!['methods']).toEqual([{ method: 'API', availability: 'NEXT' }]);
+    expect(sources[1]!['upload']).toBeNull();
   });
 
   it('labels a planned industry honestly', async () => {

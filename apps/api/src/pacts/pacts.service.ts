@@ -172,7 +172,10 @@ export class PactsService {
             why: source.why,
             produces: source.produces,
             upload: source.upload,
-            methods: CONNECT_METHODS.map((method) => ({ method, availability: source.availability[method] })),
+            methods: CONNECT_METHODS.flatMap((method) => {
+              const availability = source.availability[method];
+              return availability ? [{ method, availability }] : [];
+            }),
             connections: feeding,
             status: feeding.length > 0 ? ('CONNECTED' as const) : ('NOT_CONNECTED' as const),
           };

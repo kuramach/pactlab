@@ -5,3 +5,4 @@ export * from './metrics';
 export * from './months';
 export * from './reconcile';
 export * from './types';
+export { D, parseDecimal } from './decimal';

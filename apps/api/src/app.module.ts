@@ -17,6 +17,8 @@ import { FindingsModule } from './findings/findings.module';
 import { PrismaFindingsRepository } from './findings/prisma-findings.repository';
 import { HealthController } from './health/health.controller';
 import { MeModule } from './me/me.module';
+import { ImportsModule, type ImportsModuleDependencies } from './imports/imports.module';
+import { UnavailableUploadStore } from './imports/upload-store';
 import { MetricsModule } from './metrics/metrics.module';
 import { PactsModule } from './pacts/pacts.module';
 import { PrismaValuationRepository } from './valuation/prisma-valuation.repository';
@@ -32,6 +34,8 @@ export interface AppDependencies {
    * closed: uploads are rejected and AI calls report NOT_CONFIGURED.
    */
   documents?: Partial<Omit<DocumentsModuleDependencies, 'repository'>>;
+  /** Billing export storage and scanning. Omitted adapters fail closed: uploads are rejected. */
+  uploads?: Partial<ImportsModuleDependencies>;
   /**
    * Email one-time-code sign-in. Omitted: Pactlab-issued tokens are rejected
    * and the /v1/auth endpoints are not mounted. Without a sender, codes are
@@ -80,6 +84,10 @@ export class AppModule {
         MeModule,
         MetricsModule,
         PactsModule,
+        ImportsModule.register({
+          objectStore: deps.uploads?.objectStore ?? new UnavailableUploadStore(),
+          malwareScanner: deps.uploads?.malwareScanner ?? new UnavailableMalwareScanner(),
+        }),
         FindingsModule.register(findings),
         ValuationModule.register({
           valuation: new PrismaValuationRepository(deps.prisma),

@@ -46,6 +46,21 @@ enum CompanyType {
   @@map("company_type")
 }
 
+enum ImportTarget {
+  BILLING_INVOICE_LINE
+
+  @@map("import_target")
+}
+
+enum SourceUploadStatus {
+  UPLOADED
+  IMPORTED
+  REJECTED
+  PURGED
+
+  @@map("source_upload_status")
+}
+
 enum OrganizationAuthMethod {
   AUTH0
   EMAIL_CODE
@@ -327,6 +342,7 @@ model Organization {
   documentFindingReviews  DocumentFindingReview[]
   authSessions            AuthSession[]
   dealParties             DealParty[]
+  sourceUploads           SourceUpload[]
 
   @@map("organizations")
 }
@@ -402,6 +418,7 @@ model Deal {
   documentFindings        DocumentFinding[]
   documentFindingReviews  DocumentFindingReview[]
   parties                 DealParty[]
+  sourceUploads           SourceUpload[]
 
   @@unique([organizationId, id])
   @@index([organizationId, createdAt])
@@ -563,6 +580,7 @@ model Connection {
   deal          Deal           @relation(fields: [organizationId, dealId], references: [organizationId, id], onDelete: Restrict)
   syncRuns      SyncRun[]
   evidenceItems EvidenceItem[]
+  sourceUploads SourceUpload[]
 
   @@unique([organizationId, dealId, id])
   @@index([organizationId, dealId, createdAt])
@@ -1093,4 +1111,39 @@ model SignupChallenge {
   @@index([email, createdAt])
   @@index([ipHash, createdAt])
   @@map("signup_challenges")
+}
+
+/// An uploaded billing export and how its columns map to the Pactlab
+/// standard invoice line. Imports run through the idempotent sync engine on
+/// a `billing_upload` connection; the mapping is kept for lineage.
+model SourceUpload {
+  id             String             @id @default(uuid(7)) @db.Uuid
+  organizationId String             @map("organization_id") @db.Uuid
+  dealId         String             @map("deal_id") @db.Uuid
+  connectionId   String?            @map("connection_id") @db.Uuid
+  target         ImportTarget
+  system         String
+  fileName       String             @map("file_name")
+  sha256         String             @db.Char(64)
+  sizeBytes      Int                @map("size_bytes")
+  rowCount       Int                @map("row_count")
+  header         Json
+  mapping        Json?
+  mappingVersion String?            @map("mapping_version")
+  objectKey      String?            @map("object_key")
+  status         SourceUploadStatus @default(UPLOADED)
+  syncRunId      String?            @map("sync_run_id") @db.Uuid
+  visibility     EvidenceVisibility
+  uploadedBy     String             @map("uploaded_by") @db.Uuid
+  createdAt      DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+  importedAt     DateTime?          @map("imported_at") @db.Timestamptz(3)
+  purgedAt       DateTime?          @map("purged_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  deal         Deal         @relation(fields: [organizationId, dealId], references: [organizationId, id], onDelete: Restrict)
+  connection   Connection?  @relation(fields: [organizationId, dealId, connectionId], references: [organizationId, dealId, id], onDelete: Restrict)
+
+  @@unique([organizationId, dealId, id])
+  @@index([organizationId, dealId, createdAt])
+  @@map("source_uploads")
 }
