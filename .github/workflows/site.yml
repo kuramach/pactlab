@@ -1,0 +1,75 @@
+name: site
+
+# Publishes pactlab.ai (ADR 0003). The diff job prints exactly what will
+# change; the deploy job waits for approval in the `site` Environment.
+# AWS access is short-lived via GitHub OIDC — no stored AWS keys.
+on:
+  push:
+    branches: [main]
+    paths:
+      - apps/site/**
+      - infra/cdk/lib/site-stack.ts
+      - infra/cdk/config/site.ts
+      - .github/workflows/site.yml
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: site
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: us-east-1
+  NEXT_PUBLIC_APP_URL: ${{ vars.SITE_APP_URL }}
+  NEXT_PUBLIC_CONTACT_EMAIL: ${{ vars.SITE_CONTACT_EMAIL }}
+
+jobs:
+  diff:
+    runs-on: ubuntu-latest
+    environment: site-diff
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @pactlab/site build
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          role-session-name: site-diff-${{ github.run_id }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Plan (cdk diff)
+        run: pnpm --filter @pactlab/cdk exec cdk diff PactlabSite -c pactlab:site:account=${{ vars.AWS_ACCOUNT_ID }}
+
+  deploy:
+    needs: diff
+    runs-on: ubuntu-latest
+    environment:
+      name: site
+      url: ${{ steps.publish.outputs.url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @pactlab/site build
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          role-session-name: site-deploy-${{ github.run_id }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Publish (cdk deploy)
+        id: publish
+        run: |
+          pnpm --filter @pactlab/cdk exec cdk deploy PactlabSite --require-approval never \
+            -c pactlab:site:account=${{ vars.AWS_ACCOUNT_ID }} --outputs-file "$RUNNER_TEMP/outputs.json"
+          echo "url=$(node -e "console.log(require(process.argv[1]).PactlabSite.SiteUrl)" "$RUNNER_TEMP/outputs.json")" >> "$GITHUB_OUTPUT"

@@ -1,7 +1,12 @@
+import { existsSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { App } from 'aws-cdk-lib';
 import { ENVIRONMENT_NAMES, ENVIRONMENTS } from '../config';
+import { siteConfig } from '../config/site';
+import { PactlabDeployAccessStack } from '../lib/deploy-access-stack';
 import { PactlabPlatformStack } from '../lib/platform-stack';
 import { assertTargetAccount } from '../lib/protection';
+import { PactlabSiteStack } from '../lib/site-stack';
 
 // One stack per environment from the same code; only config differs.
 // Without `-c pactlab:<env>:account=<id>` stacks synthesize environment-agnostic
@@ -18,4 +23,16 @@ for (const name of ENVIRONMENT_NAMES) {
     ...(declared ? { env: { account: declared, region: config.region } } : {}),
   });
 }
+// The public site (ADR 0003): one instance, its own account context.
+const siteAccount = app.node.tryGetContext('pactlab:site:account') as string | undefined;
+assertTargetAccount('site', siteAccount, siteAccount ? process.env['CDK_DEFAULT_ACCOUNT'] : undefined);
+const siteEnv = siteAccount ? { env: { account: siteAccount, region: siteConfig.region } } : {};
+new PactlabDeployAccessStack(app, 'PactlabDeployAccess', { config: siteConfig, ...siteEnv });
+// Needs the static export (`pnpm --filter @pactlab/site build`); skipped otherwise so
+// a plain synth (CI) does not depend on building the site.
+const siteContent = fileURLToPath(new URL('../../../apps/site/out', import.meta.url));
+if (existsSync(siteContent)) {
+  new PactlabSiteStack(app, 'PactlabSite', { config: siteConfig, contentDir: siteContent, ...siteEnv });
+}
+
 app.synth();
