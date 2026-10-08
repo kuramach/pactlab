@@ -12,6 +12,13 @@ export interface SiteConfig {
   /** The one AWS CLI profile used for the one-time bootstrap. */
   readonly profile: 'pactlab-dev';
   readonly githubRepository: string;
+  /**
+   * The repository's OIDC subject prefix. This repository uses GitHub's
+   * immutable subjects (owner and repository ids), so a renamed or recreated
+   * look-alike repository cannot match. Read it with
+   * `gh api repos/<owner>/<repo>/actions/oidc/customization/sub`.
+   */
+  readonly githubSubjectPrefix: string;
   /** GitHub Environment that deploys (required reviewer). */
   readonly githubEnvironment: string;
   /** GitHub Environment that only plans (`cdk diff`) so the change is visible before approval. */
@@ -29,6 +36,7 @@ export const siteConfig: SiteConfig = {
   region: 'us-east-2',
   profile: 'pactlab-dev',
   githubRepository: 'kuramach/pactlab',
+  githubSubjectPrefix: 'repo:kuramach@1686280/pactlab@1403595223',
   githubEnvironment: 'site',
   githubPlanEnvironment: 'site-diff',
 };

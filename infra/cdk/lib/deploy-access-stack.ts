@@ -34,7 +34,7 @@ export class PactlabDeployAccessStack extends Stack {
           'token.actions.githubusercontent.com:aud': 'sts.amazonaws.com',
           // The plan job (cdk diff) and the approval-gated deploy job; nothing else.
           'token.actions.githubusercontent.com:sub': [config.githubPlanEnvironment, config.githubEnvironment].map(
-            (environment) => `repo:${config.githubRepository}:environment:${environment}`,
+            (environment) => `${config.githubSubjectPrefix}:environment:${environment}`,
           ),
         },
       }),

@@ -113,8 +113,8 @@ describe('PactlabDeployAccessStack', () => {
               StringEquals: {
                 'token.actions.githubusercontent.com:aud': 'sts.amazonaws.com',
                 'token.actions.githubusercontent.com:sub': [
-                  'repo:kuramach/pactlab:environment:site-diff',
-                  'repo:kuramach/pactlab:environment:site',
+                  'repo:kuramach@1686280/pactlab@1403595223:environment:site-diff',
+                  'repo:kuramach@1686280/pactlab@1403595223:environment:site',
                 ],
               },
             },
