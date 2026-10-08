@@ -26,12 +26,22 @@ for that commit → Re-run all jobs), and approve.
 | `SITE_APP_URL` | App origin for Log in / Sign up links (optional) |
 | `SITE_CONTACT_EMAIL` | Address for "Request a pilot" (optional) |
 
-## One-time bootstrap (operator, SSO)
+## Accounts and region
+
+- Site account: **PactLab Dev** (`379959319207`). The CLI reaches it from the
+  management account's console login through `OrganizationAccountAccessRole`:
+  `aws login --profile pactlab-mgmt` (choose the Management Account session),
+  then use `--profile pactlab-dev`.
+- Region: **us-east-2**. The organization's guardrail (SCP
+  `AdvancedModeRegionRestrictionSecurityControlPolicy`) allows CloudFormation
+  only there; us-east-1 is limited to global services (IAM, CloudFront, ACM).
+
+## One-time bootstrap (operator)
 
 ```bash
-aws sso login --profile pactlab-dev
+aws login --profile pactlab-mgmt --region us-east-2
 aws sts get-caller-identity --profile pactlab-dev
-pnpm --filter @pactlab/cdk exec cdk bootstrap aws://<account>/us-east-1 --profile pactlab-dev
+pnpm --filter @pactlab/cdk exec cdk bootstrap aws://<account>/us-east-2 --profile pactlab-dev
 pnpm --filter @pactlab/cdk exec cdk diff PactlabDeployAccess --profile pactlab-dev -c pactlab:site:account=<account>
 pnpm --filter @pactlab/cdk exec cdk deploy PactlabDeployAccess --profile pactlab-dev -c pactlab:site:account=<account>
 ```
@@ -39,10 +49,22 @@ pnpm --filter @pactlab/cdk exec cdk deploy PactlabDeployAccess --profile pactlab
 Then create GitHub Environments `site-diff` (no reviewers) and `site`
 (required reviewer, `main` only) and set the variables above.
 
-## Custom domain
+## Custom domain (DNS at Namecheap)
 
-1. Set `domainName: 'pactlab.ai'` in `infra/cdk/config/site.ts` and publish.
-   The deploy waits for certificate validation: add the CNAME shown in ACM
-   (console → Certificate Manager, us-east-1) at your DNS provider.
-2. Point `pactlab.ai` and `www.pactlab.ai` at the CloudFront domain
-   (ALIAS/ANAME or CNAME at your provider, or Route 53 alias records).
+1. Request the certificate in **us-east-1** (CloudFront requires it there;
+   the guardrail allows ACM but not CloudFormation in that region):
+   ```bash
+   aws acm request-certificate --profile pactlab-dev --region us-east-1 \
+     --domain-name pactlab.ai --subject-alternative-names www.pactlab.ai \
+     --validation-method DNS
+   aws acm describe-certificate --profile pactlab-dev --region us-east-1 \
+     --certificate-arn <arn> --query 'Certificate.DomainValidationOptions[].ResourceRecord'
+   ```
+2. Namecheap → Domain List → pactlab.ai → **Advanced DNS** → add each
+   validation record as a **CNAME** (host = name without `.pactlab.ai.`).
+   Leave the Google Workspace **MX** records alone.
+3. When the certificate is `ISSUED`, set
+   `domain: { name: 'pactlab.ai', certificateArn: '<arn>' }` in
+   `infra/cdk/config/site.ts` and publish.
+4. Namecheap: **ALIAS** record `@` → the CloudFront domain, and **CNAME**
+   `www` → the CloudFront domain.
