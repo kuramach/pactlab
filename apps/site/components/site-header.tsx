@@ -4,7 +4,7 @@ import { ChevronDown, Menu } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useRef } from 'react';
-import { ANNOUNCEMENT, INDUSTRIES, MODULES, NAV } from '../lib/content';
+import { ABOUT_PAGES, ANNOUNCEMENT, INDUSTRIES, MODULES, NAV } from '../lib/content';
 import { Icon } from './icon';
 import { Lockup } from './lockup';
 
@@ -23,6 +23,10 @@ const MENUS: Readonly<Record<string, { title: string; items: readonly { href: st
       detail: industry.status === 'AVAILABLE' ? 'Full industry pack' : 'Industry pack',
       icon: industry.icon,
     })),
+  },
+  '/about': {
+    title: 'About',
+    items: ABOUT_PAGES.map((page) => ({ href: page.href, label: page.label, detail: page.detail, icon: page.icon })),
   },
 };
 

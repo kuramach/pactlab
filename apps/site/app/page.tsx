@@ -3,7 +3,7 @@ import { HeroCarousel } from '../components/hero-carousel';
 import { Icon, IconTile } from '../components/icon';
 import { Lockup } from '../components/lockup';
 import { siteConfig } from '../lib/config';
-import { CAROUSEL, CLOSING, INDUSTRIES, MODULES, PILLAR, PRINCIPLES, STORY, TAGLINE } from '../lib/content';
+import { CAROUSEL, CLOSING, FOUNDER, INDUSTRIES, MODULES, NAME_STORY, PILLAR, PRINCIPLES, STORY, TAGLINE } from '../lib/content';
 import { Demos } from './demos';
 
 const { contactHref, signUpUrl } = siteConfig();
@@ -54,6 +54,30 @@ export default function HomePage() {
             <img src="/brand/pactlab-symbol.png" alt="" width={512} height={512} className="h-auto w-48" />
             <Lockup />
             <p className="text-center text-sm font-semibold text-slate-text">{TAGLINE}</p>
+          </div>
+        </div>
+      </section>
+
+      {/* The name */}
+      <section aria-labelledby="name-title" className="bg-navy text-white">
+        <div className="mx-auto grid max-w-6xl items-center gap-12 px-6 py-20 md:grid-cols-[1fr_1.3fr]">
+          <img
+            src="/illustrations/fides-coin.svg"
+            alt="A Roman coin showing clasped right hands, the emblem of Fides"
+            width={480}
+            height={480}
+            className="mx-auto h-auto w-full max-w-xs"
+          />
+          <div className="flex flex-col gap-5">
+            <p className="text-sm font-bold uppercase tracking-widest text-indigo">{NAME_STORY.eyebrow}</p>
+            <h2 id="name-title" className="text-3xl font-extrabold tracking-tight sm:text-4xl">
+              {NAME_STORY.title}
+            </h2>
+            <p className="text-lg leading-relaxed text-white/85">{NAME_STORY.teaser}</p>
+            <p className="text-lg font-bold text-indigo">{NAME_STORY.closing}</p>
+            <Link href="/about/story" className="font-semibold text-white underline-offset-4 hover:underline">
+              Read the story of the pact →
+            </Link>
           </div>
         </div>
       </section>
@@ -150,6 +174,42 @@ export default function HomePage() {
               </li>
             ))}
           </ul>
+        </div>
+      </section>
+
+      {/* From the founder */}
+      <section aria-labelledby="founder-title" className="bg-white">
+        <div className="mx-auto grid max-w-6xl items-center gap-10 px-6 py-20 md:grid-cols-[auto_1fr]">
+          <img
+            src={FOUNDER.photo}
+            alt={`Portrait of ${FOUNDER.name}`}
+            width={380}
+            height={380}
+            loading="lazy"
+            className="h-28 w-28 rounded-full object-cover ring-4 ring-indigo/30"
+          />
+          <div className="flex flex-col gap-4">
+            <p id="founder-title" className="text-sm font-bold uppercase tracking-widest text-indigo-ink">
+              From the founder
+            </p>
+            <blockquote className="text-2xl font-extrabold leading-snug tracking-tight sm:text-3xl">“{FOUNDER.signoff}”</blockquote>
+            <p className="text-slate-text">
+              {FOUNDER.name}, {FOUNDER.role}
+            </p>
+            <div className="flex flex-wrap gap-x-6 gap-y-2">
+              <Link href="/about/vision" className="font-semibold text-indigo-ink underline-offset-4 hover:underline">
+                Read the founder’s vision →
+              </Link>
+              <a
+                href={FOUNDER.linkedin}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-semibold text-indigo-ink underline-offset-4 hover:underline"
+              >
+                LinkedIn ↗
+              </a>
+            </div>
+          </div>
         </div>
       </section>
 
