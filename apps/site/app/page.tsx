@@ -196,9 +196,19 @@ export default function HomePage() {
             <p className="text-slate-text">
               {FOUNDER.name}, {FOUNDER.role}
             </p>
-            <Link href="/about/vision" className="font-semibold text-indigo-ink underline-offset-4 hover:underline">
-              Read the founder’s vision →
-            </Link>
+            <div className="flex flex-wrap gap-x-6 gap-y-2">
+              <Link href="/about/vision" className="font-semibold text-indigo-ink underline-offset-4 hover:underline">
+                Read the founder’s vision →
+              </Link>
+              <a
+                href={FOUNDER.linkedin}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-semibold text-indigo-ink underline-offset-4 hover:underline"
+              >
+                LinkedIn ↗
+              </a>
+            </div>
           </div>
         </div>
       </section>

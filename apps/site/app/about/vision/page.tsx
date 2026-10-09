@@ -31,6 +31,14 @@ export default function VisionPage() {
             <figcaption>
               <p className="text-lg font-bold">{FOUNDER.name}</p>
               <p className="text-sm text-white/70">{FOUNDER.role}</p>
+              <a
+                href={FOUNDER.linkedin}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-3 inline-flex items-center rounded-lg border border-white/30 px-4 py-2 text-sm font-semibold hover:border-indigo hover:text-indigo"
+              >
+                Connect on LinkedIn ↗
+              </a>
             </figcaption>
           </figure>
         </div>
@@ -95,7 +103,12 @@ export default function VisionPage() {
       <section className="bg-navy text-white">
         <div className="mx-auto flex max-w-4xl flex-col gap-6 px-6 py-20">
           <blockquote className="text-3xl font-extrabold leading-snug tracking-tight sm:text-4xl">“{FOUNDER.signoff}”</blockquote>
-          <p className="font-semibold text-white/80">— {FOUNDER.name}</p>
+          <p className="font-semibold text-white/80">
+            —{' '}
+            <a href={FOUNDER.linkedin} target="_blank" rel="noopener noreferrer" className="underline-offset-4 hover:underline">
+              {FOUNDER.name}
+            </a>
+          </p>
           <Link href="/about/story" className="font-semibold text-indigo underline-offset-4 hover:underline">
             Why we called it Pactlab →
           </Link>
