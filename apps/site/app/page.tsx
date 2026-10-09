@@ -180,9 +180,14 @@ export default function HomePage() {
       {/* From the founder */}
       <section aria-labelledby="founder-title" className="bg-white">
         <div className="mx-auto grid max-w-6xl items-center gap-10 px-6 py-20 md:grid-cols-[auto_1fr]">
-          <span className="inline-flex h-24 w-24 items-center justify-center rounded-full bg-navy text-2xl font-extrabold text-indigo">
-            {FOUNDER.initials}
-          </span>
+          <img
+            src={FOUNDER.photo}
+            alt={`Portrait of ${FOUNDER.name}`}
+            width={380}
+            height={380}
+            loading="lazy"
+            className="h-28 w-28 rounded-full object-cover ring-4 ring-indigo/30"
+          />
           <div className="flex flex-col gap-4">
             <p id="founder-title" className="text-sm font-bold uppercase tracking-widest text-indigo-ink">
               From the founder

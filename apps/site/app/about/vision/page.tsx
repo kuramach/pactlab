@@ -21,9 +21,13 @@ export default function VisionPage() {
             <p className="max-w-2xl text-lg leading-relaxed text-white/85">{FOUNDER.intro}</p>
           </div>
           <figure className="flex flex-col items-center gap-4 rounded-3xl border border-white/10 bg-white/5 p-8 text-center">
-            <span className="inline-flex h-28 w-28 items-center justify-center rounded-full bg-indigo text-3xl font-extrabold text-navy">
-              {FOUNDER.initials}
-            </span>
+            <img
+              src={FOUNDER.photo}
+              alt={`Portrait of ${FOUNDER.name}`}
+              width={380}
+              height={380}
+              className="h-44 w-44 rounded-full object-cover ring-4 ring-indigo/60"
+            />
             <figcaption>
               <p className="text-lg font-bold">{FOUNDER.name}</p>
               <p className="text-sm text-white/70">{FOUNDER.role}</p>

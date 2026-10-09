@@ -791,6 +791,7 @@ export const FOUNDER = {
   name: 'Kumar Ramachandran',
   role: 'Founder, Pactlab',
   initials: 'KR',
+  photo: '/team/kumar-ramachandran.jpg',
   title: 'Price every asset. Protect every asset. Before, during and after the deal.',
   intro:
     'I have spent my career on deal teams. Different deals, different industries — and the same gap every time.',
