@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 420" role="img" aria-label="A 360 degree view of six deal areas">
+  <rect width="640" height="420" rx="24" fill="#f8faff"/>
+  <g transform="translate(320 210)" font-family="Manrope, sans-serif" font-weight="700" font-size="13" text-anchor="middle">
+    <circle r="168" fill="none" stroke="#e3e8f2" stroke-width="2"/>
+    <circle r="128" fill="none" stroke="#6978ff" stroke-opacity=".35" stroke-width="2" stroke-dasharray="4 8"/>
+    <g fill="#fff" stroke="#e3e8f2" stroke-width="2">
+      <circle cx="0" cy="-150" r="40"/><circle cx="130" cy="-75" r="40"/><circle cx="130" cy="75" r="40"/>
+      <circle cx="0" cy="150" r="40"/><circle cx="-130" cy="75" r="40"/>
+    </g>
+    <circle cx="-130" cy="-75" r="40" fill="#6978ff"/>
+    <g fill="#081127">
+      <text x="0" y="-146">Revenue</text>
+      <text x="130" y="-71">Code</text>
+      <text x="130" y="79">Delivery</text>
+      <text x="0" y="154">Contracts</text>
+      <text x="-130" y="79">Valuation</text>
+      <text x="-130" y="-71">People</text>
+    </g>
+    <circle r="62" fill="#081127"/>
+    <text y="-4" fill="#fff" font-size="22" font-weight="800">360°</text>
+    <text y="18" fill="#6978ff" font-size="12">the deal</text>
+  </g>
+</svg>

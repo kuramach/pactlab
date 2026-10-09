@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 420" role="img" aria-label="A sextant taking a bearing on the deal price">
+  <rect width="640" height="420" rx="24" fill="#f8faff"/>
+  <g font-family="Manrope, sans-serif" font-weight="700" font-size="13" fill="#081127">
+    <circle cx="520" cy="80" r="10" fill="#6978ff"/>
+    <path d="M520 58v-14M520 102v14M498 80h-14M542 80h14" stroke="#6978ff" stroke-width="3" stroke-linecap="round"/>
+    <text x="520" y="140" text-anchor="middle">Price</text>
+    <g transform="translate(200 120)">
+      <path d="M0 0 L -110 230 A 250 250 0 0 0 110 230 Z" fill="#fff" stroke="#081127" stroke-width="4" stroke-linejoin="round"/>
+      <path d="M-104 212 A 230 230 0 0 0 104 212" fill="none" stroke="#6978ff" stroke-width="10"/>
+      <g stroke="#081127" stroke-width="2">
+        <path d="M-80 222 l2 -12M-40 228 l1 -12M0 230 v-12M40 228 l-1 -12M80 222 l-2 -12"/>
+      </g>
+      <path d="M0 0 L 60 218" stroke="#4a58e8" stroke-width="5" stroke-linecap="round"/>
+      <circle r="12" fill="#081127"/>
+      <rect x="-26" y="-38" width="52" height="22" rx="6" fill="#081127"/>
+    </g>
+    <path d="M215 112 L 505 84" stroke="#6978ff" stroke-width="2.5" stroke-dasharray="6 7"/>
+    <g>
+      <rect x="380" y="220" width="210" height="140" rx="16" fill="#fff" stroke="#e3e8f2"/>
+      <text x="400" y="250" fill="#4b5568" font-weight="600">Purchase-price bridge</text>
+      <rect x="400" y="266" width="150" height="14" rx="4" fill="#081127"/>
+      <rect x="400" y="290" width="118" height="14" rx="4" fill="#6978ff"/>
+      <rect x="400" y="314" width="96" height="14" rx="4" fill="#4a58e8"/>
+      <text x="556" y="278" font-size="11">EV</text>
+      <text x="524" y="302" font-size="11">−risk</text>
+      <text x="502" y="326" font-size="11">offer</text>
+    </g>
+  </g>
+</svg>

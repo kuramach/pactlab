@@ -1,18 +1,23 @@
+import Link from 'next/link';
+import { HeroCarousel } from '../components/hero-carousel';
+import { Icon, IconTile } from '../components/icon';
+import { Lockup } from '../components/lockup';
 import { siteConfig } from '../lib/config';
-import { ARCS, CLOSING, HERO, LOOP, PILLAR, PRINCIPLES } from '../lib/content';
-import { IconTile } from '../components/icon';
+import { CAROUSEL, CLOSING, INDUSTRIES, MODULES, PILLAR, PRINCIPLES, STORY, TAGLINE } from '../lib/content';
 import { Demos } from './demos';
 
-const { contactHref } = siteConfig();
+const { contactHref, signUpUrl } = siteConfig();
 
-function PrimaryCta({ className = '' }: { className?: string }) {
+function PrimaryCta({ tone = 'light' }: { tone?: 'light' | 'dark' }) {
   if (!contactHref) return null;
   return (
     <a
       href={contactHref}
-      className={`inline-flex items-center rounded-lg bg-indigo px-5 py-3 font-bold text-navy transition-colors hover:bg-white ${className}`}
+      className={`inline-flex items-center rounded-lg px-5 py-3 font-bold transition-colors ${
+        tone === 'dark' ? 'bg-indigo text-navy hover:bg-white' : 'bg-navy text-white hover:bg-indigo hover:text-navy'
+      }`}
     >
-      Request a pilot
+      Talk to us
     </a>
   );
 }
@@ -20,75 +25,111 @@ function PrimaryCta({ className = '' }: { className?: string }) {
 export default function HomePage() {
   return (
     <>
-      <section className="bg-navy text-white">
-        <div className="mx-auto grid max-w-6xl items-center gap-12 px-6 pb-24 pt-12 md:grid-cols-[1.4fr_1fr] md:pt-20">
-          <div className="flex flex-col gap-6">
-            <p className="text-sm font-bold uppercase tracking-widest text-indigo">{HERO.eyebrow}</p>
-            <h1 className="text-4xl font-extrabold leading-tight tracking-tight sm:text-5xl md:text-6xl">{HERO.title}</h1>
-            <p className="max-w-xl text-lg leading-relaxed text-white/85">{HERO.body}</p>
+      <HeroCarousel slides={CAROUSEL} cta={contactHref ? { href: contactHref, label: 'Request a pilot' } : null} />
+
+      {/* Value proposition */}
+      <section aria-labelledby="value-title" className="bg-white">
+        <div className="mx-auto grid max-w-6xl items-center gap-12 px-6 py-20 md:grid-cols-[1.2fr_1fr]">
+          <div className="flex flex-col gap-5">
+            <p className="text-sm font-bold uppercase tracking-widest text-indigo-ink">{PILLAR}</p>
+            <h2 id="value-title" className="text-3xl font-extrabold tracking-tight sm:text-4xl">
+              Test the pact before you sign it.
+            </h2>
+            <p className="text-lg leading-relaxed text-slate-text">
+              {STORY} Pactlab reads the revenue, the code, the delivery history, the contracts and the people behind them —
+              then turns what it finds into priced risks and deal terms your team can defend.
+            </p>
             <div className="flex flex-wrap items-center gap-4">
-              <PrimaryCta />
-              <a href="#how" className="font-semibold text-white underline-offset-4 hover:underline">
-                See how it works →
-              </a>
+              <Link href="/how-it-works" className="inline-flex items-center rounded-lg bg-indigo px-5 py-3 font-bold text-navy hover:bg-navy hover:text-white">
+                See how it works
+              </Link>
+              {signUpUrl ? (
+                <a href={signUpUrl} className="font-semibold text-indigo-ink underline-offset-4 hover:underline">
+                  Create your organization →
+                </a>
+              ) : null}
             </div>
           </div>
-          <div className="mx-auto flex w-full max-w-xs flex-col items-center gap-4">
-            <div className="rounded-3xl bg-white p-8 shadow-2xl shadow-black/30">
-              <img src="/brand/pactlab-symbol.png" alt="" width={512} height={512} className="h-auto w-full" />
-            </div>
-            <p className="text-center text-sm font-semibold text-white/80">{PILLAR}</p>
+          <div className="flex flex-col items-center gap-5 rounded-3xl bg-mist p-10">
+            <img src="/brand/pactlab-symbol.png" alt="" width={512} height={512} className="h-auto w-48" />
+            <Lockup />
+            <p className="text-center text-sm font-semibold text-slate-text">{TAGLINE}</p>
           </div>
         </div>
       </section>
 
-      <section id="how" aria-labelledby="how-title" className="bg-mist">
+      {/* Solutions grid */}
+      <section aria-labelledby="solutions-title" className="bg-mist">
         <div className="mx-auto max-w-6xl px-6 py-20">
-          <h2 id="how-title" className="max-w-3xl text-3xl font-extrabold tracking-tight sm:text-4xl">
-            {LOOP.title}
+          <div className="flex flex-wrap items-end justify-between gap-6">
+            <div className="max-w-2xl">
+              <h2 id="solutions-title" className="text-3xl font-extrabold tracking-tight sm:text-4xl">
+                Diligence for every part of the deal
+              </h2>
+              <p className="mt-4 text-lg text-slate-text">One evidence loop underneath. Every module cites its sources and waits for a reviewer.</p>
+            </div>
+            <Link href="/product" className="font-semibold text-indigo-ink underline-offset-4 hover:underline">
+              All modules →
+            </Link>
+          </div>
+          <div className="mt-12 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+            {MODULES.map((module) => (
+              <Link
+                key={module.slug}
+                href={`/product/${module.slug}`}
+                className="group flex flex-col gap-4 rounded-2xl border border-navy/10 bg-white p-7 shadow-sm transition hover:-translate-y-0.5 hover:border-indigo hover:shadow-lg hover:shadow-indigo/10"
+              >
+                <IconTile name={module.icon} />
+                <h3 className="text-xl font-bold">{module.name}</h3>
+                <p className="leading-relaxed text-slate-text">{module.summary}</p>
+                <span className="mt-auto text-sm font-bold text-indigo-ink">Explore →</span>
+              </Link>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Band */}
+      <section aria-labelledby="band-title" className="bg-navy text-white">
+        <div className="mx-auto flex max-w-6xl flex-col items-start gap-6 px-6 py-16 md:flex-row md:items-center md:justify-between">
+          <div className="max-w-2xl">
+            <h2 id="band-title" className="text-3xl font-extrabold tracking-tight">
+              The numbers are only half the story.
+            </h2>
+            <p className="mt-3 text-lg text-white/80">
+              Code nobody owns, contracts that change hands on a sale, people the business cannot lose. Pactlab finds them before
+              they find you.
+            </p>
+          </div>
+          <Link href="/how-it-works" className="inline-flex items-center rounded-lg bg-indigo px-5 py-3 font-bold text-navy hover:bg-white">
+            Follow a deal end to end
+          </Link>
+        </div>
+      </section>
+
+      {/* Industries strip */}
+      <section aria-labelledby="industries-title" className="bg-white">
+        <div className="mx-auto max-w-6xl px-6 py-16">
+          <h2 id="industries-title" className="text-center text-sm font-bold uppercase tracking-widest text-slate-text">
+            Built for acquirers in
           </h2>
-          <p className="mt-4 max-w-2xl text-lg text-slate-text">{LOOP.body}</p>
-          <ol className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {LOOP.steps.map((step, index) => (
-              <li key={step.name} className="rounded-2xl border border-indigo/20 bg-white p-6">
-                <span className="text-sm font-bold text-indigo-ink">{String(index + 1).padStart(2, '0')}</span>
-                <h3 className="mt-2 text-xl font-bold">{step.name}</h3>
-                <p className="mt-2 text-slate-text">{step.detail}</p>
+          <ul className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
+            {INDUSTRIES.map((industry) => (
+              <li key={industry.slug}>
+                <Link
+                  href={`/industries/${industry.slug}`}
+                  className="flex h-full flex-col items-center gap-2 rounded-xl border border-navy/10 px-3 py-5 text-center text-sm font-semibold hover:border-indigo hover:bg-mist"
+                >
+                  <Icon name={industry.icon} className="h-6 w-6 text-indigo-ink" />
+                  {industry.name}
+                </Link>
               </li>
             ))}
-          </ol>
+          </ul>
         </div>
       </section>
 
       <Demos />
-
-      <section id="product" aria-labelledby="product-title" className="bg-mist">
-        <div className="mx-auto max-w-6xl px-6 py-20">
-          <h2 id="product-title" className="text-3xl font-extrabold tracking-tight sm:text-4xl">
-            What Pactlab does
-          </h2>
-          <p className="mt-4 max-w-2xl text-lg text-slate-text">
-            Sixteen capabilities across four arcs — one evidence loop underneath them all.
-          </p>
-
-          {ARCS.map((arc) => (
-            <div key={arc.id} className="mt-14">
-              <p className="text-sm font-bold uppercase tracking-widest text-indigo-ink">{arc.eyebrow}</p>
-              <h3 className="mt-2 text-2xl font-extrabold tracking-tight">{arc.title}</h3>
-              <p className="mt-2 max-w-2xl text-slate-text">{arc.body}</p>
-              <div className="mt-8 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
-                {arc.features.map((feature) => (
-                  <article key={feature.title} className="rounded-2xl border border-indigo/10 bg-white p-7">
-                    <IconTile name={feature.icon} />
-                    <h4 className="mt-4 text-lg font-bold">{feature.title}</h4>
-                    <p className="mt-2 leading-relaxed text-slate-text">{feature.body}</p>
-                  </article>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
 
       <section id="principles" aria-labelledby="principles-title" className="bg-navy text-white">
         <div className="mx-auto grid max-w-6xl gap-12 px-6 py-20 md:grid-cols-[1fr_1.4fr]">
@@ -112,6 +153,7 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* Closing CTA */}
       <section aria-labelledby="closing-title" className="bg-mist">
         <div className="mx-auto flex max-w-6xl flex-col items-start gap-6 px-6 py-20 md:flex-row md:items-center md:justify-between">
           <div className="max-w-2xl">
@@ -120,7 +162,12 @@ export default function HomePage() {
             </h2>
             <p className="mt-3 text-lg text-slate-text">{CLOSING.body}</p>
           </div>
-          <PrimaryCta className="hover:bg-navy hover:text-white" />
+          <div className="flex flex-wrap items-center gap-4">
+            <PrimaryCta />
+            <Link href="/pilot" className="font-semibold text-indigo-ink underline-offset-4 hover:underline">
+              What a pilot includes →
+            </Link>
+          </div>
         </div>
       </section>
     </>

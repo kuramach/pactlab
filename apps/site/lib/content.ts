@@ -169,11 +169,11 @@ export const MODULES: readonly ProductModule[] = [
   {
     slug: 'valuation',
     icon: 'Calculator',
-    name: 'Valuation and deal terms',
-    summary: 'Scenarios built from accepted risks, frozen when submitted and approved by a second person.',
+    name: 'Sextant: valuation and deal terms',
+    summary: 'Sextant turns accepted risks into scenarios and a purchase-price bridge, frozen when submitted and approved by a second person.',
     question: 'What should we pay, and on what terms?',
     intro:
-      'Pactlab turns accepted risks into explicit adjustments and runs deterministic valuation scenarios. Change a risk and every scenario that depends on it is marked stale.',
+      'Sextant, Pactlab’s instrument for smart M&A, turns accepted risks into explicit adjustments and runs deterministic valuation scenarios. Change a risk and every scenario that depends on it is marked stale.',
     features: [
       { icon: 'ChartLine', title: 'Methods', body: 'ARR multiples and discounted cash flow, with LBO returns for take-private deals.' },
       { icon: 'Grid3x3', title: 'Sensitivities', body: 'Two-way tables on the inputs that move value most.' },
@@ -670,3 +670,72 @@ export const DEMOS: Demo[] = [
     alt: 'Animation: a document being indexed, a question typed, and an answer appearing with a page citation',
   },
 ];
+
+/** Home page carousel: the four things Pactlab stands for. */
+export interface Slide {
+  readonly id: string;
+  readonly eyebrow: string;
+  readonly title: string;
+  readonly body: string;
+  readonly points: readonly string[];
+  readonly image: string;
+  readonly imageAlt: string;
+  readonly link: { readonly href: string; readonly label: string };
+}
+
+export const CAROUSEL: readonly Slide[] = [
+  {
+    id: 'rigor',
+    eyebrow: 'AI rigor. Human judgment.',
+    title: 'The machine does the diligence. You make the call.',
+    body:
+      'AI rigor means nothing goes unread: every invoice reconciled, every commit traced, every clause cited. ' +
+      'Human judgment means nothing is decided for you: a named reviewer accepts each finding and approves the price.',
+    points: ['Every invoice, commit and clause read', 'Every claim cited to its source', 'Every decision signed by a person'],
+    image: '/illustrations/slide-rigor.svg',
+    imageAlt: 'Streams of evidence flowing into a reviewer’s approval check mark',
+    link: { href: '/how-it-works', label: 'See how it works' },
+  },
+  {
+    id: 'deal-360',
+    eyebrow: 'A 360° view of the deal',
+    title: 'Every deal term in one view — including human capital.',
+    body:
+      'Revenue, code, delivery, contracts, valuation and people, side by side. Key-person risk, retention and ' +
+      'compensation harmonization sit next to ARR and the purchase-price bridge, so nothing that drives value is left off the table.',
+    points: ['Revenue, code and delivery', 'Contracts and deal terms', 'Human capital: key people, retention and pay'],
+    image: '/illustrations/slide-360.svg',
+    imageAlt: 'A wheel of six deal areas around the deal: revenue, code, delivery, contracts, valuation and people',
+    link: { href: '/product', label: 'Explore the product' },
+  },
+  {
+    id: 'sextant',
+    eyebrow: 'Sextant',
+    title: 'Sextant: take your bearings before you commit.',
+    body:
+      'Sextant is Pactlab’s instrument for smart M&A. It turns accepted findings into priced risks, runs ARR-multiple and DCF ' +
+      'scenarios from stored inputs, and draws the purchase-price bridge — so you know where you stand and what to pay.',
+    points: ['Priced risks from accepted findings', 'Scenarios and sensitivities', 'Purchase-price bridge to the term sheet'],
+    image: '/illustrations/slide-sextant.svg',
+    imageAlt: 'A sextant measuring the angle between a deal and its price',
+    link: { href: '/product/valuation', label: 'Meet Sextant' },
+  },
+  {
+    id: 'security',
+    eyebrow: 'Security first. Built on AWS.',
+    title: 'Deal data held to the highest standard.',
+    body:
+      'Pactlab runs on AWS. Every organization is isolated in the database itself, every sensitive read is audited in a ' +
+      'tamper-evident trail, credentials stay in encrypted stores, and source code is never kept — scans run in throwaway workspaces.',
+    points: ['Tenant isolation enforced in the database', 'Encrypted credentials and audited access', 'Source code never stored'],
+    image: '/illustrations/slide-security.svg',
+    imageAlt: 'A shield with a lock in front of a cloud',
+    link: { href: '/trust', label: 'How we protect deal data' },
+  },
+];
+
+/** Promotion bar above the header. */
+export const ANNOUNCEMENT = {
+  text: 'Now onboarding design partners for live deals.',
+  link: { href: '/pilot', label: 'Request a pilot' },
+};

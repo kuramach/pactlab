@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 420" role="img" aria-label="A shield with a lock in front of a cloud">
+  <rect width="640" height="420" rx="24" fill="#f8faff"/>
+  <g font-family="Manrope, sans-serif" font-weight="700" font-size="13" fill="#081127">
+    <path d="M150 250 a70 70 0 0 1 40 -128 a95 95 0 0 1 180 -20 a75 75 0 0 1 120 60 a62 62 0 0 1 -10 124 H170 a60 60 0 0 1 -20 -36z" fill="#fff" stroke="#e3e8f2" stroke-width="3"/>
+    <path d="M320 96 L 404 128 V 206 C 404 262 368 300 320 322 C 272 300 236 262 236 206 V 128 Z" fill="#081127"/>
+    <path d="M320 118 L 384 142 V 206 C 384 248 357 278 320 296 C 283 278 256 248 256 206 V 142 Z" fill="none" stroke="#6978ff" stroke-width="3"/>
+    <rect x="292" y="196" width="56" height="46" rx="8" fill="#6978ff"/>
+    <path d="M302 196 v-14 a18 18 0 0 1 36 0 v14" fill="none" stroke="#6978ff" stroke-width="7"/>
+    <circle cx="320" cy="216" r="6" fill="#081127"/><path d="M320 220v10" stroke="#081127" stroke-width="4" stroke-linecap="round"/>
+    <g>
+      <rect x="64" y="300" width="150" height="40" rx="20" fill="#fff" stroke="#e3e8f2"/>
+      <circle cx="86" cy="320" r="6" fill="#6978ff"/><text x="100" y="325">Tenant isolation</text>
+    </g>
+    <g>
+      <rect x="245" y="346" width="150" height="40" rx="20" fill="#fff" stroke="#e3e8f2"/>
+      <circle cx="267" cy="366" r="6" fill="#6978ff"/><text x="281" y="371">Audit trail</text>
+    </g>
+    <g>
+      <rect x="426" y="300" width="150" height="40" rx="20" fill="#fff" stroke="#e3e8f2"/>
+      <circle cx="448" cy="320" r="6" fill="#6978ff"/><text x="462" y="325">Encrypted</text>
+    </g>
+  </g>
+</svg>

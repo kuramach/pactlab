@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { INDUSTRIES, MODULES, NAV, TAGLINE } from '../lib/content';
+import { INDUSTRIES, MODULES, NAV } from '../lib/content';
 import { siteConfig } from '../lib/config';
 import { Lockup } from './lockup';
 
@@ -24,8 +24,8 @@ export function SiteFooter() {
     <footer className="bg-navy text-white/75">
       <div className="mx-auto grid max-w-6xl gap-10 px-6 py-14 md:grid-cols-[1.3fr_1fr_1fr_0.7fr]">
         <div className="flex flex-col gap-4">
-          <Lockup tone="onDark" size="sm" />
-          <p className="max-w-xs text-sm font-semibold text-white">{TAGLINE}</p>
+          <Lockup tone="onDark" size="sm" withTagline />
+          <p className="max-w-xs text-sm">Diligence for mergers and acquisitions, built on AWS.</p>
         </div>
         {columns.map((column) => (
           <nav key={column.title} aria-label={column.title} className="flex flex-col gap-2 text-sm">
@@ -45,7 +45,14 @@ export function SiteFooter() {
         ))}
       </div>
       <div className="border-t border-white/10">
-        <p className="mx-auto max-w-6xl px-6 py-6 text-xs">© {new Date().getFullYear()} Pactlab</p>
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-6 py-6 text-xs">
+          <p>© {new Date().getFullYear()} Pactlab</p>
+          <p>
+            <Link href="/trust" className="hover:text-white">
+              Security and trust
+            </Link>
+          </p>
+        </div>
       </div>
     </footer>
   );
