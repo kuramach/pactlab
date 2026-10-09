@@ -4,8 +4,9 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
-import type { ValidationResult } from '@pactlab/connectors';
+import { GITHUB_APP_CREDENTIAL_REF, type ValidationResult } from '@pactlab/connectors';
 import {
   appendAuditEvent,
   connections,
@@ -20,6 +21,7 @@ import {
 } from '@pactlab/db';
 import {
   isBuyerSideRole,
+  newId,
   permissionsForDealRole,
   type DealRole,
   type TenantContext,
@@ -27,8 +29,9 @@ import {
 import { DealAccess } from '../deals/deal-access';
 import { PRISMA } from '../tokens';
 import { resolveAdapter } from './adapter-registry';
+import { PROVIDER_DEPENDENCIES, type ProviderDependencies } from './provider-dependencies';
 import type { EvidenceSample } from './adapters/evidence-sample';
-import type { CreateConnectionCommand, SetModeCommand } from './connections.schemas';
+import type { ConnectGitHubCommand, CreateConnectionCommand, SetModeCommand } from './connections.schemas';
 
 export interface ConnectionView {
   id: string;
@@ -118,6 +121,7 @@ export class ConnectionsService {
   constructor(
     @Inject(PRISMA) private readonly prisma: PrismaClient,
     @Inject(DealAccess) private readonly access: DealAccess,
+    @Inject(PROVIDER_DEPENDENCIES) private readonly providers: ProviderDependencies,
   ) {}
 
   private audit(
@@ -226,6 +230,67 @@ export class ConnectionsService {
     return toConnectionView(row);
   }
 
+  /** Where sellers install Pactlab's GitHub App, or null when this deployment has none. */
+  githubApp(): { configured: boolean; installUrl: string | null } {
+    const app = this.providers.githubApp;
+    return { configured: app !== null, installUrl: app ? `https://github.com/apps/${app.slug}/installations/new` : null };
+  }
+
+  /**
+   * Create a LIVE GitHub connection and check it at once. App connections
+   * carry Pactlab's shared App reference; token connections store the
+   * seller's token under a reference scoped to this deal.
+   */
+  async connectGitHub(
+    tenant: TenantContext,
+    dealId: string,
+    command: ConnectGitHubCommand,
+    requestId: string,
+  ): Promise<{ connection: ConnectionView; validation: ValidationResult }> {
+    const role = await this.access.require(tenant, dealId, canSupplyConnections, {
+      action: 'connection.created',
+      requestId,
+    });
+    if (command.method === 'APP' && !this.providers.githubApp) throw new ConflictException();
+    const connectionId = newId();
+    let credentialRef = GITHUB_APP_CREDENTIAL_REF;
+    if (command.method === 'TOKEN') {
+      credentialRef = `secretref:${tenant.organizationId}/${dealId}/github/${connectionId}`;
+      try {
+        await this.providers.secrets.put(credentialRef, command.token);
+      } catch {
+        throw new ServiceUnavailableException();
+      }
+    }
+    const row = await withTenant(this.prisma, tenant, async (tx) => {
+      const created = await tx.connection.create({
+        data: {
+          id: connectionId,
+          organizationId: tenant.organizationId,
+          dealId,
+          provider: 'github',
+          displayName: `${command.repository} (GitHub${command.method === 'APP' ? ' App' : ' token'})`,
+          mode: 'LIVE',
+          credentialRef,
+          config: { repository: command.repository },
+          evidenceVisibility: isBuyerSideRole(role) ? 'BUYER_ONLY' : 'SHARED',
+          createdBy: tenant.userId,
+        },
+      });
+      await this.audit(tx, tenant, dealId, 'connection.created', created.id, requestId);
+      if (command.method === 'TOKEN')
+        await this.audit(tx, tenant, dealId, 'connection.credential_stored', created.id, requestId);
+      return created;
+    });
+    const adapter = resolveAdapter(row, this.providers);
+    if (!adapter) throw new ConflictException();
+    const validation = await adapter.validateConnection(this.scope(row));
+    await withTenant(this.prisma, tenant, (tx) =>
+      this.audit(tx, tenant, dealId, 'connection.validated', row.id, requestId, validation.ok ? 'SUCCEEDED' : 'FAILED'),
+    );
+    return { connection: toConnectionView(row), validation };
+  }
+
   /** Persisted, audited mode switch. Only mode and credential reference change — never code or schema. */
   async setMode(
     tenant: TenantContext,
@@ -264,7 +329,7 @@ export class ConnectionsService {
     });
     const connection = await this.load(tenant, dealId, connectionId);
     this.assertConnectionAccess(role, connection);
-    const adapter = resolveAdapter(connection);
+    const adapter = resolveAdapter(connection, this.providers);
     if (!adapter) throw new ConflictException();
     const result = await adapter.validateConnection(this.scope(connection));
     await withTenant(this.prisma, tenant, (tx) =>
@@ -300,7 +365,7 @@ export class ConnectionsService {
     });
     const connection = await this.load(tenant, dealId, connectionId);
     this.assertConnectionAccess(role, connection);
-    const adapter = resolveAdapter(connection);
+    const adapter = resolveAdapter(connection, this.providers);
     if (!adapter) throw new ConflictException();
     const result = await adapter.dryRun(this.scope(connection), { limit });
     await withTenant(this.prisma, tenant, (tx) =>
@@ -327,7 +392,7 @@ export class ConnectionsService {
     });
     const connection = await this.load(tenant, dealId, connectionId);
     this.assertConnectionAccess(role, connection);
-    const adapter = resolveAdapter(connection);
+    const adapter = resolveAdapter(connection, this.providers);
     if (!adapter || connection.status !== 'ACTIVE') throw new ConflictException();
 
     let requested;

@@ -16,6 +16,7 @@ import { Tenant } from '../auth/tenant.decorator';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { RequestId } from '../deals/request-id.decorator';
 import {
+  connectGitHubSchema,
   connectionParamsSchema,
   createConnectionSchema,
   dryRunSchema,
@@ -23,6 +24,7 @@ import {
   requestSyncRunSchema,
   setModeSchema,
   syncRunParamsSchema,
+  type ConnectGitHubCommand,
   type CreateConnectionCommand,
   type SetModeCommand,
 } from './connections.schemas';
@@ -52,6 +54,18 @@ export class ConnectionsController {
     @Body(new ZodValidationPipe(createConnectionSchema)) body: CreateConnectionCommand,
   ) {
     return this.service.create(tenant, params.dealId, body, requestId);
+  }
+
+  /** Connect a repository live, via Pactlab's GitHub App or a seller token; returns the connection checks. */
+  @Post('connections/github')
+  @HttpCode(201)
+  async connectGitHub(
+    @Tenant() tenant: TenantContext,
+    @RequestId() requestId: string,
+    @Param(new ZodValidationPipe(dealParamsSchema)) params: { dealId: string },
+    @Body(new ZodValidationPipe(connectGitHubSchema)) body: ConnectGitHubCommand,
+  ) {
+    return this.service.connectGitHub(tenant, params.dealId, body, requestId);
   }
 
   @Put('connections/:connectionId/mode')
@@ -107,5 +121,16 @@ export class ConnectionsController {
     @Param(new ZodValidationPipe(syncRunParamsSchema)) params: { dealId: string; runId: string },
   ) {
     return this.service.getRun(tenant, params.dealId, params.runId, requestId);
+  }
+}
+
+/** Deployment-level GitHub App details for the connect screen. */
+@Controller('v1/github')
+export class GitHubAppController {
+  constructor(@Inject(ConnectionsService) private readonly service: ConnectionsService) {}
+
+  @Get('app')
+  app() {
+    return this.service.githubApp();
   }
 }

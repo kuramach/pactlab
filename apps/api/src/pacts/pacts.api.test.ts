@@ -147,7 +147,7 @@ describe('Start a Pact through the API', () => {
       { method: 'API', availability: 'NEXT' },
       { method: 'UPLOAD', availability: 'AVAILABLE' },
     ]);
-    expect(sources[1]!['methods']).toEqual([{ method: 'API', availability: 'NEXT' }]);
+    expect(sources[1]!['methods']).toEqual([{ method: 'API', availability: 'AVAILABLE' }]);
     expect(sources[1]!['upload']).toBeNull();
   });
 

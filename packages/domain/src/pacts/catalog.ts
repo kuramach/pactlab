@@ -31,7 +31,7 @@ export interface SourceDefinition {
   readonly availability: Readonly<Partial<Record<ConnectMethod, MethodAvailability>>>;
 }
 
-/** Rollout state lives here as data; live API connectors (T-027+) flip API to AVAILABLE. */
+/** Rollout state lives here as data; each live API connector flips its API to AVAILABLE as it ships. */
 const DEFINITIONS: Readonly<Record<SourceKind, SourceDefinition>> = {
   BILLING: {
     kind: 'BILLING',
@@ -53,7 +53,7 @@ const DEFINITIONS: Readonly<Record<SourceKind, SourceDefinition>> = {
     why: 'Shows who builds and maintains the product, how healthy the codebase is and which licenses it carries.',
     produces: 'Repositories, commits, contributors (no source code is kept)',
     upload: null,
-    availability: { API: 'NEXT' },
+    availability: { API: 'AVAILABLE' },
   },
   DELIVERY: {
     kind: 'DELIVERY',

@@ -1,5 +1,7 @@
 import { apiEnvSchema, loadConfig } from '@pactlab/config';
 import { assertRuntimeRoleIsolation, createPrismaClient } from '@pactlab/db';
+import { readFileSync } from 'node:fs';
+import { LocalEncryptedSecretStore } from '@pactlab/connectors';
 import { createLogger } from '@pactlab/observability';
 import { createApp } from './app';
 import { createAuth0Verifier, DisabledIdentityVerifier } from './auth/identity';
@@ -24,10 +26,27 @@ const localDocuments =
       }
     : undefined;
 
+// Provider credentials: an encrypted local store until Secrets Manager (T-007);
+// elsewhere live connections that need a stored token fail closed.
+const providers = {
+  ...(config.APP_ENV === 'local' && config.LOCAL_SECRETS_DIR && config.LOCAL_SECRETS_KEY
+    ? { secrets: new LocalEncryptedSecretStore(config.LOCAL_SECRETS_DIR, config.LOCAL_SECRETS_KEY) }
+    : {}),
+  githubApp:
+    config.GITHUB_APP_ID && config.GITHUB_APP_SLUG && config.GITHUB_APP_PRIVATE_KEY_PATH
+      ? {
+          appId: config.GITHUB_APP_ID,
+          slug: config.GITHUB_APP_SLUG,
+          privateKeyPem: readFileSync(config.GITHUB_APP_PRIVATE_KEY_PATH, 'utf8'),
+        }
+      : null,
+};
+
 const app = await createApp(
   {
     prisma,
     logger,
+    providers,
     // Auth0 is optional per deployment; without it only email-code tokens verify.
     identityVerifier:
       config.AUTH0_DOMAIN && config.AUTH0_AUDIENCE

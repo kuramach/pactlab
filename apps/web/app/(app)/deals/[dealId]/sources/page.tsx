@@ -15,6 +15,9 @@ const HEALTH_VARIANT = { synced: 'calculation', issues: 'draft', failed: 'danger
 
 const number = new Intl.NumberFormat('en-US');
 
+/** Connect screens for sources whose live API is available. */
+const API_ROUTES: Partial<Record<SourcePlanResponse['sources'][number]['kind'], string>> = { CODE: 'github' };
+
 const NEXT_RELEASE = { API: 'Live API connection is coming next.', UPLOAD: 'File upload is coming next.' } as const;
 
 /** The checklist of sources this deal's seller type calls for, each with API and upload options. */
@@ -64,9 +67,15 @@ function SourcePlan({ plan, dealId }: { plan: SourcePlanResponse; dealId: string
                     </ul>
                   ) : null}
                   <div className="flex flex-wrap items-center gap-2">
-                    <Button size="sm" disabled={api?.availability !== 'AVAILABLE'} title={api?.availability === 'NEXT' ? NEXT_RELEASE.API : undefined}>
-                      Connect {source.providerLabel} API
-                    </Button>
+                    {api?.availability === 'AVAILABLE' && API_ROUTES[source.kind] ? (
+                      <Link href={`/deals/${dealId}/sources/${API_ROUTES[source.kind]}`} className={buttonVariants({ size: 'sm' })}>
+                        Connect {source.providerLabel} API
+                      </Link>
+                    ) : (
+                      <Button size="sm" disabled title={NEXT_RELEASE.API}>
+                        Connect {source.providerLabel} API
+                      </Button>
+                    )}
                     {source.upload && upload?.availability === 'AVAILABLE' && source.upload.format === 'CSV' ? (
                       <Link href={`/deals/${dealId}/sources/upload`} className={buttonVariants({ size: 'sm', variant: 'outline' })}>
                         {source.upload.label}
