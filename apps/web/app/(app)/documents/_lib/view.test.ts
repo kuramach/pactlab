@@ -24,7 +24,7 @@ describe('documents view', () => {
 
   it('links citation chips to the exact page', () => {
     expect(citationHref(deal, { documentId: doc, pageNumber: 3 })).toBe(
-      `/documents?dealId=${deal}&documentId=${doc}&page=3`,
+      `/deals/${deal}/documents?documentId=${doc}&page=3`,
     );
   });
 

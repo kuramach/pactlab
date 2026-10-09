@@ -21,7 +21,7 @@ export default async function ConnectGitHubPage({ params }: { params: Promise<{ 
         <Link href={`/deals/${dealId}/sources`} className="text-sm text-muted-foreground hover:underline">
           ← Sources
         </Link>
-        <h1 className="text-2xl font-semibold tracking-tight">Connect GitHub</h1>
+        <h2 className="text-lg font-semibold tracking-tight">Connect GitHub</h2>
         <p className="text-sm text-muted-foreground">
           Pactlab reads commit history only — who changed what and when. It never copies source code.
         </p>

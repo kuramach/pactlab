@@ -2,7 +2,7 @@
 
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
-import { metricsApi } from '../_lib/api';
+import { metricsApi } from '../../../metrics/_lib/api';
 
 const target = z.strictObject({
   dealId: z.uuid(),
@@ -10,13 +10,13 @@ const target = z.strictObject({
 });
 
 function back(dealId: string, asOf: string, outcome: string): never {
-  redirect(`/metrics/${dealId}?asOf=${asOf}&outcome=${outcome}`);
+  redirect(`/deals/${dealId}/finances?asOf=${asOf}&outcome=${outcome}`);
 }
 
 /** Record the reconciliation run; a difference is proposed as a draft finding. */
 export async function recordReconciliation(dealId: string, asOf: string): Promise<void> {
   const parsed = target.safeParse({ dealId, asOf });
-  if (!parsed.success) redirect('/metrics');
+  if (!parsed.success) redirect('/deals');
   const result = await metricsApi.reconcile(parsed.data.dealId, parsed.data.asOf);
   back(parsed.data.dealId, parsed.data.asOf, result.kind === 'ok' ? 'recorded' : result.kind);
 }
@@ -33,7 +33,7 @@ export async function approveDifference(
   formData: FormData,
 ): Promise<void> {
   const parsedTarget = target.safeParse({ dealId, asOf });
-  if (!parsedTarget.success) redirect('/metrics');
+  if (!parsedTarget.success) redirect('/deals');
   const parsed = approval.safeParse({
     reconciliationId: formData.get('reconciliationId'),
     note: formData.get('note'),

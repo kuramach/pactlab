@@ -28,9 +28,9 @@ export default async function EvidenceLineagePage({
       ) : (
         <>
           <header className="flex flex-col gap-2">
-            <h1 className="font-mono text-2xl font-semibold tracking-tight">
+            <h2 className="font-mono text-lg font-semibold tracking-tight">
               {result.data.evidence.sourceRecordId}
-            </h1>
+            </h2>
             <div className="flex gap-2">
               <Badge variant="evidence">{result.data.evidence.evidenceType}</Badge>
               <Badge>

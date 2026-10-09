@@ -125,36 +125,16 @@ export default async function DealSourcesPage({
   const { dealId } = await params;
   const { started, imported, created, unchanged } = await searchParams;
   if (!isUuidParam(dealId)) notFound();
-  const [deal, sources, plan, parties] = await Promise.all([
-    dealsApi.get(dealId),
-    dealsApi.sources(dealId),
-    dealsApi.sourcePlan(dealId),
-    dealsApi.parties(dealId),
-  ]);
-  const buyer = parties.kind === 'ok' ? parties.data.items.find((party) => party.role === 'BUYER') : undefined;
-  const seller = parties.kind === 'ok' ? parties.data.items.find((party) => party.role === 'SELLER') : undefined;
+  const [sources, plan] = await Promise.all([dealsApi.sources(dealId), dealsApi.sourcePlan(dealId)]);
 
   return (
-    <div className="flex max-w-5xl flex-col gap-6">
-      <header className="flex flex-col gap-1">
-        <Link href="/deals" className="text-sm text-muted-foreground hover:underline">
-          ← Deals
-        </Link>
-        <h1 className="text-2xl font-semibold tracking-tight">
-          Sources{deal.kind === 'ok' ? ` · ${deal.data.name}` : ''}
-        </h1>
-        {buyer && seller ? (
-          <p className="text-sm">
-            <span className="font-medium">{buyer.name}</span>
-            {buyer.ticker ? ` (${buyer.ticker})` : ''} acquiring <span className="font-medium">{seller.name}</span>
-            {seller.ticker ? ` (${seller.ticker})` : ''}
-            {seller.companyType ? ` · ${COMPANY_TYPE_LABELS[seller.companyType]}` : ''}
-          </p>
-        ) : null}
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-1">
+        <h2 className="text-lg font-semibold tracking-tight">Sources</h2>
         <p className="text-sm text-muted-foreground">
           The sources this deal needs, and the evidence each connected one produced.
         </p>
-      </header>
+      </div>
 
       {started ? (
         <p role="status" className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">

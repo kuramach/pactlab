@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { AppShell, Badge, Button, cn } from './index';
+import { AppShell, Badge, Breadcrumbs, Button, cn, TabNav } from './index';
 
 describe('ui', () => {
   it('merges conflicting Tailwind classes', () => {
@@ -18,10 +18,27 @@ describe('ui', () => {
   });
 
   it('shows the non-production banner only when labelled', () => {
-    const nav = [{ href: '/', label: 'Overview', active: true }];
-    expect(renderToStaticMarkup(<AppShell nav={nav} environmentLabel="local">x</AppShell>)).toContain(
+    const frame = { sidebar: <nav>side</nav>, topbar: <div>top</div> };
+    expect(renderToStaticMarkup(<AppShell {...frame} environmentLabel="local">x</AppShell>)).toContain(
       'Non-production environment: local',
     );
-    expect(renderToStaticMarkup(<AppShell nav={nav}>x</AppShell>)).not.toContain('Non-production');
+    expect(renderToStaticMarkup(<AppShell {...frame}>x</AppShell>)).not.toContain('Non-production');
+  });
+
+  it('links every breadcrumb but the current page', () => {
+    const html = renderToStaticMarkup(
+      <Breadcrumbs items={[{ href: '/', label: 'Home' }, { href: '/deals', label: 'My deals' }, { label: 'Project X' }]} />,
+    );
+    expect(html).toContain('href="/"');
+    expect(html).toContain('href="/deals"');
+    expect(html).toContain('aria-current="page"');
+    expect(html).not.toContain('href="undefined"');
+  });
+
+  it('marks the active tab', () => {
+    const html = renderToStaticMarkup(
+      <TabNav label="Deal" items={[{ href: '/a', label: 'A', active: true }, { href: '/b', label: 'B' }]} />,
+    );
+    expect(html.match(/aria-current="page"/g)).toHaveLength(1);
   });
 });

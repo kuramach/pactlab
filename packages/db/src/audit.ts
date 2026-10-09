@@ -88,3 +88,65 @@ export async function enqueueOutboxEvent(
 ) {
   return tx.outboxEvent.create({ data: { ...event, dealId: event.dealId ?? null } });
 }
+
+export interface AuditEventView {
+  id: string;
+  sequence: string;
+  occurredAt: Date;
+  action: string;
+  outcome: string;
+  targetType: string;
+  targetId: string | null;
+  dealId: string | null;
+  dealName: string | null;
+  actorUserId: string | null;
+  actorName: string | null;
+}
+
+/**
+ * Newest-first audit trail for the organization. RLS limits rows to
+ * organization-level events and deals the reader belongs to. IP addresses
+ * and request ids stay out of the view.
+ */
+export const auditEvents = {
+  async list(
+    tx: TransactionClient,
+    options: { before?: bigint; limit: number; dealId?: string },
+  ): Promise<{ items: AuditEventView[]; nextBefore: string | null }> {
+    const rows = await tx.auditEvent.findMany({
+      where: {
+        ...(options.before !== undefined ? { chainSeq: { lt: options.before } } : {}),
+        ...(options.dealId ? { dealId: options.dealId } : {}),
+      },
+      orderBy: { chainSeq: 'desc' },
+      take: options.limit + 1,
+      select: {
+        id: true,
+        chainSeq: true,
+        occurredAt: true,
+        action: true,
+        outcome: true,
+        targetType: true,
+        targetId: true,
+        dealId: true,
+        actorUserId: true,
+        deal: { select: { name: true } },
+      },
+    });
+    const page = rows.slice(0, options.limit);
+    const actorIds = [...new Set(page.map((row) => row.actorUserId).filter((id): id is string => id !== null))];
+    const actors = actorIds.length
+      ? await tx.user.findMany({ where: { id: { in: actorIds } }, select: { id: true, displayName: true } })
+      : [];
+    const names = new Map(actors.map((actor) => [actor.id, actor.displayName]));
+    return {
+      items: page.map(({ chainSeq, deal, ...row }) => ({
+        ...row,
+        sequence: chainSeq.toString(),
+        dealName: deal?.name ?? null,
+        actorName: row.actorUserId ? (names.get(row.actorUserId) ?? null) : null,
+      })),
+      nextBefore: rows.length > options.limit ? (page.at(-1)?.chainSeq.toString() ?? null) : null,
+    };
+  },
+};
