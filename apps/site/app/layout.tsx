@@ -25,7 +25,7 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
-  const { loginUrl, signUpUrl } = siteConfig();
+  const { loginUrl, signUpUrl, contactHref } = siteConfig();
   return (
     <html lang="en" className={manrope.variable}>
       <body className="bg-white font-sans text-navy antialiased">
@@ -35,7 +35,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         >
           Skip to content
         </a>
-        <SiteHeader loginUrl={loginUrl} signUpUrl={signUpUrl} />
+        <SiteHeader loginUrl={loginUrl} signUpUrl={signUpUrl} contactHref={contactHref} />
         <main id="main">{children}</main>
         <SiteFooter />
       </body>
