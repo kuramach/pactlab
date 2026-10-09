@@ -51,7 +51,8 @@ function useDisclosure() {
 
 function MegaMenu({ href, active }: { href: string; active: boolean }) {
   const ref = useDisclosure();
-  const menu = MENUS[href]!;
+  const menu = MENUS[href];
+  if (!menu) return null;
   return (
     <details ref={ref} className="group relative [&_summary::-webkit-details-marker]:hidden">
       <summary
