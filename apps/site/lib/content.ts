@@ -467,8 +467,16 @@ export const NAV = [
   { href: '/industries', label: 'Industries' },
   { href: '/how-it-works', label: 'How it works' },
   { href: '/trust', label: 'Trust' },
+  { href: '/about', label: 'About' },
   { href: '/pilot', label: 'Pilot' },
 ] as const;
+
+/** Pages under About. */
+export const ABOUT_PAGES = [
+  { href: '/about/story', label: 'The story of the pact', detail: 'Why a Roman handshake gave Pactlab its name.', icon: 'Handshake' },
+  { href: '/about/vision', label: 'Founder’s vision', detail: 'Price every asset. Protect every asset. Before, during and after the deal.', icon: 'Target' },
+  { href: '/trust', label: 'Security and trust', detail: 'How deal data is isolated, audited and protected on AWS.', icon: 'ShieldCheck' },
+] as const satisfies readonly { href: string; label: string; detail: string; icon: IconName }[];
 
 /** Words the brand never uses (`brand/BRAND.md`, Voice). */
 export const BANNED_WORDS = ['revolutionary', 'game-changing', 'game changing', 'supercharge'] as const;
@@ -739,3 +747,105 @@ export const ANNOUNCEMENT = {
   text: 'Now onboarding design partners for live deals.',
   link: { href: '/pilot', label: 'Request a pilot' },
 };
+
+/** The name: where "pact" comes from, and why a lab. */
+export const NAME_STORY = {
+  eyebrow: 'Why Pactlab',
+  title: 'Every great deal starts as a pact.',
+  teaser:
+    'In Rome, a pact was sealed with clasped right hands and a solemn question: do you promise? Two thousand years later, ' +
+    'the handshake is still the moment of truth. Pactlab is where that promise gets tested first.',
+  chapters: [
+    {
+      title: 'Pactum: an agreement that makes peace',
+      body:
+        'Our word pact comes from the Latin pactum, from pacisci, “to agree” — the same root as pax, peace. ' +
+        'To Romans a pact was how two sides stopped bargaining and settled: on a boundary, a debt, a marriage, a merger of fortunes.',
+    },
+    {
+      title: 'Clasped right hands: the sign of good faith',
+      body:
+        'Romans sealed agreements with the dextrarum iunctio, the joining of right hands. The right hand belonged to Fides, ' +
+        'the goddess of good faith, and clasped hands appear on Roman coins and monuments as her emblem. ' +
+        'It is the handshake inside our logo.',
+    },
+    {
+      title: 'Spondesne? Spondeo. The question before the promise',
+      body:
+        'For a promise to bind, Roman law asked for a formal exchange — the stipulatio. One party asked “Do you promise?”, ' +
+        'the other answered “I promise”, in the same words, face to face. A bare agreement without that form, a nudum pactum, ' +
+        'gave no claim in court. The Romans knew a handshake alone is not enough.',
+    },
+    {
+      title: 'Lab: where the promise is tested',
+      body:
+        'Every acquisition is a pact: a price agreed on the strength of promises about revenue, technology, contracts and people. ' +
+        'Pactlab is the lab where those promises are tested against the evidence — before the hands are clasped, and long after.',
+    },
+  ],
+  closing: 'Pact + lab. Test the pact before you sign it.',
+} as const;
+
+/** Founder's vision, in the founder's own voice. */
+export const FOUNDER = {
+  name: 'Kumar Ramachandran',
+  role: 'Founder, Pactlab',
+  initials: 'KR',
+  title: 'Price every asset. Protect every asset. Before, during and after the deal.',
+  intro:
+    'I have spent my career on deal teams. Different deals, different industries — and the same gap every time.',
+  dealsIntro: 'I have worked on acquisitions made for every reason a company buys another:',
+  deals: [
+    { icon: 'TrendingUp', title: 'Top-line growth', body: 'Buying revenue, customers and a pipeline faster than we could build them.' },
+    { icon: 'Target', title: 'New markets', body: 'Entering a geography or a segment through a company already trusted there.' },
+    { icon: 'Layers', title: 'Competitive consolidation', body: 'Buying out a competitor to take its customers and its place in the market.' },
+    { icon: 'Boxes', title: 'Volume and scale', body: 'Combining operations for scale: more volume through the same platform, at a lower unit cost.' },
+  ],
+  problemTitle: 'What every one of those deals was missing',
+  problems: [
+    {
+      title: 'No holistic view of the assets',
+      body:
+        'Revenue sat in one spreadsheet, the code in a technical memo, the contracts in a data room and the people in an HR summary. ' +
+        'Nobody could see all the assets together, so nobody could see how they depended on each other.',
+    },
+    {
+      title: 'Risk and reward never calibrated',
+      body:
+        'Findings arrived as prose, late, and rarely made it into the price. We negotiated on a model that did not know what diligence had found, ' +
+        'and we could not say how much risk we were really taking for the return we expected.',
+    },
+    {
+      title: 'Assets lost after closing — above all, people',
+      body:
+        'Once the deal closed, the diligence went into a drawer. The engineers who held the product together, the account owners, the ' +
+        'specialists — the human capital we had paid for — walked out in the first year, and the value went with them.',
+    },
+  ],
+  visionTitle: 'Why I built Pactlab',
+  vision:
+    'Pactlab is one platform for the whole life of a deal. It prices every asset against your risk tolerance before you sign, ' +
+    'carries that evidence through negotiation into the terms, and keeps tracking and protecting those assets after close — ' +
+    'so the value you paid for is the value you keep.',
+  phases: [
+    {
+      icon: 'ScanSearch',
+      phase: 'Pre-deal',
+      title: 'See every asset, priced for risk',
+      body: 'Revenue, technology, delivery, contracts and human capital in one view, each finding priced against your risk tolerance.',
+    },
+    {
+      icon: 'Handshake',
+      phase: 'During the deal',
+      title: 'Negotiate from evidence',
+      body: 'Accepted risks flow into Sextant’s scenarios, the purchase-price bridge, escrows and indemnities — every term traceable to its source.',
+    },
+    {
+      icon: 'ShieldCheck',
+      phase: 'Post-merger',
+      title: 'Track and protect what you bought',
+      body: 'A hundred-day plan tied to what diligence found, with key people, retention and integration risks tracked until the value is secure.',
+    },
+  ],
+  signoff: 'Maximum value is not found at signing. It is protected after it.',
+} as const;
