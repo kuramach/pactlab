@@ -1,12 +1,13 @@
-import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, EmptyState } from '@pactlab/ui';
+import { PageHeader, Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, EmptyState } from '@pactlab/ui';
 
 export default function DesignSystemPage() {
   return (
     <div className="flex max-w-5xl flex-col gap-8">
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight">Design system</h1>
-        <p className="text-sm text-muted-foreground">Shared components from @pactlab/ui.</p>
-      </header>
+      <PageHeader
+        breadcrumbs={[{ href: '/', label: 'Home' }, { href: '/settings', label: 'Settings' }, { label: 'Design system' }]}
+        title="Design system"
+        description="Shared components from @pactlab/ui."
+      />
       <Card>
         <CardHeader>
           <CardTitle>Buttons</CardTitle>

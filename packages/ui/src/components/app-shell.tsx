@@ -1,55 +1,38 @@
 import type { ReactNode } from 'react';
-import { cn } from '../utils';
-import { PactlabLogo } from './brand';
 
-export interface ShellNavItem {
-  href: string;
-  label: string;
-  active?: boolean;
-}
-
+/**
+ * Application frame in the style of a financial dashboard (Stripe-like):
+ * a fixed left sidebar for navigation, a sticky top bar for global actions
+ * (start, settings, account) and a centered content column. The host app
+ * supplies the sidebar and top bar so they can follow the current route.
+ */
 export function AppShell({
-  nav,
+  sidebar,
+  topbar,
   environmentLabel,
   children,
 }: {
-  nav: readonly ShellNavItem[];
+  sidebar: ReactNode;
+  topbar: ReactNode;
   /** Shown as a persistent banner outside production. */
   environmentLabel?: string | undefined;
   children: ReactNode;
 }) {
   return (
-    <div className="flex min-h-screen flex-col bg-background text-foreground">
+    <div className="flex min-h-screen flex-col bg-muted text-foreground">
       {environmentLabel ? (
         <div role="note" className="bg-amber-400 px-4 py-1 text-center text-xs font-semibold text-amber-950">
           Non-production environment: {environmentLabel}
         </div>
       ) : null}
       <div className="flex flex-1">
-        <aside className="hidden w-60 shrink-0 border-r border-border bg-muted/40 p-4 md:block">
-          <a href="/" className="mb-6 block rounded-md">
-            <PactlabLogo withTagline />
-          </a>
-          <nav aria-label="Primary">
-            <ul className="flex flex-col gap-1">
-              {nav.map((item) => (
-                <li key={item.href}>
-                  <a
-                    href={item.href}
-                    aria-current={item.active ? 'page' : undefined}
-                    className={cn(
-                      'block rounded-md px-3 py-2 text-sm hover:bg-muted',
-                      item.active && 'bg-secondary font-medium text-secondary-foreground',
-                    )}
-                  >
-                    {item.label}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </nav>
+        <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-border bg-background lg:flex">
+          {sidebar}
         </aside>
-        <main className="flex-1 p-6 md:p-10">{children}</main>
+        <div className="flex min-w-0 flex-1 flex-col">
+          <header className="sticky top-0 z-20 border-b border-border bg-background/95 backdrop-blur">{topbar}</header>
+          <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-6 lg:px-10">{children}</main>
+        </div>
       </div>
     </div>
   );

@@ -6,6 +6,7 @@
 /** Real URL prefixes that require a session. Route groups such as `(app)` never appear in URLs. */
 export const PROTECTED_PATH_PREFIXES = [
   '/deals',
+  '/pacts',
   '/metrics',
   '/findings',
   '/documents',

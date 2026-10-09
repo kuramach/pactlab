@@ -19,15 +19,12 @@ export default async function EvidenceBrowserPage({
 
   return (
     <div className="flex max-w-6xl flex-col gap-6">
-      <header className="flex flex-col gap-1">
-        <Link href="/deals" className="text-sm text-muted-foreground hover:underline">
-          ← Deals
-        </Link>
-        <h1 className="text-2xl font-semibold tracking-tight">Evidence</h1>
+      <div className="flex flex-col gap-1">
+        <h2 className="text-lg font-semibold tracking-tight">Evidence</h2>
         <p className="text-sm text-muted-foreground">
           Normalized source records. Open one to trace it back to its source system.
         </p>
-      </header>
+      </div>
 
       <form
         method="get"

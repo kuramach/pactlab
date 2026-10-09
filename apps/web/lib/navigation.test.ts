@@ -1,22 +1,31 @@
 import { describe, expect, it } from 'vitest';
 import { permissionsForDealRole, permissionsForOrganizationRole } from '@pactlab/domain';
-import { visibleNavigation } from './navigation';
+import { isActive, visibleSections } from './navigation';
 
-describe('visibleNavigation', () => {
-  it('shows only public entries without a session', () => {
-    expect(visibleNavigation(new Set()).map((item) => item.label)).toEqual(['Overview', 'Design system']);
+const labels = (permissions: Parameters<typeof visibleSections>[0]) =>
+  visibleSections(permissions).flatMap((section) => section.items.map((item) => item.label));
+
+describe('main menu', () => {
+  it('always offers Home and My deals', () => {
+    expect(labels(new Set())).toEqual(['Home', 'My deals', 'Start a Pact']);
+    expect(labels(permissionsForDealRole('TARGET_CONTRIBUTOR'))).toEqual(['Home', 'My deals', 'Start a Pact']);
   });
 
-  it('shows deals but not organization admin to a target contributor', () => {
-    const labels = visibleNavigation(permissionsForDealRole('TARGET_CONTRIBUTOR')).map((item) => item.label);
-    expect(labels).toContain('Deals');
-    expect(labels).not.toContain('Organization');
-    expect(labels).not.toContain('Audit log');
+  it('shows organization pages to administrators only', () => {
+    expect(labels(permissionsForOrganizationRole('ORG_ADMIN'))).toEqual([
+      'Home',
+      'My deals',
+      'Start a Pact',
+      'Audit log',
+      'Pilot controls',
+    ]);
+    expect(visibleSections(permissionsForOrganizationRole('MEMBER')).map((section) => section.label)).toEqual([null]);
   });
 
-  it('shows administration to organization admins', () => {
-    expect(visibleNavigation(permissionsForOrganizationRole('ORG_ADMIN')).map((item) => item.label)).toContain(
-      'Organization',
-    );
+  it('marks the current entry, including pages inside a deal', () => {
+    expect(isActive({ href: '/', match: 'exact' }, '/')).toBe(true);
+    expect(isActive({ href: '/', match: 'exact' }, '/deals')).toBe(false);
+    expect(isActive({ href: '/deals' }, '/deals/abc/sources')).toBe(true);
+    expect(isActive({ href: '/deals' }, '/dealsx')).toBe(false);
   });
 });

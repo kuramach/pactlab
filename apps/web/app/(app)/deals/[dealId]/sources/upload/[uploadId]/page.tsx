@@ -23,7 +23,7 @@ export default async function MapUploadPage({ params }: { params: Promise<{ deal
         <Link href={`/deals/${dealId}/sources`} className="text-sm text-muted-foreground hover:underline">
           ← Sources
         </Link>
-        <h1 className="text-2xl font-semibold tracking-tight">Map a billing export</h1>
+        <h2 className="text-lg font-semibold tracking-tight">Map a billing export</h2>
         {upload.kind === 'ok' ? (
           <p className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
             <span className="font-medium text-foreground">{upload.data.fileName}</span>

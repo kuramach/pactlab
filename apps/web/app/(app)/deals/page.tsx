@@ -1,12 +1,17 @@
-import { Badge, buttonVariants, Card, CardContent, EmptyState } from '@pactlab/ui';
+import { Badge, buttonVariants, Card, EmptyState, PageHeader } from '@pactlab/ui';
+import { ArrowRight, Plus } from 'lucide-react';
 import Link from 'next/link';
-import { dealsApi } from './_lib/api';
+import { dealsApi, type DealListItem } from './_lib/api';
+import { DEAL_TYPE_LABELS, partyLabel, STAGE_LABELS } from './_lib/labels';
 import { ApiState } from './_lib/states';
-import type { DealListItem } from './_lib/api';
+
+// Per-user data: never prerender.
+export const dynamic = 'force-dynamic';
 
 function StartPactLink() {
   return (
     <Link href="/pacts/new" className={buttonVariants()}>
+      <Plus aria-hidden className="h-4 w-4" />
       Start a Pact
     </Link>
   );
@@ -16,26 +21,19 @@ function StartPactLink() {
 function partiesLine(deal: DealListItem): string {
   const buyer = deal.parties?.find((party) => party.role === 'BUYER');
   const seller = deal.parties?.find((party) => party.role === 'SELLER');
-  const label = (party: { name: string; ticker: string | null }) => (party.ticker ? `${party.name} (${party.ticker})` : party.name);
-  return buyer && seller ? `${label(buyer)} → ${label(seller)}` : deal.targetName;
+  return buyer && seller ? `${partyLabel(buyer)} → ${partyLabel(seller)}` : deal.targetName;
 }
-
-// Per-user data: never prerender.
-export const dynamic = 'force-dynamic';
 
 export default async function DealsPage() {
   const result = await dealsApi.list();
   return (
-    <div className="flex max-w-5xl flex-col gap-6">
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div className="flex flex-col gap-1">
-          <h1 className="text-2xl font-semibold tracking-tight">Deals</h1>
-          <p className="text-sm text-muted-foreground">
-            Deals you are a member of. Open one to see its sources and evidence.
-          </p>
-        </div>
-        <StartPactLink />
-      </header>
+    <div className="flex flex-col gap-6">
+      <PageHeader
+        breadcrumbs={[{ href: '/', label: 'Home' }, { label: 'My deals' }]}
+        title="My deals"
+        description="Every Pact you are a member of. Open one to collect evidence, review findings and value it."
+        actions={<StartPactLink />}
+      />
       {result.kind !== 'ok' ? (
         <ApiState result={result} />
       ) : result.data.items.length === 0 ? (
@@ -45,39 +43,40 @@ export default async function DealsPage() {
           action={<StartPactLink />}
         />
       ) : (
-        <Card>
-          <CardContent className="p-0">
-            <ul className="divide-y divide-border">
+        <Card className="overflow-hidden">
+          <table className="w-full text-left text-sm">
+            <thead className="border-b border-border bg-muted text-xs uppercase tracking-wide text-muted-foreground">
+              <tr>
+                <th scope="col" className="px-4 py-3 font-medium">Deal</th>
+                <th scope="col" className="hidden px-4 py-3 font-medium md:table-cell">Type</th>
+                <th scope="col" className="hidden px-4 py-3 font-medium sm:table-cell">Stage</th>
+                <th scope="col" className="px-4 py-3">
+                  <span className="sr-only">Open</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
               {result.data.items.map((deal) => (
-                <li key={deal.id} className="flex items-center justify-between gap-4 px-4 py-3">
-                  <div className="flex flex-col">
-                    <Link
-                      href={`/deals/${deal.id}/sources`}
-                      className="font-medium hover:underline"
-                    >
-                      {deal.name}
+                <tr key={deal.id} className="group hover:bg-muted/60">
+                  <td className="px-4 py-3">
+                    <Link href={`/deals/${deal.id}`} className="flex flex-col">
+                      <span className="font-medium group-hover:text-indigo-ink">{deal.name}</span>
+                      <span className="text-muted-foreground">{partiesLine(deal)}</span>
                     </Link>
-                    <span className="text-sm text-muted-foreground">{partiesLine(deal)}</span>
-                    <span className="mt-1 flex gap-3 text-sm">
-                      <Link href={`/deals/${deal.id}/sources`} className="text-indigo-ink hover:underline">
-                        Sources
-                      </Link>
-                      <Link href={`/deals/${deal.id}/evidence`} className="text-indigo-ink hover:underline">
-                        Evidence
-                      </Link>
-                      <Link href={`/metrics/${deal.id}`} className="text-indigo-ink hover:underline">
-                        Finances
-                      </Link>
-                    </span>
-                  </div>
-                  <div className="flex gap-2">
-                    <Badge>{deal.transactionType.replaceAll('_', ' ').toLowerCase()}</Badge>
-                    <Badge>{deal.stage.toLowerCase()}</Badge>
-                  </div>
-                </li>
+                  </td>
+                  <td className="hidden px-4 py-3 md:table-cell">
+                    <Badge>{DEAL_TYPE_LABELS[deal.transactionType] ?? deal.transactionType}</Badge>
+                  </td>
+                  <td className="hidden px-4 py-3 sm:table-cell">{STAGE_LABELS[deal.stage] ?? deal.stage}</td>
+                  <td className="px-4 py-3 text-right">
+                    <Link href={`/deals/${deal.id}`} aria-label={`Open ${deal.name}`} className="inline-flex">
+                      <ArrowRight aria-hidden className="h-4 w-4 text-muted-foreground group-hover:text-indigo-ink" />
+                    </Link>
+                  </td>
+                </tr>
               ))}
-            </ul>
-          </CardContent>
+            </tbody>
+          </table>
         </Card>
       )}
     </div>

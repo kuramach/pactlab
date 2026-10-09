@@ -66,11 +66,10 @@ export function citationHref(
   citation: { documentId: string; pageNumber: number },
 ): string {
   const query = new URLSearchParams({
-    dealId,
     documentId: citation.documentId,
     page: String(citation.pageNumber),
   });
-  return `/documents?${query.toString()}`;
+  return `/deals/${dealId}/documents?${query.toString()}`;
 }
 
 const SEVERITY_ORDER = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'INFO'] as const;

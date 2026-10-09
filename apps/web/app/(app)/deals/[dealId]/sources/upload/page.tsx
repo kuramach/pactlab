@@ -41,7 +41,7 @@ export default async function BillingUploadPage({
         <Link href={`/deals/${dealId}/sources`} className="text-sm text-muted-foreground hover:underline">
           ← Sources
         </Link>
-        <h1 className="text-2xl font-semibold tracking-tight">Upload a billing export</h1>
+        <h2 className="text-lg font-semibold tracking-tight">Upload a billing export</h2>
         <p className="text-sm text-muted-foreground">
           One row per invoice line, from any billing or ERP system. Next you’ll confirm how its columns map to Pactlab’s standard
           invoice line before anything is imported.
