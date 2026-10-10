@@ -19,7 +19,10 @@ import { BarChart, CHART_COLORS, DonutChart } from '../../_lib/charts';
 import Link from 'next/link';
 import { formatMoney } from '../../metrics/_lib/format';
 import { BASIS_LABELS, describeGap, type ScenarioView } from '../../valuation/_lib/view';
+import type { Finding } from '@pactlab/domain';
 import { apiGet, dealsApi } from '../_lib/api';
+import { SextantExplanation } from '../_lib/sextant-explanation';
+import { dealViewer } from '../_lib/viewer';
 import { partyLabel } from '../_lib/labels';
 
 // Per-user data: never prerender.
@@ -38,12 +41,14 @@ const AREAS: { path: string; title: string; body: string; icon: typeof TrendingU
 /** Deal overview: the parties, how far evidence collection has come, and where to go next. */
 export default async function DealOverviewPage({ params }: { params: Promise<{ dealId: string }> }) {
   const { dealId } = await params;
-  const [plan, sources, parties, asking, scenarios] = await Promise.all([
+  const [plan, sources, parties, asking, scenarios, viewer, accepted] = await Promise.all([
     dealsApi.sourcePlan(dealId),
     dealsApi.sources(dealId),
     dealsApi.parties(dealId),
     dealsApi.askingPrice(dealId),
     apiGet<{ items: ScenarioView[] }>(`/v1/deals/${dealId}/valuation/scenarios`),
+    dealViewer(dealId),
+    apiGet<{ items: Finding[] }>(`/v1/deals/${dealId}/findings?status=ACCEPTED`),
   ]);
   const current = asking.kind === 'ok' ? asking.data.current : null;
   // Headline scenario: the approved one if there is one, else the latest that has run.
@@ -90,6 +95,15 @@ export default async function DealOverviewPage({ params }: { params: Promise<{ d
             </Link>
           </CardContent>
         </Card>
+      ) : null}
+
+      {headline ? (
+        <SextantExplanation
+          dealId={dealId}
+          view={headline}
+          viewer={viewer}
+          findings={accepted.kind === 'ok' ? accepted.data.items : []}
+        />
       ) : null}
 
       <div className="grid gap-4 sm:grid-cols-3">
