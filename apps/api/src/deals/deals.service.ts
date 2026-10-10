@@ -2,6 +2,7 @@ import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import type { DealSummary } from '@pactlab/contracts';
 import {
   appendAuditEvent,
+  askingPrices,
   createDealWithLead,
   dealMemberships,
   dealParties,
@@ -41,9 +42,15 @@ export class DealsService {
     return withTenant(this.prisma, tenant, async (tx) => {
       const rows = await (query ? deals.search(tx, query) : deals.list(tx));
       const parties = await dealParties.forDeals(tx, rows.map((row) => row.id));
+      // RLS returns asking prices only on the buyer side.
+      const asking = await askingPrices.currentFor(tx, rows.map((row) => row.id));
       return rows.map((row) => ({
         ...toSummary(row),
         parties: (parties.get(row.id) ?? []).map(({ role, name, ownership, ticker }) => ({ role, name, ownership, ticker })),
+        askingPrice: (() => {
+          const price = asking.get(row.id);
+          return price ? { amount: price.amount, currency: price.currency, basis: price.basis } : null;
+        })(),
       }));
     });
   }

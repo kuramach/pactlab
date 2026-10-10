@@ -39,12 +39,53 @@ const requireTicker = (party: { ownership: string; ticker: string | null }, ctx:
 export const partyInputSchema = z.strictObject(partyFields).superRefine(requireTicker).transform(listing);
 export type PartyInput = z.infer<typeof partyInputSchema>;
 
+const ASKING_BASES = ['ENTERPRISE_VALUE', 'EQUITY_VALUE'] as const;
+const ASKING_SOURCES = ['TEASER', 'MANAGEMENT', 'LETTER_OF_INTENT', 'BANKER', 'OTHER'] as const;
+
+/** Money typed by people: thousands separators allowed, stored as a decimal string. */
+const moneyInput = z.preprocess(
+  (value) => (typeof value === 'string' ? value.trim().replaceAll(',', '') : value),
+  z.string().regex(/^\d{1,18}(\.\d{1,4})?$/, 'An amount such as 1500000 or 1,500,000.00'),
+);
+
+/** The seller's asking price, as quoted. */
+export const askingPriceInputSchema = z
+  .strictObject({
+    amount: moneyInput,
+    currency: isoCurrencySchema,
+    basis: z.enum(ASKING_BASES),
+    source: z.enum(ASKING_SOURCES),
+    quotedOn: z.preprocess((value) => (value === '' ? null : value), z.iso.date().nullable().default(null)),
+    earnOutAmount: z.preprocess((value) => (value === '' ? null : value), moneyInput.nullable().default(null)),
+    note: z.preprocess(
+      (value) => (typeof value === 'string' && value.trim() === '' ? null : value),
+      z.string().trim().max(500).nullable().default(null),
+    ),
+  })
+  .refine((price) => /^0*(\.0*)?$/.test(price.amount) === false, { path: ['amount'], message: 'The asking price must be above zero' });
+export type AskingPriceInput = z.infer<typeof askingPriceInputSchema>;
+
+export interface AskingPriceView {
+  version: number;
+  amount: string;
+  currency: string;
+  basis: (typeof ASKING_BASES)[number];
+  source: (typeof ASKING_SOURCES)[number];
+  quotedOn: string | null;
+  earnOutAmount: string | null;
+  note: string | null;
+  recordedBy: string;
+  recordedAt: string;
+}
+
 export const startPactSchema = z
   .strictObject({
     name: z.string().trim().min(1).max(200),
     baseCurrency: isoCurrencySchema.default('USD'),
     buyer: partyInputSchema,
     seller: partyInputSchema,
+    /** Optional: the asking price may not be known when the Pact starts. */
+    askingPrice: askingPriceInputSchema.nullable().default(null),
   })
   .superRefine((pact, ctx) => {
     if (!pact.seller.companyType) {

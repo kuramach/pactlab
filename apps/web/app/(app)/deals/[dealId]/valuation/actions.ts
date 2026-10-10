@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import { scenarioFromForm, type ScenarioValues } from '../../../valuation/_lib/form';
+import { askingPriceInputSchema } from '@pactlab/contracts';
 import { apiGet, apiSend } from '../../_lib/api';
 
 const uuid = z.uuid();
@@ -80,4 +81,15 @@ export async function decideSubmission(dealId: string, scenarioId: string, submi
   if (!parsed.success) back(dealId, 'rationale');
   const result = await apiSend('POST', `${base(dealId)}/${scenarioId}/submissions/${submissionId}/decisions`, parsed.data);
   back(dealId, result.kind === 'ok' ? `ok-${parsed.data.decision.toLowerCase()}` : result.kind === 'forbidden' ? 'own-submission' : result.kind);
+}
+
+const ASKING_FIELDS = ['amount', 'currency', 'basis', 'source', 'quotedOn', 'earnOutAmount', 'note'] as const;
+
+/** Record the seller's (revised) asking price as a new version. */
+export async function recordAskingPrice(dealId: string, formData: FormData): Promise<void> {
+  if (!uuid.safeParse(dealId).success) redirect('/deals');
+  const parsed = askingPriceInputSchema.safeParse(Object.fromEntries(ASKING_FIELDS.map((field) => [field, formData.get(field) ?? ''])));
+  if (!parsed.success) back(dealId, 'asking-invalid');
+  const result = await apiSend('POST', `/v1/deals/${dealId}/asking-price`, parsed.data);
+  back(dealId, result.kind === 'ok' ? 'ok-asking' : result.kind);
 }

@@ -1,5 +1,7 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import type {
+  AskingPriceInput,
+  AskingPriceView,
   DealPartiesResponse,
   DealPartyView,
   DealSummary,
@@ -9,11 +11,13 @@ import type {
 } from '@pactlab/contracts';
 import {
   appendAuditEvent,
+  askingPrices,
   connections,
   createDealWithLead,
   dealParties,
   deals,
   withTenant,
+  type AskingPriceRecord,
   type DealPartyRecord,
   type PrismaClient,
 } from '@pactlab/db';
@@ -31,6 +35,10 @@ import { PRISMA } from '../tokens';
 
 function toPartyView(party: DealPartyRecord): DealPartyView {
   return { ...party, updatedAt: party.updatedAt.toISOString() };
+}
+
+function toAskingView(record: AskingPriceRecord): AskingPriceView {
+  return { ...record, recordedAt: record.recordedAt.toISOString() };
 }
 
 function derivedFrom(parties: readonly DealPartyRecord[]) {
@@ -61,6 +69,19 @@ export class PactsService {
         const scope = { organizationId: tenant.organizationId, dealId: created.id };
         await dealParties.create(tx, { ...scope, role: 'BUYER', ...command.buyer });
         await dealParties.create(tx, { ...scope, role: 'SELLER', ...command.seller });
+        if (command.askingPrice) {
+          await askingPrices.record(tx, { ...scope, ...command.askingPrice, recordedBy: tenant.userId });
+          await appendAuditEvent(tx, {
+            organizationId: tenant.organizationId,
+            dealId: created.id,
+            actorUserId: tenant.userId,
+            action: 'asking_price.recorded',
+            targetType: 'deal',
+            targetId: created.id,
+            outcome: 'SUCCEEDED',
+            requestId,
+          });
+        }
         await appendAuditEvent(tx, {
           organizationId: tenant.organizationId,
           dealId: created.id,
@@ -74,6 +95,48 @@ export class PactsService {
       },
     );
     return { ...deal, createdAt: deal.createdAt.toISOString() };
+  }
+
+  /** The current asking price and its history. Buyer-side analysis only. */
+  async askingPrice(
+    tenant: TenantContext,
+    dealId: string,
+    requestId: string,
+  ): Promise<{ current: AskingPriceView | null; history: AskingPriceView[] }> {
+    await this.access.require(tenant, dealId, 'BUYER_ANALYSIS_READ', { action: 'asking_price.read', requestId });
+    const history = (await withTenant(this.prisma, tenant, (tx) => askingPrices.history(tx, dealId))).map(toAskingView);
+    return { current: history[0] ?? null, history };
+  }
+
+  /** Record the seller's (revised) asking price as the next version. */
+  async recordAskingPrice(
+    tenant: TenantContext,
+    dealId: string,
+    input: AskingPriceInput,
+    requestId: string,
+  ): Promise<{ current: AskingPriceView | null; history: AskingPriceView[] }> {
+    await this.access.require(tenant, dealId, 'DEAL_WRITE', { action: 'asking_price.recorded', requestId });
+    await withTenant(this.prisma, tenant, async (tx) => {
+      const { created } = await askingPrices.record(tx, {
+        ...input,
+        organizationId: tenant.organizationId,
+        dealId,
+        recordedBy: tenant.userId,
+      });
+      if (created) {
+        await appendAuditEvent(tx, {
+          organizationId: tenant.organizationId,
+          dealId,
+          actorUserId: tenant.userId,
+          action: 'asking_price.recorded',
+          targetType: 'deal',
+          targetId: dealId,
+          outcome: 'SUCCEEDED',
+          requestId,
+        });
+      }
+    });
+    return this.askingPrice(tenant, dealId, requestId);
   }
 
   async parties(tenant: TenantContext, dealId: string, requestId: string): Promise<DealPartiesResponse> {

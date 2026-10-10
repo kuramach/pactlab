@@ -16,7 +16,25 @@ const MESSAGES: Readonly<Record<string, string>> = {
   'seller.ticker': 'A public seller needs its ticker symbol.',
   'seller.website': 'The seller’s website must be a full http(s) address.',
   'seller.companyType': 'Choose what kind of company the seller is.',
+  'askingPrice.amount': 'Enter the asking price as a number, e.g. 25,000,000.',
+  'askingPrice.currency': 'Choose the currency of the asking price.',
+  'askingPrice.basis': 'Say whether the price is quoted as enterprise value or equity value.',
+  'askingPrice.source': 'Say where the asking price came from.',
+  'askingPrice.quotedOn': 'Use a valid date for when the price was quoted.',
+  'askingPrice.earnOutAmount': 'The earn-out must be a number no larger than the asking price.',
 };
+
+const ASKING_FIELDS = ['amount', 'currency', 'basis', 'source', 'quotedOn', 'earnOutAmount', 'note'] as const;
+
+/** The asking price, unless the user said it is not known yet. */
+function asking(form: FormData) {
+  if (form.get('askingPrice.known') === 'no') return null;
+  const amount = form.get('askingPrice.amount');
+  if (typeof amount !== 'string' || amount.trim() === '') return undefined;
+  const fields = Object.fromEntries(ASKING_FIELDS.map((field) => [field, form.get(`askingPrice.${field}`) ?? '']));
+  // The asking price is in the Pact's currency unless chosen otherwise.
+  return { ...fields, currency: fields['currency'] || form.get('baseCurrency') || 'USD' };
+}
 
 function party(form: FormData, prefix: 'buyer' | 'seller') {
   const entries = PARTY_FIELDS.map((field) => [field, form.get(`${prefix}.${field}`)] as const).filter(
@@ -32,19 +50,25 @@ export function pactFromForm(form: FormData): PactFormResult {
     baseCurrency: form.get('baseCurrency') || undefined,
     buyer: party(form, 'buyer'),
     seller: party(form, 'seller'),
+    askingPrice: asking(form) ?? null,
   });
-  if (parsed.success) return { ok: true, command: parsed.data };
+  if (parsed.success) {
+    if (form.get('askingPrice.known') !== 'no' && asking(form) === undefined)
+      return { ok: false, field: 'askingPrice.amount', message: 'Enter the asking price, or choose “Not known yet”.' };
+    return { ok: true, command: parsed.data };
+  }
   const path = parsed.error.issues[0]?.path.join('.') ?? '';
   return { ok: false, field: path, message: MESSAGES[path] ?? 'Check the details and try again.' };
 }
 
 /** Wizard steps in order; each owns the fields with its prefix. */
-export const WIZARD_STEPS = ['pact', 'buyer', 'seller', 'review'] as const;
+export const WIZARD_STEPS = ['pact', 'buyer', 'seller', 'asking', 'review'] as const;
 export type WizardStep = (typeof WIZARD_STEPS)[number];
 
 export function stepOfField(field: string): WizardStep {
   if (field.startsWith('buyer')) return 'buyer';
   if (field.startsWith('seller')) return 'seller';
+  if (field.startsWith('askingPrice')) return 'asking';
   return 'pact';
 }
 

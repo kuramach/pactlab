@@ -25,6 +25,11 @@ export const dealSummarySchema = z.object({
       }),
     )
     .optional(),
+  /** Current asking price, buyer side only (list responses only). */
+  askingPrice: z
+    .object({ amount: z.string(), currency: z.string(), basis: z.enum(['ENTERPRISE_VALUE', 'EQUITY_VALUE']) })
+    .nullable()
+    .optional(),
 });
 export type DealSummary = z.infer<typeof dealSummarySchema>;
 

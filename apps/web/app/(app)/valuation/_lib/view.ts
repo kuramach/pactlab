@@ -54,7 +54,48 @@ export interface StaleReason {
   findingId?: string;
 }
 
+export interface AskingSide {
+  value: MoneyValue;
+  gap: MoneyValue;
+  gapRatio: string;
+  verdict: 'BELOW' | 'AT' | 'ABOVE';
+}
+
+export type AskingComparisonView =
+  | {
+      askingVersion: number;
+      comparable: true;
+      basis: 'ENTERPRISE_VALUE' | 'EQUITY_VALUE';
+      asking: MoneyValue;
+      beforeRisks: AskingSide;
+      afterRisks: AskingSide;
+      riskAdjustments: { findingId: string; label: string; amount: MoneyValue }[];
+      holdbacks: { findingId: string; label: string; amount: MoneyValue }[];
+    }
+  | { askingVersion: number; comparable: false; reason: 'CURRENCY' };
+
+export const BASIS_LABELS = { ENTERPRISE_VALUE: 'enterprise value', EQUITY_VALUE: 'equity value' } as const;
+export const SOURCE_LABELS: Record<string, string> = {
+  TEASER: 'Teaser or information memorandum',
+  MANAGEMENT: 'Seller’s management',
+  LETTER_OF_INTENT: 'Letter of intent',
+  BANKER: 'Sell-side banker',
+  OTHER: 'Other',
+};
+
+/** "12.5% below asking" from a signed ratio string such as "-0.1250"; never parsed into a float for display. */
+export function describeGap(side: AskingSide): string {
+  if (side.verdict === 'AT') return 'at the asking price';
+  const negative = side.gapRatio.startsWith('-');
+  const [integer = '0', fraction = ''] = side.gapRatio.replace('-', '').split('.');
+  const padded = fraction.padEnd(4, '0');
+  const whole = `${integer}${padded.slice(0, 2)}`.replace(/^0+(?=\d)/, '');
+  const decimals = padded.slice(2, 4).replace(/0+$/, '');
+  return `${decimals ? `${whole}.${decimals}` : whole}% ${negative ? 'below' : 'above'} asking`;
+}
+
 export interface ScenarioView {
+  askingComparison: AskingComparisonView | null;
   scenario: {
     id: string;
     name: string;

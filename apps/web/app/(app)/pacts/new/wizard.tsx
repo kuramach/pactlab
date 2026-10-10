@@ -17,8 +17,122 @@ const STEP_TITLES: Readonly<Record<WizardStep, string>> = {
   pact: 'Name the Pact',
   buyer: 'Buying entity',
   seller: 'Selling entity',
+  asking: 'Asking price',
   review: 'Review and start',
 };
+
+const ASKING_SOURCES = [
+  ['TEASER', 'Teaser or information memorandum'],
+  ['MANAGEMENT', 'Seller’s management'],
+  ['LETTER_OF_INTENT', 'Letter of intent'],
+  ['BANKER', 'Sell-side banker'],
+  ['OTHER', 'Other'],
+] as const;
+
+const groupDigits = (value: string) => {
+  const [integer = '', fraction] = value.replaceAll(',', '').split('.');
+  const grouped = integer.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return fraction === undefined ? grouped : `${grouped}.${fraction}`;
+};
+
+/** The seller's number, as quoted. This is what the platform tests. */
+function AskingFields({ values, set }: { values: Values; set: (key: string, value: string) => void }) {
+  const known = values['askingPrice.known'] !== 'no';
+  const field = (name: string) => values[`askingPrice.${name}`] ?? '';
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="grid gap-2 sm:grid-cols-2">
+        {[
+          ['yes', 'We have an asking price', 'Pactlab tests it against the evidence and every Sextant scenario.'],
+          ['no', 'Not known yet', 'Add it later from the Valuation tab when the seller names a price.'],
+        ].map(([value, label, detail]) => (
+          <label
+            key={value}
+            className={`flex cursor-pointer flex-col gap-1 rounded-lg border p-3 text-sm ${
+              (value === 'no') !== known ? 'border-indigo-ink bg-muted' : 'border-border'
+            }`}
+          >
+            <span className="flex items-center gap-2 font-medium">
+              <input type="radio" checked={(value === 'no') !== known} onChange={() => set('askingPrice.known', value ?? 'yes')} />
+              {label}
+            </span>
+            <span className="text-muted-foreground">{detail}</span>
+          </label>
+        ))}
+      </div>
+      {known ? (
+        <>
+          <div className="grid gap-4 sm:grid-cols-[2fr_1fr]">
+            <Field label="Asking price">
+              <input
+                className={inputClass}
+                inputMode="decimal"
+                placeholder="25,000,000"
+                value={field('amount')}
+                onChange={(event) => set('askingPrice.amount', groupDigits(event.target.value.replace(/[^\d.,]/g, '')))}
+                autoFocus
+              />
+            </Field>
+            <Field label="Currency">
+              <select className={inputClass} value={field('currency') || values['baseCurrency']} onChange={(event) => set('askingPrice.currency', event.target.value)}>
+                {CURRENCIES.map((currency) => (
+                  <option key={currency}>{currency}</option>
+                ))}
+              </select>
+            </Field>
+          </div>
+          <fieldset className="flex flex-col gap-2">
+            <legend className="mb-1 text-sm font-medium">Quoted as</legend>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {(
+                [
+                  ['ENTERPRISE_VALUE', 'Enterprise value', 'Price for the business, before cash and debt.'],
+                  ['EQUITY_VALUE', 'Equity value', 'Price for the shares, after cash and debt.'],
+                ] as const
+              ).map(([value, label, detail]) => (
+                <label
+                  key={value}
+                  className={`flex cursor-pointer flex-col gap-1 rounded-lg border p-3 text-sm ${field('basis') === value ? 'border-indigo-ink bg-muted' : 'border-border'}`}
+                >
+                  <span className="flex items-center gap-2 font-medium">
+                    <input type="radio" checked={field('basis') === value} onChange={() => set('askingPrice.basis', value)} />
+                    {label}
+                  </span>
+                  <span className="text-muted-foreground">{detail}</span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Where it came from">
+              <select className={inputClass} value={field('source')} onChange={(event) => set('askingPrice.source', event.target.value)}>
+                {ASKING_SOURCES.map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Date quoted" hint="Optional.">
+              <input type="date" className={inputClass} value={field('quotedOn')} onChange={(event) => set('askingPrice.quotedOn', event.target.value)} />
+            </Field>
+            <Field label="Of which earn-out" hint="Optional: the contingent part of the price.">
+              <input
+                className={inputClass}
+                inputMode="decimal"
+                value={field('earnOutAmount')}
+                onChange={(event) => set('askingPrice.earnOutAmount', groupDigits(event.target.value.replace(/[^\d.,]/g, '')))}
+              />
+            </Field>
+            <Field label="Note" hint="Optional, e.g. “cash-free, debt-free”.">
+              <input className={inputClass} maxLength={500} value={field('note')} onChange={(event) => set('askingPrice.note', event.target.value)} />
+            </Field>
+          </div>
+        </>
+      ) : null}
+    </div>
+  );
+}
 
 const CURRENCIES = ['USD', 'EUR', 'GBP', 'CAD', 'AUD', 'INR', 'JPY', 'CHF', 'SGD'] as const;
 
@@ -179,6 +293,20 @@ function Review({ values }: { values: Values }) {
           <dd className="font-medium">{describe(seller, 'seller')}</dd>
         </div>
       </dl>
+      <div className="flex flex-col gap-1 rounded-lg border border-border p-4">
+        <span className="text-xs uppercase tracking-wide text-muted-foreground">Asking price</span>
+        {values['askingPrice.known'] === 'no' ? (
+          <span className="text-muted-foreground">Not known yet — add it later from the Valuation tab.</span>
+        ) : (
+          <span className="text-base font-semibold">
+            {values['askingPrice.currency'] || values['baseCurrency']} {values['askingPrice.amount']}{' '}
+            <span className="text-sm font-normal text-muted-foreground">
+              {values['askingPrice.basis'] === 'EQUITY_VALUE' ? 'equity value' : 'enterprise value'}
+              {values['askingPrice.earnOutAmount'] ? ` · of which ${values['askingPrice.earnOutAmount']} earn-out` : ''}
+            </span>
+          </span>
+        )}
+      </div>
       <div className="flex flex-col gap-1 rounded-lg bg-muted p-4">
         <span className="text-xs uppercase tracking-wide text-muted-foreground">Deal type</span>
         <span className="text-base font-semibold">{DEAL_TYPE_LABELS[dealType]}</span>
@@ -205,9 +333,14 @@ function Review({ values }: { values: Values }) {
   );
 }
 
-/** Four steps, one form. The server action re-validates and the API decides. */
+/** Five steps, one form. The server action re-validates and the API decides. */
 export function PactWizard() {
-  const [values, setValues] = useState<Values>({ baseCurrency: 'USD' });
+  const [values, setValues] = useState<Values>({
+    baseCurrency: 'USD',
+    'askingPrice.known': 'yes',
+    'askingPrice.basis': 'ENTERPRISE_VALUE',
+    'askingPrice.source': 'TEASER',
+  });
   const [step, setStep] = useState<WizardStep>('pact');
   const [problem, setProblem] = useState<string | null>(null);
   const [state, action, pending] = useActionState<StartPactState, FormData>(startPact, { error: null });
@@ -247,7 +380,9 @@ export function PactWizard() {
               ? 'Who is acquiring? Usually your organization or a fund or portfolio company it manages.'
               : step === 'seller'
                 ? 'Who is being acquired? Its type decides which sources Pactlab switches on.'
-                : 'Check the details. The deal type is fixed when the Pact starts.'}
+                : step === 'asking'
+                  ? 'The seller’s price. Every Sextant scenario is tested against it, and revisions are kept.'
+                  : 'Check the details. The deal type is fixed when the Pact starts.'}
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-5">
@@ -284,6 +419,7 @@ export function PactWizard() {
         ) : null}
         {step === 'buyer' ? <PartyFields key="buyer" role="buyer" values={values} set={set} /> : null}
         {step === 'seller' ? <PartyFields key="seller" role="seller" values={values} set={set} /> : null}
+        {step === 'asking' ? <AskingFields values={values} set={set} /> : null}
         {step === 'review' ? <Review values={values} /> : null}
 
         <form action={action} className="flex items-center justify-between gap-3 border-t border-border pt-4">

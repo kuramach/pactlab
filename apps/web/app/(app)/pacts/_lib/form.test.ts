@@ -17,6 +17,7 @@ const VALID = {
   'seller.ticker': 'hrbr',
   'seller.exchange': 'NASDAQ',
   'seller.companyType': 'SOFTWARE_SAAS',
+  'askingPrice.known': 'no',
 };
 
 describe('pactFromForm', () => {
@@ -35,6 +36,7 @@ describe('pactFromForm', () => {
           website: null,
           companyType: 'SOFTWARE_SAAS',
         },
+        askingPrice: null,
       },
     });
   });
@@ -61,5 +63,40 @@ describe('problemUpTo', () => {
     expect(problemUpTo('buyer', pactOnly)).toBe('Name the buying entity.');
     expect(problemUpTo('seller', { ...VALID, 'seller.ticker': '' })).toBe('A public seller needs its ticker symbol.');
     expect(problemUpTo('review', VALID)).toBeNull();
+  });
+});
+
+describe('asking price in the wizard', () => {
+  const PRICED = {
+    ...VALID,
+    'askingPrice.known': 'yes',
+    'askingPrice.amount': '25,000,000',
+    'askingPrice.currency': 'USD',
+    'askingPrice.basis': 'ENTERPRISE_VALUE',
+    'askingPrice.source': 'BANKER',
+    'askingPrice.quotedOn': '2026-10-01',
+    'askingPrice.earnOutAmount': '',
+    'askingPrice.note': '',
+  };
+
+  it('adds the asking price to the command, or leaves it out when not known yet', () => {
+    const priced = pactFromForm(form(PRICED));
+    expect(priced.ok && priced.command.askingPrice).toEqual({
+      amount: '25000000',
+      currency: 'USD',
+      basis: 'ENTERPRISE_VALUE',
+      source: 'BANKER',
+      quotedOn: '2026-10-01',
+      earnOutAmount: null,
+      note: null,
+    });
+    const unknown = pactFromForm(form(VALID));
+    expect(unknown.ok && unknown.command.askingPrice).toBeNull();
+  });
+
+  it('blocks the asking step until a price is entered or marked unknown', () => {
+    expect(problemUpTo('asking', { ...PRICED, 'askingPrice.amount': '' })).toBe('Enter the asking price, or choose “Not known yet”.');
+    expect(problemUpTo('asking', { ...PRICED, 'askingPrice.amount': 'lots' })).toBe('Enter the asking price as a number, e.g. 25,000,000.');
+    expect(problemUpTo('seller', { ...PRICED, 'askingPrice.amount': '' })).toBeNull();
   });
 });

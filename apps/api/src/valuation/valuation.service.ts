@@ -8,6 +8,7 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import {
+  compareToAsking,
   freeze,
   runValuation,
   staleReasons,
@@ -19,7 +20,7 @@ import {
   type LinkedFindingState,
   type ValuationInputs,
 } from '@pactlab/calculations';
-import { appendAuditEvent, deals, withTenant, type PrismaClient } from '@pactlab/db';
+import { appendAuditEvent, askingPrices, deals, withTenant, type PrismaClient } from '@pactlab/db';
 import { newId, permissionsForDealRole, type DealRole, type TenantContext } from '@pactlab/domain';
 import { DealAccess } from '../deals/deal-access';
 import { FINDINGS_REPOSITORY, type FindingsRepository } from '../findings/findings.repository';
@@ -191,8 +192,14 @@ export class ValuationService {
           ),
         })
       : [];
+    // The seller's current asking price, tested against the latest run on its basis.
+    const asking = run
+      ? (await withTenant(this.prisma, tenant, (tx) => askingPrices.currentFor(tx, [record.scenario.dealId]))).get(record.scenario.dealId)
+      : undefined;
     return {
       scenario: record.scenario,
+      askingComparison:
+        run && asking ? { askingVersion: asking.version, ...compareToAsking(run.result, asking) } : null,
       assumptions: this.currentAssumptions(record),
       assumptionVersions: record.assumptionSets.map(({ version, createdBy, createdAt }) => ({
         version,

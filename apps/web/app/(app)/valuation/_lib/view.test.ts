@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { describeStaleReason, freshness, isSubtotal, parseDealParam, statusVariant } from './view';
+import { describeGap, describeStaleReason, freshness, isSubtotal, parseDealParam, statusVariant } from './view';
 
 describe('valuation view helpers', () => {
   it('accepts only a UUID deal id', () => {
@@ -30,5 +30,15 @@ describe('valuation view helpers', () => {
     expect(statusVariant('SUBMITTED')).toBe('neutral');
     expect(isSubtotal({ kind: 'EQUITY_PURCHASE_PRICE' })).toBe(true);
     expect(isSubtotal({ kind: 'FINDING_ADJUSTMENT' })).toBe(false);
+  });
+});
+
+describe('describeGap', () => {
+  const side = (gapRatio: string, verdict: 'BELOW' | 'AT' | 'ABOVE') => ({ value: { amount: '0', currency: 'USD' }, gap: { amount: '0', currency: 'USD' }, gapRatio, verdict });
+  it('turns signed ratios into plain words', () => {
+    expect(describeGap(side('-0.1250', 'BELOW'))).toBe('12.5% below asking');
+    expect(describeGap(side('0.0714', 'ABOVE'))).toBe('7.14% above asking');
+    expect(describeGap(side('-1.5000', 'BELOW'))).toBe('150% below asking');
+    expect(describeGap(side('0.0000', 'AT'))).toBe('at the asking price');
   });
 });

@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { dealsApi, type DealListItem } from './_lib/api';
 import { DEAL_TYPE_LABELS, partyLabel, STAGE_LABELS } from './_lib/labels';
 import { ApiState } from './_lib/states';
+import { formatMoney } from '../metrics/_lib/format';
 
 // Per-user data: never prerender.
 export const dynamic = 'force-dynamic';
@@ -48,6 +49,7 @@ export default async function DealsPage() {
             <thead className="border-b border-border bg-muted text-xs uppercase tracking-wide text-muted-foreground">
               <tr>
                 <th scope="col" className="px-4 py-3 font-medium">Deal</th>
+                <th scope="col" className="hidden px-4 py-3 text-right font-medium lg:table-cell">Asking price</th>
                 <th scope="col" className="hidden px-4 py-3 font-medium md:table-cell">Type</th>
                 <th scope="col" className="hidden px-4 py-3 font-medium sm:table-cell">Stage</th>
                 <th scope="col" className="px-4 py-3">
@@ -63,6 +65,9 @@ export default async function DealsPage() {
                       <span className="font-medium group-hover:text-indigo-ink">{deal.name}</span>
                       <span className="text-muted-foreground">{partiesLine(deal)}</span>
                     </Link>
+                  </td>
+                  <td className="hidden px-4 py-3 text-right font-mono lg:table-cell" data-numeric>
+                    {deal.askingPrice ? formatMoney({ amount: deal.askingPrice.amount, currency: deal.askingPrice.currency }) : '—'}
                   </td>
                   <td className="hidden px-4 py-3 md:table-cell">
                     <Badge>{DEAL_TYPE_LABELS[deal.transactionType] ?? deal.transactionType}</Badge>

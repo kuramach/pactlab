@@ -95,10 +95,25 @@ describe('synthetic decision-loop seed', () => {
     expect(drafts[0]!['n']).toBeGreaterThanOrEqual(4);
   });
 
+  it('records asking prices, with a revision on Troubled', async () => {
+    const prices = await rows(
+      `SELECT d.name, a.version, a.amount::text AS amount, a.basis FROM asking_prices a JOIN deals d ON d.id = a.deal_id
+        WHERE a.organization_id = $1 ORDER BY d.name, a.version`,
+      [CHARLIE],
+    );
+    expect(prices).toEqual([
+      { name: 'Project Healthy', version: 1, amount: '2800000.0000', basis: 'ENTERPRISE_VALUE' },
+      { name: 'Project Sparse', version: 1, amount: '900000.0000', basis: 'EQUITY_VALUE' },
+      { name: 'Project Troubled', version: 1, amount: '1500000.0000', basis: 'ENTERPRISE_VALUE' },
+      { name: 'Project Troubled', version: 2, amount: '1350000.0000', basis: 'ENTERPRISE_VALUE' },
+    ]);
+  });
+
   it('changes nothing when run again', async () => {
     const count = async () =>
       rows(
         `SELECT (SELECT count(*) FROM valuation_scenarios)::int AS s, (SELECT count(*) FROM documents)::int AS d,
+                (SELECT count(*) FROM asking_prices)::int AS a,
                 (SELECT count(*) FROM finding_reviews)::int AS r, (SELECT count(*) FROM document_findings)::int AS f`,
       );
     const before = await count();
