@@ -11,6 +11,7 @@ export const DEAL_SECTIONS = [
   { path: '/findings', label: 'Findings' },
   { path: '/valuation', label: 'Valuation' },
   { path: '/documents', label: 'Documents' },
+  { path: '/team', label: 'Team' },
 ] as const;
 
 /** The section of a deal a path belongs to ('' for the overview). */

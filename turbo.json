@@ -76,7 +76,8 @@
     "seed": {
       "dependsOn": [
         "^generate",
-        "generate"
+        "generate",
+        "^seed"
       ],
       "cache": false
     },

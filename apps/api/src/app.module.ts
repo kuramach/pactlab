@@ -18,6 +18,7 @@ import { FindingsModule } from './findings/findings.module';
 import { PrismaFindingsRepository } from './findings/prisma-findings.repository';
 import { HealthController } from './health/health.controller';
 import { MeModule } from './me/me.module';
+import { OrganizationModule } from './organization/organization.module';
 import { ImportsModule, type ImportsModuleDependencies } from './imports/imports.module';
 import { UnavailableUploadStore } from './imports/upload-store';
 import { MetricsModule } from './metrics/metrics.module';
@@ -93,6 +94,7 @@ export class AppModule {
         MetricsModule,
         PactsModule,
         AuditModule,
+        OrganizationModule,
         ImportsModule.register({
           objectStore: deps.uploads?.objectStore ?? new UnavailableUploadStore(),
           malwareScanner: deps.uploads?.malwareScanner ?? new UnavailableMalwareScanner(),

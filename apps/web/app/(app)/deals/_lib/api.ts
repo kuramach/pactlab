@@ -28,6 +28,7 @@ export interface DealListItem {
   transactionType: string;
   stage: string;
   status: string;
+  baseCurrency?: string;
   parties?: DealSummary['parties'];
 }
 
@@ -58,18 +59,21 @@ export async function apiGet<T>(path: string): Promise<ApiResult<T>> {
   return { kind: 'error', ...(problem.requestId ? { requestId: problem.requestId } : {}) };
 }
 
-/** Server-side POST; the browser never holds the token or calls the API directly. */
-export async function apiPost<T>(
+export type SendResult<T> = ApiResult<T> | { kind: 'conflict' } | { kind: 'invalid' } | { kind: 'unavailable' };
+
+/** Server-side write; the browser never holds the token or calls the API directly. */
+export async function apiSend<T>(
+  method: 'POST' | 'PATCH' | 'PUT',
   path: string,
   body: unknown,
   headers: Record<string, string> = {},
-): Promise<ApiResult<T> | { kind: 'conflict' } | { kind: 'invalid' } | { kind: 'unavailable' }> {
+): Promise<SendResult<T>> {
   const token = await organizationAccessToken();
   if (!token) return { kind: 'signed-out' };
   let response: Response;
   try {
     response = await fetch(new URL(path, publicEnv().NEXT_PUBLIC_API_ORIGIN), {
-      method: 'POST',
+      method,
       headers: { ...headers, authorization: `Bearer ${token}`, 'content-type': 'application/json' },
       body: JSON.stringify(body),
       cache: 'no-store',
@@ -85,6 +89,10 @@ export async function apiPost<T>(
   if (response.status === 409) return { kind: 'conflict' };
   if (response.status === 503) return { kind: 'unavailable' };
   return { kind: 'error' };
+}
+
+export function apiPost<T>(path: string, body: unknown, headers: Record<string, string> = {}): Promise<SendResult<T>> {
+  return apiSend<T>('POST', path, body, headers);
 }
 
 export type UploadFailure = 'too-large' | 'not-text' | 'unreadable' | 'scanner' | 'forbidden' | 'signed-out' | 'error';
@@ -149,7 +157,20 @@ export type ConnectGitHubBody =
   | { method: 'APP'; repository: string }
   | { method: 'TOKEN'; repository: string; token: string };
 
+export interface DealMember {
+  id: string;
+  userId: string;
+  displayName: string;
+  role: string;
+  status: string;
+}
+
 export const dealsApi = {
+  members: (dealId: string) => apiGet<{ items: DealMember[] }>(`/v1/deals/${encodeURIComponent(dealId)}/members`),
+  organizationMembers: () =>
+    apiGet<{ items: { userId: string; displayName: string; role: string }[] }>('/v1/organization/members'),
+  addMember: (dealId: string, userId: string, role: string) =>
+    apiPost<DealMember>(`/v1/deals/${encodeURIComponent(dealId)}/members`, { userId, role }),
   githubApp: () => apiGet<{ configured: boolean; installUrl: string | null }>('/v1/github/app'),
   connectGitHub: (dealId: string, body: ConnectGitHubBody) =>
     apiPost<{ connection: { id: string; displayName: string }; validation: ValidationView }>(

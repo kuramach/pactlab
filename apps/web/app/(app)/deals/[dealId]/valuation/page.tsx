@@ -1,7 +1,10 @@
-import { Badge, Card, CardContent, CardHeader, CardTitle, EmptyState } from '@pactlab/ui';
+import { Badge, Button, buttonVariants, Card, CardContent, CardHeader, CardTitle, EmptyState } from '@pactlab/ui';
 import Link from 'next/link';
 import { apiGet } from '../../_lib/api';
+import { OutcomeBanner } from '../../_lib/outcome';
 import { ApiState } from '../../_lib/states';
+import { can, dealViewer, type DealViewer } from '../../_lib/viewer';
+import { decideSubmission, runScenario, submitScenario } from './actions';
 import { formatDecimal, formatMoney, formatRatio } from '../../../metrics/_lib/format';
 import {
   describeStaleReason,
@@ -83,7 +86,74 @@ function Sensitivity({ grid }: { grid: NonNullable<ValuationResultView['sensitiv
   );
 }
 
-function ScenarioCard({ dealId, view }: { dealId: string; view: ScenarioView }) {
+const OUTCOMES: Record<string, string> = {
+  'ok-created': 'Scenario created. Run it to compute value.',
+  'ok-saved': 'New assumption version saved. Re-run to refresh the result.',
+  'ok-run': 'Scenario run with the current assumptions.',
+  'ok-submitted': 'Submitted and frozen. A second person must approve it.',
+  'ok-approved': 'Submission approved.',
+  'ok-rejected': 'Submission rejected.',
+  rationale: 'Write a short rationale for the decision.',
+  'own-submission': 'You cannot decide on a submission you made yourself — a second person must.',
+  frozen: 'Submitted and approved scenarios are frozen and cannot be edited.',
+  conflict: 'The scenario changed, or its result is stale. Re-run it, then try again.',
+};
+
+const inputClass = 'w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring';
+
+/** What can be done with a scenario now, by whom. The API re-checks each action. */
+function ScenarioActions({ dealId, view, viewer }: { dealId: string; view: ScenarioView; viewer: DealViewer }) {
+  const { scenario } = view;
+  const writer = can.draft(viewer.role);
+  const pending = view.submissions.find((submission) => !view.decisions.some((decision) => decision.submissionId === submission.id));
+  if (scenario.status === 'DRAFT' && writer) {
+    const needsRun = !view.latestRun || view.stale === true;
+    return (
+      <div className="flex flex-wrap gap-2 border-t border-border pt-4">
+        <form action={runScenario.bind(null, dealId, scenario.id, scenario.version)}>
+          <Button type="submit" size="sm" variant={needsRun ? 'default' : 'outline'}>
+            {view.latestRun ? 'Re-run' : 'Run'}
+          </Button>
+        </form>
+        <Link href={`/deals/${dealId}/valuation/${scenario.id}/edit`} className={buttonVariants({ size: 'sm', variant: 'outline' })}>
+          Edit assumptions
+        </Link>
+        <form action={submitScenario.bind(null, dealId, scenario.id, scenario.version)}>
+          <Button type="submit" size="sm" variant={needsRun ? 'ghost' : 'default'} disabled={needsRun} title={needsRun ? 'Run the current assumptions first' : undefined}>
+            Submit for approval
+          </Button>
+        </form>
+      </div>
+    );
+  }
+  if (scenario.status === 'SUBMITTED' && pending) {
+    if (!can.review(viewer.role) || pending.submittedBy === viewer.userId) {
+      return (
+        <p className="border-t border-border pt-4 text-muted-foreground">
+          Waiting for a deal lead or reviewer other than {viewer.name(pending.submittedBy)} to approve.
+        </p>
+      );
+    }
+    return (
+      <form action={decideSubmission.bind(null, dealId, scenario.id, pending.id)} className="flex flex-col gap-2 border-t border-border pt-4">
+        <input type="hidden" name="expectedVersion" value={scenario.version} />
+        <span className="font-medium">Your decision on this frozen submission</span>
+        <textarea name="rationale" rows={2} required placeholder="Why you approve or reject it" className={inputClass} />
+        <div className="flex gap-2">
+          <Button type="submit" name="decision" value="APPROVED" size="sm">
+            Approve
+          </Button>
+          <Button type="submit" name="decision" value="REJECTED" size="sm" variant="outline">
+            Reject
+          </Button>
+        </div>
+      </form>
+    );
+  }
+  return null;
+}
+
+function ScenarioCard({ dealId, view, viewer }: { dealId: string; view: ScenarioView; viewer: DealViewer }) {
   const { scenario, latestRun } = view;
   const result = latestRun?.result;
   const fresh = freshness(view);
@@ -170,6 +240,8 @@ function ScenarioCard({ dealId, view }: { dealId: string; view: ScenarioView }) 
           </>
         )}
 
+        <ScenarioActions dealId={dealId} view={view} viewer={viewer} />
+
         {view.submissions.length > 0 ? (
           <section className="flex flex-col gap-1">
             <h3 className="font-medium">Frozen submissions</h3>
@@ -179,7 +251,9 @@ function ScenarioCard({ dealId, view }: { dealId: string; view: ScenarioView }) 
                 return (
                   <li key={submission.id}>
                     <span className="font-mono">sha256 {submission.digest.slice(0, 16)}</span>{' '}
-                    <span className="text-muted-foreground">submitted {submission.submittedAt}</span>{' '}
+                    <span className="text-muted-foreground">
+                      submitted by {viewer.name(submission.submittedBy)} on {submission.submittedAt.slice(0, 10)}
+                    </span>{' '}
                     {decision ? (
                       <Badge variant={decision.decision === 'APPROVED' ? 'reviewed' : 'danger'}>
                         {decision.decision.toLowerCase()}
@@ -210,24 +284,34 @@ export default async function ValuationPage({
   params: Promise<{ dealId: string }>;
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  await searchParams;
+  const outcome = (await searchParams)['outcome'];
   const dealId = parseDealParam((await params).dealId);
-  const result = dealId
-    ? await apiGet<{ items: ScenarioView[] }>(
-        `/v1/deals/${encodeURIComponent(dealId)}/valuation/scenarios`,
-      )
-    : null;
+  const [result, viewer] = dealId
+    ? await Promise.all([
+        apiGet<{ items: ScenarioView[] }>(`/v1/deals/${encodeURIComponent(dealId)}/valuation/scenarios`),
+        dealViewer(dealId),
+      ])
+    : [null, null];
 
   return (
     <div className="flex max-w-6xl flex-col gap-6">
-      <div className="flex flex-col gap-1">
-        <h2 className="text-lg font-semibold tracking-tight">Valuation</h2>
-        <p className="text-sm text-muted-foreground">
-          Engines compute; people decide. Only accepted findings adjust price, and a submitted scenario is frozen.
-        </p>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="flex flex-col gap-1">
+          <h2 className="text-lg font-semibold tracking-tight">Valuation · Sextant</h2>
+          <p className="text-sm text-muted-foreground">
+            Engines compute; people decide. Only accepted findings adjust price, and a submitted scenario is frozen.
+          </p>
+        </div>
+        {dealId && viewer && can.draft(viewer.role) ? (
+          <Link href={`/deals/${dealId}/valuation/new`} className={buttonVariants({ size: 'sm' })}>
+            New scenario
+          </Link>
+        ) : null}
       </div>
 
-      {!dealId ? (
+      <OutcomeBanner outcome={typeof outcome === 'string' ? outcome : undefined} messages={OUTCOMES} />
+
+      {!dealId || !viewer ? (
         <EmptyState
           title="Choose a deal"
           description="Open valuation from a deal to see its scenarios."
@@ -241,7 +325,7 @@ export default async function ValuationPage({
         />
       ) : (
         result.data.items.map((view) => (
-          <ScenarioCard key={view.scenario.id} dealId={dealId} view={view} />
+          <ScenarioCard key={view.scenario.id} dealId={dealId} view={view} viewer={viewer} />
         ))
       )}
     </div>

@@ -10,7 +10,8 @@
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run",
     "flow:local": "tsx --env-file-if-exists=../../.env src/local-flow.ts",
-    "ops:org": "tsx --env-file-if-exists=../../.env src/ops/org-admin.ts"
+    "ops:org": "tsx --env-file-if-exists=../../.env src/ops/org-admin.ts",
+    "seed": "tsx --env-file-if-exists=../../.env src/demo-seed/cli.ts"
   },
   "dependencies": {
     "@nestjs/common": "12.1.2",
