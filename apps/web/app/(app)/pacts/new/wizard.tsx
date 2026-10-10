@@ -8,7 +8,7 @@ import {
   TRANSACTION_TYPE_EXPLANATIONS,
   type CompanyType,
 } from '@pactlab/domain';
-import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle } from '@pactlab/ui';
+import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Glossed } from '@pactlab/ui';
 import { useActionState, useState } from 'react';
 import { problemUpTo, WIZARD_STEPS, type WizardStep } from '../_lib/form';
 import { startPact, type StartPactState } from './actions';
@@ -310,7 +310,9 @@ function Review({ values }: { values: Values }) {
       <div className="flex flex-col gap-1 rounded-lg bg-muted p-4">
         <span className="text-xs uppercase tracking-wide text-muted-foreground">Deal type</span>
         <span className="text-base font-semibold">{DEAL_TYPE_LABELS[dealType]}</span>
-        <span className="text-muted-foreground">{TRANSACTION_TYPE_EXPLANATIONS[dealType]}</span>
+        <span className="text-muted-foreground">
+          <Glossed text={TRANSACTION_TYPE_EXPLANATIONS[dealType]} />
+        </span>
       </div>
       <div className="flex flex-col gap-2">
         <span className="font-medium">Sources Pactlab will ask for</span>
@@ -321,7 +323,9 @@ function Review({ values }: { values: Values }) {
               <span className="font-medium">
                 {source.label} · {source.providerLabel}
               </span>
-              <span className="text-muted-foreground">{source.why}</span>
+              <span className="text-muted-foreground">
+                <Glossed text={source.why} />
+              </span>
             </li>
           ))}
         </ul>

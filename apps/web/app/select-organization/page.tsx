@@ -1,3 +1,4 @@
+import { AuthFrame } from '../_components/auth-frame';
 import {
   Button,
   Card,
@@ -41,7 +42,8 @@ export default async function SelectOrganizationPage({
   const me = await getMe();
   if (me.kind !== 'ok') {
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center gap-4 p-10">
+      <AuthFrame>
+        <div className="flex flex-col items-center gap-4 text-center">
         <EmptyState
           title={me.kind === 'signed-out' ? 'No Pactlab account' : 'Something went wrong'}
           description={
@@ -51,7 +53,8 @@ export default async function SelectOrganizationPage({
           }
         />
         <SignOut />
-      </main>
+        </div>
+      </AuthFrame>
     );
   }
 
@@ -62,19 +65,21 @@ export default async function SelectOrganizationPage({
   const choices = step.kind === 'single' ? [step.organization] : step.kind === 'pick' ? step.organizations : [];
   if (step.kind === 'none') {
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center gap-4 p-10">
+      <AuthFrame>
+        <div className="flex flex-col items-center gap-4 text-center">
         <EmptyState
           title="No organization membership"
           description="Ask an organization administrator to invite you."
         />
         <SignOut />
-      </main>
+        </div>
+      </AuthFrame>
     );
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center p-10">
-      <Card className="w-full max-w-md">
+    <AuthFrame>
+      <Card className="w-full shadow-xl shadow-navy/10">
         <CardHeader>
           <CardTitle>Choose an organization</CardTitle>
           <CardDescription>Signed in as {me.data.user.displayName}.</CardDescription>
@@ -95,6 +100,6 @@ export default async function SelectOrganizationPage({
           <SignOut />
         </CardContent>
       </Card>
-    </main>
+    </AuthFrame>
   );
 }

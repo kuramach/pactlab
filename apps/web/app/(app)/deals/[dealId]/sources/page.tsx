@@ -1,4 +1,6 @@
 import type { SourcePlanResponse } from '@pactlab/contracts';
+import { Glossed, IconTile, Term, type Accent } from '@pactlab/ui';
+import { FileText, GitBranch, ListChecks, Receipt } from 'lucide-react';
 import { Badge, Button, buttonVariants, Card, CardContent, CardHeader, CardTitle, EmptyState } from '@pactlab/ui';
 import { COMPANY_TYPE_LABELS } from '@pactlab/domain';
 import Link from 'next/link';
@@ -17,6 +19,13 @@ const number = new Intl.NumberFormat('en-US');
 
 /** Connect screens for sources whose live API is available. */
 const API_ROUTES: Partial<Record<SourcePlanResponse['sources'][number]['kind'], string>> = { CODE: 'github' };
+
+const SOURCE_LOOK = {
+  BILLING: { icon: Receipt, accent: 'indigo' },
+  CODE: { icon: GitBranch, accent: 'navy' },
+  DELIVERY: { icon: ListChecks, accent: 'amber' },
+  DOCUMENTS: { icon: FileText, accent: 'rose' },
+} as const satisfies Record<string, { icon: typeof Receipt; accent: Accent }>;
 
 const NEXT_RELEASE = { API: 'Live API connection is coming next.', UPLOAD: 'File upload is coming next.' } as const;
 
@@ -44,9 +53,17 @@ function SourcePlan({ plan, dealId }: { plan: SourcePlanResponse; dealId: string
               <Card className="h-full">
                 <CardHeader className="flex flex-col gap-1">
                   <div className="flex items-start justify-between gap-3">
-                    <div className="flex flex-col">
-                      <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{source.label}</span>
-                      <CardTitle className="text-base">{source.providerLabel}</CardTitle>
+                    <div className="flex items-center gap-3">
+                      <IconTile accent={source.status === 'CONNECTED' ? 'teal' : SOURCE_LOOK[source.kind].accent}>
+                        {(() => {
+                          const Icon = SOURCE_LOOK[source.kind].icon;
+                          return <Icon />;
+                        })()}
+                      </IconTile>
+                      <div className="flex flex-col">
+                        <span className="text-xs font-bold uppercase tracking-wide text-slate-text">{source.label}</span>
+                        <CardTitle className="text-base">{source.providerLabel}</CardTitle>
+                      </div>
                     </div>
                     <Badge variant={source.status === 'CONNECTED' ? 'calculation' : 'neutral'}>
                       {source.status === 'CONNECTED' ? 'Connected' : 'Not connected'}
@@ -54,8 +71,12 @@ function SourcePlan({ plan, dealId }: { plan: SourcePlanResponse; dealId: string
                   </div>
                 </CardHeader>
                 <CardContent className="flex flex-col gap-3 text-sm">
-                  <p>{source.why}</p>
-                  <p className="text-xs text-muted-foreground">Produces: {source.produces}</p>
+                  <p>
+                    <Glossed text={source.why} />
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Produces: <Glossed text={source.produces} />
+                  </p>
                   {source.connections.length > 0 ? (
                     <ul className="flex flex-col gap-1 text-xs">
                       {source.connections.map((connection) => (
@@ -69,11 +90,11 @@ function SourcePlan({ plan, dealId }: { plan: SourcePlanResponse; dealId: string
                   <div className="flex flex-wrap items-center gap-2">
                     {api?.availability === 'AVAILABLE' && API_ROUTES[source.kind] ? (
                       <Link href={`/deals/${dealId}/sources/${API_ROUTES[source.kind]}`} className={buttonVariants({ size: 'sm' })}>
-                        Connect {source.providerLabel} API
+                        Connect {source.providerLabel} <Term term="API" />
                       </Link>
                     ) : (
                       <Button size="sm" disabled title={NEXT_RELEASE.API}>
-                        Connect {source.providerLabel} API
+                        Connect {source.providerLabel} <Term term="API" />
                       </Button>
                     )}
                     {source.upload && upload?.availability === 'AVAILABLE' && source.upload.format === 'CSV' ? (

@@ -1,6 +1,21 @@
 import { COMPANY_TYPE_LABELS } from '@pactlab/domain';
-import { Badge, buttonVariants, Card, CardContent, CardHeader, CardTitle, Section, Stat } from '@pactlab/ui';
-import { ArrowRight, CheckCircle2, Circle } from 'lucide-react';
+import { Badge, buttonVariants, Card, CardContent, CardHeader, CardTitle, Glossed, IconTile, Section, Stat, type Accent } from '@pactlab/ui';
+import {
+  AlertTriangle,
+  ArrowRight,
+  CheckCircle2,
+  Circle,
+  Compass,
+  Database,
+  FileText,
+  GitBranch,
+  ListChecks,
+  Plug,
+  Receipt,
+  SearchCheck,
+  TrendingUp,
+} from 'lucide-react';
+import { BarChart, CHART_COLORS, DonutChart } from '../../_lib/charts';
 import Link from 'next/link';
 import { formatMoney } from '../../metrics/_lib/format';
 import { BASIS_LABELS, describeGap, type ScenarioView } from '../../valuation/_lib/view';
@@ -11,6 +26,14 @@ import { partyLabel } from '../_lib/labels';
 export const dynamic = 'force-dynamic';
 
 const number = new Intl.NumberFormat('en-US');
+
+const SOURCE_ICONS = { BILLING: Receipt, CODE: GitBranch, DELIVERY: ListChecks, DOCUMENTS: FileText } as const;
+const AREAS: { path: string; title: string; body: string; icon: typeof TrendingUp; accent: Accent }[] = [
+  { path: 'finances', title: 'Finances', body: 'ARR, retention and reconciliation from billing evidence.', icon: TrendingUp, accent: 'teal' },
+  { path: 'findings', title: 'Findings', body: 'Technology findings awaiting review.', icon: SearchCheck, accent: 'rose' },
+  { path: 'valuation', title: 'Valuation', body: 'Sextant scenarios, the bridge and the asking price.', icon: Compass, accent: 'indigo' },
+  { path: 'documents', title: 'Documents', body: 'Contracts and filings with exact citations.', icon: FileText, accent: 'amber' },
+];
 
 /** Deal overview: the parties, how far evidence collection has come, and where to go next. */
 export default async function DealOverviewPage({ params }: { params: Promise<{ dealId: string }> }) {
@@ -68,9 +91,69 @@ export default async function DealOverviewPage({ params }: { params: Promise<{ d
       ) : null}
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <Stat label="Sources connected" value={`${connected} of ${planned.length}`} hint={plan.kind === 'ok' && plan.data.note ? 'Industry pack planned' : undefined} />
-        <Stat label="Evidence records" value={number.format(evidence)} hint="Every record traces back to its source" />
-        <Stat label="Sources needing attention" value={failing} hint={failing > 0 ? 'Last sync failed' : 'All syncs healthy'} />
+        <Stat label="Sources connected" value={`${connected} of ${planned.length}`} icon={<Plug />} accent="indigo" />
+        <Stat label="Evidence records" value={number.format(evidence)} hint="Every record traces back to its source" icon={<Database />} accent="teal" />
+        <Stat
+          label="Sources needing attention"
+          value={failing}
+          hint={failing > 0 ? 'Last sync failed' : 'All syncs healthy'}
+          icon={<AlertTriangle />}
+          accent={failing > 0 ? 'rose' : 'amber'}
+        />
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-[1.6fr_1fr]">
+        <Card>
+          <CardHeader className="flex flex-row items-center gap-3">
+            <IconTile accent="indigo">
+              <Compass />
+            </IconTile>
+            <div>
+              <CardTitle>Asking price vs Sextant</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                {headline ? `${headline.scenario.name} · ` : ''}before and after accepted priced risks
+              </p>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {current && comparison ? (
+              <BarChart
+                label="Asking price compared with Sextant before and after risks"
+                categories={['Asking price', 'Sextant before risks', 'Sextant after risks']}
+                currency={current.currency}
+                series={[
+                  {
+                    name: 'Value',
+                    values: [current.amount, comparison.beforeRisks.value.amount, comparison.afterRisks.value.amount],
+                  },
+                ]}
+                height={240}
+              />
+            ) : (
+              <p className="py-10 text-center text-sm text-muted-foreground">
+                {current ? 'Run a Sextant scenario to compare it with the asking price.' : 'Record the asking price to compare it with Sextant.'}
+              </p>
+            )}
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center gap-3">
+            <IconTile accent="teal">
+              <Plug />
+            </IconTile>
+            <CardTitle>Evidence collection</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <DonutChart
+              label="Sources connected and still to connect"
+              centerLabel={`${connected}/${planned.length}`}
+              slices={[
+                { name: 'Connected', value: connected, color: CHART_COLORS.teal },
+                { name: 'To connect', value: planned.length - connected, color: '#e3e8f2' },
+              ]}
+            />
+          </CardContent>
+        </Card>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
@@ -91,10 +174,18 @@ export default async function DealOverviewPage({ params }: { params: Promise<{ d
                 planned.map((source) => (
                   <div key={source.kind} className="flex items-center justify-between gap-3 px-4 py-3 text-sm">
                     <span className="flex items-center gap-3">
+                      {(() => {
+                        const Icon = SOURCE_ICONS[source.kind];
+                        return (
+                          <IconTile accent={source.status === 'CONNECTED' ? 'teal' : 'indigo'} className="h-10 w-10">
+                            <Icon />
+                          </IconTile>
+                        );
+                      })()}
                       {source.status === 'CONNECTED' ? (
-                        <CheckCircle2 aria-hidden className="h-5 w-5 text-emerald-600" />
+                        <CheckCircle2 aria-label="Connected" className="h-5 w-5 text-teal" />
                       ) : (
-                        <Circle aria-hidden className="h-5 w-5 text-muted-foreground" />
+                        <Circle aria-label="Not connected" className="h-5 w-5 text-muted-foreground" />
                       )}
                       <span className="flex flex-col">
                         <span className="font-medium">
@@ -139,20 +230,20 @@ export default async function DealOverviewPage({ params }: { params: Promise<{ d
 
       <Section title="Diligence">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {[
-            { path: 'finances', title: 'Finances', body: 'ARR, retention and reconciliation from billing evidence.' },
-            { path: 'findings', title: 'Findings', body: 'Technology findings awaiting review.' },
-            { path: 'valuation', title: 'Valuation', body: 'Scenarios, bridge and frozen submissions.' },
-            { path: 'documents', title: 'Documents', body: 'Contracts and filings with exact citations.' },
-          ].map((item) => (
+          {AREAS.map((item) => (
             <Link key={item.path} href={`/deals/${dealId}/${item.path}`} className="group">
-              <Card className="h-full transition-colors group-hover:border-indigo">
-                <CardHeader className="gap-1">
+              <Card className="h-full transition hover:-translate-y-0.5 hover:border-indigo hover:shadow-lg hover:shadow-indigo/10">
+                <CardHeader className="gap-3">
+                  <IconTile accent={item.accent}>
+                    <item.icon />
+                  </IconTile>
                   <CardTitle className="flex items-center justify-between text-base">
                     {item.title}
                     <ArrowRight aria-hidden className="h-4 w-4 text-muted-foreground group-hover:text-indigo-ink" />
                   </CardTitle>
-                  <p className="text-sm text-muted-foreground">{item.body}</p>
+                  <p className="text-sm text-muted-foreground">
+                    <Glossed text={item.body} />
+                  </p>
                 </CardHeader>
               </Card>
             </Link>

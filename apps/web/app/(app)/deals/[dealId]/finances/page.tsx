@@ -7,7 +7,10 @@ import {
   CardTitle,
   EmptyState,
 } from '@pactlab/ui';
+import { Glossed, IconTile, Term, type Accent } from '@pactlab/ui';
+import { BarChart3, CalendarClock, Gauge, Grid3x3, PieChart, Repeat, ShieldCheck, TrendingUp } from 'lucide-react';
 import Link from 'next/link';
+import { DonutChart, HeatmapChart, LineChart, WaterfallChart } from '../../../_lib/charts';
 import { notFound } from 'next/navigation';
 import { isUuidParam } from '../../_lib/filters';
 import { ApiState } from '../../_lib/states';
@@ -64,15 +67,41 @@ function EvidenceLink({ dealId, source }: { dealId: string; source: SourceRef })
   );
 }
 
+const METRIC_ICONS: Record<string, { icon: typeof TrendingUp; accent: Accent }> = {
+  arr: { icon: TrendingUp, accent: 'indigo' },
+  mrr: { icon: CalendarClock, accent: 'teal' },
+  nrr: { icon: Repeat, accent: 'amber' },
+  grr: { icon: ShieldCheck, accent: 'navy' },
+};
+
+/** Flip the sign of a decimal string, for amounts shown as reductions. */
+function negate(amount: string): string {
+  if (/^-?0+(\.0+)?$/.test(amount)) return amount.replace('-', '');
+  return amount.startsWith('-') ? amount.slice(1) : `-${amount}`;
+}
+
+/** Top five customers' share of ARR, the rest grouped. */
+function concentrationSlices(customers: readonly { customerName: string | null; customerId: string; share: string | null }[]) {
+  const top = customers.slice(0, 5).map((customer) => ({ name: customer.customerName ?? customer.customerId, value: Number(customer.share ?? 0) }));
+  const rest = customers.slice(5).reduce((sum, customer) => sum + Number(customer.share ?? 0), 0);
+  return rest > 0 ? [...top, { name: 'All others', value: rest, color: '#cbd5e1' }] : top;
+}
+
 function MetricCard({ dealId, metric }: { dealId: string; metric: MetricView }) {
+  const look = METRIC_ICONS[metric.key.toLowerCase()] ?? { icon: Gauge, accent: 'indigo' as Accent };
   return (
     <Card>
-      <CardHeader className="gap-2">
-        <CardDescription className="flex items-center justify-between">
-          {metric.label}
+      <CardHeader className="gap-3">
+        <div className="flex items-start justify-between gap-2">
+          <IconTile accent={look.accent}>
+            <look.icon />
+          </IconTile>
           <Badge variant="calculation">calculated</Badge>
+        </div>
+        <CardDescription className="text-xs font-bold uppercase tracking-wide text-slate-text">
+          <Glossed text={metric.label} />
         </CardDescription>
-        <CardTitle className="text-2xl">{metricValue(metric)}</CardTitle>
+        <CardTitle className="text-3xl font-extrabold">{metricValue(metric)}</CardTitle>
         {metric.unavailableReason ? (
           <p className="text-xs text-muted-foreground">{metric.unavailableReason}</p>
         ) : null}
@@ -315,6 +344,47 @@ export default async function DealFinancesPage({
               ))}
           </section>
 
+          <div className="grid gap-6 lg:grid-cols-[1.6fr_1fr]">
+            <Card>
+              <CardHeader className="flex flex-row items-center gap-3">
+                <IconTile accent="indigo">
+                  <TrendingUp />
+                </IconTile>
+                <div>
+                  <CardTitle>
+                    <Term term="ARR" /> over time
+                  </CardTitle>
+                  <CardDescription>Month-end recurring revenue rebuilt from billing records.</CardDescription>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <LineChart
+                  label="ARR by month"
+                  categories={result.data.report.series.map((point) => point.month)}
+                  currency={result.data.report.baseCurrency}
+                  series={[{ name: 'ARR', values: result.data.report.series.map((point) => point.arr.amount) }]}
+                />
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center gap-3">
+                <IconTile accent="amber">
+                  <PieChart />
+                </IconTile>
+                <div>
+                  <CardTitle>Customer concentration</CardTitle>
+                  <CardDescription>Share of ARR, largest customers.</CardDescription>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <DonutChart
+                  label="Share of ARR by customer"
+                  slices={concentrationSlices(result.data.report.customers)}
+                />
+              </CardContent>
+            </Card>
+          </div>
+
           <Reconciliation dealId={dealId} data={result.data} />
 
           {result.data.draftFinding ? (
@@ -356,14 +426,36 @@ export default async function DealFinancesPage({
 
           {result.data.report.bridge ? (
             <Card>
-              <CardHeader>
-                <CardTitle>MRR bridge</CardTitle>
-                <CardDescription>
-                  {result.data.report.bridge.fromMonth} → {result.data.report.bridge.toMonth}
-                </CardDescription>
+              <CardHeader className="flex flex-row items-center gap-3">
+                <IconTile accent="teal">
+                  <BarChart3 />
+                </IconTile>
+                <div>
+                  <CardTitle>
+                    <Term term="MRR" /> bridge
+                  </CardTitle>
+                  <CardDescription>
+                    {result.data.report.bridge.fromMonth} → {result.data.report.bridge.toMonth}: what moved recurring revenue.
+                  </CardDescription>
+                </div>
               </CardHeader>
-              <CardContent>
-                <table className="w-full text-sm">
+              <CardContent className="flex flex-col gap-4">
+                <WaterfallChart
+                  label="MRR bridge from opening to closing"
+                  currency={result.data.report.bridge.opening.currency}
+                  steps={[
+                    { name: 'Opening', amount: result.data.report.bridge.opening.amount, kind: 'total' },
+                    { name: 'New', amount: result.data.report.bridge.newMrr.amount, kind: 'step' },
+                    { name: 'Expansion', amount: result.data.report.bridge.expansion.amount, kind: 'step' },
+                    { name: 'Reactivation', amount: result.data.report.bridge.reactivation.amount, kind: 'step' },
+                    { name: 'Contraction', amount: negate(result.data.report.bridge.contraction.amount), kind: 'step' },
+                    { name: 'Churn', amount: negate(result.data.report.bridge.churned.amount), kind: 'step' },
+                    { name: 'Closing', amount: result.data.report.bridge.closing.amount, kind: 'total' },
+                  ]}
+                />
+                <details className="text-sm">
+                  <summary className="cursor-pointer text-muted-foreground">Show the numbers</summary>
+                <table className="mt-2 w-full text-sm">
                   <tbody className="divide-y divide-border">
                     {(
                       [
@@ -383,6 +475,7 @@ export default async function DealFinancesPage({
                     ))}
                   </tbody>
                 </table>
+                </details>
               </CardContent>
             </Card>
           ) : null}
@@ -399,7 +492,9 @@ export default async function DealFinancesPage({
                 <thead className="text-left text-muted-foreground">
                   <tr className="border-b border-border">
                     <th className="px-4 py-2 font-medium">Customer</th>
-                    <th className="px-4 py-2 font-medium">ARR</th>
+                    <th className="px-4 py-2 font-medium">
+                      <Term term="ARR" />
+                    </th>
                     <th className="px-4 py-2 font-medium">Share</th>
                     <th className="px-4 py-2 font-medium">Source lines</th>
                   </tr>
@@ -434,20 +529,36 @@ export default async function DealFinancesPage({
 
           {cohorts.kind === 'ok' && cohorts.data.rows.length > 0 ? (
             <Card>
-              <CardHeader>
-                <CardTitle>Revenue cohorts</CardTitle>
-                <CardDescription>
-                  {cohorts.data.formula}. The first row is the opening balance: those customers may
-                  have started before the ledger&apos;s history.
-                </CardDescription>
+              <CardHeader className="flex flex-row items-center gap-3">
+                <IconTile accent="indigo">
+                  <Grid3x3 />
+                </IconTile>
+                <div>
+                  <CardTitle>Revenue cohorts</CardTitle>
+                  <CardDescription>
+                    {cohorts.data.formula}. Darker means more revenue kept. The first row is the opening balance: those customers may
+                    have started before the ledger&apos;s history.
+                  </CardDescription>
+                </div>
               </CardHeader>
-              <CardContent className="overflow-x-auto p-0">
-                <table className="w-full text-xs">
+              <CardContent className="flex flex-col gap-4 overflow-x-auto">
+                <HeatmapChart
+                  label="Revenue retention by cohort and month since start"
+                  rows={cohorts.data.rows.map((row) => (row.openingBalance ? `≤ ${row.cohort}` : row.cohort))}
+                  columns={Array.from({ length: Math.max(...cohorts.data.rows.map((row) => row.cells.length), 0) }, (_, index) => `M${index}`)}
+                  cells={cohorts.data.rows.map((row) => row.cells.map((cell) => cell.revenueRetention))}
+                  height={Math.max(220, cohorts.data.rows.length * 34 + 70)}
+                />
+                <details className="text-xs">
+                  <summary className="cursor-pointer text-sm text-muted-foreground">Show the table</summary>
+                <table className="mt-2 w-full text-xs">
                   <thead className="text-left text-muted-foreground">
                     <tr className="border-b border-border">
                       <th className="px-3 py-2 font-medium">Cohort</th>
                       <th className="px-3 py-2 font-medium">Logos</th>
-                      <th className="px-3 py-2 font-medium">Starting MRR</th>
+                      <th className="px-3 py-2 font-medium">
+                        Starting <Term term="MRR" />
+                      </th>
                       <th className="px-3 py-2 font-medium">Revenue retention by month</th>
                     </tr>
                   </thead>
@@ -466,6 +577,7 @@ export default async function DealFinancesPage({
                     ))}
                   </tbody>
                 </table>
+                </details>
               </CardContent>
             </Card>
           ) : null}

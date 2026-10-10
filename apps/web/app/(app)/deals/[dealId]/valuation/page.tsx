@@ -1,4 +1,6 @@
-import { Badge, Button, buttonVariants, Card, CardContent, CardHeader, CardTitle, EmptyState } from '@pactlab/ui';
+import { Badge, Button, buttonVariants, Card, CardContent, CardHeader, CardTitle, EmptyState, IconTile, Term } from '@pactlab/ui';
+import { Handshake, Landmark, Wallet } from 'lucide-react';
+import { WaterfallChart } from '../../../_lib/charts';
 import Link from 'next/link';
 import { apiGet, dealsApi } from '../../_lib/api';
 import { OutcomeBanner } from '../../_lib/outcome';
@@ -320,6 +322,15 @@ function ScenarioCard({ dealId, view, viewer }: { dealId: string; view: Scenario
       </CardHeader>
       <CardContent className="flex flex-col gap-4 text-sm">
         <div className="text-muted-foreground">
+          {result?.method.method === 'DCF' ? (
+            <>
+              <Term term="DCF" /> ·{' '}
+            </>
+          ) : result ? (
+            <>
+              <Term term="ARR" /> multiple ·{' '}
+            </>
+          ) : null}
           {scenario.transactionType.replaceAll('_', ' ').toLowerCase()} · {scenario.currency} ·
           assumptions v{scenario.assumptionVersion}
           {latestRun ? ` · last run on assumptions v${latestRun.assumptionVersion}` : ''}
@@ -343,19 +354,34 @@ function ScenarioCard({ dealId, view, viewer }: { dealId: string; view: Scenario
         ) : (
           <>
             <div className="flex flex-wrap gap-6">
-              <div>
-                <div className="text-muted-foreground">Enterprise value</div>
-                <div className="font-mono text-lg">{formatMoney(result.enterpriseValue)}</div>
-              </div>
-              <div>
-                <div className="text-muted-foreground">Equity purchase price</div>
-                <div className="font-mono text-lg">
-                  {formatMoney(result.bridge.equityPurchasePrice)}
+              <div className="flex items-center gap-3">
+                <IconTile accent="indigo">
+                  <Landmark />
+                </IconTile>
+                <div>
+                  <div className="text-xs font-bold uppercase tracking-wide text-slate-text">
+                    Enterprise value (<Term term="EV" />)
+                  </div>
+                  <div className="font-mono text-xl font-bold">{formatMoney(result.enterpriseValue)}</div>
                 </div>
               </div>
-              <div>
-                <div className="text-muted-foreground">Cash at close</div>
-                <div className="font-mono text-lg">{formatMoney(result.bridge.cashAtClose)}</div>
+              <div className="flex items-center gap-3">
+                <IconTile accent="teal">
+                  <Handshake />
+                </IconTile>
+                <div>
+                  <div className="text-xs font-bold uppercase tracking-wide text-slate-text">Equity purchase price</div>
+                  <div className="font-mono text-xl font-bold">{formatMoney(result.bridge.equityPurchasePrice)}</div>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <IconTile accent="amber">
+                  <Wallet />
+                </IconTile>
+                <div>
+                  <div className="text-xs font-bold uppercase tracking-wide text-slate-text">Cash at close</div>
+                  <div className="font-mono text-xl font-bold">{formatMoney(result.bridge.cashAtClose)}</div>
+                </div>
               </div>
               <div className="self-end">
                 <Badge variant="calculation">
@@ -364,20 +390,43 @@ function ScenarioCard({ dealId, view, viewer }: { dealId: string; view: Scenario
               </div>
             </div>
 
-            <section className="flex flex-col gap-1">
-              <h3 className="font-medium">Purchase-price bridge</h3>
-              <Bridge dealId={dealId} result={result} />
+            <section className="flex flex-col gap-2">
+              <h3 className="font-bold">Purchase-price bridge</h3>
+              <WaterfallChart
+                label="Purchase-price bridge from enterprise value to cash at close"
+                currency={result.enterpriseValue.currency}
+                steps={result.bridge.lines.map((line) => ({
+                  name: line.label,
+                  amount: line.amount.amount,
+                  kind: isSubtotal(line) ? 'total' : 'step',
+                }))}
+                reference={
+                  view.askingComparison?.comparable
+                    ? { name: 'Asking', amount: view.askingComparison.asking.amount }
+                    : null
+                }
+              />
+              <details className="text-sm">
+                <summary className="cursor-pointer text-muted-foreground">Show the bridge lines</summary>
+                <Bridge dealId={dealId} result={result} />
+              </details>
             </section>
 
             {result.sensitivity ? <Sensitivity grid={result.sensitivity} /> : null}
 
             {result.lbo ? (
               <section className="flex flex-wrap gap-6">
-                <h3 className="w-full font-medium">Sponsor returns (take-private)</h3>
+                <h3 className="w-full font-bold">
+                  Sponsor returns (<Term term="LBO" />, take-private)
+                </h3>
                 <div>Entry equity {formatMoney(result.lbo.entryEquity)}</div>
                 <div>Exit equity {formatMoney(result.lbo.exitEquity)}</div>
-                <div>MOIC {result.lbo.moic ? `${result.lbo.moic}x` : 'n/a'}</div>
-                <div>IRR {formatRatio(result.lbo.irr)}</div>
+                <div>
+                  <Term term="MOIC" /> {result.lbo.moic ? `${result.lbo.moic}x` : 'n/a'}
+                </div>
+                <div>
+                  <Term term="IRR" /> {formatRatio(result.lbo.irr)}
+                </div>
               </section>
             ) : null}
 

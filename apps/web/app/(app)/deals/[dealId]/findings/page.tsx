@@ -1,5 +1,18 @@
 import { FINDING_DOMAINS, FINDING_STATUSES, type Finding } from '@pactlab/domain';
-import { Badge, Card, CardContent, CardHeader, CardTitle, EmptyState } from '@pactlab/ui';
+import { Badge, Card, CardContent, CardHeader, CardTitle, EmptyState, Glossed, IconTile } from '@pactlab/ui';
+import {
+  AlertOctagon,
+  Boxes,
+  ClipboardCheck,
+  FlaskConical,
+  GitCommitHorizontal,
+  Scale,
+  ServerCog,
+  ShieldAlert,
+  UserRound,
+  Wrench,
+} from 'lucide-react';
+import { BarChart, CHART_COLORS, DonutChart } from '../../../_lib/charts';
 import Link from 'next/link';
 import { apiGet } from '../../_lib/api';
 import { ApiState } from '../../_lib/states';
@@ -18,6 +31,30 @@ import {
  * version and evidence item it cites and its proposed valuation adjustment.
  * Decisions are recorded through the review API; this page never decides.
  */
+const SEVERITY_COLORS = {
+  CRITICAL: CHART_COLORS.navy,
+  HIGH: CHART_COLORS.rose,
+  MEDIUM: CHART_COLORS.amber,
+  LOW: CHART_COLORS.indigo,
+  INFO: CHART_COLORS.slate,
+} as const;
+
+const DOMAIN_ICONS: Record<string, typeof Boxes> = {
+  ARCHITECTURE: Boxes,
+  MAINTAINABILITY: Wrench,
+  SECURITY: ShieldAlert,
+  OSS_LICENSE: Scale,
+  TEST_QUALITY: FlaskConical,
+  OPERATIONS: ServerCog,
+  CODE_PROVENANCE: GitCommitHorizontal,
+  KEY_PERSON: UserRound,
+};
+
+function DomainIcon({ domain }: { domain: string }) {
+  const Icon = DOMAIN_ICONS[domain] ?? Boxes;
+  return <Icon />;
+}
+
 export default async function FindingsPage({
   params,
   searchParams,
@@ -100,10 +137,63 @@ export default async function FindingsPage({
               description="No findings match these filters. Run a repository scan to draft technology findings."
             />
           ) : (
-            groupByDomain(result.data.items).map(([domain, items]) => (
+            <>
+              <div className="grid gap-6 lg:grid-cols-2">
+                <Card>
+                  <CardHeader className="flex flex-row items-center gap-3">
+                    <IconTile accent="rose">
+                      <AlertOctagon />
+                    </IconTile>
+                    <CardTitle>By severity</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <DonutChart
+                      label="Findings by severity"
+                      centerLabel={String(result.data.items.length)}
+                      slices={(['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'INFO'] as const)
+                        .map((severity) => ({
+                          name: severity.charAt(0) + severity.slice(1).toLowerCase(),
+                          value: result.data.items.filter((item) => item.severity === severity).length,
+                          color: SEVERITY_COLORS[severity],
+                        }))
+                        .filter((slice) => slice.value > 0)}
+                    />
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="flex flex-row items-center gap-3">
+                    <IconTile accent="indigo">
+                      <ClipboardCheck />
+                    </IconTile>
+                    <CardTitle>Review progress</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <BarChart
+                      label="Findings by review status"
+                      format="count"
+                      height={240}
+                      categories={['Draft', 'In review', 'Accepted', 'Rejected']}
+                      series={[
+                        {
+                          name: 'Findings',
+                          values: (['DRAFT', 'IN_REVIEW', 'ACCEPTED', 'REJECTED'] as const).map(
+                            (status) => result.data.items.filter((item) => item.status === status).length,
+                          ),
+                        },
+                      ]}
+                    />
+                  </CardContent>
+                </Card>
+              </div>
+              {groupByDomain(result.data.items).map(([domain, items]) => (
               <Card key={domain}>
-                <CardHeader>
-                  <CardTitle>{DOMAIN_LABELS[domain]}</CardTitle>
+                <CardHeader className="flex flex-row items-center gap-3">
+                  <IconTile accent="navy">
+                    <DomainIcon domain={domain} />
+                  </IconTile>
+                  <CardTitle>
+                    <Glossed text={DOMAIN_LABELS[domain]} />
+                  </CardTitle>
                 </CardHeader>
                 <CardContent className="p-0">
                   <table className="w-full text-sm">
@@ -172,7 +262,8 @@ export default async function FindingsPage({
                   </table>
                 </CardContent>
               </Card>
-            ))
+              ))}
+            </>
           )}
         </>
       )}
