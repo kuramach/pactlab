@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { AppShell, Badge, Breadcrumbs, Button, cn, TabNav } from './index';
+import { AppShell, Badge, Breadcrumbs, Button, cn, Glossed, TabNav, Term } from './index';
 
 describe('ui', () => {
   it('merges conflicting Tailwind classes', () => {
@@ -40,5 +40,18 @@ describe('ui', () => {
       <TabNav label="Deal" items={[{ href: '/a', label: 'A', active: true }, { href: '/b', label: 'B' }]} />,
     );
     expect(html.match(/aria-current="page"/g)).toHaveLength(1);
+  });
+
+  it('explains abbreviations on hover and focus', () => {
+    const html = renderToStaticMarkup(<Term term="ARR" />);
+    expect(html).toContain('title="Annual recurring revenue');
+    expect(html).toContain('tabindex="0"');
+    expect(renderToStaticMarkup(<Term term="XYZ">XYZ</Term>)).toBe('XYZ');
+  });
+
+  it('finds abbreviations inside sentences without touching other words', () => {
+    const html = renderToStaticMarkup(<Glossed text="ARR, MRR and EV for an LBO; ARRANGE stays." />);
+    expect(html.match(/<abbr/g)).toHaveLength(4);
+    expect(html).toContain('ARRANGE stays.');
   });
 });

@@ -1,4 +1,5 @@
-import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle, PactlabLogo } from '@pactlab/ui';
+import { AuthFrame } from '../_components/auth-frame';
+import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle } from '@pactlab/ui';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { publicEnv } from '../../lib/env';
@@ -34,9 +35,8 @@ export default async function SignupPage({
   const step = params.step ?? 'details';
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center gap-8 bg-muted p-6">
-      <PactlabLogo withTagline />
-      <Card className="w-full max-w-md">
+    <AuthFrame>
+      <Card className="w-full shadow-xl shadow-navy/10">
         {step === 'pending' || step === 'ready' ? (
           <>
             <CardHeader>
@@ -123,6 +123,6 @@ export default async function SignupPage({
           </>
         )}
       </Card>
-    </main>
+    </AuthFrame>
   );
 }

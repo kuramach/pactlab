@@ -13,8 +13,17 @@
   --font-sans: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
 
   --color-navy: #081127;
+  --color-navy-soft: #121c3d;
   --color-indigo: #6978ff;
   --color-indigo-ink: #4a58e8;
+  /* Same section backgrounds and body text as the website. */
+  --color-mist: #f8faff;
+  --color-cloud: #f7f9fc;
+  --color-slate-text: #4b5568;
+  /* Chart and highlight accents that pair with navy and indigo. */
+  --color-teal: #14b8a6;
+  --color-amber: #f59e0b;
+  --color-rose: #f43f5e;
 
   --color-background: #ffffff;
   --color-foreground: #081127;
@@ -34,6 +43,7 @@
 
   --radius-sm: 4px;
   --radius-md: 8px;
+  --radius-lg: 12px;
 }
 
 @layer base {

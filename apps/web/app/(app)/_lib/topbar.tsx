@@ -1,4 +1,4 @@
-import { buttonVariants, PactlabLogo } from '@pactlab/ui';
+import { buttonVariants, PactlabLockup } from '@pactlab/ui';
 import { LogOut, Menu, Plus, Settings, ArrowLeftRight } from 'lucide-react';
 import Link from 'next/link';
 import type { NavSection } from '../../../lib/navigation';
@@ -28,7 +28,7 @@ export function Topbar({ session, sections }: { session: SessionContext; section
           </div>
         </Dropdown>
         <Link href="/" aria-label="Pactlab home">
-          <PactlabLogo />
+          <PactlabLockup withTagline={false} />
         </Link>
       </div>
       <div className="hidden text-sm text-muted-foreground lg:block">
@@ -51,7 +51,7 @@ export function Topbar({ session, sections }: { session: SessionContext; section
           <Dropdown
             label="Account menu"
             trigger={
-              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-navy text-xs font-semibold text-white">
+              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-indigo text-xs font-extrabold text-navy ring-2 ring-indigo/30">
                 {initials(session.displayName)}
               </span>
             }

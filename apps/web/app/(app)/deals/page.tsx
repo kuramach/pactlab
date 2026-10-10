@@ -1,5 +1,5 @@
-import { Badge, buttonVariants, Card, EmptyState, PageHeader } from '@pactlab/ui';
-import { ArrowRight, Plus } from 'lucide-react';
+import { Badge, buttonVariants, Card, EmptyState, IconTile, PageHeader } from '@pactlab/ui';
+import { ArrowRight, Building2, Plus } from 'lucide-react';
 import Link from 'next/link';
 import { dealsApi, type DealListItem } from './_lib/api';
 import { DEAL_TYPE_LABELS, partyLabel, STAGE_LABELS } from './_lib/labels';
@@ -30,6 +30,7 @@ export default async function DealsPage() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
+        tone="navy"
         breadcrumbs={[{ href: '/', label: 'Home' }, { label: 'My deals' }]}
         title="My deals"
         description="Every Pact you are a member of. Open one to collect evidence, review findings and value it."
@@ -61,9 +62,14 @@ export default async function DealsPage() {
               {result.data.items.map((deal) => (
                 <tr key={deal.id} className="group hover:bg-muted/60">
                   <td className="px-4 py-3">
-                    <Link href={`/deals/${deal.id}`} className="flex flex-col">
-                      <span className="font-medium group-hover:text-indigo-ink">{deal.name}</span>
-                      <span className="text-muted-foreground">{partiesLine(deal)}</span>
+                    <Link href={`/deals/${deal.id}`} className="flex items-center gap-3">
+                      <IconTile accent="navy" className="h-10 w-10">
+                        <Building2 />
+                      </IconTile>
+                      <span className="flex flex-col">
+                        <span className="font-bold group-hover:text-indigo-ink">{deal.name}</span>
+                        <span className="text-muted-foreground">{partiesLine(deal)}</span>
+                      </span>
                     </Link>
                   </td>
                   <td className="hidden px-4 py-3 text-right font-mono lg:table-cell" data-numeric>

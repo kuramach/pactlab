@@ -30,13 +30,15 @@ export default async function DealLayout({ children, params }: { children: React
     <div className="flex flex-col gap-6">
       <div>
         <PageHeader
+          tone="navy"
+          eyebrow="Deal workspace"
           breadcrumbs={[{ href: '/', label: 'Home' }, { href: '/deals', label: 'My deals' }, { label: deal.data.name }]}
           title={deal.data.name}
           description={
             buyer && seller ? (
               <>
-                <span className="font-medium text-foreground">{partyLabel(buyer)}</span> acquiring{' '}
-                <span className="font-medium text-foreground">{partyLabel(seller)}</span>
+                <span className="font-semibold text-white">{partyLabel(buyer)}</span> acquiring{' '}
+                <span className="font-semibold text-white">{partyLabel(seller)}</span>
               </>
             ) : (
               deal.data.targetName
@@ -44,8 +46,8 @@ export default async function DealLayout({ children, params }: { children: React
           }
           meta={
             <>
-              <Badge>{DEAL_TYPE_LABELS[deal.data.transactionType] ?? deal.data.transactionType}</Badge>
-              <Badge>{STAGE_LABELS[deal.data.stage] ?? deal.data.stage}</Badge>
+              <Badge className="border-white/20 bg-white/10 text-white">{DEAL_TYPE_LABELS[deal.data.transactionType] ?? deal.data.transactionType}</Badge>
+              <Badge className="border-indigo/40 bg-indigo/20 text-white">{STAGE_LABELS[deal.data.stage] ?? deal.data.stage}</Badge>
             </>
           }
         />
