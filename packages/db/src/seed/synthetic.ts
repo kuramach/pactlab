@@ -67,6 +67,17 @@ export const SEED_EMAIL_CODE_TENANT = {
   targetName: 'Beacon Software (synthetic)',
 } as const;
 
+/**
+ * Charlie's second person: a buyer-side reviewer on every Charlie deal, so
+ * findings and valuation submissions can be decided by someone other than
+ * the author. Signs in at /login with this address.
+ */
+export const SEED_EMAIL_CODE_REVIEWER = {
+  userId: '01900000-0000-7000-8000-00000000c004',
+  email: 'reviewer@charlie.example',
+  displayName: 'Charlie Reviewer (synthetic)',
+} as const;
+
 /** A target-side contributor on the HealthyCo deal, to exercise the contributor boundary. */
 export const SEED_CONTRIBUTOR = {
   userId: '01900000-0000-7000-8000-00000000a004',
@@ -114,11 +125,19 @@ export const SEED_TARGET_SOURCES: Readonly<
  */
 function targetHolders() {
   return [
-    { label: 'Alpha', organizationId: SEED_TENANTS[0].organizationId, leadUserId: SEED_TENANTS[0].userId, idFor: (id: string) => id, keyPrefix: '' },
+    {
+      label: 'Alpha',
+      organizationId: SEED_TENANTS[0].organizationId,
+      leadUserId: SEED_TENANTS[0].userId,
+      reviewerUserId: SEED_REVIEWER.userId,
+      idFor: (id: string) => id,
+      keyPrefix: '',
+    },
     {
       label: 'Charlie',
       organizationId: SEED_EMAIL_CODE_TENANT.organizationId,
       leadUserId: SEED_EMAIL_CODE_TENANT.userId,
+      reviewerUserId: SEED_EMAIL_CODE_REVIEWER.userId,
       idFor: (id: string) => id.replace('-8000-', '-8c00-'),
       keyPrefix: 'charlie:',
     },
@@ -202,6 +221,18 @@ export async function seedSynthetic(owner: SqlExecutor, prisma: PrismaClient): P
       charlie.userId,
     );
 
+    const charlieReviewer = SEED_EMAIL_CODE_REVIEWER;
+    await owner.query(
+      `INSERT INTO users (id, auth0_subject, display_name, email) VALUES ($1, $2, $3, $4) ON CONFLICT (id) DO NOTHING`,
+      [charlieReviewer.userId, `pactlab|${charlieReviewer.userId}`, charlieReviewer.displayName, charlieReviewer.email],
+    );
+    await owner.query(
+      `INSERT INTO organization_memberships (id, organization_id, user_id, role) VALUES ($1, $2, $3, 'MEMBER')
+       ON CONFLICT (organization_id, user_id) DO NOTHING`,
+      [newId(), charlie.organizationId, charlieReviewer.userId],
+    );
+    await addReviewer(owner, charlie.organizationId, charlie.dealId, charlieReviewer.userId);
+
     await owner.query(
       `INSERT INTO users (id, auth0_subject, display_name) VALUES ($1, $2, $3) ON CONFLICT (id) DO NOTHING`,
       [SEED_CONTRIBUTOR.userId, SEED_CONTRIBUTOR.subject, SEED_CONTRIBUTOR.displayName],
@@ -276,6 +307,7 @@ export async function seedSynthetic(owner: SqlExecutor, prisma: PrismaClient): P
           manifest.deal.transactionType,
           holder.leadUserId,
         );
+        await addReviewer(owner, holder.organizationId, dealId, holder.reviewerUserId);
         const connections: [string, string, string, unknown][] = [
           [holder.idFor(manifest.connection.id), 'csv', manifest.connection.displayName, { datasets: manifest.datasets.map((d) => d.dataset) }],
           [holder.idFor(sources.github.connectionId), 'github', `${sources.github.repository} (fixture)`, { repository: sources.github.repository }],
@@ -403,6 +435,15 @@ export async function seedSynthetic(owner: SqlExecutor, prisma: PrismaClient): P
     }
   }
   return { tenants: SEED_TENANTS.length + 1, companies, codeReview, sources };
+}
+
+/** A buyer-side reviewer on a deal (the reviewer's user and organization membership already exist). */
+async function addReviewer(owner: SqlExecutor, organizationId: string, dealId: string, userId: string): Promise<void> {
+  await owner.query(
+    `INSERT INTO deal_memberships (id, organization_id, deal_id, user_id, role) VALUES ($1, $2, $3, $4, 'REVIEWER')
+     ON CONFLICT (organization_id, deal_id, user_id) DO NOTHING`,
+    [newId(), organizationId, dealId, userId],
+  );
 }
 
 async function insertDeal(
