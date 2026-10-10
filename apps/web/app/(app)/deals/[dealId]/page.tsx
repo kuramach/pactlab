@@ -72,7 +72,9 @@ export default async function DealOverviewPage({ params }: { params: Promise<{ d
                     <span>
                       <span className="text-xs uppercase tracking-wide text-muted-foreground">Sextant</span>
                       <span className="ml-2 font-mono text-xl font-semibold">{formatMoney(comparison.afterRisks.value)}</span>
-                      <span className="ml-1 text-sm text-muted-foreground">after accepted risks · {headline.scenario.name}</span>
+                      <span className="ml-1 text-sm text-muted-foreground">
+                        <Glossed text={`after accepted risks · ${headline.scenario.name}`} />
+                      </span>
                     </span>
                     <Badge variant={comparison.afterRisks.verdict === 'BELOW' ? 'danger' : 'calculation'}>{describeGap(comparison.afterRisks)}</Badge>
                   </>
@@ -111,7 +113,7 @@ export default async function DealOverviewPage({ params }: { params: Promise<{ d
             <div>
               <CardTitle>Asking price vs Sextant</CardTitle>
               <p className="text-sm text-muted-foreground">
-                {headline ? `${headline.scenario.name} · ` : ''}before and after accepted priced risks
+                <Glossed text={`${headline ? `${headline.scenario.name} · ` : ''}before and after accepted priced risks`} />
               </p>
             </div>
           </CardHeader>
@@ -246,7 +248,12 @@ export default async function DealOverviewPage({ params }: { params: Promise<{ d
                     <span className="font-medium">{partyLabel(party)}</span>
                     <span className="text-muted-foreground">
                       {party.ownership === 'PUBLIC' ? `Public${party.exchange ? ` · ${party.exchange}` : ''}` : 'Private'}
-                      {party.companyType ? ` · ${COMPANY_TYPE_LABELS[party.companyType]}` : ''}
+                      {party.companyType ? (
+                        <>
+                          {' · '}
+                          <Glossed text={COMPANY_TYPE_LABELS[party.companyType]} />
+                        </>
+                      ) : null}
                     </span>
                   </div>
                 ))

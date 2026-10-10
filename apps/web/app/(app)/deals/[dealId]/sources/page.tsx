@@ -40,7 +40,12 @@ function SourcePlan({ plan, dealId }: { plan: SourcePlanResponse; dealId: string
         </h2>
         <span className="text-sm text-muted-foreground">
           {connected} of {plan.sources.length} connected
-          {plan.companyType ? ` · for ${COMPANY_TYPE_LABELS[plan.companyType]}` : ''}
+          {plan.companyType ? (
+            <>
+              {' · for '}
+              <Glossed text={COMPANY_TYPE_LABELS[plan.companyType]} />
+            </>
+          ) : null}
         </span>
       </div>
       {plan.note ? <p className="text-sm text-muted-foreground">{plan.note}</p> : null}
@@ -81,7 +86,7 @@ function SourcePlan({ plan, dealId }: { plan: SourcePlanResponse; dealId: string
                     <ul className="flex flex-col gap-1 text-xs">
                       {source.connections.map((connection) => (
                         <li key={connection.id}>
-                          {connection.displayName} · {connection.mode === 'FIXTURE' ? 'fixture data' : 'live'}
+                          <Glossed text={connection.displayName} /> · {connection.mode === 'FIXTURE' ? 'fixture data' : 'live'}
                           {connection.lastSyncStatus ? ` · ${connection.lastSyncStatus.toLowerCase()}` : ''}
                         </li>
                       ))}
@@ -117,10 +122,14 @@ function SourcePlan({ plan, dealId }: { plan: SourcePlanResponse; dealId: string
                     </p>
                   ) : null}
                   {source.upload ? null : (
-                    <p className="text-xs text-muted-foreground">Connects through its API only — history can’t be trusted from a spreadsheet.</p>
+                    <p className="text-xs text-muted-foreground">
+                      <Glossed text="Connects through its API only — history can’t be trusted from a spreadsheet." />
+                    </p>
                   )}
                   {api?.availability === 'NEXT' ? (
-                    <p className="text-xs text-muted-foreground">Coming next: the {source.providerLabel} API connection.</p>
+                    <p className="text-xs text-muted-foreground">
+                      <Glossed text={`Coming next: the ${source.providerLabel} API connection.`} />
+                    </p>
                   ) : null}
                 </CardContent>
               </Card>
@@ -189,7 +198,7 @@ export default async function DealSourcesPage({
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex flex-col">
                       <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                        {PROVIDER_LABELS[source.provider] ?? source.provider}
+                        <Glossed text={PROVIDER_LABELS[source.provider] ?? source.provider} />
                       </span>
                       <CardTitle className="text-base">{source.displayName}</CardTitle>
                     </div>

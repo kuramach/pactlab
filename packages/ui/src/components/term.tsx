@@ -8,6 +8,12 @@ import { cn } from '../utils';
 export const GLOSSARY: Readonly<Record<string, string>> = {
   ARR: 'Annual recurring revenue — recurring subscription revenue for a year (MRR × 12).',
   MRR: 'Monthly recurring revenue — subscription revenue billed each month, excluding one-off charges.',
+  ARPA: 'Average revenue per account — MRR divided by the number of paying customers.',
+  ARPU: 'Average revenue per user — recurring revenue divided by the number of users.',
+  ACV: 'Annual contract value — the yearly value of a customer contract.',
+  CAC: 'Customer acquisition cost — sales and marketing spend to win one new customer.',
+  LTV: 'Customer lifetime value — the gross profit a customer brings over their whole relationship.',
+  FX: 'Foreign exchange — converting between currencies at a recorded rate.',
   NRR: 'Net revenue retention — revenue kept from existing customers after upgrades, downgrades and churn.',
   GRR: 'Gross revenue retention — revenue kept from existing customers before any upgrades.',
   EV: 'Enterprise value — the value of the whole business, before cash and debt.',
@@ -28,6 +34,10 @@ export const GLOSSARY: Readonly<Record<string, string>> = {
   API: 'Application programming interface — a direct, automated connection to another system.',
   SSO: 'Single sign-on — signing in with your company account.',
   AI: 'Artificial intelligence — here, Claude drafting cited findings for human review.',
+  AWS: 'Amazon Web Services — the cloud platform Pactlab runs on.',
+  NDA: 'Non-disclosure agreement — a contract to keep shared information confidential.',
+  HR: 'Human resources — employee, pay and performance information.',
+  UTC: 'Coordinated Universal Time — the time standard used for every timestamp.',
   VDR: 'Virtual data room — the secure site where a seller shares documents.',
   ESOP: 'Employee share ownership plan.',
 };
@@ -78,4 +88,14 @@ export function Glossed({ text }: { text: string }) {
   }
   if (last < text.length) parts.push(text.slice(last));
   return <>{parts}</>;
+}
+
+/**
+ * Explain abbreviations in plain text children; anything else passes through
+ * unchanged. Lets shared components gloss whatever text they are given.
+ */
+export function gloss(node: ReactNode): ReactNode {
+  if (typeof node === 'string') return <Glossed text={node} />;
+  if (Array.isArray(node)) return node.map((child, index) => (typeof child === 'string' ? <Glossed key={index} text={child} /> : child));
+  return node;
 }

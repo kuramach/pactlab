@@ -1,4 +1,4 @@
-import { PactlabLockup, PACTLAB_PROMISE, PACTLAB_TAGLINE } from '@pactlab/ui';
+import { Glossed, PactlabLockup, PACTLAB_PROMISE, PACTLAB_TAGLINE } from '@pactlab/ui';
 import { Compass, Orbit, ShieldCheck, Sparkles } from 'lucide-react';
 import type { ReactNode } from 'react';
 
@@ -22,7 +22,9 @@ export function AuthFrame({ children }: { children: ReactNode }) {
         <PactlabLockup tone="onDark" className="relative" />
         <div className="relative flex flex-col gap-8">
           <div className="flex flex-col gap-3">
-            <p className="text-sm font-bold uppercase tracking-widest text-indigo">Diligence for mergers and acquisitions</p>
+            <p className="text-sm font-bold uppercase tracking-widest text-indigo">
+              Diligence for <Glossed text="M&A" />
+            </p>
             <h1 className="max-w-md text-4xl font-extrabold leading-tight tracking-tight">{PACTLAB_PROMISE}</h1>
           </div>
           <ul className="grid max-w-xl gap-4 sm:grid-cols-2">
@@ -31,13 +33,19 @@ export function AuthFrame({ children }: { children: ReactNode }) {
                 <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-indigo/20 text-indigo">
                   <Icon aria-hidden className="h-5 w-5" />
                 </span>
-                <span className="font-bold">{title}</span>
-                <span className="text-sm leading-relaxed text-white/70">{body}</span>
+                <span className="font-bold">
+                  <Glossed text={title} />
+                </span>
+                <span className="text-sm leading-relaxed text-white/70">
+                  <Glossed text={body} />
+                </span>
               </li>
             ))}
           </ul>
         </div>
-        <p className="relative text-sm text-white/50">{PACTLAB_TAGLINE}</p>
+        <p className="relative text-sm text-white/50">
+          <Glossed text={PACTLAB_TAGLINE} />
+        </p>
       </section>
       <section className="flex flex-col items-center justify-center gap-8 bg-mist p-6 sm:p-10">
         <PactlabLockup className="lg:hidden" />
