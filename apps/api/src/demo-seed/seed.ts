@@ -146,7 +146,8 @@ export async function seedDemo(
         { type: 'PRICE_REDUCTION' as const, low: '80000', high: '200000', basis: `Retention packages for key contributors ${SYNTHETIC}` },
       ];
       for (const [index, finding] of fresh.slice(0, 2).entries()) {
-        const price = prices[index]!;
+        const price = prices[index];
+        if (!price) break;
         const priced = await findingsService.update(
           who.lead,
           troubled,
