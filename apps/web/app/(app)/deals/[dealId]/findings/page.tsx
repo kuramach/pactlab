@@ -120,7 +120,9 @@ export default async function FindingsPage({
                       {items.map((finding) => (
                         <tr key={finding.id} className="align-top">
                           <td className="px-4 py-2">
-                            <div className="font-medium">{finding.title}</div>
+                            <Link href={`/deals/${dealId}/findings/${finding.id}`} className="font-medium text-indigo-ink hover:underline">
+                              {finding.title}
+                            </Link>
                             <div className="text-muted-foreground">
                               {finding.origin.toLowerCase()} · confidence{' '}
                               {finding.confidence.toLowerCase()}

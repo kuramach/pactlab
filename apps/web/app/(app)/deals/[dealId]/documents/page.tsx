@@ -1,7 +1,11 @@
-import { Badge, Card, CardContent, CardHeader, CardTitle, EmptyState } from '@pactlab/ui';
+import { Badge, Button, Card, CardContent, CardHeader, CardTitle, EmptyState } from '@pactlab/ui';
 import Link from 'next/link';
 import { apiGet } from '../../_lib/api';
+import { OutcomeBanner } from '../../_lib/outcome';
 import { ApiState } from '../../_lib/states';
+import { can, dealViewer } from '../../_lib/viewer';
+import { extractDocument, reviewDocumentFinding, uploadDocument } from './actions';
+import { AskBox } from './ask-box';
 import {
   citationHref,
   highlightQuotes,
@@ -13,6 +17,22 @@ import {
 } from '../../../documents/_lib/view';
 
 const deal = (dealId: string) => `/v1/deals/${encodeURIComponent(dealId)}`;
+
+const OUTCOMES: Record<string, string> = {
+  'ok-uploaded': 'Document uploaded, scanned and split into pages.',
+  'ok-accept': 'Draft accepted — its citations were re-checked against the page.',
+  'ok-reject': 'Draft rejected.',
+  'no-file': 'Choose a file to upload.',
+  type: 'Upload a .txt or .md file. PDF and Word arrive with the AI extraction work.',
+  'too-large': 'Files can be at most 512 KB.',
+  rejected: 'The file was rejected — it may be empty, unreadable or flagged by the virus scan.',
+  unavailable: 'Uploads are not available in this environment.',
+  'ai-off': 'AI is not switched on for this environment yet. Drafts will appear once the Claude connection is enabled.',
+  'ai-excluded': 'This document is excluded from AI, or holds data that may never be sent to a model.',
+  rationale: 'Write a short rationale (a few words) for the decision.',
+};
+
+const inputClass = 'w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring';
 
 /**
  * Document review: page on the left, AI drafts and decisions on the right.
@@ -38,7 +58,10 @@ export default async function DocumentsPage({
     );
   }
   const dealId = view.dealId;
-  const [documents, findings, page] = await Promise.all([
+  const outcomeParam = (await searchParams)['outcome'];
+  const outcome = typeof outcomeParam === 'string' ? outcomeParam : undefined;
+  const drafted = outcome?.match(/^ok-drafted-(\d+)$/)?.[1];
+  const [documents, findings, page, viewer] = await Promise.all([
     apiGet<{ items: DocumentListItem[] }>(`${deal(dealId)}/documents`),
     apiGet<{ items: DocumentFindingItem[] }>(`${deal(dealId)}/document-findings`),
     view.documentId
@@ -46,7 +69,10 @@ export default async function DocumentsPage({
           `${deal(dealId)}/documents/${encodeURIComponent(view.documentId)}/pages/${view.page}`,
         )
       : Promise.resolve(null),
+    dealViewer(dealId),
   ]);
+  const writer = can.draft(viewer.role);
+  const reviewer = can.review(viewer.role);
   const queue = findings.kind === 'ok' ? reviewQueueOrder(findings.data.items) : [];
   const quotesOnPage = queue.flatMap((finding) =>
     finding.citations
@@ -61,6 +87,50 @@ export default async function DocumentsPage({
         <p className="text-sm text-muted-foreground">
           Uploaded documents, cited answers and AI drafts. Every citation opens the exact page.
         </p>
+      </div>
+
+      <OutcomeBanner
+        outcome={drafted !== undefined ? 'ok-drafted' : outcome}
+        messages={{ ...OUTCOMES, 'ok-drafted': `AI extraction finished: ${drafted ?? 0} new cited draft(s) in the review queue.` }}
+      />
+
+      <div className="grid gap-4 lg:grid-cols-[1fr_1.2fr]">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Upload a document</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form action={uploadDocument.bind(null, dealId)} className="flex flex-col gap-3 text-sm">
+              <input name="file" type="file" accept=".txt,.md,text/plain,text/markdown" required className="text-sm" />
+              <div className="flex flex-wrap items-center gap-4">
+                <label className="flex items-center gap-2">
+                  Contains
+                  <select name="dataClass" className="rounded-md border border-border bg-background px-2 py-1">
+                    <option value="BUSINESS">business information</option>
+                    <option value="FINANCIAL">financial information</option>
+                  </select>
+                </label>
+                <label className="flex items-center gap-2">
+                  <input type="checkbox" name="aiExcluded" /> Keep away from AI
+                </label>
+              </div>
+              <p className="text-xs text-muted-foreground">Text or Markdown, up to 512 KB. HR, pay and performance documents are never sent to a model.</p>
+              <div>
+                <Button type="submit" size="sm">
+                  Upload
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Ask the documents</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <AskBox dealId={dealId} />
+          </CardContent>
+        </Card>
       </div>
 
       {documents.kind !== 'ok' ? (
@@ -90,12 +160,19 @@ export default async function DocumentsPage({
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
-          <CardHeader>
+          <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2">
             <CardTitle>
               {page?.kind === 'ok'
                 ? `${page.data.fileName} — page ${page.data.pageNumber} of ${page.data.pageCount}`
                 : 'Page'}
             </CardTitle>
+            {page?.kind === 'ok' && writer ? (
+              <form action={extractDocument.bind(null, dealId, page.data.documentId)}>
+                <Button type="submit" size="sm" variant="outline">
+                  Run AI extraction
+                </Button>
+              </form>
+            ) : null}
           </CardHeader>
           <CardContent>
             {page === null ? (
@@ -214,6 +291,23 @@ export default async function DocumentsPage({
                       ? ` · decided by ${finding.reviewer.displayName}`
                       : ' · awaiting human review'}
                   </p>
+                  {finding.status === 'DRAFT' && reviewer ? (
+                    <form
+                      action={reviewDocumentFinding.bind(null, dealId, finding.id, finding.documentId)}
+                      className="flex flex-col gap-2"
+                    >
+                      <input type="hidden" name="expectedVersion" value={finding.version} />
+                      <input name="rationale" required minLength={3} placeholder="What you checked in the source" className={inputClass} />
+                      <div className="flex gap-2">
+                        <Button type="submit" name="decision" value="ACCEPT" size="sm">
+                          Accept
+                        </Button>
+                        <Button type="submit" name="decision" value="REJECT" size="sm" variant="outline">
+                          Reject
+                        </Button>
+                      </div>
+                    </form>
+                  ) : null}
                 </article>
               ))
             )}
