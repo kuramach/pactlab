@@ -105,12 +105,13 @@ export function SextantExplanation({
               <dd className="text-xs text-muted-foreground">{describeGap(comparison.beforeRisks)} before any risk</dd>
             </div>
             <div className="rounded-xl bg-mist p-3">
-              <dt className="text-xs font-bold uppercase tracking-wide text-slate-text">Accepted risks</dt>
-              <dd className="font-mono font-bold">
-                {priced.length ? money(comparison.afterRisks.gap.amount, currency) : money('0', currency)}
-              </dd>
+              <dt className="text-xs font-bold uppercase tracking-wide text-slate-text">Total gap to ask</dt>
+              <dd className="font-mono font-bold">{money(comparison.afterRisks.gap.amount, currency)}</dd>
               <dd className="text-xs text-muted-foreground">
-                total gap after {priced.length} price reduction{priced.length === 1 ? '' : 's'}
+                {describeGap(comparison.afterRisks)} after{' '}
+                {priced.length === 0
+                  ? 'risks (no price reductions applied)'
+                  : `${priced.length} accepted price reduction${priced.length === 1 ? '' : 's'}`}
               </dd>
             </div>
           </dl>
@@ -200,8 +201,11 @@ export function SextantExplanation({
               <p className="mt-2 flex items-start gap-2">
                 <Wallet aria-hidden className="mt-0.5 h-4 w-4 shrink-0 text-amber" />
                 <span>
-                  {comparison.holdbacks.map((line) => `${titles.get(line.findingId) ?? line.label} (${formatMoney(line.amount)})`).join(', ')} is held
-                  back in escrow from cash at close — it protects the buyer but does not change the price.
+                  {comparison.holdbacks
+                    .map((line) => `${titles.get(line.findingId) ?? line.label}: ${money(line.amount.amount.replace(/^-/, ''), currency)}`)
+                    .join('; ')}{' '}
+                  {comparison.holdbacks.length === 1 ? 'is' : 'are'} held back in escrow from cash at close — protecting the buyer without changing the
+                  price.
                 </span>
               </p>
             ) : null}
