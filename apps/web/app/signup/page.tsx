@@ -1,6 +1,7 @@
 import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle, PactlabLogo } from '@pactlab/ui';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
+import { publicEnv } from '../../lib/env';
 import { getSessionContext } from '../../lib/session';
 import { confirmSignup, startSignup } from './actions';
 
@@ -58,7 +59,7 @@ export default async function SignupPage({
               <CardTitle>Create your organization</CardTitle>
               <CardDescription>
                 {step === 'code'
-                  ? 'Enter the 6-digit code we emailed you. It expires in 10 minutes.'
+                  ? `Enter the 6-digit code we emailed you. It expires in 10 minutes.${publicEnv().NEXT_PUBLIC_APP_ENV === 'local' ? ' (Local development: run pnpm login:code to see it.)' : ''}`
                   : 'Your team signs in with one-time codes sent to their work email.'}
               </CardDescription>
             </CardHeader>

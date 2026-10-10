@@ -22,7 +22,8 @@
     "db:migrate": "pnpm --filter @pactlab/db migrate:deploy",
     "org:pending": "pnpm --silent --filter @pactlab/api ops:org pending",
     "org:approve": "pnpm --silent --filter @pactlab/api ops:org approve",
-    "org:reject": "pnpm --silent --filter @pactlab/api ops:org reject"
+    "org:reject": "pnpm --silent --filter @pactlab/api ops:org reject",
+    "login:code": "pnpm --silent --filter @pactlab/api login:code"
   },
   "prettier": {
     "singleQuote": true,
