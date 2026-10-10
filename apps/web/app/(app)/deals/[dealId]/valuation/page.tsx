@@ -1,12 +1,16 @@
 import { Badge, Button, buttonVariants, Card, CardContent, CardHeader, CardTitle, EmptyState } from '@pactlab/ui';
 import Link from 'next/link';
-import { apiGet } from '../../_lib/api';
+import { apiGet, dealsApi } from '../../_lib/api';
 import { OutcomeBanner } from '../../_lib/outcome';
 import { ApiState } from '../../_lib/states';
 import { can, dealViewer, type DealViewer } from '../../_lib/viewer';
-import { decideSubmission, runScenario, submitScenario } from './actions';
+import { decideSubmission, recordAskingPrice, runScenario, submitScenario } from './actions';
 import { formatDecimal, formatMoney, formatRatio } from '../../../metrics/_lib/format';
 import {
+  BASIS_LABELS,
+  describeGap,
+  SOURCE_LABELS,
+  type AskingComparisonView,
   describeStaleReason,
   freshness,
   isRateVariable,
@@ -88,6 +92,8 @@ function Sensitivity({ grid }: { grid: NonNullable<ValuationResultView['sensitiv
 
 const OUTCOMES: Record<string, string> = {
   'ok-created': 'Scenario created. Run it to compute value.',
+  'ok-asking': 'Asking price recorded. Every scenario is now tested against it.',
+  'asking-invalid': 'Enter the asking price as a number, its basis and source; the earn-out cannot exceed the price.',
   'ok-saved': 'New assumption version saved. Re-run to refresh the result.',
   'ok-run': 'Scenario run with the current assumptions.',
   'ok-submitted': 'Submitted and frozen. A second person must approve it.',
@@ -153,6 +159,154 @@ function ScenarioActions({ dealId, view, viewer }: { dealId: string; view: Scena
   return null;
 }
 
+const VERDICT_VARIANT = { BELOW: 'danger', AT: 'calculation', ABOVE: 'calculation' } as const;
+
+/** Asking vs Sextant for one scenario: before and after the accepted priced risks. */
+function AskingRow({ dealId, comparison }: { dealId: string; comparison: AskingComparisonView | null }) {
+  if (!comparison) return null;
+  if (!comparison.comparable) {
+    return (
+      <p className="rounded-md border border-border px-3 py-2 text-muted-foreground">
+        The asking price is in a different currency from this scenario, so they are not compared.
+      </p>
+    );
+  }
+  return (
+    <section className="flex flex-col gap-3 rounded-lg border border-indigo/30 bg-secondary/60 p-4">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h3 className="font-semibold">Asking vs Sextant</h3>
+        <span className="text-xs text-muted-foreground">
+          Asking price v{comparison.askingVersion} · {formatMoney(comparison.asking)} {BASIS_LABELS[comparison.basis]}
+        </span>
+      </div>
+      <dl className="grid gap-4 sm:grid-cols-2" data-numeric>
+        {(
+          [
+            ['Before risks', comparison.beforeRisks],
+            ['After accepted risks', comparison.afterRisks],
+          ] as const
+        ).map(([label, side]) => (
+          <div key={label} className="flex flex-col gap-1">
+            <dt className="text-muted-foreground">{label}</dt>
+            <dd className="font-mono text-lg">{formatMoney(side.value)}</dd>
+            <dd className="flex flex-wrap items-center gap-2">
+              <Badge variant={VERDICT_VARIANT[side.verdict]}>{describeGap(side)}</Badge>
+              <span className="font-mono text-muted-foreground">{formatMoney(side.gap)}</span>
+            </dd>
+          </div>
+        ))}
+      </dl>
+      {comparison.riskAdjustments.length > 0 || comparison.holdbacks.length > 0 ? (
+        <ul className="flex flex-col gap-1 text-muted-foreground">
+          {comparison.riskAdjustments.map((line) => (
+            <li key={`price-${line.findingId}`}>
+              <Link href={`/deals/${dealId}/findings/${line.findingId}`} className="text-indigo-ink hover:underline">
+                {line.label}
+              </Link>{' '}
+              <span className="font-mono">{formatMoney(line.amount)}</span> off the price
+            </li>
+          ))}
+          {comparison.holdbacks.map((line) => (
+            <li key={`hold-${line.findingId}`}>
+              <Link href={`/deals/${dealId}/findings/${line.findingId}`} className="text-indigo-ink hover:underline">
+                {line.label}
+              </Link>{' '}
+              <span className="font-mono">{formatMoney(line.amount)}</span> held back from cash at close (price unchanged)
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-muted-foreground">No accepted priced risks are linked to this scenario yet.</p>
+      )}
+    </section>
+  );
+}
+
+/** The seller's price with its history, and recording a revision. */
+async function AskingPanel({ dealId, viewer, currency }: { dealId: string; viewer: DealViewer; currency: string }) {
+  const asking = await dealsApi.askingPrice(dealId);
+  if (asking.kind !== 'ok') return null;
+  const { current, history } = asking.data;
+  const writer = can.draft(viewer.role);
+  return (
+    <Card>
+      <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
+        <div className="flex flex-col gap-1">
+          <CardTitle className="text-base">Asking price</CardTitle>
+          {current ? (
+            <p className="font-mono text-2xl font-semibold" data-numeric>
+              {formatMoney({ amount: current.amount, currency: current.currency })}{' '}
+              <span className="font-sans text-sm font-normal text-muted-foreground">{BASIS_LABELS[current.basis]}</span>
+            </p>
+          ) : (
+            <p className="text-sm text-muted-foreground">No asking price recorded yet.</p>
+          )}
+          {current ? (
+            <p className="text-sm text-muted-foreground">
+              v{current.version} · {SOURCE_LABELS[current.source]}
+              {current.quotedOn ? ` · quoted ${current.quotedOn}` : ''}
+              {current.earnOutAmount ? ` · of which ${formatMoney({ amount: current.earnOutAmount, currency: current.currency })} earn-out` : ''}
+              {current.note ? ` · ${current.note}` : ''}
+            </p>
+          ) : null}
+        </div>
+      </CardHeader>
+      <CardContent className="grid gap-6 text-sm lg:grid-cols-2">
+        <div className="flex flex-col gap-2">
+          <span className="font-medium">History</span>
+          {history.length === 0 ? (
+            <p className="text-muted-foreground">Revisions will be listed here.</p>
+          ) : (
+            <ol className="flex flex-col gap-1">
+              {history.map((entry) => (
+                <li key={entry.version} className="flex flex-wrap gap-2">
+                  <span className="font-mono">v{entry.version}</span>
+                  <span className="font-mono">{formatMoney({ amount: entry.amount, currency: entry.currency })}</span>
+                  <span className="text-muted-foreground">
+                    {SOURCE_LABELS[entry.source]} · recorded by {viewer.name(entry.recordedBy)} on {entry.recordedAt.slice(0, 10)}
+                  </span>
+                </li>
+              ))}
+            </ol>
+          )}
+        </div>
+        {writer ? (
+          <form action={recordAskingPrice.bind(null, dealId)} className="flex flex-col gap-2">
+            <span className="font-medium">{current ? 'Record a revised price' : 'Record the asking price'}</span>
+            <div className="grid grid-cols-[2fr_1fr] gap-2">
+              <input name="amount" required inputMode="decimal" placeholder="25,000,000" defaultValue={current?.amount ?? ''} className={inputClass} />
+              <input name="currency" required maxLength={3} defaultValue={current?.currency ?? currency} className={`${inputClass} uppercase`} />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <select name="basis" defaultValue={current?.basis ?? 'ENTERPRISE_VALUE'} className={inputClass}>
+                <option value="ENTERPRISE_VALUE">Enterprise value</option>
+                <option value="EQUITY_VALUE">Equity value</option>
+              </select>
+              <select name="source" defaultValue={current?.source ?? 'MANAGEMENT'} className={inputClass}>
+                {Object.entries(SOURCE_LABELS).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <input name="quotedOn" type="date" className={inputClass} aria-label="Date quoted" />
+              <input name="earnOutAmount" inputMode="decimal" placeholder="Earn-out (optional)" className={inputClass} />
+            </div>
+            <input name="note" maxLength={500} placeholder="Note (optional)" className={inputClass} />
+            <div>
+              <Button type="submit" size="sm">
+                Save as v{(current?.version ?? 0) + 1}
+              </Button>
+            </div>
+          </form>
+        ) : null}
+      </CardContent>
+    </Card>
+  );
+}
+
 function ScenarioCard({ dealId, view, viewer }: { dealId: string; view: ScenarioView; viewer: DealViewer }) {
   const { scenario, latestRun } = view;
   const result = latestRun?.result;
@@ -170,6 +324,8 @@ function ScenarioCard({ dealId, view, viewer }: { dealId: string; view: Scenario
           assumptions v{scenario.assumptionVersion}
           {latestRun ? ` · last run on assumptions v${latestRun.assumptionVersion}` : ''}
         </div>
+
+        <AskingRow dealId={dealId} comparison={view.askingComparison} />
 
         {view.staleReasons.length > 0 ? (
           <ul className="list-disc pl-5 text-red-800">
@@ -286,12 +442,14 @@ export default async function ValuationPage({
 }) {
   const outcome = (await searchParams)['outcome'];
   const dealId = parseDealParam((await params).dealId);
-  const [result, viewer] = dealId
+  const [result, viewer, deal] = dealId
     ? await Promise.all([
         apiGet<{ items: ScenarioView[] }>(`/v1/deals/${encodeURIComponent(dealId)}/valuation/scenarios`),
         dealViewer(dealId),
+        dealsApi.get(dealId),
       ])
-    : [null, null];
+    : [null, null, null];
+  const currency = deal?.kind === 'ok' ? (deal.data.baseCurrency ?? 'USD') : 'USD';
 
   return (
     <div className="flex max-w-6xl flex-col gap-6">
@@ -310,6 +468,8 @@ export default async function ValuationPage({
       </div>
 
       <OutcomeBanner outcome={typeof outcome === 'string' ? outcome : undefined} messages={OUTCOMES} />
+
+      {dealId && viewer ? <AskingPanel dealId={dealId} viewer={viewer} currency={currency} /> : null}
 
       {!dealId || !viewer ? (
         <EmptyState

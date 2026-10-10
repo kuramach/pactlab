@@ -61,6 +61,23 @@ enum SourceUploadStatus {
   @@map("source_upload_status")
 }
 
+enum AskingBasis {
+  ENTERPRISE_VALUE
+  EQUITY_VALUE
+
+  @@map("asking_basis")
+}
+
+enum AskingSource {
+  TEASER
+  MANAGEMENT
+  LETTER_OF_INTENT
+  BANKER
+  OTHER
+
+  @@map("asking_source")
+}
+
 enum OrganizationAuthMethod {
   AUTH0
   EMAIL_CODE
@@ -343,6 +360,7 @@ model Organization {
   authSessions            AuthSession[]
   dealParties             DealParty[]
   sourceUploads           SourceUpload[]
+  askingPrices            AskingPrice[]
 
   @@map("organizations")
 }
@@ -419,6 +437,7 @@ model Deal {
   documentFindingReviews  DocumentFindingReview[]
   parties                 DealParty[]
   sourceUploads           SourceUpload[]
+  askingPrices            AskingPrice[]
 
   @@unique([organizationId, id])
   @@index([organizationId, createdAt])
@@ -1146,4 +1165,28 @@ model SourceUpload {
   @@unique([organizationId, dealId, id])
   @@index([organizationId, dealId, createdAt])
   @@map("source_uploads")
+}
+
+/// The seller's asking price for a deal. Append-only: a revision is a new
+/// version and the highest version is current. Buyer-side only.
+model AskingPrice {
+  id             String       @id @default(uuid(7)) @db.Uuid
+  organizationId String       @map("organization_id") @db.Uuid
+  dealId         String       @map("deal_id") @db.Uuid
+  version        Int
+  amount         Decimal      @db.Decimal(24, 4)
+  currency       String       @db.Char(3)
+  basis          AskingBasis
+  source         AskingSource
+  quotedOn       DateTime?    @map("quoted_on") @db.Date
+  earnOutAmount  Decimal?     @map("earn_out_amount") @db.Decimal(24, 4)
+  note           String?
+  recordedBy     String       @map("recorded_by") @db.Uuid
+  recordedAt     DateTime     @default(now()) @map("recorded_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  deal         Deal         @relation(fields: [organizationId, dealId], references: [organizationId, id], onDelete: Restrict)
+
+  @@unique([organizationId, dealId, version])
+  @@map("asking_prices")
 }

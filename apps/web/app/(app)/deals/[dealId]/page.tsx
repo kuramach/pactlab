@@ -2,7 +2,9 @@ import { COMPANY_TYPE_LABELS } from '@pactlab/domain';
 import { Badge, buttonVariants, Card, CardContent, CardHeader, CardTitle, Section, Stat } from '@pactlab/ui';
 import { ArrowRight, CheckCircle2, Circle } from 'lucide-react';
 import Link from 'next/link';
-import { dealsApi } from '../_lib/api';
+import { formatMoney } from '../../metrics/_lib/format';
+import { BASIS_LABELS, describeGap, type ScenarioView } from '../../valuation/_lib/view';
+import { apiGet, dealsApi } from '../_lib/api';
 import { partyLabel } from '../_lib/labels';
 
 // Per-user data: never prerender.
@@ -13,11 +15,18 @@ const number = new Intl.NumberFormat('en-US');
 /** Deal overview: the parties, how far evidence collection has come, and where to go next. */
 export default async function DealOverviewPage({ params }: { params: Promise<{ dealId: string }> }) {
   const { dealId } = await params;
-  const [plan, sources, parties] = await Promise.all([
+  const [plan, sources, parties, asking, scenarios] = await Promise.all([
     dealsApi.sourcePlan(dealId),
     dealsApi.sources(dealId),
     dealsApi.parties(dealId),
+    dealsApi.askingPrice(dealId),
+    apiGet<{ items: ScenarioView[] }>(`/v1/deals/${dealId}/valuation/scenarios`),
   ]);
+  const current = asking.kind === 'ok' ? asking.data.current : null;
+  // Headline scenario: the approved one if there is one, else the latest that has run.
+  const compared = (scenarios.kind === 'ok' ? scenarios.data.items : []).filter((view) => view.askingComparison?.comparable);
+  const headline = compared.find((view) => view.scenario.status === 'APPROVED') ?? compared[0];
+  const comparison = headline?.askingComparison?.comparable ? headline.askingComparison : null;
   const planned = plan.kind === 'ok' ? plan.data.sources : [];
   const connected = planned.filter((source) => source.status === 'CONNECTED').length;
   const evidence = sources.kind === 'ok' ? sources.data.items.reduce((total, source) => total + source.evidenceCount, 0) : 0;
@@ -25,6 +34,39 @@ export default async function DealOverviewPage({ params }: { params: Promise<{ d
 
   return (
     <div className="flex flex-col gap-8">
+      {asking.kind === 'ok' ? (
+        <Card className="border-indigo/30 bg-secondary/60">
+          <CardContent className="flex flex-wrap items-center justify-between gap-4 p-5">
+            {current ? (
+              <div className="flex flex-wrap items-baseline gap-x-6 gap-y-2" data-numeric>
+                <span>
+                  <span className="text-xs uppercase tracking-wide text-muted-foreground">Asking</span>
+                  <span className="ml-2 font-mono text-xl font-semibold">{formatMoney({ amount: current.amount, currency: current.currency })}</span>
+                  <span className="ml-1 text-sm text-muted-foreground">{BASIS_LABELS[current.basis]}</span>
+                </span>
+                {comparison && headline ? (
+                  <>
+                    <span>
+                      <span className="text-xs uppercase tracking-wide text-muted-foreground">Sextant</span>
+                      <span className="ml-2 font-mono text-xl font-semibold">{formatMoney(comparison.afterRisks.value)}</span>
+                      <span className="ml-1 text-sm text-muted-foreground">after accepted risks · {headline.scenario.name}</span>
+                    </span>
+                    <Badge variant={comparison.afterRisks.verdict === 'BELOW' ? 'danger' : 'calculation'}>{describeGap(comparison.afterRisks)}</Badge>
+                  </>
+                ) : (
+                  <span className="text-sm text-muted-foreground">Run a Sextant scenario to test this price.</span>
+                )}
+              </div>
+            ) : (
+              <span className="text-sm text-muted-foreground">No asking price yet. Record the seller’s price to test it in Sextant.</span>
+            )}
+            <Link href={`/deals/${dealId}/valuation`} className={buttonVariants({ size: 'sm', variant: 'outline' })}>
+              Open valuation <ArrowRight aria-hidden className="h-4 w-4" />
+            </Link>
+          </CardContent>
+        </Card>
+      ) : null}
+
       <div className="grid gap-4 sm:grid-cols-3">
         <Stat label="Sources connected" value={`${connected} of ${planned.length}`} hint={plan.kind === 'ok' && plan.data.note ? 'Industry pack planned' : undefined} />
         <Stat label="Evidence records" value={number.format(evidence)} hint="Every record traces back to its source" />

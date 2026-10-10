@@ -3,6 +3,7 @@ import { ArrowRight, Plus } from 'lucide-react';
 import Link from 'next/link';
 import { getSessionContext } from '../../lib/session';
 import { dealsApi } from './deals/_lib/api';
+import { formatMoney } from './metrics/_lib/format';
 import { DEAL_TYPE_LABELS, partyLabel, STAGE_LABELS } from './deals/_lib/labels';
 
 // Per-user data: never prerender.
@@ -88,8 +89,13 @@ export default async function HomePage() {
                       <p className="text-sm text-muted-foreground">
                         {buyer && seller ? `${partyLabel(buyer)} → ${partyLabel(seller)}` : deal.targetName}
                       </p>
-                      <span className="mt-auto text-xs text-muted-foreground">
-                        {DEAL_TYPE_LABELS[deal.transactionType] ?? deal.transactionType}
+                      <span className="mt-auto flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+                        <span>{DEAL_TYPE_LABELS[deal.transactionType] ?? deal.transactionType}</span>
+                        {deal.askingPrice ? (
+                          <span className="font-mono text-sm text-foreground" data-numeric>
+                            Asking {formatMoney({ amount: deal.askingPrice.amount, currency: deal.askingPrice.currency })}
+                          </span>
+                        ) : null}
                       </span>
                     </CardContent>
                   </Card>

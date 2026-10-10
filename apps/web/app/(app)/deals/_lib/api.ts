@@ -1,4 +1,5 @@
 import type {
+  AskingPriceView,
   BillingSystemView,
   DealPartiesResponse,
   DealSummary,
@@ -30,6 +31,7 @@ export interface DealListItem {
   status: string;
   baseCurrency?: string;
   parties?: DealSummary['parties'];
+  askingPrice?: DealSummary['askingPrice'];
 }
 
 export interface EvidencePage {
@@ -166,6 +168,8 @@ export interface DealMember {
 }
 
 export const dealsApi = {
+  askingPrice: (dealId: string) =>
+    apiGet<{ current: AskingPriceView | null; history: AskingPriceView[] }>(`/v1/deals/${encodeURIComponent(dealId)}/asking-price`),
   members: (dealId: string) => apiGet<{ items: DealMember[] }>(`/v1/deals/${encodeURIComponent(dealId)}/members`),
   organizationMembers: () =>
     apiGet<{ items: { userId: string; displayName: string; role: string }[] }>('/v1/organization/members'),

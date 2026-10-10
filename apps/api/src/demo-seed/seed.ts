@@ -1,9 +1,11 @@
 import type { INestApplicationContext } from '@nestjs/common';
 import { neutralizeMarkup, type ModelRequest } from '@pactlab/ai';
 import { deals, resolvePrincipal, withTenant, type PrismaClient } from '@pactlab/db';
+import type { AskingPriceInput } from '@pactlab/contracts';
 import type { TenantContext } from '@pactlab/domain';
 import { DocumentsService } from '../documents/documents.service';
 import { FindingsService } from '../findings/findings.service';
+import { PactsService } from '../pacts/pacts.service';
 import { ValuationService } from '../valuation/valuation.service';
 import { DEMO_CONTRACTS, type SyntheticContract } from './contracts';
 
@@ -121,6 +123,7 @@ export async function seedDemo(
   const findingsService = app.get(FindingsService, { strict: false });
   const valuation = app.get(ValuationService, { strict: false });
   const documents = app.get(DocumentsService, { strict: false });
+  const pacts = app.get(PactsService, { strict: false });
   const report: string[] = [];
 
   for (const holder of DEMO_HOLDERS) {
@@ -177,6 +180,27 @@ export async function seedDemo(
         }
       }
       report.push(`${holder.label} · Project Troubled: ${fresh.length > 0 ? `${Math.min(fresh.length, 2)} findings priced and reviewed` : 'findings already reviewed'}`);
+    }
+
+    // --- Asking prices: what the seller wants, revised once on Troubled ---
+    const askings: [DealName, AskingPriceInput[]][] = [
+      ['Project Healthy', [{ amount: '2800000', currency: 'USD', basis: 'ENTERPRISE_VALUE', source: 'TEASER', quotedOn: '2026-08-20', earnOutAmount: null, note: `Cash-free, debt-free ${SYNTHETIC}` }]],
+      [
+        'Project Troubled',
+        [
+          { amount: '1500000', currency: 'USD', basis: 'ENTERPRISE_VALUE', source: 'LETTER_OF_INTENT', quotedOn: '2026-07-01', earnOutAmount: '250000', note: SYNTHETIC },
+          { amount: '1350000', currency: 'USD', basis: 'ENTERPRISE_VALUE', source: 'MANAGEMENT', quotedOn: '2026-09-10', earnOutAmount: '250000', note: `Revised after code findings ${SYNTHETIC}` },
+        ],
+      ],
+      ['Project Sparse', [{ amount: '900000', currency: 'USD', basis: 'EQUITY_VALUE', source: 'BANKER', quotedOn: '2026-09-25', earnOutAmount: null, note: SYNTHETIC }]],
+    ];
+    for (const [name, versions] of askings) {
+      const id = dealId(name);
+      if (!id) continue;
+      // Only on a deal with no asking price yet, so re-running never adds versions.
+      if ((await pacts.askingPrice(who.lead, id, REQUEST_ID)).history.length > 0) continue;
+      for (const version of versions) await pacts.recordAskingPrice(who.lead, id, version, REQUEST_ID);
+      report.push(`${holder.label} · ${name}: asking price recorded (${versions.length} version${versions.length > 1 ? 's' : ''})`);
     }
 
     // --- Valuation scenarios ---

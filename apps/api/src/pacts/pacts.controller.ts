@@ -1,9 +1,12 @@
 import { Body, Controller, Get, HttpCode, Inject, Param, Patch, Post } from '@nestjs/common';
 import {
+  askingPriceInputSchema,
   dealParamsSchema,
   partyParamsSchema,
   startPactSchema,
   updatePartySchema,
+  type AskingPriceInput,
+  type AskingPriceView,
   type DealPartiesResponse,
   type DealSummary,
   type SourcePlanResponse,
@@ -28,6 +31,26 @@ export class PactsController {
     @Body(new ZodValidationPipe(startPactSchema)) body: StartPactCommand,
   ): Promise<DealSummary> {
     return this.pacts.start(tenant, body, requestId);
+  }
+
+  @Get('deals/:dealId/asking-price')
+  async askingPrice(
+    @Tenant() tenant: TenantContext,
+    @RequestId() requestId: string,
+    @Param(new ZodValidationPipe(dealParamsSchema)) params: { dealId: string },
+  ): Promise<{ current: AskingPriceView | null; history: AskingPriceView[] }> {
+    return this.pacts.askingPrice(tenant, params.dealId, requestId);
+  }
+
+  @Post('deals/:dealId/asking-price')
+  @HttpCode(201)
+  async recordAskingPrice(
+    @Tenant() tenant: TenantContext,
+    @RequestId() requestId: string,
+    @Param(new ZodValidationPipe(dealParamsSchema)) params: { dealId: string },
+    @Body(new ZodValidationPipe(askingPriceInputSchema)) body: AskingPriceInput,
+  ): Promise<{ current: AskingPriceView | null; history: AskingPriceView[] }> {
+    return this.pacts.recordAskingPrice(tenant, params.dealId, body, requestId);
   }
 
   @Get('deals/:dealId/parties')
