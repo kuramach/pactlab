@@ -2,6 +2,7 @@ import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Pact
 import { redirect } from 'next/navigation';
 import { loginPath, safeReturnTo } from '../../lib/auth-flow';
 import { auth0 } from '../../lib/auth0';
+import { publicEnv } from '../../lib/env';
 import { getSessionContext } from '../../lib/session';
 import { requestCode, submitCode } from './actions';
 
@@ -54,6 +55,12 @@ export default async function LoginPage({
               <p className="text-sm text-muted-foreground">
                 If that address can sign in with a code, we have emailed one. It expires in 10 minutes.
               </p>
+              {publicEnv().NEXT_PUBLIC_APP_ENV === 'local' ? (
+                <p className="rounded-md border border-dashed border-border bg-muted px-3 py-2 text-xs text-muted-foreground">
+                  Local development: codes are not emailed. Run <code className="font-mono text-foreground">pnpm login:code</code> in the
+                  project folder to see the latest one.
+                </p>
+              ) : null}
               <label className="flex flex-col gap-1 text-sm font-medium">
                 6-digit code
                 <input
