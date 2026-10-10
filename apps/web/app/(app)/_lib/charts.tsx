@@ -116,6 +116,15 @@ export function BarChart({
 }
 
 /** Donut with the total in the middle. */
+/** Text for chart tooltips, which ECharts renders as HTML. */
+function escapeHtml(text: string): string {
+  return text.replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char] ?? char);
+}
+
+/**
+ * Donut with the total in the middle. A slice may list the items it stands
+ * for; hovering the slice or its legend entry shows them.
+ */
 export function DonutChart({
   label,
   slices,
@@ -123,14 +132,31 @@ export function DonutChart({
   height = 240,
 }: {
   label: string;
-  slices: readonly { name: string; value: number; color?: string }[];
+  slices: readonly { name: string; value: number; color?: string; items?: readonly string[] }[];
   centerLabel?: string;
   height?: number;
 }) {
-  const ref = useChart(
-    () => ({
-      tooltip: { trigger: 'item' },
-      legend: { bottom: 0, icon: 'circle', itemWidth: 10, itemHeight: 10, textStyle: { fontSize: 11 } },
+  const ref = useChart(() => {
+    const describe = (name: string) => {
+      const slice = slices.find((entry) => entry.name === name);
+      if (!slice) return escapeHtml(name);
+      const heading = `<b>${escapeHtml(slice.name)}</b> · ${slice.value}`;
+      if (!slice.items) return heading;
+      const list = slice.items.length
+        ? slice.items.map((item) => `<div style="margin-top:2px">• ${escapeHtml(item)}</div>`).join('')
+        : '<div style="margin-top:2px;opacity:.7">None</div>';
+      return `${heading}${list}`;
+    };
+    return {
+      tooltip: { trigger: 'item', confine: true, formatter: (params: { name: string }) => describe(params.name) },
+      legend: {
+        bottom: 0,
+        icon: 'circle',
+        itemWidth: 10,
+        itemHeight: 10,
+        textStyle: { fontSize: 11 },
+        tooltip: { show: true, formatter: (params: { name: string }) => describe(params.name) },
+      },
       title: centerLabel
         ? { text: centerLabel, left: 'center', top: '36%', textStyle: { fontSize: 20, fontWeight: 800, color: CHART_COLORS.navy } }
         : undefined,
@@ -145,9 +171,8 @@ export function DonutChart({
           data: slices.map((slice) => ({ name: slice.name, value: slice.value, ...(slice.color ? { itemStyle: { color: slice.color } } : {}) })),
         },
       ],
-    }),
-    [JSON.stringify({ slices, centerLabel })],
-  );
+    };
+  }, [JSON.stringify({ slices, centerLabel })]);
   return <Frame label={label} height={height} chartRef={ref} />;
 }
 

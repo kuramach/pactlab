@@ -148,10 +148,40 @@ export default async function DealOverviewPage({ params }: { params: Promise<{ d
               label="Sources connected and still to connect"
               centerLabel={`${connected}/${planned.length}`}
               slices={[
-                { name: 'Connected', value: connected, color: CHART_COLORS.teal },
-                { name: 'To connect', value: planned.length - connected, color: '#e3e8f2' },
+                {
+                  name: 'Connected',
+                  value: connected,
+                  color: CHART_COLORS.teal,
+                  items: planned
+                    .filter((source) => source.status === 'CONNECTED')
+                    .map((source) => `${source.label} · ${source.connections.map((connection) => connection.displayName).join(', ') || source.providerLabel}`),
+                },
+                {
+                  name: 'To connect',
+                  value: planned.length - connected,
+                  color: '#cbd5e1',
+                  items: planned
+                    .filter((source) => source.status !== 'CONNECTED')
+                    .map((source) => `${source.label} · ${source.providerLabel}`),
+                },
               ]}
             />
+            <ul className="mt-3 flex flex-col gap-1.5 text-sm">
+              {planned.map((source) => (
+                <li key={source.kind} className="flex items-center justify-between gap-2">
+                  <span className="flex items-center gap-2">
+                    <span
+                      aria-hidden
+                      className={`h-2.5 w-2.5 rounded-full ${source.status === 'CONNECTED' ? 'bg-teal' : 'bg-slate-300'}`}
+                    />
+                    {source.label} · {source.providerLabel}
+                  </span>
+                  <span className={source.status === 'CONNECTED' ? 'font-semibold text-teal' : 'text-muted-foreground'}>
+                    {source.status === 'CONNECTED' ? 'Connected' : 'To connect'}
+                  </span>
+                </li>
+              ))}
+            </ul>
           </CardContent>
         </Card>
       </div>
