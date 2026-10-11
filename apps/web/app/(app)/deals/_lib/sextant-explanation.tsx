@@ -6,7 +6,7 @@ import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { formatMoney } from '../../metrics/_lib/format';
 import { fractionToPercent } from '../../valuation/_lib/form';
-import { BASIS_LABELS, describeGap, type ScenarioView } from '../../valuation/_lib/view';
+import { BASIS_LABELS, ENTERED_BRIDGE_KINDS, describeGap, type ScenarioView } from '../../valuation/_lib/view';
 import { WaterfallChart } from '../../_lib/charts';
 import { MultipleContextLine } from './multiple-context';
 import type { DealViewer } from './viewer';
@@ -18,7 +18,7 @@ const RISK_LABELS: Record<string, string> = {
   REMEDIATION_COST: 'Remediation cost',
 };
 const POINT_LABELS = { LOW: 'low end', MID: 'midpoint', HIGH: 'high end' } as const;
-const EQUITY_STEPS = new Set(['CASH', 'DEBT', 'DEBT_LIKE_ITEMS', 'WORKING_CAPITAL']);
+const EQUITY_STEPS = new Set(['CASH', 'CASH_ITEM', 'DEBT', 'DEBT_ITEM', 'DEBT_LIKE_ITEMS', 'DEBT_LIKE_ITEM', 'WORKING_CAPITAL']);
 
 const money = (amount: string, currency: string) => formatMoney({ amount, currency });
 const pct = (fraction: string) => `${fractionToPercent(fraction)}%`;
@@ -160,10 +160,22 @@ export function SextantExplanation({
               <p>The asking price is for the shares, so cash and debt are taken into account:</p>
               <ul className="mt-1 flex flex-col gap-0.5">
                 {result.bridge.lines
-                  .filter((line) => EQUITY_STEPS.has(line.kind))
-                  .map((line) => (
-                    <li key={line.kind} className="flex justify-between gap-4">
-                      <span>{line.label}</span>
+                  // Typed amounts of zero add nothing; cited items and the working capital always show.
+                  .filter((line) => EQUITY_STEPS.has(line.kind) && !(ENTERED_BRIDGE_KINDS.has(line.kind) && /^-?0(\.0+)?$/.test(line.amount.amount)))
+                  .map((line, index) => (
+                    <li key={`${line.kind}-${index}`} className="flex justify-between gap-4">
+                      <span>
+                        {line.label}
+                        {line.balanceSheetItemId ? (
+                          <Badge variant="evidence" className="ml-2">
+                            cited
+                          </Badge>
+                        ) : ENTERED_BRIDGE_KINDS.has(line.kind) ? (
+                          <Badge variant="draft" className="ml-2">
+                            no evidence
+                          </Badge>
+                        ) : null}
+                      </span>
                       <span className="font-mono">{formatMoney(line.amount)}</span>
                     </li>
                   ))}

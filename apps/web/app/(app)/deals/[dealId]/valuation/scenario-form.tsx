@@ -7,6 +7,17 @@ import type { ScenarioFormState } from './actions';
 
 const inputClass = 'w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring';
 
+export interface CitedItem {
+  id: string;
+  kind: 'CASH' | 'DEBT' | 'DEBT_LIKE';
+  label: string;
+  amount: string;
+  source: string;
+  citationValid: boolean;
+}
+
+const KIND_SIGNS = { CASH: 'adds', DEBT: 'reduces', DEBT_LIKE: 'reduces' } as const;
+
 export interface AcceptedFinding {
   id: string;
   title: string;
@@ -35,6 +46,7 @@ export function ScenarioForm({
   currency,
   takePrivate,
   accepted,
+  items = [],
   submitLabel,
 }: {
   action: (state: ScenarioFormState, data: FormData) => Promise<ScenarioFormState>;
@@ -43,6 +55,8 @@ export function ScenarioForm({
   currency: string;
   takePrivate: boolean;
   accepted: readonly AcceptedFinding[];
+  /** Active cash, debt and debt-like items on the deal, each backed by a document quote. */
+  items?: readonly CitedItem[];
   submitLabel: string;
   /** Where comparable multiples sit, so the multiple is chosen with context. */
   multipleHint?: string;
@@ -155,13 +169,39 @@ export function ScenarioForm({
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Purchase-price bridge</CardTitle>
-          <CardDescription>From enterprise value to the equity price. Use a minus sign for negative adjustments.</CardDescription>
+          <CardDescription>
+            From enterprise value to the equity price. Link cited cash, debt and debt-like items below; amounts typed here have no evidence behind them.
+          </CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-2">
-          <Field label="Cash acquired" name="cash" defaultValue={values?.bridge.cash ?? '0'} />
-          <Field label="Debt repaid" name="debt" defaultValue={values?.bridge.debt ?? '0'} />
-          <Field label="Debt-like items" name="debtLikeItems" defaultValue={values?.bridge.debtLikeItems ?? '0'} />
-          <Field label="Working-capital adjustment" name="workingCapitalAdjustment" defaultValue={values?.bridge.workingCapitalAdjustment ?? '0'} />
+        <CardContent className="flex flex-col gap-4">
+          <div className="flex flex-col gap-2 text-sm">
+            <span className="font-medium">Cited balance-sheet items</span>
+            {items.length === 0 ? (
+              <p className="text-muted-foreground">No cited items yet. Add them in the Balance sheet section of Valuation, quoting the document they come from.</p>
+            ) : (
+              items.map((item) => (
+                <label key={item.id} className="flex flex-wrap items-center gap-3 rounded-lg border border-border p-3">
+                  <input type="checkbox" name={`item_${item.id}`} defaultChecked={values ? (values.balanceSheetLinks ?? []).includes(item.id) : true} />
+                  <span className="flex min-w-0 flex-1 flex-col">
+                    <span className="font-medium">{item.label}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {item.source}
+                      {item.citationValid ? '' : ' · source no longer available'}
+                    </span>
+                  </span>
+                  <span className="font-mono text-xs">
+                    {item.amount} · {KIND_SIGNS[item.kind]} equity value
+                  </span>
+                </label>
+              ))
+            )}
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Cash — entered without evidence" name="cash" defaultValue={values?.bridge.cash ?? '0'} hint="Leave 0 when the cash is a cited item." />
+            <Field label="Debt — entered without evidence" name="debt" defaultValue={values?.bridge.debt ?? '0'} hint="Leave 0 when every loan is a cited item." />
+            <Field label="Debt-like items — entered without evidence" name="debtLikeItems" defaultValue={values?.bridge.debtLikeItems ?? '0'} />
+            <Field label="Working-capital adjustment" name="workingCapitalAdjustment" defaultValue={values?.bridge.workingCapitalAdjustment ?? '0'} hint="Delivered working capital minus the agreed peg." />
+          </div>
         </CardContent>
       </Card>
 

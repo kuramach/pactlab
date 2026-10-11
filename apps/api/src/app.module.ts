@@ -5,6 +5,7 @@ import type { PrismaClient } from '@pactlab/db';
 import type { Logger } from '@pactlab/observability';
 import { AuditModule } from './audit/audit.module';
 import { AuthGuard } from './auth/auth.guard';
+import { BalanceSheetModule } from './balance-sheet/balance-sheet.module';
 import { ComparablesModule } from './comparables/comparables.module';
 import { CompositeIdentityVerifier, type IdentityVerifier } from './auth/identity';
 import { PACTLAB_TOKEN_ISSUER, PactlabTokens } from './auth/pactlab-token';
@@ -95,6 +96,7 @@ export class AppModule {
         MeModule,
         MetricsModule,
         PactsModule,
+        BalanceSheetModule,
         AuditModule,
         OrganizationModule,
         ImportsModule.register({

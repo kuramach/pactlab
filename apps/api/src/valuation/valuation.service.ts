@@ -17,10 +17,12 @@ import {
   verifyFrozen,
   VALUATION_ENGINE_VERSION,
   type LinkedAdjustment,
+  type LinkedBalanceSheetItem,
   type LinkedFindingState,
+  type LinkedItemState,
   type ValuationInputs,
 } from '@pactlab/calculations';
-import { appendAuditEvent, askingPrices, deals, withTenant, type PrismaClient } from '@pactlab/db';
+import { appendAuditEvent, askingPrices, balanceSheetItems, deals, withTenant, type PrismaClient } from '@pactlab/db';
 import { newId, permissionsForDealRole, type DealRole, type TenantContext } from '@pactlab/domain';
 import { DealAccess } from '../deals/deal-access';
 import { FINDINGS_REPOSITORY, type FindingsRepository } from '../findings/findings.repository';
@@ -154,6 +156,36 @@ export class ValuationService {
     return adjustments;
   }
 
+  /** Resolve linked balance-sheet items to their current values. Only active items may move a valuation. */
+  private async resolveBalanceSheetItems(tenant: TenantContext, dealId: string, itemIds: readonly string[]): Promise<LinkedBalanceSheetItem[]> {
+    if (itemIds.length === 0) return [];
+    const items = await withTenant(this.prisma, tenant, (tx) => balanceSheetItems.list(tx, dealId));
+    return itemIds.map((itemId) => {
+      const item = items.find((candidate) => candidate.id === itemId);
+      if (!item) throw new UnprocessableEntityException('Linked balance-sheet item is not active on this deal');
+      return {
+        itemId: item.id,
+        itemVersion: item.version,
+        kind: item.kind,
+        category: item.category as LinkedBalanceSheetItem['category'],
+        label: item.label,
+        currency: item.currency,
+        amount: item.amount,
+      };
+    });
+  }
+
+  private async itemStates(tenant: TenantContext, dealId: string, itemIds: readonly string[]): Promise<Map<string, LinkedItemState | null>> {
+    const states = new Map<string, LinkedItemState | null>();
+    if (itemIds.length === 0) return states;
+    const items = await withTenant(this.prisma, tenant, (tx) => balanceSheetItems.list(tx, dealId, { includeWithdrawn: true }));
+    for (const itemId of itemIds) {
+      const item = items.find((candidate) => candidate.id === itemId);
+      states.set(itemId, item ? { itemId, version: item.version, status: item.status } : null);
+    }
+    return states;
+  }
+
   private async buildInputs(
     tenant: TenantContext,
     scenario: Pick<Scenario, 'dealId' | 'currency' | 'transactionType'>,
@@ -166,6 +198,9 @@ export class ValuationService {
       bridge: values.bridge,
       stockConsiderationShare: values.stockConsiderationShare,
       adjustments: await this.resolveAdjustments(tenant, scenario.dealId, values.findingLinks),
+      ...(values.balanceSheetLinks?.length
+        ? { balanceSheetItems: await this.resolveBalanceSheetItems(tenant, scenario.dealId, values.balanceSheetLinks) }
+        : {}),
       lbo: values.lbo,
       accretionDilution: values.accretionDilution,
       sensitivity: values.sensitivity,
@@ -189,6 +224,12 @@ export class ValuationService {
             tenant,
             record.scenario.dealId,
             run.inputs.adjustments.map((adjustment) => adjustment.findingId),
+          ),
+          balanceSheetItems: run.inputs.balanceSheetItems ?? [],
+          currentItems: await this.itemStates(
+            tenant,
+            record.scenario.dealId,
+            (run.inputs.balanceSheetItems ?? []).map((item) => item.itemId),
           ),
         })
       : [];

@@ -54,6 +54,8 @@ export interface ScenarioValues {
   bridge: { cash: string; debt: string; debtLikeItems: string; workingCapitalAdjustment: string };
   stockConsiderationShare: string;
   findingLinks: { findingId: string; point: (typeof ADJUSTMENT_POINTS)[number] }[];
+  /** Cited balance-sheet items on the deal; absent on scenarios saved before items existed. */
+  balanceSheetLinks?: string[];
   lbo: {
     entryEbitda: string;
     leverageMultiple: string;
@@ -125,6 +127,9 @@ export function scenarioFromForm(form: FormData, previous: Partial<ScenarioValue
     }
   }
 
+  // Checked items arrive as `item_<id>=on`.
+  const balanceSheetLinks = [...form.keys()].filter((key) => key.startsWith('item_') && UUID.test(key.slice(5))).map((key) => key.slice(5));
+
   let lbo: ScenarioValues['lbo'] = null;
   if (form.get('lboEnabled') === 'on') {
     const fields = ['entryEbitda', 'leverageMultiple', 'exitEbitda', 'exitMultiple', 'debtRepaid'] as const;
@@ -143,6 +148,7 @@ export function scenarioFromForm(form: FormData, previous: Partial<ScenarioValue
       bridge: bridge as ScenarioValues['bridge'],
       stockConsiderationShare: previous?.stockConsiderationShare ?? '0',
       findingLinks,
+      balanceSheetLinks: [...new Set(balanceSheetLinks)],
       lbo,
       accretionDilution: previous?.accretionDilution ?? null,
       sensitivity: previous?.sensitivity ?? null,

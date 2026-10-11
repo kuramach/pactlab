@@ -6,7 +6,9 @@ import { apiGet, dealsApi } from '../../_lib/api';
 import { OutcomeBanner } from '../../_lib/outcome';
 import { BENCHMARK_OUTCOMES, MultipleContext, MultipleContextLine } from '../../_lib/multiple-context';
 import { ANCHOR_OUTCOMES, NegotiationAnchors } from '../../_lib/negotiation-anchors';
-import type { AnchorsView, BenchmarkView } from '@pactlab/contracts';
+import type { AnchorsView, BalanceSheetItemView, BalanceSheetView, BenchmarkView } from '@pactlab/contracts';
+import { BALANCE_SHEET_OUTCOMES, BalanceSheetCard } from './balance-sheet-card';
+import { citationHref } from '../../../documents/_lib/view';
 import { ApiState } from '../../_lib/states';
 import { can, dealViewer, type DealViewer } from '../../_lib/viewer';
 import { decideSubmission, recordAskingPrice, runScenario, submitScenario } from './actions';
@@ -25,20 +27,45 @@ import {
   statusVariant,
   type ScenarioView,
   type ValuationResultView,
+  ENTERED_BRIDGE_KINDS,
 } from '../../../valuation/_lib/view';
 
 function axisValue(variable: string, value: string): string {
   return isRateVariable(variable) ? formatRatio(value) : formatDecimal(value);
 }
 
-function Bridge({ dealId, result }: { dealId: string; result: ValuationResultView }) {
+function Bridge({ dealId, result, items }: { dealId: string; result: ValuationResultView; items: ReadonlyMap<string, BalanceSheetItemView> }) {
+  const hasItems = result.bridge.lines.some((line) => line.balanceSheetItemId);
   return (
     <table className="w-full text-sm">
       <tbody className="divide-y divide-border">
-        {result.bridge.lines.map((line, index) => (
+        {result.bridge.lines
+          // With cited items, typed amounts of zero are noise.
+          .filter((line) => !(hasItems && ENTERED_BRIDGE_KINDS.has(line.kind) && /^-?0(\.0+)?$/.test(line.amount.amount)))
+          .map((line, index) => {
+            const item = line.balanceSheetItemId ? items.get(line.balanceSheetItemId) : undefined;
+            return (
           <tr key={`${line.kind}-${index}`} className={isSubtotal(line) ? 'font-medium' : ''}>
             <td className="px-4 py-1.5">
+              {line.balanceSheetItemId ? <span className="pl-3 text-muted-foreground">↳ </span> : null}
               {line.label}
+              {line.balanceSheetItemId ? (
+                item ? (
+                  <Link href={citationHref(dealId, item.citation)} title={`“${item.citation.quote}”`} className="ml-2">
+                    <Badge variant={item.citationValid ? 'evidence' : 'danger'}>
+                      {item.citation.documentName ?? 'document'}, p. {item.citation.pageNumber}
+                    </Badge>
+                  </Link>
+                ) : (
+                  <Badge variant="danger" className="ml-2">
+                    item withdrawn
+                  </Badge>
+                )
+              ) : ENTERED_BRIDGE_KINDS.has(line.kind) && !/^-?0(\.0+)?$/.test(line.amount.amount) ? (
+                <Badge variant="draft" className="ml-2" title="Typed into the scenario with no document behind it">
+                  no evidence
+                </Badge>
+              ) : null}
               {line.findingId ? (
                 <>
                   {' '}
@@ -53,7 +80,8 @@ function Bridge({ dealId, result }: { dealId: string; result: ValuationResultVie
             </td>
             <td className="px-4 py-1.5 text-right font-mono">{formatMoney(line.amount)}</td>
           </tr>
-        ))}
+            );
+          })}
       </tbody>
     </table>
   );
@@ -312,7 +340,19 @@ async function AskingPanel({ dealId, viewer, currency }: { dealId: string; viewe
   );
 }
 
-function ScenarioCard({ dealId, view, viewer, benchmark }: { dealId: string; view: ScenarioView; viewer: DealViewer; benchmark: BenchmarkView | null }) {
+function ScenarioCard({
+  dealId,
+  view,
+  viewer,
+  benchmark,
+  items,
+}: {
+  dealId: string;
+  view: ScenarioView;
+  viewer: DealViewer;
+  benchmark: BenchmarkView | null;
+  items: ReadonlyMap<string, BalanceSheetItemView>;
+}) {
   const { scenario, latestRun } = view;
   const result = latestRun?.result;
   const fresh = freshness(view);
@@ -416,7 +456,7 @@ function ScenarioCard({ dealId, view, viewer, benchmark }: { dealId: string; vie
               />
               <details className="text-sm">
                 <summary className="cursor-pointer text-muted-foreground">Show the bridge lines</summary>
-                <Bridge dealId={dealId} result={result} />
+                <Bridge dealId={dealId} result={result} items={items} />
               </details>
             </section>
 
@@ -521,7 +561,14 @@ export default async function ValuationPage({
   }
   const lead = runs.find((view) => view.scenario.status === 'APPROVED') ?? runs[0];
   const leadBenchmark = lead ? benchmarks.get(lead.scenario.id) : undefined;
-  const anchors = dealId && result?.kind === 'ok' ? await apiGet<AnchorsView>(`/v1/deals/${encodeURIComponent(dealId)}/anchors`) : null;
+  const [anchors, sheet] =
+    dealId && result?.kind === 'ok'
+      ? await Promise.all([
+          apiGet<AnchorsView>(`/v1/deals/${encodeURIComponent(dealId)}/anchors`),
+          apiGet<BalanceSheetView>(`/v1/deals/${encodeURIComponent(dealId)}/balance-sheet-items`),
+        ])
+      : [null, null];
+  const items = new Map((sheet?.kind === 'ok' ? sheet.data.items : []).map((item) => [item.id, item]));
 
   return (
     <div className="flex max-w-6xl flex-col gap-6">
@@ -539,9 +586,11 @@ export default async function ValuationPage({
         ) : null}
       </div>
 
-      <OutcomeBanner outcome={typeof outcome === 'string' ? outcome : undefined} messages={{ ...BENCHMARK_OUTCOMES, ...ANCHOR_OUTCOMES, ...OUTCOMES }} />
+      <OutcomeBanner outcome={typeof outcome === 'string' ? outcome : undefined} messages={{ ...BENCHMARK_OUTCOMES, ...ANCHOR_OUTCOMES, ...BALANCE_SHEET_OUTCOMES, ...OUTCOMES }} />
 
       {dealId && viewer ? <AskingPanel dealId={dealId} viewer={viewer} currency={currency} /> : null}
+
+      {dealId && sheet?.kind === 'ok' ? <BalanceSheetCard dealId={dealId} view={sheet.data} currency={currency} /> : null}
 
       {dealId && leadBenchmark ? <MultipleContext dealId={dealId} benchmark={leadBenchmark} returnTo={`/deals/${dealId}/valuation`} /> : null}
 
@@ -563,7 +612,7 @@ export default async function ValuationPage({
         />
       ) : (
         result.data.items.map((view) => (
-          <ScenarioCard key={view.scenario.id} dealId={dealId} view={view} viewer={viewer} benchmark={benchmarks.get(view.scenario.id) ?? null} />
+          <ScenarioCard key={view.scenario.id} dealId={dealId} view={view} viewer={viewer} benchmark={benchmarks.get(view.scenario.id) ?? null} items={items} />
         ))
       )}
     </div>

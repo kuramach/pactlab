@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   canonicalJson,
+  effectiveBridgeAssumptions,
   freeze,
   runValuation,
   staleReasons,
@@ -8,6 +9,7 @@ import {
   ValuationInputError,
   verifyFrozen,
   type LinkedAdjustment,
+  type LinkedBalanceSheetItem,
   type LinkedFindingState,
   type MethodAssumptions,
   type ValuationInputs,
@@ -330,5 +332,89 @@ describe('frozen submissions', () => {
     expect(verifyFrozen({ ...first, canonical: `${first.canonical} ` })).toBe(false);
     expect(canonicalJson({ b: 1, a: ['x', null] })).toBe('{"a":["x",null],"b":1}');
     expect(() => canonicalJson({ price: 1.5 })).toThrow(/decimal strings/);
+  });
+});
+
+describe('evidence-backed balance-sheet items', () => {
+  const base: ValuationInputs = {
+    currency: 'USD',
+    transactionType: 'PRIVATE_ACQUIRER',
+    assumptions: { method: 'ARR_MULTIPLE', arr: '268000', multiple: '4' },
+    bridge: { cash: '0', debt: '10000', debtLikeItems: '0', workingCapitalAdjustment: '-20000' },
+    stockConsiderationShare: '0',
+    adjustments: [],
+    lbo: null,
+    accretionDilution: null,
+    sensitivity: null,
+  };
+  const item = (itemId: string, kind: LinkedBalanceSheetItem['kind'], category: LinkedBalanceSheetItem['category'], amount: string): LinkedBalanceSheetItem => ({
+    itemId,
+    itemVersion: 1,
+    kind,
+    category,
+    label: `${category} (synthetic)`,
+    currency: 'USD',
+    amount,
+  });
+  const items = [
+    item('0190f000-0000-7000-8000-0000000000c1', 'CASH', 'CASH', '90000'),
+    item('0190f000-0000-7000-8000-0000000000d1', 'DEBT', 'TERM_LOAN', '120000'),
+    item('0190f000-0000-7000-8000-0000000000e1', 'DEBT_LIKE', 'DEFERRED_REVENUE', '22000'),
+    item('0190f000-0000-7000-8000-0000000000e2', 'DEBT_LIKE', 'ACCRUED_BONUS', '13000'),
+  ];
+
+  it('adds each cited item to the bridge next to the entered amounts', () => {
+    const result = runValuation({ ...base, balanceSheetItems: items });
+    expect(result.engineVersion).toBe('valuation-2');
+    // 1,072,000 + 90,000 − (10,000 + 120,000) − 35,000 − 20,000
+    expect(result.bridge.equityValue.amount).toBe('977000.00');
+    expect(result.bridge.lines.slice(0, 9).map((line) => [line.kind, line.amount.amount, line.balanceSheetItemId ?? null])).toEqual([
+      ['ENTERPRISE_VALUE', '1072000.00', null],
+      ['CASH', '0.00', null],
+      ['CASH_ITEM', '90000.00', items[0]!.itemId],
+      ['DEBT', '-10000.00', null],
+      ['DEBT_ITEM', '-120000.00', items[1]!.itemId],
+      ['DEBT_LIKE_ITEMS', '0.00', null],
+      ['DEBT_LIKE_ITEM', '-22000.00', items[2]!.itemId],
+      ['DEBT_LIKE_ITEM', '-13000.00', items[3]!.itemId],
+      ['WORKING_CAPITAL', '-20000.00', null],
+    ]);
+    expect(effectiveBridgeAssumptions({ bridge: base.bridge, balanceSheetItems: items })).toEqual({
+      cash: '90000',
+      debt: '130000',
+      debtLikeItems: '35000',
+      workingCapitalAdjustment: '-20000',
+    });
+  });
+
+  it('keeps results without items as before', () => {
+    const result = runValuation(base);
+    expect(result.bridge.lines.some((line) => 'balanceSheetItemId' in line)).toBe(false);
+    expect(result.bridge.equityValue.amount).toBe('1042000.00');
+  });
+
+  it('refuses mismatched categories, currencies, negative amounts and duplicate links', () => {
+    const bad = (override: Partial<LinkedBalanceSheetItem>) => () => runValuation({ ...base, balanceSheetItems: [{ ...items[1]!, ...override }] });
+    expect(bad({ category: 'DEFERRED_REVENUE' })).toThrow(ValuationInputError);
+    expect(bad({ currency: 'EUR' })).toThrow(ValuationInputError);
+    expect(bad({ amount: '-1' })).toThrow(ValuationInputError);
+    expect(() => runValuation({ ...base, balanceSheetItems: [items[1]!, items[1]!] })).toThrow(ValuationInputError);
+  });
+
+  it('goes stale when a linked item is revised or withdrawn', () => {
+    const state = (version: number, status: 'ACTIVE' | 'WITHDRAWN' = 'ACTIVE') => ({ itemId: items[1]!.itemId, version, status });
+    const check = (current: ReturnType<typeof state> | null) =>
+      staleReasons({
+        resultAssumptionVersion: 1,
+        currentAssumptionVersion: 1,
+        adjustments: [],
+        current: new Map(),
+        balanceSheetItems: [items[1]!],
+        currentItems: new Map([[items[1]!.itemId, current]]),
+      });
+    expect(check(state(1))).toEqual([]);
+    expect(check(state(2))).toEqual([{ kind: 'BALANCE_SHEET_ITEM_CHANGED', itemId: items[1]!.itemId }]);
+    expect(check(state(1, 'WITHDRAWN'))).toEqual([{ kind: 'BALANCE_SHEET_ITEM_MISSING', itemId: items[1]!.itemId }]);
+    expect(check(null)).toEqual([{ kind: 'BALANCE_SHEET_ITEM_MISSING', itemId: items[1]!.itemId }]);
   });
 });

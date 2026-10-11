@@ -42,6 +42,8 @@ describe('scenarioFromForm', () => {
         workingCapitalAdjustment: '-15000',
         'link_01900000-0000-7000-8000-000000000001': 'MID',
         'link_01900000-0000-7000-8000-000000000002': '',
+        'item_01900000-0000-7000-8000-0000000000b1': 'on',
+        'item_not-a-uuid': 'on',
       }),
       { sensitivity: { rows: 'kept' } },
     );
@@ -53,6 +55,7 @@ describe('scenarioFromForm', () => {
         bridge: { cash: '250000', debt: '0', debtLikeItems: '40000', workingCapitalAdjustment: '-15000' },
         stockConsiderationShare: '0',
         findingLinks: [{ findingId: '01900000-0000-7000-8000-000000000001', point: 'MID' }],
+        balanceSheetLinks: ['01900000-0000-7000-8000-0000000000b1'],
         lbo: null,
         accretionDilution: null,
         sensitivity: { rows: 'kept' },

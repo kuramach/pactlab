@@ -17,7 +17,12 @@ export interface BridgeLine {
   amount: MoneyValue;
   findingId: string | null;
   adjustmentType: string | null;
+  /** Set on lines for cited balance-sheet items. */
+  balanceSheetItemId?: string;
 }
+
+/** Bridge lines typed into a scenario with no evidence behind them. */
+export const ENTERED_BRIDGE_KINDS = new Set(['CASH', 'DEBT', 'DEBT_LIKE_ITEMS']);
 
 export interface ValuationResultView {
   engineVersion: string;
@@ -51,8 +56,16 @@ export interface ValuationResultView {
 }
 
 export interface StaleReason {
-  kind: 'ASSUMPTIONS_CHANGED' | 'FINDING_MISSING' | 'FINDING_NOT_ACCEPTED' | 'PRICED_RISK_REMOVED' | 'FINDING_CHANGED';
+  kind:
+    | 'ASSUMPTIONS_CHANGED'
+    | 'FINDING_MISSING'
+    | 'FINDING_NOT_ACCEPTED'
+    | 'PRICED_RISK_REMOVED'
+    | 'FINDING_CHANGED'
+    | 'BALANCE_SHEET_ITEM_CHANGED'
+    | 'BALANCE_SHEET_ITEM_MISSING';
   findingId?: string;
+  itemId?: string;
 }
 
 export interface AskingSide {
@@ -186,6 +199,10 @@ export function describeStaleReason(reason: StaleReason): string {
       return `A linked finding lost its priced risk${finding}`;
     case 'FINDING_MISSING':
       return `A linked finding no longer resolves${finding}`;
+    case 'BALANCE_SHEET_ITEM_CHANGED':
+      return 'A linked balance-sheet item was revised — re-run to use the new amount';
+    case 'BALANCE_SHEET_ITEM_MISSING':
+      return 'A linked balance-sheet item was withdrawn — edit the scenario to remove it';
   }
 }
 

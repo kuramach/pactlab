@@ -75,7 +75,8 @@ describe('synthetic decision-loop seed', () => {
     );
     expect(scenarios).toEqual([
       { name: 'Base case — ARR multiple', status: 'APPROVED', runs: 1 },
-      { name: 'Base case — ARR multiple, risk-adjusted', status: 'DRAFT', runs: 1 },
+      // Run once with entered amounts, then again with the cited balance-sheet items.
+      { name: 'Base case — ARR multiple, risk-adjusted', status: 'DRAFT', runs: 2 },
       { name: 'Downside — DCF', status: 'DRAFT', runs: 1 },
       { name: 'Early look — DCF', status: 'DRAFT', runs: 0 },
     ]);
@@ -83,7 +84,8 @@ describe('synthetic decision-loop seed', () => {
 
   it('uploads contracts with cited AI drafts recorded as synthetic, one accepted by the reviewer', async () => {
     const docs = await rows(`SELECT count(*)::int AS n FROM documents WHERE organization_id = $1`, [CHARLIE]);
-    expect(docs[0]!['n']).toBe(4);
+    // Four contracts and Troubled's balance sheet.
+    expect(docs[0]!['n']).toBe(5);
     const models = await rows(`SELECT DISTINCT resolved_model_id FROM ai_runs WHERE organization_id = $1`, [CHARLIE]);
     expect(models).toEqual([{ resolved_model_id: 'synthetic-fixture' }]);
     const decided = await rows(
@@ -137,12 +139,33 @@ describe('synthetic decision-loop seed', () => {
     ]);
   });
 
+  it('backs Troubled\'s base case with cited balance-sheet items, at an unchanged equity value', async () => {
+    const items = await rows(
+      `SELECT kind, category, amount::text AS amount, citation->>'quote' AS quote FROM balance_sheet_items WHERE organization_id = $1 ORDER BY balance_sheet_items.amount`,
+      [CHARLIE],
+    );
+    expect(items.map((item) => [item['kind'], item['amount']])).toEqual([
+      ['DEBT_LIKE', '13000.0000'],
+      ['DEBT_LIKE', '22000.0000'],
+      ['CASH', '90000.0000'],
+      ['DEBT', '120000.0000'],
+    ]);
+    const runs = await rows(
+      `SELECT r.result->>'engineVersion' AS engine, r.result->'bridge'->'equityValue'->>'amount' AS equity
+         FROM valuation_runs r JOIN valuation_scenarios s ON s.id = r.scenario_id
+        WHERE s.organization_id = $1 AND s.name = 'Base case — ARR multiple, risk-adjusted' ORDER BY r.ran_at`,
+      [CHARLIE],
+    );
+    expect(runs.map((run) => run['equity'])).toEqual([runs[0]!['equity'], runs[0]!['equity']]);
+    expect(runs.at(-1)!['engine']).toBe('valuation-2');
+  });
+
   it('changes nothing when run again', async () => {
     const count = async () =>
       rows(
         `SELECT (SELECT count(*) FROM valuation_scenarios)::int AS s, (SELECT count(*) FROM documents)::int AS d,
                 (SELECT count(*) FROM asking_prices)::int AS a, (SELECT count(*) FROM comparables)::int AS c,
-                (SELECT count(*) FROM multiple_judgements)::int AS j, (SELECT count(*) FROM negotiation_anchors)::int AS n,
+                (SELECT count(*) FROM multiple_judgements)::int AS j, (SELECT count(*) FROM negotiation_anchors)::int AS n, (SELECT count(*) FROM balance_sheet_items)::int AS b,
                 (SELECT count(*) FROM finding_reviews)::int AS r, (SELECT count(*) FROM document_findings)::int AS f`,
       );
     const before = await count();
