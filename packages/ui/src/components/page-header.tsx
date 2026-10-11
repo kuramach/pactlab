@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { cn } from '../utils';
+import { gloss } from './term';
 
 export interface Crumb {
   readonly href?: string;
@@ -64,8 +65,8 @@ export function PageHeader({
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="flex min-w-0 flex-col gap-2">
               {eyebrow ? <p className="text-xs font-bold uppercase tracking-widest text-indigo">{eyebrow}</p> : null}
-              <h1 className="text-3xl font-extrabold tracking-tight">{title}</h1>
-              {description ? <p className="max-w-3xl text-sm leading-relaxed text-white/80">{description}</p> : null}
+              <h1 className="text-3xl font-extrabold tracking-tight">{gloss(title)}</h1>
+              {description ? <p className="max-w-3xl text-sm leading-relaxed text-white/80">{gloss(description)}</p> : null}
               {meta ? <div className="mt-1 flex flex-wrap items-center gap-2 text-sm">{meta}</div> : null}
             </div>
             {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
@@ -80,8 +81,8 @@ export function PageHeader({
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex min-w-0 flex-col gap-1">
           {eyebrow ? <p className="text-xs font-bold uppercase tracking-widest text-indigo-ink">{eyebrow}</p> : null}
-          <h1 className="text-2xl font-extrabold tracking-tight">{title}</h1>
-          {description ? <p className="max-w-3xl text-sm text-muted-foreground">{description}</p> : null}
+          <h1 className="text-2xl font-extrabold tracking-tight">{gloss(title)}</h1>
+          {description ? <p className="max-w-3xl text-sm text-muted-foreground">{gloss(description)}</p> : null}
           {meta ? <div className="mt-1 flex flex-wrap items-center gap-2 text-sm">{meta}</div> : null}
         </div>
         {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
@@ -138,8 +139,8 @@ export function Section({
     <section className="flex flex-col gap-3">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="flex flex-col gap-0.5">
-          <h2 className="text-base font-semibold tracking-tight">{title}</h2>
-          {description ? <p className="text-sm text-muted-foreground">{description}</p> : null}
+          <h2 className="text-base font-bold tracking-tight">{gloss(title)}</h2>
+          {description ? <p className="text-sm text-muted-foreground">{gloss(description)}</p> : null}
         </div>
         {actions}
       </div>

@@ -29,6 +29,7 @@ export interface ValuationResultView {
         years: { year: number; revenue: MoneyValue; freeCashFlow: MoneyValue; presentValue: MoneyValue }[];
         terminalValue: MoneyValue;
         presentValueOfTerminal: MoneyValue;
+        presentValueOfCashFlows?: MoneyValue;
       };
   enterpriseValue: MoneyValue;
   bridge: { lines: BridgeLine[]; equityPurchasePrice: MoneyValue; cashAtClose: MoneyValue };
@@ -94,6 +95,27 @@ export function describeGap(side: AskingSide): string {
   return `${decimals ? `${whole}.${decimals}` : whole}% ${negative ? 'below' : 'above'} asking`;
 }
 
+export interface RunInputsView {
+  assumptions:
+    | { method: 'ARR_MULTIPLE'; arr: string; multiple: string }
+    | {
+        method: 'DCF';
+        baseRevenue: string;
+        years: { growth: string; fcfMargin: string }[];
+        discountRate: string;
+        terminal: { kind: 'GORDON'; growth: string } | { kind: 'EXIT_MULTIPLE'; revenueMultiple: string };
+      };
+  adjustments: {
+    findingId: string;
+    type: string;
+    currency: string;
+    low: string;
+    high: string;
+    point: 'LOW' | 'MID' | 'HIGH';
+    basis: string;
+  }[];
+}
+
 export interface ScenarioView {
   askingComparison: AskingComparisonView | null;
   scenario: {
@@ -111,11 +133,20 @@ export interface ScenarioView {
     ranAt: string;
     ranBy: string;
     result: ValuationResultView;
+    /** The exact inputs the run used. */
+    inputs?: RunInputsView;
   } | null;
   stale: boolean | null;
   staleReasons: StaleReason[];
   submissions: { id: string; digest: string; submittedAt: string; submittedBy: string }[];
-  decisions: { id: string; submissionId: string; decision: 'APPROVED' | 'REJECTED'; rationale: string; decidedAt: string }[];
+  decisions: {
+    id: string;
+    submissionId: string;
+    decision: 'APPROVED' | 'REJECTED';
+    rationale: string;
+    decidedAt: string;
+    decidedBy?: string;
+  }[];
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

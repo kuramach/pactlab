@@ -1,4 +1,5 @@
 import { cn } from '../utils';
+import { gloss } from './term';
 
 /** Brand kit (`brand/BRAND.md`); the tagline matches the website. */
 export const PACTLAB_TAGLINE = 'AI rigor. Human judgment.';
@@ -82,7 +83,7 @@ export function PactlabLockup({
         />
         {withTagline ? (
           <span className={cn('text-[11px] font-semibold tracking-wide', tone === 'onDark' ? 'text-white/70' : 'text-slate-text')}>
-            {PACTLAB_TAGLINE}
+            {gloss(PACTLAB_TAGLINE)}
           </span>
         ) : null}
       </span>

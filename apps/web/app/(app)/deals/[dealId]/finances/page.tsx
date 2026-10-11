@@ -111,11 +111,17 @@ function MetricCard({ dealId, metric }: { dealId: string; metric: MetricView }) 
           <summary className="cursor-pointer text-muted-foreground">Definition and inputs</summary>
           <dl className="mt-2 flex flex-col gap-1">
             <dt className="font-medium">Formula</dt>
-            <dd>{metric.formula}</dd>
+            <dd>
+              <Glossed text={metric.formula} />
+            </dd>
             <dt className="font-medium">Time basis</dt>
-            <dd>{metric.timeBasis}</dd>
+            <dd>
+              <Glossed text={metric.timeBasis} />
+            </dd>
             <dt className="font-medium">Inclusion policy</dt>
-            <dd>{metric.inclusionPolicy}</dd>
+            <dd>
+              <Glossed text={metric.inclusionPolicy} />
+            </dd>
             <dt className="font-medium">Source records ({metric.inputs.length})</dt>
             <dd className="flex flex-wrap gap-x-2">
               {metric.inputs.slice(0, 12).map((input) => (
@@ -301,7 +307,7 @@ export default async function DealFinancesPage({
       <div className="flex flex-col gap-1">
         <h2 className="text-lg font-semibold tracking-tight">Finances</h2>
         <p className="text-sm text-muted-foreground">
-          Deterministic SaaS metrics from billing evidence. Every number links to the source records it was computed from.
+          <Glossed text="Deterministic SaaS metrics from billing evidence. Every number links to the source records it was computed from." />
         </p>
       </div>
 
@@ -469,7 +475,9 @@ export default async function DealFinancesPage({
                       ] as const
                     ).map(([label, value]) => (
                       <tr key={label}>
-                        <td className="py-1">{label}</td>
+                        <td className="py-1">
+                          <Glossed text={label} />
+                        </td>
                         <td className="py-1 text-right font-mono">{formatMoney(value)}</td>
                       </tr>
                     ))}

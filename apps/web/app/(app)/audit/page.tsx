@@ -1,4 +1,4 @@
-import { Badge, buttonVariants, Card, EmptyState, PageHeader } from '@pactlab/ui';
+import { Badge, buttonVariants, Card, EmptyState, Glossed, PageHeader } from '@pactlab/ui';
 import Link from 'next/link';
 import { apiGet } from '../deals/_lib/api';
 import { ApiState } from '../deals/_lib/states';
@@ -42,7 +42,7 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
       <PageHeader
         breadcrumbs={[{ href: '/', label: 'Home' }, { label: 'Audit log' }]}
         title="Audit log"
-        description="Every sensitive read, change, approval and denial in your organization, in a hash-chained trail. Times are UTC."
+        description={<Glossed text="Every sensitive read, change, approval and denial in your organization, in a hash-chained trail. Times are UTC." />}
       />
       {result.kind === 'forbidden' ? (
         <EmptyState

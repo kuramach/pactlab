@@ -48,7 +48,7 @@ export const DOMAIN_LABELS: Readonly<Record<FindingDomain, string>> = {
   ARCHITECTURE: 'Architecture',
   MAINTAINABILITY: 'Maintainability',
   SECURITY: 'Security',
-  OSS_LICENSE: 'OSS & licensing',
+  OSS_LICENSE: 'Open-source & licensing',
   TEST_QUALITY: 'Test quality',
   OPERATIONS: 'Operations',
   CODE_PROVENANCE: 'Code provenance',

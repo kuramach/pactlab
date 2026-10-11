@@ -19,7 +19,10 @@ import { BarChart, CHART_COLORS, DonutChart } from '../../_lib/charts';
 import Link from 'next/link';
 import { formatMoney } from '../../metrics/_lib/format';
 import { BASIS_LABELS, describeGap, type ScenarioView } from '../../valuation/_lib/view';
+import type { Finding } from '@pactlab/domain';
 import { apiGet, dealsApi } from '../_lib/api';
+import { SextantExplanation } from '../_lib/sextant-explanation';
+import { dealViewer } from '../_lib/viewer';
 import { partyLabel } from '../_lib/labels';
 
 // Per-user data: never prerender.
@@ -38,12 +41,14 @@ const AREAS: { path: string; title: string; body: string; icon: typeof TrendingU
 /** Deal overview: the parties, how far evidence collection has come, and where to go next. */
 export default async function DealOverviewPage({ params }: { params: Promise<{ dealId: string }> }) {
   const { dealId } = await params;
-  const [plan, sources, parties, asking, scenarios] = await Promise.all([
+  const [plan, sources, parties, asking, scenarios, viewer, accepted] = await Promise.all([
     dealsApi.sourcePlan(dealId),
     dealsApi.sources(dealId),
     dealsApi.parties(dealId),
     dealsApi.askingPrice(dealId),
     apiGet<{ items: ScenarioView[] }>(`/v1/deals/${dealId}/valuation/scenarios`),
+    dealViewer(dealId),
+    apiGet<{ items: Finding[] }>(`/v1/deals/${dealId}/findings?status=ACCEPTED`),
   ]);
   const current = asking.kind === 'ok' ? asking.data.current : null;
   // Headline scenario: the approved one if there is one, else the latest that has run.
@@ -72,7 +77,9 @@ export default async function DealOverviewPage({ params }: { params: Promise<{ d
                     <span>
                       <span className="text-xs uppercase tracking-wide text-muted-foreground">Sextant</span>
                       <span className="ml-2 font-mono text-xl font-semibold">{formatMoney(comparison.afterRisks.value)}</span>
-                      <span className="ml-1 text-sm text-muted-foreground">after accepted risks · {headline.scenario.name}</span>
+                      <span className="ml-1 text-sm text-muted-foreground">
+                        <Glossed text={`after accepted risks · ${headline.scenario.name}`} />
+                      </span>
                     </span>
                     <Badge variant={comparison.afterRisks.verdict === 'BELOW' ? 'danger' : 'calculation'}>{describeGap(comparison.afterRisks)}</Badge>
                   </>
@@ -88,6 +95,15 @@ export default async function DealOverviewPage({ params }: { params: Promise<{ d
             </Link>
           </CardContent>
         </Card>
+      ) : null}
+
+      {headline ? (
+        <SextantExplanation
+          dealId={dealId}
+          view={headline}
+          viewer={viewer}
+          findings={accepted.kind === 'ok' ? accepted.data.items : []}
+        />
       ) : null}
 
       <div className="grid gap-4 sm:grid-cols-3">
@@ -111,7 +127,7 @@ export default async function DealOverviewPage({ params }: { params: Promise<{ d
             <div>
               <CardTitle>Asking price vs Sextant</CardTitle>
               <p className="text-sm text-muted-foreground">
-                {headline ? `${headline.scenario.name} · ` : ''}before and after accepted priced risks
+                <Glossed text={`${headline ? `${headline.scenario.name} · ` : ''}before and after accepted priced risks`} />
               </p>
             </div>
           </CardHeader>
@@ -148,10 +164,40 @@ export default async function DealOverviewPage({ params }: { params: Promise<{ d
               label="Sources connected and still to connect"
               centerLabel={`${connected}/${planned.length}`}
               slices={[
-                { name: 'Connected', value: connected, color: CHART_COLORS.teal },
-                { name: 'To connect', value: planned.length - connected, color: '#e3e8f2' },
+                {
+                  name: 'Connected',
+                  value: connected,
+                  color: CHART_COLORS.teal,
+                  items: planned
+                    .filter((source) => source.status === 'CONNECTED')
+                    .map((source) => `${source.label} · ${source.connections.map((connection) => connection.displayName).join(', ') || source.providerLabel}`),
+                },
+                {
+                  name: 'To connect',
+                  value: planned.length - connected,
+                  color: '#cbd5e1',
+                  items: planned
+                    .filter((source) => source.status !== 'CONNECTED')
+                    .map((source) => `${source.label} · ${source.providerLabel}`),
+                },
               ]}
             />
+            <ul className="mt-3 flex flex-col gap-1.5 text-sm">
+              {planned.map((source) => (
+                <li key={source.kind} className="flex items-center justify-between gap-2">
+                  <span className="flex items-center gap-2">
+                    <span
+                      aria-hidden
+                      className={`h-2.5 w-2.5 rounded-full ${source.status === 'CONNECTED' ? 'bg-teal' : 'bg-slate-300'}`}
+                    />
+                    {source.label} · {source.providerLabel}
+                  </span>
+                  <span className={source.status === 'CONNECTED' ? 'font-semibold text-teal' : 'text-muted-foreground'}>
+                    {source.status === 'CONNECTED' ? 'Connected' : 'To connect'}
+                  </span>
+                </li>
+              ))}
+            </ul>
           </CardContent>
         </Card>
       </div>
@@ -216,7 +262,12 @@ export default async function DealOverviewPage({ params }: { params: Promise<{ d
                     <span className="font-medium">{partyLabel(party)}</span>
                     <span className="text-muted-foreground">
                       {party.ownership === 'PUBLIC' ? `Public${party.exchange ? ` · ${party.exchange}` : ''}` : 'Private'}
-                      {party.companyType ? ` · ${COMPANY_TYPE_LABELS[party.companyType]}` : ''}
+                      {party.companyType ? (
+                        <>
+                          {' · '}
+                          <Glossed text={COMPANY_TYPE_LABELS[party.companyType]} />
+                        </>
+                      ) : null}
                     </span>
                   </div>
                 ))

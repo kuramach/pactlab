@@ -1,6 +1,7 @@
 import { cva, type VariantProps } from 'class-variance-authority';
 import type { HTMLAttributes } from 'react';
 import { cn } from '../utils';
+import { gloss } from './term';
 
 /**
  * Provenance badges keep the product contract visible: source evidence,
@@ -23,6 +24,10 @@ export const badgeVariants = cva('inline-flex items-center rounded-full border p
 
 export interface BadgeProps extends HTMLAttributes<HTMLSpanElement>, VariantProps<typeof badgeVariants> {}
 
-export function Badge({ className, variant, ...props }: BadgeProps) {
-  return <span className={cn(badgeVariants({ variant }), className)} {...props} />;
+export function Badge({ className, variant, children, ...props }: BadgeProps) {
+  return (
+    <span className={cn(badgeVariants({ variant }), className)} {...props}>
+      {gloss(children)}
+    </span>
+  );
 }

@@ -1,4 +1,4 @@
-import { Badge, Button, Card, CardContent, CardHeader, CardTitle, EmptyState } from '@pactlab/ui';
+import { Badge, Button, Card, CardContent, CardHeader, CardTitle, EmptyState, Glossed } from '@pactlab/ui';
 import Link from 'next/link';
 import { apiGet } from '../../_lib/api';
 import { OutcomeBanner } from '../../_lib/outcome';
@@ -85,7 +85,7 @@ export default async function DocumentsPage({
       <div className="flex flex-col gap-1">
         <h2 className="text-lg font-semibold tracking-tight">Documents</h2>
         <p className="text-sm text-muted-foreground">
-          Uploaded documents, cited answers and AI drafts. Every citation opens the exact page.
+          <Glossed text="Uploaded documents, cited answers and AI drafts. Every citation opens the exact page." />
         </p>
       </div>
 
@@ -111,10 +111,12 @@ export default async function DocumentsPage({
                   </select>
                 </label>
                 <label className="flex items-center gap-2">
-                  <input type="checkbox" name="aiExcluded" /> Keep away from AI
+                  <input type="checkbox" name="aiExcluded" /> Keep away from <Glossed text="AI" />
                 </label>
               </div>
-              <p className="text-xs text-muted-foreground">Text or Markdown, up to 512 KB. HR, pay and performance documents are never sent to a model.</p>
+              <p className="text-xs text-muted-foreground">
+                <Glossed text="Text or Markdown, up to 512 KB. HR, pay and performance documents are never sent to a model." />
+              </p>
               <div>
                 <Button type="submit" size="sm">
                   Upload
@@ -148,7 +150,7 @@ export default async function DocumentsPage({
               href={citationHref(dealId, { documentId: doc.id, pageNumber: 1 })}
               className={`rounded-md border border-border px-3 py-1 ${doc.id === view.documentId ? 'bg-muted font-medium' : ''}`}
             >
-              {doc.fileName}
+              <Glossed text={doc.fileName} />
               <span className="ml-2 text-muted-foreground">
                 {doc.status === 'PURGED' ? 'purged' : `${doc.pageCount} pp`}
                 {doc.aiExcluded ? ' · AI excluded' : ''}

@@ -54,4 +54,10 @@ describe('ui', () => {
     expect(html.match(/<abbr/g)).toHaveLength(4);
     expect(html).toContain('ARRANGE stays.');
   });
+
+  it('explains every abbreviation the product shows', () => {
+    for (const term of ['ARR', 'MRR', 'ARPA', 'NRR', 'EV', 'DCF', 'LBO', 'MOIC', 'IRR', 'API', 'AWS', 'NDA', 'HR', 'UTC', 'FX', 'M&A', 'SaaS']) {
+      expect(renderToStaticMarkup(<Term term={term} />), term).toContain('<abbr');
+    }
+  });
 });
