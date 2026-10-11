@@ -20,9 +20,10 @@ import Link from 'next/link';
 import { formatMoney } from '../../metrics/_lib/format';
 import { BASIS_LABELS, describeGap, type ScenarioView } from '../../valuation/_lib/view';
 import type { Finding } from '@pactlab/domain';
-import type { BenchmarkView } from '@pactlab/contracts';
+import type { AnchorsView, BenchmarkView } from '@pactlab/contracts';
 import { apiGet, dealsApi } from '../_lib/api';
 import { BENCHMARK_OUTCOMES, MultipleContext } from '../_lib/multiple-context';
+import { ANCHOR_OUTCOMES, NegotiationAnchors } from '../_lib/negotiation-anchors';
 import { OutcomeBanner } from '../_lib/outcome';
 import { SextantExplanation } from '../_lib/sextant-explanation';
 import { dealViewer } from '../_lib/viewer';
@@ -65,10 +66,13 @@ export default async function DealOverviewPage({
   const compared = (scenarios.kind === 'ok' ? scenarios.data.items : []).filter((view) => view.askingComparison?.comparable);
   const headline = compared.find((view) => view.scenario.status === 'APPROVED') ?? compared[0];
   const comparison = headline?.askingComparison?.comparable ? headline.askingComparison : null;
-  const benchmark =
+  const [benchmark, anchors] =
     scenarios.kind === 'ok'
-      ? await apiGet<BenchmarkView>(`/v1/deals/${dealId}/benchmark${headline ? `?scenarioId=${headline.scenario.id}` : ''}`)
-      : null;
+      ? await Promise.all([
+          apiGet<BenchmarkView>(`/v1/deals/${dealId}/benchmark${headline ? `?scenarioId=${headline.scenario.id}` : ''}`),
+          apiGet<AnchorsView>(`/v1/deals/${dealId}/anchors`),
+        ])
+      : [null, null];
   const planned = plan.kind === 'ok' ? plan.data.sources : [];
   const connected = planned.filter((source) => source.status === 'CONNECTED').length;
   const evidence = sources.kind === 'ok' ? sources.data.items.reduce((total, source) => total + source.evidenceCount, 0) : 0;
@@ -76,7 +80,7 @@ export default async function DealOverviewPage({
 
   return (
     <div className="flex flex-col gap-8">
-      <OutcomeBanner outcome={typeof outcome === 'string' ? outcome : undefined} messages={BENCHMARK_OUTCOMES} />
+      <OutcomeBanner outcome={typeof outcome === 'string' ? outcome : undefined} messages={{ ...BENCHMARK_OUTCOMES, ...ANCHOR_OUTCOMES }} />
       {asking.kind === 'ok' ? (
         <Card className="border-indigo/30 bg-secondary/60">
           <CardContent className="flex flex-wrap items-center justify-between gap-4 p-5">
@@ -124,6 +128,10 @@ export default async function DealOverviewPage({
 
       {benchmark?.kind === 'ok' && (current || benchmark.data.scenario) ? (
         <MultipleContext dealId={dealId} benchmark={benchmark.data} returnTo={`/deals/${dealId}`} />
+      ) : null}
+
+      {anchors?.kind === 'ok' && (anchors.data.items.length > 0 || anchors.data.canEdit) ? (
+        <NegotiationAnchors dealId={dealId} view={anchors.data} returnTo={`/deals/${dealId}`} />
       ) : null}
 
       <div className="grid gap-4 sm:grid-cols-3">

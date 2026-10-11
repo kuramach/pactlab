@@ -1,5 +1,6 @@
+import { ANCHOR_FLAGS } from '@pactlab/contracts';
 import { describe, expect, it } from 'vitest';
-import { describeAskPlacement, describePlacement, describeSet, driverSignal, formatMultiple, fractionToPercentLabel, ordinal } from './view';
+import { ANCHOR_FLAG_LABELS, describeAskPlacement, describePlacement, describeSet, driverSignal, formatMultiple, fractionToPercentLabel, ordinal } from './view';
 
 describe('comparables view helpers', () => {
   it('formats multiples and percentages without floating point', () => {
@@ -27,5 +28,9 @@ describe('comparables view helpers', () => {
     expect(driverSignal([d('STRONGER'), d('SIMILAR')])).toBe('UPPER');
     expect(driverSignal([d('STRONGER'), d('WEAKER')])).toBe('MIXED');
     expect(driverSignal([d(null)])).toBeNull();
+  });
+
+  it('explains every anchor flag', () => {
+    for (const flag of ANCHOR_FLAGS) expect(ANCHOR_FLAG_LABELS[flag]?.why.length).toBeGreaterThan(10);
   });
 });

@@ -15,6 +15,7 @@ const FIELDS = [
   'region',
   'enterpriseValue',
   'arr',
+  'arrBasis',
   'currency',
   'arrGrowth',
   'nrr',

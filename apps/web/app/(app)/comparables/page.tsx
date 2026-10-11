@@ -193,7 +193,10 @@ export default async function ComparablesPage({ searchParams }: { searchParams: 
                           </td>
                           <td className="py-2 font-mono text-xs">{item.announcedOn ?? '—'}</td>
                           <td className="py-2 text-right font-mono">{formatMoney({ amount: item.enterpriseValue, currency: item.currency })}</td>
-                          <td className="py-2 text-right font-mono">{formatMoney({ amount: item.arr, currency: item.currency })}</td>
+                          <td className="py-2 text-right font-mono">
+                            {formatMoney({ amount: item.arr, currency: item.currency })}
+                            {item.arrBasis === 'REVENUE' ? <div className="text-xs font-sans text-muted-foreground">revenue</div> : null}
+                          </td>
                           <td className="py-2 text-right font-mono font-bold">{formatMultiple(item.multiple)}</td>
                           <td className="py-2 text-right font-mono text-xs">
                             {fractionToPercentLabel(item.arrGrowth)} · {fractionToPercentLabel(item.nrr)} · {fractionToPercentLabel(item.grr)}
@@ -256,6 +259,9 @@ export default async function ComparablesPage({ searchParams }: { searchParams: 
                   </label>
                   <Field label="Enterprise value (EV)" name="enterpriseValue" required placeholder="25,000,000" />
                   <Field label="ARR" name="arr" required placeholder="5,000,000" />
+                  <label className="flex items-center gap-2 self-end pb-2 text-sm font-medium">
+                    <input type="checkbox" name="arrBasis" /> The disclosed figure is revenue, not <Glossed text="ARR" />
+                  </label>
                   <Field label="Currency" name="currency" required placeholder="USD" />
                   <Field label="ARR growth (YoY) %" name="arrGrowth" placeholder="25" />
                   <Field label="NRR %" name="nrr" placeholder="105" />

@@ -5,7 +5,8 @@ import Link from 'next/link';
 import { apiGet, dealsApi } from '../../_lib/api';
 import { OutcomeBanner } from '../../_lib/outcome';
 import { BENCHMARK_OUTCOMES, MultipleContext, MultipleContextLine } from '../../_lib/multiple-context';
-import type { BenchmarkView } from '@pactlab/contracts';
+import { ANCHOR_OUTCOMES, NegotiationAnchors } from '../../_lib/negotiation-anchors';
+import type { AnchorsView, BenchmarkView } from '@pactlab/contracts';
 import { ApiState } from '../../_lib/states';
 import { can, dealViewer, type DealViewer } from '../../_lib/viewer';
 import { decideSubmission, recordAskingPrice, runScenario, submitScenario } from './actions';
@@ -520,6 +521,7 @@ export default async function ValuationPage({
   }
   const lead = runs.find((view) => view.scenario.status === 'APPROVED') ?? runs[0];
   const leadBenchmark = lead ? benchmarks.get(lead.scenario.id) : undefined;
+  const anchors = dealId && result?.kind === 'ok' ? await apiGet<AnchorsView>(`/v1/deals/${encodeURIComponent(dealId)}/anchors`) : null;
 
   return (
     <div className="flex max-w-6xl flex-col gap-6">
@@ -537,11 +539,15 @@ export default async function ValuationPage({
         ) : null}
       </div>
 
-      <OutcomeBanner outcome={typeof outcome === 'string' ? outcome : undefined} messages={{ ...BENCHMARK_OUTCOMES, ...OUTCOMES }} />
+      <OutcomeBanner outcome={typeof outcome === 'string' ? outcome : undefined} messages={{ ...BENCHMARK_OUTCOMES, ...ANCHOR_OUTCOMES, ...OUTCOMES }} />
 
       {dealId && viewer ? <AskingPanel dealId={dealId} viewer={viewer} currency={currency} /> : null}
 
       {dealId && leadBenchmark ? <MultipleContext dealId={dealId} benchmark={leadBenchmark} returnTo={`/deals/${dealId}/valuation`} /> : null}
+
+      {dealId && anchors?.kind === 'ok' && (anchors.data.items.length > 0 || anchors.data.canEdit) ? (
+        <NegotiationAnchors dealId={dealId} view={anchors.data} returnTo={`/deals/${dealId}/valuation`} />
+      ) : null}
 
       {!dealId || !viewer ? (
         <EmptyState

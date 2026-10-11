@@ -27,7 +27,8 @@ describe('comparable contracts', () => {
   });
 
   it('parses an entered comparable and requires its source', () => {
-    expect(comparableInputSchema.parse(valid)).toMatchObject({ enterpriseValue: '42000000', arrGrowth: '0.2500', nrr: '1.0800', grr: null, sourceUrl: null, acquirerName: null });
+    expect(comparableInputSchema.parse({ ...valid, arrBasis: 'on' })).toMatchObject({ arrBasis: 'REVENUE' });
+    expect(comparableInputSchema.parse(valid)).toMatchObject({ arrBasis: 'ARR', enterpriseValue: '42000000', arrGrowth: '0.2500', nrr: '1.0800', grr: null, sourceUrl: null, acquirerName: null });
     expect(comparableInputSchema.safeParse({ ...valid, sourceCitation: '' }).success).toBe(false);
     expect(comparableInputSchema.safeParse({ ...valid, enterpriseValue: '0' }).success).toBe(false);
     expect(comparableInputSchema.safeParse({ ...valid, sourceUrl: 'http://example.com' }).success).toBe(false);

@@ -26,6 +26,8 @@ export interface ComparableInput {
   /** Decimal strings; never JavaScript numbers. */
   enterpriseValue: string;
   arr: string;
+  /** `REVENUE` when the disclosed figure is total revenue rather than ARR. Defaults to ARR. */
+  arrBasis?: 'ARR' | 'REVENUE';
   currency: string;
   /** Fractions (`'0.25'` = 25%). */
   arrGrowth: string | null;
@@ -40,6 +42,7 @@ export interface ComparableInput {
 
 export interface ComparableRecord extends ComparableInput {
   id: string;
+  arrBasis: 'ARR' | 'REVENUE';
   status: 'ACTIVE' | 'RETIRED';
   recordedBy: string;
   recordedAt: Date;
@@ -149,5 +152,56 @@ export const multipleJudgements = {
   ): Promise<MultipleJudgementRecord> {
     const row = await tx.multipleJudgement.create({ data: input });
     return toJudgement(row as unknown as JudgementRow);
+  },
+};
+
+export interface NegotiationAnchorRecord {
+  id: string;
+  dealId: string;
+  comparableId: string;
+  note: string | null;
+  status: 'ACTIVE' | 'REMOVED';
+  addedBy: string;
+  addedAt: Date;
+  removedBy: string | null;
+  removedAt: Date | null;
+}
+
+const anchorSelect = {
+  id: true,
+  dealId: true,
+  comparableId: true,
+  note: true,
+  status: true,
+  addedBy: true,
+  addedAt: true,
+  removedBy: true,
+  removedAt: true,
+} as const;
+
+/** Comparables the deal lead cites against the ask, oldest first. Buyer side only. */
+export const negotiationAnchors = {
+  async active(tx: TransactionClient, dealId: string): Promise<NegotiationAnchorRecord[]> {
+    return tx.negotiationAnchor.findMany({
+      where: { dealId, status: 'ACTIVE' },
+      select: anchorSelect,
+      orderBy: [{ addedAt: 'asc' }, { id: 'asc' }],
+    });
+  },
+
+  async add(
+    tx: TransactionClient,
+    input: { organizationId: string; dealId: string; comparableId: string; note: string | null; addedBy: string },
+  ): Promise<NegotiationAnchorRecord> {
+    return tx.negotiationAnchor.create({ data: input, select: anchorSelect });
+  },
+
+  /** Remove an active anchor. Returns false when it was not active (or not visible). */
+  async remove(tx: TransactionClient, dealId: string, id: string, removedBy: string): Promise<boolean> {
+    const { count } = await tx.negotiationAnchor.updateMany({
+      where: { id, dealId, status: 'ACTIVE' },
+      data: { status: 'REMOVED', removedBy, removedAt: new Date() },
+    });
+    return count === 1;
   },
 };

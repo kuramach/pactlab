@@ -70,6 +70,20 @@ enum ComparableStatus {
   @@map("comparable_status")
 }
 
+enum ArrBasis {
+  ARR
+  REVENUE
+
+  @@map("arr_basis")
+}
+
+enum AnchorStatus {
+  ACTIVE
+  REMOVED
+
+  @@map("anchor_status")
+}
+
 enum MultipleVerdict {
   IN_RANGE
   HIGH
@@ -395,6 +409,7 @@ model Organization {
   askingPrices            AskingPrice[]
   comparables             Comparable[]
   multipleJudgements      MultipleJudgement[]
+  negotiationAnchors      NegotiationAnchor[]
 
   @@map("organizations")
 }
@@ -474,6 +489,7 @@ model Deal {
   askingPrices            AskingPrice[]
   ownDealComparables      Comparable[]
   multipleJudgements      MultipleJudgement[]
+  negotiationAnchors      NegotiationAnchor[]
 
   @@unique([organizationId, id])
   @@index([organizationId, createdAt])
@@ -1244,6 +1260,8 @@ model Comparable {
   region           String?
   enterpriseValue  Decimal          @map("enterprise_value") @db.Decimal(24, 4)
   arr              Decimal          @db.Decimal(24, 4)
+  /// Whether `arr` is annual recurring revenue or (as many announcements disclose) total revenue.
+  arrBasis         ArrBasis         @default(ARR) @map("arr_basis")
   currency         String           @db.Char(3)
   arrGrowth        Decimal?         @map("arr_growth") @db.Decimal(9, 4)
   nrr              Decimal?         @db.Decimal(9, 4)
@@ -1261,7 +1279,9 @@ model Comparable {
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   sourceDeal   Deal?        @relation(fields: [organizationId, sourceDealId], references: [organizationId, id], onDelete: Restrict)
+  anchors      NegotiationAnchor[]
 
+  @@unique([organizationId, id])
   @@unique([organizationId, sourceDealId])
   @@index([organizationId, status, companyType])
   @@map("comparables")
@@ -1289,4 +1309,27 @@ model MultipleJudgement {
 
   @@index([organizationId, dealId, decidedAt])
   @@map("multiple_judgements")
+}
+
+/// A comparable the deal lead chose to cite against the seller's ask: the
+/// target priced at that deal's multiple. Buyer side only; removed, never
+/// deleted. The firm's own deals are confidential and never anchors.
+model NegotiationAnchor {
+  id             String       @id @default(uuid(7)) @db.Uuid
+  organizationId String       @map("organization_id") @db.Uuid
+  dealId         String       @map("deal_id") @db.Uuid
+  comparableId   String       @map("comparable_id") @db.Uuid
+  note           String?
+  status         AnchorStatus @default(ACTIVE)
+  addedBy        String       @map("added_by") @db.Uuid
+  addedAt        DateTime     @default(now()) @map("added_at") @db.Timestamptz(3)
+  removedBy      String?      @map("removed_by") @db.Uuid
+  removedAt      DateTime?    @map("removed_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  deal         Deal         @relation(fields: [organizationId, dealId], references: [organizationId, id], onDelete: Restrict)
+  comparable   Comparable   @relation(fields: [organizationId, comparableId], references: [organizationId, id], onDelete: Restrict)
+
+  @@index([organizationId, dealId, status])
+  @@map("negotiation_anchors")
 }
