@@ -21,7 +21,7 @@ const SYNTHETIC = '(synthetic demo data)';
 const SYNTHETIC_COMPARABLES = [
   { kind: 'PRECEDENT_TRANSACTION', target: 'Ledgerline', on: '2022-04-12', arr: '3200000', ev: '8960000', growth: '0.06', nrr: '0.94', grr: '0.84' },
   { kind: 'PRECEDENT_TRANSACTION', target: 'Fieldnote', on: '2023-02-08', arr: '1800000', ev: '5580000', growth: '0.09', nrr: '0.97', grr: '0.86' },
-  { kind: 'PUBLIC_PEER', target: 'Quayside Systems', on: '2026-06-30', arr: '42000000', ev: '142800000', growth: '0.11', nrr: '0.99', grr: '0.88' },
+  { kind: 'PUBLIC_PEER', target: 'Quayside Systems', on: '2026-06-30', arr: '42000000', ev: '142800000', growth: '0.11', nrr: '0.99', grr: '0.88', revenue: true },
   { kind: 'PRECEDENT_TRANSACTION', target: 'Tallyhouse', on: '2023-09-19', arr: '2500000', ev: '9250000', growth: '0.12', nrr: '1.00', grr: '0.87' },
   { kind: 'PRECEDENT_TRANSACTION', target: 'Brightpath Billing', on: '2024-01-25', arr: '5600000', ev: '21840000', growth: '0.15', nrr: '1.01', grr: '0.89' },
   { kind: 'PRECEDENT_TRANSACTION', target: 'Copperleaf', on: '2024-05-14', arr: '900000', ev: '3690000', growth: '0.14', nrr: '1.02', grr: '0.90' },
@@ -361,6 +361,7 @@ export async function seedDemo(
             region: 'North America',
             enterpriseValue: row.ev,
             arr: row.arr,
+            arrBasis: 'revenue' in row ? 'REVENUE' : 'ARR',
             currency: 'USD',
             arrGrowth: row.growth,
             nrr: row.nrr,
@@ -398,6 +399,19 @@ export async function seedDemo(
         REQUEST_ID,
       );
       report.push(`${holder.label} · Project Troubled: deal lead judged the asking price high`);
+    }
+
+    if (troubled && (await comparablesService.anchors(who.lead, troubled, REQUEST_ID)).items.length === 0) {
+      const pool = await withTenant(prisma, who.lead, (tx) => comparables.list(tx));
+      const anchors: [string, string][] = [
+        ['Quayside Systems', `A listed peer the seller can look up; its multiple is on revenue ${SYNTHETIC}`],
+        ['Tallyhouse', `Closest private deal by size ${SYNTHETIC}`],
+      ];
+      for (const [target, note] of anchors) {
+        const comparable = pool.find((row) => row.origin === 'SYNTHETIC' && row.targetName.startsWith(target));
+        if (comparable) await comparablesService.addAnchor(who.lead, troubled, { comparableId: comparable.id, note }, REQUEST_ID);
+      }
+      report.push(`${holder.label} · Project Troubled: negotiation anchors added`);
     }
 
     // --- Documents: contracts with cited AI drafts; one decided by the reviewer ---

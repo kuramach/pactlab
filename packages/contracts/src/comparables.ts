@@ -51,6 +51,8 @@ export const comparableInputSchema = z.strictObject({
   region: z.preprocess(blankToNull, z.string().trim().max(100).nullable().default(null)),
   enterpriseValue: positiveMoney,
   arr: positiveMoney,
+  /** A form checkbox ("on") or the enum: the disclosed figure is revenue, not ARR. */
+  arrBasis: z.preprocess((value) => (value === 'on' ? 'REVENUE' : value === '' || value === null ? undefined : value), z.enum(['ARR', 'REVENUE']).default('ARR')),
   currency: isoCurrencySchema,
   arrGrowth: percentInput,
   nrr: percentInput,
@@ -96,6 +98,7 @@ export interface ComparableView {
   region: string | null;
   enterpriseValue: string;
   arr: string;
+  arrBasis: 'ARR' | 'REVENUE';
   currency: string;
   /** EV ÷ ARR, two decimal places. */
   multiple: string;
@@ -162,4 +165,59 @@ export interface BenchmarkView {
   canJudge: boolean;
   /** Whether this deal can be (or already is) one of the firm's own precedents. */
   ownDeal: { eligible: boolean; added: boolean };
+}
+
+export const ANCHOR_FLAGS = [
+  'GROWTH_GAP',
+  'RETENTION_GAP',
+  'DIFFERENT_COMPANY_TYPE',
+  'OLDER_THAN_3_YEARS',
+  'REVENUE_NOT_ARR',
+  'NO_PUBLIC_SOURCE',
+  'SYNTHETIC',
+  'SUPPORTS_ASK',
+  'CURRENCY',
+] as const;
+
+/** The deal lead cites a comparable against the ask, with an optional framing note. */
+export const anchorInputSchema = z.strictObject({
+  comparableId: z.uuid(),
+  note: z.preprocess(blankToNull, z.string().trim().max(500).nullable().default(null)),
+});
+export type AnchorInput = z.infer<typeof anchorInputSchema>;
+
+export const anchorParamsSchema = z.strictObject({ dealId: z.uuid(), anchorId: z.uuid() });
+
+export interface AnchorView {
+  id: string;
+  comparable: ComparableView;
+  note: string | null;
+  addedBy: string;
+  addedByName: string | null;
+  addedAt: string;
+  /** Null when the counter-price cannot be formed (currency, missing bridge or ARR). */
+  counter: {
+    multiple: string;
+    impliedEnterpriseValue: { amount: string; currency: string };
+    counterPrice: { amount: string; currency: string };
+    gap: { amount: string; currency: string };
+    gapRatio: string;
+    verdict: 'BELOW' | 'AT' | 'ABOVE';
+    flags: (typeof ANCHOR_FLAGS)[number][];
+  } | null;
+  unavailable: 'CURRENCY' | 'NO_BRIDGE' | 'INVALID' | 'NO_ASK' | 'NO_ARR' | null;
+  /** Deterministic text for the deal lead to adapt; never sent anywhere by Pactlab. */
+  talkingPoint: string | null;
+}
+
+export interface AnchorsView {
+  version: string;
+  asking: { version: number; amount: string; currency: string; basis: 'ENTERPRISE_VALUE' | 'EQUITY_VALUE' } | null;
+  target: { name: string; arr: { amount: string; currency: string } | null };
+  items: AnchorView[];
+  /** The lowest counter-price among anchors with no flags, if any. */
+  strongestId: string | null;
+  /** Comparables the lead may add: entered, provider and synthetic, active, not already anchors. */
+  eligible: { id: string; name: string; multiple: string; origin: (typeof COMPARABLE_ORIGINS)[number] }[];
+  canEdit: boolean;
 }

@@ -106,3 +106,16 @@ export function driverSignal(drivers: BenchmarkView['drivers']): 'UPPER' | 'LOWE
   const score = compared.reduce((total, driver) => total + (driver.comparison === 'STRONGER' ? 1 : driver.comparison === 'WEAKER' ? -1 : 0), 0);
   return score > 0 ? 'UPPER' : score < 0 ? 'LOWER' : 'MIXED';
 }
+
+/** Why a seller could dismiss an anchor — shown as a badge with the reason on hover. */
+export const ANCHOR_FLAG_LABELS: Record<string, { label: string; why: string }> = {
+  GROWTH_GAP: { label: 'Growth differs', why: 'Its ARR growth is more than 15 points away from the target’s; the seller will say it is not comparable.' },
+  RETENTION_GAP: { label: 'Retention differs', why: 'Its NRR is more than 10 points away from the target’s.' },
+  DIFFERENT_COMPANY_TYPE: { label: 'Different sector', why: 'It is a different type of company from the target.' },
+  OLDER_THAN_3_YEARS: { label: 'Older than 3 years', why: 'Announced more than three years ago, in a different market.' },
+  REVENUE_NOT_ARR: { label: 'Revenue, not ARR', why: 'The disclosed figure is total revenue; an ARR multiple would be higher.' },
+  NO_PUBLIC_SOURCE: { label: 'No public link', why: 'There is no source link the seller can check.' },
+  SYNTHETIC: { label: 'Demo data', why: 'Invented for demos — never cite it.' },
+  SUPPORTS_ASK: { label: 'Supports the ask', why: 'At this multiple the target is worth at least the asking price — it argues for the seller.' },
+  CURRENCY: { label: 'Other currency', why: 'Its figures are in another currency; the multiple still applies, but check the market.' },
+};

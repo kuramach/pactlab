@@ -126,6 +126,15 @@ describe('synthetic decision-loop seed', () => {
       [CHARLIE],
     );
     expect(judgements).toEqual([{ name: 'Project Troubled', verdict: 'HIGH', asking_version: 2, multiple: '5.04' }]);
+    const anchors = await rows(
+      `SELECT c.target_name, c.arr_basis FROM negotiation_anchors a JOIN comparables c ON c.id = a.comparable_id
+        WHERE a.organization_id = $1 AND a.status = 'ACTIVE' ORDER BY c.target_name`,
+      [CHARLIE],
+    );
+    expect(anchors).toEqual([
+      { target_name: 'Quayside Systems (synthetic)', arr_basis: 'REVENUE' },
+      { target_name: 'Tallyhouse (synthetic)', arr_basis: 'ARR' },
+    ]);
   });
 
   it('changes nothing when run again', async () => {
@@ -133,7 +142,7 @@ describe('synthetic decision-loop seed', () => {
       rows(
         `SELECT (SELECT count(*) FROM valuation_scenarios)::int AS s, (SELECT count(*) FROM documents)::int AS d,
                 (SELECT count(*) FROM asking_prices)::int AS a, (SELECT count(*) FROM comparables)::int AS c,
-                (SELECT count(*) FROM multiple_judgements)::int AS j,
+                (SELECT count(*) FROM multiple_judgements)::int AS j, (SELECT count(*) FROM negotiation_anchors)::int AS n,
                 (SELECT count(*) FROM finding_reviews)::int AS r, (SELECT count(*) FROM document_findings)::int AS f`,
       );
     const before = await count();

@@ -1,5 +1,8 @@
 import { ConflictException, ForbiddenException, Inject, Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import {
+  anchorCounterPrice,
+  D,
+  ANCHORS_VERSION,
   arrGrowthFrom,
   askingImpliedMultiple,
   benchmarkMultiple,
@@ -10,6 +13,9 @@ import {
   type MultipleBenchmark,
 } from '@pactlab/calculations';
 import type {
+  AnchorInput,
+  AnchorView,
+  AnchorsView,
   BenchmarkFilter,
   BenchmarkQuery,
   BenchmarkView,
@@ -26,6 +32,7 @@ import {
   dealParties,
   deals,
   multipleJudgements,
+  negotiationAnchors,
   withTenant,
   type ComparableRecord,
   type MultipleJudgementRecord,
@@ -71,6 +78,46 @@ function withinYears(announcedOn: string | null, years: number, today: Date): bo
   if (years === 0 || announcedOn === null) return true;
   const since = new Date(Date.UTC(today.getUTCFullYear() - years, today.getUTCMonth(), today.getUTCDate()));
   return announcedOn >= since.toISOString().slice(0, 10);
+}
+
+/** "1350000.0000" → "USD 1,350,000". Grouping on the decimal string; no floating point. */
+export function formatAmount(amount: string, currency: string): string {
+  const [whole = '0'] = amount.replace('-', '').split('.');
+  return `${amount.startsWith('-') ? '-' : ''}${currency} ${whole.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
+}
+
+/** "-0.3250" → "32.5%" (magnitude only). */
+export function formatRatio(ratio: string): string {
+  const [whole = '0', fraction = ''] = ratio.replace('-', '').split('.');
+  const digits = `${whole}${fraction.padEnd(4, '0')}`.replace(/^0+(?=\d)/, '').padStart(5, '0');
+  const integer = digits.slice(0, -2).replace(/^0+(?=\d)/, '');
+  const rest = digits.slice(-2).replace(/0+$/, '');
+  return `${integer}${rest ? `.${rest}` : ''}%`;
+}
+
+/**
+ * The anchor as a sentence the deal lead can adapt: who bought whom, at what
+ * multiple, the source, and what that multiple means for this target against
+ * the ask. Built only from stored figures; Pactlab never sends it anywhere.
+ */
+export function talkingPoint(input: {
+  comparable: ComparableRecord;
+  multiple: string;
+  targetName: string;
+  arr: MoneyValue;
+  counterPrice: MoneyValue;
+  gapRatio: string;
+  verdict: 'BELOW' | 'AT' | 'ABOVE';
+  asking: MoneyValue;
+}): string {
+  const c = input.comparable;
+  const who = c.kind === 'PUBLIC_PEER' ? `${c.targetName} trades at` : `${c.acquirerName ?? 'An acquirer'} bought ${c.targetName} for ${formatAmount(c.enterpriseValue, c.currency)} —`;
+  const basis = c.arrBasis === 'REVENUE' ? 'revenue' : 'ARR';
+  const when = c.announcedOn ? `${c.announcedOn}; ` : '';
+  const source = [c.sourceCitation, c.sourceUrl].filter(Boolean).join(' ');
+  const direction = input.verdict === 'BELOW' ? `${formatRatio(input.gapRatio)} below` : input.verdict === 'ABOVE' ? `${formatRatio(input.gapRatio)} above` : 'equal to';
+  const text = `${who} ${input.multiple}× ${basis} (${when}source: ${source || 'not recorded'}). At ${input.multiple}×, ${input.targetName}'s ${formatAmount(input.arr.amount, input.arr.currency)} ARR implies ${formatAmount(input.counterPrice.amount, input.counterPrice.currency)}, ${direction} the ${formatAmount(input.asking.amount, input.asking.currency)} ask.`;
+  return c.origin === 'SYNTHETIC' ? `DEMO DATA — do not cite. ${text}` : text;
 }
 
 interface TargetFacts {
@@ -287,7 +334,8 @@ export class ComparablesService {
       chosenMultiple,
       askingImpliedMultiple: askingMultiple,
     });
-    return { items, item, facts, asking, filter, arr, arrSource, benchmark, selected, pool };
+    const bridge = run?.inputs.bridge ?? item?.assumptions.values.bridge ?? null;
+    return { items, item, facts, asking, filter, arr, arrSource, benchmark, selected, pool, seller, bridge };
   }
 
   async benchmark(tenant: TenantContext, dealId: string, query: BenchmarkQuery, requestId: string): Promise<BenchmarkView> {
@@ -379,13 +427,129 @@ export class ComparablesService {
     return this.judgementView(tenant, record, asking.version, benchmark.comparableSetHash);
   }
 
+  /** Comparables cited against the ask, each priced as a counter-offer with the reasons a seller could dismiss it. */
+  async anchors(tenant: TenantContext, dealId: string, requestId: string): Promise<AnchorsView> {
+    const role = await this.access.require(tenant, dealId, canRead, { action: 'negotiation_anchor.list', requestId });
+    const { facts, asking, arr, pool, seller, bridge } = await this.compute(tenant, dealId, { years: 0, synthetic: 'include' }, requestId);
+    const { active, deal } = await withTenant(this.prisma, tenant, async (tx) => ({
+      active: await negotiationAnchors.active(tx, dealId),
+      deal: await deals.get(tx, dealId),
+    }));
+    const byId = new Map(pool.map((c) => [c.id, c]));
+    const names = await this.userNames(tenant, active.map((anchor) => anchor.addedBy));
+    const targetName = seller?.name ?? deal?.targetName ?? 'The target';
+    const today = new Date().toISOString().slice(0, 10);
+    const items: AnchorView[] = [];
+    for (const anchor of active) {
+      // A retired comparable keeps its anchor visible until the lead removes it.
+      const comparable = byId.get(anchor.comparableId) ?? (await withTenant(this.prisma, tenant, (tx) => comparables.get(tx, anchor.comparableId)));
+      if (!comparable) continue;
+      const base = {
+        id: anchor.id,
+        comparable: toView(comparable),
+        note: anchor.note,
+        addedBy: anchor.addedBy,
+        addedByName: names.get(anchor.addedBy) ?? null,
+        addedAt: anchor.addedAt.toISOString(),
+      };
+      if (!asking || !arr) {
+        items.push({ ...base, counter: null, unavailable: asking ? 'NO_ARR' : 'NO_ASK', talkingPoint: null });
+        continue;
+      }
+      const result = anchorCounterPrice({
+        anchor: { ...comparable, arrBasis: comparable.arrBasis },
+        target: { arr, companyType: seller?.companyType ?? null, arrGrowth: facts.arrGrowth, nrr: facts.nrr },
+        asking,
+        bridge,
+        today,
+      });
+      if ('unavailable' in result) {
+        items.push({ ...base, counter: null, unavailable: result.unavailable, talkingPoint: null });
+        continue;
+      }
+      items.push({
+        ...base,
+        counter: { ...result, flags: [...result.flags] },
+        unavailable: null,
+        talkingPoint: talkingPoint({
+          comparable,
+          multiple: result.multiple,
+          targetName,
+          arr,
+          counterPrice: result.counterPrice,
+          gapRatio: result.gapRatio,
+          verdict: result.verdict,
+          asking: { amount: asking.amount, currency: asking.currency },
+        }),
+      });
+    }
+    let strongest: { id: string; price: string } | null = null;
+    for (const item of items) {
+      if (!item.counter || item.counter.flags.length > 0) continue;
+      const price = item.counter.counterPrice.amount;
+      if (!strongest || new D(price).lessThan(strongest.price)) strongest = { id: item.id, price };
+    }
+    const anchored = new Set(active.map((anchor) => anchor.comparableId));
+    return {
+      version: ANCHORS_VERSION,
+      asking: asking ? { version: asking.version, amount: asking.amount, currency: asking.currency, basis: asking.basis } : null,
+      target: { name: targetName, arr },
+      items,
+      strongestId: strongest?.id ?? null,
+      eligible: pool
+        .filter((c) => c.origin !== 'OWN_DEAL' && !anchored.has(c.id))
+        .map((c) => ({ id: c.id, name: c.name, multiple: toView(c).multiple, origin: c.origin })),
+      canEdit: isLead(role),
+    };
+  }
+
+  /** Only the deal lead cites a comparable. The firm's own deals are confidential and never anchors. */
+  async addAnchor(tenant: TenantContext, dealId: string, input: AnchorInput, requestId: string): Promise<AnchorsView> {
+    await this.access.require(tenant, dealId, isLead, { action: 'negotiation_anchor.added', requestId });
+    await withTenant(this.prisma, tenant, async (tx) => {
+      const comparable = await comparables.get(tx, input.comparableId);
+      if (!comparable) throw new NotFoundException();
+      if (comparable.origin === 'OWN_DEAL') throw new UnprocessableEntityException('Your own deals are confidential and cannot be cited to a seller');
+      if (comparable.status !== 'ACTIVE') throw new UnprocessableEntityException('This comparable is retired');
+      if ((await negotiationAnchors.active(tx, dealId)).some((anchor) => anchor.comparableId === input.comparableId)) {
+        throw new ConflictException('Already an anchor');
+      }
+      const anchor = await negotiationAnchors.add(tx, {
+        organizationId: tenant.organizationId,
+        dealId,
+        comparableId: input.comparableId,
+        note: input.note,
+        addedBy: tenant.userId,
+      });
+      await this.audit(tx, tenant, dealId, 'negotiation_anchor.added', anchor.id, requestId);
+    });
+    return this.anchors(tenant, dealId, requestId);
+  }
+
+  async removeAnchor(tenant: TenantContext, dealId: string, anchorId: string, requestId: string): Promise<AnchorsView> {
+    await this.access.require(tenant, dealId, isLead, { action: 'negotiation_anchor.removed', requestId });
+    await withTenant(this.prisma, tenant, async (tx) => {
+      if (!(await negotiationAnchors.remove(tx, dealId, anchorId, tenant.userId))) throw new NotFoundException();
+      await this.audit(tx, tenant, dealId, 'negotiation_anchor.removed', anchorId, requestId);
+    });
+    return this.anchors(tenant, dealId, requestId);
+  }
+
+  private async userNames(tenant: TenantContext, ids: readonly string[]): Promise<Map<string, string>> {
+    if (ids.length === 0) return new Map();
+    const rows = await withTenant(this.prisma, tenant, (tx) =>
+      tx.user.findMany({ where: { id: { in: [...new Set(ids)] } }, select: { id: true, displayName: true } }),
+    );
+    return new Map(rows.map((row) => [row.id, row.displayName]));
+  }
+
   private audit(tx: TransactionClient, tenant: TenantContext, dealId: string | null, action: string, targetId: string, requestId: string) {
     return appendAuditEvent(tx, {
       organizationId: tenant.organizationId,
       dealId,
       actorUserId: tenant.userId,
       action,
-      targetType: action.startsWith('multiple_judgement') ? 'multiple_judgement' : 'comparable',
+      targetType: action.startsWith('multiple_judgement') ? 'multiple_judgement' : action.startsWith('negotiation_anchor') ? 'negotiation_anchor' : 'comparable',
       targetId,
       outcome: 'SUCCEEDED',
       requestId,

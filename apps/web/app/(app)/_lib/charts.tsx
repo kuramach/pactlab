@@ -87,7 +87,8 @@ export function BarChart({
 }: {
   label: string;
   categories: readonly string[];
-  series: readonly { name: string; values: readonly (string | number | null)[]; color?: string }[];
+  /** `colors` overrides the colour of individual bars in a series. */
+  series: readonly { name: string; values: readonly (string | number | null)[]; color?: string; colors?: readonly (string | undefined)[] }[];
   format?: ValueFormat;
   currency?: string;
   height?: number;
@@ -106,7 +107,10 @@ export function BarChart({
       series: series.map((entry) => ({
         type: 'bar',
         name: entry.name,
-        data: entry.values.map(toNumber),
+        data: entry.values.map((value, index) => {
+          const color = entry.colors?.[index];
+          return color ? { value: toNumber(value), itemStyle: { color } } : toNumber(value);
+        }),
         barMaxWidth: 36,
         itemStyle: { borderRadius: horizontal ? [0, 6, 6, 0] : [6, 6, 0, 0], ...(entry.color ? { color: entry.color } : {}) },
       })),

@@ -1,10 +1,14 @@
 import { Body, Controller, Get, HttpCode, Inject, Param, Post, Query } from '@nestjs/common';
 import {
+  anchorInputSchema,
+  anchorParamsSchema,
   benchmarkQuerySchema,
   comparableInputSchema,
   comparableParamsSchema,
   dealParamsSchema,
   multipleJudgementInputSchema,
+  type AnchorInput,
+  type AnchorsView,
   type BenchmarkQuery,
   type BenchmarkView,
   type ComparableEntry,
@@ -85,5 +89,35 @@ export class ComparablesController {
     @Body(new ZodValidationPipe(multipleJudgementInputSchema)) body: MultipleJudgementInput,
   ): Promise<MultipleJudgementView> {
     return this.service.recordJudgement(tenant, params.dealId, body, requestId);
+  }
+
+  @Get('deals/:dealId/anchors')
+  anchors(
+    @Tenant() tenant: TenantContext,
+    @RequestId() requestId: string,
+    @Param(new ZodValidationPipe(dealParamsSchema)) params: { dealId: string },
+  ): Promise<AnchorsView> {
+    return this.service.anchors(tenant, params.dealId, requestId);
+  }
+
+  @Post('deals/:dealId/anchors')
+  @HttpCode(201)
+  addAnchor(
+    @Tenant() tenant: TenantContext,
+    @RequestId() requestId: string,
+    @Param(new ZodValidationPipe(dealParamsSchema)) params: { dealId: string },
+    @Body(new ZodValidationPipe(anchorInputSchema)) body: AnchorInput,
+  ): Promise<AnchorsView> {
+    return this.service.addAnchor(tenant, params.dealId, body, requestId);
+  }
+
+  @Post('deals/:dealId/anchors/:anchorId/remove')
+  @HttpCode(200)
+  removeAnchor(
+    @Tenant() tenant: TenantContext,
+    @RequestId() requestId: string,
+    @Param(new ZodValidationPipe(anchorParamsSchema)) params: { dealId: string; anchorId: string },
+  ): Promise<AnchorsView> {
+    return this.service.removeAnchor(tenant, params.dealId, params.anchorId, requestId);
   }
 }

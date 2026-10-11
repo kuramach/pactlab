@@ -17,6 +17,8 @@ const KNOWN: Readonly<Record<string, string>> = {
   'comparable.retired': 'Retired a comparable',
   'comparable.from_deal': 'Added a deal to the precedents',
   'multiple_judgement.recorded': 'Judged the asking price',
+  'negotiation_anchor.added': 'Added a negotiation anchor',
+  'negotiation_anchor.removed': 'Removed a negotiation anchor',
 };
 
 export function describeAction(action: string): string {

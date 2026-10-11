@@ -1,7 +1,7 @@
 import type { TenantContext } from '@pactlab/domain';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { TransactionClient } from './client';
-import { comparables, multipleJudgements, type ComparableInput } from './comparables';
+import { comparables, multipleJudgements, negotiationAnchors, type ComparableInput } from './comparables';
 import { withTenant } from './tenant';
 import { addSyntheticDealMember, createSyntheticTenant, startTestDatabase, type SyntheticTenant, type TestDatabase } from './testing';
 
@@ -118,6 +118,33 @@ describe('comparables and multiple judgements: persistence and RLS', () => {
     await expect(judge(contributor)).rejects.toThrow();
     expect(await inTenant(b.context, (tx) => multipleJudgements.history(tx, a.dealId))).toEqual([]);
     for (const sql of ["UPDATE multiple_judgements SET verdict = 'LOW'", 'DELETE FROM multiple_judgements']) {
+      await expect(inTenant(a.context, (tx) => tx.$executeRawUnsafe(sql))).rejects.toThrow(/permission denied/);
+    }
+  });
+
+  it('defaults the ARR basis and records revenue-based comparables', async () => {
+    expect((await record(a.context, { ...ENTERED, name: 'Default basis' })).arrBasis).toBe('ARR');
+    expect((await record(a.context, { ...ENTERED, name: 'Revenue basis', arrBasis: 'REVENUE' })).arrBasis).toBe('REVENUE');
+  });
+
+  it('keeps one active anchor per comparable, buyer side only, removed rather than deleted', async () => {
+    const comparable = await record(a.context, { ...ENTERED, name: 'Anchor source' });
+    const add = (context: TenantContext, tenant = a) =>
+      inTenant(context, (tx) =>
+        negotiationAnchors.add(tx, { organizationId: tenant.organizationId, dealId: tenant.dealId, comparableId: comparable.id, note: 'Public deal', addedBy: context.userId }),
+      );
+    const anchor = await add(a.context);
+    expect(anchor).toMatchObject({ status: 'ACTIVE', note: 'Public deal' });
+    await expect(add(a.context)).rejects.toThrow(/Unique constraint|unique/i);
+    await expect(add(contributor)).rejects.toThrow();
+    await expect(add(b.context, b)).rejects.toThrow();
+    expect(await inTenant(contributor, (tx) => negotiationAnchors.active(tx, a.dealId))).toEqual([]);
+    expect(await inTenant(b.context, (tx) => negotiationAnchors.active(tx, a.dealId))).toEqual([]);
+    expect(await inTenant(contributor, (tx) => negotiationAnchors.remove(tx, a.dealId, anchor.id, contributor.userId))).toBe(false);
+    expect(await inTenant(a.context, (tx) => negotiationAnchors.remove(tx, a.dealId, anchor.id, a.userId))).toBe(true);
+    expect(await inTenant(a.context, (tx) => negotiationAnchors.active(tx, a.dealId))).toEqual([]);
+    await expect(add(a.context)).resolves.toMatchObject({ status: 'ACTIVE' });
+    for (const sql of ["UPDATE negotiation_anchors SET note = 'x'", 'DELETE FROM negotiation_anchors']) {
       await expect(inTenant(a.context, (tx) => tx.$executeRawUnsafe(sql))).rejects.toThrow(/permission denied/);
     }
   });

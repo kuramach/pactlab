@@ -167,4 +167,45 @@ describe('comparables and the multiple benchmark through the API', () => {
     // A deal never benchmarks against itself.
     expect((await call('lead', 'GET', `/v1/deals/${dealId}/benchmark`)).body).toMatchObject({ count: 4, byOrigin: { OWN_DEAL: 0 }, ownDeal: { eligible: true, added: true } });
   });
+
+  it('prices cited public deals as counter-offers, lead only, never the firm\'s own deals', async () => {
+    const created = await call('lead', 'POST', '/v1/comparables', comparable(3, { name: 'Public 3', sourceUrl: 'https://example.com/release', acquirerName: 'Acquirer Co' }));
+    const publicId = created.body['id'] as string;
+    const all = (await call('lead', 'GET', '/v1/comparables')).body['items'] as Body[];
+    const ownId = all.find((c) => c['origin'] === 'OWN_DEAL')!['id'] as string;
+    const retiredId = (await db.owner.query(`SELECT id FROM comparables WHERE status = 'RETIRED' LIMIT 1`) as { rows: { id: string }[] }).rows[0]!.id;
+    const anchors = `/v1/deals/${dealId}/anchors`;
+
+    expect((await call('analyst', 'POST', anchors, { comparableId: publicId })).status).toBe(403);
+    expect((await call('lead', 'POST', anchors, { comparableId: ownId })).status).toBe(422);
+    expect((await call('lead', 'POST', anchors, { comparableId: retiredId })).status).toBe(422);
+    const added = await call('lead', 'POST', anchors, { comparableId: publicId, note: 'Seller can check this one' });
+    expect(added.status).toBe(201);
+    expect((await call('lead', 'POST', anchors, { comparableId: publicId })).status).toBe(409);
+    await call('lead', 'POST', anchors, { comparableId: (all.find((c) => c['name'] === 'Precedent 6')!['id'] as string) });
+
+    const view = await call('analyst', 'GET', anchors);
+    expect(view.status).toBe(200);
+    const items = view.body['items'] as Body[];
+    expect(items[0]).toMatchObject({
+      note: 'Seller can check this one',
+      counter: { multiple: '3.00', counterPrice: { amount: '3000000.00' }, gap: { amount: '-2000000.00' }, gapRatio: '-0.4000', verdict: 'BELOW', flags: [] },
+    });
+    expect(items[0]!['talkingPoint']).toBe(
+      "Acquirer Co bought Example Target 3 for USD 3,000,000 — 3.00× ARR (2025-06-01; source: Synthetic press release 3 https://example.com/release). At 3.00×, Harbor Software's USD 1,000,000 ARR implies USD 3,000,000, 40% below the USD 5,000,000 ask.",
+    );
+    // A higher multiple than the ask's, with no public link: it helps the seller.
+    expect((items[1]!['counter'] as Body)['flags']).toEqual(['NO_PUBLIC_SOURCE', 'SUPPORTS_ASK']);
+    expect(view.body).toMatchObject({ strongestId: items[0]!['id'], canEdit: false });
+    expect((view.body['eligible'] as Body[]).some((c) => c['id'] === ownId || c['id'] === publicId)).toBe(false);
+    expect((await call('target_contributor', 'GET', anchors)).status).toBe(403);
+    expect((await call('other', 'GET', anchors)).status).toBe(404);
+
+    const removed = await call('lead', 'POST', `${anchors}/${items[0]!['id'] as string}/remove`);
+    expect(removed.status).toBe(200);
+    expect((removed.body['items'] as Body[]).length).toBe(1);
+    expect((await call('lead', 'POST', `${anchors}/${items[0]!['id'] as string}/remove`)).status).toBe(404);
+    expect(await audits('negotiation_anchor.added')).toBe(2);
+    expect(await audits('negotiation_anchor.removed')).toBe(1);
+  });
 });
