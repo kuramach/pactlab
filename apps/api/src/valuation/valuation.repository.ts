@@ -49,6 +49,8 @@ export interface ScenarioAssumptions {
   readonly bridge: BridgeAssumptions;
   readonly stockConsiderationShare: string;
   readonly findingLinks: readonly FindingLink[];
+  /** Balance-sheet item ids; absent in assumption sets saved before items existed. */
+  readonly balanceSheetLinks?: readonly string[];
   readonly lbo: LboAssumptions | null;
   readonly accretionDilution: AccretionDilutionAssumptions | null;
   readonly sensitivity: SensitivitySpec | null;

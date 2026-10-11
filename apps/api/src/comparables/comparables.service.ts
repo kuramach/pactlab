@@ -7,6 +7,7 @@ import {
   askingImpliedMultiple,
   benchmarkMultiple,
   computeSaasMetrics,
+  effectiveBridgeAssumptions,
   evToArrMultiple,
   riskAdjustedEnterpriseValue,
   type MoneyValue,
@@ -325,7 +326,7 @@ export class ComparablesService {
       assumptions?.method === 'ARR_MULTIPLE' ? assumptions.multiple : run && arr ? evToArrMultiple(run.result.enterpriseValue, arr) : null;
     const askingMultiple =
       asking && arr
-        ? askingImpliedMultiple({ asking, arr, bridge: run?.inputs.bridge ?? item?.assumptions.values.bridge ?? null })
+        ? askingImpliedMultiple({ asking, arr, bridge: run ? effectiveBridgeAssumptions(run.inputs) : (item?.assumptions.values.bridge ?? null) })
         : null;
 
     const benchmark: MultipleBenchmark = benchmarkMultiple({
@@ -334,7 +335,8 @@ export class ComparablesService {
       chosenMultiple,
       askingImpliedMultiple: askingMultiple,
     });
-    const bridge = run?.inputs.bridge ?? item?.assumptions.values.bridge ?? null;
+    // The run's bridge including its evidence-backed items; a draft that has not run uses the entered amounts.
+    const bridge = run ? effectiveBridgeAssumptions(run.inputs) : (item?.assumptions.values.bridge ?? null);
     return { items, item, facts, asking, filter, arr, arrSource, benchmark, selected, pool, seller, bridge };
   }
 

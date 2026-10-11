@@ -1,7 +1,7 @@
 import type { MoneyValue } from '../metrics/types';
 
 /** Bumped whenever a formula, bridge rule, rounding rule or output shape changes. */
-export const VALUATION_ENGINE_VERSION = 'valuation-1';
+export const VALUATION_ENGINE_VERSION = 'valuation-2';
 
 export const VALUATION_METHODS = ['ARR_MULTIPLE', 'DCF'] as const;
 export type ValuationMethod = (typeof VALUATION_METHODS)[number];
@@ -80,6 +80,43 @@ export interface LinkedAdjustment {
   readonly basis: string;
 }
 
+/** Balance-sheet items: cash adds to equity value; debt and debt-like items reduce it. */
+export const BALANCE_SHEET_KINDS = ['CASH', 'DEBT', 'DEBT_LIKE'] as const;
+export type BalanceSheetKind = (typeof BALANCE_SHEET_KINDS)[number];
+
+/** Which categories belong to which kind. Debt-like items are negotiated line by line. */
+export const BALANCE_SHEET_CATEGORIES = {
+  CASH: ['CASH'],
+  DEBT: ['TERM_LOAN', 'REVOLVER', 'SHAREHOLDER_LOAN', 'CONVERTIBLE_NOTE', 'OTHER_DEBT'],
+  DEBT_LIKE: [
+    'DEFERRED_REVENUE',
+    'UNPAID_TAX',
+    'ACCRUED_BONUS',
+    'EARN_OUT',
+    'LEASE',
+    'CUSTOMER_PREPAYMENT',
+    'TRANSACTION_COSTS',
+    'OTHER_DEBT_LIKE',
+  ],
+} as const satisfies Record<BalanceSheetKind, readonly string[]>;
+export type BalanceSheetCategory = (typeof BALANCE_SHEET_CATEGORIES)[BalanceSheetKind][number];
+
+/**
+ * A cash, debt or debt-like item backed by a cited document, linked to a
+ * scenario. The item id and version are the dependency that makes a result
+ * stale when the item is revised or withdrawn.
+ */
+export interface LinkedBalanceSheetItem {
+  readonly itemId: string;
+  readonly itemVersion: number;
+  readonly kind: BalanceSheetKind;
+  readonly category: BalanceSheetCategory;
+  readonly label: string;
+  readonly currency: string;
+  /** Non-negative; the kind decides the sign in the bridge. */
+  readonly amount: string;
+}
+
 /** Leveraged-buyout inputs, required for take-privates. */
 export interface LboAssumptions {
   readonly entryEbitda: string;
@@ -133,6 +170,8 @@ export interface ValuationInputs {
   /** Share of the equity purchase price paid in acquirer stock, 0 to 1. */
   readonly stockConsiderationShare: string;
   readonly adjustments: readonly LinkedAdjustment[];
+  /** Evidence-backed cash, debt and debt-like items, added to the bridge amounts entered above. */
+  readonly balanceSheetItems?: readonly LinkedBalanceSheetItem[];
   readonly lbo: LboAssumptions | null;
   readonly accretionDilution: AccretionDilutionAssumptions | null;
   readonly sensitivity: SensitivitySpec | null;
@@ -162,6 +201,9 @@ export const BRIDGE_LINE_KINDS = [
   'CASH',
   'DEBT',
   'DEBT_LIKE_ITEMS',
+  'CASH_ITEM',
+  'DEBT_ITEM',
+  'DEBT_LIKE_ITEM',
   'WORKING_CAPITAL',
   'EQUITY_VALUE',
   'FINDING_ADJUSTMENT',
@@ -179,6 +221,8 @@ export interface BridgeLine {
   readonly amount: MoneyValue;
   readonly findingId: string | null;
   readonly adjustmentType: AdjustmentType | null;
+  /** Set on CASH_ITEM, DEBT_ITEM and DEBT_LIKE_ITEM lines only. */
+  readonly balanceSheetItemId?: string;
 }
 
 export interface PurchasePriceBridge {

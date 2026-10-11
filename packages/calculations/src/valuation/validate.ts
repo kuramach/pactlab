@@ -1,6 +1,8 @@
 import type Decimal from 'decimal.js';
 import { D } from '../metrics/decimal';
 import {
+  BALANCE_SHEET_CATEGORIES,
+  BALANCE_SHEET_KINDS,
   ADJUSTMENT_POINTS,
   ADJUSTMENT_TYPES,
   SENSITIVITY_VARIABLES,
@@ -122,6 +124,20 @@ export function validateInputs(inputs: ValuationInputs): void {
   const stockShare = decimal(inputs.stockConsiderationShare, 'stockConsiderationShare', {
     min: '0',
     max: '1',
+  });
+
+  const linkedItems = new Set<string>();
+  (inputs.balanceSheetItems ?? []).forEach((item, index) => {
+    const path = `balanceSheetItems.${index}`;
+    if (linkedItems.has(item.itemId)) throw new ValuationInputError(`${path}.itemId`, 'an item may be linked only once');
+    linkedItems.add(item.itemId);
+    if (!Number.isSafeInteger(item.itemVersion) || item.itemVersion < 1) {
+      throw new ValuationInputError(`${path}.itemVersion`, 'must be a positive integer');
+    }
+    oneOf(item.kind, BALANCE_SHEET_KINDS, `${path}.kind`);
+    oneOf(item.category, BALANCE_SHEET_CATEGORIES[item.kind], `${path}.category`);
+    if (item.currency !== inputs.currency) throw new ValuationInputError(`${path}.currency`, 'must match the scenario currency');
+    decimal(item.amount, `${path}.amount`, { min: '0' });
   });
 
   const seen = new Set<string>();

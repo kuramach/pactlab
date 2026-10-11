@@ -19,6 +19,9 @@ const KNOWN: Readonly<Record<string, string>> = {
   'multiple_judgement.recorded': 'Judged the asking price',
   'negotiation_anchor.added': 'Added a negotiation anchor',
   'negotiation_anchor.removed': 'Removed a negotiation anchor',
+  'balance_sheet_item.created': 'Recorded a balance-sheet item',
+  'balance_sheet_item.revised': 'Revised a balance-sheet item',
+  'balance_sheet_item.withdrawn': 'Withdrew a balance-sheet item',
 };
 
 export function describeAction(action: string): string {

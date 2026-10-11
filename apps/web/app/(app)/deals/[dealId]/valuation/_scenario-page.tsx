@@ -1,8 +1,9 @@
-import type { BenchmarkView } from '@pactlab/contracts';
+import type { BalanceSheetView, BenchmarkView } from '@pactlab/contracts';
 import type { Finding } from '@pactlab/domain';
 import Link from 'next/link';
 import { describeSet, formatMultiple } from '../../../comparables/_lib/view';
 import { formatPricedRisk } from '../../../findings/_lib/view';
+import { formatMoney } from '../../../metrics/_lib/format';
 import type { ScenarioValues } from '../../../valuation/_lib/form';
 import { apiGet, dealsApi } from '../../_lib/api';
 import { saveScenario } from './actions';
@@ -16,10 +17,11 @@ export async function ScenarioEditor({
   dealId: string;
   scenario: { id: string; name: string; version: number; values: ScenarioValues } | null;
 }) {
-  const [deal, accepted, benchmark] = await Promise.all([
+  const [deal, accepted, benchmark, sheet] = await Promise.all([
     dealsApi.get(dealId),
     apiGet<{ items: Finding[] }>(`/v1/deals/${dealId}/findings?status=ACCEPTED`),
     apiGet<BenchmarkView>(`/v1/deals/${dealId}/benchmark`),
+    apiGet<BalanceSheetView>(`/v1/deals/${dealId}/balance-sheet-items`),
   ]);
   const stats = benchmark.kind === 'ok' ? benchmark.data.stats : null;
   const multipleHint =
@@ -48,6 +50,18 @@ export async function ScenarioEditor({
         currency={deal.kind === 'ok' ? (deal.data.baseCurrency ?? 'USD') : 'USD'}
         takePrivate={deal.kind === 'ok' && deal.data.transactionType === 'TAKE_PRIVATE'}
         accepted={priced.map((finding) => ({ id: finding.id, title: finding.title, price: formatPricedRisk(finding.pricedRisk) }))}
+        items={
+          sheet.kind === 'ok'
+            ? sheet.data.items.map((item) => ({
+                id: item.id,
+                kind: item.kind,
+                label: item.label,
+                amount: formatMoney({ amount: item.amount, currency: item.currency }),
+                source: `${item.citation.documentName ?? 'Document'}, p. ${item.citation.pageNumber}`,
+                citationValid: item.citationValid,
+              }))
+            : []
+        }
         submitLabel={scenario ? 'Save new version' : 'Create scenario'}
         multipleHint={multipleHint}
       />

@@ -84,6 +84,21 @@ enum AnchorStatus {
   @@map("anchor_status")
 }
 
+enum BalanceSheetKind {
+  CASH
+  DEBT
+  DEBT_LIKE
+
+  @@map("balance_sheet_kind")
+}
+
+enum BalanceSheetItemStatus {
+  ACTIVE
+  WITHDRAWN
+
+  @@map("balance_sheet_item_status")
+}
+
 enum MultipleVerdict {
   IN_RANGE
   HIGH
@@ -410,6 +425,8 @@ model Organization {
   comparables             Comparable[]
   multipleJudgements      MultipleJudgement[]
   negotiationAnchors      NegotiationAnchor[]
+  balanceSheetItems       BalanceSheetItem[]
+  balanceSheetItemVersions BalanceSheetItemVersion[]
 
   @@map("organizations")
 }
@@ -490,6 +507,8 @@ model Deal {
   ownDealComparables      Comparable[]
   multipleJudgements      MultipleJudgement[]
   negotiationAnchors      NegotiationAnchor[]
+  balanceSheetItems       BalanceSheetItem[]
+  balanceSheetItemVersions BalanceSheetItemVersion[]
 
   @@unique([organizationId, id])
   @@index([organizationId, createdAt])
@@ -1332,4 +1351,64 @@ model NegotiationAnchor {
 
   @@index([organizationId, dealId, status])
   @@map("negotiation_anchors")
+}
+
+/// A cash, debt or debt-like item for a deal, backed by an exact citation to
+/// a document page. Scenarios link items; a revision bumps `version` (with a
+/// row in the history) and makes linked results stale. Buyer side only.
+model BalanceSheetItem {
+  id             String                 @id @default(uuid(7)) @db.Uuid
+  organizationId String                 @map("organization_id") @db.Uuid
+  dealId         String                 @map("deal_id") @db.Uuid
+  kind           BalanceSheetKind
+  category       String
+  label          String
+  amount         Decimal                @db.Decimal(24, 4)
+  currency       String                 @db.Char(3)
+  asOf           DateTime               @map("as_of") @db.Date
+  /// ResolvedCitation: documentId, pageNumber, quote, quoteHash, charStart, charEnd.
+  citation       Json
+  note           String?
+  version        Int                    @default(1)
+  status         BalanceSheetItemStatus @default(ACTIVE)
+  createdBy      String                 @map("created_by") @db.Uuid
+  createdAt      DateTime               @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedBy      String                 @map("updated_by") @db.Uuid
+  updatedAt      DateTime               @default(now()) @map("updated_at") @db.Timestamptz(3)
+
+  organization Organization              @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  deal         Deal                      @relation(fields: [organizationId, dealId], references: [organizationId, id], onDelete: Restrict)
+  versions     BalanceSheetItemVersion[]
+
+  @@unique([organizationId, dealId, id])
+  @@index([organizationId, dealId, status])
+  @@map("balance_sheet_items")
+}
+
+/// Every version of a balance-sheet item, with who changed it and why. Append-only.
+model BalanceSheetItemVersion {
+  id             String                 @id @default(uuid(7)) @db.Uuid
+  organizationId String                 @map("organization_id") @db.Uuid
+  dealId         String                 @map("deal_id") @db.Uuid
+  itemId         String                 @map("item_id") @db.Uuid
+  version        Int
+  kind           BalanceSheetKind
+  category       String
+  label          String
+  amount         Decimal                @db.Decimal(24, 4)
+  currency       String                 @db.Char(3)
+  asOf           DateTime               @map("as_of") @db.Date
+  citation       Json
+  note           String?
+  status         BalanceSheetItemStatus
+  reason         String
+  changedBy      String                 @map("changed_by") @db.Uuid
+  changedAt      DateTime               @default(now()) @map("changed_at") @db.Timestamptz(3)
+
+  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  deal         Deal             @relation(fields: [organizationId, dealId], references: [organizationId, id], onDelete: Restrict)
+  item         BalanceSheetItem @relation(fields: [organizationId, dealId, itemId], references: [organizationId, dealId, id], onDelete: Restrict)
+
+  @@unique([organizationId, dealId, itemId, version])
+  @@map("balance_sheet_item_versions")
 }

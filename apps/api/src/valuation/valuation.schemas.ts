@@ -43,6 +43,8 @@ export const scenarioAssumptionsSchema = z.strictObject({
     .array(z.strictObject({ findingId: z.uuid(), point: z.enum(ADJUSTMENT_POINTS) }))
     .max(50)
     .default([]),
+  /** Evidence-backed cash, debt and debt-like items on the deal. */
+  balanceSheetLinks: z.array(z.uuid()).max(100).default([]),
   lbo: z
     .strictObject({
       entryEbitda: decimal,

@@ -6,10 +6,12 @@ import {
   VALUATION_ENGINE_VERSION,
   type AccretionDilutionResult,
   type AdjustmentType,
+  type BridgeAssumptions,
   type BridgeLine,
   type DcfAssumptions,
   type DcfYearResult,
   type LinkedAdjustment,
+  type LinkedBalanceSheetItem,
   type LboResult,
   type MethodAssumptions,
   type MethodResult,
@@ -35,6 +37,38 @@ const ADJUSTMENT_LABELS: Readonly<Record<AdjustmentType, string>> = {
 
 function ratio4(value: Decimal): string {
   return value.toFixed(RATIO_SCALE, Decimal.ROUND_HALF_EVEN);
+}
+
+/**
+ * Bridge totals with evidence-backed items added to the amounts entered in
+ * the scenario. Everything that converts between enterprise and equity value
+ * (the engine, the ask's implied multiple, anchor counter-prices) uses this.
+ */
+export function effectiveBridge(inputs: Pick<ValuationInputs, 'bridge' | 'balanceSheetItems'>): {
+  readonly cash: Decimal;
+  readonly debt: Decimal;
+  readonly debtLikeItems: Decimal;
+  readonly workingCapitalAdjustment: Decimal;
+} {
+  const total = (kind: LinkedBalanceSheetItem['kind']) =>
+    sum((inputs.balanceSheetItems ?? []).filter((item) => item.kind === kind).map((item) => new D(item.amount)));
+  return {
+    cash: new D(inputs.bridge.cash).plus(total('CASH')),
+    debt: new D(inputs.bridge.debt).plus(total('DEBT')),
+    debtLikeItems: new D(inputs.bridge.debtLikeItems).plus(total('DEBT_LIKE')),
+    workingCapitalAdjustment: new D(inputs.bridge.workingCapitalAdjustment),
+  };
+}
+
+/** The same totals as decimal strings, in the shape of the entered bridge. */
+export function effectiveBridgeAssumptions(inputs: Pick<ValuationInputs, 'bridge' | 'balanceSheetItems'>): BridgeAssumptions {
+  const totals = effectiveBridge(inputs);
+  return {
+    cash: totals.cash.toFixed(),
+    debt: totals.debt.toFixed(),
+    debtLikeItems: totals.debtLikeItems.toFixed(),
+    workingCapitalAdjustment: totals.workingCapitalAdjustment.toFixed(),
+  };
 }
 
 /** The amount a scenario applies from a priced-risk range. */
@@ -181,18 +215,29 @@ function purchasePriceBridge(inputs: ValuationInputs, enterpriseValue: Decimal):
     adjustmentType: adjustment?.type ?? null,
   });
 
-  const cash = new D(inputs.bridge.cash);
-  const debt = new D(inputs.bridge.debt);
-  const debtLike = new D(inputs.bridge.debtLikeItems);
-  const workingCapital = new D(inputs.bridge.workingCapitalAdjustment);
-  const equityValue = enterpriseValue.plus(cash).minus(debt).minus(debtLike).plus(workingCapital);
+  const totals = effectiveBridge(inputs);
+  const equityValue = enterpriseValue
+    .plus(totals.cash)
+    .minus(totals.debt)
+    .minus(totals.debtLikeItems)
+    .plus(totals.workingCapitalAdjustment);
+
+  // Entered amounts first (no evidence behind them), then each cited item by kind, in id order.
+  const items = [...(inputs.balanceSheetItems ?? [])].sort((a, b) => (a.itemId < b.itemId ? -1 : a.itemId > b.itemId ? 1 : 0));
+  const itemLines = (kind: LinkedBalanceSheetItem['kind'], lineKind: BridgeLine['kind'], sign: 1 | -1) =>
+    items
+      .filter((item) => item.kind === kind)
+      .map((item) => ({ ...line(lineKind, item.label, new D(item.amount).times(sign)), balanceSheetItemId: item.itemId }));
 
   const lines: BridgeLine[] = [
     line('ENTERPRISE_VALUE', 'Enterprise value', enterpriseValue),
-    line('CASH', 'Plus cash', cash),
-    line('DEBT', 'Less debt', debt.negated()),
-    line('DEBT_LIKE_ITEMS', 'Less debt-like items', debtLike.negated()),
-    line('WORKING_CAPITAL', 'Working-capital adjustment', workingCapital),
+    line('CASH', 'Plus cash', new D(inputs.bridge.cash)),
+    ...itemLines('CASH', 'CASH_ITEM', 1),
+    line('DEBT', 'Less debt', new D(inputs.bridge.debt).negated()),
+    ...itemLines('DEBT', 'DEBT_ITEM', -1),
+    line('DEBT_LIKE_ITEMS', 'Less debt-like items', new D(inputs.bridge.debtLikeItems).negated()),
+    ...itemLines('DEBT_LIKE', 'DEBT_LIKE_ITEM', -1),
+    line('WORKING_CAPITAL', 'Working-capital adjustment', totals.workingCapitalAdjustment),
     line('EQUITY_VALUE', 'Equity value', equityValue),
   ];
 

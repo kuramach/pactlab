@@ -3,10 +3,12 @@ import { neutralizeMarkup, type ModelRequest } from '@pactlab/ai';
 import { comparables, deals, resolvePrincipal, withTenant, type PrismaClient } from '@pactlab/db';
 import type { AskingPriceInput } from '@pactlab/contracts';
 import type { TenantContext } from '@pactlab/domain';
+import { BalanceSheetService } from '../balance-sheet/balance-sheet.service';
 import { ComparablesService } from '../comparables/comparables.service';
 import { DocumentsService } from '../documents/documents.service';
 import { FindingsService } from '../findings/findings.service';
 import { PactsService } from '../pacts/pacts.service';
+import { updateAssumptionsSchema } from '../valuation/valuation.schemas';
 import { ValuationService } from '../valuation/valuation.service';
 import { DEMO_CONTRACTS, type SyntheticContract } from './contracts';
 
@@ -35,6 +37,30 @@ const SYNTHETIC_COMPARABLES = [
   { kind: 'PRECEDENT_TRANSACTION', target: 'Pinecrest Cloud', on: '2026-03-02', arr: '6400000', ev: '48640000', growth: '0.42', nrr: '1.17', grr: '0.95' },
   { kind: 'PUBLIC_PEER', target: 'Summit Ridge Software', on: '2026-06-30', arr: '210000000', ev: '1764000000', growth: '0.45', nrr: '1.20', grr: '0.95' },
 ] as const;
+
+/**
+ * Troubled's synthetic balance sheet: each debt and debt-like item in the
+ * valuation is backed by an exact quote from it. Totals equal the amounts the
+ * scenario used to enter by hand, so the headline value does not move.
+ */
+const TROUBLED_BALANCE_SHEET = {
+  fileName: 'TroubledCo - Balance sheet 30 Sep 2026 (synthetic).txt',
+  text: [
+    'TroubledCo Ltd — balance sheet at 30 September 2026 (synthetic demo data, unaudited)',
+    '',
+    'Cash and cash equivalents: USD 90,000',
+    'Term loan with Harbor Bank, outstanding principal: USD 120,000',
+    'Deferred revenue on annual subscriptions billed in advance: USD 22,000',
+    'Accrued bonuses for 2026, unpaid: USD 13,000',
+    'Trade receivables: USD 41,000',
+  ].join('\n'),
+  items: [
+    { kind: 'CASH', category: 'CASH', label: 'Cash and cash equivalents', amount: '90000', quote: 'Cash and cash equivalents: USD 90,000' },
+    { kind: 'DEBT', category: 'TERM_LOAN', label: 'Term loan — Harbor Bank', amount: '120000', quote: 'Term loan with Harbor Bank, outstanding principal: USD 120,000' },
+    { kind: 'DEBT_LIKE', category: 'DEFERRED_REVENUE', label: 'Deferred revenue', amount: '22000', quote: 'Deferred revenue on annual subscriptions billed in advance: USD 22,000' },
+    { kind: 'DEBT_LIKE', category: 'ACCRUED_BONUS', label: 'Accrued 2026 bonuses', amount: '13000', quote: 'Accrued bonuses for 2026, unpaid: USD 13,000' },
+  ],
+} as const;
 
 /** Who acts in each synthetic buyer organization: a deal lead and a second-person reviewer. */
 export const DEMO_HOLDERS = [
@@ -149,6 +175,7 @@ export async function seedDemo(
   const documents = app.get(DocumentsService, { strict: false });
   const pacts = app.get(PactsService, { strict: false });
   const comparablesService = app.get(ComparablesService, { strict: false });
+  const balanceSheet = app.get(BalanceSheetService, { strict: false });
   const report: string[] = [];
 
   for (const holder of DEMO_HOLDERS) {
@@ -266,7 +293,7 @@ export async function seedDemo(
       debtLikeItems: debtLike,
       workingCapitalAdjustment: workingCapital,
     });
-    const defaults = { stockConsiderationShare: '0', lbo: null, accretionDilution: null, sensitivity: null } as const;
+    const defaults = { stockConsiderationShare: '0', lbo: null, accretionDilution: null, sensitivity: null, balanceSheetLinks: [] as string[] };
 
     await scenario(
       'Project Healthy',
@@ -412,6 +439,56 @@ export async function seedDemo(
         if (comparable) await comparablesService.addAnchor(who.lead, troubled, { comparableId: comparable.id, note }, REQUEST_ID);
       }
       report.push(`${holder.label} · Project Troubled: negotiation anchors added`);
+    }
+
+    // --- Balance sheet: cited cash, debt and debt-like items, linked to Troubled's base case ---
+    if (troubled) {
+      const sheet = await balanceSheet.list(who.lead, troubled, REQUEST_ID);
+      if (sheet.items.length === 0) {
+        const present = (await documents.list(who.lead, troubled, REQUEST_ID)).items.find((doc) => doc.fileName === TROUBLED_BALANCE_SHEET.fileName);
+        const documentId =
+          present?.id ??
+          ((await documents.upload(
+            who.lead,
+            troubled,
+            {
+              fileName: TROUBLED_BALANCE_SHEET.fileName,
+              contentType: 'text/plain',
+              contentBase64: base64(TROUBLED_BALANCE_SHEET.text),
+              retentionClass: 'DEAL_TERM',
+              dataClass: 'FINANCIAL',
+              aiExcluded: false,
+            },
+            REQUEST_ID,
+          )) as { id: string }).id;
+        for (const entry of TROUBLED_BALANCE_SHEET.items) {
+          await balanceSheet.create(
+            who.lead,
+            troubled,
+            { ...entry, currency: 'USD', asOf: '2026-09-30', documentId, pageNumber: 1, note: SYNTHETIC },
+            REQUEST_ID,
+          );
+        }
+        report.push(`${holder.label} · Project Troubled: ${TROUBLED_BALANCE_SHEET.items.length} balance-sheet items cited`);
+      }
+      const itemIds = (await balanceSheet.list(who.lead, troubled, REQUEST_ID)).items.map((entry) => entry.id);
+      const base = (await valuation.list(who.lead, troubled, REQUEST_ID)).items.find((view) => view.scenario.name === 'Base case — ARR multiple, risk-adjusted');
+      if (base && base.scenario.status === 'DRAFT' && !(base.assumptions.values.balanceSheetLinks?.length) && itemIds.length > 0) {
+        const current = base.assumptions.values;
+        await valuation.updateAssumptions(
+          who.lead,
+          troubled,
+          base.scenario.id,
+          updateAssumptionsSchema.parse({
+            expectedVersion: base.scenario.version,
+            values: { ...current, bridge: { ...current.bridge, cash: '0', debt: '0', debtLikeItems: '0' }, balanceSheetLinks: itemIds },
+          }),
+          REQUEST_ID,
+        );
+        const updated = await valuation.get(who.lead, troubled, base.scenario.id, REQUEST_ID);
+        await valuation.run(who.lead, troubled, base.scenario.id, { expectedVersion: updated.scenario.version }, REQUEST_ID);
+        report.push(`${holder.label} · Project Troubled: base case now uses the cited balance-sheet items`);
+      }
     }
 
     // --- Documents: contracts with cited AI drafts; one decided by the reviewer ---
