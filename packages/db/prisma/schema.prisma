@@ -46,6 +46,38 @@ enum CompanyType {
   @@map("company_type")
 }
 
+enum ComparableKind {
+  PRECEDENT_TRANSACTION
+  PUBLIC_PEER
+  OWN_DEAL
+
+  @@map("comparable_kind")
+}
+
+enum ComparableOrigin {
+  OWN_DEAL
+  ENTERED
+  PROVIDER
+  SYNTHETIC
+
+  @@map("comparable_origin")
+}
+
+enum ComparableStatus {
+  ACTIVE
+  RETIRED
+
+  @@map("comparable_status")
+}
+
+enum MultipleVerdict {
+  IN_RANGE
+  HIGH
+  LOW
+
+  @@map("multiple_verdict")
+}
+
 enum ImportTarget {
   BILLING_INVOICE_LINE
 
@@ -361,6 +393,8 @@ model Organization {
   dealParties             DealParty[]
   sourceUploads           SourceUpload[]
   askingPrices            AskingPrice[]
+  comparables             Comparable[]
+  multipleJudgements      MultipleJudgement[]
 
   @@map("organizations")
 }
@@ -438,6 +472,8 @@ model Deal {
   parties                 DealParty[]
   sourceUploads           SourceUpload[]
   askingPrices            AskingPrice[]
+  ownDealComparables      Comparable[]
+  multipleJudgements      MultipleJudgement[]
 
   @@unique([organizationId, id])
   @@index([organizationId, createdAt])
@@ -1189,4 +1225,68 @@ model AskingPrice {
 
   @@unique([organizationId, dealId, version])
   @@map("asking_prices")
+}
+
+/// A comparable transaction or public peer: an EV ÷ ARR data point used to
+/// give a valuation multiple context. Organization-wide and reusable across
+/// deals. Every row says where it came from; entered rows cite a source.
+/// Rows are never deleted or edited — they are retired.
+model Comparable {
+  id               String           @id @default(uuid(7)) @db.Uuid
+  organizationId   String           @map("organization_id") @db.Uuid
+  kind             ComparableKind
+  origin           ComparableOrigin
+  name             String
+  targetName       String           @map("target_name")
+  acquirerName     String?          @map("acquirer_name")
+  announcedOn      DateTime?        @map("announced_on") @db.Date
+  companyType      CompanyType      @map("company_type")
+  region           String?
+  enterpriseValue  Decimal          @map("enterprise_value") @db.Decimal(24, 4)
+  arr              Decimal          @db.Decimal(24, 4)
+  currency         String           @db.Char(3)
+  arrGrowth        Decimal?         @map("arr_growth") @db.Decimal(9, 4)
+  nrr              Decimal?         @db.Decimal(9, 4)
+  grr              Decimal?         @db.Decimal(9, 4)
+  sourceCitation   String?          @map("source_citation")
+  sourceUrl        String?          @map("source_url")
+  provider         String?
+  providerVersion  String?          @map("provider_version")
+  sourceDealId     String?          @map("source_deal_id") @db.Uuid
+  status           ComparableStatus @default(ACTIVE)
+  recordedBy       String           @map("recorded_by") @db.Uuid
+  recordedAt       DateTime         @default(now()) @map("recorded_at") @db.Timestamptz(3)
+  retiredBy        String?          @map("retired_by") @db.Uuid
+  retiredAt        DateTime?        @map("retired_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  sourceDeal   Deal?        @relation(fields: [organizationId, sourceDealId], references: [organizationId, id], onDelete: Restrict)
+
+  @@unique([organizationId, sourceDealId])
+  @@index([organizationId, status, companyType])
+  @@map("comparables")
+}
+
+/// The buy-side deal lead's judgement of the asking price against the
+/// comparables: in range, high or low, with a rationale. Append-only; the
+/// newest is current. Records the ask and comparable set it was made against.
+model MultipleJudgement {
+  id                   String          @id @default(uuid(7)) @db.Uuid
+  organizationId       String          @map("organization_id") @db.Uuid
+  dealId               String          @map("deal_id") @db.Uuid
+  verdict              MultipleVerdict
+  rationale            String
+  askingVersion        Int?            @map("asking_version")
+  askingMultiple       Decimal?        @map("asking_multiple") @db.Decimal(12, 2)
+  benchmarkVersion     String          @map("benchmark_version")
+  comparableSetHash    String          @map("comparable_set_hash")
+  comparableCount      Int             @map("comparable_count")
+  decidedBy            String          @map("decided_by") @db.Uuid
+  decidedAt            DateTime        @default(now()) @map("decided_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  deal         Deal         @relation(fields: [organizationId, dealId], references: [organizationId, id], onDelete: Restrict)
+
+  @@index([organizationId, dealId, decidedAt])
+  @@map("multiple_judgements")
 }

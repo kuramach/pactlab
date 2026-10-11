@@ -7,8 +7,8 @@ const labels = (permissions: Parameters<typeof visibleSections>[0]) =>
 
 describe('main menu', () => {
   it('always offers Home and My deals', () => {
-    expect(labels(new Set())).toEqual(['Home', 'My deals', 'Start a Pact']);
-    expect(labels(permissionsForDealRole('TARGET_CONTRIBUTOR'))).toEqual(['Home', 'My deals', 'Start a Pact']);
+    expect(labels(new Set())).toEqual(['Home', 'My deals', 'Start a Pact', 'Comparables']);
+    expect(labels(permissionsForDealRole('TARGET_CONTRIBUTOR'))).toEqual(['Home', 'My deals', 'Start a Pact', 'Comparables']);
   });
 
   it('shows organization pages to administrators only', () => {
@@ -16,6 +16,7 @@ describe('main menu', () => {
       'Home',
       'My deals',
       'Start a Pact',
+      'Comparables',
       'Audit log',
       'Pilot controls',
     ]);

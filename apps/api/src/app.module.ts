@@ -5,6 +5,7 @@ import type { PrismaClient } from '@pactlab/db';
 import type { Logger } from '@pactlab/observability';
 import { AuditModule } from './audit/audit.module';
 import { AuthGuard } from './auth/auth.guard';
+import { ComparablesModule } from './comparables/comparables.module';
 import { CompositeIdentityVerifier, type IdentityVerifier } from './auth/identity';
 import { PACTLAB_TOKEN_ISSUER, PactlabTokens } from './auth/pactlab-token';
 import { DealsModule } from './deals/deals.module';
@@ -78,6 +79,7 @@ class InfrastructureModule {
 export class AppModule {
   static register(deps: AppDependencies): DynamicModule {
     const findings = new PrismaFindingsRepository(deps.prisma);
+    const valuation = new PrismaValuationRepository(deps.prisma);
     const tokens = deps.emailLogin ? new PactlabTokens(deps.emailLogin.tokenSecret, deps.prisma) : null;
     // Each token goes to the verifier of its issuer; an organization accepts only its own method.
     const identityVerifier = new CompositeIdentityVerifier({
@@ -100,10 +102,8 @@ export class AppModule {
           malwareScanner: deps.uploads?.malwareScanner ?? new UnavailableMalwareScanner(),
         }),
         FindingsModule.register(findings),
-        ValuationModule.register({
-          valuation: new PrismaValuationRepository(deps.prisma),
-          findings,
-        }),
+        ValuationModule.register({ valuation, findings }),
+        ComparablesModule.register({ valuation, findings }),
         DocumentsModule.register({
           repository: new PrismaDocumentsRepository(deps.prisma),
           objectStore: deps.documents?.objectStore ?? new UnavailableObjectStore(),

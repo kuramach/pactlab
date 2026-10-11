@@ -109,11 +109,31 @@ describe('synthetic decision-loop seed', () => {
     ]);
   });
 
+  it('records labelled synthetic comparables, Healthy as an own-deal precedent and the lead\'s call on Troubled', async () => {
+    const origins = await rows(
+      `SELECT origin, count(*)::int AS n FROM comparables WHERE organization_id = $1 GROUP BY origin ORDER BY origin`,
+      [CHARLIE],
+    );
+    expect(origins).toEqual([
+      { origin: 'OWN_DEAL', n: 1 },
+      { origin: 'SYNTHETIC', n: 15 },
+    ]);
+    const unlabelled = await rows(`SELECT count(*)::int AS n FROM comparables WHERE origin = 'SYNTHETIC' AND name NOT LIKE 'Synthetic %'`);
+    expect(unlabelled[0]!['n']).toBe(0);
+    const judgements = await rows(
+      `SELECT d.name, j.verdict, j.asking_version, j.asking_multiple::text AS multiple FROM multiple_judgements j JOIN deals d ON d.id = j.deal_id
+        WHERE j.organization_id = $1`,
+      [CHARLIE],
+    );
+    expect(judgements).toEqual([{ name: 'Project Troubled', verdict: 'HIGH', asking_version: 2, multiple: '5.04' }]);
+  });
+
   it('changes nothing when run again', async () => {
     const count = async () =>
       rows(
         `SELECT (SELECT count(*) FROM valuation_scenarios)::int AS s, (SELECT count(*) FROM documents)::int AS d,
-                (SELECT count(*) FROM asking_prices)::int AS a,
+                (SELECT count(*) FROM asking_prices)::int AS a, (SELECT count(*) FROM comparables)::int AS c,
+                (SELECT count(*) FROM multiple_judgements)::int AS j,
                 (SELECT count(*) FROM finding_reviews)::int AS r, (SELECT count(*) FROM document_findings)::int AS f`,
       );
     const before = await count();

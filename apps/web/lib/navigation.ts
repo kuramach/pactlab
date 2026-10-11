@@ -1,6 +1,6 @@
 import type { Permission } from '@pactlab/domain';
 
-export type NavIcon = 'home' | 'deals' | 'start' | 'audit' | 'controls' | 'settings';
+export type NavIcon = 'home' | 'deals' | 'start' | 'comparables' | 'audit' | 'controls' | 'settings';
 
 export interface NavItem {
   readonly href: string;
@@ -25,6 +25,8 @@ export const NAV_SECTIONS: readonly NavSection[] = [
       { href: '/', label: 'Home', icon: 'home', match: 'exact' },
       { href: '/deals', label: 'My deals', icon: 'deals' },
       { href: '/pacts/new', label: 'Start a Pact', icon: 'start' },
+      // The firm's comparables; the API refuses target contributors.
+      { href: '/comparables', label: 'Comparables', icon: 'comparables' },
     ],
   },
   {

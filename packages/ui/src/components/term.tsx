@@ -40,6 +40,7 @@ export const GLOSSARY: Readonly<Record<string, string>> = {
   UTC: 'Coordinated Universal Time — the time standard used for every timestamp.',
   VDR: 'Virtual data room — the secure site where a seller shares documents.',
   ESOP: 'Employee share ownership plan.',
+  YoY: 'Year over year — compared with the same month a year earlier.',
 };
 
 /**
