@@ -340,3 +340,133 @@ export function HeatmapChart({
   }, [JSON.stringify({ rows, columns, cells, format })]);
   return <Frame label={label} height={height} chartRef={ref} />;
 }
+
+/** Where each comparable came from, with one colour per origin across every chart. */
+export const ORIGIN_COLORS: Readonly<Record<string, string>> = {
+  OWN_DEAL: CHART_COLORS.indigo,
+  ENTERED: CHART_COLORS.teal,
+  PROVIDER: CHART_COLORS.navy,
+  SYNTHETIC: CHART_COLORS.amber,
+};
+
+interface ComparablePoint {
+  readonly name: string;
+  readonly multiple: string;
+  readonly origin: string;
+  readonly originLabel: string;
+}
+
+/**
+ * Comparable EV ÷ ARR multiples on one axis: a dot per comparable (by
+ * origin), the middle half shaded, the median marked, and the scenario's and
+ * the asking price's multiples drawn as labelled lines.
+ */
+export function MultipleRangeChart({
+  label,
+  comparables,
+  stats,
+  marks,
+  height = 220,
+}: {
+  label: string;
+  comparables: readonly ComparablePoint[];
+  stats: { readonly p25: string; readonly median: string; readonly p75: string } | null;
+  marks: readonly { readonly name: string; readonly multiple: string; readonly color: string }[];
+  height?: number;
+}) {
+  const ref = useChart(() => {
+    const origins = [...new Set(comparables.map((point) => point.originLabel))];
+    const values = [...comparables.map((point) => Number(point.multiple)), ...marks.map((mark) => Number(mark.multiple))];
+    const max = Math.ceil(Math.max(1, ...values) + 0.5);
+    const min = Math.max(0, Math.floor(Math.min(...values, max) - 0.5));
+    const lines = [
+      ...(stats ? [{ name: 'Median', multiple: stats.median, color: CHART_COLORS.slate, dashed: true }] : []),
+      ...marks.map((mark) => ({ ...mark, dashed: false })),
+    ];
+    return {
+      grid: { left: 8, right: 16, top: 34, bottom: 28, containLabel: true },
+      tooltip: {
+        trigger: 'item',
+        confine: true,
+        formatter: (params: { data: { name?: string; value: [number, string] } }) =>
+          `<b>${escapeHtml(params.data.name ?? '')}</b><br/>${params.data.value[0].toFixed(2)}× ARR`,
+      },
+      xAxis: { type: 'value', min, max, ...axisCommon, axisLabel: { ...axisCommon.axisLabel, formatter: (value: number) => `${value}×` } },
+      yAxis: { type: 'category', data: origins, ...axisCommon, splitLine: { show: false } },
+      series: [
+        ...origins.map((originLabel, index) => {
+          const points = comparables.filter((point) => point.originLabel === originLabel);
+          return {
+            name: originLabel,
+            type: 'scatter',
+            symbolSize: 12,
+            itemStyle: { color: ORIGIN_COLORS[points[0]?.origin ?? ''] ?? CHART_COLORS.slate, opacity: 0.85, borderColor: '#fff', borderWidth: 1 },
+            data: points.map((point) => ({ name: point.name, value: [Number(point.multiple), originLabel] })),
+            ...(index === 0
+              ? {
+                  markArea: stats
+                    ? { silent: true, itemStyle: { color: 'rgba(105,120,255,0.10)' }, data: [[{ xAxis: Number(stats.p25) }, { xAxis: Number(stats.p75) }]] }
+                    : undefined,
+                  markLine: {
+                    silent: true,
+                    symbol: 'none',
+                    data: lines.map((line) => ({
+                      xAxis: Number(line.multiple),
+                      lineStyle: { color: line.color, width: 2, type: line.dashed ? 'dashed' : 'solid' },
+                      label: { formatter: `${line.name} ${Number(line.multiple).toFixed(1)}×`, color: line.color, fontWeight: 700, fontSize: 11, position: 'end' },
+                    })),
+                  },
+                }
+              : {}),
+          };
+        }),
+      ],
+    };
+  }, [JSON.stringify({ comparables, stats, marks })]);
+  return <Frame label={label} height={height} chartRef={ref} />;
+}
+
+/** Comparables by ARR growth (x) and EV ÷ ARR multiple (y); dot size by ARR, colour by origin. */
+export function ComparablesScatterChart({
+  label,
+  points,
+  height = 320,
+}: {
+  label: string;
+  points: readonly (ComparablePoint & { readonly growth: string; readonly arr: string })[];
+  height?: number;
+}) {
+  const ref = useChart(() => {
+    const origins = [...new Set(points.map((point) => point.originLabel))];
+    const size = (arr: string) => Math.max(8, Math.min(34, 4 * Math.log10(Math.max(Number(arr), 1)) - 14));
+    return {
+      grid: { left: 8, right: 16, top: 16, bottom: 44, containLabel: true },
+      legend: { bottom: 0, icon: 'circle', itemWidth: 10, itemHeight: 10, textStyle: { fontSize: 11 } },
+      tooltip: {
+        trigger: 'item',
+        confine: true,
+        formatter: (params: { data: { name: string; value: [number, number] } }) =>
+          `<b>${escapeHtml(params.data.name)}</b><br/>ARR growth ${(params.data.value[0] * 100).toFixed(0)}% · ${params.data.value[1].toFixed(2)}× ARR`,
+      },
+      xAxis: {
+        type: 'value',
+        name: 'ARR growth (year over year)',
+        nameLocation: 'middle',
+        nameGap: 26,
+        ...axisCommon,
+        axisLabel: { ...axisCommon.axisLabel, formatter: (value: number) => `${Math.round(value * 100)}%` },
+      },
+      yAxis: { type: 'value', name: 'EV ÷ ARR', ...axisCommon, axisLabel: { ...axisCommon.axisLabel, formatter: (value: number) => `${value}×` } },
+      series: origins.map((originLabel) => {
+        const group = points.filter((point) => point.originLabel === originLabel);
+        return {
+          name: originLabel,
+          type: 'scatter',
+          itemStyle: { color: ORIGIN_COLORS[group[0]?.origin ?? ''] ?? CHART_COLORS.slate, opacity: 0.8, borderColor: '#fff', borderWidth: 1 },
+          data: group.map((point) => ({ name: point.name, value: [Number(point.growth), Number(point.multiple)], symbolSize: size(point.arr) })),
+        };
+      }),
+    };
+  }, [JSON.stringify(points)]);
+  return <Frame label={label} height={height} chartRef={ref} />;
+}

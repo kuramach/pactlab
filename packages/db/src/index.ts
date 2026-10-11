@@ -1,5 +1,6 @@
 export * from './asking';
 export * from './audit';
+export * from './comparables';
 export * from './client';
 export * from './evidence';
 export * from './findings';

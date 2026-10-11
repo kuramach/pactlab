@@ -4,6 +4,8 @@ import { WaterfallChart } from '../../../_lib/charts';
 import Link from 'next/link';
 import { apiGet, dealsApi } from '../../_lib/api';
 import { OutcomeBanner } from '../../_lib/outcome';
+import { BENCHMARK_OUTCOMES, MultipleContext, MultipleContextLine } from '../../_lib/multiple-context';
+import type { BenchmarkView } from '@pactlab/contracts';
 import { ApiState } from '../../_lib/states';
 import { can, dealViewer, type DealViewer } from '../../_lib/viewer';
 import { decideSubmission, recordAskingPrice, runScenario, submitScenario } from './actions';
@@ -309,7 +311,7 @@ async function AskingPanel({ dealId, viewer, currency }: { dealId: string; viewe
   );
 }
 
-function ScenarioCard({ dealId, view, viewer }: { dealId: string; view: ScenarioView; viewer: DealViewer }) {
+function ScenarioCard({ dealId, view, viewer, benchmark }: { dealId: string; view: ScenarioView; viewer: DealViewer; benchmark: BenchmarkView | null }) {
   const { scenario, latestRun } = view;
   const result = latestRun?.result;
   const fresh = freshness(view);
@@ -337,6 +339,11 @@ function ScenarioCard({ dealId, view, viewer }: { dealId: string; view: Scenario
         </div>
 
         <AskingRow dealId={dealId} comparison={view.askingComparison} />
+        {benchmark ? (
+          <div className="rounded-lg bg-mist px-3 py-2">
+            <MultipleContextLine benchmark={benchmark} />
+          </div>
+        ) : null}
 
         {view.staleReasons.length > 0 ? (
           <ul className="list-disc pl-5 text-red-800">
@@ -499,6 +506,20 @@ export default async function ValuationPage({
       ])
     : [null, null, null];
   const currency = deal?.kind === 'ok' ? (deal.data.baseCurrency ?? 'USD') : 'USD';
+  // Comparables context per scenario that has run; the first approved (else first run) leads.
+  const runs = result?.kind === 'ok' ? result.data.items.filter((view) => view.latestRun) : [];
+  const benchmarks = new Map<string, BenchmarkView>();
+  if (dealId) {
+    const fetched = await Promise.all(
+      runs.map((view) => apiGet<BenchmarkView>(`/v1/deals/${encodeURIComponent(dealId)}/benchmark?scenarioId=${view.scenario.id}`)),
+    );
+    fetched.forEach((entry, index) => {
+      const id = runs[index]?.scenario.id;
+      if (id && entry.kind === 'ok') benchmarks.set(id, entry.data);
+    });
+  }
+  const lead = runs.find((view) => view.scenario.status === 'APPROVED') ?? runs[0];
+  const leadBenchmark = lead ? benchmarks.get(lead.scenario.id) : undefined;
 
   return (
     <div className="flex max-w-6xl flex-col gap-6">
@@ -516,9 +537,11 @@ export default async function ValuationPage({
         ) : null}
       </div>
 
-      <OutcomeBanner outcome={typeof outcome === 'string' ? outcome : undefined} messages={OUTCOMES} />
+      <OutcomeBanner outcome={typeof outcome === 'string' ? outcome : undefined} messages={{ ...BENCHMARK_OUTCOMES, ...OUTCOMES }} />
 
       {dealId && viewer ? <AskingPanel dealId={dealId} viewer={viewer} currency={currency} /> : null}
+
+      {dealId && leadBenchmark ? <MultipleContext dealId={dealId} benchmark={leadBenchmark} returnTo={`/deals/${dealId}/valuation`} /> : null}
 
       {!dealId || !viewer ? (
         <EmptyState
@@ -534,7 +557,7 @@ export default async function ValuationPage({
         />
       ) : (
         result.data.items.map((view) => (
-          <ScenarioCard key={view.scenario.id} dealId={dealId} view={view} viewer={viewer} />
+          <ScenarioCard key={view.scenario.id} dealId={dealId} view={view} viewer={viewer} benchmark={benchmarks.get(view.scenario.id) ?? null} />
         ))
       )}
     </div>

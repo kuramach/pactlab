@@ -1,5 +1,7 @@
+import type { BenchmarkView } from '@pactlab/contracts';
 import type { Finding } from '@pactlab/domain';
 import Link from 'next/link';
+import { describeSet, formatMultiple } from '../../../comparables/_lib/view';
 import { formatPricedRisk } from '../../../findings/_lib/view';
 import type { ScenarioValues } from '../../../valuation/_lib/form';
 import { apiGet, dealsApi } from '../../_lib/api';
@@ -14,10 +16,16 @@ export async function ScenarioEditor({
   dealId: string;
   scenario: { id: string; name: string; version: number; values: ScenarioValues } | null;
 }) {
-  const [deal, accepted] = await Promise.all([
+  const [deal, accepted, benchmark] = await Promise.all([
     dealsApi.get(dealId),
     apiGet<{ items: Finding[] }>(`/v1/deals/${dealId}/findings?status=ACCEPTED`),
+    apiGet<BenchmarkView>(`/v1/deals/${dealId}/benchmark`),
   ]);
+  const stats = benchmark.kind === 'ok' ? benchmark.data.stats : null;
+  const multipleHint =
+    benchmark.kind === 'ok' && stats
+      ? `Comparables: middle half ${formatMultiple(stats.p25)}–${formatMultiple(stats.p75)}, median ${formatMultiple(stats.median)} (${describeSet(benchmark.data)}${benchmark.data.syntheticCount > 0 ? `, ${benchmark.data.syntheticCount} synthetic` : ''}).${benchmark.data.askingImplied ? ` The ask implies ${formatMultiple(benchmark.data.askingImplied.multiple)}.` : ''}`
+      : undefined;
   const priced = accepted.kind === 'ok' ? accepted.data.items.filter((finding) => finding.pricedRisk) : [];
   const action = saveScenario.bind(null, dealId, scenario?.id ?? null, scenario?.version ?? null);
   return (
@@ -41,6 +49,7 @@ export async function ScenarioEditor({
         takePrivate={deal.kind === 'ok' && deal.data.transactionType === 'TAKE_PRIVATE'}
         accepted={priced.map((finding) => ({ id: finding.id, title: finding.title, price: formatPricedRisk(finding.pricedRisk) }))}
         submitLabel={scenario ? 'Save new version' : 'Create scenario'}
+        multipleHint={multipleHint}
       />
     </div>
   );

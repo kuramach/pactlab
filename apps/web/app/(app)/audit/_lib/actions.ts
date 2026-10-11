@@ -13,6 +13,10 @@ const KNOWN: Readonly<Record<string, string>> = {
   'source_upload.created': 'Uploaded a billing export',
   'source_upload.imported': 'Imported a billing export',
   'audit.read': 'Viewed the audit log',
+  'comparable.recorded': 'Added a comparable',
+  'comparable.retired': 'Retired a comparable',
+  'comparable.from_deal': 'Added a deal to the precedents',
+  'multiple_judgement.recorded': 'Judged the asking price',
 };
 
 export function describeAction(action: string): string {

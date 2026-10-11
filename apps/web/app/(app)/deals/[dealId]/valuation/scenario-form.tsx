@@ -28,6 +28,7 @@ function Field({ label, name, defaultValue, hint, suffix }: { label: string; nam
 
 /** Scenario inputs. Rates are entered as percents; the server converts them to fractions without floating point. */
 export function ScenarioForm({
+  multipleHint,
   action,
   name,
   values,
@@ -43,6 +44,8 @@ export function ScenarioForm({
   takePrivate: boolean;
   accepted: readonly AcceptedFinding[];
   submitLabel: string;
+  /** Where comparable multiples sit, so the multiple is chosen with context. */
+  multipleHint?: string;
 }) {
   const [state, formAction, pending] = useActionState(action, { error: null });
   const assumptions = values?.assumptions;
@@ -90,7 +93,7 @@ export function ScenarioForm({
           {method === 'ARR_MULTIPLE' ? (
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="ARR" name="arr" defaultValue={assumptions?.method === 'ARR_MULTIPLE' ? assumptions.arr : ''} hint="Use the reconciled ARR from Finances." />
-              <Field label="ARR multiple" name="multiple" defaultValue={assumptions?.method === 'ARR_MULTIPLE' ? assumptions.multiple : ''} suffix="×" />
+              <Field label="ARR multiple" name="multiple" defaultValue={assumptions?.method === 'ARR_MULTIPLE' ? assumptions.multiple : ''} suffix="×" hint={multipleHint} />
             </div>
           ) : (
             <div className="flex flex-col gap-4">

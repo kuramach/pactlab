@@ -1,8 +1,9 @@
 import type { INestApplicationContext } from '@nestjs/common';
 import { neutralizeMarkup, type ModelRequest } from '@pactlab/ai';
-import { deals, resolvePrincipal, withTenant, type PrismaClient } from '@pactlab/db';
+import { comparables, deals, resolvePrincipal, withTenant, type PrismaClient } from '@pactlab/db';
 import type { AskingPriceInput } from '@pactlab/contracts';
 import type { TenantContext } from '@pactlab/domain';
+import { ComparablesService } from '../comparables/comparables.service';
 import { DocumentsService } from '../documents/documents.service';
 import { FindingsService } from '../findings/findings.service';
 import { PactsService } from '../pacts/pacts.service';
@@ -11,6 +12,29 @@ import { DEMO_CONTRACTS, type SyntheticContract } from './contracts';
 
 const REQUEST_ID = 'demo-seed';
 const SYNTHETIC = '(synthetic demo data)';
+
+/**
+ * A synthetic market of software comparables for demos: invented names and
+ * figures, labelled synthetic everywhere they appear. EV = ARR × multiple,
+ * with multiples spread from 2.8× to 8.4× and growth rising with the multiple.
+ */
+const SYNTHETIC_COMPARABLES = [
+  { kind: 'PRECEDENT_TRANSACTION', target: 'Ledgerline', on: '2022-04-12', arr: '3200000', ev: '8960000', growth: '0.06', nrr: '0.94', grr: '0.84' },
+  { kind: 'PRECEDENT_TRANSACTION', target: 'Fieldnote', on: '2023-02-08', arr: '1800000', ev: '5580000', growth: '0.09', nrr: '0.97', grr: '0.86' },
+  { kind: 'PUBLIC_PEER', target: 'Quayside Systems', on: '2026-06-30', arr: '42000000', ev: '142800000', growth: '0.11', nrr: '0.99', grr: '0.88' },
+  { kind: 'PRECEDENT_TRANSACTION', target: 'Tallyhouse', on: '2023-09-19', arr: '2500000', ev: '9250000', growth: '0.12', nrr: '1.00', grr: '0.87' },
+  { kind: 'PRECEDENT_TRANSACTION', target: 'Brightpath Billing', on: '2024-01-25', arr: '5600000', ev: '21840000', growth: '0.15', nrr: '1.01', grr: '0.89' },
+  { kind: 'PRECEDENT_TRANSACTION', target: 'Copperleaf', on: '2024-05-14', arr: '900000', ev: '3690000', growth: '0.14', nrr: '1.02', grr: '0.90' },
+  { kind: 'PUBLIC_PEER', target: 'Northwind Cloud', on: '2026-06-30', arr: '65000000', ev: '279500000', growth: '0.17', nrr: '1.04', grr: '0.90' },
+  { kind: 'PRECEDENT_TRANSACTION', target: 'Stackwell', on: '2024-10-03', arr: '4100000', ev: '18450000', growth: '0.19', nrr: '1.05', grr: '0.91' },
+  { kind: 'PRECEDENT_TRANSACTION', target: 'Orbitask', on: '2025-02-11', arr: '2200000', ev: '10560000', growth: '0.22', nrr: '1.06', grr: '0.91' },
+  { kind: 'PRECEDENT_TRANSACTION', target: 'Kestrel Analytics', on: '2025-05-27', arr: '7500000', ev: '39000000', growth: '0.25', nrr: '1.08', grr: '0.92' },
+  { kind: 'PUBLIC_PEER', target: 'Meridian Works', on: '2026-06-30', arr: '120000000', ev: '672000000', growth: '0.24', nrr: '1.09', grr: '0.92' },
+  { kind: 'PRECEDENT_TRANSACTION', target: 'Lumen Desk', on: '2025-08-06', arr: '3000000', ev: '18300000', growth: '0.31', nrr: '1.11', grr: '0.93' },
+  { kind: 'PRECEDENT_TRANSACTION', target: 'Harborview Data', on: '2025-11-18', arr: '9800000', ev: '66640000', growth: '0.36', nrr: '1.14', grr: '0.94' },
+  { kind: 'PRECEDENT_TRANSACTION', target: 'Pinecrest Cloud', on: '2026-03-02', arr: '6400000', ev: '48640000', growth: '0.42', nrr: '1.17', grr: '0.95' },
+  { kind: 'PUBLIC_PEER', target: 'Summit Ridge Software', on: '2026-06-30', arr: '210000000', ev: '1764000000', growth: '0.45', nrr: '1.20', grr: '0.95' },
+] as const;
 
 /** Who acts in each synthetic buyer organization: a deal lead and a second-person reviewer. */
 export const DEMO_HOLDERS = [
@@ -124,6 +148,7 @@ export async function seedDemo(
   const valuation = app.get(ValuationService, { strict: false });
   const documents = app.get(DocumentsService, { strict: false });
   const pacts = app.get(PactsService, { strict: false });
+  const comparablesService = app.get(ComparablesService, { strict: false });
   const report: string[] = [];
 
   for (const holder of DEMO_HOLDERS) {
@@ -319,6 +344,61 @@ export async function seedDemo(
       },
       { run: false, submitAndApprove: false },
     );
+
+    // --- Comparables: a labelled synthetic market set, Healthy as an own-deal precedent, the lead's call on Troubled ---
+    const existingComparables = await withTenant(prisma, who.lead, (tx) => comparables.list(tx, { includeRetired: true }));
+    if (!existingComparables.some((row) => row.origin === 'SYNTHETIC')) {
+      await withTenant(prisma, who.lead, async (tx) => {
+        for (const row of SYNTHETIC_COMPARABLES) {
+          await comparables.record(tx, {
+            kind: row.kind,
+            origin: 'SYNTHETIC',
+            name: `Synthetic ${row.kind === 'PUBLIC_PEER' ? 'peer' : 'precedent'} — ${row.target}`,
+            targetName: `${row.target} (synthetic)`,
+            acquirerName: row.kind === 'PUBLIC_PEER' ? null : 'Synthetic acquirer',
+            announcedOn: row.on,
+            companyType: 'SOFTWARE_SAAS',
+            region: 'North America',
+            enterpriseValue: row.ev,
+            arr: row.arr,
+            currency: 'USD',
+            arrGrowth: row.growth,
+            nrr: row.nrr,
+            grr: row.grr,
+            sourceCitation: `Synthetic demo comparable — not a real transaction or company ${SYNTHETIC}`,
+            sourceUrl: null,
+            provider: null,
+            providerVersion: null,
+            sourceDealId: null,
+            organizationId: holder.organizationId,
+            recordedBy: who.lead.userId,
+          });
+        }
+      });
+      report.push(`${holder.label}: ${SYNTHETIC_COMPARABLES.length} synthetic comparables recorded`);
+    }
+    const healthy = dealId('Project Healthy');
+    if (healthy && !existingComparables.some((row) => row.sourceDealId === healthy)) {
+      const approved = (await valuation.list(who.lead, healthy, REQUEST_ID)).items.some((view) => view.scenario.status === 'APPROVED');
+      if (approved) {
+        await comparablesService.addFromDeal(who.lead, healthy, REQUEST_ID);
+        report.push(`${holder.label} · Project Healthy: added to the firm's precedents`);
+      }
+    }
+    if (troubled && (await comparablesService.judgements(who.lead, troubled, REQUEST_ID)).items.length === 0) {
+      await comparablesService.recordJudgement(
+        who.lead,
+        troubled,
+        {
+          verdict: 'HIGH',
+          rationale: `The ask implies about 5.0× ARR, above the comparables' median, while Troubled's growth and retention trail the peers priced there and accepted code risks remain. Counter in the lower half of the range. ${SYNTHETIC}`,
+          years: 5,
+          synthetic: 'include',
+        },
+        REQUEST_ID,
+      );
+      report.push(`${holder.label} · Project Troubled: deal lead judged the asking price high`);
+    }
 
     // --- Documents: contracts with cited AI drafts; one decided by the reviewer ---
     for (const [name, contracts] of Object.entries(DEMO_CONTRACTS) as [DealName, readonly SyntheticContract[]][]) {

@@ -20,7 +20,10 @@ import Link from 'next/link';
 import { formatMoney } from '../../metrics/_lib/format';
 import { BASIS_LABELS, describeGap, type ScenarioView } from '../../valuation/_lib/view';
 import type { Finding } from '@pactlab/domain';
+import type { BenchmarkView } from '@pactlab/contracts';
 import { apiGet, dealsApi } from '../_lib/api';
+import { BENCHMARK_OUTCOMES, MultipleContext } from '../_lib/multiple-context';
+import { OutcomeBanner } from '../_lib/outcome';
 import { SextantExplanation } from '../_lib/sextant-explanation';
 import { dealViewer } from '../_lib/viewer';
 import { partyLabel } from '../_lib/labels';
@@ -39,8 +42,15 @@ const AREAS: { path: string; title: string; body: string; icon: typeof TrendingU
 ];
 
 /** Deal overview: the parties, how far evidence collection has come, and where to go next. */
-export default async function DealOverviewPage({ params }: { params: Promise<{ dealId: string }> }) {
+export default async function DealOverviewPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ dealId: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const { dealId } = await params;
+  const outcome = (await searchParams)['outcome'];
   const [plan, sources, parties, asking, scenarios, viewer, accepted] = await Promise.all([
     dealsApi.sourcePlan(dealId),
     dealsApi.sources(dealId),
@@ -55,6 +65,10 @@ export default async function DealOverviewPage({ params }: { params: Promise<{ d
   const compared = (scenarios.kind === 'ok' ? scenarios.data.items : []).filter((view) => view.askingComparison?.comparable);
   const headline = compared.find((view) => view.scenario.status === 'APPROVED') ?? compared[0];
   const comparison = headline?.askingComparison?.comparable ? headline.askingComparison : null;
+  const benchmark =
+    scenarios.kind === 'ok'
+      ? await apiGet<BenchmarkView>(`/v1/deals/${dealId}/benchmark${headline ? `?scenarioId=${headline.scenario.id}` : ''}`)
+      : null;
   const planned = plan.kind === 'ok' ? plan.data.sources : [];
   const connected = planned.filter((source) => source.status === 'CONNECTED').length;
   const evidence = sources.kind === 'ok' ? sources.data.items.reduce((total, source) => total + source.evidenceCount, 0) : 0;
@@ -62,6 +76,7 @@ export default async function DealOverviewPage({ params }: { params: Promise<{ d
 
   return (
     <div className="flex flex-col gap-8">
+      <OutcomeBanner outcome={typeof outcome === 'string' ? outcome : undefined} messages={BENCHMARK_OUTCOMES} />
       {asking.kind === 'ok' ? (
         <Card className="border-indigo/30 bg-secondary/60">
           <CardContent className="flex flex-wrap items-center justify-between gap-4 p-5">
@@ -103,7 +118,12 @@ export default async function DealOverviewPage({ params }: { params: Promise<{ d
           view={headline}
           viewer={viewer}
           findings={accepted.kind === 'ok' ? accepted.data.items : []}
+          benchmark={benchmark?.kind === 'ok' ? benchmark.data : null}
         />
+      ) : null}
+
+      {benchmark?.kind === 'ok' && (current || benchmark.data.scenario) ? (
+        <MultipleContext dealId={dealId} benchmark={benchmark.data} returnTo={`/deals/${dealId}`} />
       ) : null}
 
       <div className="grid gap-4 sm:grid-cols-3">

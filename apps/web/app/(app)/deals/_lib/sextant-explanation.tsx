@@ -1,3 +1,4 @@
+import type { BenchmarkView } from '@pactlab/contracts';
 import type { Finding } from '@pactlab/domain';
 import { Badge, Card, CardContent, CardDescription, CardHeader, CardTitle, Glossed, IconTile, Term } from '@pactlab/ui';
 import { BadgeCheck, Calculator, Compass, Landmark, ShieldAlert, Wallet } from 'lucide-react';
@@ -7,6 +8,7 @@ import { formatMoney } from '../../metrics/_lib/format';
 import { fractionToPercent } from '../../valuation/_lib/form';
 import { BASIS_LABELS, describeGap, type ScenarioView } from '../../valuation/_lib/view';
 import { WaterfallChart } from '../../_lib/charts';
+import { MultipleContextLine } from './multiple-context';
 import type { DealViewer } from './viewer';
 
 const RISK_LABELS: Record<string, string> = {
@@ -49,11 +51,14 @@ export function SextantExplanation({
   view,
   viewer,
   findings,
+  benchmark = null,
 }: {
   dealId: string;
   view: ScenarioView;
   viewer: DealViewer;
   findings: readonly Pick<Finding, 'id' | 'title'>[];
+  /** Comparables context for the multiple, when the viewer may see it. */
+  benchmark?: BenchmarkView | null;
 }) {
   const run = view.latestRun;
   const comparison = view.askingComparison;
@@ -127,7 +132,11 @@ export function SextantExplanation({
                 × a multiple of <b>{run.inputs.assumptions.multiple}×</b> = enterprise value <b>{formatMoney(result.enterpriseValue)}</b>. The
                 multiple is the main judgement call: each 1× is worth {money(run.inputs.assumptions.arr, currency)}.
               </p>
-            ) : run.inputs?.assumptions.method === 'DCF' ? (
+            ) : null}
+            {benchmark && run.inputs?.assumptions.method === 'ARR_MULTIPLE' && benchmark.scenario?.id === view.scenario.id ? (
+              <MultipleContextLine benchmark={benchmark} />
+            ) : null}
+            {run.inputs?.assumptions.method === 'ARR_MULTIPLE' ? null : run.inputs?.assumptions.method === 'DCF' ? (
               <p>
                 Base revenue <b>{money(run.inputs.assumptions.baseRevenue, currency)}</b>, a {run.inputs.assumptions.years.length}-year forecast
                 with growth of {run.inputs.assumptions.years.map((year) => pct(year.growth)).join(', ')} and free-cash-flow margins of{' '}
