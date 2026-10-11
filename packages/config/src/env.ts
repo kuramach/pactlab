@@ -15,6 +15,9 @@ const redisUrl = nonEmpty.refine(
   'must be a redis:// or rediss:// URL',
 );
 
+/** A blank line in .env (`NAME=`) means "not set". */
+const unsetIfBlank = <T extends z.ZodType>(schema: T) => z.preprocess((value) => (value === '' ? undefined : value), schema);
+
 const port = z.coerce.number().int().min(1).max(65535);
 
 /**
@@ -70,10 +73,23 @@ export const apiEnvSchema = baseEnvSchema.extend({
   GITHUB_APP_ID: z.string().regex(/^\d+$/, 'numeric app id').optional(),
   GITHUB_APP_SLUG: z.string().regex(/^[a-z0-9-]+$/, 'app slug from its public URL').optional(),
   GITHUB_APP_PRIVATE_KEY_PATH: nonEmpty.optional(),
+  /** Model provider for document AI: `none` keeps AI off; `bedrock` calls Claude on Amazon Bedrock. */
+  AI_PROVIDER: unsetIfBlank(z.enum(['none', 'bedrock']).default('none')),
+  /** Bedrock Region; credentials come from the AWS SDK default chain (e.g. AWS_PROFILE after `aws sso login`). */
+  AWS_REGION: unsetIfBlank(z.string().regex(/^[a-z]{2}(-gov)?-[a-z]+-\d$/, 'an AWS Region such as us-east-1').optional()),
+  /** Optional model or inference-profile overrides per alias (e.g. `eu.anthropic.claude-sonnet-5-5`). */
+  BEDROCK_MODEL_BALANCED: unsetIfBlank(nonEmpty.optional()),
+  BEDROCK_MODEL_DEEP_REVIEW: unsetIfBlank(nonEmpty.optional()),
+  BEDROCK_MODEL_FAST: unsetIfBlank(nonEmpty.optional()),
 })
   .superRefine(allOrNone(['AUTH0_DOMAIN', 'AUTH0_AUDIENCE']))
   .superRefine(allOrNone(['LOCAL_SECRETS_DIR', 'LOCAL_SECRETS_KEY']))
-  .superRefine(allOrNone(['GITHUB_APP_ID', 'GITHUB_APP_SLUG', 'GITHUB_APP_PRIVATE_KEY_PATH']));
+  .superRefine(allOrNone(['GITHUB_APP_ID', 'GITHUB_APP_SLUG', 'GITHUB_APP_PRIVATE_KEY_PATH']))
+  .superRefine((value, context) => {
+    if (value.AI_PROVIDER === 'bedrock' && !value.AWS_REGION) {
+      context.addIssue({ code: 'custom', path: ['AWS_REGION'], message: 'required when AI_PROVIDER is bedrock' });
+    }
+  });
 export type ApiEnv = z.infer<typeof apiEnvSchema>;
 
 export const workerEnvSchema = baseEnvSchema.extend({

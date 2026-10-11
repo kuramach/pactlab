@@ -18,14 +18,22 @@ import {
 
 const deal = (dealId: string) => `/v1/deals/${encodeURIComponent(dealId)}`;
 
+interface AiStatus {
+  enabled: boolean;
+  provider: string;
+  region: string | null;
+  routes: { alias: string; modelId: string; label: string }[];
+}
+
 const OUTCOMES: Record<string, string> = {
   'ok-uploaded': 'Document uploaded, scanned and split into pages.',
   'ok-accept': 'Draft accepted — its citations were re-checked against the page.',
   'ok-reject': 'Draft rejected.',
   'no-file': 'Choose a file to upload.',
-  type: 'Upload a .txt or .md file. PDF and Word arrive with the AI extraction work.',
-  'too-large': 'Files can be at most 512 KB.',
-  rejected: 'The file was rejected — it may be empty, unreadable or flagged by the virus scan.',
+  type: 'Upload a PDF, Word (.docx), text or Markdown file.',
+  'too-large': 'PDF and Word files can be up to 10 MB; text files up to 512 KB.',
+  rejected:
+    'The file was rejected — it may be empty, unreadable, password-protected, a scanned PDF with no text (OCR is not available yet) or flagged by the virus scan.',
   unavailable: 'Uploads are not available in this environment.',
   'ai-off': 'AI is not switched on for this environment yet. Drafts will appear once the Claude connection is enabled.',
   'ai-excluded': 'This document is excluded from AI, or holds data that may never be sent to a model.',
@@ -61,7 +69,7 @@ export default async function DocumentsPage({
   const outcomeParam = (await searchParams)['outcome'];
   const outcome = typeof outcomeParam === 'string' ? outcomeParam : undefined;
   const drafted = outcome?.match(/^ok-drafted-(\d+)$/)?.[1];
-  const [documents, findings, page, viewer] = await Promise.all([
+  const [documents, findings, page, viewer, ai] = await Promise.all([
     apiGet<{ items: DocumentListItem[] }>(`${deal(dealId)}/documents`),
     apiGet<{ items: DocumentFindingItem[] }>(`${deal(dealId)}/document-findings`),
     view.documentId
@@ -70,7 +78,10 @@ export default async function DocumentsPage({
         )
       : Promise.resolve(null),
     dealViewer(dealId),
+    apiGet<AiStatus>('/v1/ai/status'),
   ]);
+  const aiOn = ai.kind === 'ok' && ai.data.enabled;
+  const balanced = ai.kind === 'ok' ? ai.data.routes.find((route) => route.alias === 'balanced') : undefined;
   const writer = can.draft(viewer.role);
   const reviewer = can.review(viewer.role);
   const queue = findings.kind === 'ok' ? reviewQueueOrder(findings.data.items) : [];
@@ -87,11 +98,23 @@ export default async function DocumentsPage({
         <p className="text-sm text-muted-foreground">
           <Glossed text="Uploaded documents, cited answers and AI drafts. Every citation opens the exact page." />
         </p>
+        <div className="mt-1">
+          {aiOn ? (
+            <Badge variant="calculation" title={balanced?.modelId}>
+              AI on — {balanced?.label ?? 'Claude'} via Amazon Bedrock{ai.kind === 'ok' && ai.data.region ? ` (${ai.data.region})` : ''}
+            </Badge>
+          ) : (
+            <Badge variant="neutral">AI off — uploads, pages and citations still work; drafts and answers need the Claude connection</Badge>
+          )}
+        </div>
       </div>
 
       <OutcomeBanner
         outcome={drafted !== undefined ? 'ok-drafted' : outcome}
-        messages={{ ...OUTCOMES, 'ok-drafted': `AI extraction finished: ${drafted ?? 0} new cited draft(s) in the review queue.` }}
+        messages={{
+          ...OUTCOMES,
+          ...(aiOn ? { 'ai-off': 'The model call failed or timed out. Nothing was drafted — try again in a moment.' } : {}),
+          'ok-drafted': `AI extraction finished: ${drafted ?? 0} new cited draft(s) in the review queue.` }}
       />
 
       <div className="grid gap-4 lg:grid-cols-[1fr_1.2fr]">
@@ -101,7 +124,13 @@ export default async function DocumentsPage({
           </CardHeader>
           <CardContent>
             <form action={uploadDocument.bind(null, dealId)} className="flex flex-col gap-3 text-sm">
-              <input name="file" type="file" accept=".txt,.md,text/plain,text/markdown" required className="text-sm" />
+              <input
+                name="file"
+                type="file"
+                accept=".pdf,.docx,.txt,.md,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown"
+                required
+                className="text-sm"
+              />
               <div className="flex flex-wrap items-center gap-4">
                 <label className="flex items-center gap-2">
                   Contains
@@ -115,7 +144,7 @@ export default async function DocumentsPage({
                 </label>
               </div>
               <p className="text-xs text-muted-foreground">
-                <Glossed text="Text or Markdown, up to 512 KB. HR, pay and performance documents are never sent to a model." />
+                <Glossed text="PDF or Word up to 10 MB, text or Markdown up to 512 KB. Word documents are split into sections. HR, pay and performance documents are never sent to a model." />
               </p>
               <div>
                 <Button type="submit" size="sm">

@@ -35,6 +35,15 @@ describe('loadConfig', () => {
     expect(() => loadConfig(apiEnvSchema, { ...validApi, SIGNUP_REQUIRES_APPROVAL: 'yes' })).toThrow(/SIGNUP_REQUIRES_APPROVAL/);
   });
 
+  it('keeps AI off by default and needs a Region to switch on Bedrock', () => {
+    expect(loadConfig(apiEnvSchema, validApi).AI_PROVIDER).toBe('none');
+    expect(loadConfig(apiEnvSchema, { ...validApi, AI_PROVIDER: '', AWS_REGION: '' }).AI_PROVIDER).toBe('none');
+    expect(() => loadConfig(apiEnvSchema, { ...validApi, AI_PROVIDER: 'bedrock' })).toThrow(/AWS_REGION/);
+    expect(() => loadConfig(apiEnvSchema, { ...validApi, AI_PROVIDER: 'bedrock', AWS_REGION: 'virginia' })).toThrow(/AWS_REGION/);
+    expect(loadConfig(apiEnvSchema, { ...validApi, AI_PROVIDER: 'bedrock', AWS_REGION: 'us-east-1' })).toMatchObject({ AI_PROVIDER: 'bedrock', AWS_REGION: 'us-east-1' });
+    expect(() => loadConfig(apiEnvSchema, { ...validApi, AI_PROVIDER: 'openai' })).toThrow(/AI_PROVIDER/);
+  });
+
   it('requires a strong token secret for email-code sign-in', () => {
     expect(() => loadConfig(apiEnvSchema, { ...validApi, AUTH_TOKEN_SECRET: 'short' })).toThrow(/AUTH_TOKEN_SECRET/);
   });

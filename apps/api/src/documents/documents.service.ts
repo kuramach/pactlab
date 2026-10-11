@@ -55,7 +55,8 @@ import type {
   UploadDocumentBody,
 } from './documents.schemas';
 import type { DocumentPageRecord, DocumentRecord } from './documents.types';
-import { ExtractionError, extractPages } from './extraction';
+import { documentPages } from './document-text';
+import { ExtractionError } from './extraction';
 import {
   retainUntil,
   UploadRejectedError,
@@ -159,7 +160,7 @@ export class DocumentsService {
     let pages;
     try {
       validated = await validateUpload(body, this.scanner);
-      pages = extractPages(validated.text);
+      pages = await documentPages(validated);
     } catch (error) {
       if (error instanceof UploadRejectedError || error instanceof ExtractionError) {
         await this.auditRejection(tenant, dealId, requestId);
@@ -491,6 +492,8 @@ export class DocumentsService {
         requestId,
       ),
     );
+    // The run is recorded either way; a failed provider call is not "zero drafts".
+    if (run.status === 'PROVIDER_ERROR') throw new ServiceUnavailableException();
 
     const now = new Date();
     const known = await this.documents.findingFingerprints(tenant, dealId, documentId);

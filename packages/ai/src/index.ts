@@ -1,3 +1,4 @@
+export * from './bedrock';
 export * from './citations';
 export * from './context';
 export * from './gateway';

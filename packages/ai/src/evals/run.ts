@@ -1,4 +1,4 @@
-import { TransportClaudeGateway } from '../gateway';
+import { TransportClaudeGateway, type ClaudeGateway } from '../gateway';
 import { askDocuments, extractContractTerms } from '../grounding';
 import { defaultPromptRegistry } from '../prompts';
 import { ScriptedModelTransport } from '../transport';
@@ -38,6 +38,9 @@ export interface EvalReport {
   readonly probesBlocked: number;
 }
 
+/** Where a case's model answers come from: its recorded responses, or a live gateway. */
+type GatewayFor = (responses: readonly string[]) => ClaudeGateway;
+
 function replay(responses: readonly string[]) {
   const transport = new ScriptedModelTransport(
     (_request, call) => responses[Math.min(call, responses.length - 1)] ?? '',
@@ -59,8 +62,8 @@ function score(expected: readonly number[], actual: readonly number[]) {
   return correct;
 }
 
-async function runQa(test: QaCase): Promise<CaseResult> {
-  const { result } = await askDocuments(replay(test.responses), {
+async function runQa(test: QaCase, gatewayFor: GatewayFor = replay): Promise<CaseResult> {
+  const { result } = await askDocuments(gatewayFor(test.responses), {
     ...SCOPE,
     question: { classification: 'BUSINESS', text: test.question },
     sources: test.sources,
@@ -84,8 +87,8 @@ async function runQa(test: QaCase): Promise<CaseResult> {
   };
 }
 
-async function runExtraction(test: ExtractionCase): Promise<CaseResult> {
-  const { items, rejected } = await extractContractTerms(replay(test.responses), {
+async function runExtraction(test: ExtractionCase, gatewayFor: GatewayFor = replay): Promise<CaseResult> {
+  const { items, rejected } = await extractContractTerms(gatewayFor(test.responses), {
     ...SCOPE,
     sources: test.sources,
   });
@@ -106,8 +109,14 @@ async function runExtraction(test: ExtractionCase): Promise<CaseResult> {
   };
 }
 
-/** Runs the golden set and probes through the real gateway and grounding path. */
-export async function runDocumentEvals(): Promise<EvalReport> {
+/**
+ * Runs the golden set and probes through the real gateway and grounding path.
+ * By default each case replays its recorded responses; pass `live` to run the
+ * same synthetic cases against a real model (operator-run, never in CI).
+ */
+export async function runDocumentEvals(options: { live?: ClaudeGateway } = {}): Promise<EvalReport> {
+  const live = options.live;
+  const gatewayFor: GatewayFor = live ? () => live : replay;
   const registry = defaultPromptRegistry();
   const staleCassettes = Object.entries(CASSETTE_PROMPTS)
     .filter(([key, hash]) => {
@@ -117,14 +126,15 @@ export async function runDocumentEvals(): Promise<EvalReport> {
     })
     .map(([key]) => key);
 
-  const golden = [
-    ...(await Promise.all(QA_CASES.map(runQa))),
-    ...(await Promise.all(EXTRACTION_CASES.map(runExtraction))),
-  ];
-  const probes = [
-    ...(await Promise.all(QA_PROBES.map(runQa))),
-    ...(await Promise.all(EXTRACTION_PROBES.map(runExtraction))),
-  ];
+  // Live runs go one at a time to stay inside provider rate limits.
+  const each = async <T,>(cases: readonly T[], run: (test: T, gatewayFor: GatewayFor) => Promise<CaseResult>) => {
+    if (!live) return Promise.all(cases.map((test) => run(test, gatewayFor)));
+    const results: CaseResult[] = [];
+    for (const test of cases) results.push(await run(test, gatewayFor));
+    return results;
+  };
+  const golden = [...(await each(QA_CASES, runQa)), ...(await each(EXTRACTION_CASES, runExtraction))];
+  const probes = [...(await each(QA_PROBES, runQa)), ...(await each(EXTRACTION_PROBES, runExtraction))];
   const sum = (rows: readonly CaseResult[], key: keyof CaseResult) =>
     rows.reduce((n, row) => n + (row[key] as number), 0);
   const expected = sum(golden, 'expectedCitations');

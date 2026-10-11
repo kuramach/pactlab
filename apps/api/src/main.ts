@@ -3,6 +3,7 @@ import { assertRuntimeRoleIsolation, createPrismaClient } from '@pactlab/db';
 import { readFileSync } from 'node:fs';
 import { LocalEncryptedSecretStore } from '@pactlab/connectors';
 import { createLogger } from '@pactlab/observability';
+import { createAiGateway } from './ai/ai-provider';
 import { createApp } from './app';
 import { createAuth0Verifier, DisabledIdentityVerifier } from './auth/identity';
 import { FileSystemObjectStore } from './documents/storage-adapters';
@@ -17,7 +18,7 @@ await assertRuntimeRoleIsolation(prisma);
 
 // Local runs keep originals on disk and use the signature scanner. Deployed
 // environments have no managed bucket or scanner wired yet, so document
-// uploads fail closed there; no model provider is wired anywhere yet.
+// uploads fail closed there.
 const localDocuments =
   config.APP_ENV === 'local' && config.DOCUMENT_STORE_DIR
     ? {
@@ -25,6 +26,10 @@ const localDocuments =
         malwareScanner: new SignatureMalwareScanner(),
       }
     : undefined;
+
+// Document AI: Claude on Bedrock when AI_PROVIDER=bedrock (SSO credentials from
+// the AWS default chain); otherwise every model call fails closed.
+const ai = await createAiGateway(config);
 
 // Provider credentials: an encrypted local store until Secrets Manager (T-007);
 // elsewhere live connections that need a stored token fail closed.
@@ -52,7 +57,9 @@ const app = await createApp(
       config.AUTH0_DOMAIN && config.AUTH0_AUDIENCE
         ? createAuth0Verifier(config.AUTH0_DOMAIN, config.AUTH0_AUDIENCE)
         : new DisabledIdentityVerifier(),
-    ...(localDocuments ? { documents: localDocuments, uploads: localDocuments } : {}),
+    documents: { ...localDocuments, gateway: ai.gateway },
+    ...(localDocuments ? { uploads: localDocuments } : {}),
+    aiStatus: ai.status,
     // Sign-in codes are written to files locally; no email provider is wired
     // for deployed environments yet, so codes are not delivered there.
     signup: {
@@ -70,4 +77,4 @@ const app = await createApp(
   { webOrigin: config.APP_WEB_ORIGIN },
 );
 await app.listen({ port: config.API_PORT, host: '0.0.0.0' });
-logger.info({ port: config.API_PORT, env: config.APP_ENV }, 'api listening');
+logger.info({ port: config.API_PORT, env: config.APP_ENV, ai: ai.status.provider }, 'api listening');

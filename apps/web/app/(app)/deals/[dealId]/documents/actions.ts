@@ -5,15 +5,23 @@ import { z } from 'zod';
 import { apiSend } from '../../_lib/api';
 
 const uuid = z.uuid();
-const MAX_BYTES = 512 * 1024;
-const TYPES: Record<string, 'text/plain' | 'text/markdown'> = { txt: 'text/plain', md: 'text/markdown', markdown: 'text/markdown' };
+/** Text files up to 512 KB; PDF and Word up to 10 MB (the API enforces the same limits). */
+const TEXT_MAX_BYTES = 512 * 1024;
+const BINARY_MAX_BYTES = 10 * 1024 * 1024;
+const TYPES: Record<string, string> = {
+  txt: 'text/plain',
+  md: 'text/markdown',
+  markdown: 'text/markdown',
+  pdf: 'application/pdf',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+};
 
 function back(dealId: string, outcome: string, documentId?: string): never {
   const query = new URLSearchParams({ outcome, ...(documentId ? { documentId, page: '1' } : {}) });
   redirect(`/deals/${dealId}/documents?${query.toString()}`);
 }
 
-/** Upload a text or Markdown document. The API scans, pages and classifies it. */
+/** Upload a PDF, Word, text or Markdown document. The API scans, pages and classifies it. */
 export async function uploadDocument(dealId: string, formData: FormData): Promise<void> {
   if (!uuid.safeParse(dealId).success) redirect('/deals');
   const file = formData.get('file');
@@ -21,7 +29,7 @@ export async function uploadDocument(dealId: string, formData: FormData): Promis
   const extension = file.name.split('.').pop()?.toLowerCase() ?? '';
   const contentType = TYPES[extension];
   if (!contentType) back(dealId, 'type');
-  if (file.size > MAX_BYTES) back(dealId, 'too-large');
+  if (file.size > (contentType.startsWith('text/') ? TEXT_MAX_BYTES : BINARY_MAX_BYTES)) back(dealId, 'too-large');
   const dataClass = formData.get('dataClass') === 'FINANCIAL' ? 'FINANCIAL' : 'BUSINESS';
   const result = await apiSend<{ id: string }>('POST', `/v1/deals/${dealId}/documents`, {
     fileName: file.name,

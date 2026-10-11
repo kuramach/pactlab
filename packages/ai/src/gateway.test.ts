@@ -108,7 +108,7 @@ describe('ClaudeGateway structured output', () => {
       modelId: DEFAULT_MODEL_ROUTES.balanced.modelId,
       effort: 'medium',
     });
-    expect(DEFAULT_MODEL_ROUTES.balanced.modelId).toBe('anthropic.claude-sonnet-5-5');
+    expect(DEFAULT_MODEL_ROUTES.balanced.modelId).toBe('us.anthropic.claude-sonnet-5-5');
     expect(runs).toHaveLength(1);
     expect(runs[0]).toMatchObject({
       promptId: 'document.qa',

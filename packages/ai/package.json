@@ -4,14 +4,19 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./evals": "./src/evals/run.ts"
   },
   "scripts": {
     "lint": "eslint .",
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run"
   },
-  "dependencies": { "@pactlab/domain": "workspace:*", "zod": "4.6.5" },
+  "dependencies": {
+    "@aws-sdk/client-bedrock-runtime": "3.1149.0",
+    "@pactlab/domain": "workspace:*",
+    "zod": "4.6.5"
+  },
   "devDependencies": {
     "@pactlab/config": "workspace:*",
     "@types/node": "22.20.5",

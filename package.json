@@ -23,7 +23,9 @@
     "org:pending": "pnpm --silent --filter @pactlab/api ops:org pending",
     "org:approve": "pnpm --silent --filter @pactlab/api ops:org approve",
     "org:reject": "pnpm --silent --filter @pactlab/api ops:org reject",
-    "login:code": "pnpm --silent --filter @pactlab/api login:code"
+    "login:code": "pnpm --silent --filter @pactlab/api login:code",
+    "ai:check": "pnpm --silent --filter @pactlab/api ai:check",
+    "eval:live": "pnpm --silent --filter @pactlab/api eval:live"
   },
   "prettier": {
     "singleQuote": true,

@@ -5,7 +5,8 @@ import { DOCUMENT_FINDING_STATUSES, RETENTION_CLASSES } from './documents.types'
 export const uploadDocumentBodySchema = z.strictObject({
   fileName: z.string().trim().min(1).max(255),
   contentType: z.string().trim().min(1).max(100),
-  contentBase64: z.string().min(1).max(800_000),
+  /** Base64 of up to 10 MB (PDF and Word); text files are limited further by the upload policy. */
+  contentBase64: z.string().min(1).max(14_000_000),
   retentionClass: z.enum(RETENTION_CLASSES).default('DEAL_TERM'),
   dataClass: z.enum(DATA_CLASSIFICATIONS).default('BUSINESS'),
   aiExcluded: z.boolean().default(false),
