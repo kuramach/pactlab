@@ -5,6 +5,8 @@ import type { PrismaClient } from '@pactlab/db';
 import type { Logger } from '@pactlab/observability';
 import { AuditModule } from './audit/audit.module';
 import { AuthGuard } from './auth/auth.guard';
+import { AI_OFF, type AiStatusView } from './ai/ai-provider';
+import { AiModule } from './ai/ai.module';
 import { BalanceSheetModule } from './balance-sheet/balance-sheet.module';
 import { ComparablesModule } from './comparables/comparables.module';
 import { CompositeIdentityVerifier, type IdentityVerifier } from './auth/identity';
@@ -39,6 +41,8 @@ export interface AppDependencies {
    * closed: uploads are rejected and AI calls report NOT_CONFIGURED.
    */
   documents?: Partial<Omit<DocumentsModuleDependencies, 'repository'>>;
+  /** What `GET /v1/ai/status` reports; describes `documents.gateway`. Omitted: AI off. */
+  aiStatus?: AiStatusView;
   /**
    * Live provider access: credential store, Pactlab's GitHub App, HTTP client.
    * Omitted: no stored credentials and no App, so live connections fail closed.
@@ -99,6 +103,7 @@ export class AppModule {
         BalanceSheetModule,
         AuditModule,
         OrganizationModule,
+        AiModule.register(deps.aiStatus ?? AI_OFF),
         ImportsModule.register({
           objectStore: deps.uploads?.objectStore ?? new UnavailableUploadStore(),
           malwareScanner: deps.uploads?.malwareScanner ?? new UnavailableMalwareScanner(),

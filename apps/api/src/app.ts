@@ -17,6 +17,10 @@ export async function createApp(deps: AppDependencies, options: { webOrigin?: st
   adapter.getInstance().addContentTypeParser('text/csv', { parseAs: 'buffer', bodyLimit: MAX_UPLOAD_BYTES }, (_request, body, done) => {
     done(null, body);
   });
+  // Document uploads (PDF and Word up to 10 MB, sent as base64 JSON) get a larger limit on that route only.
+  adapter.getInstance().addHook('onRoute', (route) => {
+    if (route.method === 'POST' && /^\/v1\/deals\/:dealId\/documents\/?$/.test(route.url)) route.bodyLimit = 15 * 1_048_576;
+  });
   const app = await NestFactory.create<NestFastifyApplication>(AppModule.register(deps), adapter, { logger: false });
   app.useGlobalFilters(new ProblemDetailsFilter(deps.logger));
   if (options.webOrigin) app.enableCors({ origin: options.webOrigin, credentials: true });

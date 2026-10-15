@@ -11,7 +11,7 @@ export interface ExtractedPage {
 }
 
 export class ExtractionError extends Error {
-  constructor(readonly reason: 'NO_TEXT' | 'TOO_MANY_PAGES') {
+  constructor(readonly reason: 'NO_TEXT' | 'TOO_MANY_PAGES' | 'NEEDS_OCR' | 'ENCRYPTED' | 'UNREADABLE' | 'TIMEOUT') {
     super(`Extraction failed: ${reason}`);
     this.name = 'ExtractionError';
   }

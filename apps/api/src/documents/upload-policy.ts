@@ -1,11 +1,15 @@
 import { createHash } from 'node:crypto';
 import {
   ACCEPTED_CONTENT_TYPES,
+  DOCX_CONTENT_TYPE,
   type AcceptedContentType,
   type RetentionClass,
 } from './documents.types';
 
+/** Text and Markdown files. */
 export const MAX_DOCUMENT_BYTES = 512 * 1024;
+/** PDF and Word files. */
+export const MAX_BINARY_DOCUMENT_BYTES = 10 * 1024 * 1024;
 
 export type MalwareVerdict = 'CLEAN' | 'INFECTED' | 'UNAVAILABLE';
 
@@ -49,9 +53,17 @@ export class UploadRejectedError extends Error {
 const EXTENSIONS: Record<AcceptedContentType, readonly string[]> = {
   'text/plain': ['.txt'],
   'text/markdown': ['.md', '.markdown'],
+  'application/pdf': ['.pdf'],
+  [DOCX_CONTENT_TYPE]: ['.docx'],
 };
 
 const BINARY_MAGIC = ['%PDF', 'PK\u0003\u0004', 'MZ', '\u007fELF', 'ÐÏ\u0011à'];
+
+/** Binary types must start with their own signature: a PDF header, or a ZIP (docx) local header. */
+const REQUIRED_MAGIC: Partial<Record<AcceptedContentType, string>> = {
+  'application/pdf': '%PDF-',
+  [DOCX_CONTENT_TYPE]: 'PK\u0003\u0004',
+};
 
 /** Strip any path and unsafe characters from a client-supplied file name. */
 export function safeFileName(name: string): string {
@@ -67,14 +79,16 @@ export interface ValidatedUpload {
   readonly fileName: string;
   readonly contentType: AcceptedContentType;
   readonly bytes: Uint8Array;
-  readonly text: string;
+  /** Decoded text for text and Markdown files; null for PDF and Word, which are parsed separately. */
+  readonly text: string | null;
   readonly sha256: string;
 }
 
 /**
  * Validate type, size, encoding and content before anything is stored:
- * declared type and extension must agree, binary content is refused, text
- * must be valid UTF-8, and the malware hook must report clean.
+ * declared type and extension must agree; text must be valid UTF-8 with no
+ * binary content; PDF and Word must carry their own signature; and the
+ * malware hook must report clean.
  */
 export async function validateUpload(
   input: { fileName: string; contentType: string; contentBase64: string },
@@ -93,16 +107,22 @@ export async function validateUpload(
   }
   const bytes = new Uint8Array(Buffer.from(input.contentBase64, 'base64'));
   if (bytes.length === 0) throw new UploadRejectedError('EMPTY');
-  if (bytes.length > MAX_DOCUMENT_BYTES) throw new UploadRejectedError('TOO_LARGE');
+  const required = REQUIRED_MAGIC[contentType];
+  if (bytes.length > (required ? MAX_BINARY_DOCUMENT_BYTES : MAX_DOCUMENT_BYTES)) throw new UploadRejectedError('TOO_LARGE');
   const head = Buffer.from(bytes.subarray(0, 8)).toString('latin1');
-  if (BINARY_MAGIC.some((magic) => head.startsWith(magic)) || bytes.includes(0)) {
-    throw new UploadRejectedError('TYPE_MISMATCH');
-  }
-  let text: string;
-  try {
-    text = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
-  } catch {
-    throw new UploadRejectedError('BAD_ENCODING');
+  let text: string | null = null;
+  if (required) {
+    // The declared type must match the bytes; executables never pass.
+    if (!head.startsWith(required)) throw new UploadRejectedError('TYPE_MISMATCH');
+  } else {
+    if (BINARY_MAGIC.some((magic) => head.startsWith(magic)) || bytes.includes(0)) {
+      throw new UploadRejectedError('TYPE_MISMATCH');
+    }
+    try {
+      text = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+    } catch {
+      throw new UploadRejectedError('BAD_ENCODING');
+    }
   }
   const verdict = await scanner.scan(bytes);
   if (verdict === 'INFECTED') throw new UploadRejectedError('MALWARE');

@@ -20,15 +20,25 @@ export interface ModelRoute {
 }
 
 /**
- * Alias → Bedrock model routing. `fast` maps to Sonnet at low effort until
- * Haiku 5.5 ships on Bedrock. Deployments may override IDs through
- * configuration; aliases never change meaning.
+ * Alias → Bedrock routing. The IDs are the US geo inference profiles from the
+ * Bedrock model cards (2026-10-11): these models have no in-Region endpoint
+ * in us-east-1, and the `us.` profiles keep requests in US Regions.
+ * Deployments may override IDs through configuration (e.g. `eu.` profiles);
+ * aliases never change meaning.
  */
 export const DEFAULT_MODEL_ROUTES: Readonly<Record<ModelAlias, ModelRoute>> = {
-  balanced: { modelId: 'anthropic.claude-sonnet-5-5', effort: 'medium' },
-  deep_review: { modelId: 'anthropic.claude-opus-5-5', effort: 'high' },
-  fast: { modelId: 'anthropic.claude-sonnet-5-5', effort: 'low' },
+  balanced: { modelId: 'us.anthropic.claude-sonnet-5-5', effort: 'medium' },
+  deep_review: { modelId: 'us.anthropic.claude-opus-5-5', effort: 'high' },
+  fast: { modelId: 'us.anthropic.claude-haiku-5-5', effort: 'low' },
 };
+
+/** Display names for model IDs and inference profiles, for the UI. */
+export function modelLabel(modelId: string): string {
+  const match = /claude-(sonnet|opus|haiku)-(\d+)-(\d+)/.exec(modelId);
+  if (!match) return modelId;
+  const [, family = '', major, minor] = match;
+  return `Claude ${family.charAt(0).toUpperCase()}${family.slice(1)} ${major}.${minor}`;
+}
 
 export function resolveModel(
   alias: ModelAlias,
