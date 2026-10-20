@@ -1,0 +1,12 @@
+MASTER SERVICES AGREEMENT (synthetic demo document)
+
+This Master Services Agreement is entered into as of October 1, 2024 by and between FreshCo Software, Inc. ("Vendor") and Northwind Logistics LLC ("Customer").
+
+1. TERM. The initial term is thirty-six (36) months. This Agreement renews automatically for successive twelve (12) month terms unless either party gives ninety (90) days' written notice of non-renewal.
+
+2. FEES. Customer pays the subscription fees in each Order Form monthly in advance.
+3. LIMITATION OF LIABILITY. Each party's aggregate liability shall not exceed the fees paid by Customer in the twelve (12) months preceding the claim.
+
+4. CHANGE OF CONTROL. If Vendor undergoes a Change of Control, Customer may terminate this Agreement upon sixty (60) days' written notice without penalty.
+
+5. ASSIGNMENT. Neither party may assign this Agreement without the other party's prior written consent, except to a successor in a merger in which the assigning party is the surviving entity.

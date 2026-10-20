@@ -1,0 +1,211 @@
+line_id,invoice_id,customer_id,customer_name,subscription_id,price_id,currency,amount,interval,interval_count,period_start,period_end,invoice_status,created
+il_fc_00001,in_fc_202410_0001,fc-cus-0001,Harbor Freight Partners (synthetic),sub_fc-cus-0001,price_fc_scale_m,USD,6800.00,month,1,2024-10-01,2024-11-01,paid,2024-10-01
+il_fc_00002,in_fc_202411_0001,fc-cus-0001,Harbor Freight Partners (synthetic),sub_fc-cus-0001,price_fc_scale_m,USD,6800.00,month,1,2024-11-01,2024-12-01,paid,2024-11-01
+il_fc_00003,in_fc_202412_0001,fc-cus-0001,Harbor Freight Partners (synthetic),sub_fc-cus-0001,price_fc_scale_m,USD,6800.00,month,1,2024-12-01,2025-01-01,paid,2024-12-01
+il_fc_00004,in_fc_202501_0001,fc-cus-0001,Harbor Freight Partners (synthetic),sub_fc-cus-0001,price_fc_scale_m,USD,6800.00,month,1,2025-01-01,2025-02-01,paid,2025-01-01
+il_fc_00005,in_fc_202502_0001,fc-cus-0001,Harbor Freight Partners (synthetic),sub_fc-cus-0001,price_fc_scale_m,USD,6800.00,month,1,2025-02-01,2025-03-01,paid,2025-02-01
+il_fc_00006,in_fc_202503_0001,fc-cus-0001,Harbor Freight Partners (synthetic),sub_fc-cus-0001,price_fc_scale_m,USD,6800.00,month,1,2025-03-01,2025-04-01,paid,2025-03-01
+il_fc_00007,in_fc_202504_0001,fc-cus-0001,Harbor Freight Partners (synthetic),sub_fc-cus-0001,price_fc_scale_m,USD,6800.00,month,1,2025-04-01,2025-05-01,paid,2025-04-01
+il_fc_00008,in_fc_202505_0001,fc-cus-0001,Harbor Freight Partners (synthetic),sub_fc-cus-0001,price_fc_scale_m,USD,6800.00,month,1,2025-05-01,2025-06-01,paid,2025-05-01
+il_fc_00009,in_fc_202506_0001,fc-cus-0001,Harbor Freight Partners (synthetic),sub_fc-cus-0001,price_fc_scale_m,USD,6800.00,month,1,2025-06-01,2025-07-01,paid,2025-06-01
+il_fc_00010,in_fc_202507_0001,fc-cus-0001,Harbor Freight Partners (synthetic),sub_fc-cus-0001,price_fc_scale_m,USD,6800.00,month,1,2025-07-01,2025-08-01,paid,2025-07-01
+il_fc_00011,in_fc_202508_0001,fc-cus-0001,Harbor Freight Partners (synthetic),sub_fc-cus-0001,price_fc_scale_m,USD,6800.00,month,1,2025-08-01,2025-09-01,paid,2025-08-01
+il_fc_00012,in_fc_202509_0001,fc-cus-0001,Harbor Freight Partners (synthetic),sub_fc-cus-0001,price_fc_scale_m,USD,6800.00,month,1,2025-09-01,2025-10-01,paid,2025-09-01
+il_fc_00013,in_fc_202510_0001,fc-cus-0001,Harbor Freight Partners (synthetic),sub_fc-cus-0001,price_fc_scale_m,USD,8200.00,month,1,2025-10-01,2025-11-01,paid,2025-10-01
+il_fc_00014,in_fc_202511_0001,fc-cus-0001,Harbor Freight Partners (synthetic),sub_fc-cus-0001,price_fc_scale_m,USD,8200.00,month,1,2025-11-01,2025-12-01,paid,2025-11-01
+il_fc_00015,in_fc_202512_0001,fc-cus-0001,Harbor Freight Partners (synthetic),sub_fc-cus-0001,price_fc_scale_m,USD,8200.00,month,1,2025-12-01,2026-01-01,paid,2025-12-01
+il_fc_00016,in_fc_202601_0001,fc-cus-0001,Harbor Freight Partners (synthetic),sub_fc-cus-0001,price_fc_scale_m,USD,8200.00,month,1,2026-01-01,2026-02-01,paid,2026-01-01
+il_fc_00017,in_fc_202602_0001,fc-cus-0001,Harbor Freight Partners (synthetic),sub_fc-cus-0001,price_fc_scale_m,USD,8200.00,month,1,2026-02-01,2026-03-01,paid,2026-02-01
+il_fc_00018,in_fc_202603_0001,fc-cus-0001,Harbor Freight Partners (synthetic),sub_fc-cus-0001,price_fc_scale_m,USD,8200.00,month,1,2026-03-01,2026-04-01,paid,2026-03-01
+il_fc_00019,in_fc_202604_0001,fc-cus-0001,Harbor Freight Partners (synthetic),sub_fc-cus-0001,price_fc_scale_m,USD,8200.00,month,1,2026-04-01,2026-05-01,paid,2026-04-01
+il_fc_00020,in_fc_202605_0001,fc-cus-0001,Harbor Freight Partners (synthetic),sub_fc-cus-0001,price_fc_scale_m,USD,8200.00,month,1,2026-05-01,2026-06-01,paid,2026-05-01
+il_fc_00021,in_fc_202606_0001,fc-cus-0001,Harbor Freight Partners (synthetic),sub_fc-cus-0001,price_fc_scale_m,USD,8200.00,month,1,2026-06-01,2026-07-01,paid,2026-06-01
+il_fc_00022,in_fc_202607_0001,fc-cus-0001,Harbor Freight Partners (synthetic),sub_fc-cus-0001,price_fc_scale_m,USD,8200.00,month,1,2026-07-01,2026-08-01,paid,2026-07-01
+il_fc_00023,in_fc_202608_0001,fc-cus-0001,Harbor Freight Partners (synthetic),sub_fc-cus-0001,price_fc_scale_m,USD,8200.00,month,1,2026-08-01,2026-09-01,paid,2026-08-01
+il_fc_00024,in_fc_202609_0001,fc-cus-0001,Harbor Freight Partners (synthetic),sub_fc-cus-0001,price_fc_scale_m,USD,8200.00,month,1,2026-09-01,2026-10-01,paid,2026-09-01
+il_fc_00025,in_fc_202410_0002,fc-cus-0002,Maple Grove Dental (synthetic),sub_fc-cus-0002,price_fc_growth_m,USD,2400.00,month,1,2024-10-01,2024-11-01,paid,2024-10-01
+il_fc_00026,in_fc_202411_0002,fc-cus-0002,Maple Grove Dental (synthetic),sub_fc-cus-0002,price_fc_growth_m,USD,2400.00,month,1,2024-11-01,2024-12-01,paid,2024-11-01
+il_fc_00027,in_fc_202412_0002,fc-cus-0002,Maple Grove Dental (synthetic),sub_fc-cus-0002,price_fc_growth_m,USD,2400.00,month,1,2024-12-01,2025-01-01,paid,2024-12-01
+il_fc_00028,in_fc_202501_0002,fc-cus-0002,Maple Grove Dental (synthetic),sub_fc-cus-0002,price_fc_growth_m,USD,2400.00,month,1,2025-01-01,2025-02-01,paid,2025-01-01
+il_fc_00029,in_fc_202502_0002,fc-cus-0002,Maple Grove Dental (synthetic),sub_fc-cus-0002,price_fc_growth_m,USD,2400.00,month,1,2025-02-01,2025-03-01,paid,2025-02-01
+il_fc_00030,in_fc_202503_0002,fc-cus-0002,Maple Grove Dental (synthetic),sub_fc-cus-0002,price_fc_growth_m,USD,2400.00,month,1,2025-03-01,2025-04-01,paid,2025-03-01
+il_fc_00031,in_fc_202504_0002,fc-cus-0002,Maple Grove Dental (synthetic),sub_fc-cus-0002,price_fc_growth_m,USD,2400.00,month,1,2025-04-01,2025-05-01,paid,2025-04-01
+il_fc_00032,in_fc_202505_0002,fc-cus-0002,Maple Grove Dental (synthetic),sub_fc-cus-0002,price_fc_growth_m,USD,2400.00,month,1,2025-05-01,2025-06-01,paid,2025-05-01
+il_fc_00033,in_fc_202506_0002,fc-cus-0002,Maple Grove Dental (synthetic),sub_fc-cus-0002,price_fc_growth_m,USD,2400.00,month,1,2025-06-01,2025-07-01,paid,2025-06-01
+il_fc_00034,in_fc_202507_0002,fc-cus-0002,Maple Grove Dental (synthetic),sub_fc-cus-0002,price_fc_growth_m,USD,2400.00,month,1,2025-07-01,2025-08-01,paid,2025-07-01
+il_fc_00035,in_fc_202508_0002,fc-cus-0002,Maple Grove Dental (synthetic),sub_fc-cus-0002,price_fc_growth_m,USD,2400.00,month,1,2025-08-01,2025-09-01,paid,2025-08-01
+il_fc_00036,in_fc_202509_0002,fc-cus-0002,Maple Grove Dental (synthetic),sub_fc-cus-0002,price_fc_growth_m,USD,2400.00,month,1,2025-09-01,2025-10-01,paid,2025-09-01
+il_fc_00037,in_fc_202510_0002,fc-cus-0002,Maple Grove Dental (synthetic),sub_fc-cus-0002,price_fc_growth_m,USD,2400.00,month,1,2025-10-01,2025-11-01,paid,2025-10-01
+il_fc_00038,in_fc_202511_0002,fc-cus-0002,Maple Grove Dental (synthetic),sub_fc-cus-0002,price_fc_growth_m,USD,2400.00,month,1,2025-11-01,2025-12-01,paid,2025-11-01
+il_fc_00039,in_fc_202512_0002,fc-cus-0002,Maple Grove Dental (synthetic),sub_fc-cus-0002,price_fc_growth_m,USD,2400.00,month,1,2025-12-01,2026-01-01,paid,2025-12-01
+il_fc_00040,in_fc_202601_0002,fc-cus-0002,Maple Grove Dental (synthetic),sub_fc-cus-0002,price_fc_growth_m,USD,2400.00,month,1,2026-01-01,2026-02-01,paid,2026-01-01
+il_fc_00041,in_fc_202602_0002,fc-cus-0002,Maple Grove Dental (synthetic),sub_fc-cus-0002,price_fc_growth_m,USD,2400.00,month,1,2026-02-01,2026-03-01,paid,2026-02-01
+il_fc_00042,in_fc_202603_0002,fc-cus-0002,Maple Grove Dental (synthetic),sub_fc-cus-0002,price_fc_growth_m,USD,2400.00,month,1,2026-03-01,2026-04-01,paid,2026-03-01
+il_fc_00043,in_fc_202604_0002,fc-cus-0002,Maple Grove Dental (synthetic),sub_fc-cus-0002,price_fc_growth_m,USD,2400.00,month,1,2026-04-01,2026-05-01,paid,2026-04-01
+il_fc_00044,in_fc_202605_0002,fc-cus-0002,Maple Grove Dental (synthetic),sub_fc-cus-0002,price_fc_growth_m,USD,2400.00,month,1,2026-05-01,2026-06-01,paid,2026-05-01
+il_fc_00045,in_fc_202606_0002,fc-cus-0002,Maple Grove Dental (synthetic),sub_fc-cus-0002,price_fc_growth_m,USD,2400.00,month,1,2026-06-01,2026-07-01,paid,2026-06-01
+il_fc_00046,in_fc_202607_0002,fc-cus-0002,Maple Grove Dental (synthetic),sub_fc-cus-0002,price_fc_growth_m,USD,2400.00,month,1,2026-07-01,2026-08-01,paid,2026-07-01
+il_fc_00047,in_fc_202608_0002,fc-cus-0002,Maple Grove Dental (synthetic),sub_fc-cus-0002,price_fc_growth_m,USD,2400.00,month,1,2026-08-01,2026-09-01,paid,2026-08-01
+il_fc_00048,in_fc_202609_0002,fc-cus-0002,Maple Grove Dental (synthetic),sub_fc-cus-0002,price_fc_growth_m,USD,2400.00,month,1,2026-09-01,2026-10-01,paid,2026-09-01
+il_fc_00049,in_fc_202411_0003,fc-cus-0003,Northwind Logistics (synthetic),sub_fc-cus-0003,price_fc_enterprise_m,USD,14500.00,month,1,2024-11-01,2024-12-01,paid,2024-11-01
+il_fc_00050,in_fc_202412_0003,fc-cus-0003,Northwind Logistics (synthetic),sub_fc-cus-0003,price_fc_enterprise_m,USD,14500.00,month,1,2024-12-01,2025-01-01,paid,2024-12-01
+il_fc_00051,in_fc_202501_0003,fc-cus-0003,Northwind Logistics (synthetic),sub_fc-cus-0003,price_fc_enterprise_m,USD,14500.00,month,1,2025-01-01,2025-02-01,paid,2025-01-01
+il_fc_00052,in_fc_202502_0003,fc-cus-0003,Northwind Logistics (synthetic),sub_fc-cus-0003,price_fc_enterprise_m,USD,14500.00,month,1,2025-02-01,2025-03-01,paid,2025-02-01
+il_fc_00053,in_fc_202503_0003,fc-cus-0003,Northwind Logistics (synthetic),sub_fc-cus-0003,price_fc_enterprise_m,USD,14500.00,month,1,2025-03-01,2025-04-01,paid,2025-03-01
+il_fc_00054,in_fc_202504_0003,fc-cus-0003,Northwind Logistics (synthetic),sub_fc-cus-0003,price_fc_enterprise_m,USD,14500.00,month,1,2025-04-01,2025-05-01,paid,2025-04-01
+il_fc_00055,in_fc_202505_0003,fc-cus-0003,Northwind Logistics (synthetic),sub_fc-cus-0003,price_fc_enterprise_m,USD,14500.00,month,1,2025-05-01,2025-06-01,paid,2025-05-01
+il_fc_00056,in_fc_202506_0003,fc-cus-0003,Northwind Logistics (synthetic),sub_fc-cus-0003,price_fc_enterprise_m,USD,14500.00,month,1,2025-06-01,2025-07-01,paid,2025-06-01
+il_fc_00057,in_fc_202507_0003,fc-cus-0003,Northwind Logistics (synthetic),sub_fc-cus-0003,price_fc_enterprise_m,USD,14500.00,month,1,2025-07-01,2025-08-01,paid,2025-07-01
+il_fc_00058,in_fc_202508_0003,fc-cus-0003,Northwind Logistics (synthetic),sub_fc-cus-0003,price_fc_enterprise_m,USD,14500.00,month,1,2025-08-01,2025-09-01,paid,2025-08-01
+il_fc_00059,in_fc_202509_0003,fc-cus-0003,Northwind Logistics (synthetic),sub_fc-cus-0003,price_fc_enterprise_m,USD,14500.00,month,1,2025-09-01,2025-10-01,paid,2025-09-01
+il_fc_00060,in_fc_202510_0003,fc-cus-0003,Northwind Logistics (synthetic),sub_fc-cus-0003,price_fc_enterprise_m,USD,14500.00,month,1,2025-10-01,2025-11-01,paid,2025-10-01
+il_fc_00061,in_fc_202511_0003,fc-cus-0003,Northwind Logistics (synthetic),sub_fc-cus-0003,price_fc_enterprise_m,USD,14500.00,month,1,2025-11-01,2025-12-01,paid,2025-11-01
+il_fc_00062,in_fc_202512_0003,fc-cus-0003,Northwind Logistics (synthetic),sub_fc-cus-0003,price_fc_enterprise_m,USD,14500.00,month,1,2025-12-01,2026-01-01,paid,2025-12-01
+il_fc_00063,in_fc_202601_0003,fc-cus-0003,Northwind Logistics (synthetic),sub_fc-cus-0003,price_fc_enterprise_m,USD,14500.00,month,1,2026-01-01,2026-02-01,paid,2026-01-01
+il_fc_00064,in_fc_202602_0003,fc-cus-0003,Northwind Logistics (synthetic),sub_fc-cus-0003,price_fc_enterprise_m,USD,14500.00,month,1,2026-02-01,2026-03-01,paid,2026-02-01
+il_fc_00065,in_fc_202603_0003,fc-cus-0003,Northwind Logistics (synthetic),sub_fc-cus-0003,price_fc_enterprise_m,USD,17500.00,month,1,2026-03-01,2026-04-01,paid,2026-03-01
+il_fc_00066,in_fc_202604_0003,fc-cus-0003,Northwind Logistics (synthetic),sub_fc-cus-0003,price_fc_enterprise_m,USD,17500.00,month,1,2026-04-01,2026-05-01,paid,2026-04-01
+il_fc_00067,in_fc_202605_0003,fc-cus-0003,Northwind Logistics (synthetic),sub_fc-cus-0003,price_fc_enterprise_m,USD,17500.00,month,1,2026-05-01,2026-06-01,paid,2026-05-01
+il_fc_00068,in_fc_202606_0003,fc-cus-0003,Northwind Logistics (synthetic),sub_fc-cus-0003,price_fc_enterprise_m,USD,17500.00,month,1,2026-06-01,2026-07-01,paid,2026-06-01
+il_fc_00069,in_fc_202607_0003,fc-cus-0003,Northwind Logistics (synthetic),sub_fc-cus-0003,price_fc_enterprise_m,USD,17500.00,month,1,2026-07-01,2026-08-01,paid,2026-07-01
+il_fc_00070,in_fc_202608_0003,fc-cus-0003,Northwind Logistics (synthetic),sub_fc-cus-0003,price_fc_enterprise_m,USD,17500.00,month,1,2026-08-01,2026-09-01,paid,2026-08-01
+il_fc_00071,in_fc_202609_0003,fc-cus-0003,Northwind Logistics (synthetic),sub_fc-cus-0003,price_fc_enterprise_m,USD,17500.00,month,1,2026-09-01,2026-10-01,paid,2026-09-01
+il_fc_00072,in_fc_202410_0004,fc-cus-0004,Quarry Lane Studios (synthetic),sub_fc-cus-0004,price_fc_starter_m,USD,650.00,month,1,2024-10-01,2024-11-01,paid,2024-10-01
+il_fc_00073,in_fc_202411_0004,fc-cus-0004,Quarry Lane Studios (synthetic),sub_fc-cus-0004,price_fc_starter_m,USD,650.00,month,1,2024-11-01,2024-12-01,paid,2024-11-01
+il_fc_00074,in_fc_202412_0004,fc-cus-0004,Quarry Lane Studios (synthetic),sub_fc-cus-0004,price_fc_starter_m,USD,650.00,month,1,2024-12-01,2025-01-01,paid,2024-12-01
+il_fc_00075,in_fc_202501_0004,fc-cus-0004,Quarry Lane Studios (synthetic),sub_fc-cus-0004,price_fc_starter_m,USD,650.00,month,1,2025-01-01,2025-02-01,paid,2025-01-01
+il_fc_00076,in_fc_202502_0004,fc-cus-0004,Quarry Lane Studios (synthetic),sub_fc-cus-0004,price_fc_starter_m,USD,650.00,month,1,2025-02-01,2025-03-01,paid,2025-02-01
+il_fc_00077,in_fc_202503_0004,fc-cus-0004,Quarry Lane Studios (synthetic),sub_fc-cus-0004,price_fc_starter_m,USD,650.00,month,1,2025-03-01,2025-04-01,paid,2025-03-01
+il_fc_00078,in_fc_202504_0004,fc-cus-0004,Quarry Lane Studios (synthetic),sub_fc-cus-0004,price_fc_starter_m,USD,650.00,month,1,2025-04-01,2025-05-01,paid,2025-04-01
+il_fc_00079,in_fc_202505_0004,fc-cus-0004,Quarry Lane Studios (synthetic),sub_fc-cus-0004,price_fc_starter_m,USD,650.00,month,1,2025-05-01,2025-06-01,paid,2025-05-01
+il_fc_00080,in_fc_202506_0004,fc-cus-0004,Quarry Lane Studios (synthetic),sub_fc-cus-0004,price_fc_starter_m,USD,650.00,month,1,2025-06-01,2025-07-01,paid,2025-06-01
+il_fc_00081,in_fc_202507_0004,fc-cus-0004,Quarry Lane Studios (synthetic),sub_fc-cus-0004,price_fc_starter_m,USD,650.00,month,1,2025-07-01,2025-08-01,paid,2025-07-01
+il_fc_00082,in_fc_202508_0004,fc-cus-0004,Quarry Lane Studios (synthetic),sub_fc-cus-0004,price_fc_starter_m,USD,650.00,month,1,2025-08-01,2025-09-01,paid,2025-08-01
+il_fc_00083,in_fc_202509_0004,fc-cus-0004,Quarry Lane Studios (synthetic),sub_fc-cus-0004,price_fc_starter_m,USD,650.00,month,1,2025-09-01,2025-10-01,paid,2025-09-01
+il_fc_00084,in_fc_202510_0004,fc-cus-0004,Quarry Lane Studios (synthetic),sub_fc-cus-0004,price_fc_starter_m,USD,650.00,month,1,2025-10-01,2025-11-01,paid,2025-10-01
+il_fc_00085,in_fc_202511_0004,fc-cus-0004,Quarry Lane Studios (synthetic),sub_fc-cus-0004,price_fc_starter_m,USD,650.00,month,1,2025-11-01,2025-12-01,paid,2025-11-01
+il_fc_00086,in_fc_202512_0004,fc-cus-0004,Quarry Lane Studios (synthetic),sub_fc-cus-0004,price_fc_starter_m,USD,650.00,month,1,2025-12-01,2026-01-01,paid,2025-12-01
+il_fc_00087,in_fc_202501_0005,fc-cus-0005,Bluebell Insurance (synthetic),sub_fc-cus-0005,price_fc_growth_m,USD,3100.00,month,1,2025-01-01,2025-02-01,paid,2025-01-01
+il_fc_00088,in_fc_202502_0005,fc-cus-0005,Bluebell Insurance (synthetic),sub_fc-cus-0005,price_fc_growth_m,USD,3100.00,month,1,2025-02-01,2025-03-01,paid,2025-02-01
+il_fc_00089,in_fc_202503_0005,fc-cus-0005,Bluebell Insurance (synthetic),sub_fc-cus-0005,price_fc_growth_m,USD,3100.00,month,1,2025-03-01,2025-04-01,paid,2025-03-01
+il_fc_00090,in_fc_202504_0005,fc-cus-0005,Bluebell Insurance (synthetic),sub_fc-cus-0005,price_fc_growth_m,USD,3100.00,month,1,2025-04-01,2025-05-01,paid,2025-04-01
+il_fc_00091,in_fc_202505_0005,fc-cus-0005,Bluebell Insurance (synthetic),sub_fc-cus-0005,price_fc_growth_m,USD,3100.00,month,1,2025-05-01,2025-06-01,paid,2025-05-01
+il_fc_00092,in_fc_202506_0005,fc-cus-0005,Bluebell Insurance (synthetic),sub_fc-cus-0005,price_fc_growth_m,USD,3100.00,month,1,2025-06-01,2025-07-01,paid,2025-06-01
+il_fc_00093,in_fc_202507_0005,fc-cus-0005,Bluebell Insurance (synthetic),sub_fc-cus-0005,price_fc_growth_m,USD,3100.00,month,1,2025-07-01,2025-08-01,paid,2025-07-01
+il_fc_00094,in_fc_202508_0005,fc-cus-0005,Bluebell Insurance (synthetic),sub_fc-cus-0005,price_fc_growth_m,USD,3100.00,month,1,2025-08-01,2025-09-01,paid,2025-08-01
+il_fc_00095,in_fc_202509_0005,fc-cus-0005,Bluebell Insurance (synthetic),sub_fc-cus-0005,price_fc_growth_m,USD,3100.00,month,1,2025-09-01,2025-10-01,paid,2025-09-01
+il_fc_00096,in_fc_202510_0005,fc-cus-0005,Bluebell Insurance (synthetic),sub_fc-cus-0005,price_fc_growth_m,USD,3100.00,month,1,2025-10-01,2025-11-01,paid,2025-10-01
+il_fc_00097,in_fc_202511_0005,fc-cus-0005,Bluebell Insurance (synthetic),sub_fc-cus-0005,price_fc_growth_m,USD,3100.00,month,1,2025-11-01,2025-12-01,paid,2025-11-01
+il_fc_00098,in_fc_202512_0005,fc-cus-0005,Bluebell Insurance (synthetic),sub_fc-cus-0005,price_fc_growth_m,USD,3100.00,month,1,2025-12-01,2026-01-01,paid,2025-12-01
+il_fc_00099,in_fc_202601_0005,fc-cus-0005,Bluebell Insurance (synthetic),sub_fc-cus-0005,price_fc_growth_m,USD,3100.00,month,1,2026-01-01,2026-02-01,paid,2026-01-01
+il_fc_00100,in_fc_202602_0005,fc-cus-0005,Bluebell Insurance (synthetic),sub_fc-cus-0005,price_fc_growth_m,USD,3100.00,month,1,2026-02-01,2026-03-01,paid,2026-02-01
+il_fc_00101,in_fc_202603_0005,fc-cus-0005,Bluebell Insurance (synthetic),sub_fc-cus-0005,price_fc_growth_m,USD,3100.00,month,1,2026-03-01,2026-04-01,paid,2026-03-01
+il_fc_00102,in_fc_202604_0005,fc-cus-0005,Bluebell Insurance (synthetic),sub_fc-cus-0005,price_fc_growth_m,USD,3100.00,month,1,2026-04-01,2026-05-01,paid,2026-04-01
+il_fc_00103,in_fc_202605_0005,fc-cus-0005,Bluebell Insurance (synthetic),sub_fc-cus-0005,price_fc_growth_m,USD,3100.00,month,1,2026-05-01,2026-06-01,paid,2026-05-01
+il_fc_00104,in_fc_202606_0005,fc-cus-0005,Bluebell Insurance (synthetic),sub_fc-cus-0005,price_fc_growth_m,USD,3100.00,month,1,2026-06-01,2026-07-01,paid,2026-06-01
+il_fc_00105,in_fc_202607_0005,fc-cus-0005,Bluebell Insurance (synthetic),sub_fc-cus-0005,price_fc_growth_m,USD,3100.00,month,1,2026-07-01,2026-08-01,paid,2026-07-01
+il_fc_00106,in_fc_202608_0005,fc-cus-0005,Bluebell Insurance (synthetic),sub_fc-cus-0005,price_fc_growth_m,USD,3100.00,month,1,2026-08-01,2026-09-01,paid,2026-08-01
+il_fc_00107,in_fc_202609_0005,fc-cus-0005,Bluebell Insurance (synthetic),sub_fc-cus-0005,price_fc_growth_m,USD,3100.00,month,1,2026-09-01,2026-10-01,paid,2026-09-01
+il_fc_00108,in_fc_202502_0006,fc-cus-0006,Cedar Point Hotels (synthetic),sub_fc-cus-0006,price_fc_scale_m,USD,5900.00,month,1,2025-02-01,2025-03-01,paid,2025-02-01
+il_fc_00109,in_fc_202503_0006,fc-cus-0006,Cedar Point Hotels (synthetic),sub_fc-cus-0006,price_fc_scale_m,USD,5900.00,month,1,2025-03-01,2025-04-01,paid,2025-03-01
+il_fc_00110,in_fc_202504_0006,fc-cus-0006,Cedar Point Hotels (synthetic),sub_fc-cus-0006,price_fc_scale_m,USD,5900.00,month,1,2025-04-01,2025-05-01,paid,2025-04-01
+il_fc_00111,in_fc_202505_0006,fc-cus-0006,Cedar Point Hotels (synthetic),sub_fc-cus-0006,price_fc_scale_m,USD,5900.00,month,1,2025-05-01,2025-06-01,paid,2025-05-01
+il_fc_00112,in_fc_202506_0006,fc-cus-0006,Cedar Point Hotels (synthetic),sub_fc-cus-0006,price_fc_scale_m,USD,5900.00,month,1,2025-06-01,2025-07-01,paid,2025-06-01
+il_fc_00113,in_fc_202507_0006,fc-cus-0006,Cedar Point Hotels (synthetic),sub_fc-cus-0006,price_fc_scale_m,USD,5900.00,month,1,2025-07-01,2025-08-01,paid,2025-07-01
+il_fc_00114,in_fc_202508_0006,fc-cus-0006,Cedar Point Hotels (synthetic),sub_fc-cus-0006,price_fc_scale_m,USD,5900.00,month,1,2025-08-01,2025-09-01,paid,2025-08-01
+il_fc_00115,in_fc_202509_0006,fc-cus-0006,Cedar Point Hotels (synthetic),sub_fc-cus-0006,price_fc_scale_m,USD,5900.00,month,1,2025-09-01,2025-10-01,paid,2025-09-01
+il_fc_00116,in_fc_202510_0006,fc-cus-0006,Cedar Point Hotels (synthetic),sub_fc-cus-0006,price_fc_scale_m,USD,5900.00,month,1,2025-10-01,2025-11-01,paid,2025-10-01
+il_fc_00117,in_fc_202511_0006,fc-cus-0006,Cedar Point Hotels (synthetic),sub_fc-cus-0006,price_fc_scale_m,USD,4900.00,month,1,2025-11-01,2025-12-01,paid,2025-11-01
+il_fc_00118,in_fc_202512_0006,fc-cus-0006,Cedar Point Hotels (synthetic),sub_fc-cus-0006,price_fc_scale_m,USD,4900.00,month,1,2025-12-01,2026-01-01,paid,2025-12-01
+il_fc_00119,in_fc_202601_0006,fc-cus-0006,Cedar Point Hotels (synthetic),sub_fc-cus-0006,price_fc_scale_m,USD,4900.00,month,1,2026-01-01,2026-02-01,paid,2026-01-01
+il_fc_00120,in_fc_202602_0006,fc-cus-0006,Cedar Point Hotels (synthetic),sub_fc-cus-0006,price_fc_scale_m,USD,4900.00,month,1,2026-02-01,2026-03-01,paid,2026-02-01
+il_fc_00121,in_fc_202603_0006,fc-cus-0006,Cedar Point Hotels (synthetic),sub_fc-cus-0006,price_fc_scale_m,USD,4900.00,month,1,2026-03-01,2026-04-01,paid,2026-03-01
+il_fc_00122,in_fc_202604_0006,fc-cus-0006,Cedar Point Hotels (synthetic),sub_fc-cus-0006,price_fc_scale_m,USD,4900.00,month,1,2026-04-01,2026-05-01,paid,2026-04-01
+il_fc_00123,in_fc_202605_0006,fc-cus-0006,Cedar Point Hotels (synthetic),sub_fc-cus-0006,price_fc_scale_m,USD,4900.00,month,1,2026-05-01,2026-06-01,paid,2026-05-01
+il_fc_00124,in_fc_202606_0006,fc-cus-0006,Cedar Point Hotels (synthetic),sub_fc-cus-0006,price_fc_scale_m,USD,4900.00,month,1,2026-06-01,2026-07-01,paid,2026-06-01
+il_fc_00125,in_fc_202607_0006,fc-cus-0006,Cedar Point Hotels (synthetic),sub_fc-cus-0006,price_fc_scale_m,USD,4900.00,month,1,2026-07-01,2026-08-01,paid,2026-07-01
+il_fc_00126,in_fc_202608_0006,fc-cus-0006,Cedar Point Hotels (synthetic),sub_fc-cus-0006,price_fc_scale_m,USD,4900.00,month,1,2026-08-01,2026-09-01,paid,2026-08-01
+il_fc_00127,in_fc_202609_0006,fc-cus-0006,Cedar Point Hotels (synthetic),sub_fc-cus-0006,price_fc_scale_m,USD,4900.00,month,1,2026-09-01,2026-10-01,paid,2026-09-01
+il_fc_00128,in_fc_202503_0007,fc-cus-0007,Ironwood Analytics (synthetic),sub_fc-cus-0007,price_fc_starter_m,USD,800.00,month,1,2025-03-01,2025-04-01,paid,2025-03-01
+il_fc_00129,in_fc_202504_0007,fc-cus-0007,Ironwood Analytics (synthetic),sub_fc-cus-0007,price_fc_starter_m,USD,800.00,month,1,2025-04-01,2025-05-01,paid,2025-04-01
+il_fc_00130,in_fc_202505_0007,fc-cus-0007,Ironwood Analytics (synthetic),sub_fc-cus-0007,price_fc_starter_m,USD,800.00,month,1,2025-05-01,2025-06-01,paid,2025-05-01
+il_fc_00131,in_fc_202506_0007,fc-cus-0007,Ironwood Analytics (synthetic),sub_fc-cus-0007,price_fc_starter_m,USD,800.00,month,1,2025-06-01,2025-07-01,paid,2025-06-01
+il_fc_00132,in_fc_202507_0007,fc-cus-0007,Ironwood Analytics (synthetic),sub_fc-cus-0007,price_fc_starter_m,USD,800.00,month,1,2025-07-01,2025-08-01,paid,2025-07-01
+il_fc_00133,in_fc_202508_0007,fc-cus-0007,Ironwood Analytics (synthetic),sub_fc-cus-0007,price_fc_starter_m,USD,800.00,month,1,2025-08-01,2025-09-01,paid,2025-08-01
+il_fc_00134,in_fc_202509_0007,fc-cus-0007,Ironwood Analytics (synthetic),sub_fc-cus-0007,price_fc_starter_m,USD,1500.00,month,1,2025-09-01,2025-10-01,paid,2025-09-01
+il_fc_00135,in_fc_202510_0007,fc-cus-0007,Ironwood Analytics (synthetic),sub_fc-cus-0007,price_fc_starter_m,USD,1500.00,month,1,2025-10-01,2025-11-01,paid,2025-10-01
+il_fc_00136,in_fc_202511_0007,fc-cus-0007,Ironwood Analytics (synthetic),sub_fc-cus-0007,price_fc_starter_m,USD,1500.00,month,1,2025-11-01,2025-12-01,paid,2025-11-01
+il_fc_00137,in_fc_202512_0007,fc-cus-0007,Ironwood Analytics (synthetic),sub_fc-cus-0007,price_fc_starter_m,USD,1500.00,month,1,2025-12-01,2026-01-01,paid,2025-12-01
+il_fc_00138,in_fc_202601_0007,fc-cus-0007,Ironwood Analytics (synthetic),sub_fc-cus-0007,price_fc_starter_m,USD,1500.00,month,1,2026-01-01,2026-02-01,paid,2026-01-01
+il_fc_00139,in_fc_202602_0007,fc-cus-0007,Ironwood Analytics (synthetic),sub_fc-cus-0007,price_fc_starter_m,USD,1500.00,month,1,2026-02-01,2026-03-01,paid,2026-02-01
+il_fc_00140,in_fc_202603_0007,fc-cus-0007,Ironwood Analytics (synthetic),sub_fc-cus-0007,price_fc_starter_m,USD,1500.00,month,1,2026-03-01,2026-04-01,paid,2026-03-01
+il_fc_00141,in_fc_202604_0007,fc-cus-0007,Ironwood Analytics (synthetic),sub_fc-cus-0007,price_fc_starter_m,USD,1500.00,month,1,2026-04-01,2026-05-01,paid,2026-04-01
+il_fc_00142,in_fc_202605_0007,fc-cus-0007,Ironwood Analytics (synthetic),sub_fc-cus-0007,price_fc_starter_m,USD,1500.00,month,1,2026-05-01,2026-06-01,paid,2026-05-01
+il_fc_00143,in_fc_202606_0007,fc-cus-0007,Ironwood Analytics (synthetic),sub_fc-cus-0007,price_fc_starter_m,USD,1500.00,month,1,2026-06-01,2026-07-01,paid,2026-06-01
+il_fc_00144,in_fc_202607_0007,fc-cus-0007,Ironwood Analytics (synthetic),sub_fc-cus-0007,price_fc_starter_m,USD,1500.00,month,1,2026-07-01,2026-08-01,paid,2026-07-01
+il_fc_00145,in_fc_202608_0007,fc-cus-0007,Ironwood Analytics (synthetic),sub_fc-cus-0007,price_fc_starter_m,USD,1500.00,month,1,2026-08-01,2026-09-01,paid,2026-08-01
+il_fc_00146,in_fc_202609_0007,fc-cus-0007,Ironwood Analytics (synthetic),sub_fc-cus-0007,price_fc_starter_m,USD,1500.00,month,1,2026-09-01,2026-10-01,paid,2026-09-01
+il_fc_00147,in_fc_202505_0008,fc-cus-0008,Silverline Credit Union (synthetic),sub_fc-cus-0008,price_fc_enterprise_m,USD,12000.00,month,1,2025-05-01,2025-06-01,paid,2025-05-01
+il_fc_00148,in_fc_202506_0008,fc-cus-0008,Silverline Credit Union (synthetic),sub_fc-cus-0008,price_fc_enterprise_m,USD,12000.00,month,1,2025-06-01,2025-07-01,paid,2025-06-01
+il_fc_00149,in_fc_202507_0008,fc-cus-0008,Silverline Credit Union (synthetic),sub_fc-cus-0008,price_fc_enterprise_m,USD,12000.00,month,1,2025-07-01,2025-08-01,paid,2025-07-01
+il_fc_00150,in_fc_202508_0008,fc-cus-0008,Silverline Credit Union (synthetic),sub_fc-cus-0008,price_fc_enterprise_m,USD,12000.00,month,1,2025-08-01,2025-09-01,paid,2025-08-01
+il_fc_00151,in_fc_202509_0008,fc-cus-0008,Silverline Credit Union (synthetic),sub_fc-cus-0008,price_fc_enterprise_m,USD,12000.00,month,1,2025-09-01,2025-10-01,paid,2025-09-01
+il_fc_00152,in_fc_202510_0008,fc-cus-0008,Silverline Credit Union (synthetic),sub_fc-cus-0008,price_fc_enterprise_m,USD,12000.00,month,1,2025-10-01,2025-11-01,paid,2025-10-01
+il_fc_00153,in_fc_202511_0008,fc-cus-0008,Silverline Credit Union (synthetic),sub_fc-cus-0008,price_fc_enterprise_m,USD,12000.00,month,1,2025-11-01,2025-12-01,paid,2025-11-01
+il_fc_00154,in_fc_202512_0008,fc-cus-0008,Silverline Credit Union (synthetic),sub_fc-cus-0008,price_fc_enterprise_m,USD,12000.00,month,1,2025-12-01,2026-01-01,paid,2025-12-01
+il_fc_00155,in_fc_202601_0008,fc-cus-0008,Silverline Credit Union (synthetic),sub_fc-cus-0008,price_fc_enterprise_m,USD,12000.00,month,1,2026-01-01,2026-02-01,paid,2026-01-01
+il_fc_00156,in_fc_202602_0008,fc-cus-0008,Silverline Credit Union (synthetic),sub_fc-cus-0008,price_fc_enterprise_m,USD,12000.00,month,1,2026-02-01,2026-03-01,paid,2026-02-01
+il_fc_00157,in_fc_202603_0008,fc-cus-0008,Silverline Credit Union (synthetic),sub_fc-cus-0008,price_fc_enterprise_m,USD,12000.00,month,1,2026-03-01,2026-04-01,paid,2026-03-01
+il_fc_00158,in_fc_202604_0008,fc-cus-0008,Silverline Credit Union (synthetic),sub_fc-cus-0008,price_fc_enterprise_m,USD,12000.00,month,1,2026-04-01,2026-05-01,paid,2026-04-01
+il_fc_00159,in_fc_202605_0008,fc-cus-0008,Silverline Credit Union (synthetic),sub_fc-cus-0008,price_fc_enterprise_m,USD,12000.00,month,1,2026-05-01,2026-06-01,paid,2026-05-01
+il_fc_00160,in_fc_202606_0008,fc-cus-0008,Silverline Credit Union (synthetic),sub_fc-cus-0008,price_fc_enterprise_m,USD,12000.00,month,1,2026-06-01,2026-07-01,paid,2026-06-01
+il_fc_00161,in_fc_202607_0008,fc-cus-0008,Silverline Credit Union (synthetic),sub_fc-cus-0008,price_fc_enterprise_m,USD,12000.00,month,1,2026-07-01,2026-08-01,paid,2026-07-01
+il_fc_00162,in_fc_202608_0008,fc-cus-0008,Silverline Credit Union (synthetic),sub_fc-cus-0008,price_fc_enterprise_m,USD,12000.00,month,1,2026-08-01,2026-09-01,paid,2026-08-01
+il_fc_00163,in_fc_202609_0008,fc-cus-0008,Silverline Credit Union (synthetic),sub_fc-cus-0008,price_fc_enterprise_m,USD,12000.00,month,1,2026-09-01,2026-10-01,paid,2026-09-01
+il_fc_00164,in_fc_202506_0009,fc-cus-0009,Tidewater Foods (synthetic),sub_fc-cus-0009,price_fc_growth_m,USD,2750.00,month,1,2025-06-01,2025-07-01,paid,2025-06-01
+il_fc_00165,in_fc_202507_0009,fc-cus-0009,Tidewater Foods (synthetic),sub_fc-cus-0009,price_fc_growth_m,USD,2750.00,month,1,2025-07-01,2025-08-01,paid,2025-07-01
+il_fc_00166,in_fc_202508_0009,fc-cus-0009,Tidewater Foods (synthetic),sub_fc-cus-0009,price_fc_growth_m,USD,2750.00,month,1,2025-08-01,2025-09-01,paid,2025-08-01
+il_fc_00167,in_fc_202509_0009,fc-cus-0009,Tidewater Foods (synthetic),sub_fc-cus-0009,price_fc_growth_m,USD,2750.00,month,1,2025-09-01,2025-10-01,paid,2025-09-01
+il_fc_00168,in_fc_202510_0009,fc-cus-0009,Tidewater Foods (synthetic),sub_fc-cus-0009,price_fc_growth_m,USD,2750.00,month,1,2025-10-01,2025-11-01,paid,2025-10-01
+il_fc_00169,in_fc_202511_0009,fc-cus-0009,Tidewater Foods (synthetic),sub_fc-cus-0009,price_fc_growth_m,USD,2750.00,month,1,2025-11-01,2025-12-01,paid,2025-11-01
+il_fc_00170,in_fc_202512_0009,fc-cus-0009,Tidewater Foods (synthetic),sub_fc-cus-0009,price_fc_growth_m,USD,2750.00,month,1,2025-12-01,2026-01-01,paid,2025-12-01
+il_fc_00171,in_fc_202601_0009,fc-cus-0009,Tidewater Foods (synthetic),sub_fc-cus-0009,price_fc_growth_m,USD,2750.00,month,1,2026-01-01,2026-02-01,paid,2026-01-01
+il_fc_00172,in_fc_202602_0009,fc-cus-0009,Tidewater Foods (synthetic),sub_fc-cus-0009,price_fc_growth_m,USD,2750.00,month,1,2026-02-01,2026-03-01,paid,2026-02-01
+il_fc_00173,in_fc_202603_0009,fc-cus-0009,Tidewater Foods (synthetic),sub_fc-cus-0009,price_fc_growth_m,USD,2750.00,month,1,2026-03-01,2026-04-01,paid,2026-03-01
+il_fc_00174,in_fc_202604_0009,fc-cus-0009,Tidewater Foods (synthetic),sub_fc-cus-0009,price_fc_growth_m,USD,2750.00,month,1,2026-04-01,2026-05-01,paid,2026-04-01
+il_fc_00175,in_fc_202605_0009,fc-cus-0009,Tidewater Foods (synthetic),sub_fc-cus-0009,price_fc_growth_m,USD,2750.00,month,1,2026-05-01,2026-06-01,paid,2026-05-01
+il_fc_00176,in_fc_202508_0010,fc-cus-0010,Oakridge Schools (synthetic),sub_fc-cus-0010,price_fc_growth_m,USD,1900.00,month,1,2025-08-01,2025-09-01,paid,2025-08-01
+il_fc_00177,in_fc_202509_0010,fc-cus-0010,Oakridge Schools (synthetic),sub_fc-cus-0010,price_fc_growth_m,USD,1900.00,month,1,2025-09-01,2025-10-01,paid,2025-09-01
+il_fc_00178,in_fc_202510_0010,fc-cus-0010,Oakridge Schools (synthetic),sub_fc-cus-0010,price_fc_growth_m,USD,1900.00,month,1,2025-10-01,2025-11-01,paid,2025-10-01
+il_fc_00179,in_fc_202511_0010,fc-cus-0010,Oakridge Schools (synthetic),sub_fc-cus-0010,price_fc_growth_m,USD,1900.00,month,1,2025-11-01,2025-12-01,paid,2025-11-01
+il_fc_00180,in_fc_202512_0010,fc-cus-0010,Oakridge Schools (synthetic),sub_fc-cus-0010,price_fc_growth_m,USD,1900.00,month,1,2025-12-01,2026-01-01,paid,2025-12-01
+il_fc_00181,in_fc_202601_0010,fc-cus-0010,Oakridge Schools (synthetic),sub_fc-cus-0010,price_fc_growth_m,USD,1900.00,month,1,2026-01-01,2026-02-01,paid,2026-01-01
+il_fc_00182,in_fc_202602_0010,fc-cus-0010,Oakridge Schools (synthetic),sub_fc-cus-0010,price_fc_growth_m,USD,1900.00,month,1,2026-02-01,2026-03-01,paid,2026-02-01
+il_fc_00183,in_fc_202603_0010,fc-cus-0010,Oakridge Schools (synthetic),sub_fc-cus-0010,price_fc_growth_m,USD,1900.00,month,1,2026-03-01,2026-04-01,paid,2026-03-01
+il_fc_00184,in_fc_202604_0010,fc-cus-0010,Oakridge Schools (synthetic),sub_fc-cus-0010,price_fc_growth_m,USD,1900.00,month,1,2026-04-01,2026-05-01,paid,2026-04-01
+il_fc_00185,in_fc_202605_0010,fc-cus-0010,Oakridge Schools (synthetic),sub_fc-cus-0010,price_fc_growth_m,USD,1900.00,month,1,2026-05-01,2026-06-01,paid,2026-05-01
+il_fc_00186,in_fc_202606_0010,fc-cus-0010,Oakridge Schools (synthetic),sub_fc-cus-0010,price_fc_growth_m,USD,1900.00,month,1,2026-06-01,2026-07-01,paid,2026-06-01
+il_fc_00187,in_fc_202607_0010,fc-cus-0010,Oakridge Schools (synthetic),sub_fc-cus-0010,price_fc_growth_m,USD,1900.00,month,1,2026-07-01,2026-08-01,paid,2026-07-01
+il_fc_00188,in_fc_202608_0010,fc-cus-0010,Oakridge Schools (synthetic),sub_fc-cus-0010,price_fc_growth_m,USD,1900.00,month,1,2026-08-01,2026-09-01,paid,2026-08-01
+il_fc_00189,in_fc_202609_0010,fc-cus-0010,Oakridge Schools (synthetic),sub_fc-cus-0010,price_fc_growth_m,USD,1900.00,month,1,2026-09-01,2026-10-01,paid,2026-09-01
+il_fc_00190,in_fc_202510_0011,fc-cus-0011,Summit Ridge Clinics (synthetic),sub_fc-cus-0011,price_fc_scale_m,USD,7400.00,month,1,2025-10-01,2025-11-01,paid,2025-10-01
+il_fc_00191,in_fc_202511_0011,fc-cus-0011,Summit Ridge Clinics (synthetic),sub_fc-cus-0011,price_fc_scale_m,USD,7400.00,month,1,2025-11-01,2025-12-01,paid,2025-11-01
+il_fc_00192,in_fc_202512_0011,fc-cus-0011,Summit Ridge Clinics (synthetic),sub_fc-cus-0011,price_fc_scale_m,USD,7400.00,month,1,2025-12-01,2026-01-01,paid,2025-12-01
+il_fc_00193,in_fc_202601_0011,fc-cus-0011,Summit Ridge Clinics (synthetic),sub_fc-cus-0011,price_fc_scale_m,USD,7400.00,month,1,2026-01-01,2026-02-01,paid,2026-01-01
+il_fc_00194,in_fc_202602_0011,fc-cus-0011,Summit Ridge Clinics (synthetic),sub_fc-cus-0011,price_fc_scale_m,USD,7400.00,month,1,2026-02-01,2026-03-01,paid,2026-02-01
+il_fc_00195,in_fc_202603_0011,fc-cus-0011,Summit Ridge Clinics (synthetic),sub_fc-cus-0011,price_fc_scale_m,USD,7400.00,month,1,2026-03-01,2026-04-01,paid,2026-03-01
+il_fc_00196,in_fc_202604_0011,fc-cus-0011,Summit Ridge Clinics (synthetic),sub_fc-cus-0011,price_fc_scale_m,USD,7400.00,month,1,2026-04-01,2026-05-01,paid,2026-04-01
+il_fc_00197,in_fc_202605_0011,fc-cus-0011,Summit Ridge Clinics (synthetic),sub_fc-cus-0011,price_fc_scale_m,USD,7400.00,month,1,2026-05-01,2026-06-01,paid,2026-05-01
+il_fc_00198,in_fc_202606_0011,fc-cus-0011,Summit Ridge Clinics (synthetic),sub_fc-cus-0011,price_fc_scale_m,USD,7400.00,month,1,2026-06-01,2026-07-01,paid,2026-06-01
+il_fc_00199,in_fc_202607_0011,fc-cus-0011,Summit Ridge Clinics (synthetic),sub_fc-cus-0011,price_fc_scale_m,USD,7400.00,month,1,2026-07-01,2026-08-01,paid,2026-07-01
+il_fc_00200,in_fc_202608_0011,fc-cus-0011,Summit Ridge Clinics (synthetic),sub_fc-cus-0011,price_fc_scale_m,USD,7400.00,month,1,2026-08-01,2026-09-01,paid,2026-08-01
+il_fc_00201,in_fc_202609_0011,fc-cus-0011,Summit Ridge Clinics (synthetic),sub_fc-cus-0011,price_fc_scale_m,USD,7400.00,month,1,2026-09-01,2026-10-01,paid,2026-09-01
+il_fc_00202,in_fc_202601_0012,fc-cus-0012,Lakeshore Realty (synthetic),sub_fc-cus-0012,price_fc_starter_m,USD,700.00,month,1,2026-01-01,2026-02-01,paid,2026-01-01
+il_fc_00203,in_fc_202602_0012,fc-cus-0012,Lakeshore Realty (synthetic),sub_fc-cus-0012,price_fc_starter_m,USD,700.00,month,1,2026-02-01,2026-03-01,paid,2026-02-01
+il_fc_00204,in_fc_202603_0012,fc-cus-0012,Lakeshore Realty (synthetic),sub_fc-cus-0012,price_fc_starter_m,USD,700.00,month,1,2026-03-01,2026-04-01,paid,2026-03-01
+il_fc_00205,in_fc_202604_0012,fc-cus-0012,Lakeshore Realty (synthetic),sub_fc-cus-0012,price_fc_starter_m,USD,700.00,month,1,2026-04-01,2026-05-01,paid,2026-04-01
+il_fc_00206,in_fc_202605_0012,fc-cus-0012,Lakeshore Realty (synthetic),sub_fc-cus-0012,price_fc_starter_m,USD,700.00,month,1,2026-05-01,2026-06-01,paid,2026-05-01
+il_fc_00207,in_fc_202606_0012,fc-cus-0012,Lakeshore Realty (synthetic),sub_fc-cus-0012,price_fc_starter_m,USD,700.00,month,1,2026-06-01,2026-07-01,paid,2026-06-01
+il_fc_00208,in_fc_202607_0012,fc-cus-0012,Lakeshore Realty (synthetic),sub_fc-cus-0012,price_fc_starter_m,USD,700.00,month,1,2026-07-01,2026-08-01,paid,2026-07-01
+il_fc_00209,in_fc_202608_0012,fc-cus-0012,Lakeshore Realty (synthetic),sub_fc-cus-0012,price_fc_starter_m,USD,700.00,month,1,2026-08-01,2026-09-01,paid,2026-08-01
+il_fc_00210,in_fc_202609_0012,fc-cus-0012,Lakeshore Realty (synthetic),sub_fc-cus-0012,price_fc_starter_m,USD,700.00,month,1,2026-09-01,2026-10-01,paid,2026-09-01
