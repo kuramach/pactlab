@@ -12,7 +12,9 @@ import {
   keyPersonFindings,
   MIN_CONTRIBUTOR_COHORT,
   scanFindingToProposal,
+  healthyOwnershipFinding,
   validatePricedRisk,
+  validateValueConfirmation,
   type CommitMetadata,
   type FindingActor,
   type ProposedFinding,
@@ -68,6 +70,7 @@ describe('finding workflow', () => {
       'Verified at commit',
       reviewer,
       review(),
+      { direction: 0, directionRationale: 'Rotated already; no exposure remains' },
     );
     expect(accepted.finding).toMatchObject({ status: 'ACCEPTED', version: 3 });
     expect(accepted.review).toMatchObject({
@@ -289,5 +292,71 @@ describe('scan findings', () => {
       toolVersion: '1.6-fixture',
     });
     expect(createDraft(draft, ai, ctx()).status).toBe('DRAFT');
+  });
+});
+
+describe('valuation direction', () => {
+  const PRICE = { type: 'REMEDIATION_COST' as const, currency: 'USD', low: '10000', high: '25000', basis: 'Synthetic estimate' };
+  const CONFIRMS = { valueDriver: 'ARR quality', impliedValue: { low: '0', high: '50000', currency: 'USD' }, basis: 'Reconciled ARR above the CIM' };
+  const inReview = (overrides: Partial<ProposedFinding> = {}) =>
+    decide(createDraft(proposal(overrides), analyst, ctx()), 'SUBMITTED', 'Ready', analyst, review()).finding;
+  const accept = (finding: ReturnType<typeof inReview>, choice = {}) => decide(finding, 'ACCEPTED', 'Checked', reviewer, review(), choice);
+
+  it('keeps money on one side: price on drags, confirmations on cushions, nothing on neutral', () => {
+    expect(() => createDraft(proposal({ direction: 1, pricedRisk: PRICE }), analyst, ctx())).toThrow(FindingValidationError);
+    expect(() => createDraft(proposal({ direction: 0, pricedRisk: PRICE }), analyst, ctx())).toThrow(FindingValidationError);
+    expect(() => createDraft(proposal({ direction: -1, valueConfirmation: CONFIRMS }), analyst, ctx())).toThrow(FindingValidationError);
+    expect(() => createDraft(proposal({ direction: 2 as never }), analyst, ctx())).toThrow(FindingValidationError);
+    expect(createDraft(proposal({ pricedRisk: PRICE }), analyst, ctx())).toMatchObject({ direction: null, pricedRisk: PRICE });
+  });
+
+  it('validates what a cushion confirms', () => {
+    expect(validateValueConfirmation({ ...CONFIRMS, impliedValue: null }).impliedValue).toBeNull();
+    expect(() => validateValueConfirmation({ ...CONFIRMS, valueDriver: ' ' })).toThrow(FindingValidationError);
+    expect(() => validateValueConfirmation({ ...CONFIRMS, basis: '' })).toThrow(FindingValidationError);
+    expect(() => validateValueConfirmation({ ...CONFIRMS, impliedValue: { low: '9', high: '1', currency: 'USD' } })).toThrow(FindingValidationError);
+    expect(() => validateValueConfirmation({ ...CONFIRMS, impliedValue: { low: '-1', high: '1', currency: 'USD' } })).toThrow(FindingValidationError);
+  });
+
+  it('needs a decided direction to accept, and records it on the review', () => {
+    expect(() => accept(inReview())).toThrow(expect.objectContaining({ code: 'DIRECTION_REQUIRED' }));
+    const accepted = accept(inReview({ direction: -1, pricedRisk: PRICE }));
+    expect(accepted.finding.direction).toBe(-1);
+    expect(accepted.review).toMatchObject({ direction: -1, directionRationale: null });
+  });
+
+  it('never accepts an unpriced drag, an unexplained cushion or an unexplained neutral', () => {
+    expect(() => accept(inReview({ direction: -1 }))).toThrow(expect.objectContaining({ code: 'DRAG_NEEDS_PRICE' }));
+    expect(() => accept(inReview({ direction: 1 }))).toThrow(expect.objectContaining({ code: 'CUSHION_NEEDS_DRIVER' }));
+    expect(() => accept(inReview({ direction: 0 }))).toThrow(expect.objectContaining({ code: 'NEUTRAL_NEEDS_RATIONALE' }));
+    expect(accept(inReview({ direction: 1, valueConfirmation: CONFIRMS })).finding).toMatchObject({ direction: 1, valueConfirmation: CONFIRMS });
+    expect(accept(inReview({ direction: 0, directionRationale: 'Informational only' })).finding.direction).toBe(0);
+  });
+
+  it('lets the reviewer override the proposal only with a reason, and only into a valid shape', () => {
+    const proposedDrag = inReview({ direction: -1 });
+    expect(() => accept(proposedDrag, { direction: 0 })).toThrow(expect.objectContaining({ code: 'RATIONALE_REQUIRED' }));
+    const overridden = accept(proposedDrag, { direction: 0, directionRationale: 'Commits are from a renamed account, verified' });
+    expect(overridden.finding).toMatchObject({ direction: 0, directionRationale: 'Commits are from a renamed account, verified' });
+    expect(overridden.review).toMatchObject({ direction: 0, directionRationale: 'Commits are from a renamed account, verified' });
+    // A priced drag cannot be turned into a cushion without removing its price.
+    expect(() => accept(inReview({ direction: -1, pricedRisk: PRICE }), { direction: 1, directionRationale: 'x y z' })).toThrow(FindingWorkflowError);
+  });
+
+  it('heuristics propose drags unpriced, and healthy ownership proposes a cushion', () => {
+    const commits = Array.from({ length: 40 }, (_, index) => ({
+      sha: SHA,
+      authorIdentity: `dev-${index % 8}`,
+      authoredAt: now,
+      committedAt: now,
+      additions: 1,
+      deletions: 0,
+      paths: [`module-${index % 4}/file.ts`],
+    }));
+    const signal = analyseKeyPersonRisk(commits);
+    const cushion = healthyOwnershipFinding(signal, { evidenceItemId: newId(), headCommitSha: SHA });
+    expect(cushion).toMatchObject({ direction: 1, pricedRisk: null, valueConfirmation: { valueDriver: 'Engineering continuity', impliedValue: null } });
+    const ghost = ghostCommitFinding(detectGhostCommits([{ ...commits[0]!, authorIdentity: 'unknown' }], []), { evidenceItemId: newId(), headCommitSha: SHA });
+    expect(ghost).toMatchObject({ direction: -1, pricedRisk: null });
   });
 });

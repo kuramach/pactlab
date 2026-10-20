@@ -131,6 +131,8 @@ export interface RunInputsView {
 
 export interface ScenarioView {
   askingComparison: AskingComparisonView | null;
+  /** Accepted cushions — value confirmed, not price paid. Buyer-only; never part of the price. */
+  confirmedValue?: ConfirmedValueView;
   scenario: {
     id: string;
     name: string;
@@ -224,4 +226,11 @@ export function isSubtotal(line: Pick<BridgeLine, 'kind'>): boolean {
   return ['ENTERPRISE_VALUE', 'EQUITY_VALUE', 'EQUITY_PURCHASE_PRICE', 'CASH_AT_CLOSE'].includes(
     line.kind,
   );
+}
+
+export interface ConfirmedValueView {
+  visibility: 'BUYER_ONLY';
+  items: { findingId: string; label: string; valueDriver: string; impliedValue: { low: string; high: string; currency: string } | null }[];
+  totals: { currency: string; low: MoneyValue; high: MoneyValue }[];
+  unquantified: number;
 }

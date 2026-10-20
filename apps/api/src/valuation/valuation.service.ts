@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import {
   compareToAsking,
+  confirmedValueLedger,
   freeze,
   runValuation,
   staleReasons,
@@ -237,10 +238,23 @@ export class ValuationService {
     const asking = run
       ? (await withTenant(this.prisma, tenant, (tx) => askingPrices.currentFor(tx, [record.scenario.dealId]))).get(record.scenario.dealId)
       : undefined;
+    // Accepted cushions: value confirmed, not price paid. Buyer-only and report-only —
+    // nothing here reaches the bridge, the price or any seller-facing term.
+    const cushions = (await this.findings.list(tenant, record.scenario.dealId, { status: 'ACCEPTED' })).filter(
+      (finding) => finding.direction === 1 && finding.valueConfirmation,
+    );
     return {
       scenario: record.scenario,
       askingComparison:
         run && asking ? { askingVersion: asking.version, ...compareToAsking(run.result, asking) } : null,
+      confirmedValue: confirmedValueLedger(
+        cushions.map((finding) => ({
+          findingId: finding.id,
+          label: finding.title,
+          valueDriver: finding.valueConfirmation?.valueDriver ?? '',
+          impliedValue: finding.valueConfirmation?.impliedValue ?? null,
+        })),
+      ),
       assumptions: this.currentAssumptions(record),
       assumptionVersions: record.assumptionSets.map(({ version, createdBy, createdAt }) => ({
         version,

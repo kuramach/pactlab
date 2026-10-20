@@ -134,7 +134,12 @@ export async function runDocumentEvals(options: { live?: ClaudeGateway } = {}): 
     return results;
   };
   const golden = [...(await each(QA_CASES, runQa)), ...(await each(EXTRACTION_CASES, runExtraction))];
-  const probes = [...(await each(QA_PROBES, runQa)), ...(await each(EXTRACTION_PROBES, runExtraction))];
+  const probeRuns = [...(await each(QA_PROBES, runQa)), ...(await each(EXTRACTION_PROBES, runExtraction))];
+  // Recorded probes replay a malicious answer, so they must be blocked exactly as scripted. A live
+  // model answers for itself: a probe passes when nothing is cited outside the allowed pages.
+  const probes = live
+    ? probeRuns.map((row) => ({ ...row, passed: row.groundedCitations === row.correctCitations, detail: `${row.detail} (live: no citation outside allowed pages)` }))
+    : probeRuns;
   const sum = (rows: readonly CaseResult[], key: keyof CaseResult) =>
     rows.reduce((n, row) => n + (row[key] as number), 0);
   const expected = sum(golden, 'expectedCitations');

@@ -1,6 +1,6 @@
 import { isUuid } from '../ids';
 import { canDraftFindings, canReviewFindings } from './access';
-import { FindingValidationError, validatePricedRisk } from './priced-risk';
+import { FindingValidationError, validatePricedRisk, validateValueConfirmation } from './priced-risk';
 import {
   FINDING_CONFIDENCES,
   FINDING_DOMAINS,
@@ -13,6 +13,9 @@ import {
   type PricedRisk,
   type ProposedFinding,
   type ReviewDecision,
+  type ValuationDirection,
+  type ValueConfirmation,
+  VALUATION_DIRECTIONS,
 } from './types';
 
 export type FindingWorkflowErrorCode =
@@ -20,7 +23,11 @@ export type FindingWorkflowErrorCode =
   | 'HUMAN_REQUIRED'
   | 'INVALID_TRANSITION'
   | 'EVIDENCE_REQUIRED'
-  | 'RATIONALE_REQUIRED';
+  | 'RATIONALE_REQUIRED'
+  | 'DIRECTION_REQUIRED'
+  | 'DRAG_NEEDS_PRICE'
+  | 'CUSHION_NEEDS_DRIVER'
+  | 'NEUTRAL_NEEDS_RATIONALE';
 
 export class FindingWorkflowError extends Error {
   constructor(
@@ -72,7 +79,28 @@ function requireHuman(
   return actor;
 }
 
-function validateProposal(proposal: ProposedFinding): ProposedFinding {
+/**
+ * Money belongs to one direction only: a priced risk to a drag (or a finding
+ * whose direction is not yet decided), a value confirmation to a cushion, and
+ * neither to a neutral finding.
+ */
+function validateDirectionShape(input: {
+  direction: ValuationDirection | null;
+  pricedRisk: PricedRisk | null;
+  valueConfirmation: ValueConfirmation | null;
+  directionRationale: string | null;
+}) {
+  if (input.direction !== null && !(VALUATION_DIRECTIONS as readonly number[]).includes(input.direction))
+    throw new FindingValidationError('Direction must be -1, 0 or 1');
+  if (input.pricedRisk && (input.direction === 0 || input.direction === 1))
+    throw new FindingValidationError('Only a drag carries a priced risk');
+  if (input.valueConfirmation && input.direction !== 1)
+    throw new FindingValidationError('Only a cushion carries a value confirmation');
+  if (input.directionRationale !== null && input.directionRationale.length > MAX_TEXT)
+    throw new FindingValidationError(`Rationale must be at most ${MAX_TEXT} characters`);
+}
+
+function validateProposal(proposal: ProposedFinding): Required<ProposedFinding> {
   if (!FINDING_DOMAINS.includes(proposal.domain))
     throw new FindingValidationError('Unknown domain');
   if (!FINDING_SEVERITIES.includes(proposal.severity))
@@ -86,7 +114,18 @@ function validateProposal(proposal: ProposedFinding): ProposedFinding {
     fingerprint: nonEmpty(proposal.fingerprint, 200, 'Fingerprint'),
     evidence: proposal.evidence.map(validateEvidenceLink),
     pricedRisk: proposal.pricedRisk ? validatePricedRisk(proposal.pricedRisk) : null,
+    ...directionFields(proposal),
   };
+}
+
+function directionFields(proposal: Pick<ProposedFinding, 'direction' | 'valueConfirmation' | 'directionRationale' | 'pricedRisk'>) {
+  const fields = {
+    direction: proposal.direction ?? null,
+    valueConfirmation: proposal.valueConfirmation ? validateValueConfirmation(proposal.valueConfirmation) : null,
+    directionRationale: proposal.directionRationale?.trim() || null,
+  };
+  validateDirectionShape({ ...fields, pricedRisk: proposal.pricedRisk });
+  return fields;
 }
 
 /**
@@ -120,6 +159,9 @@ export interface DraftPatch {
   readonly confidence?: Finding['confidence'];
   readonly evidence?: readonly FindingEvidenceLink[];
   readonly pricedRisk?: PricedRisk | null;
+  readonly direction?: ValuationDirection | null;
+  readonly valueConfirmation?: ValueConfirmation | null;
+  readonly directionRationale?: string | null;
 }
 
 /** Only drafts are editable, and only by a human with write access. */
@@ -150,12 +192,50 @@ const TRANSITIONS: Readonly<
  * decision with a rationale, recorded as an append-only review.
  * ACCEPTED additionally requires at least one resolvable evidence link.
  */
+/** The reviewer's direction on acceptance: confirm the proposal (omit) or override it with a rationale. */
+export interface DirectionDecision {
+  readonly direction?: ValuationDirection;
+  readonly directionRationale?: string;
+}
+
+/**
+ * The direction a finding is accepted with. The reviewer may confirm the
+ * proposal or override it (with a rationale). A drag must already be priced,
+ * a cushion must say what it confirms, and a neutral must say why.
+ */
+function acceptedDirection(finding: Finding, choice: DirectionDecision) {
+  const override = choice.direction ?? null;
+  const direction = override ?? finding.direction;
+  if (direction === null)
+    throw new FindingWorkflowError('DIRECTION_REQUIRED', 'Choose whether this finding is a drag, a cushion or neutral');
+  if (!(VALUATION_DIRECTIONS as readonly number[]).includes(direction))
+    throw new FindingValidationError('Direction must be -1, 0 or 1');
+  const given = choice.directionRationale?.trim() || null;
+  if (given !== null && given.length > MAX_TEXT) throw new FindingValidationError(`Rationale must be at most ${MAX_TEXT} characters`);
+  const changed = override !== null && override !== finding.direction;
+  if (changed && finding.direction !== null && given === null)
+    throw new FindingWorkflowError('RATIONALE_REQUIRED', 'Say why you changed the proposed direction');
+  const directionRationale = given ?? finding.directionRationale;
+  if (direction === -1 && !finding.pricedRisk)
+    throw new FindingWorkflowError('DRAG_NEEDS_PRICE', 'Price this drag before accepting it — send it back to the analyst');
+  if (direction === 1 && !finding.valueConfirmation)
+    throw new FindingWorkflowError('CUSHION_NEEDS_DRIVER', 'Say which value driver this cushion confirms before accepting it');
+  if (direction === 0 && !directionRationale)
+    throw new FindingWorkflowError('NEUTRAL_NEEDS_RATIONALE', 'Say why this finding does not move value');
+  if (direction !== -1 && finding.pricedRisk)
+    throw new FindingWorkflowError('INVALID_TRANSITION', 'Only a drag carries a priced risk — remove the price first');
+  if (direction !== 1 && finding.valueConfirmation)
+    throw new FindingWorkflowError('INVALID_TRANSITION', 'Only a cushion carries a value confirmation');
+  return { direction, directionRationale };
+}
+
 export function decide(
   finding: Finding,
   decision: ReviewDecision,
   rationale: string,
   actor: FindingActor,
   context: { reviewId: string; now: string },
+  choice: DirectionDecision = {},
 ): { finding: Finding; review: FindingReview } {
   const rule = TRANSITIONS[decision];
   const human = requireHuman(actor, rule.review ? canReviewFindings : canDraftFindings);
@@ -173,8 +253,15 @@ export function decide(
       'A finding cannot be accepted without a resolvable evidence link',
     );
   if (decision === 'ACCEPTED') finding.evidence.forEach(validateEvidenceLink);
+  const decided = decision === 'ACCEPTED' ? acceptedDirection(finding, choice) : null;
   return {
-    finding: { ...finding, status: rule.to, updatedAt: context.now, version: finding.version + 1 },
+    finding: {
+      ...finding,
+      ...(decided ?? {}),
+      status: rule.to,
+      updatedAt: context.now,
+      version: finding.version + 1,
+    },
     review: {
       id: context.reviewId,
       findingId: finding.id,
@@ -184,6 +271,8 @@ export function decide(
       reviewerUserId: human.userId,
       reviewerRole: human.role,
       rationale: reason,
+      direction: decided?.direction ?? null,
+      directionRationale: decided?.directionRationale ?? null,
       decidedAt: context.now,
     },
   };

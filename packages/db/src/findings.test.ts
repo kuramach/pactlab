@@ -63,6 +63,9 @@ function draft(tenant: SyntheticTenant, evidenceItemId: string, overrides: Parti
       },
     ],
     pricedRisk: { type: 'ESCROW', currency: 'USD', low: '10.5', high: '20', basis: 'Estimate' },
+    direction: null,
+    valueConfirmation: null,
+    directionRationale: null,
     createdBy: { kind: 'HUMAN', userId: tenant.userId, role: 'DEAL_LEAD' },
     createdAt: now,
     updatedAt: now,
@@ -156,6 +159,8 @@ describe('findings persistence and RLS', () => {
       reviewerUserId: a.userId,
       reviewerRole: 'DEAL_LEAD',
       rationale: 'Ready',
+      direction: null,
+      directionRationale: null,
       decidedAt: new Date().toISOString(),
     };
     expect(
@@ -185,6 +190,8 @@ describe('findings persistence and RLS', () => {
       reviewerUserId: newId(),
       reviewerRole: 'DEAL_LEAD',
       rationale: 'x',
+      direction: null,
+      directionRationale: null,
       decidedAt: new Date().toISOString(),
     };
     await expect(
@@ -224,5 +231,33 @@ describe('findings persistence and RLS', () => {
         findings.insert(tx, { ...bad, id: newId(), fingerprint: newId(), evidence: [{ ...bad.evidence[0]!, path: '../etc' }] }),
       ),
     ).rejects.toThrow();
+  });
+
+  it('stores direction and what a cushion confirms, keeping money on one side', async () => {
+    const cushion = draft(a, evidenceA, {
+      pricedRisk: null,
+      direction: 1,
+      valueConfirmation: { valueDriver: 'Engineering continuity', impliedValue: { low: '0', high: '25000.5', currency: 'USD' }, basis: 'Bus factor 4' },
+    });
+    await inTenant(a.context, (tx) => findings.insert(tx, cushion));
+    expect((await inTenant(a.context, (tx) => findings.get(tx, a.dealId, cushion.id)))?.finding).toMatchObject({
+      direction: 1,
+      valueConfirmation: { valueDriver: 'Engineering continuity', impliedValue: { low: '0', high: '25000.5', currency: 'USD' } },
+    });
+    const insertRaw = (sql: string) => inTenant(a.context, (tx) => tx.$executeRawUnsafe(sql));
+    const base = `INSERT INTO findings (id, organization_id, deal_id, domain, title, description, severity, confidence, status, origin, fingerprint,
+      created_by, evidence_version, version, created_at, updated_at`;
+    const values = (extra: string) =>
+      `'${newId()}', '${a.organizationId}', '${a.dealId}', 'SECURITY', 't', 'd', 'LOW', 'LOW', ${extra}, 'HUMAN', '${newId()}',
+       '{"kind":"HUMAN","userId":"${a.userId}","role":"DEAL_LEAD"}', 1, 1, now(), now()`;
+    // A cushion never carries a priced risk; an accepted drag must; an accepted neutral needs a reason; directions are -1, 0, 1.
+    await expect(insertRaw(`${base}, direction, priced_risk_type, priced_risk_currency, priced_risk_low, priced_risk_high, priced_risk_basis) VALUES (${values("'DRAFT'")}, 1, 'ESCROW', 'USD', 1, 2, 'x')`)).rejects.toThrow(/check constraint/);
+    await expect(insertRaw(`${base}, direction) VALUES (${values("'ACCEPTED'")}, -1)`)).rejects.toThrow(/check constraint/);
+    await expect(insertRaw(`${base}, direction) VALUES (${values("'ACCEPTED'")}, 0)`)).rejects.toThrow(/check constraint/);
+    await expect(insertRaw(`${base}, direction) VALUES (${values("'DRAFT'")}, 2)`)).rejects.toThrow(/check constraint/);
+    await expect(insertRaw(`${base}, direction, value_driver, value_basis) VALUES (${values("'DRAFT'")}, -1, 'x', 'y')`)).rejects.toThrow(/check constraint/);
+    // Rows accepted before directions existed stay valid.
+    await expect(insertRaw(`${base}) VALUES (${values("'ACCEPTED'")})`)).resolves.toBe(1);
+    await expect(insertRaw(`${base}, direction, direction_rationale) VALUES (${values("'ACCEPTED'")}, 0, 'Informational only')`)).resolves.toBe(1);
   });
 });

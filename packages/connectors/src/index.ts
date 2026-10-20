@@ -7,3 +7,4 @@ export * from './jira';
 export * from './testing';
 export * from './stripe';
 export * from './market/comparables-provider';
+export * from './valuation-direction';

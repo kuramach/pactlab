@@ -11,6 +11,14 @@ const CODES: Record<number, string> = {
   409: 'CONFLICT',
 };
 
+/** A 422 may name the business rule it failed, as a stable upper-case code (never a message). */
+function ruleCode(exception: unknown, status: number): string | null {
+  if (status !== 422 || !(exception instanceof HttpException)) return null;
+  const response = exception.getResponse();
+  const code = typeof response === 'object' && response !== null ? (response as { code?: unknown }).code : null;
+  return typeof code === 'string' && /^[A-Z][A-Z_]{2,40}$/.test(code) ? code : null;
+}
+
 /** RFC 9457 problem details with stable codes; internals never leak to clients. */
 @Catch()
 export class ProblemDetailsFilter implements ExceptionFilter {
@@ -28,7 +36,7 @@ export class ProblemDetailsFilter implements ExceptionFilter {
       type: 'about:blank',
       title: status >= 500 ? 'Internal Server Error' : (HttpStatus[status] ?? 'Error').replaceAll('_', ' '),
       status,
-      code: CODES[status] ?? (status >= 500 ? 'INTERNAL' : 'ERROR'),
+      code: ruleCode(exception, status) ?? CODES[status] ?? (status >= 500 ? 'INTERNAL' : 'ERROR'),
       requestId: request.id,
     };
     void reply.status(status).header('content-type', 'application/problem+json').send(body);

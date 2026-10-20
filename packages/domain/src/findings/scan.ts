@@ -71,5 +71,7 @@ export function scanFindingToProposal(
       },
     ],
     pricedRisk: null,
+    // Drag: vulnerabilities and licence issues cost remediation or protection; priced at review.
+    direction: -1,
   };
 }

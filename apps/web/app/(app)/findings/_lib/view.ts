@@ -93,3 +93,29 @@ export function statusVariant(status: FindingStatus): 'draft' | 'reviewed' | 'da
   if (status === 'DRAFT') return 'draft';
   return 'neutral';
 }
+
+export type Direction = -1 | 0 | 1;
+
+/** Drag reprices, cushion confirms (never raises the price), neutral is a recorded decision. */
+export const DIRECTION_LABELS: Readonly<Record<string, { label: string; short: string; help: string }>> = {
+  '-1': { label: 'Drag', short: 'drag', help: 'Reprices the deal or hardens terms. Must be priced before it is accepted.' },
+  '0': { label: 'Neutral', short: 'neutral', help: 'Moves no value. Needs a reason — neutral is a decision, not missing data.' },
+  '1': { label: 'Cushion', short: 'cushion', help: 'Confirms the thesis. Value confirmed — not price paid; it never raises the price.' },
+};
+
+export function directionVariant(direction: Direction | null): 'danger' | 'calculation' | 'neutral' | 'draft' {
+  return direction === -1 ? 'danger' : direction === 1 ? 'calculation' : direction === 0 ? 'neutral' : 'draft';
+}
+
+export function directionText(direction: Direction | null): string {
+  return direction === null ? 'direction not decided' : (DIRECTION_LABELS[String(direction)]?.label ?? 'unknown').toLowerCase();
+}
+
+/** Plain-language reasons the API refuses an acceptance (422 rule codes). */
+export const RULE_MESSAGES: Readonly<Record<string, string>> = {
+  DIRECTION_REQUIRED: 'Choose whether this finding is a drag, a cushion or neutral before accepting it.',
+  DRAG_NEEDS_PRICE: 'A drag must be priced before it is accepted. Ask for support to send it back so the analyst can price it.',
+  CUSHION_NEEDS_DRIVER: 'A cushion must say which value driver it confirms. Ask for support so the analyst can add it.',
+  NEUTRAL_NEEDS_RATIONALE: 'Say why this finding does not move value.',
+  RATIONALE_REQUIRED: 'You changed the proposed direction — say why.',
+};

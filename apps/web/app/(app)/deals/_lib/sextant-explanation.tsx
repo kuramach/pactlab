@@ -8,6 +8,7 @@ import { formatMoney } from '../../metrics/_lib/format';
 import { fractionToPercent } from '../../valuation/_lib/form';
 import { BASIS_LABELS, ENTERED_BRIDGE_KINDS, describeGap, type ScenarioView } from '../../valuation/_lib/view';
 import { WaterfallChart } from '../../_lib/charts';
+import { ConfirmedValue } from './confirmed-value';
 import { MultipleContextLine } from './multiple-context';
 import type { DealViewer } from './viewer';
 
@@ -231,6 +232,12 @@ export function SextantExplanation({
               </p>
             ) : null}
           </Step>
+
+          {view.confirmedValue && view.confirmedValue.items.length > 0 ? (
+            <li className="mb-5 ml-14">
+              <ConfirmedValue dealId={dealId} ledger={view.confirmedValue} />
+            </li>
+          ) : null}
 
           <Step number={step + 1} icon={<BadgeCheck />} title="Checked by people">
             <p>

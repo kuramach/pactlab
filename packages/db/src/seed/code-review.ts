@@ -9,6 +9,7 @@ import {
   createDraft,
   detectGhostCommits,
   ghostCommitFinding,
+  healthyOwnershipFinding,
   keyPersonFindings,
   newId,
   type DealId,
@@ -97,7 +98,9 @@ export async function seedCodeReview(
   const commits = await readAllCommits(adapter, scope);
   const source = { evidenceItemId: evidenceItem.id, headCommitSha: head.headSha };
   const ghost = ghostCommitFinding(detectGhostCommits(commits, await adapter.identityMap(scope)), source);
-  const proposals = [...(ghost ? [ghost] : []), ...keyPersonFindings(analyseKeyPersonRisk(commits), source)];
+  const ownership = analyseKeyPersonRisk(commits);
+  const healthy = healthyOwnershipFinding(ownership, source);
+  const proposals = [...(ghost ? [ghost] : []), ...keyPersonFindings(ownership, source), ...(healthy ? [healthy] : [])];
 
   let findingsCreated = 0;
   let findingsExisting = 0;

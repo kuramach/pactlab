@@ -73,6 +73,23 @@ export interface PricedRisk {
   readonly basis: string;
 }
 
+/**
+ * How a finding moves value. A drag (-1) reprices the deal or hardens terms
+ * and must carry a priced risk. A cushion (+1) confirms the thesis: it is
+ * "value confirmed, not price paid" and never raises the price. Neutral (0)
+ * is a recorded decision with a rationale, never the absence of data.
+ * There is deliberately no price-increase adjustment.
+ */
+export const VALUATION_DIRECTIONS = [-1, 0, 1] as const;
+export type ValuationDirection = (typeof VALUATION_DIRECTIONS)[number];
+
+/** What a cushion confirms: the value driver, optionally an implied value range, and why. */
+export interface ValueConfirmation {
+  readonly valueDriver: string;
+  readonly impliedValue: { readonly low: string; readonly high: string; readonly currency: string } | null;
+  readonly basis: string;
+}
+
 export interface Finding {
   readonly id: string;
   readonly organizationId: string;
@@ -88,6 +105,11 @@ export interface Finding {
   readonly fingerprint: string;
   readonly evidence: readonly FindingEvidenceLink[];
   readonly pricedRisk: PricedRisk | null;
+  /** Proposed by the signal, then confirmed or overridden by the accepting reviewer. Null: not yet decided. */
+  readonly direction: ValuationDirection | null;
+  readonly valueConfirmation: ValueConfirmation | null;
+  /** Why a finding is neutral, or why the reviewer changed the proposed direction. */
+  readonly directionRationale: string | null;
   readonly createdBy: FindingActor;
   readonly createdAt: string;
   readonly updatedAt: string;
@@ -108,6 +130,9 @@ export interface FindingReview {
   readonly reviewerUserId: string;
   readonly reviewerRole: DealRole;
   readonly rationale: string;
+  /** The direction decided on acceptance; null for other decisions. */
+  readonly direction: ValuationDirection | null;
+  readonly directionRationale: string | null;
   readonly decidedAt: string;
 }
 
@@ -122,4 +147,8 @@ export interface ProposedFinding {
   readonly fingerprint: string;
   readonly evidence: readonly FindingEvidenceLink[];
   readonly pricedRisk: PricedRisk | null;
+  /** The signal's default direction; a person confirms or overrides it on acceptance. */
+  readonly direction?: ValuationDirection | null;
+  readonly valueConfirmation?: ValueConfirmation | null;
+  readonly directionRationale?: string | null;
 }
