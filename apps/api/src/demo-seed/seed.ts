@@ -6,6 +6,7 @@ import type { TenantContext } from '@pactlab/domain';
 import { BalanceSheetService } from '../balance-sheet/balance-sheet.service';
 import { ComparablesService } from '../comparables/comparables.service';
 import { DocumentsService } from '../documents/documents.service';
+import { EngineeringService } from '../engineering/engineering.service';
 import { FindingsService } from '../findings/findings.service';
 import { PactsService } from '../pacts/pacts.service';
 import { updateAssumptionsSchema } from '../valuation/valuation.schemas';
@@ -176,6 +177,7 @@ export async function seedDemo(
   const pacts = app.get(PactsService, { strict: false });
   const comparablesService = app.get(ComparablesService, { strict: false });
   const balanceSheet = app.get(BalanceSheetService, { strict: false });
+  const engineering = app.get(EngineeringService, { strict: false });
   const report: string[] = [];
 
   for (const holder of DEMO_HOLDERS) {
@@ -257,6 +259,17 @@ export async function seedDemo(
         );
       }
       if (drafts.length > 0) report.push(`${holder.label} · Project Healthy: engineering-continuity cushion accepted`);
+    }
+
+    // --- Engineering: names shown on Healthy (with a recorded basis); Troubled stays pseudonymous ---
+    if (healthyDeal && !(await engineering.overview(who.lead, healthyDeal, REQUEST_ID)).people.decidedAt) {
+      await engineering.setPeopleAccess(
+        who.lead,
+        healthyDeal,
+        { enabled: true, basis: `Seller agreed in the data-room terms; employees notified ${SYNTHETIC}` },
+        REQUEST_ID,
+      );
+      report.push(`${holder.label} · Project Healthy: contributor names shown (basis recorded)`);
     }
 
     // --- Asking prices: what the seller wants, revised once on Troubled ---

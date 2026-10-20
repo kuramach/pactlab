@@ -26,7 +26,7 @@ export type GitHubAuthResolver = (scope: ConnectionScope) => GitHubAuth | null;
 
 interface CommitListItem {
   sha?: string;
-  commit?: { author?: { email?: string | null; date?: string } | null; committer?: { date?: string } | null };
+  commit?: { author?: { name?: string | null; email?: string | null; date?: string } | null; committer?: { date?: string } | null };
   author?: { login?: string } | null;
 }
 
@@ -164,6 +164,8 @@ export class GitHubLiveAdapter implements GitHubAdapter {
       commits.push({
         sha: item.sha,
         authorIdentity: body.commit?.author?.email ?? body.author?.login ?? 'unknown',
+        // Documented `commit.author.name`; kept only in the gated contributor directory.
+        authorName: body.commit?.author?.name ?? body.author?.login ?? null,
         authoredAt: body.commit?.author?.date ?? '',
         committedAt: body.commit?.committer?.date ?? body.commit?.author?.date ?? '',
         additions: body.stats?.additions ?? 0,

@@ -83,9 +83,24 @@ export interface SourceIssue {
   readonly detail: string;
 }
 
+/**
+ * A person seen in a source (commit author, Jira assignee or reporter).
+ * Evidence carries only the pseudonymous `contributorKey`; the raw identity
+ * and name go to the gated contributor directory, never into evidence.
+ */
+export interface ObservedPerson {
+  readonly contributorKey: string;
+  readonly system: 'github' | 'jira';
+  readonly identity: string;
+  readonly displayName: string | null;
+  readonly status: 'CURRENT' | 'DEPARTED' | 'UNKNOWN';
+}
+
 export interface EvidencePull {
   readonly records: readonly NormalizedEvidence[];
   readonly issues: readonly SourceIssue[];
+  /** People behind the records, for the gated contributor directory. */
+  readonly people?: readonly ObservedPerson[];
 }
 
 /**

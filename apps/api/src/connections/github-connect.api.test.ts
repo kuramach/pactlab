@@ -124,14 +124,19 @@ describe('connecting GitHub live through the API', () => {
       headers: { authorization: `Bearer ${lead}`, 'idempotency-key': `sync-${connectionId}` },
       payload: { connectionId },
     });
-    expect(run.json()).toMatchObject({ status: 'SUCCEEDED', recordsCreated: 1 });
+    expect(run.json()).toMatchObject({ status: 'SUCCEEDED' });
+    expect((run.json() as { recordsCreated: number }).recordsCreated).toBeGreaterThanOrEqual(1);
     const evidence = (await db.owner.query(
       `SELECT e.source_record_id, c.locator FROM evidence_items e JOIN citations c ON c.evidence_item_id = e.id WHERE e.connection_id = $1`,
       [connectionId],
     )) as { rows: { source_record_id: string; locator: Body }[] };
-    expect(evidence.rows).toEqual([
-      { source_record_id: `octocat/Hello-World@${HEAD}`, locator: { kind: 'git_commit', repository: 'octocat/Hello-World', commitSha: HEAD } },
-    ]);
+    expect(evidence.rows).toContainEqual({
+      source_record_id: `octocat/Hello-World@${HEAD}`,
+      locator: { kind: 'git_commit', repository: 'octocat/Hello-World', commitSha: HEAD },
+    });
+    // Everything else is contributor activity keyed pseudonymously, never by login or email.
+    const activity = evidence.rows.filter((row) => !row.source_record_id.includes('@'));
+    expect(activity.every((row) => /^octocat\/Hello-World:[0-9a-f]{16}:\d{4}-\d{2}$/.test(row.source_record_id))).toBe(true);
 
     const audits = (await db.owner.query(`SELECT action FROM audit_events WHERE target_id = $1 ORDER BY chain_seq`, [connectionId])) as {
       rows: { action: string }[];

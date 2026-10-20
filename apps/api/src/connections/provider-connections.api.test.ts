@@ -80,7 +80,7 @@ describe('GitHub and Jira connections through the API', () => {
 
     const evidence = await call('GET', '/evidence?limit=100');
     const types = new Set((evidence.body['items'] as { evidenceType: string }[]).map((item) => item.evidenceType));
-    expect(types).toEqual(new Set(['delivery.issue', 'delivery.sprint']));
+    expect(types).toEqual(new Set(['delivery.issue', 'delivery.sprint', 'delivery.contributor_activity']));
     const item = (evidence.body['items'] as { id: string; evidenceType: string }[]).find((entry) => entry.evidenceType === 'delivery.issue')!;
     const lineage = await call('GET', `/evidence/${item.id}/lineage`);
     expect((lineage.body['citations'] as { locator: unknown }[])[0]?.locator).toMatchObject({
@@ -99,7 +99,9 @@ describe('GitHub and Jira connections through the API', () => {
       config: { repository: 'troubledco/core' },
     });
     expect(github.validated).toMatchObject({ provider: 'github', ok: true });
-    expect(github.run).toMatchObject({ status: 'SUCCEEDED', recordsCreated: 1 });
+    expect(github.run).toMatchObject({ status: 'SUCCEEDED' });
+    // The repository head plus contributor activity per person per month.
+    expect(github.run['recordsCreated']).toBeGreaterThan(1);
   });
 
   it('rejects invalid provider config and keeps live adapters inert', async () => {

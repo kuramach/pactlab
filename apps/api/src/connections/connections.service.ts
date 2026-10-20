@@ -211,6 +211,9 @@ export class ConnectionsService {
     });
     if ((command.mode === 'LIVE') !== (command.credentialRef !== undefined))
       throw new ConflictException();
+    // Synthetic repositories and Jira sites are for local and test environments only.
+    if (command.mode === 'FIXTURE' && command.provider !== 'csv' && !this.providers.allowFixtureConnections)
+      throw new ForbiddenException('Synthetic test connections are not available in this environment');
     const row = await withTenant(this.prisma, tenant, async (tx) => {
       const created = await connections.create(tx, {
         organizationId: tenant.organizationId,

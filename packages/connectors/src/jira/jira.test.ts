@@ -9,14 +9,19 @@ async function pull(site: string, projectKeys: string[]) {
 }
 
 describe('Jira fixture connector', () => {
-  it('returns delivery facts only — no people or free text', async () => {
-    const { records } = await pull('healthyco.atlassian.net', ['HC']);
+  it('keeps names and account ids out of evidence; people go only to the gated directory', async () => {
+    const { records, people } = await pull('healthyco.atlassian.net', ['HC']);
     expect(records.length).toBeGreaterThan(0);
     for (const record of records) {
-      expect(Object.keys(record.canonical)).not.toEqual(expect.arrayContaining(['assignee']));
-      expect(JSON.stringify(record)).not.toMatch(/assignee|reporter|summary|description|comment/i);
+      expect(Object.keys(record.canonical)).not.toEqual(expect.arrayContaining(['assignee', 'reporter']));
+      expect(JSON.stringify(record)).not.toMatch(/summary|description|\(synthetic\)|hc-dev-|hc-lead-|hc-pm-/i);
       expect(record.locator).toMatchObject({ kind: 'provider_record', system: 'jira', site: 'healthyco.atlassian.net' });
     }
+    const activity = records.filter((record) => record.evidenceType === 'delivery.contributor_activity');
+    expect(activity.length).toBeGreaterThan(0);
+    expect(activity.every((record) => /^[0-9a-f]{16}$/.test(record.canonical['contributorKey'] ?? ''))).toBe(true);
+    expect(people?.map((person) => person.identity).sort()).toEqual(['hc-dev-01', 'hc-dev-02', 'hc-dev-03', 'hc-dev-04', 'hc-dev-05', 'hc-dev-06', 'hc-lead-01', 'hc-pm-01']);
+    expect(people?.find((person) => person.identity === 'hc-lead-01')?.displayName).toBe('Grace Okafor (synthetic)');
   });
 
   it('TroubledCo shows falling completion, a growing bug backlog and stale highest-priority defects', async () => {

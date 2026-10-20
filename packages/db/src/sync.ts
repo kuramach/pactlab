@@ -2,6 +2,7 @@ import { canonicalJson, type EvidenceSource, type NormalizedEvidence } from '@pa
 import { appendAuditEvent, enqueueOutboxEvent } from './audit';
 import type { PrismaClient, TransactionClient } from './client';
 import { sha256Hex } from './hash';
+import { contributorDirectory } from './people';
 import { resolveJobContext, withTenant } from './tenant';
 
 export const SYNC_RUN_JOB_TYPE = 'evidence.sync_run';
@@ -167,6 +168,17 @@ export async function executeSyncRun(
         if ((await ingestRecord(tx, run, run.connection.evidenceVisibility, record)) === 'CREATED')
           created += 1;
         else unchanged += 1;
+      }
+      // People behind the records go to the gated directory — only when a
+      // buyer-side member runs the sync (target contributors cannot see it).
+      if (pull.people?.length) {
+        const requester = await tx.dealMembership.findFirst({
+          where: { dealId: run.dealId, userId: job.requestedBy, status: 'ACTIVE' },
+          select: { role: true },
+        });
+        if (requester && requester.role !== 'TARGET_CONTRIBUTOR') {
+          await contributorDirectory.upsert(tx, { organizationId: run.organizationId, dealId: run.dealId }, pull.people);
+        }
       }
       const counts = {
         recordsSeen: pull.records.length,

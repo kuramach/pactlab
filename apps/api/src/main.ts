@@ -34,6 +34,9 @@ const ai = await createAiGateway(config);
 // Provider credentials: an encrypted local store until Secrets Manager (T-007);
 // elsewhere live connections that need a stored token fail closed.
 const providers = {
+  allowFixtureConnections: config.ALLOW_FIXTURE_CONNECTIONS
+    ? config.ALLOW_FIXTURE_CONNECTIONS === 'true'
+    : ['local', 'test', 'dev', 'qa'].includes(config.APP_ENV),
   ...(config.APP_ENV === 'local' && config.LOCAL_SECRETS_DIR && config.LOCAL_SECRETS_KEY
     ? { secrets: new LocalEncryptedSecretStore(config.LOCAL_SECRETS_DIR, config.LOCAL_SECRETS_KEY) }
     : {}),

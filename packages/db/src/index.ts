@@ -10,6 +10,7 @@ export * from './hash';
 export * from './login';
 export * from './memberships';
 export * from './pacts';
+export * from './people';
 export * from './repositories';
 export * from './signup';
 export * from './sync';

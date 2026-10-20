@@ -7,6 +7,8 @@ import type { FindingSeverity, ProposedFinding } from './types';
 export interface CommitMetadata {
   readonly sha: string;
   readonly authorIdentity: string;
+  /** The author's display name when the provider gives one; stored only in the gated directory. */
+  readonly authorName?: string | null;
   readonly authoredAt: string;
   readonly committedAt: string;
   readonly additions: number;

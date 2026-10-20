@@ -71,13 +71,19 @@ describe('GitHub live adapter (recorded cassette)', () => {
   it('produces head evidence citing the exact commit', async () => {
     const { live } = await adapter();
     const pull = await createGitHubEvidenceSource(live, scope()).pull();
-    expect(pull.records).toEqual([
+    expect(pull.records[0]).toEqual(
       expect.objectContaining({
         evidenceType: 'code.repository_head',
         sourceRecordId: `octocat/Hello-World@${HEAD}`,
         locator: { kind: 'git_commit', repository: 'octocat/Hello-World', commitSha: HEAD },
       }),
-    ]);
+    );
+    // Contributor activity from the recorded commits: pseudonymous keys only, never an email or login.
+    const activity = pull.records.slice(1);
+    expect(activity.length).toBeGreaterThan(0);
+    expect(activity.every((record) => record.evidenceType === 'code.contributor_activity')).toBe(true);
+    expect(JSON.stringify(activity)).not.toMatch(/@[a-z0-9.-]+\.[a-z]{2,}|octocat"/i);
+    expect(pull.people?.every((person) => person.system === 'github' && /^[0-9a-f]{16}$/.test(person.contributorKey))).toBe(true);
   });
 
   it('maps documented error responses without exposing payloads', async () => {
