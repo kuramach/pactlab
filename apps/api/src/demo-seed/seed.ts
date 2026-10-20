@@ -234,6 +234,31 @@ export async function seedDemo(
       report.push(`${holder.label} · Project Troubled: ${fresh.length > 0 ? `${Math.min(fresh.length, 2)} findings priced and reviewed` : 'findings already reviewed'}`);
     }
 
+    // --- Healthy: the engineering-continuity cushion, confirmed by a second person (value confirmed, not price paid) ---
+    const healthyDeal = dealId('Project Healthy');
+    if (healthyDeal) {
+      const drafts = (await findingsService.list(who.lead, healthyDeal, { status: 'DRAFT' }, REQUEST_ID)).items.filter(
+        (finding) => finding.direction === 1 && finding.valueConfirmation,
+      );
+      for (const finding of drafts) {
+        const submitted = await findingsService.review(
+          who.lead,
+          healthyDeal,
+          finding.id,
+          { expectedVersion: finding.version, decision: 'SUBMITTED', rationale: `Ownership aggregates checked ${SYNTHETIC}` },
+          REQUEST_ID,
+        );
+        await findingsService.review(
+          who.reviewer,
+          healthyDeal,
+          finding.id,
+          { expectedVersion: submitted.finding.version, decision: 'ACCEPTED', rationale: `Continuity confirmed; supports the thesis, not the price ${SYNTHETIC}` },
+          REQUEST_ID,
+        );
+      }
+      if (drafts.length > 0) report.push(`${holder.label} · Project Healthy: engineering-continuity cushion accepted`);
+    }
+
     // --- Asking prices: what the seller wants, revised once on Troubled ---
     const askings: [DealName, AskingPriceInput[]][] = [
       ['Project Healthy', [{ amount: '2800000', currency: 'USD', basis: 'ENTERPRISE_VALUE', source: 'TEASER', quotedOn: '2026-08-20', earnOutAmount: null, note: `Cash-free, debt-free ${SYNTHETIC}` }]],

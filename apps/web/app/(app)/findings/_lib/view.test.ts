@@ -41,3 +41,17 @@ describe('findings view helpers', () => {
     ]);
   });
 });
+
+describe('valuation direction labels', () => {
+  it('names each direction and explains every refusal code', async () => {
+    const { DIRECTION_LABELS, RULE_MESSAGES, directionText, directionVariant } = await import('./view');
+    expect(directionText(null)).toBe('direction not decided');
+    expect(directionText(-1)).toBe('drag');
+    expect(directionText(1)).toBe('cushion');
+    expect(directionVariant(-1)).toBe('danger');
+    expect(DIRECTION_LABELS['1']?.help).toContain('not price paid');
+    for (const code of ['DIRECTION_REQUIRED', 'DRAG_NEEDS_PRICE', 'CUSHION_NEEDS_DRIVER', 'NEUTRAL_NEEDS_RATIONALE', 'RATIONALE_REQUIRED']) {
+      expect(RULE_MESSAGES[code]?.length ?? 0).toBeGreaterThan(20);
+    }
+  });
+});

@@ -47,7 +47,8 @@ function translate(error: unknown): never {
     if (error.code === 'FORBIDDEN' || error.code === 'HUMAN_REQUIRED')
       throw new ForbiddenException();
     if (error.code === 'INVALID_TRANSITION') throw new ConflictException();
-    throw new UnprocessableEntityException();
+    // Business-rule refusals name the rule, e.g. DRAG_NEEDS_PRICE, so the UI can say what to do next.
+    throw new UnprocessableEntityException({ code: error.code });
   }
   throw error;
 }
@@ -246,10 +247,17 @@ export class FindingsService {
     if (decision === 'ACCEPTED') await this.requireResolvable(tenant, dealId, current.evidence);
     let result: ReturnType<typeof decide>;
     try {
-      result = decide(current, decision, body.rationale, this.human(tenant, role), {
-        reviewId: newId(),
-        now: new Date().toISOString(),
-      });
+      result = decide(
+        current,
+        decision,
+        body.rationale,
+        this.human(tenant, role),
+        { reviewId: newId(), now: new Date().toISOString() },
+        {
+          ...(body.direction !== undefined ? { direction: body.direction } : {}),
+          ...(body.directionRationale !== undefined ? { directionRationale: body.directionRationale } : {}),
+        },
+      );
     } catch (error) {
       translate(error);
     }

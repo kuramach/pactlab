@@ -160,6 +160,18 @@ describe('synthetic decision-loop seed', () => {
     expect(runs.at(-1)!['engine']).toBe('valuation-2');
   });
 
+  it('proposes directions: drags on Troubled, an accepted engineering-continuity cushion on Healthy', async () => {
+    const rows2 = await rows(
+      `SELECT d.name, f.title, f.status, f.direction, f.value_driver FROM findings f JOIN deals d ON d.id = f.deal_id
+        WHERE f.organization_id = $1 ORDER BY d.name, f.title`,
+      [CHARLIE],
+    );
+    expect(rows2.filter((row) => row['name'] === 'Project Troubled').every((row) => row['direction'] === -1)).toBe(true);
+    expect(rows2.filter((row) => row['name'] === 'Project Healthy')).toEqual([
+      { name: 'Project Healthy', title: 'Ownership spread across the engineering team', status: 'ACCEPTED', direction: 1, value_driver: 'Engineering continuity' },
+    ]);
+  });
+
   it('changes nothing when run again', async () => {
     const count = async () =>
       rows(

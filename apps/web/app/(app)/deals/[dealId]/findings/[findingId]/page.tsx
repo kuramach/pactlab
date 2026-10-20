@@ -2,20 +2,34 @@ import { PRICED_RISK_TYPES, type Finding, type FindingReview } from '@pactlab/do
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from '@pactlab/ui';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { DOMAIN_LABELS, formatPricedRisk, PRICED_RISK_LABELS, statusVariant } from '../../../../findings/_lib/view';
+import {
+  DIRECTION_LABELS,
+  directionText,
+  directionVariant,
+  DOMAIN_LABELS,
+  formatPricedRisk,
+  PRICED_RISK_LABELS,
+  RULE_MESSAGES,
+  statusVariant,
+} from '../../../../findings/_lib/view';
 import { apiGet } from '../../../_lib/api';
 import { isUuidParam } from '../../../_lib/filters';
 import { OutcomeBanner } from '../../../_lib/outcome';
 import { ApiState } from '../../../_lib/states';
 import { can, dealViewer } from '../../../_lib/viewer';
-import { decideFinding, priceFinding } from '../actions';
+import { decideFinding, priceFinding, setFindingDirection } from '../actions';
 
 // Per-user data: never prerender.
 export const dynamic = 'force-dynamic';
 
 const OUTCOMES: Record<string, string> = {
   'ok-submitted': 'Submitted for review.',
-  'ok-accepted': 'Finding accepted. Its priced risk can now adjust valuation scenarios.',
+  'ok-accepted': 'Finding accepted with its direction. A drag can now adjust valuation scenarios; a cushion appears as value confirmed.',
+  'ok-direction': 'Direction saved.',
+  direction: 'The direction could not be saved. A cushion needs a value driver and basis; amounts must be numbers with low not above high.',
+  'direction-cushion': 'Say which value driver this cushion confirms, and the basis for it.',
+  'direction-neutral': 'Say why this finding does not move value.',
+  ...Object.fromEntries(Object.entries(RULE_MESSAGES).map(([code, message]) => [`rule-${code}`, message])),
   'ok-rejected': 'Finding rejected.',
   'ok-support_requested': 'Sent back to draft with a request for more support.',
   'ok-priced': 'Priced risk saved.',
@@ -54,6 +68,8 @@ export default async function FindingPage({
   const { finding, reviews } = result.data;
   const decide = decideFinding.bind(null, dealId, findingId);
   const price = priceFinding.bind(null, dealId, findingId);
+  const setDirection = setFindingDirection.bind(null, dealId, findingId);
+  const confirmation = finding.valueConfirmation;
   const canDraft = can.draft(viewer.role);
   const canReview = can.review(viewer.role);
 
@@ -71,6 +87,10 @@ export default async function FindingPage({
             {finding.severity.toLowerCase()} severity
           </Badge>
           <Badge variant="draft">{finding.origin.toLowerCase()} draft</Badge>
+          <Badge variant={directionVariant(finding.direction)} title={finding.direction === null ? undefined : DIRECTION_LABELS[String(finding.direction)]?.help}>
+            {finding.status === 'ACCEPTED' ? '' : 'proposed '}
+            {directionText(finding.direction)}
+          </Badge>
         </div>
         <h2 className="text-xl font-semibold tracking-tight">{finding.title}</h2>
         <p className="max-w-3xl text-sm leading-relaxed text-muted-foreground">{finding.description}</p>
@@ -121,6 +141,12 @@ export default async function FindingPage({
                       </span>
                       <span className="text-muted-foreground">{when.format(new Date(review.decidedAt))} UTC</span>
                       <span>“{review.rationale}”</span>
+                      {review.direction !== null ? (
+                        <span className="text-muted-foreground">
+                          Decided as {directionText(review.direction)}
+                          {review.directionRationale ? ` — “${review.directionRationale}”` : ''}
+                        </span>
+                      ) : null}
                     </li>
                   ))}
                 </ol>
@@ -130,6 +156,58 @@ export default async function FindingPage({
         </div>
 
         <div className="flex flex-col gap-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Valuation direction</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-3 text-sm">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant={directionVariant(finding.direction)}>{directionText(finding.direction)}</Badge>
+                {finding.direction !== null ? <span className="text-muted-foreground">{DIRECTION_LABELS[String(finding.direction)]?.help}</span> : null}
+              </div>
+              {confirmation ? (
+                <p>
+                  Confirms <b>{confirmation.valueDriver}</b>
+                  {confirmation.impliedValue
+                    ? ` · implied ${confirmation.impliedValue.currency} ${confirmation.impliedValue.low}–${confirmation.impliedValue.high}`
+                    : ' · no implied value'}{' '}
+                  — {confirmation.basis}
+                </p>
+              ) : null}
+              {finding.directionRationale ? <p className="text-muted-foreground">Why: “{finding.directionRationale}”</p> : null}
+              {finding.status === 'DRAFT' && canDraft ? (
+                <form action={setDirection} className="flex flex-col gap-3 border-t border-border pt-4">
+                  <input type="hidden" name="expectedVersion" value={finding.version} />
+                  <fieldset className="flex flex-wrap gap-2">
+                    <legend className="sr-only">Direction</legend>
+                    {(['-1', '1', '0'] as const).map((value) => (
+                      <label key={value} className="flex cursor-pointer items-center gap-2 rounded-lg border border-border px-3 py-1.5 has-[:checked]:border-indigo has-[:checked]:bg-secondary">
+                        <input type="radio" name="direction" value={value} required defaultChecked={String(finding.direction) === value} />
+                        {DIRECTION_LABELS[value]?.label}
+                      </label>
+                    ))}
+                  </fieldset>
+                  <p className="text-xs text-muted-foreground">
+                    Drag: price it in “Priced risk”. Cushion: say what it confirms (any price is removed). Neutral: say why (any price is removed).
+                  </p>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <input name="valueDriver" defaultValue={confirmation?.valueDriver ?? ''} placeholder="Cushion: value driver, e.g. ARR quality" className={inputClass} />
+                    <input name="valueBasis" defaultValue={confirmation?.basis ?? ''} placeholder="Cushion: basis" className={inputClass} />
+                    <input name="valueLow" inputMode="decimal" defaultValue={confirmation?.impliedValue?.low ?? ''} placeholder="Implied value low (optional)" className={inputClass} />
+                    <input name="valueHigh" inputMode="decimal" defaultValue={confirmation?.impliedValue?.high ?? ''} placeholder="Implied value high (optional)" className={inputClass} />
+                    <input name="valueCurrency" defaultValue={confirmation?.impliedValue?.currency ?? 'USD'} maxLength={3} className={`${inputClass} uppercase`} />
+                  </div>
+                  <textarea name="directionRationale" rows={2} defaultValue={finding.directionRationale ?? ''} placeholder="Neutral: why it moves no value" className={inputClass} />
+                  <div>
+                    <Button type="submit" size="sm" variant="outline">
+                      Save direction
+                    </Button>
+                  </div>
+                </form>
+              ) : null}
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Priced risk</CardTitle>
@@ -213,6 +291,28 @@ export default async function FindingPage({
                   <input type="hidden" name="expectedVersion" value={finding.version} />
                   <p className="text-muted-foreground">Your decision is recorded with your name and rationale.</p>
                   <textarea name="rationale" rows={3} required placeholder="Why you decided this way" className={inputClass} />
+                  <div className="flex flex-col gap-2 rounded-lg border border-border p-3">
+                    <label className="flex flex-col gap-1 font-medium">
+                      Accept as
+                      <select name="direction" defaultValue="" className={inputClass}>
+                        <option value="">
+                          {finding.direction === null ? 'Choose a direction…' : `Proposed: ${directionText(finding.direction)} (confirm)`}
+                        </option>
+                        {(['-1', '1', '0'] as const)
+                          .filter((value) => value !== String(finding.direction))
+                          .map((value) => (
+                            <option key={value} value={value}>
+                              {finding.direction === null ? '' : 'Override to '}
+                              {DIRECTION_LABELS[value]?.label.toLowerCase()}
+                            </option>
+                          ))}
+                      </select>
+                    </label>
+                    <input name="directionRationale" placeholder="Why, if you change it or choose neutral" className={inputClass} />
+                    <span className="text-xs text-muted-foreground">
+                      A drag must already be priced; a cushion must already say what it confirms. Otherwise, ask for support.
+                    </span>
+                  </div>
                   <div className="flex flex-wrap gap-2">
                     <Button type="submit" name="decision" value="ACCEPTED" size="sm">
                       Accept

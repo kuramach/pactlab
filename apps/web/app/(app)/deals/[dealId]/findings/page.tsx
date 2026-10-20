@@ -24,6 +24,8 @@ import {
   parseFindingFilters,
   PRICED_RISK_LABELS,
   statusVariant,
+  directionText,
+  directionVariant,
 } from '../../../findings/_lib/view';
 
 /**
@@ -222,7 +224,8 @@ export default async function FindingsPage({
                           <td className="px-4 py-2">
                             <Badge variant={statusVariant(finding.status)}>
                               {finding.status.replace('_', ' ').toLowerCase()}
-                            </Badge>
+                            </Badge>{' '}
+                            <Badge variant={directionVariant(finding.direction)}>{directionText(finding.direction)}</Badge>
                           </td>
                           <td className="px-4 py-2">
                             {finding.evidence.length === 0 ? (

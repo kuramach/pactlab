@@ -811,6 +811,16 @@ model Finding {
   pricedRiskLow      Decimal?          @map("priced_risk_low") @db.Decimal(19, 4)
   pricedRiskHigh     Decimal?          @map("priced_risk_high") @db.Decimal(19, 4)
   pricedRiskBasis    String?           @map("priced_risk_basis")
+  /// Valuation direction: -1 drag, 0 neutral, 1 cushion; null until decided.
+  direction          Int?              @db.SmallInt
+  /// What a cushion confirms ("value confirmed, not price paid").
+  valueDriver        String?           @map("value_driver")
+  valueBasis         String?           @map("value_basis")
+  valueLow           Decimal?          @map("value_low") @db.Decimal(19, 4)
+  valueHigh          Decimal?          @map("value_high") @db.Decimal(19, 4)
+  valueCurrency      String?           @map("value_currency") @db.Char(3)
+  /// Why a finding is neutral, or why a reviewer changed its proposed direction.
+  directionRationale String?           @map("direction_rationale")
   /// The FindingActor that drafted it (HUMAN, AI or SYSTEM).
   createdBy          Json              @map("created_by")
   /// Finding version whose evidence link set is current.
@@ -873,6 +883,9 @@ model FindingReview {
   reviewerUserId String         @map("reviewer_user_id") @db.Uuid
   reviewerRole   DealRole       @map("reviewer_role")
   rationale      String
+  /// Direction decided on acceptance; null for other decisions.
+  direction          Int?     @db.SmallInt
+  directionRationale String?  @map("direction_rationale")
   decidedAt      DateTime       @map("decided_at") @db.Timestamptz(3)
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)

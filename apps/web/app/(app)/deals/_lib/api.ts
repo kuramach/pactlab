@@ -61,7 +61,8 @@ export async function apiGet<T>(path: string): Promise<ApiResult<T>> {
   return { kind: 'error', ...(problem.requestId ? { requestId: problem.requestId } : {}) };
 }
 
-export type SendResult<T> = ApiResult<T> | { kind: 'conflict' } | { kind: 'invalid' } | { kind: 'unavailable' };
+/** `invalid` may name the business rule the API refused on (a 422 `code`, e.g. DRAG_NEEDS_PRICE). */
+export type SendResult<T> = ApiResult<T> | { kind: 'conflict' } | { kind: 'invalid'; code?: string } | { kind: 'unavailable' };
 
 /** Server-side write; the browser never holds the token or calls the API directly. */
 export async function apiSend<T>(
@@ -84,7 +85,11 @@ export async function apiSend<T>(
     return { kind: 'error' };
   }
   if (response.ok) return { kind: 'ok', data: (await response.json()) as T };
-  if (response.status === 400 || response.status === 422) return { kind: 'invalid' };
+  if (response.status === 422) {
+    const code = ((await response.json().catch(() => null)) as { code?: unknown } | null)?.code;
+    return typeof code === 'string' && /^[A-Z][A-Z_]{2,40}$/.test(code) ? { kind: 'invalid', code } : { kind: 'invalid' };
+  }
+  if (response.status === 400) return { kind: 'invalid' };
   if (response.status === 401) return { kind: 'signed-out' };
   if (response.status === 403) return { kind: 'forbidden' };
   if (response.status === 404) return { kind: 'not-found' };

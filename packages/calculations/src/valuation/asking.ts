@@ -36,6 +36,11 @@ export type AskingComparison =
       readonly beforeRisks: AskingSide;
       /** After the accepted findings linked to the scenario. */
       readonly afterRisks: AskingSide;
+      /**
+       * The drag ledger: these terms are what the buyer puts to the seller,
+       * so they are labelled seller-facing. Cushions never appear here.
+       */
+      readonly termsVisibility: 'SELLER_FACING_TERMS';
       /** Accepted-finding price reductions: they separate "before" from "after". */
       readonly riskAdjustments: readonly { readonly findingId: string; readonly label: string; readonly amount: MoneyValue }[];
       /** Escrows and other holdbacks: they keep the price but hold back cash at close. */
@@ -84,7 +89,58 @@ export function compareToAsking(result: ValuationResult, input: AskingPriceInput
     asking: asking.toJSON(),
     beforeRisks: side(before, asking),
     afterRisks: side(after, asking),
+    termsVisibility: 'SELLER_FACING_TERMS',
     riskAdjustments: findingLines.map(entry),
     holdbacks: result.bridge.lines.filter((line) => line.kind === 'HOLDBACK' && line.findingId !== null).map(entry),
+  };
+}
+
+/** An accepted cushion (+1 finding): what it confirms, and the value it implies, if any. */
+export interface ConfirmedValueInput {
+  readonly findingId: string;
+  readonly label: string;
+  readonly valueDriver: string;
+  readonly impliedValue: { readonly low: string; readonly high: string; readonly currency: string } | null;
+}
+
+export interface ConfirmedValueLedger {
+  /**
+   * Buyer-only: confirmed value supports the buyer's conviction and walk-away
+   * price (IC memo); it is never volunteered to the seller and never appears
+   * in seller-facing terms or exports.
+   */
+  readonly visibility: 'BUYER_ONLY';
+  readonly items: readonly ConfirmedValueInput[];
+  /** Implied value per currency, summed low and high. Value confirmed — not price paid. */
+  readonly totals: readonly { readonly currency: string; readonly low: MoneyValue; readonly high: MoneyValue }[];
+  /** Cushions that confirm a driver without implying a value. */
+  readonly unquantified: number;
+}
+
+/**
+ * The confirmed-value ledger: accepted cushions, reported beside the asking
+ * price comparison. Report-only by construction — it takes no valuation
+ * result and returns nothing the bridge, enterprise value, equity price or
+ * cash at close can use. Clean diligence confirms the thesis; it never
+ * raises the price.
+ */
+export function confirmedValueLedger(items: readonly ConfirmedValueInput[]): ConfirmedValueLedger {
+  const totals = new Map<string, { low: Money; high: Money }>();
+  for (const item of items) {
+    if (!item.impliedValue) continue;
+    const { currency } = item.impliedValue;
+    const current = totals.get(currency) ?? { low: Money.zero(currency), high: Money.zero(currency) };
+    totals.set(currency, {
+      low: current.low.add(Money.of(item.impliedValue.low, currency)),
+      high: current.high.add(Money.of(item.impliedValue.high, currency)),
+    });
+  }
+  return {
+    visibility: 'BUYER_ONLY',
+    items: [...items].sort((a, b) => a.label.localeCompare(b.label) || a.findingId.localeCompare(b.findingId)),
+    totals: [...totals.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([currency, sums]) => ({ currency, low: sums.low.toJSON(), high: sums.high.toJSON() })),
+    unquantified: items.filter((item) => !item.impliedValue).length,
   };
 }

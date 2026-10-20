@@ -10,6 +10,7 @@ import type { AnchorsView, BalanceSheetItemView, BalanceSheetView, BenchmarkView
 import { BALANCE_SHEET_OUTCOMES, BalanceSheetCard } from './balance-sheet-card';
 import { citationHref } from '../../../documents/_lib/view';
 import { ApiState } from '../../_lib/states';
+import { ConfirmedValue } from '../../_lib/confirmed-value';
 import { can, dealViewer, type DealViewer } from '../../_lib/viewer';
 import { decideSubmission, recordAskingPrice, runScenario, submitScenario } from './actions';
 import { formatDecimal, formatMoney, formatRatio } from '../../../metrics/_lib/format';
@@ -380,6 +381,7 @@ function ScenarioCard({
         </div>
 
         <AskingRow dealId={dealId} comparison={view.askingComparison} />
+        <ConfirmedValue dealId={dealId} ledger={view.confirmedValue} />
         {benchmark ? (
           <div className="rounded-lg bg-mist px-3 py-2">
             <MultipleContextLine benchmark={benchmark} />

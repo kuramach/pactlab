@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { compareToAsking, runValuation, type LinkedAdjustment, type ValuationInputs } from '.';
+import { compareToAsking, confirmedValueLedger, runValuation, type LinkedAdjustment, type ValuationInputs } from '.';
 
 const PRICE = '0190f000-0000-7000-8000-00000000000b';
 const ESCROW = '0190f000-0000-7000-8000-00000000000a';
@@ -61,5 +61,26 @@ describe('compareToAsking', () => {
 
   it('rejects floating-point amounts', () => {
     expect(() => compareToAsking(result(), { amount: 7e7 as unknown as string, currency: 'USD', basis: 'ENTERPRISE_VALUE' })).toThrow(/decimal strings/);
+  });
+});
+
+describe('confirmedValueLedger', () => {
+  it('reports accepted cushions as value confirmed, never price paid', () => {
+    const before = result();
+    const ledger = confirmedValueLedger([
+      { findingId: 'f2', label: 'Engineering continuity', valueDriver: 'Engineering continuity', impliedValue: null },
+      { findingId: 'f1', label: 'ARR above the CIM', valueDriver: 'ARR quality', impliedValue: { low: '100000', high: '250000.5', currency: 'USD' } },
+      { findingId: 'f3', label: 'Renewal terms', valueDriver: 'Revenue durability', impliedValue: { low: '50000', high: '50000', currency: 'USD' } },
+    ]);
+    expect(ledger).toMatchObject({
+      visibility: 'BUYER_ONLY',
+      totals: [{ currency: 'USD', low: { amount: '150000.00', currency: 'USD' }, high: { amount: '300000.50', currency: 'USD' } }],
+      unquantified: 1,
+    });
+    expect(ledger.items.map((item) => item.findingId)).toEqual(['f1', 'f2', 'f3']);
+    // Nothing in the bridge or the asking comparison changes.
+    expect(result()).toEqual(before);
+    const comparison = compareToAsking(before, { amount: '70000000', currency: 'USD', basis: 'ENTERPRISE_VALUE' });
+    expect(comparison).toMatchObject({ termsVisibility: 'SELLER_FACING_TERMS' });
   });
 });

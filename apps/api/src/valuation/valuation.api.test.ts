@@ -129,6 +129,7 @@ describe('valuation API', () => {
         },
       ],
       pricedRisk,
+      direction: -1,
     });
     const id = created.body['id'] as string;
     await findings('analyst', `/${id}/reviews`, {
@@ -257,6 +258,8 @@ describe('valuation API', () => {
       assumptionVersion: 1,
     });
     expect(view(created).stale).toBeNull();
+    // Accepted cushions are reported beside the price, buyer-only, never in it.
+    expect(created.body['confirmedValue']).toEqual({ visibility: 'BUYER_ONLY', items: [], totals: [], unquantified: 0 });
 
     const ran = await as('analyst', 'POST', `/${scenario.id}/runs`, { expectedVersion: 1 });
     expect(ran.status).toBe(201);

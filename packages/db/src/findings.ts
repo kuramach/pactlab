@@ -5,6 +5,8 @@ import type {
   FindingReview,
   FindingStatus,
   PricedRisk,
+  ValuationDirection,
+  ValueConfirmation,
 } from '@pactlab/domain';
 import type { Prisma, TransactionClient } from './client';
 
@@ -47,6 +49,20 @@ function toPricedRisk(row: FindingRow): PricedRisk | null {
   };
 }
 
+function toValueConfirmation(row: FindingRow): ValueConfirmation | null {
+  if (row.valueDriver === null) return null;
+  return {
+    valueDriver: row.valueDriver,
+    basis: row.valueBasis ?? '',
+    impliedValue:
+      row.valueLow !== null && row.valueHigh !== null && row.valueCurrency !== null
+        ? { low: row.valueLow.toFixed(), high: row.valueHigh.toFixed(), currency: row.valueCurrency }
+        : null,
+  };
+}
+
+const toDirection = (value: number | null): ValuationDirection | null => (value === -1 || value === 0 || value === 1 ? value : null);
+
 function toFinding(row: FindingRow): Finding {
   return {
     id: row.id,
@@ -64,6 +80,9 @@ function toFinding(row: FindingRow): Finding {
       .filter((link) => link.findingVersion === row.evidenceVersion)
       .map(toLink),
     pricedRisk: toPricedRisk(row),
+    direction: toDirection(row.direction),
+    valueConfirmation: toValueConfirmation(row),
+    directionRationale: row.directionRationale,
     createdBy: row.createdBy as unknown as FindingActor,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
@@ -81,7 +100,22 @@ function toReview(row: ReviewRow): FindingReview {
     reviewerUserId: row.reviewerUserId,
     reviewerRole: row.reviewerRole,
     rationale: row.rationale,
+    direction: toDirection(row.direction),
+    directionRationale: row.directionRationale,
     decidedAt: row.decidedAt.toISOString(),
+  };
+}
+
+function directionColumns(finding: Pick<Finding, 'direction' | 'valueConfirmation' | 'directionRationale'>) {
+  const confirmation = finding.valueConfirmation;
+  return {
+    direction: finding.direction,
+    valueDriver: confirmation?.valueDriver ?? null,
+    valueBasis: confirmation?.basis ?? null,
+    valueLow: confirmation?.impliedValue?.low ?? null,
+    valueHigh: confirmation?.impliedValue?.high ?? null,
+    valueCurrency: confirmation?.impliedValue?.currency ?? null,
+    directionRationale: finding.directionRationale,
   };
 }
 
@@ -175,6 +209,7 @@ export const findings = {
         origin: finding.origin,
         fingerprint: finding.fingerprint,
         ...pricedRiskColumns(finding.pricedRisk),
+        ...directionColumns(finding),
         createdBy: finding.createdBy as unknown as Prisma.InputJsonValue,
         evidenceVersion: finding.version,
         version: finding.version,
@@ -214,6 +249,7 @@ export const findings = {
         confidence: finding.confidence,
         status: finding.status,
         ...pricedRiskColumns(finding.pricedRisk),
+        ...directionColumns(finding),
         ...(evidenceChanged ? { evidenceVersion: finding.version } : {}),
         version: finding.version,
         updatedAt: new Date(finding.updatedAt),
@@ -237,6 +273,8 @@ export const findings = {
           reviewerUserId: review.reviewerUserId,
           reviewerRole: review.reviewerRole,
           rationale: review.rationale,
+          direction: review.direction,
+          directionRationale: review.directionRationale,
           decidedAt: new Date(review.decidedAt),
         },
       });

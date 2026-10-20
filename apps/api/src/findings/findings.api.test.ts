@@ -195,10 +195,20 @@ describe('findings API', () => {
       ).status,
     ).toBe(409);
 
+    // No direction proposed or chosen: the reviewer must decide drag, cushion or neutral.
+    const undecided = await as('reviewer', 'POST', `/${id}/reviews`, {
+      expectedVersion: 2,
+      decision: 'ACCEPTED',
+      rationale: 'Confirmed at the scanned commit',
+    });
+    expect(undecided.status).toBe(422);
+    expect(undecided.body['code']).toBe('DIRECTION_REQUIRED');
+
     const accepted = await as('reviewer', 'POST', `/${id}/reviews`, {
       expectedVersion: 2,
       decision: 'ACCEPTED',
       rationale: 'Confirmed at the scanned commit',
+      direction: -1,
     });
     expect(accepted.status).toBe(201);
 
@@ -206,6 +216,8 @@ describe('findings API', () => {
     expect(detail.status).toBe(200);
     const finding = detail.body['finding'] as Finding;
     expect(finding.status).toBe('ACCEPTED');
+    expect(finding.direction).toBe(-1);
+    expect((detail.body['reviews'] as { decision: string; direction: number | null }[]).find((r) => r.decision === 'ACCEPTED')?.direction).toBe(-1);
     expect(finding.evidence[0]).toMatchObject({
       commitSha: headSha,
       toolVersion: '1.0.0-fixture',
@@ -260,6 +272,45 @@ describe('findings API', () => {
       [users['analyst']!.userId],
     )) as { rows: { n: number }[] };
     expect(denied.rows[0]?.n).toBe(1);
+  });
+
+  it('drags must be priced, cushions must say what they confirm, and overrides need a reason', async () => {
+    const submit = async (body: Body) => {
+      const created = await as('analyst', 'POST', '', draftBody(body));
+      expect(created.status).toBe(201);
+      const id = created.body['id'] as string;
+      await as('analyst', 'POST', `/${id}/reviews`, { expectedVersion: 1, decision: 'SUBMITTED', rationale: 'Ready' });
+      return id;
+    };
+    const accept = (id: string, extra: Body = {}) =>
+      as('reviewer', 'POST', `/${id}/reviews`, { expectedVersion: 2, decision: 'ACCEPTED', rationale: 'Checked', ...extra });
+
+    // A proposed drag without a price cannot be accepted; the API names the rule.
+    const unpriced = await submit({ title: 'Unpriced drag', pricedRisk: null, direction: -1 });
+    const refused = await accept(unpriced);
+    expect(refused.status).toBe(422);
+    expect(refused.body['code']).toBe('DRAG_NEEDS_PRICE');
+    // Overriding the proposal needs a reason; with one, the reviewer may record it as neutral.
+    expect((await accept(unpriced, { direction: 0 })).body['code']).toBe('RATIONALE_REQUIRED');
+    expect((await accept(unpriced, { direction: 0, directionRationale: 'Already remediated upstream' })).status).toBe(201);
+
+    // A cushion carries what it confirms and no price.
+    expect((await as('analyst', 'POST', '', draftBody({ direction: 1 }))).status).toBe(400);
+    const cushion = await submit({
+      title: 'Clean licence posture',
+      domain: 'OSS_LICENSE',
+      severity: 'INFO',
+      pricedRisk: null,
+      direction: 1,
+      valueConfirmation: { valueDriver: 'IP cleanliness', impliedValue: null, basis: 'No copyleft in shipped code at the scanned commit' },
+    });
+    const confirmed = await accept(cushion);
+    expect(confirmed.status).toBe(201);
+    expect((await as('lead', 'GET', `/${cushion}`)).body['finding']).toMatchObject({
+      direction: 1,
+      valueConfirmation: { valueDriver: 'IP cleanliness', impliedValue: null },
+      pricedRisk: null,
+    });
   });
 
   it('rejects unresolvable evidence, floating-point money and acceptance without evidence', async () => {

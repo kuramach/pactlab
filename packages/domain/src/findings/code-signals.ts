@@ -126,6 +126,8 @@ export function ghostCommitFinding(
       },
     ],
     pricedRisk: null,
+    // Drag: unowned code is remediated or held back in escrow. A reviewer prices it before accepting.
+    direction: -1,
   };
 }
 
@@ -242,5 +244,54 @@ export function keyPersonFindings(
       },
     ],
     pricedRisk: null,
+    // Drag: concentration is usually covered by a retention escrow, priced at review.
+    direction: -1,
   }));
+}
+
+/** A bus factor at or above this, with no concentrated subsystem, confirms engineering continuity. */
+export const HEALTHY_BUS_FACTOR = 3;
+export const HEALTHY_OWNERSHIP_TOOL = { name: 'pactlab-healthy-ownership', version: '1.0.0' } as const;
+
+/**
+ * Cushion: ownership spread across a team with no single-contributor
+ * subsystem confirms the continuity the thesis assumes. It never raises the
+ * price, so it carries no implied value.
+ */
+export function healthyOwnershipFinding(
+  signal: KeyPersonSignal,
+  source: { evidenceItemId: string; headCommitSha: string },
+): ProposedFinding | null {
+  if (signal.suppressed || signal.busFactor < HEALTHY_BUS_FACTOR || signal.concentratedSubsystems.length > 0) return null;
+  return {
+    domain: 'KEY_PERSON',
+    title: 'Ownership spread across the engineering team',
+    description:
+      `No subsystem depends on a single contributor. Repository bus factor is ${signal.busFactor} ` +
+      `across ${signal.contributors} contributors; the largest contributor authored ` +
+      `${percent(signal.topContributorShareBasisPoints)} of ${signal.commitsAnalysed} commits. Aggregate signal only.`,
+    severity: 'INFO',
+    confidence: 'MEDIUM',
+    origin: 'HEURISTIC',
+    fingerprint: `healthy-ownership:${source.headCommitSha}`,
+    evidence: [
+      {
+        evidenceItemId: source.evidenceItemId,
+        commitSha: source.headCommitSha,
+        toolName: HEALTHY_OWNERSHIP_TOOL.name,
+        toolVersion: HEALTHY_OWNERSHIP_TOOL.version,
+        rulesetVersion: null,
+        path: null,
+        lineStart: null,
+        lineEnd: null,
+      },
+    ],
+    pricedRisk: null,
+    direction: 1,
+    valueConfirmation: {
+      valueDriver: 'Engineering continuity',
+      impliedValue: null,
+      basis: `Bus factor ${signal.busFactor} across ${signal.contributors} contributors; no single-contributor subsystem.`,
+    },
+  };
 }
