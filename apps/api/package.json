@@ -14,7 +14,8 @@
     "seed": "tsx --env-file-if-exists=../../.env src/demo-seed/cli.ts",
     "login:code": "tsx --env-file-if-exists=../../.env src/ops/login-code.ts",
     "ai:check": "tsx --env-file-if-exists=../../.env src/ops/ai-check.ts",
-    "eval:live": "tsx --env-file-if-exists=../../.env src/ops/eval-live.ts"
+    "eval:live": "tsx --env-file-if-exists=../../.env src/ops/eval-live.ts",
+    "kit:build": "tsx src/ops/test-kit.ts"
   },
   "dependencies": {
     "@nestjs/common": "12.1.2",

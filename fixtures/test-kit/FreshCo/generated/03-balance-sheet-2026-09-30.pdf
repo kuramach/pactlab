@@ -1,0 +1,43 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [4 0 R 6 0 R] /Count 2 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+4 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 5 0 R >>
+endobj
+5 0 obj
+<< /Length 229 >>
+stream
+BT /F1 11 Tf 72 740 Td 14 TL (FreshCo Software, Inc.  balance sheet at 30 September 2026 \(synthetic demo data, unaudited\)) Tj T* () Tj T* (Cash and cash equivalents: USD 310,000) Tj T* (Trade receivables: USD 118,000) Tj T* ET
+endstream
+endobj
+6 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 7 0 R >>
+endobj
+7 0 obj
+<< /Length 367 >>
+stream
+BT /F1 11 Tf 72 740 Td 14 TL (Term loan with Lakeside Bank, outstanding principal: USD 450,000) Tj T* (Shareholder loan from the founders: USD 75,000) Tj T* (Deferred revenue on annual subscriptions billed in advance: USD 96,000) Tj T* (Accrued bonuses for 2026, unpaid: USD 42,000) Tj T* (Earn-out payable for the 2024 acquisition of Ledgerbird: USD 60,000) Tj T* ET
+endstream
+endobj
+xref
+0 8
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000121 00000 n 
+0000000191 00000 n 
+0000000317 00000 n 
+0000000597 00000 n 
+0000000723 00000 n 
+trailer
+<< /Size 8 /Root 1 0 R >>
+startxref
+1141
+%%EOF
