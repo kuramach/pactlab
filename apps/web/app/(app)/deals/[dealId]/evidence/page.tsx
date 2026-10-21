@@ -2,6 +2,7 @@ import { Badge, Card, CardContent, EmptyState } from '@pactlab/ui';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { dealsApi } from '../../_lib/api';
+import { EmptyMarkIcon } from '../../_lib/empty-marks';
 import { evidenceQuery, isUuidParam, parseEvidenceFilters } from '../../_lib/filters';
 import { ApiState } from '../../_lib/states';
 
@@ -75,6 +76,7 @@ export default async function EvidenceBrowserPage({
         <ApiState result={result} />
       ) : result.data.items.length === 0 ? (
         <EmptyState
+          icon={<EmptyMarkIcon name="evidence" />}
           title="No evidence"
           description="No evidence matches these filters. Run a sync from a connection to ingest source records."
         />

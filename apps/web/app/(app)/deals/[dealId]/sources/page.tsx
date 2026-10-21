@@ -6,6 +6,7 @@ import { COMPANY_TYPE_LABELS } from '@pactlab/domain';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { apiGet, dealsApi } from '../../_lib/api';
+import { EmptyMarkIcon } from '../../_lib/empty-marks';
 import { isUuidParam } from '../../_lib/filters';
 import { failureHint, HEALTH_TEXT, PROVIDER_LABELS, sourceHealth } from '../../_lib/sources';
 import { ApiState } from '../../_lib/states';
@@ -200,7 +201,7 @@ export default async function DealSourcesPage({
       {sources.kind !== 'ok' ? (
         <ApiState result={sources} />
       ) : sources.data.items.length === 0 ? (
-        <EmptyState title="No sources connected yet" description="Connect the sources above to start collecting evidence." />
+        <EmptyState icon={<EmptyMarkIcon name="sources" />} title="No sources connected yet" description="Connect the sources above to start collecting evidence." />
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
           {sources.data.items.map((source) => {

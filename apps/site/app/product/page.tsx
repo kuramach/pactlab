@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { CtaBand } from '../../components/cta';
-import { Icon, IconTile } from '../../components/icon';
+import { Icon, ModuleMark } from '../../components/icon';
 import { PageHero, Section } from '../../components/page-hero';
 import { MODULES, PILOT } from '../../lib/content';
 
@@ -19,7 +19,7 @@ export default function ProductPage() {
         <Section key={module.slug} title={module.name} body={module.intro} tone={index % 2 === 0 ? 'white' : 'mist'}>
           <div className="grid gap-8 lg:grid-cols-[1fr_2fr]">
             <div className="flex flex-col gap-4">
-              <IconTile name={module.icon} />
+              <ModuleMark name={module.icon} size="lg" />
               <p className="text-xl font-bold italic text-indigo-ink">“{module.question}”</p>
               <Link href={`/product/${module.slug}`} className="font-semibold text-indigo-ink hover:underline">
                 Read more →

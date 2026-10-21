@@ -4,7 +4,7 @@ import { notFound } from 'next/navigation';
 import { CtaBand } from '../../../components/cta';
 import { FeatureGrid } from '../../../components/features';
 import { Flow } from '../../../components/flow';
-import { IconTile } from '../../../components/icon';
+import { ModuleMark } from '../../../components/icon';
 import { PageHero, Section } from '../../../components/page-hero';
 import { MODULES, PILOT } from '../../../lib/content';
 
@@ -52,7 +52,7 @@ export default async function ModulePage({ params }: { params: Promise<{ slug: s
           {others.map((other) => (
             <li key={other.slug}>
               <Link href={`/product/${other.slug}`} className="flex h-full flex-col gap-3 rounded-xl border border-navy/10 p-4 hover:border-indigo">
-                <IconTile name={other.icon} />
+                <ModuleMark name={other.icon} />
                 <span className="text-sm font-semibold">{other.name}</span>
               </Link>
             </li>

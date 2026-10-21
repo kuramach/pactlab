@@ -3,6 +3,7 @@ import { ArrowRight, Building2, Plus } from 'lucide-react';
 import Link from 'next/link';
 import { dealsApi, type DealListItem } from './_lib/api';
 import { DEAL_TYPE_LABELS, partyLabel, STAGE_LABELS } from './_lib/labels';
+import { EmptyMarkIcon } from './_lib/empty-marks';
 import { ApiState } from './_lib/states';
 import { formatMoney } from '../metrics/_lib/format';
 
@@ -40,6 +41,7 @@ export default async function DealsPage() {
         <ApiState result={result} />
       ) : result.data.items.length === 0 ? (
         <EmptyState
+          icon={<EmptyMarkIcon name="deals" />}
           title="No deals yet"
           description="Start a Pact to open your first deal, or ask a deal lead to add you."
           action={<StartPactLink />}

@@ -1,10 +1,17 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { AppShell, Badge, Breadcrumbs, Button, cn, Glossed, TabNav, Term } from './index';
+import { AppShell, Badge, Breadcrumbs, Button, cn, EmptyState, Glossed, TabNav, Term } from './index';
 
 describe('ui', () => {
   it('merges conflicting Tailwind classes', () => {
     expect(cn('px-2', 'px-4', undefined, { hidden: false })).toBe('px-4');
+  });
+
+  it('shows an empty-state mark only when an icon is given', () => {
+    const plain = renderToStaticMarkup(<EmptyState title="None" description="d" />);
+    const marked = renderToStaticMarkup(<EmptyState title="None" description="d" icon={<svg />} />);
+    expect(plain).not.toContain('data-mark');
+    expect(marked).toContain('<span aria-hidden="true" data-mark=""');
   });
 
   it('renders buttons with an explicit type', () => {

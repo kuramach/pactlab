@@ -83,6 +83,14 @@ describe('navigation', () => {
     const used = JSON.stringify(content).match(/"icon":"(\w+)"/g) ?? [];
     for (const match of used) expect(Object.keys(ICONS)).toContain(match.slice(8, -1));
   });
+
+  it('every module and industry has its own mark', () => {
+    for (const list of [content.MODULES, content.INDUSTRIES]) {
+      const marks = list.map((entry) => entry.icon);
+      for (const mark of marks) expect(ICONS[mark]).toBeDefined();
+      expect(new Set(marks).size).toBe(marks.length);
+    }
+  });
 });
 
 describe('siteConfig', () => {
