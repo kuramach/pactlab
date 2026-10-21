@@ -99,6 +99,14 @@ enum BalanceSheetItemStatus {
   @@map("balance_sheet_item_status")
 }
 
+enum ContributorStatus {
+  CURRENT
+  DEPARTED
+  UNKNOWN
+
+  @@map("contributor_status")
+}
+
 enum MultipleVerdict {
   IN_RANGE
   HIGH
@@ -427,6 +435,8 @@ model Organization {
   negotiationAnchors      NegotiationAnchor[]
   balanceSheetItems       BalanceSheetItem[]
   balanceSheetItemVersions BalanceSheetItemVersion[]
+  contributorIdentities   ContributorIdentity[]
+  peopleAccess            PeopleAccess[]
 
   @@map("organizations")
 }
@@ -509,6 +519,8 @@ model Deal {
   negotiationAnchors      NegotiationAnchor[]
   balanceSheetItems       BalanceSheetItem[]
   balanceSheetItemVersions BalanceSheetItemVersion[]
+  contributorIdentities   ContributorIdentity[]
+  peopleAccess            PeopleAccess[]
 
   @@unique([organizationId, id])
   @@index([organizationId, createdAt])
@@ -1424,4 +1436,45 @@ model BalanceSheetItemVersion {
 
   @@unique([organizationId, dealId, itemId, version])
   @@map("balance_sheet_item_versions")
+}
+
+/// The gated contributor directory: raw identities and names behind the
+/// pseudonymous keys used in evidence. Written by the sync engine; read only
+/// through the names gate (people_access), every read audited. Buyer side.
+model ContributorIdentity {
+  id             String            @id @default(uuid(7)) @db.Uuid
+  organizationId String            @map("organization_id") @db.Uuid
+  dealId         String            @map("deal_id") @db.Uuid
+  contributorKey String            @map("contributor_key")
+  system         String
+  identity       String
+  displayName    String?           @map("display_name")
+  status         ContributorStatus @default(UNKNOWN)
+  firstSeenAt    DateTime          @default(now()) @map("first_seen_at") @db.Timestamptz(3)
+  lastSeenAt     DateTime          @default(now()) @map("last_seen_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  deal         Deal         @relation(fields: [organizationId, dealId], references: [organizationId, id], onDelete: Restrict)
+
+  @@unique([organizationId, dealId, system, identity])
+  @@index([organizationId, dealId, contributorKey])
+  @@map("contributor_identities")
+}
+
+/// Whether contributor names are shown on a deal, and why. Append-only; the
+/// newest row decides. Only a deal lead records it.
+model PeopleAccess {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  dealId         String   @map("deal_id") @db.Uuid
+  enabled        Boolean
+  basis          String
+  decidedBy      String   @map("decided_by") @db.Uuid
+  decidedAt      DateTime @default(now()) @map("decided_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  deal         Deal         @relation(fields: [organizationId, dealId], references: [organizationId, id], onDelete: Restrict)
+
+  @@index([organizationId, dealId, decidedAt])
+  @@map("people_access")
 }

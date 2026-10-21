@@ -34,6 +34,7 @@ function plannedCommits(repository: string, plans: readonly CommitPlan[]): Commi
       commits.push({
         sha: sha(`${repository}:${plan.author}:${plan.path}:${i}`),
         authorIdentity: plan.author,
+        authorName: FIXTURE_NAMES[plan.author] ?? null,
         authoredAt: at,
         committedAt: at,
         additions: 10 + ((i * 7) % 40),
@@ -48,6 +49,25 @@ function plannedCommits(repository: string, plans: readonly CommitPlan[]): Commi
   );
 }
 
+/** Synthetic display names, shared with the Jira fixtures; invented people only. */
+export const FIXTURE_NAMES: Readonly<Record<string, string>> = {
+  'hc-dev-01': 'Avery Lin (synthetic)',
+  'hc-dev-02': 'Bianca Osei (synthetic)',
+  'hc-dev-03': 'Carlos Mendes (synthetic)',
+  'hc-dev-04': 'Dana Kowalski (synthetic)',
+  'hc-dev-05': 'Elif Demir (synthetic)',
+  'hc-dev-06': 'Farid Haddad (synthetic)',
+  'hc-lead-01': 'Grace Okafor (synthetic)',
+  'hc-pm-01': 'Hiro Tanaka (synthetic)',
+  'tc-dev-01': 'Ivan Petrov (synthetic)',
+  'tc-dev-02': 'Jade Moreau (synthetic)',
+  'tc-dev-03': 'Kofi Mensah (synthetic)',
+  'tc-dev-04': 'Lena Fischer (synthetic)',
+  'tc-dev-05': 'Marco Rossi (synthetic)',
+  'tc-lead-01': 'Nadia Rahman (synthetic)',
+  'tc-contractor-x': 'Unmatched contractor (synthetic)',
+};
+
 function current(...ids: string[]): ContributorIdentity[] {
   return ids.map((identity) => ({ identity, status: 'CURRENT', departedOn: null }));
 }
@@ -60,9 +80,8 @@ export const GITHUB_FIXTURES: Readonly<Record<string, GitHubFixtureRepository>> 
     repository: 'healthyco/platform',
     defaultBranch: 'main',
     grantedPermissions: ['metadata:read', 'contents:read'],
-    commits: plannedCommits(
-      'healthyco/platform',
-      HEALTHY_DEVS.flatMap((author, a) =>
+    commits: plannedCommits('healthyco/platform', [
+      ...HEALTHY_DEVS.flatMap((author, a) =>
         SUBSYSTEMS.map((path, s) => ({
           author,
           path,
@@ -70,8 +89,10 @@ export const GITHUB_FIXTURES: Readonly<Record<string, GitHubFixtureRepository>> 
           from: `2026-0${1 + ((a + s) % 8)}-01T10:00:00Z`,
         })),
       ),
-    ),
-    identityMap: current(...HEALTHY_DEVS),
+      // The engineering lead commits little; their contribution shows in Jira.
+      { author: 'hc-lead-01', path: 'infra', count: 3, from: '2026-04-01T10:00:00Z' },
+    ]),
+    identityMap: current(...HEALTHY_DEVS, 'hc-lead-01'),
   },
   // Departed and unmatched identities produce ghost commits; tc-dev-01 alone
   // maintains billing/. Signals are deterministic for the acceptance journey.
@@ -88,9 +109,10 @@ export const GITHUB_FIXTURES: Readonly<Record<string, GitHubFixtureRepository>> 
       { author: 'tc-dev-05', path: 'api', count: 6, from: '2025-11-01T09:00:00Z' },
       { author: 'tc-dev-05', path: 'api', count: 4, from: '2026-05-01T09:00:00Z' },
       { author: 'tc-contractor-x', path: 'api', count: 7, from: '2026-04-01T09:00:00Z' },
+      { author: 'tc-lead-01', path: 'web', count: 2, from: '2026-04-10T09:00:00Z' },
     ]),
     identityMap: [
-      ...current('tc-dev-01', 'tc-dev-02', 'tc-dev-03', 'tc-dev-04'),
+      ...current('tc-dev-01', 'tc-dev-02', 'tc-dev-03', 'tc-dev-04', 'tc-lead-01'),
       { identity: 'tc-dev-05', status: 'DEPARTED', departedOn: '2026-01-31' },
     ],
   },

@@ -1,6 +1,6 @@
 import type { FindingDomain, ValuationDirection } from '@pactlab/domain';
-import { REPOSITORY_HEAD_EVIDENCE_TYPE } from './github/evidence';
-import { JIRA_ISSUE_EVIDENCE_TYPE, JIRA_SPRINT_EVIDENCE_TYPE } from './jira/evidence';
+import { CODE_CONTRIBUTOR_ACTIVITY_EVIDENCE_TYPE, REPOSITORY_HEAD_EVIDENCE_TYPE } from './github/evidence';
+import { DELIVERY_CONTRIBUTOR_ACTIVITY_EVIDENCE_TYPE, JIRA_ISSUE_EVIDENCE_TYPE, JIRA_SPRINT_EVIDENCE_TYPE } from './jira/evidence';
 import { INVOICE_LINE_EVIDENCE_TYPE } from './stripe/invoice-line';
 
 /**
@@ -54,6 +54,24 @@ export const VALUATION_DIRECTION_MAP: Readonly<Record<string, readonly Direction
     { signal: 'arr-above-reported', findingDomain: 'FINANCIAL', defaultDirection: 1, channel: 'CONFIRMATION' },
     { signal: 'customer-concentration', findingDomain: 'FINANCIAL', defaultDirection: -1, channel: 'PRICED_TERM' },
   ],
+  [CODE_CONTRIBUTOR_ACTIVITY_EVIDENCE_TYPE]: [
+    {
+      signal: 'contributor-profile',
+      findingDomain: 'KEY_PERSON',
+      defaultDirection: 0,
+      channel: 'INFORMATIONAL',
+      rationale: 'Profiles inform retention planning; key-person drags come from findings.',
+    },
+  ],
+  [DELIVERY_CONTRIBUTOR_ACTIVITY_EVIDENCE_TYPE]: [
+    {
+      signal: 'contributor-profile',
+      findingDomain: 'KEY_PERSON',
+      defaultDirection: 0,
+      channel: 'INFORMATIONAL',
+      rationale: 'Profiles inform retention planning; key-person drags come from findings.',
+    },
+  ],
   [MANAGEMENT_KPI_EVIDENCE_TYPE]: [
     {
       signal: 'reported-figure',
@@ -90,7 +108,14 @@ export const VALUATION_DIRECTION_MAP: Readonly<Record<string, readonly Direction
 };
 
 /** Evidence types the connector adapters emit (the contract test checks each is mapped). */
-export const ADAPTER_EVIDENCE_TYPES = [REPOSITORY_HEAD_EVIDENCE_TYPE, JIRA_ISSUE_EVIDENCE_TYPE, JIRA_SPRINT_EVIDENCE_TYPE, INVOICE_LINE_EVIDENCE_TYPE] as const;
+export const ADAPTER_EVIDENCE_TYPES = [
+  REPOSITORY_HEAD_EVIDENCE_TYPE,
+  CODE_CONTRIBUTOR_ACTIVITY_EVIDENCE_TYPE,
+  JIRA_ISSUE_EVIDENCE_TYPE,
+  JIRA_SPRINT_EVIDENCE_TYPE,
+  DELIVERY_CONTRIBUTOR_ACTIVITY_EVIDENCE_TYPE,
+  INVOICE_LINE_EVIDENCE_TYPE,
+] as const;
 
 /** The default direction for one signal, or null when the map does not know it. */
 export function defaultDirectionFor(evidenceType: string, signal: string): ValuationDirection | null {

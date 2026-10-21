@@ -134,3 +134,14 @@ export class GitHubAppController {
     return this.service.githubApp();
   }
 }
+
+/** Synthetic test data available in this environment (none in stage or production). */
+@Controller('v1/synthetic-sources')
+export class SyntheticSourcesController {
+  constructor(@Inject(ConnectionsService) private readonly service: ConnectionsService) {}
+
+  @Get()
+  list() {
+    return this.service.syntheticSources();
+  }
+}

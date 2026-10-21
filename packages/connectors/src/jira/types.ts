@@ -14,9 +14,16 @@ export type JiraConnectionConfig = z.infer<typeof jiraConnectionConfigSchema>;
 export const JIRA_STATUS_CATEGORIES = ['TO_DO', 'IN_PROGRESS', 'DONE'] as const;
 export type JiraStatusCategory = (typeof JIRA_STATUS_CATEGORIES)[number];
 
+/** A Jira user on an issue: account id and display name. Names reach only the gated directory. */
+export interface JiraPerson {
+  readonly accountId: string;
+  readonly displayName: string | null;
+}
+
 /**
- * Normalized issue. Delivery facts only: no assignee, reporter, comments or
- * descriptions — people and free text stay out of this slice (spec phase 2).
+ * Normalized issue: delivery facts plus who was involved (assignee,
+ * reporter, comment count). No descriptions or comment text — free text
+ * stays out. People feed contributor profiles under the names gate.
  */
 export interface JiraIssue {
   readonly key: string;
@@ -30,6 +37,9 @@ export interface JiraIssue {
   readonly createdAt: string;
   readonly resolvedAt: string | null;
   readonly reopenCount: number;
+  readonly assignee: JiraPerson | null;
+  readonly reporter: JiraPerson | null;
+  readonly commentCount: number;
 }
 
 export interface JiraSprint {

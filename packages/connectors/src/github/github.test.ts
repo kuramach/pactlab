@@ -62,12 +62,13 @@ describe('GitHub adapters', () => {
     expect(first.commits).toHaveLength(50);
     expect(first.nextCursor).toBe('50');
     const all = await readAllCommits(adapter, scope(), 7);
-    expect(all).toHaveLength(120);
-    expect(new Set(all.map((commit) => commit.sha)).size).toBe(120);
+    expect(all).toHaveLength(123);
+    expect(new Set(all.map((commit) => commit.sha)).size).toBe(123);
     expect(all).toEqual(await readAllCommits(adapter, scope()));
     expect(Object.keys(all[0]!).sort()).toEqual([
       'additions',
       'authorIdentity',
+      'authorName',
       'authoredAt',
       'committedAt',
       'deletions',

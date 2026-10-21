@@ -8,6 +8,7 @@ import { AuthGuard } from './auth/auth.guard';
 import { AI_OFF, type AiStatusView } from './ai/ai-provider';
 import { AiModule } from './ai/ai.module';
 import { BalanceSheetModule } from './balance-sheet/balance-sheet.module';
+import { EngineeringModule } from './engineering/engineering.module';
 import { ComparablesModule } from './comparables/comparables.module';
 import { CompositeIdentityVerifier, type IdentityVerifier } from './auth/identity';
 import { PACTLAB_TOKEN_ISSUER, PactlabTokens } from './auth/pactlab-token';
@@ -101,6 +102,7 @@ export class AppModule {
         MetricsModule,
         PactsModule,
         BalanceSheetModule,
+        EngineeringModule,
         AuditModule,
         OrganizationModule,
         AiModule.register(deps.aiStatus ?? AI_OFF),

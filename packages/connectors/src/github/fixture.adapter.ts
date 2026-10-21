@@ -17,7 +17,7 @@ import {
   type RepositoryHead,
 } from './types';
 
-export const GITHUB_FIXTURE_VERSION = 'github-fixture-1';
+export const GITHUB_FIXTURE_VERSION = 'github-fixture-2';
 const MAX_PAGE = 100;
 
 /** Synthetic repositories behind the same normalized interface as live GitHub. */

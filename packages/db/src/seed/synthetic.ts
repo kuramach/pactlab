@@ -393,7 +393,8 @@ export async function seedSynthetic(owner: SqlExecutor, prisma: PrismaClient): P
           holder.organizationId,
           dealId,
           holder.idFor(connectionId),
-          kind === 'csv' && holder.keyPrefix === '' ? `seed:${company}:v1` : `seed:${holder.keyPrefix}${company}:${kind}:v1`,
+          // v2 for code and delivery: their fixtures gained people and contributor activity (T-043).
+          kind === 'csv' && holder.keyPrefix === '' ? `seed:${company}:v1` : `seed:${holder.keyPrefix}${company}:${kind}:${kind === 'csv' ? 'v1' : 'v2'}`,
           version,
           holder.leadUserId,
         );

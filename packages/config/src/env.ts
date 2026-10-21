@@ -73,6 +73,8 @@ export const apiEnvSchema = baseEnvSchema.extend({
   GITHUB_APP_ID: z.string().regex(/^\d+$/, 'numeric app id').optional(),
   GITHUB_APP_SLUG: z.string().regex(/^[a-z0-9-]+$/, 'app slug from its public URL').optional(),
   GITHUB_APP_PRIVATE_KEY_PATH: nonEmpty.optional(),
+  /** Allow synthetic GitHub/Jira test connections. Default: on for local, test, dev and qa; off for stage and production. */
+  ALLOW_FIXTURE_CONNECTIONS: unsetIfBlank(z.enum(['true', 'false']).optional()),
   /** Model provider for document AI: `none` keeps AI off; `bedrock` calls Claude on Amazon Bedrock. */
   AI_PROVIDER: unsetIfBlank(z.enum(['none', 'bedrock']).default('none')),
   /** Bedrock Region; credentials come from the AWS SDK default chain (e.g. AWS_PROFILE after `aws sso login`). */

@@ -9,6 +9,7 @@ export const DEAL_SECTIONS = [
   { path: '/evidence', label: 'Evidence' },
   { path: '/finances', label: 'Finances' },
   { path: '/findings', label: 'Findings' },
+  { path: '/engineering', label: 'Engineering' },
   { path: '/valuation', label: 'Valuation' },
   { path: '/documents', label: 'Documents' },
   { path: '/team', label: 'Team' },
