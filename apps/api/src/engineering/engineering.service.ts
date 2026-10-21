@@ -27,6 +27,16 @@ const MAX_ROWS = 50_000;
 type Canonical = Record<string, string | null>;
 const int = (value: string | null | undefined) => (value && /^\d+$/.test(value) ? Number(value) : 0);
 
+/** Areas touched (`{"api": 3}`), keeping only non-negative integer counts; malformed input reads as none. */
+function parseAreas(value: string | null | undefined): Record<string, number> {
+  try {
+    const parsed = JSON.parse(value ?? '{}') as Record<string, unknown>;
+    return Object.fromEntries(Object.entries(parsed).filter(([, count]) => typeof count === 'number' && Number.isInteger(count) && count >= 0)) as Record<string, number>;
+  } catch {
+    return {};
+  }
+}
+
 /** Newest version of each contributor-activity record (superseded versions stay in lineage). */
 async function loadActivity(tx: TransactionClient, dealId: string): Promise<{ code: CodeActivity[]; delivery: DeliveryActivity[] }> {
   const rows = await tx.evidenceItem.findMany({
@@ -45,13 +55,7 @@ async function loadActivity(tx: TransactionClient, dealId: string): Promise<{ co
     const month = c['month'] ?? '';
     if (!/^[0-9a-f]{16}$/.test(key) || !/^\d{4}-\d{2}$/.test(month)) continue;
     if (row.evidenceType === CODE_CONTRIBUTOR_ACTIVITY_EVIDENCE_TYPE) {
-      let areas: Record<string, number> = {};
-      try {
-        const parsed = JSON.parse(c['areas'] ?? '{}') as Record<string, unknown>;
-        areas = Object.fromEntries(Object.entries(parsed).filter(([, v]) => typeof v === 'number' && Number.isInteger(v) && v >= 0)) as Record<string, number>;
-      } catch {
-        areas = {};
-      }
+      const areas = parseAreas(c['areas']);
       code.push({ contributorKey: key, month, commits: int(c['commits']), additions: int(c['additions']), deletions: int(c['deletions']), areas });
     } else {
       delivery.push({

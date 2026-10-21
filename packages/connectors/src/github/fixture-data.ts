@@ -109,7 +109,7 @@ export const GITHUB_FIXTURES: Readonly<Record<string, GitHubFixtureRepository>> 
       { author: 'tc-dev-05', path: 'api', count: 6, from: '2025-11-01T09:00:00Z' },
       { author: 'tc-dev-05', path: 'api', count: 4, from: '2026-05-01T09:00:00Z' },
       { author: 'tc-contractor-x', path: 'api', count: 7, from: '2026-04-01T09:00:00Z' },
-      { author: 'tc-lead-01', path: 'web', count: 2, from: '2026-06-01T09:00:00Z' },
+      { author: 'tc-lead-01', path: 'web', count: 2, from: '2026-04-10T09:00:00Z' },
     ]),
     identityMap: [
       ...current('tc-dev-01', 'tc-dev-02', 'tc-dev-03', 'tc-dev-04', 'tc-lead-01'),

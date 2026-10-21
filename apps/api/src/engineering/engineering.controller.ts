@@ -7,8 +7,8 @@ import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { RequestId } from '../deals/request-id.decorator';
 import { EngineeringService } from './engineering.service';
 
-const contributorParams = z.strictObject({ dealId: z.uuid(), contributorKey: z.string().regex(/^[0-9a-f]{16}$/) });
-const peopleAccessBody = z.strictObject({ enabled: z.boolean(), basis: z.string().trim().min(10).max(1000) });
+export const contributorParams = z.strictObject({ dealId: z.uuid(), contributorKey: z.string().regex(/^[0-9a-f]{16}$/) });
+export const peopleAccessBody = z.strictObject({ enabled: z.boolean(), basis: z.string().trim().min(10).max(1000) });
 
 @Controller('v1/deals/:dealId')
 export class EngineeringController {

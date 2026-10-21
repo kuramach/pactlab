@@ -155,7 +155,12 @@ describe('pnpm seed', () => {
         const sources = SEED_TARGET_SOURCES[company];
         switch (lineage?.connection.id) {
           case sources.github.connectionId:
-            expect(locator).toMatchObject({ kind: 'git_commit', repository: sources.github.repository });
+            // The repository head cites its commit; contributor activity cites the repository record.
+            expect(
+              locator?.kind === 'git_commit'
+                ? locator.repository === sources.github.repository
+                : locator?.kind === 'provider_record' && locator.system === 'github' && locator.site === sources.github.repository,
+            ).toBe(true);
             break;
           case sources.jira.connectionId:
             expect(locator).toMatchObject({ kind: 'provider_record', system: 'jira', site: sources.jira.site });
@@ -244,7 +249,8 @@ describe('pnpm seed', () => {
     }));
     expect(counts.connections.map((c) => c.provider).sort()).toEqual(['csv', 'github', 'jira']);
     expect(counts.jira).toBeGreaterThan(50);
-    expect(counts.github).toBe(1);
+    // One repository head plus contributor activity per person per month.
+    expect(counts.github).toBeGreaterThan(1);
     expect(counts.billing).toBeGreaterThan(0);
     expect(counts.findings).toBe(2);
   });

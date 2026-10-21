@@ -29,6 +29,7 @@ import {
 import { DealAccess } from '../deals/deal-access';
 import { PRISMA } from '../tokens';
 import { resolveAdapter } from './adapter-registry';
+import { GITHUB_FIXTURES, JIRA_FIXTURES } from '@pactlab/connectors';
 import { PROVIDER_DEPENDENCIES, type ProviderDependencies } from './provider-dependencies';
 import type { EvidenceSample } from './adapters/evidence-sample';
 import type { ConnectGitHubCommand, CreateConnectionCommand, SetModeCommand } from './connections.schemas';
@@ -231,6 +232,16 @@ export class ConnectionsService {
       return created;
     });
     return toConnectionView(row);
+  }
+
+  /** Synthetic repositories and Jira sites a deal may connect to here (local and test environments only). */
+  syntheticSources(): { allowed: boolean; repositories: string[]; jiraSites: { site: string; projectKeys: string[] }[] } {
+    if (!this.providers.allowFixtureConnections) return { allowed: false, repositories: [], jiraSites: [] };
+    return {
+      allowed: true,
+      repositories: Object.keys(GITHUB_FIXTURES).sort(),
+      jiraSites: Object.values(JIRA_FIXTURES).map((site) => ({ site: site.site, projectKeys: [...site.readableProjects] })),
+    };
   }
 
   /** Where sellers install Pactlab's GitHub App, or null when this deployment has none. */

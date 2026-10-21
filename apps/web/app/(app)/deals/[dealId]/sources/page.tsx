@@ -5,7 +5,7 @@ import { Badge, Button, buttonVariants, Card, CardContent, CardHeader, CardTitle
 import { COMPANY_TYPE_LABELS } from '@pactlab/domain';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { dealsApi } from '../../_lib/api';
+import { apiGet, dealsApi } from '../../_lib/api';
 import { isUuidParam } from '../../_lib/filters';
 import { failureHint, HEALTH_TEXT, PROVIDER_LABELS, sourceHealth } from '../../_lib/sources';
 import { ApiState } from '../../_lib/states';
@@ -155,7 +155,11 @@ export default async function DealSourcesPage({
   const { dealId } = await params;
   const { started, imported, created, unchanged } = await searchParams;
   if (!isUuidParam(dealId)) notFound();
-  const [sources, plan] = await Promise.all([dealsApi.sources(dealId), dealsApi.sourcePlan(dealId)]);
+  const [sources, plan, synthetic] = await Promise.all([
+    dealsApi.sources(dealId),
+    dealsApi.sourcePlan(dealId),
+    apiGet<{ allowed: boolean }>('/v1/synthetic-sources'),
+  ]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -180,6 +184,16 @@ export default async function DealSourcesPage({
       ) : null}
 
       {plan.kind === 'ok' ? <SourcePlan plan={plan.data} dealId={dealId} /> : null}
+
+      {synthetic.kind === 'ok' && synthetic.data.allowed ? (
+        <p className="text-sm text-muted-foreground">
+          Testing?{' '}
+          <Link href={`/deals/${dealId}/sources/synthetic`} className="font-semibold text-indigo-ink hover:underline">
+            Connect synthetic code and Jira data
+          </Link>{' '}
+          — invented companies for trying the Engineering tab; not available in production.
+        </p>
+      ) : null}
 
       <h2 className="text-lg font-semibold tracking-tight">Connected sources</h2>
 

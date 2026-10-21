@@ -119,5 +119,9 @@ describe('Engineering tab through the API', () => {
     expect((await call('other', 'GET', '/engineering')).status).toBe(404);
     const refused = await call('lead', 'POST', '/connections', { provider: 'github', displayName: 'x', mode: 'FIXTURE', config: { repository: 'healthyco/platform' } }, locked);
     expect(refused.status).toBe(403);
+    const options = async (target: NestFastifyApplication) =>
+      (await target.inject({ method: 'GET', url: '/v1/synthetic-sources', headers: { authorization: `Bearer ${tokens['lead']}` } })).json() as Body;
+    expect(await options(locked)).toEqual({ allowed: false, repositories: [], jiraSites: [] });
+    expect(await options(app)).toMatchObject({ allowed: true, repositories: expect.arrayContaining(['healthyco/platform', 'troubledco/core']) });
   });
 });
