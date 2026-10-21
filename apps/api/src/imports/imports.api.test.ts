@@ -185,6 +185,23 @@ describe('billing CSV import through the API', () => {
     expect(sources[0]).toMatchObject({ kind: 'BILLING', status: 'CONNECTED' });
   });
 
+  it('imports the FreshCo test kit billing file into a fresh deal with the expected ARR', async () => {
+    const fresh = await createSyntheticTenant(db.owner, 'Fresh');
+    const lead = await token(fresh.subject, fresh);
+    const kit = await readFile(new URL('../../../../fixtures/test-kit/FreshCo/generated/stripe-invoice-lines.csv', import.meta.url), 'utf8');
+    const uploaded = await upload(fresh, lead, kit, 'pactlab_standard', 'freshco.csv');
+    expect(uploaded.status).toBe(201);
+    const mapping = uploaded.body['suggestedMapping'] as Body;
+    const base = `/v1/deals/${fresh.dealId}/uploads/${uploaded.body['id'] as string}`;
+    expect((await call('POST', `${base}/preview`, lead, { mapping })).body).toMatchObject({ problems: [], issues: [] });
+    expect((await call('POST', `${base}/import`, lead, { mapping })).body).toMatchObject({ syncRun: { status: 'SUCCEEDED' } });
+    const summary = await call('GET', `/v1/deals/${fresh.dealId}/metrics/summary?asOf=2026-09`, lead);
+    const metric = (key: string) => ((summary.body['report'] as Body)['metrics'] as Body[]).find((entry) => entry['key'] === key)?.['value'];
+    // README: 10 active customers, MRR 59,600 → ARR 715,200 at September 2026.
+    expect(metric('ARR')).toBe('715200.00');
+    expect(metric('ACTIVE_CUSTOMERS')).toBe('10');
+  });
+
   it('turns a SAP-style export into the same ARR as the standard file', async () => {
     const lead = await token(sap.subject, sap);
     const uploaded = await upload(sap, lead, asSapExport(csv), 'sap_s4hana', 'sap-billing.csv');

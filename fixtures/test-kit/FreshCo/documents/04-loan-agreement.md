@@ -1,0 +1,9 @@
+TERM LOAN AGREEMENT (synthetic demo document)
+
+Lender: Lakeside Bank N.A. Borrower: FreshCo Software, Inc. Principal: USD 600,000, drawn on 1 February 2025.
+
+---page---
+
+7. MANDATORY PREPAYMENT. On a Change of Control of the Borrower, the outstanding principal and accrued interest become due and payable within thirty (30) days.
+
+8. COVENANTS. The Borrower shall maintain annual recurring revenue of at least USD 1,500,000, tested quarterly.

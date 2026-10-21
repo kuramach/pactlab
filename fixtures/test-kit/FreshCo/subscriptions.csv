@@ -1,0 +1,13 @@
+customer_id,customer_name,plan,currency,monthly_amount,start_month,end_month,change_month,changed_monthly_amount
+fc-cus-0001,Harbor Freight Partners (synthetic),Scale,USD,6800.00,2024-10,,2025-10,8200.00
+fc-cus-0002,Maple Grove Dental (synthetic),Growth,USD,2400.00,2024-10,,,
+fc-cus-0003,Northwind Logistics (synthetic),Enterprise,USD,14500.00,2024-11,,2026-03,17500.00
+fc-cus-0004,Quarry Lane Studios (synthetic),Starter,USD,650.00,2024-10,2025-12,,
+fc-cus-0005,Bluebell Insurance (synthetic),Growth,USD,3100.00,2025-01,,,
+fc-cus-0006,Cedar Point Hotels (synthetic),Scale,USD,5900.00,2025-02,,2025-11,4900.00
+fc-cus-0007,Ironwood Analytics (synthetic),Starter,USD,800.00,2025-03,,2025-09,1500.00
+fc-cus-0008,Silverline Credit Union (synthetic),Enterprise,USD,12000.00,2025-05,,,
+fc-cus-0009,Tidewater Foods (synthetic),Growth,USD,2750.00,2025-06,2026-05,,
+fc-cus-0010,Oakridge Schools (synthetic),Growth,USD,1900.00,2025-08,,,
+fc-cus-0011,Summit Ridge Clinics (synthetic),Scale,USD,7400.00,2025-10,,,
+fc-cus-0012,Lakeshore Realty (synthetic),Starter,USD,700.00,2026-01,,,

@@ -25,7 +25,8 @@
     "org:reject": "pnpm --silent --filter @pactlab/api ops:org reject",
     "login:code": "pnpm --silent --filter @pactlab/api login:code",
     "ai:check": "pnpm --silent --filter @pactlab/api ai:check",
-    "eval:live": "pnpm --silent --filter @pactlab/api eval:live"
+    "eval:live": "pnpm --silent --filter @pactlab/api eval:live",
+    "kit:build": "pnpm --silent --filter @pactlab/api kit:build"
   },
   "prettier": {
     "singleQuote": true,
