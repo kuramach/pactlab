@@ -61,10 +61,14 @@ contraction. NRR, GRR and concentration follow from the file.
    Then see **Is the multiple in range?** and the explanation on the Overview.
 6. **Negotiation anchors**: add a comparable on **Comparables** (with a source),
    then cite it against the ask on the deal.
+7. **Engineering**: **Sources → Connect synthetic code and Jira data** → pick a
+   synthetic repository (e.g. the healthy one) and a Jira site → **Connect and sync**.
+   **Engineering** then shows team charts and contributor profiles, named
+   "Contributor 01" and so on. As deal lead, **Show names** with a reason to see
+   names; each view is written to the audit log. Pick the troubled repository
+   to see a critical owner and a coordinator on **Key people to keep**.
 
 ## Not in the kit yet
 
-- **Code (GitHub/Bitbucket) and delivery (Jira):** by design these connect only
-  through their APIs, never files. A fresh deal can connect a real repository
-  with a read-only token (Sources → GitHub). Synthetic repositories and Jira
-  sites for fresh deals arrive with the Engineering task.
+- **Bitbucket** and a live Jira client. Code and delivery data connect only
+  through their APIs, never files (synthetic data above is local/dev only).
