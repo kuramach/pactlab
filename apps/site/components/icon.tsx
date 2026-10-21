@@ -20,3 +20,22 @@ export function IconTile({ name, tone = 'light' }: { name: IconName; tone?: 'lig
     </span>
   );
 }
+
+/**
+ * A module's or industry's mark: a white line icon on a navy-to-indigo tile.
+ * One treatment everywhere a module or industry is introduced, so the set
+ * reads as designed rather than default. Decorative; the name sits beside it.
+ */
+export function ModuleMark({ name, size = 'md' }: { name: IconName; size?: 'md' | 'lg' }) {
+  return (
+    <span
+      data-mark={name}
+      className={
+        (size === 'lg' ? 'h-16 w-16 rounded-2xl [&_svg]:h-8 [&_svg]:w-8' : 'h-12 w-12 rounded-xl [&_svg]:h-6 [&_svg]:w-6') +
+        ' inline-flex shrink-0 items-center justify-center bg-linear-to-br from-navy to-indigo-ink text-white shadow-md shadow-navy/20 ring-1 ring-inset ring-white/15'
+      }
+    >
+      <Icon name={name} className="" />
+    </span>
+  );
+}

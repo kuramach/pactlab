@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { CtaBand, PilotButton, SignUpLink } from '../../../components/cta';
 import { FeatureGrid } from '../../../components/features';
-import { Icon, IconTile } from '../../../components/icon';
+import { Icon, ModuleMark } from '../../../components/icon';
 import { Section } from '../../../components/page-hero';
 import { StatusBadge } from '../../../components/status-badge';
 import { FLOW, INDUSTRIES, PILOT, PLANNED_NOTE } from '../../../lib/content';
@@ -215,7 +215,7 @@ export default async function IndustryPage({ params }: { params: Promise<{ slug:
                 <img src={`/illustrations/${other.slug}.svg`} alt="" width={640} height={420} loading="lazy" className="h-auto w-full" />
                 <div className="flex items-center justify-between gap-3 p-4">
                   <span className="inline-flex items-center gap-2 font-semibold">
-                    <IconTile name={other.icon} />
+                    <ModuleMark name={other.icon} />
                     {other.name}
                   </span>
                   <StatusBadge industry={other} />

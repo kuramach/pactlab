@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { CtaBand } from '../../components/cta';
 import { FeatureGrid } from '../../components/features';
-import { IconTile } from '../../components/icon';
+import { ModuleMark } from '../../components/icon';
 import { PageHero, Section } from '../../components/page-hero';
 import { StatusBadge } from '../../components/status-badge';
 import { INDUSTRY_STORIES } from '../../lib/industry-stories';
@@ -35,7 +35,7 @@ export default function IndustriesPage() {
                 <img src={`/illustrations/${industry.slug}.svg`} alt="" width={640} height={420} loading="lazy" className="h-auto w-full" />
                 <div className="flex flex-1 flex-col gap-3 p-6">
                   <div className="flex items-start justify-between gap-3">
-                    <IconTile name={industry.icon} />
+                    <ModuleMark name={industry.icon} />
                     <StatusBadge industry={industry} />
                   </div>
                   <h3 className="text-lg font-bold">{industry.name}</h3>

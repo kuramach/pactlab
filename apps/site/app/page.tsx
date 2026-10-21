@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { HeroCarousel } from '../components/hero-carousel';
-import { Icon, IconTile } from '../components/icon';
+import { Icon, IconTile, ModuleMark } from '../components/icon';
 import { Lockup } from '../components/lockup';
 import { siteConfig } from '../lib/config';
 import { CAROUSEL, CLOSING, FOUNDER, INDUSTRIES, MODULES, NAME_STORY, PILLAR, PRINCIPLES, STORY, TAGLINE } from '../lib/content';
@@ -103,7 +103,7 @@ export default function HomePage() {
                 href={`/product/${module.slug}`}
                 className="group flex flex-col gap-4 rounded-2xl border border-navy/10 bg-white p-7 shadow-sm transition hover:-translate-y-0.5 hover:border-indigo hover:shadow-lg hover:shadow-indigo/10"
               >
-                <IconTile name={module.icon} />
+                <ModuleMark name={module.icon} />
                 <h3 className="text-xl font-bold">{module.name}</h3>
                 <p className="leading-relaxed text-slate-text">{module.summary}</p>
                 <span className="mt-auto text-sm font-bold text-indigo-ink">Explore →</span>
