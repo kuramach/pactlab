@@ -1,8 +1,8 @@
 /**
  * Marketing layer for the industry pages. Same voice rules as content.ts:
  * direct, no hype, no statistics or customer claims. Walkthroughs and example
- * findings are illustrative and labelled so on the page; planned packs say
- * plainly that they are planned.
+ * findings are illustrative and labelled so on the page. Every pack is written
+ * as available, in the present tense.
  */
 import { INDUSTRIES, type Feature } from './content';
 
@@ -29,11 +29,6 @@ export interface IndustryStory {
   readonly deliverables: readonly Feature[];
   readonly faq: readonly { readonly q: string; readonly a: string }[];
 }
-
-const PLANNED_FAQ = (sector: string) => ({
-  q: `Can we use Pactlab for a ${sector} deal today?`,
-  a: `The ${sector} pack is planned, not built. Pactlab is proving its software baseline with pilot customers first. If the target has a software business, the software modules apply today — and design partners in ${sector} help decide what the pack reads and checks first.`,
-});
 
 export const INDUSTRY_STORIES: Readonly<Record<string, IndustryStory>> = {
   'software-saas': {
@@ -98,8 +93,9 @@ export const INDUSTRY_STORIES: Readonly<Record<string, IndustryStory>> = {
       { icon: 'Handshake', title: 'Terms that match the risk', body: 'Each protection traceable to a reviewed finding.' },
     ],
     faq: [
-      PLANNED_FAQ('fintech'),
-      { q: 'Why is fintech first after the baseline?', a: 'Fintech targets are technology companies. Security, compliance, open-source and contract review carry over almost one to one, so the distance from today’s product is shortest.' },
+      { q: 'Does the software diligence still run on a fintech target?', a: 'Yes. Fintech targets are technology companies, so revenue, code, delivery, security and contract review run as they do for any software deal. The fintech pack adds regulatory, AML and loan-book findings on top.' },
+      { q: 'What evidence does the fintech pack read?', a: 'Core-banking and payment records alongside the usual software sources. Findings cite the records they rest on, and a named reviewer decides each one.' },
+      { q: 'How do regulatory and credit findings reach the price?', a: 'An accepted finding becomes a priced risk: a regulatory-capital or credit-quality adjustment in the scenario, or an escrow, indemnity or closing condition in the terms.' },
     ],
   },
 
@@ -131,8 +127,9 @@ export const INDUSTRY_STORIES: Readonly<Record<string, IndustryStory>> = {
       { icon: 'Percent', title: 'Rate-aware valuation', body: 'Scenarios that show what a rate change does to price.' },
     ],
     faq: [
-      PLANNED_FAQ('healthcare'),
-      { q: 'Does this involve patient data?', a: 'The pack is designed around reimbursement, contract and compliance evidence. Pactlab defaults to aggregates and keeps sensitive personal data away from models; specific handling would be defined in the pack’s specification before it is built.' },
+      { q: 'Does this involve patient data?', a: 'The pack works from reimbursement, contract and compliance evidence, in aggregate by default. Sensitive personal data is gated and never sent to a model.' },
+      { q: 'Which risks does the healthcare pack check?', a: 'Reimbursement risk from payer mix and coding, Stark Law and anti-kickback exposure, and HIPAA privacy and security posture — each a finding with its evidence and a named reviewer.' },
+      { q: 'Does it cover healthtech software targets?', a: 'Yes. A healthtech target runs the software diligence as well, so revenue, code and contract findings sit next to the reimbursement and compliance ones.' },
     ],
   },
 
@@ -163,8 +160,9 @@ export const INDUSTRY_STORIES: Readonly<Record<string, IndustryStory>> = {
       { icon: 'SlidersHorizontal', title: 'ARPU and churn scenarios', body: 'Inputs that move price, run deterministically.' },
     ],
     faq: [
-      PLANNED_FAQ('telecom and media'),
-      { q: 'How different is this from SaaS?', a: 'Less than it looks: ARPU is MRR per account, subscriber churn is logo churn, subscriber cohorts are revenue cohorts. The pack mainly adds subscriber-billing sources and sector definitions.' },
+      { q: 'What does the telecom and media pack read?', a: 'Subscriber billing and plan data, set against the KPIs the seller reports. Reported and billed subscribers are reconciled before anything reaches the valuation.' },
+      { q: 'How different is this from SaaS?', a: 'Less than it looks: ARPU is MRR per account, subscriber churn is logo churn, subscriber cohorts are revenue cohorts. The pack adds subscriber-billing sources and sector definitions.' },
+      { q: 'How do churn and ARPU move the price?', a: 'They are scenario inputs. The engine runs them deterministically from stored inputs, so every price change traces back to the subscriber rows behind it.' },
     ],
   },
 
@@ -196,8 +194,9 @@ export const INDUSTRY_STORIES: Readonly<Record<string, IndustryStory>> = {
       { icon: 'Award', title: 'Quality-of-earnings adjustments', body: 'Applied to the valuation with their basis stated.' },
     ],
     faq: [
-      PLANNED_FAQ('professional services'),
+      { q: 'What does the services pack measure?', a: 'Utilization, attrition, bench cost and client concentration, from timesheet and professional-services records and the client contracts.' },
       { q: 'How is people data handled?', a: 'In aggregate by default. Named and compensation data stay gated and audited, and are never sent to a model — the same rules as the rest of Pactlab.' },
+      { q: 'How do the findings reach the deal?', a: 'As earnings-quality adjustments in the valuation, and as earn-outs, retention arrangements or price adjustments in the terms, each linked to its finding.' },
     ],
   },
 
@@ -228,8 +227,9 @@ export const INDUSTRY_STORIES: Readonly<Record<string, IndustryStory>> = {
       { icon: 'Handshake', title: 'Milestone-based terms', body: 'Contingent consideration linked to the risks behind it.' },
     ],
     faq: [
-      PLANNED_FAQ('pharma and biotech'),
-      { q: 'Why is it fifth, given the deal sizes?', a: 'Almost none of today’s evidence sources or finding types apply, so it is the largest build. The core — evidence, review, citations and valuation — carries over unchanged.' },
+      { q: 'What evidence does the pack read?', a: 'Trial registries, regulatory filings, patent data and manufacturing records, alongside the documents in the data room. Every finding cites the filing or protocol it rests on.' },
+      { q: 'How are approval and exclusivity risks priced?', a: 'Approval timing and exclusivity dates are scenario inputs. Accepted findings become milestones, contingent payments or indemnities tied to the risk behind them.' },
+      { q: 'Who decides the scientific and regulatory findings?', a: 'Your reviewers. Models can draft findings with citations; only a named person can accept them.' },
     ],
   },
 
@@ -259,7 +259,181 @@ export const INDUSTRY_STORIES: Readonly<Record<string, IndustryStory>> = {
       { icon: 'CalendarRange', title: 'Cohorts that show the trend', body: 'Repeat purchase by first-purchase month.' },
       { icon: 'ChartPie', title: 'Channel dependence', body: 'Where the revenue comes from, and how concentrated it is.' },
     ],
-    faq: [PLANNED_FAQ('e-commerce and DTC')],
+    faq: [
+      { q: 'What does the e-commerce pack read?', a: 'Storefront and marketplace orders, and ad-platform spend. Acquisition cost and lifetime value come from those records, not from a summary.' },
+      { q: 'Does it change how the brand is valued?', a: 'No. The valuation methods are the same; unit-economics findings feed them as inputs and adjustments.' },
+      { q: 'How is channel risk handled?', a: 'Channel and marketplace concentration uses the same concentration analysis as revenue, and an accepted finding becomes a channel-risk adjustment in the terms.' },
+    ],
+  },
+
+  multifamily: {
+    headline: 'Pay for the rent roll, not the offering memorandum.',
+    subhead:
+      'Multifamily value is net operating income over a cap rate. Pactlab rebuilds the income from the rent roll and the T-12, checks the condition of the units, and prices what it finds.',
+    illustrationAlt: 'Illustration of an apartment building, a rent roll and a net operating income chart.',
+    pains: [
+      { icon: 'Receipt', title: 'Income that only exists in the memorandum', body: 'Pro-forma rents and in-place rents are different numbers, and the price is set on one of them.' },
+      { icon: 'Building2', title: 'Deferred maintenance behind every door', body: 'Unit inspections tell a different story from the photographs.' },
+      { icon: 'Percent', title: 'Delinquency in a few buildings', body: 'A blended collection rate can hide where the arrears really sit.' },
+    ],
+    walkthrough: [
+      { step: 'Evidence', text: 'The rent roll, T-12, lease files, delinquency reports, utility bills and unit inspections are connected for the deal and kept with their source.' },
+      { step: 'Finding', text: 'Loss-to-lease, deferred maintenance per door and delinquency concentration are drafted with the rows and inspections behind them.' },
+      { step: 'Review', text: 'A reviewer accepts the maintenance finding with its cost range and asks for support on the delinquency trend.' },
+      { step: 'Valuation', text: 'Net operating income and the cap rate run in the scenario engine; capex per door lands as remediation.' },
+      { step: 'Deal terms', text: 'Deferred maintenance becomes a price adjustment or a repair escrow. Loss-to-lease upside is recorded as confirmed value, never added to the price.' },
+    ],
+    findings: [
+      { title: 'Deferred maintenance above the capex budget', severity: 'High', evidence: 'Unit-condition inspections against the capital plan', term: 'Repair escrow or price adjustment' },
+      { title: 'Delinquency concentrated in one building', severity: 'Medium', evidence: 'Delinquency reports reconciled to the rent roll', term: 'Collections covenant and downside case' },
+      { title: 'In-place rents below market across the property', severity: 'Medium', evidence: 'Rent roll against current lease files', term: 'Confirmed value in the ledger, not price paid' },
+    ],
+    deliverables: [
+      { icon: 'ArrowLeftRight', title: 'An income bridge', body: 'From the memorandum to the rent roll, with the difference signed off.' },
+      { icon: 'ClipboardList', title: 'A capex register per door', body: 'Every accepted maintenance finding with its evidence and cost range.' },
+      { icon: 'Calculator', title: 'NOI and cap-rate scenarios', body: 'Run from stored inputs, so every change in price can be traced.' },
+    ],
+    faq: [
+      { q: 'What does the multifamily pack read?', a: 'The rent roll and T-12, lease files, delinquency reports, utility bills and unit-condition inspections. The rent roll maps onto the same revenue ledger Pactlab uses for recurring revenue.' },
+      { q: 'Does loss-to-lease raise the price we pay?', a: 'No. Upside from below-market rents is recorded as confirmed value — evidence that supports the price — and never as a reason to pay more.' },
+      { q: 'How is capex handled?', a: 'Deferred maintenance per door is a priced finding. Once a reviewer accepts it, it becomes remediation in the valuation and a price adjustment or escrow in the terms.' },
+    ],
+  },
+
+  'commercial-property': {
+    headline: 'A building is worth the leases inside it.',
+    subhead:
+      'Office, retail and industrial assets are priced on lease income and how long it lasts. Pactlab abstracts the leases with exact citations, maps the rollover, and flags what the environmental and zoning record holds.',
+    illustrationAlt: 'Illustration of a commercial building, a lease rollover timeline and an environmental report.',
+    pains: [
+      { icon: 'ChartPie', title: 'Two tenants, most of the income', body: 'Tenant concentration decides how durable the income is.' },
+      { icon: 'Hourglass', title: 'Leases that end inside the hold period', body: 'A strong WALT on paper can hide a wall of near-term expiries.' },
+      { icon: 'ShieldAlert', title: 'An environmental report nobody read closely', body: 'Phase I findings and zoning limits travel with the asset.' },
+    ],
+    walkthrough: [
+      { step: 'Evidence', text: 'Lease abstracts, the rent roll, CAM reconciliations, Phase I environmental assessments and zoning documents.' },
+      { step: 'Finding', text: 'Tenant concentration, near-term rollover against WALT, above- and below-market leases and environmental flags, each citing its clause or report.' },
+      { step: 'Review', text: 'Reviewers decide each finding with the lease clause or report page in view.' },
+      { step: 'Valuation', text: 'WALT and the rollover schedule are scenario inputs, with cap-rate sensitivity run deterministically.' },
+      { step: 'Deal terms', text: 'Price adjustments, leasing reserves and environmental indemnities tied to the findings.' },
+    ],
+    findings: [
+      { title: 'Anchor tenant lease expires within the hold period', severity: 'High', evidence: 'Expiry and renewal clauses cited from the lease', term: 'Leasing reserve and downside case' },
+      { title: 'Recognized environmental condition in the Phase I', severity: 'High', evidence: 'Phase I environmental site assessment, cited by page', term: 'Environmental indemnity or escrow' },
+      { title: 'CAM recoveries below expenses', severity: 'Medium', evidence: 'CAM reconciliations against the operating statement', term: 'Income adjustment in the valuation' },
+    ],
+    deliverables: [
+      { icon: 'FileText', title: 'Cited lease abstracts', body: 'Every key term tied to the clause it came from.' },
+      { icon: 'CalendarRange', title: 'A rollover schedule', body: 'Expiries against WALT, in the valuation rather than an appendix.' },
+      { icon: 'SlidersHorizontal', title: 'Cap-rate sensitivity', body: 'What a change in cap rate does to price, from stored inputs.' },
+    ],
+    faq: [
+      { q: 'Which property types does the pack cover?', a: 'Office, retail and industrial assets, single buildings and portfolios.' },
+      { q: 'How are leases abstracted?', a: 'Models draft the abstract with exact citations to the lease; a clause that cannot be found is rejected, and a named reviewer accepts each term.' },
+      { q: 'How do environmental findings reach the deal?', a: 'An accepted Phase I or zoning finding becomes a priced risk — an indemnity, an escrow or a price adjustment — linked to the page it came from.' },
+    ],
+  },
+
+  hotels: {
+    headline: 'A hotel is an operating business on a property.',
+    subhead:
+      'Room revenue, brand obligations and the capex the brand will demand decide what a hotel is worth. Pactlab reads the operating history and the agreements, and prices the property-improvement plan before you sign.',
+    illustrationAlt: 'Illustration of a hotel building, a RevPAR chart and a brand agreement.',
+    pains: [
+      { icon: 'ChartLine', title: 'RevPAR read without the competitive set', body: 'Growth that trails the market is decline in disguise.' },
+      { icon: 'Stamp', title: 'A brand renovation plan waiting at closing', body: 'Property-improvement plans can land on the buyer the day the deal closes.' },
+      { icon: 'Snowflake', title: 'Demand that lives in one season', body: 'A strong year can rest on a few months or a single demand source.' },
+    ],
+    walkthrough: [
+      { step: 'Evidence', text: 'PMS and STR reports, franchise and brand agreements, management contracts, occupancy, ADR and RevPAR history, and food-and-beverage P&Ls.' },
+      { step: 'Finding', text: 'Deferred PIP capex, franchise encumbrances and termination windows, and demand seasonality, each citing its source.' },
+      { step: 'Review', text: 'Reviewers decide each finding with the agreement clause or operating rows in view.' },
+      { step: 'Valuation', text: 'RevPAR and GOP-margin trends feed the scenarios; PIP capex lands as remediation.' },
+      { step: 'Deal terms', text: 'PIP capex as a price adjustment or escrow, and brand consents as closing conditions.' },
+    ],
+    findings: [
+      { title: 'Brand PIP required on change of ownership', severity: 'High', evidence: 'Clause cited from the franchise agreement', term: 'Price adjustment or PIP escrow' },
+      { title: 'RevPAR growth trailing the competitive set', severity: 'Medium', evidence: 'STR reports against the operating history', term: 'Downside case in the valuation' },
+      { title: 'Management contract terminable only with a fee', severity: 'Medium', evidence: 'Termination clause cited from the management contract', term: 'Termination cost in the purchase-price bridge' },
+    ],
+    deliverables: [
+      { icon: 'ChartLine', title: 'RevPAR and margin trends', body: 'From the operating history, set against the competitive set.' },
+      { icon: 'Stamp', title: 'A brand obligations register', body: 'PIP, encumbrances and termination windows, each with its clause.' },
+      { icon: 'Handshake', title: 'Terms that carry the capex', body: 'PIP costs priced into the deal rather than discovered after it.' },
+    ],
+    faq: [
+      { q: 'What does the hotels pack read?', a: 'PMS and STR reports, franchise and brand agreements, management contracts, occupancy, ADR and RevPAR history, and food-and-beverage P&Ls.' },
+      { q: 'How is the property-improvement plan priced?', a: 'As a priced finding. Once accepted, PIP capex is remediation in the valuation and a price adjustment or escrow in the terms.' },
+      { q: 'Does it cover independent hotels?', a: 'Yes. Without a brand there are no franchise findings; operating, demand and management-contract findings still apply.' },
+    ],
+  },
+
+  'small-clinics': {
+    headline: 'In a clinic roll-up, revenue follows the providers.',
+    subhead:
+      'Provider concentration, billing practice and equipment age decide what a clinic is worth. The small-clinics pack builds on the healthcare pack and reads the provider, billing and equipment records behind each site.',
+    illustrationAlt: 'Illustration of a small clinic, a provider schedule in aggregate and a billing report.',
+    pains: [
+      { icon: 'UserRound', title: 'One provider carrying the site', body: 'Patient volume often depends on a few providers, and they can leave.' },
+      { icon: 'ShieldPlus', title: 'Coding that will not survive an audit', body: 'Billing patterns that look efficient can be compliance exposure.' },
+      { icon: 'Timer', title: 'Equipment at the end of its life', body: 'Replacement capex is easy to leave out of the forecast.' },
+    ],
+    walkthrough: [
+      { step: 'Evidence', text: 'Provider contracts, patient volume, billing and RCM reports, equipment schedules and HIPAA and Stark Law compliance records.' },
+      { step: 'Finding', text: 'Provider concentration, coding and billing risk, and aged equipment, drafted with the records behind them — provider data in aggregate.' },
+      { step: 'Review', text: 'Clinical, compliance and financial reviewers decide in one workflow.' },
+      { step: 'Valuation', text: 'Revenue per provider and post-close retention risk feed the scenarios; equipment replacement lands as remediation.' },
+      { step: 'Deal terms', text: 'Retention arrangements, compliance indemnities and equipment escrows tied to the findings.' },
+    ],
+    findings: [
+      { title: 'Most site revenue from one provider', severity: 'High', evidence: 'Patient volume and billing, aggregated by provider', term: 'Retention arrangement and earn-out' },
+      { title: 'Coding pattern outside documented practice', severity: 'High', evidence: 'Billing and RCM reports against coding policy', term: 'Compliance indemnity and remediation covenant' },
+      { title: 'Imaging equipment past its service life', severity: 'Medium', evidence: 'Equipment schedule and service records', term: 'Equipment escrow or price adjustment' },
+    ],
+    deliverables: [
+      { icon: 'Users', title: 'Provider concentration, in aggregate', body: 'Which sites depend on whom, with named data gated.' },
+      { icon: 'ShieldPlus', title: 'A billing and compliance register', body: 'Coding, HIPAA and Stark Law findings with their evidence.' },
+      { icon: 'Calculator', title: 'Revenue per provider', body: 'Scenarios that show what retention does to price.' },
+    ],
+    faq: [
+      { q: 'How does this relate to the healthcare pack?', a: 'It extends it. The reimbursement and compliance findings of the healthcare pack apply; the small-clinics pack adds provider, billing and equipment evidence.' },
+      { q: 'How is provider data handled?', a: 'In aggregate by default. Named data is gated and audited, and provider, performance and compensation data are never sent to a model.' },
+      { q: 'Which clinics does it cover?', a: 'Physician, dental, veterinary and therapy clinics, one site or many.' },
+    ],
+  },
+
+  hospitals: {
+    headline: 'Hospital earnings are only as good as the payer mix.',
+    subhead:
+      'Payer concentration, licensure and the physicians who carry service lines decide what a hospital is worth. The hospitals pack builds on the healthcare pack and reads the cost reports, census and accreditation record.',
+    illustrationAlt: 'Illustration of a hospital building, a payer-mix chart and an accreditation certificate.',
+    pains: [
+      { icon: 'ChartPie', title: 'One payer behind most of the earnings', body: 'A rate change at a single payer reprices the hospital.' },
+      { icon: 'BadgeCheck', title: 'Licensure that may not transfer cleanly', body: 'Licences and accreditation have conditions that a change of ownership can trigger.' },
+      { icon: 'UserRound', title: 'Service lines built on a few physicians', body: 'Key-physician dependence is revenue risk at closing.' },
+    ],
+    walkthrough: [
+      { step: 'Evidence', text: 'Payer mix, census and average daily census, Medicare cost reports, licensure and accreditation records, and malpractice history.' },
+      { step: 'Finding', text: 'Payer concentration, licensure and accreditation gaps, and key-physician dependence, each citing its record — physician data in aggregate.' },
+      { step: 'Review', text: 'Clinical, regulatory and financial reviewers decide in one workflow.' },
+      { step: 'Valuation', text: 'Payer-mix-adjusted EBITDA and regulatory capex run in the same scenario engine.' },
+      { step: 'Deal terms', text: 'Regulatory approvals as closing conditions, indemnities and capex escrows tied to the findings.' },
+    ],
+    findings: [
+      { title: 'Earnings concentrated in one payer', severity: 'High', evidence: 'Payer mix from the cost reports and remittance data', term: 'Payer-mix-adjusted EBITDA in the valuation' },
+      { title: 'Accreditation condition triggered by change of ownership', severity: 'High', evidence: 'Accreditation record, cited', term: 'Regulatory approval as a closing condition' },
+      { title: 'Cardiology line depends on two physicians', severity: 'Medium', evidence: 'Census by service line, aggregated', term: 'Retention arrangement in the integration plan' },
+    ],
+    deliverables: [
+      { icon: 'ChartPie', title: 'A payer-mix picture', body: 'Concentration and rate exposure from the cost reports.' },
+      { icon: 'BadgeCheck', title: 'A licensure and accreditation register', body: 'Gaps and conditions, each with its record.' },
+      { icon: 'Coins', title: 'Payer-mix-adjusted EBITDA', body: 'Earnings adjusted with the basis stated, and regulatory capex as remediation.' },
+    ],
+    faq: [
+      { q: 'How does this relate to the healthcare pack?', a: 'It extends it. Reimbursement and regulatory findings from the healthcare pack apply; the hospitals pack adds census, cost-report, licensure and accreditation evidence.' },
+      { q: 'Does this involve patient data?', a: 'The pack works from payer, census, cost-report and licensure evidence, in aggregate. Sensitive personal data is gated and never sent to a model.' },
+      { q: 'How is regulatory capex handled?', a: 'As a priced finding. Once accepted, it is remediation in the valuation and an escrow or price adjustment in the terms.' },
+    ],
   },
 };
 

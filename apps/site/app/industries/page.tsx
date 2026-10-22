@@ -19,7 +19,7 @@ export default function IndustriesPage() {
       <PageHero
         eyebrow="Industries"
         title="The same discipline, applied sector by sector"
-        body="Pactlab starts with software and SaaS acquisitions. Each further industry adds the sources, risks and valuation inputs that matter in that sector — on the same core."
+        body="Software, financial services, healthcare, real estate and more. Each industry pack adds the sources, risks and valuation inputs that matter in that sector — on the same core."
       />
       <Section title={INDUSTRY_CORE.title} body={INDUSTRY_CORE.body} tone="mist">
         <FeatureGrid features={INDUSTRY_CORE.parts} />
