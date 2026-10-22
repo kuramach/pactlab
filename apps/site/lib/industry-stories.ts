@@ -4,7 +4,7 @@
  * findings are illustrative and labelled so on the page; planned packs say
  * plainly that they are planned.
  */
-import type { Feature } from './content';
+import { INDUSTRIES, type Feature } from './content';
 
 export interface ExampleFinding {
   readonly title: string;
@@ -262,3 +262,10 @@ export const INDUSTRY_STORIES: Readonly<Record<string, IndustryStory>> = {
     faq: [PLANNED_FAQ('e-commerce and DTC')],
   },
 };
+
+/**
+ * Industries the site shows: those with a story (and so a page). A pack can
+ * be defined in `INDUSTRIES` before its page is written (ADR 0008); it stays
+ * off the index, navigation and cross-links until then.
+ */
+export const PUBLISHED_INDUSTRIES = INDUSTRIES.filter((industry) => industry.slug in INDUSTRY_STORIES);

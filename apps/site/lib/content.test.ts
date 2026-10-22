@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { siteConfig } from './config';
 import * as content from './content';
 import { ICONS } from './icons';
-import { INDUSTRY_STORIES } from './industry-stories';
+import { INDUSTRY_STORIES, PUBLISHED_INDUSTRIES } from './industry-stories';
 
 const APP = join(dirname(fileURLToPath(import.meta.url)), '../app');
 const copy = JSON.stringify({ ...content, BANNED_WORDS: [] }).toLowerCase();
@@ -48,8 +48,13 @@ describe('industries', () => {
       'professional-services',
       'pharma-biotech',
       'ecommerce-dtc',
+      'multifamily',
+      'commercial-property',
+      'hotels',
+      'small-clinics',
+      'hospitals',
     ]);
-    expect(planned.map((industry) => industry.order)).toEqual([1, 2, 3, 4, 5, 6]);
+    expect(planned.map((industry) => industry.order)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
   });
 
   it('gives every industry a full value story', () => {
@@ -61,13 +66,40 @@ describe('industries', () => {
   });
 });
 
+describe('pack registry', () => {
+  it('defines all eleven packs with evidence, finding types and valuation notes', () => {
+    const packs = content.INDUSTRIES.filter((industry) => industry.status === 'PLANNED');
+    expect(packs).toHaveLength(11);
+    for (const industry of packs) {
+      expect(industry.pack, industry.slug).not.toBeNull();
+      expect(industry.pack!.evidence.length, industry.slug).toBeGreaterThan(0);
+      expect(industry.pack!.findings.length, industry.slug).toBeGreaterThan(0);
+      expect(industry.pack!.valuation.length, industry.slug).toBeGreaterThan(0);
+      for (const entry of [...industry.pack!.evidence, ...industry.pack!.findings, ...industry.pack!.valuation]) expect(entry.trim()).not.toBe('');
+    }
+    expect(content.INDUSTRIES.find((industry) => industry.slug === 'software-saas')!.pack).toBeNull();
+  });
+
+  it('groups the real-estate cluster and the healthcare extensions (ADR 0008)', () => {
+    const cluster = (name: string) => content.INDUSTRIES.filter((industry) => industry.pack?.cluster === name).map((industry) => industry.slug);
+    expect(cluster('real-estate')).toEqual(['multifamily', 'commercial-property', 'hotels']);
+    expect(cluster('healthcare')).toEqual(['healthcare', 'small-clinics', 'hospitals']);
+  });
+
+  it('records upside as confirmed value, never a price increase', () => {
+    expect(JSON.stringify(content.INDUSTRIES).toLowerCase()).not.toMatch(/raises? the price|increases? the price/);
+    const multifamily = content.INDUSTRIES.find((industry) => industry.slug === 'multifamily')!;
+    expect(multifamily.pack!.valuation.join(' ')).toContain('never a price increase');
+  });
+});
+
 describe('navigation', () => {
   it('every nav, module and industry link has a page', () => {
     const hrefs = [
       '/',
       ...content.NAV.map((item) => item.href),
       ...content.MODULES.map((module) => `/product/${module.slug}`),
-      ...content.INDUSTRIES.map((industry) => `/industries/${industry.slug}`),
+      ...PUBLISHED_INDUSTRIES.map((industry) => `/industries/${industry.slug}`),
     ];
     for (const href of hrefs) expect(routeExists(href), href).toBe(true);
   });
@@ -113,9 +145,14 @@ describe('siteConfig', () => {
 });
 
 describe('industry stories', () => {
-  it('every industry has a full marketing story and an illustration', () => {
+  it('only the five ADR 0008 packs are awaiting their pages (T-051)', () => {
+    const unpublished = content.INDUSTRIES.filter((industry) => !PUBLISHED_INDUSTRIES.includes(industry)).map((industry) => industry.slug);
+    expect(unpublished).toEqual(['multifamily', 'commercial-property', 'hotels', 'small-clinics', 'hospitals'].filter((slug) => !(slug in INDUSTRY_STORIES)));
+  });
+
+  it('every published industry has a full marketing story and an illustration', () => {
     const publicDir = join(dirname(fileURLToPath(import.meta.url)), '../public/illustrations');
-    for (const industry of content.INDUSTRIES) {
+    for (const industry of PUBLISHED_INDUSTRIES) {
       const story = INDUSTRY_STORIES[industry.slug];
       expect(story, industry.slug).toBeDefined();
       expect(story!.pains.length).toBeGreaterThanOrEqual(3);
@@ -133,7 +170,7 @@ describe('industry stories', () => {
     const copy = JSON.stringify(INDUSTRY_STORIES).toLowerCase();
     for (const word of content.BANNED_WORDS) expect(copy).not.toContain(word);
     for (const claim of ['trusted by', 'our customers', '% faster', 'guarantee', 'certified']) expect(copy).not.toContain(claim);
-    for (const industry of content.INDUSTRIES.filter((entry) => entry.status === 'PLANNED')) {
+    for (const industry of PUBLISHED_INDUSTRIES.filter((entry) => entry.status === 'PLANNED')) {
       expect(JSON.stringify(INDUSTRY_STORIES[industry.slug]!.faq)).toContain('is planned, not built');
     }
   });

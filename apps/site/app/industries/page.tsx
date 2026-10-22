@@ -5,8 +5,8 @@ import { FeatureGrid } from '../../components/features';
 import { ModuleMark } from '../../components/icon';
 import { PageHero, Section } from '../../components/page-hero';
 import { StatusBadge } from '../../components/status-badge';
-import { INDUSTRY_STORIES } from '../../lib/industry-stories';
-import { INDUSTRIES, INDUSTRY_CORE, PILOT } from '../../lib/content';
+import { INDUSTRY_STORIES, PUBLISHED_INDUSTRIES } from '../../lib/industry-stories';
+import { INDUSTRY_CORE, PILOT } from '../../lib/content';
 
 export const metadata: Metadata = {
   title: 'Industries',
@@ -26,7 +26,7 @@ export default function IndustriesPage() {
       </Section>
       <Section title="Where Pactlab works">
         <ul className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {INDUSTRIES.map((industry) => (
+          {PUBLISHED_INDUSTRIES.map((industry) => (
             <li key={industry.slug}>
               <Link
                 href={`/industries/${industry.slug}`}

@@ -1,5 +1,6 @@
 import Link from 'next/link';
-import { INDUSTRIES, MODULES, NAV } from '../lib/content';
+import { MODULES, NAV } from '../lib/content';
+import { PUBLISHED_INDUSTRIES } from '../lib/industry-stories';
 import { siteConfig } from '../lib/config';
 import { Lockup } from './lockup';
 
@@ -11,7 +12,7 @@ export function SiteFooter() {
   ];
   const columns = [
     { title: 'Product', links: MODULES.map((m) => ({ href: `/product/${m.slug}`, label: m.name })) },
-    { title: 'Industries', links: INDUSTRIES.map((i) => ({ href: `/industries/${i.slug}`, label: i.name })) },
+    { title: 'Industries', links: PUBLISHED_INDUSTRIES.map((i) => ({ href: `/industries/${i.slug}`, label: i.name })) },
     {
       title: 'Pactlab',
       links: [
