@@ -66,3 +66,89 @@ export function percentLabel(ratio: string | null): string {
   const basisPoints = Number(`${whole}${fraction.padEnd(4, '0').slice(0, 4)}`);
   return `${(basisPoints / 100).toFixed(1).replace(/\.0$/, '')}%`;
 }
+
+/** The two pictures of the People section. */
+export type PeopleView = 'map' | 'network';
+export function parsePeopleView(value: unknown): PeopleView {
+  return value === 'network' ? 'network' : 'map';
+}
+
+/** Which tag colours a person's dot: the most consequential one they carry. */
+const TAG_PRIORITY: readonly ContributorTag[] = ['CRITICAL_OWNER', 'COORDINATOR', 'BUILDER', 'CROSS_AREA', 'RECENTLY_QUIET'];
+export const NO_TAG = 'No tag';
+
+export interface PeopleMapPoint {
+  readonly key: string;
+  readonly name: string;
+  /** Commits, last 12 months. */
+  readonly code: number;
+  /** Jira issues created + comments: the coordination signal. */
+  readonly coordination: number;
+  /** Jira issues resolved: bubble size. */
+  readonly resolved: number;
+  readonly group: string;
+  readonly href: string;
+}
+
+/**
+ * Code vs delivery: one point per person, placed by two activity signals.
+ * Points keep the API's order (first activity) — nothing here ranks people.
+ */
+export function peopleMapPoints(profiles: readonly ProfileView[], dealId: string): PeopleMapPoint[] {
+  return profiles.map((profile) => {
+    const main = TAG_PRIORITY.find((tag) => profile.tags.includes(tag));
+    return {
+      key: profile.contributorKey,
+      name: displayName(profile),
+      code: profile.commits,
+      coordination: profile.issuesCreated + profile.comments,
+      resolved: profile.issuesResolved,
+      group: main ? TAG_LABELS[main].label : NO_TAG,
+      href: `/deals/${dealId}/engineering/contributors/${profile.contributorKey}`,
+    };
+  });
+}
+
+/** Median of a list of counts, as the map's reference lines. */
+export function median(values: readonly number[]): number {
+  if (values.length === 0) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const middle = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? (sorted[middle] ?? 0) : ((sorted[middle - 1] ?? 0) + (sorted[middle] ?? 0)) / 2;
+}
+
+export type OwnershipStrength = 'SOLE' | 'OWNER' | 'ACTIVE';
+export interface OwnershipGraph {
+  readonly people: readonly { id: string; name: string; href: string; critical: boolean; departed: boolean }[];
+  readonly areas: readonly { id: string; area: string; commits: number; busFactor: number }[];
+  readonly links: readonly { source: string; target: string; strength: OwnershipStrength }[];
+}
+
+/**
+ * People ↔ code areas. A link's strength follows the engineering calculation:
+ * SOLE (≥ 80% of the area's commits), OWNER (≥ 50%), otherwise ACTIVE.
+ */
+export function ownershipGraph(profiles: readonly ProfileView[], areas: EngineeringView['areas'], dealId: string): OwnershipGraph {
+  const areaId = (area: string) => `area:${area}`;
+  const known = new Set(areas.map((entry) => entry.area));
+  const links = profiles.flatMap((profile) =>
+    profile.areasActive
+      .filter((area) => known.has(area))
+      .map((area) => ({
+        source: `person:${profile.contributorKey}`,
+        target: areaId(area),
+        strength: (profile.areasSolelyOwned.includes(area) ? 'SOLE' : profile.areasOwned.includes(area) ? 'OWNER' : 'ACTIVE') as OwnershipStrength,
+      })),
+  );
+  return {
+    people: profiles.map((profile) => ({
+      id: `person:${profile.contributorKey}`,
+      name: displayName(profile),
+      href: `/deals/${dealId}/engineering/contributors/${profile.contributorKey}`,
+      critical: profile.areasSolelyOwned.length > 0,
+      departed: profile.status === 'DEPARTED',
+    })),
+    areas: areas.map((entry) => ({ id: areaId(entry.area), area: entry.area, commits: entry.commits, busFactor: entry.busFactor })),
+    links,
+  };
+}

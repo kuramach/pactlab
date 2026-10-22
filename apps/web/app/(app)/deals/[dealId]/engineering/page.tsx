@@ -1,12 +1,12 @@
 import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, EmptyState, Glossed, IconTile, Stat } from '@pactlab/ui';
 import { EyeOff, GitBranch, HeartHandshake, ListChecks, Users } from 'lucide-react';
 import Link from 'next/link';
-import { BarChart, CHART_COLORS, LineChart } from '../../../_lib/charts';
+import { BarChart, CHART_COLORS, LineChart, OwnershipNetworkChart, PeopleMapChart } from '../../../_lib/charts';
 import { apiGet } from '../../_lib/api';
 import { OutcomeBanner } from '../../_lib/outcome';
 import { ApiState } from '../../_lib/states';
 import { setPeopleAccess } from './actions';
-import { displayName, percentLabel, TAG_LABELS, type EngineeringView } from './view';
+import { displayName, median, ownershipGraph, parsePeopleView, peopleMapPoints, percentLabel, TAG_LABELS, type EngineeringView } from './view';
 
 // Per-user data: never prerender.
 export const dynamic = 'force-dynamic';
@@ -34,7 +34,9 @@ export default async function EngineeringPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { dealId } = await params;
-  const outcome = (await searchParams)['outcome'];
+  const query = await searchParams;
+  const outcome = query['outcome'];
+  const peopleView = parsePeopleView(query['people']);
   const result = await apiGet<EngineeringView>(`/v1/deals/${dealId}/engineering`);
   if (result.kind !== 'ok') return <ApiState result={result} />;
   const view = result.data;
@@ -191,13 +193,56 @@ export default async function EngineeringPage({
                 </CardContent>
               </Card>
 
-              <Card>
+              <Card id="people" className="scroll-mt-6">
                 <CardHeader className="flex flex-row flex-wrap items-center gap-3">
                   <CardTitle className="mr-auto">People</CardTitle>
                   <Badge variant={view.people.enabled ? 'reviewed' : 'neutral'}>{view.people.enabled ? 'Names shown' : 'Names hidden'}</Badge>
                 </CardHeader>
                 <CardContent className="flex flex-col gap-4">
-                  <div className="overflow-x-auto">
+                  <nav aria-label="People view" className="inline-flex w-fit rounded-lg border border-navy/10 bg-mist p-1 text-sm font-semibold">
+                    {(
+                      [
+                        ['map', 'Code vs delivery'],
+                        ['network', 'Who works where'],
+                      ] as const
+                    ).map(([key, title]) => (
+                      <Link
+                        key={key}
+                        href={`/deals/${dealId}/engineering?people=${key}#people`}
+                        aria-current={peopleView === key ? 'page' : undefined}
+                        className={peopleView === key ? 'rounded-md bg-white px-3 py-1.5 text-navy shadow-sm' : 'rounded-md px-3 py-1.5 text-slate-text hover:text-navy'}
+                      >
+                        {title}
+                      </Link>
+                    ))}
+                  </nav>
+                  {peopleView === 'map' ? (
+                    <>
+                      <p className="text-sm text-slate-text">
+                        Each bubble is a person: code commits across, Jira coordination (issues created and comments) up, size by issues resolved. People
+                        top-left commit little but carry delivery — often leads. Dashed lines are team medians. Click a bubble for the profile.
+                      </p>
+                      <PeopleMapChart
+                        label="Contributors by code commits and delivery coordination"
+                        points={peopleMapPoints(view.profiles, dealId)}
+                        medians={{
+                          code: median(view.profiles.map((profile) => profile.commits)),
+                          coordination: median(view.profiles.map((profile) => profile.issuesCreated + profile.comments)),
+                        }}
+                      />
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-sm text-slate-text">
+                        People (circles) linked to the code areas (squares) they work in. A thick red link means one person makes most of an area’s commits;
+                        red squares are areas only one person maintains. Drag to rearrange, scroll to zoom, click a person for the profile.
+                      </p>
+                      <OwnershipNetworkChart label="Contributors linked to the code areas they work in" graph={ownershipGraph(view.profiles, view.areas, dealId)} />
+                    </>
+                  )}
+                  <details className="group rounded-2xl border border-navy/10">
+                    <summary className="cursor-pointer select-none px-4 py-3 text-sm font-bold">Details for each person</summary>
+                  <div className="overflow-x-auto px-4 pb-4">
                     <table className="w-full min-w-[56rem] text-left text-sm">
                       <thead className="text-xs uppercase tracking-wide text-slate-text">
                         <tr>
@@ -241,6 +286,7 @@ export default async function EngineeringPage({
                       </tbody>
                     </table>
                   </div>
+                  </details>
 
                   <div className="flex flex-col gap-2 rounded-2xl border border-navy/10 p-4 text-sm">
                     <span className="font-bold">Contributor names</span>

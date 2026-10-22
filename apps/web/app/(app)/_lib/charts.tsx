@@ -1,5 +1,6 @@
 'use client';
 
+import type { ECharts } from 'echarts';
 import { useEffect, useRef } from 'react';
 
 /**
@@ -33,7 +34,7 @@ const toNumber = (value: string | number | null) => (value === null ? null : typ
 
 type Option = Record<string, unknown>;
 
-function useChart(build: () => Option, deps: readonly unknown[]) {
+function useChart(build: () => Option, deps: readonly unknown[], bind?: (chart: ECharts) => void) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const element = ref.current;
@@ -49,6 +50,7 @@ function useChart(build: () => Option, deps: readonly unknown[]) {
         animationDuration: 600,
         ...build(),
       });
+      bind?.(chart);
       const observer = new ResizeObserver(() => chart.resize());
       observer.observe(element);
       dispose = () => {
@@ -472,5 +474,169 @@ export function ComparablesScatterChart({
       }),
     };
   }, [JSON.stringify(points)]);
+  return <Frame label={label} height={height} chartRef={ref} />;
+}
+
+/** Opens an internal link from a clicked chart item; anything else is ignored. */
+function openHref(params: { data?: unknown }) {
+  const href = (params.data as { href?: unknown } | undefined)?.href;
+  if (typeof href === 'string' && href.startsWith('/') && !href.startsWith('//')) window.location.assign(href);
+}
+
+const PEOPLE_GROUP_COLORS: Readonly<Record<string, string>> = {
+  'Critical owner': CHART_COLORS.rose,
+  Coordinator: CHART_COLORS.indigo,
+  Builder: CHART_COLORS.teal,
+  'Cross-area': CHART_COLORS.amber,
+  'Recently quiet': CHART_COLORS.slate,
+  'No tag': CHART_COLORS.navy,
+};
+
+export interface PeopleMapChartPoint {
+  readonly name: string;
+  readonly code: number;
+  readonly coordination: number;
+  readonly resolved: number;
+  readonly group: string;
+  readonly href: string;
+}
+
+/**
+ * Code vs delivery: commits across, Jira coordination (issues created +
+ * comments) up, bubble size by issues resolved, colour by main tag. Dashed
+ * lines at the team medians split builders from coordinators. Describes
+ * activity; it is not a ranking. Click a bubble to open the profile.
+ */
+export function PeopleMapChart({
+  label,
+  points,
+  medians,
+  height = 400,
+}: {
+  label: string;
+  points: readonly PeopleMapChartPoint[];
+  medians: { readonly code: number; readonly coordination: number };
+  height?: number;
+}) {
+  const ref = useChart(
+    () => {
+      const groups = [...new Set(points.map((point) => point.group))];
+      const maxResolved = Math.max(1, ...points.map((point) => point.resolved));
+      const size = (resolved: number) => 12 + 30 * Math.sqrt(resolved / maxResolved);
+      return {
+        grid: { left: 8, right: 24, top: 24, bottom: 52, containLabel: true },
+        legend: { bottom: 0, icon: 'circle', itemWidth: 10, itemHeight: 10, textStyle: { fontSize: 11 } },
+        tooltip: {
+          trigger: 'item',
+          confine: true,
+          formatter: (params: { data: { name: string; value: [number, number]; resolved: number; group: string } }) =>
+            `<b>${escapeHtml(params.data.name)}</b><br/>${escapeHtml(params.data.group)}<br/>${params.data.value[0]} commits · ${params.data.value[1]} Jira issues created + comments · ${params.data.resolved} issues resolved<br/><i>Click to open the profile</i>`,
+        },
+        xAxis: { type: 'value', name: 'Code commits (12 months)', nameLocation: 'middle', nameGap: 28, minInterval: 1, ...axisCommon },
+        yAxis: { type: 'value', name: 'Delivery coordination (Jira created + comments)', nameTextStyle: { align: 'left' }, minInterval: 1, ...axisCommon },
+        series: groups.map((group, index) => ({
+          name: group,
+          type: 'scatter',
+          cursor: 'pointer',
+          itemStyle: { color: PEOPLE_GROUP_COLORS[group] ?? CHART_COLORS.slate, opacity: 0.85, borderColor: '#fff', borderWidth: 1.5 },
+          label: { show: true, position: 'right', formatter: '{b}', fontSize: 10, color: '#4b5568' },
+          labelLayout: { hideOverlap: true },
+          data: points
+            .filter((point) => point.group === group)
+            .map((point) => ({ name: point.name, value: [point.code, point.coordination], symbolSize: size(point.resolved), resolved: point.resolved, group: point.group, href: point.href })),
+          ...(index === 0
+            ? {
+                markLine: {
+                  silent: true,
+                  symbol: 'none',
+                  lineStyle: { type: 'dashed', color: '#b8c0d6' },
+                  label: { formatter: 'team median', fontSize: 10, color: '#8a93a8' },
+                  data: [{ xAxis: medians.code }, { yAxis: medians.coordination }],
+                },
+              }
+            : {}),
+        })),
+      };
+    },
+    [JSON.stringify(points), medians.code, medians.coordination],
+    (chart) => chart.on('click', openHref),
+  );
+  return <Frame label={label} height={height} chartRef={ref} />;
+}
+
+export interface OwnershipNetworkData {
+  readonly people: readonly { id: string; name: string; href: string; critical: boolean; departed: boolean }[];
+  readonly areas: readonly { id: string; area: string; commits: number; busFactor: number }[];
+  readonly links: readonly { source: string; target: string; strength: 'SOLE' | 'OWNER' | 'ACTIVE' }[];
+}
+
+/**
+ * Who works where: people (circles) linked to code areas (squares). Thick red
+ * links are sole ownership (≥ 80% of an area's commits), indigo is ownership
+ * (≥ 50%), thin grey is other activity; red squares are areas with a bus
+ * factor of one. Drag to rearrange; click a person to open the profile.
+ */
+export function OwnershipNetworkChart({ label, graph, height = 460 }: { label: string; graph: OwnershipNetworkData; height?: number }) {
+  const ref = useChart(
+    () => {
+      const maxCommits = Math.max(1, ...graph.areas.map((area) => area.commits));
+      const linkStyle = {
+        SOLE: { width: 5, color: CHART_COLORS.rose, opacity: 0.85 },
+        OWNER: { width: 3, color: CHART_COLORS.indigo, opacity: 0.8 },
+        ACTIVE: { width: 1, color: '#c3c9da', opacity: 0.9 },
+      } as const;
+      return {
+        tooltip: {
+          trigger: 'item',
+          confine: true,
+          formatter: (params: { dataType: string; data: { name?: string; tip?: string } }) => escapeHtml(params.data.tip ?? params.data.name ?? ''),
+        },
+        legend: { bottom: 0, data: ['People', 'Code areas'], icon: 'circle', itemWidth: 10, itemHeight: 10, textStyle: { fontSize: 11 } },
+        series: [
+          {
+            type: 'graph',
+            layout: 'force',
+            roam: true,
+            draggable: true,
+            cursor: 'pointer',
+            force: { repulsion: 260, edgeLength: [60, 140], gravity: 0.08 },
+            categories: [
+              { name: 'People', itemStyle: { color: CHART_COLORS.navy } },
+              { name: 'Code areas', itemStyle: { color: CHART_COLORS.indigo } },
+            ],
+            label: { show: true, fontSize: 10, color: '#2b3245' },
+            labelLayout: { hideOverlap: true },
+            emphasis: { focus: 'adjacency', lineStyle: { width: 6 } },
+            data: [
+              ...graph.people.map((person) => ({
+                id: person.id,
+                name: person.name,
+                href: person.href,
+                category: 0,
+                symbol: 'circle',
+                symbolSize: 22,
+                itemStyle: { color: person.departed ? CHART_COLORS.slate : CHART_COLORS.navy, borderColor: person.critical ? CHART_COLORS.rose : '#fff', borderWidth: person.critical ? 3 : 1.5 },
+                label: { position: 'right' },
+                tip: `${person.name}${person.critical ? ' — sole owner of at least one area' : ''}${person.departed ? ' (departed)' : ''}. Click to open the profile.`,
+              })),
+              ...graph.areas.map((area) => ({
+                id: area.id,
+                name: area.area,
+                category: 1,
+                symbol: 'roundRect',
+                symbolSize: 18 + 22 * Math.sqrt(area.commits / maxCommits),
+                itemStyle: { color: area.busFactor <= 1 ? CHART_COLORS.rose : CHART_COLORS.indigo },
+                label: { position: 'bottom', color: '#2b3245', fontWeight: 'bold' },
+                tip: `${area.area}: ${area.commits} commits · bus factor ${area.busFactor}`,
+              })),
+            ],
+            links: graph.links.map((link) => ({ source: link.source, target: link.target, lineStyle: linkStyle[link.strength] })),
+          },
+        ],
+      };
+    },
+    [JSON.stringify(graph)],
+    (chart) => chart.on('click', openHref),
+  );
   return <Frame label={label} height={height} chartRef={ref} />;
 }
