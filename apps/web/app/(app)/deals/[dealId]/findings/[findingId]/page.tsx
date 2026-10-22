@@ -113,7 +113,7 @@ export default async function FindingPage({
                       <Link href={withReturn(`/deals/${dealId}/evidence/${link.evidenceItemId}`, `/deals/${dealId}/findings/${findingId}`)}>
                         <Badge variant="evidence">open evidence</Badge>
                       </Link>
-                      <span className="font-mono">{link.commitSha.slice(0, 12)}</span>
+                      {link.commitSha ? <span className="font-mono">{link.commitSha.slice(0, 12)}</span> : null}
                       <span className="text-muted-foreground">
                         {link.toolName}@{link.toolVersion}
                         {link.path ? ` · ${link.path}` : ''}

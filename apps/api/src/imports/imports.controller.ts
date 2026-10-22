@@ -1,6 +1,7 @@
-import { Body, Controller, Get, HttpCode, Inject, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Header, HttpCode, Inject, NotFoundException, Param, Post, Query } from '@nestjs/common';
 import {
   dealParamsSchema,
+  importTargetParamsSchema,
   mappingBodySchema,
   uploadParamsSchema,
   uploadQuerySchema,
@@ -8,6 +9,7 @@ import {
   type ImportMappingBody,
   type ImportPreviewView,
   type ImportResultView,
+  type ImportTargetView,
   type SourceUploadView,
   type UploadDetailView,
   type UploadQuery,
@@ -28,6 +30,29 @@ export class ImportsController {
   @Get('billing-import/systems')
   systems(): { items: BillingSystemView[] } {
     return { items: this.imports.systems() };
+  }
+
+  /** CSV import targets the deal's pack offers, with their standard templates (ADR 0010). */
+  @Get('deals/:dealId/import-targets')
+  async importTargets(
+    @Tenant() tenant: TenantContext,
+    @RequestId() requestId: string,
+    @Param(new ZodValidationPipe(dealParamsSchema)) params: { dealId: string },
+  ): Promise<{ items: ImportTargetView[] }> {
+    return { items: await this.imports.importTargets(tenant, params.dealId, requestId) };
+  }
+
+  /** One target's Pactlab standard template, as a CSV header to fill in. */
+  @Get('deals/:dealId/import-targets/:target/template.csv')
+  @Header('content-type', 'text/csv; charset=utf-8')
+  async template(
+    @Tenant() tenant: TenantContext,
+    @RequestId() requestId: string,
+    @Param(new ZodValidationPipe(importTargetParamsSchema)) params: { dealId: string; target: string },
+  ): Promise<string> {
+    const target = (await this.imports.importTargets(tenant, params.dealId, requestId)).find((item) => item.target === params.target);
+    if (!target) throw new NotFoundException();
+    return target.templateCsv;
   }
 
   /** Raw `text/csv` body (up to 10 MB); system and file name in the query. */

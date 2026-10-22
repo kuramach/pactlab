@@ -1439,11 +1439,19 @@ Five further packs in two clusters. Hotels, multifamily and commercial property 
 - Valuation tweaks: payer-mix-adjusted EBITDA, and regulatory capital expenditure.
 - What transfers: pack 2's reimbursement and regulatory finding types; key-physician dependence reuses key-person risk under rule 7.
 
+### Pack framework (ADR 0009, ADR 0010)
+
+- **Pack = the seller's company type.** A registry (`packages/domain/src/packs`) gives each pack its import targets, metric calculator, finding rules and valuation methods. Code reads registry entries and never branches on the pack.
+- **Import targets.** CSV targets share the billing pipeline (upload, malware scan, confirmed mapping, idempotent import, cited rows). Each target declares its people-data class; named, contact, identity and compensation columns are refused.
+- **Metric calculators** are versioned, deterministic and decimal-only; the SaaS metrics engine is the software pack's calculator.
+- **Finding rules** are versioned and deterministic. They propose DRAFT findings citing evidence (a git commit only when the evidence is code), with a valuation direction; a named reviewer decides.
+- **Valuation methods** register through one interface (ARR multiple and DCF today); pack methods such as NOI ÷ capitalization rate plug in without changing the engine.
+
 ### Sequencing and guardrails
 
 - **Order:** fintech first after the baseline, then healthcare, telecom/media, IT & professional services, pharma/biotech, and e-commerce/DTC, in the rank order above. The extension packs follow in their rank order: multifamily, commercial property, hotels, small clinics, hospitals (ADR 0008). A design partner pulling a lower-ranked pack forward requires an ADR re-sequencing the queue.
 - **No forking:** a pack that appears to require a change to the findings→valuation core, the reviewer workflow, or the deterministic-calculation rule is mis-scoped — the core gap gets fixed in the core for every pack, or the pack waits.
-- **Activation bar:** a pack enters scope only when the tech-M&A baseline is in pilot with the Release 1 acceptance journey passing, and gets its own spec amendment covering adapters, finding types, valuation tweaks, fixtures, and acceptance journeys before build starts.
+- **Activation bar:** amended by ADR 0009 (2026-10-22) — packs are built now, framework first. Each pack still gets its own spec amendment covering adapters, finding types, valuation tweaks, fixtures, and acceptance journeys before build starts.
 - **Baseline protection:** pack work must not delay, reshape, or add abstraction for the baseline modules. Premature pack abstraction in baseline code is a reject in review.
 
 ---

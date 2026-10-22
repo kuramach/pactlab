@@ -17,6 +17,7 @@ import {
   type ImportMappingBody,
   type ImportPreviewView,
   type ImportResultView,
+  type ImportTargetView,
   type SourceUploadView,
   type UploadDetailView,
   type UploadQuery,
@@ -24,6 +25,7 @@ import {
 import {
   appendAuditEvent,
   BILLING_UPLOAD_PROVIDER,
+  PACK_UPLOAD_PROVIDER,
   executeSyncRun,
   IdempotencyConflictError,
   sourceUploads,
@@ -31,24 +33,31 @@ import {
   withTenant,
   type PrismaClient,
   type SourceUploadRecord,
+  type TransactionClient,
 } from '@pactlab/db';
 import {
   applyMapping,
-  BILLING_INVOICE_LINE,
   canonicalMappingJson,
   CsvParseError,
   detectDateFormat,
   isBuyerSideRole,
+  IMPORT_TARGET_DEFINITIONS,
   mappedEvidence,
   mappingProblems,
   MAPPING_VERSION,
   newId,
+  packFor,
   parseCsv,
+  peopleColumnProblems,
   permissionsForDealRole,
   suggestFields,
+  targetTemplateCsv,
+  type CompanyType,
   type CsvTable,
   type DealRole,
   type ImportMapping,
+  type ImportTarget,
+  type TargetDefinition,
   type TenantContext,
 } from '@pactlab/domain';
 import { DealAccess } from '../deals/deal-access';
@@ -66,9 +75,32 @@ const SAMPLE_ROWS = 10;
 
 const sha256 = (bytes: Uint8Array | string) => createHash('sha256').update(bytes).digest('hex');
 
+const definitionOf = (target: ImportTarget): TargetDefinition => IMPORT_TARGET_DEFINITIONS[target];
+const isBilling = (target: ImportTarget) => target === 'BILLING_INVOICE_LINE';
+
+/** Problems that stop a mapping before any row is read: refused people columns (rule 7), then the mapping itself. */
+function blockingProblems(definition: TargetDefinition, header: readonly string[], mapping: ImportMapping): string[] {
+  return [
+    ...peopleColumnProblems(definition, header),
+    ...(mapping.target === definition.target ? [] : [`This file is imported as ${definition.label}, not ${mapping.target}`]),
+    ...mappingProblems(definition, header, mapping),
+  ];
+}
+
+export function targetView(definition: TargetDefinition): ImportTargetView {
+  return {
+    target: definition.target,
+    label: definition.label,
+    people: definition.people,
+    fields: definition.fields.map((field) => ({ name: field.name, label: field.label, required: field.required, hint: field.hint })),
+    templateCsv: targetTemplateCsv(definition),
+  };
+}
+
 function toView(row: SourceUploadRecord): SourceUploadView {
   return {
     id: row.id,
+    target: row.target,
     system: row.system,
     fileName: row.fileName,
     sizeBytes: row.sizeBytes,
@@ -90,14 +122,16 @@ function templateFor(system: string): BillingTemplate {
 }
 
 /** A first guess at the mapping; the user confirms every field before import. */
-function suggestMapping(table: CsvTable, template: BillingTemplate): ImportMapping {
-  const fields = suggestFields(BILLING_INVOICE_LINE, table.header, template.aliases);
-  const dateColumn = ['created', 'period_start', 'period_end']
+function suggestMapping(table: CsvTable, template: BillingTemplate, definition: TargetDefinition): ImportMapping {
+  // Pack extracts use their standard template: columns named like the fields.
+  const aliases = isBilling(definition.target) ? template.aliases : {};
+  const fields = suggestFields(definition, table.header, aliases);
+  const dateColumn = (isBilling(definition.target) ? ['created', 'period_start', 'period_end'] : definition.fields.filter((field) => field.kind === 'date').map((field) => field.name))
     .map((name) => fields[name])
     .find((source) => source?.kind === 'column');
   const detected = dateColumn?.kind === 'column' ? detectDateFormat(table, dateColumn.column) : null;
   return {
-    target: 'BILLING_INVOICE_LINE',
+    target: definition.target,
     fields,
     dateFormat: detected ?? template.defaults.dateFormat ?? 'YYYY-MM-DD',
     numberFormat: template.defaults.numberFormat ?? 'DOT_DECIMAL',
@@ -121,6 +155,18 @@ export class ImportsService {
 
   systems(): BillingSystemView[] {
     return Object.values(BILLING_TEMPLATES).map(systemView);
+  }
+
+  /** The CSV import targets the deal's pack offers (ADR 0010); billing first. */
+  async importTargets(tenant: TenantContext, dealId: string, requestId: string): Promise<ImportTargetView[]> {
+    await this.access.require(tenant, dealId, canRead, { action: 'source_upload.targets', requestId });
+    const companyType = await withTenant(this.prisma, tenant, (tx) => this.sellerType(tx, dealId));
+    return packFor(companyType).importTargets.map((target) => targetView(definitionOf(target)));
+  }
+
+  private async sellerType(tx: TransactionClient, dealId: string): Promise<CompanyType | null> {
+    const seller = await tx.dealParty.findFirst({ where: { dealId, role: 'SELLER' }, select: { companyType: true } });
+    return seller?.companyType ?? null;
   }
 
   async upload(
@@ -166,11 +212,13 @@ export class ImportsService {
       throw new ServiceUnavailableException();
     }
     const row = await withTenant(this.prisma, tenant, async (tx) => {
+      // A file is imported only as a target the deal's pack offers.
+      if (!packFor(await this.sellerType(tx, dealId)).importTargets.includes(query.target)) throw new UnprocessableEntityException();
       const created = await sourceUploads.create(tx, {
         id,
         organizationId: tenant.organizationId,
         dealId,
-        target: 'BILLING_INVOICE_LINE',
+        target: query.target,
         system: query.system,
         fileName: query.fileName,
         sha256: digest,
@@ -216,8 +264,9 @@ export class ImportsService {
   ): Promise<ImportPreviewView> {
     const row = await this.load(tenant, dealId, uploadId, canSupply, 'source_upload.previewed', requestId);
     const table = await this.table(row);
-    const problems = mappingProblems(BILLING_INVOICE_LINE, table.header, mapping as ImportMapping);
-    const result = applyMapping(table, mapping as ImportMapping, this.dataset(row));
+    const definition = definitionOf(row.target);
+    const problems = blockingProblems(definition, table.header, mapping as ImportMapping);
+    const result = problems.length > 0 ? { rows: [], issues: [] } : applyMapping(table, mapping as ImportMapping, this.dataset(row), definition);
     const grouped = new Map<string, { code: string; count: number; rows: number[]; detail: string }>();
     for (const issue of problems.length > 0 ? [] : result.issues) {
       const entry = grouped.get(issue.code) ?? { code: issue.code, count: 0, rows: [], detail: issue.detail };
@@ -233,7 +282,7 @@ export class ImportsService {
       const entry = totals.get(currency) ?? { amount: new D(0), lines: 0 };
       totals.set(currency, { amount: entry.amount.plus(amount), lines: entry.lines + 1 });
     }
-    const emptyFields = BILLING_INVOICE_LINE.fields
+    const emptyFields = definition.fields
       .map((field) => ({ field: field.name, rows: result.rows.filter((mapped) => mapped.canonical[field.name] === null).length }))
       .filter((entry) => entry.rows > 0);
     return {
@@ -263,8 +312,8 @@ export class ImportsService {
   ): Promise<ImportResultView> {
     const row = await this.load(tenant, dealId, uploadId, canSupply, 'source_upload.imported', requestId);
     const table = await this.table(row);
-    if (mappingProblems(BILLING_INVOICE_LINE, table.header, mapping as ImportMapping).length > 0)
-      throw new UnprocessableEntityException();
+    const definition = definitionOf(row.target);
+    if (blockingProblems(definition, table.header, mapping as ImportMapping).length > 0) throw new UnprocessableEntityException();
     const mappingJson = canonicalMappingJson(mapping as ImportMapping);
     const template = templateFor(row.system);
 
@@ -279,7 +328,8 @@ export class ImportsService {
           organizationId: tenant.organizationId,
           dealId,
           system: row.system,
-          systemLabel: template.label,
+          systemLabel: isBilling(row.target) ? template.label : definition.label,
+          target: row.target,
           visibility: row.visibility,
           createdBy: tenant.userId,
         });
@@ -306,14 +356,18 @@ export class ImportsService {
           this.prisma,
           { organizationId: tenant.organizationId, dealId, requestedBy: tenant.userId, syncRunId: requested.run.id },
           {
-            provider: BILLING_UPLOAD_PROVIDER,
+            provider: isBilling(row.target) ? BILLING_UPLOAD_PROVIDER : PACK_UPLOAD_PROVIDER,
             version: UPLOAD_CONNECTOR_VERSION,
             pull: async () =>
-              mappedEvidence(applyMapping(table, mapping as ImportMapping, dataset), {
-                target: 'BILLING_INVOICE_LINE',
-                sourceSystem: `${BILLING_UPLOAD_PROVIDER}:${row.system}`,
-                dataset,
-              }),
+              mappedEvidence(
+                applyMapping(table, mapping as ImportMapping, dataset, definition),
+                {
+                  target: row.target,
+                  sourceSystem: isBilling(row.target) ? `${BILLING_UPLOAD_PROVIDER}:${row.system}` : `${PACK_UPLOAD_PROVIDER}:${row.target.toLowerCase()}`,
+                  dataset,
+                },
+                definition,
+              ),
           },
         );
       } catch {
@@ -395,7 +449,7 @@ export class ImportsService {
       ...toView(row),
       header: [...table.header],
       sample: table.rows.slice(0, SAMPLE_ROWS).map((source) => [...source.cells]),
-      suggestedMapping: suggestMapping(table, template) as ImportMappingBody,
+      suggestedMapping: suggestMapping(table, template, definitionOf(row.target)) as ImportMappingBody,
       template: systemView(template),
     };
   }

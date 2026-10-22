@@ -5,6 +5,7 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  PayloadTooLargeException,
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { evidence, withTenant, type PrismaClient } from '@pactlab/db';
@@ -16,9 +17,11 @@ import {
   createDraft,
   decide,
   editDraft,
+  findingRule,
   FindingValidationError,
   FindingWorkflowError,
   newId,
+  ruleProposals,
   type DealRole,
   type Finding,
   type FindingActor,
@@ -29,6 +32,7 @@ import {
 } from '@pactlab/domain';
 import { DealAccess } from '../deals/deal-access';
 import { PRISMA } from '../tokens';
+import { MAX_RULE_EVIDENCE, PACK_REGISTRY, type PackRegistry } from './pack-rules';
 import {
   FINDINGS_REPOSITORY,
   type FindingsRepository,
@@ -64,6 +68,7 @@ export class FindingsService {
     @Inject(PRISMA) private readonly prisma: PrismaClient,
     @Inject(DealAccess) private readonly access: DealAccess,
     @Inject(FINDINGS_REPOSITORY) private readonly findings: FindingsRepository,
+    @Inject(PACK_REGISTRY) private readonly packs: PackRegistry,
   ) {}
 
   private human(tenant: TenantContext, role: DealRole): FindingActor {
@@ -194,6 +199,50 @@ export class FindingsService {
       created.push(finding);
     }
     return { created, existing };
+  }
+
+  /**
+   * Run the deal's pack finding rules over its current pack evidence and
+   * record what they propose as DRAFT findings (idempotent by fingerprint:
+   * a re-run creates nothing new). Deterministic, no model; humans decide.
+   */
+  async runPackRules(tenant: TenantContext, dealId: string, requestId: string) {
+    await this.access.require(tenant, dealId, canDraftFindings, { action: 'finding.pack_rules_run', requestId });
+    const { pack, evidence: rows } = await withTenant(this.prisma, tenant, async (tx) => {
+      const seller = await tx.dealParty.findFirst({ where: { dealId, role: 'SELLER' }, select: { companyType: true } });
+      const type = seller?.companyType;
+      const pack = this.packs.packs[type && type !== 'OTHER' ? type : 'SOFTWARE_SAAS'];
+      const types = [...new Set(pack.findingRules.flatMap((id) => findingRule(id, this.packs.rules).evidenceTypes))];
+      const found = types.length === 0
+        ? []
+        : await tx.evidenceItem.findMany({
+            where: { dealId, evidenceType: { in: types } },
+            select: { id: true, connectionId: true, evidenceType: true, sourceRecordId: true, canonical: true },
+            orderBy: { id: 'asc' },
+            take: MAX_RULE_EVIDENCE + 1,
+          });
+      return { pack, evidence: found };
+    });
+    if (rows.length > MAX_RULE_EVIDENCE) throw new PayloadTooLargeException('Too much evidence for one rule run');
+    // The newest version of each source record (earlier versions stay in lineage).
+    const latest = new Map<string, (typeof rows)[number]>();
+    for (const row of rows) latest.set(`${row.connectionId}|${row.evidenceType}|${row.sourceRecordId}`, row);
+    const input = [...latest.values()].map((row) => ({
+      id: row.id,
+      evidenceType: row.evidenceType,
+      sourceRecordId: row.sourceRecordId,
+      canonical: (row.canonical ?? {}) as Record<string, string | null>,
+    }));
+    const rules = pack.findingRules.map((id) => findingRule(id, this.packs.rules));
+    const proposals = rules.flatMap((rule) => ruleProposals(rule, input));
+    const recorded = await this.recordProposals(tenant, dealId, proposals, { kind: 'SYSTEM', component: 'pack-rules' }, requestId);
+    return {
+      pack: pack.id,
+      rules: rules.map((rule) => ({ id: rule.id, version: rule.version })),
+      evidenceRead: input.length,
+      created: recorded.created.length,
+      existing: recorded.existing,
+    };
   }
 
   async update(

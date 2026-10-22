@@ -12,18 +12,27 @@ export async function uploadBillingExport(deal: string, formData: FormData): Pro
   const parsedDeal = dealId.safeParse(deal);
   if (!parsedDeal.success) redirect('/deals');
   const base = `/deals/${parsedDeal.data}/sources/upload`;
+  // Pack extracts (ADR 0010) carry their target and use the Pactlab standard template; billing chooses a system.
+  const targetField = formData.get('target');
+  const packTarget = typeof targetField === 'string' && /^[A-Z][A-Z0-9_]{1,60}$/.test(targetField) && targetField !== 'BILLING_INVOICE_LINE' ? targetField : undefined;
+  const back = packTarget ? `${base}?target=${packTarget}&` : `${base}?`;
   const file = formData.get('file');
-  if (!(file instanceof File) || file.size === 0) redirect(`${base}?error=no-file`);
-  if (file.size > MAX_UPLOAD_BYTES) redirect(`${base}?error=too-large`);
-  const query = uploadQuerySchema.safeParse({ system: formData.get('system'), fileName: file.name || 'billing.csv' });
-  if (!query.success) redirect(`${base}?error=no-system`);
+  if (!(file instanceof File) || file.size === 0) redirect(`${back}error=no-file`);
+  if (file.size > MAX_UPLOAD_BYTES) redirect(`${back}error=too-large`);
+  const query = uploadQuerySchema.safeParse({
+    system: packTarget ? 'pactlab_standard' : formData.get('system'),
+    fileName: file.name || 'upload.csv',
+    ...(packTarget ? { target: packTarget } : {}),
+  });
+  if (!query.success) redirect(`${back}error=no-system`);
   const result = await dealsApi.uploadCsv(
     parsedDeal.data,
     query.data.system,
     query.data.fileName,
     new Uint8Array(await file.arrayBuffer()),
+    packTarget ? query.data.target : undefined,
   );
-  if (result.kind !== 'ok') redirect(`${base}?error=${result.kind}`);
+  if (result.kind !== 'ok') redirect(`${back}error=${result.kind}`);
   redirect(`${base}/${result.data.id}`);
 }
 

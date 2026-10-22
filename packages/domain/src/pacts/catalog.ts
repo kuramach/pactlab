@@ -5,10 +5,10 @@ export const SOURCE_KINDS = ['BILLING', 'CODE', 'DELIVERY', 'DOCUMENTS'] as cons
 export type SourceKind = (typeof SOURCE_KINDS)[number];
 
 /**
- * How a source gets its data in. Every source has a live API adapter; only
- * billing takes CSV exports and documents take files. Source control and
- * delivery tools connect through adapters only — their history can't be
- * trusted from a spreadsheet.
+ * How a source gets its data in. Every source has a live API adapter; billing
+ * and industry-pack extracts take CSV exports (ADR 0004, ADR 0010) and
+ * documents take files. Source control and delivery tools connect through
+ * adapters only — their history can't be trusted from a spreadsheet.
  */
 export const CONNECT_METHODS = ['API', 'UPLOAD'] as const;
 export type ConnectMethod = (typeof CONNECT_METHODS)[number];
@@ -94,6 +94,11 @@ const SOURCES_BY_TYPE: Readonly<Record<CompanyType, readonly SourceKind[]>> = {
   HEALTHCARE: ALL,
   TELECOM_MEDIA: ALL,
   ECOMMERCE_DTC: ALL,
+  MULTIFAMILY: ['BILLING', 'DOCUMENTS'],
+  COMMERCIAL_PROPERTY: ['BILLING', 'DOCUMENTS'],
+  HOTELS: ['BILLING', 'DOCUMENTS'],
+  SMALL_CLINICS: ['BILLING', 'DOCUMENTS'],
+  HOSPITALS: ['BILLING', 'DOCUMENTS'],
   PROFESSIONAL_SERVICES: ['BILLING', 'DELIVERY', 'DOCUMENTS'],
   PHARMA_BIOTECH: ['DOCUMENTS'],
   OTHER: ['BILLING', 'DOCUMENTS'],

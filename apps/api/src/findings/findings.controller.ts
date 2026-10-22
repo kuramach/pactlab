@@ -33,6 +33,17 @@ export class FindingsController {
     return this.service.list(tenant, params.dealId, query, requestId);
   }
 
+  /** Run the deal's pack finding rules; proposes DRAFT findings only (idempotent). */
+  @Post('pack-rules/run')
+  @HttpCode(200)
+  async runPackRules(
+    @Tenant() tenant: TenantContext,
+    @RequestId() requestId: string,
+    @Param(new ZodValidationPipe(dealParamsSchema)) params: { dealId: string },
+  ) {
+    return this.service.runPackRules(tenant, params.dealId, requestId);
+  }
+
   @Post()
   async create(
     @Tenant() tenant: TenantContext,

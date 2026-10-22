@@ -1,14 +1,16 @@
 import {
   AMOUNT_UNITS,
-  BILLING_INVOICE_LINE,
   BILLING_SYSTEMS,
   DATE_FORMATS,
+  IMPORT_TARGET_DEFINITIONS,
   IMPORT_TARGETS,
   NUMBER_FORMATS,
+  type ImportTarget,
 } from '@pactlab/domain';
 import { z } from 'zod';
 
-const FIELD_NAMES = BILLING_INVOICE_LINE.fields.map((field) => field.name) as [string, ...string[]];
+/** Every canonical field of every import target (billing and pack extracts). */
+const FIELD_NAMES = [...new Set(Object.values(IMPORT_TARGET_DEFINITIONS).flatMap((definition) => definition.fields.map((field) => field.name)))] as [string, ...string[]];
 
 export const fieldSourceSchema = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('column'), column: z.string().min(1).max(200) }),
@@ -32,6 +34,9 @@ export const mappingBodySchema = z.strictObject({ mapping: importMappingSchema }
 export const billingSystemSchema = z.enum(BILLING_SYSTEMS);
 
 export const uploadQuerySchema = z.strictObject({
+  /** What the file is imported as; billing when absent, so existing calls are unchanged. */
+  target: z.enum(IMPORT_TARGETS).default('BILLING_INVOICE_LINE'),
+  /** The billing system a billing export came from; pack extracts use `pactlab_standard`. */
   system: billingSystemSchema,
   fileName: z
     .string()
@@ -43,6 +48,7 @@ export const uploadQuerySchema = z.strictObject({
 export type UploadQuery = z.infer<typeof uploadQuerySchema>;
 
 export const uploadParamsSchema = z.strictObject({ dealId: z.uuid(), uploadId: z.uuid() });
+export const importTargetParamsSchema = z.strictObject({ dealId: z.uuid(), target: z.enum(IMPORT_TARGETS) });
 
 export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 
@@ -54,6 +60,7 @@ export interface BillingSystemView {
 }
 
 export interface SourceUploadView {
+  target: ImportTarget;
   id: string;
   system: string;
   fileName: string;
@@ -98,4 +105,13 @@ export interface ImportResultView {
     issuesCount: number;
   };
   replayed: boolean;
+}
+
+/** A CSV import target the deal's pack offers (ADR 0010), with its standard template. */
+export interface ImportTargetView {
+  target: ImportTarget;
+  label: string;
+  people: 'NONE' | 'AGGREGATE' | 'PSEUDONYMOUS';
+  fields: { name: string; label: string; required: boolean; hint: string }[];
+  templateCsv: string;
 }

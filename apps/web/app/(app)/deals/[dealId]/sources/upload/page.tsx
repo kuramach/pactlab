@@ -28,13 +28,58 @@ export default async function BillingUploadPage({
   searchParams,
 }: {
   params: Promise<{ dealId: string }>;
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; target?: string }>;
 }) {
   const { dealId } = await params;
-  const { error } = await searchParams;
+  const { error, target } = await searchParams;
   if (!isUuidParam(dealId)) notFound();
-  const systems = await dealsApi.billingSystems();
+  const [systems, targets] = await Promise.all([dealsApi.billingSystems(), dealsApi.importTargets(dealId)]);
   const upload = uploadBillingExport.bind(null, dealId);
+  // An industry-pack extract (ADR 0010): only a target this deal's pack offers; billing otherwise.
+  const pack = target && target !== 'BILLING_INVOICE_LINE' && targets.kind === 'ok' ? targets.data.items.find((item) => item.target === target) : undefined;
+  if (target && target !== 'BILLING_INVOICE_LINE' && targets.kind === 'ok' && !pack) notFound();
+  if (pack) {
+    return (
+      <div className="flex max-w-3xl flex-col gap-6">
+        <header className="flex flex-col gap-1">
+          <Link href={`/deals/${dealId}/sources`} className="text-sm text-muted-foreground hover:underline">
+            ← Sources
+          </Link>
+          <h2 className="text-lg font-semibold tracking-tight">Upload {pack.label.toLowerCase()}</h2>
+          <p className="text-sm text-muted-foreground">
+            A CSV on the Pactlab standard template for this extract. Next you&apos;ll confirm the column mapping before anything is imported.
+            {pack.people === 'NONE' ? ' It must not contain people data.' : ' People appear only as aggregates or pseudonymous references — files with names, contact, identity, health or pay columns are refused.'}
+          </p>
+        </header>
+        <Card>
+          <CardContent className="pt-6">
+            <form action={upload} className="flex flex-col gap-5">
+              {error && ERRORS[error] ? (
+                <p role="alert" className="rounded-md border border-border bg-muted px-3 py-2 text-sm">
+                  {ERRORS[error]}
+                </p>
+              ) : null}
+              <input type="hidden" name="target" value={pack.target} />
+              <label className="flex flex-col gap-1 text-sm font-medium">
+                Choose the CSV file (UTF-8, up to 10 MB)
+                <input name="file" type="file" accept=".csv,text/csv" required className="text-sm" />
+              </label>
+              <p className="text-xs text-muted-foreground">
+                Columns: {pack.fields.map((field) => field.name).join(', ')}.{' '}
+                <a href={`data:text/csv;charset=utf-8,${encodeURIComponent(pack.templateCsv)}`} download={`${pack.target.toLowerCase()}-template.csv`} className="text-indigo-ink underline">
+                  Download the template
+                </a>
+                .
+              </p>
+              <div>
+                <Button type="submit">Upload and map columns</Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="flex max-w-3xl flex-col gap-6">

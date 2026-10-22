@@ -3,8 +3,8 @@ import type { DealRole } from '../roles';
 export const FINDING_STATUSES = ['DRAFT', 'IN_REVIEW', 'ACCEPTED', 'REJECTED'] as const;
 export type FindingStatus = (typeof FINDING_STATUSES)[number];
 
-/** Technology review groups findings by these domains. */
-export const FINDING_DOMAINS = [
+/** Findings are grouped by domain: technology review first, then pack domains (ADR 0009). */
+export const TECHNOLOGY_FINDING_DOMAINS = [
   'ARCHITECTURE',
   'MAINTAINABILITY',
   'SECURITY',
@@ -14,6 +14,8 @@ export const FINDING_DOMAINS = [
   'CODE_PROVENANCE',
   'KEY_PERSON',
 ] as const;
+export const PACK_FINDING_DOMAINS = ['FINANCIAL', 'COMMERCIAL', 'OPERATIONAL', 'REGULATORY', 'LEGAL', 'PROPERTY', 'PEOPLE'] as const;
+export const FINDING_DOMAINS = [...TECHNOLOGY_FINDING_DOMAINS, ...PACK_FINDING_DOMAINS] as const;
 export type FindingDomain = (typeof FINDING_DOMAINS)[number];
 
 export const FINDING_SEVERITIES = ['INFO', 'LOW', 'MEDIUM', 'HIGH', 'CRITICAL'] as const;
@@ -36,13 +38,13 @@ export type FindingActor =
   | { readonly kind: 'SYSTEM'; readonly component: string };
 
 /**
- * Resolvable provenance for a technology finding: the evidence item it cites,
- * the exact commit analysed and the tool (scanner or heuristic) and version
- * that produced the signal.
+ * Resolvable provenance for a finding: the evidence item it cites, the exact
+ * commit analysed when the evidence is code (null for pack evidence such as an
+ * imported rent-roll row), and the tool, rule or scanner and its version.
  */
 export interface FindingEvidenceLink {
   readonly evidenceItemId: string;
-  readonly commitSha: string;
+  readonly commitSha: string | null;
   readonly toolName: string;
   readonly toolVersion: string;
   readonly rulesetVersion: string | null;

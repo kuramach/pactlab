@@ -5,7 +5,7 @@ export type PartyRole = (typeof PARTY_ROLES)[number];
 export const OWNERSHIPS = ['PUBLIC', 'PRIVATE'] as const;
 export type Ownership = (typeof OWNERSHIPS)[number];
 
-/** The seller's line of business decides which sources Pactlab asks for. */
+/** The seller's line of business decides which sources Pactlab asks for — and the deal's industry pack (ADR 0009). */
 export const COMPANY_TYPES = [
   'SOFTWARE_SAAS',
   'FINTECH',
@@ -14,6 +14,11 @@ export const COMPANY_TYPES = [
   'PROFESSIONAL_SERVICES',
   'PHARMA_BIOTECH',
   'ECOMMERCE_DTC',
+  'MULTIFAMILY',
+  'COMMERCIAL_PROPERTY',
+  'HOTELS',
+  'SMALL_CLINICS',
+  'HOSPITALS',
   'OTHER',
 ] as const;
 export type CompanyType = (typeof COMPANY_TYPES)[number];
@@ -26,6 +31,11 @@ export const COMPANY_TYPE_LABELS: Readonly<Record<CompanyType, string>> = {
   PROFESSIONAL_SERVICES: 'Professional services',
   PHARMA_BIOTECH: 'Pharma & biotech',
   ECOMMERCE_DTC: 'E-commerce & DTC',
+  MULTIFAMILY: 'Multifamily',
+  COMMERCIAL_PROPERTY: 'Commercial property',
+  HOTELS: 'Hotels & hospitality',
+  SMALL_CLINICS: 'Small clinics',
+  HOSPITALS: 'Hospitals',
   OTHER: 'Other',
 };
 
