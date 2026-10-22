@@ -3,7 +3,8 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { dealsApi } from '../../_lib/api';
 import { EmptyMarkIcon } from '../../_lib/empty-marks';
-import { evidenceQuery, isUuidParam, parseEvidenceFilters } from '../../_lib/filters';
+import { EvidencePagerNav } from '../../_lib/evidence-pager';
+import { evidenceApiQuery, evidencePager, isUuidParam, parseEvidenceFilters } from '../../_lib/filters';
 import { ApiState } from '../../_lib/states';
 
 export default async function EvidenceBrowserPage({
@@ -16,7 +17,12 @@ export default async function EvidenceBrowserPage({
   const { dealId } = await params;
   if (!isUuidParam(dealId)) notFound();
   const filters = parseEvidenceFilters(await searchParams);
-  const result = await dealsApi.evidence(dealId, evidenceQuery(filters));
+  const result = await dealsApi.evidence(dealId, evidenceApiQuery(filters));
+  const pager =
+    result.kind === 'ok'
+      ? evidencePager(filters, { itemCount: result.data.items.length, total: result.data.total, limit: result.data.limit, nextCursor: result.data.nextCursor })
+      : null;
+  const base = `/deals/${dealId}/evidence`;
 
   return (
     <div className="flex max-w-6xl flex-col gap-6">
@@ -83,6 +89,9 @@ export default async function EvidenceBrowserPage({
       ) : (
         <Card>
           <CardContent className="p-0">
+            <p className="border-b border-border px-4 py-2 text-sm font-medium" data-numeric>
+              {pager?.totalLabel}
+            </p>
             <table className="w-full text-sm">
               <thead className="text-left text-muted-foreground">
                 <tr className="border-b border-border">
@@ -119,14 +128,7 @@ export default async function EvidenceBrowserPage({
           </CardContent>
         </Card>
       )}
-      {result.kind === 'ok' && result.data.nextCursor ? (
-        <Link
-          href={`/deals/${dealId}/evidence?${evidenceQuery(filters, { cursor: result.data.nextCursor })}`}
-          className="self-start text-sm font-medium hover:underline"
-        >
-          Next page →
-        </Link>
-      ) : null}
+      {pager ? <EvidencePagerNav pager={pager} base={base} /> : null}
     </div>
   );
 }

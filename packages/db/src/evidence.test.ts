@@ -282,6 +282,24 @@ describe('deal/evidence spine', () => {
         }),
       );
       expect(filtered.items.map((item) => item.sourceRecordId)).toEqual(['c-2']);
+      expect(filtered.total).toBe(1);
+    });
+
+    it('counts every record matching the filters, independent of the page and cursor', async () => {
+      const all = await withTenant(db.prisma, a.context, (tx) => evidence.list(tx, a.dealId, { limit: 100 }));
+      expect(all.total).toBe(all.items.length);
+      expect(all.total).toBeGreaterThan(1);
+      const page2 = await withTenant(db.prisma, a.context, async (tx) => {
+        const first = await evidence.list(tx, a.dealId, { limit: 1 });
+        return evidence.list(tx, a.dealId, { limit: 1, after: first.nextCursor ?? undefined });
+      });
+      expect(page2.total).toBe(all.total);
+      expect(page2.limit).toBe(1);
+      const type = all.items[0]?.evidenceType ?? '';
+      const ofType = await withTenant(db.prisma, a.context, (tx) => evidence.list(tx, a.dealId, { limit: 100, evidenceType: type }));
+      expect(ofType.total).toBe(all.items.filter((item) => item.evidenceType === type).length);
+      const none = await withTenant(db.prisma, a.context, (tx) => evidence.list(tx, a.dealId, { limit: 100, sourceRecordId: 'no-such-record' }));
+      expect(none.total).toBe(0);
     });
   });
 
@@ -301,6 +319,8 @@ describe('deal/evidence spine', () => {
       await expect(
         withTenant(db.prisma, b.context, (tx) => evidence.lineage(tx, a.dealId, anyItem.id)),
       ).resolves.toBeNull();
+      const crossTenant = await withTenant(db.prisma, b.context, (tx) => evidence.list(tx, a.dealId, { limit: 100 }));
+      expect(crossTenant).toMatchObject({ items: [], total: 0 });
     });
 
     it("cannot create a connection or sync run in another tenant's deal", async () => {

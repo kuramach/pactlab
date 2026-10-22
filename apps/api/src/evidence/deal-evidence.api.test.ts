@@ -173,6 +173,7 @@ describe('deal/evidence spine API', () => {
 
     const list = await call('GET', `${base()}/evidence?limit=100`, lead);
     expect((list.body['items'] as unknown[]).length).toBe(9);
+    expect(list.body).toMatchObject({ total: 9, limit: 100, nextCursor: null });
     expect(list.body['types']).toEqual(['billing.customer', 'management.kpi']);
     const run = await call('GET', `${base()}/sync-runs/${first.body['id'] as string}`, lead);
     expect(run.body).toMatchObject({ status: 'SUCCEEDED', connectorVersion: 'csv-fixture-1' });
@@ -186,6 +187,15 @@ describe('deal/evidence spine API', () => {
       'hc-kpi-logos-2026q3',
       'hc-kpi-nrr-2026q3',
     ]);
+    // The total counts the filtered set (3 of 9), not the page, and survives a cursor.
+    expect(filtered.body).toMatchObject({ total: 3, limit: 50 });
+    const firstOfTwo = await call('GET', `${base()}/evidence?type=management.kpi&limit=2`, lead);
+    expect(firstOfTwo.body).toMatchObject({ total: 3, limit: 2 });
+    const secondOfTwo = await call('GET', `${base()}/evidence?type=management.kpi&limit=2&cursor=${firstOfTwo.body['nextCursor'] as string}`, lead);
+    expect(secondOfTwo.body).toMatchObject({ total: 3, nextCursor: null });
+    expect((secondOfTwo.body['items'] as unknown[]).length).toBe(1);
+    const noMatch = await call('GET', `${base()}/evidence?recordId=no-such-record`, lead);
+    expect(noMatch.body).toMatchObject({ items: [], total: 0 });
 
     const lineage = await call('GET', `${base()}/evidence/${items[0]!.id}/lineage`, lead);
     expect(lineage.status).toBe(200);
@@ -235,6 +245,7 @@ describe('deal/evidence spine API', () => {
     const empty = await call('GET', `${base()}/evidence`, bearer);
     expect(empty.status).toBe(200);
     expect(empty.body['items']).toEqual([]);
+    expect(empty.body['total']).toBe(0); // buyer-only rows are not counted for a target contributor
 
     const item = (
       (await call('GET', `${base()}/evidence`, lead)).body['items'] as { id: string }[]
@@ -258,6 +269,7 @@ describe('deal/evidence spine API', () => {
     });
     const visible = await call('GET', `${base()}/evidence`, bearer);
     expect((visible.body['items'] as { id: string }[]).map((row) => row.id)).toEqual([item.id]);
+    expect(visible.body['total']).toBe(1);
     expect((await call('GET', `${base()}/evidence/${item.id}/lineage`, bearer)).status).toBe(200);
   });
 
