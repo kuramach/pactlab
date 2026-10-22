@@ -207,24 +207,28 @@ export const evidence = {
     tx: TransactionClient,
     dealId: string,
     filter: EvidenceFilter,
-  ): Promise<{ items: EvidenceItemView[]; nextCursor: string | null }> {
+  ): Promise<{ items: EvidenceItemView[]; nextCursor: string | null; total: number; limit: number }> {
+    const matching = {
+      dealId,
+      ...(filter.evidenceType ? { evidenceType: filter.evidenceType } : {}),
+      ...(filter.connectionId ? { connectionId: filter.connectionId } : {}),
+      ...(filter.visibility ? { visibility: filter.visibility } : {}),
+      ...(filter.sourceRecordId ? { sourceRecordId: { startsWith: filter.sourceRecordId } } : {}),
+    };
     const rows = await tx.evidenceItem.findMany({
-      where: {
-        dealId,
-        ...(filter.evidenceType ? { evidenceType: filter.evidenceType } : {}),
-        ...(filter.connectionId ? { connectionId: filter.connectionId } : {}),
-        ...(filter.visibility ? { visibility: filter.visibility } : {}),
-        ...(filter.sourceRecordId ? { sourceRecordId: { startsWith: filter.sourceRecordId } } : {}),
-        ...(filter.after ? { id: { lt: filter.after } } : {}),
-      },
+      where: { ...matching, ...(filter.after ? { id: { lt: filter.after } } : {}) },
       select: evidenceSelect,
       orderBy: { id: 'desc' },
       take: filter.limit + 1,
     });
+    // Same filters and the same transaction (so the same RLS scope) as the page, ignoring the cursor.
+    const total = await tx.evidenceItem.count({ where: matching });
     const page = rows.slice(0, filter.limit);
     return {
       items: page.map(toEvidenceView),
       nextCursor: rows.length > filter.limit ? (page.at(-1)?.id ?? null) : null,
+      total,
+      limit: filter.limit,
     };
   },
 

@@ -37,6 +37,10 @@ export interface DealListItem {
 export interface EvidencePage {
   items: EvidenceItemView[];
   nextCursor: string | null;
+  /** Records matching the filters, across all pages. */
+  total: number;
+  /** Page size the API applied. */
+  limit: number;
   types: string[];
 }
 
