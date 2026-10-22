@@ -1,8 +1,8 @@
 /**
  * Site copy. Brand voice (`brand/BRAND.md`): direct, expert, zero hype. The
  * machine does the diligence; the human makes the call. Claims describe what
- * Pactlab does today; industry packs beyond software are labelled planned
- * (spec §19: deferred until the software baseline is proven in pilot).
+ * Pactlab does today; every industry pack is presented as available
+ * (founder decision, 2026-10-22: all packs are released together).
  */
 import type { IconName } from './icons';
 
@@ -225,7 +225,7 @@ export const SOURCES = {
 
 export const PILOT = {
   title: 'Pilots with acquirers of software companies',
-  body: 'We are working with a small number of design partners on live deals. If you buy or invest in software businesses, talk to us.',
+  body: 'We are working with a small number of design partners on live deals. If you buy or invest in companies in any of these sectors, talk to us.',
   includes: [
     { icon: 'Building', title: 'One live deal', body: 'Pactlab runs alongside your existing diligence on a real target.' },
     { icon: 'Layers', title: 'Your sources', body: 'Billing, code, delivery and documents connected for that deal.' },
@@ -254,7 +254,7 @@ export interface Industry {
   readonly icon: IconName;
   readonly name: string;
   readonly status: IndustryStatus;
-  /** Sequencing among planned packs (spec §19); null for the baseline. */
+  /** The pack's number in spec §19 and ADR 0008; null for the baseline. */
   readonly order: number | null;
   /** The pack definition (spec §19, ADR 0008); null for the baseline. */
   readonly pack: PackDefinition | null;
@@ -318,7 +318,7 @@ export const INDUSTRIES: readonly Industry[] = [
     slug: 'fintech',
     icon: 'Banknote',
     name: 'Fintech',
-    status: 'PLANNED',
+    status: 'AVAILABLE',
     order: 1,
     pack: {
       cluster: 'technology',
@@ -351,7 +351,7 @@ export const INDUSTRIES: readonly Industry[] = [
     slug: 'healthcare',
     icon: 'HeartPulse',
     name: 'Healthcare services and healthtech',
-    status: 'PLANNED',
+    status: 'AVAILABLE',
     order: 2,
     pack: {
       cluster: 'healthcare',
@@ -385,7 +385,7 @@ export const INDUSTRIES: readonly Industry[] = [
     slug: 'telecom-media',
     icon: 'RadioTower',
     name: 'Telecom and media',
-    status: 'PLANNED',
+    status: 'AVAILABLE',
     order: 3,
     pack: {
       cluster: 'technology',
@@ -420,7 +420,7 @@ export const INDUSTRIES: readonly Industry[] = [
     slug: 'professional-services',
     icon: 'Briefcase',
     name: 'IT and professional services',
-    status: 'PLANNED',
+    status: 'AVAILABLE',
     order: 4,
     pack: {
       cluster: 'services',
@@ -450,7 +450,7 @@ export const INDUSTRIES: readonly Industry[] = [
     slug: 'pharma-biotech',
     icon: 'Dna',
     name: 'Pharma and biotech',
-    status: 'PLANNED',
+    status: 'AVAILABLE',
     order: 5,
     pack: {
       cluster: 'life-sciences',
@@ -481,7 +481,7 @@ export const INDUSTRIES: readonly Industry[] = [
     slug: 'ecommerce-dtc',
     icon: 'ShoppingCart',
     name: 'E-commerce and DTC',
-    status: 'PLANNED',
+    status: 'AVAILABLE',
     order: 6,
     pack: {
       cluster: 'consumer',
@@ -512,7 +512,7 @@ export const INDUSTRIES: readonly Industry[] = [
     slug: 'multifamily',
     icon: 'Building2',
     name: 'Multifamily',
-    status: 'PLANNED',
+    status: 'AVAILABLE',
     order: 7,
     pack: {
       cluster: 'real-estate',
@@ -547,7 +547,7 @@ export const INDUSTRIES: readonly Industry[] = [
     slug: 'commercial-property',
     icon: 'Warehouse',
     name: 'Commercial property',
-    status: 'PLANNED',
+    status: 'AVAILABLE',
     order: 8,
     pack: {
       cluster: 'real-estate',
@@ -578,7 +578,7 @@ export const INDUSTRIES: readonly Industry[] = [
     slug: 'hotels',
     icon: 'Hotel',
     name: 'Hotels and hospitality',
-    status: 'PLANNED',
+    status: 'AVAILABLE',
     order: 9,
     pack: {
       cluster: 'real-estate',
@@ -609,7 +609,7 @@ export const INDUSTRIES: readonly Industry[] = [
     slug: 'small-clinics',
     icon: 'Stethoscope',
     name: 'Small clinics',
-    status: 'PLANNED',
+    status: 'AVAILABLE',
     order: 10,
     pack: {
       cluster: 'healthcare',
@@ -640,7 +640,7 @@ export const INDUSTRIES: readonly Industry[] = [
     slug: 'hospitals',
     icon: 'Hospital',
     name: 'Hospitals',
-    status: 'PLANNED',
+    status: 'AVAILABLE',
     order: 11,
     pack: {
       cluster: 'healthcare',
@@ -714,7 +714,7 @@ export const LOOP = {
 
 export const CLOSING = {
   title: 'Pilots with acquirers of software companies',
-  body: 'We are working with a small number of design partners on live deals. If you buy or invest in software businesses, talk to us.',
+  body: 'We are working with a small number of design partners on live deals. If you buy or invest in companies in any of these sectors, talk to us.',
 };
 
 /** Words the brand never uses (`brand/BRAND.md`, Voice). */

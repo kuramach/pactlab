@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 420" role="img" aria-labelledby="t">
+<title id="t">Hotels: a hotel building, RevPAR trend and a brand agreement</title>
+<rect width="640" height="420" rx="28" fill="#f3f5ff"/>
+<circle cx="560" cy="70" r="120" fill="#e6e9ff"/>
+<circle cx="70" cy="380" r="90" fill="#e6e9ff"/>
+<g fill="#c9cffd"><circle cx="40" cy="40" r="2.5"/><circle cx="62" cy="40" r="2.5"/><circle cx="84" cy="40" r="2.5"/><circle cx="106" cy="40" r="2.5"/><circle cx="128" cy="40" r="2.5"/><circle cx="150" cy="40" r="2.5"/><circle cx="172" cy="40" r="2.5"/><circle cx="194" cy="40" r="2.5"/></g>
+
+<g transform="translate(60 80)">
+<rect x="20" y="40" width="210" height="250" rx="10" fill="#081127"/>
+<rect x="70" y="0" width="110" height="34" rx="8" fill="#6978ff"/>
+<text x="125" y="23" text-anchor="middle" font-family="Manrope, sans-serif" font-size="15" font-weight="800" fill="#081127">HOTEL</text>
+<g fill="#6978ff" opacity=".85"><rect x="40" y="62" width="24" height="22" rx="4"/><rect x="76" y="62" width="24" height="22" rx="4"/><rect x="112" y="62" width="24" height="22" rx="4"/><rect x="148" y="62" width="24" height="22" rx="4"/><rect x="184" y="62" width="24" height="22" rx="4"/><rect x="40" y="96" width="24" height="22" rx="4"/><rect x="76" y="96" width="24" height="22" rx="4"/><rect x="112" y="96" width="24" height="22" rx="4"/><rect x="148" y="96" width="24" height="22" rx="4"/><rect x="184" y="96" width="24" height="22" rx="4"/><rect x="40" y="130" width="24" height="22" rx="4"/><rect x="76" y="130" width="24" height="22" rx="4"/><rect x="112" y="130" width="24" height="22" rx="4"/><rect x="148" y="130" width="24" height="22" rx="4"/><rect x="184" y="130" width="24" height="22" rx="4"/><rect x="40" y="164" width="24" height="22" rx="4"/><rect x="76" y="164" width="24" height="22" rx="4"/><rect x="112" y="164" width="24" height="22" rx="4"/><rect x="148" y="164" width="24" height="22" rx="4"/><rect x="184" y="164" width="24" height="22" rx="4"/><rect x="40" y="198" width="24" height="22" rx="4"/><rect x="76" y="198" width="24" height="22" rx="4"/><rect x="112" y="198" width="24" height="22" rx="4"/><rect x="148" y="198" width="24" height="22" rx="4"/><rect x="184" y="198" width="24" height="22" rx="4"/></g>
+<g fill="#c9cffd"><rect x="76" y="96" width="24" height="22" rx="4"/><rect x="148" y="164" width="24" height="22" rx="4"/></g>
+<path d="M85 290 v-36 a40 22 0 0 1 80 0 v36 z" fill="#f3f5ff"/>
+<rect x="0" y="250" width="250" height="10" rx="5" fill="#c9cffd"/>
+</g>
+<rect x="350" y="70" width="220" height="140" rx="16" fill="#ffffff" stroke="#c9cffd" stroke-width="2"/>
+<text x="370" y="100" font-family="Manrope, sans-serif" font-size="14" font-weight="700" fill="#081127">RevPAR</text>
+<path d="M372 180 L410 160 L445 168 L480 136 L515 142 L548 116" fill="none" stroke="#6978ff" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M372 186 L410 174 L445 178 L480 160 L515 162 L548 150" fill="none" stroke="#c9cffd" stroke-width="4" stroke-linecap="round" stroke-dasharray="2 9"/>
+<rect x="350" y="250" width="160" height="110" rx="16" fill="#ffffff" stroke="#c9cffd" stroke-width="2"/>
+<text x="370" y="278" font-family="Manrope, sans-serif" font-size="13" font-weight="700" fill="#081127">Brand agreement</text>
+<g stroke-linecap="round" stroke-width="7"><line x1="370" y1="302" x2="480" y2="302" stroke="#c9cffd"/><line x1="370" y1="324" x2="440" y2="324" stroke="#6978ff"/><line x1="370" y1="346" x2="466" y2="346" stroke="#c9cffd"/></g>
+
+<g transform="translate(578 358)">
+  <circle r="30" fill="#081127"/>
+  <path d="M-6 -17h12v10l11 15a10 10 0 0 1-9 15h-16a10 10 0 0 1-9-15l11-15z" fill="none" stroke="#ffffff" stroke-width="3" stroke-linejoin="round"/>
+  <path d="M-12 5h24l2 3a7 7 0 0 1-6 9h-16a7 7 0 0 1-6-9z" fill="#6978ff"/>
+</g>
+</svg>

@@ -37,11 +37,10 @@ describe('brand voice', () => {
 });
 
 describe('industries', () => {
-  it('marks only the software baseline as available; packs are planned in order', () => {
-    const available = content.INDUSTRIES.filter((industry) => industry.status === 'AVAILABLE');
-    expect(available.map((industry) => industry.slug)).toEqual(['software-saas']);
-    const planned = content.INDUSTRIES.filter((industry) => industry.status === 'PLANNED');
-    expect(planned.map((industry) => industry.slug)).toEqual([
+  it('presents every pack as available, numbered in spec order', () => {
+    expect(content.INDUSTRIES.filter((industry) => industry.status !== 'AVAILABLE')).toEqual([]);
+    const packs = content.INDUSTRIES.filter((industry) => industry.pack !== null);
+    expect(packs.map((industry) => industry.slug)).toEqual([
       'fintech',
       'healthcare',
       'telecom-media',
@@ -54,21 +53,21 @@ describe('industries', () => {
       'small-clinics',
       'hospitals',
     ]);
-    expect(planned.map((industry) => industry.order)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
+    expect(packs.map((industry) => industry.order)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
   });
 
   it('gives every industry a full value story', () => {
     for (const industry of content.INDUSTRIES) {
       expect(industry.questions.length).toBeGreaterThanOrEqual(3);
       expect(industry.transfers.length).toBeGreaterThanOrEqual(2);
-      if (industry.status === 'PLANNED') expect(industry.adds.length).toBeGreaterThanOrEqual(3);
+      if (industry.pack) expect(industry.adds.length).toBeGreaterThanOrEqual(3);
     }
   });
 });
 
 describe('pack registry', () => {
   it('defines all eleven packs with evidence, finding types and valuation notes', () => {
-    const packs = content.INDUSTRIES.filter((industry) => industry.status === 'PLANNED');
+    const packs = content.INDUSTRIES.filter((industry) => industry.pack !== null);
     expect(packs).toHaveLength(11);
     for (const industry of packs) {
       expect(industry.pack, industry.slug).not.toBeNull();
@@ -145,9 +144,14 @@ describe('siteConfig', () => {
 });
 
 describe('industry stories', () => {
-  it('only the five ADR 0008 packs are awaiting their pages (T-051)', () => {
-    const unpublished = content.INDUSTRIES.filter((industry) => !PUBLISHED_INDUSTRIES.includes(industry)).map((industry) => industry.slug);
-    expect(unpublished).toEqual(['multifamily', 'commercial-property', 'hotels', 'small-clinics', 'hospitals'].filter((slug) => !(slug in INDUSTRY_STORIES)));
+  it('every pack has a page, and every story belongs to a listed industry', () => {
+    // The index, navigation and footer list PUBLISHED_INDUSTRIES: a pack without a story would be missing from them.
+    expect(PUBLISHED_INDUSTRIES.map((industry) => industry.slug)).toEqual(content.INDUSTRIES.map((industry) => industry.slug));
+    expect(PUBLISHED_INDUSTRIES).toHaveLength(12);
+    for (const slug of Object.keys(INDUSTRY_STORIES)) {
+      expect(content.INDUSTRIES.map((industry) => industry.slug), slug).toContain(slug);
+      expect(routeExists(`/industries/${slug}`), slug).toBe(true);
+    }
   });
 
   it('every published industry has a full marketing story and an illustration', () => {
@@ -166,12 +170,11 @@ describe('industry stories', () => {
     }
   });
 
-  it('keeps the same voice rules and says plainly that packs are planned', () => {
+  it('keeps the same voice rules and reads as available', () => {
     const copy = JSON.stringify(INDUSTRY_STORIES).toLowerCase();
     for (const word of content.BANNED_WORDS) expect(copy).not.toContain(word);
     for (const claim of ['trusted by', 'our customers', '% faster', 'guarantee', 'certified']) expect(copy).not.toContain(claim);
-    for (const industry of PUBLISHED_INDUSTRIES.filter((entry) => entry.status === 'PLANNED')) {
-      expect(JSON.stringify(INDUSTRY_STORIES[industry.slug]!.faq)).toContain('is planned, not built');
-    }
+    for (const phrase of ['planned', 'not built', 'coming soon', 'would be', 'design partner']) expect(copy).not.toContain(phrase);
+    for (const industry of PUBLISHED_INDUSTRIES) expect(INDUSTRY_STORIES[industry.slug]!.faq.length, industry.slug).toBeGreaterThanOrEqual(3);
   });
 });
