@@ -72,7 +72,9 @@ const SAP_MAPPING = {
   negateAmounts: false,
 };
 
-describe('billing CSV import through the API', () => {
+// Each test uploads, previews and imports through the full API on an in-process database: seconds, not
+// milliseconds, and slower on CI runners than locally — the 5 s default timed out on CI.
+describe('billing CSV import through the API', { timeout: 30_000 }, () => {
   let db: TestDatabase;
   let app: NestFastifyApplication;
   let storeDir: string;
