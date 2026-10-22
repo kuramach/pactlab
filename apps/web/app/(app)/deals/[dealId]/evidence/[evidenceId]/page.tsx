@@ -1,28 +1,36 @@
 import { lineageTrail } from '@pactlab/domain';
-import { Badge, Card, CardContent, CardDescription, CardHeader, CardTitle } from '@pactlab/ui';
+import { Badge, Breadcrumbs, Card, CardContent, CardDescription, CardHeader, CardTitle } from '@pactlab/ui';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { dealsApi } from '../../../_lib/api';
 import { isUuidParam } from '../../../_lib/filters';
+import { parseReturn } from '../../../_lib/return-to';
 import { ApiState } from '../../../_lib/states';
 
 export default async function EvidenceLineagePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ dealId: string; evidenceId: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { dealId, evidenceId } = await params;
   if (!isUuidParam(dealId) || !isUuidParam(evidenceId)) notFound();
   const result = await dealsApi.lineage(dealId, evidenceId);
+  // Back to wherever the record was opened from (validated: same deal only); otherwise the Evidence browser.
+  const back = parseReturn((await searchParams)['from'], dealId) ?? { href: `/deals/${dealId}/evidence`, label: 'Evidence' };
 
   return (
     <div className="flex max-w-5xl flex-col gap-6">
-      <Link
-        href={`/deals/${dealId}/evidence`}
-        className="text-sm text-muted-foreground hover:underline"
-      >
-        ← Evidence
-      </Link>
+      <div className="flex flex-col gap-1">
+        <Link href={back.href} className="text-sm text-muted-foreground hover:underline">
+          ← {back.label}
+        </Link>
+        <Breadcrumbs
+          items={[{ href: back.href, label: back.label }, { label: result.kind === 'ok' ? `Source record ${result.data.evidence.sourceRecordId}` : 'Source record' }]}
+          className="text-xs"
+        />
+      </div>
       {result.kind !== 'ok' ? (
         <ApiState result={result} />
       ) : (

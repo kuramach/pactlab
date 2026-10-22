@@ -13,6 +13,7 @@ import Link from 'next/link';
 import { DonutChart, HeatmapChart, LineChart, WaterfallChart } from '../../../_lib/charts';
 import { notFound } from 'next/navigation';
 import { isUuidParam } from '../../_lib/filters';
+import { withReturn } from '../../_lib/return-to';
 import { ApiState } from '../../_lib/states';
 import { metricsApi, type MetricView, type MetricsSummaryView, type SourceRef } from '../../../metrics/_lib/api';
 import {
@@ -56,10 +57,20 @@ function metricValue(metric: MetricView): string {
   return formatDecimal(metric.value);
 }
 
-function EvidenceLink({ dealId, source }: { dealId: string; source: SourceRef }) {
+/**
+ * Where a source-record link returns to: this page, at the same month, with the
+ * section it was opened from scrolled to and (for collapsible sections) open.
+ */
+function financesReturn(dealId: string, asOf: string | undefined, section: string): string {
+  return `/deals/${dealId}/finances?${asOf ? `asOf=${asOf}&` : ''}open=${section}#${section}`;
+}
+
+const SECTION_ID = /^[a-z0-9-]{1,40}$/;
+
+function EvidenceLink({ dealId, source, from }: { dealId: string; source: SourceRef; from: string }) {
   return (
     <Link
-      href={`/deals/${dealId}/evidence/${source.evidenceId}`}
+      href={withReturn(`/deals/${dealId}/evidence/${source.evidenceId}`, from)}
       className="font-mono hover:underline"
     >
       {source.sourceRecordId}
@@ -87,7 +98,8 @@ function concentrationSlices(customers: readonly { customerName: string | null; 
   return rest > 0 ? [...top, { name: 'All others', value: rest, color: '#cbd5e1' }] : top;
 }
 
-function MetricCard({ dealId, metric }: { dealId: string; metric: MetricView }) {
+function MetricCard({ dealId, metric, asOf, open }: { dealId: string; metric: MetricView; asOf: string | undefined; open: string | undefined }) {
+  const section = `metric-${metric.key.toLowerCase()}`;
   const look = METRIC_ICONS[metric.key.toLowerCase()] ?? { icon: Gauge, accent: 'indigo' as Accent };
   return (
     <Card>
@@ -107,7 +119,7 @@ function MetricCard({ dealId, metric }: { dealId: string; metric: MetricView }) 
         ) : null}
       </CardHeader>
       <CardContent>
-        <details className="text-xs">
+        <details id={section} open={open === section} className="scroll-mt-6 text-xs">
           <summary className="cursor-pointer text-muted-foreground">Definition and inputs</summary>
           <dl className="mt-2 flex flex-col gap-1">
             <dt className="font-medium">Formula</dt>
@@ -125,7 +137,7 @@ function MetricCard({ dealId, metric }: { dealId: string; metric: MetricView }) 
             <dt className="font-medium">Source records ({metric.inputs.length})</dt>
             <dd className="flex flex-wrap gap-x-2">
               {metric.inputs.slice(0, 12).map((input) => (
-                <EvidenceLink key={input.evidenceId} dealId={dealId} source={input} />
+                <EvidenceLink key={input.evidenceId} dealId={dealId} source={input} from={financesReturn(dealId, asOf, section)} />
               ))}
               {metric.inputs.length > 12 ? <span>+{metric.inputs.length - 12} more</span> : null}
             </dd>
@@ -136,13 +148,13 @@ function MetricCard({ dealId, metric }: { dealId: string; metric: MetricView }) 
   );
 }
 
-function Reconciliation({ dealId, data }: { dealId: string; data: MetricsSummaryView }) {
+function Reconciliation({ dealId, data, pageAsOf }: { dealId: string; data: MetricsSummaryView; pageAsOf: string | undefined }) {
   const { reconciliation, approval } = data;
   const asOf = data.report.asOfMonth;
   const canDecide =
     reconciliation.status === 'RECONCILED' || reconciliation.status === 'DIFFERENCE';
   return (
-    <Card>
+    <Card id="reconciliation" className="scroll-mt-6">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           ARR reconciliation
@@ -176,7 +188,7 @@ function Reconciliation({ dealId, data }: { dealId: string; data: MetricsSummary
             <dd className="font-medium">{formatMoney(reconciliation.reported?.value)}</dd>
             {reconciliation.reported ? (
               <dd className="text-xs">
-                <EvidenceLink dealId={dealId} source={reconciliation.reported.ref} />
+                <EvidenceLink dealId={dealId} source={reconciliation.reported.ref} from={financesReturn(dealId, pageAsOf, 'reconciliation')} />
                 {reconciliation.reported.period ? ` · ${reconciliation.reported.period}` : ''}
               </dd>
             ) : null}
@@ -296,6 +308,7 @@ export default async function DealFinancesPage({
   if (!isUuidParam(dealId)) notFound();
   const search = await searchParams;
   const asOf = parseMonthParam(search['asOf']);
+  const open = typeof search['open'] === 'string' && SECTION_ID.test(search['open']) ? search['open'] : undefined;
   const outcome = typeof search['outcome'] === 'string' ? OUTCOMES[search['outcome']] : undefined;
   const [result, cohorts] = await Promise.all([
     metricsApi.summary(dealId, asOf),
@@ -346,7 +359,7 @@ export default async function DealFinancesPage({
             {HEADLINE.map((key) => result.data.report.metrics.find((metric) => metric.key === key))
               .filter((metric): metric is MetricView => metric !== undefined)
               .map((metric) => (
-                <MetricCard key={metric.key} dealId={dealId} metric={metric} />
+                <MetricCard key={metric.key} dealId={dealId} metric={metric} asOf={asOf} open={open} />
               ))}
           </section>
 
@@ -391,10 +404,10 @@ export default async function DealFinancesPage({
             </Card>
           </div>
 
-          <Reconciliation dealId={dealId} data={result.data} />
+          <Reconciliation dealId={dealId} data={result.data} pageAsOf={asOf} />
 
           {result.data.draftFinding ? (
-            <Card>
+            <Card id="draft-finding" className="scroll-mt-6">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   {result.data.draftFinding.title}
@@ -415,7 +428,7 @@ export default async function DealFinancesPage({
                   {result.data.draftFinding.evidence.map((cited) => (
                     <li key={cited.evidenceId} className="flex gap-2">
                       <Badge variant="evidence">cited</Badge>
-                      <EvidenceLink dealId={dealId} source={{ ...cited }} />
+                      <EvidenceLink dealId={dealId} source={{ ...cited }} from={financesReturn(dealId, asOf, 'draft-finding')} />
                       <span className="text-muted-foreground">{cited.claim}</span>
                     </li>
                   ))}
@@ -488,7 +501,7 @@ export default async function DealFinancesPage({
             </Card>
           ) : null}
 
-          <Card>
+          <Card id="concentration" className="scroll-mt-6">
             <CardHeader>
               <CardTitle>Customer concentration</CardTitle>
               <CardDescription>
@@ -521,7 +534,7 @@ export default async function DealFinancesPage({
                       <td className="px-4 py-2 text-xs">
                         {customer.contributions.map((contribution) => (
                           <div key={contribution.ref.evidenceId}>
-                            <EvidenceLink dealId={dealId} source={contribution.ref} />
+                            <EvidenceLink dealId={dealId} source={contribution.ref} from={financesReturn(dealId, asOf, 'concentration')} />
                             {contribution.fx
                               ? ` · ${formatMoney(contribution.original)} at ${contribution.fx.rate} (${contribution.fx.source} ${contribution.fx.rateDate})`
                               : ''}
@@ -590,7 +603,7 @@ export default async function DealFinancesPage({
             </Card>
           ) : null}
 
-          <Card>
+          <Card id="exclusions" className="scroll-mt-6">
             <CardHeader>
               <CardTitle>Exclusions</CardTitle>
               <CardDescription>{result.data.report.inclusionPolicy}</CardDescription>
@@ -614,7 +627,7 @@ export default async function DealFinancesPage({
                     {result.data.report.exclusions.slice(0, 100).map((exclusion) => (
                       <tr key={`${exclusion.ref.evidenceId}-${exclusion.reason}`}>
                         <td className="px-4 py-2">
-                          <EvidenceLink dealId={dealId} source={exclusion.ref} />
+                          <EvidenceLink dealId={dealId} source={exclusion.ref} from={financesReturn(dealId, asOf, 'exclusions')} />
                         </td>
                         <td className="px-4 py-2">
                           {EXCLUSION_LABELS[exclusion.reason] ?? exclusion.reason}

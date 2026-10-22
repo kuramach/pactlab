@@ -4,7 +4,8 @@ import { notFound } from 'next/navigation';
 import { dealsApi } from '../../_lib/api';
 import { EmptyMarkIcon } from '../../_lib/empty-marks';
 import { EvidencePagerNav } from '../../_lib/evidence-pager';
-import { evidenceApiQuery, evidencePager, isUuidParam, parseEvidenceFilters } from '../../_lib/filters';
+import { evidenceApiQuery, evidencePager, evidenceQuery, isUuidParam, parseEvidenceFilters } from '../../_lib/filters';
+import { withReturn } from '../../_lib/return-to';
 import { ApiState } from '../../_lib/states';
 
 export default async function EvidenceBrowserPage({
@@ -23,6 +24,9 @@ export default async function EvidenceBrowserPage({
       ? evidencePager(filters, { itemCount: result.data.items.length, total: result.data.total, limit: result.data.limit, nextCursor: result.data.nextCursor })
       : null;
   const base = `/deals/${dealId}/evidence`;
+  // A record opened here returns to this exact page: same filters, same position.
+  const currentQuery = evidenceQuery(filters);
+  const here = currentQuery ? `${base}?${currentQuery}` : base;
 
   return (
     <div className="flex max-w-6xl flex-col gap-6">
@@ -107,7 +111,7 @@ export default async function EvidenceBrowserPage({
                   <tr key={item.id}>
                     <td className="px-4 py-2 font-mono">
                       <Link
-                        href={`/deals/${dealId}/evidence/${item.id}`}
+                        href={withReturn(`/deals/${dealId}/evidence/${item.id}`, here)}
                         className="hover:underline"
                       >
                         {item.sourceRecordId}
