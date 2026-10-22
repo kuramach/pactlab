@@ -1,0 +1,24 @@
+# Lane -> context for `standard` runs (scripts/context.sh). Tab-separated:
+# lane	spec sections (numbers, comma-separated)	extra docs (space-separated paths)
+# Every Lane: used by a task file must appear here; an unmapped lane gets the
+# core only and the runner logs a warning. Keep this in step with new lanes.
+foundation	4,5,8,15,17	docs/adr/0001-per-organization-sign-in.md docs/agent/build-order.md
+spine	5,6,7,8	docs/agent/fixtures.md
+api	6,7	docs/agent/fixtures.md
+metrics	10	docs/adr/0004-billing-csv-import.md docs/agent/fixtures.md
+findings	6,9,13	docs/adr/0005-github-access.md
+engineering	6,13	docs/adr/0005-github-access.md docs/agent/fixtures.md
+integrations	6	docs/agent/fixtures.md docs/adr/0005-github-access.md
+fixtures	17	docs/agent/fixtures.md
+valuation	10	docs/adr/0006-comparables-and-multiple-judgement.md
+document-ai	11,13	docs/adr/0007-ai-provider-bedrock.md
+docai	11,13	docs/adr/0007-ai-provider-bedrock.md
+documents	11,13	docs/adr/0007-ai-provider-bedrock.md
+identity	2,8,13	docs/adr/0001-per-organization-sign-in.md docs/adr/0002-self-serve-signup.md
+infra	15,16	docs/agent/aws.md docs/runbooks/deploy.md
+hardening	13,14,17	docs/runbooks/README.md docs/agent/aws.md
+web	12
+web-ux	12
+brand	12,22	docs/adr/0003-website-hosting.md docs/runbooks/website.md
+packs	19
+agent-loop	20	docs/PARALLEL_OPS.md

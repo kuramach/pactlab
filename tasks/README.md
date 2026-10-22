@@ -9,7 +9,8 @@ One file per task. The scheduler reads the header fields; everything below
 Status: ready
 Needs: T-001, T-002        # all must be in tasks/done/ (or: none)
 Touches: path/a path/b    # only these paths may change; space-separated, prefix match
-Lane: metrics             # parallel lane name (informational)
+Lane: metrics             # parallel lane; picks the docs a standard run gets (docs/agent/context-map.tsv)
+Context: standard         # light | standard | deep (absent = standard) — see docs/PARALLEL_OPS.md
 Checks: pnpm lint && pnpm typecheck && pnpm test
 ```
 

@@ -58,6 +58,32 @@ two tasks whose `Touches:` paths overlap.
    `tasks/review/`. On merge to `main` it moves to `tasks/done/` (the loop
    watches for this). On failure: `tasks/blocked/` with the log attached.
 
+## Context tiers
+
+A run's starting context should match the task, not the whole doc set.
+Each task file may set `Context:`; absent means `standard`.
+
+| Tier | The agent starts with | Use for |
+|---|---|---|
+| `light` | `CLAUDE.md` core, repo map, the task file, files under `Touches:` (directories as path lists, contents capped at 24 KB) | docs, task-file and one-line fixes |
+| `standard` | light + the spec sections and docs mapped to the task's `Lane:` in `docs/agent/context-map.tsv` | most build tasks |
+| `deep` | light + the whole spec, every ADR, `docs/agent/` and this file | architecture and multi-module work |
+
+- **Override:** whoever writes the task sets `Context:`; for one run,
+  `CONTEXT_TIER=deep ./scripts/run-task.sh T-123` beats the file.
+- **Lane map:** every `Lane:` in use must have a row in
+  `docs/agent/context-map.tsv` (spec section numbers plus extra docs). An
+  unmapped lane falls back to the core and the log says so.
+- **Never starved:** if checks fail, or the agent prints
+  `CONTEXT-STARVED: …`, the runner retries once at the next tier up and logs
+  `### context retry: <from> -> <to> (<reason>)`.
+- **Measured:** each attempt logs
+  `context: tier=… chars=… claude_md=… prompt=… approx_tokens=…` to the
+  task's log. `CLAUDE.md` loads on every run, so it is counted as the core.
+- **Check:** `./scripts/test-context.sh` asserts a light run starts at ≤ 25 %
+  of a deep run and that every lane in use is mapped.
+- Preview what a run will get: `./scripts/context.sh tasks/ready/T-123.md light`.
+
 ## Merge policy
 
 - Workers open PRs; they never push to `main`.
