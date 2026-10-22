@@ -135,7 +135,9 @@ describe('pnpm seed', () => {
       ['SparseCo', 'github'],
     ]);
     expect(await snapshot()).toEqual(before);
-    expect(before).toMatchObject({ orgs: 3, deals: 9, connections: 18, runs: 18 });
+    // 18 connections, one run each, plus TroubledCo's repository in one tenant: the code-review seed and the
+    // engineering-activity sync are separate runs on the same connection.
+    expect(before).toMatchObject({ orgs: 3, deals: 9, connections: 18, runs: 19 });
     expect(before?.['evidence']).toBe(before?.['citations']);
   });
 
