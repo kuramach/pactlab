@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { dealsApi } from '../../../_lib/api';
 import { isUuidParam } from '../../../_lib/filters';
 import { ApiState } from '../../../_lib/states';
+import { SystemLogo } from './_lib/system-logos';
 import { uploadBillingExport } from './actions';
 
 // Per-user data: never prerender.
@@ -72,6 +73,7 @@ export default async function BillingUploadPage({
                     <span className="flex items-center justify-between gap-2 font-medium">
                       <span className="flex items-center gap-2">
                         <input type="radio" name="system" value={system.system} required />
+                        <SystemLogo system={system.system} label={system.label} />
                         {system.label}
                       </span>
                       {system.verified ? <Badge variant="calculation">Verified layout</Badge> : <Badge>Suggested mapping</Badge>}
