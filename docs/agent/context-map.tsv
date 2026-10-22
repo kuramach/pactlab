@@ -18,7 +18,7 @@ identity	2,8,13	docs/adr/0001-per-organization-sign-in.md docs/adr/0002-self-ser
 infra	15,16	docs/agent/aws.md docs/runbooks/deploy.md
 hardening	13,14,17	docs/runbooks/README.md docs/agent/aws.md
 web	12
-web-ux	12
+web-ux	8,12
 brand	12,22	docs/adr/0003-website-hosting.md docs/runbooks/website.md
 packs	19
 agent-loop	20	docs/PARALLEL_OPS.md
