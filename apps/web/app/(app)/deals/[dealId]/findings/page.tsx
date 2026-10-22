@@ -16,6 +16,7 @@ import { BarChart, CHART_COLORS, DonutChart } from '../../../_lib/charts';
 import Link from 'next/link';
 import { apiGet } from '../../_lib/api';
 import { ApiState } from '../../_lib/states';
+import { withReturn } from '../../_lib/return-to';
 import {
   DOMAIN_LABELS,
   findingsQuery,
@@ -68,6 +69,8 @@ export default async function FindingsPage({
   const filters = parseFindingFilters({ ...(await searchParams), deal: (await params).dealId });
   const dealId = filters.dealId;
   const query = findingsQuery(filters);
+  // Records opened from this list come back to it with the same filters.
+  const here = `/deals/${dealId ?? ''}/findings${query ? `?${query}` : ''}`;
   const result = dealId
     ? await apiGet<{ items: Finding[] }>(
         `/v1/deals/${encodeURIComponent(dealId)}/findings${query ? `?${query}` : ''}`,
@@ -235,7 +238,7 @@ export default async function FindingsPage({
                                 {finding.evidence.map((link) => (
                                   <li key={`${link.evidenceItemId}-${link.toolName}`}>
                                     <Link
-                                      href={`/deals/${dealId}/evidence/${link.evidenceItemId}`}
+                                      href={withReturn(`/deals/${dealId}/evidence/${link.evidenceItemId}`, here)}
                                       className="hover:underline"
                                     >
                                       <Badge variant="evidence">evidence</Badge>
