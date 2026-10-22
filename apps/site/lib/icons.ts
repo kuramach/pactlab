@@ -9,6 +9,7 @@ import {
   Briefcase,
   Bug,
   Building,
+  Building2,
   Calculator,
   CalendarRange,
   ChartLine,
@@ -35,6 +36,7 @@ import {
   Handshake,
   HeartPulse,
   Hospital,
+  Hotel,
   Hourglass,
   KeyRound,
   Landmark,
@@ -74,6 +76,7 @@ import {
   UserRound,
   Users,
   Wallet,
+  Warehouse,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -92,6 +95,7 @@ export const ICONS = {
   Briefcase,
   Bug,
   Building,
+  Building2,
   Calculator,
   CalendarRange,
   ChartLine,
@@ -118,6 +122,7 @@ export const ICONS = {
   Handshake,
   HeartPulse,
   Hospital,
+  Hotel,
   Hourglass,
   KeyRound,
   Landmark,
@@ -157,6 +162,7 @@ export const ICONS = {
   UserRound,
   Users,
   Wallet,
+  Warehouse,
 } as const satisfies Record<string, LucideIcon>;
 
 export type IconName = keyof typeof ICONS;

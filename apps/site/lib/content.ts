@@ -240,6 +240,15 @@ export const PILOT = {
 
 export type IndustryStatus = 'AVAILABLE' | 'PLANNED';
 
+/** What a pack adds to the unchanged core: the only three things that vary (spec §19). */
+export interface PackDefinition {
+  /** Real estate packs form their own cluster; hospitals and clinics extend healthcare services. */
+  readonly cluster: 'technology' | 'healthcare' | 'real-estate' | 'services' | 'life-sciences' | 'consumer';
+  readonly evidence: readonly string[];
+  readonly findings: readonly string[];
+  readonly valuation: readonly string[];
+}
+
 export interface Industry {
   readonly slug: string;
   readonly icon: IconName;
@@ -247,6 +256,8 @@ export interface Industry {
   readonly status: IndustryStatus;
   /** Sequencing among planned packs (spec §19); null for the baseline. */
   readonly order: number | null;
+  /** The pack definition (spec §19, ADR 0008); null for the baseline. */
+  readonly pack: PackDefinition | null;
   readonly summary: string;
   /** The typical deal and buyer. */
   readonly dealShape: string;
@@ -283,6 +294,7 @@ export const INDUSTRIES: readonly Industry[] = [
     name: 'Software and SaaS',
     status: 'AVAILABLE',
     order: null,
+    pack: null,
     summary: 'The baseline: recurring revenue, code, delivery, contracts and valuation for software acquisitions.',
     dealShape: 'Strategic and private-equity acquisitions of software and SaaS companies, from tuck-ins to take-privates.',
     questions: [
@@ -308,6 +320,12 @@ export const INDUSTRIES: readonly Industry[] = [
     name: 'Fintech',
     status: 'PLANNED',
     order: 1,
+    pack: {
+      cluster: 'technology',
+      evidence: ['Core-banking records', 'Payment records'],
+      findings: ['Regulatory risk', 'BSA/AML programme gaps', 'Loan-book quality and allowance'],
+      valuation: ['Regulatory-capital adjustments', 'Credit-quality adjustments'],
+    },
     summary: 'Technology companies first, regulated financial businesses second — the shortest step from the software baseline.',
     dealShape: 'Acquisitions of payments, lending, banking-software and embedded-finance companies, often by strategic buyers and growth equity.',
     questions: [
@@ -335,6 +353,12 @@ export const INDUSTRIES: readonly Industry[] = [
     name: 'Healthcare services and healthtech',
     status: 'PLANNED',
     order: 2,
+    pack: {
+      cluster: 'healthcare',
+      evidence: ['Reimbursement evidence', 'Compliance evidence'],
+      findings: ['Reimbursement risk', 'Stark Law and anti-kickback compliance', 'HIPAA privacy and security posture'],
+      valuation: ['Payer-mix sensitivity', 'Reimbursement-rate sensitivity'],
+    },
     summary: 'Roll-ups of practices and clinics, and healthtech software, where reimbursement and regulatory risk decide the price.',
     dealShape: 'Private-equity roll-ups of practices, clinics and payer-adjacent services; healthtech software targets follow the baseline path.',
     questions: [
@@ -363,6 +387,12 @@ export const INDUSTRIES: readonly Industry[] = [
     name: 'Telecom and media',
     status: 'PLANNED',
     order: 3,
+    pack: {
+      cluster: 'technology',
+      evidence: ['Subscriber billing records'],
+      findings: ['Subscriber churn and concentration', 'ARPU movement'],
+      valuation: ['Churn- and ARPU-driven scenario inputs'],
+    },
     summary: 'Subscriber businesses are recurring-revenue businesses with different labels. The metrics engine already speaks their language.',
     dealShape: 'Acquisitions of subscription media, streaming, connectivity and telecom service providers.',
     questions: [
@@ -392,6 +422,12 @@ export const INDUSTRIES: readonly Industry[] = [
     name: 'IT and professional services',
     status: 'PLANNED',
     order: 4,
+    pack: {
+      cluster: 'services',
+      evidence: ['HRIS and timesheet data', 'Professional-services automation (PSA) records'],
+      findings: ['Utilization risk', 'Attrition and bench cost', 'Client concentration'],
+      valuation: ['Earnings-quality adjustments on people-driven revenue'],
+    },
     summary: 'Roll-ups of agencies, consultancies and managed-service firms, where the people are the product.',
     dealShape: 'Steady roll-up activity by private equity and strategic acquirers in services businesses.',
     questions: [
@@ -416,6 +452,12 @@ export const INDUSTRIES: readonly Industry[] = [
     name: 'Pharma and biotech',
     status: 'PLANNED',
     order: 5,
+    pack: {
+      cluster: 'life-sciences',
+      evidence: ['Clinical-trial registries', 'Regulatory filings (FDA, EMA)', 'Patent data'],
+      findings: ['Clinical and approval risk', 'Patent cliff and exclusivity', 'GMP and manufacturing quality'],
+      valuation: ['Pipeline and exclusivity scenario inputs'],
+    },
     summary: 'The largest deal values and the most specialized diligence: trials, regulators, patents and manufacturing.',
     dealShape: 'Acquisitions and licensing deals for pharmaceutical and biotechnology assets and companies.',
     questions: [
@@ -441,6 +483,12 @@ export const INDUSTRIES: readonly Industry[] = [
     name: 'E-commerce and DTC',
     status: 'PLANNED',
     order: 6,
+    pack: {
+      cluster: 'consumer',
+      evidence: ['Storefront and marketplace data', 'Ad-platform spend'],
+      findings: ['CAC and LTV risk', 'Repeat-purchase weakness', 'Channel and marketplace concentration'],
+      valuation: ['No change to the valuation methods'],
+    },
     summary: 'Aggregator deals for consumer brands, where unit economics and channel dependence decide value.',
     dealShape: 'Aggregators and roll-ups acquiring consumer and direct-to-consumer brands.',
     questions: [
@@ -458,6 +506,165 @@ export const INDUSTRIES: readonly Industry[] = [
       { icon: 'Store', title: 'Storefront and marketplace data', body: 'Adapters for storefronts and marketplaces.' },
       { icon: 'Megaphone', title: 'Ad-platform spend', body: 'Acquisition cost from ad-platform evidence.' },
       { icon: 'Target', title: 'Unit-economics findings', body: 'CAC, LTV and channel-risk findings.' },
+    ],
+  },
+  {
+    slug: 'multifamily',
+    icon: 'Building2',
+    name: 'Multifamily',
+    status: 'PLANNED',
+    order: 7,
+    pack: {
+      cluster: 'real-estate',
+      evidence: ['Rent roll', 'Trailing-twelve-month operating statement (T-12)', 'Lease files', 'Delinquency reports', 'Utility bills', 'Unit-condition inspections'],
+      findings: ['Loss-to-lease', 'Deferred maintenance per door', 'Delinquency concentration'],
+      valuation: ['Net operating income and capitalization rate', 'Loss-to-lease upside as confirmed value, never a price increase', 'Capital expenditure per door as remediation'],
+    },
+    summary: 'Apartment acquisitions where the rent roll, not the offering memorandum, sets the income you pay for.',
+    dealShape: 'Acquisitions of apartment communities and portfolios by real-estate private equity and operators.',
+    questions: [
+      'Does the rent roll support the income in the offering memorandum?',
+      'How far are in-place rents below market, and is that upside real?',
+      'How much deferred maintenance comes with each unit?',
+      'Is delinquency spread out or concentrated?',
+    ],
+    transfers: [
+      { icon: 'Receipt', title: 'Revenue ledger', body: 'A rent roll and T-12 map almost one to one onto the billing import and revenue ledger.' },
+      { icon: 'ChartPie', title: 'Concentration', body: 'Tenant and unit concentration uses the existing analysis.' },
+      { icon: 'FileText', title: 'Lease review', body: 'Lease files read with exact citations.' },
+    ],
+    adds: [
+      { icon: 'Layers', title: 'Property operating data', body: 'Adapters for rent rolls, T-12s, delinquency reports, utility bills and inspections.' },
+      { icon: 'Percent', title: 'Loss-to-lease and delinquency findings', body: 'In-place rents against market, and where delinquency concentrates.' },
+      { icon: 'Calculator', title: 'NOI and cap-rate valuation', body: 'Net operating income and capitalization rate, with capex per door as remediation.' },
+    ],
+    vocabulary: [
+      { theirs: 'Rent roll', ours: 'Revenue ledger' },
+      { theirs: 'Loss-to-lease upside', ours: 'Confirmed value (never a price increase)' },
+    ],
+  },
+  {
+    slug: 'commercial-property',
+    icon: 'Warehouse',
+    name: 'Commercial property',
+    status: 'PLANNED',
+    order: 8,
+    pack: {
+      cluster: 'real-estate',
+      evidence: ['Lease abstracts', 'Rent roll', 'CAM reconciliations', 'Phase I environmental site assessments', 'Zoning documents'],
+      findings: ['Tenant concentration', 'Near-term rollover against WALT', 'Above- and below-market leases', 'Environmental flags'],
+      valuation: ['WALT and rollover schedule', 'Capitalization-rate sensitivity'],
+    },
+    summary: 'Office, retail and industrial assets, where lease terms and tenant concentration decide what the income is worth.',
+    dealShape: 'Acquisitions of single assets and portfolios by real-estate funds and REITs.',
+    questions: [
+      'How much income depends on a few tenants?',
+      'How much of the rent rolls over before the hold period ends?',
+      'Which leases sit above or below market?',
+      'Does the environmental and zoning record hold any surprises?',
+    ],
+    transfers: [
+      { icon: 'FileText', title: 'Lease abstraction', body: 'Lease abstracts built on the document and citation machinery.' },
+      { icon: 'ChartPie', title: 'Tenant concentration', body: 'Uses the existing concentration analysis.' },
+      { icon: 'Calculator', title: 'Scenarios', body: 'Rollover and cap-rate inputs run in the same scenario engine.' },
+    ],
+    adds: [
+      { icon: 'ClipboardList', title: 'Lease and CAM evidence', body: 'Adapters for lease abstracts, rent rolls and CAM reconciliations.' },
+      { icon: 'Hourglass', title: 'Rollover findings', body: 'Near-term expiries against the weighted average lease term.' },
+      { icon: 'ShieldAlert', title: 'Environmental and zoning flags', body: 'Findings from Phase I assessments and zoning documents.' },
+    ],
+  },
+  {
+    slug: 'hotels',
+    icon: 'Hotel',
+    name: 'Hotels and hospitality',
+    status: 'PLANNED',
+    order: 9,
+    pack: {
+      cluster: 'real-estate',
+      evidence: ['PMS and STR reports', 'Franchise and brand agreements', 'Management contracts', 'Occupancy, ADR and RevPAR history', 'Food-and-beverage P&Ls'],
+      findings: ['Deferred brand PIP capex', 'Franchise encumbrance and termination windows', 'Demand seasonality and concentration'],
+      valuation: ['RevPAR and GOP-margin trends', 'PIP capex as remediation or price terms'],
+    },
+    summary: 'An operating business on a property: room revenue, brand obligations and the capex the brand will demand.',
+    dealShape: 'Acquisitions of branded and independent hotels by hospitality funds, owner-operators and REITs.',
+    questions: [
+      'Is RevPAR keeping pace with the competitive set?',
+      'What property-improvement plan will the brand require, and who pays for it?',
+      'What do the franchise and management agreements allow at a sale?',
+      'How seasonal or concentrated is demand?',
+    ],
+    transfers: [
+      { icon: 'ChartLine', title: 'Revenue metrics', body: 'Daily revenue history fits the metrics engine’s period and cohort machinery.' },
+      { icon: 'FileText', title: 'Contract review', body: 'Franchise, brand and management agreements with exact citations.' },
+      { icon: 'Calculator', title: 'Scenarios', body: 'RevPAR and margin inputs run in the same scenario engine.' },
+    ],
+    adds: [
+      { icon: 'Database', title: 'Hotel operating data', body: 'Adapters for PMS, STR and food-and-beverage reports.' },
+      { icon: 'Stamp', title: 'Brand and franchise findings', body: 'PIP obligations, encumbrances and termination windows.' },
+      { icon: 'Snowflake', title: 'Demand findings', body: 'Seasonality and demand concentration from occupancy history.' },
+    ],
+  },
+  {
+    slug: 'small-clinics',
+    icon: 'Stethoscope',
+    name: 'Small clinics',
+    status: 'PLANNED',
+    order: 10,
+    pack: {
+      cluster: 'healthcare',
+      evidence: ['Provider contracts', 'Patient volume', 'Billing and RCM reports', 'Equipment schedules', 'Compliance records (HIPAA, Stark Law)'],
+      findings: ['Provider concentration', 'Coding and billing risk', 'Aged equipment'],
+      valuation: ['Revenue per provider', 'Post-close provider retention risk'],
+    },
+    summary: 'Clinic roll-ups, where revenue follows the providers and billing practice carries the regulatory risk.',
+    dealShape: 'Private-equity roll-ups of physician, dental, veterinary and therapy clinics. Extends the healthcare services pack.',
+    questions: [
+      'How much revenue depends on one or two providers?',
+      'Is the coding and billing defensible?',
+      'How old is the equipment, and when does it need replacing?',
+      'Will the providers stay after closing?',
+    ],
+    transfers: [
+      { icon: 'HeartPulse', title: 'Healthcare services findings', body: 'Reimbursement and compliance finding types from the healthcare services pack.' },
+      { icon: 'UserRound', title: 'Key-person risk', body: 'Provider concentration as aggregates, with named data gated.' },
+      { icon: 'FileText', title: 'Contract review', body: 'Provider contracts with exact citations.' },
+    ],
+    adds: [
+      { icon: 'Receipt', title: 'Billing and RCM evidence', body: 'Adapters for billing, revenue-cycle and patient-volume reports.' },
+      { icon: 'ShieldPlus', title: 'Coding and compliance findings', body: 'Coding, billing, HIPAA and Stark Law risk.' },
+      { icon: 'Timer', title: 'Equipment findings', body: 'Aged equipment from equipment schedules, priced as remediation.' },
+    ],
+  },
+  {
+    slug: 'hospitals',
+    icon: 'Hospital',
+    name: 'Hospitals',
+    status: 'PLANNED',
+    order: 11,
+    pack: {
+      cluster: 'healthcare',
+      evidence: ['Payer mix', 'Census and average daily census', 'Medicare cost reports', 'Licensure and accreditation records', 'Malpractice history'],
+      findings: ['Payer concentration', 'Licensure and accreditation gaps', 'Key-physician dependence'],
+      valuation: ['Payer-mix-adjusted EBITDA', 'Regulatory capital expenditure'],
+    },
+    summary: 'Hospital acquisitions, where payer mix, licensure and key physicians decide what the earnings are worth.',
+    dealShape: 'Acquisitions of acute-care and specialty hospitals by health systems and healthcare private equity. Extends the healthcare services pack.',
+    questions: [
+      'How dependent are earnings on one payer?',
+      'Are licensure and accreditation current and transferable?',
+      'Which service lines depend on a few physicians?',
+      'What regulatory capex is already committed?',
+    ],
+    transfers: [
+      { icon: 'HeartPulse', title: 'Healthcare services findings', body: 'Reimbursement and regulatory finding types from the healthcare services pack.' },
+      { icon: 'UserRound', title: 'Key-person risk', body: 'Key-physician dependence as aggregates, with named data gated.' },
+      { icon: 'Calculator', title: 'Scenarios', body: 'Payer-mix inputs run in the same scenario engine.' },
+    ],
+    adds: [
+      { icon: 'Activity', title: 'Census and cost-report evidence', body: 'Adapters for payer mix, census and Medicare cost reports.' },
+      { icon: 'BadgeCheck', title: 'Licensure findings', body: 'Licensure and accreditation gaps, and malpractice history.' },
+      { icon: 'Coins', title: 'Payer-mix-adjusted EBITDA', body: 'Earnings adjusted for payer mix, with regulatory capex as remediation.' },
     ],
   },
 ];

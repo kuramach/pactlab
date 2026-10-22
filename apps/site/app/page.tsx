@@ -3,7 +3,8 @@ import { HeroCarousel } from '../components/hero-carousel';
 import { Icon, IconTile, ModuleMark } from '../components/icon';
 import { Lockup } from '../components/lockup';
 import { siteConfig } from '../lib/config';
-import { CAROUSEL, CLOSING, FOUNDER, INDUSTRIES, MODULES, NAME_STORY, PILLAR, PRINCIPLES, STORY, TAGLINE } from '../lib/content';
+import { CAROUSEL, CLOSING, FOUNDER, MODULES, NAME_STORY, PILLAR, PRINCIPLES, STORY, TAGLINE } from '../lib/content';
+import { PUBLISHED_INDUSTRIES } from '../lib/industry-stories';
 import { Demos } from './demos';
 
 const { contactHref, signUpUrl } = siteConfig();
@@ -138,7 +139,7 @@ export default function HomePage() {
             Built for acquirers in
           </h2>
           <ul className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
-            {INDUSTRIES.map((industry) => (
+            {PUBLISHED_INDUSTRIES.map((industry) => (
               <li key={industry.slug}>
                 <Link
                   href={`/industries/${industry.slug}`}

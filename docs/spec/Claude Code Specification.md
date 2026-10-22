@@ -1345,6 +1345,18 @@ Only three things change per pack: (1) which evidence adapters ingest source dat
 | 5 | Pharma / biotech | Lowest transfer, highest value | Largest deal values, but the most specialized diligence of any pack — clinical, regulatory (FDA/EMA), patent, and GMP evidence has no analogue in the tech baseline. Highest value, highest build cost. |
 | 6 | E-commerce / DTC | Medium | Aggregator deal flow fits the metrics engine (CAC/LTV/repeat purchase), but deal sizes are smaller, so it ranks last on expansion value despite reasonable transfer. |
 
+### Extension packs (added 2026-10-22, ADR 0008)
+
+Five further packs in two clusters. Hotels, multifamily and commercial property form a new **real-estate cluster**: asset-level operating data plus leases, where the price is set by income and a capitalization rate rather than recurring-revenue multiples. Hospitals and small clinics **extend the healthcare services pack (2)** with a real-estate-plus-operations hybrid profile: the reimbursement and compliance finding types of pack 2 apply, and the facility, equipment and staffing evidence is added.
+
+| Rank | Industry pack | Cluster | Why it ranks here |
+|---:|---|---|---|
+| 7 | Multifamily | Real estate | Cleanest data: a rent roll and T-12 map almost one to one onto the existing billing import and revenue ledger. |
+| 8 | Commercial property (office, retail, industrial) | Real estate | Lease abstracts and rent rolls reuse the multifamily path; adds rollover, WALT and environmental evidence. |
+| 9 | Hotels (hospitality) | Real estate | Operating business on a property: daily revenue metrics, brand agreements and capex obligations. |
+| 10 | Small clinics | Healthcare (extends 2) | Reuses pack 2's reimbursement and compliance findings; adds provider, billing and equipment evidence. |
+| 11 | Hospitals | Healthcare (extends 2) | Heaviest regulatory weight: licensure, accreditation, cost reports and payer mix. |
+
 ### Pack definitions
 
 **1. Fintech (activate first, after baseline)**
@@ -1387,9 +1399,49 @@ Only three things change per pack: (1) which evidence adapters ingest source dat
 - What transfers: CAC/LTV/repeat-purchase fit the Metrics engine's cohort and concentration machinery; contract review covers marketplace and supplier terms.
 - Pack scope is adapters for storefront/marketplace and ad-platform evidence, finding types for unit-economics and channel risk, and no change to the valuation methods.
 
+**7. Multifamily**
+
+- Acquisitions of apartment communities and portfolios, usually by real-estate private equity and operators.
+- Evidence adapters: rent roll, trailing-twelve-month operating statement (T-12), lease files, delinquency reports, utility bills, and unit-condition inspections.
+- Finding types: loss-to-lease (in-place rents below market), deferred maintenance per door, and delinquency concentration.
+- Valuation tweaks: net operating income and capitalization rate. Loss-to-lease upside is a +1 cushion recorded in the confirmed-value ledger — value confirmed, never a price increase. Capital expenditure per door lands as remediation (−1 drag).
+- What transfers: the rent roll and T-12 map almost one to one onto the billing import and revenue ledger; concentration analysis carries over to tenants and units.
+
+**8. Commercial property (office, retail, industrial)**
+
+- Acquisitions of single assets and portfolios by real-estate funds and REITs.
+- Evidence adapters: lease abstracts, rent roll, common-area-maintenance (CAM) reconciliations, Phase I environmental site assessments, and zoning documents.
+- Finding types: tenant concentration, near-term lease rollover against the weighted average lease term (WALT), above- and below-market leases, and environmental flags.
+- Valuation tweaks: WALT and the rollover schedule as scenario inputs, and capitalization-rate sensitivity.
+- What transfers: lease abstraction runs on the document and citation machinery; tenant concentration reuses the concentration analysis.
+
+**9. Hotels (hospitality)**
+
+- Acquisitions of branded and independent hotels by hospitality funds, owner-operators and REITs.
+- Evidence adapters: property-management-system (PMS) and STR benchmark reports, franchise and brand agreements, management contracts, occupancy, average daily rate (ADR) and revenue per available room (RevPAR) history, and food-and-beverage P&Ls.
+- Finding types: deferred brand property-improvement-plan (PIP) capex, franchise encumbrance and termination windows, and demand seasonality or concentration.
+- Valuation tweaks: RevPAR and gross-operating-profit (GOP) margin trends. PIP capex lands as remediation or price terms (−1 drag).
+- What transfers: daily revenue history fits the metrics engine's period and cohort machinery; brand and management agreements run through contract review.
+
+**10. Small clinics (extends healthcare services)**
+
+- PE roll-ups of physician, dental, veterinary and therapy clinics.
+- Evidence adapters: provider contracts, patient volume, billing and revenue-cycle-management (RCM) reports, equipment schedules, and compliance records (HIPAA, Stark Law).
+- Finding types: provider concentration, coding and billing risk, and aged equipment.
+- Valuation tweaks: revenue per provider, and post-close provider retention risk.
+- What transfers: pack 2's reimbursement and compliance finding types; provider concentration reuses key-person risk. Provider data follows rule 7: aggregates by default, named data gated, never sent to a model.
+
+**11. Hospitals (extends healthcare services)**
+
+- Acquisitions of acute-care and specialty hospitals by health systems and healthcare private equity.
+- Evidence adapters: payer mix, census and average daily census (ADC), Medicare cost reports, licensure and accreditation records, and malpractice history.
+- Finding types: payer concentration, licensure or accreditation gaps, and key-physician dependence.
+- Valuation tweaks: payer-mix-adjusted EBITDA, and regulatory capital expenditure.
+- What transfers: pack 2's reimbursement and regulatory finding types; key-physician dependence reuses key-person risk under rule 7.
+
 ### Sequencing and guardrails
 
-- **Order:** fintech first after the baseline, then healthcare, telecom/media, IT & professional services, pharma/biotech, and e-commerce/DTC, in the rank order above. A design partner pulling a lower-ranked pack forward requires an ADR re-sequencing the queue.
+- **Order:** fintech first after the baseline, then healthcare, telecom/media, IT & professional services, pharma/biotech, and e-commerce/DTC, in the rank order above. The extension packs follow in their rank order: multifamily, commercial property, hotels, small clinics, hospitals (ADR 0008). A design partner pulling a lower-ranked pack forward requires an ADR re-sequencing the queue.
 - **No forking:** a pack that appears to require a change to the findings→valuation core, the reviewer workflow, or the deterministic-calculation rule is mis-scoped — the core gap gets fixed in the core for every pack, or the pack waits.
 - **Activation bar:** a pack enters scope only when the tech-M&A baseline is in pilot with the Release 1 acceptance journey passing, and gets its own spec amendment covering adapters, finding types, valuation tweaks, fixtures, and acceptance journeys before build starts.
 - **Baseline protection:** pack work must not delay, reshape, or add abstraction for the baseline modules. Premature pack abstraction in baseline code is a reject in review.

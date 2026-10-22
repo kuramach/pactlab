@@ -6,16 +6,16 @@ import { FeatureGrid } from '../../../components/features';
 import { Icon, ModuleMark } from '../../../components/icon';
 import { Section } from '../../../components/page-hero';
 import { StatusBadge } from '../../../components/status-badge';
-import { FLOW, INDUSTRIES, PILOT, PLANNED_NOTE } from '../../../lib/content';
-import { INDUSTRY_STORIES } from '../../../lib/industry-stories';
+import { FLOW, PILOT, PLANNED_NOTE } from '../../../lib/content';
+import { INDUSTRY_STORIES, PUBLISHED_INDUSTRIES } from '../../../lib/industry-stories';
 
 export const dynamicParams = false;
 
 export function generateStaticParams() {
-  return INDUSTRIES.map((industry) => ({ slug: industry.slug }));
+  return PUBLISHED_INDUSTRIES.map((industry) => ({ slug: industry.slug }));
 }
 
-const find = (slug: string) => INDUSTRIES.find((industry) => industry.slug === slug);
+const find = (slug: string) => PUBLISHED_INDUSTRIES.find((industry) => industry.slug === slug);
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const industry = find((await params).slug);
@@ -36,7 +36,7 @@ export default async function IndustryPage({ params }: { params: Promise<{ slug:
   const story = industry ? INDUSTRY_STORIES[industry.slug] : undefined;
   if (!industry || !story) notFound();
   const planned = industry.status === 'PLANNED';
-  const others = INDUSTRIES.filter((other) => other.slug !== industry.slug);
+  const others = PUBLISHED_INDUSTRIES.filter((other) => other.slug !== industry.slug);
 
   return (
     <>
