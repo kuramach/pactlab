@@ -38,28 +38,60 @@ git worktree remove --force "$WT" 2>/dev/null || true
 git branch -D "$BRANCH" 2>/dev/null || true
 git worktree add -B "$BRANCH" "$WT" HEAD >>"$LOG" 2>&1
 
-BRIEF="$(sed -n '/^## Brief/,$p' "$ACTIVE")"
-PROMPT="You are an engineer on the Pactlab repo, working in this worktree: $WT (branch $BRANCH).
-First read CLAUDE.md at the repo root and follow it exactly, including the Autonomous multi-agent operation section.
-Your task file is $ACTIVE — implement ONLY that task, touching ONLY its Touches: paths.
-When finished: run the task's Checks:, commit your work on this branch, and push the branch to origin. Do NOT merge or touch main.
-End with a plain report: files changed, each command run with its result, and anything unfinished."
+# --- context tier: CONTEXT_TIER env > task's Context: > standard ---
+TIER="${CONTEXT_TIER:-$(grep -E '^Context:' "$ACTIVE" | head -1 | sed 's/^Context:[[:space:]]*//' || true)}"
+TIER="${TIER:-standard}"
+case "$TIER" in light|standard|deep) ;; *) echo "warn: unknown Context: '$TIER', using standard" | tee -a "$LOG"; TIER=standard ;; esac
+next_tier() { case "$1" in light) echo standard ;; standard) echo deep ;; *) echo "" ;; esac; }
 
-echo "=== launching claude for $TASK_ID ===" | tee -a "$LOG"
-# shellcheck disable=SC2086
-(cd "$WT" && claude -p "$PROMPT" ${CLAUDE_FLAGS:-} 2>&1 | tee -a "$LOG") \
-  || echo "warn: claude exited non-zero" | tee -a "$LOG"
-
-# --- install deps before checks (agent may not have run it) ---
-echo "=== pnpm install ===" | tee -a "$LOG"
-(cd "$WT" && pnpm install 2>&1 | tee -a "$LOG") || echo "warn: pnpm install failed" | tee -a "$LOG"
-
-# --- checks ---
 CHECKS="$(grep -E '^Checks:' "$ACTIVE" | head -1 | sed 's/^Checks:[[:space:]]*//')"
-CHECKS_OK=true
-if [[ -n "$CHECKS" ]]; then
-  echo "=== checks: $CHECKS ===" | tee -a "$LOG"
-  (cd "$WT" && bash -lc "$CHECKS" 2>&1 | tee -a "$LOG") || CHECKS_OK=false
+CTX="$(mktemp)"; OUT="$(mktemp)"
+trap 'rm -f "$CTX" "$OUT"' EXIT
+
+run_attempt() { # run_attempt <tier> — build context, run the agent, install, check. Sets CHECKS_OK, STARVED.
+  local tier="$1" core ctx_chars prompt
+  ./scripts/context.sh "$ACTIVE" "$tier" "$REPO_ROOT" >"$CTX" 2> >(tee -a "$LOG" >&2)
+  prompt="You are an engineer on the Pactlab repo, working in this worktree: $WT (branch $BRANCH).
+CLAUDE.md at the repo root is loaded; follow it exactly, including the Autonomous multi-agent operation section.
+Your task file is $ACTIVE — implement ONLY that task, touching ONLY its Touches: paths.
+Your context tier is $tier: the context below is what you start with. Open other docs only when the task needs them.
+If missing context blocks you, print a line starting CONTEXT-STARVED: naming what you needed, then stop.
+When finished: run the task's Checks:, commit your work on this branch, and push the branch to origin. Do NOT merge or touch main.
+End with a plain report: files changed, each command run with its result, and anything unfinished.
+
+$(cat "$CTX")"
+  core=$(wc -c <"$WT/CLAUDE.md" 2>/dev/null || echo 0)
+  ctx_chars=$(printf '%s' "$prompt" | wc -c)
+  # Initial context = always-loaded CLAUDE.md + this prompt; ~4 characters per token.
+  echo "context: tier=$tier chars=$((core + ctx_chars)) claude_md=$core prompt=$ctx_chars approx_tokens=$(((core + ctx_chars) / 4))" | tee -a "$LOG"
+
+  echo "=== launching claude for $TASK_ID (tier $tier) ===" | tee -a "$LOG"
+  # shellcheck disable=SC2086
+  (cd "$WT" && claude -p "$prompt" ${CLAUDE_FLAGS:-} 2>&1 | tee "$OUT" | tee -a "$LOG") \
+    || echo "warn: claude exited non-zero" | tee -a "$LOG"
+  STARVED="$(grep -m1 -E '^CONTEXT-STARVED:' "$OUT" || true)"
+
+  # --- install deps before checks (agent may not have run it) ---
+  echo "=== pnpm install ===" | tee -a "$LOG"
+  (cd "$WT" && pnpm install 2>&1 | tee -a "$LOG") || echo "warn: pnpm install failed" | tee -a "$LOG"
+
+  # --- checks ---
+  CHECKS_OK=true
+  if [[ -n "$CHECKS" ]]; then
+    echo "=== checks: $CHECKS ===" | tee -a "$LOG"
+    (cd "$WT" && bash -lc "$CHECKS" 2>&1 | tee -a "$LOG") || CHECKS_OK=false
+  fi
+  [[ -z "$STARVED" ]] || CHECKS_OK=false
+}
+
+run_attempt "$TIER"
+# Guardrail: tiering never silently starves a task. One retry, one tier up,
+# when checks fail or the agent reports CONTEXT-STARVED.
+if ! $CHECKS_OK && [[ -n "$(next_tier "$TIER")" ]]; then
+  UP="$(next_tier "$TIER")"
+  echo "### context retry: $TIER -> $UP (${STARVED:-checks failed})" | tee -a "$LOG"
+  TIER="$UP"
+  run_attempt "$TIER"
 fi
 
 # --- backstop commit + push ---
