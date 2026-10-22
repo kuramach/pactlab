@@ -57,93 +57,28 @@ fixtures/cassettes
 
 Never weaken these rules to pass a test or accelerate a demo.
 
----
+## Every session
 
-## Solo-founder speed protocol
-
-Start every session with:
-
-```text
-Outcome: one observable user result.
-Scope: modules and routes allowed to change.
-Constraints: tenancy, evidence, security, and integration rules.
-Acceptance: executable tests plus expected UI/API behavior.
-Out of scope: adjacent features not requested.
-```
-
-Then:
-
-- Work on one task per session and ship the smallest demoable vertical slice.
-- Develop fixture-first; add live integrations only through the same adapter contracts.
-- Use plan mode before auth, billing, schema, or infrastructure changes.
-- Read relevant modules, tests, contracts, and ADRs before editing.
-- Identify expected files, authorization, tenancy, lineage, and migration effects.
-- Never invent provider APIs, SDK methods, scopes, limits, or legal rules; verify installed types and current official docs.
-- Record irreversible or cross-cutting decisions in ADRs.
-- Use backward-compatible expand/migrate/contract migrations.
-- Keep business logic in domain/application services, not controllers or components.
-- Validate inputs with shared schemas; keep provider behavior behind adapters.
-- Use synthetic fixtures only; never copy customer or production data.
+- One task per session; ship the smallest demoable vertical slice. Read the relevant modules, tests, contracts and ADRs before editing, and identify the expected files, authorization, tenancy, lineage and migration effects.
+- Plan mode before auth, billing, schema or infrastructure changes. Record irreversible or cross-cutting decisions in ADRs (`docs/adr/`).
+- Never invent provider APIs, SDK methods, scopes, limits or legal rules; verify installed types and current official docs.
+- Migrations are backward-compatible expand/migrate/contract. Business logic lives in domain/application services; inputs validate against shared schemas; provider behavior stays behind adapters.
+- Fixture-first: every provider has live and fixture adapters behind one interface; downstream code never branches on mode. Synthetic fixtures only — never customer or production data.
 - Version AI prompts and test them like code.
+- Local-first: Postgres and Redis run in Docker; CDK is synthesized, never deployed. Agents never create AWS accounts, deploy stacks or assume AWS credentials exist.
 
----
+## On-demand docs (read when the task needs them — not every run)
 
-## Build order
-
-Do not widen scope until the current increment meets its exit criterion.
-
-1. **0 — Foundation:** Monorepo, strict TypeScript, apps, shared packages, dev CDK, Auth0, tenancy/RLS, audit/outbox, observability, CI, design system, and shell. **Exit:** two synthetic tenants cannot cross-access API, jobs, files, or search.
-2. **1 — Deal/evidence spine:** Deals, memberships, contributor boundaries, connections, sync runs, evidence, citations, lineage, CSV, evidence browser, and idempotent jobs. **Exit:** replay creates no duplicates; every record resolves to its source.
-3. **2 — SaaS metrics:** Stripe, revenue ledger, MRR/ARR, retention, cohorts, concentration, reconciliation, and explanations. **Exit:** a reviewer reconciles management ARR to transactions and approves the difference.
-4. **3 — Findings/technology:** Findings, reviews, GitHub, ephemeral scans, one scanner/SBOM source, technology review, and priced risks. **Exit:** an accepted finding resolves to commit, tool version, and evidence; no source archive remains.
-5. **4 — Valuation:** Versioned assumptions, ARR-multiple and DCF engines, scenarios, sensitivities, purchase-price bridge, linked adjustments, approvals, and frozen submissions. **Exit:** changing an accepted risk marks dependent scenario results stale.
-6. **5 — Document AI:** Secure uploads, extraction, pages, exact citations, Claude gateway, prompt registry, typed outputs, Q&A, contract extraction, drafts, review, and evals. **Exit:** every accepted AI finding has exact citations and a human reviewer.
-7. **6 — Pilot hardening:** VDR, retention, audit export, SSO, access review, penetration/recovery tests, metering, pilot controls, and runbooks. **Exit:** a limited design-partner pilot has documented controls and rollback paths.
-
-**Phase 2:** Consent-gated HRIS plus Jira/Linear, identity resolution, people/delivery intelligence, retention indicators, and compensation harmonization.  
-**Phase 3:** Target-sourcing integrations and approved, risk-linked 100-day-plan exports.
-
-## Fixture-first integration
-
-- Give every provider live and fixture adapters behind one normalized interface.
-- Persist audited `FIXTURE` or `LIVE` mode per deal; downstream logic never branches by mode.
-- `validateConnection()` checks reachability, credentials, scopes, and mappings.
-- `dryRun()` performs a bounded read-only pull without a full sync or conclusion change.
-- Replay sanitized, versioned cassettes in CI with outbound provider access blocked.
-- Make `pnpm seed` idempotently create stable, cross-system HealthyCo, TroubledCo, and SparseCo identities.
-- HealthyCo proves the happy path. TroubledCo triggers ARR, ghost-commit, key-person, and license findings. SparseCo covers missing fields, pagination, stale data, duplicate names, and partial permissions.
-- Moving fixture to live changes only credentials and mode, never code or schema.
-
----
-
-## AWS environments
-
-| Profile | Local rights | Deploy path |
-|---|---|---|
-| `pactlab-dev` | Broad | Local or CI |
-| `pactlab-qa` | Moderate | Local or CI |
-| `pactlab-stage` | Read/plan | GitHub Actions |
-| `pactlab-prod` | Read/plan | GitHub Actions |
-
-- Use short-lived SSO credentials; never store long-lived AWS keys.
-- Name one profile per command; verify account and region first.
-- Run and inspect `cdk diff --profile <profile>` before every deploy; rerun after any revision, config, digest, context, or target change.
-- Dev and QA deploy automatically after required checks and diff review.
-- Stage and production require human approval; GitHub Actions owns deployment.
-- Never deploy production locally.
-- Promote signed artifacts by commit SHA and image digest without rebuilding.
-- Run backward-compatible migrations as one-off tasks before rollout.
-- Block deletion or replacement of protected production state.
-
-### Local-first rule
-
-Build and test locally until AWS is genuinely needed. Postgres and Redis run
-in Docker; CDK stacks are synthesized (`cdk synth`) but never deployed before
-T-007. Agents must not create AWS accounts, deploy stacks, or assume AWS
-credentials exist. The only AWS touchpoint before T-007 is the optional EC2
-box hosting the agent loop itself — and that is operator-run, never agent-run.
-
----
+| Need | Read |
+|---|---|
+| Session framing (Outcome/Scope/…) and full working protocol | `docs/agent/session-protocol.md` |
+| Build increments, exit criteria, phases 2–3 | `docs/agent/build-order.md` |
+| Fixture/live adapters, `pnpm seed`, synthetic companies | `docs/agent/fixtures.md` |
+| AWS profiles, deploy and promotion rules | `docs/agent/aws.md` |
+| Full product spec (large — read only the sections you need) | `docs/spec/Claude Code Specification.md` |
+| Architecture decisions | `docs/adr/` |
+| Agent loop, parallel lanes, context tiers | `docs/PARALLEL_OPS.md` |
+| Operational procedures | `docs/runbooks/` |
 
 ## Security defaults
 
@@ -205,7 +140,8 @@ When tasks run under the agent loop (`scripts/agent-loop.sh`) or headless `claud
 
 - **One worktree per agent.** Never share a working tree. Branch per task: `agent/<task-id>`.
 - **Claim before coding.** Your task file moves from `tasks/ready/` to `tasks/active/` before you write code. If it is already in `tasks/active/`, someone owns it — pick another.
-- **Starter tasks first.** `T-001` runs alone and first. After `T-002` lands, the parallel lanes open: `T-003` (metrics), `T-004` (findings/tech), and `T-006` (document AI) may run concurrently. `T-005` (valuation) needs `T-003` + `T-004`. `T-007` (hardening) runs last, alone. The full map lives in `docs/PARALLEL_OPS.md`.
+- **Order and lanes.** The scheduler honours each task's `Needs:` and `Touches:`; the map lives in `docs/PARALLEL_OPS.md`.
+- **Context tiers.** A task's `Context:` (`light | standard | deep`, default `standard`) decides what the runner puts in your prompt. Work from that; open on-demand docs only when the task needs them. If missing context blocks you, print `CONTEXT-STARVED: <what you needed>` and stop rather than guess.
 - **Stay inside your scope.** Touch only the `Touches:` paths in your task file. Anything else is a new task — do not improvise it.
 - **One task per session.** Finish (done or blocked) before taking another.
 - **PRs, never direct pushes.** Push your branch and open a PR against `main`. Never push to `main` directly.
