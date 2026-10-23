@@ -3,7 +3,7 @@
  * industry extracts (ADR 0010). Each pack adds its targets here with an
  * `import_target` enum value in its migration.
  */
-export const IMPORT_TARGETS = ['BILLING_INVOICE_LINE'] as const;
+export const IMPORT_TARGETS = ['BILLING_INVOICE_LINE', 'FINTECH_LOAN_TAPE', 'FINTECH_AML_ALERT'] as const;
 export type ImportTarget = (typeof IMPORT_TARGETS)[number];
 
 export type FieldKind = 'text' | 'date' | 'money' | 'decimal' | 'currency' | 'code';
@@ -24,6 +24,8 @@ export interface TargetDefinition {
   readonly target: ImportTarget;
   /** "Invoice lines", "Rent roll", … — shown on Sources. */
   readonly label: string;
+  /** The standard file name: template downloads, and the demo data's file for this target. */
+  readonly fileName: string;
   readonly people: PeopleData;
   /**
    * Refuse files whose header looks like named, contact, identity or pay data
@@ -45,6 +47,7 @@ export interface TargetDefinition {
 export const BILLING_INVOICE_LINE: TargetDefinition = {
   target: 'BILLING_INVOICE_LINE',
   label: 'Invoice lines',
+  fileName: 'invoice-lines.csv',
   people: 'NONE',
   refusesPeopleColumns: false,
   evidenceType: 'billing.invoice_line',
@@ -68,8 +71,50 @@ export const BILLING_INVOICE_LINE: TargetDefinition = {
   ],
 };
 
+/** Fintech (T-058): a loan-level tape. No borrower names or identifiers beyond the loan id. */
+export const FINTECH_LOAN_TAPE: TargetDefinition = {
+  target: 'FINTECH_LOAN_TAPE',
+  label: 'Loan tape',
+  fileName: 'loan-tape.csv',
+  people: 'NONE',
+  refusesPeopleColumns: true,
+  evidenceType: 'fintech.loan',
+  recordIdField: 'loan_id',
+  observedAtFields: ['originated'],
+  fields: [
+    { name: 'loan_id', label: 'Loan id', kind: 'text', required: true, hint: 'Unique id of the loan; never a borrower name or account number.' },
+    { name: 'originated', label: 'Origination date', kind: 'date', required: true, hint: 'When the loan was made.' },
+    { name: 'principal', label: 'Original principal', kind: 'money', required: true, hint: 'Amount lent.' },
+    { name: 'balance', label: 'Outstanding balance', kind: 'money', required: true, hint: 'Balance at the tape date; 0 for a charged-off loan.' },
+    { name: 'currency', label: 'Currency', kind: 'currency', required: true, hint: 'ISO 4217 code such as USD or EUR.' },
+    { name: 'days_past_due', label: 'Days past due', kind: 'decimal', required: true, hint: 'Whole days; 0 when current.' },
+    { name: 'status', label: 'Status', kind: 'code', required: true, hint: 'current, delinquent or charged_off.' },
+  ],
+};
+
+/** Fintech (T-058): transaction-monitoring alerts and whether review evidence exists. */
+export const FINTECH_AML_ALERT: TargetDefinition = {
+  target: 'FINTECH_AML_ALERT',
+  label: 'AML alerts',
+  fileName: 'aml-alerts.csv',
+  people: 'NONE',
+  refusesPeopleColumns: true,
+  evidenceType: 'fintech.aml_alert',
+  recordIdField: 'alert_id',
+  observedAtFields: ['raised'],
+  fields: [
+    { name: 'alert_id', label: 'Alert id', kind: 'text', required: true, hint: 'Unique id of the alert.' },
+    { name: 'raised', label: 'Raised on', kind: 'date', required: true, hint: 'When the monitoring rule fired.' },
+    { name: 'rule', label: 'Monitoring rule', kind: 'code', required: true, hint: 'The scenario that raised it, e.g. velocity or structuring.' },
+    { name: 'status', label: 'Status', kind: 'code', required: true, hint: 'open or closed.' },
+    { name: 'review_evidence', label: 'Review evidence on file', kind: 'code', required: true, hint: 'yes when the case file records what was reviewed and why; otherwise no.' },
+  ],
+};
+
 export const IMPORT_TARGET_DEFINITIONS: Readonly<Record<ImportTarget, TargetDefinition>> = {
   BILLING_INVOICE_LINE,
+  FINTECH_LOAN_TAPE,
+  FINTECH_AML_ALERT,
 };
 
 /**

@@ -53,6 +53,7 @@ function draft(tenant: SyntheticTenant, evidenceItemId: string, overrides: Parti
     evidence: [
       {
         evidenceItemId,
+        documentCitation: null,
         commitSha: SHA,
         toolName: 'semgrep',
         toolVersion: '1.0.0',

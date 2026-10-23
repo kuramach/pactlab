@@ -1,5 +1,5 @@
-import { FINDING_DOMAINS, FINDING_STATUSES, type Finding } from '@pactlab/domain';
-import { Badge, Card, CardContent, CardHeader, CardTitle, EmptyState, Glossed, IconTile } from '@pactlab/ui';
+import { FINDING_DOMAINS, FINDING_STATUSES, PACKS, type Finding } from '@pactlab/domain';
+import { Badge, Button, Card, CardContent, CardHeader, CardTitle, EmptyState, Glossed, IconTile } from '@pactlab/ui';
 import {
   AlertOctagon,
   Boxes,
@@ -21,9 +21,10 @@ import {
 } from 'lucide-react';
 import { BarChart, CHART_COLORS, DonutChart } from '../../../_lib/charts';
 import Link from 'next/link';
-import { apiGet } from '../../_lib/api';
+import { apiGet, dealsApi } from '../../_lib/api';
 import { ApiState } from '../../_lib/states';
-import { withReturn } from '../../_lib/return-to';
+import { FindingEvidenceChip } from '../../_lib/finding-evidence';
+import { runIndustryChecks } from './actions';
 import {
   DOMAIN_LABELS,
   findingsQuery,
@@ -80,16 +81,22 @@ export default async function FindingsPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   // The deal comes from the route; filters from the query string.
-  const filters = parseFindingFilters({ ...(await searchParams), deal: (await params).dealId });
+  const search = await searchParams;
+  const filters = parseFindingFilters({ ...search, deal: (await params).dealId });
   const dealId = filters.dealId;
   const query = findingsQuery(filters);
   // Records opened from this list come back to it with the same filters.
   const here = `/deals/${dealId ?? ''}/findings${query ? `?${query}` : ''}`;
-  const result = dealId
-    ? await apiGet<{ items: Finding[] }>(
-        `/v1/deals/${encodeURIComponent(dealId)}/findings${query ? `?${query}` : ''}`,
-      )
-    : null;
+  const [result, plan] = dealId
+    ? await Promise.all([
+        apiGet<{ items: Finding[] }>(`/v1/deals/${encodeURIComponent(dealId)}/findings${query ? `?${query}` : ''}`),
+        dealsApi.sourcePlan(dealId),
+      ])
+    : [null, null];
+  // Industry checks: the seller's pack rules (T-057/T-058). Shown only when the pack has any.
+  const pack = plan?.kind === 'ok' && plan.data.companyType && plan.data.companyType !== 'OTHER' ? PACKS[plan.data.companyType] : null;
+  const checks = typeof search['checks'] === 'string' ? search['checks'] : undefined;
+  const count = (key: string) => (typeof search[key] === 'string' ? Number(search[key]) || 0 : 0);
 
   return (
     <div className="flex max-w-6xl flex-col gap-6">
@@ -99,6 +106,27 @@ export default async function FindingsPage({
           Drafts from scanners and heuristics stay drafts until a reviewer accepts or rejects them.
         </p>
       </div>
+
+      {dealId && pack && pack.findingRules.length > 0 ? (
+        <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-navy/10 p-4 text-sm">
+          <form action={runIndustryChecks.bind(null, dealId)}>
+            <Button type="submit" size="sm">Run {pack.label.toLowerCase()} checks</Button>
+          </form>
+          <span className="text-slate-text">
+            {pack.findingRules.length} deterministic checks over the imported {pack.label.toLowerCase()} data and documents. They only draft findings; a reviewer decides.
+          </span>
+        </div>
+      ) : null}
+      {checks === 'ok' ? (
+        <p role="status" className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
+          Checks run: {count('created')} new draft {count('created') === 1 ? 'finding' : 'findings'}, {count('existing')} already drafted.
+          {count('unresolved') > 0 ? ` ${count('unresolved')} could not be cited exactly and were not drafted.` : ''}
+        </p>
+      ) : checks ? (
+        <p role="alert" className="rounded-md border border-border bg-muted px-3 py-2 text-sm">
+          {checks === 'forbidden' ? 'Your role cannot draft findings on this deal.' : 'The checks could not run. Try again.'}
+        </p>
+      ) : null}
 
       {!dealId ? (
         <EmptyState
@@ -250,13 +278,8 @@ export default async function FindingsPage({
                             ) : (
                               <ul className="flex flex-col gap-1">
                                 {finding.evidence.map((link) => (
-                                  <li key={`${link.evidenceItemId}-${link.toolName}`}>
-                                    <Link
-                                      href={withReturn(`/deals/${dealId}/evidence/${link.evidenceItemId}`, here)}
-                                      className="hover:underline"
-                                    >
-                                      <Badge variant="evidence">evidence</Badge>
-                                    </Link>{' '}
+                                  <li key={`${link.evidenceItemId ?? link.documentCitation?.quoteHash}-${link.toolName}`}>
+                                    <FindingEvidenceChip link={link} dealId={dealId} from={here} />{' '}
                                     {link.commitSha ? <><span className="font-mono">{link.commitSha.slice(0, 12)}</span>{' '}</> : null}
                                     <span className="text-muted-foreground">
                                       {link.toolName}@{link.toolVersion}

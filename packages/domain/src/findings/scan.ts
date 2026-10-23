@@ -61,6 +61,7 @@ export function scanFindingToProposal(
     evidence: [
       {
         evidenceItemId,
+        documentCitation: null,
         commitSha: scan.commitSha,
         toolName: scan.scanner,
         toolVersion: scan.scannerVersion,

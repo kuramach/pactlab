@@ -198,7 +198,7 @@ describe('pnpm seed', () => {
     for (const finding of drafts) {
       const [link] = finding.evidence;
       const lineage = await withTenant(db.prisma, scope, (tx) =>
-        evidence.lineage(tx, troubled.deal.id, link!.evidenceItemId),
+        evidence.lineage(tx, troubled.deal.id, link?.evidenceItemId ?? ''),
       );
       expect(lineage?.evidence.evidenceType).toBe('code.repository_head');
       expect(lineage?.citations[0]?.locator).toEqual({

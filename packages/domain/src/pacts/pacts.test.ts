@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { PACKS } from '../packs/registry';
 import { COMPANY_TYPES, deriveTransactionType, sourceKindForProvider, sourcesFor } from '.';
 
 describe('deriveTransactionType', () => {
@@ -26,10 +27,12 @@ describe('sourcesFor', () => {
   });
 
   it('never claims an industry pack that is not built', () => {
-    for (const type of COMPANY_TYPES.filter((type) => type !== 'SOFTWARE_SAAS')) {
+    for (const type of COMPANY_TYPES) {
       const plan = sourcesFor(type);
-      expect(plan.packAvailable).toBe(false);
-      expect(plan.note).toBeTruthy();
+      const built = type !== 'OTHER' && PACKS[type].built;
+      expect(plan.packAvailable, type).toBe(built);
+      if (built) expect(plan.note, type).toBeNull();
+      else expect(plan.note, type).toBeTruthy();
       expect(plan.sources.length).toBeGreaterThan(0);
       expect(plan.sources.map((source) => source.kind)).toContain('DOCUMENTS');
     }

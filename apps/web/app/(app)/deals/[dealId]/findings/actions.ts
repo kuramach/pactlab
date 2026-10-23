@@ -125,3 +125,19 @@ export async function setFindingDirection(dealId: string, findingId: string, for
   });
   back(dealId, findingId, result.kind === 'ok' ? 'ok-direction' : result.kind === 'invalid' ? 'direction' : result.kind);
 }
+
+const deal = z.uuid();
+
+/** Run the deal's industry-pack checks (deterministic rules; drafts only), then show what they proposed. */
+export async function runIndustryChecks(dealId: string): Promise<void> {
+  const parsed = deal.safeParse(dealId);
+  if (!parsed.success) redirect('/deals');
+  const result = await apiSend<{ created: number; existing: number; unresolvedQuotes: number }>(
+    'POST',
+    `/v1/deals/${parsed.data}/findings/pack-rules/run`,
+    {},
+  );
+  const base = `/deals/${parsed.data}/findings`;
+  if (result.kind !== 'ok') redirect(`${base}?checks=${result.kind === 'forbidden' ? 'forbidden' : 'error'}`);
+  redirect(`${base}?checks=ok&created=${result.data.created}&existing=${result.data.existing}&unresolved=${result.data.unresolvedQuotes}`);
+}

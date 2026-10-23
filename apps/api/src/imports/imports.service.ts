@@ -91,6 +91,7 @@ export function targetView(definition: TargetDefinition): ImportTargetView {
   return {
     target: definition.target,
     label: definition.label,
+    fileName: definition.fileName,
     people: definition.people,
     fields: definition.fields.map((field) => ({ name: field.name, label: field.label, required: field.required, hint: field.hint })),
     templateCsv: targetTemplateCsv(definition),

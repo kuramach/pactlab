@@ -6,8 +6,8 @@ import { COMPANY_TYPES, COMPANY_TYPE_LABELS, type CompanyType } from '../pacts/t
  * seller's company type. Everything that differs between packs is an entry
  * here — import targets, the metric calculator, finding rules and valuation
  * methods — so code reads the registry and never branches on the pack.
- * Calculator and method ids resolve in `@pactlab/calculations`; rule ids in
- * `findings/rules.ts`; a registry test checks every id resolves.
+ * Calculator, method and rule ids resolve in `@pactlab/calculations`; the API
+ * assembles the rule registry; a cross-package test checks every id resolves.
  */
 export type PackId = Exclude<CompanyType, 'OTHER'>;
 export const PACK_IDS = COMPANY_TYPES.filter((type): type is PackId => type !== 'OTHER');
@@ -31,7 +31,7 @@ export interface PackDefinition {
   /** CSV import targets offered on Sources (ADR 0010); billing first. */
   readonly importTargets: readonly ImportTarget[];
   readonly metricCalculator: MetricCalculatorId;
-  /** Deterministic finding rules run over the pack's evidence (`findings/rules.ts`). */
+  /** Deterministic finding rules run over the pack's evidence (implemented in `@pactlab/calculations`). */
   readonly findingRules: readonly string[];
   readonly valuationMethods: readonly PackValuationMethod[];
   /** True once the pack's own task has shipped; until then the core applies as it is. */
@@ -57,7 +57,11 @@ const pack = (id: PackId, slug: string, cluster: PackCluster, built = false): Pa
 
 export const PACKS: Readonly<Record<PackId, PackDefinition>> = {
   SOFTWARE_SAAS: pack('SOFTWARE_SAAS', 'software-saas', 'technology', true),
-  FINTECH: pack('FINTECH', 'fintech', 'technology'),
+  FINTECH: {
+    ...pack('FINTECH', 'fintech', 'technology', true),
+    importTargets: ['BILLING_INVOICE_LINE', 'FINTECH_LOAN_TAPE', 'FINTECH_AML_ALERT'],
+    findingRules: ['fintech-credit-loss', 'fintech-aml-unreviewed', 'fintech-partner-bank-coc'],
+  },
   HEALTHCARE: pack('HEALTHCARE', 'healthcare', 'healthcare'),
   TELECOM_MEDIA: pack('TELECOM_MEDIA', 'telecom-media', 'technology'),
   PROFESSIONAL_SERVICES: pack('PROFESSIONAL_SERVICES', 'professional-services', 'services'),

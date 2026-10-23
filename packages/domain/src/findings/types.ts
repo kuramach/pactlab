@@ -42,8 +42,22 @@ export type FindingActor =
  * commit analysed when the evidence is code (null for pack evidence such as an
  * imported rent-roll row), and the tool, rule or scanner and its version.
  */
+/** A verified quote from a stored document page (same shape as the AI and balance-sheet citations). */
+export interface DocumentCitation {
+  readonly documentId: string;
+  readonly pageNumber: number;
+  /** Exact source text covered by the quote. */
+  readonly quote: string;
+  readonly quoteHash: string;
+  readonly charStart: number;
+  readonly charEnd: number;
+}
+
 export interface FindingEvidenceLink {
-  readonly evidenceItemId: string;
+  /** The evidence record cited; null when the link cites a document page instead. */
+  readonly evidenceItemId: string | null;
+  /** The document page quote cited; exactly one of this and `evidenceItemId` is set. */
+  readonly documentCitation: DocumentCitation | null;
   readonly commitSha: string | null;
   readonly toolName: string;
   readonly toolVersion: string;

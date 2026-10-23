@@ -122,6 +122,8 @@ enum MultipleVerdict {
 
 enum ImportTarget {
   BILLING_INVOICE_LINE
+  FINTECH_LOAN_TAPE
+  FINTECH_AML_ALERT
 
   @@map("import_target")
 }
@@ -874,7 +876,10 @@ model FindingEvidenceLink {
   findingId      String   @map("finding_id") @db.Uuid
   findingVersion Int      @map("finding_version")
   ordinal        Int
-  evidenceItemId String   @map("evidence_item_id") @db.Uuid
+  /// Null when the link cites a document page instead (`documentCitation`).
+  evidenceItemId String?  @map("evidence_item_id") @db.Uuid
+  /// ResolvedCitation of a document page quote: documentId, pageNumber, quote, quoteHash, charStart, charEnd.
+  documentCitation Json? @map("document_citation")
   /// Null when the cited evidence is not code (pack evidence, ADR 0010).
   commitSha      String?  @map("commit_sha")
   toolName       String   @map("tool_name")
@@ -889,7 +894,7 @@ model FindingEvidenceLink {
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   deal         Deal         @relation(fields: [organizationId, dealId], references: [organizationId, id], onDelete: Restrict)
   finding      Finding      @relation(fields: [organizationId, dealId, findingId], references: [organizationId, dealId, id], onDelete: Restrict)
-  evidenceItem EvidenceItem @relation(fields: [organizationId, dealId, evidenceItemId], references: [organizationId, dealId, id], onDelete: Restrict)
+  evidenceItem EvidenceItem? @relation(fields: [organizationId, dealId, evidenceItemId], references: [organizationId, dealId, id], onDelete: Restrict)
 
   @@unique([organizationId, dealId, findingId, findingVersion, ordinal])
   @@index([organizationId, dealId, evidenceItemId])

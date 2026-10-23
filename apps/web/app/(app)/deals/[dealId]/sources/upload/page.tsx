@@ -66,7 +66,7 @@ export default async function BillingUploadPage({
               </label>
               <p className="text-xs text-muted-foreground">
                 Columns: {pack.fields.map((field) => field.name).join(', ')}.{' '}
-                <a href={`data:text/csv;charset=utf-8,${encodeURIComponent(pack.templateCsv)}`} download={`${pack.target.toLowerCase()}-template.csv`} className="text-indigo-ink underline">
+                <a href={`data:text/csv;charset=utf-8,${encodeURIComponent(pack.templateCsv)}`} download={pack.fileName} className="text-indigo-ink underline">
                   Download the template
                 </a>
                 .

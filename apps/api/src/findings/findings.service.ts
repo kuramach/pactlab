@@ -8,6 +8,7 @@ import {
   PayloadTooLargeException,
   UnprocessableEntityException,
 } from '@nestjs/common';
+import { citationStillValid, SourceIndex } from '@pactlab/ai';
 import { evidence, withTenant, type PrismaClient } from '@pactlab/db';
 import {
   auditActionFor,
@@ -32,7 +33,7 @@ import {
 } from '@pactlab/domain';
 import { DealAccess } from '../deals/deal-access';
 import { PRISMA } from '../tokens';
-import { MAX_RULE_EVIDENCE, PACK_REGISTRY, type PackRegistry } from './pack-rules';
+import { MAX_RULE_EVIDENCE, PACK_REGISTRY, RULE_READABLE_CLASSES, type PackRegistry } from './pack-rules';
 import {
   FINDINGS_REPOSITORY,
   type FindingsRepository,
@@ -94,12 +95,29 @@ export class FindingsService {
     dealId: string,
     links: readonly FindingEvidenceLink[],
   ) {
-    const ids = [...new Set(links.map((link) => link.evidenceItemId))];
-    const found = await withTenant(this.prisma, tenant, async (tx) =>
-      Promise.all(ids.map((id) => evidence.get(tx, dealId, id))),
-    );
+    const ids = [...new Set(links.flatMap((link) => (link.evidenceItemId ? [link.evidenceItemId] : [])))];
+    const citations = links.flatMap((link) => (link.documentCitation ? [link.documentCitation] : []));
+    const { found, pages } = await withTenant(this.prisma, tenant, async (tx) => ({
+      found: await Promise.all(ids.map((id) => evidence.get(tx, dealId, id))),
+      pages: await Promise.all(
+        citations.map((citation) =>
+          tx.documentPage.findFirst({
+            where: {
+              dealId,
+              documentId: citation.documentId,
+              pageNumber: citation.pageNumber,
+              document: { status: 'AVAILABLE', dataClass: { in: [...RULE_READABLE_CLASSES] } },
+            },
+            select: { text: true },
+          }),
+        ),
+      ),
+    }));
     if (found.some((item) => item === null))
       throw new UnprocessableEntityException('Evidence link does not resolve');
+    // A cited page quote must still be on that page, in a class findings may cite.
+    if (citations.some((citation, index) => !pages[index]?.text || !citationStillValid({ citationId: '', ...citation }, pages[index].text)))
+      throw new UnprocessableEntityException('Document citation does not resolve');
   }
 
   private async load(
@@ -208,7 +226,7 @@ export class FindingsService {
    */
   async runPackRules(tenant: TenantContext, dealId: string, requestId: string) {
     await this.access.require(tenant, dealId, canDraftFindings, { action: 'finding.pack_rules_run', requestId });
-    const { pack, evidence: rows } = await withTenant(this.prisma, tenant, async (tx) => {
+    const { pack, evidence: rows, pages } = await withTenant(this.prisma, tenant, async (tx) => {
       const seller = await tx.dealParty.findFirst({ where: { dealId, role: 'SELLER' }, select: { companyType: true } });
       const type = seller?.companyType;
       const pack = this.packs.packs[type && type !== 'OTHER' ? type : 'SOFTWARE_SAAS'];
@@ -221,7 +239,22 @@ export class FindingsService {
             orderBy: { id: 'asc' },
             take: MAX_RULE_EVIDENCE + 1,
           });
-      return { pack, evidence: found };
+      // Pages only for rules that read documents, only from readable classes (never HR, pay or performance).
+      const readsDocuments = pack.findingRules.some((id) => findingRule(id, this.packs.rules).readsDocuments);
+      const pageRows = readsDocuments
+        ? await tx.documentPage.findMany({
+            where: { dealId, text: { not: null }, document: { status: 'AVAILABLE', dataClass: { in: [...RULE_READABLE_CLASSES] } } },
+            select: { documentId: true, pageNumber: true, text: true, document: { select: { fileName: true, dataClass: true } } },
+            orderBy: [{ documentId: 'asc' }, { pageNumber: 'asc' }],
+          })
+        : [];
+      return {
+        pack,
+        evidence: found,
+        pages: pageRows.flatMap((page) =>
+          page.text ? [{ documentId: page.documentId, pageNumber: page.pageNumber, text: page.text, documentName: page.document.fileName, classification: page.document.dataClass }] : [],
+        ),
+      };
     });
     if (rows.length > MAX_RULE_EVIDENCE) throw new PayloadTooLargeException('Too much evidence for one rule run');
     // The newest version of each source record (earlier versions stay in lineage).
@@ -234,12 +267,33 @@ export class FindingsService {
       canonical: (row.canonical ?? {}) as Record<string, string | null>,
     }));
     const rules = pack.findingRules.map((id) => findingRule(id, this.packs.rules));
-    const proposals = rules.flatMap((rule) => ruleProposals(rule, input));
+    // Quotes become citations only if they are really on the page (no model; same check as AI citations).
+    const index = new SourceIndex(
+      pages.map((page) => ({
+        citationId: `${page.documentId}:${page.pageNumber}`,
+        documentId: page.documentId,
+        documentName: page.documentName,
+        pageNumber: page.pageNumber,
+        text: page.text,
+        classification: page.classification,
+      })),
+    );
+    const resolve = (quote: { documentId: string; pageNumber: number; quote: string }) => {
+      const check = index.verify({ citationId: `${quote.documentId}:${quote.pageNumber}`, quote: quote.quote });
+      if (!check.ok) return null;
+      const { citationId: _id, ...citation } = check.citation;
+      return citation;
+    };
+    const rulePages = pages.map((page) => ({ documentId: page.documentId, pageNumber: page.pageNumber, text: page.text }));
+    const runs = rules.map((rule) => ruleProposals(rule, { evidence: input, pages: rulePages }, resolve));
+    const proposals = runs.flatMap((run) => run.proposals);
     const recorded = await this.recordProposals(tenant, dealId, proposals, { kind: 'SYSTEM', component: 'pack-rules' }, requestId);
     return {
       pack: pack.id,
       rules: rules.map((rule) => ({ id: rule.id, version: rule.version })),
       evidenceRead: input.length,
+      pagesRead: pages.length,
+      unresolvedQuotes: runs.reduce((total, run) => total + run.unresolved, 0),
       created: recorded.created.length,
       existing: recorded.existing,
     };

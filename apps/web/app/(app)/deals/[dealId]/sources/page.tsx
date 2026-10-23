@@ -203,7 +203,7 @@ export default async function DealSourcesPage({
               <div key={item.target} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border p-3 text-sm">
                 <span className="font-medium">{item.label}</span>
                 <span className="flex items-center gap-3">
-                  <a href={`data:text/csv;charset=utf-8,${encodeURIComponent(item.templateCsv)}`} download={`${item.target.toLowerCase()}-template.csv`} className="text-indigo-ink underline">
+                  <a href={`data:text/csv;charset=utf-8,${encodeURIComponent(item.templateCsv)}`} download={item.fileName} className="text-indigo-ink underline">
                     Template
                   </a>
                   <Link href={`/deals/${dealId}/sources/upload?target=${item.target}`} className={buttonVariants({ size: 'sm', variant: 'outline' })}>

@@ -118,6 +118,7 @@ export function ghostCommitFinding(
     evidence: [
       {
         evidenceItemId: source.evidenceItemId,
+        documentCitation: null,
         commitSha: source.headCommitSha,
         toolName: GHOST_COMMIT_TOOL.name,
         toolVersion: GHOST_COMMIT_TOOL.version,
@@ -236,6 +237,7 @@ export function keyPersonFindings(
     evidence: [
       {
         evidenceItemId: source.evidenceItemId,
+        documentCitation: null,
         commitSha: source.headCommitSha,
         toolName: KEY_PERSON_TOOL.name,
         toolVersion: KEY_PERSON_TOOL.version,
@@ -279,6 +281,7 @@ export function healthyOwnershipFinding(
     evidence: [
       {
         evidenceItemId: source.evidenceItemId,
+        documentCitation: null,
         commitSha: source.headCommitSha,
         toolName: HEALTHY_OWNERSHIP_TOOL.name,
         toolVersion: HEALTHY_OWNERSHIP_TOOL.version,
