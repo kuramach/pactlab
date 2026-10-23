@@ -3,6 +3,7 @@ import { DealAccess } from '../deals/deal-access';
 import { FindingsController } from './findings.controller';
 import { FINDINGS_REPOSITORY, type FindingsRepository } from './findings.repository';
 import { FindingsService } from './findings.service';
+import { DEFAULT_PACK_REGISTRY, PACK_REGISTRY, type PackRegistry } from './pack-rules';
 
 /**
  * Findings and reviews as deal sub-resources. The repository is supplied by
@@ -10,7 +11,7 @@ import { FindingsService } from './findings.service';
  */
 @Module({})
 export class FindingsModule {
-  static register(repository: FindingsRepository): DynamicModule {
+  static register(repository: FindingsRepository, packs: PackRegistry = DEFAULT_PACK_REGISTRY): DynamicModule {
     return {
       module: FindingsModule,
       controllers: [FindingsController],
@@ -18,6 +19,7 @@ export class FindingsModule {
         FindingsService,
         DealAccess,
         { provide: FINDINGS_REPOSITORY, useValue: repository },
+        { provide: PACK_REGISTRY, useValue: packs },
       ],
       exports: [FindingsService],
     };

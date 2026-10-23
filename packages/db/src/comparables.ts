@@ -1,16 +1,10 @@
+import type { CompanyType } from '@pactlab/domain';
 import type { TransactionClient } from './client';
 
 export type ComparableKindValue = 'PRECEDENT_TRANSACTION' | 'PUBLIC_PEER' | 'OWN_DEAL';
 export type ComparableOriginValue = 'OWN_DEAL' | 'ENTERED' | 'PROVIDER' | 'SYNTHETIC';
-export type ComparableCompanyType =
-  | 'SOFTWARE_SAAS'
-  | 'FINTECH'
-  | 'HEALTHCARE'
-  | 'TELECOM_MEDIA'
-  | 'PROFESSIONAL_SERVICES'
-  | 'PHARMA_BIOTECH'
-  | 'ECOMMERCE_DTC'
-  | 'OTHER';
+/** Same `company_type` enum as the seller's pack (ADR 0009). */
+export type ComparableCompanyType = CompanyType;
 export type MultipleVerdictValue = 'IN_RANGE' | 'HIGH' | 'LOW';
 
 export interface ComparableInput {

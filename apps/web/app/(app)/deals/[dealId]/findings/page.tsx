@@ -3,13 +3,20 @@ import { Badge, Card, CardContent, CardHeader, CardTitle, EmptyState, Glossed, I
 import {
   AlertOctagon,
   Boxes,
+  Building2,
   ClipboardCheck,
   FlaskConical,
+  Gavel,
   GitCommitHorizontal,
+  Handshake,
+  Landmark,
   Scale,
   ServerCog,
+  Settings2,
   ShieldAlert,
+  ShieldCheck,
   UserRound,
+  Users,
   Wrench,
 } from 'lucide-react';
 import { BarChart, CHART_COLORS, DonutChart } from '../../../_lib/charts';
@@ -51,6 +58,13 @@ const DOMAIN_ICONS: Record<string, typeof Boxes> = {
   OPERATIONS: ServerCog,
   CODE_PROVENANCE: GitCommitHorizontal,
   KEY_PERSON: UserRound,
+  FINANCIAL: Landmark,
+  COMMERCIAL: Handshake,
+  OPERATIONAL: Settings2,
+  REGULATORY: ShieldCheck,
+  LEGAL: Gavel,
+  PROPERTY: Building2,
+  PEOPLE: Users,
 };
 
 function DomainIcon({ domain }: { domain: string }) {
@@ -243,7 +257,7 @@ export default async function FindingsPage({
                                     >
                                       <Badge variant="evidence">evidence</Badge>
                                     </Link>{' '}
-                                    <span className="font-mono">{link.commitSha.slice(0, 12)}</span>{' '}
+                                    {link.commitSha ? <><span className="font-mono">{link.commitSha.slice(0, 12)}</span>{' '}</> : null}
                                     <span className="text-muted-foreground">
                                       {link.toolName}@{link.toolVersion}
                                       {link.path ? ` · ${link.path}` : ''}

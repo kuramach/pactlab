@@ -41,6 +41,11 @@ enum CompanyType {
   PROFESSIONAL_SERVICES
   PHARMA_BIOTECH
   ECOMMERCE_DTC
+  MULTIFAMILY
+  COMMERCIAL_PROPERTY
+  HOTELS
+  SMALL_CLINICS
+  HOSPITALS
   OTHER
 
   @@map("company_type")
@@ -245,6 +250,13 @@ enum FindingDomain {
   OPERATIONS
   CODE_PROVENANCE
   KEY_PERSON
+  FINANCIAL
+  COMMERCIAL
+  OPERATIONAL
+  REGULATORY
+  LEGAL
+  PROPERTY
+  PEOPLE
 
   @@map("finding_domain")
 }
@@ -863,7 +875,8 @@ model FindingEvidenceLink {
   findingVersion Int      @map("finding_version")
   ordinal        Int
   evidenceItemId String   @map("evidence_item_id") @db.Uuid
-  commitSha      String   @map("commit_sha")
+  /// Null when the cited evidence is not code (pack evidence, ADR 0010).
+  commitSha      String?  @map("commit_sha")
   toolName       String   @map("tool_name")
   toolVersion    String   @map("tool_version")
   rulesetVersion String?  @map("ruleset_version")

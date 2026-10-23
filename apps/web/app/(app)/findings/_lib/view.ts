@@ -53,9 +53,16 @@ export const DOMAIN_LABELS: Readonly<Record<FindingDomain, string>> = {
   OPERATIONS: 'Operations',
   CODE_PROVENANCE: 'Code provenance',
   KEY_PERSON: 'Key-person risk',
+  FINANCIAL: 'Financial',
+  COMMERCIAL: 'Commercial',
+  OPERATIONAL: 'Operational',
+  REGULATORY: 'Regulatory & compliance',
+  LEGAL: 'Legal & contracts',
+  PROPERTY: 'Property & assets',
+  PEOPLE: 'People (aggregate)',
 };
 
-/** Findings grouped by technology-review domain, in a fixed order, empty groups omitted. */
+/** Findings grouped by domain (technology review, then pack domains), in a fixed order, empty groups omitted. */
 export function groupByDomain(findings: readonly Finding[]): [FindingDomain, Finding[]][] {
   return FINDING_DOMAINS.map(
     (domain) =>

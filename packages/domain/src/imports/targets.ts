@@ -1,4 +1,8 @@
-/** What an uploaded export is imported as. CSV import is billing-only (ADR 0004). */
+/**
+ * What an uploaded export is imported as: billing (ADR 0004) and, per pack,
+ * industry extracts (ADR 0010). Each pack adds its targets here with an
+ * `import_target` enum value in its migration.
+ */
 export const IMPORT_TARGETS = ['BILLING_INVOICE_LINE'] as const;
 export type ImportTarget = (typeof IMPORT_TARGETS)[number];
 
@@ -13,8 +17,20 @@ export interface TargetField {
   readonly hint: string;
 }
 
+/** Whether a target's rows describe people at all, and how (rule 7). */
+export type PeopleData = 'NONE' | 'AGGREGATE' | 'PSEUDONYMOUS';
+
 export interface TargetDefinition {
   readonly target: ImportTarget;
+  /** "Invoice lines", "Rent roll", … — shown on Sources. */
+  readonly label: string;
+  readonly people: PeopleData;
+  /**
+   * Refuse files whose header looks like named, contact, identity or pay data
+   * (`peopleColumnProblems`). On for every pack target; billing keeps its
+   * ADR 0004 behaviour (unmapped columns are never imported).
+   */
+  readonly refusesPeopleColumns: boolean;
   readonly evidenceType: string;
   readonly recordIdField: string;
   /** Field used as the observation date, falling back in order. */
@@ -28,6 +44,9 @@ export interface TargetDefinition {
  */
 export const BILLING_INVOICE_LINE: TargetDefinition = {
   target: 'BILLING_INVOICE_LINE',
+  label: 'Invoice lines',
+  people: 'NONE',
+  refusesPeopleColumns: false,
   evidenceType: 'billing.invoice_line',
   recordIdField: 'line_id',
   observedAtFields: ['created', 'period_start'],
@@ -52,6 +71,37 @@ export const BILLING_INVOICE_LINE: TargetDefinition = {
 export const IMPORT_TARGET_DEFINITIONS: Readonly<Record<ImportTarget, TargetDefinition>> = {
   BILLING_INVOICE_LINE,
 };
+
+/**
+ * Header words that mark named, contact, identity or compensation data. A
+ * pack extract carrying them is refused before anything is imported; people
+ * appear only as aggregates or pseudonymous references (rule 7).
+ */
+const PEOPLE_COLUMN_WORDS = [
+  'first_name', 'last_name', 'full_name', 'given_name', 'surname', 'employee_name', 'person_name', 'patient_name', 'resident_name', 'tenant_contact',
+  'email', 'e_mail', 'phone', 'mobile', 'telephone', 'home_address', 'street_address',
+  'ssn', 'social_security', 'national_id', 'national_insurance', 'passport', 'tax_id', 'date_of_birth', 'dob', 'birth_date', 'birthdate',
+  'salary', 'compensation', 'bonus', 'wage', 'wages', 'pay_rate', 'payrate', 'base_pay', 'equity_grant',
+  'diagnosis', 'medical_record', 'mrn', 'patient_id',
+] as const;
+
+const normalizeHeader = (column: string) => column.toLowerCase().trim().replaceAll(/[^a-z0-9]+/g, '_').replaceAll(/^_|_$/g, '');
+
+/** Columns a pack target refuses, with the reason; empty when the file may be imported. */
+export function peopleColumnProblems(definition: TargetDefinition, header: readonly string[]): string[] {
+  if (!definition.refusesPeopleColumns) return [];
+  return header
+    .filter((column) => {
+      const name = normalizeHeader(column);
+      return PEOPLE_COLUMN_WORDS.some((word) => name === word || name.startsWith(`${word}_`) || name.endsWith(`_${word}`));
+    })
+    .map((column) => `Column "${column}" looks like named, contact, identity, health or pay data. Remove it: this extract accepts ${definition.people === 'NONE' ? 'no people data' : definition.people === 'AGGREGATE' ? 'aggregates only' : 'pseudonymous references only'}.`);
+}
+
+/** A target's Pactlab standard template: its field names as a CSV header. */
+export function targetTemplateCsv(definition: TargetDefinition): string {
+  return `${definition.fields.map((field) => field.name).join(',')}\n`;
+}
 
 /** Billing systems a seller may export from. Templates live with the connectors. */
 export const BILLING_SYSTEMS = [

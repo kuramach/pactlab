@@ -3,6 +3,8 @@ import type { Prisma, TransactionClient } from './client';
 import { connections, type ConnectionRecord } from './evidence';
 
 export const BILLING_UPLOAD_PROVIDER = 'billing_upload';
+/** Connections created by industry-pack CSV imports (ADR 0010), one per target. */
+export const PACK_UPLOAD_PROVIDER = 'pack_upload';
 
 export interface SourceUploadRecord {
   id: string;
@@ -104,27 +106,31 @@ export const sourceUploads = {
       dealId: string;
       system: string;
       systemLabel: string;
+      /** Billing when absent; a pack target gets its own `pack_upload` connection. */
+      target?: ImportTarget;
       visibility: EvidenceVisibility;
       createdBy: string;
     },
   ): Promise<ConnectionRecord> {
+    const billing = !input.target || input.target === 'BILLING_INVOICE_LINE';
+    const provider = billing ? BILLING_UPLOAD_PROVIDER : PACK_UPLOAD_PROVIDER;
     const existing = await tx.connection.findFirst({
       where: {
         dealId: input.dealId,
-        provider: BILLING_UPLOAD_PROVIDER,
+        provider,
         evidenceVisibility: input.visibility,
-        config: { path: ['system'], equals: input.system },
+        config: billing ? { path: ['system'], equals: input.system } : { path: ['target'], equals: input.target ?? '' },
       },
     });
     if (existing) return existing;
     return connections.create(tx, {
       organizationId: input.organizationId,
       dealId: input.dealId,
-      provider: BILLING_UPLOAD_PROVIDER,
-      displayName: `${input.systemLabel} billing export${input.visibility === 'SHARED' ? ' (shared)' : ''}`,
+      provider,
+      displayName: `${input.systemLabel} ${billing ? 'billing export' : 'upload'}${input.visibility === 'SHARED' ? ' (shared)' : ''}`,
       mode: 'LIVE',
       credentialRef: null,
-      config: { system: input.system },
+      config: billing ? { system: input.system } : { system: input.system, target: input.target ?? null },
       evidenceVisibility: input.visibility,
       createdBy: input.createdBy,
     });

@@ -1,7 +1,7 @@
 import type { SourcePlanResponse } from '@pactlab/contracts';
 import { Glossed, IconTile, Term, type Accent } from '@pactlab/ui';
 import { FileText, GitBranch, ListChecks, Receipt } from 'lucide-react';
-import { Badge, Button, buttonVariants, Card, CardContent, CardHeader, CardTitle, EmptyState } from '@pactlab/ui';
+import { Badge, Button, buttonVariants, Card, CardContent, CardDescription, CardHeader, CardTitle, EmptyState } from '@pactlab/ui';
 import { COMPANY_TYPE_LABELS } from '@pactlab/domain';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
@@ -156,11 +156,14 @@ export default async function DealSourcesPage({
   const { dealId } = await params;
   const { started, imported, created, unchanged } = await searchParams;
   if (!isUuidParam(dealId)) notFound();
-  const [sources, plan, synthetic] = await Promise.all([
+  const [sources, plan, synthetic, targets] = await Promise.all([
     dealsApi.sources(dealId),
     dealsApi.sourcePlan(dealId),
     apiGet<{ allowed: boolean }>('/v1/synthetic-sources'),
+    dealsApi.importTargets(dealId),
   ]);
+  // Industry-pack extracts (ADR 0010); billing has its own card above.
+  const packTargets = targets.kind === 'ok' ? targets.data.items.filter((item) => item.target !== 'BILLING_INVOICE_LINE') : [];
 
   return (
     <div className="flex flex-col gap-6">
@@ -185,6 +188,33 @@ export default async function DealSourcesPage({
       ) : null}
 
       {plan.kind === 'ok' ? <SourcePlan plan={plan.data} dealId={dealId} /> : null}
+
+      {packTargets.length > 0 ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Industry data</CardTitle>
+            <CardDescription>
+              Extracts this deal&apos;s industry pack reads, as CSV files on the Pactlab standard template. People appear only as aggregates or
+              pseudonymous references.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3">
+            {packTargets.map((item) => (
+              <div key={item.target} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border p-3 text-sm">
+                <span className="font-medium">{item.label}</span>
+                <span className="flex items-center gap-3">
+                  <a href={`data:text/csv;charset=utf-8,${encodeURIComponent(item.templateCsv)}`} download={`${item.target.toLowerCase()}-template.csv`} className="text-indigo-ink underline">
+                    Template
+                  </a>
+                  <Link href={`/deals/${dealId}/sources/upload?target=${item.target}`} className={buttonVariants({ size: 'sm', variant: 'outline' })}>
+                    Upload {item.label.toLowerCase()}
+                  </Link>
+                </span>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      ) : null}
 
       {synthetic.kind === 'ok' && synthetic.data.allowed ? (
         <p className="text-sm text-muted-foreground">

@@ -133,6 +133,40 @@ describe('billing CSV import through the API', { timeout: 30_000 }, () => {
     if (storeDir) await rm(storeDir, { recursive: true, force: true });
   });
 
+  it('lists the pack\'s import targets with their templates (ADR 0010); billing for a software deal', async () => {
+    const bearer = await token(standard.subject, standard);
+    const targets = await call('GET', `/v1/deals/${standard.dealId}/import-targets`, bearer);
+    expect(targets.status).toBe(200);
+    const items = targets.body['items'] as { target: string; label: string; people: string; templateCsv: string }[];
+    expect(items.map((item) => [item.target, item.label, item.people])).toEqual([['BILLING_INVOICE_LINE', 'Invoice lines', 'NONE']]);
+    expect(items[0]?.templateCsv.startsWith('line_id,invoice_id,customer_id,')).toBe(true);
+    const template = await app.inject({ method: 'GET', url: `/v1/deals/${standard.dealId}/import-targets/BILLING_INVOICE_LINE/template.csv`, headers: { authorization: `Bearer ${bearer}` } });
+    expect(template.statusCode).toBe(200);
+    expect(template.headers['content-type']).toContain('text/csv');
+    expect(template.body).toBe(items[0]?.templateCsv);
+    expect((await call('GET', `/v1/deals/${standard.dealId}/import-targets/RENT_ROLL/template.csv`, bearer)).status).toBe(400);
+    expect((await call('GET', `/v1/deals/${standard.dealId}/import-targets`, await token(outsider.subject, outsider))).status).toBe(404);
+  });
+
+  it('an explicit billing target behaves exactly like no target; an unknown target is refused', async () => {
+    const bearer = await token(standard.subject, standard);
+    const explicit = await app.inject({
+      method: 'POST',
+      url: `/v1/deals/${standard.dealId}/uploads?system=pactlab_standard&fileName=billing.csv&target=BILLING_INVOICE_LINE`,
+      headers: { authorization: `Bearer ${bearer}`, 'content-type': 'text/csv' },
+      payload: csv,
+    });
+    expect(explicit.statusCode).toBe(201);
+    expect(explicit.json()).toMatchObject({ target: 'BILLING_INVOICE_LINE', system: 'pactlab_standard' });
+    const unknown = await app.inject({
+      method: 'POST',
+      url: `/v1/deals/${standard.dealId}/uploads?system=pactlab_standard&fileName=x.csv&target=RENT_ROLL`,
+      headers: { authorization: `Bearer ${bearer}`, 'content-type': 'text/csv' },
+      payload: csv,
+    });
+    expect(unknown.statusCode).toBe(400);
+  });
+
   it('lists billing systems and says which have verified column templates', async () => {
     const systems = (await call('GET', '/v1/billing-import/systems', await token(standard.subject, standard))).body['items'] as Body[];
     const bySystem = Object.fromEntries(systems.map((entry) => [entry['system'], entry['verified']]));

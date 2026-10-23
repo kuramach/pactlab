@@ -85,8 +85,12 @@ export function mappingProblems(definition: TargetDefinition, header: readonly s
  * normalized deterministically; anything that does not parse is reported
  * with its row number and left out — never guessed.
  */
-export function applyMapping(table: CsvTable, mapping: ImportMapping, dataset: string): MappingResult {
-  const definition = IMPORT_TARGET_DEFINITIONS[mapping.target];
+export function applyMapping(
+  table: CsvTable,
+  mapping: ImportMapping,
+  dataset: string,
+  definition: TargetDefinition = IMPORT_TARGET_DEFINITIONS[mapping.target],
+): MappingResult {
   const problems = mappingProblems(definition, table.header, mapping);
   if (problems.length > 0) {
     return {
@@ -160,7 +164,7 @@ export function applyMapping(table: CsvTable, mapping: ImportMapping, dataset: s
 
     const recordId = canonical[definition.recordIdField];
     if (recordId && seen.has(recordId)) {
-      issues.push({ dataset, row, code: 'DUPLICATE_RECORD_ID', detail: 'Line id repeated' });
+      issues.push({ dataset, row, code: 'DUPLICATE_RECORD_ID', detail: `${definition.fields.find((field) => field.name === definition.recordIdField)?.label ?? 'Record id'} repeated` });
       return;
     }
     if (rowIssues.length > 0) {
@@ -180,8 +184,8 @@ export function applyMapping(table: CsvTable, mapping: ImportMapping, dataset: s
 export function mappedEvidence(
   result: MappingResult,
   options: { target: ImportTarget; sourceSystem: string; dataset: string },
+  definition: TargetDefinition = IMPORT_TARGET_DEFINITIONS[options.target],
 ): EvidencePull {
-  const definition = IMPORT_TARGET_DEFINITIONS[options.target];
   const records: NormalizedEvidence[] = result.rows.map(({ row, canonical }) => {
     const observed = definition.observedAtFields.map((field) => canonical[field]).find((value) => value);
     return {

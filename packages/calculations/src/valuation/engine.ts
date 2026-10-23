@@ -114,36 +114,72 @@ function computeDcf(assumptions: DcfAssumptions): DcfComputation {
   };
 }
 
-function enterpriseValueOf(assumptions: MethodAssumptions): Decimal {
-  return assumptions.method === 'ARR_MULTIPLE'
-    ? new D(assumptions.arr).times(assumptions.multiple)
-    : computeDcf(assumptions).enterpriseValue;
+/**
+ * The valuation methods the engine can run, one entry each (ADR 0009). A pack
+ * method (e.g. NOI ÷ capitalization rate) adds an entry here and in
+ * `validate.ts`; nothing else in the engine changes.
+ */
+interface MethodEngine<A extends MethodAssumptions> {
+  readonly enterpriseValue: (assumptions: A) => Decimal;
+  readonly result: (assumptions: A, currency: string) => MethodResult;
+  /** The assumption set with one sensitivity variable replaced. */
+  readonly override: (assumptions: A, variable: SensitivityVariable, value: string) => MethodAssumptions;
 }
 
-function methodResult(assumptions: MethodAssumptions, currency: string): MethodResult {
-  if (assumptions.method === 'ARR_MULTIPLE') {
-    return {
+const METHOD_ENGINES: { readonly [K in MethodAssumptions['method']]: MethodEngine<Extract<MethodAssumptions, { method: K }>> } = {
+  ARR_MULTIPLE: {
+    enterpriseValue: (assumptions) => new D(assumptions.arr).times(assumptions.multiple),
+    result: (assumptions, currency) => ({
       method: 'ARR_MULTIPLE',
       arr: money(new D(assumptions.arr), currency),
       multiple: assumptions.multiple,
-    };
-  }
-  const dcf = computeDcf(assumptions);
-  return {
-    method: 'DCF',
-    years: dcf.years.map(
-      (year, index): DcfYearResult => ({
-        year: index + 1,
-        revenue: money(year.revenue, currency),
-        freeCashFlow: money(year.fcf, currency),
-        discountFactor: year.factor.toFixed(DISCOUNT_FACTOR_SCALE, Decimal.ROUND_HALF_EVEN),
-        presentValue: money(year.pv, currency),
-      }),
-    ),
-    terminalValue: money(dcf.terminalValue, currency),
-    presentValueOfTerminal: money(dcf.pvTerminal, currency),
-    presentValueOfCashFlows: money(sum(dcf.years.map((year) => year.pv)), currency),
-  };
+    }),
+    override: (assumptions, variable, value) =>
+      variable === 'arr' ? { ...assumptions, arr: value } : { ...assumptions, multiple: value },
+  },
+  DCF: {
+    enterpriseValue: (assumptions) => computeDcf(assumptions).enterpriseValue,
+    result: (assumptions, currency) => {
+      const dcf = computeDcf(assumptions);
+      return {
+        method: 'DCF',
+        years: dcf.years.map(
+          (year, index): DcfYearResult => ({
+            year: index + 1,
+            revenue: money(year.revenue, currency),
+            freeCashFlow: money(year.fcf, currency),
+            discountFactor: year.factor.toFixed(DISCOUNT_FACTOR_SCALE, Decimal.ROUND_HALF_EVEN),
+            presentValue: money(year.pv, currency),
+          }),
+        ),
+        terminalValue: money(dcf.terminalValue, currency),
+        presentValueOfTerminal: money(dcf.pvTerminal, currency),
+        presentValueOfCashFlows: money(sum(dcf.years.map((year) => year.pv)), currency),
+      };
+    },
+    override: (assumptions, variable, value) => {
+      if (variable === 'discountRate') return { ...assumptions, discountRate: value };
+      if (variable === 'terminalGrowth') {
+        return { ...assumptions, terminal: { kind: 'GORDON', growth: value } };
+      }
+      return { ...assumptions, terminal: { kind: 'EXIT_MULTIPLE', revenueMultiple: value } };
+    },
+  },
+};
+
+/** Ids of every method the engine runs; the pack registry's method ids must be among them. */
+export const ENGINE_VALUATION_METHODS = Object.keys(METHOD_ENGINES) as MethodAssumptions['method'][];
+
+function engineFor<A extends MethodAssumptions>(assumptions: A): MethodEngine<A> {
+  return METHOD_ENGINES[assumptions.method] as unknown as MethodEngine<A>;
+}
+
+function enterpriseValueOf(assumptions: MethodAssumptions): Decimal {
+  return engineFor(assumptions).enterpriseValue(assumptions);
+}
+
+function methodResult(assumptions: MethodAssumptions, currency: string): MethodResult {
+  return engineFor(assumptions).result(assumptions, currency);
 }
 
 function withOverride(
@@ -151,14 +187,7 @@ function withOverride(
   variable: SensitivityVariable,
   value: string,
 ): MethodAssumptions {
-  if (assumptions.method === 'ARR_MULTIPLE') {
-    return variable === 'arr' ? { ...assumptions, arr: value } : { ...assumptions, multiple: value };
-  }
-  if (variable === 'discountRate') return { ...assumptions, discountRate: value };
-  if (variable === 'terminalGrowth') {
-    return { ...assumptions, terminal: { kind: 'GORDON', growth: value } };
-  }
-  return { ...assumptions, terminal: { kind: 'EXIT_MULTIPLE', revenueMultiple: value } };
+  return engineFor(assumptions).override(assumptions, variable, value);
 }
 
 function sensitivityGrid(inputs: ValuationInputs): SensitivityResult | null {

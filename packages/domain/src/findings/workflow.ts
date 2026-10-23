@@ -4,9 +4,11 @@ import { FindingValidationError, validatePricedRisk, validateValueConfirmation }
 import {
   FINDING_CONFIDENCES,
   FINDING_DOMAINS,
+  TECHNOLOGY_FINDING_DOMAINS,
   FINDING_SEVERITIES,
   type Finding,
   type FindingActor,
+  type FindingDomain,
   type FindingEvidenceLink,
   type FindingReview,
   type FindingStatus,
@@ -50,11 +52,18 @@ function nonEmpty(value: string, max: number, field: string): string {
   return trimmed;
 }
 
-/** A link resolves only if it names an evidence item, an exact commit and a versioned tool. */
+/**
+ * A link resolves only if it names an evidence item and a versioned tool, and
+ * — for code evidence — an exact commit. Pack evidence (an imported row) has
+ * no commit, so no repository path or line range either; technology findings
+ * always need the commit (`requireCommitsFor`).
+ */
 export function validateEvidenceLink(link: FindingEvidenceLink): FindingEvidenceLink {
   if (!isUuid(link.evidenceItemId)) throw new FindingValidationError('Invalid evidence item id');
-  if (!COMMIT_SHA.test(link.commitSha))
+  if (link.commitSha !== null && !COMMIT_SHA.test(link.commitSha))
     throw new FindingValidationError('Evidence links need a full commit hash');
+  if (link.commitSha === null && (link.path !== null || link.lineStart !== null || link.lineEnd !== null))
+    throw new FindingValidationError('A repository path needs the commit it was read at');
   nonEmpty(link.toolName, 100, 'Tool name');
   nonEmpty(link.toolVersion, 100, 'Tool version');
   if (link.path !== null && (link.path.startsWith('/') || link.path.split('/').includes('..')))
@@ -100,9 +109,16 @@ function validateDirectionShape(input: {
     throw new FindingValidationError(`Rationale must be at most ${MAX_TEXT} characters`);
 }
 
+/** Technology findings cite code, so every link needs its exact commit. */
+function requireCommitsFor(domain: FindingDomain, evidence: readonly FindingEvidenceLink[]) {
+  if ((TECHNOLOGY_FINDING_DOMAINS as readonly string[]).includes(domain) && evidence.some((link) => link.commitSha === null))
+    throw new FindingValidationError('Evidence links need a full commit hash');
+}
+
 function validateProposal(proposal: ProposedFinding): Required<ProposedFinding> {
   if (!FINDING_DOMAINS.includes(proposal.domain))
     throw new FindingValidationError('Unknown domain');
+  requireCommitsFor(proposal.domain, proposal.evidence);
   if (!FINDING_SEVERITIES.includes(proposal.severity))
     throw new FindingValidationError('Unknown severity');
   if (!FINDING_CONFIDENCES.includes(proposal.confidence))
@@ -252,7 +268,10 @@ export function decide(
       'EVIDENCE_REQUIRED',
       'A finding cannot be accepted without a resolvable evidence link',
     );
-  if (decision === 'ACCEPTED') finding.evidence.forEach(validateEvidenceLink);
+  if (decision === 'ACCEPTED') {
+    finding.evidence.forEach(validateEvidenceLink);
+    requireCommitsFor(finding.domain, finding.evidence);
+  }
   const decided = decision === 'ACCEPTED' ? acceptedDirection(finding, choice) : null;
   return {
     finding: {

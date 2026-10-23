@@ -7,6 +7,7 @@ import {
   ADJUSTMENT_TYPES,
   SENSITIVITY_VARIABLES,
   VALUATION_TRANSACTION_TYPES,
+  type MethodAssumptions,
   type SensitivityVariable,
   type ValuationInputs,
 } from './types';
@@ -59,13 +60,73 @@ function oneOf<T extends string>(value: unknown, allowed: readonly T[], path: st
   return value as T;
 }
 
+/**
+ * Per-method input rules. Each valuation method registers here and in the
+ * engine's method table (ADR 0009); pack methods plug in without touching
+ * `validateInputs`.
+ */
+interface MethodRules<A extends MethodAssumptions> {
+  readonly validate: (assumptions: A) => void;
+  readonly sensitivityApplies: (variable: SensitivityVariable, assumptions: A) => boolean;
+}
+
+const METHOD_RULES: { readonly [K in MethodAssumptions['method']]: MethodRules<Extract<MethodAssumptions, { method: K }>> } = {
+  ARR_MULTIPLE: {
+    validate: (assumptions) => {
+      decimal(assumptions.arr, 'assumptions.arr', { min: '0' });
+      decimal(assumptions.multiple, 'assumptions.multiple', { min: '0', max: '1000' });
+    },
+    sensitivityApplies: (variable) => variable === 'arr' || variable === 'multiple',
+  },
+  DCF: {
+    validate: (assumptions) => {
+      decimal(assumptions.baseRevenue, 'assumptions.baseRevenue', { min: '0' });
+      if (assumptions.years.length < 1 || assumptions.years.length > MAX_DCF_YEARS) {
+        throw new ValuationInputError('assumptions.years', `must have 1 to ${MAX_DCF_YEARS} years`);
+      }
+      assumptions.years.forEach((year, index) => {
+        decimal(year.growth, `assumptions.years.${index}.growth`, { above: '-1', max: '10' });
+        decimal(year.fcfMargin, `assumptions.years.${index}.fcfMargin`, { min: '-10', max: '1' });
+      });
+      const rate = decimal(assumptions.discountRate, 'assumptions.discountRate', {
+        above: '0',
+        max: '1',
+      });
+      if (assumptions.terminal.kind === 'GORDON') {
+        const growth = decimal(assumptions.terminal.growth, 'assumptions.terminal.growth', {
+          above: '-1',
+        });
+        if (growth.greaterThanOrEqualTo(rate)) {
+          throw new ValuationInputError(
+            'assumptions.terminal.growth',
+            'must be below the discount rate',
+          );
+        }
+      } else if (assumptions.terminal.kind === 'EXIT_MULTIPLE') {
+        decimal(assumptions.terminal.revenueMultiple, 'assumptions.terminal.revenueMultiple', {
+          min: '0',
+          max: '1000',
+        });
+      } else {
+        throw new ValuationInputError('assumptions.terminal.kind', 'unknown terminal method');
+      }
+    },
+    sensitivityApplies: (variable, assumptions) => {
+      if (variable === 'discountRate') return true;
+      if (variable === 'terminalGrowth') return assumptions.terminal.kind === 'GORDON';
+      if (variable === 'terminalMultiple') return assumptions.terminal.kind === 'EXIT_MULTIPLE';
+      return false;
+    },
+  },
+};
+
+/** The rules for an assumption set's method, or undefined for an unknown method. */
+function rulesFor<A extends MethodAssumptions>(assumptions: A): MethodRules<A> | undefined {
+  return (METHOD_RULES as Readonly<Record<string, MethodRules<A> | undefined>>)[assumptions.method];
+}
+
 function sensitivityApplies(variable: SensitivityVariable, inputs: ValuationInputs): boolean {
-  const assumptions = inputs.assumptions;
-  if (assumptions.method === 'ARR_MULTIPLE') return variable === 'arr' || variable === 'multiple';
-  if (variable === 'discountRate') return true;
-  if (variable === 'terminalGrowth') return assumptions.terminal.kind === 'GORDON';
-  if (variable === 'terminalMultiple') return assumptions.terminal.kind === 'EXIT_MULTIPLE';
-  return false;
+  return rulesFor(inputs.assumptions)?.sensitivityApplies(variable, inputs.assumptions) ?? false;
 }
 
 /**
@@ -77,44 +138,9 @@ export function validateInputs(inputs: ValuationInputs): void {
   if (!CURRENCY.test(inputs.currency)) throw new ValuationInputError('currency', 'invalid code');
   oneOf(inputs.transactionType, VALUATION_TRANSACTION_TYPES, 'transactionType');
 
-  const assumptions = inputs.assumptions;
-  if (assumptions.method === 'ARR_MULTIPLE') {
-    decimal(assumptions.arr, 'assumptions.arr', { min: '0' });
-    decimal(assumptions.multiple, 'assumptions.multiple', { min: '0', max: '1000' });
-  } else if (assumptions.method === 'DCF') {
-    decimal(assumptions.baseRevenue, 'assumptions.baseRevenue', { min: '0' });
-    if (assumptions.years.length < 1 || assumptions.years.length > MAX_DCF_YEARS) {
-      throw new ValuationInputError('assumptions.years', `must have 1 to ${MAX_DCF_YEARS} years`);
-    }
-    assumptions.years.forEach((year, index) => {
-      decimal(year.growth, `assumptions.years.${index}.growth`, { above: '-1', max: '10' });
-      decimal(year.fcfMargin, `assumptions.years.${index}.fcfMargin`, { min: '-10', max: '1' });
-    });
-    const rate = decimal(assumptions.discountRate, 'assumptions.discountRate', {
-      above: '0',
-      max: '1',
-    });
-    if (assumptions.terminal.kind === 'GORDON') {
-      const growth = decimal(assumptions.terminal.growth, 'assumptions.terminal.growth', {
-        above: '-1',
-      });
-      if (growth.greaterThanOrEqualTo(rate)) {
-        throw new ValuationInputError(
-          'assumptions.terminal.growth',
-          'must be below the discount rate',
-        );
-      }
-    } else if (assumptions.terminal.kind === 'EXIT_MULTIPLE') {
-      decimal(assumptions.terminal.revenueMultiple, 'assumptions.terminal.revenueMultiple', {
-        min: '0',
-        max: '1000',
-      });
-    } else {
-      throw new ValuationInputError('assumptions.terminal.kind', 'unknown terminal method');
-    }
-  } else {
-    throw new ValuationInputError('assumptions.method', 'unknown valuation method');
-  }
+  const rules = rulesFor(inputs.assumptions);
+  if (!rules) throw new ValuationInputError('assumptions.method', 'unknown valuation method');
+  rules.validate(inputs.assumptions);
 
   decimal(inputs.bridge.cash, 'bridge.cash', { min: '0' });
   decimal(inputs.bridge.debt, 'bridge.debt', { min: '0' });

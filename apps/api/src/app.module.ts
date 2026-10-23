@@ -32,6 +32,7 @@ import { PrismaValuationRepository } from './valuation/prisma-valuation.reposito
 import { ValuationModule } from './valuation/valuation.module';
 import { IDENTITY_VERIFIER, LOGGER, PRISMA } from './tokens';
 import { PROVIDER_DEPENDENCIES, providerDependencies, type ProviderSettings } from './connections/provider-dependencies';
+import type { PackRegistry } from './findings/pack-rules';
 
 export interface AppDependencies {
   prisma: PrismaClient;
@@ -62,6 +63,8 @@ export interface AppDependencies {
    * Defaults: approval required, no operator email.
    */
   signup?: { requiresApproval?: boolean; operatorEmail?: string | null; loginUrl: string };
+  /** Pack and finding-rule registries. Omitted: the domain registries (tests inject a test-only rule). */
+  packs?: PackRegistry;
 }
 
 @Global()
@@ -110,7 +113,7 @@ export class AppModule {
           objectStore: deps.uploads?.objectStore ?? new UnavailableUploadStore(),
           malwareScanner: deps.uploads?.malwareScanner ?? new UnavailableMalwareScanner(),
         }),
-        FindingsModule.register(findings),
+        FindingsModule.register(findings, deps.packs),
         ValuationModule.register({ valuation, findings }),
         ComparablesModule.register({ valuation, findings }),
         DocumentsModule.register({

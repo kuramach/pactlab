@@ -1,5 +1,6 @@
 import type {
   AskingPriceView,
+  ImportTargetView,
   BillingSystemView,
   DealPartiesResponse,
   DealSummary,
@@ -201,9 +202,11 @@ export const dealsApi = {
   uploads: (dealId: string) => apiGet<{ items: SourceUploadView[] }>(`/v1/deals/${encodeURIComponent(dealId)}/uploads`),
   upload: (dealId: string, uploadId: string) =>
     apiGet<UploadDetailView>(`/v1/deals/${encodeURIComponent(dealId)}/uploads/${encodeURIComponent(uploadId)}`),
-  uploadCsv: (dealId: string, system: string, fileName: string, body: Uint8Array<ArrayBuffer>) =>
+  /** CSV import targets the deal's pack offers (billing first), with template headers. */
+  importTargets: (dealId: string) => apiGet<{ items: ImportTargetView[] }>(`/v1/deals/${encodeURIComponent(dealId)}/import-targets`),
+  uploadCsv: (dealId: string, system: string, fileName: string, body: Uint8Array<ArrayBuffer>, target?: string) =>
     apiUploadCsv(
-      `/v1/deals/${encodeURIComponent(dealId)}/uploads?${new URLSearchParams({ system, fileName }).toString()}`,
+      `/v1/deals/${encodeURIComponent(dealId)}/uploads?${new URLSearchParams({ system, fileName, ...(target ? { target } : {}) }).toString()}`,
       body,
     ),
   previewImport: (dealId: string, uploadId: string, mapping: ImportMappingBody) =>

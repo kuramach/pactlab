@@ -32,7 +32,8 @@ export const valueConfirmationSchema = z.strictObject({
 
 export const evidenceLinkSchema = z.strictObject({
   evidenceItemId: z.uuid(),
-  commitSha: z.string().regex(/^([0-9a-f]{40}|[0-9a-f]{64})$/),
+  /** Null for non-code evidence (pack rows); technology findings still require it (workflow). */
+  commitSha: z.string().regex(/^([0-9a-f]{40}|[0-9a-f]{64})$/).nullable().default(null),
   toolName: z.string().trim().min(1).max(100),
   toolVersion: z.string().trim().min(1).max(100),
   rulesetVersion: z.string().trim().min(1).max(100).nullable().default(null),
