@@ -124,6 +124,8 @@ interface MethodEngine<A extends MethodAssumptions> {
   readonly result: (assumptions: A, currency: string) => MethodResult;
   /** The assumption set with one sensitivity variable replaced. */
   readonly override: (assumptions: A, variable: SensitivityVariable, value: string) => MethodAssumptions;
+  /** False for a sensitivity cell with no finite value (shown empty, never computed). */
+  readonly finite?: (assumptions: A) => boolean;
 }
 
 const METHOD_ENGINES: { readonly [K in MethodAssumptions['method']]: MethodEngine<Extract<MethodAssumptions, { method: K }>> } = {
@@ -164,6 +166,17 @@ const METHOD_ENGINES: { readonly [K in MethodAssumptions['method']]: MethodEngin
       }
       return { ...assumptions, terminal: { kind: 'EXIT_MULTIPLE', revenueMultiple: value } };
     },
+    // A Gordon cell with growth at or above the discount rate, or a non-positive rate, has no finite value.
+    finite: (assumptions) =>
+      new D(assumptions.discountRate).greaterThan(0) &&
+      !(assumptions.terminal.kind === 'GORDON' && new D(assumptions.terminal.growth).greaterThanOrEqualTo(assumptions.discountRate)),
+  },
+  NOI_CAP_RATE: {
+    enterpriseValue: (assumptions) => new D(assumptions.noi).div(assumptions.capRate),
+    result: (assumptions, currency) => ({ method: 'NOI_CAP_RATE', noi: money(new D(assumptions.noi), currency), capRate: assumptions.capRate }),
+    override: (assumptions, variable, value) =>
+      variable === 'noi' ? { ...assumptions, noi: value } : { ...assumptions, capRate: value },
+    finite: (assumptions) => new D(assumptions.capRate).greaterThan(0),
   },
 };
 
@@ -200,17 +213,7 @@ function sensitivityGrid(inputs: ValuationInputs): SensitivityResult | null {
         spec.columns.variable,
         columnValue,
       );
-      // A Gordon cell with growth at or above the discount rate has no finite value.
-      if (
-        varied.method === 'DCF' &&
-        varied.terminal.kind === 'GORDON' &&
-        new D(varied.terminal.growth).greaterThanOrEqualTo(varied.discountRate)
-      ) {
-        return null;
-      }
-      if (varied.method === 'DCF' && new D(varied.discountRate).lessThanOrEqualTo(0)) {
-        return null;
-      }
+      if (!(engineFor(varied).finite?.(varied) ?? true)) return null;
       return money(enterpriseValueOf(varied), inputs.currency);
     }),
   );

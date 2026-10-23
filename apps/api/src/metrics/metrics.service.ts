@@ -3,11 +3,17 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  PayloadTooLargeException,
   UnprocessableEntityException,
 } from '@nestjs/common';
 import {
   computeCohorts,
   computeSaasMetrics,
+  METRIC_CALCULATORS,
+  SAAS_METRICS_CALCULATOR,
+  type MetricCalculator,
+  type PackMetricsInput,
+  type PackMetricsReport,
   draftFindingFor,
   prepareWorkspace,
   reconcileArr,
@@ -25,6 +31,7 @@ import {
 } from '@pactlab/db';
 import {
   isBuyerSideRole,
+  packFor,
   permissionsForDealRole,
   type DealRole,
   type TenantContext,
@@ -43,6 +50,9 @@ const AGGREGATE = 'metrics_reconciliation';
 const APPROVED_EVENT = 'metrics.reconciliation.approved';
 
 /** Metrics are buyer analysis: target contributors never see them. */
+/** Above this, pack metrics refuse rather than read a partial evidence set. */
+const MAX_PACK_METRIC_ROWS = 200_000;
+
 const canReadMetrics = (role: DealRole) =>
   isBuyerSideRole(role) && permissionsForDealRole(role).has('BUYER_ANALYSIS_READ');
 /** Analysts and leads record reconciliations. */
@@ -126,6 +136,42 @@ export class MetricsService {
     }
     if (!evidence) throw new NotFoundException();
     return compute(evidence, asOf);
+  }
+
+  /**
+   * The deal's pack metrics (T-059): the pack's calculator over its imported
+   * extracts, as labelled figures with formulas. The software pack's SaaS
+   * metrics stay on `summary`; for it this returns an empty list.
+   */
+  async packMetrics(tenant: TenantContext, dealId: string, requestId: string): Promise<PackMetricsReport> {
+    await this.access.require(tenant, dealId, canReadMetrics, { action: 'metrics.viewed', requestId });
+    return withTenant(this.prisma, tenant, async (tx) => {
+      const deal = await tx.deal.findFirst({ where: { id: dealId }, select: { baseCurrency: true } });
+      if (!deal) throw new NotFoundException();
+      const seller = await tx.dealParty.findFirst({ where: { dealId, role: 'SELLER' }, select: { companyType: true } });
+      const calculator = METRIC_CALCULATORS[packFor(seller?.companyType ?? null).metricCalculator];
+      if (!calculator || calculator.id === SAAS_METRICS_CALCULATOR.id) {
+        return { calculator: SAAS_METRICS_CALCULATOR.id, version: SAAS_METRICS_CALCULATOR.version, currency: deal.baseCurrency, metrics: [] };
+      }
+      const rows = await tx.evidenceItem.findMany({
+        where: { dealId, evidenceType: { in: [...calculator.evidenceTypes] } },
+        select: { id: true, connectionId: true, evidenceType: true, sourceRecordId: true, canonical: true },
+        orderBy: { id: 'asc' },
+        take: MAX_PACK_METRIC_ROWS + 1,
+      });
+      if (rows.length > MAX_PACK_METRIC_ROWS) throw new PayloadTooLargeException('Too much evidence for one metrics run');
+      // The newest version of each source record (earlier versions stay in lineage).
+      const latest = new Map<string, (typeof rows)[number]>();
+      for (const row of rows) latest.set(`${row.connectionId}|${row.evidenceType}|${row.sourceRecordId}`, row);
+      const evidence = [...latest.values()].map((row) => ({
+        id: row.id,
+        evidenceType: row.evidenceType,
+        sourceRecordId: row.sourceRecordId,
+        canonical: (row.canonical ?? {}) as Record<string, string | null>,
+      }));
+      await this.audit(tx, tenant, dealId, 'metrics.viewed', 'deal', dealId, requestId);
+      return (calculator as unknown as MetricCalculator<PackMetricsInput, PackMetricsReport>).compute({ currency: deal.baseCurrency, evidence });
+    });
   }
 
   async summary(

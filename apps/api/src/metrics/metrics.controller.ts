@@ -29,6 +29,16 @@ export class MetricsController {
     return this.service.summary(tenant, params.dealId, query.asOf, requestId);
   }
 
+  /** The deal's pack metrics (labelled figures with formulas); empty for the software pack. */
+  @Get('pack')
+  async pack(
+    @Tenant() tenant: TenantContext,
+    @RequestId() requestId: string,
+    @Param(new ZodValidationPipe(dealParamsSchema)) params: { dealId: string },
+  ) {
+    return this.service.packMetrics(tenant, params.dealId, requestId);
+  }
+
   @Get('cohorts')
   async cohorts(
     @Tenant() tenant: TenantContext,

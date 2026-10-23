@@ -1415,6 +1415,14 @@ Five further packs in two clusters. Hotels, multifamily and commercial property 
 - Valuation tweaks: net operating income and capitalization rate. Loss-to-lease upside is a +1 cushion recorded in the confirmed-value ledger — value confirmed, never a price increase. Capital expenditure per door lands as remediation (−1 drag).
 - What transfers: the rent roll and T-12 map almost one to one onto the billing import and revenue ledger; concentration analysis carries over to tenants and units.
 
+**7a. Multifamily — activation amendment (T-059, 2026-10-25)**
+
+- **Import targets (CSV, ADR 0010):** `MULTIFAMILY_RENT_ROLL` (→ `multifamily.unit`), `MULTIFAMILY_T12` (→ `multifamily.t12_month`), `MULTIFAMILY_DELINQUENCY` (→ `multifamily.delinquency`), `MULTIFAMILY_INSPECTION` (→ `multifamily.inspection`), alongside the billing import. Property extracts carry no currency column: amounts are in the deal's base currency. Residents appear only as units.
+- **Metrics (`multifamily-metrics-1`):** occupancy, units, annual in-place rent, loss-to-lease, T-12 NOI, delinquent balance and units, repair estimate per door — the generic pack-metrics shape (label, value, formula, source count) served by `GET /v1/deals/:id/metrics/pack` and shown on Finances.
+- **Valuation:** new core method **NOI ÷ capitalization rate** (`NOI_CAP_RATE`; sensitivity on NOI and cap rate), offered with DCF for multifamily; the scenario form lists the pack's methods.
+- **Finding rules (deterministic, versioned, drafts only):** memorandum NOI above the T-12 (neutral — value on the T-12); deferred maintenance above the capital plan (−1, remediation cost: low = the excess, high = the full estimate); delinquency concentrated in one building (neutral — a collections covenant and downside case); loss-to-lease (+1 confirmed value, never a price increase).
+- **Fixtures and acceptance:** `pactlab-demo-data/multifamily/{USD,EUR,GBP}` — metrics match the folder README, the four planted findings surface as cited drafts, and an NOI ÷ cap-rate run carries the accepted maintenance drag in the bridge while loss-to-lease stays in confirmed value (`apps/api/src/packs/multifamily.acceptance.api.test.ts`).
+
 **8. Commercial property (office, retail, industrial)**
 
 - Acquisitions of single assets and portfolios by real-estate funds and REITs.

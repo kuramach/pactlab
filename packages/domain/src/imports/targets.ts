@@ -3,7 +3,15 @@
  * industry extracts (ADR 0010). Each pack adds its targets here with an
  * `import_target` enum value in its migration.
  */
-export const IMPORT_TARGETS = ['BILLING_INVOICE_LINE', 'FINTECH_LOAN_TAPE', 'FINTECH_AML_ALERT'] as const;
+export const IMPORT_TARGETS = [
+  'BILLING_INVOICE_LINE',
+  'FINTECH_LOAN_TAPE',
+  'FINTECH_AML_ALERT',
+  'MULTIFAMILY_RENT_ROLL',
+  'MULTIFAMILY_T12',
+  'MULTIFAMILY_DELINQUENCY',
+  'MULTIFAMILY_INSPECTION',
+] as const;
 export type ImportTarget = (typeof IMPORT_TARGETS)[number];
 
 export type FieldKind = 'text' | 'date' | 'money' | 'decimal' | 'currency' | 'code';
@@ -111,10 +119,95 @@ export const FINTECH_AML_ALERT: TargetDefinition = {
   ],
 };
 
+/**
+ * Multifamily (T-059). Property extracts carry no currency column: amounts are
+ * in the deal's base currency. Residents appear only as units — never names.
+ */
+const IN_BASE_CURRENCY = 'In the deal\'s base currency.';
+
+export const MULTIFAMILY_RENT_ROLL: TargetDefinition = {
+  target: 'MULTIFAMILY_RENT_ROLL',
+  label: 'Rent roll',
+  fileName: 'rent-roll.csv',
+  people: 'NONE',
+  refusesPeopleColumns: true,
+  evidenceType: 'multifamily.unit',
+  recordIdField: 'unit',
+  observedAtFields: ['lease_start'],
+  fields: [
+    { name: 'unit', label: 'Unit', kind: 'text', required: true, hint: 'Unit number; never a resident name.' },
+    { name: 'building', label: 'Building', kind: 'text', required: true, hint: 'Building or block.' },
+    { name: 'type', label: 'Unit type', kind: 'text', required: false, hint: 'e.g. 1BR, 2BR.' },
+    { name: 'sqft', label: 'Square feet', kind: 'decimal', required: false, hint: 'Rentable area.' },
+    { name: 'status', label: 'Status', kind: 'code', required: true, hint: 'occupied or vacant.' },
+    { name: 'lease_start', label: 'Lease start', kind: 'date', required: false, hint: 'Empty for a vacant unit.' },
+    { name: 'lease_end', label: 'Lease end', kind: 'date', required: false, hint: 'Empty for a vacant unit.' },
+    { name: 'in_place_rent', label: 'In-place rent', kind: 'money', required: true, hint: `Monthly rent on the current lease; 0 when vacant. ${IN_BASE_CURRENCY}` },
+    { name: 'market_rent', label: 'Market rent', kind: 'money', required: true, hint: `Monthly market rent for the unit. ${IN_BASE_CURRENCY}` },
+    { name: 'balance_due', label: 'Balance due', kind: 'money', required: false, hint: `Arrears on the unit. ${IN_BASE_CURRENCY}` },
+  ],
+};
+
+export const MULTIFAMILY_T12: TargetDefinition = {
+  target: 'MULTIFAMILY_T12',
+  label: 'T-12 operating statement',
+  fileName: 't12.csv',
+  people: 'NONE',
+  refusesPeopleColumns: true,
+  evidenceType: 'multifamily.t12_month',
+  recordIdField: 'month',
+  observedAtFields: [],
+  fields: [
+    { name: 'month', label: 'Month', kind: 'text', required: true, hint: 'YYYY-MM, one row per month of the trailing twelve.' },
+    { name: 'rental_income', label: 'Rental income', kind: 'money', required: true, hint: IN_BASE_CURRENCY },
+    { name: 'other_income', label: 'Other income', kind: 'money', required: false, hint: IN_BASE_CURRENCY },
+    { name: 'operating_expenses', label: 'Operating expenses', kind: 'money', required: true, hint: IN_BASE_CURRENCY },
+    { name: 'net_operating_income', label: 'Net operating income', kind: 'money', required: true, hint: IN_BASE_CURRENCY },
+  ],
+};
+
+export const MULTIFAMILY_DELINQUENCY: TargetDefinition = {
+  target: 'MULTIFAMILY_DELINQUENCY',
+  label: 'Delinquency report',
+  fileName: 'delinquency.csv',
+  people: 'NONE',
+  refusesPeopleColumns: true,
+  evidenceType: 'multifamily.delinquency',
+  recordIdField: 'unit',
+  observedAtFields: [],
+  fields: [
+    { name: 'unit', label: 'Unit', kind: 'text', required: true, hint: 'Unit number; never a resident name.' },
+    { name: 'building', label: 'Building', kind: 'text', required: true, hint: 'Building or block.' },
+    { name: 'balance_due', label: 'Balance due', kind: 'money', required: true, hint: IN_BASE_CURRENCY },
+    { name: 'days_past_due', label: 'Days past due', kind: 'decimal', required: false, hint: 'Whole days.' },
+  ],
+};
+
+export const MULTIFAMILY_INSPECTION: TargetDefinition = {
+  target: 'MULTIFAMILY_INSPECTION',
+  label: 'Unit inspections',
+  fileName: 'unit-inspections.csv',
+  people: 'NONE',
+  refusesPeopleColumns: true,
+  evidenceType: 'multifamily.inspection',
+  recordIdField: 'unit',
+  observedAtFields: [],
+  fields: [
+    { name: 'unit', label: 'Unit', kind: 'text', required: true, hint: 'Unit number.' },
+    { name: 'building', label: 'Building', kind: 'text', required: true, hint: 'Building or block.' },
+    { name: 'condition', label: 'Condition', kind: 'code', required: true, hint: 'good, fair or poor.' },
+    { name: 'estimated_repair_cost', label: 'Estimated repair cost', kind: 'money', required: true, hint: IN_BASE_CURRENCY },
+  ],
+};
+
 export const IMPORT_TARGET_DEFINITIONS: Readonly<Record<ImportTarget, TargetDefinition>> = {
   BILLING_INVOICE_LINE,
   FINTECH_LOAN_TAPE,
   FINTECH_AML_ALERT,
+  MULTIFAMILY_RENT_ROLL,
+  MULTIFAMILY_T12,
+  MULTIFAMILY_DELINQUENCY,
+  MULTIFAMILY_INSPECTION,
 };
 
 /**

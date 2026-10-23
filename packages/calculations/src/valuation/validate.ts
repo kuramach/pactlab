@@ -118,6 +118,13 @@ const METHOD_RULES: { readonly [K in MethodAssumptions['method']]: MethodRules<E
       return false;
     },
   },
+  NOI_CAP_RATE: {
+    validate: (assumptions) => {
+      decimal(assumptions.noi, 'assumptions.noi', { min: '0' });
+      decimal(assumptions.capRate, 'assumptions.capRate', { above: '0', max: '1' });
+    },
+    sensitivityApplies: (variable) => variable === 'noi' || variable === 'capRate',
+  },
 };
 
 /** The rules for an assumption set's method, or undefined for an unknown method. */

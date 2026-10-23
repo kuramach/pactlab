@@ -418,3 +418,41 @@ describe('evidence-backed balance-sheet items', () => {
     expect(check(null)).toEqual([{ kind: 'BALANCE_SHEET_ITEM_MISSING', itemId: items[1]!.itemId }]);
   });
 });
+
+describe('NOI ÷ capitalization rate (T-059)', () => {
+  const base = {
+    currency: 'USD',
+    transactionType: 'PRIVATE_ACQUIRER' as const,
+    assumptions: { method: 'NOI_CAP_RATE' as const, noi: '1170711.00', capRate: '0.055' },
+    bridge: { cash: '0', debt: '0', debtLikeItems: '0', workingCapitalAdjustment: '0' },
+    adjustments: [],
+    balanceSheetItems: [],
+    sensitivity: null,
+    lbo: null,
+    accretionDilution: null,
+    stockConsiderationShare: '0',
+  };
+
+  it('values the property at NOI over the cap rate, exactly', () => {
+    const result = runValuation(base as unknown as Parameters<typeof runValuation>[0]);
+    expect(result.method).toEqual({ method: 'NOI_CAP_RATE', noi: { amount: '1170711.00', currency: 'USD' }, capRate: '0.055' });
+    expect(result.enterpriseValue.amount).toBe('21285654.55');
+  });
+
+  it('refuses a cap rate of zero or above 100%, and leaves a zero-rate sensitivity cell empty', () => {
+    for (const capRate of ['0', '1.5', '-0.01']) {
+      expect(() => runValuation({ ...base, assumptions: { ...base.assumptions, capRate } } as unknown as Parameters<typeof runValuation>[0])).toThrow(ValuationInputError);
+    }
+    const grid = runValuation({
+      ...base,
+      sensitivity: { rows: { variable: 'capRate', values: ['0.05', '0.06'] }, columns: { variable: 'noi', values: ['1000000', '1200000'] } },
+    } as unknown as Parameters<typeof runValuation>[0]).sensitivity;
+    expect(grid?.cells).toEqual([
+      [{ amount: '20000000.00', currency: 'USD' }, { amount: '24000000.00', currency: 'USD' }],
+      [{ amount: '16666666.67', currency: 'USD' }, { amount: '20000000.00', currency: 'USD' }],
+    ]);
+    expect(() =>
+      runValuation({ ...base, sensitivity: { rows: { variable: 'arr', values: ['1'] }, columns: { variable: 'noi', values: ['1'] } } } as unknown as Parameters<typeof runValuation>[0]),
+    ).toThrow(ValuationInputError);
+  });
+});

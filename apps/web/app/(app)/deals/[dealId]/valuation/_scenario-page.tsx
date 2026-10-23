@@ -1,5 +1,5 @@
 import type { BalanceSheetView, BenchmarkView } from '@pactlab/contracts';
-import type { Finding } from '@pactlab/domain';
+import { packFor, type Finding } from '@pactlab/domain';
 import Link from 'next/link';
 import { describeSet, formatMultiple } from '../../../comparables/_lib/view';
 import { formatPricedRisk } from '../../../findings/_lib/view';
@@ -17,12 +17,15 @@ export async function ScenarioEditor({
   dealId: string;
   scenario: { id: string; name: string; version: number; values: ScenarioValues } | null;
 }) {
-  const [deal, accepted, benchmark, sheet] = await Promise.all([
+  const [deal, accepted, benchmark, sheet, plan] = await Promise.all([
     dealsApi.get(dealId),
     apiGet<{ items: Finding[] }>(`/v1/deals/${dealId}/findings?status=ACCEPTED`),
     apiGet<BenchmarkView>(`/v1/deals/${dealId}/benchmark`),
     apiGet<BalanceSheetView>(`/v1/deals/${dealId}/balance-sheet-items`),
+    dealsApi.sourcePlan(dealId),
   ]);
+  // The seller's industry pack decides which valuation methods are offered (ADR 0009).
+  const pack = packFor(plan.kind === 'ok' ? plan.data.companyType : null);
   const stats = benchmark.kind === 'ok' ? benchmark.data.stats : null;
   const multipleHint =
     benchmark.kind === 'ok' && stats
@@ -45,6 +48,7 @@ export async function ScenarioEditor({
       </div>
       <ScenarioForm
         action={action}
+        methods={pack.valuationMethods}
         name={scenario?.name ?? ''}
         values={scenario?.values ?? null}
         currency={deal.kind === 'ok' ? (deal.data.baseCurrency ?? 'USD') : 'USD'}

@@ -50,7 +50,8 @@ export interface ScenarioValues {
         years: { growth: string; fcfMargin: string }[];
         discountRate: string;
         terminal: { kind: 'GORDON'; growth: string } | { kind: 'EXIT_MULTIPLE'; revenueMultiple: string };
-      };
+      }
+    | { method: 'NOI_CAP_RATE'; noi: string; capRate: string };
   bridge: { cash: string; debt: string; debtLikeItems: string; workingCapitalAdjustment: string };
   stockConsiderationShare: string;
   findingLinks: { findingId: string; point: (typeof ADJUSTMENT_POINTS)[number] }[];
@@ -79,10 +80,16 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export function scenarioFromForm(form: FormData, previous: Partial<ScenarioValues> | null): ParsedScenario {
   const name = String(form.get('name') ?? '').trim();
   if (!name || name.length > 200) return { ok: false, message: 'Give the scenario a name.' };
-  const method = form.get('method') === 'DCF' ? 'DCF' : 'ARR_MULTIPLE';
+  const chosen = form.get('method');
+  const method = chosen === 'DCF' || chosen === 'NOI_CAP_RATE' ? chosen : 'ARR_MULTIPLE';
 
   let assumptions: ScenarioValues['assumptions'];
-  if (method === 'ARR_MULTIPLE') {
+  if (method === 'NOI_CAP_RATE') {
+    const noi = amount(form.get('noi'));
+    const capRate = percentToFraction(String(form.get('capRate') ?? ''));
+    if (!noi || !capRate) return { ok: false, message: 'Enter net operating income and the capitalization rate (%).' };
+    assumptions = { method, noi, capRate };
+  } else if (method === 'ARR_MULTIPLE') {
     const arr = amount(form.get('arr'));
     const multiple = amount(form.get('multiple'));
     if (!arr || !multiple) return { ok: false, message: 'Enter ARR and the ARR multiple.' };

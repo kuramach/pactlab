@@ -15,7 +15,7 @@ import { notFound } from 'next/navigation';
 import { isUuidParam } from '../../_lib/filters';
 import { withReturn } from '../../_lib/return-to';
 import { ApiState } from '../../_lib/states';
-import { metricsApi, type MetricView, type MetricsSummaryView, type SourceRef } from '../../../metrics/_lib/api';
+import { metricsApi, type MetricView, type MetricsSummaryView, type PackMetricsView, type SourceRef } from '../../../metrics/_lib/api';
 import {
   EXCLUSION_LABELS,
   formatDecimal,
@@ -297,6 +297,43 @@ function Reconciliation({ dealId, data, pageAsOf }: { dealId: string; data: Metr
   );
 }
 
+/** The industry pack's figures (e.g. property metrics), each with its formula and source count. */
+function PackMetricsCard({ report }: { report: PackMetricsView }) {
+  const shown = (metric: PackMetricsView['metrics'][number]) =>
+    metric.value === null
+      ? '—'
+      : metric.unit === 'MONEY'
+        ? formatMoney({ amount: metric.value, currency: report.currency })
+        : metric.unit === 'RATIO'
+          ? formatRatio(metric.value)
+          : formatDecimal(metric.value);
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{report.calculator === 'multifamily-metrics' ? 'Property metrics' : 'Industry metrics'}</CardTitle>
+        <CardDescription>
+          From the imported industry extracts, in {report.currency}. Deterministic ({report.version}); each figure shows its formula.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {report.metrics.map((metric) => (
+            <div key={metric.key} className="flex flex-col gap-1 rounded-xl border border-navy/10 p-4">
+              <dt className="text-xs font-bold uppercase tracking-wide text-slate-text">{metric.label}</dt>
+              <dd className="text-2xl font-extrabold tracking-tight" data-numeric>
+                {shown(metric)}
+              </dd>
+              <dd className="text-xs text-muted-foreground">
+                {metric.value === null ? metric.unavailableReason : `${metric.formula} · ${metric.sourceCount} records`}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default async function DealFinancesPage({
   params,
   searchParams,
@@ -310,10 +347,12 @@ export default async function DealFinancesPage({
   const asOf = parseMonthParam(search['asOf']);
   const open = typeof search['open'] === 'string' && SECTION_ID.test(search['open']) ? search['open'] : undefined;
   const outcome = typeof search['outcome'] === 'string' ? OUTCOMES[search['outcome']] : undefined;
-  const [result, cohorts] = await Promise.all([
+  const [result, cohorts, pack] = await Promise.all([
     metricsApi.summary(dealId, asOf),
     metricsApi.cohorts(dealId, asOf),
+    metricsApi.pack(dealId),
   ]);
+  const packMetrics = pack.kind === 'ok' ? pack.data : null;
 
   return (
     <div className="flex max-w-6xl flex-col gap-6">
@@ -323,6 +362,8 @@ export default async function DealFinancesPage({
           <Glossed text="Deterministic SaaS metrics from billing evidence. Every number links to the source records it was computed from." />
         </p>
       </div>
+
+      {packMetrics && packMetrics.metrics.length > 0 ? <PackMetricsCard report={packMetrics} /> : null}
 
       <form method="get" className="flex items-end gap-3 text-sm" aria-label="Choose as-of month">
         <label className="flex flex-col gap-1">
