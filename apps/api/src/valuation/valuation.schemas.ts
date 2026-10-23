@@ -23,6 +23,8 @@ const methodSchema = z.discriminatedUnion('method', [
       z.strictObject({ kind: z.literal('EXIT_MULTIPLE'), revenueMultiple: decimal }),
     ]),
   }),
+  /** Income property (T-059): enterprise value = NOI ÷ capitalization rate. */
+  z.strictObject({ method: z.literal('NOI_CAP_RATE'), noi: decimal, capRate: decimal }),
 ]);
 
 const axisSchema = z.strictObject({

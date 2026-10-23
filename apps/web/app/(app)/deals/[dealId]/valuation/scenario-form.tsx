@@ -37,6 +37,14 @@ function Field({ label, name, defaultValue, hint, suffix }: { label: string; nam
   );
 }
 
+export type ScenarioMethod = ScenarioValues['assumptions']['method'];
+
+const METHOD_TEXT: Readonly<Record<ScenarioMethod, { label: string; help: string }>> = {
+  ARR_MULTIPLE: { label: 'ARR multiple', help: 'Enterprise value = ARR × multiple.' },
+  DCF: { label: 'Discounted cash flow', help: 'Year-by-year growth and free-cash-flow margin, discounted.' },
+  NOI_CAP_RATE: { label: 'NOI ÷ cap rate', help: 'Enterprise value = net operating income ÷ capitalization rate.' },
+};
+
 /** Scenario inputs. Rates are entered as percents; the server converts them to fractions without floating point. */
 export function ScenarioForm({
   multipleHint,
@@ -48,6 +56,7 @@ export function ScenarioForm({
   accepted,
   items = [],
   submitLabel,
+  methods = ['ARR_MULTIPLE', 'DCF'],
 }: {
   action: (state: ScenarioFormState, data: FormData) => Promise<ScenarioFormState>;
   name: string;
@@ -60,10 +69,13 @@ export function ScenarioForm({
   submitLabel: string;
   /** Where comparable multiples sit, so the multiple is chosen with context. */
   multipleHint?: string;
+  /** The valuation methods the deal's industry pack offers, first one the default. */
+  methods?: readonly ScenarioMethod[];
 }) {
   const [state, formAction, pending] = useActionState(action, { error: null });
   const assumptions = values?.assumptions;
-  const [method, setMethod] = useState<'ARR_MULTIPLE' | 'DCF'>(assumptions?.method ?? 'ARR_MULTIPLE');
+  const [method, setMethod] = useState<ScenarioMethod>(assumptions?.method ?? methods[0] ?? 'ARR_MULTIPLE');
+  const noi = assumptions?.method === 'NOI_CAP_RATE' ? assumptions : null;
   const dcf = assumptions?.method === 'DCF' ? assumptions : null;
   const [yearCount, setYearCount] = useState(dcf?.years.length ?? 5);
   const [terminalKind, setTerminalKind] = useState<'GORDON' | 'EXIT_MULTIPLE'>(dcf?.terminal.kind ?? 'GORDON');
@@ -91,20 +103,23 @@ export function ScenarioForm({
           </label>
           <input type="hidden" name="method" value={method} />
           <div className="grid gap-2 sm:grid-cols-2">
-            {(['ARR_MULTIPLE', 'DCF'] as const).map((option) => (
+            {[...new Set([...methods, ...(assumptions ? [assumptions.method] : [])])].map((option) => (
               <label key={option} className={`flex cursor-pointer flex-col gap-1 rounded-lg border p-3 text-sm ${method === option ? 'border-indigo-ink bg-muted' : 'border-border'}`}>
                 <span className="flex items-center gap-2 font-medium">
                   <input type="radio" checked={method === option} onChange={() => setMethod(option)} />
-                  {option === 'ARR_MULTIPLE' ? 'ARR multiple' : 'Discounted cash flow'}
+                  {METHOD_TEXT[option].label}
                 </span>
-                <span className="text-muted-foreground">
-                  {option === 'ARR_MULTIPLE' ? 'Enterprise value = ARR × multiple.' : 'Year-by-year growth and free-cash-flow margin, discounted.'}
-                </span>
+                <span className="text-muted-foreground">{METHOD_TEXT[option].help}</span>
               </label>
             ))}
           </div>
 
-          {method === 'ARR_MULTIPLE' ? (
+          {method === 'NOI_CAP_RATE' ? (
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Net operating income" name="noi" defaultValue={noi?.noi ?? ''} hint="Annual NOI — use the T-12 figure from Finances, not the memorandum's pro forma." />
+              <Field label="Capitalization rate" name="capRate" defaultValue={pct(noi?.capRate)} suffix="%" />
+            </div>
+          ) : method === 'ARR_MULTIPLE' ? (
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="ARR" name="arr" defaultValue={assumptions?.method === 'ARR_MULTIPLE' ? assumptions.arr : ''} hint="Use the reconciled ARR from Finances." />
               <Field label="ARR multiple" name="multiple" defaultValue={assumptions?.method === 'ARR_MULTIPLE' ? assumptions.multiple : ''} suffix="×" hint={multipleHint} />

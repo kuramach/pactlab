@@ -40,6 +40,11 @@ export interface PackRuleProposal {
     readonly high: string;
     readonly basis: string;
   } | null;
+  readonly valueConfirmation?: {
+    readonly valueDriver: string;
+    readonly impliedValue: { readonly low: string; readonly high: string; readonly currency: string } | null;
+    readonly basis: string;
+  } | null;
   readonly evidenceIds: readonly string[];
   readonly quotes?: readonly PackRuleQuote[];
 }

@@ -15,11 +15,11 @@ export const PACK_IDS = COMPANY_TYPES.filter((type): type is PackId => type !== 
 export type PackCluster = 'technology' | 'healthcare' | 'real-estate' | 'services' | 'life-sciences' | 'consumer';
 
 /** Calculator ids in `@pactlab/calculations` (`metricCalculator`). */
-export const METRIC_CALCULATOR_IDS = ['saas-metrics'] as const;
+export const METRIC_CALCULATOR_IDS = ['saas-metrics', 'multifamily-metrics'] as const;
 export type MetricCalculatorId = (typeof METRIC_CALCULATOR_IDS)[number];
 
 /** Valuation method ids in `@pactlab/calculations` (`VALUATION_METHODS`). */
-export const PACK_VALUATION_METHODS = ['ARR_MULTIPLE', 'DCF'] as const;
+export const PACK_VALUATION_METHODS = ['ARR_MULTIPLE', 'DCF', 'NOI_CAP_RATE'] as const;
 export type PackValuationMethod = (typeof PACK_VALUATION_METHODS)[number];
 
 export interface PackDefinition {
@@ -67,7 +67,13 @@ export const PACKS: Readonly<Record<PackId, PackDefinition>> = {
   PROFESSIONAL_SERVICES: pack('PROFESSIONAL_SERVICES', 'professional-services', 'services'),
   PHARMA_BIOTECH: pack('PHARMA_BIOTECH', 'pharma-biotech', 'life-sciences'),
   ECOMMERCE_DTC: pack('ECOMMERCE_DTC', 'ecommerce-dtc', 'consumer'),
-  MULTIFAMILY: pack('MULTIFAMILY', 'multifamily', 'real-estate'),
+  MULTIFAMILY: {
+    ...pack('MULTIFAMILY', 'multifamily', 'real-estate', true),
+    importTargets: ['BILLING_INVOICE_LINE', 'MULTIFAMILY_RENT_ROLL', 'MULTIFAMILY_T12', 'MULTIFAMILY_DELINQUENCY', 'MULTIFAMILY_INSPECTION'],
+    metricCalculator: 'multifamily-metrics',
+    findingRules: ['multifamily-om-noi', 'multifamily-deferred-maintenance', 'multifamily-delinquency-concentration', 'multifamily-loss-to-lease'],
+    valuationMethods: ['NOI_CAP_RATE', 'DCF'],
+  },
   COMMERCIAL_PROPERTY: pack('COMMERCIAL_PROPERTY', 'commercial-property', 'real-estate'),
   HOTELS: pack('HOTELS', 'hotels', 'real-estate'),
   SMALL_CLINICS: pack('SMALL_CLINICS', 'small-clinics', 'healthcare'),

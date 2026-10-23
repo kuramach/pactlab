@@ -35,7 +35,8 @@ export interface ValuationResultView {
         terminalValue: MoneyValue;
         presentValueOfTerminal: MoneyValue;
         presentValueOfCashFlows?: MoneyValue;
-      };
+      }
+    | { method: 'NOI_CAP_RATE'; noi: MoneyValue; capRate: string };
   enterpriseValue: MoneyValue;
   bridge: { lines: BridgeLine[]; equityPurchasePrice: MoneyValue; cashAtClose: MoneyValue };
   sensitivity: {
@@ -117,7 +118,8 @@ export interface RunInputsView {
         years: { growth: string; fcfMargin: string }[];
         discountRate: string;
         terminal: { kind: 'GORDON'; growth: string } | { kind: 'EXIT_MULTIPLE'; revenueMultiple: string };
-      };
+      }
+    | { method: 'NOI_CAP_RATE'; noi: string; capRate: string };
   adjustments: {
     findingId: string;
     type: string;

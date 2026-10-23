@@ -126,7 +126,16 @@ export interface CohortsView {
 const base = (dealId: string) => `/v1/deals/${encodeURIComponent(dealId)}/metrics`;
 const query = (asOf: string | undefined) => (asOf ? `?asOf=${encodeURIComponent(asOf)}` : '');
 
+/** A pack calculator's figures (T-059); empty for the software pack, whose SaaS metrics are `summary`. */
+export interface PackMetricsView {
+  calculator: string;
+  version: string;
+  currency: string;
+  metrics: { key: string; label: string; unit: 'MONEY' | 'RATIO' | 'COUNT'; value: string | null; formula: string; sourceCount: number; unavailableReason?: string }[];
+}
+
 export const metricsApi = {
+  pack: (dealId: string) => apiGet<PackMetricsView>(`${base(dealId)}/pack`),
   summary: (dealId: string, asOf?: string) =>
     apiGet<MetricsSummaryView>(`${base(dealId)}/summary${query(asOf)}`),
   cohorts: (dealId: string, asOf?: string) =>

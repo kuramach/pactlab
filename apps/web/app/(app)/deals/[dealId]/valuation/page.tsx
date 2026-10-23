@@ -370,6 +370,8 @@ function ScenarioCard({
             <>
               <Term term="DCF" /> ·{' '}
             </>
+          ) : result?.method.method === 'NOI_CAP_RATE' ? (
+            <>NOI ÷ cap rate · </>
           ) : result ? (
             <>
               <Term term="ARR" /> multiple ·{' '}

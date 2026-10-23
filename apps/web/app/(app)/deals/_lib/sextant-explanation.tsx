@@ -124,7 +124,7 @@ export function SextantExplanation({
         </div>
 
         <ol className="flex flex-col">
-          <Step number={++step} icon={<Calculator />} title={<>Value the business ({result.method.method === 'DCF' ? <Term term="DCF" /> : <><Term term="ARR" /> multiple</>})</>}>
+          <Step number={++step} icon={<Calculator />} title={<>Value the business ({result.method.method === 'DCF' ? <Term term="DCF" /> : result.method.method === 'NOI_CAP_RATE' ? <>NOI ÷ cap rate</> : <><Term term="ARR" /> multiple</>})</>}>
             {run.inputs?.assumptions.method === 'ARR_MULTIPLE' ? (
               <p>
                 <Link href={`/deals/${dealId}/finances`} className="font-semibold text-indigo-ink hover:underline">
@@ -137,7 +137,17 @@ export function SextantExplanation({
             {benchmark && run.inputs?.assumptions.method === 'ARR_MULTIPLE' && benchmark.scenario?.id === view.scenario.id ? (
               <MultipleContextLine benchmark={benchmark} />
             ) : null}
-            {run.inputs?.assumptions.method === 'ARR_MULTIPLE' ? null : run.inputs?.assumptions.method === 'DCF' ? (
+            {run.inputs?.assumptions.method === 'NOI_CAP_RATE' ? (
+              <p>
+                Net operating income{' '}
+                <Link href={`/deals/${dealId}/finances`} className="font-semibold text-indigo-ink hover:underline">
+                  {money(run.inputs.assumptions.noi, currency)}
+                </Link>{' '}
+                ÷ a capitalization rate of <b>{pct(run.inputs.assumptions.capRate)}</b> = enterprise value <b>{formatMoney(result.enterpriseValue)}</b>. The
+                cap rate is the main judgement call: a lower rate means a higher price.
+              </p>
+            ) : null}
+            {run.inputs?.assumptions.method === 'ARR_MULTIPLE' || run.inputs?.assumptions.method === 'NOI_CAP_RATE' ? null : run.inputs?.assumptions.method === 'DCF' ? (
               <p>
                 Base revenue <b>{money(run.inputs.assumptions.baseRevenue, currency)}</b>, a {run.inputs.assumptions.years.length}-year forecast
                 with growth of {run.inputs.assumptions.years.map((year) => pct(year.growth)).join(', ')} and free-cash-flow margins of{' '}

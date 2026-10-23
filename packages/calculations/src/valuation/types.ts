@@ -3,7 +3,7 @@ import type { MoneyValue } from '../metrics/types';
 /** Bumped whenever a formula, bridge rule, rounding rule or output shape changes. */
 export const VALUATION_ENGINE_VERSION = 'valuation-2';
 
-export const VALUATION_METHODS = ['ARR_MULTIPLE', 'DCF'] as const;
+export const VALUATION_METHODS = ['ARR_MULTIPLE', 'DCF', 'NOI_CAP_RATE'] as const;
 export type ValuationMethod = (typeof VALUATION_METHODS)[number];
 
 /** Mirrors the deal's transaction type; it decides which extra engines must run. */
@@ -54,7 +54,16 @@ export interface DcfAssumptions {
   readonly terminal: TerminalValue;
 }
 
-export type MethodAssumptions = ArrMultipleAssumptions | DcfAssumptions;
+/** Income property (T-059): enterprise value = net operating income ÷ capitalization rate. */
+export interface NoiCapRateAssumptions {
+  readonly method: 'NOI_CAP_RATE';
+  /** Annual net operating income, e.g. the trailing twelve months. */
+  readonly noi: string;
+  /** Capitalization rate as a fraction (`'0.055'` = 5.5%). */
+  readonly capRate: string;
+}
+
+export type MethodAssumptions = ArrMultipleAssumptions | DcfAssumptions | NoiCapRateAssumptions;
 
 /** Enterprise-to-equity bridge items, before diligence adjustments. */
 export interface BridgeAssumptions {
@@ -148,6 +157,8 @@ export const SENSITIVITY_VARIABLES = [
   'discountRate',
   'terminalGrowth',
   'terminalMultiple',
+  'noi',
+  'capRate',
 ] as const;
 export type SensitivityVariable = (typeof SENSITIVITY_VARIABLES)[number];
 
@@ -194,7 +205,8 @@ export type MethodResult =
       readonly terminalValue: MoneyValue;
       readonly presentValueOfTerminal: MoneyValue;
       readonly presentValueOfCashFlows: MoneyValue;
-    };
+    }
+  | { readonly method: 'NOI_CAP_RATE'; readonly noi: MoneyValue; readonly capRate: string };
 
 export const BRIDGE_LINE_KINDS = [
   'ENTERPRISE_VALUE',
