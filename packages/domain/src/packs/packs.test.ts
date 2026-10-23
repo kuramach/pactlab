@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import { FINDING_RULES, findingRule } from '../findings/rules';
 import { parseCsv } from '../evidence';
 import { applyMapping, mappedEvidence } from '../imports/mapping';
 import { BILLING_INVOICE_LINE, IMPORT_TARGET_DEFINITIONS, peopleColumnProblems, targetTemplateCsv, type TargetDefinition } from '../imports/targets';
@@ -16,18 +15,19 @@ describe('pack registry', () => {
     for (const id of PACK_IDS) expect(PACKS[id].id).toBe(id);
   });
 
-  it('every pack offers billing first, and only targets and rules that exist', () => {
+  it('every pack offers billing first, and only targets that exist (rule ids resolve in the API test)', () => {
     for (const id of PACK_IDS) {
       const pack = PACKS[id];
       expect(pack.importTargets[0], id).toBe('BILLING_INVOICE_LINE');
       for (const target of pack.importTargets) expect(IMPORT_TARGET_DEFINITIONS[target], `${id}: ${target}`).toBeDefined();
-      for (const rule of pack.findingRules) expect(() => findingRule(rule, FINDING_RULES), `${id}: ${rule}`).not.toThrow();
       expect(pack.valuationMethods.length, id).toBeGreaterThan(0);
     }
   });
 
-  it('only the software pack is built so far; OTHER and unknown read the software core', () => {
-    expect(PACK_IDS.filter((id) => PACKS[id].built)).toEqual(['SOFTWARE_SAAS']);
+  it('software and fintech are built; OTHER and unknown read the software core', () => {
+    expect(PACK_IDS.filter((id) => PACKS[id].built)).toEqual(['SOFTWARE_SAAS', 'FINTECH']);
+    expect(sourcesFor('FINTECH').packAvailable).toBe(true);
+    expect(sourcesFor('HOTELS').packAvailable).toBe(false);
     expect(packFor('OTHER').id).toBe('SOFTWARE_SAAS');
     expect(packFor(null).id).toBe('SOFTWARE_SAAS');
     expect(packFor('HOTELS').slug).toBe('hotels');
@@ -45,6 +45,7 @@ describe('pack import targets (ADR 0010)', () => {
   const RENT_ROLL = {
     target: 'BILLING_INVOICE_LINE',
     label: 'Rent roll',
+    fileName: 'rent-roll.csv',
     people: 'PSEUDONYMOUS',
     refusesPeopleColumns: true,
     evidenceType: 'test.rent_roll',

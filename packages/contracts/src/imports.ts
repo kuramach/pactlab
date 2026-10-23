@@ -111,6 +111,7 @@ export interface ImportResultView {
 export interface ImportTargetView {
   target: ImportTarget;
   label: string;
+  fileName: string;
   people: 'NONE' | 'AGGREGATE' | 'PSEUDONYMOUS';
   fields: { name: string; label: string; required: boolean; hint: string }[];
   templateCsv: string;

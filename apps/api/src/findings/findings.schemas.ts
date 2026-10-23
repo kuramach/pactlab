@@ -30,8 +30,20 @@ export const valueConfirmationSchema = z.strictObject({
   basis: z.string().trim().min(1).max(2_000),
 });
 
+/** A verified page quote; the server re-checks it against the stored page before recording. */
+const documentCitationSchema = z.strictObject({
+  documentId: z.uuid(),
+  pageNumber: z.number().int().positive(),
+  quote: z.string().min(1).max(2_000),
+  quoteHash: z.string().regex(/^[0-9a-f]{64}$/),
+  charStart: z.number().int().nonnegative(),
+  charEnd: z.number().int().positive(),
+});
+
+/** Cites an evidence record or a document page (exactly one; the workflow enforces it). */
 export const evidenceLinkSchema = z.strictObject({
-  evidenceItemId: z.uuid(),
+  evidenceItemId: z.uuid().nullable().default(null),
+  documentCitation: documentCitationSchema.nullable().default(null),
   /** Null for non-code evidence (pack rows); technology findings still require it (workflow). */
   commitSha: z.string().regex(/^([0-9a-f]{40}|[0-9a-f]{64})$/).nullable().default(null),
   toolName: z.string().trim().min(1).max(100),

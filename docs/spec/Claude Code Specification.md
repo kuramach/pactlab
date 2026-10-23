@@ -1366,6 +1366,14 @@ Five further packs in two clusters. Hotels, multifamily and commercial property 
 - What transfers: Security and compliance, Technology diligence, OSS and IP risk, and AI contract review transfer nearly 1:1. The metrics engine needs revenue-recognition and balance-sheet adapters rather than new metric definitions.
 - Pack scope is adapters for core-banking/payment evidence sources, finding types for regulatory, AML, and loan-book risks, and valuation tweaks for regulatory-capital and credit-quality adjustments.
 
+**1a. Fintech — activation amendment (T-058, 2026-10-24)**
+
+- **Import targets (CSV, ADR 0010):** `FINTECH_LOAN_TAPE` (loan_id, originated, principal, balance, currency, days_past_due, status → `fintech.loan`) and `FINTECH_AML_ALERT` (alert_id, raised, rule, status, review_evidence → `fintech.aml_alert`), alongside the billing import. No borrower or customer personal data; the people-column guard applies.
+- **Finding rules (deterministic, versioned, drafts only):** `fintech-credit-loss` — charged-off principal ÷ originated principal against the allowance quoted from the balance sheet, priced as a price reduction (low = half the gap, high = the gap applied to the outstanding balance); `fintech-aml-unreviewed` — closed alerts without review evidence, cited against the written procedure, a drag the reviewer prices; `fintech-partner-bank-coc` — a partner-bank termination right on change of control, neutral (a closing condition, not a price term).
+- **Valuation:** accepted priced drags reach the purchase-price bridge as linked adjustments; ARR multiple and DCF apply unchanged. The software path (metrics, code, documents) runs as for any software target.
+- **Citations:** rule findings cite imported rows and, where the evidence is a document, an exact page quote verified against the stored page (never HR, compensation, performance or named-contribution documents).
+- **Fixtures and acceptance:** `pactlab-demo-data/fintech/{USD,EUR,GBP}` — imported into a fresh fintech deal, the three planted findings surface as cited drafts and the accepted credit-loss drag reaches a valuation run (`apps/api/src/packs/fintech.acceptance.api.test.ts`).
+
 **2. Healthcare services / healthtech**
 
 - PE roll-ups of practices, clinics, and payer-adjacent services are the dominant deal shape; healthtech software targets reuse the baseline tech path.

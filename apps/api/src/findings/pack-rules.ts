@@ -1,17 +1,32 @@
-import { FINDING_RULES, PACKS, type FindingRule, type PackDefinition, type PackId } from '@pactlab/domain';
+import { FINTECH_RULES, type PackRule } from '@pactlab/calculations';
+import { PACKS, type FindingRule, type PackDefinition, type PackId } from '@pactlab/domain';
 
 /**
- * The pack and rule registries the findings module reads. Production uses the
- * domain registries; tests may pass their own (a test-only rule) through
- * `AppDependencies.packs`, since no pack ships rules before T-058.
+ * The pack and rule registries the findings module reads. Rule code lives in
+ * `@pactlab/calculations` (decimal arithmetic); this is where it becomes the
+ * domain's `FindingRule` — the assignment below is the structural check that
+ * the two shapes still agree. Tests may pass their own registries through
+ * `AppDependencies.packs`.
  */
 export interface PackRegistry {
   readonly packs: Readonly<Record<PackId, PackDefinition>>;
   readonly rules: Readonly<Record<string, FindingRule>>;
 }
 
+const asFindingRule = (rule: PackRule): FindingRule => rule;
+
+export const PACK_RULES: Readonly<Record<string, FindingRule>> = Object.fromEntries(
+  [...FINTECH_RULES].map((rule) => [rule.id, asFindingRule(rule)]),
+);
+
 export const PACK_REGISTRY = Symbol('PACK_REGISTRY');
-export const DEFAULT_PACK_REGISTRY: PackRegistry = { packs: PACKS, rules: FINDING_RULES };
+export const DEFAULT_PACK_REGISTRY: PackRegistry = { packs: PACKS, rules: PACK_RULES };
 
 /** Above this, the run refuses rather than read a partial evidence set. */
 export const MAX_RULE_EVIDENCE = 200_000;
+
+/**
+ * Document classes a rule may read. Never HR, compensation, performance or
+ * named contribution (rule 7) — the same classes the AI gateway refuses.
+ */
+export const RULE_READABLE_CLASSES = ['PUBLIC', 'BUSINESS', 'FINANCIAL'] as const;

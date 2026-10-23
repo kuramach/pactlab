@@ -22,7 +22,7 @@ const CONCENTRATION_RULE: FindingRule = {
   id: 'test-customer-concentration',
   version: '1',
   evidenceTypes: ['billing.customer'],
-  detect: (evidence) => {
+  detect: ({ evidence }) => {
     const ranked = [...evidence].sort((x, y) => Number(y.canonical['mrr'] ?? 0) - Number(x.canonical['mrr'] ?? 0));
     const top = ranked[0];
     return top

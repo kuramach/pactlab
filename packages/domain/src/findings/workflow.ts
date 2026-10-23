@@ -59,7 +59,17 @@ function nonEmpty(value: string, max: number, field: string): string {
  * always need the commit (`requireCommitsFor`).
  */
 export function validateEvidenceLink(link: FindingEvidenceLink): FindingEvidenceLink {
-  if (!isUuid(link.evidenceItemId)) throw new FindingValidationError('Invalid evidence item id');
+  const citation = link.documentCitation;
+  if ((link.evidenceItemId === null) === (citation === null))
+    throw new FindingValidationError('A link cites either an evidence record or a document page');
+  if (link.evidenceItemId !== null && !isUuid(link.evidenceItemId)) throw new FindingValidationError('Invalid evidence item id');
+  if (citation !== null) {
+    if (!isUuid(citation.documentId) || !Number.isInteger(citation.pageNumber) || citation.pageNumber < 1)
+      throw new FindingValidationError('Invalid document citation');
+    if (citation.quote.trim().length === 0 || !/^[0-9a-f]{64}$/.test(citation.quoteHash) || citation.charEnd <= citation.charStart)
+      throw new FindingValidationError('Invalid document citation');
+    if (link.commitSha !== null) throw new FindingValidationError('A document citation has no commit');
+  }
   if (link.commitSha !== null && !COMMIT_SHA.test(link.commitSha))
     throw new FindingValidationError('Evidence links need a full commit hash');
   if (link.commitSha === null && (link.path !== null || link.lineStart !== null || link.lineEnd !== null))

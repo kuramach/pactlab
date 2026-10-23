@@ -9,6 +9,7 @@ import type {
   ValueConfirmation,
 } from '@pactlab/domain';
 import type { Prisma, TransactionClient } from './client';
+import { DbNull } from './generated/prisma/internal/prismaNamespace';
 
 export interface FindingRowFilter {
   readonly status?: FindingStatus;
@@ -26,6 +27,7 @@ type ReviewRow = Prisma.FindingReviewGetPayload<object>;
 function toLink(row: LinkRow): FindingEvidenceLink {
   return {
     evidenceItemId: row.evidenceItemId,
+    documentCitation: (row.documentCitation ?? null) as FindingEvidenceLink['documentCitation'],
     commitSha: row.commitSha,
     toolName: row.toolName,
     toolVersion: row.toolVersion,
@@ -130,13 +132,15 @@ function pricedRiskColumns(risk: PricedRisk | null) {
 }
 
 function linkRows(finding: Finding, findingVersion: number) {
-  return finding.evidence.map((link, ordinal) => ({
+  return finding.evidence.map(({ documentCitation, ...link }, ordinal) => ({
     organizationId: finding.organizationId,
     dealId: finding.dealId,
     findingId: finding.id,
     findingVersion,
     ordinal,
     ...link,
+    // A JSON column takes DbNull, not null, for "no document citation".
+    documentCitation: documentCitation ? (documentCitation as unknown as Prisma.InputJsonValue) : DbNull,
   }));
 }
 
@@ -146,7 +150,9 @@ const sameLinks = (a: readonly FindingEvidenceLink[], b: readonly FindingEvidenc
     const other = b[index];
     return (
       other !== undefined &&
-      (Object.keys(link) as (keyof FindingEvidenceLink)[]).every((key) => link[key] === other[key])
+      (Object.keys(link) as (keyof FindingEvidenceLink)[]).every((key) =>
+        key === 'documentCitation' ? JSON.stringify(link[key]) === JSON.stringify(other[key]) : link[key] === other[key],
+      )
     );
   });
 

@@ -29,6 +29,7 @@ const ai: FindingActor = { kind: 'AI', promptVersion: 'tech-review@1' };
 
 const link = () => ({
   evidenceItemId: newId(),
+  documentCitation: null,
   commitSha: SHA,
   toolName: 'semgrep',
   toolVersion: '1.0.0-fixture',

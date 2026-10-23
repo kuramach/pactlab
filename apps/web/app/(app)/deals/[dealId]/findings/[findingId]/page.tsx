@@ -16,7 +16,7 @@ import { apiGet } from '../../../_lib/api';
 import { isUuidParam } from '../../../_lib/filters';
 import { OutcomeBanner } from '../../../_lib/outcome';
 import { ApiState } from '../../../_lib/states';
-import { withReturn } from '../../../_lib/return-to';
+import { FindingEvidenceChip } from '../../../_lib/finding-evidence';
 import { can, dealViewer } from '../../../_lib/viewer';
 import { decideFinding, priceFinding, setFindingDirection } from '../actions';
 
@@ -109,10 +109,8 @@ export default async function FindingPage({
               ) : (
                 <ul className="flex flex-col gap-2">
                   {finding.evidence.map((link) => (
-                    <li key={`${link.evidenceItemId}-${link.toolName}`} className="flex flex-wrap items-center gap-2">
-                      <Link href={withReturn(`/deals/${dealId}/evidence/${link.evidenceItemId}`, `/deals/${dealId}/findings/${findingId}`)}>
-                        <Badge variant="evidence">open evidence</Badge>
-                      </Link>
+                    <li key={`${link.evidenceItemId ?? link.documentCitation?.quoteHash}-${link.toolName}`} className="flex flex-wrap items-center gap-2">
+                      <FindingEvidenceChip link={link} dealId={dealId} from={`/deals/${dealId}/findings/${findingId}`} label="open evidence" />
                       {link.commitSha ? <span className="font-mono">{link.commitSha.slice(0, 12)}</span> : null}
                       <span className="text-muted-foreground">
                         {link.toolName}@{link.toolVersion}

@@ -1,3 +1,4 @@
+import { PACKS } from '../packs/registry';
 import { COMPANY_TYPE_LABELS, type CompanyType } from './types';
 
 /** The kinds of system a seller runs on that Pactlab can read. */
@@ -106,7 +107,7 @@ const SOURCES_BY_TYPE: Readonly<Record<CompanyType, readonly SourceKind[]>> = {
 
 /** Which sources to switch on for a seller of this type. Pure data; never branches on mode. */
 export function sourcesFor(companyType: CompanyType): SourcePlan {
-  const packAvailable = companyType === 'SOFTWARE_SAAS';
+  const packAvailable = companyType !== 'OTHER' && PACKS[companyType].built;
   const label = COMPANY_TYPE_LABELS[companyType];
   return {
     companyType,

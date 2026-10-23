@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { BILLING_TEMPLATES, INVOICE_LINE_COLUMNS } from '@pactlab/connectors';
 import { isoCurrencySchema } from '@pactlab/contracts';
-import { applyMapping, BILLING_INVOICE_LINE, detectDateFormat, parseCsv, suggestFields, type ImportMapping } from '@pactlab/domain';
+import { applyMapping, BILLING_INVOICE_LINE, detectDateFormat, IMPORT_TARGET_DEFINITIONS, PACK_IDS, PACKS, parseCsv, peopleColumnProblems, suggestFields, type ImportMapping } from '@pactlab/domain';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { documentPages } from '../documents/document-text';
 import { SignatureMalwareScanner, validateUpload } from '../documents/upload-policy';
@@ -89,6 +89,31 @@ describe('demo data set (scripts/demo-data/generate.py)', () => {
       expect(result.rows.length, where).toBe(csv.rows.length);
       expect(result.rows.length, where).toBeGreaterThan(0);
       expect(new Set(result.rows.map((row) => row.canonical['currency'])), where).toEqual(new Set([currency]));
+    }
+  });
+
+  it('every pack extract imports cleanly through its pack target', () => {
+    for (const { pack, currency, dir } of folders) {
+      const definition = PACK_IDS.map((id) => PACKS[id]).find((entry) => entry.slug === pack);
+      expect(definition, pack).toBeDefined();
+      for (const target of definition?.importTargets ?? []) {
+        if (target === 'BILLING_INVOICE_LINE') continue;
+        const targetDefinition = IMPORT_TARGET_DEFINITIONS[target];
+        const where = `${pack}/${currency}/${targetDefinition.fileName}`;
+        const csv = parseCsv(read(join(dir, targetDefinition.fileName)));
+        expect(peopleColumnProblems(targetDefinition, csv.header), where).toEqual([]);
+        const mapping: ImportMapping = {
+          target,
+          fields: suggestFields(targetDefinition, csv.header, {}),
+          dateFormat: 'YYYY-MM-DD',
+          numberFormat: 'DOT_DECIMAL',
+          amountUnit: 'MAJOR',
+          negateAmounts: false,
+        };
+        const result = applyMapping(csv, mapping, 'pack', targetDefinition);
+        expect(result.issues, where).toEqual([]);
+        expect(result.rows.length, where).toBe(csv.rows.length);
+      }
     }
   });
 
