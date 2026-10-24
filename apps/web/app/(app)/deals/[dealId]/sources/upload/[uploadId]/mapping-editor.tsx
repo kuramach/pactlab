@@ -1,17 +1,11 @@
 'use client';
 
 import type { ImportMappingBody, ImportPreviewView } from '@pactlab/contracts';
-import {
-  AMOUNT_UNITS,
-  BILLING_INVOICE_LINE,
-  DATE_FORMATS,
-  NUMBER_FORMATS,
-  type ImportMapping,
-} from '@pactlab/domain';
+import { AMOUNT_UNITS, DATE_FORMATS, NUMBER_FORMATS, type ImportMapping } from '@pactlab/domain';
 import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle } from '@pactlab/ui';
 import { useState, useTransition } from 'react';
-import { choiceOf, cleanMapping, sourceFromChoice, unmappedRequired } from '../_lib/mapping-form';
-import { importWithMapping, previewMapping } from '../actions';
+import { choiceOf, cleanMapping, definitionFor, sourceFromChoice, unmappedRequired } from '../_lib/mapping-form';
+import { cancelUpload, importWithMapping, previewMapping } from '../actions';
 
 const inputClass =
   'w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring';
@@ -25,17 +19,19 @@ const UNIT_LABELS: Record<(typeof AMOUNT_UNITS)[number], string> = {
   MINOR: 'Smallest unit, e.g. cents (1250)',
 };
 const ISSUE_TEXT: Record<string, string> = {
-  MISSING_RECORD_ID: 'Rows without a line id',
+  MISSING_RECORD_ID: 'Rows without a record id',
   MISSING_FIELD: 'Rows missing a required value',
   INVALID_DATE: 'Dates that don’t match the chosen format',
   INVALID_VALUE: 'Amounts or values that couldn’t be read',
-  DUPLICATE_RECORD_ID: 'Repeated line ids',
+  DUPLICATE_RECORD_ID: 'Repeated record ids',
   MISSING_COLUMN: 'Mapping problems',
 };
 
 /**
- * Step 2 and 3: confirm how each column maps to the standard invoice line,
- * check the result on every row, then import. The server decides every step.
+ * Step 2 and 3: confirm how each column maps to the import target's fields —
+ * the standard invoice line for billing, or a pack extract such as a loan tape
+ * or rent roll (ADR 0010) — check the result on every row, then import. The
+ * server decides every step.
  */
 export function MappingEditor({
   dealId,
@@ -54,7 +50,11 @@ export function MappingEditor({
   const [preview, setPreview] = useState<ImportPreviewView | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
-  const missing = unmappedRequired(mapping);
+  // The upload's own target decides the fields: never assume billing.
+  const definition = definitionFor(mapping);
+  const billing = definition.target === 'BILLING_INVOICE_LINE';
+  const hasMoney = definition.fields.some((field) => field.kind === 'money');
+  const missing = unmappedRequired(mapping, definition);
 
   const update = (next: ImportMapping) => {
     setMapping(next);
@@ -76,16 +76,22 @@ export function MappingEditor({
       const result = await importWithMapping(dealId, uploadId, cleanMapping(mapping));
       setMessage(result.message);
     });
+  const cancel = () =>
+    startTransition(async () => {
+      const result = await cancelUpload(dealId, uploadId);
+      setMessage(result.message);
+    });
   const ready = preview !== null && preview.problems.length === 0 && preview.validRows > 0;
 
   return (
     <div className="flex flex-col gap-6">
       <Card>
         <CardHeader>
-          <CardTitle>2. Map columns to the standard invoice line</CardTitle>
+          <CardTitle>2. Map columns to the {billing ? 'standard invoice line' : definition.label.toLowerCase()}</CardTitle>
           <CardDescription>
-            Pick the column for each field, or a fixed value when every line shares one (for example a billing interval of
-            “month”). Required fields are marked.
+            {billing
+              ? 'Pick the column for each field, or a fixed value when every line shares one (for example a billing interval of “month”). Required fields are marked.'
+              : 'Pick the column for each field, or a fixed value when every row shares one. Required fields are marked.'}
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-5">
@@ -116,6 +122,7 @@ export function MappingEditor({
                 ))}
               </select>
             </label>
+            {hasMoney ? (
             <label className="flex flex-col gap-1 text-sm font-medium">
               Amounts are in
               <select
@@ -130,7 +137,9 @@ export function MappingEditor({
                 ))}
               </select>
             </label>
+            ) : null}
           </div>
+          {billing ? (
           <label className="flex items-center gap-2 text-sm">
             <input
               type="checkbox"
@@ -139,6 +148,7 @@ export function MappingEditor({
             />
             This export holds credit notes — flip every amount’s sign
           </label>
+          ) : null}
 
           <table className="w-full text-left text-sm">
             <thead className="text-xs uppercase tracking-wide text-muted-foreground">
@@ -149,7 +159,7 @@ export function MappingEditor({
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {BILLING_INVOICE_LINE.fields.map((field) => {
+              {definition.fields.map((field) => {
                 const source = mapping.fields[field.name];
                 const choice = choiceOf(source);
                 return (
@@ -174,7 +184,7 @@ export function MappingEditor({
                             {column}
                           </option>
                         ))}
-                        {field.name === BILLING_INVOICE_LINE.recordIdField ? null : <option value="constant">Fixed value…</option>}
+                        {field.name === definition.recordIdField ? null : <option value="constant">Fixed value…</option>}
                       </select>
                       {source?.kind === 'constant' ? (
                         <input
@@ -211,7 +221,7 @@ export function MappingEditor({
           <CardHeader>
             <CardTitle>3. Validation report</CardTitle>
             <CardDescription>
-              {preview.validRows} of {preview.rowCount} lines are ready to import. Nothing has been imported yet.
+              {preview.validRows} of {preview.rowCount} {billing ? 'lines' : 'rows'} are ready to import. Nothing has been imported yet.
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-4 text-sm">
@@ -251,10 +261,9 @@ export function MappingEditor({
               <p className="text-muted-foreground">
                 Empty on some lines:{' '}
                 {preview.emptyFields
-                  .map((entry) => `${BILLING_INVOICE_LINE.fields.find((field) => field.name === entry.field)?.label ?? entry.field} (${entry.rows})`)
+                  .map((entry) => `${definition.fields.find((field) => field.name === entry.field)?.label ?? entry.field} (${entry.rows})`)
                   .join(', ')}
-                . Lines without a customer, interval or service period are imported but left out of ARR, with the reason shown in
-                Finances.
+                .{billing ? ' Lines without a customer, interval or service period are imported but left out of ARR, with the reason shown in Finances.' : ' Empty optional values are imported as missing, never filled in.'}
               </p>
             ) : null}
             {preview.sample.length > 0 ? (
@@ -262,7 +271,7 @@ export function MappingEditor({
                 <table className="w-full text-left font-mono text-xs">
                   <thead className="text-muted-foreground">
                     <tr>
-                      {BILLING_INVOICE_LINE.fields.map((field) => (
+                      {definition.fields.map((field) => (
                         <th key={field.name} className="whitespace-nowrap py-1 pr-3 font-medium">
                           {field.name}
                         </th>
@@ -272,7 +281,7 @@ export function MappingEditor({
                   <tbody>
                     {preview.sample.map((row, index) => (
                       <tr key={index} className="border-t border-border">
-                        {BILLING_INVOICE_LINE.fields.map((field) => (
+                        {definition.fields.map((field) => (
                           <td key={field.name} className="whitespace-nowrap py-1 pr-3">
                             {row[field.name] ?? '—'}
                           </td>
@@ -285,13 +294,20 @@ export function MappingEditor({
             ) : null}
             <div className="flex items-center gap-3">
               <Button onClick={runImport} disabled={!ready || pending}>
-                {pending ? 'Importing…' : `Import ${preview.validRows} lines`}
+                {pending ? 'Importing…' : `Import ${preview.validRows} ${billing ? 'lines' : 'rows'}`}
               </Button>
               <span className="text-xs text-muted-foreground">Importing the same file and mapping twice changes nothing.</span>
             </div>
           </CardContent>
         </Card>
       ) : null}
+
+      <div className="flex flex-wrap items-center gap-3 rounded-lg border border-dashed border-border px-4 py-3 text-sm">
+        <span className="text-muted-foreground">Wrong file? Cancel discards this upload — nothing is imported and the stored copy is deleted.</span>
+        <Button variant="outline" size="sm" onClick={cancel} disabled={pending}>
+          Cancel upload
+        </Button>
+      </div>
 
       {message ? (
         <p role="alert" className="rounded-md border border-border bg-muted px-3 py-2 text-sm">

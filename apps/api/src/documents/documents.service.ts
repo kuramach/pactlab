@@ -120,6 +120,16 @@ function documentView(document: DocumentRecord) {
  * Q&A, contract extraction into DRAFT findings, and the human review queue.
  * Authorization is checked server-side per command; every change is audited.
  */
+/**
+ * A failed model call, with a stable reason code the screen can explain:
+ * AI_ACCESS (sign-in expired or refused — an operator must sign in again),
+ * AI_THROTTLED (rate-limited), otherwise AI_UNAVAILABLE. Never provider text.
+ */
+function providerUnavailable(kind: string | null): ServiceUnavailableException {
+  const code = kind === 'ACCESS' ? 'AI_ACCESS' : kind === 'THROTTLED' ? 'AI_THROTTLED' : 'AI_UNAVAILABLE';
+  return new ServiceUnavailableException({ code });
+}
+
 @Injectable()
 export class DocumentsService {
   constructor(
@@ -427,7 +437,7 @@ export class DocumentsService {
     } catch (error) {
       gatewayError(error);
     }
-    const { run, result } = outcome;
+    const { run, result, providerError } = outcome;
     await this.documents.recordAiRun(
       tenant,
       run,
@@ -439,6 +449,7 @@ export class DocumentsService {
         requestId,
       ),
     );
+    if (run.status === 'PROVIDER_ERROR') throw providerUnavailable(providerError);
     return {
       aiRunId: run.id,
       status: result.status,
@@ -480,7 +491,7 @@ export class DocumentsService {
     } catch (error) {
       gatewayError(error);
     }
-    const { run, items, rejected } = outcome;
+    const { run, items, rejected, providerError } = outcome;
     await this.documents.recordAiRun(
       tenant,
       run,
@@ -493,7 +504,7 @@ export class DocumentsService {
       ),
     );
     // The run is recorded either way; a failed provider call is not "zero drafts".
-    if (run.status === 'PROVIDER_ERROR') throw new ServiceUnavailableException();
+    if (run.status === 'PROVIDER_ERROR') throw providerUnavailable(providerError);
 
     const now = new Date();
     const known = await this.documents.findingFingerprints(tenant, dealId, documentId);

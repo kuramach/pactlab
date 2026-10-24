@@ -1,4 +1,4 @@
-import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle } from '@pactlab/ui';
+import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, FileDrop } from '@pactlab/ui';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { dealsApi } from '../../../_lib/api';
@@ -60,10 +60,10 @@ export default async function BillingUploadPage({
                 </p>
               ) : null}
               <input type="hidden" name="target" value={pack.target} />
-              <label className="flex flex-col gap-1 text-sm font-medium">
-                Choose the CSV file (UTF-8, up to 10 MB)
-                <input name="file" type="file" accept=".csv,text/csv" required className="text-sm" />
-              </label>
+              <div className="flex flex-col gap-2 text-sm font-medium">
+                <span>Choose the CSV file</span>
+                <FileDrop name="file" accept=".csv,text/csv" required formats={['CSV']} hint="UTF-8, up to 10 MB" />
+              </div>
               <p className="text-xs text-muted-foreground">
                 Columns: {pack.fields.map((field) => field.name).join(', ')}.{' '}
                 <a href={`data:text/csv;charset=utf-8,${encodeURIComponent(pack.templateCsv)}`} download={pack.fileName} className="text-indigo-ink underline">
@@ -127,10 +127,10 @@ export default async function BillingUploadPage({
                   </label>
                 ))}
               </fieldset>
-              <label className="flex flex-col gap-1 text-sm font-medium">
-                2. Choose the CSV file (UTF-8, up to 10 MB)
-                <input name="file" type="file" accept=".csv,text/csv" required className="text-sm" />
-              </label>
+              <div className="flex flex-col gap-2 text-sm font-medium">
+                <span>2. Choose the CSV file</span>
+                <FileDrop name="file" accept=".csv,text/csv" required formats={['CSV']} hint="UTF-8, up to 10 MB" />
+              </div>
               <p className="text-xs text-muted-foreground">
                 The file is virus-scanned and stored with this deal. Only the mapped invoice-line fields become evidence.{' '}
                 <a href="/billing-template.csv" className="text-indigo-ink underline">

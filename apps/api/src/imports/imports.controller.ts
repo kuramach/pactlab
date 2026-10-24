@@ -97,6 +97,17 @@ export class ImportsController {
     return this.imports.preview(tenant, params.dealId, params.uploadId, body.mapping, requestId);
   }
 
+  /** Discard an upload that was the wrong file (never imported); the stored copy is deleted. */
+  @Post('deals/:dealId/uploads/:uploadId/cancel')
+  @HttpCode(200)
+  async cancel(
+    @Tenant() tenant: TenantContext,
+    @RequestId() requestId: string,
+    @Param(new ZodValidationPipe(uploadParamsSchema)) params: UploadParams,
+  ): Promise<SourceUploadView> {
+    return this.imports.cancel(tenant, params.dealId, params.uploadId, requestId);
+  }
+
   @Post('deals/:dealId/uploads/:uploadId/import')
   @HttpCode(200)
   async import(

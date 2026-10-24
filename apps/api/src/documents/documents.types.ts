@@ -79,6 +79,8 @@ export interface DocumentFinding {
   readonly createdBy: string;
   readonly reviewer: NamedReviewer | null;
   readonly decidedAt: string | null;
+  /** The reviewer's reason for the latest decision (the audit trail); null while undecided. */
+  readonly decisionRationale?: string | null;
   readonly version: number;
   readonly createdAt: string;
 }

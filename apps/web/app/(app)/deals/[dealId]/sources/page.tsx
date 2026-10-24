@@ -2,7 +2,7 @@ import type { SourcePlanResponse } from '@pactlab/contracts';
 import { Glossed, IconTile, Term, type Accent } from '@pactlab/ui';
 import { FileText, GitBranch, ListChecks, Receipt } from 'lucide-react';
 import { Badge, Button, buttonVariants, Card, CardContent, CardDescription, CardHeader, CardTitle, EmptyState } from '@pactlab/ui';
-import { COMPANY_TYPE_LABELS } from '@pactlab/domain';
+import { COMPANY_TYPE_LABELS, IMPORT_TARGET_DEFINITIONS, type ImportTarget } from '@pactlab/domain';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { apiGet, dealsApi } from '../../_lib/api';
@@ -103,8 +103,11 @@ function SourcePlan({ plan, dealId }: { plan: SourcePlanResponse; dealId: string
                         Connect {source.providerLabel} <Term term="API" />
                       </Button>
                     )}
-                    {source.upload && upload?.availability === 'AVAILABLE' && source.upload.format === 'CSV' ? (
-                      <Link href={`/deals/${dealId}/sources/upload`} className={buttonVariants({ size: 'sm', variant: 'outline' })}>
+                    {source.upload && upload?.availability === 'AVAILABLE' ? (
+                      <Link
+                        href={source.upload.format === 'CSV' ? `/deals/${dealId}/sources/upload` : `/deals/${dealId}/documents`}
+                        className={buttonVariants({ size: 'sm', variant: 'outline' })}
+                      >
                         {source.upload.label}
                       </Link>
                     ) : source.upload ? (
@@ -151,10 +154,12 @@ export default async function DealSourcesPage({
   searchParams,
 }: {
   params: Promise<{ dealId: string }>;
-  searchParams: Promise<{ started?: string; imported?: string; created?: string; unchanged?: string }>;
+  searchParams: Promise<{ started?: string; imported?: string; created?: string; unchanged?: string; cancelled?: string }>;
 }) {
   const { dealId } = await params;
-  const { started, imported, created, unchanged } = await searchParams;
+  const { started, imported, created, unchanged, cancelled } = await searchParams;
+  // Which import finished: billing or a pack extract (the query carries the target).
+  const importedLabel = imported && imported in IMPORT_TARGET_DEFINITIONS ? IMPORT_TARGET_DEFINITIONS[imported as ImportTarget].label : 'Billing export';
   if (!isUuidParam(dealId)) notFound();
   const [sources, plan, synthetic, targets] = await Promise.all([
     dealsApi.sources(dealId),
@@ -182,8 +187,13 @@ export default async function DealSourcesPage({
 
       {imported ? (
         <p role="status" className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
-          Billing export imported: {Number(created ?? 0)} new lines, {Number(unchanged ?? 0)} already known. Finances now include
-          them.
+          {importedLabel} imported: {Number(created ?? 0)} new records, {Number(unchanged ?? 0)} already known.
+          {importedLabel === 'Billing export' || importedLabel === 'Invoice lines' ? ' Finances now include them.' : ' Industry checks and metrics now read them.'}
+        </p>
+      ) : null}
+      {cancelled ? (
+        <p role="status" className="rounded-md border border-border bg-muted px-3 py-2 text-sm">
+          Upload cancelled. Nothing was imported and the stored file was deleted — upload the right file below.
         </p>
       ) : null}
 

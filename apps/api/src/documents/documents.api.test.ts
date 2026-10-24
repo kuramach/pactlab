@@ -3,6 +3,7 @@ import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import {
   defaultPromptRegistry,
   neutralizeMarkup,
+  ModelProviderError,
   ScriptedModelTransport,
   TransportClaudeGateway,
   type ModelRequest,
@@ -468,7 +469,18 @@ describe('documents API (document AI)', () => {
       };
       const failed = await call('lead', 'POST', `/documents/${msaId}/extractions`);
       expect(failed.status).toBe(503);
+      expect(failed.body['code']).toBe('AI_UNAVAILABLE');
       expect(await lastAiRun()).toMatchObject({ status: 'PROVIDER_ERROR', taskType: 'contract.extraction' });
+    });
+
+    it('says when the model provider refused access (e.g. an expired AWS sign-in), so the screen can say so', async () => {
+      respond = () => {
+        throw new ModelProviderError('ACCESS', 'ExpiredTokenException');
+      };
+      const refused = await call('lead', 'POST', `/documents/${msaId}/extractions`);
+      expect(refused.body).toMatchObject({ status: 503, code: 'AI_ACCESS' });
+      // Never the provider's message or error name.
+      expect(JSON.stringify(refused.body)).not.toContain('ExpiredToken');
     });
 
     let changeOfControlId: string;

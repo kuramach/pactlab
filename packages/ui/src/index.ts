@@ -7,3 +7,4 @@ export * from './components/empty-state';
 export * from './components/page-header';
 export * from './components/term';
 export * from './utils';
+export * from './components/file-drop';

@@ -2,6 +2,7 @@
 
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
+import { AI_UNAVAILABLE, aiOutcome } from './ai-messages';
 import { apiSend } from '../../_lib/api';
 
 const uuid = z.uuid();
@@ -47,7 +48,7 @@ export async function extractDocument(dealId: string, documentId: string): Promi
   if (!uuid.safeParse(dealId).success || !uuid.safeParse(documentId).success) redirect('/deals');
   const result = await apiSend<{ drafted: number }>('POST', `/v1/deals/${dealId}/documents/${documentId}/extractions`, {});
   if (result.kind === 'ok') back(dealId, `ok-drafted-${result.data.drafted}`, documentId);
-  back(dealId, result.kind === 'unavailable' ? 'ai-off' : result.kind === 'invalid' ? 'ai-excluded' : result.kind, documentId);
+  back(dealId, result.kind === 'unavailable' ? aiOutcome(result.code) : result.kind === 'invalid' ? 'ai-excluded' : result.kind, documentId);
 }
 
 const review = z.strictObject({
@@ -92,7 +93,7 @@ export async function askQuestion(dealId: string, _previous: AskState, formData:
     rejectedClaims: unknown[];
     generatedBy: { resolvedModelId: string };
   }>('POST', `/v1/deals/${dealId}/questions`, { question });
-  if (result.kind === 'unavailable') return { kind: 'error', message: 'AI is not switched on for this environment yet. Questions will work once the Claude connection is enabled.' };
+  if (result.kind === 'unavailable') return { kind: 'error', message: AI_UNAVAILABLE[aiOutcome(result.code)] };
   if (result.kind === 'invalid') return { kind: 'error', message: 'There are no documents the AI may read in this deal.' };
   if (result.kind !== 'ok') return { kind: 'error', message: 'The question could not be answered. Try again.' };
   return {

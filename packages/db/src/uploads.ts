@@ -95,6 +95,19 @@ export const sourceUploads = {
   },
 
   /**
+   * Discard an upload that was never imported (the wrong file): the stored
+   * original is already deleted by the caller; the row keeps its hash and name
+   * as a record, with no object key. Only an UPLOADED row can be cancelled.
+   */
+  async markCancelled(tx: TransactionClient, uploadId: string): Promise<boolean> {
+    const result = await tx.sourceUpload.updateMany({
+      where: { id: uploadId, status: 'UPLOADED' },
+      data: { status: 'PURGED', objectKey: null, purgedAt: new Date() },
+    });
+    return result.count === 1;
+  },
+
+  /**
    * The upload connection for one billing system on a deal, created on first
    * import. Buyer-only and shared uploads use separate connections so their
    * evidence keeps the right visibility.

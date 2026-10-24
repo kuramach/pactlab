@@ -52,7 +52,9 @@ function classify(error: unknown): ModelProviderError {
     case 'ResourceNotFoundException':
       return new ModelProviderError('INVALID_REQUEST', name);
     default:
-      return new ModelProviderError('UNKNOWN', name);
+      // An expired or missing sign-in surfaces under several SDK error names
+      // (credential providers, SSO and login token refresh): all are ACCESS.
+      return new ModelProviderError(name && /credential|token|expired|sso|login/i.test(name) ? 'ACCESS' : 'UNKNOWN', name);
   }
 }
 

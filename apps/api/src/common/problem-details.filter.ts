@@ -11,9 +11,12 @@ const CODES: Record<number, string> = {
   409: 'CONFLICT',
 };
 
-/** A 422 may name the business rule it failed, as a stable upper-case code (never a message). */
+/**
+ * A 422 may name the business rule it failed, and a 503 the reason a dependency
+ * is unavailable (e.g. AI_ACCESS), as a stable upper-case code — never a message.
+ */
 function ruleCode(exception: unknown, status: number): string | null {
-  if (status !== 422 || !(exception instanceof HttpException)) return null;
+  if ((status !== 422 && status !== 503) || !(exception instanceof HttpException)) return null;
   const response = exception.getResponse();
   const code = typeof response === 'object' && response !== null ? (response as { code?: unknown }).code : null;
   return typeof code === 'string' && /^[A-Z][A-Z_]{2,40}$/.test(code) ? code : null;

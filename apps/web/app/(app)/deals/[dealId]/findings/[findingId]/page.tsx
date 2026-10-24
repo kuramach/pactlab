@@ -278,7 +278,10 @@ export default async function FindingPage({
                   <input type="hidden" name="expectedVersion" value={finding.version} />
                   <input type="hidden" name="decision" value="SUBMITTED" />
                   <p className="text-muted-foreground">Send this draft to a reviewer. Nothing is accepted by a machine.</p>
-                  <textarea name="rationale" rows={2} required placeholder="What you checked" className={inputClass} />
+                  <label className="flex flex-col gap-1 text-sm font-medium">
+                    Reason <span className="text-xs font-normal text-muted-foreground">Required · saved in the audit trail with your name</span>
+                    <textarea name="rationale" rows={2} required placeholder="What you checked before sending this for review, e.g. “Matched the loan tape to the balance sheet.”" className={inputClass} />
+                  </label>
                   <div>
                     <Button type="submit" size="sm">
                       Submit for review
@@ -289,7 +292,16 @@ export default async function FindingPage({
                 <form action={decide} className="flex flex-col gap-3">
                   <input type="hidden" name="expectedVersion" value={finding.version} />
                   <p className="text-muted-foreground">Your decision is recorded with your name and rationale.</p>
-                  <textarea name="rationale" rows={3} required placeholder="Why you decided this way" className={inputClass} />
+                  <label className="flex flex-col gap-1 text-sm font-medium">
+                    Reason for your decision <span className="text-xs font-normal text-muted-foreground">Required · saved in the audit trail with your name</span>
+                    <textarea
+                      name="rationale"
+                      rows={3}
+                      required
+                      placeholder="Accepting: what did you confirm? e.g. “Allowance is 2% against 13.5% charge-offs on the tape.” Rejecting or asking for support: what is wrong or missing?"
+                      className={inputClass}
+                    />
+                  </label>
                   <div className="flex flex-col gap-2 rounded-lg border border-border p-3">
                     <label className="flex flex-col gap-1 font-medium">
                       Accept as

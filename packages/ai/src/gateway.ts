@@ -2,6 +2,7 @@ import { newId } from '@pactlab/domain';
 import type { z } from 'zod';
 import type { CitableSource } from './context';
 import { sha256Hex } from './hash';
+import { ModelProviderError, type ModelProviderErrorKind } from './bedrock';
 import { detectInjection } from './injection';
 import { DEFAULT_MODEL_ROUTES, resolveModel, type ModelAlias, type ModelRoute } from './models';
 import type { PromptDefinition, PromptRegistry } from './prompts/registry';
@@ -81,6 +82,8 @@ export interface GatewayResponse<TOutput = unknown> {
    */
   readonly output: TOutput | null;
   readonly run: AiRunRecord;
+  /** Why a PROVIDER_ERROR happened (access, throttling, …) — never content; null otherwise. */
+  readonly providerError: ModelProviderErrorKind | null;
 }
 
 /** Claude assists; it never approves findings, sets price or makes legal conclusions. */
@@ -186,6 +189,7 @@ export class TransportClaudeGateway implements ClaudeGateway {
       });
 
     let status: AiRunStatus = 'SCHEMA_INVALID';
+    let providerError: ModelProviderErrorKind | null = null;
     let output: z.infer<TSchema> | null = null;
     let outputHash: string | null = null;
     let repairAttempted = false;
@@ -219,9 +223,10 @@ export class TransportClaudeGateway implements ClaudeGateway {
           },
         ]);
       }
-    } catch {
+    } catch (error) {
       status = 'PROVIDER_ERROR';
       output = null;
+      providerError = error instanceof ModelProviderError ? error.kind : 'UNKNOWN';
     }
 
     const run: AiRunRecord = {
@@ -251,6 +256,6 @@ export class TransportClaudeGateway implements ClaudeGateway {
       createdAt: started.toISOString(),
     };
     await this.options.onRun?.(run);
-    return { aiRunId: run.id, status, output, run };
+    return { aiRunId: run.id, status, output, run, providerError };
   }
 }
