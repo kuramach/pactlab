@@ -440,12 +440,15 @@ export function PactWizard() {
           >
             Back
           </Button>
+          {/* Distinct keys: reusing one element would turn the clicked Next into a submit mid-click and skip Review. */}
           {step === 'review' ? (
-            <Button type="submit" disabled={pending}>
+            <Button key="start" type="submit" disabled={pending}>
               {pending ? 'Starting…' : 'Start Pact'}
             </Button>
           ) : (
-            <Button onClick={next}>Next</Button>
+            <Button key="next" type="button" onClick={next}>
+              Next
+            </Button>
           )}
         </form>
       </CardContent>
