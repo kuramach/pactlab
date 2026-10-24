@@ -67,7 +67,7 @@ export async function importWithMapping(deal: string, upload: string, mapping: u
   const run = result.data.syncRun;
   if (run.status !== 'SUCCEEDED') return { message: 'The import failed before writing evidence. Try again.' };
   redirect(
-    `/deals/${ids.data.dealId}/sources?imported=${encodeURIComponent(result.data.upload.target)}&created=${run.recordsCreated}&unchanged=${run.recordsUnchanged}`,
+    `/deals/${ids.data.dealId}/sources?imported=${encodeURIComponent(result.data.upload.target)}&created=${run.recordsCreated}&unchanged=${run.recordsUnchanged}${result.data.replayed ? '&replayed=1' : ''}`,
   );
 }
 

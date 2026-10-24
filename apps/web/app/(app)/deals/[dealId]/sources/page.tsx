@@ -154,10 +154,10 @@ export default async function DealSourcesPage({
   searchParams,
 }: {
   params: Promise<{ dealId: string }>;
-  searchParams: Promise<{ started?: string; imported?: string; created?: string; unchanged?: string; cancelled?: string }>;
+  searchParams: Promise<{ started?: string; imported?: string; created?: string; unchanged?: string; cancelled?: string; replayed?: string }>;
 }) {
   const { dealId } = await params;
-  const { started, imported, created, unchanged, cancelled } = await searchParams;
+  const { started, imported, created, unchanged, cancelled, replayed } = await searchParams;
   // Which import finished: billing or a pack extract (the query carries the target).
   const importedLabel = imported && imported in IMPORT_TARGET_DEFINITIONS ? IMPORT_TARGET_DEFINITIONS[imported as ImportTarget].label : 'Billing export';
   if (!isUuidParam(dealId)) notFound();
@@ -187,8 +187,14 @@ export default async function DealSourcesPage({
 
       {imported ? (
         <p role="status" className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
-          {importedLabel} imported: {Number(created ?? 0)} new records, {Number(unchanged ?? 0)} already known.
-          {importedLabel === 'Billing export' || importedLabel === 'Invoice lines' ? ' Finances now include them.' : ' Industry checks and metrics now read them.'}
+          {replayed ? (
+            <>{importedLabel}: this file was already imported with the same mapping. Nothing changed.</>
+          ) : (
+            <>
+              {importedLabel} imported: {Number(created ?? 0)} new records, {Number(unchanged ?? 0)} already known.
+              {importedLabel === 'Billing export' || importedLabel === 'Invoice lines' ? ' Finances now include them.' : ' Industry checks and metrics now read them.'}
+            </>
+          )}
         </p>
       ) : null}
       {cancelled ? (

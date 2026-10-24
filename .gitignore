@@ -18,3 +18,7 @@ packages/db/src/generated/
 
 # Static export of the marketing site (apps/site)
 apps/site/out/
+
+# Browser tests (apps/e2e)
+playwright-report/
+test-results/
