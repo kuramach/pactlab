@@ -1,10 +1,11 @@
-import { Badge, Button, Card, CardContent, CardHeader, CardTitle, EmptyState, Glossed } from '@pactlab/ui';
+import { Badge, Button, Card, CardContent, CardHeader, CardTitle, EmptyState, FileDrop, Glossed } from '@pactlab/ui';
 import Link from 'next/link';
 import { apiGet } from '../../_lib/api';
 import { OutcomeBanner } from '../../_lib/outcome';
 import { ApiState } from '../../_lib/states';
 import { can, dealViewer } from '../../_lib/viewer';
 import { extractDocument, reviewDocumentFinding, uploadDocument } from './actions';
+import { AI_UNAVAILABLE } from './ai-messages';
 import { AskBox } from './ask-box';
 import {
   citationHref,
@@ -113,7 +114,11 @@ export default async function DocumentsPage({
         outcome={drafted !== undefined ? 'ok-drafted' : outcome}
         messages={{
           ...OUTCOMES,
-          ...(aiOn ? { 'ai-off': 'The model call failed or timed out. Nothing was drafted — try again in a moment.' } : {}),
+          // With AI configured, an unknown failure is a failed call, not "AI is off".
+          ...(aiOn ? { 'ai-off': AI_UNAVAILABLE['ai-failed'] } : {}),
+          'ai-access': AI_UNAVAILABLE['ai-access'],
+          'ai-throttled': AI_UNAVAILABLE['ai-throttled'],
+          'ai-failed': AI_UNAVAILABLE['ai-failed'],
           'ok-drafted': `AI extraction finished: ${drafted ?? 0} new cited draft(s) in the review queue.` }}
       />
 
@@ -124,12 +129,12 @@ export default async function DocumentsPage({
           </CardHeader>
           <CardContent>
             <form action={uploadDocument.bind(null, dealId)} className="flex flex-col gap-3 text-sm">
-              <input
+              <FileDrop
                 name="file"
-                type="file"
                 accept=".pdf,.docx,.txt,.md,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown"
                 required
-                className="text-sm"
+                formats={['PDF', 'Word', 'Text', 'Markdown']}
+                hint="PDF and Word up to 10 MB; text up to 512 KB"
               />
               <div className="flex flex-wrap items-center gap-4">
                 <label className="flex items-center gap-2">
@@ -318,17 +323,34 @@ export default async function DocumentsPage({
                   <p className="text-xs text-muted-foreground">
                     Model-generated · {finding.provenance.promptId} v
                     {finding.provenance.promptVersion} · {finding.provenance.resolvedModelId}
-                    {finding.reviewer
-                      ? ` · decided by ${finding.reviewer.displayName}`
-                      : ' · awaiting human review'}
+                    {finding.reviewer ? null : ' · awaiting human review'}
                   </p>
+                  {finding.reviewer ? (
+                    <p className="rounded-lg border border-navy/10 bg-mist px-3 py-2 text-xs">
+                      <span className="font-semibold">
+                        {finding.status === 'ACCEPTED' ? 'Accepted' : finding.status === 'REJECTED' ? 'Rejected' : 'Decided'} by {finding.reviewer.displayName}
+                        {finding.decidedAt ? ` on ${finding.decidedAt.slice(0, 10)}` : ''}
+                      </span>
+                      {finding.decisionRationale ? <>: “{finding.decisionRationale}”</> : null}
+                    </p>
+                  ) : null}
                   {finding.status === 'DRAFT' && reviewer ? (
                     <form
                       action={reviewDocumentFinding.bind(null, dealId, finding.id, finding.documentId)}
                       className="flex flex-col gap-2"
                     >
                       <input type="hidden" name="expectedVersion" value={finding.version} />
-                      <input name="rationale" required minLength={3} placeholder="What you checked in the source" className={inputClass} />
+                      <label className="flex flex-col gap-1 text-xs font-semibold">
+                        Reason for your decision <span className="font-normal text-muted-foreground">Required · saved in the audit trail with your name</span>
+                        <textarea
+                          name="rationale"
+                          required
+                          minLength={3}
+                          rows={2}
+                          placeholder="Accepting: what did you confirm in the document? e.g. “Clause 14 on p. 2 matches; termination needs 30 days’ notice.” Rejecting: why is it wrong or not relevant? e.g. “Clause was deleted in the 2025 amendment.”"
+                          className={`${inputClass} font-normal`}
+                        />
+                      </label>
                       <div className="flex gap-2">
                         <Button type="submit" name="decision" value="ACCEPT" size="sm">
                           Accept

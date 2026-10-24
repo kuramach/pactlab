@@ -44,8 +44,8 @@ export class BalanceSheetService {
       where: { dealId, documentId: source.documentId, pageNumber: source.pageNumber },
       select: { text: true, document: { select: { fileName: true, dataClass: true, status: true } } },
     });
-    if (!page || page.text === null || page.document.status !== 'AVAILABLE') throw new UnprocessableEntityException('That document page is not available');
-    if (PROHIBITED.has(page.document.dataClass)) throw new UnprocessableEntityException('People data cannot be cited for balance-sheet items');
+    if (!page || page.text === null || page.document.status !== 'AVAILABLE') throw new UnprocessableEntityException({ code: 'PAGE_UNAVAILABLE', message: 'That document page is not available' });
+    if (PROHIBITED.has(page.document.dataClass)) throw new UnprocessableEntityException({ code: 'PEOPLE_DATA', message: 'People data cannot be cited for balance-sheet items' });
     const citable: CitableSource = {
       citationId: `${source.documentId}:${source.pageNumber}`,
       documentId: source.documentId,
@@ -55,7 +55,7 @@ export class BalanceSheetService {
       classification: page.document.dataClass,
     };
     const check = new SourceIndex([citable]).verify({ citationId: citable.citationId, quote: source.quote });
-    if (!check.ok) throw new UnprocessableEntityException(`Citation refused: ${check.reason}`);
+    if (!check.ok) throw new UnprocessableEntityException({ code: check.reason, message: `Citation refused: ${check.reason}` });
     const { citationId: _id, ...citation } = check.citation;
     return citation;
   }
@@ -168,7 +168,7 @@ export class BalanceSheetService {
         reason: input.reason,
       }).catch((error: unknown) => {
         // A category from another kind fails the database CHECK.
-        if (error instanceof Error && /check constraint/i.test(error.message)) throw new UnprocessableEntityException('That category does not belong to this kind of item');
+        if (error instanceof Error && /check constraint/i.test(error.message)) throw new UnprocessableEntityException({ code: 'CATEGORY_KIND', message: 'That category does not belong to this kind of item' });
         throw error;
       });
       if (!revised) throw new ConflictException('The item changed or was withdrawn in the meantime');

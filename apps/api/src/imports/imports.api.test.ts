@@ -167,6 +167,33 @@ describe('billing CSV import through the API', { timeout: 30_000 }, () => {
     expect(unknown.statusCode).toBe(400);
   });
 
+  it('cancels a wrong upload: nothing imported, the stored copy deleted, audited; an imported upload cannot be cancelled', async () => {
+    // Its own tenant, so the other tests' evidence counts are untouched.
+    const own = await createSyntheticTenant(db.owner, 'Cancel');
+    const bearer = await token(own.subject, own);
+    const uploaded = await upload(own, bearer, csv, 'pactlab_standard', 'wrong-file.csv');
+    expect(uploaded.status).toBe(201);
+    const id = uploaded.body['id'] as string;
+    const cancelled = await call('POST', `/v1/deals/${own.dealId}/uploads/${id}/cancel`, bearer);
+    expect(cancelled.status).toBe(200);
+    expect(cancelled.body).toMatchObject({ id, status: 'PURGED' });
+    // Idempotent, and the file is gone: it can no longer be read, previewed or imported.
+    expect((await call('POST', `/v1/deals/${own.dealId}/uploads/${id}/cancel`, bearer)).body).toMatchObject({ status: 'PURGED' });
+    const detail = await call('GET', `/v1/deals/${own.dealId}/uploads/${id}`, bearer);
+    expect(detail.status).toBe(409);
+    const audit = (await db.owner.query(`SELECT count(*)::int AS n FROM audit_events WHERE target_id = $1 AND action = 'source_upload.cancelled'`, [id])) as { rows: { n: number }[] };
+    expect(audit.rows[0]?.n).toBe(1);
+    // Another tenant cannot cancel it.
+    expect((await call('POST', `/v1/deals/${own.dealId}/uploads/${id}/cancel`, await token(outsider.subject, outsider))).status).toBe(404);
+
+    // An imported upload's evidence stays: cancelling it is refused.
+    const kept = await upload(own, bearer, csv, 'pactlab_standard', 'kept.csv');
+    const keptId = kept.body['id'] as string;
+    const imported = await call('POST', `/v1/deals/${own.dealId}/uploads/${keptId}/import`, bearer, { mapping: kept.body['suggestedMapping'] });
+    expect(imported.status).toBe(200);
+    expect((await call('POST', `/v1/deals/${own.dealId}/uploads/${keptId}/cancel`, bearer)).status).toBe(409);
+  });
+
   it('lists billing systems and says which have verified column templates', async () => {
     const systems = (await call('GET', '/v1/billing-import/systems', await token(standard.subject, standard))).body['items'] as Body[];
     const bySystem = Object.fromEntries(systems.map((entry) => [entry['system'], entry['verified']]));

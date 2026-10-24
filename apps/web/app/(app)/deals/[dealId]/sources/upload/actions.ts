@@ -67,6 +67,21 @@ export async function importWithMapping(deal: string, upload: string, mapping: u
   const run = result.data.syncRun;
   if (run.status !== 'SUCCEEDED') return { message: 'The import failed before writing evidence. Try again.' };
   redirect(
-    `/deals/${ids.data.dealId}/sources?imported=1&created=${run.recordsCreated}&unchanged=${run.recordsUnchanged}`,
+    `/deals/${ids.data.dealId}/sources?imported=${encodeURIComponent(result.data.upload.target)}&created=${run.recordsCreated}&unchanged=${run.recordsUnchanged}`,
   );
+}
+
+/** Discard an upload that was the wrong file: nothing is imported, the stored copy is deleted (audited). */
+export async function cancelUpload(deal: string, upload: string): Promise<{ message: string }> {
+  const ids = target.safeParse({ dealId: deal, uploadId: upload });
+  if (!ids.success) return { message: 'This upload cannot be cancelled.' };
+  const result = await dealsApi.cancelUpload(ids.data.dealId, ids.data.uploadId);
+  if (result.kind !== 'ok') {
+    const messages: Record<string, string> = {
+      conflict: 'This file is already imported; its records stay as evidence. Upload a corrected file instead.',
+      forbidden: 'Your role cannot change uploads on this deal.',
+    };
+    return { message: messages[result.kind] ?? 'The upload could not be cancelled. Try again.' };
+  }
+  redirect(`/deals/${ids.data.dealId}/sources?cancelled=1`);
 }

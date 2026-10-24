@@ -76,7 +76,8 @@ const DEFINITIONS: Readonly<Record<SourceKind, SourceDefinition>> = {
     why: 'Contracts and filings, read with exact citations, so obligations and change-of-control terms surface early.',
     produces: 'Contracts, filings, policies — cited page by page',
     upload: { format: 'FILES', label: 'Upload documents' },
-    availability: { API: 'NEXT', UPLOAD: 'NEXT' },
+    // Document upload works (Documents tab); a live data-room connection is next.
+    availability: { API: 'NEXT', UPLOAD: 'AVAILABLE' },
   },
 };
 

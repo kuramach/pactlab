@@ -93,9 +93,10 @@ describe('balance-sheet items through the API', () => {
 
   it('records items only with a quote that is really on the page', async () => {
     expect(documentId).toBeTruthy();
-    expect((await call('analyst', 'POST', items(), item({ quote: 'Term loan outstanding: 999,000' }))).status).toBe(422);
-    expect((await call('analyst', 'POST', items(), item({ pageNumber: 2 }))).status).toBe(422);
-    expect((await call('analyst', 'POST', items(), item({ documentId: hrDocumentId, kind: 'DEBT_LIKE', category: 'ACCRUED_BONUS', quote: 'Accrued bonuses: 13,000 for named staff' }))).status).toBe(422);
+    // Each refusal names its reason, so the form can point at the field to fix (T-070).
+    expect((await call('analyst', 'POST', items(), item({ quote: 'Term loan outstanding: 999,000' }))).body).toMatchObject({ status: 422, code: 'QUOTE_NOT_FOUND' });
+    expect((await call('analyst', 'POST', items(), item({ pageNumber: 2 }))).body).toMatchObject({ status: 422, code: 'PAGE_UNAVAILABLE' });
+    expect((await call('analyst', 'POST', items(), item({ documentId: hrDocumentId, kind: 'DEBT_LIKE', category: 'ACCRUED_BONUS', quote: 'Accrued bonuses: 13,000 for named staff' }))).body).toMatchObject({ status: 422, code: 'PEOPLE_DATA' });
     expect((await call('analyst', 'POST', items(), item({ category: 'DEFERRED_REVENUE' }))).status).toBe(400);
     expect((await call('reviewer', 'POST', items(), item())).status).toBe(403);
     expect((await call('target_contributor', 'GET', items())).status).toBe(403);

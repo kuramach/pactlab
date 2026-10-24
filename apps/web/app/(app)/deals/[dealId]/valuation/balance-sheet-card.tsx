@@ -1,4 +1,4 @@
-import { BALANCE_SHEET_CATEGORIES, type BalanceSheetItemView, type BalanceSheetView } from '@pactlab/contracts';
+import type { BalanceSheetView } from '@pactlab/contracts';
 import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Glossed, IconTile } from '@pactlab/ui';
 import { Landmark } from 'lucide-react';
 import Link from 'next/link';
@@ -6,12 +6,13 @@ import { citationHref } from '../../../documents/_lib/view';
 import { formatMoney } from '../../../metrics/_lib/format';
 import { DonutChart, CHART_COLORS } from '../../../_lib/charts';
 import { addBalanceSheetItem, reviseBalanceSheetItem, withdrawBalanceSheetItem } from './balance-sheet-actions';
+import { BalanceSheetItemForm } from './balance-sheet-form';
+import { KIND_LABELS, CATEGORY_LABELS } from './balance-sheet-form-state';
 
 export const BALANCE_SHEET_OUTCOMES: Readonly<Record<string, string>> = {
   'ok-item': 'Item recorded with its citation. Link it to a scenario and re-run.',
   'ok-item-revised': 'Item revised. Scenarios that use it are stale until re-run.',
   'ok-item-withdrawn': 'Item withdrawn. Scenarios that used it need editing.',
-  'item-citation': 'The quote was not found on that page (or the document is people data or unavailable). Copy the exact words from the page.',
   'item-invalid-quote': 'Quote at least a few words exactly as they appear on the page.',
   'item-invalid-amount': 'Enter the amount as a number, such as 120000.',
   'item-invalid-category': 'That category does not belong to the kind of item.',
@@ -20,97 +21,9 @@ export const BALANCE_SHEET_OUTCOMES: Readonly<Record<string, string>> = {
   'item-invalid-form': 'Complete the item: kind, category, label, amount, date, document, page and quote.',
 };
 
-export const KIND_LABELS = { CASH: 'Cash', DEBT: 'Debt', DEBT_LIKE: 'Debt-like' } as const;
-
-export const CATEGORY_LABELS: Record<string, string> = {
-  CASH: 'Cash',
-  TERM_LOAN: 'Term loan',
-  REVOLVER: 'Revolving credit',
-  SHAREHOLDER_LOAN: 'Shareholder loan',
-  CONVERTIBLE_NOTE: 'Convertible note',
-  OTHER_DEBT: 'Other debt',
-  DEFERRED_REVENUE: 'Deferred revenue',
-  UNPAID_TAX: 'Unpaid tax',
-  ACCRUED_BONUS: 'Accrued bonuses',
-  EARN_OUT: 'Earn-out from past acquisitions',
-  LEASE: 'Leases',
-  CUSTOMER_PREPAYMENT: 'Customer prepayments',
-  TRANSACTION_COSTS: 'Seller’s transaction costs',
-  OTHER_DEBT_LIKE: 'Other debt-like item',
-};
+export { CATEGORY_LABELS, KIND_LABELS } from './balance-sheet-form-state';
 
 const inputClass = 'w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring';
-
-function SourceFields({ view, item }: { view: BalanceSheetView; item?: BalanceSheetItemView }) {
-  return (
-    <>
-      <label className="flex flex-col gap-1 text-sm font-medium">
-        Document
-        <select name="documentId" required className={inputClass} defaultValue={item?.citation.documentId ?? ''}>
-          <option value="" disabled>
-            Choose…
-          </option>
-          {view.documents.map((doc) => (
-            <option key={doc.id} value={doc.id}>
-              {doc.fileName} ({doc.pageCount} pp)
-            </option>
-          ))}
-        </select>
-      </label>
-      <label className="flex flex-col gap-1 text-sm font-medium">
-        Page
-        <input name="pageNumber" type="number" min={1} required defaultValue={item?.citation.pageNumber ?? 1} className={inputClass} />
-      </label>
-      <label className="flex flex-col gap-1 text-sm font-medium sm:col-span-2">
-        Exact quote from the page
-        <input name="quote" required minLength={12} maxLength={600} defaultValue={item?.citation.quote} placeholder="e.g. Term loan outstanding: USD 120,000" className={inputClass} />
-      </label>
-    </>
-  );
-}
-
-function ValueFields({ item, currency }: { item?: BalanceSheetItemView; currency: string }) {
-  return (
-    <>
-      <label className="flex flex-col gap-1 text-sm font-medium">
-        Category
-        <select name="category" required className={inputClass} defaultValue={item?.category ?? 'TERM_LOAN'}>
-          {(Object.keys(BALANCE_SHEET_CATEGORIES) as (keyof typeof BALANCE_SHEET_CATEGORIES)[])
-            .filter((kind) => !item || kind === item.kind)
-            .map((kind) => (
-              <optgroup key={kind} label={KIND_LABELS[kind]}>
-                {BALANCE_SHEET_CATEGORIES[kind].map((category) => (
-                  <option key={category} value={category}>
-                    {CATEGORY_LABELS[category]}
-                  </option>
-                ))}
-              </optgroup>
-            ))}
-        </select>
-      </label>
-      <label className="flex flex-col gap-1 text-sm font-medium">
-        Label
-        <input name="label" required maxLength={200} defaultValue={item?.label} className={inputClass} />
-      </label>
-      <label className="flex flex-col gap-1 text-sm font-medium">
-        Amount
-        <input name="amount" required inputMode="decimal" defaultValue={item?.amount} className={inputClass} />
-      </label>
-      <label className="flex flex-col gap-1 text-sm font-medium">
-        Currency
-        <input name="currency" required defaultValue={item?.currency ?? currency} className={inputClass} />
-      </label>
-      <label className="flex flex-col gap-1 text-sm font-medium">
-        As of
-        <input name="asOf" type="date" required defaultValue={item?.asOf} className={inputClass} />
-      </label>
-      <label className="flex flex-col gap-1 text-sm font-medium">
-        Note
-        <input name="note" maxLength={1000} defaultValue={item?.note ?? ''} className={inputClass} />
-      </label>
-    </>
-  );
-}
 
 /**
  * Cash, debt and debt-like items for the deal, each a person's figure backed
@@ -198,20 +111,14 @@ export function BalanceSheetCard({ dealId, view, currency }: { dealId: string; v
                   {view.canEdit ? (
                     <details className="text-sm">
                       <summary className="cursor-pointer font-semibold text-indigo-ink">Revise or withdraw</summary>
-                      <form action={reviseBalanceSheetItem.bind(null, dealId, item.id)} className="mt-3 grid gap-3 sm:grid-cols-2">
-                        <input type="hidden" name="expectedVersion" value={item.version} />
-                        <ValueFields item={item} currency={currency} />
-                        <SourceFields view={view} item={item} />
-                        <label className="flex flex-col gap-1 text-sm font-medium sm:col-span-2">
-                          Why it changed
-                          <input name="reason" required minLength={3} maxLength={1000} className={inputClass} />
-                        </label>
-                        <div>
-                          <Button type="submit" size="sm">
-                            Save revision
-                          </Button>
-                        </div>
-                      </form>
+                      <BalanceSheetItemForm
+                        action={reviseBalanceSheetItem.bind(null, dealId, item.id)}
+                        dealId={dealId}
+                        documents={view.documents}
+                        currency={currency}
+                        item={item}
+                        submitLabel="Save revision"
+                      />
                       <form action={withdrawBalanceSheetItem.bind(null, dealId, item.id)} className="mt-3 flex flex-wrap items-end gap-2">
                         <input type="hidden" name="expectedVersion" value={item.version} />
                         <input name="reason" required minLength={3} placeholder="Why it no longer applies" className={`${inputClass} max-w-sm`} />
@@ -233,23 +140,13 @@ export function BalanceSheetCard({ dealId, view, currency }: { dealId: string; v
           ) : (
             <details className="rounded-2xl border border-dashed border-navy/20 p-4">
               <summary className="cursor-pointer text-sm font-bold text-indigo-ink">Add an item</summary>
-              <form action={addBalanceSheetItem.bind(null, dealId)} className="mt-3 grid gap-3 sm:grid-cols-2">
-                <label className="flex flex-col gap-1 text-sm font-medium">
-                  Kind
-                  <select name="kind" className={inputClass} defaultValue="DEBT">
-                    <option value="CASH">Cash — adds to equity value</option>
-                    <option value="DEBT">Debt — reduces equity value</option>
-                    <option value="DEBT_LIKE">Debt-like — reduces equity value</option>
-                  </select>
-                </label>
-                <ValueFields currency={currency} />
-                <SourceFields view={view} />
-                <div>
-                  <Button type="submit" size="sm">
-                    Record item
-                  </Button>
-                </div>
-              </form>
+              <BalanceSheetItemForm
+                action={addBalanceSheetItem.bind(null, dealId)}
+                dealId={dealId}
+                documents={view.documents}
+                currency={currency}
+                submitLabel="Record item"
+              />
             </details>
           )
         ) : null}

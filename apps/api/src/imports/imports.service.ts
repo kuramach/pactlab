@@ -413,6 +413,39 @@ export class ImportsService {
     };
   }
 
+  /**
+   * Cancel an upload that was the wrong file: nothing is imported, the stored
+   * original is deleted, and the decision is audited. An imported upload
+   * cannot be cancelled — its evidence stays (upload a corrected file instead).
+   */
+  async cancel(tenant: TenantContext, dealId: string, uploadId: string, requestId: string): Promise<SourceUploadView> {
+    const row = await this.load(tenant, dealId, uploadId, canSupply, 'source_upload.cancelled', requestId);
+    if (row.status === 'PURGED') return toView(row);
+    if (row.status !== 'UPLOADED') throw new ConflictException();
+    if (row.objectKey) {
+      try {
+        await this.store.delete(row.objectKey);
+      } catch {
+        throw new ServiceUnavailableException();
+      }
+    }
+    const updated = await withTenant(this.prisma, tenant, async (tx) => {
+      if (!(await sourceUploads.markCancelled(tx, row.id))) throw new ConflictException();
+      await appendAuditEvent(tx, {
+        organizationId: tenant.organizationId,
+        dealId,
+        actorUserId: tenant.userId,
+        action: 'source_upload.cancelled',
+        targetType: 'source_upload',
+        targetId: row.id,
+        outcome: 'SUCCEEDED',
+        requestId,
+      });
+      return sourceUploads.get(tx, dealId, row.id);
+    });
+    return toView(updated ?? row);
+  }
+
   private async load(
     tenant: TenantContext,
     dealId: string,

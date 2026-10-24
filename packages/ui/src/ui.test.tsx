@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { AppShell, Badge, Breadcrumbs, Button, cn, EmptyState, Glossed, TabNav, Term } from './index';
+import { AppShell, Badge, Breadcrumbs, Button, cn, EmptyState, FileDrop, Glossed, TabNav, Term } from './index';
 
 describe('ui', () => {
   it('merges conflicting Tailwind classes', () => {
@@ -12,6 +12,15 @@ describe('ui', () => {
     const marked = renderToStaticMarkup(<EmptyState title="None" description="d" icon={<svg />} />);
     expect(plain).not.toContain('data-mark');
     expect(marked).toContain('<span aria-hidden="true" data-mark=""');
+  });
+
+  it('upload control: an obvious "Choose file" zone around a real, required file input', () => {
+    const html = renderToStaticMarkup(<FileDrop name="file" accept=".csv,text/csv" required formats={['CSV']} hint="UTF-8, up to 10 MB" />);
+    const input = html.match(/<input[^>]*>/)?.[0] ?? '';
+    for (const attribute of ['type="file"', 'name="file"', 'accept=".csv,text/csv"', 'required=""']) expect(input).toContain(attribute);
+    expect(html).toContain('Choose file');
+    expect(html).toContain('drag and drop');
+    expect(html).toContain('CSV');
   });
 
   it('renders buttons with an explicit type', () => {

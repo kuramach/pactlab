@@ -291,17 +291,27 @@ export class PrismaDocumentsRepository implements DocumentsRepository {
     dealId: string,
     filter: { status?: DocumentFindingStatus; documentId?: string },
   ): Promise<DocumentFinding[]> {
-    const rows = await withTenant(this.prisma, tenant, (tx) =>
-      tx.documentFinding.findMany({
+    return withTenant(this.prisma, tenant, async (tx) => {
+      const rows = await tx.documentFinding.findMany({
         where: {
           dealId,
           ...(filter.status ? { status: filter.status } : {}),
           ...(filter.documentId ? { documentId: filter.documentId } : {}),
         },
         orderBy: findingOrder,
-      }),
-    );
-    return rows.map(toFinding);
+      });
+      // Each decided finding carries its latest decision's reason (who and when are on the finding).
+      const decided = rows.filter((row) => row.decidedAt !== null).map((row) => row.id);
+      const reviews = decided.length
+        ? await tx.documentFindingReview.findMany({
+            where: { dealId, findingId: { in: decided } },
+            orderBy: [{ decidedAt: 'asc' }, { id: 'asc' }],
+            select: { findingId: true, rationale: true },
+          })
+        : [];
+      const latest = new Map(reviews.map((review) => [review.findingId, review.rationale]));
+      return rows.map((row) => ({ ...toFinding(row), decisionRationale: latest.get(row.id) ?? null }));
+    });
   }
 
   async getFinding(

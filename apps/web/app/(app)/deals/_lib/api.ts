@@ -67,7 +67,7 @@ export async function apiGet<T>(path: string): Promise<ApiResult<T>> {
 }
 
 /** `invalid` may name the business rule the API refused on (a 422 `code`, e.g. DRAG_NEEDS_PRICE). */
-export type SendResult<T> = ApiResult<T> | { kind: 'conflict' } | { kind: 'invalid'; code?: string } | { kind: 'unavailable' };
+export type SendResult<T> = ApiResult<T> | { kind: 'conflict' } | { kind: 'invalid'; code?: string } | { kind: 'unavailable'; code?: string };
 
 /** Server-side write; the browser never holds the token or calls the API directly. */
 export async function apiSend<T>(
@@ -99,7 +99,11 @@ export async function apiSend<T>(
   if (response.status === 403) return { kind: 'forbidden' };
   if (response.status === 404) return { kind: 'not-found' };
   if (response.status === 409) return { kind: 'conflict' };
-  if (response.status === 503) return { kind: 'unavailable' };
+  if (response.status === 503) {
+    // A stable reason (e.g. AI_ACCESS: the environment's AWS sign-in expired), never provider text.
+    const code = ((await response.json().catch(() => null)) as { code?: unknown } | null)?.code;
+    return typeof code === 'string' && /^[A-Z][A-Z_]{2,40}$/.test(code) ? { kind: 'unavailable', code } : { kind: 'unavailable' };
+  }
   return { kind: 'error' };
 }
 
@@ -214,6 +218,8 @@ export const dealsApi = {
       `/v1/deals/${encodeURIComponent(dealId)}/uploads/${encodeURIComponent(uploadId)}/preview`,
       { mapping },
     ),
+  cancelUpload: (dealId: string, uploadId: string) =>
+    apiSend<SourceUploadView>('POST', `/v1/deals/${encodeURIComponent(dealId)}/uploads/${encodeURIComponent(uploadId)}/cancel`, {}),
   runImport: (dealId: string, uploadId: string, mapping: ImportMappingBody) =>
     apiPost<ImportResultView>(
       `/v1/deals/${encodeURIComponent(dealId)}/uploads/${encodeURIComponent(uploadId)}/import`,

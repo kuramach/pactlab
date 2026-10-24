@@ -2,6 +2,8 @@
 export interface UploadObjectStore {
   put(key: string, bytes: Uint8Array, meta: { contentType: string; sha256: string }): Promise<void>;
   get(key: string): Promise<Uint8Array>;
+  /** Remove a stored original (a cancelled upload); a missing object is not an error. */
+  delete(key: string): Promise<void>;
 }
 
 export const UPLOAD_OBJECT_STORE = Symbol('UPLOAD_OBJECT_STORE');
@@ -14,6 +16,10 @@ export class UnavailableUploadStore implements UploadObjectStore {
   }
 
   async get(): Promise<Uint8Array> {
+    throw new Error('Upload store is not configured');
+  }
+
+  async delete(): Promise<void> {
     throw new Error('Upload store is not configured');
   }
 }

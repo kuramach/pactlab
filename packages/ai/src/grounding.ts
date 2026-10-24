@@ -1,5 +1,6 @@
 import { groundItems, SourceIndex, type CitationFailure, type ResolvedCitation } from './citations';
 import type { CitableSource } from './context';
+import type { ModelProviderErrorKind } from './bedrock';
 import type { AiRunRecord, ClaudeGateway, GatewayInput } from './gateway';
 import type { ModelAlias } from './models';
 import { contractExtractionPrompt, documentQaPrompt, type ContractExtraction } from './prompts';
@@ -37,7 +38,7 @@ export interface GroundedAnswer {
 export async function askDocuments(
   gateway: ClaudeGateway,
   request: Scope & { readonly question: GatewayInput; readonly sources: readonly CitableSource[] },
-): Promise<{ run: AiRunRecord; result: GroundedAnswer }> {
+): Promise<{ run: AiRunRecord; result: GroundedAnswer; providerError: ModelProviderErrorKind | null }> {
   const response = await gateway.invoke(documentQaPrompt, {
     organizationId: request.organizationId,
     dealId: request.dealId,
@@ -46,7 +47,7 @@ export async function askDocuments(
     sources: request.sources,
   });
   const empty = { answer: null, claims: [], rejectedClaims: [] };
-  if (!response.output) return { run: response.run, result: { status: 'FAILED', ...empty } };
+  if (!response.output) return { run: response.run, result: { status: 'FAILED', ...empty }, providerError: response.providerError };
   const output = response.output;
   const { grounded, rejected } = groundItems(output.claims, new SourceIndex(request.sources));
   const claims = grounded.map(({ item, citations }) => ({ statement: item.statement, citations }));
@@ -64,6 +65,7 @@ export async function askDocuments(
           : 'ANSWERED';
   return {
     run: response.run,
+    providerError: null,
     result: {
       status,
       answer: status === 'ANSWERED' || status === 'UNANSWERABLE' ? output.answer : null,
@@ -99,6 +101,8 @@ export async function extractContractTerms(
   run: AiRunRecord;
   items: ExtractedItem[];
   rejected: { title: string; reasons: readonly CitationFailure[] }[];
+  /** Why the provider call failed, when it did (never content). */
+  providerError: ModelProviderErrorKind | null;
 }> {
   const response = await gateway.invoke(contractExtractionPrompt, {
     organizationId: request.organizationId,
@@ -107,7 +111,7 @@ export async function extractContractTerms(
     inputs: [],
     sources: request.sources,
   });
-  if (!response.output) return { run: response.run, items: [], rejected: [] };
+  if (!response.output) return { run: response.run, items: [], rejected: [], providerError: response.providerError };
   const { parties, dates, clauses } = response.output;
   const candidates = [
     ...parties.map((p) => ({
@@ -138,6 +142,7 @@ export async function extractContractTerms(
   const { grounded, rejected } = groundItems(candidates, new SourceIndex(request.sources));
   return {
     run: response.run,
+    providerError: null,
     items: grounded.map(({ item, citations }) => ({ ...item, citations })),
     rejected: rejected.map(({ item, reasons }) => ({ title: item.title, reasons })),
   };

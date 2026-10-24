@@ -21,6 +21,8 @@ export interface DocumentFindingItem {
   provenance: { promptId: string; promptVersion: string; resolvedModelId: string };
   reviewer: { userId: string; displayName: string } | null;
   decidedAt: string | null;
+  /** The reviewer's reason for the latest decision. */
+  decisionRationale?: string | null;
 }
 
 export interface DocumentListItem {

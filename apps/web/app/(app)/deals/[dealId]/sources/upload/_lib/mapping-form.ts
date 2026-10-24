@@ -1,5 +1,5 @@
-import type { FieldSource, ImportMapping } from '@pactlab/domain';
-import { BILLING_INVOICE_LINE } from '@pactlab/domain';
+import type { FieldSource, ImportMapping, TargetDefinition } from '@pactlab/domain';
+import { IMPORT_TARGET_DEFINITIONS } from '@pactlab/domain';
 
 /** Select value for a field's source: `none`, `constant`, or `column:<name>`. */
 export function choiceOf(source: FieldSource | undefined): string {
@@ -14,9 +14,14 @@ export function sourceFromChoice(choice: string, previous: FieldSource | undefin
   return { kind: 'none' };
 }
 
+/** The import target a mapping is for: billing or a pack extract (ADR 0010). */
+export function definitionFor(mapping: Pick<ImportMapping, 'target'>): TargetDefinition {
+  return IMPORT_TARGET_DEFINITIONS[mapping.target];
+}
+
 /** Required fields still unmapped, by label — shown before the user can check the mapping. */
-export function unmappedRequired(mapping: ImportMapping): string[] {
-  return BILLING_INVOICE_LINE.fields
+export function unmappedRequired(mapping: ImportMapping, definition: TargetDefinition = definitionFor(mapping)): string[] {
+  return definition.fields
     .filter((field) => field.required)
     .filter((field) => {
       const source = mapping.fields[field.name];
