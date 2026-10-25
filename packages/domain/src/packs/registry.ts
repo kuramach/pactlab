@@ -19,7 +19,7 @@ export const METRIC_CALCULATOR_IDS = ['saas-metrics', 'multifamily-metrics'] as 
 export type MetricCalculatorId = (typeof METRIC_CALCULATOR_IDS)[number];
 
 /** Valuation method ids in `@pactlab/calculations` (`VALUATION_METHODS`). */
-export const PACK_VALUATION_METHODS = ['ARR_MULTIPLE', 'DCF', 'NOI_CAP_RATE'] as const;
+export const PACK_VALUATION_METHODS = ['ARR_MULTIPLE', 'DCF', 'NOI_CAP_RATE', 'PAYER_MIX_EBITDA'] as const;
 export type PackValuationMethod = (typeof PACK_VALUATION_METHODS)[number];
 
 export interface PackDefinition {
@@ -124,7 +124,13 @@ export const PACKS: Readonly<Record<PackId, PackDefinition>> = {
     findingRules: ['clinics-provider-carries-site', 'clinics-coding-above-policy', 'clinics-equipment-past-life', 'healthcare-government-concentration', 'healthcare-director-fee', 'healthcare-privacy-assessment'],
     valuationMethods: ['DCF'],
   },
-  HOSPITALS: pack('HOSPITALS', 'hospitals', 'healthcare'),
+  HOSPITALS: {
+    ...pack('HOSPITALS', 'hospitals', 'healthcare', true),
+    importTargets: ['BILLING_INVOICE_LINE', 'HOSPITALS_CENSUS', 'HOSPITALS_PAYER_MIX'],
+    // Extends healthcare (T-061): its compliance rules run too; payer concentration reads the payer mix instead of billing.
+    findingRules: ['hospitals-payer-concentration', 'hospitals-accreditation-transfer', 'hospitals-physician-dependence', 'hospitals-regulatory-capex', 'healthcare-director-fee', 'healthcare-privacy-assessment'],
+    valuationMethods: ['PAYER_MIX_EBITDA', 'DCF'],
+  },
 };
 
 /** The pack for a seller's company type; `OTHER` (or none) reads the software core as it is. */

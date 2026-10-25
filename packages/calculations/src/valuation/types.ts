@@ -3,7 +3,7 @@ import type { MoneyValue } from '../metrics/types';
 /** Bumped whenever a formula, bridge rule, rounding rule or output shape changes. */
 export const VALUATION_ENGINE_VERSION = 'valuation-2';
 
-export const VALUATION_METHODS = ['ARR_MULTIPLE', 'DCF', 'NOI_CAP_RATE'] as const;
+export const VALUATION_METHODS = ['ARR_MULTIPLE', 'DCF', 'NOI_CAP_RATE', 'PAYER_MIX_EBITDA'] as const;
 export type ValuationMethod = (typeof VALUATION_METHODS)[number];
 
 /** Mirrors the deal's transaction type; it decides which extra engines must run. */
@@ -63,7 +63,31 @@ export interface NoiCapRateAssumptions {
   readonly capRate: string;
 }
 
-export type MethodAssumptions = ArrMultipleAssumptions | DcfAssumptions | NoiCapRateAssumptions;
+/** One payer's reimbursement view in a payer-mix-adjusted EBITDA (T-069). */
+export interface PayerAdjustment {
+  readonly payer: string;
+  /** The payer's share of net revenue as a fraction (`'0.567'` = 56.7%). */
+  readonly share: string;
+  /** Expected change in the payer's reimbursement rates as a fraction (`'-0.03'` = a 3% cut). */
+  readonly rateChange: string;
+}
+
+/**
+ * Hospitals (T-069): enterprise value = payer-mix-adjusted EBITDA × multiple,
+ * where each payer's rate change moves its share of net revenue straight to
+ * EBITDA (full flow-through: reimbursement changes carry no offsetting cost).
+ */
+export interface PayerMixEbitdaAssumptions {
+  readonly method: 'PAYER_MIX_EBITDA';
+  /** Reported annual EBITDA. */
+  readonly ebitda: string;
+  /** Annual net patient revenue the payer shares apply to. */
+  readonly netRevenue: string;
+  readonly multiple: string;
+  readonly payers: readonly PayerAdjustment[];
+}
+
+export type MethodAssumptions = ArrMultipleAssumptions | DcfAssumptions | NoiCapRateAssumptions | PayerMixEbitdaAssumptions;
 
 /** Enterprise-to-equity bridge items, before diligence adjustments. */
 export interface BridgeAssumptions {
@@ -159,6 +183,7 @@ export const SENSITIVITY_VARIABLES = [
   'terminalMultiple',
   'noi',
   'capRate',
+  'ebitda',
 ] as const;
 export type SensitivityVariable = (typeof SENSITIVITY_VARIABLES)[number];
 
@@ -206,7 +231,14 @@ export type MethodResult =
       readonly presentValueOfTerminal: MoneyValue;
       readonly presentValueOfCashFlows: MoneyValue;
     }
-  | { readonly method: 'NOI_CAP_RATE'; readonly noi: MoneyValue; readonly capRate: string };
+  | { readonly method: 'NOI_CAP_RATE'; readonly noi: MoneyValue; readonly capRate: string }
+  | {
+      readonly method: 'PAYER_MIX_EBITDA';
+      readonly reportedEbitda: MoneyValue;
+      readonly adjustedEbitda: MoneyValue;
+      readonly multiple: string;
+      readonly payers: readonly { readonly payer: string; readonly share: string; readonly rateChange: string; readonly ebitdaEffect: MoneyValue }[];
+    };
 
 export const BRIDGE_LINE_KINDS = [
   'ENTERPRISE_VALUE',

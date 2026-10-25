@@ -124,7 +124,7 @@ export function SextantExplanation({
         </div>
 
         <ol className="flex flex-col">
-          <Step number={++step} icon={<Calculator />} title={<>Value the business ({result.method.method === 'DCF' ? <Term term="DCF" /> : result.method.method === 'NOI_CAP_RATE' ? <>NOI ÷ cap rate</> : <><Term term="ARR" /> multiple</>})</>}>
+          <Step number={++step} icon={<Calculator />} title={<>Value the business ({result.method.method === 'DCF' ? <Term term="DCF" /> : result.method.method === 'NOI_CAP_RATE' ? <>NOI ÷ cap rate</> : result.method.method === 'PAYER_MIX_EBITDA' ? <>payer-mix-adjusted EBITDA</> : <><Term term="ARR" /> multiple</>})</>}>
             {run.inputs?.assumptions.method === 'ARR_MULTIPLE' ? (
               <p>
                 <Link href={`/deals/${dealId}/finances`} className="font-semibold text-indigo-ink hover:underline">
@@ -147,7 +147,17 @@ export function SextantExplanation({
                 cap rate is the main judgement call: a lower rate means a higher price.
               </p>
             ) : null}
-            {run.inputs?.assumptions.method === 'ARR_MULTIPLE' || run.inputs?.assumptions.method === 'NOI_CAP_RATE' ? null : run.inputs?.assumptions.method === 'DCF' ? (
+            {run.inputs?.assumptions.method === 'PAYER_MIX_EBITDA' && result.method.method === 'PAYER_MIX_EBITDA' ? (
+              <p>
+                Reported EBITDA <b>{formatMoney(result.method.reportedEbitda)}</b>
+                {result.method.payers.length > 0
+                  ? `, adjusted for each payer's expected rate change (${result.method.payers.map((payer) => `${payer.payer} ${pct(payer.share)} of revenue at ${pct(payer.rateChange)}: ${formatMoney(payer.ebitdaEffect)}`).join('; ')})`
+                  : ''}
+                , gives <b>{formatMoney(result.method.adjustedEbitda)}</b> × a multiple of <b>{result.method.multiple}×</b> = enterprise value <b>{formatMoney(result.enterpriseValue)}</b>. The rate changes and the
+                multiple are the judgement calls.
+              </p>
+            ) : null}
+            {run.inputs?.assumptions.method === 'ARR_MULTIPLE' || run.inputs?.assumptions.method === 'NOI_CAP_RATE' || run.inputs?.assumptions.method === 'PAYER_MIX_EBITDA' ? null : run.inputs?.assumptions.method === 'DCF' ? (
               <p>
                 Base revenue <b>{money(run.inputs.assumptions.baseRevenue, currency)}</b>, a {run.inputs.assumptions.years.length}-year forecast
                 with growth of {run.inputs.assumptions.years.map((year) => pct(year.growth)).join(', ')} and free-cash-flow margins of{' '}

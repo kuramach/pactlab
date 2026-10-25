@@ -40,6 +40,7 @@ function amount(raw: FormDataEntryValue | null): string | null {
 
 export const ADJUSTMENT_POINTS = ['LOW', 'MID', 'HIGH'] as const;
 export const MAX_YEARS = 10;
+export const MAX_PAYER_ROWS = 6;
 
 export interface ScenarioValues {
   assumptions:
@@ -51,7 +52,8 @@ export interface ScenarioValues {
         discountRate: string;
         terminal: { kind: 'GORDON'; growth: string } | { kind: 'EXIT_MULTIPLE'; revenueMultiple: string };
       }
-    | { method: 'NOI_CAP_RATE'; noi: string; capRate: string };
+    | { method: 'NOI_CAP_RATE'; noi: string; capRate: string }
+    | { method: 'PAYER_MIX_EBITDA'; ebitda: string; netRevenue: string; multiple: string; payers: { payer: string; share: string; rateChange: string }[] };
   bridge: { cash: string; debt: string; debtLikeItems: string; workingCapitalAdjustment: string };
   stockConsiderationShare: string;
   findingLinks: { findingId: string; point: (typeof ADJUSTMENT_POINTS)[number] }[];
@@ -81,10 +83,25 @@ export function scenarioFromForm(form: FormData, previous: Partial<ScenarioValue
   const name = String(form.get('name') ?? '').trim();
   if (!name || name.length > 200) return { ok: false, message: 'Give the scenario a name.' };
   const chosen = form.get('method');
-  const method = chosen === 'DCF' || chosen === 'NOI_CAP_RATE' ? chosen : 'ARR_MULTIPLE';
+  const method = chosen === 'DCF' || chosen === 'NOI_CAP_RATE' || chosen === 'PAYER_MIX_EBITDA' ? chosen : 'ARR_MULTIPLE';
 
   let assumptions: ScenarioValues['assumptions'];
-  if (method === 'NOI_CAP_RATE') {
+  if (method === 'PAYER_MIX_EBITDA') {
+    const ebitda = amount(form.get('ebitda'));
+    const netRevenue = amount(form.get('netRevenue'));
+    const multiple = amount(form.get('ebitdaMultiple'));
+    if (!ebitda || !netRevenue || !multiple) return { ok: false, message: 'Enter EBITDA, net revenue and the EBITDA multiple.' };
+    const payers: { payer: string; share: string; rateChange: string }[] = [];
+    for (let row = 1; row <= MAX_PAYER_ROWS; row += 1) {
+      const payer = String(form.get(`payer_${row}`) ?? '').trim();
+      if (!payer) continue;
+      const share = percentToFraction(String(form.get(`payerShare_${row}`) ?? ''));
+      const rateChange = percentToFraction(String(form.get(`payerRate_${row}`) ?? '') || '0');
+      if (!share || !rateChange || payer.length > 200) return { ok: false, message: `Enter the share of net revenue and the rate change (%) for ${payer.slice(0, 40)}.` };
+      payers.push({ payer, share, rateChange });
+    }
+    assumptions = { method, ebitda, netRevenue, multiple, payers };
+  } else if (method === 'NOI_CAP_RATE') {
     const noi = amount(form.get('noi'));
     const capRate = percentToFraction(String(form.get('capRate') ?? ''));
     if (!noi || !capRate) return { ok: false, message: 'Enter net operating income and the capitalization rate (%).' };

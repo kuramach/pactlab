@@ -25,6 +25,7 @@ export class ValuationInputError extends Error {
 const DECIMAL_STRING = /^-?\d{1,18}(\.\d{1,12})?$/;
 const CURRENCY = /^[A-Z]{3}$/;
 const MAX_DCF_YEARS = 10;
+const MAX_PAYERS = 10;
 const MAX_SENSITIVITY_POINTS = 9;
 const MAX_HOLD_YEARS = 15;
 
@@ -117,6 +118,26 @@ const METHOD_RULES: { readonly [K in MethodAssumptions['method']]: MethodRules<E
       if (variable === 'terminalMultiple') return assumptions.terminal.kind === 'EXIT_MULTIPLE';
       return false;
     },
+  },
+  PAYER_MIX_EBITDA: {
+    validate: (assumptions) => {
+      decimal(assumptions.ebitda, 'assumptions.ebitda', {});
+      decimal(assumptions.netRevenue, 'assumptions.netRevenue', { min: '0' });
+      decimal(assumptions.multiple, 'assumptions.multiple', { min: '0', max: '1000' });
+      if (!Array.isArray(assumptions.payers) || assumptions.payers.length > MAX_PAYERS) {
+        throw new ValuationInputError('assumptions.payers', `must list at most ${MAX_PAYERS} payers`);
+      }
+      let shares = new D(0);
+      assumptions.payers.forEach((payer, index) => {
+        if (typeof payer.payer !== 'string' || payer.payer.trim() === '' || payer.payer.length > 200) {
+          throw new ValuationInputError(`assumptions.payers.${index}.payer`, 'must name the payer');
+        }
+        shares = shares.plus(decimal(payer.share, `assumptions.payers.${index}.share`, { min: '0', max: '1' }));
+        decimal(payer.rateChange, `assumptions.payers.${index}.rateChange`, { min: '-1', max: '1' });
+      });
+      if (shares.greaterThan(1)) throw new ValuationInputError('assumptions.payers', 'payer shares must not add up to more than 100%');
+    },
+    sensitivityApplies: (variable) => variable === 'ebitda' || variable === 'multiple',
   },
   NOI_CAP_RATE: {
     validate: (assumptions) => {

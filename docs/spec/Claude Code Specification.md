@@ -1510,6 +1510,13 @@ Five further packs in two clusters. Hotels, multifamily and commercial property 
 - Valuation tweaks: payer-mix-adjusted EBITDA, and regulatory capital expenditure.
 - What transfers: pack 2's reimbursement and regulatory finding types; key-physician dependence reuses key-person risk under rule 7.
 
+
+**11a. Hospitals — activation amendment (T-069, 2026-10-25)**
+
+- **Import targets (CSV, ADR 0010):** `HOSPITALS_CENSUS` (month, service_line, admissions, patient_days, average_daily_census → `hospitals.census_month`, one record per month and service line) and `HOSPITALS_PAYER_MIX` (month, payer, gross_charges, net_revenue → `hospitals.payer_month`, one record per month and payer), alongside the billing import. Aggregates only; no patient data; physician dependence is read only from aggregate staffing documents; nothing reaches a model (rule 7).
+- **Finding rules (deterministic, versioned, drafts only):** `hospitals-payer-concentration` — one payer at 40% or more of the latest month's net revenue in the payer mix, neutral (a payer-mix sensitivity); `hospitals-accreditation-transfer` — accreditation that does not transfer on a change of ownership, cited, a closing condition; `hospitals-physician-dependence` — a stated share of a service line's procedures carried by a few physicians, cited, a drag the reviewer prices; `hospitals-regulatory-capex` — committed regulatory capital expenditure, priced as remediation at the amount the cost report states. The healthcare rules for the medical-director fee and the privacy assessment also run.
+- **Valuation:** a new method through the T-057 interface, `PAYER_MIX_EBITDA` — enterprise value = (reported EBITDA + Σ net revenue × payer share × expected rate change) × multiple, with full flow-through of rate changes to EBITDA; payer shares may not exceed 100% in total and rate changes are bounded at ±100%; sensitivity on EBITDA and the multiple. DCF alongside. Regulatory capex reaches the bridge as a remediation cost.
+- **Fixtures and acceptance:** `pactlab-demo-data/hospitals/{USD,EUR,GBP}` — the four planted findings surface as cited drafts once, and the accepted capex comes off the price in a payer-mix-adjusted EBITDA run (`apps/api/src/packs/hospitals.acceptance.api.test.ts`).
 ### Pack framework (ADR 0009, ADR 0010)
 
 - **Pack = the seller's company type.** A registry (`packages/domain/src/packs`) gives each pack its import targets, metric calculator, finding rules and valuation methods. Code reads registry entries and never branches on the pack.

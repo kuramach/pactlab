@@ -24,10 +24,9 @@ describe('pack registry', () => {
     }
   });
 
-  it('the activated packs are built; OTHER and unknown read the software core', () => {
-    expect(PACK_IDS.filter((id) => PACKS[id].built)).toEqual(['SOFTWARE_SAAS', 'FINTECH', 'HEALTHCARE', 'TELECOM_MEDIA', 'PROFESSIONAL_SERVICES', 'PHARMA_BIOTECH', 'ECOMMERCE_DTC', 'MULTIFAMILY', 'COMMERCIAL_PROPERTY', 'HOTELS', 'SMALL_CLINICS']);
+  it('every pack is built; OTHER and unknown read the software core', () => {
+    expect(PACK_IDS.filter((id) => !PACKS[id].built)).toEqual([]);
     expect(sourcesFor('FINTECH').packAvailable).toBe(true);
-    expect(sourcesFor('HOSPITALS').packAvailable).toBe(false);
     expect(packFor('OTHER').id).toBe('SOFTWARE_SAAS');
     expect(packFor(null).id).toBe('SOFTWARE_SAAS');
     expect(packFor('HOTELS').slug).toBe('hotels');
