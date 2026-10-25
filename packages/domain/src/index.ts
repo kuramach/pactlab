@@ -8,3 +8,4 @@ export * from './pacts';
 export * from './roles';
 export * from './tenancy';
 export * from './transaction-type';
+export * from './deal-phases';

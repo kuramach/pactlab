@@ -9,6 +9,8 @@ import { DocumentsService } from '../documents/documents.service';
 import { EngineeringService } from '../engineering/engineering.service';
 import { FindingsService } from '../findings/findings.service';
 import { PactsService } from '../pacts/pacts.service';
+import { DealsService } from '../deals/deals.service';
+import { PhasesService } from '../phases/phases.service';
 import { updateAssumptionsSchema } from '../valuation/valuation.schemas';
 import { ValuationService } from '../valuation/valuation.service';
 import { DEMO_CONTRACTS, type SyntheticContract } from './contracts';
@@ -178,6 +180,8 @@ export async function seedDemo(
   const comparablesService = app.get(ComparablesService, { strict: false });
   const balanceSheet = app.get(BalanceSheetService, { strict: false });
   const engineering = app.get(EngineeringService, { strict: false });
+  const phases = app.get(PhasesService, { strict: false });
+  const dealsService = app.get(DealsService, { strict: false });
   const report: string[] = [];
 
   for (const holder of DEMO_HOLDERS) {
@@ -567,6 +571,56 @@ export async function seedDemo(
         }
       }
       report.push(`${holder.label} · ${name}: ${uploaded} contracts uploaded`);
+    }
+
+    // --- Pact phases (T-071): one pact in each of Pre-Diligence, Diligence and Post-Close ---
+    const screeningDeal = dealRows.find((deal) => deal.stage === 'SCREENING' && !['Project Healthy', 'Project Troubled'].includes(deal.name));
+    if (screeningDeal) {
+      const screening = await phases.screening(who.lead, screeningDeal.id, REQUEST_ID);
+      if (screening.version === 0) {
+        await phases.saveScreening(
+          who.lead,
+          screeningDeal.id,
+          {
+            intakeNotes: `Teaser received; management call booked ${SYNTHETIC}.`,
+            headlineRevenue: '9500000',
+            headlineCurrency: 'USD',
+            valueLow: '30000000',
+            valueHigh: '45000000',
+            redFlags: ['Two customers make up 40% of revenue', 'Pricing increased twice in the last year'],
+            expectedVersion: 0,
+          },
+          REQUEST_ID,
+        );
+        report.push(`${holder.label} · ${screeningDeal.name}: screening intake recorded, verdict pending`);
+      }
+    }
+    if (troubled) {
+      const current = dealRows.find((deal) => deal.id === troubled);
+      if (current?.stage === 'SCREENING') await dealsService.update(who.lead, troubled, { stage: 'DILIGENCE' }, REQUEST_ID);
+      const { items } = await phases.claims(who.lead, troubled, REQUEST_ID);
+      if (items.length === 0) {
+        const after = await phases.createClaim(who.lead, troubled, { statement: 'Annual recurring revenue is USD 4.2M', source: `CIM p.3 ${SYNTHETIC}` }, REQUEST_ID);
+        await phases.createClaim(who.lead, troubled, { statement: 'No customer is more than 10% of revenue', source: `Management call ${SYNTHETIC}` }, REQUEST_ID);
+        const arr = after.items.find((claim) => claim.statement.startsWith('Annual recurring revenue'));
+        const { items: findings } = await findingsService.list(who.lead, troubled, {}, REQUEST_ID);
+        if (arr) {
+          await phases.updateClaim(
+            who.lead,
+            troubled,
+            arr.id,
+            { expectedVersion: arr.version, status: 'CONTRADICTED', rationale: `Rebuilt from invoices, ARR is lower than stated ${SYNTHETIC}`, evidenceItemIds: [], findingIds: findings.slice(0, 1).map((finding) => finding.id) },
+            REQUEST_ID,
+          );
+        }
+        report.push(`${holder.label} · Project Troubled: in diligence with 2 claims (1 contradicted)`);
+      }
+    }
+    const healthyClose = dealId('Project Healthy');
+    if (healthyClose && dealRows.find((deal) => deal.id === healthyClose)?.stage !== 'CLOSED') {
+      await dealsService.update(who.lead, healthyClose, { stage: 'CLOSED' }, REQUEST_ID);
+      const registers = await phases.postClose(who.lead, healthyClose, REQUEST_ID);
+      report.push(`${holder.label} · Project Healthy: closed; ${registers.items.length} post-close items generated`);
     }
   }
   return report;

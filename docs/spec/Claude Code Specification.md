@@ -1820,3 +1820,40 @@ Telemetry tells you something crashed; the Auto-Bug system turns it into a triag
 3. **Dedup test:** fire the same frontend exception repeatedly and assert a single bug record with an incrementing `occurrences` counter and updated `last_seen_at`, respecting the per-fingerprint rate limit on stored context bundles.
 4. **Privacy test:** assert a non-admin user cannot read any bug's context bundle, and that a bug filed from an HR/compensation route contains no HR, compensation, or individual-performance fields.
 5. **User-experience test:** assert the error dialog shows the plain-language message and `PLB-####` reference with an optional note field, and renders no stack trace or error class to a non-admin user.
+
+## 29. The three phases of a pact (T-071)
+
+A pact moves through three phases, derived from its pipeline stage. The phase is never stored separately; the stage enum and the stage patch are unchanged.
+
+| Stage | Phase | The work |
+|---|---|---|
+| SCREENING | **Pre-Diligence** | Is the deal worth diligence at all? |
+| DILIGENCE, NEGOTIATION, SIGNED | **Diligence** | Test what is said against what is observed. |
+| CLOSED | **Post-Close** | Preserve and enhance what was bought. |
+
+**Pre-Diligence: the screen.** A deliberately light panel:
+- teaser or CIM notes, headline revenue, and a rough value range;
+- the asking price set against that range, as a coarse sanity read and not the price bridge;
+- a red-flag checklist.
+
+Everything in it is screening-grade: it never creates findings and never touches valuation.
+
+The deal lead records a **screening verdict**, audited with its rationale:
+- **GO** moves the pact to DILIGENCE and turns every red flag into a claim to verify;
+- **NO_GO** archives the pact;
+- **NEEDS_MORE** keeps it in screening with the gaps named.
+
+**Diligence: said vs observed.** The core loop (evidence → finding → valuation → terms) is unchanged. The **claims register** sits alongside it:
+- seller assertions (from the CIM, management calls or the data room), each `UNVERIFIED`, `VERIFIED` or `CONTRADICTED`;
+- each links by id to the evidence and findings that bear on it;
+- a status change needs a rationale and is audited.
+
+**Post-Close: preserve and enhance.** Moving to CLOSED generates two registers from diligence output, by reference and idempotently:
+- **assets to preserve:** accepted cushions;
+- **actions and watch items:** priced remediation, findings still open at close, and escrow releases and indemnity claim windows from accepted priced risks.
+
+Items get an owner, a date or review cadence, and a status (`OPEN`, `DONE` or `LAPSED`). Every change is audited.
+
+**Continuity rule.** Nothing is re-typed between phases. Red flags become claims, claims link to findings, and findings become post-close items. Each conversion is a reference, not a copy.
+
+Screening, claims and post-close items are buyer-side analysis: target contributors never see them (RLS).

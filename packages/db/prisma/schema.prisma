@@ -539,6 +539,9 @@ model Deal {
   balanceSheetItemVersions BalanceSheetItemVersion[]
   contributorIdentities   ContributorIdentity[]
   peopleAccess            PeopleAccess[]
+  screeningReview         ScreeningReview?
+  claims                  DealClaim[]
+  postCloseItems          PostCloseItem[]
 
   @@unique([organizationId, id])
   @@index([organizationId, createdAt])
@@ -1523,4 +1526,94 @@ model PeopleAccess {
 
   @@index([organizationId, dealId, decidedAt])
   @@map("people_access")
+}
+
+/// Pre-Diligence screening (T-071): one per deal, directional only — never
+/// creates findings or touches valuation. Buyer side (RLS).
+model ScreeningReview {
+  id               String    @id @default(uuid(7)) @db.Uuid
+  organizationId   String    @map("organization_id") @db.Uuid
+  dealId           String    @map("deal_id") @db.Uuid
+  intakeNotes      String?   @map("intake_notes")
+  headlineRevenue  Decimal?  @map("headline_revenue") @db.Decimal(24, 4)
+  headlineCurrency String?   @map("headline_currency") @db.Char(3)
+  valueLow         Decimal?  @map("value_low") @db.Decimal(24, 4)
+  valueHigh        Decimal?  @map("value_high") @db.Decimal(24, 4)
+  /// [{ id, text }]: red flags; GO turns each into a claim to verify.
+  redFlags         Json      @default("[]") @map("red_flags")
+  /// GO | NO_GO | NEEDS_MORE, once decided.
+  verdict          String?
+  rationale        String?
+  gaps             String?
+  decidedBy        String?   @map("decided_by") @db.Uuid
+  decidedAt        DateTime? @map("decided_at") @db.Timestamptz(3)
+  version          Int       @default(1)
+  updatedBy        String    @map("updated_by") @db.Uuid
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime  @default(now()) @map("updated_at") @db.Timestamptz(3)
+
+  deal Deal @relation(fields: [organizationId, dealId], references: [organizationId, id], onDelete: Restrict, map: "screening_reviews_deal_fkey")
+
+  @@unique([organizationId, dealId])
+  @@map("screening_reviews")
+}
+
+/// Said vs observed (T-071): a seller assertion and how evidence bears on it.
+/// Links are ids of evidence items and findings — references, never copies.
+model DealClaim {
+  id              String   @id @default(uuid(7)) @db.Uuid
+  organizationId  String   @map("organization_id") @db.Uuid
+  dealId          String   @map("deal_id") @db.Uuid
+  statement       String
+  source          String?
+  /// SCREENING_RED_FLAG | MANUAL
+  origin          String
+  /// UNVERIFIED | VERIFIED | CONTRADICTED
+  status          String   @default("UNVERIFIED")
+  rationale       String?
+  evidenceItemIds String[] @default([]) @map("evidence_item_ids") @db.Uuid
+  findingIds      String[] @default([]) @map("finding_ids") @db.Uuid
+  version         Int      @default(1)
+  createdBy       String   @map("created_by") @db.Uuid
+  updatedBy       String   @map("updated_by") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime @default(now()) @map("updated_at") @db.Timestamptz(3)
+
+  deal Deal @relation(fields: [organizationId, dealId], references: [organizationId, id], onDelete: Restrict, map: "deal_claims_deal_fkey")
+
+  @@unique([organizationId, dealId, id])
+  @@index([organizationId, dealId, createdAt])
+  @@map("deal_claims")
+}
+
+/// Post-Close registers (T-071): assets to preserve, actions and watch items,
+/// generated from diligence output when the deal closes. Idempotent by source.
+model PostCloseItem {
+  id             String    @id @default(uuid(7)) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  dealId         String    @map("deal_id") @db.Uuid
+  /// ASSET | ACTION | WATCH
+  kind           String
+  /// FINDING
+  sourceType     String    @map("source_type")
+  sourceId       String    @map("source_id") @db.Uuid
+  title          String
+  action         String
+  ownerUserId    String?   @map("owner_user_id") @db.Uuid
+  dueDate        DateTime? @map("due_date") @db.Date
+  /// MONTHLY | QUARTERLY | ANNUAL
+  cadence        String?
+  /// OPEN | DONE | LAPSED
+  status         String    @default("OPEN")
+  note           String?
+  version        Int       @default(1)
+  updatedBy      String    @map("updated_by") @db.Uuid
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime  @default(now()) @map("updated_at") @db.Timestamptz(3)
+
+  deal Deal @relation(fields: [organizationId, dealId], references: [organizationId, id], onDelete: Restrict, map: "post_close_items_deal_fkey")
+
+  @@unique([organizationId, dealId, kind, sourceType, sourceId], map: "post_close_items_source_key")
+  @@index([organizationId, dealId])
+  @@map("post_close_items")
 }

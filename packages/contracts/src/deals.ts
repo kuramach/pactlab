@@ -1,4 +1,4 @@
-import { OWNERSHIPS, PARTY_ROLES, TRANSACTION_TYPES } from '@pactlab/domain';
+import { DEAL_PHASES, OWNERSHIPS, PARTY_ROLES, TRANSACTION_TYPES } from '@pactlab/domain';
 import { z } from 'zod';
 import { isoCurrencySchema, uuidSchema } from './common';
 
@@ -11,6 +11,8 @@ export const dealSummarySchema = z.object({
   targetName: z.string(),
   transactionType: transactionTypeSchema,
   stage: z.string(),
+  /** Pre-Diligence, Diligence or Post-Close, derived from the stage (T-071). */
+  phase: z.enum(DEAL_PHASES),
   status: z.string(),
   baseCurrency: isoCurrencySchema,
   createdAt: z.iso.datetime(),

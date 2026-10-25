@@ -5,13 +5,16 @@ import { usePathname } from 'next/navigation';
 
 export const DEAL_SECTIONS = [
   { path: '', label: 'Overview' },
+  { path: '/screening', label: 'Screening' },
   { path: '/sources', label: 'Sources' },
   { path: '/evidence', label: 'Evidence' },
   { path: '/finances', label: 'Finances' },
   { path: '/findings', label: 'Findings' },
+  { path: '/claims', label: 'Said vs observed' },
   { path: '/engineering', label: 'Engineering' },
   { path: '/valuation', label: 'Valuation' },
   { path: '/documents', label: 'Documents' },
+  { path: '/post-close', label: 'Post-close' },
   { path: '/team', label: 'Team' },
 ] as const;
 
