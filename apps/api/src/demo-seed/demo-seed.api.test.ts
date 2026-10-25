@@ -186,6 +186,13 @@ describe('synthetic decision-loop seed', () => {
     expect(registers.map((row) => row['kind'])).toContain('ASSET');
   });
 
+  it('has a Foresight baseline and one user scenario on Project Troubled (T-073)', async () => {
+    const sets = await rows(`SELECT s.model_id, (SELECT count(*)::int FROM foresight_trends t WHERE t.trend_set_id = s.id) AS trends FROM foresight_trend_sets s JOIN deals d ON d.id = s.deal_id WHERE d.organization_id = $1 AND d.name = 'Project Troubled'`, [CHARLIE]);
+    expect(sets).toEqual([{ model_id: 'synthetic-fixture', trends: 7 }]);
+    const scenarios = await rows(`SELECT f.name FROM foresight_scenarios f JOIN deals d ON d.id = f.deal_id WHERE d.organization_id = $1`, [CHARLIE]);
+    expect(scenarios).toEqual([{ name: 'Rates stay high' }]);
+  });
+
   it('changes nothing when run again', async () => {
     const count = async () =>
       rows(

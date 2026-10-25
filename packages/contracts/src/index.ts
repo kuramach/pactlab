@@ -8,3 +8,4 @@ export * from './comparables';
 export * from './balance-sheet';
 export * from './phases';
 export * from './admin';
+export * from './foresight';

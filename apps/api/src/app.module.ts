@@ -1,6 +1,6 @@
 import { Global, Module, type DynamicModule } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
-import { NotConfiguredClaudeGateway } from '@pactlab/ai';
+import { NO_SPEECH_TO_TEXT, NO_TEXT_TO_SPEECH, NotConfiguredClaudeGateway, type SpeechToText, type TextToSpeech } from '@pactlab/ai';
 import type { PrismaClient } from '@pactlab/db';
 import type { Logger } from '@pactlab/observability';
 import { AuditModule } from './audit/audit.module';
@@ -10,6 +10,7 @@ import { AiModule } from './ai/ai.module';
 import { BalanceSheetModule } from './balance-sheet/balance-sheet.module';
 import { PhasesModule } from './phases/phases.module';
 import { AdminModule } from './admin/admin.module';
+import { ForesightModule } from './foresight/foresight.module';
 import { EngineeringModule } from './engineering/engineering.module';
 import { ComparablesModule } from './comparables/comparables.module';
 import { CompositeIdentityVerifier, type IdentityVerifier } from './auth/identity';
@@ -68,6 +69,8 @@ export interface AppDependencies {
   /** Shown to operators so they always know which environment the console is looking at. */
   environment?: string;
   appVersion?: string;
+  /** Foresight voice (Amazon Transcribe and Polly). Omitted: voice is unavailable; typing works. */
+  voice?: { speechToText: SpeechToText; textToSpeech: TextToSpeech };
   /** Pack and finding-rule registries. Omitted: the domain registries (tests inject a test-only rule). */
   packs?: PackRegistry;
 }
@@ -111,6 +114,12 @@ export class AppModule {
         PactsModule,
         BalanceSheetModule,
         PhasesModule,
+        ForesightModule.register({
+          gateway: deps.documents?.gateway ?? new NotConfiguredClaudeGateway(),
+          aiEnabled: deps.aiStatus?.enabled ?? false,
+          speechToText: deps.voice?.speechToText ?? NO_SPEECH_TO_TEXT,
+          textToSpeech: deps.voice?.textToSpeech ?? NO_TEXT_TO_SPEECH,
+        }),
         AdminModule.register({
           emailSender: deps.emailLogin?.emailSender ?? null,
           loginUrl: deps.signup?.loginUrl ?? 'http://localhost:3000/login',

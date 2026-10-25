@@ -13,6 +13,7 @@ export const DEAL_SECTIONS = [
   { path: '/claims', label: 'Said vs observed' },
   { path: '/engineering', label: 'Engineering' },
   { path: '/valuation', label: 'Valuation' },
+  { path: '/foresight', label: 'Foresight' },
   { path: '/documents', label: 'Documents' },
   { path: '/post-close', label: 'Post-close' },
   { path: '/team', label: 'Team' },
