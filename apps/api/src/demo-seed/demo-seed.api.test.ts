@@ -174,6 +174,25 @@ describe('synthetic decision-loop seed', () => {
     ]);
   });
 
+  it('has a pact in each phase: screening pending, diligence with claims, closed with registers (T-071)', async () => {
+    const stages = await rows(`SELECT d.name, d.stage FROM deals d WHERE d.organization_id = $1 ORDER BY d.name`, [CHARLIE]);
+    expect(stages).toEqual(expect.arrayContaining([{ name: 'Project Healthy', stage: 'CLOSED' }, { name: 'Project Troubled', stage: 'DILIGENCE' }]));
+    expect(stages.some((row) => row['stage'] === 'SCREENING')).toBe(true);
+    const screening = await rows(`SELECT s.verdict, jsonb_array_length(s.red_flags) AS flags FROM screening_reviews s WHERE s.organization_id = $1`, [CHARLIE]);
+    expect(screening).toEqual([{ verdict: null, flags: 2 }]);
+    const claims = await rows(`SELECT c.status FROM deal_claims c JOIN deals d ON d.id = c.deal_id WHERE d.organization_id = $1 AND d.name = 'Project Troubled' ORDER BY c.status`, [CHARLIE]);
+    expect(claims.map((row) => row['status'])).toEqual(['CONTRADICTED', 'UNVERIFIED']);
+    const registers = await rows(`SELECT p.kind FROM post_close_items p JOIN deals d ON d.id = p.deal_id WHERE d.organization_id = $1 AND d.name = 'Project Healthy'`, [CHARLIE]);
+    expect(registers.map((row) => row['kind'])).toContain('ASSET');
+  });
+
+  it('has a Foresight baseline and one user scenario on Project Troubled (T-073)', async () => {
+    const sets = await rows(`SELECT s.model_id, (SELECT count(*)::int FROM foresight_trends t WHERE t.trend_set_id = s.id) AS trends FROM foresight_trend_sets s JOIN deals d ON d.id = s.deal_id WHERE d.organization_id = $1 AND d.name = 'Project Troubled'`, [CHARLIE]);
+    expect(sets).toEqual([{ model_id: 'synthetic-fixture', trends: 7 }]);
+    const scenarios = await rows(`SELECT f.name FROM foresight_scenarios f JOIN deals d ON d.id = f.deal_id WHERE d.organization_id = $1`, [CHARLIE]);
+    expect(scenarios).toEqual([{ name: 'Rates stay high' }]);
+  });
+
   it('changes nothing when run again', async () => {
     const count = async () =>
       rows(

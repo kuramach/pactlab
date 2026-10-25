@@ -1,4 +1,5 @@
-import { COMPANY_TYPE_LABELS } from '@pactlab/domain';
+import { COMPANY_TYPE_LABELS, DEAL_PHASE_LABELS, DEAL_STAGES } from '@pactlab/domain';
+import { moveStage } from './stage-actions';
 import { Badge, buttonVariants, Card, CardContent, CardHeader, CardTitle, Glossed, IconTile, Section, Stat, type Accent } from '@pactlab/ui';
 import {
   AlertTriangle,
@@ -7,6 +8,7 @@ import {
   Circle,
   Compass,
   Database,
+  Factory,
   FileText,
   GitBranch,
   ListChecks,
@@ -26,7 +28,8 @@ import { BENCHMARK_OUTCOMES, MultipleContext } from '../_lib/multiple-context';
 import { ANCHOR_OUTCOMES, NegotiationAnchors } from '../_lib/negotiation-anchors';
 import { OutcomeBanner } from '../_lib/outcome';
 import { SextantExplanation } from '../_lib/sextant-explanation';
-import { dealViewer } from '../_lib/viewer';
+import { STAGE_LABELS } from '../_lib/labels';
+import { can, dealViewer } from '../_lib/viewer';
 import { partyLabel } from '../_lib/labels';
 
 // Per-user data: never prerender.
@@ -34,7 +37,7 @@ export const dynamic = 'force-dynamic';
 
 const number = new Intl.NumberFormat('en-US');
 
-const SOURCE_ICONS = { BILLING: Receipt, CODE: GitBranch, DELIVERY: ListChecks, DOCUMENTS: FileText } as const;
+const SOURCE_ICONS = { BILLING: Receipt, CODE: GitBranch, DELIVERY: ListChecks, DOCUMENTS: FileText, INDUSTRY: Factory } as const;
 const AREAS: { path: string; title: string; body: string; icon: typeof TrendingUp; accent: Accent }[] = [
   { path: 'finances', title: 'Finances', body: 'ARR, retention and reconciliation from billing evidence.', icon: TrendingUp, accent: 'teal' },
   { path: 'findings', title: 'Findings', body: 'Technology findings awaiting review.', icon: SearchCheck, accent: 'rose' },
@@ -52,7 +55,7 @@ export default async function DealOverviewPage({
 }) {
   const { dealId } = await params;
   const outcome = (await searchParams)['outcome'];
-  const [plan, sources, parties, asking, scenarios, viewer, accepted] = await Promise.all([
+  const [plan, sources, parties, asking, scenarios, viewer, accepted, deal] = await Promise.all([
     dealsApi.sourcePlan(dealId),
     dealsApi.sources(dealId),
     dealsApi.parties(dealId),
@@ -60,6 +63,7 @@ export default async function DealOverviewPage({
     apiGet<{ items: ScenarioView[] }>(`/v1/deals/${dealId}/valuation/scenarios`),
     dealViewer(dealId),
     apiGet<{ items: Finding[] }>(`/v1/deals/${dealId}/findings?status=ACCEPTED`),
+    dealsApi.get(dealId),
   ]);
   const current = asking.kind === 'ok' ? asking.data.current : null;
   // Headline scenario: the approved one if there is one, else the latest that has run.
@@ -80,7 +84,33 @@ export default async function DealOverviewPage({
 
   return (
     <div className="flex flex-col gap-8">
-      <OutcomeBanner outcome={typeof outcome === 'string' ? outcome : undefined} messages={{ ...BENCHMARK_OUTCOMES, ...ANCHOR_OUTCOMES }} />
+      <OutcomeBanner
+        outcome={typeof outcome === 'string' ? outcome : undefined}
+        messages={{
+          ...BENCHMARK_OUTCOMES,
+          ...ANCHOR_OUTCOMES,
+          'ok-stage': 'Pipeline stage updated.',
+          'stage-forbidden': 'Your role cannot move this pact along its pipeline.',
+          'stage-error': 'The stage could not be changed. Try again.',
+        }}
+      />
+      {deal.kind === 'ok' && can.draft(viewer.role) ? (
+        <form action={moveStage.bind(null, dealId)} className="flex flex-wrap items-end gap-3 text-sm" aria-label="Pipeline stage">
+          <label className="flex flex-col gap-1 font-medium">
+            Pipeline stage <span className="text-xs font-normal text-muted-foreground">Phase: {DEAL_PHASE_LABELS[deal.data.phase]} · Screening → Pre-Diligence, Diligence to Signed → Diligence, Closed → Post-Close</span>
+            <select name="stage" defaultValue={deal.data.stage} className="rounded-md border border-border bg-background px-2 py-1">
+              {DEAL_STAGES.map((stage) => (
+                <option key={stage} value={stage}>
+                  {STAGE_LABELS[stage] ?? stage}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button type="submit" className="rounded-md border border-border px-3 py-1 font-medium">
+            Move
+          </button>
+        </form>
+      ) : null}
       {asking.kind === 'ok' ? (
         <Card className="border-indigo/30 bg-secondary/60">
           <CardContent className="flex flex-wrap items-center justify-between gap-4 p-5">

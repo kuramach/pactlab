@@ -37,6 +37,7 @@ import {
   type TenantContext,
 } from '@pactlab/domain';
 import { DealAccess } from '../deals/deal-access';
+import { loadPackEvidence, TooMuchPackEvidenceError } from '../packs/pack-evidence';
 import { PRISMA } from '../tokens';
 import {
   defaultAsOfMonth,
@@ -51,7 +52,6 @@ const APPROVED_EVENT = 'metrics.reconciliation.approved';
 
 /** Metrics are buyer analysis: target contributors never see them. */
 /** Above this, pack metrics refuse rather than read a partial evidence set. */
-const MAX_PACK_METRIC_ROWS = 200_000;
 
 const canReadMetrics = (role: DealRole) =>
   isBuyerSideRole(role) && permissionsForDealRole(role).has('BUYER_ANALYSIS_READ');
@@ -153,22 +153,13 @@ export class MetricsService {
       if (!calculator || calculator.id === SAAS_METRICS_CALCULATOR.id) {
         return { calculator: SAAS_METRICS_CALCULATOR.id, version: SAAS_METRICS_CALCULATOR.version, currency: deal.baseCurrency, metrics: [] };
       }
-      const rows = await tx.evidenceItem.findMany({
-        where: { dealId, evidenceType: { in: [...calculator.evidenceTypes] } },
-        select: { id: true, connectionId: true, evidenceType: true, sourceRecordId: true, canonical: true },
-        orderBy: { id: 'asc' },
-        take: MAX_PACK_METRIC_ROWS + 1,
-      });
-      if (rows.length > MAX_PACK_METRIC_ROWS) throw new PayloadTooLargeException('Too much evidence for one metrics run');
-      // The newest version of each source record (earlier versions stay in lineage).
-      const latest = new Map<string, (typeof rows)[number]>();
-      for (const row of rows) latest.set(`${row.connectionId}|${row.evidenceType}|${row.sourceRecordId}`, row);
-      const evidence = [...latest.values()].map((row) => ({
-        id: row.id,
-        evidenceType: row.evidenceType,
-        sourceRecordId: row.sourceRecordId,
-        canonical: (row.canonical ?? {}) as Record<string, string | null>,
-      }));
+      let evidence;
+      try {
+        evidence = await loadPackEvidence(tx, dealId, calculator.evidenceTypes);
+      } catch (error) {
+        if (error instanceof TooMuchPackEvidenceError) throw new PayloadTooLargeException('Too much evidence for one metrics run');
+        throw error;
+      }
       await this.audit(tx, tenant, dealId, 'metrics.viewed', 'deal', dealId, requestId);
       return (calculator as unknown as MetricCalculator<PackMetricsInput, PackMetricsReport>).compute({ currency: deal.baseCurrency, evidence });
     });

@@ -1820,3 +1820,96 @@ Telemetry tells you something crashed; the Auto-Bug system turns it into a triag
 3. **Dedup test:** fire the same frontend exception repeatedly and assert a single bug record with an incrementing `occurrences` counter and updated `last_seen_at`, respecting the per-fingerprint rate limit on stored context bundles.
 4. **Privacy test:** assert a non-admin user cannot read any bug's context bundle, and that a bug filed from an HR/compensation route contains no HR, compensation, or individual-performance fields.
 5. **User-experience test:** assert the error dialog shows the plain-language message and `PLB-####` reference with an optional note field, and renders no stack trace or error class to a non-admin user.
+
+### 28.11 As built (T-072, 2026-10-25)
+
+T-072 built this section together with Kumar's brief of 2026-10-23. Where the two differed, the brief (the later decision) won:
+
+- **Statuses:** `NEW, TRIAGED, IN_PROGRESS, RESOLVED, WONT_FIX`. Severities: `LOW, MEDIUM, HIGH, BLOCKER`.
+- **Who files and who sees what:**
+  - Reports are filed by people (the floating "Report a bug" button, with a masked screenshot of the app view) and automatically (unhandled frontend errors, server 5xx, exhausted jobs).
+  - Automatic reports deduplicate by fingerprint on an open bug.
+  - Reporters see their own reports' status only, never the context or the internal notes.
+- **Screenshots:**
+  - the app's own view only (`html-to-image`); password fields and `data-private` elements are left out;
+  - at most 1 MB, stored with the report until the managed bucket arrives (T-007).
+- **Agent handoff:** "Create agent task" is an export (copy or download a T-style markdown file to drop into `tasks/ready/`). There are no repository credentials in the app.
+- **Not yet built:**
+  - "user stuck" heuristics;
+  - AI-pipeline and connector-sync triggers;
+  - per-fingerprint rate caps (dedup bounds storage meanwhile);
+  - merge and assign;
+  - commit-history enrichment of the fix prompt.
+- **Operator console** (`/admin`, platform operators only, set with `pnpm ops:operator`):
+  - approvals (shared with `pnpm org:*` through the same SQL functions);
+  - organizations: status and per-organization flags (`pilotMode`, `liveConnectors`, read at request time, no deploy);
+  - users;
+  - usage and connector health;
+  - platform audit;
+  - the bug inbox.
+  - Cross-organization access goes only through SECURITY DEFINER functions that check the operator. The runtime role never reads other tenants' tables.
+
+## 29. The three phases of a pact (T-071)
+
+A pact moves through three phases, derived from its pipeline stage. The phase is never stored separately; the stage enum and the stage patch are unchanged.
+
+| Stage | Phase | The work |
+|---|---|---|
+| SCREENING | **Pre-Diligence** | Is the deal worth diligence at all? |
+| DILIGENCE, NEGOTIATION, SIGNED | **Diligence** | Test what is said against what is observed. |
+| CLOSED | **Post-Close** | Preserve and enhance what was bought. |
+
+**Pre-Diligence: the screen.** A deliberately light panel:
+- teaser or CIM notes, headline revenue, and a rough value range;
+- the asking price set against that range, as a coarse sanity read and not the price bridge;
+- a red-flag checklist.
+
+Everything in it is screening-grade: it never creates findings and never touches valuation.
+
+The deal lead records a **screening verdict**, audited with its rationale:
+- **GO** moves the pact to DILIGENCE and turns every red flag into a claim to verify;
+- **NO_GO** archives the pact;
+- **NEEDS_MORE** keeps it in screening with the gaps named.
+
+**Diligence: said vs observed.** The core loop (evidence → finding → valuation → terms) is unchanged. The **claims register** sits alongside it:
+- seller assertions (from the CIM, management calls or the data room), each `UNVERIFIED`, `VERIFIED` or `CONTRADICTED`;
+- each links by id to the evidence and findings that bear on it;
+- a status change needs a rationale and is audited.
+
+**Post-Close: preserve and enhance.** Moving to CLOSED generates two registers from diligence output, by reference and idempotently:
+- **assets to preserve:** accepted cushions;
+- **actions and watch items:** priced remediation, findings still open at close, and escrow releases and indemnity claim windows from accepted priced risks.
+
+Items get an owner, a date or review cadence, and a status (`OPEN`, `DONE` or `LAPSED`). Every change is audited.
+
+**Continuity rule.** Nothing is re-typed between phases. Red flags become claims, claims link to findings, and findings become post-close items. Each conversion is a reference, not a copy.
+
+Screening, claims and post-close items are buyer-side analysis: target contributors never see them (RLS).
+
+## 30. Foresight: five-year trend lines and projected value (T-073)
+
+Foresight (internal codename Nostradamus, never shown to users) helps a buyer think about the next five years. It does not predict. Every figure is "projected value under these assumptions".
+
+**Trend lines.** A trend line is structured, not a paragraph:
+- a direction (`UP`, `FLAT` or `DOWN`), a size band (`LOW`, `MEDIUM` or `HIGH`), a confidence and a short narrative;
+- every set carries its as-of date, model and prompt version.
+
+Every deal gets the generic macro set: geopolitical conflict, inflation and rates, trade and tariffs, regulatory posture, and the equity/credit cycle. Each pack adds its own sector questions (`PACK_TRENDS`); a pack without them uses the generic set.
+
+The AI baseline is generated on demand (prompt `foresight.trends`, balanced tier). The model never supplies numbers.
+
+**Scenarios.** A user scenario layers overrides (direction, size, weight 0–2) and the user's own trends on the baseline, which is never edited.
+- AI and user trends are labelled differently everywhere.
+- An adjusted AI trend shows as the user's.
+
+**Projection** (`@pactlab/calculations`, `foresight-1`, decimal arithmetic):
+- **Starting point:** today's value is the latest valuation run's enterprise value, or the asking price until a valuation runs.
+- **Impacts:** a versioned impact table turns each trend into named impacts on growth, margin and the exit multiple (a discount-rate point moves the multiple 10 %).
+- **Output:** a path for years 0–5 with a low–high range that widens with lower confidence, rounded to three significant figures, plus a sensitivity ranking of what moves year 5 most.
+
+**Q&A, typed or spoken.** Answers come from the selected line's trends, assumptions and projection (prompt `foresight.qa`).
+- An answer must name the trends or assumptions it relies on, or it is refused.
+- Voice uses Amazon Transcribe (16 kHz PCM, in memory) and Amazon Polly (optional spoken reply). Audio is never stored; transcripts and answers are kept and audited.
+- Where voice isn't configured, typing works.
+
+All Foresight data is buyer-side (RLS).

@@ -455,6 +455,8 @@ model Organization {
   balanceSheetItemVersions BalanceSheetItemVersion[]
   contributorIdentities   ContributorIdentity[]
   peopleAccess            PeopleAccess[]
+  flags                   OrganizationFlags?
+  bugReports              BugReport[]
 
   @@map("organizations")
 }
@@ -466,6 +468,8 @@ model User {
   /// Lowercased sign-in address for email-code organizations; never sent to models.
   email        String?  @unique
   displayName  String   @map("display_name")
+  /// Platform operator (the Pactlab team): may use the admin console (T-072). Set with `pnpm ops:operator`.
+  platformOperator Boolean @default(false) @map("platform_operator")
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
   organizationMemberships OrganizationMembership[]
@@ -539,6 +543,11 @@ model Deal {
   balanceSheetItemVersions BalanceSheetItemVersion[]
   contributorIdentities   ContributorIdentity[]
   peopleAccess            PeopleAccess[]
+  screeningReview         ScreeningReview?
+  claims                  DealClaim[]
+  postCloseItems          PostCloseItem[]
+  foresightTrendSets      ForesightTrendSet[]
+  foresightQuestions      ForesightQuestion[]
 
   @@unique([organizationId, id])
   @@index([organizationId, createdAt])
@@ -1523,4 +1532,240 @@ model PeopleAccess {
 
   @@index([organizationId, dealId, decidedAt])
   @@map("people_access")
+}
+
+/// Pre-Diligence screening (T-071): one per deal, directional only — never
+/// creates findings or touches valuation. Buyer side (RLS).
+model ScreeningReview {
+  id               String    @id @default(uuid(7)) @db.Uuid
+  organizationId   String    @map("organization_id") @db.Uuid
+  dealId           String    @map("deal_id") @db.Uuid
+  intakeNotes      String?   @map("intake_notes")
+  headlineRevenue  Decimal?  @map("headline_revenue") @db.Decimal(24, 4)
+  headlineCurrency String?   @map("headline_currency") @db.Char(3)
+  valueLow         Decimal?  @map("value_low") @db.Decimal(24, 4)
+  valueHigh        Decimal?  @map("value_high") @db.Decimal(24, 4)
+  /// [{ id, text }]: red flags; GO turns each into a claim to verify.
+  redFlags         Json      @default("[]") @map("red_flags")
+  /// GO | NO_GO | NEEDS_MORE, once decided.
+  verdict          String?
+  rationale        String?
+  gaps             String?
+  decidedBy        String?   @map("decided_by") @db.Uuid
+  decidedAt        DateTime? @map("decided_at") @db.Timestamptz(3)
+  version          Int       @default(1)
+  updatedBy        String    @map("updated_by") @db.Uuid
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime  @default(now()) @map("updated_at") @db.Timestamptz(3)
+
+  deal Deal @relation(fields: [organizationId, dealId], references: [organizationId, id], onDelete: Restrict, map: "screening_reviews_deal_fkey")
+
+  @@unique([organizationId, dealId])
+  @@map("screening_reviews")
+}
+
+/// Said vs observed (T-071): a seller assertion and how evidence bears on it.
+/// Links are ids of evidence items and findings — references, never copies.
+model DealClaim {
+  id              String   @id @default(uuid(7)) @db.Uuid
+  organizationId  String   @map("organization_id") @db.Uuid
+  dealId          String   @map("deal_id") @db.Uuid
+  statement       String
+  source          String?
+  /// SCREENING_RED_FLAG | MANUAL
+  origin          String
+  /// UNVERIFIED | VERIFIED | CONTRADICTED
+  status          String   @default("UNVERIFIED")
+  rationale       String?
+  evidenceItemIds String[] @default([]) @map("evidence_item_ids") @db.Uuid
+  findingIds      String[] @default([]) @map("finding_ids") @db.Uuid
+  version         Int      @default(1)
+  createdBy       String   @map("created_by") @db.Uuid
+  updatedBy       String   @map("updated_by") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime @default(now()) @map("updated_at") @db.Timestamptz(3)
+
+  deal Deal @relation(fields: [organizationId, dealId], references: [organizationId, id], onDelete: Restrict, map: "deal_claims_deal_fkey")
+
+  @@unique([organizationId, dealId, id])
+  @@index([organizationId, dealId, createdAt])
+  @@map("deal_claims")
+}
+
+/// Post-Close registers (T-071): assets to preserve, actions and watch items,
+/// generated from diligence output when the deal closes. Idempotent by source.
+model PostCloseItem {
+  id             String    @id @default(uuid(7)) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  dealId         String    @map("deal_id") @db.Uuid
+  /// ASSET | ACTION | WATCH
+  kind           String
+  /// FINDING
+  sourceType     String    @map("source_type")
+  sourceId       String    @map("source_id") @db.Uuid
+  title          String
+  action         String
+  ownerUserId    String?   @map("owner_user_id") @db.Uuid
+  dueDate        DateTime? @map("due_date") @db.Date
+  /// MONTHLY | QUARTERLY | ANNUAL
+  cadence        String?
+  /// OPEN | DONE | LAPSED
+  status         String    @default("OPEN")
+  note           String?
+  version        Int       @default(1)
+  updatedBy      String    @map("updated_by") @db.Uuid
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime  @default(now()) @map("updated_at") @db.Timestamptz(3)
+
+  deal Deal @relation(fields: [organizationId, dealId], references: [organizationId, id], onDelete: Restrict, map: "post_close_items_deal_fkey")
+
+  @@unique([organizationId, dealId, kind, sourceType, sourceId], map: "post_close_items_source_key")
+  @@index([organizationId, dealId])
+  @@map("post_close_items")
+}
+
+/// Per-organization feature flags (T-072), changed by operators without a
+/// deploy. Written only through `app_ops_set_flags`.
+model OrganizationFlags {
+  organizationId String   @id @map("organization_id") @db.Uuid
+  pilotMode      Boolean  @default(false) @map("pilot_mode")
+  liveConnectors Boolean  @default(true) @map("live_connectors")
+  updatedBy      String?  @map("updated_by") @db.Uuid
+  updatedAt      DateTime @default(now()) @map("updated_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, map: "organization_flags_organization_fkey")
+
+  @@map("organization_flags")
+}
+
+/// Bug reports (T-072): user-filed or automatic, deduplicated by fingerprint,
+/// context scrubbed before writing. Reached only through `app_bug_*` functions.
+model BugReport {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  number         Int      @unique(map: "bug_reports_number_key")
+  organizationId String   @map("organization_id") @db.Uuid
+  dealId         String?  @map("deal_id") @db.Uuid
+  reporterUserId String?  @map("reporter_user_id") @db.Uuid
+  /// USER_REPORT | FRONTEND_EXCEPTION | BACKEND_EXCEPTION | JOB_EXHAUSTED
+  trigger        String
+  fingerprint    String
+  title          String
+  whatHappened   String?  @map("what_happened")
+  expected       String?
+  /// LOW | MEDIUM | HIGH | BLOCKER
+  severity       String
+  /// NEW | TRIAGED | IN_PROGRESS | RESOLVED | WONT_FIX
+  status         String   @default("NEW")
+  context        Json     @default("{}")
+  screenshot     Bytes?
+  screenshotType String?  @map("screenshot_type")
+  internalNotes  String?  @map("internal_notes")
+  occurrences    Int      @default(1)
+  firstSeenAt    DateTime @default(now()) @map("first_seen_at") @db.Timestamptz(3)
+  lastSeenAt     DateTime @default(now()) @map("last_seen_at") @db.Timestamptz(3)
+  updatedAt      DateTime @default(now()) @map("updated_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, map: "bug_reports_organization_fkey")
+
+  @@index([fingerprint, status], map: "bug_reports_fingerprint_idx")
+  @@index([reporterUserId, lastSeenAt], map: "bug_reports_reporter_idx")
+  @@map("bug_reports")
+}
+
+/// Foresight (T-073): an AI baseline of five-year trend lines for a deal —
+/// dated, with the model and prompt version that produced it.
+model ForesightTrendSet {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  dealId         String   @map("deal_id") @db.Uuid
+  asOf           DateTime @map("as_of") @db.Date
+  provenance     String   @default("AI")
+  modelId        String   @map("model_id")
+  promptId       String   @map("prompt_id")
+  promptVersion  String   @map("prompt_version")
+  aiRunId        String?  @map("ai_run_id") @db.Uuid
+  baseGrowth     Decimal  @default(0.10) @map("base_growth") @db.Decimal(9, 6)
+  baseMargin     Decimal  @default(0.20) @map("base_margin") @db.Decimal(9, 6)
+  createdBy      String   @map("created_by") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  deal      Deal                 @relation(fields: [organizationId, dealId], references: [organizationId, id], onDelete: Restrict, map: "foresight_trend_sets_deal_fkey")
+  trends    ForesightTrend[]
+  scenarios ForesightScenario[]
+
+  @@unique([organizationId, dealId, id])
+  @@index([organizationId, dealId, createdAt])
+  @@map("foresight_trend_sets")
+}
+
+model ForesightTrend {
+  id             String @id @default(uuid(7)) @db.Uuid
+  organizationId String @map("organization_id") @db.Uuid
+  dealId         String @map("deal_id") @db.Uuid
+  trendSetId     String @map("trend_set_id") @db.Uuid
+  ordinal        Int
+  key            String
+  label          String
+  /// MACRO | SECTOR
+  category       String
+  /// UP | FLAT | DOWN
+  direction      String
+  /// LOW | MEDIUM | HIGH
+  magnitude      String
+  confidence     String
+  narrative      String
+  effects        Json
+
+  trendSet ForesightTrendSet @relation(fields: [organizationId, dealId, trendSetId], references: [organizationId, dealId, id], onDelete: Restrict, map: "foresight_trends_set_fkey")
+
+  @@unique([organizationId, dealId, trendSetId, key], map: "foresight_trends_set_key")
+  @@map("foresight_trends")
+}
+
+/// A user's own view (T-073): overrides and custom trends layered on a
+/// baseline, which is never edited.
+model ForesightScenario {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  dealId         String   @map("deal_id") @db.Uuid
+  trendSetId     String   @map("trend_set_id") @db.Uuid
+  name           String
+  baseGrowth     Decimal  @map("base_growth") @db.Decimal(9, 6)
+  baseMargin     Decimal  @map("base_margin") @db.Decimal(9, 6)
+  /// { [trendKey]: { direction?, magnitude?, weight? } }
+  overrides      Json     @default("{}")
+  /// User trend lines: { key, label, direction, magnitude, confidence, narrative, effects }[]
+  customTrends   Json     @default("[]") @map("custom_trends")
+  version        Int      @default(1)
+  createdBy      String   @map("created_by") @db.Uuid
+  updatedBy      String   @map("updated_by") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime @default(now()) @map("updated_at") @db.Timestamptz(3)
+
+  trendSet ForesightTrendSet @relation(fields: [organizationId, dealId, trendSetId], references: [organizationId, dealId, id], onDelete: Restrict, map: "foresight_scenarios_set_fkey")
+
+  @@unique([organizationId, dealId, id])
+  @@map("foresight_scenarios")
+}
+
+/// A question about the trends and projection, typed or spoken, with the
+/// grounded answer and the trends it relied on. Transcripts only; no audio.
+model ForesightQuestion {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  dealId         String   @map("deal_id") @db.Uuid
+  scenarioId     String?  @map("scenario_id") @db.Uuid
+  /// TEXT | VOICE
+  via            String
+  question       String
+  answer         String
+  reliesOn       String[] @default([]) @map("relies_on")
+  aiRunId        String?  @map("ai_run_id") @db.Uuid
+  askedBy        String   @map("asked_by") @db.Uuid
+  askedAt        DateTime @default(now()) @map("asked_at") @db.Timestamptz(3)
+
+  deal Deal @relation(fields: [organizationId, dealId], references: [organizationId, id], onDelete: Restrict, map: "foresight_questions_deal_fkey")
+
+  @@index([organizationId, dealId, askedAt])
+  @@map("foresight_questions")
 }

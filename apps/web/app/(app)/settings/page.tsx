@@ -109,6 +109,15 @@ export default async function SettingsPage() {
 
       <Card>
         <CardHeader>
+          <CardTitle>Bug reports</CardTitle>
+          <CardDescription>
+            Reports you sent with the bug button, and their status: <Link href="/settings/bug-reports" className="text-indigo-ink underline">My bug reports</Link>.
+          </CardDescription>
+        </CardHeader>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle>Session</CardTitle>
           <CardDescription>
             Signing out ends this session. Design reference: <Link href="/design-system" className="text-indigo-ink underline">design system</Link>.

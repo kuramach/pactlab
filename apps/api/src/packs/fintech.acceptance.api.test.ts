@@ -36,7 +36,10 @@ describe.each(ACCEPTANCE_CURRENCIES)('fintech pack acceptance (%s)', { timeout: 
   it('the three planted findings surface as cited drafts; a re-run adds nothing', async () => {
     const run = await deal.call('POST', `/v1/deals/${deal.dealId}/findings/pack-rules/run`, 'lead');
     expect(run.status, JSON.stringify(run.body)).toBe(200);
-    expect(run.body).toMatchObject({ pack: 'FINTECH', created: 3, existing: 0, unresolvedQuotes: 0 });
+    // Checks already ran after each extract import (T-060); this run adds the ones that also need the documents.
+    expect(run.body).toMatchObject({ pack: 'FINTECH', unresolvedQuotes: 0 });
+    expect(Number(run.body['created']) + Number(run.body['existing'])).toBe(3);
+    expect(Number(run.body['existing'])).toBeGreaterThan(0);
     expect((await deal.call('POST', `/v1/deals/${deal.dealId}/findings/pack-rules/run`, 'lead')).body).toMatchObject({ created: 0, existing: 3 });
 
     const byTitle = Object.fromEntries((await findings()).map((finding) => [finding.title, finding]));

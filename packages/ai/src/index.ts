@@ -8,3 +8,4 @@ export * from './models';
 export * from './prompts';
 export * from './transport';
 export * from './grounding';
+export * from './voice';

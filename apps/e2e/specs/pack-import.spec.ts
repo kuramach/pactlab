@@ -20,16 +20,15 @@ test('a fintech loan tape maps to loan fields, not billing ones', async ({ page 
 
   await expect(page).toHaveURL(new RegExp(`/deals/${dealId}/sources\\?imported=FINTECH_LOAN_TAPE`));
   await expect(page.getByRole('status')).toContainText('Loan tape imported: 120 new records');
-  await expect(page.getByRole('status')).toContainText('Industry checks and metrics now read them');
+  await expect(page.getByRole('status')).toContainText('Industry checks ran on them');
 });
 
-test('fintech checks draft findings from the imported extracts, once', async ({ page }) => {
+test('importing an extract runs the fintech checks: a cited draft, drafted once', async ({ page }) => {
   const dealId = await startPact(page, 'Fintech');
   await importPackExtract(page, dealId, 'AML alerts', demoFile('fintech', 'USD', 'aml-alerts.csv'), 80);
 
+  // The import already ran the pack's checks (T-060): the draft is waiting on Findings.
   await page.goto(`/deals/${dealId}/findings`);
-  await page.getByRole('button', { name: 'Run fintech checks' }).click();
-  await expect(page.getByRole('status')).toContainText('Checks run: 1 new draft finding');
   const finding = page.getByRole('link', { name: 'Alerts closed without review evidence' });
   await expect(finding).toBeVisible();
 

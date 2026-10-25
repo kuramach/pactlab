@@ -25,9 +25,15 @@ function ruleCode(exception: unknown, status: number): string | null {
 }
 
 /** RFC 9457 problem details with stable codes; internals never leak to clients. */
+/** Called for every 5xx so it can be filed as a bug (T-072); must not throw. */
+export type ServerErrorReporter = (input: { request: FastifyRequest; exception: unknown }) => void;
+
 @Catch()
 export class ProblemDetailsFilter implements ExceptionFilter {
-  constructor(private readonly logger: Logger) {}
+  constructor(
+    private readonly logger: Logger,
+    private readonly reportServerError: ServerErrorReporter | null = null,
+  ) {}
 
   catch(exception: unknown, host: ArgumentsHost): void {
     const http = host.switchToHttp();
@@ -36,6 +42,7 @@ export class ProblemDetailsFilter implements ExceptionFilter {
     const status = exception instanceof HttpException ? exception.getStatus() : HttpStatus.INTERNAL_SERVER_ERROR;
     if (status >= 500) {
       this.logger.error({ requestId: request.id, errorName: exception instanceof Error ? exception.name : 'unknown' }, 'request failed');
+      this.reportServerError?.({ request, exception });
     }
     const body: ProblemDetails = {
       type: 'about:blank',

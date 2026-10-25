@@ -3,6 +3,7 @@ import { assertRuntimeRoleIsolation, createPrismaClient } from '@pactlab/db';
 import { readFileSync } from 'node:fs';
 import { LocalEncryptedSecretStore } from '@pactlab/connectors';
 import { createLogger } from '@pactlab/observability';
+import { PollyTextToSpeech, TranscribeSpeechToText } from '@pactlab/ai';
 import { createAiGateway } from './ai/ai-provider';
 import { createApp } from './app';
 import { createAuth0Verifier, DisabledIdentityVerifier } from './auth/identity';
@@ -65,6 +66,11 @@ const app = await createApp(
     // Large imports run on the worker when Redis is configured (the worker shares the store).
     ...(localDocuments ? { uploads: { ...localDocuments, importQueue: config.REDIS_URL ? new BullMqImportQueue(config.REDIS_URL) : null } } : {}),
     aiStatus: ai.status,
+    environment: config.APP_ENV,
+    // Foresight voice uses Amazon Transcribe and Polly with the same AWS sign-in as Bedrock.
+    ...(config.AI_PROVIDER === 'bedrock' && config.AWS_REGION
+      ? { voice: { speechToText: new TranscribeSpeechToText(config.AWS_REGION), textToSpeech: new PollyTextToSpeech(config.AWS_REGION) } }
+      : {}),
     // Sign-in codes are written to files locally; no email provider is wired
     // for deployed environments yet, so codes are not delivered there.
     signup: {
