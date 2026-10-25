@@ -1,6 +1,8 @@
+import { createHash } from 'node:crypto';
 import {
   BadRequestException,
   ConflictException,
+  GoneException,
   Inject,
   Injectable,
   NotFoundException,
@@ -274,6 +276,28 @@ export class DocumentsService {
     if (role === 'TARGET_CONTRIBUTOR' && document.visibility !== 'SHARED')
       throw new NotFoundException();
     return document;
+  }
+
+  /**
+   * The stored original file (a PDF shown page by page beside the finding
+   * under review). Same access as page reads; the bytes must still match the
+   * upload's hash; every read is audited. Purged documents have no original.
+   */
+  async original(tenant: TenantContext, dealId: string, documentId: string, requestId: string) {
+    const role = await this.access.require(tenant, dealId, canReadDocuments, { action: 'document.original_read', requestId });
+    const document = await this.readable(tenant, dealId, documentId, role);
+    if (document.status === 'PURGED') throw new GoneException();
+    let bytes: Uint8Array;
+    try {
+      bytes = await this.objects.get(document.objectKey);
+    } catch {
+      throw new ServiceUnavailableException();
+    }
+    if (createHash('sha256').update(bytes).digest('hex') !== document.sha256) throw new ConflictException();
+    await withTenant(this.prisma, tenant, (tx) =>
+      appendAuditEvent(tx, this.audit(tenant, dealId, 'document.original_read', { type: 'document', id: documentId }, requestId, 'ALLOWED')),
+    );
+    return { bytes, contentType: document.contentType, fileName: document.fileName };
   }
 
   async list(tenant: TenantContext, dealId: string, requestId: string) {

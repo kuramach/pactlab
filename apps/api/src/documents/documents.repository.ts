@@ -92,5 +92,7 @@ export interface DocumentsRepository {
  */
 export interface DocumentObjectStore {
   put(key: string, bytes: Uint8Array, meta: { contentType: string; sha256: string }): Promise<void>;
+  /** The stored original, for the side-by-side review viewer. */
+  get(key: string): Promise<Uint8Array>;
   delete(key: string): Promise<void>;
 }
