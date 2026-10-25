@@ -15,6 +15,8 @@ export interface FindingFilters {
   domain?: FindingDomain;
   /** Only findings brought in from document review. */
   source?: 'document-review';
+  /** Only drags that still need a price before they can be accepted. */
+  pricing?: 'needed';
 }
 
 type SearchParams = Record<string, string | string[] | undefined>;
@@ -25,6 +27,13 @@ function single(value: string | string[] | undefined): string | undefined {
 
 /** Keep only values the API accepts; anything else is dropped rather than forwarded. */
 /** A register finding brought in from the Documents review queue (pilot bug 11). */
+/**
+ * A drag (−1) with no price yet: acceptance refuses it until a person prices
+ * it (T-058 gap note), so the register says so instead of leaving it silent.
+ */
+export const needsPricing = (finding: { direction: number | null; pricedRisk: unknown; status: string }) =>
+  finding.direction === -1 && finding.pricedRisk === null && finding.status !== 'REJECTED';
+
 export const fromDocumentReview = (finding: { fingerprint: string }) => finding.fingerprint.startsWith('document:');
 
 export function parseFindingFilters(params: SearchParams): FindingFilters {
@@ -41,6 +50,7 @@ export function parseFindingFilters(params: SearchParams): FindingFilters {
       ? { domain: domain as FindingDomain }
       : {}),
     ...(source === 'document-review' ? { source: 'document-review' as const } : {}),
+    ...(single(params['pricing']) === 'needed' ? { pricing: 'needed' as const } : {}),
   };
 }
 

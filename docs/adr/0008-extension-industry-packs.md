@@ -41,3 +41,23 @@ pack queue.
   test keeps the registry complete.
 - An industry appears on the website only once it has a page (story and
   illustration). The five new pages arrive with T-051.
+
+## Addendum (T-060, 2026-10-25): framework revision after fintech and multifamily
+
+- **Rule types stay mirrored.** Rule code lives in `@pactlab/calculations`
+  (decimal arithmetic), and its types mirror the domain registry's
+  (`packs/rule-types.ts`). A new shared package would add a dependency edge
+  for two small interfaces, so the mirror stays, kept honest by typechecking
+  the API's composition (`apps/api/src/findings/pack-rules.ts`).
+- **One evidence loader.** Rules and calculators read pack evidence through
+  `apps/api/src/packs/pack-evidence.ts`: the newest version per record, in a
+  bounded read.
+- **Industry data is a source.** Pack extract uploads (`pack_upload`) count
+  as the "Industry data" source in the source plan of a built pack.
+- **Checks run on import.** An inline pack import runs the pack's rules
+  (drafts only, idempotent). Background imports finish on the worker, and
+  Sources then offers the run.
+- **Needs pricing.** A −1 proposal without a defensible amount is labelled
+  and filterable on Findings. Acceptance still requires a price.
+- **Pack authors** follow `docs/agent/packs.md`; the `packs` lane loads it.
+

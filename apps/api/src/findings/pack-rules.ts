@@ -23,7 +23,8 @@ export const PACK_REGISTRY = Symbol('PACK_REGISTRY');
 export const DEFAULT_PACK_REGISTRY: PackRegistry = { packs: PACKS, rules: PACK_RULES };
 
 /** Above this, the run refuses rather than read a partial evidence set. */
-export const MAX_RULE_EVIDENCE = 200_000;
+/** The bounded pack-evidence read (shared with metrics; see packs/pack-evidence.ts). */
+export { MAX_PACK_EVIDENCE as MAX_RULE_EVIDENCE } from '../packs/pack-evidence';
 
 /**
  * Document classes a rule may read. Never HR, compensation, performance or

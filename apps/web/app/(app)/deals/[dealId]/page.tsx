@@ -7,6 +7,7 @@ import {
   Circle,
   Compass,
   Database,
+  Factory,
   FileText,
   GitBranch,
   ListChecks,
@@ -34,7 +35,7 @@ export const dynamic = 'force-dynamic';
 
 const number = new Intl.NumberFormat('en-US');
 
-const SOURCE_ICONS = { BILLING: Receipt, CODE: GitBranch, DELIVERY: ListChecks, DOCUMENTS: FileText } as const;
+const SOURCE_ICONS = { BILLING: Receipt, CODE: GitBranch, DELIVERY: ListChecks, DOCUMENTS: FileText, INDUSTRY: Factory } as const;
 const AREAS: { path: string; title: string; body: string; icon: typeof TrendingUp; accent: Accent }[] = [
   { path: 'finances', title: 'Finances', body: 'ARR, retention and reconciliation from billing evidence.', icon: TrendingUp, accent: 'teal' },
   { path: 'findings', title: 'Findings', body: 'Technology findings awaiting review.', icon: SearchCheck, accent: 'rose' },

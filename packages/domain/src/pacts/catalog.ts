@@ -2,7 +2,7 @@ import { PACKS } from '../packs/registry';
 import { COMPANY_TYPE_LABELS, type CompanyType } from './types';
 
 /** The kinds of system a seller runs on that Pactlab can read. */
-export const SOURCE_KINDS = ['BILLING', 'CODE', 'DELIVERY', 'DOCUMENTS'] as const;
+export const SOURCE_KINDS = ['BILLING', 'CODE', 'DELIVERY', 'DOCUMENTS', 'INDUSTRY'] as const;
 export type SourceKind = (typeof SOURCE_KINDS)[number];
 
 /**
@@ -79,6 +79,19 @@ const DEFINITIONS: Readonly<Record<SourceKind, SourceDefinition>> = {
     // Document upload works (Documents tab); a live data-room connection is next.
     availability: { API: 'NEXT', UPLOAD: 'AVAILABLE' },
   },
+  INDUSTRY: {
+    kind: 'INDUSTRY',
+    label: 'Industry data',
+    provider: 'pack_upload',
+    providerLabel: 'Industry extracts',
+    // Pack extract uploads (ADR 0010) make one `pack_upload` connection per target.
+    matchesProviders: ['pack_upload'],
+    why: 'The sector extracts the industry pack checks and measures — loan tapes, rent rolls, operating statements and more.',
+    produces: 'Pack evidence such as loans, units and monthly operating figures',
+    upload: { format: 'CSV', label: 'Upload industry extracts' },
+    // File imports first; direct connections to industry systems come later behind the same targets.
+    availability: { API: 'NEXT', UPLOAD: 'AVAILABLE' },
+  },
 };
 
 export interface SourcePlan {
@@ -90,6 +103,7 @@ export interface SourcePlan {
 }
 
 const ALL: readonly SourceKind[] = ['BILLING', 'CODE', 'DELIVERY', 'DOCUMENTS'];
+const MATCHABLE: readonly SourceKind[] = [...ALL, 'INDUSTRY'];
 const SOURCES_BY_TYPE: Readonly<Record<CompanyType, readonly SourceKind[]>> = {
   SOFTWARE_SAAS: ALL,
   FINTECH: ALL,
@@ -106,6 +120,9 @@ const SOURCES_BY_TYPE: Readonly<Record<CompanyType, readonly SourceKind[]>> = {
   OTHER: ['BILLING', 'DOCUMENTS'],
 };
 
+const hasIndustryExtracts = (companyType: CompanyType) =>
+  companyType !== 'OTHER' && PACKS[companyType].importTargets.some((target) => target !== 'BILLING_INVOICE_LINE');
+
 /** Which sources to switch on for a seller of this type. Pure data; never branches on mode. */
 export function sourcesFor(companyType: CompanyType): SourcePlan {
   const packAvailable = companyType !== 'OTHER' && PACKS[companyType].built;
@@ -118,11 +135,12 @@ export function sourcesFor(companyType: CompanyType): SourcePlan {
       : companyType === 'OTHER'
         ? 'No industry pack applies. Billing and documents are read as they are.'
         : `The ${label} industry pack is planned. Until it ships, these core sources are read as they are, without sector-specific checks.`,
-    sources: SOURCES_BY_TYPE[companyType].map((kind) => DEFINITIONS[kind]),
+    // A built pack that imports sector extracts adds them as their own source to collect.
+    sources: [...SOURCES_BY_TYPE[companyType], ...(packAvailable && hasIndustryExtracts(companyType) ? (['INDUSTRY'] as const) : [])].map((kind) => DEFINITIONS[kind]),
   };
 }
 
 /** The source a connection belongs to, if any. */
 export function sourceKindForProvider(provider: string): SourceKind | null {
-  return ALL.find((kind) => DEFINITIONS[kind].matchesProviders.includes(provider)) ?? null;
+  return MATCHABLE.find((kind) => DEFINITIONS[kind].matchesProviders.includes(provider)) ?? null;
 }

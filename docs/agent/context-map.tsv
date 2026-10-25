@@ -20,5 +20,5 @@ hardening	13,14,17	docs/runbooks/README.md docs/agent/aws.md
 web	12
 web-ux	8,12
 brand	12,22	docs/adr/0003-website-hosting.md docs/runbooks/website.md
-packs	10,19	docs/adr/0004-billing-csv-import.md docs/adr/0008-extension-industry-packs.md
+packs	10,19	docs/agent/packs.md docs/adr/0008-extension-industry-packs.md docs/adr/0010-csv-imports-for-pack-evidence.md
 agent-loop	20	docs/PARALLEL_OPS.md

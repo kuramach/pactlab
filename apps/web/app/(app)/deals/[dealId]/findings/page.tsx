@@ -28,6 +28,7 @@ import { bringInDocumentFindings, runIndustryChecks } from './actions';
 import {
   DOMAIN_LABELS,
   fromDocumentReview,
+  needsPricing,
   findingsQuery,
   formatPricedRisk,
   groupByDomain,
@@ -88,13 +89,16 @@ export default async function FindingsPage({
   const query = findingsQuery(filters);
   // Records opened from this list come back to it with the same filters.
   const here = `/deals/${dealId ?? ''}/findings${query ? `?${query}` : ''}`;
-  const [result, fromDocuments, plan] = dealId
+  const [fetched, fromDocuments, plan] = dealId
     ? await Promise.all([
         apiGet<{ items: Finding[] }>(`/v1/deals/${encodeURIComponent(dealId)}/findings${query ? `?${query}` : ''}`),
         apiGet<{ pending: number }>(`/v1/deals/${encodeURIComponent(dealId)}/findings/from-documents`),
         dealsApi.sourcePlan(dealId),
       ])
     : [null, null, null];
+  // "Needs pricing" is a view over the list (direction and price are on every finding).
+  const result = fetched?.kind === 'ok' && filters.pricing === 'needed' ? { ...fetched, data: { items: fetched.data.items.filter(needsPricing) } } : fetched;
+  const unpriced = fetched?.kind === 'ok' ? fetched.data.items.filter(needsPricing).length : 0;
   const pendingFromDocuments = fromDocuments?.kind === 'ok' ? fromDocuments.data.pending : 0;
   const broughtIn = typeof search['broughtIn'] === 'string' ? Number(search['broughtIn']) || 0 : null;
   // Industry checks: the seller's pack rules (T-057/T-058). Shown only when the pack has any.
@@ -203,6 +207,17 @@ export default async function FindingsPage({
                 <option value="document-review">Document review</option>
               </select>
             </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-muted-foreground">Pricing</span>
+              <select
+                name="pricing"
+                defaultValue={filters.pricing ?? ''}
+                className="rounded-md border border-border bg-background px-2 py-1"
+              >
+                <option value="">Any</option>
+                <option value="needed">Needs pricing{unpriced > 0 ? ` (${unpriced})` : ''}</option>
+              </select>
+            </label>
             <button type="submit" className="rounded-md border border-border px-3 py-1 font-medium">
               Apply
             </button>
@@ -308,6 +323,11 @@ export default async function FindingsPage({
                               {finding.status.replace('_', ' ').toLowerCase()}
                             </Badge>{' '}
                             <Badge variant={directionVariant(finding.direction)}>{directionText(finding.direction)}</Badge>
+                            {needsPricing(finding) ? (
+                              <Badge variant="danger" title="A drag needs a price before it can be accepted">
+                                Needs pricing
+                              </Badge>
+                            ) : null}
                           </td>
                           <td className="px-4 py-2">
                             {finding.evidence.length === 0 ? (
