@@ -91,7 +91,12 @@ describe('readTable: Excel workbooks', () => {
   });
 
   it('refuses a workbook that would expand past the limit (zip bomb)', async () => {
-    const huge = syntheticXlsx([{ name: 'S', rows: [['a'], ['1']] }], { 'xl/padding.xml': ' '.repeat(MAX_WORKBOOK_EXPANDED_BYTES + 1) });
-    expect(await code(readTable(huge, { fileName: 'bomb.xlsx' }))).toBe('TOO_LARGE');
+    // A small zip whose central directory declares a huge expanded size — what a zip bomb looks like to the guard.
+    const bomb = syntheticXlsx([{ name: 'S', rows: [['a'], ['1']] }], { 'xl/padding.xml': ' ' });
+    const view = new DataView(bomb.buffer, bomb.byteOffset, bomb.byteLength);
+    for (let offset = 0; offset + 46 <= bomb.byteLength; offset += 1) {
+      if (view.getUint32(offset, true) === 0x02014b50) view.setUint32(offset + 24, MAX_WORKBOOK_EXPANDED_BYTES + 1, true);
+    }
+    expect(await code(readTable(bomb, { fileName: 'bomb.xlsx' }))).toBe('TOO_LARGE');
   });
 });
