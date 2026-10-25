@@ -52,8 +52,9 @@ describe('industries', () => {
       'hotels',
       'small-clinics',
       'hospitals',
+      'venture-raise',
     ]);
-    expect(packs.map((industry) => industry.order)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
+    expect(packs.map((industry) => industry.order)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
   });
 
   it('gives every industry a full value story', () => {
@@ -66,9 +67,9 @@ describe('industries', () => {
 });
 
 describe('pack registry', () => {
-  it('defines all eleven packs with evidence, finding types and valuation notes', () => {
+  it('defines all twelve packs with evidence, finding types and valuation notes', () => {
     const packs = content.INDUSTRIES.filter((industry) => industry.pack !== null);
-    expect(packs).toHaveLength(11);
+    expect(packs).toHaveLength(12);
     for (const industry of packs) {
       expect(industry.pack, industry.slug).not.toBeNull();
       expect(industry.pack!.evidence.length, industry.slug).toBeGreaterThan(0);
@@ -147,7 +148,7 @@ describe('industry stories', () => {
   it('every pack has a page, and every story belongs to a listed industry', () => {
     // The index, navigation and footer list PUBLISHED_INDUSTRIES: a pack without a story would be missing from them.
     expect(PUBLISHED_INDUSTRIES.map((industry) => industry.slug)).toEqual(content.INDUSTRIES.map((industry) => industry.slug));
-    expect(PUBLISHED_INDUSTRIES).toHaveLength(12);
+    expect(PUBLISHED_INDUSTRIES).toHaveLength(13);
     for (const slug of Object.keys(INDUSTRY_STORIES)) {
       expect(content.INDUSTRIES.map((industry) => industry.slug), slug).toContain(slug);
       expect(routeExists(`/industries/${slug}`), slug).toBe(true);

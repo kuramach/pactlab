@@ -44,6 +44,7 @@ const METHOD_TEXT: Readonly<Record<ScenarioMethod, { label: string; help: string
   DCF: { label: 'Discounted cash flow', help: 'Year-by-year growth and free-cash-flow margin, discounted.' },
   NOI_CAP_RATE: { label: 'NOI ÷ cap rate', help: 'Enterprise value = net operating income ÷ capitalization rate.' },
   PAYER_MIX_EBITDA: { label: 'Payer-mix-adjusted EBITDA', help: 'Enterprise value = EBITDA, adjusted for each payer’s expected rate change, × multiple.' },
+  ROUND_PRE_MONEY: { label: 'Round at your ask', help: 'Your pre-money ask; accepted findings show where the round realistically lands.' },
 };
 
 /** Scenario inputs. Rates are entered as percents; the server converts them to fractions without floating point. */
@@ -116,7 +117,11 @@ export function ScenarioForm({
             ))}
           </div>
 
-          {method === 'PAYER_MIX_EBITDA' ? (
+          {method === 'ROUND_PRE_MONEY' ? (
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Pre-money valuation (your ask)" name="preMoney" defaultValue={assumptions?.method === 'ROUND_PRE_MONEY' ? assumptions.preMoney : ''} hint="The bridge below takes off what accepted findings will cost you in the round." />
+            </div>
+          ) : method === 'PAYER_MIX_EBITDA' ? (
             <div className="flex flex-col gap-4">
               <div className="grid gap-4 sm:grid-cols-3">
                 <Field label="Reported EBITDA" name="ebitda" defaultValue={payerMix?.ebitda ?? ''} hint="Annual, from the cost report or the management accounts." />

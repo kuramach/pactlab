@@ -139,6 +139,12 @@ const METHOD_RULES: { readonly [K in MethodAssumptions['method']]: MethodRules<E
     },
     sensitivityApplies: (variable) => variable === 'ebitda' || variable === 'multiple',
   },
+  ROUND_PRE_MONEY: {
+    validate: (assumptions) => {
+      decimal(assumptions.preMoney, 'assumptions.preMoney', { above: '0' });
+    },
+    sensitivityApplies: (variable) => variable === 'preMoney',
+  },
   NOI_CAP_RATE: {
     validate: (assumptions) => {
       decimal(assumptions.noi, 'assumptions.noi', { min: '0' });

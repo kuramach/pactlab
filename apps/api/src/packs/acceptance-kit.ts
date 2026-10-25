@@ -33,7 +33,7 @@ export interface AcceptanceDeal {
   readonly dealId: string;
   readonly folder: string;
   readonly readme: string;
-  call(method: 'GET' | 'POST' | 'PATCH', url: string, who: string, payload?: unknown): Promise<{ status: number; body: Body }>;
+  call(method: 'GET' | 'POST' | 'PATCH' | 'PUT', url: string, who: string, payload?: unknown): Promise<{ status: number; body: Body }>;
   close(): Promise<void>;
 }
 

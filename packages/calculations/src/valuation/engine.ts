@@ -193,6 +193,11 @@ const METHOD_ENGINES: { readonly [K in MethodAssumptions['method']]: MethodEngin
     override: (assumptions, variable, value) =>
       variable === 'ebitda' ? { ...assumptions, ebitda: value } : { ...assumptions, multiple: value },
   },
+  ROUND_PRE_MONEY: {
+    enterpriseValue: (assumptions) => new D(assumptions.preMoney),
+    result: (assumptions, currency) => ({ method: 'ROUND_PRE_MONEY', preMoney: money(new D(assumptions.preMoney), currency) }),
+    override: (assumptions, _variable, value) => ({ ...assumptions, preMoney: value }),
+  },
   NOI_CAP_RATE: {
     enterpriseValue: (assumptions) => new D(assumptions.noi).div(assumptions.capRate),
     result: (assumptions, currency) => ({ method: 'NOI_CAP_RATE', noi: money(new D(assumptions.noi), currency), capRate: assumptions.capRate }),

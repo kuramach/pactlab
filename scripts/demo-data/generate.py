@@ -161,6 +161,7 @@ PACK_IMPORTS = {
     'hotels': {'operating-history': 'Operating history', 'str-benchmark': 'STR benchmark'},
     'small-clinics': {'patient-volume': 'Patient volume', 'equipment-schedule': 'Equipment schedule', 'coding-summary': 'Coding summary'},
     'hospitals': {'census': 'Census', 'payer-mix': 'Payer mix'},
+    'venture-raise': {'cap-table': 'Cap table', 'monthly-financials': 'Monthly financials'},
 }
 
 PACK_TITLES = {
@@ -168,6 +169,7 @@ PACK_TITLES = {
     'telecom-media': 'Telecom and media', 'professional-services': 'IT and professional services', 'pharma-biotech': 'Pharma and biotech',
     'ecommerce-dtc': 'E-commerce and DTC', 'multifamily': 'Multifamily', 'commercial-property': 'Commercial property',
     'hotels': 'Hotels and hospitality', 'small-clinics': 'Small clinics', 'hospitals': 'Hospitals',
+    'venture-raise': 'Venture Raise',
 }
 
 def ramp(rng, base, growth, months=MONTHS, start=None, end=None, noise=D('0')):
@@ -688,11 +690,100 @@ Highest-complexity codes are expected for about 15% of visits. Higher shares req
     ]
     ds.notes = ['Providers are pseudonymous (P01, P02, …); Pactlab never sends people data to a model.']
 
+def venture(ds):
+    """Founder-side (T-083): a seed-stage SaaS startup preparing to raise; the founder is the user."""
+    ds.kind, ds.kind_label = 'subscription', 'customer subscription'
+    ds.summary = f'{ds.company} is a seed-stage SaaS startup: scheduling and invoicing for field-service teams, raising a seed round from angels, an accelerator and venture funds.'
+    teams = [('Brightline Plumbing', 13500), ('Copperfield Electric', 11800), ('Northgate HVAC', 10400), ('Tidewater Roofing', 9200), ('Juniper Landscapes', 8100),
+             ('Ashby Pest Control', 7300), ('Marlow Cleaning Co', 6600), ('Fernhill Glazing', 6000), ('Oriel Locksmiths', 5400), ('Kestrel Pools', 4900),
+             ('Wrenfield Joinery', 4500), ('Halden Solar', 4200), ('Pembury Paving', 4100), ('Quarry Lane Movers', 4000)]
+    for i, (n, base) in enumerate(teams):
+        ds.customer(f'{ds.prefix}-cus-{i + 1:03d}', f'{n} (synthetic)', ramp(ds.rng, ds.amt(base), '0.012', noise=D('0.02')))
+    c = ds.cur
+    billed = ds.billed_arr()
+    deck_arr = (billed * D('1.05') / 10000).quantize(D('1'), ROUND_HALF_UP) * 10000
+    safes = [('SAFE-1', 'I-1', 250000, 8000000, '', 'yes', '2024-11-15'), ('SAFE-2', 'I-2', 300000, 10000000, '', 'no', '2025-03-10'), ('SAFE-3', 'I-3', 400000, 6000000, '20', 'no', '2025-09-01')]
+    rows = [
+        ['CS-1', 'F-1', 'founder', 'common', 4500000, '', '', '', 'no', 'no', 'yes', '2023-02-01'],
+        ['CS-2', 'F-2', 'founder', 'common', 3500000, '', '', '', 'no', 'no', 'yes', '2023-02-01'],
+        ['CS-3', 'A-1', 'advisor', 'common', 250000, '', '', '', 'no', 'no', 'yes', '2024-01-15'],
+        ['CS-4', 'E-01', 'employee', 'common', 750000, '', '', '', 'no', 'no', 'yes', '2024-04-01'],
+        ['OP-1', 'E-02', 'employee', 'option', 600000, '', '', '', 'no', 'no', 'yes', '2025-02-01'],
+        ['POOL', 'POOL', 'pool', 'pool_unallocated', 900000, '', '', '', 'no', 'no', 'no', '2024-01-15'],
+    ] + [[sid, ref, 'investor', 'safe', '', f'{ds.amt(p):.2f}', f'{ds.amt(cap):.2f}', disc, mfn, 'yes', 'no', on] for sid, ref, p, cap, disc, mfn, on in safes]
+    ds.ext('cap-table', ['security_id', 'holder_ref', 'holder_type', 'instrument', 'shares', 'principal', 'valuation_cap', 'discount_pct', 'mfn', 'pro_rata', 'vesting', 'issued_on'], rows,
+           'Cap table, one row per security (pseudonymous holders)')
+    safe_total = sum(ds.amt(p) for _, _, p, *_ in safes)
+    fin, cash = [], ds.amt(1500000)
+    burns = [ds.amt(b) for b in (92000, 95000, 98000, 101000, 104000, 107000, 110000, 113000, 116000, 119000, 122000, 125000)]
+    balances = []
+    for burn in reversed(burns):
+        balances.append(cash); cash += burn
+    for mo, burn, bal in zip(LAST12, burns, reversed(balances)):
+        fin.append([mo, f'{bal:.2f}', f'{burn:.2f}'])
+    ds.ext('monthly-financials', ['month', 'cash_balance', 'net_burn'], fin, 'Cash balance and net burn by month')
+    runway = ds.amt(1500000) / (sum(burns[-3:]) / 3)
+    ds.doc('01-investor-deck', f"""
+{ds.company} — seed round investor deck, September 2026 (synthetic)
+
+Loopwise schedules jobs and sends invoices for field-service teams in one place.
+---page---
+ARR at 30 September 2026: {c} {deck_arr:,.0f}
+Runway: 18 months at current burn
+SAFEs outstanding: {c} {safe_total:,.0f}
+Customers: 14 paying teams; no customer is more than 15% of revenue.
+""", 'Seed round investor deck with headline metrics')
+    ds.doc('02-certificate-of-incorporation', f"""
+{ds.company} — certificate of incorporation (synthetic)
+---page---
+Article IV. Authorized: 15,000,000 shares of Common Stock.
+Issued and outstanding: 9,000,000 shares of Common Stock as of 30 September 2026.
+""", 'Certificate of incorporation with issued shares')
+    ds.doc('03-contractor-agreement-northbeam', f"""
+Independent contractor agreement — {ds.company} and Northbeam Studio (synthetic)
+---page---
+3. Intellectual property. Contractor hereby assigns to the Company all right, title and interest in all inventions and work product created under this agreement.
+""", 'Contractor agreement with IP assignment')
+    ds.doc('04-contractor-agreement-quillfield', f"""
+Independent contractor agreement — {ds.company} and Quillfield Design (synthetic)
+---page---
+2. Services. Contractor will design the mobile app screens and deliver the design files.
+4. Payment. The Company pays monthly against invoices.
+""", 'Contractor agreement for app design')
+    ds.doc('05-83b-confirmations', """
+Section 83(b) election confirmations (synthetic)
+---page---
+Holder F-1: election filed 14 February 2023, receipt on file.
+Holder F-2: election filed 14 February 2023, receipt on file.
+""", 'Founders 83(b) election confirmations')
+    ds.doc('06-term-sheet-harborline', f"""
+Seed term sheet — Harborline Ventures and {ds.company} (synthetic, non-binding)
+---page---
+Investment: {c} {ds.amt(2000000):,.0f} at a pre-money valuation of {c} {ds.amt(10000000):,.0f}.
+Liquidation preference: 1x non-participating.
+Board: two founder directors and one investor director.
+""", 'Seed term sheet received from a venture fund')
+    ds.doc('07-safe-register', '\n'.join([f'{ds.company} — SAFE register (synthetic)', '---page---'] + [f'{sid}: {c} {ds.amt(p):,.0f}, valuation cap {c} {ds.amt(cap):,.0f}{", discount " + disc + "%" if disc else ""}{", most-favoured-nation" if mfn == "yes" else ""}, signed {on}.' for sid, _, p, cap, disc, mfn, on in safes]),
+           'Register of SAFEs signed before this round')
+    ds.findings = [
+        ('Deck ARR contradicted by billing', f'the deck states {c} {deck_arr:,.0f}; `invoice-lines.csv` bills {c} {billed:,.0f} ARR for September 2026 (`documents/01-investor-deck.pdf` page 2).'),
+        ('SAFE stack converts into more than expected', 'SAFE-1 has a most-favoured-nation clause, so it takes SAFE-3\'s lower cap (`cap-table.csv`, `documents/07-safe-register.pdf`).'),
+        ('IP assignment gap', 'the Quillfield Design agreement has no IP assignment (`documents/04-contractor-agreement-quillfield.pdf`).'),
+        ('Runway shorter than the deck says', f'the deck states 18 months; `monthly-financials.csv` gives {runway:.1f} months at the last three months\' burn.'),
+        ('Cap table reconciles to the corporate record', 'confirmed value (+1, founder-confidential): 9,000,000 issued shares in `cap-table.csv` match `documents/02-certificate-of-incorporation.pdf`.'),
+        ('Board composition after the round', 'informational: two founder directors and one investor director (`documents/06-term-sheet-harborline.pdf` page 2).'),
+    ]
+    ds.notes = [
+        'Founder-side pack: the founder is the Pactlab user and investors are the counterparty. Drags are what an investor will find; cushions stay confidential until the founder shares them.',
+        'Holders in the cap table are pseudonymous references (F-1, E-02, I-3); no names.',
+    ]
+
 PACKS = [
     ('software-saas', 'Brightwave Software', software), ('fintech', 'Tallyport Payments', fintech), ('healthcare', 'Riverside Care Partners', healthcare),
     ('telecom-media', 'Northlake Fibre', telecom), ('professional-services', 'Sablestone Consulting', services), ('pharma-biotech', 'Calvera Pharmaceuticals', pharma),
     ('ecommerce-dtc', 'Ridgeline Outfitters', ecommerce), ('hotels', 'Harbourview Hotel Holdings', hotels), ('multifamily', 'Larkfield Residential', multifamily),
     ('commercial-property', 'Quayside Estates', commercial), ('hospitals', 'St. Brennan Health', hospitals), ('small-clinics', 'Clearbrook Clinics', clinics),
+    ('venture-raise', 'Loopwise', venture),
 ]
 
 if __name__ == '__main__':

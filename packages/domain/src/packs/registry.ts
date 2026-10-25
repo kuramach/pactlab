@@ -12,14 +12,14 @@ import { COMPANY_TYPES, COMPANY_TYPE_LABELS, type CompanyType } from '../pacts/t
 export type PackId = Exclude<CompanyType, 'OTHER'>;
 export const PACK_IDS = COMPANY_TYPES.filter((type): type is PackId => type !== 'OTHER');
 
-export type PackCluster = 'technology' | 'healthcare' | 'real-estate' | 'services' | 'life-sciences' | 'consumer';
+export type PackCluster = 'technology' | 'healthcare' | 'real-estate' | 'services' | 'life-sciences' | 'consumer' | 'capital';
 
 /** Calculator ids in `@pactlab/calculations` (`metricCalculator`). */
 export const METRIC_CALCULATOR_IDS = ['saas-metrics', 'multifamily-metrics'] as const;
 export type MetricCalculatorId = (typeof METRIC_CALCULATOR_IDS)[number];
 
 /** Valuation method ids in `@pactlab/calculations` (`VALUATION_METHODS`). */
-export const PACK_VALUATION_METHODS = ['ARR_MULTIPLE', 'DCF', 'NOI_CAP_RATE', 'PAYER_MIX_EBITDA'] as const;
+export const PACK_VALUATION_METHODS = ['ARR_MULTIPLE', 'DCF', 'NOI_CAP_RATE', 'PAYER_MIX_EBITDA', 'ROUND_PRE_MONEY'] as const;
 export type PackValuationMethod = (typeof PACK_VALUATION_METHODS)[number];
 
 export interface PackDefinition {
@@ -130,6 +130,23 @@ export const PACKS: Readonly<Record<PackId, PackDefinition>> = {
     // Extends healthcare (T-061): its compliance rules run too; payer concentration reads the payer mix instead of billing.
     findingRules: ['hospitals-payer-concentration', 'hospitals-accreditation-transfer', 'hospitals-physician-dependence', 'hospitals-regulatory-capex', 'healthcare-director-fee', 'healthcare-privacy-assessment'],
     valuationMethods: ['PAYER_MIX_EBITDA', 'DCF'],
+  },
+  // Founder-side (T-083): the founder's own startup is the seller; investors are the counterparty.
+  VENTURE_RAISE: {
+    ...pack('VENTURE_RAISE', 'venture-raise', 'capital', true),
+    importTargets: ['BILLING_INVOICE_LINE', 'VENTURE_CAP_TABLE', 'VENTURE_FINANCIALS'],
+    findingRules: [
+      'venture-deck-metric',
+      'venture-ip-assignment',
+      'venture-cap-table-record',
+      'venture-safe-stack',
+      'venture-runway-short',
+      'venture-missing-83b',
+      'venture-undisclosed-concentration',
+      'venture-term-variance',
+    ],
+    // The round is the price: the founder's ask, adjusted by what the evidence forces.
+    valuationMethods: ['ROUND_PRE_MONEY', 'ARR_MULTIPLE'],
   },
 };
 

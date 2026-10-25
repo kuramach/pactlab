@@ -63,6 +63,18 @@ export interface RuleProposal {
   readonly evidenceIds: readonly string[];
   /** Document page quotes it cites; with `evidenceIds`, at least one citation in all. */
   readonly quotes?: readonly RuleQuote[];
+  /**
+   * A statement the finding settles for the claims register (T-083): e.g. a
+   * deck metric VERIFIED or CONTRADICTED by billing. Recorded once, linked to
+   * the finding and its evidence.
+   */
+  readonly claim?: RuleClaim | null;
+}
+
+export interface RuleClaim {
+  readonly statement: string;
+  readonly status: 'VERIFIED' | 'CONTRADICTED';
+  readonly rationale: string;
 }
 
 export interface FindingRule {
@@ -97,6 +109,8 @@ export type QuoteResolver = (quote: RuleQuote) => DocumentCitation | null;
 
 export interface RuleRunResult {
   readonly proposals: ProposedFinding[];
+  /** Claims the recorded proposals settle, by finding fingerprint. */
+  readonly claims: readonly { readonly fingerprint: string; readonly claim: RuleClaim; readonly evidenceIds: readonly string[] }[];
   /** Proposals dropped because a cited quote did not resolve — reported, never passed silently. */
   readonly unresolved: number;
 }
@@ -127,6 +141,7 @@ export function ruleProposals(rule: FindingRule, context: RuleContext, resolve: 
   const tool = `pack-rule:${rule.id}`;
   let unresolved = 0;
   const proposals: ProposedFinding[] = [];
+  const claims: { fingerprint: string; claim: RuleClaim; evidenceIds: readonly string[] }[] = [];
   for (const proposal of rule.detect({ evidence, pages })) {
     if (!(PACK_FINDING_DOMAINS as readonly string[]).includes(proposal.domain)) throw new FindingRuleError(`${rule.id}: not a pack domain`);
     const quotes = proposal.quotes ?? [];
@@ -140,6 +155,8 @@ export function ruleProposals(rule: FindingRule, context: RuleContext, resolve: 
       unresolved += 1;
       continue;
     }
+    const fingerprint = `pack-rule:${rule.id}:${rule.version}:${proposal.key}`;
+    if (proposal.claim) claims.push({ fingerprint, claim: proposal.claim, evidenceIds: [...new Set(proposal.evidenceIds)] });
     proposals.push({
       domain: proposal.domain,
       title: proposal.title,
@@ -147,7 +164,7 @@ export function ruleProposals(rule: FindingRule, context: RuleContext, resolve: 
       severity: proposal.severity,
       confidence: proposal.confidence,
       origin: 'HEURISTIC',
-      fingerprint: `pack-rule:${rule.id}:${rule.version}:${proposal.key}`,
+      fingerprint,
       evidence: [
         ...[...new Set(proposal.evidenceIds)].map((evidenceItemId) => link(tool, rule.version, { evidenceItemId })),
         ...citations.flatMap((citation) => (citation ? [link(tool, rule.version, { documentCitation: citation })] : [])),
@@ -158,5 +175,5 @@ export function ruleProposals(rule: FindingRule, context: RuleContext, resolve: 
       directionRationale: proposal.directionRationale ?? null,
     });
   }
-  return { proposals, unresolved };
+  return { proposals, unresolved, claims };
 }

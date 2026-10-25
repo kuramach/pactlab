@@ -49,7 +49,7 @@ describe('pack finding rules', () => {
     const verified = ruleProposals(quoting, context, () => citation);
     expect(verified.proposals[0]?.evidence).toEqual([expect.objectContaining({ evidenceItemId: null, documentCitation: citation, commitSha: null })]);
     expect(createDraft(verified.proposals[0]!, actor, ids).status).toBe('DRAFT');
-    expect(ruleProposals(quoting, context, () => null)).toEqual({ proposals: [], unresolved: 1 });
+    expect(ruleProposals(quoting, context, () => null)).toEqual({ proposals: [], unresolved: 1, claims: [] });
   });
 
   it('refuses proposals that break the rules of the core', () => {

@@ -16,7 +16,8 @@ export type Seller =
   | 'Commercial property'
   | 'Hotels & hospitality'
   | 'Small clinics'
-  | 'Hospitals';
+  | 'Hospitals'
+  | 'Venture Raise';
 
 /**
  * Start a fresh Pact through the real five-step wizard, so every spec owns

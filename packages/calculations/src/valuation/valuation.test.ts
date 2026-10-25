@@ -512,3 +512,22 @@ describe('payer-mix-adjusted EBITDA (T-069)', () => {
     expect(() => run({ ...base, sensitivity: { rows: { variable: 'capRate', values: ['0.05'] }, columns: { variable: 'multiple', values: ['8'] } } })).toThrow(ValuationInputError);
   });
 });
+
+describe('round pre-money (T-083)', () => {
+  it('values the round at the founder’s ask, and accepted findings adjust it on the bridge', () => {
+    const result = runValuation({
+      currency: 'USD',
+      transactionType: 'PRIVATE_ACQUIRER',
+      assumptions: { method: 'ROUND_PRE_MONEY', preMoney: '12000000' },
+      bridge: { cash: '0', debt: '0', debtLikeItems: '0', workingCapitalAdjustment: '0' },
+      adjustments: [],
+      balanceSheetItems: [],
+      sensitivity: null,
+      lbo: null,
+      accretionDilution: null,
+      stockConsiderationShare: '0',
+    } as unknown as Parameters<typeof runValuation>[0]);
+    expect(result.method).toEqual({ method: 'ROUND_PRE_MONEY', preMoney: { amount: '12000000.00', currency: 'USD' } });
+    expect(result.enterpriseValue.amount).toBe('12000000.00');
+  });
+});

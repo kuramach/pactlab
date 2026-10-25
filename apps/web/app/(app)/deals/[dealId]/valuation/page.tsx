@@ -374,6 +374,8 @@ function ScenarioCard({
             <>NOI ÷ cap rate · </>
           ) : result?.method.method === 'PAYER_MIX_EBITDA' ? (
             <>Payer-mix-adjusted EBITDA · </>
+          ) : result?.method.method === 'ROUND_PRE_MONEY' ? (
+            <>Round at your ask · </>
           ) : result ? (
             <>
               <Term term="ARR" /> multiple ·{' '}

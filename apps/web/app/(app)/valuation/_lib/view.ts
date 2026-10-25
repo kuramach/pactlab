@@ -43,7 +43,8 @@ export interface ValuationResultView {
         adjustedEbitda: MoneyValue;
         multiple: string;
         payers: { payer: string; share: string; rateChange: string; ebitdaEffect: MoneyValue }[];
-      };
+      }
+    | { method: 'ROUND_PRE_MONEY'; preMoney: MoneyValue };
   enterpriseValue: MoneyValue;
   bridge: { lines: BridgeLine[]; equityPurchasePrice: MoneyValue; cashAtClose: MoneyValue };
   sensitivity: {
@@ -134,7 +135,8 @@ export interface RunInputsView {
         terminal: { kind: 'GORDON'; growth: string } | { kind: 'EXIT_MULTIPLE'; revenueMultiple: string };
       }
     | { method: 'NOI_CAP_RATE'; noi: string; capRate: string }
-    | { method: 'PAYER_MIX_EBITDA'; ebitda: string; netRevenue: string; multiple: string; payers: PayerRow[] };
+    | { method: 'PAYER_MIX_EBITDA'; ebitda: string; netRevenue: string; multiple: string; payers: PayerRow[] }
+    | { method: 'ROUND_PRE_MONEY'; preMoney: string };
   adjustments: {
     findingId: string;
     type: string;
@@ -235,6 +237,7 @@ export const SENSITIVITY_LABELS: Readonly<Record<string, string>> = {
   noi: 'Net operating income',
   capRate: 'Cap rate',
   ebitda: 'Reported EBITDA',
+  preMoney: 'Pre-money valuation',
 };
 
 /** Rates are fractions; multiples and amounts are shown as given. */

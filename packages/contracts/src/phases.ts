@@ -73,7 +73,7 @@ export interface ClaimView {
   id: string;
   statement: string;
   source: string | null;
-  origin: 'SCREENING_RED_FLAG' | 'MANUAL';
+  origin: 'SCREENING_RED_FLAG' | 'MANUAL' | 'PACK_RULE';
   status: (typeof CLAIM_STATUSES)[number];
   rationale: string | null;
   evidenceItemIds: string[];
