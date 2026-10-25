@@ -1,3 +1,4 @@
+import { IMPORT_FILE_ACCEPT } from '@pactlab/contracts';
 import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, FileDrop } from '@pactlab/ui';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
@@ -11,11 +12,14 @@ import { uploadBillingExport } from './actions';
 export const dynamic = 'force-dynamic';
 
 const ERRORS: Record<string, string> = {
-  'no-file': 'Choose a CSV file to upload.',
+  'no-file': 'Choose a CSV, TSV or Excel file to upload.',
   'no-system': 'Choose the system the export came from.',
-  'too-large': 'The file is larger than 10 MB. Split it by period and upload each part.',
-  'not-text': 'The file is not UTF-8 text. Export it as CSV (UTF-8) and try again.',
-  unreadable: 'The file could not be read as CSV, or it was blocked by the virus scan.',
+  'too-large': 'The file is larger than 50 MB. Split it by period and upload each part.',
+  'too-many-rows': 'The file has more than 200,000 rows. Split it by period and upload each part.',
+  'not-text': 'The file is not text or a spreadsheet Pactlab can read. Export it as CSV, TSV or Excel (.xlsx) and try again.',
+  'legacy-excel': 'Older Excel files (.xls) are not accepted. Open it in Excel and save it as .xlsx (or CSV), then upload that.',
+  macros: 'Workbooks with macros (.xlsm) are not accepted. Save it as a plain .xlsx workbook, then upload that.',
+  unreadable: 'The file could not be read as a table (check the header row and column counts), or it was blocked by the virus scan.',
   scanner: 'Uploads are paused because the virus scanner is unavailable. Try again shortly.',
   forbidden: 'Your role cannot upload data to this deal.',
   'signed-out': 'Your session ended. Log in again.',
@@ -47,7 +51,7 @@ export default async function BillingUploadPage({
           </Link>
           <h2 className="text-lg font-semibold tracking-tight">Upload {pack.label.toLowerCase()}</h2>
           <p className="text-sm text-muted-foreground">
-            A CSV on the Pactlab standard template for this extract. Next you&apos;ll confirm the column mapping before anything is imported.
+            A CSV, TSV or Excel file on the Pactlab standard template for this extract. Next you&apos;ll confirm the column mapping before anything is imported.
             {pack.people === 'NONE' ? ' It must not contain people data.' : ' People appear only as aggregates or pseudonymous references — files with names, contact, identity, health or pay columns are refused.'}
           </p>
         </header>
@@ -61,8 +65,8 @@ export default async function BillingUploadPage({
               ) : null}
               <input type="hidden" name="target" value={pack.target} />
               <div className="flex flex-col gap-2 text-sm font-medium">
-                <span>Choose the CSV file</span>
-                <FileDrop name="file" accept=".csv,text/csv" required formats={['CSV']} hint="UTF-8, up to 10 MB" />
+                <span>Choose the file</span>
+                <FileDrop name="file" accept={IMPORT_FILE_ACCEPT} required formats={['CSV', 'TSV', 'Excel']} hint="Up to 50 MB · comma, semicolon or tab separated · first sheet with data" />
               </div>
               <p className="text-xs text-muted-foreground">
                 Columns: {pack.fields.map((field) => field.name).join(', ')}.{' '}
@@ -128,8 +132,8 @@ export default async function BillingUploadPage({
                 ))}
               </fieldset>
               <div className="flex flex-col gap-2 text-sm font-medium">
-                <span>2. Choose the CSV file</span>
-                <FileDrop name="file" accept=".csv,text/csv" required formats={['CSV']} hint="UTF-8, up to 10 MB" />
+                <span>2. Choose the file</span>
+                <FileDrop name="file" accept={IMPORT_FILE_ACCEPT} required formats={['CSV', 'TSV', 'Excel']} hint="Up to 50 MB · comma, semicolon or tab separated · first sheet with data" />
               </div>
               <p className="text-xs text-muted-foreground">
                 The file is virus-scanned and stored with this deal. Only the mapped invoice-line fields become evidence.{' '}

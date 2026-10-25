@@ -1,8 +1,10 @@
 import { jobEnvelopeSchema, NOOP_JOB_TYPE, type JobEnvelope } from '@pactlab/contracts';
-import { jobRuns, resolveJobContext, withTenant, type PrismaClient } from '@pactlab/db';
+import { jobRuns, resolveJobContext, withTenant, type PrismaClient, type TenantObjectStore } from '@pactlab/db';
 
 export interface JobDependencies {
   prisma: PrismaClient;
+  /** Uploaded originals (background imports). Fails closed where none is configured. */
+  objectStore?: TenantObjectStore;
 }
 
 export interface JobOutcome {

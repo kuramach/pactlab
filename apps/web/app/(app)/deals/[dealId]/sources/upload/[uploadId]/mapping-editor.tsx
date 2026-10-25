@@ -1,11 +1,12 @@
 'use client';
 
-import type { ImportMappingBody, ImportPreviewView } from '@pactlab/contracts';
+import type { ImportMappingBody, ImportPreviewView, ImportProgressView, UploadDetailView } from '@pactlab/contracts';
 import { AMOUNT_UNITS, DATE_FORMATS, NUMBER_FORMATS, type ImportMapping } from '@pactlab/domain';
 import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle } from '@pactlab/ui';
-import { useState, useTransition } from 'react';
-import { choiceOf, cleanMapping, definitionFor, sourceFromChoice, unmappedRequired } from '../_lib/mapping-form';
-import { cancelUpload, importWithMapping, previewMapping } from '../actions';
+import { useRouter } from 'next/navigation';
+import { useEffect, useState, useTransition } from 'react';
+import { choiceOf, cleanMapping, definitionFor, importedUrl, sourceFromChoice, unmappedRequired } from '../_lib/mapping-form';
+import { cancelUpload, chooseSheet, importProgressOf, importWithMapping, previewMapping } from '../actions';
 
 const inputClass =
   'w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring';
@@ -18,6 +19,25 @@ const UNIT_LABELS: Record<(typeof AMOUNT_UNITS)[number], string> = {
   MAJOR: 'Whole units (12.50)',
   MINOR: 'Smallest unit, e.g. cents (1250)',
 };
+const DELIMITER_LABELS: Record<string, string> = { ',': 'comma-separated', ';': 'semicolon-separated', '\t': 'tab-separated' };
+const PHASE_LABELS: Record<ImportProgressView['phase'], string> = {
+  QUEUED: 'Waiting for the import worker…',
+  READING: 'Reading the file…',
+  VALIDATING: 'Checking every row…',
+  WRITING: 'Writing evidence…',
+  DONE: 'Finishing…',
+};
+const POLL_MS = 2_000;
+
+/** How the file was read, in words: “Excel workbook, sheet Loans” or “semicolon-separated text, Windows-1252”. */
+export function describeRead(read: ReadInfo): string {
+  if (read.format === 'XLSX') return `Excel workbook, sheet “${read.sheet ?? ''}”`;
+  const separated = DELIMITER_LABELS[read.delimiter ?? ','] ?? 'comma-separated';
+  return `${separated} text${read.encoding === 'WINDOWS-1252' ? ', Windows-1252 (Western European) characters' : ''}`;
+}
+
+type ReadInfo = Pick<UploadDetailView, 'format' | 'encoding' | 'delimiter' | 'sheet' | 'sheets'>;
+
 const ISSUE_TEXT: Record<string, string> = {
   MISSING_RECORD_ID: 'Rows without a record id',
   MISSING_FIELD: 'Rows missing a required value',
@@ -39,17 +59,24 @@ export function MappingEditor({
   header,
   sample,
   suggested,
+  read,
 }: {
   dealId: string;
   uploadId: string;
   header: string[];
   sample: string[][];
   suggested: ImportMappingBody;
+  /** How the API read the file; absent for older callers (treated as CSV). */
+  read?: ReadInfo;
 }) {
+  const router = useRouter();
   const [mapping, setMapping] = useState<ImportMapping>(suggested as ImportMapping);
   const [preview, setPreview] = useState<ImportPreviewView | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  // A background import (large files): the run to follow, and its last progress.
+  const [runId, setRunId] = useState<string | null>(null);
+  const [progress, setProgress] = useState<ImportProgressView | null>(null);
   // The upload's own target decides the fields: never assume billing.
   const definition = definitionFor(mapping);
   const billing = definition.target === 'BILLING_INVOICE_LINE';
@@ -74,8 +101,42 @@ export function MappingEditor({
   const runImport = () =>
     startTransition(async () => {
       const result = await importWithMapping(dealId, uploadId, cleanMapping(mapping));
-      setMessage(result.message);
+      if (result.kind === 'background') setRunId(result.runId);
+      else setMessage(result.message);
     });
+  const pickSheet = (sheet: string) =>
+    startTransition(async () => {
+      const result = await chooseSheet(dealId, uploadId, sheet);
+      if (result.message) setMessage(result.message);
+      else router.refresh();
+    });
+
+  // Follow a background import until it finishes; leaving the page does not stop it.
+  useEffect(() => {
+    if (!runId) return;
+    let stopped = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const poll = async () => {
+      const next = await importProgressOf(dealId, runId);
+      if (stopped) return;
+      if (next) setProgress(next);
+      if (next?.status === 'SUCCEEDED') {
+        router.push(importedUrl(dealId, mapping.target, next));
+        return;
+      }
+      if (next?.status === 'FAILED') {
+        setMessage('The import failed before all evidence was written. Nothing partial was kept — import again to retry.');
+        setRunId(null);
+        return;
+      }
+      timer = setTimeout(() => void poll(), POLL_MS);
+    };
+    void poll();
+    return () => {
+      stopped = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [runId, dealId, mapping.target, router]);
   const cancel = () =>
     startTransition(async () => {
       const result = await cancelUpload(dealId, uploadId);
@@ -95,6 +156,27 @@ export function MappingEditor({
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-5">
+          {read ? (
+            <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+              <span>Read as {describeRead(read)}.</span>
+              {read.format === 'XLSX' && read.sheets.length > 1 ? (
+                <label className="flex items-center gap-2 font-medium text-foreground">
+                  Sheet
+                  <select
+                    aria-label="Sheet"
+                    className={`${inputClass} w-auto`}
+                    value={read.sheet ?? ''}
+                    disabled={pending || runId !== null}
+                    onChange={(event) => pickSheet(event.target.value)}
+                  >
+                    {read.sheets.map((sheet) => (
+                      <option key={sheet}>{sheet}</option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
+            </div>
+          ) : null}
           <div className="grid gap-3 sm:grid-cols-3">
             <label className="flex flex-col gap-1 text-sm font-medium">
               Date format
@@ -292,19 +374,29 @@ export function MappingEditor({
                 </table>
               </div>
             ) : null}
-            <div className="flex items-center gap-3">
-              <Button onClick={runImport} disabled={!ready || pending}>
-                {pending ? 'Importing…' : `Import ${preview.validRows} ${billing ? 'lines' : 'rows'}`}
-              </Button>
-              <span className="text-xs text-muted-foreground">Importing the same file and mapping twice changes nothing.</span>
-            </div>
+            {runId ? (
+              <div role="status" aria-label="Import progress" className="flex flex-col gap-2 rounded-lg border border-border p-3">
+                <span className="font-medium">{PHASE_LABELS[progress?.phase ?? 'QUEUED']}</span>
+                <progress className="h-2 w-full" max={progress?.total ?? preview.validRows} value={progress?.processed ?? 0} />
+                <span className="text-xs text-muted-foreground" data-numeric>
+                  {(progress?.processed ?? 0).toLocaleString('en-US')} of {(progress?.total ?? preview.validRows).toLocaleString('en-US')} {billing ? 'lines' : 'rows'} · large files import in the background, so you can leave this page and check Sources later.
+                </span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-3">
+                <Button onClick={runImport} disabled={!ready || pending}>
+                  {pending ? 'Importing…' : `Import ${preview.validRows} ${billing ? 'lines' : 'rows'}`}
+                </Button>
+                <span className="text-xs text-muted-foreground">Importing the same file and mapping twice changes nothing.</span>
+              </div>
+            )}
           </CardContent>
         </Card>
       ) : null}
 
       <div className="flex flex-wrap items-center gap-3 rounded-lg border border-dashed border-border px-4 py-3 text-sm">
         <span className="text-muted-foreground">Wrong file? Cancel discards this upload — nothing is imported and the stored copy is deleted.</span>
-        <Button variant="outline" size="sm" onClick={cancel} disabled={pending}>
+        <Button variant="outline" size="sm" onClick={cancel} disabled={pending || runId !== null}>
           Cancel upload
         </Button>
       </div>

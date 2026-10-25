@@ -1,14 +1,18 @@
-import { jobEnvelopeSchema, NOOP_JOB_TYPE, type JobEnvelopeInput } from '@pactlab/contracts';
+import { DEFAULT_JOB_QUEUE, jobEnvelopeSchema, NOOP_JOB_TYPE, queueJobId, type JobEnvelopeInput } from '@pactlab/contracts';
+import { UPLOAD_IMPORT_JOB_TYPE } from '@pactlab/db';
 import { Queue, Worker, type ConnectionOptions, type Job } from 'bullmq';
 import { processNoopJob, type JobDependencies, type JobOutcome } from './jobs/noop';
+import { processUploadImportJob } from './jobs/upload-import';
 
-export const DEFAULT_QUEUE = 'pactlab-default';
+export const DEFAULT_QUEUE = DEFAULT_JOB_QUEUE;
 export const DEAD_LETTER_QUEUE = 'pactlab-dead-letter';
 
-type Handler = (deps: JobDependencies, data: unknown) => Promise<JobOutcome>;
+/** `report` stores counts-only progress on the BullMQ job, where the API reads it. */
+type Handler = (deps: JobDependencies, data: unknown, report: (progress: object) => Promise<void>) => Promise<JobOutcome>;
 
 export const HANDLERS: Readonly<Record<string, Handler>> = {
   [NOOP_JOB_TYPE]: processNoopJob,
+  [UPLOAD_IMPORT_JOB_TYPE]: processUploadImportJob,
 };
 
 export function redisConnection(url: string): ConnectionOptions {
@@ -34,8 +38,7 @@ export function createQueue(connection: ConnectionOptions, name = DEFAULT_QUEUE)
  */
 export async function enqueueJob(queue: Queue, input: JobEnvelopeInput): Promise<Job> {
   const envelope = jobEnvelopeSchema.parse(input);
-  const bullJobId = `${envelope.organizationId}:${envelope.dealId}:${envelope.idempotencyKey}`.replaceAll(':', '_');
-  return queue.add(envelope.type, envelope, { jobId: bullJobId });
+  return queue.add(envelope.type, envelope, { jobId: queueJobId(envelope) });
 }
 
 export function createWorker(
@@ -48,7 +51,7 @@ export function createWorker(
     async (job: Job) => {
       const handler = HANDLERS[job.name];
       if (!handler) throw new Error('Unknown job type');
-      return handler(deps, { ...job.data, attempt: job.attemptsMade });
+      return handler(deps, { ...job.data, attempt: job.attemptsMade }, (progress) => job.updateProgress(progress));
     },
     { connection, concurrency: options.concurrency },
   );

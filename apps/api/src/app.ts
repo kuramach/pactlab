@@ -13,10 +13,16 @@ export async function createApp(deps: AppDependencies, options: { webOrigin?: st
     bodyLimit: 1_048_576,
     logger: false,
   });
-  // Billing exports arrive as raw CSV with their own, larger limit; every other body stays at 1 MB.
-  adapter.getInstance().addContentTypeParser('text/csv', { parseAs: 'buffer', bodyLimit: MAX_UPLOAD_BYTES }, (_request, body, done) => {
-    done(null, body);
-  });
+  // Import uploads (CSV, TSV or Excel) arrive as the raw file with their own, larger limit; every other body stays at 1 MB.
+  adapter
+    .getInstance()
+    .addContentTypeParser(
+      ['text/csv', 'text/tab-separated-values', 'application/octet-stream', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
+      { parseAs: 'buffer', bodyLimit: MAX_UPLOAD_BYTES },
+      (_request, body, done) => {
+        done(null, body);
+      },
+    );
   // Document uploads (PDF and Word up to 10 MB, sent as base64 JSON) get a larger limit on that route only.
   adapter.getInstance().addHook('onRoute', (route) => {
     if (route.method === 'POST' && /^\/v1\/deals\/:dealId\/documents\/?$/.test(route.url)) route.bodyLimit = 15 * 1_048_576;

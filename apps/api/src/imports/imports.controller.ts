@@ -1,7 +1,10 @@
 import { Body, Controller, Get, Header, HttpCode, Inject, NotFoundException, Param, Post, Query } from '@nestjs/common';
 import {
   dealParamsSchema,
+  importRunParamsSchema,
   importTargetParamsSchema,
+  sheetBodySchema,
+  type ImportProgressView,
   mappingBodySchema,
   uploadParamsSchema,
   uploadQuerySchema,
@@ -55,7 +58,7 @@ export class ImportsController {
     return target.templateCsv;
   }
 
-  /** Raw `text/csv` body (up to 10 MB); system and file name in the query. */
+  /** The raw file (CSV, TSV or Excel, up to 50 MB); system and file name in the query. */
   @Post('deals/:dealId/uploads')
   @HttpCode(201)
   async upload(
@@ -95,6 +98,28 @@ export class ImportsController {
     @Body(new ZodValidationPipe(mappingBodySchema)) body: { mapping: ImportMappingBody },
   ): Promise<ImportPreviewView> {
     return this.imports.preview(tenant, params.dealId, params.uploadId, body.mapping, requestId);
+  }
+
+  /** Read another sheet of an Excel upload before import. */
+  @Post('deals/:dealId/uploads/:uploadId/sheet')
+  @HttpCode(200)
+  async selectSheet(
+    @Tenant() tenant: TenantContext,
+    @RequestId() requestId: string,
+    @Param(new ZodValidationPipe(uploadParamsSchema)) params: UploadParams,
+    @Body(new ZodValidationPipe(sheetBodySchema)) body: { sheet: string },
+  ): Promise<UploadDetailView> {
+    return this.imports.selectSheet(tenant, params.dealId, params.uploadId, body.sheet, requestId);
+  }
+
+  /** How far an import has got; a background import is followed by polling this. */
+  @Get('deals/:dealId/import-runs/:runId')
+  async progress(
+    @Tenant() tenant: TenantContext,
+    @RequestId() requestId: string,
+    @Param(new ZodValidationPipe(importRunParamsSchema)) params: { dealId: string; runId: string },
+  ): Promise<ImportProgressView> {
+    return this.imports.progress(tenant, params.dealId, params.runId, requestId);
   }
 
   /** Discard an upload that was the wrong file (never imported); the stored copy is deleted. */

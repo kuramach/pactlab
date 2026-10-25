@@ -6,6 +6,8 @@ export const BILLING_UPLOAD_PROVIDER = 'billing_upload';
 /** Connections created by industry-pack CSV imports (ADR 0010), one per target. */
 export const PACK_UPLOAD_PROVIDER = 'pack_upload';
 
+export type UploadFormat = 'CSV' | 'TSV' | 'XLSX';
+
 export interface SourceUploadRecord {
   id: string;
   organizationId: string;
@@ -18,6 +20,9 @@ export interface SourceUploadRecord {
   sizeBytes: number;
   rowCount: number;
   header: Prisma.JsonValue;
+  /** How the stored original is read (CSV, TSV or XLSX), and the workbook sheet. */
+  format: UploadFormat;
+  sheet: string | null;
   mapping: Prisma.JsonValue | null;
   mappingVersion: string | null;
   objectKey: string | null;
@@ -41,6 +46,8 @@ const uploadSelect = {
   sizeBytes: true,
   rowCount: true,
   header: true,
+  format: true,
+  sheet: true,
   mapping: true,
   mappingVersion: true,
   objectKey: true,
@@ -67,20 +74,29 @@ export const sourceUploads = {
       sizeBytes: number;
       rowCount: number;
       header: string[];
+      /** CSV when absent. */
+      format?: UploadFormat;
+      sheet?: string | null;
       objectKey: string;
       visibility: EvidenceVisibility;
       uploadedBy: string;
     },
   ): Promise<SourceUploadRecord> {
-    return tx.sourceUpload.create({ data: input, select: uploadSelect });
+    return (await tx.sourceUpload.create({ data: input, select: uploadSelect })) as SourceUploadRecord;
+  },
+
+  /** Switch a workbook upload to another sheet before import; its header and row count follow. */
+  async selectSheet(tx: TransactionClient, uploadId: string, input: { sheet: string; header: string[]; rowCount: number }): Promise<boolean> {
+    const result = await tx.sourceUpload.updateMany({ where: { id: uploadId, status: 'UPLOADED', format: 'XLSX' }, data: input });
+    return result.count === 1;
   },
 
   async get(tx: TransactionClient, dealId: string, uploadId: string): Promise<SourceUploadRecord | null> {
-    return tx.sourceUpload.findFirst({ where: { id: uploadId, dealId }, select: uploadSelect });
+    return (await tx.sourceUpload.findFirst({ where: { id: uploadId, dealId }, select: uploadSelect })) as SourceUploadRecord | null;
   },
 
   async list(tx: TransactionClient, dealId: string): Promise<SourceUploadRecord[]> {
-    return tx.sourceUpload.findMany({ where: { dealId }, select: uploadSelect, orderBy: { createdAt: 'desc' }, take: 50 });
+    return (await tx.sourceUpload.findMany({ where: { dealId }, select: uploadSelect, orderBy: { createdAt: 'desc' }, take: 50 })) as SourceUploadRecord[];
   },
 
   async markImported(

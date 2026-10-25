@@ -29,16 +29,21 @@ export async function withTenant<T>(
   prisma: PrismaClient,
   context: TenantContext,
   fn: (tx: TransactionClient) => Promise<T>,
+  /** Long-running writes only (a large import); requests keep Prisma's short default. */
+  options?: { timeoutMs?: number },
 ): Promise<T> {
   assertUuids([context.organizationId, context.userId]);
-  return prisma.$transaction(async (tx) => {
-    await applySettings(tx, {
-      'app.organization_id': context.organizationId,
-      'app.user_id': context.userId,
-      'app.deal_ids': dealIdsLiteral(context.dealIds),
-    });
-    return fn(tx);
-  });
+  return prisma.$transaction(
+    async (tx) => {
+      await applySettings(tx, {
+        'app.organization_id': context.organizationId,
+        'app.user_id': context.userId,
+        'app.deal_ids': dealIdsLiteral(context.dealIds),
+      });
+      return fn(tx);
+    },
+    options?.timeoutMs ? { timeout: options.timeoutMs } : undefined,
+  );
 }
 
 /** Who issued a verified token. Each organization accepts exactly one. */

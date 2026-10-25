@@ -54,11 +54,14 @@ export default async function MapUploadPage({ params }: { params: Promise<{ deal
         </p>
       ) : (
         <MappingEditor
+          // A different sheet is a different table: start the mapping afresh.
+          key={upload.data.sheet ?? 'table'}
           dealId={dealId}
           uploadId={uploadId}
           header={upload.data.header}
           sample={upload.data.sample}
           suggested={upload.data.suggestedMapping}
+          read={upload.data}
         />
       )}
     </div>

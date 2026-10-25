@@ -12,11 +12,13 @@ const CODES: Record<number, string> = {
 };
 
 /**
- * A 422 may name the business rule it failed, and a 503 the reason a dependency
- * is unavailable (e.g. AI_ACCESS), as a stable upper-case code — never a message.
+ * A 413, 415 or 422 may name the rule it failed (e.g. LEGACY_EXCEL), and a 503
+ * the reason a dependency is unavailable (e.g. AI_ACCESS), as a stable
+ * upper-case code — never a message.
  */
+const CODED = new Set([413, 415, 422, 503]);
 function ruleCode(exception: unknown, status: number): string | null {
-  if ((status !== 422 && status !== 503) || !(exception instanceof HttpException)) return null;
+  if (!CODED.has(status) || !(exception instanceof HttpException)) return null;
   const response = exception.getResponse();
   const code = typeof response === 'object' && response !== null ? (response as { code?: unknown }).code : null;
   return typeof code === 'string' && /^[A-Z][A-Z_]{2,40}$/.test(code) ? code : null;

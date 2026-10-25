@@ -1265,6 +1265,10 @@ model SourceUpload {
   sizeBytes      Int                @map("size_bytes")
   rowCount       Int                @map("row_count")
   header         Json
+  /// CSV | TSV | XLSX: how the stored original is read (T-075).
+  format         String             @default("CSV")
+  /// Workbook sheet read, for XLSX uploads.
+  sheet          String?
   mapping        Json?
   mappingVersion String?            @map("mapping_version")
   objectKey      String?            @map("object_key")

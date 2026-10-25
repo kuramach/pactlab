@@ -11,9 +11,35 @@ export class CsvParseError extends Error {
   }
 }
 
+/** Field separators Pactlab reads: comma, semicolon (common in European exports) and tab. */
+export const DELIMITERS = [',', ';', '\t'] as const;
+export type Delimiter = (typeof DELIMITERS)[number];
+
 /** RFC 4180 CSV: quoted fields, escaped quotes, embedded newlines, CRLF or LF. */
 export function parseCsv(input: string): CsvTable {
-  const text = input.startsWith('﻿') ? input.slice(1) : input;
+  return parseDelimited(input, ',');
+}
+
+/**
+ * The separator a delimited file uses, from its header line (outside quotes):
+ * the most frequent of comma, semicolon and tab; comma on a tie or none.
+ */
+export function detectDelimiter(input: string): Delimiter {
+  const counts = new Map<Delimiter, number>(DELIMITERS.map((delimiter) => [delimiter, 0]));
+  let quoted = false;
+  for (const char of input.startsWith('\uFEFF') ? input.slice(1) : input) {
+    if (char === '"') quoted = !quoted;
+    else if (!quoted && (char === '\n' || char === '\r')) break;
+    else if (!quoted && counts.has(char as Delimiter)) counts.set(char as Delimiter, (counts.get(char as Delimiter) ?? 0) + 1);
+  }
+  let best: Delimiter = ',';
+  for (const delimiter of DELIMITERS) if ((counts.get(delimiter) ?? 0) > (counts.get(best) ?? 0)) best = delimiter;
+  return best;
+}
+
+/** RFC 4180 rules with a chosen separator (comma, semicolon or tab). */
+export function parseDelimited(input: string, delimiter: Delimiter): CsvTable {
+  const text = input.startsWith('\uFEFF') ? input.slice(1) : input;
   const records: { cells: string[]; text: string }[] = [];
   let cells: string[] = [];
   let field = '';
@@ -48,7 +74,7 @@ export function parseCsv(input: string): CsvTable {
     if (char === '"') {
       if (field !== '') throw new CsvParseError(`Unexpected quote at offset ${i}`);
       quoted = true;
-    } else if (char === ',') {
+    } else if (char === delimiter) {
       cells.push(field);
       field = '';
     } else if (char === '\r' || char === '\n') {

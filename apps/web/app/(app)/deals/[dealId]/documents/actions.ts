@@ -15,6 +15,8 @@ const TYPES: Record<string, string> = {
   markdown: 'text/markdown',
   pdf: 'application/pdf',
   docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  csv: 'text/csv',
+  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
 };
 
 function back(dealId: string, outcome: string, documentId?: string): never {

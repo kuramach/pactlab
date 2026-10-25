@@ -55,6 +55,8 @@ export const apiEnvSchema = baseEnvSchema.extend({
   AUTH0_AUDIENCE: nonEmpty.optional(),
   /** Local-only directory for uploaded document originals. */
   DOCUMENT_STORE_DIR: nonEmpty.optional(),
+  /** BullMQ Redis. Set: imports over 5,000 rows run on the worker with progress; unset: every import runs inline. */
+  REDIS_URL: redisUrl.optional(),
   /** Signs email-code session tokens and keys code hashes; at least 32 characters. */
   AUTH_TOKEN_SECRET: nonEmpty.min(32, 'must be at least 32 characters'),
   /** Local-only directory where sign-in emails are written instead of sent. */
@@ -97,6 +99,8 @@ export type ApiEnv = z.infer<typeof apiEnvSchema>;
 export const workerEnvSchema = baseEnvSchema.extend({
   DATABASE_URL: postgresUrl,
   REDIS_URL: redisUrl,
+  /** Local-only directory of uploaded originals, shared with the API (background imports read it). */
+  DOCUMENT_STORE_DIR: nonEmpty.optional(),
   WORKER_CONCURRENCY: z.coerce.number().int().min(1).max(64).default(4),
 });
 export type WorkerEnv = z.infer<typeof workerEnvSchema>;

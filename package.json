@@ -15,6 +15,7 @@
     "test:integration": "turbo run test:integration --concurrency=1",
     "test:fixtures": "turbo run test:fixtures",
     "test:e2e": "pnpm --filter @pactlab/e2e test:e2e",
+    "test:e2e:full": "pnpm --filter @pactlab/e2e test:e2e:full",
     "seed": "turbo run seed",
     "format": "prettier --write .",
     "format:check": "prettier --check .",

@@ -42,3 +42,8 @@ export function cleanMapping(mapping: ImportMapping): ImportMapping {
     ),
   };
 }
+
+/** Sources with the import's outcome banner (also used when a background import finishes). */
+export function importedUrl(dealId: string, target: string, run: { recordsCreated: number; recordsUnchanged: number }, replayed = false): string {
+  return `/deals/${dealId}/sources?imported=${encodeURIComponent(target)}&created=${run.recordsCreated}&unchanged=${run.recordsUnchanged}${replayed ? '&replayed=1' : ''}`;
+}

@@ -13,7 +13,8 @@ synthetic data only, AI off. Each run:
 ```bash
 pnpm local:up                                   # Docker Postgres + Redis
 pnpm --filter @pactlab/e2e exec playwright install chromium   # once
-pnpm test:e2e                                   # the whole suite
+pnpm test:e2e                                   # fast suite (every PR)
+pnpm test:e2e:full                              # + @slow tests (promotion gate)
 pnpm --filter @pactlab/e2e test:e2e specs/pack-import.spec.ts  # one file
 pnpm --filter @pactlab/e2e test:e2e --ui        # watch and debug
 ```
@@ -21,6 +22,10 @@ pnpm --filter @pactlab/e2e test:e2e --ui        # watch and debug
 Needs Python 3 (for the demo data). Ports and database credentials can be
 overridden with the `E2E_*` variables in `.env.example`. CI runs the suite in
 the `e2e` job and uploads traces and screenshots when it fails.
+
+Tests that take more than a few seconds are tagged `@slow` (`{ tag: '@slow' }`). They
+run only in the promotion suite (`.github/workflows/e2e-full.yml`): before
+promoting dev → qa → stage → production, nightly, or on demand — not on every PR.
 
 Every spec starts its own Pact through the wizard, so specs never share state.
 Add a spec for every bug a manual test finds before fixing it.

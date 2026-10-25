@@ -109,10 +109,21 @@ async function ingestRecord(
  * Runs as a BullMQ job handler or inline; the tenant context is always
  * re-established from the job and re-checked against deal membership.
  */
+/** Optional hooks for long runs: report progress outside the run's transaction, and allow it longer. */
+export interface SyncRunOptions {
+  /** Called every `PROGRESS_EVERY` records written, and once at the end. Must not use the run's transaction. */
+  onProgress?: (written: number, total: number) => Promise<void>;
+  /** Transaction timeout for the write phase (Prisma's default is 5 s). */
+  timeoutMs?: number;
+}
+
+export const PROGRESS_EVERY = 1_000;
+
 export async function executeSyncRun(
   prisma: PrismaClient,
   job: SyncRunJob,
   source: EvidenceSource,
+  options: SyncRunOptions = {},
 ): Promise<SyncRunOutcome> {
   const tenant = await resolveJobContext(prisma, job);
 
@@ -164,11 +175,13 @@ export async function executeSyncRun(
       }
       let created = 0;
       let unchanged = 0;
-      for (const record of pull.records) {
+      for (const [index, record] of pull.records.entries()) {
         if ((await ingestRecord(tx, run, run.connection.evidenceVisibility, record)) === 'CREATED')
           created += 1;
         else unchanged += 1;
+        if (options.onProgress && (index + 1) % PROGRESS_EVERY === 0) await options.onProgress(index + 1, pull.records.length);
       }
+      if (options.onProgress) await options.onProgress(pull.records.length, pull.records.length);
       // People behind the records go to the gated directory — only when a
       // buyer-side member runs the sync (target contributors cannot see it).
       if (pull.people?.length) {
@@ -215,7 +228,7 @@ export async function executeSyncRun(
         idempotencyKey: `sync_run:${run.id}:completed`,
       });
       return { syncRunId: run.id, replayed: false, ...counts };
-    });
+    }, options.timeoutMs ? { timeoutMs: options.timeoutMs } : undefined);
   } catch (error) {
     await withTenant(prisma, tenant, async (tx) => {
       await tx.syncRun.updateMany({

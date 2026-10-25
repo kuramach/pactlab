@@ -112,6 +112,7 @@ export class AppModule {
         ImportsModule.register({
           objectStore: deps.uploads?.objectStore ?? new UnavailableUploadStore(),
           malwareScanner: deps.uploads?.malwareScanner ?? new UnavailableMalwareScanner(),
+          importQueue: deps.uploads?.importQueue ?? null,
         }),
         FindingsModule.register(findings, deps.packs),
         ValuationModule.register({ valuation, findings }),
