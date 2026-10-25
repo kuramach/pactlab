@@ -152,7 +152,7 @@ export type BridgeLine = { kind: string; findingId?: string; amount: { amount: s
 export async function acceptAndValue(
   deal: AcceptanceDeal,
   finding: { id: string; version: number },
-  options: { pricedRisk?: { type: string; currency: string; low: string; high: string; basis: string }; assumptions?: Record<string, string> } = {},
+  options: { pricedRisk?: { type: string; currency: string; low: string; high: string; basis: string }; assumptions?: Record<string, unknown> } = {},
 ): Promise<BridgeLine[]> {
   const base = `/v1/deals/${deal.dealId}/findings/${finding.id}`;
   let version = finding.version;

@@ -1421,6 +1421,12 @@ Five further packs in two clusters. Hotels, multifamily and commercial property 
 - What transfers: the evidence→finding→valuation skeleton and the document/citation machinery transfer; almost none of the baseline finding types or evidence adapters do. This is the highest-build-cost pack and is sequenced fifth for that reason despite the deal values.
 - Pack scope is a materially new adapter family (trial registries, regulatory filings, patent data) and a new finding-type library, plugged into the unchanged core.
 
+**5a. Pharma / biotech — activation amendment (T-064, 2026-10-25)**
+
+- **Import targets (CSV, ADR 0010):** `PHARMA_PATENTS` (family, product, jurisdiction, type, expiry → `pharma.patent`, one record per family and jurisdiction) and `PHARMA_PIPELINE` (programme, indication, phase, next_milestone, expected → `pharma.programme`), alongside the billing import. No trial-subject or patient data.
+- **Finding rules (deterministic, versioned, drafts only):** `pharma-patent-before-forecast` — a forecast sentence assuming a product's exclusivity through a year, against the product's latest composition-of-matter expiry (or latest expiry of any type), cited to both; `pharma-supplier-observations` — open inspection observations at a contract manufacturer, cited, neutral (a close-out deliverable); `pharma-partner-concentration` — the largest partner across its revenue lines at 40% or more of the latest month's revenue, naming its largest line.
+- **Valuation:** DCF, with exclusivity and approval timing as scenario inputs; milestones and contingent payments are deal terms, not price. Reviewer-priced exposures reach the purchase-price bridge.
+- **Fixtures and acceptance:** `pactlab-demo-data/pharma-biotech/{USD,EUR,GBP}` — the three planted findings surface as cited drafts once, and the reviewer-priced patent exposure reaches a DCF run (`apps/api/src/packs/pharma.acceptance.api.test.ts`).
 **6. E-commerce / DTC**
 
 - Aggregator and roll-up deals for consumer brands; smaller average deal sizes.

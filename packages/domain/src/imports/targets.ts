@@ -16,6 +16,8 @@ export const IMPORT_TARGETS = [
   'TELECOM_SUBSCRIBERS',
   'SERVICES_TIMESHEETS',
   'SERVICES_HEADCOUNT',
+  'PHARMA_PATENTS',
+  'PHARMA_PIPELINE',
 ] as const;
 export type ImportTarget = (typeof IMPORT_TARGETS)[number];
 
@@ -306,6 +308,45 @@ export const SERVICES_HEADCOUNT: TargetDefinition = {
   ],
 };
 
+/** Pharma and biotech (T-064): patent families by product and jurisdiction, with expiry. */
+export const PHARMA_PATENTS: TargetDefinition = {
+  target: 'PHARMA_PATENTS',
+  label: 'Patent schedule',
+  fileName: 'patent-schedule.csv',
+  people: 'NONE',
+  refusesPeopleColumns: true,
+  evidenceType: 'pharma.patent',
+  recordIdField: 'family',
+  recordIdFields: ['family', 'jurisdiction'],
+  observedAtFields: [],
+  fields: [
+    { name: 'family', label: 'Patent family', kind: 'text', required: true, hint: 'Family reference, e.g. PF-01.' },
+    { name: 'product', label: 'Product', kind: 'text', required: true, hint: 'The product the family protects.' },
+    { name: 'jurisdiction', label: 'Jurisdiction', kind: 'text', required: true, hint: 'e.g. US or EP.' },
+    { name: 'type', label: 'Patent type', kind: 'text', required: true, hint: 'composition of matter, formulation, method of use, …' },
+    { name: 'expiry', label: 'Expiry', kind: 'date', required: true, hint: 'Expiry including any extension granted.' },
+  ],
+};
+
+/** Pharma and biotech (T-064): development programmes, phase and next milestone. */
+export const PHARMA_PIPELINE: TargetDefinition = {
+  target: 'PHARMA_PIPELINE',
+  label: 'Pipeline',
+  fileName: 'pipeline.csv',
+  people: 'NONE',
+  refusesPeopleColumns: true,
+  evidenceType: 'pharma.programme',
+  recordIdField: 'programme',
+  observedAtFields: [],
+  fields: [
+    { name: 'programme', label: 'Programme', kind: 'text', required: true, hint: 'Programme code.' },
+    { name: 'indication', label: 'Indication', kind: 'text', required: true, hint: 'The disease or condition.' },
+    { name: 'phase', label: 'Phase', kind: 'text', required: true, hint: 'e.g. Phase 3.' },
+    { name: 'next_milestone', label: 'Next milestone', kind: 'text', required: true, hint: 'e.g. Top-line data.' },
+    { name: 'expected', label: 'Expected', kind: 'text', required: true, hint: 'When, e.g. 2027-Q2.' },
+  ],
+};
+
 export const IMPORT_TARGET_DEFINITIONS: Readonly<Record<ImportTarget, TargetDefinition>> = {
   BILLING_INVOICE_LINE,
   FINTECH_LOAN_TAPE,
@@ -319,6 +360,8 @@ export const IMPORT_TARGET_DEFINITIONS: Readonly<Record<ImportTarget, TargetDefi
   TELECOM_SUBSCRIBERS,
   SERVICES_TIMESHEETS,
   SERVICES_HEADCOUNT,
+  PHARMA_PATENTS,
+  PHARMA_PIPELINE,
 };
 
 /**

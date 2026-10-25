@@ -93,7 +93,7 @@ export function revenueConcentrationRule(config: ConcentrationConfig): PackRule 
           if (key) byGroup.set(key, (byGroup.get(key) ?? new D(0)).plus(amount));
         }
         const top = largest(byGroup);
-        chosen = top ? [...byName.keys()].filter((name) => config.groupBy?.key(name) === top) : [];
+        chosen = top ? revenue.ranked.map(([name]) => name).filter((name) => config.groupBy?.key(name) === top) : [];
         label = top ? config.groupBy.label(top) : '';
       } else {
         chosen = [largest(byName)].filter((name) => name !== '');
@@ -103,12 +103,15 @@ export function revenueConcentrationRule(config: ConcentrationConfig): PackRule 
       const share = chosen.reduce((sum, name) => sum.plus(byName.get(name) ?? 0), new D(0)).div(total);
       if (share.lt(config.threshold)) return [];
       const cited = revenue.linesOf(chosen);
+      // A group of several lines also names its largest, which is often the exposure by itself.
+      const [first] = chosen;
+      const largestLine = config.groupBy && chosen.length > 1 && first ? ` Its largest line, ${first}, is ${percent((byName.get(first) ?? new D(0)).div(total))}.` : '';
       return [
         {
           key: `${latest}:${label}`,
           domain: config.domain,
           title: config.title,
-          description: `${label} ${chosen.length > 1 && !config.groupBy ? 'are' : 'is'} ${percent(share)} of ${monthName(latest)} revenue (${currency} ${grouped(total)} in the month).${config.consequence ? ` ${config.consequence}` : ''}`,
+          description: `${label} ${chosen.length > 1 && !config.groupBy ? 'are' : 'is'} ${percent(share)} of ${monthName(latest)} revenue (${currency} ${grouped(total)} in the month).${largestLine}${config.consequence ? ` ${config.consequence}` : ''}`,
           severity: config.severity ?? (share.gte('0.5') ? 'HIGH' : 'MEDIUM'),
           confidence: 'HIGH',
           direction: config.direction,

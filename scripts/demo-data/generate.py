@@ -155,6 +155,7 @@ PACK_IMPORTS = {
     'healthcare': {'claims-summary': 'Claims summary', 'provider-roster': 'Provider roster'},
     'telecom-media': {'subscribers-by-month': 'Subscribers by month'},
     'professional-services': {'timesheets-summary': 'Timesheets summary', 'headcount-movements': 'Headcount movements'},
+    'pharma-biotech': {'patent-schedule': 'Patent schedule', 'pipeline': 'Pipeline'},
 }
 
 PACK_TITLES = {

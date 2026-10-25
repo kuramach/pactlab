@@ -82,7 +82,13 @@ export const PACKS: Readonly<Record<PackId, PackDefinition>> = {
     // People-driven earnings value on DCF; retainer revenue also reads as recurring.
     valuationMethods: ['DCF', 'ARR_MULTIPLE'],
   },
-  PHARMA_BIOTECH: pack('PHARMA_BIOTECH', 'pharma-biotech', 'life-sciences'),
+  PHARMA_BIOTECH: {
+    ...pack('PHARMA_BIOTECH', 'pharma-biotech', 'life-sciences', true),
+    importTargets: ['BILLING_INVOICE_LINE', 'PHARMA_PATENTS', 'PHARMA_PIPELINE'],
+    findingRules: ['pharma-patent-before-forecast', 'pharma-supplier-observations', 'pharma-partner-concentration'],
+    // Royalty and product revenue value on DCF, with exclusivity and approval timing as scenario inputs.
+    valuationMethods: ['DCF'],
+  },
   ECOMMERCE_DTC: pack('ECOMMERCE_DTC', 'ecommerce-dtc', 'consumer'),
   MULTIFAMILY: {
     ...pack('MULTIFAMILY', 'multifamily', 'real-estate', true),

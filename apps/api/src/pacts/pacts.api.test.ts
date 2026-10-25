@@ -154,10 +154,10 @@ describe('Start a Pact through the API', () => {
   it('labels a planned industry honestly', async () => {
     const lead = await token(a.subject, a);
     const dealId = (
-      await call('POST', '/v1/pacts', lead, { ...PACT, name: 'Project Pill', seller: { ...PACT.seller, companyType: 'PHARMA_BIOTECH' } })
+      await call('POST', '/v1/pacts', lead, { ...PACT, name: 'Project Ward', seller: { ...PACT.seller, companyType: 'HOSPITALS' } })
     ).body['id'] as string;
     const plan = await call('GET', `/v1/deals/${dealId}/source-plan`, lead);
-    expect(plan.body).toMatchObject({ companyType: 'PHARMA_BIOTECH', packAvailable: false });
+    expect(plan.body).toMatchObject({ companyType: 'HOSPITALS', packAvailable: false });
     expect(plan.body['note']).toMatch(/planned/);
   });
 
