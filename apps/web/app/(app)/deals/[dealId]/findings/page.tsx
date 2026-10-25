@@ -24,9 +24,10 @@ import Link from 'next/link';
 import { apiGet, dealsApi } from '../../_lib/api';
 import { ApiState } from '../../_lib/states';
 import { FindingEvidenceChip } from '../../_lib/finding-evidence';
-import { runIndustryChecks } from './actions';
+import { bringInDocumentFindings, runIndustryChecks } from './actions';
 import {
   DOMAIN_LABELS,
+  fromDocumentReview,
   findingsQuery,
   formatPricedRisk,
   groupByDomain,
@@ -87,12 +88,15 @@ export default async function FindingsPage({
   const query = findingsQuery(filters);
   // Records opened from this list come back to it with the same filters.
   const here = `/deals/${dealId ?? ''}/findings${query ? `?${query}` : ''}`;
-  const [result, plan] = dealId
+  const [result, fromDocuments, plan] = dealId
     ? await Promise.all([
         apiGet<{ items: Finding[] }>(`/v1/deals/${encodeURIComponent(dealId)}/findings${query ? `?${query}` : ''}`),
+        apiGet<{ pending: number }>(`/v1/deals/${encodeURIComponent(dealId)}/findings/from-documents`),
         dealsApi.sourcePlan(dealId),
       ])
-    : [null, null];
+    : [null, null, null];
+  const pendingFromDocuments = fromDocuments?.kind === 'ok' ? fromDocuments.data.pending : 0;
+  const broughtIn = typeof search['broughtIn'] === 'string' ? Number(search['broughtIn']) || 0 : null;
   // Industry checks: the seller's pack rules (T-057/T-058). Shown only when the pack has any.
   const pack = plan?.kind === 'ok' && plan.data.companyType && plan.data.companyType !== 'OTHER' ? PACKS[plan.data.companyType] : null;
   const checks = typeof search['checks'] === 'string' ? search['checks'] : undefined;
@@ -116,6 +120,23 @@ export default async function FindingsPage({
             {pack.findingRules.length} deterministic checks over the imported {pack.label.toLowerCase()} data and documents. They only draft findings; a reviewer decides.
           </span>
         </div>
+      ) : null}
+      {dealId && pendingFromDocuments > 0 ? (
+        <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+          <span>
+            {pendingFromDocuments} document-review {pendingFromDocuments === 1 ? 'finding was' : 'findings were'} accepted but {pendingFromDocuments === 1 ? 'is' : 'are'} not in this register yet, so {pendingFromDocuments === 1 ? 'it has' : 'they have'} no price or valuation direction.
+          </span>
+          <form action={bringInDocumentFindings.bind(null, dealId)}>
+            <Button type="submit" size="sm">
+              Bring {pendingFromDocuments === 1 ? 'it' : 'them'} in
+            </Button>
+          </form>
+        </div>
+      ) : null}
+      {broughtIn !== null ? (
+        <p role="status" className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
+          {broughtIn} document-review {broughtIn === 1 ? 'finding is' : 'findings are'} now drafts in this register. Open each to decide its valuation direction and price.
+        </p>
       ) : null}
       {checks === 'ok' ? (
         <p role="status" className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
@@ -169,6 +190,17 @@ export default async function FindingsPage({
                     {DOMAIN_LABELS[domain]}
                   </option>
                 ))}
+              </select>
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-muted-foreground">Source</span>
+              <select
+                name="source"
+                defaultValue={filters.source ?? ''}
+                className="rounded-md border border-border bg-background px-2 py-1"
+              >
+                <option value="">All sources</option>
+                <option value="document-review">Document review</option>
               </select>
             </label>
             <button type="submit" className="rounded-md border border-border px-3 py-1 font-medium">
@@ -264,6 +296,11 @@ export default async function FindingsPage({
                               {finding.origin.toLowerCase()} · confidence{' '}
                               {finding.confidence.toLowerCase()}
                             </div>
+                            {fromDocumentReview(finding) ? (
+                              <Link href={`/deals/${dealId}/documents`} className="mt-1 inline-flex">
+                                <Badge variant="evidence">From document review</Badge>
+                              </Link>
+                            ) : null}
                           </td>
                           <td className="px-4 py-2">{finding.severity.toLowerCase()}</td>
                           <td className="px-4 py-2">

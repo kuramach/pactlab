@@ -25,6 +25,9 @@ import {
   RECONCILIATION_LABELS,
 } from '../../../metrics/_lib/format';
 import { approveDifference, recordReconciliation } from './actions';
+import { DebtAndCashCard } from './debt-and-cash';
+import { apiGet } from '../../_lib/api';
+import type { BalanceSheetView } from '@pactlab/contracts';
 
 // Per-user data: never prerender.
 export const dynamic = 'force-dynamic';
@@ -347,10 +350,11 @@ export default async function DealFinancesPage({
   const asOf = parseMonthParam(search['asOf']);
   const open = typeof search['open'] === 'string' && SECTION_ID.test(search['open']) ? search['open'] : undefined;
   const outcome = typeof search['outcome'] === 'string' ? OUTCOMES[search['outcome']] : undefined;
-  const [result, cohorts, pack] = await Promise.all([
+  const [result, cohorts, pack, balanceSheet] = await Promise.all([
     metricsApi.summary(dealId, asOf),
     metricsApi.cohorts(dealId, asOf),
     metricsApi.pack(dealId),
+    apiGet<BalanceSheetView>(`/v1/deals/${encodeURIComponent(dealId)}/balance-sheet-items`),
   ]);
   const packMetrics = pack.kind === 'ok' ? pack.data : null;
 
@@ -364,6 +368,9 @@ export default async function DealFinancesPage({
       </div>
 
       {packMetrics && packMetrics.metrics.length > 0 ? <PackMetricsCard report={packMetrics} /> : null}
+
+      {/* Buyer-side only: the API refuses roles without analysis access, and then nothing shows. */}
+      {balanceSheet.kind === 'ok' ? <DebtAndCashCard dealId={dealId} view={balanceSheet.data} /> : null}
 
       <form method="get" className="flex items-end gap-3 text-sm" aria-label="Choose as-of month">
         <label className="flex flex-col gap-1">

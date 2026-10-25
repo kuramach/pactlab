@@ -33,6 +33,27 @@ export class FindingsController {
     return this.service.list(tenant, params.dealId, query, requestId);
   }
 
+  /** Accepted document-review findings not yet in the register. */
+  @Get('from-documents')
+  async pendingFromDocuments(
+    @Tenant() tenant: TenantContext,
+    @RequestId() requestId: string,
+    @Param(new ZodValidationPipe(dealParamsSchema)) params: { dealId: string },
+  ) {
+    return this.service.pendingFromDocumentReview(tenant, params.dealId, requestId);
+  }
+
+  /** Bring accepted document-review findings into the register as drafts to price (idempotent). */
+  @Post('from-documents')
+  @HttpCode(200)
+  async fromDocuments(
+    @Tenant() tenant: TenantContext,
+    @RequestId() requestId: string,
+    @Param(new ZodValidationPipe(dealParamsSchema)) params: { dealId: string },
+  ) {
+    return this.service.fromDocumentReview(tenant, params.dealId, requestId);
+  }
+
   /** Run the deal's pack finding rules; proposes DRAFT findings only (idempotent). */
   @Post('pack-rules/run')
   @HttpCode(200)

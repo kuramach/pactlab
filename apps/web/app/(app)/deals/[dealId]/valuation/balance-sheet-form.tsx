@@ -4,7 +4,7 @@ import { BALANCE_SHEET_CATEGORIES, type BalanceSheetItemView } from '@pactlab/co
 import { Button } from '@pactlab/ui';
 import { useActionState, useState, useTransition } from 'react';
 import { loadPageText } from './balance-sheet-actions';
-import { CATEGORY_LABELS, EMPTY_ITEM_FORM, KIND_LABELS, type ItemFormState } from './balance-sheet-form-state';
+import { CATEGORY_LABELS, EMPTY_ITEM_FORM, KIND_LABELS, percentOf, REPAYMENT_LABELS, type ItemFormState } from './balance-sheet-form-state';
 
 const inputClass = 'w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring';
 const errorClass = 'border-red-500 ring-1 ring-red-500';
@@ -38,6 +38,10 @@ export function BalanceSheetItemForm({
   const [pageMessage, setPageMessage] = useState<string | null>(null);
   const [loading, startLoading] = useTransition();
   const bad = (field: string) => (state.error?.field === field ? errorClass : '');
+  // Loan terms are shown for debt items only.
+  const [kind, setKind] = useState(value('kind', item?.kind ?? 'DEBT'));
+  const terms = item?.terms;
+  const termValue = (field: string, fallback: string | null | undefined) => value(field, fallback ?? '');
 
   const showPage = () =>
     startLoading(async () => {
@@ -64,7 +68,7 @@ export function BalanceSheetItemForm({
       ) : (
         <label className="flex flex-col gap-1 text-sm font-medium">
           Kind
-          <select name="kind" className={`${inputClass} ${bad('kind')}`} defaultValue={value('kind', 'DEBT')}>
+          <select name="kind" className={`${inputClass} ${bad('kind')}`} value={kind} onChange={(event) => setKind(event.target.value)}>
             <option value="CASH">Cash — adds to equity value</option>
             <option value="DEBT">Debt — reduces equity value</option>
             <option value="DEBT_LIKE">Debt-like — reduces equity value</option>
@@ -159,6 +163,50 @@ export function BalanceSheetItemForm({
           className={`${inputClass} ${bad('quote')}`}
         />
       </label>
+      {kind === 'DEBT' ? (
+        <fieldset className="grid gap-3 rounded-lg border border-border p-3 sm:col-span-2 sm:grid-cols-2">
+          <legend className="px-1 text-sm font-semibold">Loan terms (optional)</legend>
+          <label className="flex flex-col gap-1 text-sm font-medium">
+            Lender
+            <input name="lender" maxLength={200} defaultValue={termValue('lender', terms?.lender)} className={`${inputClass} ${bad('lender')}`} />
+          </label>
+          <label className="flex flex-col gap-1 text-sm font-medium">
+            Interest rate (% a year)
+            <input name="interestRatePercent" inputMode="decimal" placeholder="e.g. 7.5" defaultValue={termValue('interestRatePercent', percentOf(terms?.interestRate ?? null)?.replace(' %', ''))} className={`${inputClass} ${bad('interestRatePercent')}`} />
+          </label>
+          <label className="flex flex-col gap-1 text-sm font-medium">
+            Rate type
+            <select name="rateType" defaultValue={termValue('rateType', terms?.rateType)} className={`${inputClass} ${bad('rateType')}`}>
+              <option value="">—</option>
+              <option value="FIXED">Fixed</option>
+              <option value="FLOATING">Floating</option>
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 text-sm font-medium">
+            Rate reference
+            <input name="rateReference" maxLength={120} placeholder="e.g. SOFR + 2.5%" defaultValue={termValue('rateReference', terms?.rateReference)} className={`${inputClass} ${bad('rateReference')}`} />
+          </label>
+          <label className="flex flex-col gap-1 text-sm font-medium">
+            Maturity date
+            <input name="maturityDate" type="date" defaultValue={termValue('maturityDate', terms?.maturityDate)} className={`${inputClass} ${bad('maturityDate')}`} />
+          </label>
+          <label className="flex flex-col gap-1 text-sm font-medium">
+            Repayment
+            <select name="repayment" defaultValue={termValue('repayment', terms?.repayment)} className={`${inputClass} ${bad('repayment')}`}>
+              <option value="">—</option>
+              {Object.entries(REPAYMENT_LABELS).map(([key, label]) => (
+                <option key={key} value={key}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 text-sm font-medium sm:col-span-2">
+            Covenants
+            <input name="covenantNote" maxLength={1000} placeholder="e.g. Net leverage below 3.0x, tested quarterly" defaultValue={termValue('covenantNote', terms?.covenantNote)} className={`${inputClass} ${bad('covenantNote')}`} />
+          </label>
+        </fieldset>
+      ) : null}
       {item ? (
         <label className="flex flex-col gap-1 text-sm font-medium sm:col-span-2">
           Why it changed

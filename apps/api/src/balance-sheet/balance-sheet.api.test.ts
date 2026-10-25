@@ -156,4 +156,27 @@ describe('balance-sheet items through the API', () => {
     expect(await audits('balance_sheet_item.revised')).toBe(1);
     expect(await audits('balance_sheet_item.withdrawn')).toBe(1);
   });
+
+  it('records loan terms on debt (exact rate fraction), keeps them per version, and refuses them on cash', async () => {
+    const terms = { interestRatePercent: '7.5', rateType: 'FIXED', maturityDate: '2029-06-30', lender: 'Lakeside Bank (synthetic)', repayment: 'AMORTIZING', covenantNote: 'Net leverage below 3.0x' };
+    const created = await call('analyst', 'POST', items(), item({ label: 'Term loan with terms', ...terms }));
+    expect(created.status).toBe(201);
+    const loan = (created.body['items'] as Record<string, unknown>[]).find((entry) => entry['label'] === 'Term loan with terms');
+    expect(loan?.['terms']).toEqual({ interestRate: '0.075', rateType: 'FIXED', rateReference: null, maturityDate: '2029-06-30', lender: 'Lakeside Bank (synthetic)', repayment: 'AMORTIZING', covenantNote: 'Net leverage below 3.0x' });
+
+    // A revision can change the terms; the earlier version keeps what it had.
+    const revised = await call('analyst', 'PUT', items(`/${loan?.['id'] as string}`), { ...item({ label: 'Term loan with terms', ...terms, interestRatePercent: '8.25', rateType: 'FLOATING', rateReference: 'SOFR + 3.0%' }), kind: undefined, expectedVersion: 1, reason: 'Repriced in the amendment' });
+    expect(revised.status).toBe(200);
+    const after = (revised.body['items'] as Record<string, unknown>[]).find((entry) => entry['id'] === loan?.['id']);
+    expect(after?.['terms']).toMatchObject({ interestRate: '0.0825', rateType: 'FLOATING', rateReference: 'SOFR + 3.0%' });
+    const versions = await db.owner.query(`SELECT version, interest_rate::text AS rate FROM balance_sheet_item_versions WHERE item_id = $1 ORDER BY version`, [loan?.['id']]);
+    expect(versions.rows).toEqual([{ version: 1, rate: '0.075000' }, { version: 2, rate: '0.082500' }]);
+
+    // Cash and debt-like items carry no loan terms.
+    expect((await call('analyst', 'POST', items(), item({ kind: 'CASH', category: 'CASH', label: 'Cash with a rate', amount: '90000', quote: 'Cash and cash equivalents: 90,000', interestRatePercent: '2' }))).status).toBe(400);
+    const cash = (created.body['items'] as Record<string, unknown>[]).find((entry) => entry['kind'] === 'CASH');
+    const refused = await call('analyst', 'PUT', items(`/${cash?.['id'] as string}`), { ...item({ kind: undefined, category: 'CASH', label: 'Cash', amount: '90000', quote: 'Cash and cash equivalents: 90,000', lender: 'Someone' }), expectedVersion: Number(cash?.['version']), reason: 'Adding a lender' });
+    expect(refused.body).toMatchObject({ status: 422, code: 'TERMS_DEBT_ONLY' });
+    expect((await call('analyst', 'POST', items(), item({ label: 'Bad rate', interestRatePercent: '150' }))).status).toBe(400);
+  });
 });

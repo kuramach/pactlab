@@ -24,10 +24,25 @@ test('a debt item quotes its page, rejects a bad amount without losing input, an
   await expect(card.getByLabel('Label')).toHaveValue('Term loan — Lakeside Bank (synthetic)');
 
   await card.getByLabel('Amount').fill('120,000');
+  // Loan terms (pilot bug 12).
+  await card.getByLabel('Lender').fill('Lakeside Bank (synthetic)');
+  await card.getByLabel('Interest rate (% a year)').fill('7.5');
+  await card.locator('select[name="rateType"]').selectOption('FIXED');
+  await card.getByLabel('Maturity date').fill('2027-03-31');
+  await card.locator('select[name="repayment"]').selectOption('AMORTIZING');
   await card.getByRole('button', { name: 'Record item' }).click();
   await expect(page.getByText('Term loan — Lakeside Bank (synthetic)', { exact: true })).toBeVisible();
   await expect(page.getByText('loan-agreement.txt, p. 1')).toBeVisible();
 
   await page.reload();
   await expect(page.getByText('Term loan — Lakeside Bank (synthetic)', { exact: true })).toBeVisible();
+  await expect(page.getByText('Lakeside Bank (synthetic) · 7.5 % fixed · matures 2027-03-31 · Amortizing')).toBeVisible();
+
+  // Finances shows the debt schedule; maturity within 12 months of the as-of date is flagged.
+  await page.goto(`/deals/${dealId}/finances`);
+  const schedule = page.getByRole('table', { name: 'Debt schedule' });
+  await expect(schedule.getByText('Term loan — Lakeside Bank (synthetic)')).toBeVisible();
+  await expect(schedule.getByText('7.5 %')).toBeVisible();
+  await expect(schedule.getByText('Within 12 months')).toBeVisible();
+  await expect(schedule.getByText('loan-agreement.txt, p. 1')).toBeVisible();
 });

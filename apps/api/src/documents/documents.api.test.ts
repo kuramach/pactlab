@@ -100,6 +100,16 @@ describe('documents API (document AI)', () => {
       ...extra,
     });
 
+  /** The stored original as the review viewer fetches it (raw bytes, not JSON). */
+  async function original(who: string, documentId: string, dealId = a.dealId) {
+    const response = await app.inject({
+      method: 'GET',
+      url: `/v1/deals/${dealId}/documents/${documentId}/original`,
+      headers: { authorization: `Bearer ${tokens[who] ?? ''}` },
+    });
+    return { status: response.statusCode, headers: response.headers, text: response.body };
+  }
+
   async function lastAudit() {
     const result = (await db.owner.query(
       `SELECT action, target_id AS "targetId" FROM audit_events WHERE deal_id = $1 AND outcome = 'SUCCEEDED' ORDER BY chain_seq DESC LIMIT 1`,
@@ -235,6 +245,19 @@ describe('documents API (document AI)', () => {
       const listed = await call('target_contributor', 'GET', '/documents');
       expect((listed.body['items'] as { id: string }[]).map((d) => d.id)).toEqual([sideLetterId]);
       expect((await call('target_contributor', 'GET', `/documents/${msaId}`)).status).toBe(404);
+      // The original file follows the same rules as its pages, and every read is audited.
+      expect((await original('target_contributor', msaId)).status).toBe(404);
+      const own = await original('target_contributor', sideLetterId);
+      expect(own).toMatchObject({ status: 200, text: SIDE_LETTER });
+      const full = await original('lead', msaId);
+      expect(full.status).toBe(200);
+      expect(full.headers).toMatchObject({ 'content-type': 'text/plain', 'x-content-type-options': 'nosniff', 'cache-control': 'private, no-store' });
+      expect(String(full.headers['content-disposition'])).toMatch(/^inline; filename="Northwind_MSA.txt"$/);
+      expect(full.text).toBe(MSA);
+      // Reads are audited like page views (outcome ALLOWED): the contributor's own read and the lead's.
+      expect(await auditCount('document.original_read', 'ALLOWED')).toBe(2);
+      expect((await original('other', msaId)).status).toBe(404);
+      expect((await original('other', msaId, b.dealId)).status).toBe(404);
       expect((await call('target_contributor', 'GET', `/documents/${msaId}/pages/1`)).status).toBe(
         404,
       );
@@ -619,10 +642,7 @@ describe('documents API (document AI)', () => {
       expect(found.body['reviews']).toMatchObject([
         { decision: 'ACCEPT', reviewer: { displayName: 'REVIEWER (synthetic)' } },
       ]);
-      expect(await lastAudit()).toMatchObject({
-        action: 'document_finding.accepted',
-        targetId: changeOfControlId,
-      });
+      expect(await auditCount('document_finding.accepted')).toBe(1);
 
       // Invariant across everything accepted.
       const all = (await call('lead', 'GET', '/document-findings?status=ACCEPTED')).body[
@@ -656,6 +676,27 @@ describe('documents API (document AI)', () => {
       ).toBe(409);
     });
 
+    it('one register: the accepted document finding is a register draft to price, brought in once', async () => {
+      const findingsUrl = (path = '') => `/v1/deals/${a.dealId}/findings${path}`;
+      const raw = async (who: string, method: 'GET' | 'POST', url: string) => {
+        const response = await app.inject({ method, url, headers: { authorization: `Bearer ${tokens[who] ?? ''}` }, ...(method === 'POST' ? { payload: {} } : {}) });
+        return { status: response.statusCode, body: response.json() as Body };
+      };
+      const register = (await raw('lead', 'GET', findingsUrl())).body['items'] as Body[];
+      const promoted = register.filter((finding) => finding['fingerprint'] === `document:${changeOfControlId}`);
+      expect(promoted).toHaveLength(1);
+      expect(promoted[0]).toMatchObject({ status: 'DRAFT', origin: 'AI', domain: 'LEGAL', pricedRisk: null });
+      const links = promoted[0]?.['evidence'] as { documentCitation: { documentId: string } | null }[];
+      expect(links.length).toBeGreaterThan(0);
+      expect(links.every((link) => link.documentCitation?.documentId === msaId)).toBe(true);
+
+      // Bringing them in again changes nothing; nothing is pending.
+      expect((await raw('lead', 'POST', findingsUrl('/from-documents'))).body).toMatchObject({ created: 0 });
+      expect((await raw('lead', 'GET', findingsUrl('/from-documents'))).body).toEqual({ pending: 0 });
+      // Other tenants and analysts without the right cannot bring them in.
+      expect((await raw('other', 'POST', findingsUrl('/from-documents'))).status).toBe(404);
+    });
+
     it('a citation made stale by a retention purge blocks acceptance; legal hold blocks purge', async () => {
       expect((await call('analyst', 'DELETE', `/documents/${msaId}`)).status).toBe(403);
       const purged = await call('lead', 'DELETE', `/documents/${msaId}`);
@@ -667,6 +708,7 @@ describe('documents API (document AI)', () => {
         available: false,
         text: null,
       });
+      expect((await original('lead', msaId)).status).toBe(410);
 
       const stale = await call('lead', 'POST', `/document-findings/${partyId}/reviews`, {
         decision: 'ACCEPT',

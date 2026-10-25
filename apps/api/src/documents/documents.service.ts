@@ -1,9 +1,12 @@
+import { createHash } from 'node:crypto';
 import {
   BadRequestException,
   ConflictException,
+  GoneException,
   Inject,
   Injectable,
   NotFoundException,
+  Optional,
   PayloadTooLargeException,
   ServiceUnavailableException,
   UnprocessableEntityException,
@@ -34,6 +37,7 @@ import {
   type TenantContext,
 } from '@pactlab/domain';
 import { DealAccess } from '../deals/deal-access';
+import { FindingsService } from '../findings/findings.service';
 import { PRISMA } from '../tokens';
 import {
   decideDocumentFinding,
@@ -137,6 +141,7 @@ export class DocumentsService {
     @Inject(DealAccess) private readonly access: DealAccess,
     @Inject(DOCUMENTS_REPOSITORY) private readonly documents: DocumentsRepository,
     @Inject(DOCUMENT_OBJECT_STORE) private readonly objects: DocumentObjectStore,
+    @Optional() @Inject(FindingsService) private readonly register: FindingsService | null,
     @Inject(MALWARE_SCANNER) private readonly scanner: MalwareScanner,
     @Inject(CLAUDE_GATEWAY) private readonly gateway: ClaudeGateway,
   ) {}
@@ -274,6 +279,28 @@ export class DocumentsService {
     if (role === 'TARGET_CONTRIBUTOR' && document.visibility !== 'SHARED')
       throw new NotFoundException();
     return document;
+  }
+
+  /**
+   * The stored original file (a PDF shown page by page beside the finding
+   * under review). Same access as page reads; the bytes must still match the
+   * upload's hash; every read is audited. Purged documents have no original.
+   */
+  async original(tenant: TenantContext, dealId: string, documentId: string, requestId: string) {
+    const role = await this.access.require(tenant, dealId, canReadDocuments, { action: 'document.original_read', requestId });
+    const document = await this.readable(tenant, dealId, documentId, role);
+    if (document.status === 'PURGED') throw new GoneException();
+    let bytes: Uint8Array;
+    try {
+      bytes = await this.objects.get(document.objectKey);
+    } catch {
+      throw new ServiceUnavailableException();
+    }
+    if (createHash('sha256').update(bytes).digest('hex') !== document.sha256) throw new ConflictException();
+    await withTenant(this.prisma, tenant, (tx) =>
+      appendAuditEvent(tx, this.audit(tenant, dealId, 'document.original_read', { type: 'document', id: documentId }, requestId, 'ALLOWED')),
+    );
+    return { bytes, contentType: document.contentType, fileName: document.fileName };
   }
 
   async list(tenant: TenantContext, dealId: string, requestId: string) {
@@ -626,6 +653,15 @@ export class DocumentsService {
       this.audit(tenant, dealId, action, { type: 'document_finding', id: findingId }, requestId),
     );
     if (!saved) throw new ConflictException();
+    if (body.decision === 'ACCEPT' && this.register) {
+      // One register: the accepted claim becomes a draft to price on Findings. Idempotent;
+      // if it fails here, the Findings page offers to bring it in.
+      try {
+        await this.register.fromDocumentReview(tenant, dealId, requestId);
+      } catch {
+        // The document decision stands either way.
+      }
+    }
     return { finding: decided.finding, review: decided.review };
   }
 }

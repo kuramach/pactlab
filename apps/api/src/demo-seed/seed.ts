@@ -1,7 +1,7 @@
 import type { INestApplicationContext } from '@nestjs/common';
 import { neutralizeMarkup, type ModelRequest } from '@pactlab/ai';
 import { comparables, deals, resolvePrincipal, withTenant, type PrismaClient } from '@pactlab/db';
-import type { AskingPriceInput } from '@pactlab/contracts';
+import { balanceSheetItemInputSchema, type AskingPriceInput } from '@pactlab/contracts';
 import type { TenantContext } from '@pactlab/domain';
 import { BalanceSheetService } from '../balance-sheet/balance-sheet.service';
 import { ComparablesService } from '../comparables/comparables.service';
@@ -503,7 +503,7 @@ export async function seedDemo(
           await balanceSheet.create(
             who.lead,
             troubled,
-            { ...entry, currency: 'USD', asOf: '2026-09-30', documentId, pageNumber: 1, note: SYNTHETIC },
+            balanceSheetItemInputSchema.parse({ ...entry, currency: 'USD', asOf: '2026-09-30', documentId, pageNumber: 1, note: SYNTHETIC }),
             REQUEST_ID,
           );
         }

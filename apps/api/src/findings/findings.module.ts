@@ -14,6 +14,8 @@ export class FindingsModule {
   static register(repository: FindingsRepository, packs: PackRegistry = DEFAULT_PACK_REGISTRY): DynamicModule {
     return {
       module: FindingsModule,
+      // Global: accepting a document-review finding brings it into the register (DocumentsService).
+      global: true,
       controllers: [FindingsController],
       providers: [
         FindingsService,

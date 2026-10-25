@@ -1420,6 +1420,16 @@ model BalanceSheetItem {
   /// ResolvedCitation: documentId, pageNumber, quote, quoteHash, charStart, charEnd.
   citation       Json
   note           String?
+  /// Loan terms (DEBT items only; T-078). Rates are fractions: 0.075 = 7.5 %.
+  interestRate   Decimal?               @map("interest_rate") @db.Decimal(9, 6)
+  /// FIXED | FLOATING
+  rateType       String?                @map("rate_type")
+  rateReference  String?                @map("rate_reference")
+  maturityDate   DateTime?              @map("maturity_date") @db.Date
+  lender         String?
+  /// AMORTIZING | BULLET | REVOLVING
+  repayment      String?
+  covenantNote   String?                @map("covenant_note")
   version        Int                    @default(1)
   status         BalanceSheetItemStatus @default(ACTIVE)
   createdBy      String                 @map("created_by") @db.Uuid
@@ -1451,6 +1461,16 @@ model BalanceSheetItemVersion {
   asOf           DateTime               @map("as_of") @db.Date
   citation       Json
   note           String?
+  /// Loan terms (DEBT items only; T-078). Rates are fractions: 0.075 = 7.5 %.
+  interestRate   Decimal?               @map("interest_rate") @db.Decimal(9, 6)
+  /// FIXED | FLOATING
+  rateType       String?                @map("rate_type")
+  rateReference  String?                @map("rate_reference")
+  maturityDate   DateTime?              @map("maturity_date") @db.Date
+  lender         String?
+  /// AMORTIZING | BULLET | REVOLVING
+  repayment      String?
+  covenantNote   String?                @map("covenant_note")
   status         BalanceSheetItemStatus
   reason         String
   changedBy      String                 @map("changed_by") @db.Uuid
