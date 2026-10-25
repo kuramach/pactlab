@@ -1381,6 +1381,13 @@ Five further packs in two clusters. Hotels, multifamily and commercial property 
 - What transfers: the compliance module carries the regulatory finding types; the Team module carries provider-credential and key-clinician risk; the buyer persona (PE firm) is unchanged from the baseline.
 - Pack scope is adapters for reimbursement and compliance evidence, finding types for reimbursement/regulatory risk, and valuation tweaks for payer-mix and reimbursement-rate sensitivity.
 
+**2a. Healthcare — activation amendment (T-061, 2026-10-25)**
+
+- **Import targets (CSV, ADR 0010):** `HEALTHCARE_CLAIMS_SUMMARY` (month, payer, claims, billed, paid, denial_rate_pct → `healthcare.claims_month`, one record per month and payer) and `HEALTHCARE_PROVIDER_ROSTER` (provider_ref, specialty, fte, credential_expiry → `healthcare.provider`, pseudonymous references only), alongside the billing import. No patient-level data is accepted; provider rows never reach a model or an embedding (rule 7).
+- **Finding rules (deterministic, versioned, drafts only):** `healthcare-government-concentration` — government programmes' share of the latest month's billed revenue at or above 50%, neutral (the reviewer prices reimbursement exposure); `healthcare-director-fee` — the medical-director fee against the hours the agreement documents and the time records show, priced as an indemnity (low = a year of the unsupported fee, high = three years); `healthcare-privacy-assessment` — the privacy risk assessment's date and lapsed review, cited, neutral; `healthcare-credentials-expiring` — roster providers whose credentials expire by the end of the latest billed year, neutral.
+- **Valuation:** DCF and ARR multiple apply unchanged; payer-mix and reimbursement-rate sensitivity run as the existing scenario sensitivities on growth and margin, and accepted priced findings reach the purchase-price bridge (an indemnity as a holdback). Healthtech targets also run the software path.
+- **Fixtures and acceptance:** `pactlab-demo-data/healthcare/{USD,EUR,GBP}` — imported into a fresh healthcare deal, the four planted findings surface as cited drafts once, and the accepted director-fee indemnity reaches the bridge (`apps/api/src/packs/healthcare.acceptance.api.test.ts`).
+
 **3. Telecom / media**
 
 - Subscriber businesses map directly onto the SaaS metrics model: ARPU ≈ MRR per account, churn ≈ logo churn, subscriber cohorts ≈ revenue cohorts.

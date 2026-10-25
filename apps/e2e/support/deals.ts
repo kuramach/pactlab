@@ -4,7 +4,7 @@ import { expect, type Page } from '@playwright/test';
 import { DEMO_DIR } from './env';
 
 /** The seller types the specs use, by their wizard label. */
-export type Seller = 'Software & SaaS' | 'Fintech' | 'Multifamily';
+export type Seller = 'Software & SaaS' | 'Fintech' | 'Healthcare & health tech' | 'Multifamily';
 
 /**
  * Start a fresh Pact through the real five-step wizard, so every spec owns

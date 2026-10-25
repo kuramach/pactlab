@@ -123,8 +123,12 @@ class Dataset:
                '> Synthetic demo data. Every company, person, address, account and figure here is invented.', '',
                '## Files', '', '| File | What it is | Load it in Pactlab |', '|---|---|---|',
                f'| `invoice-lines.csv` | {self.line_count} revenue lines, one per {self.kind_label} per month | Sources → Upload billing export → **Pactlab standard template** |']
+        imports = PACK_IMPORTS.get(self.pack, {})
         for name, (_, _, desc) in self.extracts.items():
-            out.append(f'| `{name}.csv` | {desc} | Documents → upload `documents/99-data-room-extracts.pdf` (this table is on its own page) |')
+            if name in imports:
+                out.append(f'| `{name}.csv` | {desc} | Sources → Industry data → **Upload {imports[name].lower()}** |')
+            else:
+                out.append(f'| `{name}.csv` | {desc} | Documents → upload `documents/99-data-room-extracts.pdf` (this table is on its own page) |')
         for name, (_, desc, dc) in self.docs.items():
             if name == '99-data-room-extracts': continue
             out.append(f'| `documents/{name}.pdf` (`.md` source) | {desc} | Documents → upload, data class *{dc}* |')
@@ -132,14 +136,24 @@ class Dataset:
         out += ['', '## Demo walkthrough', '',
                 f'1. **Start a Pact** for `{self.company}` with base currency **{c}**, industry *{PACK_TITLES[self.pack]}*.',
                 '2. **Sources → Upload billing export** → Pactlab standard template → `invoice-lines.csv` → Preview → Import. **Finances** shows the revenue ledger.',
-                '3. **Documents** → upload every PDF in `documents/` with the data class shown above.',
-                '4. Look for the planted findings below; accept, reject or ask for support, then price the accepted ones in **Valuation**.', '',
+                *([f'3. **Sources → Industry data** → upload each extract marked above ({", ".join(f"`{n}.csv`" for n in PACK_IMPORTS[self.pack])}); industry checks run on import.'] if self.pack in PACK_IMPORTS else []),
+                f'{4 if self.pack in PACK_IMPORTS else 3}. **Documents** → upload every PDF in `documents/` with the data class shown above.',
+                f'{5 if self.pack in PACK_IMPORTS else 4}. Look for the planted findings below (Findings → Run checks once the documents are in); accept, reject or ask for support, then price the accepted ones in **Valuation**.', '',
                 '## Planted findings', '']
         for i, (title, where) in enumerate(self.findings, 1):
             out.append(f'{i}. **{title}** — {where}')
         if self.notes:
             out += ['', '## Notes', ''] + [f'- {n}' for n in self.notes]
         return '\n'.join(out) + '\n'
+
+# Extracts a built pack imports directly (Sources → Industry data), by file
+# name, with the target's label as Pactlab shows it. Kept in step with the
+# pack registry by apps/api/src/ops/demo-data.test.ts.
+PACK_IMPORTS = {
+    'fintech': {'loan-tape': 'Loan tape', 'aml-alerts': 'AML alerts'},
+    'multifamily': {'rent-roll': 'Rent roll', 't12': 'T-12 operating statement', 'delinquency': 'Delinquency report', 'unit-inspections': 'Unit inspections'},
+    'healthcare': {'claims-summary': 'Claims summary', 'provider-roster': 'Provider roster'},
+}
 
 PACK_TITLES = {
     'software-saas': 'Software and SaaS', 'fintech': 'Fintech', 'healthcare': 'Healthcare services and healthtech',

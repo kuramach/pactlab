@@ -113,6 +113,9 @@ describe('demo data set (scripts/demo-data/generate.py)', () => {
         const result = applyMapping(csv, mapping, 'pack', targetDefinition);
         expect(result.issues, where).toEqual([]);
         expect(result.rows.length, where).toBe(csv.rows.length);
+        // The README sends the reader to the pack's own import, by the label Pactlab shows.
+        if (definition?.built) expect(read(join(dir, 'README.md')), where).toContain(`| \`${targetDefinition.fileName}\` | `);
+        if (definition?.built) expect(read(join(dir, 'README.md')), where).toContain(`Sources → Industry data → **Upload ${targetDefinition.label.toLowerCase()}** |`);
       }
     }
   });
