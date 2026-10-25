@@ -1,7 +1,7 @@
 import type { EvidenceSource, NormalizedEvidence, ObservedPerson, SourceIssue } from '@pactlab/domain';
 import type { ConnectionScope } from '../contract';
 import { contributorKey, monthOf } from '../people';
-import { JIRA_PROVIDER, type JiraAdapter, type JiraIssue, type JiraSprint } from './types';
+import { JIRA_PROVIDER, JiraAdapterError, type JiraAdapter, type JiraGap, type JiraIssue, type JiraSprint } from './types';
 
 export const JIRA_ISSUE_EVIDENCE_TYPE = 'delivery.issue';
 export const JIRA_SPRINT_EVIDENCE_TYPE = 'delivery.sprint';
@@ -97,6 +97,8 @@ function issueEvidence(site: string, issue: JiraIssue): NormalizedEvidence {
     key: issue.key,
     project: issue.project,
     type: issue.type,
+    // The site's own type name, only when it differs (fixture evidence is unchanged).
+    ...(issue.providerType ? { providerType: issue.providerType } : {}),
     statusCategory: issue.statusCategory,
     priority: issue.priority,
     storyPoints: text(issue.storyPoints),
@@ -155,15 +157,25 @@ export function createJiraEvidenceSource(
     async pull() {
       const site = adapter.config.site;
       const issues: JiraIssue[] = [];
+      const gaps: JiraGap[] = [];
       let cursor: string | null = null;
       do {
         const page = await adapter.listIssues(scope, { cursor, limit: 100 });
         issues.push(...page.issues);
+        gaps.push(...(page.gaps ?? []));
         cursor = page.nextCursor;
       } while (cursor !== null);
-      const sprints = await adapter.listSprints(scope);
+      let sprints: readonly JiraSprint[] = [];
+      try {
+        sprints = await adapter.listSprints(scope);
+      } catch (error) {
+        // Boards can be closed to a credential (or to anonymous reads) while issues are open.
+        if (!(error instanceof JiraAdapterError) || error.code !== 'PERMISSION_DENIED') throw error;
+        gaps.push({ code: 'PERMISSION_DENIED', detail: 'Sprints are not readable on this site' });
+      }
 
       const sourceIssues: SourceIssue[] = [
+        ...[...new Map(gaps.map((gap) => [`${gap.code}:${gap.detail}`, gap])).values()].map((gap) => ({ dataset: site, row: null, code: gap.code, detail: gap.detail })),
         ...unreadableProjects.map((project) => ({
           dataset: `${site}/${project}`,
           row: null,

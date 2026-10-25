@@ -9,6 +9,7 @@ export * from './auth';
 export * from './evidence';
 export * from './fixture.adapter';
 export * from './live.adapter';
+export * from './messages';
 export * from './types';
 export { GITHUB_FIXTURES } from './fixture-data';
 

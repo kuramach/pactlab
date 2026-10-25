@@ -1,0 +1,413 @@
+{
+  "cassetteVersion": 1,
+  "provider": "jira",
+  "source": "Jira Data Center REST API v2 at issues.apache.org/jira (project KAFKA): hand-built 2026-10-25 for T-082 from the documented shapes and an anonymous read of KAFKA-21352/21353; people replaced with synthetic ones",
+  "recordedAt": "2026-10-25T00:00:00.000Z",
+  "interactions": [
+    {
+      "request": {
+        "method": "GET",
+        "path": "/jira/rest/api/2/serverInfo",
+        "query": ""
+      },
+      "response": {
+        "status": 200,
+        "headers": {},
+        "body": {
+          "deploymentType": "Server"
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/jira/rest/api/2/field",
+        "query": ""
+      },
+      "response": {
+        "status": 200,
+        "headers": {},
+        "body": [
+          {
+            "id": "issuetype",
+            "name": "Issue Type",
+            "schema": {}
+          },
+          {
+            "id": "customfield_12310293",
+            "name": "Story Points",
+            "schema": {
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:float"
+            }
+          },
+          {
+            "id": "customfield_12310940",
+            "name": "Sprint",
+            "schema": {
+              "custom": "com.pyxis.greenhopper.jira:gh-sprint"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/jira/rest/api/2/status",
+        "query": ""
+      },
+      "response": {
+        "status": 200,
+        "headers": {},
+        "body": [
+          {
+            "id": "1",
+            "statusCategory": {
+              "key": "new"
+            }
+          },
+          {
+            "id": "3",
+            "statusCategory": {
+              "key": "indeterminate"
+            }
+          },
+          {
+            "id": "4",
+            "statusCategory": {
+              "key": "new"
+            }
+          },
+          {
+            "id": "5",
+            "statusCategory": {
+              "key": "done"
+            }
+          },
+          {
+            "id": "6",
+            "statusCategory": {
+              "key": "done"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/jira/rest/api/2/project/KAFKA",
+        "query": ""
+      },
+      "response": {
+        "status": 200,
+        "headers": {},
+        "body": {
+          "key": "KAFKA"
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/jira/rest/api/2/project/NOPE",
+        "query": ""
+      },
+      "response": {
+        "status": 404,
+        "headers": {},
+        "body": {
+          "errorMessages": [
+            "No project could be found with key 'NOPE'."
+          ]
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/jira/rest/api/2/search",
+        "query": "expand=changelog&fields=issuetype,status,priority,created,resolutiondate,assignee,reporter,comment,customfield_12310293,customfield_12310940&jql=project in (KAFKA) ORDER BY created ASC, key ASC&maxResults=2&startAt=0"
+      },
+      "response": {
+        "status": 200,
+        "headers": {},
+        "body": {
+          "startAt": 0,
+          "maxResults": 2,
+          "total": 3,
+          "issues": [
+            {
+              "key": "KAFKA-21352",
+              "fields": {
+                "issuetype": {
+                  "name": "Improvement"
+                },
+                "status": {
+                  "statusCategory": {
+                    "key": "new"
+                  }
+                },
+                "priority": {
+                  "name": "Major"
+                },
+                "created": "2026-10-24T00:42:16.000+0000",
+                "resolutiondate": null,
+                "assignee": null,
+                "reporter": {
+                  "key": "JIRAUSER0000001",
+                  "displayName": "Reporter One (synthetic)"
+                },
+                "comment": {
+                  "total": 1
+                },
+                "customfield_12310293": 3
+              },
+              "changelog": {
+                "histories": []
+              }
+            },
+            {
+              "key": "KAFKA-21353",
+              "fields": {
+                "issuetype": {
+                  "name": "Bug"
+                },
+                "status": {
+                  "statusCategory": {
+                    "key": "done"
+                  }
+                },
+                "priority": {
+                  "name": "Blocker"
+                },
+                "created": "2026-10-24T01:07:35.000+0000",
+                "resolutiondate": "2026-10-25T04:40:17.000+0000",
+                "assignee": {
+                  "key": "JIRAUSER0000002",
+                  "displayName": "Assignee Two (synthetic)"
+                },
+                "reporter": {
+                  "key": "JIRAUSER0000001",
+                  "displayName": "Reporter One (synthetic)"
+                },
+                "comment": {
+                  "total": 4
+                },
+                "customfield_12310940": [
+                  "com.atlassian.greenhopper.service.sprint.Sprint@6f3[id=812,rapidViewId=44,state=CLOSED,name=Sprint 12,startDate=2026-10-13T09:00:00.000Z]"
+                ]
+              },
+              "changelog": {
+                "histories": [
+                  {
+                    "items": [
+                      {
+                        "field": "status",
+                        "from": "1",
+                        "to": "5"
+                      }
+                    ]
+                  },
+                  {
+                    "items": [
+                      {
+                        "field": "status",
+                        "from": "5",
+                        "to": "4"
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/jira/rest/api/2/search",
+        "query": "expand=changelog&fields=issuetype,status,priority,created,resolutiondate,assignee,reporter,comment,customfield_12310293,customfield_12310940&jql=project in (KAFKA) ORDER BY created ASC, key ASC&maxResults=2&startAt=2"
+      },
+      "response": {
+        "status": 200,
+        "headers": {},
+        "body": {
+          "startAt": 2,
+          "maxResults": 2,
+          "total": 3,
+          "issues": [
+            {
+              "key": "KAFKA-21354",
+              "fields": {
+                "issuetype": {
+                  "name": "Sub-task"
+                },
+                "status": {
+                  "statusCategory": {
+                    "key": "indeterminate"
+                  }
+                },
+                "priority": {
+                  "name": "Trivial"
+                },
+                "created": "2026-10-25T08:00:00.000+0000",
+                "resolutiondate": null,
+                "assignee": null,
+                "reporter": {
+                  "key": "JIRAUSER0000001",
+                  "displayName": "Reporter One (synthetic)"
+                },
+                "comment": {
+                  "total": 0
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/jira/rest/api/2/search",
+        "query": "expand=changelog&fields=issuetype,status,priority,created,resolutiondate,assignee,reporter,comment,customfield_12310293,customfield_12310940&jql=project in (KAFKA) ORDER BY created ASC, key ASC&maxResults=100&startAt=0"
+      },
+      "response": {
+        "status": 200,
+        "headers": {},
+        "body": {
+          "startAt": 0,
+          "maxResults": 100,
+          "total": 3,
+          "issues": [
+            {
+              "key": "KAFKA-21352",
+              "fields": {
+                "issuetype": {
+                  "name": "Improvement"
+                },
+                "status": {
+                  "statusCategory": {
+                    "key": "new"
+                  }
+                },
+                "priority": {
+                  "name": "Major"
+                },
+                "created": "2026-10-24T00:42:16.000+0000",
+                "resolutiondate": null,
+                "assignee": null,
+                "reporter": {
+                  "key": "JIRAUSER0000001",
+                  "displayName": "Reporter One (synthetic)"
+                },
+                "comment": {
+                  "total": 1
+                },
+                "customfield_12310293": 3
+              },
+              "changelog": {
+                "histories": []
+              }
+            },
+            {
+              "key": "KAFKA-21353",
+              "fields": {
+                "issuetype": {
+                  "name": "Bug"
+                },
+                "status": {
+                  "statusCategory": {
+                    "key": "done"
+                  }
+                },
+                "priority": {
+                  "name": "Blocker"
+                },
+                "created": "2026-10-24T01:07:35.000+0000",
+                "resolutiondate": "2026-10-25T04:40:17.000+0000",
+                "assignee": {
+                  "key": "JIRAUSER0000002",
+                  "displayName": "Assignee Two (synthetic)"
+                },
+                "reporter": {
+                  "key": "JIRAUSER0000001",
+                  "displayName": "Reporter One (synthetic)"
+                },
+                "comment": {
+                  "total": 4
+                },
+                "customfield_12310940": [
+                  "com.atlassian.greenhopper.service.sprint.Sprint@6f3[id=812,rapidViewId=44,state=CLOSED,name=Sprint 12,startDate=2026-10-13T09:00:00.000Z]"
+                ]
+              },
+              "changelog": {
+                "histories": [
+                  {
+                    "items": [
+                      {
+                        "field": "status",
+                        "from": "1",
+                        "to": "5"
+                      }
+                    ]
+                  },
+                  {
+                    "items": [
+                      {
+                        "field": "status",
+                        "from": "5",
+                        "to": "4"
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "key": "KAFKA-21354",
+              "fields": {
+                "issuetype": {
+                  "name": "Sub-task"
+                },
+                "status": {
+                  "statusCategory": {
+                    "key": "indeterminate"
+                  }
+                },
+                "priority": {
+                  "name": "Trivial"
+                },
+                "created": "2026-10-25T08:00:00.000+0000",
+                "resolutiondate": null,
+                "assignee": null,
+                "reporter": {
+                  "key": "JIRAUSER0000001",
+                  "displayName": "Reporter One (synthetic)"
+                },
+                "comment": {
+                  "total": 0
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/jira/rest/agile/1.0/board",
+        "query": "maxResults=50&projectKeyOrId=KAFKA"
+      },
+      "response": {
+        "status": 401,
+        "headers": {},
+        "body": null
+      }
+    }
+  ]
+}

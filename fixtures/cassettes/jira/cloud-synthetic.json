@@ -1,0 +1,341 @@
+{
+  "cassetteVersion": 1,
+  "provider": "jira",
+  "source": "Jira Cloud REST API v3 (enhanced JQL search, CHANGE-2046) on a fictional site: hand-built 2026-10-25 for T-082 from the documented shapes; synthetic data only",
+  "recordedAt": "2026-10-25T00:00:00.000Z",
+  "interactions": [
+    {
+      "request": {
+        "method": "GET",
+        "path": "/rest/api/3/serverInfo",
+        "query": ""
+      },
+      "response": {
+        "status": 200,
+        "headers": {},
+        "body": {
+          "deploymentType": "Cloud"
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/rest/api/3/myself",
+        "query": ""
+      },
+      "response": {
+        "status": 200,
+        "headers": {},
+        "body": {
+          "accountId": "712020:synthetic-reader"
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/rest/api/3/field",
+        "query": ""
+      },
+      "response": {
+        "status": 200,
+        "headers": {},
+        "body": [
+          {
+            "id": "customfield_10016",
+            "name": "Story point estimate",
+            "schema": {
+              "custom": "com.pyxis.greenhopper.jira:jsw-story-points"
+            }
+          },
+          {
+            "id": "customfield_10020",
+            "name": "Sprint",
+            "schema": {
+              "custom": "com.pyxis.greenhopper.jira:gh-sprint"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/rest/api/3/status",
+        "query": ""
+      },
+      "response": {
+        "status": 200,
+        "headers": {},
+        "body": [
+          {
+            "id": "10000",
+            "statusCategory": {
+              "key": "new"
+            }
+          },
+          {
+            "id": "10001",
+            "statusCategory": {
+              "key": "indeterminate"
+            }
+          },
+          {
+            "id": "10002",
+            "statusCategory": {
+              "key": "done"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/rest/api/3/project/SYN",
+        "query": ""
+      },
+      "response": {
+        "status": 200,
+        "headers": {},
+        "body": {
+          "key": "SYN"
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/rest/api/3/search/jql",
+        "query": "expand=changelog&fields=issuetype,status,priority,created,resolutiondate,assignee,reporter,comment,customfield_10016,customfield_10020&jql=project in (SYN) ORDER BY created ASC, key ASC&maxResults=1"
+      },
+      "response": {
+        "status": 200,
+        "headers": {},
+        "body": {
+          "issues": [
+            {
+              "key": "SYN-1",
+              "fields": {
+                "issuetype": {
+                  "name": "Story"
+                },
+                "status": {
+                  "statusCategory": {
+                    "key": "done"
+                  }
+                },
+                "priority": {
+                  "name": "Medium"
+                },
+                "created": "2026-09-01T10:00:00.000+0000",
+                "resolutiondate": "2026-09-10T10:00:00.000+0000",
+                "assignee": {
+                  "accountId": "712020:synthetic-dev",
+                  "displayName": "Cloud Dev (synthetic)"
+                },
+                "reporter": {
+                  "accountId": "712020:synthetic-lead",
+                  "displayName": "Cloud Lead (synthetic)"
+                },
+                "comment": {
+                  "total": 2
+                },
+                "customfield_10016": 5,
+                "customfield_10020": [
+                  {
+                    "id": 41,
+                    "name": "SYN Sprint 4",
+                    "state": "closed",
+                    "boardId": 7
+                  },
+                  {
+                    "id": 42,
+                    "name": "SYN Sprint 5",
+                    "state": "active",
+                    "boardId": 7
+                  }
+                ]
+              },
+              "changelog": {
+                "histories": []
+              }
+            }
+          ],
+          "nextPageToken": "CAEaAggD",
+          "isLast": false
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/rest/api/3/search/jql",
+        "query": "expand=changelog&fields=issuetype,status,priority,created,resolutiondate,assignee,reporter,comment,customfield_10016,customfield_10020&jql=project in (SYN) ORDER BY created ASC, key ASC&maxResults=1&nextPageToken=CAEaAggD"
+      },
+      "response": {
+        "status": 200,
+        "headers": {},
+        "body": {
+          "issues": [
+            {
+              "key": "SYN-2",
+              "fields": {
+                "issuetype": {
+                  "name": "Bug"
+                },
+                "status": {
+                  "statusCategory": {
+                    "key": "new"
+                  }
+                },
+                "priority": {
+                  "name": "High"
+                },
+                "created": "2026-09-15T10:00:00.000+0000",
+                "resolutiondate": null,
+                "assignee": {
+                  "accountId": "712020:synthetic-dev",
+                  "displayName": "Cloud Dev (synthetic)"
+                },
+                "reporter": {
+                  "accountId": "712020:synthetic-lead",
+                  "displayName": "Cloud Lead (synthetic)"
+                },
+                "comment": {
+                  "total": 2
+                },
+                "customfield_10016": null,
+                "customfield_10020": null
+              },
+              "changelog": {
+                "histories": []
+              }
+            }
+          ],
+          "isLast": true
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/rest/agile/1.0/board",
+        "query": "maxResults=50&projectKeyOrId=SYN"
+      },
+      "response": {
+        "status": 200,
+        "headers": {},
+        "body": {
+          "values": [
+            {
+              "id": 7,
+              "type": "scrum"
+            },
+            {
+              "id": 8,
+              "type": "kanban"
+            }
+          ],
+          "isLast": true
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/rest/agile/1.0/board/7/sprint",
+        "query": "maxResults=50&startAt=0&state=active,closed"
+      },
+      "response": {
+        "status": 200,
+        "headers": {},
+        "body": {
+          "values": [
+            {
+              "id": 41,
+              "state": "closed",
+              "name": "SYN Sprint 4",
+              "startDate": "2026-08-25T09:00:00.000Z",
+              "endDate": "2026-09-08T09:00:00.000Z"
+            },
+            {
+              "id": 42,
+              "state": "active",
+              "name": "SYN Sprint 5",
+              "startDate": "2026-09-08T09:00:00.000Z",
+              "endDate": "2026-09-22T09:00:00.000Z"
+            }
+          ],
+          "isLast": true
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/rest/api/3/search/jql",
+        "query": "fields=status,customfield_10016&jql=sprint = 42&maxResults=100"
+      },
+      "response": {
+        "status": 200,
+        "headers": {},
+        "body": {
+          "issues": [
+            {
+              "key": "SYN-1",
+              "fields": {
+                "status": {
+                  "statusCategory": {
+                    "key": "done"
+                  }
+                },
+                "customfield_10016": 5
+              }
+            },
+            {
+              "key": "SYN-3",
+              "fields": {
+                "status": {
+                  "statusCategory": {
+                    "key": "indeterminate"
+                  }
+                },
+                "customfield_10016": 3
+              }
+            }
+          ],
+          "isLast": true
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/rest/api/3/search/jql",
+        "query": "fields=status,customfield_10016&jql=sprint = 41&maxResults=100"
+      },
+      "response": {
+        "status": 200,
+        "headers": {},
+        "body": {
+          "issues": [
+            {
+              "key": "SYN-1",
+              "fields": {
+                "status": {
+                  "statusCategory": {
+                    "key": "done"
+                  }
+                },
+                "customfield_10016": 5
+              }
+            }
+          ],
+          "isLast": true
+        }
+      }
+    }
+  ]
+}

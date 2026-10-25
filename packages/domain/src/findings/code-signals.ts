@@ -15,6 +15,11 @@ export interface CommitMetadata {
   readonly deletions: number;
   /** Repository-relative paths touched. */
   readonly paths: readonly string[];
+  /**
+   * The commit message, sanitized by the adapter (trailers and email
+   * addresses removed, length capped). It carries issue keys (T-082).
+   */
+  readonly message?: string | null;
 }
 
 /**

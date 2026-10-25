@@ -10,7 +10,7 @@ import {
   type JiraSprint,
 } from './types';
 
-export const JIRA_FIXTURE_VERSION = 'jira-fixture-2';
+export const JIRA_FIXTURE_VERSION = 'jira-fixture-3';
 const MAX_PAGE = 100;
 
 /** Synthetic Jira sites behind the same normalized interface as live Jira. */

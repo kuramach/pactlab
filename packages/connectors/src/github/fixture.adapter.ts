@@ -8,16 +8,20 @@ import {
 } from '../contract';
 import { GITHUB_FIXTURES, type GitHubFixtureRepository } from './fixture-data';
 import {
+  GITHUB_CORE_PERMISSIONS,
   GITHUB_PROVIDER,
   GITHUB_REQUIRED_PERMISSIONS,
   GitHubAdapterError,
+  type CheckSummary,
   type CommitPage,
   type GitHubAdapter,
   type GitHubConnectionConfig,
+  type PullRequestPage,
   type RepositoryHead,
+  type ReviewSummary,
 } from './types';
 
-export const GITHUB_FIXTURE_VERSION = 'github-fixture-2';
+export const GITHUB_FIXTURE_VERSION = 'github-fixture-3';
 const MAX_PAGE = 100;
 
 /** Synthetic repositories behind the same normalized interface as live GitHub. */
@@ -34,18 +38,22 @@ export class GitHubFixtureAdapter implements GitHubAdapter {
       : undefined;
   }
 
-  private readable(): GitHubFixtureRepository {
+  private readable(permissions: readonly string[] = GITHUB_CORE_PERMISSIONS): GitHubFixtureRepository {
     const fixture = this.fixture();
     if (!fixture) throw new GitHubAdapterError('UNKNOWN_REPOSITORY', 'Repository not found');
-    if (!GITHUB_REQUIRED_PERMISSIONS.every((p) => fixture.grantedPermissions.includes(p)))
-      throw new GitHubAdapterError('PERMISSION_DENIED', 'Installation lacks contents:read');
+    const missing = permissions.filter((p) => !fixture.grantedPermissions.includes(p));
+    if (missing.length > 0) throw new GitHubAdapterError('PERMISSION_DENIED', `Installation lacks ${missing.join(', ')}`);
     return fixture;
   }
 
   async validateConnection(_scope: ConnectionScope): Promise<ValidationResult> {
     const fixture = this.fixture();
-    const missing = GITHUB_REQUIRED_PERMISSIONS.filter(
+    const missing = GITHUB_CORE_PERMISSIONS.filter(
       (permission) => !fixture?.grantedPermissions.includes(permission),
+    );
+    // Pull requests and checks narrow the evidence; their absence is reported, not fatal.
+    const narrowed = GITHUB_REQUIRED_PERMISSIONS.filter(
+      (permission) => !(GITHUB_CORE_PERMISSIONS as readonly string[]).includes(permission) && !fixture?.grantedPermissions.includes(permission),
     );
     const checks: ValidationCheck[] = [
       {
@@ -58,9 +66,11 @@ export class GitHubFixtureAdapter implements GitHubAdapter {
         name: 'scopes',
         status: fixture && missing.length === 0 ? 'PASS' : 'FAIL',
         detail:
-          missing.length === 0
-            ? 'Read-only metadata and contents permissions granted'
-            : `Missing permissions: ${missing.join(', ')}`,
+          missing.length > 0
+            ? `Missing permissions: ${[...missing, ...narrowed].join(', ')}`
+            : narrowed.length > 0
+              ? `Read-only metadata and contents granted; without ${narrowed.join(', ')} there is no review or CI evidence`
+              : 'Read-only metadata, contents, pull requests and checks granted',
       },
       {
         name: 'mappings',
@@ -113,5 +123,30 @@ export class GitHubFixtureAdapter implements GitHubAdapter {
 
   async identityMap(_scope: ConnectionScope): Promise<readonly ContributorIdentity[]> {
     return this.readable().identityMap;
+  }
+
+  async listPullRequests(_scope: ConnectionScope, options: { cursor: string | null; limit: number }): Promise<PullRequestPage> {
+    const fixture = this.readable(['metadata:read', 'pull_requests:read']);
+    const limit = Math.min(Math.max(1, Math.trunc(options.limit)), MAX_PAGE);
+    const offset = options.cursor === null ? 0 : Number(options.cursor);
+    if (!Number.isSafeInteger(offset) || offset < 0 || offset > fixture.pullRequests.length)
+      throw new GitHubAdapterError('INVALID_CURSOR', 'Invalid page cursor');
+    const end = offset + limit;
+    return {
+      pullRequests: fixture.pullRequests.slice(offset, end),
+      nextCursor: end < fixture.pullRequests.length ? String(end) : null,
+    };
+  }
+
+  async pullRequestReviews(_scope: ConnectionScope, number: number): Promise<ReviewSummary> {
+    const fixture = this.readable(['metadata:read', 'pull_requests:read']);
+    const review = Object.hasOwn(fixture.reviews, number) ? fixture.reviews[number] : undefined;
+    return review ?? { number, approvals: 0, changesRequested: 0, commented: 0, reviewerIdentities: [] };
+  }
+
+  async checkRuns(_scope: ConnectionScope, sha: string): Promise<CheckSummary> {
+    const fixture = this.readable(['metadata:read', 'checks:read']);
+    const checks = Object.hasOwn(fixture.checks, sha) ? fixture.checks[sha] : undefined;
+    return checks ?? { sha, total: 0, succeeded: 0, failed: 0, pending: 0, other: 0 };
   }
 }

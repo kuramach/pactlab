@@ -10,6 +10,7 @@ import {
   type DryRunResult,
   type FetchLike,
   type GitHubAuthResolver,
+  type JiraLiveOptions,
   type ValidationResult,
 } from '@pactlab/connectors';
 import type { EvidenceSource } from '@pactlab/domain';
@@ -25,7 +26,7 @@ interface ProviderEvidence {
 /**
  * Wraps a provider adapter (GitHub, Jira) as a sync adapter: the same
  * normalized evidence the sync engine ingests, and dry-run samples taken
- * from it. Live adapters without live reads (Jira) return empty samples.
+ * from it. A live adapter without live reads returns empty samples.
  */
 export class ProviderSyncAdapter {
   constructor(
@@ -72,9 +73,10 @@ export function githubSyncAdapter(
   return adapter ? new ProviderSyncAdapter(adapter, (scope) => createGitHubEvidenceSource(adapter, scope), true) : null;
 }
 
-export function jiraSyncAdapter(mode: ConnectionMode, config: unknown): ProviderSyncAdapter | null {
-  const adapter = createJiraAdapter(mode, config);
+export function jiraSyncAdapter(mode: ConnectionMode, config: unknown, live: JiraLiveOptions = {}): ProviderSyncAdapter | null {
+  const adapter = createJiraAdapter(mode, config, live);
   if (!adapter) return null;
+  // Live reads report unreadable projects themselves, as source issues.
   const unreadable = adapter instanceof JiraFixtureAdapter ? adapter.unreadableProjects() : [];
-  return new ProviderSyncAdapter(adapter, (scope) => createJiraEvidenceSource(adapter, scope, unreadable));
+  return new ProviderSyncAdapter(adapter, (scope) => createJiraEvidenceSource(adapter, scope, unreadable), true);
 }

@@ -1,7 +1,7 @@
 {
   "cassetteVersion": 1,
   "provider": "github",
-  "source": "https://api.github.com/repos/octocat/Hello-World (public, unauthenticated)",
+  "source": "https://api.github.com/repos/octocat/Hello-World (public, unauthenticated); pulls, reviews and check runs added 2026-10-25 (T-082): newest 3 pull requests, titles replaced, no rel=next kept",
   "recordedAt": "2026-10-08T22:17:27.219Z",
   "interactions": [
     {
@@ -359,6 +359,185 @@
         "headers": {},
         "body": {
           "message": "Not Found"
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/repos/octocat/Hello-World/pulls",
+        "query": "page=1&per_page=1&state=all"
+      },
+      "response": {
+        "status": 200,
+        "headers": {},
+        "body": [
+          {
+            "number": 11617,
+            "state": "open",
+            "draft": false,
+            "title": "HW-7: update README (title replaced when recorded)",
+            "user": {
+              "login": "author-fdd92e3fe6"
+            },
+            "created_at": "2026-10-25T13:00:33Z",
+            "closed_at": null,
+            "merged_at": null,
+            "head": {
+              "sha": "113913c76feac35aebf6d78ee604c031bca84df4"
+            },
+            "base": {
+              "ref": "master"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/repos/octocat/Hello-World/pulls",
+        "query": "direction=desc&page=1&per_page=100&sort=created&state=all"
+      },
+      "response": {
+        "status": 200,
+        "headers": {},
+        "body": [
+          {
+            "number": 11617,
+            "state": "open",
+            "draft": false,
+            "title": "HW-7: update README (title replaced when recorded)",
+            "user": {
+              "login": "author-fdd92e3fe6"
+            },
+            "created_at": "2026-10-25T13:00:33Z",
+            "closed_at": null,
+            "merged_at": null,
+            "head": {
+              "sha": "113913c76feac35aebf6d78ee604c031bca84df4"
+            },
+            "base": {
+              "ref": "master"
+            }
+          },
+          {
+            "number": 11616,
+            "state": "closed",
+            "draft": false,
+            "title": "Update README (title replaced when recorded)",
+            "user": {
+              "login": "author-a29c1ba358"
+            },
+            "created_at": "2026-10-25T04:27:06Z",
+            "closed_at": "2026-10-25T04:29:07Z",
+            "merged_at": null,
+            "head": {
+              "sha": "cc0178657aa8ab9945bde52cfa3d3b513eb7c929"
+            },
+            "base": {
+              "ref": "master"
+            }
+          },
+          {
+            "number": 11615,
+            "state": "closed",
+            "draft": false,
+            "title": "Polish README (title replaced when recorded)",
+            "user": {
+              "login": "author-b26ec36acc"
+            },
+            "created_at": "2026-10-24T20:04:14Z",
+            "closed_at": "2026-10-24T20:13:14Z",
+            "merged_at": null,
+            "head": {
+              "sha": "4b7742b6990db517792180639a9b1d67c521ab2c"
+            },
+            "base": {
+              "ref": "master"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/repos/octocat/Hello-World/pulls/11617/reviews",
+        "query": "page=1&per_page=100"
+      },
+      "response": {
+        "status": 200,
+        "headers": {},
+        "body": []
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/repos/octocat/Hello-World/commits/113913c76feac35aebf6d78ee604c031bca84df4/check-runs",
+        "query": "page=1&per_page=100"
+      },
+      "response": {
+        "status": 200,
+        "headers": {},
+        "body": {
+          "total_count": 0,
+          "check_runs": []
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/repos/octocat/Hello-World/pulls/11616/reviews",
+        "query": "page=1&per_page=100"
+      },
+      "response": {
+        "status": 200,
+        "headers": {},
+        "body": []
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/repos/octocat/Hello-World/commits/cc0178657aa8ab9945bde52cfa3d3b513eb7c929/check-runs",
+        "query": "page=1&per_page=100"
+      },
+      "response": {
+        "status": 200,
+        "headers": {},
+        "body": {
+          "total_count": 0,
+          "check_runs": []
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/repos/octocat/Hello-World/pulls/11615/reviews",
+        "query": "page=1&per_page=100"
+      },
+      "response": {
+        "status": 200,
+        "headers": {},
+        "body": []
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/repos/octocat/Hello-World/commits/4b7742b6990db517792180639a9b1d67c521ab2c/check-runs",
+        "query": "page=1&per_page=100"
+      },
+      "response": {
+        "status": 200,
+        "headers": {},
+        "body": {
+          "total_count": 0,
+          "check_runs": []
         }
       }
     }

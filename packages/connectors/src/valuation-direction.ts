@@ -1,5 +1,5 @@
 import type { FindingDomain, ValuationDirection } from '@pactlab/domain';
-import { CODE_CONTRIBUTOR_ACTIVITY_EVIDENCE_TYPE, REPOSITORY_HEAD_EVIDENCE_TYPE } from './github/evidence';
+import { CODE_CONTRIBUTOR_ACTIVITY_EVIDENCE_TYPE, ISSUE_LINK_EVIDENCE_TYPE, PULL_REQUEST_EVIDENCE_TYPE, REPOSITORY_HEAD_EVIDENCE_TYPE } from './github/evidence';
 import { DELIVERY_CONTRIBUTOR_ACTIVITY_EVIDENCE_TYPE, JIRA_ISSUE_EVIDENCE_TYPE, JIRA_SPRINT_EVIDENCE_TYPE } from './jira/evidence';
 import { INVOICE_LINE_EVIDENCE_TYPE } from './stripe/invoice-line';
 
@@ -40,6 +40,20 @@ export const VALUATION_DIRECTION_MAP: Readonly<Record<string, readonly Direction
     { signal: 'key-person', findingDomain: 'KEY_PERSON', defaultDirection: -1, channel: 'PRICED_TERM' },
     { signal: 'scan', findingDomain: 'SECURITY', defaultDirection: -1, channel: 'PRICED_TERM' },
     { signal: 'healthy-ownership', findingDomain: 'KEY_PERSON', defaultDirection: 1, channel: 'CONFIRMATION' },
+  ],
+  [PULL_REQUEST_EVIDENCE_TYPE]: [
+    { signal: 'unreviewed-merges', findingDomain: 'OPERATIONS', defaultDirection: -1, channel: 'ASSUMPTION' },
+    { signal: 'failing-checks', findingDomain: 'OPERATIONS', defaultDirection: -1, channel: 'ASSUMPTION' },
+    { signal: 'healthy-review', findingDomain: 'OPERATIONS', defaultDirection: 1, channel: 'CONFIRMATION' },
+  ],
+  [ISSUE_LINK_EVIDENCE_TYPE]: [
+    {
+      signal: 'traceability',
+      findingDomain: 'OPERATIONS',
+      defaultDirection: 0,
+      channel: 'INFORMATIONAL',
+      rationale: 'Links code to delivery work so other findings can cite both; a link moves no value by itself.',
+    },
   ],
   [JIRA_ISSUE_EVIDENCE_TYPE]: [
     { signal: 'reopen-rate', findingDomain: 'OPERATIONS', defaultDirection: -1, channel: 'ASSUMPTION' },
@@ -111,6 +125,8 @@ export const VALUATION_DIRECTION_MAP: Readonly<Record<string, readonly Direction
 export const ADAPTER_EVIDENCE_TYPES = [
   REPOSITORY_HEAD_EVIDENCE_TYPE,
   CODE_CONTRIBUTOR_ACTIVITY_EVIDENCE_TYPE,
+  PULL_REQUEST_EVIDENCE_TYPE,
+  ISSUE_LINK_EVIDENCE_TYPE,
   JIRA_ISSUE_EVIDENCE_TYPE,
   JIRA_SPRINT_EVIDENCE_TYPE,
   DELIVERY_CONTRIBUTOR_ACTIVITY_EVIDENCE_TYPE,

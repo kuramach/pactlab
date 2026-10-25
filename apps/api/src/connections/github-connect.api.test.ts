@@ -134,9 +134,13 @@ describe('connecting GitHub live through the API', () => {
       source_record_id: `octocat/Hello-World@${HEAD}`,
       locator: { kind: 'git_commit', repository: 'octocat/Hello-World', commitSha: HEAD },
     });
-    // Everything else is contributor activity keyed pseudonymously, never by login or email.
-    const activity = evidence.rows.filter((row) => !row.source_record_id.includes('@'));
-    expect(activity.every((row) => /^octocat\/Hello-World:[0-9a-f]{16}:\d{4}-\d{2}$/.test(row.source_record_id))).toBe(true);
+    // Contributor activity is keyed pseudonymously, never by login or email; pull requests and their issue links follow (T-082).
+    const rest = evidence.rows.filter((row) => !row.source_record_id.includes('@'));
+    const activity = rest.filter((row) => /^octocat\/Hello-World:[0-9a-f]{16}:\d{4}-\d{2}$/.test(row.source_record_id));
+    expect(activity.length).toBeGreaterThan(0);
+    expect(rest.filter((row) => row.source_record_id.includes('#')).map((row) => row.source_record_id).sort()).toEqual(['octocat/Hello-World#11615', 'octocat/Hello-World#11616', 'octocat/Hello-World#11617']);
+    expect(rest.filter((row) => row.source_record_id.includes(':pull:')).map((row) => row.source_record_id)).toEqual(['octocat/Hello-World:pull:11617:HW-7']);
+    expect(activity.length + 4).toBe(rest.length);
 
     const audits = (await db.owner.query(`SELECT action FROM audit_events WHERE target_id = $1 ORDER BY chain_seq`, [connectionId])) as {
       rows: { action: string }[];
@@ -158,6 +162,15 @@ describe('connecting GitHub live through the API', () => {
     expect(connected.status).toBe(201);
     expect(connected.body['validation']).toMatchObject({ ok: true });
     expect(seenAuth).toContain('Bearer ghs_app_installation');
+  });
+
+  it('connects a public repository with no credential (T-082)', async () => {
+    const connected = await call('POST', `/v1/deals/${a.dealId}/connections/github`, await token(a.subject, a), { method: 'PUBLIC', repository: 'octocat/Hello-World' });
+    expect(connected.status).toBe(201);
+    expect(connected.body).toMatchObject({ connection: { mode: 'LIVE' }, validation: { ok: true } });
+    const id = (connected.body['connection'] as { id: string }).id;
+    const stored = (await db.owner.query(`SELECT credential_ref, display_name FROM connections WHERE id = $1`, [id])) as { rows: { credential_ref: string; display_name: string }[] };
+    expect(stored.rows[0]).toEqual({ credential_ref: 'secretref:pactlab/anonymous', display_name: 'octocat/Hello-World (GitHub, public)' });
   });
 
   it('reports a repository the credential cannot see without failing the request', async () => {

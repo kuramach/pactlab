@@ -1,0 +1,279 @@
+{
+  "cassetteVersion": 1,
+  "provider": "github",
+  "source": "https://api.github.com/repos/apache/kafka (public; recorded 2026-10-25 for T-082): two merged pull requests from the newest closed page, their reviews and check runs; logins pseudonymised",
+  "recordedAt": "2026-10-25T00:00:00.000Z",
+  "interactions": [
+    {
+      "request": {
+        "method": "GET",
+        "path": "/repos/apache/kafka/pulls",
+        "query": "direction=desc&page=1&per_page=2&sort=created&state=all"
+      },
+      "response": {
+        "status": 200,
+        "headers": {},
+        "body": [
+          {
+            "number": 23948,
+            "state": "closed",
+            "draft": false,
+            "title": "KAFKA-21353: The incorrect parameter in internal-api-checker.md breaks the site build",
+            "user": {
+              "login": "author-1ae328f65e"
+            },
+            "created_at": "2026-10-24T14:36:07Z",
+            "closed_at": "2026-10-25T04:39:38Z",
+            "merged_at": "2026-10-25T04:39:38Z",
+            "head": {
+              "sha": "5473459759108a95b1e67061c2389bdf003ffd36"
+            },
+            "base": {
+              "ref": "trunk"
+            }
+          },
+          {
+            "number": 23945,
+            "state": "closed",
+            "draft": false,
+            "title": "KAFKA-18574: Sort test tables in JUnit summary by class and test name",
+            "user": {
+              "login": "author-0f073f777b"
+            },
+            "created_at": "2026-10-24T07:36:48Z",
+            "closed_at": "2026-10-25T13:09:55Z",
+            "merged_at": "2026-10-25T13:09:55Z",
+            "head": {
+              "sha": "20b4b99c378de61e51e4d6a0238ee0d19baac9ef"
+            },
+            "base": {
+              "ref": "trunk"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/repos/apache/kafka/pulls/23948/reviews",
+        "query": "page=1&per_page=100"
+      },
+      "response": {
+        "status": 200,
+        "headers": {},
+        "body": [
+          {
+            "state": "APPROVED",
+            "user": {
+              "login": "author-810c05b5cd"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/repos/apache/kafka/commits/5473459759108a95b1e67061c2389bdf003ffd36/check-runs",
+        "query": "page=1&per_page=100"
+      },
+      "response": {
+        "status": 200,
+        "headers": {},
+        "body": {
+          "total_count": 18,
+          "check_runs": [
+            {
+              "status": "completed",
+              "conclusion": "skipped"
+            },
+            {
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "status": "completed",
+              "conclusion": "success"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/repos/apache/kafka/pulls/23945/reviews",
+        "query": "page=1&per_page=100"
+      },
+      "response": {
+        "status": 200,
+        "headers": {},
+        "body": [
+          {
+            "state": "COMMENTED",
+            "user": {
+              "login": "author-810c05b5cd"
+            }
+          },
+          {
+            "state": "COMMENTED",
+            "user": {
+              "login": "author-0f073f777b"
+            }
+          },
+          {
+            "state": "APPROVED",
+            "user": {
+              "login": "author-810c05b5cd"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/repos/apache/kafka/commits/20b4b99c378de61e51e4d6a0238ee0d19baac9ef/check-runs",
+        "query": "page=1&per_page=100"
+      },
+      "response": {
+        "status": 200,
+        "headers": {},
+        "body": {
+          "total_count": 17,
+          "check_runs": [
+            {
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "status": "completed",
+              "conclusion": "skipped"
+            },
+            {
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "status": "completed",
+              "conclusion": "skipped"
+            },
+            {
+              "status": "completed",
+              "conclusion": "success"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}
