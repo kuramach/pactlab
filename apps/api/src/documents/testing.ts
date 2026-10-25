@@ -13,6 +13,12 @@ export class InMemoryObjectStore implements DocumentObjectStore {
     this.objects.set(key, bytes);
   }
 
+  async get(key: string) {
+    const bytes = this.objects.get(key);
+    if (!bytes) throw new Error('No such object');
+    return bytes;
+  }
+
   async delete(key: string) {
     this.objects.delete(key);
   }

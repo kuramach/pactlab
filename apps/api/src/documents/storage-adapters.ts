@@ -10,6 +10,10 @@ export class UnavailableObjectStore implements DocumentObjectStore {
     throw new Error('Document object store is not configured');
   }
 
+  async get(): Promise<Uint8Array> {
+    throw new Error('Document object store is not configured');
+  }
+
   async delete(): Promise<void> {
     throw new Error('Document object store is not configured');
   }

@@ -28,6 +28,7 @@ export interface DocumentFindingItem {
 export interface DocumentListItem {
   id: string;
   fileName: string;
+  contentType: string;
   pageCount: number;
   status: 'AVAILABLE' | 'PURGED';
   visibility: 'BUYER_ONLY' | 'SHARED';

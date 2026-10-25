@@ -8,7 +8,9 @@ import {
   Param,
   Post,
   Query,
+  Res,
 } from '@nestjs/common';
+import type { FastifyReply } from 'fastify';
 import { dealParamsSchema } from '@pactlab/contracts';
 import type { TenantContext } from '@pactlab/domain';
 import { Tenant } from '../auth/tenant.decorator';
@@ -62,6 +64,23 @@ export class DocumentsController {
     @Param(new ZodValidationPipe(documentParamsSchema)) params: DocumentParams,
   ) {
     return this.service.get(tenant, params.dealId, params.documentId, requestId);
+  }
+
+  /** The stored original, inline; the review screen renders PDFs from it. */
+  @Get('documents/:documentId/original')
+  async original(
+    @Tenant() tenant: TenantContext,
+    @RequestId() requestId: string,
+    @Param(new ZodValidationPipe(documentParamsSchema)) params: DocumentParams,
+    @Res({ passthrough: true }) reply: FastifyReply,
+  ) {
+    const file = await this.service.original(tenant, params.dealId, params.documentId, requestId);
+    void reply
+      .header('content-type', file.contentType)
+      .header('content-disposition', `inline; filename="${file.fileName.replace(/[^\w.-]/g, '_')}"`)
+      .header('x-content-type-options', 'nosniff')
+      .header('cache-control', 'private, no-store');
+    return Buffer.from(file.bytes);
   }
 
   @Get('documents/:documentId/pages/:pageNumber')

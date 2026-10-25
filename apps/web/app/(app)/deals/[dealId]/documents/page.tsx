@@ -7,6 +7,7 @@ import { can, dealViewer } from '../../_lib/viewer';
 import { extractDocument, reviewDocumentFinding, uploadDocument } from './actions';
 import { AI_UNAVAILABLE } from './ai-messages';
 import { AskBox } from './ask-box';
+import { PdfPageView } from './pdf-page-view';
 import {
   citationHref,
   highlightQuotes,
@@ -91,6 +92,13 @@ export default async function DocumentsPage({
       .filter((c) => c.documentId === view.documentId && c.pageNumber === view.page)
       .map((c) => c.quote),
   );
+  const openDocument = documents.kind === 'ok' ? documents.data.items.find((doc) => doc.id === view.documentId) : undefined;
+  const isPdf = openDocument?.contentType === 'application/pdf' && openDocument.status === 'AVAILABLE';
+  // Every cited page in review order, to step through the queue's quotes beside the original.
+  const citedPages = [...new Map(queue.flatMap((finding) => finding.citations.map((c) => [`${c.documentId}:${c.pageNumber}`, c] as const))).values()];
+  const citedAt = citedPages.findIndex((c) => c.documentId === view.documentId && c.pageNumber === view.page);
+  const previousCited = citedAt > 0 ? citedPages[citedAt - 1] : undefined;
+  const nextCited = citedAt === -1 ? citedPages[0] : citedPages[citedAt + 1];
 
   return (
     <div className="flex max-w-7xl flex-col gap-6">
@@ -225,17 +233,43 @@ export default async function DocumentsPage({
               />
             ) : (
               <>
-                <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed">
-                  {highlightQuotes(page.data.text, quotesOnPage).map((part, index) =>
-                    part.cited ? (
-                      <mark key={index} className="rounded bg-sky-100 px-0.5">
-                        {part.text}
-                      </mark>
+                {citedPages.length > 0 ? (
+                  <nav aria-label="Cited quotes" className="mb-3 flex items-center justify-between gap-2 text-sm">
+                    {previousCited ? (
+                      <Link href={citationHref(dealId, previousCited)} className="hover:underline">
+                        ← Previous quote
+                      </Link>
                     ) : (
-                      <span key={index}>{part.text}</span>
-                    ),
-                  )}
-                </pre>
+                      <span />
+                    )}
+                    <span className="text-xs text-muted-foreground">
+                      {citedAt === -1 ? `${citedPages.length} cited pages in the review queue` : `Cited page ${citedAt + 1} of ${citedPages.length}`}
+                    </span>
+                    {nextCited ? (
+                      <Link href={citationHref(dealId, nextCited)} className="hover:underline">
+                        Next quote →
+                      </Link>
+                    ) : (
+                      <span />
+                    )}
+                  </nav>
+                ) : null}
+                {isPdf ? (
+                  <PdfPageView
+                    src={`/deals/${dealId}/documents/${page.data.documentId}/original`}
+                    pageNumber={page.data.pageNumber}
+                    quotes={quotesOnPage}
+                    fileName={page.data.fileName}
+                  />
+                ) : null}
+                {isPdf ? (
+                  <details className="mt-3 text-sm">
+                    <summary className="cursor-pointer font-semibold text-indigo-ink">Extracted text (what citations are checked against)</summary>
+                    <ExtractedText text={page.data.text} quotes={quotesOnPage} />
+                  </details>
+                ) : (
+                  <ExtractedText text={page.data.text} quotes={quotesOnPage} />
+                )}
                 <div className="mt-4 flex justify-between text-sm">
                   {page.data.pageNumber > 1 ? (
                     <Link
@@ -368,5 +402,21 @@ export default async function DocumentsPage({
         </Card>
       </div>
     </div>
+  );
+}
+
+function ExtractedText({ text, quotes }: { text: string; quotes: readonly string[] }) {
+  return (
+    <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed">
+      {highlightQuotes(text, quotes).map((part, index) =>
+        part.cited ? (
+          <mark key={index} className="rounded bg-sky-100 px-0.5">
+            {part.text}
+          </mark>
+        ) : (
+          <span key={index}>{part.text}</span>
+        ),
+      )}
+    </pre>
   );
 }
