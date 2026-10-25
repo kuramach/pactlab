@@ -546,6 +546,8 @@ model Deal {
   screeningReview         ScreeningReview?
   claims                  DealClaim[]
   postCloseItems          PostCloseItem[]
+  foresightTrendSets      ForesightTrendSet[]
+  foresightQuestions      ForesightQuestion[]
 
   @@unique([organizationId, id])
   @@index([organizationId, createdAt])
@@ -1668,4 +1670,102 @@ model BugReport {
   @@index([fingerprint, status], map: "bug_reports_fingerprint_idx")
   @@index([reporterUserId, lastSeenAt], map: "bug_reports_reporter_idx")
   @@map("bug_reports")
+}
+
+/// Foresight (T-073): an AI baseline of five-year trend lines for a deal —
+/// dated, with the model and prompt version that produced it.
+model ForesightTrendSet {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  dealId         String   @map("deal_id") @db.Uuid
+  asOf           DateTime @map("as_of") @db.Date
+  provenance     String   @default("AI")
+  modelId        String   @map("model_id")
+  promptId       String   @map("prompt_id")
+  promptVersion  String   @map("prompt_version")
+  aiRunId        String?  @map("ai_run_id") @db.Uuid
+  baseGrowth     Decimal  @default(0.10) @map("base_growth") @db.Decimal(9, 6)
+  baseMargin     Decimal  @default(0.20) @map("base_margin") @db.Decimal(9, 6)
+  createdBy      String   @map("created_by") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  deal      Deal                 @relation(fields: [organizationId, dealId], references: [organizationId, id], onDelete: Restrict, map: "foresight_trend_sets_deal_fkey")
+  trends    ForesightTrend[]
+  scenarios ForesightScenario[]
+
+  @@unique([organizationId, dealId, id])
+  @@index([organizationId, dealId, createdAt])
+  @@map("foresight_trend_sets")
+}
+
+model ForesightTrend {
+  id             String @id @default(uuid(7)) @db.Uuid
+  organizationId String @map("organization_id") @db.Uuid
+  dealId         String @map("deal_id") @db.Uuid
+  trendSetId     String @map("trend_set_id") @db.Uuid
+  ordinal        Int
+  key            String
+  label          String
+  /// MACRO | SECTOR
+  category       String
+  /// UP | FLAT | DOWN
+  direction      String
+  /// LOW | MEDIUM | HIGH
+  magnitude      String
+  confidence     String
+  narrative      String
+  effects        Json
+
+  trendSet ForesightTrendSet @relation(fields: [organizationId, dealId, trendSetId], references: [organizationId, dealId, id], onDelete: Restrict, map: "foresight_trends_set_fkey")
+
+  @@unique([organizationId, dealId, trendSetId, key], map: "foresight_trends_set_key")
+  @@map("foresight_trends")
+}
+
+/// A user's own view (T-073): overrides and custom trends layered on a
+/// baseline, which is never edited.
+model ForesightScenario {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  dealId         String   @map("deal_id") @db.Uuid
+  trendSetId     String   @map("trend_set_id") @db.Uuid
+  name           String
+  baseGrowth     Decimal  @map("base_growth") @db.Decimal(9, 6)
+  baseMargin     Decimal  @map("base_margin") @db.Decimal(9, 6)
+  /// { [trendKey]: { direction?, magnitude?, weight? } }
+  overrides      Json     @default("{}")
+  /// User trend lines: { key, label, direction, magnitude, confidence, narrative, effects }[]
+  customTrends   Json     @default("[]") @map("custom_trends")
+  version        Int      @default(1)
+  createdBy      String   @map("created_by") @db.Uuid
+  updatedBy      String   @map("updated_by") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime @default(now()) @map("updated_at") @db.Timestamptz(3)
+
+  trendSet ForesightTrendSet @relation(fields: [organizationId, dealId, trendSetId], references: [organizationId, dealId, id], onDelete: Restrict, map: "foresight_scenarios_set_fkey")
+
+  @@unique([organizationId, dealId, id])
+  @@map("foresight_scenarios")
+}
+
+/// A question about the trends and projection, typed or spoken, with the
+/// grounded answer and the trends it relied on. Transcripts only; no audio.
+model ForesightQuestion {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  dealId         String   @map("deal_id") @db.Uuid
+  scenarioId     String?  @map("scenario_id") @db.Uuid
+  /// TEXT | VOICE
+  via            String
+  question       String
+  answer         String
+  reliesOn       String[] @default([]) @map("relies_on")
+  aiRunId        String?  @map("ai_run_id") @db.Uuid
+  askedBy        String   @map("asked_by") @db.Uuid
+  askedAt        DateTime @default(now()) @map("asked_at") @db.Timestamptz(3)
+
+  deal Deal @relation(fields: [organizationId, dealId], references: [organizationId, id], onDelete: Restrict, map: "foresight_questions_deal_fkey")
+
+  @@index([organizationId, dealId, askedAt])
+  @@map("foresight_questions")
 }

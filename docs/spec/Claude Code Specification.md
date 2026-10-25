@@ -1885,3 +1885,31 @@ Items get an owner, a date or review cadence, and a status (`OPEN`, `DONE` or `L
 **Continuity rule.** Nothing is re-typed between phases. Red flags become claims, claims link to findings, and findings become post-close items. Each conversion is a reference, not a copy.
 
 Screening, claims and post-close items are buyer-side analysis: target contributors never see them (RLS).
+
+## 30. Foresight: five-year trend lines and projected value (T-073)
+
+Foresight (internal codename Nostradamus, never shown to users) helps a buyer think about the next five years. It does not predict. Every figure is "projected value under these assumptions".
+
+**Trend lines.** A trend line is structured, not a paragraph:
+- a direction (`UP`, `FLAT` or `DOWN`), a size band (`LOW`, `MEDIUM` or `HIGH`), a confidence and a short narrative;
+- every set carries its as-of date, model and prompt version.
+
+Every deal gets the generic macro set: geopolitical conflict, inflation and rates, trade and tariffs, regulatory posture, and the equity/credit cycle. Each pack adds its own sector questions (`PACK_TRENDS`); a pack without them uses the generic set.
+
+The AI baseline is generated on demand (prompt `foresight.trends`, balanced tier). The model never supplies numbers.
+
+**Scenarios.** A user scenario layers overrides (direction, size, weight 0–2) and the user's own trends on the baseline, which is never edited.
+- AI and user trends are labelled differently everywhere.
+- An adjusted AI trend shows as the user's.
+
+**Projection** (`@pactlab/calculations`, `foresight-1`, decimal arithmetic):
+- **Starting point:** today's value is the latest valuation run's enterprise value, or the asking price until a valuation runs.
+- **Impacts:** a versioned impact table turns each trend into named impacts on growth, margin and the exit multiple (a discount-rate point moves the multiple 10 %).
+- **Output:** a path for years 0–5 with a low–high range that widens with lower confidence, rounded to three significant figures, plus a sensitivity ranking of what moves year 5 most.
+
+**Q&A, typed or spoken.** Answers come from the selected line's trends, assumptions and projection (prompt `foresight.qa`).
+- An answer must name the trends or assumptions it relies on, or it is refused.
+- Voice uses Amazon Transcribe (16 kHz PCM, in memory) and Amazon Polly (optional spoken reply). Audio is never stored; transcripts and answers are kept and audited.
+- Where voice isn't configured, typing works.
+
+All Foresight data is buyer-side (RLS).

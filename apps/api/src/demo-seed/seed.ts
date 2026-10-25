@@ -11,6 +11,7 @@ import { FindingsService } from '../findings/findings.service';
 import { PactsService } from '../pacts/pacts.service';
 import { DealsService } from '../deals/deals.service';
 import { PhasesService } from '../phases/phases.service';
+import { ForesightService } from '../foresight/foresight.service';
 import { updateAssumptionsSchema } from '../valuation/valuation.schemas';
 import { ValuationService } from '../valuation/valuation.service';
 import { DEMO_CONTRACTS, type SyntheticContract } from './contracts';
@@ -118,6 +119,24 @@ function citationIdFor(request: ModelRequest, quote: string): string | null {
  * id `synthetic-fixture`, never as a real model.
  */
 export function demoModelResponse(request: ModelRequest): string {
+  // Foresight baseline (T-073): a synthetic, balanced view for each question asked.
+  if (request.system.includes('Answer every question you are given')) {
+    const prompt = request.messages[0]?.content ?? '';
+    const keys = [...prompt.matchAll(/^([a-z_]+\.[a-z_]+):/gm)].map((match) => match[1] ?? '');
+    const view: Record<string, [string, string, string]> = {
+      'macro.rates': ['UP', 'MEDIUM', 'MEDIUM'],
+      'macro.market': ['FLAT', 'LOW', 'LOW'],
+      'macro.trade': ['UP', 'LOW', 'MEDIUM'],
+      'saas.it_spend': ['UP', 'MEDIUM', 'MEDIUM'],
+      'saas.ai_disruption': ['UP', 'LOW', 'LOW'],
+    };
+    return JSON.stringify({
+      trends: keys.map((key) => {
+        const [direction, magnitude, confidence] = view[key] ?? ['FLAT', 'LOW', 'MEDIUM'];
+        return { key, direction, magnitude, confidence, narrative: `Synthetic demo view for ${key} ${SYNTHETIC}: drivers on both sides; not a forecast.` };
+      }),
+    });
+  }
   const all = Object.values(DEMO_CONTRACTS).flat();
   const contract = all.find((entry) => entry.extraction && citationIdFor(request, entry.extraction.parties[0]?.quote ?? '\u0000'));
   const extraction = contract?.extraction;
@@ -182,6 +201,7 @@ export async function seedDemo(
   const engineering = app.get(EngineeringService, { strict: false });
   const phases = app.get(PhasesService, { strict: false });
   const dealsService = app.get(DealsService, { strict: false });
+  const foresightService = app.get(ForesightService, { strict: false });
   const report: string[] = [];
 
   for (const holder of DEMO_HOLDERS) {
@@ -616,6 +636,29 @@ export async function seedDemo(
         report.push(`${holder.label} · Project Troubled: in diligence with 2 claims (1 contradicted)`);
       }
     }
+    // --- Foresight (T-073): an AI baseline and one user scenario on Project Troubled ---
+    if (troubled) {
+      const foresight = await foresightService.view(who.lead, troubled, REQUEST_ID);
+      if (!foresight.baseline) {
+        await foresightService.generate(who.lead, troubled, REQUEST_ID);
+        await foresightService.createScenario(
+          who.lead,
+          troubled,
+          {
+            name: 'Rates stay high',
+            baseGrowth: '0.08',
+            baseMargin: '0.18',
+            overrides: { 'macro.rates': { magnitude: 'HIGH' } },
+            customTrends: [
+              { key: 'custom.churn_recovers', label: 'Churn recovers after the pricing reset', direction: 'UP', magnitude: 'MEDIUM', confidence: 'LOW', narrative: `Deal team view ${SYNTHETIC}.`, effects: [{ lever: 'GROWTH', whenUp: 1 }], weight: '1' },
+            ],
+          },
+          REQUEST_ID,
+        );
+        report.push(`${holder.label} · Project Troubled: Foresight baseline and one scenario`);
+      }
+    }
+
     const healthyClose = dealId('Project Healthy');
     if (healthyClose && dealRows.find((deal) => deal.id === healthyClose)?.stage !== 'CLOSED') {
       await dealsService.update(who.lead, healthyClose, { stage: 'CLOSED' }, REQUEST_ID);
