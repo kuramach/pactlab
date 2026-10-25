@@ -65,6 +65,7 @@ const app = await createApp(
     // Large imports run on the worker when Redis is configured (the worker shares the store).
     ...(localDocuments ? { uploads: { ...localDocuments, importQueue: config.REDIS_URL ? new BullMqImportQueue(config.REDIS_URL) : null } } : {}),
     aiStatus: ai.status,
+    environment: config.APP_ENV,
     // Sign-in codes are written to files locally; no email provider is wired
     // for deployed environments yet, so codes are not delivered there.
     signup: {

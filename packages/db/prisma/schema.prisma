@@ -455,6 +455,8 @@ model Organization {
   balanceSheetItemVersions BalanceSheetItemVersion[]
   contributorIdentities   ContributorIdentity[]
   peopleAccess            PeopleAccess[]
+  flags                   OrganizationFlags?
+  bugReports              BugReport[]
 
   @@map("organizations")
 }
@@ -466,6 +468,8 @@ model User {
   /// Lowercased sign-in address for email-code organizations; never sent to models.
   email        String?  @unique
   displayName  String   @map("display_name")
+  /// Platform operator (the Pactlab team): may use the admin console (T-072). Set with `pnpm ops:operator`.
+  platformOperator Boolean @default(false) @map("platform_operator")
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
   organizationMemberships OrganizationMembership[]
@@ -1616,4 +1620,52 @@ model PostCloseItem {
   @@unique([organizationId, dealId, kind, sourceType, sourceId], map: "post_close_items_source_key")
   @@index([organizationId, dealId])
   @@map("post_close_items")
+}
+
+/// Per-organization feature flags (T-072), changed by operators without a
+/// deploy. Written only through `app_ops_set_flags`.
+model OrganizationFlags {
+  organizationId String   @id @map("organization_id") @db.Uuid
+  pilotMode      Boolean  @default(false) @map("pilot_mode")
+  liveConnectors Boolean  @default(true) @map("live_connectors")
+  updatedBy      String?  @map("updated_by") @db.Uuid
+  updatedAt      DateTime @default(now()) @map("updated_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, map: "organization_flags_organization_fkey")
+
+  @@map("organization_flags")
+}
+
+/// Bug reports (T-072): user-filed or automatic, deduplicated by fingerprint,
+/// context scrubbed before writing. Reached only through `app_bug_*` functions.
+model BugReport {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  number         Int      @unique(map: "bug_reports_number_key")
+  organizationId String   @map("organization_id") @db.Uuid
+  dealId         String?  @map("deal_id") @db.Uuid
+  reporterUserId String?  @map("reporter_user_id") @db.Uuid
+  /// USER_REPORT | FRONTEND_EXCEPTION | BACKEND_EXCEPTION | JOB_EXHAUSTED
+  trigger        String
+  fingerprint    String
+  title          String
+  whatHappened   String?  @map("what_happened")
+  expected       String?
+  /// LOW | MEDIUM | HIGH | BLOCKER
+  severity       String
+  /// NEW | TRIAGED | IN_PROGRESS | RESOLVED | WONT_FIX
+  status         String   @default("NEW")
+  context        Json     @default("{}")
+  screenshot     Bytes?
+  screenshotType String?  @map("screenshot_type")
+  internalNotes  String?  @map("internal_notes")
+  occurrences    Int      @default(1)
+  firstSeenAt    DateTime @default(now()) @map("first_seen_at") @db.Timestamptz(3)
+  lastSeenAt     DateTime @default(now()) @map("last_seen_at") @db.Timestamptz(3)
+  updatedAt      DateTime @default(now()) @map("updated_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, map: "bug_reports_organization_fkey")
+
+  @@index([fingerprint, status], map: "bug_reports_fingerprint_idx")
+  @@index([reporterUserId, lastSeenAt], map: "bug_reports_reporter_idx")
+  @@map("bug_reports")
 }
