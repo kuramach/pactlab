@@ -2,13 +2,14 @@ import { createHash } from 'node:crypto';
 import {
   ACCEPTED_CONTENT_TYPES,
   DOCX_CONTENT_TYPE,
+  XLSX_CONTENT_TYPE,
   type AcceptedContentType,
   type RetentionClass,
 } from './documents.types';
 
-/** Text and Markdown files. */
+/** Text, Markdown and CSV files. */
 export const MAX_DOCUMENT_BYTES = 512 * 1024;
-/** PDF and Word files. */
+/** PDF, Word and Excel files. */
 export const MAX_BINARY_DOCUMENT_BYTES = 10 * 1024 * 1024;
 
 export type MalwareVerdict = 'CLEAN' | 'INFECTED' | 'UNAVAILABLE';
@@ -53,16 +54,19 @@ export class UploadRejectedError extends Error {
 const EXTENSIONS: Record<AcceptedContentType, readonly string[]> = {
   'text/plain': ['.txt'],
   'text/markdown': ['.md', '.markdown'],
+  'text/csv': ['.csv'],
   'application/pdf': ['.pdf'],
   [DOCX_CONTENT_TYPE]: ['.docx'],
+  [XLSX_CONTENT_TYPE]: ['.xlsx'],
 };
 
 const BINARY_MAGIC = ['%PDF', 'PK\u0003\u0004', 'MZ', '\u007fELF', 'ÐÏ\u0011à'];
 
-/** Binary types must start with their own signature: a PDF header, or a ZIP (docx) local header. */
+/** Binary types must start with their own signature: a PDF header, or a ZIP (docx, xlsx) local header. */
 const REQUIRED_MAGIC: Partial<Record<AcceptedContentType, string>> = {
   'application/pdf': '%PDF-',
   [DOCX_CONTENT_TYPE]: 'PK\u0003\u0004',
+  [XLSX_CONTENT_TYPE]: 'PK\u0003\u0004',
 };
 
 /** Strip any path and unsafe characters from a client-supplied file name. */

@@ -4,7 +4,8 @@ export const RETENTION_CLASSES = ['DEAL_TERM', 'SHORT_90D', 'LEGAL_HOLD'] as con
 export type RetentionClass = (typeof RETENTION_CLASSES)[number];
 
 export const DOCX_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-export const ACCEPTED_CONTENT_TYPES = ['text/plain', 'text/markdown', 'application/pdf', DOCX_CONTENT_TYPE] as const;
+export const XLSX_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+export const ACCEPTED_CONTENT_TYPES = ['text/plain', 'text/markdown', 'text/csv', 'application/pdf', DOCX_CONTENT_TYPE, XLSX_CONTENT_TYPE] as const;
 export type AcceptedContentType = (typeof ACCEPTED_CONTENT_TYPES)[number];
 
 /** Spec `documents`: metadata, object key, checksum, page count and retention class. */

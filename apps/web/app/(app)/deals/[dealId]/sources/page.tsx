@@ -210,7 +210,7 @@ export default async function DealSourcesPage({
           <CardHeader>
             <CardTitle>Industry data</CardTitle>
             <CardDescription>
-              Extracts this deal&apos;s industry pack reads, as CSV files on the Pactlab standard template. People appear only as aggregates or
+              Extracts this deal&apos;s industry pack reads, as CSV or Excel files on the Pactlab standard template. People appear only as aggregates or
               pseudonymous references.
             </CardDescription>
           </CardHeader>

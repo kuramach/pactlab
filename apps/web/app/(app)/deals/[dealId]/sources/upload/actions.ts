@@ -1,9 +1,10 @@
 'use server';
 
-import { importMappingSchema, MAX_UPLOAD_BYTES, uploadQuerySchema, type ImportPreviewView } from '@pactlab/contracts';
+import { importMappingSchema, MAX_UPLOAD_BYTES, uploadQuerySchema, type ImportPreviewView, type ImportProgressView } from '@pactlab/contracts';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import { dealsApi } from '../../../_lib/api';
+import { importedUrl } from './_lib/mapping-form';
 
 const dealId = z.uuid();
 
@@ -50,11 +51,13 @@ export async function previewMapping(deal: string, upload: string, mapping: unkn
   return { kind: 'error', message: result.kind === 'forbidden' ? 'Your role cannot import data into this deal.' : 'The check could not run. Try again.' };
 }
 
-/** Import with the confirmed mapping, then return to Sources with the result. */
-export async function importWithMapping(deal: string, upload: string, mapping: unknown): Promise<{ message: string }> {
+export type ImportOutcome = { kind: 'message'; message: string } | { kind: 'background'; runId: string };
+
+/** Import with the confirmed mapping, then return to Sources with the result — or, for a large file, follow it in the background. */
+export async function importWithMapping(deal: string, upload: string, mapping: unknown): Promise<ImportOutcome> {
   const ids = target.safeParse({ dealId: deal, uploadId: upload });
   const parsed = importMappingSchema.safeParse(mapping);
-  if (!ids.success || !parsed.success) return { message: 'The mapping is incomplete. Check each field.' };
+  if (!ids.success || !parsed.success) return { kind: 'message', message: 'The mapping is incomplete. Check each field.' };
   const result = await dealsApi.runImport(ids.data.dealId, ids.data.uploadId, parsed.data);
   if (result.kind !== 'ok') {
     const messages: Record<string, string> = {
@@ -62,13 +65,32 @@ export async function importWithMapping(deal: string, upload: string, mapping: u
       conflict: 'This file was already imported with a different mapping. Upload it again to use a new one.',
       forbidden: 'Your role cannot import data into this deal.',
     };
-    return { message: messages[result.kind] ?? 'The import could not run. Try again.' };
+    return { kind: 'message', message: messages[result.kind] ?? 'The import could not run. Try again.' };
   }
   const run = result.data.syncRun;
-  if (run.status !== 'SUCCEEDED') return { message: 'The import failed before writing evidence. Try again.' };
-  redirect(
-    `/deals/${ids.data.dealId}/sources?imported=${encodeURIComponent(result.data.upload.target)}&created=${run.recordsCreated}&unchanged=${run.recordsUnchanged}${result.data.replayed ? '&replayed=1' : ''}`,
-  );
+  if (run.status === 'QUEUED' || run.status === 'RUNNING') return { kind: 'background', runId: run.id };
+  if (run.status !== 'SUCCEEDED') return { kind: 'message', message: 'The import failed before writing evidence. Try again.' };
+  redirect(importedUrl(ids.data.dealId, result.data.upload.target, run, result.data.replayed));
+}
+
+const runIds = z.strictObject({ dealId: z.uuid(), runId: z.uuid() });
+
+/** How far a background import has got (counts only); polled by the mapping screen. */
+export async function importProgressOf(deal: string, run: string): Promise<ImportProgressView | null> {
+  const ids = runIds.safeParse({ dealId: deal, runId: run });
+  if (!ids.success) return null;
+  const result = await dealsApi.importProgress(ids.data.dealId, ids.data.runId);
+  return result.kind === 'ok' ? result.data : null;
+}
+
+/** Read another sheet of an Excel upload; the page then shows its columns. */
+export async function chooseSheet(deal: string, upload: string, sheet: string): Promise<{ message: string | null }> {
+  const ids = target.safeParse({ dealId: deal, uploadId: upload });
+  const name = z.string().trim().min(1).max(100).safeParse(sheet);
+  if (!ids.success || !name.success) return { message: 'Choose a sheet.' };
+  const result = await dealsApi.selectSheet(ids.data.dealId, ids.data.uploadId, name.data);
+  if (result.kind === 'ok') return { message: null };
+  return { message: result.kind === 'conflict' ? 'This upload was already imported; its sheet is fixed.' : 'That sheet could not be read. Try another.' };
 }
 
 /** Discard an upload that was the wrong file: nothing is imported, the stored copy is deleted (audited). */

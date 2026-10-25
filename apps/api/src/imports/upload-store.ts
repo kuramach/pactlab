@@ -1,13 +1,19 @@
-/** Tenant-prefixed storage for uploaded billing exports (the local file store or the managed bucket). */
-export interface UploadObjectStore {
-  put(key: string, bytes: Uint8Array, meta: { contentType: string; sha256: string }): Promise<void>;
-  get(key: string): Promise<Uint8Array>;
-  /** Remove a stored original (a cancelled upload); a missing object is not an error. */
-  delete(key: string): Promise<void>;
+import type { ImportProgress, TenantObjectStore, UploadImportJob } from '@pactlab/db';
+
+/** Tenant-prefixed storage for uploaded exports (the local file store or the managed bucket). */
+export type UploadObjectStore = TenantObjectStore;
+
+/** Hands a large import to the worker (`upload.import`). Absent: every import runs inline. */
+export interface ImportQueue {
+  /** `rows` seeds the progress total, so the screen can show 0 of N while queued. */
+  enqueue(job: UploadImportJob, rows: number): Promise<void>;
+  /** The worker's last reported progress for a run (counts only), or null when unknown. */
+  progress(run: { organizationId: string; dealId: string; syncRunId: string }): Promise<ImportProgress | null>;
 }
 
 export const UPLOAD_OBJECT_STORE = Symbol('UPLOAD_OBJECT_STORE');
 export const UPLOAD_MALWARE_SCANNER = Symbol('UPLOAD_MALWARE_SCANNER');
+export const IMPORT_QUEUE = Symbol('IMPORT_QUEUE');
 
 /** Fails closed where no store is configured: nothing is accepted. */
 export class UnavailableUploadStore implements UploadObjectStore {

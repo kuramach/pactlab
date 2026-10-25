@@ -31,8 +31,8 @@ const OUTCOMES: Record<string, string> = {
   'ok-accept': 'Draft accepted — its citations were re-checked against the page.',
   'ok-reject': 'Draft rejected.',
   'no-file': 'Choose a file to upload.',
-  type: 'Upload a PDF, Word (.docx), text or Markdown file.',
-  'too-large': 'PDF and Word files can be up to 10 MB; text files up to 512 KB.',
+  type: 'Upload a PDF, Word (.docx), Excel (.xlsx), CSV, text or Markdown file. Older .xls workbooks: save as .xlsx first.',
+  'too-large': 'PDF, Word and Excel files can be up to 10 MB; CSV, text and Markdown up to 512 KB.',
   rejected:
     'The file was rejected — it may be empty, unreadable, password-protected, a scanned PDF with no text (OCR is not available yet) or flagged by the virus scan.',
   unavailable: 'Uploads are not available in this environment.',
@@ -131,10 +131,10 @@ export default async function DocumentsPage({
             <form action={uploadDocument.bind(null, dealId)} className="flex flex-col gap-3 text-sm">
               <FileDrop
                 name="file"
-                accept=".pdf,.docx,.txt,.md,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown"
+                accept=".pdf,.docx,.xlsx,.csv,.txt,.md,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,text/plain,text/markdown"
                 required
-                formats={['PDF', 'Word', 'Text', 'Markdown']}
-                hint="PDF and Word up to 10 MB; text up to 512 KB"
+                formats={['PDF', 'Word', 'Excel', 'CSV', 'Text', 'Markdown']}
+                hint="PDF, Word and Excel up to 10 MB; CSV and text up to 512 KB"
               />
               <div className="flex flex-wrap items-center gap-4">
                 <label className="flex items-center gap-2">
@@ -149,7 +149,7 @@ export default async function DocumentsPage({
                 </label>
               </div>
               <p className="text-xs text-muted-foreground">
-                <Glossed text="PDF or Word up to 10 MB, text or Markdown up to 512 KB. Word documents are split into sections. HR, pay and performance documents are never sent to a model." />
+                <Glossed text="PDF, Word or Excel up to 10 MB; CSV, text or Markdown up to 512 KB. Word documents are split into sections and each Excel sheet starts a new page. HR, pay and performance documents are never sent to a model." />
               </p>
               <div>
                 <Button type="submit" size="sm">

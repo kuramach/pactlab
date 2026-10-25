@@ -1,5 +1,6 @@
-import { DOCX_CONTENT_TYPE, type AcceptedContentType } from './documents.types';
-import { ExtractionError, extractPages, MAX_PAGES, type ExtractedPage } from './extraction';
+import { readWorkbookSheets, TableReadError } from '@pactlab/connectors';
+import { DOCX_CONTENT_TYPE, XLSX_CONTENT_TYPE, type AcceptedContentType } from './documents.types';
+import { ExtractionError, extractPages, MAX_PAGES, TARGET_PAGE_CHARS, type ExtractedPage } from './extraction';
 import { sha256Hex } from '@pactlab/ai';
 
 /** A PDF page with fewer characters than this is treated as having no text layer. */
@@ -77,6 +78,35 @@ async function docxPages(bytes: Uint8Array): Promise<ExtractedPage[]> {
 }
 
 /**
+ * An Excel workbook: each sheet starts a new page headed with its name, rows
+ * as tab-separated lines; a long sheet continues over further pages. Cell
+ * values are text exactly as `readTable` reads them (exact decimals, ISO dates).
+ */
+async function workbookPages(bytes: Uint8Array): Promise<ExtractedPage[]> {
+  let sheets;
+  try {
+    sheets = await readWorkbookSheets(bytes);
+  } catch (error) {
+    throw new ExtractionError(error instanceof TableReadError && error.code === 'NO_DATA' ? 'NO_TEXT' : 'UNREADABLE');
+  }
+  const pages: string[] = [];
+  for (const { sheet, rows } of sheets) {
+    let page = `Sheet: ${sheet}`;
+    for (const row of rows) {
+      const line = row.join('\t');
+      if (page.length + line.length + 1 > TARGET_PAGE_CHARS && page.includes('\n')) {
+        pages.push(page);
+        page = `Sheet: ${sheet} (continued)`;
+      }
+      page += `\n${line}`;
+    }
+    pages.push(page);
+    if (pages.length > MAX_PAGES) throw new ExtractionError('TOO_MANY_PAGES');
+  }
+  return extractPages(pages.join('\f'));
+}
+
+/**
  * Pages of text for any accepted document, bounded in time. The original
  * bytes are stored unchanged; only this text is cited and shown.
  */
@@ -86,6 +116,8 @@ export async function documentPages(upload: { contentType: AcceptedContentType; 
       return withTimeout(pdfPages(upload.bytes), EXTRACTION_TIMEOUT_MS);
     case DOCX_CONTENT_TYPE:
       return withTimeout(docxPages(upload.bytes), EXTRACTION_TIMEOUT_MS);
+    case XLSX_CONTENT_TYPE:
+      return withTimeout(workbookPages(upload.bytes), EXTRACTION_TIMEOUT_MS);
     default:
       return extractPages(upload.text ?? '');
   }

@@ -50,7 +50,13 @@ export type UploadQuery = z.infer<typeof uploadQuerySchema>;
 export const uploadParamsSchema = z.strictObject({ dealId: z.uuid(), uploadId: z.uuid() });
 export const importTargetParamsSchema = z.strictObject({ dealId: z.uuid(), target: z.enum(IMPORT_TARGETS) });
 
-export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
+/** CSV, TSV or Excel files up to 50 MB (200,000 rows). Larger imports run in the background. */
+export const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
+/** File types an import upload accepts, for the file picker. */
+export const IMPORT_FILE_ACCEPT = '.csv,.tsv,.txt,.xlsx,text/csv,text/tab-separated-values,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+
+export const sheetBodySchema = z.strictObject({ sheet: z.string().trim().min(1).max(100) });
+export const importRunParamsSchema = z.strictObject({ dealId: z.uuid(), runId: z.uuid() });
 
 export interface BillingSystemView {
   system: (typeof BILLING_SYSTEMS)[number];
@@ -74,6 +80,12 @@ export interface SourceUploadView {
 }
 
 export interface UploadDetailView extends SourceUploadView {
+  /** How the file was read: format, text encoding and separator, or the workbook sheet. */
+  format: 'CSV' | 'TSV' | 'XLSX';
+  encoding: 'UTF-8' | 'WINDOWS-1252' | null;
+  delimiter: ',' | ';' | '\t' | null;
+  sheet: string | null;
+  sheets: string[];
   header: string[];
   /** First rows as uploaded, for the mapping screen only; never stored as evidence. */
   sample: string[][];
@@ -105,6 +117,21 @@ export interface ImportResultView {
     issuesCount: number;
   };
   replayed: boolean;
+  /** True when the import runs in the background; poll its progress by run id. */
+  background: boolean;
+}
+
+/** How far an import run has got. Counts only. */
+export interface ImportProgressView {
+  syncRunId: string;
+  status: 'QUEUED' | 'RUNNING' | 'SUCCEEDED' | 'FAILED';
+  phase: 'QUEUED' | 'READING' | 'VALIDATING' | 'WRITING' | 'DONE';
+  processed: number;
+  total: number | null;
+  recordsCreated: number;
+  recordsUnchanged: number;
+  /** Error class name when the run failed; never row contents. */
+  errorClass: string | null;
 }
 
 /** A CSV import target the deal's pack offers (ADR 0010), with its standard template. */

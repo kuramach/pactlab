@@ -298,13 +298,14 @@ describe('billing CSV import through the API', { timeout: 30_000 }, () => {
     expect((await call('POST', `${base}/import`, lead, { mapping })).status).toBe(422);
   });
 
-  it('rejects malware, non-UTF-8, malformed and oversized files, and non-billing systems', async () => {
+  it('rejects malware, binary, malformed and oversized files, and non-billing systems', async () => {
     const lead = await token(standard.subject, standard);
     const eicar = 'X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*';
     expect((await upload(standard, lead, `a,b\n${eicar},1\n`, 'other')).status).toBe(422);
-    expect((await upload(standard, lead, Buffer.from([0x61, 0x2c, 0x62, 0x0a, 0xff, 0xfe, 0x0a]), 'other')).status).toBe(415);
+    const binary = await upload(standard, lead, Buffer.from([0x61, 0x2c, 0x62, 0x0a, 0x00, 0xfe, 0x0a]), 'other');
+    expect(binary).toMatchObject({ status: 415, body: { code: 'NOT_TEXT' } });
     expect((await upload(standard, lead, 'a,b\n1,2,3\n', 'other')).status).toBe(422);
-    expect((await upload(standard, lead, Buffer.alloc(10 * 1024 * 1024 + 1, 0x61), 'other')).status).toBe(413);
+    expect((await upload(standard, lead, Buffer.alloc(50 * 1024 * 1024 + 1, 0x61), 'other')).status).toBe(413);
     expect((await upload(standard, lead, 'a\n1\n', 'github')).status).toBe(400);
     expect((await upload(standard, lead, 'a\n1\n', 'jira')).status).toBe(400);
   });

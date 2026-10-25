@@ -21,3 +21,11 @@ export type JobEnvelope = z.infer<typeof jobEnvelopeSchema>;
 export type JobEnvelopeInput = z.input<typeof jobEnvelopeSchema>;
 
 export const NOOP_JOB_TYPE = 'system.noop';
+
+/** The BullMQ job id for an envelope: tenant-scoped idempotency key, so duplicate submissions collapse. */
+export function queueJobId(envelope: Pick<JobEnvelope, 'organizationId' | 'dealId' | 'idempotencyKey'>): string {
+  return `${envelope.organizationId}:${envelope.dealId}:${envelope.idempotencyKey}`.replaceAll(':', '_');
+}
+
+/** The queue every app enqueues to and the worker consumes. */
+export const DEFAULT_JOB_QUEUE = 'pactlab-default';

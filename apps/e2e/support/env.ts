@@ -55,7 +55,8 @@ export function serverEnv(): Record<string, string> {
     API_PORT: String(API_PORT),
     DATABASE_URL: withDatabase(process.env['E2E_DATABASE_URL'] ?? 'postgresql://pactlab_api:pactlab_api_local@localhost:5432/pactlab'),
     DATABASE_MIGRATION_URL: MIGRATION_URL,
-    REDIS_URL: process.env['E2E_REDIS_URL'] ?? 'redis://localhost:6379',
+    // Redis database 1: e2e jobs never reach a developer's `pnpm dev` worker (database 0).
+    REDIS_URL: process.env['E2E_REDIS_URL'] ?? 'redis://localhost:6379/1',
     AUTH_TOKEN_SECRET: tokenSecret(),
     LOCAL_MAIL_DIR: MAIL_DIR,
     DOCUMENT_STORE_DIR: join(WORK, 'documents'),

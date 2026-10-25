@@ -6,6 +6,7 @@ import type {
   DealSummary,
   ImportMappingBody,
   ImportPreviewView,
+  ImportProgressView,
   ImportResultView,
   SourcePlanResponse,
   SourceUploadView,
@@ -111,9 +112,9 @@ export function apiPost<T>(path: string, body: unknown, headers: Record<string, 
   return apiSend<T>('POST', path, body, headers);
 }
 
-export type UploadFailure = 'too-large' | 'not-text' | 'unreadable' | 'scanner' | 'forbidden' | 'signed-out' | 'error';
+export type UploadFailure = 'too-large' | 'too-many-rows' | 'not-text' | 'legacy-excel' | 'macros' | 'unreadable' | 'scanner' | 'forbidden' | 'signed-out' | 'error';
 
-/** Server-side raw CSV upload; the browser never holds the token or calls the API directly. */
+/** Server-side raw file upload (CSV, TSV or Excel); the browser never holds the token or calls the API directly. */
 export async function apiUploadCsv(
   path: string,
   body: Uint8Array<ArrayBuffer>,
@@ -124,7 +125,8 @@ export async function apiUploadCsv(
   try {
     response = await fetch(new URL(path, publicEnv().NEXT_PUBLIC_API_ORIGIN), {
       method: 'POST',
-      headers: { authorization: `Bearer ${token}`, 'content-type': 'text/csv' },
+      // The API reads the format from the bytes and file name, not this header.
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/octet-stream' },
       body,
       cache: 'no-store',
     });
@@ -132,6 +134,9 @@ export async function apiUploadCsv(
     return { kind: 'error' };
   }
   if (response.ok) return { kind: 'ok', data: (await response.json()) as UploadDetailView };
+  const code = ((await response.json().catch(() => null)) as { code?: string } | null)?.code;
+  const byCode: Record<string, UploadFailure> = { LEGACY_EXCEL: 'legacy-excel', MACROS: 'macros', NOT_TEXT: 'not-text', TOO_MANY_ROWS: 'too-many-rows' };
+  if (code && byCode[code]) return { kind: byCode[code] };
   const failures: Record<number, UploadFailure> = {
     401: 'signed-out',
     403: 'forbidden',
@@ -218,6 +223,10 @@ export const dealsApi = {
       `/v1/deals/${encodeURIComponent(dealId)}/uploads/${encodeURIComponent(uploadId)}/preview`,
       { mapping },
     ),
+  selectSheet: (dealId: string, uploadId: string, sheet: string) =>
+    apiPost<UploadDetailView>(`/v1/deals/${encodeURIComponent(dealId)}/uploads/${encodeURIComponent(uploadId)}/sheet`, { sheet }),
+  importProgress: (dealId: string, runId: string) =>
+    apiGet<ImportProgressView>(`/v1/deals/${encodeURIComponent(dealId)}/import-runs/${encodeURIComponent(runId)}`),
   cancelUpload: (dealId: string, uploadId: string) =>
     apiSend<SourceUploadView>('POST', `/v1/deals/${encodeURIComponent(dealId)}/uploads/${encodeURIComponent(uploadId)}/cancel`, {}),
   runImport: (dealId: string, uploadId: string, mapping: ImportMappingBody) =>

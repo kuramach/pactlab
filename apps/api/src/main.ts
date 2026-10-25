@@ -7,6 +7,7 @@ import { createAiGateway } from './ai/ai-provider';
 import { createApp } from './app';
 import { createAuth0Verifier, DisabledIdentityVerifier } from './auth/identity';
 import { FileSystemObjectStore } from './documents/storage-adapters';
+import { BullMqImportQueue } from './imports/bullmq-import-queue';
 import { LocalFileEmailSender } from './email-login/email-sender';
 import { SignatureMalwareScanner } from './documents/upload-policy';
 
@@ -61,7 +62,8 @@ const app = await createApp(
         ? createAuth0Verifier(config.AUTH0_DOMAIN, config.AUTH0_AUDIENCE)
         : new DisabledIdentityVerifier(),
     documents: { ...localDocuments, gateway: ai.gateway },
-    ...(localDocuments ? { uploads: localDocuments } : {}),
+    // Large imports run on the worker when Redis is configured (the worker shares the store).
+    ...(localDocuments ? { uploads: { ...localDocuments, importQueue: config.REDIS_URL ? new BullMqImportQueue(config.REDIS_URL) : null } } : {}),
     aiStatus: ai.status,
     // Sign-in codes are written to files locally; no email provider is wired
     // for deployed environments yet, so codes are not delivered there.

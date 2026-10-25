@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./xlsx-fixture": "./src/imports/xlsx-fixture.ts"
   },
   "scripts": {
     "lint": "eslint .",
@@ -14,7 +15,10 @@
   },
   "dependencies": {
     "@pactlab/domain": "workspace:*",
+    "decimal.js": "10.6.0",
+    "fflate": "0.8.3",
     "jose": "6.2.12",
+    "read-excel-file": "9.3.12",
     "zod": "4.6.5"
   },
   "devDependencies": {
