@@ -13,6 +13,8 @@ export interface FindingFilters {
   dealId?: string;
   status?: FindingStatus;
   domain?: FindingDomain;
+  /** Only findings brought in from document review. */
+  source?: 'document-review';
 }
 
 type SearchParams = Record<string, string | string[] | undefined>;
@@ -22,10 +24,14 @@ function single(value: string | string[] | undefined): string | undefined {
 }
 
 /** Keep only values the API accepts; anything else is dropped rather than forwarded. */
+/** A register finding brought in from the Documents review queue (pilot bug 11). */
+export const fromDocumentReview = (finding: { fingerprint: string }) => finding.fingerprint.startsWith('document:');
+
 export function parseFindingFilters(params: SearchParams): FindingFilters {
   const dealId = single(params['deal']);
   const status = single(params['status']);
   const domain = single(params['domain']);
+  const source = single(params['source']);
   return {
     ...(dealId && UUID.test(dealId) ? { dealId } : {}),
     ...(status && (FINDING_STATUSES as readonly string[]).includes(status)
@@ -34,6 +40,7 @@ export function parseFindingFilters(params: SearchParams): FindingFilters {
     ...(domain && (FINDING_DOMAINS as readonly string[]).includes(domain)
       ? { domain: domain as FindingDomain }
       : {}),
+    ...(source === 'document-review' ? { source: 'document-review' as const } : {}),
   };
 }
 
@@ -41,6 +48,7 @@ export function findingsQuery(filters: FindingFilters): string {
   const query = new URLSearchParams();
   if (filters.status) query.set('status', filters.status);
   if (filters.domain) query.set('domain', filters.domain);
+  if (filters.source) query.set('source', filters.source);
   return query.toString();
 }
 

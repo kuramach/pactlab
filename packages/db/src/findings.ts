@@ -14,6 +14,8 @@ import { DbNull } from './generated/prisma/internal/prismaNamespace';
 export interface FindingRowFilter {
   readonly status?: FindingStatus;
   readonly domain?: Finding['domain'];
+  /** Only findings brought in from document review (fingerprint `document:`). */
+  readonly source?: 'document-review';
 }
 
 const findingInclude = {
@@ -164,6 +166,7 @@ export const findings = {
         dealId,
         ...(filter.status ? { status: filter.status } : {}),
         ...(filter.domain ? { domain: filter.domain } : {}),
+        ...(filter.source === 'document-review' ? { fingerprint: { startsWith: 'document:' } } : {}),
       },
       include: findingInclude,
       orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],

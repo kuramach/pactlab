@@ -168,6 +168,8 @@ describe('synthetic decision-loop seed', () => {
     );
     expect(rows2.filter((row) => row['name'] === 'Project Troubled').every((row) => row['direction'] === -1)).toBe(true);
     expect(rows2.filter((row) => row['name'] === 'Project Healthy')).toEqual([
+      // The accepted document-review finding, brought into the register to be priced (T-077).
+      { name: 'Project Healthy', title: 'Change of control clause', status: 'DRAFT', direction: null, value_driver: null },
       { name: 'Project Healthy', title: 'Ownership spread across the engineering team', status: 'ACCEPTED', direction: 1, value_driver: 'Engineering continuity' },
     ]);
   });

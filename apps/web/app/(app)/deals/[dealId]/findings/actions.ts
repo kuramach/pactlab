@@ -141,3 +141,12 @@ export async function runIndustryChecks(dealId: string): Promise<void> {
   if (result.kind !== 'ok') redirect(`${base}?checks=${result.kind === 'forbidden' ? 'forbidden' : 'error'}`);
   redirect(`${base}?checks=ok&created=${result.data.created}&existing=${result.data.existing}&unresolved=${result.data.unresolvedQuotes}`);
 }
+
+/** Bring accepted document-review findings into the register as drafts to price (idempotent). */
+export async function bringInDocumentFindings(dealId: string): Promise<void> {
+  const parsed = deal.safeParse(dealId);
+  if (!parsed.success) redirect('/deals');
+  const result = await apiSend<{ created: number; existing: number }>('POST', `/v1/deals/${parsed.data}/findings/from-documents`, {});
+  const base = `/deals/${parsed.data}/findings`;
+  redirect(result.kind === 'ok' ? `${base}?broughtIn=${result.data.created}&source=document-review` : `${base}?checks=${result.kind === 'forbidden' ? 'forbidden' : 'error'}`);
+}
