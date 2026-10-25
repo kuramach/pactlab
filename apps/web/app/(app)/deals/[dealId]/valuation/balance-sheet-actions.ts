@@ -7,7 +7,11 @@ import { apiGet, apiSend } from '../../_lib/api';
 import { itemError, normalizeAmount, type ItemFormState } from './balance-sheet-form-state';
 
 const uuid = z.uuid();
-const FIELDS = ['kind', 'category', 'label', 'amount', 'currency', 'asOf', 'documentId', 'pageNumber', 'quote', 'note'] as const;
+const FIELDS = [
+  'kind', 'category', 'label', 'amount', 'currency', 'asOf', 'documentId', 'pageNumber', 'quote', 'note',
+  // Loan terms (debt items only); blank means not recorded.
+  'interestRatePercent', 'rateType', 'rateReference', 'maturityDate', 'lender', 'repayment', 'covenantNote',
+] as const;
 const back = (dealId: string, outcome: string): never => redirect(`/deals/${dealId}/valuation?outcome=${outcome}#balance-sheet`);
 const read = (form: FormData, fields: readonly string[]) =>
   Object.fromEntries(fields.map((field) => [field, String(form.get(field) ?? '')])) as Record<string, string>;

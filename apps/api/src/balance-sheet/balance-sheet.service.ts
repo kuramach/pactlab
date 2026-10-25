@@ -1,12 +1,13 @@
 import { ConflictException, Inject, Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import { citationStillValid, PROHIBITED_CLASSIFICATIONS, SourceIndex, type CitableSource } from '@pactlab/ai';
 import { D } from '@pactlab/calculations';
-import type {
-  BalanceSheetItemInput,
-  BalanceSheetItemView,
-  BalanceSheetView,
-  ReviseBalanceSheetItem,
-  WithdrawBalanceSheetItem,
+import {
+  hasLoanTerms,
+  type BalanceSheetItemInput,
+  type BalanceSheetItemView,
+  type BalanceSheetView,
+  type ReviseBalanceSheetItem,
+  type WithdrawBalanceSheetItem,
 } from '@pactlab/contracts';
 import {
   appendAuditEvent,
@@ -14,6 +15,7 @@ import {
   withTenant,
   type BalanceSheetItemRecord,
   type ItemCitation,
+  type LoanTerms,
   type PrismaClient,
   type TransactionClient,
 } from '@pactlab/db';
@@ -31,6 +33,19 @@ const PROHIBITED = new Set<string>(PROHIBITED_CLASSIFICATIONS);
  * shown. Scenarios link them; revising or withdrawing one makes linked
  * results stale. Buyer-side analysis only.
  */
+/** Typed terms to stored terms: the yearly percent becomes an exact fraction ("7.5" → "0.075"). */
+function termsFrom(input: Pick<BalanceSheetItemInput, 'interestRatePercent' | 'rateType' | 'rateReference' | 'maturityDate' | 'lender' | 'repayment' | 'covenantNote'>): LoanTerms {
+  return {
+    interestRate: input.interestRatePercent === null ? null : new D(input.interestRatePercent).dividedBy(100).toFixed(),
+    rateType: input.rateType,
+    rateReference: input.rateReference,
+    maturityDate: input.maturityDate,
+    lender: input.lender,
+    repayment: input.repayment,
+    covenantNote: input.covenantNote,
+  };
+}
+
 @Injectable()
 export class BalanceSheetService {
   constructor(
@@ -94,6 +109,7 @@ export class BalanceSheetService {
           citation: { documentId: item.citation.documentId, documentName: page?.document.fileName ?? null, pageNumber: item.citation.pageNumber, quote: item.citation.quote },
           citationValid: page?.text != null && citationStillValid({ citationId: '', ...item.citation }, page.text),
           note: item.note,
+          terms: item.terms,
           version: item.version,
           status: item.status,
           updatedBy: item.updatedBy,
@@ -136,6 +152,7 @@ export class BalanceSheetService {
         asOf: input.asOf,
         citation,
         note: input.note,
+        terms: termsFrom(input),
         organizationId: tenant.organizationId,
         dealId,
         createdBy: tenant.userId,
@@ -152,7 +169,12 @@ export class BalanceSheetService {
       const current = await balanceSheetItems.get(tx, dealId, itemId);
       if (!current) throw new NotFoundException();
       const citation = await this.verify(tx, dealId, input);
+      if (current.kind !== 'DEBT' && hasLoanTerms(input)) {
+        throw new UnprocessableEntityException({ code: 'TERMS_DEBT_ONLY', message: 'Loan terms apply to debt items only' });
+      }
       const revised = await balanceSheetItems.revise(tx, {
+        kind: current.kind,
+        terms: termsFrom(input),
         category: input.category,
         label: input.label,
         amount: input.amount,

@@ -19,6 +19,13 @@ const FIELD_MESSAGES: Readonly<Record<string, string>> = {
   quote: 'Quote at least 12 characters, exactly as they appear on the page — use “Show page text” to pick them.',
   note: 'Keep the note under 1,000 characters.',
   reason: 'Say why it changed, in a few words.',
+  interestRatePercent: 'Enter the yearly rate as a percent, e.g. 7.5 (loan terms apply to debt items only).',
+  rateType: 'Choose fixed or floating.',
+  rateReference: 'Keep the rate reference short, e.g. “SOFR + 2.5%”.',
+  maturityDate: 'Enter the maturity date.',
+  lender: 'Keep the lender name under 200 characters.',
+  repayment: 'Choose how the loan is repaid.',
+  covenantNote: 'Keep the covenant note under 1,000 characters.',
   expectedVersion: 'The item changed while you were editing — reload the page and try again.',
 };
 
@@ -31,6 +38,7 @@ const CODE_MESSAGES: Readonly<Record<string, { field: string | null; message: st
   PAGE_UNAVAILABLE: { field: 'pageNumber', message: 'That page is not available (no readable text, purged, or beyond the last page).' },
   PEOPLE_DATA: { field: 'documentId', message: 'That document holds people data and cannot be cited for balance-sheet items.' },
   CATEGORY_KIND: { field: 'category', message: 'That category does not belong to the kind of item.' },
+  TERMS_DEBT_ONLY: { field: 'interestRatePercent', message: 'Loan terms apply to debt items only.' },
 };
 
 const RESULT_MESSAGES: Readonly<Record<string, string>> = {
@@ -71,3 +79,27 @@ export const CATEGORY_LABELS: Record<string, string> = {
   TRANSACTION_COSTS: 'Seller’s transaction costs',
   OTHER_DEBT_LIKE: 'Other debt-like item',
 };
+
+export const REPAYMENT_LABELS = { AMORTIZING: 'Amortizing', BULLET: 'Bullet at maturity', REVOLVING: 'Revolving' } as const;
+
+/** "0.075" → "7.5 %"; exact decimal string shifting, never floats. */
+export function percentOf(fraction: string | null): string | null {
+  if (fraction === null) return null;
+  const [whole = '0', decimals = ''] = fraction.split('.');
+  const padded = decimals.padEnd(2, '0');
+  const integer = String(Number(whole) * 100 + Number(padded.slice(0, 2)));
+  const rest = padded.slice(2).replace(/0+$/, '');
+  return `${integer}${rest ? `.${rest}` : ''} %`;
+}
+
+/** One line describing a debt item's terms, or null when none were recorded. */
+export function describeTerms(terms: { interestRate: string | null; rateType: string | null; rateReference: string | null; maturityDate: string | null; lender: string | null; repayment: string | null }): string | null {
+  const parts = [
+    terms.lender,
+    terms.interestRate !== null ? `${percentOf(terms.interestRate)}${terms.rateType === 'FLOATING' ? ' floating' : terms.rateType === 'FIXED' ? ' fixed' : ''}` : terms.rateType?.toLowerCase() ?? null,
+    terms.rateReference,
+    terms.maturityDate ? `matures ${terms.maturityDate}` : null,
+    terms.repayment ? REPAYMENT_LABELS[terms.repayment as keyof typeof REPAYMENT_LABELS] : null,
+  ].filter((part): part is string => Boolean(part));
+  return parts.length > 0 ? parts.join(' · ') : null;
+}

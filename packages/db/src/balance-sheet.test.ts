@@ -1,6 +1,6 @@
 import type { TenantContext } from '@pactlab/domain';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { balanceSheetItems, type BalanceSheetItemValues } from './balance-sheet';
+import { balanceSheetItems, NO_TERMS, type BalanceSheetItemValues } from './balance-sheet';
 import type { TransactionClient } from './client';
 import { withTenant } from './tenant';
 import { addSyntheticDealMember, createSyntheticTenant, startTestDatabase, type SyntheticTenant, type TestDatabase } from './testing';
@@ -14,6 +14,7 @@ const LOAN: BalanceSheetItemValues = {
   asOf: '2026-09-30',
   citation: { documentId: '0190f000-0000-7000-8000-0000000000aa', pageNumber: 1, quote: 'Term loan outstanding 120,000', quoteHash: 'a'.repeat(64), charStart: 10, charEnd: 39 },
   note: null,
+  terms: NO_TERMS,
 };
 
 describe('balance-sheet items: persistence, history and RLS', () => {

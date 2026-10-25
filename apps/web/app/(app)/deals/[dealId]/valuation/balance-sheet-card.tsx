@@ -7,7 +7,7 @@ import { formatMoney } from '../../../metrics/_lib/format';
 import { DonutChart, CHART_COLORS } from '../../../_lib/charts';
 import { addBalanceSheetItem, reviseBalanceSheetItem, withdrawBalanceSheetItem } from './balance-sheet-actions';
 import { BalanceSheetItemForm } from './balance-sheet-form';
-import { KIND_LABELS, CATEGORY_LABELS } from './balance-sheet-form-state';
+import { KIND_LABELS, CATEGORY_LABELS, describeTerms } from './balance-sheet-form-state';
 
 export const BALANCE_SHEET_OUTCOMES: Readonly<Record<string, string>> = {
   'ok-item': 'Item recorded with its citation. Link it to a scenario and re-run.',
@@ -104,6 +104,12 @@ export function BalanceSheetCard({ dealId, view, currency }: { dealId: string; v
                     </Link>
                     <span className="text-muted-foreground">“{item.citation.quote}”</span>
                   </div>
+                  {item.kind === 'DEBT' && describeTerms(item.terms) ? (
+                    <div className="text-xs">
+                      <span className="font-semibold">Terms:</span> {describeTerms(item.terms)}
+                      {item.terms.covenantNote ? <span className="text-muted-foreground"> · covenants: {item.terms.covenantNote}</span> : null}
+                    </div>
+                  ) : null}
                   <div className="text-xs text-muted-foreground">
                     As of {item.asOf} · v{item.version} by {item.updatedByName ?? 'a team member'}
                     {item.history.length > 1 ? ` · ${item.history.map((entry) => `v${entry.version}: ${entry.reason}`).join(' · ')}` : ''}

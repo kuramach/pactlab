@@ -26,6 +26,21 @@ const source = {
   quote: z.string().trim().min(12, 'Quote at least a few words from the page').max(600),
 };
 
+const optionalText = (max: number) => z.preprocess(blankToNull, z.string().trim().max(max).nullable().default(null));
+
+/** Loan terms, typed by people; debt items only. The rate is a percent ("7.5" = 7.5 % a year). */
+export const loanTerms = {
+  interestRatePercent: z.preprocess(blankToNull, z.string().trim().regex(/^\d{1,2}(\.\d{1,4})?$/, 'A yearly rate such as 7.5 (percent)').nullable().default(null)),
+  rateType: z.preprocess(blankToNull, z.enum(['FIXED', 'FLOATING']).nullable().default(null)),
+  rateReference: optionalText(120),
+  maturityDate: z.preprocess(blankToNull, z.iso.date().nullable().default(null)),
+  lender: optionalText(200),
+  repayment: z.preprocess(blankToNull, z.enum(['AMORTIZING', 'BULLET', 'REVOLVING']).nullable().default(null)),
+  covenantNote: optionalText(1000),
+};
+export const LOAN_TERM_FIELDS = Object.keys(loanTerms) as (keyof typeof loanTerms)[];
+export const hasLoanTerms = (input: Partial<Record<keyof typeof loanTerms, unknown>>) => LOAN_TERM_FIELDS.some((field) => input[field] !== null && input[field] !== undefined);
+
 const values = {
   category: z.enum(ALL_CATEGORIES),
   label: z.string().trim().min(1).max(200),
@@ -34,6 +49,7 @@ const values = {
   asOf: z.iso.date(),
   ...source,
   note: z.preprocess(blankToNull, z.string().trim().max(1000).nullable().default(null)),
+  ...loanTerms,
 };
 
 const categoryMatchesKind = (item: { kind: (typeof BALANCE_SHEET_KINDS)[number]; category: string }, ctx: z.RefinementCtx) => {
@@ -42,7 +58,14 @@ const categoryMatchesKind = (item: { kind: (typeof BALANCE_SHEET_KINDS)[number];
   }
 };
 
-export const balanceSheetItemInputSchema = z.strictObject({ kind: z.enum(BALANCE_SHEET_KINDS), ...values }).superRefine(categoryMatchesKind);
+const termsOnlyOnDebt = (item: { kind: (typeof BALANCE_SHEET_KINDS)[number] } & Partial<Record<keyof typeof loanTerms, unknown>>, ctx: z.RefinementCtx) => {
+  if (item.kind !== 'DEBT' && hasLoanTerms(item)) ctx.addIssue({ code: 'custom', path: ['interestRatePercent'], message: 'Loan terms apply to debt items only' });
+};
+
+export const balanceSheetItemInputSchema = z
+  .strictObject({ kind: z.enum(BALANCE_SHEET_KINDS), ...values })
+  .superRefine(categoryMatchesKind)
+  .superRefine(termsOnlyOnDebt);
 export type BalanceSheetItemInput = z.infer<typeof balanceSheetItemInputSchema>;
 
 /** A revision keeps the kind; it needs the version it was based on and a reason. */
@@ -73,6 +96,16 @@ export interface BalanceSheetItemView {
   /** False when the cited page changed or the document was purged. */
   citationValid: boolean;
   note: string | null;
+  /** Debt items: loan terms as recorded (rate as a fraction, "0.075" = 7.5 %). */
+  terms: {
+    interestRate: string | null;
+    rateType: 'FIXED' | 'FLOATING' | null;
+    rateReference: string | null;
+    maturityDate: string | null;
+    lender: string | null;
+    repayment: 'AMORTIZING' | 'BULLET' | 'REVOLVING' | null;
+    covenantNote: string | null;
+  };
   version: number;
   status: 'ACTIVE' | 'WITHDRAWN';
   updatedBy: string;
