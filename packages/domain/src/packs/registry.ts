@@ -75,7 +75,13 @@ export const PACKS: Readonly<Record<PackId, PackDefinition>> = {
     findingRules: ['telecom-reported-subscribers', 'telecom-churn-turning', 'telecom-regional-concentration', 'telecom-wholesale-review'],
     // Subscriber revenue runs the SaaS metrics as they are (ARPU ≈ MRR per account, churn ≈ logo churn).
   },
-  PROFESSIONAL_SERVICES: pack('PROFESSIONAL_SERVICES', 'professional-services', 'services'),
+  PROFESSIONAL_SERVICES: {
+    ...pack('PROFESSIONAL_SERVICES', 'professional-services', 'services', true),
+    importTargets: ['BILLING_INVOICE_LINE', 'SERVICES_TIMESHEETS', 'SERVICES_HEADCOUNT'],
+    findingRules: ['services-utilization-gap', 'services-client-termination', 'services-delivery-attrition'],
+    // People-driven earnings value on DCF; retainer revenue also reads as recurring.
+    valuationMethods: ['DCF', 'ARR_MULTIPLE'],
+  },
   PHARMA_BIOTECH: pack('PHARMA_BIOTECH', 'pharma-biotech', 'life-sciences'),
   ECOMMERCE_DTC: pack('ECOMMERCE_DTC', 'ecommerce-dtc', 'consumer'),
   MULTIFAMILY: {
