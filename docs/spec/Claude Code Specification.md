@@ -1465,6 +1465,13 @@ Five further packs in two clusters. Hotels, multifamily and commercial property 
 - Valuation tweaks: WALT and the rollover schedule as scenario inputs, and capitalization-rate sensitivity.
 - What transfers: lease abstraction runs on the document and citation machinery; tenant concentration reuses the concentration analysis.
 
+
+**8a. Commercial property — activation amendment (T-066, 2026-10-25)**
+
+- **Import targets (CSV, ADR 0010):** `CRE_RENT_ROLL` (tenant, suite, sqft, lease_start, lease_end, monthly_base_rent, monthly_market_rent → `cre.lease`, one record per suite) and `CRE_CAM_RECONCILIATION` (year, category, expenses, recoveries → `cre.cam_category`, one record per year and category), alongside the billing import. Tenants are businesses; no people data.
+- **Finding rules (deterministic, versioned, drafts only):** `cre-anchor-rollover` — the largest lease at 30% or more of base rent ending within two years of the latest billed month, with the rent-weighted average lease term, confirmed by a lease abstract that names the tenant; `cre-environmental-condition` — a recognized environmental condition and the Phase II recommendation, cited (an escrow or indemnity the reviewer prices); `cre-cam-under-recovery` — CAM categories recovering less than they cost in the latest year; `cre-below-market-anchor` — the largest lease at the deepest discount to market rent, confirmed value (+1) and never a price input.
+- **Valuation:** NOI ÷ cap rate (T-059) with a DCF of the rollover schedule; WALT and rollover as inputs, cap-rate sensitivity in the scenarios.
+- **Fixtures and acceptance:** `pactlab-demo-data/commercial-property/{USD,EUR,GBP}` — the four planted findings surface as cited drafts once, and the reviewer-priced environmental escrow is held back in an NOI ÷ cap-rate run (`apps/api/src/packs/commercial-property.acceptance.api.test.ts`).
 **9. Hotels (hospitality)**
 
 - Acquisitions of branded and independent hotels by hospitality funds, owner-operators and REITs.

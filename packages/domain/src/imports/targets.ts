@@ -20,6 +20,8 @@ export const IMPORT_TARGETS = [
   'PHARMA_PIPELINE',
   'ECOMMERCE_COHORTS',
   'ECOMMERCE_AD_SPEND',
+  'CRE_RENT_ROLL',
+  'CRE_CAM_RECONCILIATION',
 ] as const;
 export type ImportTarget = (typeof IMPORT_TARGETS)[number];
 
@@ -387,6 +389,46 @@ export const ECOMMERCE_AD_SPEND: TargetDefinition = {
   ],
 };
 
+/** Commercial property (T-066): leases by suite with expiry, base and market rent — tenants are businesses. */
+export const CRE_RENT_ROLL: TargetDefinition = {
+  target: 'CRE_RENT_ROLL',
+  label: 'Commercial rent roll',
+  fileName: 'rent-roll.csv',
+  people: 'NONE',
+  refusesPeopleColumns: true,
+  evidenceType: 'cre.lease',
+  recordIdField: 'suite',
+  observedAtFields: [],
+  fields: [
+    { name: 'tenant', label: 'Tenant', kind: 'text', required: true, hint: 'The tenant business.' },
+    { name: 'suite', label: 'Suite', kind: 'text', required: true, hint: 'Suite or unit.' },
+    { name: 'sqft', label: 'Square feet', kind: 'decimal', required: false, hint: 'Leased area.' },
+    { name: 'lease_start', label: 'Lease start', kind: 'date', required: false, hint: 'Commencement date.' },
+    { name: 'lease_end', label: 'Lease end', kind: 'date', required: true, hint: 'Expiry date, before any option to renew.' },
+    { name: 'monthly_base_rent', label: 'Monthly base rent', kind: 'money', required: true, hint: IN_BASE_CURRENCY },
+    { name: 'monthly_market_rent', label: 'Monthly market rent', kind: 'money', required: true, hint: `The appraiser's or broker's market rent for the suite. ${IN_BASE_CURRENCY}` },
+  ],
+};
+
+/** Commercial property (T-066): common-area-maintenance expenses against recoveries, by year and category. */
+export const CRE_CAM_RECONCILIATION: TargetDefinition = {
+  target: 'CRE_CAM_RECONCILIATION',
+  label: 'CAM reconciliation',
+  fileName: 'cam-reconciliation.csv',
+  people: 'NONE',
+  refusesPeopleColumns: true,
+  evidenceType: 'cre.cam_category',
+  recordIdField: 'year',
+  recordIdFields: ['year', 'category'],
+  observedAtFields: [],
+  fields: [
+    { name: 'year', label: 'Year', kind: 'text', required: true, hint: 'Reconciliation year, YYYY.' },
+    { name: 'category', label: 'Category', kind: 'text', required: true, hint: 'e.g. Insurance, Security.' },
+    { name: 'expenses', label: 'Expenses', kind: 'money', required: true, hint: IN_BASE_CURRENCY },
+    { name: 'recoveries', label: 'Recoveries', kind: 'money', required: true, hint: `Billed back to tenants. ${IN_BASE_CURRENCY}` },
+  ],
+};
+
 export const IMPORT_TARGET_DEFINITIONS: Readonly<Record<ImportTarget, TargetDefinition>> = {
   BILLING_INVOICE_LINE,
   FINTECH_LOAN_TAPE,
@@ -404,6 +446,8 @@ export const IMPORT_TARGET_DEFINITIONS: Readonly<Record<ImportTarget, TargetDefi
   PHARMA_PIPELINE,
   ECOMMERCE_COHORTS,
   ECOMMERCE_AD_SPEND,
+  CRE_RENT_ROLL,
+  CRE_CAM_RECONCILIATION,
 };
 
 /**
