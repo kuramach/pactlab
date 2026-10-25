@@ -2,7 +2,7 @@
 export const MAX_MESSAGE_LENGTH = 2_000;
 
 /** Git trailer lines that name people (`Signed-off-by: Name <email>` and the like). */
-const PEOPLE_TRAILER = /^\s*(signed-off-by|co-authored-by|reviewed-by|acked-by|tested-by|reported-by|suggested-by|helped-by|cc)\s*:/i;
+const PEOPLE_TRAILER = /^\s*(signed-off-by|co-authored-by|reviewed-by|reviewers|acked-by|tested-by|reported-by|suggested-by|helped-by|authored-by|cc)\s*:/i;
 const EMAIL = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
 
 /**

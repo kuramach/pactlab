@@ -89,7 +89,16 @@ export interface JiraAdapter extends ProviderAdapter<JiraIssue> {
   readonly version: string;
   listIssues(scope: ConnectionScope, options: { cursor: string | null; limit: number }): Promise<JiraIssuePage>;
   listSprints(scope: ConnectionScope): Promise<readonly JiraSprint[]>;
+  /**
+   * The issues behind a set of keys (at most 50), e.g. those named by commit
+   * messages and pull requests (T-074). Keys with no visible issue are simply
+   * absent; only configured projects are read.
+   */
+  issuesByKey(scope: ConnectionScope, keys: readonly string[]): Promise<readonly JiraIssue[]>;
 }
+
+export const MAX_KEYS_PER_LOOKUP = 50;
+export const JIRA_ISSUE_KEY = /^[A-Z][A-Z0-9]{1,9}-[1-9]\d{0,7}$/;
 
 export class JiraAdapterError extends Error {
   constructor(

@@ -1,0 +1,1354 @@
+{
+  "cassetteVersion": 1,
+  "provider": "github",
+  "source": "https://api.github.com/repos/apache/kafka (public; anonymous; recorded by packages/connectors/scripts/record-cassettes.ts for T-074): logins and emails pseudonymised, messages sanitized, bodies pruned to the allow-list",
+  "recordedAt": "2026-10-25T22:30:32.228Z",
+  "interactions": [
+    {
+      "request": {
+        "method": "GET",
+        "path": "/repos/apache/kafka",
+        "query": ""
+      },
+      "response": {
+        "status": 200,
+        "headers": {},
+        "body": {
+          "full_name": "apache/kafka",
+          "private": false,
+          "created_at": "2011-08-15T18:06:16Z",
+          "visibility": "public",
+          "default_branch": "trunk"
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/repos/apache/kafka/commits",
+        "query": "page=1&per_page=1&sha=trunk"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "link": "<https://api.github.com/repositories/2211243/commits?sha=trunk&per_page=1&page=2>; rel=\"next\", <https://api.github.com/repositories/2211243/commits?sha=trunk&per_page=1&page=18512>; rel=\"last\""
+        },
+        "body": [
+          {
+            "sha": "b235414c8f895c7bbbb11d48aa57e36f44de12f2",
+            "commit": {
+              "author": {
+                "email": "author-94f02cbb2e@example.invalid",
+                "date": "2026-10-25T17:19:58Z"
+              },
+              "committer": {
+                "email": "author-0a399a33f8@example.invalid",
+                "date": "2026-10-25T17:19:58Z"
+              },
+              "message": "KAFKA-20925: Use request header v3 for the share group state RPCs (#23821)\n\nJira: https://issues.apache.org/jira/browse/KAFKA-20925\n\nKIP-1313:\n\nhttps://cwiki.apache.org/confluence/spaces/KAFKA/pages/406624038/KIP-1313+Client+instance+ID+in+all+request+headers\n\nThis PR adds metadata version 4.5-IV0 and new versions of the share\ngroup state RPCs that use the v3 request header: ReadShareGroupState v1,\nWriteShareGroupState v2, InitializeShareGroupState v1,\nDeleteShareGroupState v1 and ReadShareGroupStateSummary v2. The share\ngroup state persister sends the new versions only when the metadata\nversion is 4.5-IV0 or later, so brokers keep using the v2 request header\nuntil every broker in the cluster supports v3. Like the other v3 request\nheader versions, the new versions are marked unstable."
+            },
+            "author": {
+              "login": "author-28cd58159b"
+            },
+            "committer": {
+              "login": "author-eb844e3ae6"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/repos/apache/kafka/pulls",
+        "query": "page=1&per_page=1&state=all"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "link": "<https://api.github.com/repositories/2211243/pulls?state=all&per_page=1&page=2>; rel=\"next\", <https://api.github.com/repositories/2211243/pulls?state=all&per_page=1&page=23948>; rel=\"last\""
+        },
+        "body": [
+          {
+            "number": 23956,
+            "state": "open",
+            "title": "MINOR: Continue refactoring of subscription state",
+            "user": {
+              "login": "author-adb74d5a68"
+            },
+            "created_at": "2026-10-25T21:29:36Z",
+            "closed_at": null,
+            "merged_at": null,
+            "draft": false,
+            "head": {
+              "ref": "tidy-subscription-state-refactor",
+              "sha": "009da7bd5499c24cb2486a90282313b91c3640ce",
+              "user": {
+                "login": "author-adb74d5a68"
+              }
+            },
+            "base": {
+              "ref": "trunk",
+              "sha": "b235414c8f895c7bbbb11d48aa57e36f44de12f2",
+              "user": {
+                "login": "author-e17ccf7ea7"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/repos/apache/kafka/commits",
+        "query": "page=1&per_page=3&sha=trunk"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "link": "<https://api.github.com/repositories/2211243/commits?sha=trunk&per_page=3&page=2>; rel=\"next\", <https://api.github.com/repositories/2211243/commits?sha=trunk&per_page=3&page=6171>; rel=\"last\""
+        },
+        "body": [
+          {
+            "sha": "b235414c8f895c7bbbb11d48aa57e36f44de12f2",
+            "commit": {
+              "author": {
+                "email": "author-94f02cbb2e@example.invalid",
+                "date": "2026-10-25T17:19:58Z"
+              },
+              "committer": {
+                "email": "author-0a399a33f8@example.invalid",
+                "date": "2026-10-25T17:19:58Z"
+              },
+              "message": "KAFKA-20925: Use request header v3 for the share group state RPCs (#23821)\n\nJira: https://issues.apache.org/jira/browse/KAFKA-20925\n\nKIP-1313:\n\nhttps://cwiki.apache.org/confluence/spaces/KAFKA/pages/406624038/KIP-1313+Client+instance+ID+in+all+request+headers\n\nThis PR adds metadata version 4.5-IV0 and new versions of the share\ngroup state RPCs that use the v3 request header: ReadShareGroupState v1,\nWriteShareGroupState v2, InitializeShareGroupState v1,\nDeleteShareGroupState v1 and ReadShareGroupStateSummary v2. The share\ngroup state persister sends the new versions only when the metadata\nversion is 4.5-IV0 or later, so brokers keep using the v2 request header\nuntil every broker in the cluster supports v3. Like the other v3 request\nheader versions, the new versions are marked unstable."
+            },
+            "author": {
+              "login": "author-28cd58159b"
+            },
+            "committer": {
+              "login": "author-eb844e3ae6"
+            }
+          },
+          {
+            "sha": "5f783b0a2e6b33b17c744674969f1f333f5a788d",
+            "commit": {
+              "author": {
+                "email": "author-456f0fb106@example.invalid",
+                "date": "2026-10-25T17:15:24Z"
+              },
+              "committer": {
+                "email": "author-0a399a33f8@example.invalid",
+                "date": "2026-10-25T17:15:24Z"
+              },
+              "message": "MINOR: Test topic removal in the share group assignor (#23874)\n\nThis adds explicit tests for assignments containing a topic that a\nmember   no longer subscribes to, covering both homogeneous and\nheterogeneous   subscriptions.\n\n- testAssignWithUnsubscribedTopicHomogeneous: two members each hold one\n   partition of topic 1 and one partition of topic 2, after the group's\n   subscription changes to topic 1 only. It verifies that topic 2 is\n   revoked by\nSimpleHomogeneousAssignmentBuilder#revokeUnassignablePartitions.\n\n- testAssignWithUnsubscribedTopicHeterogeneous: member A drops topic 2\n   while member B still subscribes to it. It verifies that A's partition\n   of topic 2 is revoked and that B ends up with both partitions of\ntopic 2.\n\nTopic 1 has four partitions, with only two initially assigned. Both\ntests  verify that each member retains its existing partition of topic 1\nand  receives one of the remaining partitions."
+            },
+            "author": {
+              "login": "author-d866a43c45"
+            },
+            "committer": {
+              "login": "author-eb844e3ae6"
+            }
+          },
+          {
+            "sha": "193acb15db94950ed9f56cdb6066e849e01bf578",
+            "commit": {
+              "author": {
+                "email": "author-492f25f532@example.invalid",
+                "date": "2026-10-25T13:09:54Z"
+              },
+              "committer": {
+                "email": "author-0a399a33f8@example.invalid",
+                "date": "2026-10-25T13:09:54Z"
+              },
+              "message": "KAFKA-18574 Sort test tables in JUnit summary by class and test name (#23945)\n\nThe test tables in the JUnit job summary (Failed, Flaky, Skipped,\nQuarantined and New) are printed in the order the reports are parsed,\nwhich follows the filesystem order of `glob()` and is not stable across\nenvironments. This sorts each table by class name and test name before\nrendering.\n\nThis is a continuation of #21786, which was closed as stale.\n\n\n---------"
+            },
+            "author": {
+              "login": "author-0f073f777b"
+            },
+            "committer": {
+              "login": "author-eb844e3ae6"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/repos/apache/kafka/commits/b235414c8f895c7bbbb11d48aa57e36f44de12f2",
+        "query": ""
+      },
+      "response": {
+        "status": 200,
+        "headers": {},
+        "body": {
+          "sha": "b235414c8f895c7bbbb11d48aa57e36f44de12f2",
+          "commit": {
+            "author": {
+              "email": "author-94f02cbb2e@example.invalid",
+              "date": "2026-10-25T17:19:58Z"
+            },
+            "committer": {
+              "email": "author-0a399a33f8@example.invalid",
+              "date": "2026-10-25T17:19:58Z"
+            },
+            "message": "KAFKA-20925: Use request header v3 for the share group state RPCs (#23821)\n\nJira: https://issues.apache.org/jira/browse/KAFKA-20925\n\nKIP-1313:\n\nhttps://cwiki.apache.org/confluence/spaces/KAFKA/pages/406624038/KIP-1313+Client+instance+ID+in+all+request+headers\n\nThis PR adds metadata version 4.5-IV0 and new versions of the share\ngroup state RPCs that use the v3 request header: ReadShareGroupState v1,\nWriteShareGroupState v2, InitializeShareGroupState v1,\nDeleteShareGroupState v1 and ReadShareGroupStateSummary v2. The share\ngroup state persister sends the new versions only when the metadata\nversion is 4.5-IV0 or later, so brokers keep using the v2 request header\nuntil every broker in the cluster supports v3. Like the other v3 request\nheader versions, the new versions are marked unstable."
+          },
+          "author": {
+            "login": "author-28cd58159b"
+          },
+          "committer": {
+            "login": "author-eb844e3ae6"
+          },
+          "stats": {
+            "total": 458,
+            "additions": 395,
+            "deletions": 63
+          },
+          "files": [
+            {
+              "sha": "0fb341d167d2cd28b757b2d7be3dc4af6a9c6311",
+              "filename": "clients/src/main/java/org/apache/kafka/common/requests/DeleteShareGroupStateRequest.java",
+              "status": "modified",
+              "additions": 11,
+              "deletions": 2
+            },
+            {
+              "sha": "32cce3e6ad86e0c65dc67fb3eea519af7dbc224c",
+              "filename": "clients/src/main/java/org/apache/kafka/common/requests/InitializeShareGroupStateRequest.java",
+              "status": "modified",
+              "additions": 11,
+              "deletions": 2
+            },
+            {
+              "sha": "84d39d0b853c1910f088d17896e215412952a76f",
+              "filename": "clients/src/main/java/org/apache/kafka/common/requests/ReadShareGroupStateRequest.java",
+              "status": "modified",
+              "additions": 11,
+              "deletions": 2
+            },
+            {
+              "sha": "5911f0946f0f4f5a6cfdc7097f2ac406f7a07c6e",
+              "filename": "clients/src/main/java/org/apache/kafka/common/requests/ReadShareGroupStateSummaryRequest.java",
+              "status": "modified",
+              "additions": 11,
+              "deletions": 2
+            },
+            {
+              "sha": "449a445c364c4446d02d073296ae18ad63058ccf",
+              "filename": "clients/src/main/java/org/apache/kafka/common/requests/WriteShareGroupStateRequest.java",
+              "status": "modified",
+              "additions": 11,
+              "deletions": 2
+            },
+            {
+              "sha": "b2a5cdc5e27252db2e4f5cb40ec25ec06fce2f10",
+              "filename": "clients/src/main/resources/common/message/DeleteShareGroupStateRequest.json",
+              "status": "modified",
+              "additions": 4,
+              "deletions": 2
+            },
+            {
+              "sha": "bf53fd236a830bd8589231215d493e44a8dadc98",
+              "filename": "clients/src/main/resources/common/message/DeleteShareGroupStateResponse.json",
+              "status": "modified",
+              "additions": 2,
+              "deletions": 1
+            },
+            {
+              "sha": "0dc8d2622ec76e4f3f8b47283d44e794415a651a",
+              "filename": "clients/src/main/resources/common/message/InitializeShareGroupStateRequest.json",
+              "status": "modified",
+              "additions": 4,
+              "deletions": 2
+            },
+            {
+              "sha": "a601d0612ff7e2135a42b2de93250f85612b462b",
+              "filename": "clients/src/main/resources/common/message/InitializeShareGroupStateResponse.json",
+              "status": "modified",
+              "additions": 2,
+              "deletions": 1
+            },
+            {
+              "sha": "be7cd7c5226374c51bd95a9fcbc149ee04fb3b1c",
+              "filename": "clients/src/main/resources/common/message/ReadShareGroupStateRequest.json",
+              "status": "modified",
+              "additions": 4,
+              "deletions": 2
+            },
+            {
+              "sha": "f54c649e94d66df644d2b9ec14fa880f8a81c096",
+              "filename": "clients/src/main/resources/common/message/ReadShareGroupStateResponse.json",
+              "status": "modified",
+              "additions": 2,
+              "deletions": 1
+            },
+            {
+              "sha": "99da045129ca24232051a847acd8b46f973505a9",
+              "filename": "clients/src/main/resources/common/message/ReadShareGroupStateSummaryRequest.json",
+              "status": "modified",
+              "additions": 5,
+              "deletions": 2
+            },
+            {
+              "sha": "a3836b286d2af42a211904ca2138633ab03a0e20",
+              "filename": "clients/src/main/resources/common/message/ReadShareGroupStateSummaryResponse.json",
+              "status": "modified",
+              "additions": 3,
+              "deletions": 1
+            },
+            {
+              "sha": "ec90557e1e7a02d8972cc02d03bcfbdeb6eb7f28",
+              "filename": "clients/src/main/resources/common/message/WriteShareGroupStateRequest.json",
+              "status": "modified",
+              "additions": 5,
+              "deletions": 2
+            },
+            {
+              "sha": "1ca226be2299409ecf825cc253d362b5b42437ff",
+              "filename": "clients/src/main/resources/common/message/WriteShareGroupStateResponse.json",
+              "status": "modified",
+              "additions": 3,
+              "deletions": 1
+            },
+            {
+              "sha": "bbacf7aa4655694b3e576a2c09037947574c6a3b",
+              "filename": "clients/src/test/java/org/apache/kafka/common/requests/RequestResponseTest.java",
+              "status": "modified",
+              "additions": 5,
+              "deletions": 5
+            },
+            {
+              "sha": "623996123ffec038825c83fe78919ac682d1fce8",
+              "filename": "core/src/main/java/kafka/server/share/ShareCoordinatorMetadataCacheHelperImpl.java",
+              "status": "modified",
+              "additions": 12,
+              "deletions": 0
+            },
+            {
+              "sha": "5b884537264ce48ce22ca28714bf0ce69a693120",
+              "filename": "core/src/test/java/kafka/server/share/ShareCoordinatorMetadataCacheHelperImplTest.java",
+              "status": "modified",
+              "additions": 35,
+              "deletions": 0
+            },
+            {
+              "sha": "fd15b71a3c57fedf64285012bf6ce098b9da444c",
+              "filename": "core/src/test/scala/integration/kafka/api/AuthorizerIntegrationTest.scala",
+              "status": "modified",
+              "additions": 5,
+              "deletions": 5
+            },
+            {
+              "sha": "5f23a3ddf8976b686cb35badaded2f7bba0b4a94",
+              "filename": "core/src/test/scala/unit/kafka/server/KafkaApisTest.scala",
+              "status": "modified",
+              "additions": 5,
+              "deletions": 5
+            },
+            {
+              "sha": "ae870d5e74583b88144d3386b7fd7951cc8cde81",
+              "filename": "core/src/test/scala/unit/kafka/server/RequestQuotaTest.scala",
+              "status": "modified",
+              "additions": 5,
+              "deletions": 5
+            },
+            {
+              "sha": "e813f73598f12a82a2550bd599636fd25a062c1d",
+              "filename": "server-common/src/main/java/org/apache/kafka/server/common/MetadataVersion.java",
+              "status": "modified",
+              "additions": 5,
+              "deletions": 1
+            },
+            {
+              "sha": "2a930968ad3c81d6dc29f292e2250042813a6efd",
+              "filename": "server-common/src/main/java/org/apache/kafka/server/share/persister/PersisterStateManager.java",
+              "status": "modified",
+              "additions": 27,
+              "deletions": 17
+            },
+            {
+              "sha": "474513ca1c50b060c8c346fa97aba98a35efcf45",
+              "filename": "server-common/src/main/java/org/apache/kafka/server/share/persister/ShareCoordinatorMetadataCacheHelper.java",
+              "status": "modified",
+              "additions": 2,
+              "deletions": 0
+            },
+            {
+              "sha": "5018f5213aaa69af731b2f87d0587d4a3c556720",
+              "filename": "server-common/src/test/java/org/apache/kafka/server/share/persister/DefaultStatePersisterTest.java",
+              "status": "modified",
+              "additions": 5,
+              "deletions": 0
+            },
+            {
+              "sha": "15c61a9ad55dc8739f7960ea5d0ca83a9f34dd2f",
+              "filename": "server-common/src/test/java/org/apache/kafka/server/share/persister/PersisterStateManagerTest.java",
+              "status": "modified",
+              "additions": 200,
+              "deletions": 0
+            }
+          ]
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/repos/apache/kafka/commits/5f783b0a2e6b33b17c744674969f1f333f5a788d",
+        "query": ""
+      },
+      "response": {
+        "status": 200,
+        "headers": {},
+        "body": {
+          "sha": "5f783b0a2e6b33b17c744674969f1f333f5a788d",
+          "commit": {
+            "author": {
+              "email": "author-456f0fb106@example.invalid",
+              "date": "2026-10-25T17:15:24Z"
+            },
+            "committer": {
+              "email": "author-0a399a33f8@example.invalid",
+              "date": "2026-10-25T17:15:24Z"
+            },
+            "message": "MINOR: Test topic removal in the share group assignor (#23874)\n\nThis adds explicit tests for assignments containing a topic that a\nmember   no longer subscribes to, covering both homogeneous and\nheterogeneous   subscriptions.\n\n- testAssignWithUnsubscribedTopicHomogeneous: two members each hold one\n   partition of topic 1 and one partition of topic 2, after the group's\n   subscription changes to topic 1 only. It verifies that topic 2 is\n   revoked by\nSimpleHomogeneousAssignmentBuilder#revokeUnassignablePartitions.\n\n- testAssignWithUnsubscribedTopicHeterogeneous: member A drops topic 2\n   while member B still subscribes to it. It verifies that A's partition\n   of topic 2 is revoked and that B ends up with both partitions of\ntopic 2.\n\nTopic 1 has four partitions, with only two initially assigned. Both\ntests  verify that each member retains its existing partition of topic 1\nand  receives one of the remaining partitions."
+          },
+          "author": {
+            "login": "author-d866a43c45"
+          },
+          "committer": {
+            "login": "author-eb844e3ae6"
+          },
+          "stats": {
+            "total": 98,
+            "additions": 98,
+            "deletions": 0
+          },
+          "files": [
+            {
+              "sha": "589bf470c4460d60bac8115ec9642316f6fc34ca",
+              "filename": "group-coordinator/src/test/java/org/apache/kafka/coordinator/group/assignor/SimpleAssignorTest.java",
+              "status": "modified",
+              "additions": 98,
+              "deletions": 0
+            }
+          ]
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/repos/apache/kafka/commits/193acb15db94950ed9f56cdb6066e849e01bf578",
+        "query": ""
+      },
+      "response": {
+        "status": 200,
+        "headers": {},
+        "body": {
+          "sha": "193acb15db94950ed9f56cdb6066e849e01bf578",
+          "commit": {
+            "author": {
+              "email": "author-492f25f532@example.invalid",
+              "date": "2026-10-25T13:09:54Z"
+            },
+            "committer": {
+              "email": "author-0a399a33f8@example.invalid",
+              "date": "2026-10-25T13:09:54Z"
+            },
+            "message": "KAFKA-18574 Sort test tables in JUnit summary by class and test name (#23945)\n\nThe test tables in the JUnit job summary (Failed, Flaky, Skipped,\nQuarantined and New) are printed in the order the reports are parsed,\nwhich follows the filesystem order of `glob()` and is not stable across\nenvironments. This sorts each table by class name and test name before\nrendering.\n\nThis is a continuation of #21786, which was closed as stale.\n\n\n---------"
+          },
+          "author": {
+            "login": "author-0f073f777b"
+          },
+          "committer": {
+            "login": "author-eb844e3ae6"
+          },
+          "stats": {
+            "total": 6,
+            "additions": 6,
+            "deletions": 0
+          },
+          "files": [
+            {
+              "sha": "e6c3de2a184c222112c6edb68bbcac66ab537f2a",
+              "filename": ".github/scripts/junit.py",
+              "status": "modified",
+              "additions": 6,
+              "deletions": 0
+            }
+          ]
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/repos/apache/kafka/commits",
+        "query": "page=2&per_page=3&sha=trunk"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "link": "<https://api.github.com/repositories/2211243/commits?sha=trunk&per_page=3&page=3>; rel=\"next\", <https://api.github.com/repositories/2211243/commits?sha=trunk&per_page=3&page=6171>; rel=\"last\", <https://api.github.com/repositories/2211243/commits?sha=trunk&per_page=3&page=1>; rel=\"first\", <https://api.github.com/repositories/2211243/commits?sha=trunk&per_page=3&page=1>; rel=\"prev\""
+        },
+        "body": [
+          {
+            "sha": "887ce0199fda43f3cbe8fe76d0c3f96db88583d5",
+            "commit": {
+              "author": {
+                "email": "author-14047087e3@example.invalid",
+                "date": "2026-10-25T05:00:40Z"
+              },
+              "committer": {
+                "email": "author-0a399a33f8@example.invalid",
+                "date": "2026-10-25T05:00:40Z"
+              },
+              "message": "MINOR: suppress unchecked warning in WorkerTest (#23893)\n\nMocking `Transformation.class` with Mockito returns a raw type, causing\nan unchecked conversion to `Transformation<SourceRecord>`.\n\n```\n> Task :connect:runtime:compileTestJava\nNote:\n/Users/parker/opensource/kafka/connect/runtime/src/test/java/org/apache/kafka/connect/runtime/WorkerTest.java\nuses unchecked or unsafe operations.\nNote: Recompile with -Xlint:unchecked for details.\n```\n\nAdd a local `@SuppressWarnings(\"unchecked\")`, following the existing\napproach in `TransformationStageTest.applyAndAssert`.\n\nValidation:\n- `./gradlew :connect:runtime:compileTestJava --rerun-tasks`\n- The unchecked message for WorkerTest.java no longer appeared.\n\n <[email removed]>"
+            },
+            "author": {
+              "login": "author-f0c42f84b5"
+            },
+            "committer": {
+              "login": "author-eb844e3ae6"
+            }
+          },
+          {
+            "sha": "c9da36e27076da3acb51bf75beed30d46b9f0583",
+            "commit": {
+              "author": {
+                "email": "author-0cac1b369b@example.invalid",
+                "date": "2026-10-25T04:49:57Z"
+              },
+              "committer": {
+                "email": "author-0a399a33f8@example.invalid",
+                "date": "2026-10-25T04:49:57Z"
+              },
+              "message": "MINOR: Propagate ClusterInstance#createTopic errors and clean up callers (#23699)\n\nClusterInstance#createTopic and #createTopicWithAssignment did not wait\nfor the CreateTopics result, so a failed creation was hidden behind the\n60s waitTopicCreation timeout, or ignored if the topic already existed.\nThey now call get() and wrap the cause in a RuntimeException.\nInterruptedException is rethrown as InterruptException, so callers no\nlonger need to declare checked exceptions.\n\nAlso removes the now redundant throws clauses, assertDoesNotThrow\nwrappers and pass-through helpers, and a duplicate createTopic call in\nPlaintextConsumerTest#testSeek.\n\nFollow-up to #23513.\n\n <[email removed]>\n\n---------"
+            },
+            "author": {
+              "login": "author-eec2845d2d"
+            },
+            "committer": {
+              "login": "author-eb844e3ae6"
+            }
+          },
+          {
+            "sha": "de0a06f847e1a8fdc0b1c8d49680cd7e9a9f01e8",
+            "commit": {
+              "author": {
+                "email": "author-ad060999d8@example.invalid",
+                "date": "2026-10-25T04:39:38Z"
+              },
+              "committer": {
+                "email": "author-0a399a33f8@example.invalid",
+                "date": "2026-10-25T04:39:38Z"
+              },
+              "message": "KAFKA-21353 The incorrect parameter in internal-api-checker.md breaks the site build (#23948)\n\nThe Hugo site build fails because docs/apis/internal-api-checker.md uses\n`{{< param fullDotVersion >}}`, and `fullDotVersion` is not a defined\nsite param.\n\nThis PR replaces it with the hardcoded version `4.4.0`, matching how\nother docs\npages (e.g. apis/_index.md, quickstart.md, docker.md) refer to the\nrelease version."
+            },
+            "author": {
+              "login": "author-1ae328f65e"
+            },
+            "committer": {
+              "login": "author-eb844e3ae6"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/repos/apache/kafka/commits/887ce0199fda43f3cbe8fe76d0c3f96db88583d5",
+        "query": ""
+      },
+      "response": {
+        "status": 200,
+        "headers": {},
+        "body": {
+          "sha": "887ce0199fda43f3cbe8fe76d0c3f96db88583d5",
+          "commit": {
+            "author": {
+              "email": "author-14047087e3@example.invalid",
+              "date": "2026-10-25T05:00:40Z"
+            },
+            "committer": {
+              "email": "author-0a399a33f8@example.invalid",
+              "date": "2026-10-25T05:00:40Z"
+            },
+            "message": "MINOR: suppress unchecked warning in WorkerTest (#23893)\n\nMocking `Transformation.class` with Mockito returns a raw type, causing\nan unchecked conversion to `Transformation<SourceRecord>`.\n\n```\n> Task :connect:runtime:compileTestJava\nNote:\n/Users/parker/opensource/kafka/connect/runtime/src/test/java/org/apache/kafka/connect/runtime/WorkerTest.java\nuses unchecked or unsafe operations.\nNote: Recompile with -Xlint:unchecked for details.\n```\n\nAdd a local `@SuppressWarnings(\"unchecked\")`, following the existing\napproach in `TransformationStageTest.applyAndAssert`.\n\nValidation:\n- `./gradlew :connect:runtime:compileTestJava --rerun-tasks`\n- The unchecked message for WorkerTest.java no longer appeared.\n\n <[email removed]>"
+          },
+          "author": {
+            "login": "author-f0c42f84b5"
+          },
+          "committer": {
+            "login": "author-eb844e3ae6"
+          },
+          "stats": {
+            "total": 1,
+            "additions": 1,
+            "deletions": 0
+          },
+          "files": [
+            {
+              "sha": "65228c445ced1fea5362da9d8a5c02091395fc6c",
+              "filename": "connect/runtime/src/test/java/org/apache/kafka/connect/runtime/WorkerTest.java",
+              "status": "modified",
+              "additions": 1,
+              "deletions": 0
+            }
+          ]
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/repos/apache/kafka/commits/c9da36e27076da3acb51bf75beed30d46b9f0583",
+        "query": ""
+      },
+      "response": {
+        "status": 200,
+        "headers": {},
+        "body": {
+          "sha": "c9da36e27076da3acb51bf75beed30d46b9f0583",
+          "commit": {
+            "author": {
+              "email": "author-0cac1b369b@example.invalid",
+              "date": "2026-10-25T04:49:57Z"
+            },
+            "committer": {
+              "email": "author-0a399a33f8@example.invalid",
+              "date": "2026-10-25T04:49:57Z"
+            },
+            "message": "MINOR: Propagate ClusterInstance#createTopic errors and clean up callers (#23699)\n\nClusterInstance#createTopic and #createTopicWithAssignment did not wait\nfor the CreateTopics result, so a failed creation was hidden behind the\n60s waitTopicCreation timeout, or ignored if the topic already existed.\nThey now call get() and wrap the cause in a RuntimeException.\nInterruptedException is rethrown as InterruptException, so callers no\nlonger need to declare checked exceptions.\n\nAlso removes the now redundant throws clauses, assertDoesNotThrow\nwrappers and pass-through helpers, and a duplicate createTopic call in\nPlaintextConsumerTest#testSeek.\n\nFollow-up to #23513.\n\n <[email removed]>\n\n---------"
+          },
+          "author": {
+            "login": "author-eec2845d2d"
+          },
+          "committer": {
+            "login": "author-eb844e3ae6"
+          },
+          "stats": {
+            "total": 390,
+            "additions": 167,
+            "deletions": 223
+          },
+          "files": [
+            {
+              "sha": "8d8fe4c8501faf10e64a55a4a2591f99f9452904",
+              "filename": "clients/clients-integration-tests/src/test/java/org/apache/kafka/clients/CreateTopicsRequestWithPolicyTest.java",
+              "status": "modified",
+              "additions": 1,
+              "deletions": 1
+            },
+            {
+              "sha": "3ef132579f8c0de625005c3148594f25903b6c05",
+              "filename": "clients/clients-integration-tests/src/test/java/org/apache/kafka/clients/admin/AddPartitionsTest.java",
+              "status": "modified",
+              "additions": 2,
+              "deletions": 2
+            },
+            {
+              "sha": "c88f67bd9da97b6028ee5f21f2e1976f37c10879",
+              "filename": "clients/clients-integration-tests/src/test/java/org/apache/kafka/clients/admin/AdminMetadataTest.java",
+              "status": "modified",
+              "additions": 1,
+              "deletions": 1
+            },
+            {
+              "sha": "9bdf8fb584bac33e4e291f496575c75d511fed7c",
+              "filename": "clients/clients-integration-tests/src/test/java/org/apache/kafka/clients/admin/DescribeProducersWithBrokerIdTest.java",
+              "status": "modified",
+              "additions": 1,
+              "deletions": 1
+            },
+            {
+              "sha": "e6de6cf5eb2cbf0a9d82324272b45f9963d18910",
+              "filename": "clients/clients-integration-tests/src/test/java/org/apache/kafka/clients/admin/ListOffsetsIntegrationTest.java",
+              "status": "modified",
+              "additions": 4,
+              "deletions": 8
+            },
+            {
+              "sha": "b36d91b765012c726b079b21bd59d7a8ae2c35f7",
+              "filename": "clients/clients-integration-tests/src/test/java/org/apache/kafka/clients/consumer/ConsumerBounceTest.java",
+              "status": "modified",
+              "additions": 2,
+              "deletions": 2
+            },
+            {
+              "sha": "6c416066c9e48d5b745a0177d7b0dfdc75bf810e",
+              "filename": "clients/clients-integration-tests/src/test/java/org/apache/kafka/clients/consumer/ConsumerWithLegacyMessageFormatIntegrationTest.java",
+              "status": "modified",
+              "additions": 1,
+              "deletions": 1
+            },
+            {
+              "sha": "cd7267d028b63962326fde39b33b32c792c713d5",
+              "filename": "clients/clients-integration-tests/src/test/java/org/apache/kafka/clients/consumer/PlaintextConsumerAssignTest.java",
+              "status": "modified",
+              "additions": 1,
+              "deletions": 1
+            },
+            {
+              "sha": "14a48a5b63a8db43ccf69b7d20cefa1e177a1099",
+              "filename": "clients/clients-integration-tests/src/test/java/org/apache/kafka/clients/consumer/PlaintextConsumerCommitTest.java",
+              "status": "modified",
+              "additions": 2,
+              "deletions": 2
+            },
+            {
+              "sha": "ef71279cf2dea08aeeec3c7932d179fb469e011b",
+              "filename": "clients/clients-integration-tests/src/test/java/org/apache/kafka/clients/consumer/PlaintextConsumerFetchTest.java",
+              "status": "modified",
+              "additions": 1,
+              "deletions": 1
+            },
+            {
+              "sha": "1e9f6421a2c9e0b62e8416a53efd360e699df409",
+              "filename": "clients/clients-integration-tests/src/test/java/org/apache/kafka/clients/consumer/PlaintextConsumerPollTest.java",
+              "status": "modified",
+              "additions": 1,
+              "deletions": 1
+            },
+            {
+              "sha": "dcd0e545c370cb4a68feadd2fee2ad30bc231218",
+              "filename": "clients/clients-integration-tests/src/test/java/org/apache/kafka/clients/consumer/PlaintextConsumerSubscriptionTest.java",
+              "status": "modified",
+              "additions": 1,
+              "deletions": 1
+            },
+            {
+              "sha": "014a4f0a66c2bd9b845ab9bd2f25961d57137afc",
+              "filename": "clients/clients-integration-tests/src/test/java/org/apache/kafka/clients/consumer/PlaintextConsumerTest.java",
+              "status": "modified",
+              "additions": 15,
+              "deletions": 16
+            },
+            {
+              "sha": "739ed2e28a864960fd1f63b3736b916babdd5a41",
+              "filename": "clients/clients-integration-tests/src/test/java/org/apache/kafka/clients/consumer/SaslPlainPlaintextConsumerTest.java",
+              "status": "modified",
+              "additions": 1,
+              "deletions": 1
+            },
+            {
+              "sha": "c8c30319c58a757b4028e7dded7362e41adba4b3",
+              "filename": "clients/clients-integration-tests/src/test/java/org/apache/kafka/clients/consumer/SaslPlaintextConsumerTest.java",
+              "status": "modified",
+              "additions": 1,
+              "deletions": 1
+            },
+            {
+              "sha": "e36ffcc5dbf44e592fb899c78d9662b92cd6dd2b",
+              "filename": "clients/clients-integration-tests/src/test/java/org/apache/kafka/clients/consumer/ShareConsumerDLQTest.java",
+              "status": "modified",
+              "additions": 3,
+              "deletions": 5
+            },
+            {
+              "sha": "45542566aaaad0777b825d79fe069c8c62413844",
+              "filename": "clients/clients-integration-tests/src/test/java/org/apache/kafka/clients/producer/ProducerFailureHandlingTest.java",
+              "status": "modified",
+              "additions": 6,
+              "deletions": 6
+            },
+            {
+              "sha": "1df44ad5a09a65da1064424bd68d4905952a9b38",
+              "filename": "clients/clients-integration-tests/src/test/java/org/apache/kafka/clients/producer/ProducerIntegrationTest.java",
+              "status": "modified",
+              "additions": 1,
+              "deletions": 1
+            },
+            {
+              "sha": "3ceee5afd91f549a51f4e7386b9d3bfc995e3d03",
+              "filename": "server/src/test/java/org/apache/kafka/api/EndToEndClusterIdTest.java",
+              "status": "modified",
+              "additions": 1,
+              "deletions": 1
+            },
+            {
+              "sha": "3a3384ed231d9d8af62b37f3b56dc0c0cef2a70c",
+              "filename": "server/src/test/java/org/apache/kafka/server/CordonedLogDirsIntegrationTest.java",
+              "status": "modified",
+              "additions": 4,
+              "deletions": 8
+            },
+            {
+              "sha": "853cd3eb1e756faf857051b71a0a2b0ef2751406",
+              "filename": "server/src/test/java/org/apache/kafka/server/MetadataRequestTest.java",
+              "status": "modified",
+              "additions": 7,
+              "deletions": 8
+            },
+            {
+              "sha": "aca8a04f4a004ee8174c7d65358eacd9c3f81c9e",
+              "filename": "storage/src/test/java/org/apache/kafka/admin/RemoteTopicCrudTest.java",
+              "status": "modified",
+              "additions": 6,
+              "deletions": 7
+            },
+            {
+              "sha": "1f97ed233cbdfedebebfa74dec9fcf7ca41106d1",
+              "filename": "storage/src/test/java/org/apache/kafka/server/log/remote/metadata/storage/TopicBasedRemoteLogMetadataManagerMultipleSubscriptionsTest.java",
+              "status": "modified",
+              "additions": 3,
+              "deletions": 8
+            },
+            {
+              "sha": "d10d580448394c6d8028e8ce07c571b6d3ad4978",
+              "filename": "storage/src/test/java/org/apache/kafka/tiered/storage/TieredStorageTestContext.java",
+              "status": "modified",
+              "additions": 1,
+              "deletions": 1
+            },
+            {
+              "sha": "0c7b0ff0f737ec3d0fd89c1e29892308066bc5b1",
+              "filename": "storage/src/test/java/org/apache/kafka/tiered/storage/actions/CreateTopicAction.java",
+              "status": "modified",
+              "additions": 1,
+              "deletions": 2
+            },
+            {
+              "sha": "ce6fd5bdb4589f46b1074b29afe02a1e4b6c7161",
+              "filename": "storage/src/test/java/org/apache/kafka/tiered/storage/integration/TransactionsTest.java",
+              "status": "modified",
+              "additions": 5,
+              "deletions": 5
+            },
+            {
+              "sha": "9f12ad8adde2298e036d2fa425faf4e0273d573c",
+              "filename": "storage/src/test/java/org/apache/kafka/tiered/storage/integration/TransactionsTestHelper.java",
+              "status": "modified",
+              "additions": 6,
+              "deletions": 6
+            },
+            {
+              "sha": "d8c6a960e9462f9e7d81dce03541fad9fd1d2779",
+              "filename": "storage/src/test/java/org/apache/kafka/tiered/storage/integration/TransactionsWithTieredStoreTest.java",
+              "status": "modified",
+              "additions": 6,
+              "deletions": 6
+            },
+            {
+              "sha": "44af589dc13bb3f43deadea6eccc9b97d3f5aa19",
+              "filename": "test-common/test-common-runtime/src/main/java/org/apache/kafka/common/test/ClusterInstance.java",
+              "status": "modified",
+              "additions": 16,
+              "deletions": 11
+            },
+            {
+              "sha": "97e52fd16328045fc9867585a0175921be114c38",
+              "filename": "tools/src/test/java/org/apache/kafka/tools/ConfigCommandIntegrationTest.java",
+              "status": "modified",
+              "additions": 2,
+              "deletions": 2
+            },
+            {
+              "sha": "68fede186613a6deff72cafce9dfe8236efbdc0c",
+              "filename": "tools/src/test/java/org/apache/kafka/tools/LogDirsCommandTest.java",
+              "status": "modified",
+              "additions": 4,
+              "deletions": 8
+            },
+            {
+              "sha": "ccc267159bd3bcd3eabf10aa613764cc5881cb4d",
+              "filename": "tools/src/test/java/org/apache/kafka/tools/ResetIntegrationTest.java",
+              "status": "modified",
+              "additions": 5,
+              "deletions": 5
+            },
+            {
+              "sha": "c3328b9890ec37b82816ee637faee740a7864317",
+              "filename": "tools/src/test/java/org/apache/kafka/tools/TopicCommandTest.java",
+              "status": "modified",
+              "additions": 20,
+              "deletions": 46
+            },
+            {
+              "sha": "a09ea8a8637ac34697982374da54b6a0e470c75d",
+              "filename": "tools/src/test/java/org/apache/kafka/tools/consumer/group/DeleteOffsetsConsumerGroupCommandIntegrationTest.java",
+              "status": "modified",
+              "additions": 4,
+              "deletions": 8
+            },
+            {
+              "sha": "84079a3bd9839eb0ad815c529bd232cd6c7e204a",
+              "filename": "tools/src/test/java/org/apache/kafka/tools/consumer/group/DescribeConsumerGroupTest.java",
+              "status": "modified",
+              "additions": 27,
+              "deletions": 35
+            },
+            {
+              "sha": "110c6df6c9bac8ef93519efc9d40cfccf789ad25",
+              "filename": "tools/src/test/java/org/apache/kafka/tools/consumer/group/ResetConsumerGroupOffsetTest.java",
+              "status": "modified",
+              "additions": 1,
+              "deletions": 1
+            },
+            {
+              "sha": "d61869c8057099f7d7d6fcd73d45c3004304dabf",
+              "filename": "tools/src/test/java/org/apache/kafka/tools/reassign/ReassignPartitionsCommandTest.java",
+              "status": "modified",
+              "additions": 3,
+              "deletions": 3
+            }
+          ]
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/repos/apache/kafka/commits/de0a06f847e1a8fdc0b1c8d49680cd7e9a9f01e8",
+        "query": ""
+      },
+      "response": {
+        "status": 200,
+        "headers": {},
+        "body": {
+          "sha": "de0a06f847e1a8fdc0b1c8d49680cd7e9a9f01e8",
+          "commit": {
+            "author": {
+              "email": "author-ad060999d8@example.invalid",
+              "date": "2026-10-25T04:39:38Z"
+            },
+            "committer": {
+              "email": "author-0a399a33f8@example.invalid",
+              "date": "2026-10-25T04:39:38Z"
+            },
+            "message": "KAFKA-21353 The incorrect parameter in internal-api-checker.md breaks the site build (#23948)\n\nThe Hugo site build fails because docs/apis/internal-api-checker.md uses\n`{{< param fullDotVersion >}}`, and `fullDotVersion` is not a defined\nsite param.\n\nThis PR replaces it with the hardcoded version `4.4.0`, matching how\nother docs\npages (e.g. apis/_index.md, quickstart.md, docker.md) refer to the\nrelease version."
+          },
+          "author": {
+            "login": "author-1ae328f65e"
+          },
+          "committer": {
+            "login": "author-eb844e3ae6"
+          },
+          "stats": {
+            "total": 8,
+            "additions": 4,
+            "deletions": 4
+          },
+          "files": [
+            {
+              "sha": "7820f7251d0a1a8a35eed1d26835d85c40ca7713",
+              "filename": "docs/apis/internal-api-checker.md",
+              "status": "modified",
+              "additions": 4,
+              "deletions": 4
+            }
+          ]
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/repos/apache/kafka/pulls",
+        "query": "direction=desc&page=1&per_page=3&sort=created&state=all"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "link": "<https://api.github.com/repositories/2211243/pulls?state=all&sort=created&direction=desc&per_page=3&page=2>; rel=\"next\", <https://api.github.com/repositories/2211243/pulls?state=all&sort=created&direction=desc&per_page=3&page=7983>; rel=\"last\""
+        },
+        "body": [
+          {
+            "number": 23956,
+            "state": "open",
+            "title": "MINOR: Continue refactoring of subscription state",
+            "user": {
+              "login": "author-adb74d5a68"
+            },
+            "created_at": "2026-10-25T21:29:36Z",
+            "closed_at": null,
+            "merged_at": null,
+            "draft": false,
+            "head": {
+              "ref": "tidy-subscription-state-refactor",
+              "sha": "009da7bd5499c24cb2486a90282313b91c3640ce",
+              "user": {
+                "login": "author-adb74d5a68"
+              }
+            },
+            "base": {
+              "ref": "trunk",
+              "sha": "b235414c8f895c7bbbb11d48aa57e36f44de12f2",
+              "user": {
+                "login": "author-e17ccf7ea7"
+              }
+            }
+          },
+          {
+            "number": 23955,
+            "state": "open",
+            "title": "MINOR: Tighten up testSubscriptionAndPollFollowedByTopicDeletion",
+            "user": {
+              "login": "author-adb74d5a68"
+            },
+            "created_at": "2026-10-25T20:48:23Z",
+            "closed_at": null,
+            "merged_at": null,
+            "draft": false,
+            "head": {
+              "ref": "improve-topic-deletion-test",
+              "sha": "68c0712dcd785474470dbd22f3854f9a18be47c5",
+              "user": {
+                "login": "author-adb74d5a68"
+              }
+            },
+            "base": {
+              "ref": "trunk",
+              "sha": "b235414c8f895c7bbbb11d48aa57e36f44de12f2",
+              "user": {
+                "login": "author-e17ccf7ea7"
+              }
+            }
+          },
+          {
+            "number": 23954,
+            "state": "open",
+            "title": "KAFKA-21290: Add ASF allowlist check for GitHub Actions workflows",
+            "user": {
+              "login": "author-18b1a9ad68"
+            },
+            "created_at": "2026-10-25T16:21:30Z",
+            "closed_at": null,
+            "merged_at": null,
+            "draft": false,
+            "head": {
+              "ref": "infra",
+              "sha": "6cef3e7a4eca546b2107358887baa7a5ecaba89f",
+              "user": {
+                "login": "author-18b1a9ad68"
+              }
+            },
+            "base": {
+              "ref": "trunk",
+              "sha": "193acb15db94950ed9f56cdb6066e849e01bf578",
+              "user": {
+                "login": "author-e17ccf7ea7"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/repos/apache/kafka/pulls",
+        "query": "direction=desc&page=2&per_page=3&sort=created&state=all"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "link": "<https://api.github.com/repositories/2211243/pulls?state=all&sort=created&direction=desc&per_page=3&page=1>; rel=\"prev\", <https://api.github.com/repositories/2211243/pulls?state=all&sort=created&direction=desc&per_page=3&page=3>; rel=\"next\", <https://api.github.com/repositories/2211243/pulls?state=all&sort=created&direction=desc&per_page=3&page=7983>; rel=\"last\", <https://api.github.com/repositories/2211243/pulls?state=all&sort=created&direction=desc&per_page=3&page=1>; rel=\"first\""
+        },
+        "body": [
+          {
+            "number": 23953,
+            "state": "open",
+            "title": "MINOR: Deduplicate share fetch test helpers",
+            "user": {
+              "login": "author-1f9a798b02"
+            },
+            "created_at": "2026-10-25T10:43:19Z",
+            "closed_at": null,
+            "merged_at": null,
+            "draft": false,
+            "head": {
+              "ref": "MINOR-share-fetch-test-helpers",
+              "sha": "6817386fe353234dbcb3aaa337d21f4d4e4956d8",
+              "user": {
+                "login": "author-1f9a798b02"
+              }
+            },
+            "base": {
+              "ref": "trunk",
+              "sha": "887ce0199fda43f3cbe8fe76d0c3f96db88583d5",
+              "user": {
+                "login": "author-e17ccf7ea7"
+              }
+            }
+          },
+          {
+            "number": 23952,
+            "state": "open",
+            "title": "KAFKA-19035: Honor configured GlobalKTable deserialization handlers in TopologyTestDriver",
+            "user": {
+              "login": "author-29ec3b18c1"
+            },
+            "created_at": "2026-10-25T04:50:34Z",
+            "closed_at": null,
+            "merged_at": null,
+            "draft": false,
+            "head": {
+              "ref": "codex/global-deserialization-handler",
+              "sha": "1b5e17da71d487386aa3ee849bcf86cff9eba2a4",
+              "user": {
+                "login": "author-29ec3b18c1"
+              }
+            },
+            "base": {
+              "ref": "trunk",
+              "sha": "c9da36e27076da3acb51bf75beed30d46b9f0583",
+              "user": {
+                "login": "author-e17ccf7ea7"
+              }
+            }
+          },
+          {
+            "number": 23951,
+            "state": "open",
+            "title": "KAFKA-21344: Handle partition rotation for share fetches",
+            "user": {
+              "login": "author-1f9a798b02"
+            },
+            "created_at": "2026-10-25T00:10:23Z",
+            "closed_at": null,
+            "merged_at": null,
+            "draft": false,
+            "head": {
+              "ref": "KAFKA-21344",
+              "sha": "21b2bd121d591d79a5b3eb9f1740643a0e823919",
+              "user": {
+                "login": "author-1f9a798b02"
+              }
+            },
+            "base": {
+              "ref": "trunk",
+              "sha": "647466c056c0107853cc21b51d7bd2d869ea64d9",
+              "user": {
+                "login": "author-e17ccf7ea7"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/repos/apache/kafka/pulls/23956/reviews",
+        "query": "page=1&per_page=100"
+      },
+      "response": {
+        "status": 200,
+        "headers": {},
+        "body": []
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/repos/apache/kafka/commits/009da7bd5499c24cb2486a90282313b91c3640ce/check-runs",
+        "query": "page=1&per_page=100"
+      },
+      "response": {
+        "status": 200,
+        "headers": {},
+        "body": {
+          "total_count": 15,
+          "check_runs": [
+            {
+              "status": "in_progress",
+              "conclusion": null
+            },
+            {
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "status": "in_progress",
+              "conclusion": null
+            },
+            {
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "status": "completed",
+              "conclusion": "skipped"
+            },
+            {
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "status": "completed",
+              "conclusion": "success"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/repos/apache/kafka/pulls/23955/reviews",
+        "query": "page=1&per_page=100"
+      },
+      "response": {
+        "status": 200,
+        "headers": {},
+        "body": []
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/repos/apache/kafka/commits/68c0712dcd785474470dbd22f3854f9a18be47c5/check-runs",
+        "query": "page=1&per_page=100"
+      },
+      "response": {
+        "status": 200,
+        "headers": {},
+        "body": {
+          "total_count": 15,
+          "check_runs": [
+            {
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "status": "in_progress",
+              "conclusion": null
+            },
+            {
+              "status": "in_progress",
+              "conclusion": null
+            },
+            {
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "status": "completed",
+              "conclusion": "skipped"
+            },
+            {
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "status": "completed",
+              "conclusion": "success"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/repos/apache/kafka/pulls/23954/reviews",
+        "query": "page=1&per_page=100"
+      },
+      "response": {
+        "status": 200,
+        "headers": {},
+        "body": [
+          {
+            "user": {
+              "login": "author-18b1a9ad68"
+            },
+            "state": "COMMENTED"
+          }
+        ]
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/repos/apache/kafka/commits/6cef3e7a4eca546b2107358887baa7a5ecaba89f/check-runs",
+        "query": "page=1&per_page=100"
+      },
+      "response": {
+        "status": 200,
+        "headers": {},
+        "body": {
+          "total_count": 2,
+          "check_runs": [
+            {
+              "status": "completed",
+              "conclusion": "success"
+            },
+            {
+              "status": "completed",
+              "conclusion": "success"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

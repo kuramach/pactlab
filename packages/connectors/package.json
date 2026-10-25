@@ -11,6 +11,7 @@
     "lint": "eslint .",
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run",
+    "test:live": "INTEGRATION_LIVE=1 vitest run src/live",
     "cassettes:record:github": "node scripts/record-github-cassette.mjs"
   },
   "dependencies": {

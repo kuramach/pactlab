@@ -8,6 +8,8 @@ import {
   type JiraIssue,
   type JiraIssuePage,
   type JiraSprint,
+  JIRA_ISSUE_KEY,
+  MAX_KEYS_PER_LOOKUP,
 } from './types';
 
 export const JIRA_FIXTURE_VERSION = 'jira-fixture-3';
@@ -83,6 +85,12 @@ export class JiraFixtureAdapter implements JiraAdapter {
     const issues = all.slice(offset, offset + limit);
     const next = offset + issues.length;
     return { issues, nextCursor: next < all.length ? String(next) : null };
+  }
+
+  async issuesByKey(_scope: ConnectionScope, keys: readonly string[]): Promise<readonly JiraIssue[]> {
+    if (keys.length > MAX_KEYS_PER_LOOKUP || !keys.every((key) => JIRA_ISSUE_KEY.test(key))) throw new JiraAdapterError('INVALID_CURSOR', 'Invalid issue keys');
+    const { site, projects } = this.readable();
+    return site.issues.filter((issue) => projects.includes(issue.project) && keys.includes(issue.key));
   }
 
   async listSprints(_scope: ConnectionScope): Promise<readonly JiraSprint[]> {

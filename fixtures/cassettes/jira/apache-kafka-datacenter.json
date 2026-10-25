@@ -127,7 +127,7 @@
       "request": {
         "method": "GET",
         "path": "/jira/rest/api/2/search",
-        "query": "expand=changelog&fields=issuetype,status,priority,created,resolutiondate,assignee,reporter,comment,customfield_12310293,customfield_12310940&jql=project in (KAFKA) ORDER BY created ASC, key ASC&maxResults=2&startAt=0"
+        "query": "expand=changelog&fields=issuetype,status,priority,created,resolutiondate,assignee,reporter,comment,customfield_12310293,customfield_12310940&jql=project in (KAFKA) ORDER BY created ASC, key ASC&maxResults=2&startAt=0&validateQuery=warn"
       },
       "response": {
         "status": 200,
@@ -229,7 +229,7 @@
       "request": {
         "method": "GET",
         "path": "/jira/rest/api/2/search",
-        "query": "expand=changelog&fields=issuetype,status,priority,created,resolutiondate,assignee,reporter,comment,customfield_12310293,customfield_12310940&jql=project in (KAFKA) ORDER BY created ASC, key ASC&maxResults=2&startAt=2"
+        "query": "expand=changelog&fields=issuetype,status,priority,created,resolutiondate,assignee,reporter,comment,customfield_12310293,customfield_12310940&jql=project in (KAFKA) ORDER BY created ASC, key ASC&maxResults=2&startAt=2&validateQuery=warn"
       },
       "response": {
         "status": 200,
@@ -273,7 +273,7 @@
       "request": {
         "method": "GET",
         "path": "/jira/rest/api/2/search",
-        "query": "expand=changelog&fields=issuetype,status,priority,created,resolutiondate,assignee,reporter,comment,customfield_12310293,customfield_12310940&jql=project in (KAFKA) ORDER BY created ASC, key ASC&maxResults=100&startAt=0"
+        "query": "expand=changelog&fields=issuetype,status,priority,created,resolutiondate,assignee,reporter,comment,customfield_12310293,customfield_12310940&jql=project in (KAFKA) ORDER BY created ASC, key ASC&maxResults=100&startAt=0&validateQuery=warn"
       },
       "response": {
         "status": 200,

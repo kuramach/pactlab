@@ -16,6 +16,17 @@ tokens or personal data. Cassettes arrive with the first live adapter.
 - `jira/cloud-synthetic.json` — hand-built from Jira Cloud REST v3 enhanced
   search shapes on a fictional site; synthetic data only.
 
+- `github/apache__kafka.json`, `jira/apache-kafka.json` — the Kafka pair
+  (T-074), recorded by `packages/connectors/scripts/record-cassettes.ts`:
+  the live adapters run against the public targets through a recording
+  fetch; bodies are pruned to `src/http/cassette-allowlist.ts`, logins,
+  emails and Jira people pseudonymised, messages sanitized. Re-record with
+  `pnpm --filter @pactlab/api exec tsx ../../packages/connectors/scripts/record-cassettes.ts`
+  (anonymous; `GITHUB_TOKEN` optional) and review the diff before committing.
+
+Live smoke tests against the same targets run only with `pnpm test:live`
+(`INTEGRATION_LIVE=1`), nightly in `.github/workflows/integration-live.yml`.
+
 `packages/connectors/src/http/cassettes.test.ts` checks every cassette holds
 only allow-listed keys, pseudonymous logins and no credentials.
 
