@@ -117,7 +117,13 @@ export const PACKS: Readonly<Record<PackId, PackDefinition>> = {
     // Hotels value on NOI ÷ cap rate (T-059) with a DCF of RevPAR and GOP-margin trends.
     valuationMethods: ['NOI_CAP_RATE', 'DCF'],
   },
-  SMALL_CLINICS: pack('SMALL_CLINICS', 'small-clinics', 'healthcare'),
+  SMALL_CLINICS: {
+    ...pack('SMALL_CLINICS', 'small-clinics', 'healthcare', true),
+    importTargets: ['BILLING_INVOICE_LINE', 'CLINICS_PATIENT_VOLUME', 'CLINICS_EQUIPMENT', 'CLINICS_CODING_SUMMARY'],
+    // Extends healthcare (T-061): its reimbursement and compliance rules run here too.
+    findingRules: ['clinics-provider-carries-site', 'clinics-coding-above-policy', 'clinics-equipment-past-life', 'healthcare-government-concentration', 'healthcare-director-fee', 'healthcare-privacy-assessment'],
+    valuationMethods: ['DCF'],
+  },
   HOSPITALS: pack('HOSPITALS', 'hospitals', 'healthcare'),
 };
 

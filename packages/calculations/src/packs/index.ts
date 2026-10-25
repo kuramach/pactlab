@@ -11,3 +11,4 @@ export * from './pharma';
 export * from './ecommerce';
 export * from './commercial-property';
 export * from './hotels';
+export * from './clinics';
