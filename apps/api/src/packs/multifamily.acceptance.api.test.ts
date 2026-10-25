@@ -47,7 +47,10 @@ describe.each(ACCEPTANCE_CURRENCIES)('multifamily pack acceptance (%s)', { timeo
   it('the four planted findings surface as cited drafts; a re-run adds nothing', async () => {
     const run = await deal.call('POST', `/v1/deals/${deal.dealId}/findings/pack-rules/run`, 'lead');
     expect(run.status, JSON.stringify(run.body)).toBe(200);
-    expect(run.body).toMatchObject({ pack: 'MULTIFAMILY', created: 4, existing: 0, unresolvedQuotes: 0 });
+    // Checks already ran after each extract import (T-060); this run adds the ones that also need the documents.
+    expect(run.body).toMatchObject({ pack: 'MULTIFAMILY', unresolvedQuotes: 0 });
+    expect(Number(run.body['created']) + Number(run.body['existing'])).toBe(4);
+    expect(Number(run.body['existing'])).toBeGreaterThan(0);
     expect((await deal.call('POST', `/v1/deals/${deal.dealId}/findings/pack-rules/run`, 'lead')).body).toMatchObject({ created: 0, existing: 4 });
 
     const byTitle = Object.fromEntries((await findings()).map((finding) => [finding.title, finding]));

@@ -1,6 +1,6 @@
 import type { Finding } from '@pactlab/domain';
 import { describe, expect, it } from 'vitest';
-import { findingsQuery, formatPricedRisk, groupByDomain, parseFindingFilters } from './view';
+import { findingsQuery, formatPricedRisk, fromDocumentReview, groupByDomain, needsPricing, parseFindingFilters } from './view';
 
 describe('findings view helpers', () => {
   it('keeps only valid filters', () => {
@@ -53,5 +53,23 @@ describe('valuation direction labels', () => {
     for (const code of ['DIRECTION_REQUIRED', 'DRAG_NEEDS_PRICE', 'CUSHION_NEEDS_DRIVER', 'NEUTRAL_NEEDS_RATIONALE', 'RATIONALE_REQUIRED']) {
       expect(RULE_MESSAGES[code]?.length ?? 0).toBeGreaterThan(20);
     }
+  });
+});
+
+describe('register states (T-060, T-077)', () => {
+  it('flags a drag without a price, and nothing else', () => {
+    expect(needsPricing({ direction: -1, pricedRisk: null, status: 'DRAFT' })).toBe(true);
+    expect(needsPricing({ direction: -1, pricedRisk: { type: 'ESCROW' }, status: 'DRAFT' })).toBe(false);
+    expect(needsPricing({ direction: 0, pricedRisk: null, status: 'DRAFT' })).toBe(false);
+    expect(needsPricing({ direction: -1, pricedRisk: null, status: 'REJECTED' })).toBe(false);
+  });
+
+  it('knows findings brought in from document review, and keeps the filters in the query', () => {
+    expect(fromDocumentReview({ fingerprint: 'document:01900000-0000-7000-8000-000000000001' })).toBe(true);
+    expect(fromDocumentReview({ fingerprint: 'pack:fintech-aml' })).toBe(false);
+    const filters = parseFindingFilters({ deal: '01900000-0000-7000-8000-000000000001', source: 'document-review', pricing: 'needed' });
+    expect(filters).toMatchObject({ source: 'document-review', pricing: 'needed' });
+    // Pricing is a view over the list; only the API's own filters are sent.
+    expect(findingsQuery(filters)).toBe('source=document-review');
   });
 });

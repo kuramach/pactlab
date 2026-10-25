@@ -3,7 +3,7 @@ import { parseCsv } from '../evidence';
 import { applyMapping, mappedEvidence } from '../imports/mapping';
 import { BILLING_INVOICE_LINE, IMPORT_TARGET_DEFINITIONS, peopleColumnProblems, targetTemplateCsv, type TargetDefinition } from '../imports/targets';
 import { COMPANY_TYPES } from '../pacts/types';
-import { sourcesFor } from '../pacts/catalog';
+import { sourceKindForProvider, sourcesFor } from '../pacts/catalog';
 import { PACK_IDS, PACKS, packFor } from './registry';
 
 describe('pack registry', () => {
@@ -34,9 +34,18 @@ describe('pack registry', () => {
   });
 
   it('the five new seller types get a source plan', () => {
-    for (const type of ['MULTIFAMILY', 'COMMERCIAL_PROPERTY', 'HOTELS', 'SMALL_CLINICS', 'HOSPITALS'] as const) {
+    for (const type of ['COMMERCIAL_PROPERTY', 'HOTELS', 'SMALL_CLINICS', 'HOSPITALS'] as const) {
       expect(sourcesFor(type).sources.map((source) => source.kind)).toEqual(['BILLING', 'DOCUMENTS']);
     }
+    // A built pack with sector extracts adds them as a source to collect (T-060).
+    expect(sourcesFor('MULTIFAMILY').sources.map((source) => source.kind)).toEqual(['BILLING', 'DOCUMENTS', 'INDUSTRY']);
+    expect(sourcesFor('FINTECH').sources.map((source) => source.kind)).toEqual(['BILLING', 'CODE', 'DELIVERY', 'DOCUMENTS', 'INDUSTRY']);
+    expect(sourcesFor('SOFTWARE_SAAS').sources.map((source) => source.kind)).not.toContain('INDUSTRY');
+  });
+
+  it('pack extract uploads count as the Industry data source', () => {
+    expect(sourceKindForProvider('pack_upload')).toBe('INDUSTRY');
+    expect(sourceKindForProvider('billing_upload')).toBe('BILLING');
   });
 });
 

@@ -4,6 +4,7 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  Optional,
   PayloadTooLargeException,
   ServiceUnavailableException,
   UnprocessableEntityException,
@@ -59,6 +60,7 @@ import {
   type TenantContext,
 } from '@pactlab/domain';
 import { DealAccess } from '../deals/deal-access';
+import { FindingsService } from '../findings/findings.service';
 import type { MalwareScanner } from '../documents/upload-policy';
 import { PRISMA } from '../tokens';
 import { IMPORT_QUEUE, UPLOAD_MALWARE_SCANNER, UPLOAD_OBJECT_STORE, type ImportQueue, type UploadObjectStore } from './upload-store';
@@ -168,6 +170,7 @@ export class ImportsService {
     @Inject(UPLOAD_OBJECT_STORE) private readonly store: UploadObjectStore,
     @Inject(UPLOAD_MALWARE_SCANNER) private readonly scanner: MalwareScanner,
     @Inject(IMPORT_QUEUE) private readonly queue: ImportQueue | null,
+    @Optional() @Inject(FindingsService) private readonly findings: FindingsService | null,
   ) {}
 
   systems(): BillingSystemView[] {
@@ -398,6 +401,16 @@ export class ImportsService {
           requestId,
         }),
       );
+    }
+
+    // A pack extract feeds the pack's checks: run them now (drafts only; idempotent). Background
+    // imports finish on the worker, so Sources offers the run when they complete.
+    if (!background && !requested.replayed && !isBilling(row.target) && this.findings) {
+      try {
+        await this.findings.runPackRules(tenant, dealId, requestId);
+      } catch {
+        // Roles that cannot draft findings (a target contributor) import without running checks.
+      }
     }
 
     const outcome = await withTenant(this.prisma, tenant, async (tx) => {

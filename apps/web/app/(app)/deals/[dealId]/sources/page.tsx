@@ -1,6 +1,6 @@
 import type { SourcePlanResponse } from '@pactlab/contracts';
 import { Glossed, IconTile, Term, type Accent } from '@pactlab/ui';
-import { FileText, GitBranch, ListChecks, Receipt } from 'lucide-react';
+import { Factory, FileText, GitBranch, ListChecks, Receipt } from 'lucide-react';
 import { Badge, Button, buttonVariants, Card, CardContent, CardDescription, CardHeader, CardTitle, EmptyState } from '@pactlab/ui';
 import { COMPANY_TYPE_LABELS, IMPORT_TARGET_DEFINITIONS, type ImportTarget } from '@pactlab/domain';
 import Link from 'next/link';
@@ -26,6 +26,7 @@ const SOURCE_LOOK = {
   CODE: { icon: GitBranch, accent: 'navy' },
   DELIVERY: { icon: ListChecks, accent: 'amber' },
   DOCUMENTS: { icon: FileText, accent: 'rose' },
+  INDUSTRY: { icon: Factory, accent: 'teal' },
 } as const satisfies Record<string, { icon: typeof Receipt; accent: Accent }>;
 
 const NEXT_RELEASE = { API: 'Live API connection is coming next.', UPLOAD: 'File upload is coming next.' } as const;
@@ -105,7 +106,7 @@ function SourcePlan({ plan, dealId }: { plan: SourcePlanResponse; dealId: string
                     )}
                     {source.upload && upload?.availability === 'AVAILABLE' ? (
                       <Link
-                        href={source.upload.format === 'CSV' ? `/deals/${dealId}/sources/upload` : `/deals/${dealId}/documents`}
+                        href={source.kind === 'INDUSTRY' ? '#industry-data' : source.upload.format === 'CSV' ? `/deals/${dealId}/sources/upload` : `/deals/${dealId}/documents`}
                         className={buttonVariants({ size: 'sm', variant: 'outline' })}
                       >
                         {source.upload.label}
@@ -154,10 +155,10 @@ export default async function DealSourcesPage({
   searchParams,
 }: {
   params: Promise<{ dealId: string }>;
-  searchParams: Promise<{ started?: string; imported?: string; created?: string; unchanged?: string; cancelled?: string; replayed?: string }>;
+  searchParams: Promise<{ started?: string; imported?: string; created?: string; unchanged?: string; cancelled?: string; replayed?: string; checked?: string }>;
 }) {
   const { dealId } = await params;
-  const { started, imported, created, unchanged, cancelled, replayed } = await searchParams;
+  const { started, imported, created, unchanged, cancelled, replayed, checked } = await searchParams;
   // Which import finished: billing or a pack extract (the query carries the target).
   const importedLabel = imported && imported in IMPORT_TARGET_DEFINITIONS ? IMPORT_TARGET_DEFINITIONS[imported as ImportTarget].label : 'Billing export';
   if (!isUuidParam(dealId)) notFound();
@@ -192,7 +193,25 @@ export default async function DealSourcesPage({
           ) : (
             <>
               {importedLabel} imported: {Number(created ?? 0)} new records, {Number(unchanged ?? 0)} already known.
-              {importedLabel === 'Billing export' || importedLabel === 'Invoice lines' ? ' Finances now include them.' : ' Industry checks and metrics now read them.'}
+              {importedLabel === 'Billing export' || importedLabel === 'Invoice lines' ? (
+                ' Finances now include them.'
+              ) : checked ? (
+                <>
+                  {' '}Industry checks ran on them —{' '}
+                  <Link href={`/deals/${dealId}/findings`} className="font-semibold underline">
+                    see the drafts on Findings
+                  </Link>
+                  .
+                </>
+              ) : (
+                <>
+                  {' '}Metrics now read them;{' '}
+                  <Link href={`/deals/${dealId}/findings`} className="font-semibold underline">
+                    run the industry checks on Findings
+                  </Link>{' '}
+                  to draft findings from them.
+                </>
+              )}
             </>
           )}
         </p>
@@ -206,7 +225,7 @@ export default async function DealSourcesPage({
       {plan.kind === 'ok' ? <SourcePlan plan={plan.data} dealId={dealId} /> : null}
 
       {packTargets.length > 0 ? (
-        <Card>
+        <Card id="industry-data">
           <CardHeader>
             <CardTitle>Industry data</CardTitle>
             <CardDescription>

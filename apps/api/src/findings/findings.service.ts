@@ -33,8 +33,9 @@ import {
   type TenantContext,
 } from '@pactlab/domain';
 import { DealAccess } from '../deals/deal-access';
+import { loadPackEvidence, TooMuchPackEvidenceError } from '../packs/pack-evidence';
 import { PRISMA } from '../tokens';
-import { MAX_RULE_EVIDENCE, PACK_REGISTRY, RULE_READABLE_CLASSES, type PackRegistry } from './pack-rules';
+import { PACK_REGISTRY, RULE_READABLE_CLASSES, type PackRegistry } from './pack-rules';
 import {
   FINDINGS_REPOSITORY,
   type FindingsRepository,
@@ -307,14 +308,13 @@ export class FindingsService {
       const type = seller?.companyType;
       const pack = this.packs.packs[type && type !== 'OTHER' ? type : 'SOFTWARE_SAAS'];
       const types = [...new Set(pack.findingRules.flatMap((id) => findingRule(id, this.packs.rules).evidenceTypes))];
-      const found = types.length === 0
-        ? []
-        : await tx.evidenceItem.findMany({
-            where: { dealId, evidenceType: { in: types } },
-            select: { id: true, connectionId: true, evidenceType: true, sourceRecordId: true, canonical: true },
-            orderBy: { id: 'asc' },
-            take: MAX_RULE_EVIDENCE + 1,
-          });
+      let found;
+      try {
+        found = await loadPackEvidence(tx, dealId, types);
+      } catch (error) {
+        if (error instanceof TooMuchPackEvidenceError) throw new PayloadTooLargeException('Too much evidence for one rule run');
+        throw error;
+      }
       // Pages only for rules that read documents, only from readable classes (never HR, pay or performance).
       const readsDocuments = pack.findingRules.some((id) => findingRule(id, this.packs.rules).readsDocuments);
       const pageRows = readsDocuments
@@ -332,16 +332,7 @@ export class FindingsService {
         ),
       };
     });
-    if (rows.length > MAX_RULE_EVIDENCE) throw new PayloadTooLargeException('Too much evidence for one rule run');
-    // The newest version of each source record (earlier versions stay in lineage).
-    const latest = new Map<string, (typeof rows)[number]>();
-    for (const row of rows) latest.set(`${row.connectionId}|${row.evidenceType}|${row.sourceRecordId}`, row);
-    const input = [...latest.values()].map((row) => ({
-      id: row.id,
-      evidenceType: row.evidenceType,
-      sourceRecordId: row.sourceRecordId,
-      canonical: (row.canonical ?? {}) as Record<string, string | null>,
-    }));
+    const input = rows;
     const rules = pack.findingRules.map((id) => findingRule(id, this.packs.rules));
     // Quotes become citations only if they are really on the page (no model; same check as AI citations).
     const index = new SourceIndex(
