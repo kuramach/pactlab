@@ -5,6 +5,7 @@ import { visibleSections } from '../../lib/navigation';
 import { getSessionContext } from '../../lib/session';
 import { Sidebar } from './_lib/sidebar';
 import { Topbar } from './_lib/topbar';
+import { BugReporter } from './_lib/bugs/bug-reporter';
 
 export default async function AppLayout({ children }: { children: ReactNode }) {
   const env = publicEnv();
@@ -16,7 +17,8 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
       sidebar={<Sidebar sections={sections} organizationName={session.kind === 'signed-in' ? (session.organization?.name ?? null) : null} />}
       topbar={<Topbar session={session} sections={sections} />}
     >
-      {children}
+      <div data-app-root>{children}</div>
+      <BugReporter appVersion={process.env['npm_package_version'] ?? '0.0.0'} environment={env.NEXT_PUBLIC_APP_ENV} />
     </AppShell>
   );
 }

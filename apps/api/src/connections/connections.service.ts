@@ -18,6 +18,8 @@ import {
   type PrismaClient,
   type SyncRunRecord,
   type TransactionClient,
+  operatorOps,
+  prismaExecutor,
 } from '@pactlab/db';
 import {
   isBuyerSideRole,
@@ -125,6 +127,12 @@ export class ConnectionsService {
     @Inject(PROVIDER_DEPENDENCIES) private readonly providers: ProviderDependencies,
   ) {}
 
+  /** Operators can switch live provider connections off per organization (T-072 flags). */
+  private async requireLiveConnectors(tenant: TenantContext): Promise<void> {
+    const flags = await operatorOps.organizationFlags(prismaExecutor(this.prisma), tenant.organizationId, tenant.userId);
+    if (!flags.liveConnectors) throw new ForbiddenException({ code: 'LIVE_CONNECTORS_OFF', message: 'Live connections are switched off for this organization' });
+  }
+
   private audit(
     tx: TransactionClient,
     tenant: TenantContext,
@@ -212,6 +220,7 @@ export class ConnectionsService {
     });
     if ((command.mode === 'LIVE') !== (command.credentialRef !== undefined))
       throw new ConflictException();
+    if (command.mode === 'LIVE') await this.requireLiveConnectors(tenant);
     // Synthetic repositories and Jira sites are for local and test environments only.
     if (command.mode === 'FIXTURE' && command.provider !== 'csv' && !this.providers.allowFixtureConnections)
       throw new ForbiddenException('Synthetic test connections are not available in this environment');
@@ -267,6 +276,7 @@ export class ConnectionsService {
     });
     if (command.method === 'APP' && !this.providers.githubApp) throw new ConflictException();
     const connectionId = newId();
+    await this.requireLiveConnectors(tenant);
     let credentialRef = GITHUB_APP_CREDENTIAL_REF;
     if (command.method === 'TOKEN') {
       credentialRef = `secretref:${tenant.organizationId}/${dealId}/github/${connectionId}`;
@@ -319,6 +329,7 @@ export class ConnectionsService {
     });
     if ((command.mode === 'LIVE') !== (command.credentialRef !== undefined))
       throw new ConflictException();
+    if (command.mode === 'LIVE') await this.requireLiveConnectors(tenant);
     await this.load(tenant, dealId, connectionId);
     const row = await withTenant(this.prisma, tenant, async (tx) => {
       const updated = await connections.setMode(tx, connectionId, {

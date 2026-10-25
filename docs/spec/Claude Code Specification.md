@@ -1821,6 +1821,34 @@ Telemetry tells you something crashed; the Auto-Bug system turns it into a triag
 4. **Privacy test:** assert a non-admin user cannot read any bug's context bundle, and that a bug filed from an HR/compensation route contains no HR, compensation, or individual-performance fields.
 5. **User-experience test:** assert the error dialog shows the plain-language message and `PLB-####` reference with an optional note field, and renders no stack trace or error class to a non-admin user.
 
+### 28.11 As built (T-072, 2026-10-25)
+
+T-072 built this section together with Kumar's brief of 2026-10-23. Where the two differed, the brief (the later decision) won:
+
+- **Statuses:** `NEW, TRIAGED, IN_PROGRESS, RESOLVED, WONT_FIX`. Severities: `LOW, MEDIUM, HIGH, BLOCKER`.
+- **Who files and who sees what:**
+  - Reports are filed by people (the floating "Report a bug" button, with a masked screenshot of the app view) and automatically (unhandled frontend errors, server 5xx, exhausted jobs).
+  - Automatic reports deduplicate by fingerprint on an open bug.
+  - Reporters see their own reports' status only, never the context or the internal notes.
+- **Screenshots:**
+  - the app's own view only (`html-to-image`); password fields and `data-private` elements are left out;
+  - at most 1 MB, stored with the report until the managed bucket arrives (T-007).
+- **Agent handoff:** "Create agent task" is an export (copy or download a T-style markdown file to drop into `tasks/ready/`). There are no repository credentials in the app.
+- **Not yet built:**
+  - "user stuck" heuristics;
+  - AI-pipeline and connector-sync triggers;
+  - per-fingerprint rate caps (dedup bounds storage meanwhile);
+  - merge and assign;
+  - commit-history enrichment of the fix prompt.
+- **Operator console** (`/admin`, platform operators only, set with `pnpm ops:operator`):
+  - approvals (shared with `pnpm org:*` through the same SQL functions);
+  - organizations: status and per-organization flags (`pilotMode`, `liveConnectors`, read at request time, no deploy);
+  - users;
+  - usage and connector health;
+  - platform audit;
+  - the bug inbox.
+  - Cross-organization access goes only through SECURITY DEFINER functions that check the operator. The runtime role never reads other tenants' tables.
+
 ## 29. The three phases of a pact (T-071)
 
 A pact moves through three phases, derived from its pipeline stage. The phase is never stored separately; the stage enum and the stage patch are unchanged.

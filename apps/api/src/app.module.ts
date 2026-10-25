@@ -9,6 +9,7 @@ import { AI_OFF, type AiStatusView } from './ai/ai-provider';
 import { AiModule } from './ai/ai.module';
 import { BalanceSheetModule } from './balance-sheet/balance-sheet.module';
 import { PhasesModule } from './phases/phases.module';
+import { AdminModule } from './admin/admin.module';
 import { EngineeringModule } from './engineering/engineering.module';
 import { ComparablesModule } from './comparables/comparables.module';
 import { CompositeIdentityVerifier, type IdentityVerifier } from './auth/identity';
@@ -64,6 +65,9 @@ export interface AppDependencies {
    * Defaults: approval required, no operator email.
    */
   signup?: { requiresApproval?: boolean; operatorEmail?: string | null; loginUrl: string };
+  /** Shown to operators so they always know which environment the console is looking at. */
+  environment?: string;
+  appVersion?: string;
   /** Pack and finding-rule registries. Omitted: the domain registries (tests inject a test-only rule). */
   packs?: PackRegistry;
 }
@@ -107,6 +111,12 @@ export class AppModule {
         PactsModule,
         BalanceSheetModule,
         PhasesModule,
+        AdminModule.register({
+          emailSender: deps.emailLogin?.emailSender ?? null,
+          loginUrl: deps.signup?.loginUrl ?? 'http://localhost:3000/login',
+          appVersion: deps.appVersion ?? process.env['npm_package_version'] ?? '0.0.0',
+          environment: deps.environment ?? 'local',
+        }),
         EngineeringModule,
         AuditModule,
         OrganizationModule,
