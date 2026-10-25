@@ -95,6 +95,8 @@ export type ReviewFindingBody = z.infer<typeof reviewFindingSchema>;
 export const listFindingsQuerySchema = z.strictObject({
   status: z.enum(FINDING_STATUSES).optional(),
   domain: z.enum(FINDING_DOMAINS).optional(),
+  /** `document-review`: findings brought in from the Documents review queue. */
+  source: z.enum(['document-review']).optional(),
 });
 export type ListFindingsQuery = z.infer<typeof listFindingsQuerySchema>;
 

@@ -642,10 +642,7 @@ describe('documents API (document AI)', () => {
       expect(found.body['reviews']).toMatchObject([
         { decision: 'ACCEPT', reviewer: { displayName: 'REVIEWER (synthetic)' } },
       ]);
-      expect(await lastAudit()).toMatchObject({
-        action: 'document_finding.accepted',
-        targetId: changeOfControlId,
-      });
+      expect(await auditCount('document_finding.accepted')).toBe(1);
 
       // Invariant across everything accepted.
       const all = (await call('lead', 'GET', '/document-findings?status=ACCEPTED')).body[
@@ -677,6 +674,27 @@ describe('documents API (document AI)', () => {
           })
         ).status,
       ).toBe(409);
+    });
+
+    it('one register: the accepted document finding is a register draft to price, brought in once', async () => {
+      const findingsUrl = (path = '') => `/v1/deals/${a.dealId}/findings${path}`;
+      const raw = async (who: string, method: 'GET' | 'POST', url: string) => {
+        const response = await app.inject({ method, url, headers: { authorization: `Bearer ${tokens[who] ?? ''}` }, ...(method === 'POST' ? { payload: {} } : {}) });
+        return { status: response.statusCode, body: response.json() as Body };
+      };
+      const register = (await raw('lead', 'GET', findingsUrl())).body['items'] as Body[];
+      const promoted = register.filter((finding) => finding['fingerprint'] === `document:${changeOfControlId}`);
+      expect(promoted).toHaveLength(1);
+      expect(promoted[0]).toMatchObject({ status: 'DRAFT', origin: 'AI', domain: 'LEGAL', pricedRisk: null });
+      const links = promoted[0]?.['evidence'] as { documentCitation: { documentId: string } | null }[];
+      expect(links.length).toBeGreaterThan(0);
+      expect(links.every((link) => link.documentCitation?.documentId === msaId)).toBe(true);
+
+      // Bringing them in again changes nothing; nothing is pending.
+      expect((await raw('lead', 'POST', findingsUrl('/from-documents'))).body).toMatchObject({ created: 0 });
+      expect((await raw('lead', 'GET', findingsUrl('/from-documents'))).body).toEqual({ pending: 0 });
+      // Other tenants and analysts without the right cannot bring them in.
+      expect((await raw('other', 'POST', findingsUrl('/from-documents'))).status).toBe(404);
     });
 
     it('a citation made stale by a retention purge blocks acceptance; legal hold blocks purge', async () => {

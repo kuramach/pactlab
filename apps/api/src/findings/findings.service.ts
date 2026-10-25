@@ -27,6 +27,7 @@ import {
   type Finding,
   type FindingActor,
   type FindingEvidenceLink,
+  type DocumentCitation,
   type ProposedFinding,
   type ReviewDecision,
   type TenantContext,
@@ -63,6 +64,9 @@ function translate(error: unknown): never {
  * command; the domain workflow enforces human decisions; every change is
  * audited atomically by the repository.
  */
+/** The register fingerprint of an accepted document-review finding. */
+export const documentReviewFingerprint = (documentFindingId: string) => `document:${documentFindingId}`;
+
 @Injectable()
 export class FindingsService {
   constructor(
@@ -190,6 +194,17 @@ export class FindingsService {
       action: 'finding.created',
       requestId,
     });
+    return this.insertProposals(tenant, dealId, proposals, actor, requestId);
+  }
+
+  /** Record proposals once access has been checked by the caller. */
+  private async insertProposals(
+    tenant: TenantContext,
+    dealId: string,
+    proposals: readonly ProposedFinding[],
+    actor: Exclude<FindingActor, { kind: 'HUMAN' }>,
+    requestId: string,
+  ): Promise<{ created: Finding[]; existing: number }> {
     const created: Finding[] = [];
     let existing = 0;
     for (const proposal of proposals) {
@@ -217,6 +232,67 @@ export class FindingsService {
       created.push(finding);
     }
     return { created, existing };
+  }
+
+  /**
+   * One register (pilot bug 11): document-review findings a person accepted
+   * become register drafts, so they get a valuation direction and a price
+   * like any other finding. Idempotent by fingerprint (`document:<id>`); the
+   * citations are re-verified; nothing is priced or accepted here.
+   */
+  async fromDocumentReview(tenant: TenantContext, dealId: string, requestId: string): Promise<{ created: number; existing: number }> {
+    // A reviewer who accepted the claim may bring it in, as may anyone who drafts findings.
+    await this.access.require(tenant, dealId, (role) => canDraftFindings(role) || canReviewFindings(role), { action: 'finding.from_document_review', requestId });
+    const accepted = await withTenant(this.prisma, tenant, (tx) =>
+      tx.documentFinding.findMany({
+        where: { dealId, status: 'ACCEPTED' },
+        orderBy: { createdAt: 'asc' },
+        select: { id: true, title: true, summary: true, severity: true, citations: true, promptId: true, promptVersion: true, reviewerDisplayName: true },
+      }),
+    );
+    if (accepted.length === 0) return { created: 0, existing: 0 };
+    const proposals: ProposedFinding[] = accepted.map((finding) => ({
+      domain: 'LEGAL',
+      title: finding.title,
+      description: `${finding.summary} Accepted in document review${finding.reviewerDisplayName ? ` by ${finding.reviewerDisplayName}` : ''}; decide its valuation direction and price here.`,
+      severity: finding.severity,
+      confidence: 'HIGH',
+      origin: 'AI',
+      fingerprint: documentReviewFingerprint(finding.id),
+      pricedRisk: null,
+      direction: null,
+      evidence: (finding.citations as unknown as DocumentCitation[]).map((citation) => ({
+        evidenceItemId: null,
+        documentCitation: {
+          documentId: citation.documentId,
+          pageNumber: citation.pageNumber,
+          quote: citation.quote,
+          quoteHash: citation.quoteHash,
+          charStart: citation.charStart,
+          charEnd: citation.charEnd,
+        },
+        commitSha: null,
+        toolName: 'document-review',
+        toolVersion: `${finding.promptId}@${finding.promptVersion}`,
+        rulesetVersion: null,
+        path: null,
+        lineStart: null,
+        lineEnd: null,
+      })),
+    }));
+    const recorded = await this.insertProposals(tenant, dealId, proposals, { kind: 'AI', promptVersion: accepted[0]?.promptVersion ?? 'unknown' }, requestId);
+    return { created: recorded.created.length, existing: recorded.existing };
+  }
+
+  /** How many accepted document-review findings are not in the register yet (for the Findings page banner). */
+  async pendingFromDocumentReview(tenant: TenantContext, dealId: string, requestId: string): Promise<{ pending: number }> {
+    await this.access.require(tenant, dealId, canReadFindings, { action: 'finding.list', requestId });
+    return withTenant(this.prisma, tenant, async (tx) => {
+      const accepted = await tx.documentFinding.findMany({ where: { dealId, status: 'ACCEPTED' }, select: { id: true } });
+      if (accepted.length === 0) return { pending: 0 };
+      const present = await tx.finding.count({ where: { dealId, fingerprint: { in: accepted.map((row) => documentReviewFingerprint(row.id)) } } });
+      return { pending: accepted.length - present };
+    });
   }
 
   /**

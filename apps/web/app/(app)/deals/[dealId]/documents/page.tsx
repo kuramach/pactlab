@@ -368,6 +368,11 @@ export default async function DocumentsPage({
                       {finding.decisionRationale ? <>: “{finding.decisionRationale}”</> : null}
                     </p>
                   ) : null}
+                  {finding.status === 'ACCEPTED' ? (
+                    <Link href={`/deals/${dealId}/findings?source=document-review`} className="text-xs font-semibold text-indigo-ink hover:underline">
+                      In the findings register — decide its valuation direction and price →
+                    </Link>
+                  ) : null}
                   {finding.status === 'DRAFT' && reviewer ? (
                     <form
                       action={reviewDocumentFinding.bind(null, dealId, finding.id, finding.documentId)}

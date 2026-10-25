@@ -6,6 +6,7 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  Optional,
   PayloadTooLargeException,
   ServiceUnavailableException,
   UnprocessableEntityException,
@@ -36,6 +37,7 @@ import {
   type TenantContext,
 } from '@pactlab/domain';
 import { DealAccess } from '../deals/deal-access';
+import { FindingsService } from '../findings/findings.service';
 import { PRISMA } from '../tokens';
 import {
   decideDocumentFinding,
@@ -139,6 +141,7 @@ export class DocumentsService {
     @Inject(DealAccess) private readonly access: DealAccess,
     @Inject(DOCUMENTS_REPOSITORY) private readonly documents: DocumentsRepository,
     @Inject(DOCUMENT_OBJECT_STORE) private readonly objects: DocumentObjectStore,
+    @Optional() @Inject(FindingsService) private readonly register: FindingsService | null,
     @Inject(MALWARE_SCANNER) private readonly scanner: MalwareScanner,
     @Inject(CLAUDE_GATEWAY) private readonly gateway: ClaudeGateway,
   ) {}
@@ -650,6 +653,15 @@ export class DocumentsService {
       this.audit(tenant, dealId, action, { type: 'document_finding', id: findingId }, requestId),
     );
     if (!saved) throw new ConflictException();
+    if (body.decision === 'ACCEPT' && this.register) {
+      // One register: the accepted claim becomes a draft to price on Findings. Idempotent;
+      // if it fails here, the Findings page offers to bring it in.
+      try {
+        await this.register.fromDocumentReview(tenant, dealId, requestId);
+      } catch {
+        // The document decision stands either way.
+      }
+    }
     return { finding: decided.finding, review: decided.review };
   }
 }
