@@ -153,6 +153,7 @@ PACK_IMPORTS = {
     'fintech': {'loan-tape': 'Loan tape', 'aml-alerts': 'AML alerts'},
     'multifamily': {'rent-roll': 'Rent roll', 't12': 'T-12 operating statement', 'delinquency': 'Delinquency report', 'unit-inspections': 'Unit inspections'},
     'healthcare': {'claims-summary': 'Claims summary', 'provider-roster': 'Provider roster'},
+    'telecom-media': {'subscribers-by-month': 'Subscribers by month'},
 }
 
 PACK_TITLES = {

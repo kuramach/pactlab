@@ -13,6 +13,7 @@ export const IMPORT_TARGETS = [
   'MULTIFAMILY_INSPECTION',
   'HEALTHCARE_CLAIMS_SUMMARY',
   'HEALTHCARE_PROVIDER_ROSTER',
+  'TELECOM_SUBSCRIBERS',
 ] as const;
 export type ImportTarget = (typeof IMPORT_TARGETS)[number];
 
@@ -243,6 +244,26 @@ export const HEALTHCARE_PROVIDER_ROSTER: TargetDefinition = {
   ],
 };
 
+/** Telecom and media (T-062): billed subscribers and ARPU by month, region and plan — no subscriber identities. */
+export const TELECOM_SUBSCRIBERS: TargetDefinition = {
+  target: 'TELECOM_SUBSCRIBERS',
+  label: 'Subscribers by month',
+  fileName: 'subscribers-by-month.csv',
+  people: 'NONE',
+  refusesPeopleColumns: true,
+  evidenceType: 'telecom.subscribers_month',
+  recordIdField: 'month',
+  recordIdFields: ['month', 'region', 'plan'],
+  observedAtFields: [],
+  fields: [
+    { name: 'month', label: 'Month', kind: 'text', required: true, hint: 'YYYY-MM.' },
+    { name: 'region', label: 'Region', kind: 'text', required: true, hint: 'Region or market.' },
+    { name: 'plan', label: 'Plan', kind: 'text', required: true, hint: 'Plan or product.' },
+    { name: 'billed_subscribers', label: 'Billed subscribers', kind: 'decimal', required: true, hint: 'Subscribers billed in the month (a count, not a reported figure).' },
+    { name: 'arpu', label: 'ARPU', kind: 'money', required: true, hint: IN_BASE_CURRENCY },
+  ],
+};
+
 export const IMPORT_TARGET_DEFINITIONS: Readonly<Record<ImportTarget, TargetDefinition>> = {
   BILLING_INVOICE_LINE,
   FINTECH_LOAN_TAPE,
@@ -253,6 +274,7 @@ export const IMPORT_TARGET_DEFINITIONS: Readonly<Record<ImportTarget, TargetDefi
   MULTIFAMILY_INSPECTION,
   HEALTHCARE_CLAIMS_SUMMARY,
   HEALTHCARE_PROVIDER_ROSTER,
+  TELECOM_SUBSCRIBERS,
 };
 
 /**
