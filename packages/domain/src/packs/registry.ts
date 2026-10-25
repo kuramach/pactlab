@@ -89,7 +89,13 @@ export const PACKS: Readonly<Record<PackId, PackDefinition>> = {
     // Royalty and product revenue value on DCF, with exclusivity and approval timing as scenario inputs.
     valuationMethods: ['DCF'],
   },
-  ECOMMERCE_DTC: pack('ECOMMERCE_DTC', 'ecommerce-dtc', 'consumer'),
+  ECOMMERCE_DTC: {
+    ...pack('ECOMMERCE_DTC', 'ecommerce-dtc', 'consumer', true),
+    importTargets: ['BILLING_INVOICE_LINE', 'ECOMMERCE_COHORTS', 'ECOMMERCE_AD_SPEND'],
+    findingRules: ['ecommerce-marketplace-majority', 'ecommerce-cohort-repeat-decline', 'ecommerce-channel-cac-rising'],
+    // Valuation methods unchanged; unit economics arrive as scenario inputs and channel risk as findings.
+    valuationMethods: ['DCF', 'ARR_MULTIPLE'],
+  },
   MULTIFAMILY: {
     ...pack('MULTIFAMILY', 'multifamily', 'real-estate', true),
     importTargets: ['BILLING_INVOICE_LINE', 'MULTIFAMILY_RENT_ROLL', 'MULTIFAMILY_T12', 'MULTIFAMILY_DELINQUENCY', 'MULTIFAMILY_INSPECTION'],

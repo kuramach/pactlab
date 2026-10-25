@@ -1434,6 +1434,13 @@ Five further packs in two clusters. Hotels, multifamily and commercial property 
 - What transfers: CAC/LTV/repeat-purchase fit the Metrics engine's cohort and concentration machinery; contract review covers marketplace and supplier terms.
 - Pack scope is adapters for storefront/marketplace and ad-platform evidence, finding types for unit-economics and channel risk, and no change to the valuation methods.
 
+
+**6a. E-commerce / DTC — activation amendment (T-065, 2026-10-25)**
+
+- **Import targets (CSV, ADR 0010):** `ECOMMERCE_COHORTS` (first_purchase_month, month, months_since_first, active_customers → `ecommerce.cohort_month`, one record per cohort and month) and `ECOMMERCE_AD_SPEND` (month, channel, spend, new_customers → `ecommerce.ad_spend_month`, one record per month and channel), alongside the billing import. Counts and amounts only; no customer is identified.
+- **Finding rules (deterministic, versioned, drafts only):** `ecommerce-marketplace-majority` — a marketplace above half of the latest month's revenue whose seller terms let it change fees or delist on notice, cited, neutral (a channel-risk sensitivity); `ecommerce-cohort-repeat-decline` — the first cohort from which every cohort keeps at least three points fewer second-month customers than every earlier one (a drag the reviewer prices); `ecommerce-channel-cac-rising` — a channel whose spend rose and whose new customers fell every month for at least six months.
+- **Valuation:** methods unchanged (DCF, ARR multiple); unit economics are scenario inputs and channel risks arrive as findings.
+- **Fixtures and acceptance:** `pactlab-demo-data/ecommerce-dtc/{USD,EUR,GBP}` — the three planted findings surface as cited drafts once, and the reviewer-priced cohort decline reaches a valuation run (`apps/api/src/packs/ecommerce.acceptance.api.test.ts`).
 **7. Multifamily**
 
 - Acquisitions of apartment communities and portfolios, usually by real-estate private equity and operators.
