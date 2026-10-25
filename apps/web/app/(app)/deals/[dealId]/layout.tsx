@@ -1,3 +1,4 @@
+import { DEAL_PHASE_LABELS } from '@pactlab/domain';
 import { Badge, PageHeader } from '@pactlab/ui';
 import { notFound } from 'next/navigation';
 import type { ReactNode } from 'react';
@@ -47,7 +48,11 @@ export default async function DealLayout({ children, params }: { children: React
           meta={
             <>
               <Badge className="border-white/20 bg-white/10 text-white">{DEAL_TYPE_LABELS[deal.data.transactionType] ?? deal.data.transactionType}</Badge>
+              <Badge className="border-teal/40 bg-teal/20 text-white" title="Phase of the pact">
+                {DEAL_PHASE_LABELS[deal.data.phase]}
+              </Badge>
               <Badge className="border-indigo/40 bg-indigo/20 text-white">{STAGE_LABELS[deal.data.stage] ?? deal.data.stage}</Badge>
+              {deal.data.status === 'ARCHIVED' ? <Badge className="border-white/20 bg-white/10 text-white">Archived</Badge> : null}
             </>
           }
         />

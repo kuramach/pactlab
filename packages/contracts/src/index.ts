@@ -6,3 +6,4 @@ export * from './pacts';
 export * from './imports';
 export * from './comparables';
 export * from './balance-sheet';
+export * from './phases';

@@ -30,6 +30,8 @@ export interface DealListItem {
   targetName: string;
   transactionType: string;
   stage: string;
+  /** Pre-Diligence, Diligence or Post-Close (derived from the stage). */
+  phase: 'PRE' | 'DILIGENCE' | 'POST';
   status: string;
   baseCurrency?: string;
   parties?: DealSummary['parties'];

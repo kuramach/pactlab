@@ -1,4 +1,4 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import type { DealSummary } from '@pactlab/contracts';
 import {
   appendAuditEvent,
@@ -12,8 +12,9 @@ import {
   type DealRecord,
   type PrismaClient,
 } from '@pactlab/db';
-import type { TenantContext } from '@pactlab/domain';
+import { phaseOf, type TenantContext } from '@pactlab/domain';
 import { PRISMA } from '../tokens';
+import { PhasesService } from '../phases/phases.service';
 import { DealAccess } from './deal-access';
 import type {
   AddMemberCommand,
@@ -23,7 +24,7 @@ import type {
 } from './deals.schemas';
 
 function toSummary(deal: DealRecord): DealSummary {
-  return { ...deal, createdAt: deal.createdAt.toISOString() };
+  return { ...deal, phase: phaseOf(deal.stage), createdAt: deal.createdAt.toISOString() };
 }
 
 function toMemberView(member: DealMemberRecord): DealMemberView {
@@ -36,6 +37,7 @@ export class DealsService {
   constructor(
     @Inject(PRISMA) private readonly prisma: PrismaClient,
     @Inject(DealAccess) private readonly access: DealAccess,
+    @Optional() @Inject(PhasesService) private readonly phases: PhasesService | null,
   ) {}
 
   async list(tenant: TenantContext, query?: string): Promise<DealSummary[]> {
@@ -105,6 +107,8 @@ export class DealsService {
       return updated;
     });
     if (!deal) throw new NotFoundException();
+    // Closing opens Post-Close: its registers come from diligence output, by reference.
+    if (command.stage === 'CLOSED' && this.phases) await this.phases.generatePostClose(tenant, dealId, requestId);
     return toSummary(deal);
   }
 

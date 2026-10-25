@@ -29,6 +29,7 @@ import {
   type PartyRole,
   type SourceKind,
   type TenantContext,
+  phaseOf,
 } from '@pactlab/domain';
 import { DealAccess } from '../deals/deal-access';
 import { PRISMA } from '../tokens';
@@ -94,7 +95,7 @@ export class PactsService {
         });
       },
     );
-    return { ...deal, createdAt: deal.createdAt.toISOString() };
+    return { ...deal, phase: phaseOf(deal.stage), createdAt: deal.createdAt.toISOString() };
   }
 
   /** The current asking price and its history. Buyer-side analysis only. */

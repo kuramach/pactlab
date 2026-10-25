@@ -1,3 +1,4 @@
+import { DEAL_PHASE_LABELS, DEAL_PHASES, type DealPhase } from '@pactlab/domain';
 import { Badge, buttonVariants, Card, EmptyState, IconTile, PageHeader } from '@pactlab/ui';
 import { ArrowRight, Building2, Plus } from 'lucide-react';
 import Link from 'next/link';
@@ -26,8 +27,12 @@ function partiesLine(deal: DealListItem): string {
   return buyer && seller ? `${partyLabel(buyer)} → ${partyLabel(seller)}` : deal.targetName;
 }
 
-export default async function DealsPage() {
-  const result = await dealsApi.list();
+export default async function DealsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const phaseParam = (await searchParams)['phase'];
+  const phase = typeof phaseParam === 'string' && (DEAL_PHASES as readonly string[]).includes(phaseParam) ? (phaseParam as DealPhase) : null;
+  const listed = await dealsApi.list();
+  // The phase filter is a view over the list (the phase is derived from each deal's stage).
+  const result = listed.kind === 'ok' && phase ? { ...listed, data: { items: listed.data.items.filter((deal) => deal.phase === phase) } } : listed;
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
@@ -37,6 +42,18 @@ export default async function DealsPage() {
         description="Every Pact you are a member of. Open one to collect evidence, review findings and value it."
         actions={<StartPactLink />}
       />
+      <nav aria-label="Filter by phase" className="flex flex-wrap gap-2 text-sm">
+        {[null, ...DEAL_PHASES].map((option) => (
+          <Link
+            key={option ?? 'all'}
+            href={option ? `/deals?phase=${option}` : '/deals'}
+            aria-current={option === phase ? 'page' : undefined}
+            className={`rounded-full border px-3 py-1 ${option === phase ? 'border-indigo-ink bg-muted font-semibold' : 'border-border text-muted-foreground'}`}
+          >
+            {option ? DEAL_PHASE_LABELS[option] : 'All phases'}
+          </Link>
+        ))}
+      </nav>
       {result.kind !== 'ok' ? (
         <ApiState result={result} />
       ) : result.data.items.length === 0 ? (
@@ -54,7 +71,7 @@ export default async function DealsPage() {
                 <th scope="col" className="px-4 py-3 font-medium">Deal</th>
                 <th scope="col" className="hidden px-4 py-3 text-right font-medium lg:table-cell">Asking price</th>
                 <th scope="col" className="hidden px-4 py-3 font-medium md:table-cell">Type</th>
-                <th scope="col" className="hidden px-4 py-3 font-medium sm:table-cell">Stage</th>
+                <th scope="col" className="hidden px-4 py-3 font-medium sm:table-cell">Phase · stage</th>
                 <th scope="col" className="px-4 py-3">
                   <span className="sr-only">Open</span>
                 </th>
@@ -80,7 +97,13 @@ export default async function DealsPage() {
                   <td className="hidden px-4 py-3 md:table-cell">
                     <Badge>{DEAL_TYPE_LABELS[deal.transactionType] ?? deal.transactionType}</Badge>
                   </td>
-                  <td className="hidden px-4 py-3 sm:table-cell">{STAGE_LABELS[deal.stage] ?? deal.stage}</td>
+                  <td className="hidden px-4 py-3 sm:table-cell">
+                    <span className="font-medium">{DEAL_PHASE_LABELS[deal.phase]}</span>
+                    <span className="block text-xs text-muted-foreground">
+                      {STAGE_LABELS[deal.stage] ?? deal.stage}
+                      {deal.status === 'ARCHIVED' ? ' · archived' : ''}
+                    </span>
+                  </td>
                   <td className="px-4 py-3 text-right">
                     <Link href={`/deals/${deal.id}`} aria-label={`Open ${deal.name}`} className="inline-flex">
                       <ArrowRight aria-hidden className="h-4 w-4 text-muted-foreground group-hover:text-indigo-ink" />
