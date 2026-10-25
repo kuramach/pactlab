@@ -29,7 +29,7 @@ describe('column-mapping screen', () => {
   it.each(IMPORT_TARGETS)('maps %s to its own fields, never billing fields by default', (target) => {
     const definition = IMPORT_TARGET_DEFINITIONS[target];
     const html = screen(target);
-    for (const field of definition.fields) expect(html, `${target}: ${field.label}`).toContain(`Source for ${field.label}`);
+    for (const field of definition.fields) expect(html, `${target}: ${field.label}`).toContain(`Source for ${field.label.replaceAll('&', '&amp;')}`); // as rendered (HTML-escaped)
     if (target !== 'BILLING_INVOICE_LINE') {
       // The bug: a loan tape or rent roll was asked for invoice-line fields it can never have.
       expect(html).not.toContain('Source for Invoice id');
