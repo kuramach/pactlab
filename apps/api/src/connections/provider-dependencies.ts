@@ -1,4 +1,4 @@
-import { AppAuth, UnavailableSecretStore, type FetchLike, type SecretStore } from '@pactlab/connectors';
+import { AppAuth, CLOUD_ONLY, UnavailableSecretStore, type FetchLike, type JiraSitePolicy, type SecretStore } from '@pactlab/connectors';
 
 /** Live-provider plumbing shared by every connection: secrets, Pactlab's GitHub App and the HTTP client. */
 export interface ProviderDependencies {
@@ -8,6 +8,8 @@ export interface ProviderDependencies {
   readonly fetch: FetchLike;
   /** Whether GitHub and Jira may be connected to synthetic test data (fixture mode). */
   readonly allowFixtureConnections: boolean;
+  /** Which Jira hosts live connections may reach (Cloud always; self-hosted by operator list). */
+  readonly jiraSitePolicy: JiraSitePolicy;
 }
 
 export const PROVIDER_DEPENDENCIES = Symbol('PROVIDER_DEPENDENCIES');
@@ -18,6 +20,8 @@ export interface ProviderSettings {
   readonly fetch?: FetchLike;
   /** `main.ts` always sets this from APP_ENV / ALLOW_FIXTURE_CONNECTIONS; tests default to allowed. */
   readonly allowFixtureConnections?: boolean;
+  /** From JIRA_SELF_HOSTED_HOSTS; defaults to Atlassian Cloud only. */
+  readonly jiraSitePolicy?: JiraSitePolicy;
 }
 
 /** Fail-closed defaults: no secret store, no GitHub App, the platform fetch. */
@@ -33,5 +37,6 @@ export function providerDependencies(settings: ProviderSettings = {}): ProviderD
       : null,
     fetch: http,
     allowFixtureConnections: settings.allowFixtureConnections ?? true,
+    jiraSitePolicy: settings.jiraSitePolicy ?? CLOUD_ONLY,
   };
 }

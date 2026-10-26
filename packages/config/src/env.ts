@@ -75,6 +75,17 @@ export const apiEnvSchema = baseEnvSchema.extend({
   GITHUB_APP_ID: z.string().regex(/^\d+$/, 'numeric app id').optional(),
   GITHUB_APP_SLUG: z.string().regex(/^[a-z0-9-]+$/, 'app slug from its public URL').optional(),
   GITHUB_APP_PRIVATE_KEY_PATH: nonEmpty.optional(),
+  /**
+   * Self-hosted Jira servers this deployment may reach, comma-separated host
+   * names (e.g. `issues.apache.org`). Atlassian Cloud sites are always allowed;
+   * a self-hosted host is reachable only when listed here (T-082).
+   */
+  JIRA_SELF_HOSTED_HOSTS: unsetIfBlank(
+    z
+      .string()
+      .regex(/^\s*[a-z0-9.-]+(\s*,\s*[a-z0-9.-]+)*\s*,?\s*$/i, 'comma-separated host names')
+      .optional(),
+  ),
   /** Allow synthetic GitHub/Jira test connections. Default: on for local, test, dev and qa; off for stage and production. */
   ALLOW_FIXTURE_CONNECTIONS: unsetIfBlank(z.enum(['true', 'false']).optional()),
   /** Model provider for document AI: `none` keeps AI off; `bedrock` calls Claude on Amazon Bedrock. */

@@ -17,9 +17,12 @@ export type GitHubConnectionConfig = z.infer<typeof githubConnectionConfigSchema
 
 /**
  * Repository permissions a read-only GitHub App installation needs:
- * metadata (always granted) and contents to list commits.
+ * metadata (always granted), contents to list commits, pull requests and
+ * checks for review and CI evidence (T-082).
  */
-export const GITHUB_REQUIRED_PERMISSIONS = ['metadata:read', 'contents:read'] as const;
+export const GITHUB_REQUIRED_PERMISSIONS = ['metadata:read', 'contents:read', 'pull_requests:read', 'checks:read'] as const;
+/** Without these the commit history cannot be read at all; the others only narrow the evidence. */
+export const GITHUB_CORE_PERMISSIONS = ['metadata:read', 'contents:read'] as const;
 
 export interface RepositoryHead {
   readonly repository: string;
@@ -32,9 +35,50 @@ export interface CommitPage {
   readonly nextCursor: string | null;
 }
 
+/** A pull request at metadata level: no diff, no body, no comments. */
+export interface PullRequestMetadata {
+  readonly number: number;
+  readonly state: 'OPEN' | 'CLOSED' | 'MERGED';
+  readonly draft: boolean;
+  /** Sanitized (see `sanitizeMessage`); carries issue keys. */
+  readonly title: string | null;
+  readonly authorIdentity: string;
+  readonly createdAt: string;
+  readonly closedAt: string | null;
+  readonly mergedAt: string | null;
+  readonly headSha: string;
+  readonly baseBranch: string;
+}
+
+export interface PullRequestPage {
+  readonly pullRequests: readonly PullRequestMetadata[];
+  readonly nextCursor: string | null;
+}
+
+/** Submitted reviews on one pull request, counted by outcome; reviewers by identity only. */
+export interface ReviewSummary {
+  readonly number: number;
+  readonly approvals: number;
+  readonly changesRequested: number;
+  readonly commented: number;
+  readonly reviewerIdentities: readonly string[];
+}
+
+/** Check runs on one commit, counted by outcome. */
+export interface CheckSummary {
+  readonly sha: string;
+  readonly total: number;
+  readonly succeeded: number;
+  readonly failed: number;
+  readonly pending: number;
+  /** Neutral, skipped or cancelled: ran, but neither passed nor failed. */
+  readonly other: number;
+}
+
 /**
- * Normalized read-only repository interface. Commit metadata only — the
- * adapter never returns file contents, diffs or archives.
+ * Normalized read-only repository interface. Commit, pull-request, review
+ * and check metadata — the adapter never returns file contents, diffs or
+ * archives.
  */
 export interface GitHubAdapter extends ProviderAdapter<CommitMetadata> {
   readonly version: string;
@@ -45,6 +89,10 @@ export interface GitHubAdapter extends ProviderAdapter<CommitMetadata> {
   ): Promise<CommitPage>;
   /** Target-supplied identity map used for ghost-commit attribution. */
   identityMap(scope: ConnectionScope): Promise<readonly ContributorIdentity[]>;
+  /** Pull requests, newest first. */
+  listPullRequests(scope: ConnectionScope, options: { cursor: string | null; limit: number }): Promise<PullRequestPage>;
+  pullRequestReviews(scope: ConnectionScope, number: number): Promise<ReviewSummary>;
+  checkRuns(scope: ConnectionScope, sha: string): Promise<CheckSummary>;
 }
 
 export class GitHubAdapterError extends Error {

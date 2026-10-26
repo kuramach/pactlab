@@ -17,6 +17,7 @@ import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { RequestId } from '../deals/request-id.decorator';
 import {
   connectGitHubSchema,
+  connectJiraSchema,
   connectionParamsSchema,
   createConnectionSchema,
   dryRunSchema,
@@ -25,6 +26,7 @@ import {
   setModeSchema,
   syncRunParamsSchema,
   type ConnectGitHubCommand,
+  type ConnectJiraCommand,
   type CreateConnectionCommand,
   type SetModeCommand,
 } from './connections.schemas';
@@ -66,6 +68,18 @@ export class ConnectionsController {
     @Body(new ZodValidationPipe(connectGitHubSchema)) body: ConnectGitHubCommand,
   ) {
     return this.service.connectGitHub(tenant, params.dealId, body, requestId);
+  }
+
+  /** Connect Jira live: Cloud or an operator-approved self-hosted server, with a token or anonymously; returns the checks. */
+  @Post('connections/jira')
+  @HttpCode(201)
+  async connectJira(
+    @Tenant() tenant: TenantContext,
+    @RequestId() requestId: string,
+    @Param(new ZodValidationPipe(dealParamsSchema)) params: { dealId: string },
+    @Body(new ZodValidationPipe(connectJiraSchema)) body: ConnectJiraCommand,
+  ) {
+    return this.service.connectJira(tenant, params.dealId, body, requestId);
   }
 
   @Put('connections/:connectionId/mode')

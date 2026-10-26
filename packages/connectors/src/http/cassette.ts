@@ -1,5 +1,8 @@
 /** Minimal fetch signature the live adapters depend on; tests inject a replayer. */
-export type FetchLike = (input: string, init?: { method?: string; headers?: Record<string, string>; body?: string; signal?: AbortSignal }) => Promise<Response>;
+export type FetchLike = (
+  input: string,
+  init?: { method?: string; headers?: Record<string, string>; body?: string; signal?: AbortSignal; redirect?: 'manual' | 'error' | 'follow' },
+) => Promise<Response>;
 
 export interface CassetteInteraction {
   readonly request: { readonly method: string; readonly path: string; readonly query: string };

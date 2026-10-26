@@ -72,6 +72,7 @@ describe('GitHub adapters', () => {
       'authoredAt',
       'committedAt',
       'deletions',
+      'message',
       'paths',
       'sha',
     ]);
@@ -89,7 +90,7 @@ describe('GitHub adapters', () => {
     expect(validation.ok).toBe(false);
     expect(validation.checks.find((check) => check.name === 'scopes')).toMatchObject({
       status: 'FAIL',
-      detail: 'Missing permissions: contents:read',
+      detail: 'Missing permissions: contents:read, pull_requests:read, checks:read',
     });
     await expect(adapter.head(scope())).rejects.toMatchObject({ code: 'PERMISSION_DENIED' });
     const unknown = new GitHubFixtureAdapter({ repository: 'nobody/nothing' });

@@ -8,6 +8,15 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createApp } from '../app';
 import { JwtIdentityVerifier } from '../auth/identity';
 
+/** A fetch with no network: records the URL and fails like an unreachable host. */
+const offline = Object.assign(
+  async (url: string): Promise<Response> => {
+    offline.calls.push(url);
+    throw new TypeError('fetch failed (offline test)');
+  },
+  { calls: [] as string[] },
+);
+
 const ISSUER = 'https://pactlab-test.example/';
 const AUDIENCE = 'https://api.pactlab.test';
 type Body = Record<string, unknown>;
@@ -48,7 +57,9 @@ describe('GitHub and Jira connections through the API', () => {
     app = await createApp({
       prisma: db.prisma,
       identityVerifier: new JwtIdentityVerifier({ issuer: ISSUER, audience: AUDIENCE, keys: createLocalJWKSet({ keys: [jwk] }) }),
-      logger: createLogger('api-test', { level: 'silent' }),
+      logger: createLogger('api-test', { level: process.env['TEST_LOG'] ? 'error' : 'silent' }),
+      // Offline: live adapters may try, but nothing leaves the test.
+      providers: { fetch: offline, jiraSitePolicy: { selfHostedHosts: ['issues.apache.org'] } },
     });
     bearer = await new SignJWT({ org_id: a.auth0OrganizationId })
       .setProtectedHeader({ alg: 'RS256', kid: 'test' })
@@ -104,10 +115,25 @@ describe('GitHub and Jira connections through the API', () => {
     expect(github.run['recordsCreated']).toBeGreaterThan(1);
   });
 
-  it('rejects invalid provider config and keeps live adapters inert', async () => {
+  it('rejects invalid provider config, and Jira hosts that are not approved', async () => {
     expect(
       (await call('POST', '/connections', { provider: 'jira', displayName: 'x', mode: 'FIXTURE', config: { datasets: ['a'] } })).status,
     ).toBe(400);
+    const refused = await call('POST', '/connections', {
+      provider: 'jira',
+      displayName: 'Unapproved',
+      mode: 'LIVE',
+      credentialRef: 'secretref:jira/token',
+      config: { site: 'jira.example.org', projectKeys: ['EX'] },
+    });
+    expect(refused.status).toBe(422);
+    expect(refused.body).toMatchObject({ code: 'JIRA_SITE_NOT_ALLOWED' });
+    expect((await call('POST', '/connections/jira', { method: 'PUBLIC', site: '169.254.169.254', projectKeys: ['EX'] })).status).toBe(400);
+    expect((await call('POST', '/connections/jira', { method: 'PUBLIC', site: 'jira.example.org', projectKeys: ['EX'] })).body).toMatchObject({ code: 'JIRA_SITE_NOT_ALLOWED' });
+  });
+
+  it('live Jira reads the provider: Cloud, and an approved self-hosted server anonymously', async () => {
+    offline.calls.length = 0;
     const live = await call('POST', '/connections', {
       provider: 'jira',
       displayName: 'Live Jira',
@@ -116,7 +142,17 @@ describe('GitHub and Jira connections through the API', () => {
       config: { site: 'troubledco.atlassian.net', projectKeys: ['TC'] },
     });
     const id = live.body['id'] as string;
-    expect((await call('POST', `/connections/${id}/validate`)).body).toMatchObject({ ok: false });
-    expect((await call('POST', `/connections/${id}/dry-run`, { limit: 3 })).body).toMatchObject({ sample: [] });
+    expect((await call('POST', `/connections/${id}/validate`)).body).toMatchObject({
+      ok: false,
+      checks: expect.arrayContaining([{ name: 'credentials', status: 'FAIL', detail: 'The stored Jira credential could not be read' }]),
+    });
+    const apache = await call('POST', '/connections/jira', { method: 'PUBLIC', site: 'issues.apache.org', basePath: '/jira', projectKeys: ['KAFKA'] });
+    expect(apache.status).toBe(201);
+    expect(apache.body).toMatchObject({
+      connection: { provider: 'jira', mode: 'LIVE' },
+      validation: { ok: false, checks: expect.arrayContaining([{ name: 'reachability', status: 'FAIL', detail: 'Jira could not be reached' }]) },
+    });
+    // Only the approved host was ever addressed; the unreadable credential stopped the Cloud check before any request.
+    expect(offline.calls).toEqual(['https://issues.apache.org/jira/rest/api/2/serverInfo']);
   });
 });

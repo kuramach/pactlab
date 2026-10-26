@@ -5,8 +5,9 @@ import {
   Injectable,
   NotFoundException,
   ServiceUnavailableException,
+  UnprocessableEntityException,
 } from '@nestjs/common';
-import { GITHUB_APP_CREDENTIAL_REF, type ValidationResult } from '@pactlab/connectors';
+import { ANONYMOUS_CREDENTIAL_REF, GITHUB_APP_CREDENTIAL_REF, jiraSiteProblem, type ValidationResult } from '@pactlab/connectors';
 import {
   appendAuditEvent,
   connections,
@@ -34,7 +35,7 @@ import { resolveAdapter } from './adapter-registry';
 import { GITHUB_FIXTURES, JIRA_FIXTURES } from '@pactlab/connectors';
 import { PROVIDER_DEPENDENCIES, type ProviderDependencies } from './provider-dependencies';
 import type { EvidenceSample } from './adapters/evidence-sample';
-import type { ConnectGitHubCommand, CreateConnectionCommand, SetModeCommand } from './connections.schemas';
+import type { ConnectGitHubCommand, ConnectJiraCommand, CreateConnectionCommand, SetModeCommand } from './connections.schemas';
 
 export interface ConnectionView {
   id: string;
@@ -224,6 +225,7 @@ export class ConnectionsService {
     if ((command.mode === 'LIVE') !== (command.credentialRef !== undefined))
       throw new ConflictException();
     if (command.mode === 'LIVE') await this.requireLiveConnectors(tenant);
+    if (command.provider === 'jira') this.requireAllowedJiraSite(command.config.site);
     // Synthetic repositories and Jira sites are for local and test environments only.
     if (command.mode === 'FIXTURE' && command.provider !== 'csv' && !this.providers.allowFixtureConnections)
       throw new ForbiddenException('Synthetic test connections are not available in this environment');
@@ -280,7 +282,7 @@ export class ConnectionsService {
     if (command.method === 'APP' && !this.providers.githubApp) throw new ConflictException();
     const connectionId = newId();
     await this.requireLiveConnectors(tenant);
-    let credentialRef = GITHUB_APP_CREDENTIAL_REF;
+    let credentialRef = command.method === 'PUBLIC' ? ANONYMOUS_CREDENTIAL_REF : GITHUB_APP_CREDENTIAL_REF;
     if (command.method === 'TOKEN') {
       credentialRef = `secretref:${tenant.organizationId}/${dealId}/github/${connectionId}`;
       try {
@@ -296,7 +298,7 @@ export class ConnectionsService {
           organizationId: tenant.organizationId,
           dealId,
           provider: 'github',
-          displayName: `${command.repository} (GitHub${command.method === 'APP' ? ' App' : ' token'})`,
+          displayName: `${command.repository} (GitHub${command.method === 'APP' ? ' App' : command.method === 'TOKEN' ? ' token' : ', public'})`,
           mode: 'LIVE',
           credentialRef,
           config: { repository: command.repository },
@@ -307,6 +309,69 @@ export class ConnectionsService {
       await this.audit(tx, tenant, dealId, 'connection.created', created.id, requestId);
       if (command.method === 'TOKEN')
         await this.audit(tx, tenant, dealId, 'connection.credential_stored', created.id, requestId);
+      return created;
+    });
+    const adapter = resolveAdapter(row, this.providers);
+    if (!adapter) throw new ConflictException();
+    const validation = await adapter.validateConnection(this.scope(row));
+    await withTenant(this.prisma, tenant, (tx) =>
+      this.audit(tx, tenant, dealId, 'connection.validated', row.id, requestId, validation.ok ? 'SUCCEEDED' : 'FAILED'),
+    );
+    return { connection: toConnectionView(row), validation };
+  }
+
+  /** Self-hosted Jira only on the operator's allowlist; Atlassian Cloud always. */
+  private requireAllowedJiraSite(site: string): void {
+    const problem = jiraSiteProblem(site, this.providers.jiraSitePolicy);
+    // 422 with a stable code; the UI words it, the checks of a live connection carry the full reason.
+    if (problem) throw new UnprocessableEntityException({ code: 'JIRA_SITE_NOT_ALLOWED' });
+  }
+
+  /**
+   * Create a LIVE Jira connection and check it at once (T-082). Token
+   * connections store the credential under a reference scoped to this deal;
+   * public connections read anonymously.
+   */
+  async connectJira(
+    tenant: TenantContext,
+    dealId: string,
+    command: ConnectJiraCommand,
+    requestId: string,
+  ): Promise<{ connection: ConnectionView; validation: ValidationResult }> {
+    const role = await this.access.require(tenant, dealId, canSupplyConnections, {
+      action: 'connection.created',
+      requestId,
+    });
+    this.requireAllowedJiraSite(command.site);
+    await this.requireLiveConnectors(tenant);
+    const connectionId = newId();
+    let credentialRef = ANONYMOUS_CREDENTIAL_REF;
+    if (command.method === 'TOKEN') {
+      credentialRef = `secretref:${tenant.organizationId}/${dealId}/jira/${connectionId}`;
+      try {
+        await this.providers.secrets.put(credentialRef, command.token);
+      } catch {
+        throw new ServiceUnavailableException();
+      }
+    }
+    const config = { site: command.site, ...(command.basePath ? { basePath: command.basePath } : {}), projectKeys: command.projectKeys };
+    const row = await withTenant(this.prisma, tenant, async (tx) => {
+      const created = await tx.connection.create({
+        data: {
+          id: connectionId,
+          organizationId: tenant.organizationId,
+          dealId,
+          provider: 'jira',
+          displayName: `${command.site} ${command.projectKeys.join(', ')} (Jira${command.method === 'TOKEN' ? '' : ', public'})`,
+          mode: 'LIVE',
+          credentialRef,
+          config,
+          evidenceVisibility: isBuyerSideRole(role) ? 'BUYER_ONLY' : 'SHARED',
+          createdBy: tenant.userId,
+        },
+      });
+      await this.audit(tx, tenant, dealId, 'connection.created', created.id, requestId);
+      if (command.method === 'TOKEN') await this.audit(tx, tenant, dealId, 'connection.credential_stored', created.id, requestId);
       return created;
     });
     const adapter = resolveAdapter(row, this.providers);
@@ -333,7 +398,9 @@ export class ConnectionsService {
     if ((command.mode === 'LIVE') !== (command.credentialRef !== undefined))
       throw new ConflictException();
     if (command.mode === 'LIVE') await this.requireLiveConnectors(tenant);
-    await this.load(tenant, dealId, connectionId);
+    const existing = await this.load(tenant, dealId, connectionId);
+    const site = (existing.config as { site?: unknown } | null)?.site;
+    if (command.mode === 'LIVE' && existing.provider === 'jira' && typeof site === 'string') this.requireAllowedJiraSite(site);
     const row = await withTenant(this.prisma, tenant, async (tx) => {
       const updated = await connections.setMode(tx, connectionId, {
         mode: command.mode,

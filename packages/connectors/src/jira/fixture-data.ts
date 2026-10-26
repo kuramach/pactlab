@@ -74,6 +74,8 @@ function generate(
         key: `${project}-${n}`,
         project,
         type: n % 4 === 0 ? 'Task' : 'Story',
+        // Some sites call stories improvements; the raw name is kept beside the normalized type (T-082).
+        ...(n % 4 !== 0 && n % 7 === 0 ? { providerType: 'Improvement' } : {}),
         statusCategory: done ? 'DONE' : last ? 'IN_PROGRESS' : 'TO_DO',
         priority: PRIORITIES[n % PRIORITIES.length] ?? 'Medium',
         storyPoints: options.unestimatedEvery && n % options.unestimatedEvery === 0 ? null : 5,

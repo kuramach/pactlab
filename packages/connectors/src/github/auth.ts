@@ -19,10 +19,22 @@ export function githubHeaders(token: string | null): Record<string, string> {
   };
 }
 
-/** Produces a short-lived token able to read one repository. */
+/** Produces a short-lived token able to read one repository (null: an anonymous read). */
 export interface GitHubAuth {
-  readonly method: 'APP' | 'TOKEN';
-  token(scope: ConnectionScope, repository: string): Promise<string>;
+  readonly method: 'APP' | 'TOKEN' | 'ANONYMOUS';
+  token(scope: ConnectionScope, repository: string): Promise<string | null>;
+}
+
+/**
+ * No credential: public repositories only, at GitHub's anonymous rate limit
+ * (T-082). A private repository answers 404 and fails validation clearly.
+ */
+export class AnonymousAuth implements GitHubAuth {
+  readonly method = 'ANONYMOUS' as const;
+
+  async token(): Promise<null> {
+    return null;
+  }
 }
 
 /** A seller's fine-grained token, read from the secret store on use. */
@@ -51,7 +63,7 @@ export interface GitHubAppSettings {
  * Pactlab's GitHub App. Mints an RS256 JWT (iat 60 s in the past, exp 9 min
  * ahead), finds the installation for the repository and requests an
  * installation token narrowed to that repository with read-only
- * contents and metadata. Tokens are cached in memory until shortly before
+ * contents, metadata, pull requests and checks. Tokens are cached in memory until shortly before
  * GitHub's one-hour expiry and never stored.
  */
 export class AppAuth implements GitHubAuth {
@@ -89,7 +101,7 @@ export class AppAuth implements GitHubAuth {
     const issued = await this.fetchImpl(`${GITHUB_API}/app/installations/${id}/access_tokens`, {
       method: 'POST',
       headers: { ...githubHeaders(jwt), 'content-type': 'application/json' },
-      body: JSON.stringify({ repositories: [name], permissions: { contents: 'read', metadata: 'read' } }),
+      body: JSON.stringify({ repositories: [name], permissions: { contents: 'read', metadata: 'read', pull_requests: 'read', checks: 'read' } }),
     });
     if (!issued.ok) throw new GitHubAdapterError('PERMISSION_DENIED', 'The installation cannot read this repository');
     const body = (await issued.json()) as { token?: string; expires_at?: string };

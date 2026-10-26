@@ -13,6 +13,16 @@ export interface ConnectionScope {
   readonly credentialRef: string | null;
 }
 
+/**
+ * The credential reference of a LIVE connection that reads anonymously
+ * (public repositories and projects, T-082). Every LIVE connection names how
+ * it authenticates; this one names "no credential". Nothing is stored under it.
+ */
+export const ANONYMOUS_CREDENTIAL_REF = 'secretref:pactlab/anonymous';
+
+/** True when a connection carries no secret to resolve. */
+export const isAnonymous = (credentialRef: string | null) => credentialRef === null || credentialRef === ANONYMOUS_CREDENTIAL_REF;
+
 export type CheckStatus = 'PASS' | 'FAIL' | 'SKIPPED';
 
 export interface ValidationCheck {

@@ -8,16 +8,21 @@ import {
 } from '../contract';
 import type { FetchLike } from '../http/cassette';
 import { GITHUB_API, githubHeaders, type GitHubAuth } from './auth';
+import { sanitizeMessage } from './messages';
 import {
   GITHUB_PROVIDER,
   GitHubAdapterError,
+  type CheckSummary,
   type CommitPage,
   type GitHubAdapter,
   type GitHubConnectionConfig,
+  type PullRequestMetadata,
+  type PullRequestPage,
   type RepositoryHead,
+  type ReviewSummary,
 } from './types';
 
-export const GITHUB_LIVE_VERSION = 'github-live-1';
+export const GITHUB_LIVE_VERSION = 'github-live-2';
 const TIMEOUT_MS = 15_000;
 const MAX_PAGE = 100;
 
@@ -26,8 +31,32 @@ export type GitHubAuthResolver = (scope: ConnectionScope) => GitHubAuth | null;
 
 interface CommitListItem {
   sha?: string;
-  commit?: { author?: { name?: string | null; email?: string | null; date?: string } | null; committer?: { date?: string } | null };
+  commit?: { author?: { name?: string | null; email?: string | null; date?: string } | null; committer?: { date?: string } | null; message?: string | null };
   author?: { login?: string } | null;
+}
+
+/** Documented fields of `GET /repos/{owner}/{repo}/pulls` items. */
+interface PullItem {
+  number?: number;
+  state?: string;
+  draft?: boolean;
+  title?: string | null;
+  user?: { login?: string } | null;
+  created_at?: string;
+  closed_at?: string | null;
+  merged_at?: string | null;
+  head?: { sha?: string } | null;
+  base?: { ref?: string } | null;
+}
+
+interface ReviewItem {
+  state?: string;
+  user?: { login?: string } | null;
+}
+
+interface CheckRunsBody {
+  total_count?: number;
+  check_runs?: { status?: string; conclusion?: string | null }[];
 }
 
 interface CommitDetail extends CommitListItem {
@@ -46,9 +75,10 @@ export function nextPage(link: string | null): string | null {
 }
 
 /**
- * Read-only GitHub over the REST API (version 2026-03-10). Commit metadata
- * only: repository, default branch, commit dates, authors, line counts and
- * paths. Never contents, diffs or archives; payloads are never logged.
+ * Read-only GitHub over the REST API (version 2026-03-10). Metadata only:
+ * repository, default branch, commits (dates, authors, line counts, paths and
+ * sanitized messages), pull requests, reviews and check runs. Never
+ * contents, diffs or archives; payloads are never logged.
  */
 export class GitHubLiveAdapter implements GitHubAdapter {
   readonly provider = GITHUB_PROVIDER;
@@ -71,6 +101,8 @@ export class GitHubLiveAdapter implements GitHubAdapter {
       response = await this.fetchImpl(`${GITHUB_API}${path}${search ? `?${search}` : ''}`, {
         headers: githubHeaders(token),
         signal: AbortSignal.timeout(TIMEOUT_MS),
+        // Never follow a redirect: a moved repository is reported, not chased to another host.
+        redirect: 'manual',
       });
     } catch (error) {
       if (error instanceof GitHubAdapterError) throw error;
@@ -83,7 +115,13 @@ export class GitHubLiveAdapter implements GitHubAdapter {
     if (response.status === 401) throw new GitHubAdapterError('NO_CREDENTIAL', 'GitHub rejected the credential');
     if (response.status === 403) throw new GitHubAdapterError('PERMISSION_DENIED', 'The credential cannot read this repository');
     if (response.status === 404)
-      throw new GitHubAdapterError('UNKNOWN_REPOSITORY', 'Repository not found, or the credential cannot see it');
+      throw new GitHubAdapterError(
+        'UNKNOWN_REPOSITORY',
+        auth.method === 'ANONYMOUS'
+          ? 'This repository is private or not found — connect it with the Pactlab GitHub App or a token'
+          : 'Repository not found, or the credential cannot see it',
+      );
+    if (response.status >= 300 && response.status < 400) throw new GitHubAdapterError('UNAVAILABLE', 'GitHub answered with a redirect; the repository may have moved');
     throw new GitHubAdapterError('UNAVAILABLE', `GitHub answered ${response.status}`);
   }
 
@@ -99,8 +137,13 @@ export class GitHubLiveAdapter implements GitHubAdapter {
       await auth.token(scope, this.config.repository);
       checks.push({
         name: 'credentials',
-        status: 'PASS',
-        detail: auth.method === 'APP' ? 'Pactlab GitHub App is installed for this repository' : 'Access token accepted',
+        status: auth.method === 'ANONYMOUS' ? 'SKIPPED' : 'PASS',
+        detail:
+          auth.method === 'APP'
+            ? 'Pactlab GitHub App is installed for this repository'
+            : auth.method === 'TOKEN'
+              ? 'Access token accepted'
+              : 'No credential: public repositories only, at GitHub’s anonymous rate limit',
       });
     } catch (error) {
       checks.push({ name: 'credentials', status: 'FAIL', detail: safeDetail(error) });
@@ -111,7 +154,10 @@ export class GitHubLiveAdapter implements GitHubAdapter {
     }
     let branch: string | null = null;
     try {
-      const { body } = await this.get<{ full_name?: string; default_branch?: string }>(scope, this.repoPath());
+      const { body } = await this.get<{ full_name?: string; default_branch?: string; private?: boolean }>(scope, this.repoPath());
+      // An anonymous read only ever sees public repositories; say so plainly if GitHub reports otherwise.
+      if (auth.method === 'ANONYMOUS' && body.private === true)
+        throw new GitHubAdapterError('NO_CREDENTIAL', 'This repository is private — connect it with the Pactlab GitHub App or a token');
       branch = body.default_branch ?? null;
       checks.push({ name: 'reachability', status: 'PASS', detail: `${body.full_name ?? this.config.repository} is reachable` });
     } catch (error) {
@@ -120,7 +166,20 @@ export class GitHubLiveAdapter implements GitHubAdapter {
     try {
       if (!branch) throw new GitHubAdapterError('UNKNOWN_REPOSITORY', 'Repository not reachable');
       await this.get(scope, `${this.repoPath()}/commits`, { sha: branch, per_page: '1', page: '1' });
-      checks.push({ name: 'scopes', status: 'PASS', detail: 'Commit history is readable (Contents: read)' });
+      let pulls = true;
+      try {
+        await this.get(scope, `${this.repoPath()}/pulls`, { state: 'all', per_page: '1', page: '1' });
+      } catch (error) {
+        if (!(error instanceof GitHubAdapterError) || error.code !== 'PERMISSION_DENIED') throw error;
+        pulls = false;
+      }
+      checks.push({
+        name: 'scopes',
+        status: 'PASS',
+        detail: pulls
+          ? 'Commit history and pull requests are readable'
+          : 'Commit history is readable; pull requests are not (grant Pull requests: read for review evidence)',
+      });
     } catch (error) {
       checks.push({ name: 'scopes', status: 'FAIL', detail: safeDetail(error) });
     }
@@ -171,6 +230,7 @@ export class GitHubLiveAdapter implements GitHubAdapter {
         additions: body.stats?.additions ?? 0,
         deletions: body.stats?.deletions ?? 0,
         paths: (body.files ?? []).map((file) => file.filename).filter((name): name is string => Boolean(name)),
+        message: sanitizeMessage(body.commit?.message),
       });
     }
     return { commits, nextCursor: items.length === 0 ? null : nextPage(link) };
@@ -179,6 +239,69 @@ export class GitHubLiveAdapter implements GitHubAdapter {
   /** Contributor identities are supplied by the seller, not read from GitHub. */
   async identityMap(_scope: ConnectionScope): Promise<readonly ContributorIdentity[]> {
     return [];
+  }
+
+  /** One page of pull requests in every state, newest first. */
+  async listPullRequests(scope: ConnectionScope, options: { cursor: string | null; limit: number }): Promise<PullRequestPage> {
+    const page = options.cursor ?? '1';
+    if (!/^[1-9]\d{0,5}$/.test(page)) throw new GitHubAdapterError('INVALID_CURSOR', 'Invalid cursor');
+    const perPage = Math.min(Math.max(1, Math.trunc(options.limit)), MAX_PAGE);
+    const { body: items, link } = await this.get<PullItem[]>(scope, `${this.repoPath()}/pulls`, {
+      state: 'all',
+      sort: 'created',
+      direction: 'desc',
+      per_page: String(perPage),
+      page,
+    });
+    const pullRequests: PullRequestMetadata[] = [];
+    for (const item of items) {
+      if (typeof item.number !== 'number' || !item.head?.sha || !item.created_at) continue;
+      pullRequests.push({
+        number: item.number,
+        state: item.merged_at ? 'MERGED' : item.state === 'closed' ? 'CLOSED' : 'OPEN',
+        draft: item.draft === true,
+        title: sanitizeMessage(item.title),
+        authorIdentity: item.user?.login ?? 'unknown',
+        createdAt: item.created_at,
+        closedAt: item.closed_at ?? null,
+        mergedAt: item.merged_at ?? null,
+        headSha: item.head.sha,
+        baseBranch: item.base?.ref ?? '',
+      });
+    }
+    return { pullRequests, nextCursor: items.length === 0 ? null : nextPage(link) };
+  }
+
+  /** Submitted reviews on a pull request, by outcome (first 100; pending reviews are not submitted). */
+  async pullRequestReviews(scope: ConnectionScope, number: number): Promise<ReviewSummary> {
+    if (!Number.isSafeInteger(number) || number < 1) throw new GitHubAdapterError('INVALID_CURSOR', 'Invalid pull request number');
+    const { body } = await this.get<ReviewItem[]>(scope, `${this.repoPath()}/pulls/${number}/reviews`, { per_page: String(MAX_PAGE), page: '1' });
+    const count = (states: readonly string[]) => body.filter((review) => states.includes(review.state ?? '')).length;
+    return {
+      number,
+      approvals: count(['APPROVED']),
+      // The API reports CHANGES_REQUESTED; REQUEST_CHANGES is the event name, accepted defensively.
+      changesRequested: count(['CHANGES_REQUESTED', 'REQUEST_CHANGES']),
+      commented: count(['COMMENTED']),
+      reviewerIdentities: [...new Set(body.filter((review) => review.state !== 'PENDING').map((review) => review.user?.login).filter((login): login is string => Boolean(login)))],
+    };
+  }
+
+  /** Latest check runs on a commit, by outcome (first 100). */
+  async checkRuns(scope: ConnectionScope, sha: string): Promise<CheckSummary> {
+    if (!/^[0-9a-f]{40}$/.test(sha)) throw new GitHubAdapterError('INVALID_CURSOR', 'Invalid commit SHA');
+    const { body } = await this.get<CheckRunsBody>(scope, `${this.repoPath()}/commits/${sha}/check-runs`, { per_page: String(MAX_PAGE), page: '1' });
+    const runs = body.check_runs ?? [];
+    const done = runs.filter((run) => run.status === 'completed');
+    const is = (conclusions: readonly string[]) => done.filter((run) => conclusions.includes(run.conclusion ?? '')).length;
+    return {
+      sha,
+      total: body.total_count ?? runs.length,
+      succeeded: is(['success']),
+      failed: is(['failure', 'timed_out', 'action_required']),
+      pending: runs.length - done.length,
+      other: is(['neutral', 'skipped', 'cancelled', 'stale']),
+    };
   }
 }
 

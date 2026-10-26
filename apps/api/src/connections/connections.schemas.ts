@@ -54,6 +54,8 @@ export const idempotencyKeySchema = z
  */
 export const connectGitHubSchema = z.discriminatedUnion('method', [
   z.strictObject({ method: z.literal('APP'), repository: githubConnectionConfigSchema.shape.repository }),
+  /** A public repository read without a credential, at GitHub's anonymous rate limit (T-082). */
+  z.strictObject({ method: z.literal('PUBLIC'), repository: githubConnectionConfigSchema.shape.repository }),
   z.strictObject({
     method: z.literal('TOKEN'),
     repository: githubConnectionConfigSchema.shape.repository,
@@ -61,3 +63,20 @@ export const connectGitHubSchema = z.discriminatedUnion('method', [
   }),
 ]);
 export type ConnectGitHubCommand = z.infer<typeof connectGitHubSchema>;
+
+/**
+ * Connect Jira live (T-082): Atlassian Cloud with the account email and an
+ * API token (`email:token`), a self-hosted server with a personal access
+ * token, or a public project with no credential. Self-hosted hosts must be
+ * on the operator's allowlist. The token is stored once and never returned.
+ */
+const jiraTarget = {
+  site: jiraConnectionConfigSchema.shape.site,
+  basePath: jiraConnectionConfigSchema.shape.basePath,
+  projectKeys: jiraConnectionConfigSchema.shape.projectKeys,
+};
+export const connectJiraSchema = z.discriminatedUnion('method', [
+  z.strictObject({ method: z.literal('PUBLIC'), ...jiraTarget }),
+  z.strictObject({ method: z.literal('TOKEN'), ...jiraTarget, token: z.string().trim().regex(/^\S{8,500}$/, 'A Jira API token or personal access token') }),
+]);
+export type ConnectJiraCommand = z.infer<typeof connectJiraSchema>;

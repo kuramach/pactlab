@@ -59,11 +59,11 @@ describe('Jira fixture connector', () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  it('live mode makes no provider calls and fails validation clearly', async () => {
-    const live = createJiraAdapter('LIVE', { site: 'troubledco.atlassian.net', projectKeys: ['TC'] })!;
-    const result = await live.validateConnection({ ...scope, credentialRef: 'secretref:jira/token' });
-    expect(result.ok).toBe(false);
-    await expect(live.listIssues(scope, { cursor: null, limit: 1 })).rejects.toThrow(/not enabled/);
+  it('rejects configurations that are not a plain host name', () => {
     expect(createJiraAdapter('FIXTURE', { site: 'not a site', projectKeys: [] })).toBeNull();
+    for (const site of ['127.0.0.1', 'localhost', 'issues.apache.org:8443', 'user@issues.apache.org', '[::1]', 'Issues.Apache.org'])
+      expect(createJiraAdapter('LIVE', { site, projectKeys: ['KAFKA'] }), site).toBeNull();
+    expect(createJiraAdapter('LIVE', { site: 'issues.apache.org', basePath: '/../admin', projectKeys: ['KAFKA'] })).toBeNull();
+    expect(createJiraAdapter('LIVE', { site: 'issues.apache.org', basePath: '/jira', projectKeys: ['KAFKA'] })).not.toBeNull();
   });
 });

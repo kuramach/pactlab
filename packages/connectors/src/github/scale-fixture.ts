@@ -68,8 +68,12 @@ export function scalecoRepository() {
   return {
     repository: SCALECO_REPOSITORY,
     defaultBranch: 'main',
-    grantedPermissions: ['metadata:read', 'contents:read'] as readonly string[],
+    grantedPermissions: ['metadata:read', 'contents:read', 'pull_requests:read', 'checks:read'] as readonly string[],
     commits: cached.commits,
     identityMap: cached.identityMap,
+    // Engineering at scale is about commits and delivery; ScaleCo has no pull requests (T-082 shape).
+    pullRequests: [],
+    reviews: {},
+    checks: {},
   };
 }

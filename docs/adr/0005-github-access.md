@@ -43,3 +43,17 @@ some cannot install third-party apps.
   prove GitHub accepts Pactlab's JWT.
 - Live clones for scans (scanner-orchestrator) remain fixture-only; they will
   use the same narrowed installation tokens.
+
+## Addendum — pull requests, checks and public repositories (T-082, 2026-10-25)
+
+- Reads grow to pull requests, reviews and check runs (metadata only) and
+  commit messages, sanitized: trailer lines naming people dropped, email
+  addresses redacted, 2,000 characters at most. Messages and pull-request
+  titles carry Jira keys for cross-links (ADR 0011).
+- The App token request and the required permissions add
+  `pull_requests:read` and `checks:read`; without them commit evidence still
+  syncs and the gap is a source issue.
+- A public repository may be connected with no credential (method
+  `PUBLIC`, credential reference `secretref:pactlab/anonymous`), at GitHub's
+  anonymous rate limit. A private repository fails validation clearly.
+- Redirects are never followed.

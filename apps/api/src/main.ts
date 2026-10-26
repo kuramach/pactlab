@@ -1,7 +1,7 @@
 import { apiEnvSchema, loadConfig } from '@pactlab/config';
 import { assertRuntimeRoleIsolation, createPrismaClient } from '@pactlab/db';
 import { readFileSync } from 'node:fs';
-import { LocalEncryptedSecretStore } from '@pactlab/connectors';
+import { LocalEncryptedSecretStore, parseSelfHostedHosts } from '@pactlab/connectors';
 import { createLogger } from '@pactlab/observability';
 import { PollyTextToSpeech, TranscribeSpeechToText } from '@pactlab/ai';
 import { createAiGateway } from './ai/ai-provider';
@@ -36,6 +36,8 @@ const ai = await createAiGateway(config);
 // Provider credentials: an encrypted local store until Secrets Manager (T-007);
 // elsewhere live connections that need a stored token fail closed.
 const providers = {
+  // Operator-approved self-hosted Jira servers; Atlassian Cloud is always allowed.
+  jiraSitePolicy: { selfHostedHosts: parseSelfHostedHosts(config.JIRA_SELF_HOSTED_HOSTS) },
   allowFixtureConnections: config.ALLOW_FIXTURE_CONNECTIONS
     ? config.ALLOW_FIXTURE_CONNECTIONS === 'true'
     : ['local', 'test', 'dev', 'qa'].includes(config.APP_ENV),
