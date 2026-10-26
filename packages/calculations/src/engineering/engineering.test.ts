@@ -158,5 +158,6 @@ describe('engineering at scale (T-055)', () => {
     // About 60 ms on a laptop; CI runners under parallel load are far slower. The quadratic
     // engineering-1 takes ~35× longer on the same input, so this budget still catches it.
     expect(elapsed).toBeLessThan(10_000);
-  });
+    // Building the 144,000-row input takes longer than the calculation on a busy runner.
+  }, 60_000);
 });
