@@ -26,6 +26,28 @@ export function rowMonth(row: PackRuleEvidence, fields: readonly string[] = ['pe
   return null;
 }
 
+const counterpartyOf = (row: PackRuleEvidence) => row.canonical['customer_name'] ?? row.canonical['customer_id'] ?? 'Unnamed';
+
+/**
+ * The latest month's revenue by counterparty over the billing import: the
+ * month, its single currency and total, and each counterparty's revenue and
+ * lines. Null when there is no dated revenue or the month mixes currencies.
+ */
+export function latestMonthRevenue(evidence: readonly PackRuleEvidence[]) {
+  const lines = evidence.filter((row) => row.evidenceType === INVOICE_LINE && rowMonth(row));
+  if (lines.length === 0) return null;
+  const month = lines.map((row) => rowMonth(row) as string).sort().at(-1) as string;
+  const inMonth = lines.filter((row) => rowMonth(row) === month);
+  const currencies = new Set(inMonth.map((row) => row.canonical['currency']));
+  if (currencies.size !== 1) return null;
+  const total = inMonth.reduce((sum, row) => sum.plus(amountOf(row, 'amount')), new D(0));
+  if (!total.gt(0)) return null;
+  const byName = new Map<string, Decimal>();
+  for (const row of inMonth) byName.set(counterpartyOf(row), (byName.get(counterpartyOf(row)) ?? new D(0)).plus(amountOf(row, 'amount')));
+  const ranked = [...byName.entries()].sort((a, b) => b[1].comparedTo(a[1]) || a[0].localeCompare(b[0]));
+  return { month, currency: [...currencies][0] ?? '', total, byName, ranked, lines: inMonth, linesOf: (names: readonly string[]) => inMonth.filter((row) => names.includes(counterpartyOf(row))) };
+}
+
 export interface ConcentrationConfig {
   readonly id: string;
   readonly version?: string;
@@ -55,20 +77,9 @@ export function revenueConcentrationRule(config: ConcentrationConfig): PackRule 
     version: config.version ?? '1',
     evidenceTypes: [INVOICE_LINE],
     detect: ({ evidence }) => {
-      const lines = evidence.filter((row) => row.evidenceType === INVOICE_LINE && rowMonth(row));
-      if (lines.length === 0) return [];
-      const latest = lines.map((row) => rowMonth(row) as string).sort().at(-1) as string;
-      const month = lines.filter((row) => rowMonth(row) === latest);
-      const currencies = new Set(month.map((row) => row.canonical['currency']));
-      if (currencies.size !== 1) return [];
-      const currency = [...currencies][0] ?? '';
-      const total = month.reduce((sum, row) => sum.plus(amountOf(row, 'amount')), new D(0));
-      if (!total.gt(0)) return [];
-      const byName = new Map<string, Decimal>();
-      for (const row of month) {
-        const name = row.canonical['customer_name'] ?? row.canonical['customer_id'] ?? 'Unnamed';
-        byName.set(name, (byName.get(name) ?? new D(0)).plus(amountOf(row, 'amount')));
-      }
+      const revenue = latestMonthRevenue(evidence);
+      if (!revenue) return [];
+      const { month: latest, currency, total, byName } = revenue;
       const largest = (totals: Map<string, Decimal>) => [...totals.entries()].sort((a, b) => b[1].comparedTo(a[1]) || a[0].localeCompare(b[0]))[0]?.[0] ?? '';
       let chosen: string[];
       let label: string;
@@ -91,7 +102,7 @@ export function revenueConcentrationRule(config: ConcentrationConfig): PackRule 
       if (chosen.length === 0) return [];
       const share = chosen.reduce((sum, name) => sum.plus(byName.get(name) ?? 0), new D(0)).div(total);
       if (share.lt(config.threshold)) return [];
-      const cited = month.filter((row) => chosen.includes(row.canonical['customer_name'] ?? row.canonical['customer_id'] ?? 'Unnamed'));
+      const cited = revenue.linesOf(chosen);
       return [
         {
           key: `${latest}:${label}`,

@@ -14,6 +14,8 @@ export const IMPORT_TARGETS = [
   'HEALTHCARE_CLAIMS_SUMMARY',
   'HEALTHCARE_PROVIDER_ROSTER',
   'TELECOM_SUBSCRIBERS',
+  'SERVICES_TIMESHEETS',
+  'SERVICES_HEADCOUNT',
 ] as const;
 export type ImportTarget = (typeof IMPORT_TARGETS)[number];
 
@@ -264,6 +266,46 @@ export const TELECOM_SUBSCRIBERS: TargetDefinition = {
   ],
 };
 
+/** Professional services (T-063): available and billable hours by month and team — aggregates, never people. */
+export const SERVICES_TIMESHEETS: TargetDefinition = {
+  target: 'SERVICES_TIMESHEETS',
+  label: 'Timesheets summary',
+  fileName: 'timesheets-summary.csv',
+  people: 'AGGREGATE',
+  refusesPeopleColumns: true,
+  evidenceType: 'services.timesheet_month',
+  recordIdField: 'month',
+  recordIdFields: ['month', 'team'],
+  observedAtFields: [],
+  fields: [
+    { name: 'month', label: 'Month', kind: 'text', required: true, hint: 'YYYY-MM.' },
+    { name: 'team', label: 'Team', kind: 'text', required: true, hint: 'Team or practice; never a person.' },
+    { name: 'headcount', label: 'Headcount', kind: 'decimal', required: true, hint: 'People in the team that month.' },
+    { name: 'available_hours', label: 'Available hours', kind: 'decimal', required: true, hint: 'Hours available after leave and holidays.' },
+    { name: 'billable_hours', label: 'Billable hours', kind: 'decimal', required: true, hint: 'Hours billed to clients.' },
+  ],
+};
+
+/** Professional services (T-063): starters, leavers and headcount by month and role family — aggregates only. */
+export const SERVICES_HEADCOUNT: TargetDefinition = {
+  target: 'SERVICES_HEADCOUNT',
+  label: 'Headcount movements',
+  fileName: 'headcount-movements.csv',
+  people: 'AGGREGATE',
+  refusesPeopleColumns: true,
+  evidenceType: 'services.headcount_month',
+  recordIdField: 'month',
+  recordIdFields: ['month', 'role_family'],
+  observedAtFields: [],
+  fields: [
+    { name: 'month', label: 'Month', kind: 'text', required: true, hint: 'YYYY-MM.' },
+    { name: 'role_family', label: 'Role family', kind: 'text', required: true, hint: 'e.g. Delivery; never a person or a title held by one person.' },
+    { name: 'starters', label: 'Starters', kind: 'decimal', required: true, hint: 'People who joined in the month.' },
+    { name: 'leavers', label: 'Leavers', kind: 'decimal', required: true, hint: 'People who left in the month.' },
+    { name: 'headcount', label: 'Headcount', kind: 'decimal', required: true, hint: 'At the end of the month.' },
+  ],
+};
+
 export const IMPORT_TARGET_DEFINITIONS: Readonly<Record<ImportTarget, TargetDefinition>> = {
   BILLING_INVOICE_LINE,
   FINTECH_LOAN_TAPE,
@@ -275,6 +317,8 @@ export const IMPORT_TARGET_DEFINITIONS: Readonly<Record<ImportTarget, TargetDefi
   HEALTHCARE_CLAIMS_SUMMARY,
   HEALTHCARE_PROVIDER_ROSTER,
   TELECOM_SUBSCRIBERS,
+  SERVICES_TIMESHEETS,
+  SERVICES_HEADCOUNT,
 };
 
 /**

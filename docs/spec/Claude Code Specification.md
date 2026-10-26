@@ -1408,6 +1408,13 @@ Five further packs in two clusters. Hotels, multifamily and commercial property 
 - What transfers: utilization/attrition map to Team and key-person risk; client concentration maps to the existing concentration analysis in the Metrics module.
 - Pack scope is adapters for HRIS/timesheet and PSA evidence, finding types for utilization/attrition/concentration risk, and valuation tweaks for earnings-quality adjustments on people-driven revenue.
 
+**4a. IT & professional services — activation amendment (T-063, 2026-10-25)**
+
+- **Import targets (CSV, ADR 0010):** `SERVICES_TIMESHEETS` (month, team, headcount, available_hours, billable_hours → `services.timesheet_month`, one record per month and team) and `SERVICES_HEADCOUNT` (month, role_family, starters, leavers, headcount → `services.headcount_month`, one record per month and role family), alongside the billing import. Aggregates only: named, contact or pay columns are refused (rule 7).
+- **Finding rules (deterministic, versioned, drafts only):** `services-utilization-gap` — billable ÷ available hours over the last twelve months against the utilization management reports (3 points or more; a drag the reviewer prices); `services-client-termination` — the largest client (20% or more of the latest month's revenue) can terminate for convenience under an agreement that names it, cited; `services-delivery-attrition` — delivery leavers in the last three months at least double the first three, with annualised attrition for both.
+- **Valuation:** DCF first, ARR multiple for retainer revenue; earnings-quality adjustments arrive as reviewer-priced findings on the purchase-price bridge.
+- **Fixtures and acceptance:** `pactlab-demo-data/professional-services/{USD,EUR,GBP}` — the three planted findings surface as cited drafts once, and the reviewer-priced utilization gap reaches a valuation run (`apps/api/src/packs/services.acceptance.api.test.ts`).
+
 **5. Pharma / biotech**
 
 - Largest deal values of any pack, but diligence is the most specialized: clinical-trial evidence, FDA/EMA regulatory pathway and approval risk, patent-cliff and exclusivity analysis, and GMP/manufacturing quality.
