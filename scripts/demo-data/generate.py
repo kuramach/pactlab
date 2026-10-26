@@ -157,6 +157,7 @@ PACK_IMPORTS = {
     'professional-services': {'timesheets-summary': 'Timesheets summary', 'headcount-movements': 'Headcount movements'},
     'pharma-biotech': {'patent-schedule': 'Patent schedule', 'pipeline': 'Pipeline'},
     'ecommerce-dtc': {'orders-by-cohort': 'Orders by cohort', 'ad-spend': 'Ad spend'},
+    'commercial-property': {'rent-roll': 'Commercial rent roll', 'cam-reconciliation': 'CAM reconciliation'},
 }
 
 PACK_TITLES = {

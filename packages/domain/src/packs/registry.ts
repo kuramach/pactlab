@@ -103,7 +103,13 @@ export const PACKS: Readonly<Record<PackId, PackDefinition>> = {
     findingRules: ['multifamily-om-noi', 'multifamily-deferred-maintenance', 'multifamily-delinquency-concentration', 'multifamily-loss-to-lease'],
     valuationMethods: ['NOI_CAP_RATE', 'DCF'],
   },
-  COMMERCIAL_PROPERTY: pack('COMMERCIAL_PROPERTY', 'commercial-property', 'real-estate'),
+  COMMERCIAL_PROPERTY: {
+    ...pack('COMMERCIAL_PROPERTY', 'commercial-property', 'real-estate', true),
+    importTargets: ['BILLING_INVOICE_LINE', 'CRE_RENT_ROLL', 'CRE_CAM_RECONCILIATION'],
+    findingRules: ['cre-anchor-rollover', 'cre-environmental-condition', 'cre-cam-under-recovery', 'cre-below-market-anchor'],
+    // Income property values on NOI ÷ cap rate (T-059), with a DCF of the rollover schedule alongside.
+    valuationMethods: ['NOI_CAP_RATE', 'DCF'],
+  },
   HOTELS: pack('HOTELS', 'hotels', 'real-estate'),
   SMALL_CLINICS: pack('SMALL_CLINICS', 'small-clinics', 'healthcare'),
   HOSPITALS: pack('HOSPITALS', 'hospitals', 'healthcare'),

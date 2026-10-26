@@ -25,7 +25,7 @@ describe('pack registry', () => {
   });
 
   it('the activated packs are built; OTHER and unknown read the software core', () => {
-    expect(PACK_IDS.filter((id) => PACKS[id].built)).toEqual(['SOFTWARE_SAAS', 'FINTECH', 'HEALTHCARE', 'TELECOM_MEDIA', 'PROFESSIONAL_SERVICES', 'PHARMA_BIOTECH', 'ECOMMERCE_DTC', 'MULTIFAMILY']);
+    expect(PACK_IDS.filter((id) => PACKS[id].built)).toEqual(['SOFTWARE_SAAS', 'FINTECH', 'HEALTHCARE', 'TELECOM_MEDIA', 'PROFESSIONAL_SERVICES', 'PHARMA_BIOTECH', 'ECOMMERCE_DTC', 'MULTIFAMILY', 'COMMERCIAL_PROPERTY']);
     expect(sourcesFor('FINTECH').packAvailable).toBe(true);
     expect(sourcesFor('HOTELS').packAvailable).toBe(false);
     expect(packFor('OTHER').id).toBe('SOFTWARE_SAAS');
@@ -35,7 +35,7 @@ describe('pack registry', () => {
 
   it('the five new seller types get a source plan', () => {
     for (const type of ['COMMERCIAL_PROPERTY', 'HOTELS', 'SMALL_CLINICS', 'HOSPITALS'] as const) {
-      expect(sourcesFor(type).sources.map((source) => source.kind)).toEqual(['BILLING', 'DOCUMENTS']);
+      expect(sourcesFor(type).sources.map((source) => source.kind), type).toEqual(PACKS[type].built ? ['BILLING', 'DOCUMENTS', 'INDUSTRY'] : ['BILLING', 'DOCUMENTS']);
     }
     // A built pack with sector extracts adds them as a source to collect (T-060).
     expect(sourcesFor('MULTIFAMILY').sources.map((source) => source.kind)).toEqual(['BILLING', 'DOCUMENTS', 'INDUSTRY']);
