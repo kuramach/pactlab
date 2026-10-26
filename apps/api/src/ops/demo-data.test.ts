@@ -168,6 +168,13 @@ describe('demo data set (scripts/demo-data/generate.py)', () => {
       expect(readme, where).toContain('Synthetic demo data');
       expect(readme, where).toContain(`base currency **${currency}**`);
       expect(readme.split('## Planted findings')[1]?.match(/^\d+\. \*\*/gm)?.length ?? 0, where).toBeGreaterThanOrEqual(3);
+      // The walkthrough says what price to test: an asking price, or the founder's round for a raise.
+      const walkthrough = readme.split('## Demo walkthrough')[1]?.split('## Planted findings')[0] ?? '';
+      if (pack === 'venture-raise') expect(walkthrough, where).toMatch(new RegExp(`your ask \\(pre-money\\) \\*\\*${currency} [\\d,]+\\*\\*`));
+      else expect(walkthrough, where).toMatch(new RegExp(`Record the asking price\\*\\*: \\*\\*${currency} [1-9][\\d,]+\\*\\*, basis \\*Enterprise value\\*`));
+      expect(walkthrough.match(/^\d+\. /gm)?.map((step) => Number.parseInt(step, 10)), where).toEqual(
+        Array.from({ length: walkthrough.match(/^\d+\. /gm)?.length ?? 0 }, (_, i) => i + 1),
+      );
       const index = parseCsv(read(join(dir, 'vdr-index.csv')));
       for (const row of index.rows) {
         const file = row.cells[2] ?? '';

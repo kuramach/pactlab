@@ -40,6 +40,23 @@ def money(cur, x, decimals=False):
 
 def pct(x): return f'{(D(x) * 100).quantize(D("0.1"), ROUND_HALF_UP)}%'
 
+def sig2(x):
+    """Round to two significant figures, as a seller quotes a price (4,730,000 -> 4,700,000)."""
+    x = D(x)
+    step = D(10) ** (len(str(int(x))) - 2)
+    return (x / step).quantize(D('1'), ROUND_HALF_UP) * step
+
+# The seller's asking price for each pack, as a multiple of September 2026
+# billed revenue run-rate: a full but plausible ask for the sector, set before
+# diligence so the planted findings show up as a gap against it. Enterprise
+# value, quoted in the teaser. Venture Raise has no asking price —
+# the founder sets the round on the Raise tab instead.
+ASKING_MULTIPLE = {
+    'software-saas': D('8'), 'fintech': D('4'), 'healthcare': D('1.5'), 'telecom-media': D('3'),
+    'professional-services': D('1.2'), 'pharma-biotech': D('4'), 'ecommerce-dtc': D('1.5'), 'hotels': D('3.5'),
+    'multifamily': D('12'), 'commercial-property': D('11'), 'hospitals': D('1'), 'small-clinics': D('1.3'),
+}
+
 class Dataset:
     def __init__(self, pack, cur, brand, kind):
         self.pack, self.cur, self.c = pack, cur, CUR[cur]
@@ -133,12 +150,21 @@ class Dataset:
             if name == '99-data-room-extracts': continue
             out.append(f'| `documents/{name}.pdf` (`.md` source) | {desc} | Documents → upload, data class *{dc}* |')
         out.append('| `vdr-index.csv` | Index of every file, as a data room would list it | Reference |')
-        out += ['', '## Demo walkthrough', '',
-                f'1. **Start a Pact** for `{self.company}` with base currency **{c}**, industry *{PACK_TITLES[self.pack]}*.',
-                '2. **Sources → Upload billing export** → Pactlab standard template → `invoice-lines.csv` → Preview → Import. **Finances** shows the revenue ledger.',
-                *([f'3. **Sources → Industry data** → upload each extract marked above ({", ".join(f"`{n}.csv`" for n in PACK_IMPORTS[self.pack])}); industry checks run on import.'] if self.pack in PACK_IMPORTS else []),
-                f'{4 if self.pack in PACK_IMPORTS else 3}. **Documents** → upload every PDF in `documents/` with the data class shown above.',
-                f'{5 if self.pack in PACK_IMPORTS else 4}. Look for the planted findings below (Findings → Run checks once the documents are in); accept, reject or ask for support, then price the accepted ones in **Valuation**.', '',
+        steps = [f'**Start a Pact** for `{self.company}` with base currency **{c}**, industry *{PACK_TITLES[self.pack]}*.']
+        if self.pack in ASKING_MULTIPLE:
+            asking = sig2(self.billed_arr() * ASKING_MULTIPLE[self.pack])
+            steps.append(f'**Valuation → Record the asking price**: **{money(c, asking)}**, basis *Enterprise value*, source *Teaser or information memorandum*, quoted 2026-09-30 '
+                         f'({ASKING_MULTIPLE[self.pack]}× September 2026 billed revenue run-rate). Every scenario is then tested against it.')
+        if self.pack == 'venture-raise':
+            steps.append(f'**Raise → Your round**: your ask (pre-money) **{money(c, self.amt(12000000))}**, raising **{money(c, self.amt(2000000))}**, pool target after the round **10%**. '
+                         f'Then record Harborline Ventures\' offer from `documents/06-term-sheet-harborline.pdf`: pre-money {money(c, self.amt(10000000))}, amount {money(c, self.amt(2000000))}, '
+                         'liquidation preference 1×, one investor board seat.')
+        steps.append('**Sources → Upload billing export** → Pactlab standard template → `invoice-lines.csv` → Preview → Import. **Finances** shows the revenue ledger.')
+        if self.pack in PACK_IMPORTS:
+            steps.append(f'**Sources → Industry data** → upload each extract marked above ({", ".join(f"`{n}.csv`" for n in PACK_IMPORTS[self.pack])}); industry checks run on import.')
+        steps.append('**Documents** → upload every PDF in `documents/` with the data class shown above.')
+        steps.append('Look for the planted findings below (Findings → Run checks once the documents are in); accept, reject or ask for support, then price the accepted ones in **Valuation**.')
+        out += ['', '## Demo walkthrough', ''] + [f'{i}. {step}' for i, step in enumerate(steps, 1)] + ['',
                 '## Planted findings', '']
         for i, (title, where) in enumerate(self.findings, 1):
             out.append(f'{i}. **{title}** — {where}')
