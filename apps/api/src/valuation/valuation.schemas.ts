@@ -25,6 +25,14 @@ const methodSchema = z.discriminatedUnion('method', [
   }),
   /** Income property (T-059): enterprise value = NOI ÷ capitalization rate. */
   z.strictObject({ method: z.literal('NOI_CAP_RATE'), noi: decimal, capRate: decimal }),
+  /** Hospitals (T-069): payer-mix-adjusted EBITDA × multiple. */
+  z.strictObject({
+    method: z.literal('PAYER_MIX_EBITDA'),
+    ebitda: decimal,
+    netRevenue: decimal,
+    multiple: decimal,
+    payers: z.array(z.strictObject({ payer: z.string().trim().min(1).max(200), share: decimal, rateChange: decimal })).max(10),
+  }),
 ]);
 
 const axisSchema = z.strictObject({

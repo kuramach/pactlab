@@ -160,6 +160,7 @@ PACK_IMPORTS = {
     'commercial-property': {'rent-roll': 'Commercial rent roll', 'cam-reconciliation': 'CAM reconciliation'},
     'hotels': {'operating-history': 'Operating history', 'str-benchmark': 'STR benchmark'},
     'small-clinics': {'patient-volume': 'Patient volume', 'equipment-schedule': 'Equipment schedule', 'coding-summary': 'Coding summary'},
+    'hospitals': {'census': 'Census', 'payer-mix': 'Payer mix'},
 }
 
 PACK_TITLES = {

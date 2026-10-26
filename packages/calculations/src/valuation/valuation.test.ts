@@ -456,3 +456,59 @@ describe('NOI ÷ capitalization rate (T-059)', () => {
     ).toThrow(ValuationInputError);
   });
 });
+
+describe('payer-mix-adjusted EBITDA (T-069)', () => {
+  const base = {
+    currency: 'USD',
+    transactionType: 'PRIVATE_ACQUIRER' as const,
+    assumptions: {
+      method: 'PAYER_MIX_EBITDA' as const,
+      ebitda: '6000000.00',
+      netRevenue: '40000000.00',
+      multiple: '9',
+      payers: [
+        { payer: 'Government programme A', share: '0.567', rateChange: '-0.02' },
+        { payer: 'Commercial plan Keystone', share: '0.18', rateChange: '0.03' },
+      ],
+    },
+    bridge: { cash: '0', debt: '0', debtLikeItems: '0', workingCapitalAdjustment: '0' },
+    adjustments: [],
+    balanceSheetItems: [],
+    sensitivity: null,
+    lbo: null,
+    accretionDilution: null,
+    stockConsiderationShare: '0',
+  };
+  const run = (inputs: unknown) => runValuation(inputs as Parameters<typeof runValuation>[0]);
+
+  it('moves each payer’s rate change on its share of net revenue straight to EBITDA, exactly', () => {
+    const result = run(base);
+    // 40m × 0.567 × −0.02 = −453,600; 40m × 0.18 × 0.03 = +216,000 → 5,762,400 × 9.
+    expect(result.method).toEqual({
+      method: 'PAYER_MIX_EBITDA',
+      reportedEbitda: { amount: '6000000.00', currency: 'USD' },
+      adjustedEbitda: { amount: '5762400.00', currency: 'USD' },
+      multiple: '9',
+      payers: [
+        { payer: 'Government programme A', share: '0.567', rateChange: '-0.02', ebitdaEffect: { amount: '-453600.00', currency: 'USD' } },
+        { payer: 'Commercial plan Keystone', share: '0.18', rateChange: '0.03', ebitdaEffect: { amount: '216000.00', currency: 'USD' } },
+      ],
+    });
+    expect(result.enterpriseValue.amount).toBe('51861600.00');
+    // With no payers it is a plain EBITDA multiple.
+    expect(run({ ...base, assumptions: { ...base.assumptions, payers: [] } }).enterpriseValue.amount).toBe('54000000.00');
+  });
+
+  it('refuses shares above 100% in total, rate changes beyond ±100% and unnamed payers; sensitivity runs on EBITDA and the multiple', () => {
+    const payers = (list: unknown[]) => ({ ...base, assumptions: { ...base.assumptions, payers: list } });
+    expect(() => run(payers([{ payer: 'A', share: '0.7', rateChange: '0' }, { payer: 'B', share: '0.4', rateChange: '0' }]))).toThrow(ValuationInputError);
+    expect(() => run(payers([{ payer: 'A', share: '0.5', rateChange: '-1.5' }]))).toThrow(ValuationInputError);
+    expect(() => run(payers([{ payer: ' ', share: '0.5', rateChange: '0' }]))).toThrow(ValuationInputError);
+    const grid = run({ ...payers([]), sensitivity: { rows: { variable: 'ebitda', values: ['5000000', '6000000'] }, columns: { variable: 'multiple', values: ['8', '10'] } } }).sensitivity;
+    expect(grid?.cells).toEqual([
+      [{ amount: '40000000.00', currency: 'USD' }, { amount: '50000000.00', currency: 'USD' }],
+      [{ amount: '48000000.00', currency: 'USD' }, { amount: '60000000.00', currency: 'USD' }],
+    ]);
+    expect(() => run({ ...base, sensitivity: { rows: { variable: 'capRate', values: ['0.05'] }, columns: { variable: 'multiple', values: ['8'] } } })).toThrow(ValuationInputError);
+  });
+});

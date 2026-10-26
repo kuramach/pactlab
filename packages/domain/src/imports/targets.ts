@@ -27,6 +27,8 @@ export const IMPORT_TARGETS = [
   'CLINICS_PATIENT_VOLUME',
   'CLINICS_EQUIPMENT',
   'CLINICS_CODING_SUMMARY',
+  'HOSPITALS_CENSUS',
+  'HOSPITALS_PAYER_MIX',
 ] as const;
 export type ImportTarget = (typeof IMPORT_TARGETS)[number];
 
@@ -532,6 +534,45 @@ export const CLINICS_CODING_SUMMARY: TargetDefinition = {
   ],
 };
 
+/** Hospitals (T-069): admissions, patient days and average daily census by month and service line — aggregates. */
+export const HOSPITALS_CENSUS: TargetDefinition = {
+  target: 'HOSPITALS_CENSUS',
+  label: 'Census',
+  fileName: 'census.csv',
+  people: 'NONE',
+  refusesPeopleColumns: true,
+  evidenceType: 'hospitals.census_month',
+  recordIdField: 'month',
+  recordIdFields: ['month', 'service_line'],
+  observedAtFields: [],
+  fields: [
+    { name: 'month', label: 'Month', kind: 'text', required: true, hint: 'YYYY-MM.' },
+    { name: 'service_line', label: 'Service line', kind: 'text', required: true, hint: 'e.g. Cardiology.' },
+    { name: 'admissions', label: 'Admissions', kind: 'decimal', required: true, hint: 'A count; no patient detail.' },
+    { name: 'patient_days', label: 'Patient days', kind: 'decimal', required: true, hint: 'Inpatient days in the month.' },
+    { name: 'average_daily_census', label: 'Average daily census', kind: 'decimal', required: false, hint: 'Patient days ÷ days in the month.' },
+  ],
+};
+
+/** Hospitals (T-069): gross charges and net revenue by month and payer. */
+export const HOSPITALS_PAYER_MIX: TargetDefinition = {
+  target: 'HOSPITALS_PAYER_MIX',
+  label: 'Payer mix',
+  fileName: 'payer-mix.csv',
+  people: 'NONE',
+  refusesPeopleColumns: true,
+  evidenceType: 'hospitals.payer_month',
+  recordIdField: 'month',
+  recordIdFields: ['month', 'payer'],
+  observedAtFields: [],
+  fields: [
+    { name: 'month', label: 'Month', kind: 'text', required: true, hint: 'YYYY-MM.' },
+    { name: 'payer', label: 'Payer', kind: 'text', required: true, hint: 'Payer or programme; never a patient.' },
+    { name: 'gross_charges', label: 'Gross charges', kind: 'money', required: true, hint: IN_BASE_CURRENCY },
+    { name: 'net_revenue', label: 'Net revenue', kind: 'money', required: true, hint: `After contractual allowances. ${IN_BASE_CURRENCY}` },
+  ],
+};
+
 export const IMPORT_TARGET_DEFINITIONS: Readonly<Record<ImportTarget, TargetDefinition>> = {
   BILLING_INVOICE_LINE,
   FINTECH_LOAN_TAPE,
@@ -556,6 +597,8 @@ export const IMPORT_TARGET_DEFINITIONS: Readonly<Record<ImportTarget, TargetDefi
   CLINICS_PATIENT_VOLUME,
   CLINICS_EQUIPMENT,
   CLINICS_CODING_SUMMARY,
+  HOSPITALS_CENSUS,
+  HOSPITALS_PAYER_MIX,
 };
 
 /**

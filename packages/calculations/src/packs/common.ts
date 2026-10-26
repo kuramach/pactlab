@@ -134,8 +134,11 @@ export interface ClauseConfig {
   /** Every test must find a sentence (on any readable page); each found sentence is cited. */
   readonly sentences: readonly ((sentence: string) => boolean)[];
   readonly description: (quotes: readonly string[]) => string;
-  /** Price the finding from an amount in the first quote ("USD 3,600,000"). */
-  readonly price?: { readonly type: NonNullable<PackRuleProposal['pricedRisk']>['type']; readonly lowShare?: string; readonly basis: string };
+  /**
+   * Price the finding from an amount in the first quote ("USD 3,600,000") —
+   * the first amount after `after` when given, for quotes that state several.
+   */
+  readonly price?: { readonly type: NonNullable<PackRuleProposal['pricedRisk']>['type']; readonly lowShare?: string; readonly basis: string; readonly after?: RegExp };
 }
 
 const MONEY_IN_TEXT = /\b([A-Z]{3})\s*([0-9][0-9,]*(?:\.[0-9]+)?)/;
@@ -162,7 +165,9 @@ export function documentClauseRule(config: ClauseConfig): PackRule {
         found.push(hit);
       }
       const quotes: PackRuleQuote[] = found.map(({ page, quote }) => ({ documentId: page.documentId, pageNumber: page.pageNumber, quote }));
-      const money = config.price ? moneyIn(found[0]?.quote ?? '') : null;
+      const first = found[0]?.quote ?? '';
+      const marker = config.price?.after?.exec(first);
+      const money = config.price ? moneyIn(marker ? first.slice(marker.index + marker[0].length) : config.price.after ? '' : first) : null;
       if (config.price && !money) return [];
       return [
         {

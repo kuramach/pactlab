@@ -151,14 +151,14 @@ describe('Start a Pact through the API', () => {
     expect(sources[1]!['upload']).toBeNull();
   });
 
-  it('labels a planned industry honestly', async () => {
+  it('says plainly when no industry pack applies', async () => {
     const lead = await token(a.subject, a);
     const dealId = (
-      await call('POST', '/v1/pacts', lead, { ...PACT, name: 'Project Ward', seller: { ...PACT.seller, companyType: 'HOSPITALS' } })
+      await call('POST', '/v1/pacts', lead, { ...PACT, name: 'Project Misc', seller: { ...PACT.seller, companyType: 'OTHER' } })
     ).body['id'] as string;
     const plan = await call('GET', `/v1/deals/${dealId}/source-plan`, lead);
-    expect(plan.body).toMatchObject({ companyType: 'HOSPITALS', packAvailable: false });
-    expect(plan.body['note']).toMatch(/planned/);
+    expect(plan.body).toMatchObject({ companyType: 'OTHER', packAvailable: false });
+    expect(plan.body['note']).toMatch(/No industry pack applies/);
   });
 
   it('falls back to the software sources for a deal that predates Pacts', async () => {
