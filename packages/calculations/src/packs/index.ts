@@ -8,3 +8,4 @@ export * from './healthcare';
 export * from './telecom';
 export * from './services';
 export * from './pharma';
+export * from './ecommerce';

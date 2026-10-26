@@ -156,6 +156,7 @@ PACK_IMPORTS = {
     'telecom-media': {'subscribers-by-month': 'Subscribers by month'},
     'professional-services': {'timesheets-summary': 'Timesheets summary', 'headcount-movements': 'Headcount movements'},
     'pharma-biotech': {'patent-schedule': 'Patent schedule', 'pipeline': 'Pipeline'},
+    'ecommerce-dtc': {'orders-by-cohort': 'Orders by cohort', 'ad-spend': 'Ad spend'},
 }
 
 PACK_TITLES = {

@@ -135,6 +135,8 @@ enum ImportTarget {
   SERVICES_HEADCOUNT
   PHARMA_PATENTS
   PHARMA_PIPELINE
+  ECOMMERCE_COHORTS
+  ECOMMERCE_AD_SPEND
 
   @@map("import_target")
 }

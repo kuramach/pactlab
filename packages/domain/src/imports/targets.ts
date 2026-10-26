@@ -18,6 +18,8 @@ export const IMPORT_TARGETS = [
   'SERVICES_HEADCOUNT',
   'PHARMA_PATENTS',
   'PHARMA_PIPELINE',
+  'ECOMMERCE_COHORTS',
+  'ECOMMERCE_AD_SPEND',
 ] as const;
 export type ImportTarget = (typeof IMPORT_TARGETS)[number];
 
@@ -347,6 +349,44 @@ export const PHARMA_PIPELINE: TargetDefinition = {
   ],
 };
 
+/** E-commerce and DTC (T-065): active customers by first-purchase cohort and month — counts, never customers. */
+export const ECOMMERCE_COHORTS: TargetDefinition = {
+  target: 'ECOMMERCE_COHORTS',
+  label: 'Orders by cohort',
+  fileName: 'orders-by-cohort.csv',
+  people: 'NONE',
+  refusesPeopleColumns: true,
+  evidenceType: 'ecommerce.cohort_month',
+  recordIdField: 'first_purchase_month',
+  recordIdFields: ['first_purchase_month', 'month'],
+  observedAtFields: [],
+  fields: [
+    { name: 'first_purchase_month', label: 'First-purchase month', kind: 'text', required: true, hint: 'The cohort, YYYY-MM.' },
+    { name: 'month', label: 'Month', kind: 'text', required: true, hint: 'YYYY-MM.' },
+    { name: 'months_since_first', label: 'Months since first purchase', kind: 'decimal', required: true, hint: '0 for the cohort’s first month.' },
+    { name: 'active_customers', label: 'Active customers', kind: 'decimal', required: true, hint: 'Customers from the cohort who bought in the month (a count).' },
+  ],
+};
+
+/** E-commerce and DTC (T-065): advertising spend and new customers by month and channel. */
+export const ECOMMERCE_AD_SPEND: TargetDefinition = {
+  target: 'ECOMMERCE_AD_SPEND',
+  label: 'Ad spend',
+  fileName: 'ad-spend.csv',
+  people: 'NONE',
+  refusesPeopleColumns: true,
+  evidenceType: 'ecommerce.ad_spend_month',
+  recordIdField: 'month',
+  recordIdFields: ['month', 'channel'],
+  observedAtFields: [],
+  fields: [
+    { name: 'month', label: 'Month', kind: 'text', required: true, hint: 'YYYY-MM.' },
+    { name: 'channel', label: 'Channel', kind: 'text', required: true, hint: 'e.g. paid social, search.' },
+    { name: 'spend', label: 'Spend', kind: 'money', required: true, hint: IN_BASE_CURRENCY },
+    { name: 'new_customers', label: 'New customers', kind: 'decimal', required: true, hint: 'First-time customers attributed to the channel.' },
+  ],
+};
+
 export const IMPORT_TARGET_DEFINITIONS: Readonly<Record<ImportTarget, TargetDefinition>> = {
   BILLING_INVOICE_LINE,
   FINTECH_LOAN_TAPE,
@@ -362,6 +402,8 @@ export const IMPORT_TARGET_DEFINITIONS: Readonly<Record<ImportTarget, TargetDefi
   SERVICES_HEADCOUNT,
   PHARMA_PATENTS,
   PHARMA_PIPELINE,
+  ECOMMERCE_COHORTS,
+  ECOMMERCE_AD_SPEND,
 };
 
 /**
