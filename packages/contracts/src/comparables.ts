@@ -141,7 +141,7 @@ export interface BenchmarkView {
   version: string;
   filter: { companyType: (typeof COMPANY_TYPES)[number] | 'ALL'; years: number; synthetic: 'include' | 'exclude' };
   /** The scenario the multiple came from, if any. */
-  scenario: { id: string; name: string; method: 'ARR_MULTIPLE' | 'DCF' | 'NOI_CAP_RATE'; status: string } | null;
+  scenario: { id: string; name: string; method: 'ARR_MULTIPLE' | 'DCF' | 'NOI_CAP_RATE' | 'PAYER_MIX_EBITDA' | 'ROUND_PRE_MONEY'; status: string } | null;
   target: {
     arr: { amount: string; currency: string } | null;
     arrSource: 'SCENARIO' | 'METRICS' | null;

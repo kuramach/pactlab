@@ -9,9 +9,9 @@ import { PACK_IDS, PACKS, packFor } from './registry';
 describe('pack registry', () => {
   it('has one pack per company type except OTHER, each with unique slugs', () => {
     expect([...PACK_IDS].sort()).toEqual(COMPANY_TYPES.filter((type) => type !== 'OTHER').sort());
-    expect(PACK_IDS).toHaveLength(12);
+    expect(PACK_IDS).toHaveLength(13);
     const slugs = PACK_IDS.map((id) => PACKS[id].slug);
-    expect(new Set(slugs).size).toBe(12);
+    expect(new Set(slugs).size).toBe(13);
     for (const id of PACK_IDS) expect(PACKS[id].id).toBe(id);
   });
 
@@ -24,10 +24,9 @@ describe('pack registry', () => {
     }
   });
 
-  it('software, fintech and multifamily are built; OTHER and unknown read the software core', () => {
-    expect(PACK_IDS.filter((id) => PACKS[id].built)).toEqual(['SOFTWARE_SAAS', 'FINTECH', 'MULTIFAMILY']);
+  it('every pack is built; OTHER and unknown read the software core', () => {
+    expect(PACK_IDS.filter((id) => !PACKS[id].built)).toEqual([]);
     expect(sourcesFor('FINTECH').packAvailable).toBe(true);
-    expect(sourcesFor('HOTELS').packAvailable).toBe(false);
     expect(packFor('OTHER').id).toBe('SOFTWARE_SAAS');
     expect(packFor(null).id).toBe('SOFTWARE_SAAS');
     expect(packFor('HOTELS').slug).toBe('hotels');
@@ -35,7 +34,7 @@ describe('pack registry', () => {
 
   it('the five new seller types get a source plan', () => {
     for (const type of ['COMMERCIAL_PROPERTY', 'HOTELS', 'SMALL_CLINICS', 'HOSPITALS'] as const) {
-      expect(sourcesFor(type).sources.map((source) => source.kind)).toEqual(['BILLING', 'DOCUMENTS']);
+      expect(sourcesFor(type).sources.map((source) => source.kind), type).toEqual(PACKS[type].built ? ['BILLING', 'DOCUMENTS', 'INDUSTRY'] : ['BILLING', 'DOCUMENTS']);
     }
     // A built pack with sector extracts adds them as a source to collect (T-060).
     expect(sourcesFor('MULTIFAMILY').sources.map((source) => source.kind)).toEqual(['BILLING', 'DOCUMENTS', 'INDUSTRY']);

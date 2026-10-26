@@ -35,3 +35,16 @@ avoid a costly refactor later.
 - Marketing already presents every pack as available (2026-10-22 copy
   decision); the app's source plan says a pack is "planned" until its task
   ships.
+
+## Addendum — all twelve packs built (T-069, 2026-10-25)
+
+- T-061 to T-069 shipped the remaining nine packs. Every company type except
+  OTHER now has a built pack, so the "planned" source-plan note no longer
+  appears for any seller type; the code path stays for any future pack.
+- Shared rule factories (`packages/calculations/src/packs/common.ts`) carry
+  the two recurring shapes, revenue concentration and a cited document
+  clause, so a new pack's rules are mostly configuration.
+- Hospitals added the first pack-specific valuation method through the
+  method table: `PAYER_MIX_EBITDA` (spec §19 11a). It is deterministic,
+  decimal-only and validated like every other method; existing methods and
+  their outputs are unchanged, so the engine version stays `valuation-2`.

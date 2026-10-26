@@ -243,7 +243,7 @@ export type IndustryStatus = 'AVAILABLE' | 'PLANNED';
 /** What a pack adds to the unchanged core: the only three things that vary (spec §19). */
 export interface PackDefinition {
   /** Real estate packs form their own cluster; hospitals and clinics extend healthcare services. */
-  readonly cluster: 'technology' | 'healthcare' | 'real-estate' | 'services' | 'life-sciences' | 'consumer';
+  readonly cluster: 'technology' | 'healthcare' | 'real-estate' | 'services' | 'life-sciences' | 'consumer' | 'capital';
   readonly evidence: readonly string[];
   readonly findings: readonly string[];
   readonly valuation: readonly string[];
@@ -665,6 +665,39 @@ export const INDUSTRIES: readonly Industry[] = [
       { icon: 'Activity', title: 'Census and cost-report evidence', body: 'Adapters for payer mix, census and Medicare cost reports.' },
       { icon: 'BadgeCheck', title: 'Licensure findings', body: 'Licensure and accreditation gaps, and malpractice history.' },
       { icon: 'Coins', title: 'Payer-mix-adjusted EBITDA', body: 'Earnings adjusted for payer mix, with regulatory capex as remediation.' },
+    ],
+  },
+  {
+    slug: 'venture-raise',
+    icon: 'Rocket',
+    name: 'Venture Raise',
+    status: 'AVAILABLE',
+    order: 12,
+    pack: {
+      cluster: 'capital',
+      evidence: ['Cap table (Carta and Pulley exports)', 'Billing and bank records', 'Certificate of incorporation, bylaws and 83(b) confirmations', 'IP assignment and contractor agreements', 'SAFEs, notes and term sheets', 'Code and delivery history'],
+      findings: ['Deck metrics contradicted by billing', 'IP assignment gaps', 'Cap table that does not reconcile', 'SAFE and MFN stacking', 'Runway shorter than the raise assumes'],
+      valuation: ['The round at your ask, adjusted by what the evidence forces', 'SAFE and note conversion at cap and discount', 'Option-pool shuffle stated in shares and percent', 'Competing offers side by side; confirmed value stays confidential, never a reason to ask more'],
+    },
+    summary: 'Founder-side diligence: walk into a raise knowing what investors will find, with every competing offer modelled.',
+    dealShape: 'Pre-seed, seed and Series A rounds from angels, incubators and accelerators, and venture funds — seen from the founder’s seat.',
+    questions: [
+      'Will the deck metrics survive the investor’s billing check?',
+      'Does the cap table reconcile to the corporate record?',
+      'How much do the SAFEs and the pool shuffle really dilute the founders?',
+      'Does the company own the IP its contractors built?',
+      'Which offer leaves the founders with what, and on what terms?',
+    ],
+    transfers: [
+      { icon: 'TrendingUp', title: 'Revenue and SaaS metrics', body: 'MRR and ARR from billing, the same check an investor runs.' },
+      { icon: 'GitBranch', title: 'Code and delivery evidence', body: 'The history technical diligence will read, seen by the founder first.' },
+      { icon: 'FileText', title: 'Documents with exact citations', body: 'Corporate records, agreements and term sheets, quoted to the page.' },
+    ],
+    adds: [
+      { icon: 'ListChecks', title: 'A claims register for the deck', body: 'Every number checked against evidence: verified, contradicted or unverified.' },
+      { icon: 'Percent', title: 'Round modelling', body: 'SAFE conversion, MFN effects and the pool shuffle across priced-round scenarios.' },
+      { icon: 'Handshake', title: 'Competing offers', body: 'Each investor’s terms side by side, with the founders’ ownership after each.' },
+      { icon: 'EyeOff', title: 'An investor view that cannot leak', body: 'Share verified numbers and the data room; your weaknesses never cross over.' },
     ],
   },
 ];

@@ -19,6 +19,7 @@ export const COMPANY_TYPES = [
   'HOTELS',
   'SMALL_CLINICS',
   'HOSPITALS',
+  'VENTURE_RAISE',
   'OTHER',
 ] as const;
 export type CompanyType = (typeof COMPANY_TYPES)[number];
@@ -36,6 +37,8 @@ export const COMPANY_TYPE_LABELS: Readonly<Record<CompanyType, string>> = {
   HOTELS: 'Hotels & hospitality',
   SMALL_CLINICS: 'Small clinics',
   HOSPITALS: 'Hospitals',
+  // Founder-side: the seller is the founder's own startup, raising capital (T-083).
+  VENTURE_RAISE: 'Venture Raise',
   OTHER: 'Other',
 };
 

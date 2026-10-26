@@ -162,7 +162,7 @@ export function applyMapping(
       canonical[field.name] = parsed;
     }
 
-    const recordId = canonical[definition.recordIdField];
+    const recordId = recordIdOf(definition, canonical);
     if (recordId && seen.has(recordId)) {
       issues.push({ dataset, row, code: 'DUPLICATE_RECORD_ID', detail: `${definition.fields.find((field) => field.name === definition.recordIdField)?.label ?? 'Record id'} repeated` });
       return;
@@ -175,6 +175,13 @@ export function applyMapping(
     rows.push({ row, canonical });
   });
   return { rows, issues };
+}
+
+/** A record's id: its id column, or several columns joined when one is not unique (e.g. month|payer). */
+export function recordIdOf(definition: TargetDefinition, canonical: Readonly<Record<string, string | null>>): string | null {
+  if (!definition.recordIdFields) return canonical[definition.recordIdField] ?? null;
+  const parts = definition.recordIdFields.map((field) => canonical[field]);
+  return parts.every((part) => part) ? parts.join('|') : null;
 }
 
 /**
@@ -191,7 +198,7 @@ export function mappedEvidence(
     return {
       evidenceType: definition.evidenceType,
       sourceSystem: options.sourceSystem,
-      sourceRecordId: canonical[definition.recordIdField] ?? '',
+      sourceRecordId: recordIdOf(definition, canonical) ?? '',
       observedAt: observed ? `${observed}T00:00:00.000Z` : null,
       canonical,
       locator: { kind: 'csv_row', dataset: options.dataset, row },

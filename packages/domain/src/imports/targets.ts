@@ -11,6 +11,26 @@ export const IMPORT_TARGETS = [
   'MULTIFAMILY_T12',
   'MULTIFAMILY_DELINQUENCY',
   'MULTIFAMILY_INSPECTION',
+  'HEALTHCARE_CLAIMS_SUMMARY',
+  'HEALTHCARE_PROVIDER_ROSTER',
+  'TELECOM_SUBSCRIBERS',
+  'SERVICES_TIMESHEETS',
+  'SERVICES_HEADCOUNT',
+  'PHARMA_PATENTS',
+  'PHARMA_PIPELINE',
+  'ECOMMERCE_COHORTS',
+  'ECOMMERCE_AD_SPEND',
+  'CRE_RENT_ROLL',
+  'CRE_CAM_RECONCILIATION',
+  'HOTELS_OPERATING_HISTORY',
+  'HOTELS_STR_BENCHMARK',
+  'CLINICS_PATIENT_VOLUME',
+  'CLINICS_EQUIPMENT',
+  'CLINICS_CODING_SUMMARY',
+  'HOSPITALS_CENSUS',
+  'HOSPITALS_PAYER_MIX',
+  'VENTURE_CAP_TABLE',
+  'VENTURE_FINANCIALS',
 ] as const;
 export type ImportTarget = (typeof IMPORT_TARGETS)[number];
 
@@ -43,6 +63,8 @@ export interface TargetDefinition {
   readonly refusesPeopleColumns: boolean;
   readonly evidenceType: string;
   readonly recordIdField: string;
+  /** When one column is not unique (e.g. month and payer), the columns that together identify a record. */
+  readonly recordIdFields?: readonly string[];
   /** Field used as the observation date, falling back in order. */
   readonly observedAtFields: readonly string[];
   readonly fields: readonly TargetField[];
@@ -200,6 +222,406 @@ export const MULTIFAMILY_INSPECTION: TargetDefinition = {
   ],
 };
 
+/** Healthcare (T-061): claims by payer and month — never patient-level data. */
+export const HEALTHCARE_CLAIMS_SUMMARY: TargetDefinition = {
+  target: 'HEALTHCARE_CLAIMS_SUMMARY',
+  label: 'Claims summary',
+  fileName: 'claims-summary.csv',
+  people: 'NONE',
+  refusesPeopleColumns: true,
+  evidenceType: 'healthcare.claims_month',
+  recordIdField: 'month',
+  recordIdFields: ['month', 'payer'],
+  observedAtFields: [],
+  fields: [
+    { name: 'month', label: 'Month', kind: 'text', required: true, hint: 'YYYY-MM.' },
+    { name: 'payer', label: 'Payer', kind: 'text', required: true, hint: 'Payer or programme name; never a patient.' },
+    { name: 'claims', label: 'Claims', kind: 'decimal', required: true, hint: 'Claims submitted in the month.' },
+    { name: 'billed', label: 'Billed', kind: 'money', required: true, hint: IN_BASE_CURRENCY },
+    { name: 'paid', label: 'Paid', kind: 'money', required: true, hint: IN_BASE_CURRENCY },
+    { name: 'denial_rate_pct', label: 'Denial rate (%)', kind: 'decimal', required: true, hint: 'Share of claims denied, in percent.' },
+  ],
+};
+
+/** Healthcare (T-061): providers as pseudonymous references, with FTE and credential expiry. */
+export const HEALTHCARE_PROVIDER_ROSTER: TargetDefinition = {
+  target: 'HEALTHCARE_PROVIDER_ROSTER',
+  label: 'Provider roster',
+  fileName: 'provider-roster.csv',
+  people: 'PSEUDONYMOUS',
+  refusesPeopleColumns: true,
+  evidenceType: 'healthcare.provider',
+  recordIdField: 'provider_ref',
+  observedAtFields: [],
+  fields: [
+    { name: 'provider_ref', label: 'Provider reference', kind: 'text', required: true, hint: 'A pseudonymous reference such as PR-07 — never a name or licence number.' },
+    { name: 'specialty', label: 'Specialty', kind: 'text', required: true, hint: 'e.g. Primary care.' },
+    { name: 'fte', label: 'FTE', kind: 'decimal', required: true, hint: 'Full-time equivalent, e.g. 0.6.' },
+    { name: 'credential_expiry', label: 'Credential expiry', kind: 'date', required: true, hint: 'When the provider’s licence or credential lapses.' },
+  ],
+};
+
+/** Telecom and media (T-062): billed subscribers and ARPU by month, region and plan — no subscriber identities. */
+export const TELECOM_SUBSCRIBERS: TargetDefinition = {
+  target: 'TELECOM_SUBSCRIBERS',
+  label: 'Subscribers by month',
+  fileName: 'subscribers-by-month.csv',
+  people: 'NONE',
+  refusesPeopleColumns: true,
+  evidenceType: 'telecom.subscribers_month',
+  recordIdField: 'month',
+  recordIdFields: ['month', 'region', 'plan'],
+  observedAtFields: [],
+  fields: [
+    { name: 'month', label: 'Month', kind: 'text', required: true, hint: 'YYYY-MM.' },
+    { name: 'region', label: 'Region', kind: 'text', required: true, hint: 'Region or market.' },
+    { name: 'plan', label: 'Plan', kind: 'text', required: true, hint: 'Plan or product.' },
+    { name: 'billed_subscribers', label: 'Billed subscribers', kind: 'decimal', required: true, hint: 'Subscribers billed in the month (a count, not a reported figure).' },
+    { name: 'arpu', label: 'ARPU', kind: 'money', required: true, hint: IN_BASE_CURRENCY },
+  ],
+};
+
+/** Professional services (T-063): available and billable hours by month and team — aggregates, never people. */
+export const SERVICES_TIMESHEETS: TargetDefinition = {
+  target: 'SERVICES_TIMESHEETS',
+  label: 'Timesheets summary',
+  fileName: 'timesheets-summary.csv',
+  people: 'AGGREGATE',
+  refusesPeopleColumns: true,
+  evidenceType: 'services.timesheet_month',
+  recordIdField: 'month',
+  recordIdFields: ['month', 'team'],
+  observedAtFields: [],
+  fields: [
+    { name: 'month', label: 'Month', kind: 'text', required: true, hint: 'YYYY-MM.' },
+    { name: 'team', label: 'Team', kind: 'text', required: true, hint: 'Team or practice; never a person.' },
+    { name: 'headcount', label: 'Headcount', kind: 'decimal', required: true, hint: 'People in the team that month.' },
+    { name: 'available_hours', label: 'Available hours', kind: 'decimal', required: true, hint: 'Hours available after leave and holidays.' },
+    { name: 'billable_hours', label: 'Billable hours', kind: 'decimal', required: true, hint: 'Hours billed to clients.' },
+  ],
+};
+
+/** Professional services (T-063): starters, leavers and headcount by month and role family — aggregates only. */
+export const SERVICES_HEADCOUNT: TargetDefinition = {
+  target: 'SERVICES_HEADCOUNT',
+  label: 'Headcount movements',
+  fileName: 'headcount-movements.csv',
+  people: 'AGGREGATE',
+  refusesPeopleColumns: true,
+  evidenceType: 'services.headcount_month',
+  recordIdField: 'month',
+  recordIdFields: ['month', 'role_family'],
+  observedAtFields: [],
+  fields: [
+    { name: 'month', label: 'Month', kind: 'text', required: true, hint: 'YYYY-MM.' },
+    { name: 'role_family', label: 'Role family', kind: 'text', required: true, hint: 'e.g. Delivery; never a person or a title held by one person.' },
+    { name: 'starters', label: 'Starters', kind: 'decimal', required: true, hint: 'People who joined in the month.' },
+    { name: 'leavers', label: 'Leavers', kind: 'decimal', required: true, hint: 'People who left in the month.' },
+    { name: 'headcount', label: 'Headcount', kind: 'decimal', required: true, hint: 'At the end of the month.' },
+  ],
+};
+
+/** Pharma and biotech (T-064): patent families by product and jurisdiction, with expiry. */
+export const PHARMA_PATENTS: TargetDefinition = {
+  target: 'PHARMA_PATENTS',
+  label: 'Patent schedule',
+  fileName: 'patent-schedule.csv',
+  people: 'NONE',
+  refusesPeopleColumns: true,
+  evidenceType: 'pharma.patent',
+  recordIdField: 'family',
+  recordIdFields: ['family', 'jurisdiction'],
+  observedAtFields: [],
+  fields: [
+    { name: 'family', label: 'Patent family', kind: 'text', required: true, hint: 'Family reference, e.g. PF-01.' },
+    { name: 'product', label: 'Product', kind: 'text', required: true, hint: 'The product the family protects.' },
+    { name: 'jurisdiction', label: 'Jurisdiction', kind: 'text', required: true, hint: 'e.g. US or EP.' },
+    { name: 'type', label: 'Patent type', kind: 'text', required: true, hint: 'composition of matter, formulation, method of use, …' },
+    { name: 'expiry', label: 'Expiry', kind: 'date', required: true, hint: 'Expiry including any extension granted.' },
+  ],
+};
+
+/** Pharma and biotech (T-064): development programmes, phase and next milestone. */
+export const PHARMA_PIPELINE: TargetDefinition = {
+  target: 'PHARMA_PIPELINE',
+  label: 'Pipeline',
+  fileName: 'pipeline.csv',
+  people: 'NONE',
+  refusesPeopleColumns: true,
+  evidenceType: 'pharma.programme',
+  recordIdField: 'programme',
+  observedAtFields: [],
+  fields: [
+    { name: 'programme', label: 'Programme', kind: 'text', required: true, hint: 'Programme code.' },
+    { name: 'indication', label: 'Indication', kind: 'text', required: true, hint: 'The disease or condition.' },
+    { name: 'phase', label: 'Phase', kind: 'text', required: true, hint: 'e.g. Phase 3.' },
+    { name: 'next_milestone', label: 'Next milestone', kind: 'text', required: true, hint: 'e.g. Top-line data.' },
+    { name: 'expected', label: 'Expected', kind: 'text', required: true, hint: 'When, e.g. 2027-Q2.' },
+  ],
+};
+
+/** E-commerce and DTC (T-065): active customers by first-purchase cohort and month — counts, never customers. */
+export const ECOMMERCE_COHORTS: TargetDefinition = {
+  target: 'ECOMMERCE_COHORTS',
+  label: 'Orders by cohort',
+  fileName: 'orders-by-cohort.csv',
+  people: 'NONE',
+  refusesPeopleColumns: true,
+  evidenceType: 'ecommerce.cohort_month',
+  recordIdField: 'first_purchase_month',
+  recordIdFields: ['first_purchase_month', 'month'],
+  observedAtFields: [],
+  fields: [
+    { name: 'first_purchase_month', label: 'First-purchase month', kind: 'text', required: true, hint: 'The cohort, YYYY-MM.' },
+    { name: 'month', label: 'Month', kind: 'text', required: true, hint: 'YYYY-MM.' },
+    { name: 'months_since_first', label: 'Months since first purchase', kind: 'decimal', required: true, hint: '0 for the cohort’s first month.' },
+    { name: 'active_customers', label: 'Active customers', kind: 'decimal', required: true, hint: 'Customers from the cohort who bought in the month (a count).' },
+  ],
+};
+
+/** E-commerce and DTC (T-065): advertising spend and new customers by month and channel. */
+export const ECOMMERCE_AD_SPEND: TargetDefinition = {
+  target: 'ECOMMERCE_AD_SPEND',
+  label: 'Ad spend',
+  fileName: 'ad-spend.csv',
+  people: 'NONE',
+  refusesPeopleColumns: true,
+  evidenceType: 'ecommerce.ad_spend_month',
+  recordIdField: 'month',
+  recordIdFields: ['month', 'channel'],
+  observedAtFields: [],
+  fields: [
+    { name: 'month', label: 'Month', kind: 'text', required: true, hint: 'YYYY-MM.' },
+    { name: 'channel', label: 'Channel', kind: 'text', required: true, hint: 'e.g. paid social, search.' },
+    { name: 'spend', label: 'Spend', kind: 'money', required: true, hint: IN_BASE_CURRENCY },
+    { name: 'new_customers', label: 'New customers', kind: 'decimal', required: true, hint: 'First-time customers attributed to the channel.' },
+  ],
+};
+
+/** Commercial property (T-066): leases by suite with expiry, base and market rent — tenants are businesses. */
+export const CRE_RENT_ROLL: TargetDefinition = {
+  target: 'CRE_RENT_ROLL',
+  label: 'Commercial rent roll',
+  fileName: 'rent-roll.csv',
+  people: 'NONE',
+  refusesPeopleColumns: true,
+  evidenceType: 'cre.lease',
+  recordIdField: 'suite',
+  observedAtFields: [],
+  fields: [
+    { name: 'tenant', label: 'Tenant', kind: 'text', required: true, hint: 'The tenant business.' },
+    { name: 'suite', label: 'Suite', kind: 'text', required: true, hint: 'Suite or unit.' },
+    { name: 'sqft', label: 'Square feet', kind: 'decimal', required: false, hint: 'Leased area.' },
+    { name: 'lease_start', label: 'Lease start', kind: 'date', required: false, hint: 'Commencement date.' },
+    { name: 'lease_end', label: 'Lease end', kind: 'date', required: true, hint: 'Expiry date, before any option to renew.' },
+    { name: 'monthly_base_rent', label: 'Monthly base rent', kind: 'money', required: true, hint: IN_BASE_CURRENCY },
+    { name: 'monthly_market_rent', label: 'Monthly market rent', kind: 'money', required: true, hint: `The appraiser's or broker's market rent for the suite. ${IN_BASE_CURRENCY}` },
+  ],
+};
+
+/** Commercial property (T-066): common-area-maintenance expenses against recoveries, by year and category. */
+export const CRE_CAM_RECONCILIATION: TargetDefinition = {
+  target: 'CRE_CAM_RECONCILIATION',
+  label: 'CAM reconciliation',
+  fileName: 'cam-reconciliation.csv',
+  people: 'NONE',
+  refusesPeopleColumns: true,
+  evidenceType: 'cre.cam_category',
+  recordIdField: 'year',
+  recordIdFields: ['year', 'category'],
+  observedAtFields: [],
+  fields: [
+    { name: 'year', label: 'Year', kind: 'text', required: true, hint: 'Reconciliation year, YYYY.' },
+    { name: 'category', label: 'Category', kind: 'text', required: true, hint: 'e.g. Insurance, Security.' },
+    { name: 'expenses', label: 'Expenses', kind: 'money', required: true, hint: IN_BASE_CURRENCY },
+    { name: 'recoveries', label: 'Recoveries', kind: 'money', required: true, hint: `Billed back to tenants. ${IN_BASE_CURRENCY}` },
+  ],
+};
+
+/** Hotels (T-067): monthly operating history from the property-management system — no guest data. */
+export const HOTELS_OPERATING_HISTORY: TargetDefinition = {
+  target: 'HOTELS_OPERATING_HISTORY',
+  label: 'Operating history',
+  fileName: 'operating-history.csv',
+  people: 'NONE',
+  refusesPeopleColumns: true,
+  evidenceType: 'hotels.operating_month',
+  recordIdField: 'month',
+  observedAtFields: [],
+  fields: [
+    { name: 'month', label: 'Month', kind: 'text', required: true, hint: 'YYYY-MM.' },
+    { name: 'rooms_available', label: 'Rooms available', kind: 'decimal', required: true, hint: 'Room-nights available.' },
+    { name: 'rooms_sold', label: 'Rooms sold', kind: 'decimal', required: true, hint: 'Room-nights sold.' },
+    { name: 'adr', label: 'ADR', kind: 'money', required: true, hint: `Average daily rate. ${IN_BASE_CURRENCY}` },
+    { name: 'revpar', label: 'RevPAR', kind: 'money', required: true, hint: `Revenue per available room. ${IN_BASE_CURRENCY}` },
+    { name: 'room_revenue', label: 'Room revenue', kind: 'money', required: true, hint: IN_BASE_CURRENCY },
+    { name: 'fb_revenue', label: 'F&B revenue', kind: 'money', required: false, hint: IN_BASE_CURRENCY },
+    { name: 'gross_operating_profit', label: 'Gross operating profit', kind: 'money', required: false, hint: IN_BASE_CURRENCY },
+  ],
+};
+
+/** Hotels (T-067): an STR-style benchmark of the hotel against its competitive set. */
+export const HOTELS_STR_BENCHMARK: TargetDefinition = {
+  target: 'HOTELS_STR_BENCHMARK',
+  label: 'STR benchmark',
+  fileName: 'str-benchmark.csv',
+  people: 'NONE',
+  refusesPeopleColumns: true,
+  evidenceType: 'hotels.benchmark_month',
+  recordIdField: 'month',
+  observedAtFields: [],
+  fields: [
+    { name: 'month', label: 'Month', kind: 'text', required: true, hint: 'YYYY-MM.' },
+    { name: 'occupancy', label: 'Occupancy', kind: 'decimal', required: true, hint: 'A fraction, e.g. 0.734.' },
+    { name: 'adr', label: 'ADR', kind: 'money', required: true, hint: IN_BASE_CURRENCY },
+    { name: 'revpar', label: 'RevPAR', kind: 'money', required: true, hint: IN_BASE_CURRENCY },
+    { name: 'comp_set_revpar', label: 'Competitive-set RevPAR', kind: 'money', required: true, hint: IN_BASE_CURRENCY },
+  ],
+};
+
+/** Small clinics (T-068): visits and revenue by month, site and pseudonymous provider — never patients. */
+export const CLINICS_PATIENT_VOLUME: TargetDefinition = {
+  target: 'CLINICS_PATIENT_VOLUME',
+  label: 'Patient volume',
+  fileName: 'patient-volume.csv',
+  people: 'PSEUDONYMOUS',
+  refusesPeopleColumns: true,
+  evidenceType: 'clinics.volume_month',
+  recordIdField: 'month',
+  recordIdFields: ['month', 'site', 'provider_ref'],
+  observedAtFields: [],
+  fields: [
+    { name: 'month', label: 'Month', kind: 'text', required: true, hint: 'YYYY-MM.' },
+    { name: 'site', label: 'Site', kind: 'text', required: true, hint: 'Clinic site.' },
+    { name: 'provider_ref', label: 'Provider reference', kind: 'text', required: true, hint: 'A pseudonymous reference such as P07 — never a name or licence number.' },
+    { name: 'visits', label: 'Visits', kind: 'decimal', required: true, hint: 'Visits in the month (a count; no patient detail).' },
+    { name: 'revenue', label: 'Revenue', kind: 'money', required: true, hint: IN_BASE_CURRENCY },
+  ],
+};
+
+/** Small clinics (T-068): clinical equipment with acquisition date and useful life. */
+export const CLINICS_EQUIPMENT: TargetDefinition = {
+  target: 'CLINICS_EQUIPMENT',
+  label: 'Equipment schedule',
+  fileName: 'equipment-schedule.csv',
+  people: 'NONE',
+  refusesPeopleColumns: true,
+  evidenceType: 'clinics.equipment',
+  recordIdField: 'asset',
+  recordIdFields: ['asset', 'site'],
+  observedAtFields: [],
+  fields: [
+    { name: 'asset', label: 'Asset', kind: 'text', required: true, hint: 'e.g. Panoramic X-ray unit.' },
+    { name: 'site', label: 'Site', kind: 'text', required: true, hint: 'Where it is installed.' },
+    { name: 'acquired', label: 'Acquired', kind: 'date', required: true, hint: 'Acquisition or installation date.' },
+    { name: 'useful_life_years', label: 'Useful life (years)', kind: 'decimal', required: true, hint: 'The manufacturer’s or the accounting useful life.' },
+    { name: 'status', label: 'Status', kind: 'text', required: false, hint: 'e.g. in service.' },
+  ],
+};
+
+/** Small clinics (T-068): share of visits coded at the highest complexity, by quarter, against policy. */
+export const CLINICS_CODING_SUMMARY: TargetDefinition = {
+  target: 'CLINICS_CODING_SUMMARY',
+  label: 'Coding summary',
+  fileName: 'coding-summary.csv',
+  people: 'NONE',
+  refusesPeopleColumns: true,
+  evidenceType: 'clinics.coding_quarter',
+  recordIdField: 'quarter',
+  observedAtFields: [],
+  fields: [
+    { name: 'quarter', label: 'Quarter', kind: 'text', required: true, hint: 'e.g. 2026-Q3.' },
+    { name: 'high_complexity_share', label: 'High-complexity share', kind: 'decimal', required: true, hint: 'A fraction of visits, e.g. 0.36.' },
+    { name: 'policy_benchmark', label: 'Policy benchmark', kind: 'decimal', required: true, hint: 'The share the coding policy expects, e.g. 0.15.' },
+  ],
+};
+
+/** Hospitals (T-069): admissions, patient days and average daily census by month and service line — aggregates. */
+export const HOSPITALS_CENSUS: TargetDefinition = {
+  target: 'HOSPITALS_CENSUS',
+  label: 'Census',
+  fileName: 'census.csv',
+  people: 'NONE',
+  refusesPeopleColumns: true,
+  evidenceType: 'hospitals.census_month',
+  recordIdField: 'month',
+  recordIdFields: ['month', 'service_line'],
+  observedAtFields: [],
+  fields: [
+    { name: 'month', label: 'Month', kind: 'text', required: true, hint: 'YYYY-MM.' },
+    { name: 'service_line', label: 'Service line', kind: 'text', required: true, hint: 'e.g. Cardiology.' },
+    { name: 'admissions', label: 'Admissions', kind: 'decimal', required: true, hint: 'A count; no patient detail.' },
+    { name: 'patient_days', label: 'Patient days', kind: 'decimal', required: true, hint: 'Inpatient days in the month.' },
+    { name: 'average_daily_census', label: 'Average daily census', kind: 'decimal', required: false, hint: 'Patient days ÷ days in the month.' },
+  ],
+};
+
+/** Hospitals (T-069): gross charges and net revenue by month and payer. */
+export const HOSPITALS_PAYER_MIX: TargetDefinition = {
+  target: 'HOSPITALS_PAYER_MIX',
+  label: 'Payer mix',
+  fileName: 'payer-mix.csv',
+  people: 'NONE',
+  refusesPeopleColumns: true,
+  evidenceType: 'hospitals.payer_month',
+  recordIdField: 'month',
+  recordIdFields: ['month', 'payer'],
+  observedAtFields: [],
+  fields: [
+    { name: 'month', label: 'Month', kind: 'text', required: true, hint: 'YYYY-MM.' },
+    { name: 'payer', label: 'Payer', kind: 'text', required: true, hint: 'Payer or programme; never a patient.' },
+    { name: 'gross_charges', label: 'Gross charges', kind: 'money', required: true, hint: IN_BASE_CURRENCY },
+    { name: 'net_revenue', label: 'Net revenue', kind: 'money', required: true, hint: `After contractual allowances. ${IN_BASE_CURRENCY}` },
+  ],
+};
+
+/**
+ * Venture Raise (T-083): the cap table in a Carta/Pulley-like export shape,
+ * one row per security. Holders are pseudonymous references and a holder
+ * type — never names (rule 7).
+ */
+export const VENTURE_CAP_TABLE: TargetDefinition = {
+  target: 'VENTURE_CAP_TABLE',
+  label: 'Cap table',
+  fileName: 'cap-table.csv',
+  people: 'PSEUDONYMOUS',
+  refusesPeopleColumns: true,
+  evidenceType: 'venture.cap_table_row',
+  recordIdField: 'security_id',
+  observedAtFields: [],
+  fields: [
+    { name: 'security_id', label: 'Security id', kind: 'text', required: true, hint: 'The certificate, grant or instrument id, e.g. CS-1 or SAFE-2.' },
+    { name: 'holder_ref', label: 'Holder reference', kind: 'text', required: true, hint: 'A pseudonymous reference such as F-1 or E-07 — never a name.' },
+    { name: 'holder_type', label: 'Holder type', kind: 'code', required: true, hint: 'founder, employee, advisor, investor or pool.' },
+    { name: 'instrument', label: 'Instrument', kind: 'code', required: true, hint: 'common, preferred, option, pool_unallocated, safe or note.' },
+    { name: 'shares', label: 'Shares', kind: 'decimal', required: false, hint: 'Shares or options; empty for SAFEs and notes before they convert.' },
+    { name: 'principal', label: 'Principal', kind: 'money', required: false, hint: `Amount invested on a SAFE or note. ${IN_BASE_CURRENCY}` },
+    { name: 'valuation_cap', label: 'Valuation cap', kind: 'money', required: false, hint: `Post-money cap of a SAFE or note. ${IN_BASE_CURRENCY}` },
+    { name: 'discount_pct', label: 'Discount (%)', kind: 'decimal', required: false, hint: 'Discount to the round price, in percent (e.g. 20).' },
+    { name: 'mfn', label: 'Most-favoured-nation', kind: 'code', required: false, hint: 'yes when the SAFE takes better terms given later.' },
+    { name: 'pro_rata', label: 'Pro-rata right', kind: 'code', required: false, hint: 'yes or no.' },
+    { name: 'vesting', label: 'Subject to vesting', kind: 'code', required: false, hint: 'yes for founder or employee stock that vests.' },
+    { name: 'issued_on', label: 'Issued on', kind: 'date', required: false, hint: 'Issue or signing date.' },
+  ],
+};
+
+/** Venture Raise (T-083): cash and net burn by month, for runway. */
+export const VENTURE_FINANCIALS: TargetDefinition = {
+  target: 'VENTURE_FINANCIALS',
+  label: 'Monthly financials',
+  fileName: 'monthly-financials.csv',
+  people: 'NONE',
+  refusesPeopleColumns: true,
+  evidenceType: 'venture.financials_month',
+  recordIdField: 'month',
+  observedAtFields: [],
+  fields: [
+    { name: 'month', label: 'Month', kind: 'text', required: true, hint: 'YYYY-MM.' },
+    { name: 'cash_balance', label: 'Cash balance', kind: 'money', required: true, hint: `Bank balance at month end. ${IN_BASE_CURRENCY}` },
+    { name: 'net_burn', label: 'Net burn', kind: 'money', required: true, hint: `Cash out minus cash in for the month (positive when burning). ${IN_BASE_CURRENCY}` },
+  ],
+};
+
 export const IMPORT_TARGET_DEFINITIONS: Readonly<Record<ImportTarget, TargetDefinition>> = {
   BILLING_INVOICE_LINE,
   FINTECH_LOAN_TAPE,
@@ -208,6 +630,26 @@ export const IMPORT_TARGET_DEFINITIONS: Readonly<Record<ImportTarget, TargetDefi
   MULTIFAMILY_T12,
   MULTIFAMILY_DELINQUENCY,
   MULTIFAMILY_INSPECTION,
+  HEALTHCARE_CLAIMS_SUMMARY,
+  HEALTHCARE_PROVIDER_ROSTER,
+  TELECOM_SUBSCRIBERS,
+  SERVICES_TIMESHEETS,
+  SERVICES_HEADCOUNT,
+  PHARMA_PATENTS,
+  PHARMA_PIPELINE,
+  ECOMMERCE_COHORTS,
+  ECOMMERCE_AD_SPEND,
+  CRE_RENT_ROLL,
+  CRE_CAM_RECONCILIATION,
+  HOTELS_OPERATING_HISTORY,
+  HOTELS_STR_BENCHMARK,
+  CLINICS_PATIENT_VOLUME,
+  CLINICS_EQUIPMENT,
+  CLINICS_CODING_SUMMARY,
+  HOSPITALS_CENSUS,
+  HOSPITALS_PAYER_MIX,
+  VENTURE_CAP_TABLE,
+  VENTURE_FINANCIALS,
 };
 
 /**

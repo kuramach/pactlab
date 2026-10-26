@@ -36,7 +36,15 @@ export interface ValuationResultView {
         presentValueOfTerminal: MoneyValue;
         presentValueOfCashFlows?: MoneyValue;
       }
-    | { method: 'NOI_CAP_RATE'; noi: MoneyValue; capRate: string };
+    | { method: 'NOI_CAP_RATE'; noi: MoneyValue; capRate: string }
+    | {
+        method: 'PAYER_MIX_EBITDA';
+        reportedEbitda: MoneyValue;
+        adjustedEbitda: MoneyValue;
+        multiple: string;
+        payers: { payer: string; share: string; rateChange: string; ebitdaEffect: MoneyValue }[];
+      }
+    | { method: 'ROUND_PRE_MONEY'; preMoney: MoneyValue };
   enterpriseValue: MoneyValue;
   bridge: { lines: BridgeLine[]; equityPurchasePrice: MoneyValue; cashAtClose: MoneyValue };
   sensitivity: {
@@ -109,6 +117,13 @@ export function describeGap(side: AskingSide): string {
   return `${decimals ? `${whole}.${decimals}` : whole}% ${negative ? 'below' : 'above'} asking`;
 }
 
+/** One payer row of a payer-mix-adjusted EBITDA (fractions as decimal strings). */
+export interface PayerRow {
+  payer: string;
+  share: string;
+  rateChange: string;
+}
+
 export interface RunInputsView {
   assumptions:
     | { method: 'ARR_MULTIPLE'; arr: string; multiple: string }
@@ -119,7 +134,9 @@ export interface RunInputsView {
         discountRate: string;
         terminal: { kind: 'GORDON'; growth: string } | { kind: 'EXIT_MULTIPLE'; revenueMultiple: string };
       }
-    | { method: 'NOI_CAP_RATE'; noi: string; capRate: string };
+    | { method: 'NOI_CAP_RATE'; noi: string; capRate: string }
+    | { method: 'PAYER_MIX_EBITDA'; ebitda: string; netRevenue: string; multiple: string; payers: PayerRow[] }
+    | { method: 'ROUND_PRE_MONEY'; preMoney: string };
   adjustments: {
     findingId: string;
     type: string;
@@ -212,15 +229,20 @@ export function describeStaleReason(reason: StaleReason): string {
 
 export const SENSITIVITY_LABELS: Readonly<Record<string, string>> = {
   arr: 'ARR',
-  multiple: 'ARR multiple',
+  // ARR or EBITDA multiple, by the scenario's method.
+  multiple: 'Multiple',
   discountRate: 'Discount rate',
   terminalGrowth: 'Terminal growth',
   terminalMultiple: 'Terminal revenue multiple',
+  noi: 'Net operating income',
+  capRate: 'Cap rate',
+  ebitda: 'Reported EBITDA',
+  preMoney: 'Pre-money valuation',
 };
 
 /** Rates are fractions; multiples and amounts are shown as given. */
 export function isRateVariable(variable: string): boolean {
-  return variable === 'discountRate' || variable === 'terminalGrowth';
+  return variable === 'discountRate' || variable === 'terminalGrowth' || variable === 'capRate';
 }
 
 /** Bridge subtotals are emphasised; signed contributions are not. */

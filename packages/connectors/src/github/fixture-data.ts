@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import type { CommitMetadata, ContributorIdentity } from '@pactlab/domain';
+import { SCALECO_REPOSITORY, scalecoRepository } from './scale-fixture';
 import type { CheckSummary, PullRequestMetadata, ReviewSummary } from './types';
 
 /**
@@ -240,5 +241,9 @@ export const GITHUB_FIXTURES: Readonly<Record<string, GitHubFixtureRepository>> 
     commits: sparseCommits,
     identityMap: current('sc-dev-01', 'sc-dev-1', 'sc-dev-02'),
     ...plannedPulls(sparseCommits, { size: 5, open: 0, reviewer: () => null, failing: () => false }),
+  },
+  // 3,000 engineers (T-055), generated the first time it is read.
+  get [SCALECO_REPOSITORY]() {
+    return scalecoRepository();
   },
 };

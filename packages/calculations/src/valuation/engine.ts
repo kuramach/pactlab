@@ -15,6 +15,7 @@ import {
   type LboResult,
   type MethodAssumptions,
   type MethodResult,
+  type PayerMixEbitdaAssumptions,
   type PurchasePriceBridge,
   type SensitivityResult,
   type SensitivityVariable,
@@ -128,6 +129,12 @@ interface MethodEngine<A extends MethodAssumptions> {
   readonly finite?: (assumptions: A) => boolean;
 }
 
+/** Each payer's rate change on its share of net revenue, flowing straight to EBITDA. */
+function payerMixEbitda(assumptions: PayerMixEbitdaAssumptions) {
+  const effects = assumptions.payers.map((payer) => new D(assumptions.netRevenue).times(payer.share).times(payer.rateChange));
+  return { effects, adjusted: new D(assumptions.ebitda).plus(sum(effects)) };
+}
+
 const METHOD_ENGINES: { readonly [K in MethodAssumptions['method']]: MethodEngine<Extract<MethodAssumptions, { method: K }>> } = {
   ARR_MULTIPLE: {
     enterpriseValue: (assumptions) => new D(assumptions.arr).times(assumptions.multiple),
@@ -170,6 +177,26 @@ const METHOD_ENGINES: { readonly [K in MethodAssumptions['method']]: MethodEngin
     finite: (assumptions) =>
       new D(assumptions.discountRate).greaterThan(0) &&
       !(assumptions.terminal.kind === 'GORDON' && new D(assumptions.terminal.growth).greaterThanOrEqualTo(assumptions.discountRate)),
+  },
+  PAYER_MIX_EBITDA: {
+    enterpriseValue: (assumptions) => payerMixEbitda(assumptions).adjusted.times(assumptions.multiple),
+    result: (assumptions, currency) => {
+      const computed = payerMixEbitda(assumptions);
+      return {
+        method: 'PAYER_MIX_EBITDA',
+        reportedEbitda: money(new D(assumptions.ebitda), currency),
+        adjustedEbitda: money(computed.adjusted, currency),
+        multiple: assumptions.multiple,
+        payers: assumptions.payers.map((payer, index) => ({ ...payer, ebitdaEffect: money(computed.effects[index] ?? new D(0), currency) })),
+      };
+    },
+    override: (assumptions, variable, value) =>
+      variable === 'ebitda' ? { ...assumptions, ebitda: value } : { ...assumptions, multiple: value },
+  },
+  ROUND_PRE_MONEY: {
+    enterpriseValue: (assumptions) => new D(assumptions.preMoney),
+    result: (assumptions, currency) => ({ method: 'ROUND_PRE_MONEY', preMoney: money(new D(assumptions.preMoney), currency) }),
+    override: (assumptions, _variable, value) => ({ ...assumptions, preMoney: value }),
   },
   NOI_CAP_RATE: {
     enterpriseValue: (assumptions) => new D(assumptions.noi).div(assumptions.capRate),
