@@ -11,6 +11,8 @@ export const IMPORT_TARGETS = [
   'MULTIFAMILY_T12',
   'MULTIFAMILY_DELINQUENCY',
   'MULTIFAMILY_INSPECTION',
+  'HEALTHCARE_CLAIMS_SUMMARY',
+  'HEALTHCARE_PROVIDER_ROSTER',
 ] as const;
 export type ImportTarget = (typeof IMPORT_TARGETS)[number];
 
@@ -43,6 +45,8 @@ export interface TargetDefinition {
   readonly refusesPeopleColumns: boolean;
   readonly evidenceType: string;
   readonly recordIdField: string;
+  /** When one column is not unique (e.g. month and payer), the columns that together identify a record. */
+  readonly recordIdFields?: readonly string[];
   /** Field used as the observation date, falling back in order. */
   readonly observedAtFields: readonly string[];
   readonly fields: readonly TargetField[];
@@ -200,6 +204,45 @@ export const MULTIFAMILY_INSPECTION: TargetDefinition = {
   ],
 };
 
+/** Healthcare (T-061): claims by payer and month — never patient-level data. */
+export const HEALTHCARE_CLAIMS_SUMMARY: TargetDefinition = {
+  target: 'HEALTHCARE_CLAIMS_SUMMARY',
+  label: 'Claims summary',
+  fileName: 'claims-summary.csv',
+  people: 'NONE',
+  refusesPeopleColumns: true,
+  evidenceType: 'healthcare.claims_month',
+  recordIdField: 'month',
+  recordIdFields: ['month', 'payer'],
+  observedAtFields: [],
+  fields: [
+    { name: 'month', label: 'Month', kind: 'text', required: true, hint: 'YYYY-MM.' },
+    { name: 'payer', label: 'Payer', kind: 'text', required: true, hint: 'Payer or programme name; never a patient.' },
+    { name: 'claims', label: 'Claims', kind: 'decimal', required: true, hint: 'Claims submitted in the month.' },
+    { name: 'billed', label: 'Billed', kind: 'money', required: true, hint: IN_BASE_CURRENCY },
+    { name: 'paid', label: 'Paid', kind: 'money', required: true, hint: IN_BASE_CURRENCY },
+    { name: 'denial_rate_pct', label: 'Denial rate (%)', kind: 'decimal', required: true, hint: 'Share of claims denied, in percent.' },
+  ],
+};
+
+/** Healthcare (T-061): providers as pseudonymous references, with FTE and credential expiry. */
+export const HEALTHCARE_PROVIDER_ROSTER: TargetDefinition = {
+  target: 'HEALTHCARE_PROVIDER_ROSTER',
+  label: 'Provider roster',
+  fileName: 'provider-roster.csv',
+  people: 'PSEUDONYMOUS',
+  refusesPeopleColumns: true,
+  evidenceType: 'healthcare.provider',
+  recordIdField: 'provider_ref',
+  observedAtFields: [],
+  fields: [
+    { name: 'provider_ref', label: 'Provider reference', kind: 'text', required: true, hint: 'A pseudonymous reference such as PR-07 — never a name or licence number.' },
+    { name: 'specialty', label: 'Specialty', kind: 'text', required: true, hint: 'e.g. Primary care.' },
+    { name: 'fte', label: 'FTE', kind: 'decimal', required: true, hint: 'Full-time equivalent, e.g. 0.6.' },
+    { name: 'credential_expiry', label: 'Credential expiry', kind: 'date', required: true, hint: 'When the provider’s licence or credential lapses.' },
+  ],
+};
+
 export const IMPORT_TARGET_DEFINITIONS: Readonly<Record<ImportTarget, TargetDefinition>> = {
   BILLING_INVOICE_LINE,
   FINTECH_LOAN_TAPE,
@@ -208,6 +251,8 @@ export const IMPORT_TARGET_DEFINITIONS: Readonly<Record<ImportTarget, TargetDefi
   MULTIFAMILY_T12,
   MULTIFAMILY_DELINQUENCY,
   MULTIFAMILY_INSPECTION,
+  HEALTHCARE_CLAIMS_SUMMARY,
+  HEALTHCARE_PROVIDER_ROSTER,
 };
 
 /**

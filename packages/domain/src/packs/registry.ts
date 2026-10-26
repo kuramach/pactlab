@@ -62,7 +62,13 @@ export const PACKS: Readonly<Record<PackId, PackDefinition>> = {
     importTargets: ['BILLING_INVOICE_LINE', 'FINTECH_LOAN_TAPE', 'FINTECH_AML_ALERT'],
     findingRules: ['fintech-credit-loss', 'fintech-aml-unreviewed', 'fintech-partner-bank-coc'],
   },
-  HEALTHCARE: pack('HEALTHCARE', 'healthcare', 'healthcare'),
+  HEALTHCARE: {
+    ...pack('HEALTHCARE', 'healthcare', 'healthcare', true),
+    importTargets: ['BILLING_INVOICE_LINE', 'HEALTHCARE_CLAIMS_SUMMARY', 'HEALTHCARE_PROVIDER_ROSTER'],
+    findingRules: ['healthcare-government-concentration', 'healthcare-director-fee', 'healthcare-privacy-assessment', 'healthcare-credentials-expiring'],
+    // Healthtech targets also run the software path (ARR multiple); services value on DCF.
+    valuationMethods: ['DCF', 'ARR_MULTIPLE'],
+  },
   TELECOM_MEDIA: pack('TELECOM_MEDIA', 'telecom-media', 'technology'),
   PROFESSIONAL_SERVICES: pack('PROFESSIONAL_SERVICES', 'professional-services', 'services'),
   PHARMA_BIOTECH: pack('PHARMA_BIOTECH', 'pharma-biotech', 'life-sciences'),
