@@ -16,6 +16,7 @@
     "test:fixtures": "turbo run test:fixtures",
     "test:e2e": "pnpm --filter @pactlab/e2e test:e2e",
     "test:e2e:full": "pnpm --filter @pactlab/e2e test:e2e:full",
+    "test:live": "pnpm --filter @pactlab/connectors test:live",
     "seed": "turbo run seed",
     "format": "prettier --write .",
     "format:check": "prettier --check .",

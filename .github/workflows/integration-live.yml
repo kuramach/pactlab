@@ -1,0 +1,29 @@
+name: integration-live
+# Live smoke tests against the public Apache Kafka pair (T-074): apache/kafka on
+# GitHub and project KAFKA on issues.apache.org/jira, read-only. Never part of
+# the PR gate — the gate replays recorded cassettes. Runs nightly and on demand;
+# assertions are shapes and invariants, so upstream churn does not fail it.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '30 6 * * *'
+
+permissions:
+  contents: read
+
+jobs:
+  live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # The workflow token reads public repositories at the authenticated rate limit; Jira is anonymous.
+      - run: pnpm test:live
+        env:
+          GITHUB_TOKEN: ${{ github.token }}

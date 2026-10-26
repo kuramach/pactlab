@@ -13,6 +13,8 @@ import {
   type JiraPerson,
   type JiraSprint,
   type JiraStatusCategory,
+  JIRA_ISSUE_KEY,
+  MAX_KEYS_PER_LOOKUP,
 } from './types';
 
 export const JIRA_LIVE_VERSION = 'jira-live-1';
@@ -285,7 +287,14 @@ export class JiraLiveAdapter implements JiraAdapter {
   /** One JQL search page in either flavour. */
   private async search(scope: ConnectionScope, jql: string, fields: readonly string[], cursor: string | null, limit: number, changelog: boolean) {
     const maxResults = String(Math.min(Math.max(1, Math.trunc(limit)), MAX_PAGE));
-    const common = { jql, maxResults, fields: fields.join(','), ...(changelog ? { expand: 'changelog' } : {}) };
+    const common = {
+      jql,
+      maxResults,
+      fields: fields.join(','),
+      ...(changelog ? { expand: 'changelog' } : {}),
+      // Data Center: a key that names no issue is a warning, not a failed query.
+      ...(this.cloud ? {} : { validateQuery: 'warn' }),
+    };
     if (this.cloud) {
       if (cursor !== null && !/^[A-Za-z0-9_\-=.+/]{1,2048}$/.test(cursor)) throw new JiraAdapterError('INVALID_CURSOR', 'Invalid cursor');
       const body = await this.get<{ issues?: RawIssue[]; nextPageToken?: string; isLast?: boolean }>(scope, `${this.api}/search/jql`, {
@@ -305,9 +314,7 @@ export class JiraLiveAdapter implements JiraAdapter {
   async listIssues(scope: ConnectionScope, options: { cursor: string | null; limit: number }): Promise<JiraIssuePage> {
     const meta = await this.siteMeta(scope);
     if (meta.readable.length === 0) throw new JiraAdapterError('PERMISSION_DENIED', 'None of the configured projects is readable');
-    const fields = ['issuetype', 'status', 'priority', 'created', 'resolutiondate', 'assignee', 'reporter', 'comment', meta.storyPointsField, meta.sprintField].filter(
-      (field): field is string => Boolean(field),
-    );
+    const fields = this.issueFields(meta);
     const jql = `project in (${meta.readable.join(', ')}) ORDER BY created ASC, key ASC`;
     const page = await this.search(scope, jql, fields, options.cursor, options.limit, true);
     const issues = page.issues.map((raw) => this.issueOf(raw, meta)).filter((issue): issue is JiraIssue => issue !== null);
@@ -319,6 +326,21 @@ export class JiraLiveAdapter implements JiraAdapter {
     }
     if (page.issues.some((raw) => !raw.changelog)) gaps.push({ code: 'MISSING_FIELD', detail: 'Issue history was not returned, so reopen counts read as zero for some issues' });
     return { issues, nextCursor: page.next, gaps };
+  }
+
+  private issueFields(meta: SiteMeta): string[] {
+    return ['issuetype', 'status', 'priority', 'created', 'resolutiondate', 'assignee', 'reporter', 'comment', meta.storyPointsField, meta.sprintField].filter(
+      (field): field is string => Boolean(field),
+    );
+  }
+
+  async issuesByKey(scope: ConnectionScope, keys: readonly string[]): Promise<readonly JiraIssue[]> {
+    if (keys.length > MAX_KEYS_PER_LOOKUP || !keys.every((key) => JIRA_ISSUE_KEY.test(key))) throw new JiraAdapterError('INVALID_CURSOR', 'Invalid issue keys');
+    const meta = await this.siteMeta(scope);
+    const wanted = keys.filter((key) => meta.readable.includes(key.split('-')[0] ?? ''));
+    if (wanted.length === 0) return [];
+    const page = await this.search(scope, `key in (${wanted.join(', ')}) ORDER BY key ASC`, this.issueFields(meta), null, MAX_KEYS_PER_LOOKUP, true);
+    return page.issues.map((raw) => this.issueOf(raw, meta)).filter((issue): issue is JiraIssue => issue !== null);
   }
 
   private issueOf(raw: RawIssue, meta: SiteMeta): JiraIssue | null {

@@ -1,27 +1,9 @@
 import { readdir, readFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
 import type { Cassette } from './cassette';
+import { CASSETTE_KEYS as ALLOWED_KEYS } from './cassette-allowlist';
 
 const ROOT = new URL('../../../../fixtures/cassettes/', import.meta.url);
-
-/** Keys a sanitized cassette may contain anywhere in a response body, per provider. */
-const ALLOWED_KEYS: Readonly<Record<string, ReadonlySet<string>>> = {
-  github: new Set([
-    'full_name', 'default_branch', 'visibility', 'sha', 'commit', 'author', 'committer', 'date', 'email', 'login',
-    'stats', 'additions', 'deletions', 'total', 'files', 'filename', 'message',
-    // Pull requests, reviews and check runs (T-082).
-    'number', 'state', 'draft', 'title', 'user', 'created_at', 'closed_at', 'merged_at', 'head', 'base', 'ref',
-    'total_count', 'check_runs', 'status', 'conclusion',
-  ]),
-  // Jira REST v2/v3 and Agile 1.0 shapes (T-082); hand-built, synthetic people only.
-  jira: new Set([
-    'deploymentType', 'id', 'name', 'schema', 'custom', 'statusCategory', 'key', 'errorMessages', 'accountId',
-    'startAt', 'maxResults', 'total', 'issues', 'fields', 'issuetype', 'status', 'priority', 'created', 'resolutiondate',
-    'assignee', 'reporter', 'displayName', 'comment', 'changelog', 'histories', 'items', 'field', 'from', 'to',
-    'nextPageToken', 'isLast', 'values', 'type', 'state', 'boardId', 'startDate', 'endDate',
-    'customfield_12310293', 'customfield_12310940', 'customfield_10016', 'customfield_10020',
-  ]),
-};
 
 /** Every `login` anywhere in a body. */
 function logins(value: unknown, found: string[] = []): string[] {

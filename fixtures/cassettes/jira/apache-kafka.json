@@ -1,0 +1,3733 @@
+{
+  "cassetteVersion": 1,
+  "provider": "jira",
+  "source": "https://issues.apache.org/jira, project KAFKA (Jira Data Center, anonymous; recorded by packages/connectors/scripts/record-cassettes.ts for T-074): people pseudonymised, bodies pruned to the allow-list",
+  "recordedAt": "2026-10-25T22:30:34.259Z",
+  "interactions": [
+    {
+      "request": {
+        "method": "GET",
+        "path": "/jira/rest/api/2/serverInfo",
+        "query": ""
+      },
+      "response": {
+        "status": 200,
+        "headers": {},
+        "body": {
+          "deploymentType": "Server"
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/jira/rest/api/2/field",
+        "query": ""
+      },
+      "response": {
+        "status": 200,
+        "headers": {},
+        "body": [
+          {
+            "id": "resolution",
+            "name": "Resolution",
+            "custom": false,
+            "schema": {
+              "type": "resolution"
+            }
+          },
+          {
+            "id": "customfield_12312322",
+            "name": "Git Notification Mailing List",
+            "custom": true,
+            "schema": {
+              "type": "string",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:textfield"
+            }
+          },
+          {
+            "id": "customfield_12314622",
+            "name": "required-knowledge",
+            "custom": true,
+            "schema": {
+              "type": "string",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:textarea"
+            }
+          },
+          {
+            "id": "customfield_12312323",
+            "name": "Github Integration",
+            "custom": true,
+            "schema": {
+              "type": "option",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+            }
+          },
+          {
+            "id": "customfield_12314621",
+            "name": "difficulty-level",
+            "custom": true,
+            "schema": {
+              "type": "option",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+            }
+          },
+          {
+            "id": "customfield_12312320",
+            "name": "Git Repository Name",
+            "custom": true,
+            "schema": {
+              "type": "string",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:textfield"
+            }
+          },
+          {
+            "id": "customfield_12314620",
+            "name": "potential-mentor",
+            "custom": true,
+            "schema": {
+              "type": "array",
+              "items": "user",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker"
+            }
+          },
+          {
+            "id": "customfield_12312321",
+            "name": "Git Repository Type",
+            "custom": true,
+            "schema": {
+              "type": "option",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+            }
+          },
+          {
+            "id": "customfield_12310020",
+            "name": "Cc",
+            "custom": true,
+            "schema": {
+              "type": "string",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:textfield"
+            }
+          },
+          {
+            "id": "customfield_12312328",
+            "name": "Blog Administrator?",
+            "custom": true,
+            "schema": {
+              "type": "option",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+            }
+          },
+          {
+            "id": "customfield_12312329",
+            "name": "Blogs - Admin for blog",
+            "custom": true,
+            "schema": {
+              "type": "string",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:textfield"
+            }
+          },
+          {
+            "id": "customfield_12312326",
+            "name": "Blogs - Username",
+            "custom": true,
+            "schema": {
+              "type": "string",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:textfield"
+            }
+          },
+          {
+            "id": "customfield_12312327",
+            "name": "Blogs - Email Address",
+            "custom": true,
+            "schema": {
+              "type": "string",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:textfield"
+            }
+          },
+          {
+            "id": "customfield_12312324",
+            "name": "Git Repository Import Path",
+            "custom": true,
+            "schema": {
+              "type": "string",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:url"
+            }
+          },
+          {
+            "id": "customfield_12312325",
+            "name": "New-TLP-TLPName",
+            "custom": true,
+            "schema": {
+              "type": "string",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:textfield"
+            }
+          },
+          {
+            "id": "customfield_12314623",
+            "name": "useful-knowledge",
+            "custom": true,
+            "schema": {
+              "type": "string",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:textarea"
+            }
+          },
+          {
+            "id": "lastViewed",
+            "name": "Last Viewed",
+            "custom": false,
+            "schema": {
+              "type": "datetime"
+            }
+          },
+          {
+            "id": "labels",
+            "name": "Labels",
+            "custom": false,
+            "schema": {
+              "type": "array",
+              "items": "string"
+            }
+          },
+          {
+            "id": "customfield_12312333",
+            "name": "Blogs - New Blog Write Access",
+            "custom": true,
+            "schema": {
+              "type": "string",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:textarea"
+            }
+          },
+          {
+            "id": "customfield_12311123",
+            "name": "Epic Colour",
+            "custom": true,
+            "schema": {
+              "type": "string",
+              "custom": "com.pyxis.greenhopper.jira:gh-epic-color"
+            }
+          },
+          {
+            "id": "customfield_12312334",
+            "name": "Blogs - Existing Blog Name",
+            "custom": true,
+            "schema": {
+              "type": "string",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:textfield"
+            }
+          },
+          {
+            "id": "customfield_12313422",
+            "name": "Enable Automatic Patch Review",
+            "custom": true,
+            "schema": {
+              "type": "string",
+              "custom": "com.atlassian.jirafisheyeplugin:jobcheckbox"
+            }
+          },
+          {
+            "id": "customfield_12311124",
+            "name": "Tester",
+            "custom": true,
+            "schema": {
+              "type": "user",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker"
+            }
+          },
+          {
+            "id": "customfield_12312331",
+            "name": "Blog - New Blog PMC",
+            "custom": true,
+            "schema": {
+              "type": "string",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:textfield"
+            }
+          },
+          {
+            "id": "customfield_12311121",
+            "name": "Epic Name",
+            "custom": true,
+            "schema": {
+              "type": "string",
+              "custom": "com.pyxis.greenhopper.jira:gh-epic-label"
+            }
+          },
+          {
+            "id": "customfield_12312332",
+            "name": "Blog - New Blog Administrators",
+            "custom": true,
+            "schema": {
+              "type": "string",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:textarea"
+            }
+          },
+          {
+            "id": "customfield_12311122",
+            "name": "Epic Status",
+            "custom": true,
+            "schema": {
+              "type": "option",
+              "custom": "com.pyxis.greenhopper.jira:gh-epic-status"
+            }
+          },
+          {
+            "id": "customfield_12313420",
+            "name": "Reviewers",
+            "custom": true,
+            "schema": {
+              "type": "array",
+              "items": "user",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker"
+            }
+          },
+          {
+            "id": "aggregatetimeoriginalestimate",
+            "name": "Σ Original Estimate",
+            "custom": false,
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "id": "customfield_12310271",
+            "name": "Backport to Version",
+            "custom": true,
+            "schema": {
+              "type": "array",
+              "items": "version",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:multiversion"
+            }
+          },
+          {
+            "id": "customfield_12310150",
+            "name": "Bugtraq ID",
+            "custom": true,
+            "schema": {
+              "type": "string",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:textfield"
+            }
+          },
+          {
+            "id": "customfield_12312330",
+            "name": "Blog - Write access",
+            "custom": true,
+            "schema": {
+              "type": "string",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:textarea"
+            }
+          },
+          {
+            "id": "customfield_12311120",
+            "name": "Epic Link",
+            "custom": true,
+            "schema": {
+              "type": "any",
+              "custom": "com.pyxis.greenhopper.jira:gh-epic-link"
+            }
+          },
+          {
+            "id": "customfield_12310270",
+            "name": "Skill Level",
+            "custom": true,
+            "schema": {
+              "type": "option",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+            }
+          },
+          {
+            "id": "issuelinks",
+            "name": "Linked Issues",
+            "custom": false,
+            "schema": {
+              "type": "array",
+              "items": "issuelinks"
+            }
+          },
+          {
+            "id": "customfield_12312339",
+            "name": "Bugzilla - List of usernames",
+            "custom": true,
+            "schema": {
+              "type": "string",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:textarea"
+            }
+          },
+          {
+            "id": "assignee",
+            "name": "Assignee",
+            "custom": false,
+            "schema": {
+              "type": "user"
+            }
+          },
+          {
+            "id": "customfield_12312337",
+            "name": "Bugzilla - PMC Name",
+            "custom": true,
+            "schema": {
+              "type": "string",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:textfield"
+            }
+          },
+          {
+            "id": "customfield_12312338",
+            "name": "Bugzilla - Email Notification Address",
+            "custom": true,
+            "schema": {
+              "type": "string",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:textfield"
+            }
+          },
+          {
+            "id": "customfield_12311920",
+            "name": "issueFunction",
+            "custom": true,
+            "schema": {
+              "type": "any",
+              "custom": "com.onresolve.jira.groovy.groovyrunner:jqlFunctionsCustomFieldType"
+            }
+          },
+          {
+            "id": "customfield_12312335",
+            "name": "Blogs - Existing Blog Access Level",
+            "custom": true,
+            "schema": {
+              "type": "option",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+            }
+          },
+          {
+            "id": "customfield_12312336",
+            "name": "Bugzilla - Project Name",
+            "custom": true,
+            "schema": {
+              "type": "string",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:textfield"
+            }
+          },
+          {
+            "id": "components",
+            "name": "Component/s",
+            "custom": false,
+            "schema": {
+              "type": "array",
+              "items": "component"
+            }
+          },
+          {
+            "id": "customfield_12312421",
+            "name": "Code Review",
+            "custom": true,
+            "schema": {
+              "type": "string",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:url"
+            }
+          },
+          {
+            "id": "customfield_12314721",
+            "name": "Proposed Name Derivation",
+            "custom": true,
+            "schema": {
+              "type": "string",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:textarea"
+            }
+          },
+          {
+            "id": "customfield_12310120",
+            "name": "Lucene Fields",
+            "custom": true,
+            "schema": {
+              "type": "array",
+              "items": "option",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:multicheckboxes"
+            }
+          },
+          {
+            "id": "customfield_12314720",
+            "name": "Proper Noun",
+            "custom": true,
+            "schema": {
+              "type": "option",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+            }
+          },
+          {
+            "id": "customfield_12310921",
+            "name": "Sprint",
+            "custom": true,
+            "schema": {
+              "type": "array",
+              "items": "string",
+              "custom": "com.pyxis.greenhopper.jira:gh-sprint"
+            }
+          },
+          {
+            "id": "customfield_12310920",
+            "name": "Rank (Obsolete)",
+            "custom": true,
+            "schema": {
+              "type": "any",
+              "custom": "com.pyxis.greenhopper.jira:gh-global-rank"
+            }
+          },
+          {
+            "id": "subtasks",
+            "name": "Sub-Tasks",
+            "custom": false,
+            "schema": {
+              "type": "array",
+              "items": "issuelinks"
+            }
+          },
+          {
+            "id": "reporter",
+            "name": "Reporter",
+            "custom": false,
+            "schema": {
+              "type": "user"
+            }
+          },
+          {
+            "id": "customfield_12313520",
+            "name": "Review Patch?",
+            "custom": true,
+            "schema": {
+              "type": "array",
+              "items": "option",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:multicheckboxes"
+            }
+          },
+          {
+            "id": "customfield_12310250",
+            "name": "Flags",
+            "custom": true,
+            "schema": {
+              "type": "array",
+              "items": "option",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:multicheckboxes"
+            }
+          },
+          {
+            "id": "progress",
+            "name": "Progress",
+            "custom": false,
+            "schema": {
+              "type": "progress"
+            }
+          },
+          {
+            "id": "votes",
+            "name": "Votes",
+            "custom": false,
+            "schema": {
+              "type": "votes"
+            }
+          },
+          {
+            "id": "worklog",
+            "name": "Log Work",
+            "custom": false,
+            "schema": {
+              "type": "array",
+              "items": "worklog"
+            }
+          },
+          {
+            "id": "archivedby",
+            "name": "Archiver",
+            "custom": false,
+            "schema": {
+              "type": "user"
+            }
+          },
+          {
+            "id": "issuetype",
+            "name": "Issue Type",
+            "custom": false,
+            "schema": {
+              "type": "issuetype"
+            }
+          },
+          {
+            "id": "project",
+            "name": "Project",
+            "custom": false,
+            "schema": {
+              "type": "project"
+            }
+          },
+          {
+            "id": "customfield_12310060",
+            "name": "Estimated Complexity",
+            "custom": true,
+            "schema": {
+              "type": "option",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+            }
+          },
+          {
+            "id": "customfield_12310180",
+            "name": "Workaround",
+            "custom": true,
+            "schema": {
+              "type": "string",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:textarea"
+            }
+          },
+          {
+            "id": "customfield_12311036",
+            "name": "Severity",
+            "custom": true,
+            "schema": {
+              "type": "option",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+            }
+          },
+          {
+            "id": "customfield_12314422",
+            "name": "Start Date",
+            "custom": true,
+            "schema": {
+              "type": "date",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:datepicker"
+            }
+          },
+          {
+            "id": "customfield_12311033",
+            "name": "Status Whiteboard",
+            "custom": true,
+            "schema": {
+              "type": "string",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:textfield"
+            }
+          },
+          {
+            "id": "customfield_12311034",
+            "name": "External issue ID",
+            "custom": true,
+            "schema": {
+              "type": "string",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:textfield"
+            }
+          },
+          {
+            "id": "customfield_12314421",
+            "name": "Language",
+            "custom": true,
+            "schema": {
+              "type": "array",
+              "items": "string",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:labels"
+            }
+          },
+          {
+            "id": "customfield_12314420",
+            "name": "Mentor",
+            "custom": true,
+            "schema": {
+              "type": "user",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker"
+            }
+          },
+          {
+            "id": "customfield_12311031",
+            "name": "Severity",
+            "custom": true,
+            "schema": {
+              "type": "option",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+            }
+          },
+          {
+            "id": "customfield_12311032",
+            "name": "Priority",
+            "custom": true,
+            "schema": {
+              "type": "option",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+            }
+          },
+          {
+            "id": "resolutiondate",
+            "name": "Resolved",
+            "custom": false,
+            "schema": {
+              "type": "datetime"
+            }
+          },
+          {
+            "id": "customfield_12312923",
+            "name": "Existing GitBox Approval",
+            "custom": true,
+            "schema": {
+              "type": "option",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+            }
+          },
+          {
+            "id": "customfield_12310620",
+            "name": "Evidence Of Use On World Wide Web",
+            "custom": true,
+            "schema": {
+              "type": "string",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:textarea"
+            }
+          },
+          {
+            "id": "customfield_12312920",
+            "name": "Protected Branch",
+            "custom": true,
+            "schema": {
+              "type": "string",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:textfield"
+            }
+          },
+          {
+            "id": "customfield_12312921",
+            "name": "GitHub Options",
+            "custom": true,
+            "schema": {
+              "type": "string",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:textarea"
+            }
+          },
+          {
+            "id": "customfield_12311037",
+            "name": "Priority",
+            "custom": true,
+            "schema": {
+              "type": "option",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+            }
+          },
+          {
+            "id": "customfield_12311038",
+            "name": "Status Whiteboard",
+            "custom": true,
+            "schema": {
+              "type": "string",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:textfield"
+            }
+          },
+          {
+            "id": "watches",
+            "name": "Watchers",
+            "custom": false,
+            "schema": {
+              "type": "watches"
+            }
+          },
+          {
+            "id": "customfield_12310192",
+            "name": "Release Note",
+            "custom": true,
+            "schema": {
+              "type": "string",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:textarea"
+            }
+          },
+          {
+            "id": "customfield_12310191",
+            "name": "Hadoop Flags",
+            "custom": true,
+            "schema": {
+              "type": "array",
+              "items": "option",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:multicheckboxes"
+            }
+          },
+          {
+            "id": "customfield_10022",
+            "name": "Reviewer",
+            "custom": true,
+            "schema": {
+              "type": "user",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker"
+            }
+          },
+          {
+            "id": "customfield_10023",
+            "name": "Fix priority",
+            "custom": true,
+            "schema": {
+              "type": "option",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+            }
+          },
+          {
+            "id": "customfield_10024",
+            "name": "Xalan info",
+            "custom": true,
+            "schema": {
+              "type": "array",
+              "items": "option",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:multicheckboxes"
+            }
+          },
+          {
+            "id": "updated",
+            "name": "Updated",
+            "custom": false,
+            "schema": {
+              "type": "datetime"
+            }
+          },
+          {
+            "id": "customfield_12311720",
+            "name": "Cloudstack-CVSS",
+            "custom": true,
+            "schema": {
+              "type": "number",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:float"
+            }
+          },
+          {
+            "id": "timeoriginalestimate",
+            "name": "Original Estimate",
+            "custom": false,
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "id": "description",
+            "name": "Description",
+            "custom": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "id": "customfield_10010",
+            "name": "Bugzilla Id",
+            "custom": true,
+            "schema": {
+              "type": "number",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:importid"
+            }
+          },
+          {
+            "id": "customfield_12310280",
+            "name": "Codeplex ID",
+            "custom": true,
+            "schema": {
+              "type": "string",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:textfield"
+            }
+          },
+          {
+            "id": "timetracking",
+            "name": "Time Tracking",
+            "custom": false,
+            "schema": {
+              "type": "timetracking"
+            }
+          },
+          {
+            "id": "customfield_12314523",
+            "name": "Original story points",
+            "custom": true,
+            "schema": {
+              "type": "number",
+              "custom": "com.atlassian.jpo:jpo-custom-field-original-story-points"
+            }
+          },
+          {
+            "id": "customfield_12314522",
+            "name": "Target end",
+            "custom": true,
+            "schema": {
+              "type": "date",
+              "custom": "com.atlassian.jpo:jpo-custom-field-baseline-end"
+            }
+          },
+          {
+            "id": "customfield_12314521",
+            "name": "Target start",
+            "custom": true,
+            "schema": {
+              "type": "date",
+              "custom": "com.atlassian.jpo:jpo-custom-field-baseline-start"
+            }
+          },
+          {
+            "id": "customfield_12314520",
+            "name": "Parent Link",
+            "custom": true,
+            "schema": {
+              "type": "any",
+              "custom": "com.atlassian.jpo:jpo-custom-field-parent"
+            }
+          },
+          {
+            "id": "customfield_12312340",
+            "name": "Github Integration - Triggers",
+            "custom": true,
+            "schema": {
+              "type": "array",
+              "items": "option",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:multicheckboxes"
+            }
+          },
+          {
+            "id": "customfield_12312341",
+            "name": "INFRA - Subversion Repository Path",
+            "custom": true,
+            "schema": {
+              "type": "string",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:textfield"
+            }
+          },
+          {
+            "id": "customfield_12310160",
+            "name": "Severity",
+            "custom": true,
+            "schema": {
+              "type": "option",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+            }
+          },
+          {
+            "id": "customfield_12312220",
+            "name": "Testcase included",
+            "custom": true,
+            "schema": {
+              "type": "option",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:radiobuttons"
+            }
+          },
+          {
+            "id": "customfield_12310041",
+            "name": "Patch Info",
+            "custom": true,
+            "schema": {
+              "type": "array",
+              "items": "option",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:multicheckboxes"
+            }
+          },
+          {
+            "id": "customfield_12314524",
+            "name": "Team",
+            "custom": true,
+            "schema": {
+              "type": "any",
+              "custom": "com.atlassian.teams:rm-teams-custom-field-team"
+            }
+          },
+          {
+            "id": "summary",
+            "name": "Summary",
+            "custom": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "id": "customfield_12310291",
+            "name": "Epic/Theme",
+            "custom": true,
+            "schema": {
+              "type": "array",
+              "items": "string",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:labels"
+            }
+          },
+          {
+            "id": "customfield_12310290",
+            "name": "Flagged",
+            "custom": true,
+            "schema": {
+              "type": "array",
+              "items": "option",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:multicheckboxes"
+            }
+          },
+          {
+            "id": "customfield_12311024",
+            "name": "External issue ID",
+            "custom": true,
+            "schema": {
+              "type": "string",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:textfield"
+            }
+          },
+          {
+            "id": "environment",
+            "name": "Environment",
+            "custom": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "id": "customfield_12311022",
+            "name": "Priority",
+            "custom": true,
+            "schema": {
+              "type": "option",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+            }
+          },
+          {
+            "id": "customfield_12313321",
+            "name": "Solr Mailing List Info",
+            "custom": true,
+            "schema": {
+              "type": "string",
+              "custom": "com.atlassian.jira.toolkit:message"
+            }
+          },
+          {
+            "id": "customfield_12311023",
+            "name": "Status Whiteboard",
+            "custom": true,
+            "schema": {
+              "type": "string",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:textfield"
+            }
+          },
+          {
+            "id": "customfield_12311020",
+            "name": "External issue URL",
+            "custom": true,
+            "schema": {
+              "type": "string",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:url"
+            }
+          },
+          {
+            "id": "customfield_12310172",
+            "name": "Fix version (Component)",
+            "custom": true,
+            "schema": {
+              "type": "option-with-child",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:cascadingselect"
+            }
+          },
+          {
+            "id": "customfield_12313320",
+            "name": "Lucene Mailing List Info",
+            "custom": true,
+            "schema": {
+              "type": "string",
+              "custom": "com.atlassian.jira.toolkit:message"
+            }
+          },
+          {
+            "id": "customfield_12310051",
+            "name": "Other Info",
+            "custom": true,
+            "schema": {
+              "type": "array",
+              "items": "option",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:multicheckboxes"
+            }
+          },
+          {
+            "id": "customfield_12310293",
+            "name": "Story Points",
+            "custom": true,
+            "schema": {
+              "type": "number",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:float"
+            }
+          },
+          {
+            "id": "customfield_12310171",
+            "name": "Affects version (Component)",
+            "custom": true,
+            "schema": {
+              "type": "option-with-child",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:cascadingselect"
+            }
+          },
+          {
+            "id": "customfield_12311021",
+            "name": "Severity",
+            "custom": true,
+            "schema": {
+              "type": "option",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+            }
+          },
+          {
+            "id": "customfield_12310050",
+            "name": "Urgency",
+            "custom": true,
+            "schema": {
+              "type": "option",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+            }
+          },
+          {
+            "id": "duedate",
+            "name": "Due Date",
+            "custom": false,
+            "schema": {
+              "type": "date"
+            }
+          },
+          {
+            "id": "comment",
+            "name": "Comment",
+            "custom": false,
+            "schema": {
+              "type": "comments-page"
+            }
+          },
+          {
+            "id": "customfield_12311820",
+            "name": "Rank",
+            "custom": true,
+            "schema": {
+              "type": "any",
+              "custom": "com.pyxis.greenhopper.jira:gh-lexo-rank"
+            }
+          },
+          {
+            "id": "customfield_12311028",
+            "name": "Status Whiteboard",
+            "custom": true,
+            "schema": {
+              "type": "string",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:textfield"
+            }
+          },
+          {
+            "id": "customfield_12311026",
+            "name": "Severity",
+            "custom": true,
+            "schema": {
+              "type": "option",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+            }
+          },
+          {
+            "id": "customfield_12311027",
+            "name": "Priority",
+            "custom": true,
+            "schema": {
+              "type": "option",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+            }
+          },
+          {
+            "id": "fixVersions",
+            "name": "Fix Version/s",
+            "custom": false,
+            "schema": {
+              "type": "array",
+              "items": "version"
+            }
+          },
+          {
+            "id": "customfield_12310420",
+            "name": "Global Rank",
+            "custom": true,
+            "schema": {
+              "type": "any",
+              "custom": "com.pyxis.greenhopper.jira:gh-global-rank"
+            }
+          },
+          {
+            "id": "customfield_12314220",
+            "name": "Testers",
+            "custom": true,
+            "schema": {
+              "type": "array",
+              "items": "user",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker"
+            }
+          },
+          {
+            "id": "customfield_12310300",
+            "name": "Release Version History",
+            "custom": true,
+            "schema": {
+              "type": "version",
+              "custom": "com.pyxis.greenhopper.jira:greenhopper-releasedmultiversionhistory"
+            }
+          },
+          {
+            "id": "customfield_12312720",
+            "name": "Docs Text",
+            "custom": true,
+            "schema": {
+              "type": "string",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:textarea"
+            }
+          },
+          {
+            "id": "priority",
+            "name": "Priority",
+            "custom": false,
+            "schema": {
+              "type": "priority"
+            }
+          },
+          {
+            "id": "customfield_12311520",
+            "name": "old issue number",
+            "custom": true,
+            "schema": {
+              "type": "number",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:float"
+            }
+          },
+          {
+            "id": "customfield_12310310",
+            "name": "Attachment count",
+            "custom": true,
+            "schema": {
+              "type": "any",
+              "custom": "com.atlassian.jira.toolkit:attachments"
+            }
+          },
+          {
+            "id": "timeestimate",
+            "name": "Remaining Estimate",
+            "custom": false,
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "id": "versions",
+            "name": "Affects Version/s",
+            "custom": false,
+            "schema": {
+              "type": "array",
+              "items": "version"
+            }
+          },
+          {
+            "id": "customfield_12313020",
+            "name": "Mailing List",
+            "custom": true,
+            "schema": {
+              "type": "string",
+              "custom": "com.atlassian.jira.toolkit:message"
+            }
+          },
+          {
+            "id": "customfield_12313826",
+            "name": "Change Category",
+            "custom": true,
+            "schema": {
+              "type": "option",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+            }
+          },
+          {
+            "id": "customfield_12313825",
+            "name": "Bug Category",
+            "custom": true,
+            "schema": {
+              "type": "option-with-child",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:cascadingselect"
+            }
+          },
+          {
+            "id": "customfield_12313823",
+            "name": "Test and Documentation Plan",
+            "custom": true,
+            "schema": {
+              "type": "string",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:textarea"
+            }
+          },
+          {
+            "id": "customfield_12313822",
+            "name": "Discovered By",
+            "custom": true,
+            "schema": {
+              "type": "option",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+            }
+          },
+          {
+            "id": "customfield_12313821",
+            "name": "Complexity",
+            "custom": true,
+            "schema": {
+              "type": "option",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+            }
+          },
+          {
+            "id": "status",
+            "name": "Status",
+            "custom": false,
+            "schema": {
+              "type": "status"
+            }
+          },
+          {
+            "id": "customfield_12313820",
+            "name": "Severity",
+            "custom": true,
+            "schema": {
+              "type": "option",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+            }
+          },
+          {
+            "id": "issuekey",
+            "name": "Key",
+            "custom": false
+          },
+          {
+            "id": "customfield_12310080",
+            "name": "Regression",
+            "custom": true,
+            "schema": {
+              "type": "array",
+              "items": "option",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:multicheckboxes"
+            }
+          },
+          {
+            "id": "archiveddate",
+            "name": "Archived",
+            "custom": false,
+            "schema": {
+              "type": "datetime"
+            }
+          },
+          {
+            "id": "customfield_12312026",
+            "name": "Initial Confluence Contributors",
+            "custom": true,
+            "schema": {
+              "type": "string",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:textfield"
+            }
+          },
+          {
+            "id": "customfield_12312023",
+            "name": "Space Name",
+            "custom": true,
+            "schema": {
+              "type": "string",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:textfield"
+            }
+          },
+          {
+            "id": "customfield_12312024",
+            "name": "Space Description",
+            "custom": true,
+            "schema": {
+              "type": "string",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:textarea"
+            }
+          },
+          {
+            "id": "aggregatetimeestimate",
+            "name": "Σ Remaining Estimate",
+            "custom": false,
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "id": "customfield_12314320",
+            "name": "Detailed Description",
+            "custom": true,
+            "schema": {
+              "type": "string",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:textarea"
+            }
+          },
+          {
+            "id": "customfield_12312022",
+            "name": "Space Key",
+            "custom": true,
+            "schema": {
+              "type": "string",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:textfield"
+            }
+          },
+          {
+            "id": "customfield_12312823",
+            "name": "Project",
+            "custom": true,
+            "schema": {
+              "type": "option",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+            }
+          },
+          {
+            "id": "customfield_12310521",
+            "name": "Proposed Name",
+            "custom": true,
+            "schema": {
+              "type": "string",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:textfield"
+            }
+          },
+          {
+            "id": "customfield_12312821",
+            "name": "Target Version",
+            "custom": true,
+            "schema": {
+              "type": "array",
+              "items": "version",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:multiversion"
+            }
+          },
+          {
+            "id": "customfield_12312822",
+            "name": "Epic Color",
+            "custom": true,
+            "schema": {
+              "type": "string",
+              "custom": "com.pyxis.greenhopper.jira:gh-epic-color"
+            }
+          },
+          {
+            "id": "customfield_12310520",
+            "name": "Podling",
+            "custom": true,
+            "schema": {
+              "type": "string",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:textfield"
+            }
+          },
+          {
+            "id": "customfield_12310523",
+            "name": "Evidence Of Registration",
+            "custom": true,
+            "schema": {
+              "type": "string",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:textarea"
+            }
+          },
+          {
+            "id": "customfield_12310522",
+            "name": "Evidence Of Open Source Adoption",
+            "custom": true,
+            "schema": {
+              "type": "string",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:textarea"
+            }
+          },
+          {
+            "id": "creator",
+            "name": "Creator",
+            "custom": false,
+            "schema": {
+              "type": "user"
+            }
+          },
+          {
+            "id": "customfield_12310090",
+            "name": "Issue & fix info",
+            "custom": true,
+            "schema": {
+              "type": "array",
+              "items": "option",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:multicheckboxes"
+            }
+          },
+          {
+            "id": "aggregateprogress",
+            "name": "Σ Progress",
+            "custom": false,
+            "schema": {
+              "type": "progress"
+            }
+          },
+          {
+            "id": "customfield_12313120",
+            "name": "RYG",
+            "custom": true,
+            "schema": {
+              "type": "option",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+            }
+          },
+          {
+            "id": "customfield_12313924",
+            "name": "Source Control Link",
+            "custom": true,
+            "schema": {
+              "type": "string",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:textfield"
+            }
+          },
+          {
+            "id": "customfield_12313922",
+            "name": "Impacts",
+            "custom": true,
+            "schema": {
+              "type": "array",
+              "items": "option",
+              "custom": "jira.plugin.projectspecificselectfield.jpssf:multicftype"
+            }
+          },
+          {
+            "id": "customfield_12313921",
+            "name": "Platform",
+            "custom": true,
+            "schema": {
+              "type": "array",
+              "items": "option",
+              "custom": "jira.plugin.projectspecificselectfield.jpssf:multicftype"
+            }
+          },
+          {
+            "id": "customfield_12313920",
+            "name": "Authors",
+            "custom": true,
+            "schema": {
+              "type": "array",
+              "items": "user",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker"
+            }
+          },
+          {
+            "id": "customfield_12311620",
+            "name": "Shepherd",
+            "custom": true,
+            "schema": {
+              "type": "user",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker"
+            }
+          },
+          {
+            "id": "timespent",
+            "name": "Time Spent",
+            "custom": false,
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "id": "customfield_12314020",
+            "name": "Development",
+            "custom": true,
+            "schema": {
+              "type": "any",
+              "custom": "com.atlassian.jira.plugins.jira-development-integration-plugin:devsummary"
+            }
+          },
+          {
+            "id": "customfield_12314141",
+            "name": "Reviewers",
+            "custom": true,
+            "schema": {
+              "type": "array",
+              "items": "user",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker"
+            }
+          },
+          {
+            "id": "customfield_12314140",
+            "name": "Ignite Flags",
+            "custom": true,
+            "schema": {
+              "type": "array",
+              "items": "option",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:multicheckboxes"
+            }
+          },
+          {
+            "id": "aggregatetimespent",
+            "name": "Σ Time Spent",
+            "custom": false,
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "id": "customfield_12312520",
+            "name": "Github Integrations - Other",
+            "custom": true,
+            "schema": {
+              "type": "string",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:textfield"
+            }
+          },
+          {
+            "id": "customfield_12312521",
+            "name": "Last public comment date",
+            "custom": true,
+            "schema": {
+              "type": "any",
+              "custom": "com.atlassian.jira.toolkit:LastCommentDate"
+            }
+          },
+          {
+            "id": "customfield_12314146",
+            "name": "Skill Level",
+            "custom": true,
+            "schema": {
+              "type": "option",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+            }
+          },
+          {
+            "id": "customfield_12314145",
+            "name": "Affects version (Component)",
+            "custom": true,
+            "schema": {
+              "type": "option-with-child",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:cascadingselect"
+            }
+          },
+          {
+            "id": "customfield_12314144",
+            "name": "Backport to Version",
+            "custom": true,
+            "schema": {
+              "type": "array",
+              "items": "version",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:multiversion"
+            }
+          },
+          {
+            "id": "customfield_12314143",
+            "name": "Fix version (Component)",
+            "custom": true,
+            "schema": {
+              "type": "option-with-child",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:cascadingselect"
+            }
+          },
+          {
+            "id": "customfield_12314142",
+            "name": "Skill Level",
+            "custom": true,
+            "schema": {
+              "type": "option",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+            }
+          },
+          {
+            "id": "customfield_12310228",
+            "name": "O/S Version",
+            "custom": true,
+            "schema": {
+              "type": "string",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:textfield"
+            }
+          },
+          {
+            "id": "workratio",
+            "name": "Work Ratio",
+            "custom": false,
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "id": "customfield_12310227",
+            "name": "Level of effort",
+            "custom": true,
+            "schema": {
+              "type": "string",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:textarea"
+            }
+          },
+          {
+            "id": "customfield_12310106",
+            "name": "Old Scarab Id",
+            "custom": true,
+            "schema": {
+              "type": "string",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:textfield"
+            }
+          },
+          {
+            "id": "customfield_12310224",
+            "name": "Customer(s)",
+            "custom": true,
+            "schema": {
+              "type": "string",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:textfield"
+            }
+          },
+          {
+            "id": "customfield_12310223",
+            "name": "Browser Version",
+            "custom": true,
+            "schema": {
+              "type": "string",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:textfield"
+            }
+          },
+          {
+            "id": "customfield_12310226",
+            "name": "JDK Version",
+            "custom": true,
+            "schema": {
+              "type": "string",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:textfield"
+            }
+          },
+          {
+            "id": "customfield_12310225",
+            "name": "Database",
+            "custom": true,
+            "schema": {
+              "type": "string",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:textfield"
+            }
+          },
+          {
+            "id": "thumbnail",
+            "name": "Images",
+            "custom": false
+          },
+          {
+            "id": "created",
+            "name": "Created",
+            "custom": false,
+            "schema": {
+              "type": "datetime"
+            }
+          },
+          {
+            "id": "customfield_12313620",
+            "name": "Ignite Flags",
+            "custom": true,
+            "schema": {
+              "type": "array",
+              "items": "option",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:multicheckboxes"
+            }
+          },
+          {
+            "id": "customfield_12310230",
+            "name": "Tags",
+            "custom": true,
+            "schema": {
+              "type": "string",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:textfield"
+            }
+          },
+          {
+            "id": "customfield_12311320",
+            "name": "Skill Level",
+            "custom": true,
+            "schema": {
+              "type": "option",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+            }
+          },
+          {
+            "id": "customfield_12314127",
+            "name": "Level of effort",
+            "custom": true,
+            "schema": {
+              "type": "string",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:textarea"
+            }
+          },
+          {
+            "id": "customfield_12314126",
+            "name": "Target Version/s",
+            "custom": true,
+            "schema": {
+              "type": "array",
+              "items": "version",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:multiversion"
+            }
+          },
+          {
+            "id": "security",
+            "name": "Security Level",
+            "custom": false,
+            "schema": {
+              "type": "securitylevel"
+            }
+          },
+          {
+            "id": "customfield_12310200",
+            "name": "Bug behavior facts",
+            "custom": true,
+            "schema": {
+              "type": "array",
+              "items": "option",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:multicheckboxes"
+            }
+          },
+          {
+            "id": "customfield_12314125",
+            "name": "Bug behavior facts",
+            "custom": true,
+            "schema": {
+              "type": "array",
+              "items": "option",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:multicheckboxes"
+            }
+          },
+          {
+            "id": "customfield_12314124",
+            "name": "Lucene Fields",
+            "custom": true,
+            "schema": {
+              "type": "array",
+              "items": "option",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:multicheckboxes"
+            }
+          },
+          {
+            "id": "customfield_12310320",
+            "name": "Target Version/s",
+            "custom": true,
+            "schema": {
+              "type": "array",
+              "items": "version",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:multiversion"
+            }
+          },
+          {
+            "id": "attachment",
+            "name": "Attachment",
+            "custom": false,
+            "schema": {
+              "type": "array",
+              "items": "attachment"
+            }
+          },
+          {
+            "id": "customfield_12314123",
+            "name": "Workaround",
+            "custom": true,
+            "schema": {
+              "type": "string",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:textarea"
+            }
+          },
+          {
+            "id": "customfield_12314122",
+            "name": "Bugzilla Id",
+            "custom": true,
+            "schema": {
+              "type": "number",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:importid"
+            }
+          },
+          {
+            "id": "customfield_12314121",
+            "name": "Estimated Complexity",
+            "custom": true,
+            "schema": {
+              "type": "option",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:select"
+            }
+          },
+          {
+            "id": "customfield_12314120",
+            "name": "Regression",
+            "custom": true,
+            "schema": {
+              "type": "array",
+              "items": "option",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:multicheckboxes"
+            }
+          },
+          {
+            "id": "customfield_12314129",
+            "name": "Review Date",
+            "custom": true,
+            "schema": {
+              "type": "date",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:datepicker"
+            }
+          },
+          {
+            "id": "customfield_12314128",
+            "name": "Evidence Of Use On World Wide Web",
+            "custom": true,
+            "schema": {
+              "type": "string",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:textarea"
+            }
+          },
+          {
+            "id": "customfield_12314130",
+            "name": "Evidence Of Registration",
+            "custom": true,
+            "schema": {
+              "type": "string",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:textarea"
+            }
+          },
+          {
+            "id": "customfield_12314138",
+            "name": "Reproduced In",
+            "custom": true,
+            "schema": {
+              "type": "array",
+              "items": "version",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:multiversion"
+            }
+          },
+          {
+            "id": "customfield_12311420",
+            "name": "Since Version",
+            "custom": true,
+            "schema": {
+              "type": "version",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:version"
+            }
+          },
+          {
+            "id": "customfield_12311421",
+            "name": "Reproduced In",
+            "custom": true,
+            "schema": {
+              "type": "array",
+              "items": "version",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:multiversion"
+            }
+          },
+          {
+            "id": "customfield_12314137",
+            "name": "Tags",
+            "custom": true,
+            "schema": {
+              "type": "string",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:textfield"
+            }
+          },
+          {
+            "id": "customfield_12314136",
+            "name": "Since Version",
+            "custom": true,
+            "schema": {
+              "type": "version",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:version"
+            }
+          },
+          {
+            "id": "customfield_12310210",
+            "name": "CXF Fields",
+            "custom": true,
+            "schema": {
+              "type": "array",
+              "items": "option",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:multicheckboxes"
+            }
+          },
+          {
+            "id": "customfield_12314135",
+            "name": "Reviewer",
+            "custom": true,
+            "schema": {
+              "type": "user",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker"
+            }
+          },
+          {
+            "id": "customfield_12314134",
+            "name": "Hadoop Flags",
+            "custom": true,
+            "schema": {
+              "type": "array",
+              "items": "option",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:multicheckboxes"
+            }
+          },
+          {
+            "id": "customfield_12314132",
+            "name": "Issue & fix info",
+            "custom": true,
+            "schema": {
+              "type": "array",
+              "items": "option",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:multicheckboxes"
+            }
+          },
+          {
+            "id": "customfield_12314131",
+            "name": "Evidence Of Open Source Adoption",
+            "custom": true,
+            "schema": {
+              "type": "string",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:textarea"
+            }
+          },
+          {
+            "id": "customfield_12314139",
+            "name": "Tester",
+            "custom": true,
+            "schema": {
+              "type": "user",
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:userpicker"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/jira/rest/api/2/status",
+        "query": ""
+      },
+      "response": {
+        "status": 200,
+        "headers": {},
+        "body": [
+          {
+            "name": "Open",
+            "id": "1",
+            "statusCategory": {
+              "id": 2,
+              "key": "new",
+              "name": "To Do"
+            }
+          },
+          {
+            "name": "In Progress",
+            "id": "3",
+            "statusCategory": {
+              "id": 4,
+              "key": "indeterminate",
+              "name": "In Progress"
+            }
+          },
+          {
+            "name": "Reopened",
+            "id": "4",
+            "statusCategory": {
+              "id": 2,
+              "key": "new",
+              "name": "To Do"
+            }
+          },
+          {
+            "name": "Resolved",
+            "id": "5",
+            "statusCategory": {
+              "id": 3,
+              "key": "done",
+              "name": "Done"
+            }
+          },
+          {
+            "name": "Closed",
+            "id": "6",
+            "statusCategory": {
+              "id": 3,
+              "key": "done",
+              "name": "Done"
+            }
+          },
+          {
+            "name": "Blocked",
+            "id": "10000",
+            "statusCategory": {
+              "id": 4,
+              "key": "indeterminate",
+              "name": "In Progress"
+            }
+          },
+          {
+            "name": "Continued",
+            "id": "10001",
+            "statusCategory": {
+              "id": 4,
+              "key": "indeterminate",
+              "name": "In Progress"
+            }
+          },
+          {
+            "name": "Patch Available",
+            "id": "10002",
+            "statusCategory": {
+              "id": 4,
+              "key": "indeterminate",
+              "name": "In Progress"
+            }
+          },
+          {
+            "name": "Patch Reviewed",
+            "id": "10003",
+            "statusCategory": {
+              "id": 4,
+              "key": "indeterminate",
+              "name": "In Progress"
+            }
+          },
+          {
+            "name": "Reviewable",
+            "id": "10006",
+            "statusCategory": {
+              "id": 2,
+              "key": "new",
+              "name": "To Do"
+            }
+          },
+          {
+            "name": "Documentation Required",
+            "id": "10007",
+            "statusCategory": {
+              "id": 4,
+              "key": "indeterminate",
+              "name": "In Progress"
+            }
+          },
+          {
+            "name": "Testcases Required",
+            "id": "10008",
+            "statusCategory": {
+              "id": 4,
+              "key": "indeterminate",
+              "name": "In Progress"
+            }
+          },
+          {
+            "name": "Documentation/Testcases Required",
+            "id": "10009",
+            "statusCategory": {
+              "id": 4,
+              "key": "indeterminate",
+              "name": "In Progress"
+            }
+          },
+          {
+            "name": "Testing",
+            "id": "10012",
+            "statusCategory": {
+              "id": 4,
+              "key": "indeterminate",
+              "name": "In Progress"
+            }
+          },
+          {
+            "name": "Unknown",
+            "id": "10013",
+            "statusCategory": {
+              "id": 2,
+              "key": "new",
+              "name": "To Do"
+            }
+          },
+          {
+            "name": "Requires Porting",
+            "id": "10014",
+            "statusCategory": {
+              "id": 4,
+              "key": "indeterminate",
+              "name": "In Progress"
+            }
+          },
+          {
+            "name": "Not Applicable",
+            "id": "10015",
+            "statusCategory": {
+              "id": 4,
+              "key": "indeterminate",
+              "name": "In Progress"
+            }
+          },
+          {
+            "name": "Ported",
+            "id": "10016",
+            "statusCategory": {
+              "id": 4,
+              "key": "indeterminate",
+              "name": "In Progress"
+            }
+          },
+          {
+            "name": "Done",
+            "id": "10017",
+            "statusCategory": {
+              "id": 3,
+              "key": "done",
+              "name": "Done"
+            }
+          },
+          {
+            "name": "In Review",
+            "id": "10018",
+            "statusCategory": {
+              "id": 4,
+              "key": "indeterminate",
+              "name": "In Progress"
+            }
+          },
+          {
+            "name": "To Do",
+            "id": "10019",
+            "statusCategory": {
+              "id": 2,
+              "key": "new",
+              "name": "To Do"
+            }
+          },
+          {
+            "name": "Accepted",
+            "id": "10020",
+            "statusCategory": {
+              "id": 4,
+              "key": "indeterminate",
+              "name": "In Progress"
+            }
+          },
+          {
+            "name": "Ready to Commit",
+            "id": "10221",
+            "statusCategory": {
+              "id": 4,
+              "key": "indeterminate",
+              "name": "In Progress"
+            }
+          },
+          {
+            "name": "Awaiting Feedback",
+            "id": "10222",
+            "statusCategory": {
+              "id": 4,
+              "key": "indeterminate",
+              "name": "In Progress"
+            }
+          },
+          {
+            "name": "New",
+            "id": "10323",
+            "statusCategory": {
+              "id": 2,
+              "key": "new",
+              "name": "To Do"
+            }
+          },
+          {
+            "name": "Fixed",
+            "id": "10324",
+            "statusCategory": {
+              "id": 3,
+              "key": "done",
+              "name": "Done"
+            }
+          },
+          {
+            "name": "Invalid",
+            "id": "10421",
+            "statusCategory": {
+              "id": 3,
+              "key": "done",
+              "name": "Done"
+            }
+          },
+          {
+            "name": "FixedInBranch",
+            "id": "10422",
+            "statusCategory": {
+              "id": 3,
+              "key": "done",
+              "name": "Done"
+            }
+          },
+          {
+            "name": "Duplicate",
+            "id": "10423",
+            "statusCategory": {
+              "id": 3,
+              "key": "done",
+              "name": "Done"
+            }
+          },
+          {
+            "name": "Verified",
+            "id": "10424",
+            "statusCategory": {
+              "id": 3,
+              "key": "done",
+              "name": "Done"
+            }
+          },
+          {
+            "name": "WontFix",
+            "id": "10425",
+            "statusCategory": {
+              "id": 3,
+              "key": "done",
+              "name": "Done"
+            }
+          },
+          {
+            "name": "UnderReview",
+            "id": "10426",
+            "statusCategory": {
+              "id": 4,
+              "key": "indeterminate",
+              "name": "In Progress"
+            }
+          },
+          {
+            "name": "Started",
+            "id": "10427",
+            "statusCategory": {
+              "id": 4,
+              "key": "indeterminate",
+              "name": "In Progress"
+            }
+          },
+          {
+            "name": "For Review",
+            "id": "10521",
+            "statusCategory": {
+              "id": 4,
+              "key": "indeterminate",
+              "name": "In Progress"
+            }
+          },
+          {
+            "name": "Idea",
+            "id": "10621",
+            "statusCategory": {
+              "id": 2,
+              "key": "new",
+              "name": "To Do"
+            }
+          },
+          {
+            "name": "Abandoned",
+            "id": "10622",
+            "statusCategory": {
+              "id": 3,
+              "key": "done",
+              "name": "Done"
+            }
+          },
+          {
+            "name": "Under Discussion",
+            "id": "10623",
+            "statusCategory": {
+              "id": 4,
+              "key": "indeterminate",
+              "name": "In Progress"
+            }
+          },
+          {
+            "name": "Completed",
+            "id": "10624",
+            "statusCategory": {
+              "id": 3,
+              "key": "done",
+              "name": "Done"
+            }
+          },
+          {
+            "name": "In Implementation",
+            "id": "10625",
+            "statusCategory": {
+              "id": 4,
+              "key": "indeterminate",
+              "name": "In Progress"
+            }
+          },
+          {
+            "name": "on hold",
+            "id": "10721",
+            "statusCategory": {
+              "id": 2,
+              "key": "new",
+              "name": "To Do"
+            }
+          },
+          {
+            "name": "Triage Needed",
+            "id": "10722",
+            "statusCategory": {
+              "id": 2,
+              "key": "new",
+              "name": "To Do"
+            }
+          },
+          {
+            "name": "Review In Progress",
+            "id": "10723",
+            "statusCategory": {
+              "id": 4,
+              "key": "indeterminate",
+              "name": "In Progress"
+            }
+          },
+          {
+            "name": "Changes Suggested",
+            "id": "10724",
+            "statusCategory": {
+              "id": 2,
+              "key": "new",
+              "name": "To Do"
+            }
+          },
+          {
+            "name": "Requires Testing",
+            "id": "10725",
+            "statusCategory": {
+              "id": 2,
+              "key": "new",
+              "name": "To Do"
+            }
+          },
+          {
+            "name": "Needs Committer",
+            "id": "11021",
+            "statusCategory": {
+              "id": 2,
+              "key": "new",
+              "name": "To Do"
+            }
+          },
+          {
+            "name": "In Tests",
+            "id": "11121",
+            "statusCategory": {
+              "id": 4,
+              "key": "indeterminate",
+              "name": "In Progress"
+            }
+          },
+          {
+            "name": "Triaged",
+            "id": "11221",
+            "statusCategory": {
+              "id": 4,
+              "key": "indeterminate",
+              "name": "In Progress"
+            }
+          },
+          {
+            "name": "Fix Released/Published",
+            "id": "11222",
+            "statusCategory": {
+              "id": 3,
+              "key": "done",
+              "name": "Done"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/jira/rest/api/2/project/KAFKA",
+        "query": ""
+      },
+      "response": {
+        "status": 200,
+        "headers": {},
+        "body": {
+          "id": "12311720",
+          "key": "KAFKA",
+          "name": "Kafka"
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/jira/rest/api/2/search",
+        "query": "expand=changelog&fields=issuetype,status,priority,created,resolutiondate,assignee,reporter,comment,customfield_12310293,customfield_12310921&jql=project in (KAFKA) ORDER BY created ASC, key ASC&maxResults=3&startAt=0&validateQuery=warn"
+      },
+      "response": {
+        "status": 200,
+        "headers": {},
+        "body": {
+          "startAt": 0,
+          "maxResults": 3,
+          "total": 20064,
+          "issues": [
+            {
+              "id": "12514638",
+              "key": "KAFKA-1",
+              "fields": {
+                "issuetype": {
+                  "id": "4",
+                  "name": "Improvement"
+                },
+                "created": "2011-07-19T21:32:09.000+0000",
+                "resolutiondate": "2015-02-07T23:48:50.000+0000",
+                "customfield_12310921": null,
+                "reporter": null,
+                "comment": {
+                  "maxResults": 1000,
+                  "total": 0,
+                  "startAt": 0
+                },
+                "assignee": null,
+                "priority": {
+                  "name": "Major",
+                  "id": "3"
+                },
+                "status": {
+                  "name": "Resolved",
+                  "id": "5",
+                  "statusCategory": {
+                    "id": 3,
+                    "key": "done",
+                    "name": "Done"
+                  }
+                }
+              },
+              "changelog": {
+                "startAt": 0,
+                "maxResults": 15,
+                "total": 15,
+                "histories": [
+                  {
+                    "id": "13191105",
+                    "created": "2011-08-05T05:09:53.966+0000",
+                    "items": [
+                      {
+                        "field": "Workflow",
+                        "from": "12620954",
+                        "to": "12626235"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "14015948",
+                    "created": "2014-03-19T20:39:24.884+0000",
+                    "items": [
+                      {
+                        "field": "Attachment",
+                        "from": null,
+                        "to": "12635638"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "14017173",
+                    "created": "2014-03-20T21:34:42.139+0000",
+                    "items": [
+                      {
+                        "field": "Comment",
+                        "from": "Updated reviewboard  against branch origin/trunk",
+                        "to": null
+                      }
+                    ]
+                  },
+                  {
+                    "id": "14017175",
+                    "created": "2014-03-20T21:34:47.969+0000",
+                    "items": [
+                      {
+                        "field": "Attachment",
+                        "from": "12635638",
+                        "to": null
+                      }
+                    ]
+                  },
+                  {
+                    "id": "14361686",
+                    "created": "2015-02-07T23:48:50.362+0000",
+                    "items": [
+                      {
+                        "field": "resolution",
+                        "from": "9",
+                        "to": "6"
+                      },
+                      {
+                        "field": "status",
+                        "from": "1",
+                        "to": "5"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "14913703",
+                    "created": "2015-09-01T08:55:52.459+0000",
+                    "items": [
+                      {
+                        "field": "Workflow",
+                        "from": "12626235",
+                        "to": "13050888"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "14916183",
+                    "created": "2015-09-01T08:59:02.428+0000",
+                    "items": [
+                      {
+                        "field": "Workflow",
+                        "from": "13050888",
+                        "to": "13053367"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "15408219",
+                    "created": "2016-05-20T19:19:17.314+0000",
+                    "items": [
+                      {
+                        "field": "Workflow",
+                        "from": "13053367",
+                        "to": "13177665"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "17468302",
+                    "created": "2019-02-19T16:58:49.760+0000",
+                    "items": [
+                      {
+                        "field": "Link",
+                        "from": null,
+                        "to": "KAFKA-4730"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "17468305",
+                    "created": "2019-02-19T16:59:01.875+0000",
+                    "items": [
+                      {
+                        "field": "Link",
+                        "from": "KAFKA-4730",
+                        "to": null
+                      }
+                    ]
+                  },
+                  {
+                    "id": "17468306",
+                    "created": "2019-02-19T16:59:07.019+0000",
+                    "items": [
+                      {
+                        "field": "Comment",
+                        "from": "Partially blocked, because we don't have in-memory window or session stores yet.",
+                        "to": null
+                      }
+                    ]
+                  },
+                  {
+                    "id": "17484676",
+                    "created": "2019-02-25T18:19:18.115+0000",
+                    "items": [
+                      {
+                        "field": "assignee",
+                        "from": null,
+                        "to": "mjsax"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "17484677",
+                    "created": "2019-02-25T18:20:35.033+0000",
+                    "items": [
+                      {
+                        "field": "assignee",
+                        "from": "mjsax",
+                        "to": null
+                      }
+                    ]
+                  },
+                  {
+                    "id": "22218053",
+                    "created": "2024-10-07T13:26:50.963+0000",
+                    "items": [
+                      {
+                        "field": "RemoteIssueLink",
+                        "from": null,
+                        "to": "366323"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "22291988",
+                    "created": "2024-11-26T08:11:21.517+0000",
+                    "items": [
+                      {
+                        "field": "RemoteIssueLink",
+                        "from": "366323",
+                        "to": null
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "id": "12514639",
+              "key": "KAFKA-2",
+              "fields": {
+                "issuetype": {
+                  "id": "4",
+                  "name": "Improvement"
+                },
+                "created": "2011-07-19T21:32:09.000+0000",
+                "resolutiondate": "2016-08-26T22:35:11.000+0000",
+                "customfield_12310921": null,
+                "reporter": null,
+                "comment": {
+                  "maxResults": 1000,
+                  "total": 2,
+                  "startAt": 0
+                },
+                "assignee": {
+                  "name": "user-f96add4389",
+                  "key": "user-9b4da36293",
+                  "displayName": "Person 76cbc9 (pseudonymised)"
+                },
+                "priority": {
+                  "name": "Minor",
+                  "id": "4"
+                },
+                "status": {
+                  "name": "Resolved",
+                  "id": "5",
+                  "statusCategory": {
+                    "id": 3,
+                    "key": "done",
+                    "name": "Done"
+                  }
+                }
+              },
+              "changelog": {
+                "startAt": 0,
+                "maxResults": 6,
+                "total": 6,
+                "histories": [
+                  {
+                    "id": "13191104",
+                    "created": "2011-08-05T05:09:53.878+0000",
+                    "items": [
+                      {
+                        "field": "Workflow",
+                        "from": "12620955",
+                        "to": "12626234"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "14914356",
+                    "created": "2015-09-01T08:56:05.524+0000",
+                    "items": [
+                      {
+                        "field": "Workflow",
+                        "from": "12626234",
+                        "to": "13051541"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "14916647",
+                    "created": "2015-09-01T08:59:08.034+0000",
+                    "items": [
+                      {
+                        "field": "Workflow",
+                        "from": "13051541",
+                        "to": "13053831"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "15408796",
+                    "created": "2016-05-20T19:19:31.460+0000",
+                    "items": [
+                      {
+                        "field": "Workflow",
+                        "from": "13053831",
+                        "to": "13178242"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "15587951",
+                    "created": "2016-08-26T22:34:25.396+0000",
+                    "items": [
+                      {
+                        "field": "assignee",
+                        "from": null,
+                        "to": "drupad.p"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "15587952",
+                    "created": "2016-08-26T22:35:11.952+0000",
+                    "items": [
+                      {
+                        "field": "resolution",
+                        "from": "9",
+                        "to": "10008"
+                      },
+                      {
+                        "field": "status",
+                        "from": "1",
+                        "to": "5"
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "id": "12514640",
+              "key": "KAFKA-3",
+              "fields": {
+                "issuetype": {
+                  "id": "4",
+                  "name": "Improvement"
+                },
+                "created": "2011-07-19T21:32:09.000+0000",
+                "resolutiondate": "2011-07-19T21:32:09.000+0000",
+                "customfield_12310921": null,
+                "reporter": null,
+                "comment": {
+                  "maxResults": 1000,
+                  "total": 9,
+                  "startAt": 0
+                },
+                "assignee": null,
+                "priority": {
+                  "name": "Major",
+                  "id": "3"
+                },
+                "status": {
+                  "name": "Resolved",
+                  "id": "5",
+                  "statusCategory": {
+                    "id": 3,
+                    "key": "done",
+                    "name": "Done"
+                  }
+                }
+              },
+              "changelog": {
+                "startAt": 0,
+                "maxResults": 8,
+                "total": 8,
+                "histories": [
+                  {
+                    "id": "13191103",
+                    "created": "2011-08-05T05:09:53.792+0000",
+                    "items": [
+                      {
+                        "field": "Workflow",
+                        "from": "12620956",
+                        "to": "12626233"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "13217139",
+                    "created": "2011-09-21T00:56:44.494+0000",
+                    "items": [
+                      {
+                        "field": "Attachment",
+                        "from": null,
+                        "to": "12495300"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "13221394",
+                    "created": "2011-09-27T17:54:11.547+0000",
+                    "items": [
+                      {
+                        "field": "Attachment",
+                        "from": null,
+                        "to": "12496774"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "13221648",
+                    "created": "2011-09-27T23:33:48.373+0000",
+                    "items": [
+                      {
+                        "field": "Attachment",
+                        "from": null,
+                        "to": "12496811"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "13221668",
+                    "created": "2011-09-28T00:42:56.075+0000",
+                    "items": [
+                      {
+                        "field": "Fix Version",
+                        "from": null,
+                        "to": "12317243"
+                      },
+                      {
+                        "field": "status",
+                        "from": "1",
+                        "to": "5"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "14915220",
+                    "created": "2015-09-01T08:56:22.919+0000",
+                    "items": [
+                      {
+                        "field": "Workflow",
+                        "from": "12626233",
+                        "to": "13052405"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "14917950",
+                    "created": "2015-09-01T08:59:25.787+0000",
+                    "items": [
+                      {
+                        "field": "Workflow",
+                        "from": "13052405",
+                        "to": "13055134"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "15411259",
+                    "created": "2016-05-20T19:20:30.805+0000",
+                    "items": [
+                      {
+                        "field": "Workflow",
+                        "from": "13055134",
+                        "to": "13180701"
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          ],
+          "schema": null
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/jira/rest/api/2/search",
+        "query": "expand=changelog&fields=issuetype,status,priority,created,resolutiondate,assignee,reporter,comment,customfield_12310293,customfield_12310921&jql=project in (KAFKA) ORDER BY created ASC, key ASC&maxResults=3&startAt=3&validateQuery=warn"
+      },
+      "response": {
+        "status": 200,
+        "headers": {},
+        "body": {
+          "startAt": 3,
+          "maxResults": 3,
+          "total": 20064,
+          "issues": [
+            {
+              "id": "12514641",
+              "key": "KAFKA-4",
+              "fields": {
+                "issuetype": {
+                  "id": "1",
+                  "name": "Bug"
+                },
+                "created": "2011-07-19T21:32:09.000+0000",
+                "resolutiondate": "2017-11-16T09:11:09.000+0000",
+                "customfield_12310921": null,
+                "reporter": null,
+                "comment": {
+                  "maxResults": 1000,
+                  "total": 1,
+                  "startAt": 0
+                },
+                "assignee": null,
+                "priority": {
+                  "name": "Minor",
+                  "id": "4"
+                },
+                "status": {
+                  "name": "Resolved",
+                  "id": "5",
+                  "statusCategory": {
+                    "id": 3,
+                    "key": "done",
+                    "name": "Done"
+                  }
+                }
+              },
+              "changelog": {
+                "startAt": 0,
+                "maxResults": 8,
+                "total": 8,
+                "histories": [
+                  {
+                    "id": "13191102",
+                    "created": "2011-08-05T05:09:53.689+0000",
+                    "items": [
+                      {
+                        "field": "Workflow",
+                        "from": "12620957",
+                        "to": "12626232"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "14915937",
+                    "created": "2015-09-01T08:56:34.462+0000",
+                    "items": [
+                      {
+                        "field": "Workflow",
+                        "from": "12626232",
+                        "to": "13053122"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "14917885",
+                    "created": "2015-09-01T08:59:24.714+0000",
+                    "items": [
+                      {
+                        "field": "Workflow",
+                        "from": "13053122",
+                        "to": "13055069"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "15410258",
+                    "created": "2016-05-20T19:20:05.955+0000",
+                    "items": [
+                      {
+                        "field": "Workflow",
+                        "from": "13055069",
+                        "to": "13179703"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "16471130",
+                    "created": "2017-11-16T09:09:13.611+0000",
+                    "items": [
+                      {
+                        "field": "Link",
+                        "from": null,
+                        "to": "KAFKA-5179"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "16471131",
+                    "created": "2017-11-16T09:09:35.240+0000",
+                    "items": [
+                      {
+                        "field": "Fix Version",
+                        "from": null,
+                        "to": "12338986"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "16471132",
+                    "created": "2017-11-16T09:10:04.820+0000",
+                    "items": [
+                      {
+                        "field": "Comment",
+                        "from": "Better error message introduced by fix for KAFKA-5179",
+                        "to": null
+                      }
+                    ]
+                  },
+                  {
+                    "id": "16471137",
+                    "created": "2017-11-16T09:11:09.841+0000",
+                    "items": [
+                      {
+                        "field": "resolution",
+                        "from": "9",
+                        "to": "1"
+                      },
+                      {
+                        "field": "status",
+                        "from": "1",
+                        "to": "5"
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "id": "12514642",
+              "key": "KAFKA-5",
+              "fields": {
+                "issuetype": {
+                  "id": "4",
+                  "name": "Improvement"
+                },
+                "created": "2011-07-19T21:32:10.000+0000",
+                "resolutiondate": "2015-02-07T23:48:24.000+0000",
+                "customfield_12310921": null,
+                "reporter": null,
+                "comment": {
+                  "maxResults": 1000,
+                  "total": 0,
+                  "startAt": 0
+                },
+                "assignee": null,
+                "priority": {
+                  "name": "Major",
+                  "id": "3"
+                },
+                "status": {
+                  "name": "Resolved",
+                  "id": "5",
+                  "statusCategory": {
+                    "id": 3,
+                    "key": "done",
+                    "name": "Done"
+                  }
+                }
+              },
+              "changelog": {
+                "startAt": 0,
+                "maxResults": 5,
+                "total": 5,
+                "histories": [
+                  {
+                    "id": "13191101",
+                    "created": "2011-08-05T05:09:53.593+0000",
+                    "items": [
+                      {
+                        "field": "Workflow",
+                        "from": "12620958",
+                        "to": "12626231"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "14361685",
+                    "created": "2015-02-07T23:48:24.084+0000",
+                    "items": [
+                      {
+                        "field": "resolution",
+                        "from": "9",
+                        "to": "6"
+                      },
+                      {
+                        "field": "status",
+                        "from": "1",
+                        "to": "5"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "14914595",
+                    "created": "2015-09-01T08:56:10.780+0000",
+                    "items": [
+                      {
+                        "field": "Workflow",
+                        "from": "12626231",
+                        "to": "13051780"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "14916826",
+                    "created": "2015-09-01T08:59:10.485+0000",
+                    "items": [
+                      {
+                        "field": "Workflow",
+                        "from": "13051780",
+                        "to": "13054010"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "15409007",
+                    "created": "2016-05-20T19:19:35.513+0000",
+                    "items": [
+                      {
+                        "field": "Workflow",
+                        "from": "13054010",
+                        "to": "13178453"
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "id": "12514643",
+              "key": "KAFKA-6",
+              "fields": {
+                "issuetype": {
+                  "id": "4",
+                  "name": "Improvement"
+                },
+                "created": "2011-07-19T21:32:10.000+0000",
+                "resolutiondate": "2012-09-14T23:22:09.000+0000",
+                "customfield_12310921": null,
+                "reporter": null,
+                "comment": {
+                  "maxResults": 1000,
+                  "total": 0,
+                  "startAt": 0
+                },
+                "assignee": null,
+                "priority": {
+                  "name": "Major",
+                  "id": "3"
+                },
+                "status": {
+                  "name": "Resolved",
+                  "id": "5",
+                  "statusCategory": {
+                    "id": 3,
+                    "key": "done",
+                    "name": "Done"
+                  }
+                }
+              },
+              "changelog": {
+                "startAt": 0,
+                "maxResults": 5,
+                "total": 5,
+                "histories": [
+                  {
+                    "id": "13191100",
+                    "created": "2011-08-05T05:09:53.487+0000",
+                    "items": [
+                      {
+                        "field": "Workflow",
+                        "from": "12620959",
+                        "to": "12626230"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "13537344",
+                    "created": "2012-09-14T23:22:09.547+0000",
+                    "items": [
+                      {
+                        "field": "resolution",
+                        "from": "9",
+                        "to": "6"
+                      },
+                      {
+                        "field": "status",
+                        "from": "1",
+                        "to": "5"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "14915638",
+                    "created": "2015-09-01T08:56:30.158+0000",
+                    "items": [
+                      {
+                        "field": "Workflow",
+                        "from": "12626230",
+                        "to": "13052823"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "14918255",
+                    "created": "2015-09-01T08:59:29.483+0000",
+                    "items": [
+                      {
+                        "field": "Workflow",
+                        "from": "13052823",
+                        "to": "13055440"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "15411558",
+                    "created": "2016-05-20T19:20:35.969+0000",
+                    "items": [
+                      {
+                        "field": "Workflow",
+                        "from": "13055440",
+                        "to": "13181000"
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          ],
+          "schema": null
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/jira/rest/agile/1.0/board",
+        "query": "maxResults=50&projectKeyOrId=KAFKA"
+      },
+      "response": {
+        "status": 401,
+        "headers": {},
+        "body": {}
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/jira/rest/api/2/search",
+        "query": "expand=changelog&fields=issuetype,status,priority,created,resolutiondate,assignee,reporter,comment,customfield_12310293,customfield_12310921&jql=key in (KAFKA-20925, KAFKA-18574, KAFKA-21290) ORDER BY key ASC&maxResults=50&startAt=0&validateQuery=warn"
+      },
+      "response": {
+        "status": 200,
+        "headers": {},
+        "body": {
+          "startAt": 0,
+          "maxResults": 50,
+          "total": 3,
+          "issues": [
+            {
+              "id": "13605300",
+              "key": "KAFKA-18574",
+              "fields": {
+                "issuetype": {
+                  "id": "4",
+                  "name": "Improvement"
+                },
+                "created": "2025-01-16T22:48:32.000+0000",
+                "resolutiondate": "2026-10-25T13:36:07.000+0000",
+                "customfield_12310921": null,
+                "reporter": {
+                  "name": "user-6f80fe3418",
+                  "key": "user-6f80fe3418",
+                  "displayName": "Person c7300e (pseudonymised)"
+                },
+                "comment": {
+                  "maxResults": 1000,
+                  "total": 6,
+                  "startAt": 0
+                },
+                "assignee": {
+                  "name": "user-855e362e05",
+                  "key": "user-6f358b617d",
+                  "displayName": "Person 2a6531 (pseudonymised)"
+                },
+                "priority": {
+                  "name": "Trivial",
+                  "id": "5"
+                },
+                "status": {
+                  "name": "Resolved",
+                  "id": "5",
+                  "statusCategory": {
+                    "id": 3,
+                    "key": "done",
+                    "name": "Done"
+                  }
+                }
+              },
+              "changelog": {
+                "startAt": 0,
+                "maxResults": 18,
+                "total": 18,
+                "histories": [
+                  {
+                    "id": "22364439",
+                    "created": "2025-01-16T23:21:39.086+0000",
+                    "items": [
+                      {
+                        "field": "labels",
+                        "from": null,
+                        "to": null
+                      }
+                    ]
+                  },
+                  {
+                    "id": "22374237",
+                    "created": "2025-01-21T16:47:12.001+0000",
+                    "items": [
+                      {
+                        "field": "Fix Version",
+                        "from": "12355011",
+                        "to": null
+                      }
+                    ]
+                  },
+                  {
+                    "id": "22949424",
+                    "created": "2026-02-24T00:57:42.815+0000",
+                    "items": [
+                      {
+                        "field": "assignee",
+                        "from": "kirktrue",
+                        "to": null
+                      }
+                    ]
+                  },
+                  {
+                    "id": "22977611",
+                    "created": "2026-03-17T08:44:50.203+0000",
+                    "items": [
+                      {
+                        "field": "RemoteIssueLink",
+                        "from": null,
+                        "to": "423374"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "22978517",
+                    "created": "2026-03-18T06:28:41.839+0000",
+                    "items": [
+                      {
+                        "field": "assignee",
+                        "from": null,
+                        "to": "JIRAUSER306867"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "22991446",
+                    "created": "2026-03-24T02:46:54.386+0000",
+                    "items": [
+                      {
+                        "field": "RemoteIssueLink",
+                        "from": "423374",
+                        "to": "423374"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "22998202",
+                    "created": "2026-03-28T00:58:19.078+0000",
+                    "items": [
+                      {
+                        "field": "RemoteIssueLink",
+                        "from": "423374",
+                        "to": "423374"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "22998203",
+                    "created": "2026-03-28T01:00:07.157+0000",
+                    "items": [
+                      {
+                        "field": "RemoteIssueLink",
+                        "from": "423374",
+                        "to": "423374"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "22999348",
+                    "created": "2026-03-30T00:50:52.578+0000",
+                    "items": [
+                      {
+                        "field": "RemoteIssueLink",
+                        "from": "423374",
+                        "to": "423374"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "23004590",
+                    "created": "2026-04-02T00:50:44.250+0000",
+                    "items": [
+                      {
+                        "field": "RemoteIssueLink",
+                        "from": "423374",
+                        "to": "423374"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "23004627",
+                    "created": "2026-04-02T01:27:43.043+0000",
+                    "items": [
+                      {
+                        "field": "RemoteIssueLink",
+                        "from": "423374",
+                        "to": "423374"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "23132949",
+                    "created": "2026-07-06T04:56:51.517+0000",
+                    "items": [
+                      {
+                        "field": "RemoteIssueLink",
+                        "from": "423374",
+                        "to": "423374"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "23298066",
+                    "created": "2026-09-29T03:43:44.280+0000",
+                    "items": [
+                      {
+                        "field": "RemoteIssueLink",
+                        "from": "423374",
+                        "to": "423374"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "23298067",
+                    "created": "2026-09-29T03:43:46.581+0000",
+                    "items": [
+                      {
+                        "field": "RemoteIssueLink",
+                        "from": "423374",
+                        "to": "423374"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "23346043",
+                    "created": "2026-10-20T08:41:13.369+0000",
+                    "items": [
+                      {
+                        "field": "RemoteIssueLink",
+                        "from": "423374",
+                        "to": "423374"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "23355867",
+                    "created": "2026-10-24T07:36:52.033+0000",
+                    "items": [
+                      {
+                        "field": "RemoteIssueLink",
+                        "from": null,
+                        "to": "454214"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "23357173",
+                    "created": "2026-10-25T13:36:07.415+0000",
+                    "items": [
+                      {
+                        "field": "Fix Version",
+                        "from": null,
+                        "to": "12357640"
+                      },
+                      {
+                        "field": "resolution",
+                        "from": null,
+                        "to": "1"
+                      },
+                      {
+                        "field": "status",
+                        "from": "1",
+                        "to": "5"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "23357174",
+                    "created": "2026-10-25T13:36:13.085+0000",
+                    "items": [
+                      {
+                        "field": "Fix Version",
+                        "from": null,
+                        "to": "12357379"
+                      },
+                      {
+                        "field": "Fix Version",
+                        "from": "12357640",
+                        "to": null
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "id": "13661428",
+              "key": "KAFKA-20925",
+              "fields": {
+                "issuetype": {
+                  "id": "7",
+                  "name": "Sub-task"
+                },
+                "created": "2026-08-11T14:03:27.000+0000",
+                "resolutiondate": null,
+                "customfield_12310921": null,
+                "reporter": {
+                  "name": "user-f175060dd2",
+                  "key": "user-f175060dd2",
+                  "displayName": "Person 19ec49 (pseudonymised)"
+                },
+                "comment": {
+                  "maxResults": 1000,
+                  "total": 0,
+                  "startAt": 0
+                },
+                "assignee": {
+                  "name": "user-fb7e493233",
+                  "key": "user-8250d22218",
+                  "displayName": "Person b0e3a4 (pseudonymised)"
+                },
+                "priority": {
+                  "name": "Major",
+                  "id": "3"
+                },
+                "status": {
+                  "name": "Open",
+                  "id": "1",
+                  "statusCategory": {
+                    "id": 2,
+                    "key": "new",
+                    "name": "To Do"
+                  }
+                }
+              },
+              "changelog": {
+                "startAt": 0,
+                "maxResults": 3,
+                "total": 3,
+                "histories": [
+                  {
+                    "id": "23267520",
+                    "created": "2026-09-14T17:43:24.786+0000",
+                    "items": [
+                      {
+                        "field": "Component",
+                        "from": null,
+                        "to": "12315218"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "23267524",
+                    "created": "2026-09-14T17:43:53.794+0000",
+                    "items": [
+                      {
+                        "field": "assignee",
+                        "from": "schofielaj",
+                        "to": "JIRAUSER313389"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "23333653",
+                    "created": "2026-10-14T22:52:13.981+0000",
+                    "items": [
+                      {
+                        "field": "RemoteIssueLink",
+                        "from": null,
+                        "to": "452005"
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "id": "13672403",
+              "key": "KAFKA-21290",
+              "fields": {
+                "issuetype": {
+                  "id": "4",
+                  "name": "Improvement"
+                },
+                "created": "2026-10-15T21:12:51.000+0000",
+                "resolutiondate": null,
+                "customfield_12310921": null,
+                "reporter": {
+                  "name": "user-8350e88cd5",
+                  "key": "user-8350e88cd5",
+                  "displayName": "Person e42227 (pseudonymised)"
+                },
+                "comment": {
+                  "maxResults": 1000,
+                  "total": 0,
+                  "startAt": 0
+                },
+                "assignee": {
+                  "name": "user-1657562bb4",
+                  "key": "user-5c95a0eff3",
+                  "displayName": "Person dc3ff2 (pseudonymised)"
+                },
+                "priority": {
+                  "name": "Minor",
+                  "id": "4"
+                },
+                "status": {
+                  "name": "Open",
+                  "id": "1",
+                  "statusCategory": {
+                    "id": 2,
+                    "key": "new",
+                    "name": "To Do"
+                  }
+                }
+              },
+              "changelog": {
+                "startAt": 0,
+                "maxResults": 5,
+                "total": 5,
+                "histories": [
+                  {
+                    "id": "23336055",
+                    "created": "2026-10-15T21:13:04.743+0000",
+                    "items": [
+                      {
+                        "field": "description",
+                        "from": null,
+                        "to": null
+                      }
+                    ]
+                  },
+                  {
+                    "id": "23336056",
+                    "created": "2026-10-15T21:15:07.152+0000",
+                    "items": [
+                      {
+                        "field": "assignee",
+                        "from": null,
+                        "to": "chia7712"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "23336077",
+                    "created": "2026-10-15T21:21:01.077+0000",
+                    "items": [
+                      {
+                        "field": "description",
+                        "from": null,
+                        "to": null
+                      }
+                    ]
+                  },
+                  {
+                    "id": "23336236",
+                    "created": "2026-10-16T00:06:41.932+0000",
+                    "items": [
+                      {
+                        "field": "assignee",
+                        "from": "chia7712",
+                        "to": "JIRAUSER311294"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "23357267",
+                    "created": "2026-10-25T16:21:35.873+0000",
+                    "items": [
+                      {
+                        "field": "RemoteIssueLink",
+                        "from": null,
+                        "to": "454465"
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          ],
+          "schema": null
+        }
+      }
+    }
+  ]
+}
