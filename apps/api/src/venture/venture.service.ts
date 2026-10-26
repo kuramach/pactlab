@@ -215,7 +215,8 @@ export class VentureService {
       await this.requireVenturePact(tx, dealId);
       const settings = await tx.ventureRaiseSettings.findFirst({ where: { dealId } });
       const offers = await tx.ventureOffer.findMany({ where: { dealId, status: { not: 'DECLINED' } }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] });
-      const rows = offers.some((offer) => offer.preMoney && offer.amount) ? await this.capTable(tx, dealId) : [];
+      // Without a cap table there is nothing to convert: each offer says so instead of failing the page.
+      const rows = capTableOf(await loadPackEvidence(tx, dealId, [CAP_TABLE]));
       return {
         currency: settings?.currency ?? null,
         offers: offers.map((offer) => {
@@ -224,10 +225,10 @@ export class VentureService {
           return {
             offer: offerView(offer),
             scenario:
-              offer.preMoney && offer.amount && pool !== null
+              offer.preMoney && offer.amount && pool !== null && rows.length > 0
                 ? this.scenario(rows, { preMoney: new D(offer.preMoney.toString()), amount: new D(offer.amount.toString()), poolTarget: new D(pool.toString()) })
                 : null,
-            missing: offer.preMoney && offer.amount ? (pool === null ? ['pool target'] : []) : ['pre-money and amount'],
+            missing: [...(offer.preMoney && offer.amount ? [] : ['pre-money and amount']), ...(pool === null ? ['pool target'] : []), ...(rows.length === 0 ? ['cap table import'] : [])],
             terms: {
               liquidationPreference: terms.statement,
               standardPreference: terms.standard,
