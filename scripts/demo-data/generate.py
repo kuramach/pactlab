@@ -118,7 +118,7 @@ class Dataset:
                     lines.append(' | '.join(str(x) for x in r))
                 if len(rows) > 60: lines.append(f'… {len(rows) - 60} more rows in {name}.csv')
                 pages.append('\n'.join(lines))
-            self.doc('99-data-room-extracts', '\n---page---\n'.join(pages), 'The extracts above as one paged document, so findings can cite a page', 'Financial')
+            self.doc('99-data-room-extracts', '\n---page---\n'.join(pages), 'Every CSV extract in this folder as one paged PDF, so findings can cite a page', 'Financial')
         for name, (text, _, _) in self.docs.items():
             open(os.path.join(d, 'documents', f'{name}.md'), 'w').write(text)
         # VDR index
@@ -134,40 +134,112 @@ class Dataset:
         open(os.path.join(d, 'README.md'), 'w').write(self.readme())
 
     def readme(self):
-        c = self.cur
+        """A click-by-click guide: every label below is exactly what Pactlab shows on screen."""
+        c, imports = self.cur, PACK_IMPORTS.get(self.pack, {})
+        label = COMPANY_TYPE_LABELS[self.pack]
+        pdfs = [(name, desc, dc) for name, (_, desc, dc) in self.docs.items()]
+        venture = self.pack == 'venture-raise'
         out = [f'# {self.company} — {PACK_TITLES[self.pack]} ({c})', '',
                f'**Fictional target.** {self.summary}', f'Based in {self.c["city"]}, {self.c["country"]}; reports in {c}. Data runs October 2024 to September 2026.', '',
                '> Synthetic demo data. Every company, person, address, account and figure here is invented.', '',
-               '## Files', '', '| File | What it is | Load it in Pactlab |', '|---|---|---|',
-               f'| `invoice-lines.csv` | {self.line_count} revenue lines, one per {self.kind_label} per month | Sources → Upload billing export → **Pactlab standard template** |']
-        imports = PACK_IMPORTS.get(self.pack, {})
-        for name, (_, _, desc) in self.extracts.items():
-            if name in imports:
-                out.append(f'| `{name}.csv` | {desc} | Sources → Industry data → **Upload {imports[name].lower()}** |')
-            else:
-                out.append(f'| `{name}.csv` | {desc} | Documents → upload `documents/99-data-room-extracts.pdf` (this table is on its own page) |')
-        for name, (_, desc, dc) in self.docs.items():
-            if name == '99-data-room-extracts': continue
-            out.append(f'| `documents/{name}.pdf` (`.md` source) | {desc} | Documents → upload, data class *{dc}* |')
-        out.append('| `vdr-index.csv` | Index of every file, as a data room would list it | Reference |')
-        steps = [f'**Start a Pact** for `{self.company}` with base currency **{c}**, industry *{PACK_TITLES[self.pack]}*.']
-        if self.pack in ASKING_MULTIPLE:
+               '## Before you start', '',
+               '- Download this whole folder (on GitHub: **Code → Download ZIP** at the top of the repository, then unzip).',
+               '- Sign in to Pactlab. The steps take about 15 minutes.',
+               f'- You upload **{1 + len(imports)} CSV file{"s" if imports else ""}** and **{len(pdfs)} PDF{"s" if len(pdfs) != 1 else ""}**. Nothing else.',
+               '- **Never upload the `.md` files** in `documents/`. They are the text each PDF is built from; Pactlab reads the PDFs.',
+               '- `vdr-index.csv` is for reference only (how a data room would list these files). Do not upload it.',
+               '- Text in **bold** below is a button, tab or option exactly as Pactlab shows it.', '']
+        step = 0
+        def heading(title):
+            nonlocal step
+            step += 1
+            out.extend([f'## Step {step} — {title}', ''])
+        heading('Start the Pact')
+        out += ['1. Click **Start a Pact** (top right).',
+                f'2. **Name the Pact** — Pact name: `Project {self.brand.split()[0]}` · Base currency: **{c}** → **Next**.',
+                '3. **Buying entity** — Legal or trading name: `Demo Buyer` · **Private** → **Next**.',
+                f'4. **Selling entity** — Legal or trading name: `{self.company}` · **Private** · What kind of company is it?: **{label}** → **Next**.']
+        if venture:
+            out.append('5. **Asking price** — choose **Not known yet** (a raise has no asking price; you set your round on the **Raise** tab after the uploads) → **Next**.')
+        else:
             asking = sig2(self.billed_arr() * ASKING_MULTIPLE[self.pack])
-            steps.append(f'**Valuation → Record the asking price**: **{money(c, asking)}**, basis *Enterprise value*, source *Teaser or information memorandum*, quoted 2026-09-30 '
-                         f'({ASKING_MULTIPLE[self.pack]}× September 2026 billed revenue run-rate). Every scenario is then tested against it.')
-        if self.pack == 'venture-raise':
-            steps.append(f'**Raise → Your round**: your ask (pre-money) **{money(c, self.amt(12000000))}**, raising **{money(c, self.amt(2000000))}**, pool target after the round **10%**. '
-                         f'Then record Harborline Ventures\' offer from `documents/06-term-sheet-harborline.pdf`: pre-money {money(c, self.amt(10000000))}, amount {money(c, self.amt(2000000))}, '
-                         'liquidation preference 1×, one investor board seat.')
-        steps.append('**Sources → Upload billing export** → Pactlab standard template → `invoice-lines.csv` → Preview → Import. **Finances** shows the revenue ledger.')
-        if self.pack in PACK_IMPORTS:
-            steps.append(f'**Sources → Industry data** → upload each extract marked above ({", ".join(f"`{n}.csv`" for n in PACK_IMPORTS[self.pack])}); industry checks run on import.')
-        steps.append('**Documents** → upload every PDF in `documents/` with the data class shown above.')
-        steps.append('Look for the planted findings below (Findings → Run checks once the documents are in); accept, reject or ask for support, then price the accepted ones in **Valuation**.')
-        out += ['', '## Demo walkthrough', ''] + [f'{i}. {step}' for i, step in enumerate(steps, 1)] + ['',
-                '## Planted findings', '']
+            out += ['5. **Asking price** — choose **We have an asking price**, then:', '',
+                    '   | Field | Enter |', '   |---|---|',
+                    f'   | Asking price | `{asking:.0f}` ({money(c, asking)}) |',
+                    f'   | Currency | **{c}** |',
+                    '   | Quoted as | **Enterprise value** |',
+                    '   | Where it came from | **Teaser or information memorandum** |',
+                    '   | Date quoted | 30 September 2026 |',
+                    '   | Of which earn-out, Note | leave empty |', '',
+                    f'   → **Next**. (This is the seller\'s ask: {ASKING_MULTIPLE[self.pack]}× the September 2026 billed revenue run-rate. The demo shows how far the evidence supports it.)']
+        out += ['6. **Review and start** — check the summary → **Start Pact**.', '',
+                f'**You should see:** the Pact overview for `{self.company}`' + ('.' if venture else f', with the asking price {money(c, asking)}.'), '']
+        heading('Upload the billing export')
+        out += ['1. Open the **Sources** tab → **Upload billing export**.',
+                '2. *1. Where is the export from?* → **Pactlab standard template**.',
+                '3. *2. Choose the file* → `invoice-lines.csv` → **Upload and map columns**.',
+                f'4. The columns are matched for you. Click **Check every row**, then **Import {self.line_count} lines**.', '',
+                '**You should see:** a green message ending "Finances now include them." The **Finances** tab now shows the revenue ledger.', '']
+        if imports:
+            heading('Upload the industry data')
+            out += ['Open the **Sources** tab and scroll to **Industry data**. Upload these files one at a time:', '',
+                    '| # | Click | Choose the file | Then | Button should read |', '|---|---|---|---|---|']
+            for i, (name, target) in enumerate(imports.items(), 1):
+                out.append(f'| {i} | **Upload {target.lower()}** | `{name}.csv` | **Upload and map columns** → **Check every row** | **Import {len(self.extracts[name][1])} rows** |')
+            out += ['', '**You should see** after each import: "… imported … Industry checks ran on them". Some findings may already appear as drafts; that is expected.', '']
+        heading('Upload the documents')
+        out += [f'Open the **Documents** tab. Under **Upload a document**, upload each PDF from the `documents/` folder, one at a time — choose the file, set **Data class**, leave **Keep away from AI** unticked, click **Upload**.', '',
+                '| # | File | Data class | What it is |', '|---|---|---|---|']
+        for i, (name, desc, dc) in enumerate(pdfs, 1):
+            out.append(f'| {i} | `documents/{name}.pdf` | **{DATA_CLASS_LABELS[dc]}** | {desc} |')
+        out += ['', f'**You should see:** all {len(pdfs)} documents listed on the **Documents** tab.', '']
+        if venture:
+            heading('Set your round and record the offer (Raise tab)')
+            out += ['Open the **Raise** tab.', '',
+                    '1. Under **The round**, enter:', '',
+                    '   | Field | Enter |', '   |---|---|',
+                    f'   | Currency | **{c}** |',
+                    f'   | Your ask (pre-money) | `{self.amt(12000000):.0f}` ({money(c, self.amt(12000000))}) |',
+                    f'   | Raising | `{self.amt(2000000):.0f}` ({money(c, self.amt(2000000))}) |',
+                    '   | Pool target after the round (%) | `10` |', '',
+                    '   → **Save round**.',
+                    '2. Under **Offers**, record Harborline Ventures\' term sheet (`documents/06-term-sheet-harborline.pdf`):', '',
+                    '   | Field | Enter |', '   |---|---|',
+                    '   | Investor (firm or fund) | `Harborline Ventures` |',
+                    f'   | Pre-money ({c}) | `{self.amt(10000000):.0f}` ({money(c, self.amt(10000000))}) |',
+                    f'   | Amount ({c}) | `{self.amt(2000000):.0f}` ({money(c, self.amt(2000000))}) |',
+                    '   | Pool target (%) | `10` |',
+                    '   | Liquidation preference (×) | `1` |',
+                    '   | Investor board seats | `1` |',
+                    '   | Received on | 30 September 2026 |', '',
+                    '   → **Record offer**.', '',
+                    '**You should see:** **Offers side by side** showing Harborline\'s price per share and what the founders own after the round.', '']
+        heading('Run the checks and review the findings')
+        out += [f'1. Open the **Findings** tab → **Run {label.lower()} checks**.',
+                f'2. **You should see exactly these {len(self.findings)} findings** (running the checks again adds nothing):', '']
         for i, (title, where) in enumerate(self.findings, 1):
-            out.append(f'{i}. **{title}** — {where}')
+            out.append(f'   {i}. **{title}** — {where}')
+        out += ['', '3. Open each finding, read the quoted evidence, then click **Accept**, **Reject** or **Ask for support**. A person decides; Pactlab only drafts.', '']
+        heading('Test the price')
+        if venture:
+            out += ['Open the **Raise** tab again. **Offers side by side** now reflects the cap table: SAFE-1 converts on SAFE-3\'s terms (most-favoured-nation). '
+                    'Under **Ready for diligence?**, see what an investor will still ask for. The investor view shares only what is safe to share.', '']
+        else:
+            out += ['1. Open the **Valuation** tab → **New scenario**.',
+                    '2. Fill in the valuation method\'s fields — the hint under each field says where its number comes from (usually the **Finances** tab) — and save.',
+                    '3. Click **Run** on the scenario.', '',
+                    '**You should see:** **Asking vs Sextant** — the asking price against the value the evidence supports, before and after the findings you accepted.', '']
+        out += ['## Every file in this folder', '', '| File | What it is | Upload it? |', '|---|---|---|',
+                f'| `invoice-lines.csv` | {self.line_count} revenue lines, one per {self.kind_label} per month | **Yes** — billing export step |']
+        for name, (_, rows, desc) in self.extracts.items():
+            if name in imports:
+                out.append(f'| `{name}.csv` | {desc} ({len(rows)} rows) | **Yes** — industry data step |')
+            else:
+                out.append(f'| `{name}.csv` | {desc} ({len(rows)} rows) | **No** — it is already inside `documents/99-data-room-extracts.pdf`, which you upload |')
+        for name, desc, _ in pdfs:
+            out.append(f'| `documents/{name}.pdf` | {desc} | **Yes** — documents step |')
+        out += ['| `documents/*.md` | The text each PDF is built from | **No** — never |',
+                '| `vdr-index.csv` | Index of every file, as a data room would list it | **No** — reference only |']
         if self.notes:
             out += ['', '## Notes', ''] + [f'- {n}' for n in self.notes]
         return '\n'.join(out) + '\n'
@@ -189,6 +261,18 @@ PACK_IMPORTS = {
     'hospitals': {'census': 'Census', 'payer-mix': 'Payer mix'},
     'venture-raise': {'cap-table': 'Cap table', 'monthly-financials': 'Monthly financials'},
 }
+
+# What Pactlab's "What kind of company is it?" shows (COMPANY_TYPE_LABELS in
+# @pactlab/domain); kept in step by apps/api/src/ops/demo-data.test.ts.
+COMPANY_TYPE_LABELS = {
+    'software-saas': 'Software & SaaS', 'fintech': 'Fintech', 'healthcare': 'Healthcare & health tech',
+    'telecom-media': 'Telecom & media', 'professional-services': 'Professional services', 'pharma-biotech': 'Pharma & biotech',
+    'ecommerce-dtc': 'E-commerce & DTC', 'multifamily': 'Multifamily', 'commercial-property': 'Commercial property',
+    'hotels': 'Hotels & hospitality', 'small-clinics': 'Small clinics', 'hospitals': 'Hospitals',
+    'venture-raise': 'Venture Raise',
+}
+# The Documents tab's data-class options.
+DATA_CLASS_LABELS = {'Business': 'business information', 'Financial': 'financial information'}
 
 PACK_TITLES = {
     'software-saas': 'Software and SaaS', 'fintech': 'Fintech', 'healthcare': 'Healthcare services and healthtech',
