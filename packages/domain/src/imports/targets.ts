@@ -24,6 +24,9 @@ export const IMPORT_TARGETS = [
   'CRE_CAM_RECONCILIATION',
   'HOTELS_OPERATING_HISTORY',
   'HOTELS_STR_BENCHMARK',
+  'CLINICS_PATIENT_VOLUME',
+  'CLINICS_EQUIPMENT',
+  'CLINICS_CODING_SUMMARY',
 ] as const;
 export type ImportTarget = (typeof IMPORT_TARGETS)[number];
 
@@ -472,6 +475,63 @@ export const HOTELS_STR_BENCHMARK: TargetDefinition = {
   ],
 };
 
+/** Small clinics (T-068): visits and revenue by month, site and pseudonymous provider — never patients. */
+export const CLINICS_PATIENT_VOLUME: TargetDefinition = {
+  target: 'CLINICS_PATIENT_VOLUME',
+  label: 'Patient volume',
+  fileName: 'patient-volume.csv',
+  people: 'PSEUDONYMOUS',
+  refusesPeopleColumns: true,
+  evidenceType: 'clinics.volume_month',
+  recordIdField: 'month',
+  recordIdFields: ['month', 'site', 'provider_ref'],
+  observedAtFields: [],
+  fields: [
+    { name: 'month', label: 'Month', kind: 'text', required: true, hint: 'YYYY-MM.' },
+    { name: 'site', label: 'Site', kind: 'text', required: true, hint: 'Clinic site.' },
+    { name: 'provider_ref', label: 'Provider reference', kind: 'text', required: true, hint: 'A pseudonymous reference such as P07 — never a name or licence number.' },
+    { name: 'visits', label: 'Visits', kind: 'decimal', required: true, hint: 'Visits in the month (a count; no patient detail).' },
+    { name: 'revenue', label: 'Revenue', kind: 'money', required: true, hint: IN_BASE_CURRENCY },
+  ],
+};
+
+/** Small clinics (T-068): clinical equipment with acquisition date and useful life. */
+export const CLINICS_EQUIPMENT: TargetDefinition = {
+  target: 'CLINICS_EQUIPMENT',
+  label: 'Equipment schedule',
+  fileName: 'equipment-schedule.csv',
+  people: 'NONE',
+  refusesPeopleColumns: true,
+  evidenceType: 'clinics.equipment',
+  recordIdField: 'asset',
+  recordIdFields: ['asset', 'site'],
+  observedAtFields: [],
+  fields: [
+    { name: 'asset', label: 'Asset', kind: 'text', required: true, hint: 'e.g. Panoramic X-ray unit.' },
+    { name: 'site', label: 'Site', kind: 'text', required: true, hint: 'Where it is installed.' },
+    { name: 'acquired', label: 'Acquired', kind: 'date', required: true, hint: 'Acquisition or installation date.' },
+    { name: 'useful_life_years', label: 'Useful life (years)', kind: 'decimal', required: true, hint: 'The manufacturer’s or the accounting useful life.' },
+    { name: 'status', label: 'Status', kind: 'text', required: false, hint: 'e.g. in service.' },
+  ],
+};
+
+/** Small clinics (T-068): share of visits coded at the highest complexity, by quarter, against policy. */
+export const CLINICS_CODING_SUMMARY: TargetDefinition = {
+  target: 'CLINICS_CODING_SUMMARY',
+  label: 'Coding summary',
+  fileName: 'coding-summary.csv',
+  people: 'NONE',
+  refusesPeopleColumns: true,
+  evidenceType: 'clinics.coding_quarter',
+  recordIdField: 'quarter',
+  observedAtFields: [],
+  fields: [
+    { name: 'quarter', label: 'Quarter', kind: 'text', required: true, hint: 'e.g. 2026-Q3.' },
+    { name: 'high_complexity_share', label: 'High-complexity share', kind: 'decimal', required: true, hint: 'A fraction of visits, e.g. 0.36.' },
+    { name: 'policy_benchmark', label: 'Policy benchmark', kind: 'decimal', required: true, hint: 'The share the coding policy expects, e.g. 0.15.' },
+  ],
+};
+
 export const IMPORT_TARGET_DEFINITIONS: Readonly<Record<ImportTarget, TargetDefinition>> = {
   BILLING_INVOICE_LINE,
   FINTECH_LOAN_TAPE,
@@ -493,6 +553,9 @@ export const IMPORT_TARGET_DEFINITIONS: Readonly<Record<ImportTarget, TargetDefi
   CRE_CAM_RECONCILIATION,
   HOTELS_OPERATING_HISTORY,
   HOTELS_STR_BENCHMARK,
+  CLINICS_PATIENT_VOLUME,
+  CLINICS_EQUIPMENT,
+  CLINICS_CODING_SUMMARY,
 };
 
 /**

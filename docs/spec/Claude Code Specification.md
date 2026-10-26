@@ -1495,6 +1495,13 @@ Five further packs in two clusters. Hotels, multifamily and commercial property 
 - Valuation tweaks: revenue per provider, and post-close provider retention risk.
 - What transfers: pack 2's reimbursement and compliance finding types; provider concentration reuses key-person risk. Provider data follows rule 7: aggregates by default, named data gated, never sent to a model.
 
+
+**10a. Small clinics — activation amendment (T-068, 2026-10-25)**
+
+- **Import targets (CSV, ADR 0010):** `CLINICS_PATIENT_VOLUME` (month, site, provider_ref, visits, revenue → `clinics.volume_month`, one record per month, site and pseudonymous provider), `CLINICS_EQUIPMENT` (asset, site, acquired, useful_life_years, status → `clinics.equipment`) and `CLINICS_CODING_SUMMARY` (quarter, high_complexity_share, policy_benchmark → `clinics.coding_quarter`), alongside the billing import. No patient data; providers are pseudonymous references and appear in site aggregates only; nothing reaches a model (rule 7).
+- **Finding rules (deterministic, versioned, drafts only):** `clinics-provider-carries-site` — one provider earning half or more of a site's revenue over the last twelve months (retention risk, never a ranking); `clinics-coding-above-policy` — every quarter's highest-complexity share above 1.5× the policy benchmark, cited to the coding policy; `clinics-equipment-past-life` — equipment in service past its useful life at the latest month, a remediation the reviewer prices. The healthcare rules for government concentration, the medical-director fee and the privacy assessment also run.
+- **Valuation:** DCF; revenue per provider and retention are scenario inputs; equipment replacement reaches the bridge as a remediation cost.
+- **Fixtures and acceptance:** `pactlab-demo-data/small-clinics/{USD,EUR,GBP}` — the three planted findings surface as cited drafts once, and the reviewer-priced replacement reaches a DCF run (`apps/api/src/packs/clinics.acceptance.api.test.ts`).
 **11. Hospitals (extends healthcare services)**
 
 - Acquisitions of acute-care and specialty hospitals by health systems and healthcare private equity.
