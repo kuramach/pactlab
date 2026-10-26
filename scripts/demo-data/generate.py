@@ -158,6 +158,7 @@ PACK_IMPORTS = {
     'pharma-biotech': {'patent-schedule': 'Patent schedule', 'pipeline': 'Pipeline'},
     'ecommerce-dtc': {'orders-by-cohort': 'Orders by cohort', 'ad-spend': 'Ad spend'},
     'commercial-property': {'rent-roll': 'Commercial rent roll', 'cam-reconciliation': 'CAM reconciliation'},
+    'hotels': {'operating-history': 'Operating history', 'str-benchmark': 'STR benchmark'},
 }
 
 PACK_TITLES = {

@@ -110,7 +110,13 @@ export const PACKS: Readonly<Record<PackId, PackDefinition>> = {
     // Income property values on NOI ÷ cap rate (T-059), with a DCF of the rollover schedule alongside.
     valuationMethods: ['NOI_CAP_RATE', 'DCF'],
   },
-  HOTELS: pack('HOTELS', 'hotels', 'real-estate'),
+  HOTELS: {
+    ...pack('HOTELS', 'hotels', 'real-estate', true),
+    importTargets: ['BILLING_INVOICE_LINE', 'HOTELS_OPERATING_HISTORY', 'HOTELS_STR_BENCHMARK'],
+    findingRules: ['hotels-brand-pip', 'hotels-revpar-gap', 'hotels-channel-concentration', 'hotels-seasonal-demand', 'hotels-management-termination-fee'],
+    // Hotels value on NOI ÷ cap rate (T-059) with a DCF of RevPAR and GOP-margin trends.
+    valuationMethods: ['NOI_CAP_RATE', 'DCF'],
+  },
   SMALL_CLINICS: pack('SMALL_CLINICS', 'small-clinics', 'healthcare'),
   HOSPITALS: pack('HOSPITALS', 'hospitals', 'healthcare'),
 };

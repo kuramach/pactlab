@@ -10,3 +10,4 @@ export * from './services';
 export * from './pharma';
 export * from './ecommerce';
 export * from './commercial-property';
+export * from './hotels';

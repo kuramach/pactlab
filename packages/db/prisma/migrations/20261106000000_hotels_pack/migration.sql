@@ -1,0 +1,3 @@
+-- T-067 hotels pack import targets (ADR 0010). Expand only.
+ALTER TYPE "import_target" ADD VALUE IF NOT EXISTS 'HOTELS_OPERATING_HISTORY';
+ALTER TYPE "import_target" ADD VALUE IF NOT EXISTS 'HOTELS_STR_BENCHMARK';

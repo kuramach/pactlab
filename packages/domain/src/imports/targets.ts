@@ -22,6 +22,8 @@ export const IMPORT_TARGETS = [
   'ECOMMERCE_AD_SPEND',
   'CRE_RENT_ROLL',
   'CRE_CAM_RECONCILIATION',
+  'HOTELS_OPERATING_HISTORY',
+  'HOTELS_STR_BENCHMARK',
 ] as const;
 export type ImportTarget = (typeof IMPORT_TARGETS)[number];
 
@@ -429,6 +431,47 @@ export const CRE_CAM_RECONCILIATION: TargetDefinition = {
   ],
 };
 
+/** Hotels (T-067): monthly operating history from the property-management system — no guest data. */
+export const HOTELS_OPERATING_HISTORY: TargetDefinition = {
+  target: 'HOTELS_OPERATING_HISTORY',
+  label: 'Operating history',
+  fileName: 'operating-history.csv',
+  people: 'NONE',
+  refusesPeopleColumns: true,
+  evidenceType: 'hotels.operating_month',
+  recordIdField: 'month',
+  observedAtFields: [],
+  fields: [
+    { name: 'month', label: 'Month', kind: 'text', required: true, hint: 'YYYY-MM.' },
+    { name: 'rooms_available', label: 'Rooms available', kind: 'decimal', required: true, hint: 'Room-nights available.' },
+    { name: 'rooms_sold', label: 'Rooms sold', kind: 'decimal', required: true, hint: 'Room-nights sold.' },
+    { name: 'adr', label: 'ADR', kind: 'money', required: true, hint: `Average daily rate. ${IN_BASE_CURRENCY}` },
+    { name: 'revpar', label: 'RevPAR', kind: 'money', required: true, hint: `Revenue per available room. ${IN_BASE_CURRENCY}` },
+    { name: 'room_revenue', label: 'Room revenue', kind: 'money', required: true, hint: IN_BASE_CURRENCY },
+    { name: 'fb_revenue', label: 'F&B revenue', kind: 'money', required: false, hint: IN_BASE_CURRENCY },
+    { name: 'gross_operating_profit', label: 'Gross operating profit', kind: 'money', required: false, hint: IN_BASE_CURRENCY },
+  ],
+};
+
+/** Hotels (T-067): an STR-style benchmark of the hotel against its competitive set. */
+export const HOTELS_STR_BENCHMARK: TargetDefinition = {
+  target: 'HOTELS_STR_BENCHMARK',
+  label: 'STR benchmark',
+  fileName: 'str-benchmark.csv',
+  people: 'NONE',
+  refusesPeopleColumns: true,
+  evidenceType: 'hotels.benchmark_month',
+  recordIdField: 'month',
+  observedAtFields: [],
+  fields: [
+    { name: 'month', label: 'Month', kind: 'text', required: true, hint: 'YYYY-MM.' },
+    { name: 'occupancy', label: 'Occupancy', kind: 'decimal', required: true, hint: 'A fraction, e.g. 0.734.' },
+    { name: 'adr', label: 'ADR', kind: 'money', required: true, hint: IN_BASE_CURRENCY },
+    { name: 'revpar', label: 'RevPAR', kind: 'money', required: true, hint: IN_BASE_CURRENCY },
+    { name: 'comp_set_revpar', label: 'Competitive-set RevPAR', kind: 'money', required: true, hint: IN_BASE_CURRENCY },
+  ],
+};
+
 export const IMPORT_TARGET_DEFINITIONS: Readonly<Record<ImportTarget, TargetDefinition>> = {
   BILLING_INVOICE_LINE,
   FINTECH_LOAN_TAPE,
@@ -448,6 +491,8 @@ export const IMPORT_TARGET_DEFINITIONS: Readonly<Record<ImportTarget, TargetDefi
   ECOMMERCE_AD_SPEND,
   CRE_RENT_ROLL,
   CRE_CAM_RECONCILIATION,
+  HOTELS_OPERATING_HISTORY,
+  HOTELS_STR_BENCHMARK,
 };
 
 /**

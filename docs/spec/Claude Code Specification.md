@@ -1480,6 +1480,13 @@ Five further packs in two clusters. Hotels, multifamily and commercial property 
 - Valuation tweaks: RevPAR and gross-operating-profit (GOP) margin trends. PIP capex lands as remediation or price terms (−1 drag).
 - What transfers: daily revenue history fits the metrics engine's period and cohort machinery; brand and management agreements run through contract review.
 
+
+**9a. Hotels — activation amendment (T-067, 2026-10-25)**
+
+- **Import targets (CSV, ADR 0010):** `HOTELS_OPERATING_HISTORY` (month, rooms_available, rooms_sold, adr, revpar, room_revenue, fb_revenue, gross_operating_profit → `hotels.operating_month`) and `HOTELS_STR_BENCHMARK` (month, occupancy, adr, revpar, comp_set_revpar → `hotels.benchmark_month`), one record per month each, alongside the billing import (revenue by channel). No guest data.
+- **Finding rules (deterministic, versioned, drafts only):** `hotels-brand-pip` — the franchise's property improvement plan on change of ownership, priced as remediation at the estimate it states; `hotels-revpar-gap` — RevPAR trailing the competitive set, widening by two points or more to at least 5%; `hotels-channel-concentration` — the largest channel at 35% or more of the latest month's revenue, neutral; `hotels-seasonal-demand` — the two strongest months at 1.5× the weakest or more in the last twelve, neutral (a working-capital input); `hotels-management-termination-fee` — a management-contract fee to terminate on sale, cited, a drag the reviewer prices.
+- **Valuation:** NOI ÷ cap rate (T-059) with a DCF of RevPAR and GOP-margin trends; the PIP reaches the bridge as a remediation cost or, if the reviewer chooses, an escrow.
+- **Fixtures and acceptance:** `pactlab-demo-data/hotels/{USD,EUR,GBP}` — the five planted findings surface as cited drafts once, and the accepted PIP comes off the price in an NOI ÷ cap-rate run (`apps/api/src/packs/hotels.acceptance.api.test.ts`).
 **10. Small clinics (extends healthcare services)**
 
 - PE roll-ups of physician, dental, veterinary and therapy clinics.
