@@ -119,6 +119,9 @@ function toRunView(row: SyncRunRecord): SyncRunView {
 const canSupplyConnections = (role: DealRole) =>
   permissionsForDealRole(role).has('DEAL_WRITE') || role === 'TARGET_CONTRIBUTOR';
 
+/** Longest a provider sync's single write transaction may run. */
+const PROVIDER_SYNC_TIMEOUT_MS = 30 * 60_000;
+
 @Injectable()
 export class ConnectionsService {
   constructor(
@@ -462,6 +465,9 @@ export class ConnectionsService {
             syncRunId: requested.run.id,
           },
           await adapter.evidenceSource(this.scope(connection)),
+          // A large team's history is tens of thousands of records in one transaction (T-055);
+          // Prisma's 5-second default would fail every such sync.
+          { timeoutMs: PROVIDER_SYNC_TIMEOUT_MS },
         );
       } catch {
         // The engine records FAILED with an error class; the run resource reports it.

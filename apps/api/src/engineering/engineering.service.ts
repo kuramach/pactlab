@@ -4,7 +4,6 @@ import {
   type CodeActivity,
   type ContributorStatus,
   type DeliveryActivity,
-  type EngineeringReport,
 } from '@pactlab/calculations';
 import { CODE_CONTRIBUTOR_ACTIVITY_EVIDENCE_TYPE, DELIVERY_CONTRIBUTOR_ACTIVITY_EVIDENCE_TYPE } from '@pactlab/connectors';
 import {
@@ -22,7 +21,10 @@ import { PRISMA } from '../tokens';
 
 const canRead = (role: DealRole) => permissionsForDealRole(role).has('BUYER_ANALYSIS_READ');
 const isLead = (role: DealRole) => role === 'DEAL_LEAD';
-const MAX_ROWS = 50_000;
+/** Activity is read in pages of this many rows, with no overall cap (T-055). */
+const PAGE_ROWS = 10_000;
+/** Keep-list entries in the overview; the full list pages through the people endpoint. */
+const KEEP_PREVIEW = 20;
 
 type Canonical = Record<string, string | null>;
 const int = (value: string | null | undefined) => (value && /^\d+$/.test(value) ? Number(value) : 0);
@@ -37,14 +39,21 @@ function parseAreas(value: string | null | undefined): Record<string, number> {
   }
 }
 
-/** Newest version of each contributor-activity record (superseded versions stay in lineage). */
+/** Newest version of each contributor-activity record (superseded versions stay in lineage), read in pages with no cap. */
 async function loadActivity(tx: TransactionClient, dealId: string): Promise<{ code: CodeActivity[]; delivery: DeliveryActivity[] }> {
-  const rows = await tx.evidenceItem.findMany({
-    where: { dealId, evidenceType: { in: [CODE_CONTRIBUTOR_ACTIVITY_EVIDENCE_TYPE, DELIVERY_CONTRIBUTOR_ACTIVITY_EVIDENCE_TYPE] } },
-    select: { connectionId: true, evidenceType: true, sourceRecordId: true, canonical: true },
-    orderBy: { id: 'asc' },
-    take: MAX_ROWS,
-  });
+  const rows: { id: string; connectionId: string; evidenceType: string; sourceRecordId: string; canonical: unknown }[] = [];
+  let after: string | null = null;
+  for (;;) {
+    const page: typeof rows = await tx.evidenceItem.findMany({
+      where: { dealId, evidenceType: { in: [CODE_CONTRIBUTOR_ACTIVITY_EVIDENCE_TYPE, DELIVERY_CONTRIBUTOR_ACTIVITY_EVIDENCE_TYPE] }, ...(after ? { id: { gt: after } } : {}) },
+      select: { id: true, connectionId: true, evidenceType: true, sourceRecordId: true, canonical: true },
+      orderBy: { id: 'asc' },
+      take: PAGE_ROWS,
+    });
+    rows.push(...page);
+    if (page.length < PAGE_ROWS) break;
+    after = page[page.length - 1]?.id ?? null;
+  }
   const latest = new Map<string, (typeof rows)[number]>();
   for (const row of rows) latest.set(`${row.connectionId}|${row.evidenceType}|${row.sourceRecordId}`, row);
   const code: CodeActivity[] = [];
@@ -132,13 +141,37 @@ export class EngineeringService {
         select: { id: true, provider: true, displayName: true, mode: true },
         orderBy: { createdAt: 'asc' },
       });
+      const completeness = await this.completeness(tx, dealId, sources, activity);
       const keyPersonFindings = await tx.finding.findMany({
         where: { dealId, domain: 'KEY_PERSON' },
         select: { id: true, title: true, status: true, direction: true },
         orderBy: { createdAt: 'asc' },
       });
-      return { report, access, directory, sources, keyPersonFindings, activity };
+      return { report, access, directory, sources, keyPersonFindings, activity, completeness };
     });
+  }
+
+  /**
+   * What the numbers may be missing, said on the page (T-055): a missing code
+   * or delivery source, a latest sync that failed, or one that reported
+   * source issues (truncation, unreadable projects). Never silent.
+   */
+  private async completeness(
+    tx: TransactionClient,
+    dealId: string,
+    sources: readonly { id: string; provider: string; displayName: string }[],
+    activity: { code: readonly CodeActivity[]; delivery: readonly DeliveryActivity[] },
+  ): Promise<{ complete: boolean; notes: string[] }> {
+    const notes: string[] = [];
+    if (!sources.some((source) => source.provider === 'github') || activity.code.length === 0) notes.push('No code activity: commits are not in these numbers.');
+    if (!sources.some((source) => source.provider === 'jira') || activity.delivery.length === 0) notes.push('No delivery activity: Jira work is not in these numbers.');
+    for (const source of sources) {
+      const run = await tx.syncRun.findFirst({ where: { dealId, connectionId: source.id }, orderBy: { createdAt: 'desc' }, select: { status: true, issuesCount: true } });
+      if (!run) notes.push(`${source.displayName} has not been synced yet.`);
+      else if (run.status === 'FAILED') notes.push(`The latest sync of ${source.displayName} failed; these numbers come from earlier data.`);
+      else if (run.issuesCount > 0) notes.push(`The latest sync of ${source.displayName} reported ${run.issuesCount} source issue${run.issuesCount === 1 ? '' : 's'} (for example a history limit or an unreadable project) — see Sources.`);
+    }
+    return { complete: notes.length === 0, notes };
   }
 
   private async auditNames(tenant: TenantContext, dealId: string, requestId: string, count: number) {
@@ -157,22 +190,65 @@ export class EngineeringService {
     );
   }
 
+  /**
+   * Team aggregates and bounded lists only (T-055): every person as a compact
+   * map point, the first keep-list entries with the count, and all areas.
+   * Full profiles page through `people`.
+   */
   async overview(tenant: TenantContext, dealId: string, requestId: string) {
     const role = await this.access.require(tenant, dealId, canRead, { action: 'engineering.viewed', requestId });
-    const { report, access, directory, sources, keyPersonFindings } = await this.compute(tenant, dealId);
+    const { report, access, directory, sources, keyPersonFindings, completeness } = await this.compute(tenant, dealId);
     const names = access.enabled ? this.names(directory) : new Map<string, string>();
-    const named = (report: EngineeringReport) => ({
-      ...report,
-      profiles: report.profiles.map((profile) => ({ ...profile, name: names.get(profile.contributorKey) ?? null })),
-      keepList: report.keepList.map((entry) => ({ ...entry, name: names.get(entry.contributorKey) ?? null })),
-    });
-    await this.auditNames(tenant, dealId, requestId, access.enabled ? report.profiles.length : 0);
+    await this.auditNames(tenant, dealId, requestId, access.enabled ? report.points.length : 0);
+    const { profiles: _profiles, keepList, points, ...team } = report;
     return {
-      ...named(report),
+      ...team,
+      points: points.map((point) => ({ ...point, name: names.get(point.contributorKey) ?? null })),
+      keepList: keepList.slice(0, KEEP_PREVIEW).map((entry) => ({ ...entry, name: names.get(entry.contributorKey) ?? null })),
+      keepCount: keepList.length,
+      singleMaintainerAreas: report.areas.filter((area) => area.busFactor <= 1).map((area) => area.area),
+      completeness,
       people: access,
       canManageNames: isLead(role),
       sources: sources.map((source) => ({ ...source, mode: source.mode })),
       keyPersonFindings,
+    };
+  }
+
+  /**
+   * Full profiles, a page at a time, with search and filters (T-055). Search
+   * matches the pseudonymous label or key always, and names only while the
+   * names gate is open — a hidden name is never revealed by a match.
+   */
+  async people(
+    tenant: TenantContext,
+    dealId: string,
+    query: { q?: string; tag?: string; area?: string; keep?: boolean; cursor?: number; limit?: number },
+    requestId: string,
+  ) {
+    await this.access.require(tenant, dealId, canRead, { action: 'engineering.viewed', requestId });
+    const { report, access, directory } = await this.compute(tenant, dealId);
+    const names = access.enabled ? this.names(directory) : new Map<string, string>();
+    const keep = new Set(report.keepList.map((entry) => entry.contributorKey));
+    const term = query.q?.trim().toLowerCase() ?? '';
+    const matches = report.profiles.filter((profile) => {
+      if (query.tag && !profile.tags.includes(query.tag as (typeof profile.tags)[number])) return false;
+      if (query.area && !profile.areasActive.includes(query.area)) return false;
+      if (query.keep && !keep.has(profile.contributorKey)) return false;
+      if (!term) return true;
+      const name = names.get(profile.contributorKey)?.toLowerCase() ?? '';
+      return profile.label.toLowerCase().includes(term) || profile.contributorKey.startsWith(term) || (name !== '' && name.includes(term));
+    });
+    const offset = query.cursor ?? 0;
+    const limit = query.limit ?? 50;
+    const page = matches.slice(offset, offset + limit);
+    await this.auditNames(tenant, dealId, requestId, access.enabled ? page.length : 0);
+    return {
+      items: page.map((profile) => ({ ...profile, name: names.get(profile.contributorKey) ?? null })),
+      total: matches.length,
+      nextCursor: offset + limit < matches.length ? offset + limit : null,
+      suppressed: report.suppressed,
+      people: access,
     };
   }
 
@@ -185,15 +261,18 @@ export class EngineeringService {
     const name = access.enabled ? (this.names(directory).get(contributorKey) ?? null) : null;
     await this.auditNames(tenant, dealId, requestId, name ? 1 : 0);
     const months = report.months.map((month) => month.month);
+    // This person's rows, grouped by month once.
+    const mine = { code: new Map<string, number>(), resolved: new Map<string, number>(), created: new Map<string, number>() };
+    for (const row of activity.code) if (row.contributorKey === contributorKey) mine.code.set(row.month, (mine.code.get(row.month) ?? 0) + row.commits);
+    for (const row of activity.delivery) {
+      if (row.contributorKey !== contributorKey) continue;
+      mine.resolved.set(row.month, (mine.resolved.get(row.month) ?? 0) + row.issuesResolved);
+      mine.created.set(row.month, (mine.created.get(row.month) ?? 0) + row.issuesCreated);
+    }
     return {
       profile: { ...profile, name },
       people: access,
-      series: months.map((month) => ({
-        month,
-        commits: activity.code.filter((row) => row.contributorKey === contributorKey && row.month === month).reduce((n, row) => n + row.commits, 0),
-        issuesResolved: activity.delivery.filter((row) => row.contributorKey === contributorKey && row.month === month).reduce((n, row) => n + row.issuesResolved, 0),
-        issuesCreated: activity.delivery.filter((row) => row.contributorKey === contributorKey && row.month === month).reduce((n, row) => n + row.issuesCreated, 0),
-      })),
+      series: months.map((month) => ({ month, commits: mine.code.get(month) ?? 0, issuesResolved: mine.resolved.get(month) ?? 0, issuesCreated: mine.created.get(month) ?? 0 })),
       areas: report.areas.filter((area) => profile.areasActive.includes(area.area)),
     };
   }

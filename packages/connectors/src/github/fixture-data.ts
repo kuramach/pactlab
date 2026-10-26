@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import type { CommitMetadata, ContributorIdentity } from '@pactlab/domain';
+import { SCALECO_REPOSITORY, scalecoRepository } from './scale-fixture';
 
 /**
  * Deterministic synthetic repositories. Identities are stable pseudonymous
@@ -128,5 +129,9 @@ export const GITHUB_FIXTURES: Readonly<Record<string, GitHubFixtureRepository>> 
       { author: 'sc-dev-02', path: 'app', count: 8, from: '2024-06-01T09:00:00Z' },
     ]),
     identityMap: current('sc-dev-01', 'sc-dev-1', 'sc-dev-02'),
+  },
+  // 3,000 engineers (T-055), generated the first time it is read.
+  get [SCALECO_REPOSITORY]() {
+    return scalecoRepository();
   },
 };

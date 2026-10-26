@@ -29,20 +29,111 @@ export interface PeopleAccessView {
   decidedAt: string | null;
 }
 
+/** One person on the map and network: compact, every contributor in one response (T-055). */
+export interface PointView {
+  contributorKey: string;
+  label: string;
+  name: string | null;
+  commits: number;
+  coordination: number;
+  issuesResolved: number;
+  tags: ContributorTag[];
+  status: 'CURRENT' | 'DEPARTED' | 'UNKNOWN';
+  areasActive: string[];
+  areasOwned: string[];
+  areasSolelyOwned: string[];
+}
+
 export interface EngineeringView {
+  version: string;
   window: { from: string; to: string };
   months: { month: string; commits: number; codeContributors: number; deliveryContributors: number; issuesResolved: number; pointsResolved: number; reopenRate: string | null }[];
   areas: { area: string; commits: number; contributors: number; busFactor: number }[];
+  singleMaintainerAreas: string[];
   contributors: number;
   busFactor: number;
   unmatchedOrDepartedShare: string | null;
   suppressed: boolean;
-  profiles: ProfileView[];
+  points: PointView[];
   keepList: { contributorKey: string; label: string; name: string | null; reason: string }[];
+  keepCount: number;
+  completeness: { complete: boolean; notes: string[] };
   people: PeopleAccessView;
   canManageNames: boolean;
   sources: { id: string; provider: string; displayName: string; mode: 'FIXTURE' | 'LIVE' }[];
   keyPersonFindings: { id: string; title: string; status: string; direction: number | null }[];
+}
+
+/** One page of full profiles from `engineering/people`. */
+export interface PeoplePage {
+  items: ProfileView[];
+  total: number;
+  nextCursor: number | null;
+  suppressed: boolean;
+}
+
+/** Above this many people the map drops labels and shrinks points; at or below it, labels as before. */
+export const MAP_LABEL_LIMIT = 150;
+/** Up to this many people the network shows everyone; above it, areas and their key people only. */
+export const NETWORK_FULL_LIMIT = 60;
+/** The areas chart shows this many busiest areas, then "Other". */
+export const AREA_CHART_LIMIT = 25;
+export const PEOPLE_PAGE_SIZE = 50;
+
+export const mapMode = (people: number): 'LABELLED' | 'LARGE' => (people > MAP_LABEL_LIMIT ? 'LARGE' : 'LABELLED');
+export const networkMode = (people: number): 'FULL' | 'AREAS' => (people > NETWORK_FULL_LIMIT ? 'AREAS' : 'FULL');
+
+/** The busiest areas (already sorted by commits), with the rest folded into one "Other" bar. */
+export function foldAreas(areas: EngineeringView['areas'], limit = AREA_CHART_LIMIT) {
+  if (areas.length <= limit) return { shown: areas, other: null };
+  const rest = areas.slice(limit);
+  return { shown: areas.slice(0, limit), other: { count: rest.length, commits: rest.reduce((total, area) => total + area.commits, 0) } };
+}
+
+export interface PeopleFilters {
+  q: string;
+  tag: ContributorTag | null;
+  area: string | null;
+  keep: boolean;
+  page: number;
+}
+
+const TAGS: readonly ContributorTag[] = ['CRITICAL_OWNER', 'COORDINATOR', 'BUILDER', 'CROSS_AREA', 'RECENTLY_QUIET'];
+
+/** The details table's filters from the page URL; anything malformed reads as unset. */
+export function parsePeopleFilters(query: Record<string, string | string[] | undefined>): PeopleFilters {
+  const one = (key: string) => (typeof query[key] === 'string' ? (query[key] as string) : '');
+  const page = Number.parseInt(one('page'), 10);
+  const tag = one('tag');
+  return {
+    q: one('q').trim().slice(0, 100),
+    tag: (TAGS as readonly string[]).includes(tag) ? (tag as ContributorTag) : null,
+    area: one('area').trim().slice(0, 200) || null,
+    keep: one('keep') === 'true',
+    page: Number.isInteger(page) && page > 0 ? page : 1,
+  };
+}
+
+/** The `engineering/people` query for a page of the details table. */
+export function peopleApiQuery(filters: PeopleFilters): string {
+  const params = new URLSearchParams({ limit: String(PEOPLE_PAGE_SIZE), cursor: String((filters.page - 1) * PEOPLE_PAGE_SIZE) });
+  if (filters.q) params.set('q', filters.q);
+  if (filters.tag) params.set('tag', filters.tag);
+  if (filters.area) params.set('area', filters.area);
+  if (filters.keep) params.set('keep', 'true');
+  return params.toString();
+}
+
+/** The page URL for the same filters on another page (the table lives at #details). */
+export function peoplePageHref(dealId: string, filters: PeopleFilters, page: number): string {
+  const params = new URLSearchParams();
+  if (filters.q) params.set('q', filters.q);
+  if (filters.tag) params.set('tag', filters.tag);
+  if (filters.area) params.set('area', filters.area);
+  if (filters.keep) params.set('keep', 'true');
+  if (page > 1) params.set('page', String(page));
+  const query = params.toString();
+  return `/deals/${dealId}/engineering${query ? `?${query}` : ''}#details`;
 }
 
 /** Plain-language tags: descriptions of activity, never a verdict on a person. */
@@ -88,23 +179,27 @@ export interface PeopleMapPoint {
   readonly resolved: number;
   readonly group: string;
   readonly href: string;
+  readonly tags: readonly ContributorTag[];
+  readonly areas: readonly string[];
 }
 
 /**
  * Code vs delivery: one point per person, placed by two activity signals.
  * Points keep the API's order (first activity) — nothing here ranks people.
  */
-export function peopleMapPoints(profiles: readonly ProfileView[], dealId: string): PeopleMapPoint[] {
-  return profiles.map((profile) => {
-    const main = TAG_PRIORITY.find((tag) => profile.tags.includes(tag));
+export function peopleMapPoints(points: readonly PointView[], dealId: string): PeopleMapPoint[] {
+  return points.map((point) => {
+    const main = TAG_PRIORITY.find((tag) => point.tags.includes(tag));
     return {
-      key: profile.contributorKey,
-      name: displayName(profile),
-      code: profile.commits,
-      coordination: profile.issuesCreated + profile.comments,
-      resolved: profile.issuesResolved,
+      key: point.contributorKey,
+      name: displayName(point),
+      code: point.commits,
+      coordination: point.coordination,
+      resolved: point.issuesResolved,
       group: main ? TAG_LABELS[main].label : NO_TAG,
-      href: `/deals/${dealId}/engineering/contributors/${profile.contributorKey}`,
+      href: `/deals/${dealId}/engineering/contributors/${point.contributorKey}`,
+      tags: point.tags,
+      areas: point.areasActive,
     };
   });
 }
@@ -119,36 +214,52 @@ export function median(values: readonly number[]): number {
 
 export type OwnershipStrength = 'SOLE' | 'OWNER' | 'ACTIVE';
 export interface OwnershipGraph {
+  readonly mode: 'FULL' | 'AREAS';
   readonly people: readonly { id: string; name: string; href: string; critical: boolean; departed: boolean }[];
-  readonly areas: readonly { id: string; area: string; commits: number; busFactor: number }[];
+  /** `others`: people active in the area but not drawn (AREAS mode, until the area is expanded). */
+  readonly areas: readonly { id: string; area: string; commits: number; busFactor: number; others: number }[];
   readonly links: readonly { source: string; target: string; strength: OwnershipStrength }[];
 }
 
 /**
  * People ↔ code areas. A link's strength follows the engineering calculation:
  * SOLE (≥ 80% of the area's commits), OWNER (≥ 50%), otherwise ACTIVE.
+ * Up to NETWORK_FULL_LIMIT people everyone is drawn; above it only key people
+ * (owners and sole owners) and the people of any expanded area, with the rest
+ * counted on each area.
  */
-export function ownershipGraph(profiles: readonly ProfileView[], areas: EngineeringView['areas'], dealId: string): OwnershipGraph {
+export function ownershipGraph(points: readonly PointView[], areas: EngineeringView['areas'], dealId: string, expanded: ReadonlySet<string> = new Set()): OwnershipGraph {
+  const mode = networkMode(points.length);
   const areaId = (area: string) => `area:${area}`;
   const known = new Set(areas.map((entry) => entry.area));
-  const links = profiles.flatMap((profile) =>
-    profile.areasActive
-      .filter((area) => known.has(area))
+  const drawn = mode === 'FULL' ? points : points.filter((point) => point.areasOwned.length > 0 || point.areasActive.some((area) => expanded.has(area)));
+  const links = drawn.flatMap((point) =>
+    point.areasActive
+      .filter((area) => known.has(area) && (mode === 'FULL' || expanded.has(area) || point.areasOwned.includes(area)))
       .map((area) => ({
-        source: `person:${profile.contributorKey}`,
+        source: `person:${point.contributorKey}`,
         target: areaId(area),
-        strength: (profile.areasSolelyOwned.includes(area) ? 'SOLE' : profile.areasOwned.includes(area) ? 'OWNER' : 'ACTIVE') as OwnershipStrength,
+        strength: (point.areasSolelyOwned.includes(area) ? 'SOLE' : point.areasOwned.includes(area) ? 'OWNER' : 'ACTIVE') as OwnershipStrength,
       })),
   );
+  const linked = new Map<string, number>();
+  for (const link of links) linked.set(link.target, (linked.get(link.target) ?? 0) + 1);
   return {
-    people: profiles.map((profile) => ({
-      id: `person:${profile.contributorKey}`,
-      name: displayName(profile),
-      href: `/deals/${dealId}/engineering/contributors/${profile.contributorKey}`,
-      critical: profile.areasSolelyOwned.length > 0,
-      departed: profile.status === 'DEPARTED',
+    mode,
+    people: drawn.map((point) => ({
+      id: `person:${point.contributorKey}`,
+      name: displayName(point),
+      href: `/deals/${dealId}/engineering/contributors/${point.contributorKey}`,
+      critical: point.areasSolelyOwned.length > 0,
+      departed: point.status === 'DEPARTED',
     })),
-    areas: areas.map((entry) => ({ id: areaId(entry.area), area: entry.area, commits: entry.commits, busFactor: entry.busFactor })),
+    areas: areas.map((entry) => ({
+      id: areaId(entry.area),
+      area: entry.area,
+      commits: entry.commits,
+      busFactor: entry.busFactor,
+      others: mode === 'FULL' ? 0 : Math.max(0, entry.contributors - (linked.get(areaId(entry.area)) ?? 0)),
+    })),
     links,
   };
 }
