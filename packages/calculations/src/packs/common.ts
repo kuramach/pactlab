@@ -35,6 +35,8 @@ export interface ConcentrationConfig {
   readonly threshold: string;
   /** A named group (e.g. government programmes); otherwise the single largest counterparty. */
   readonly group?: { readonly match: RegExp; readonly label: string };
+  /** Group counterparties by a key read from the name (e.g. a region) and take the largest group. */
+  readonly groupBy?: { readonly key: (name: string) => string | null; readonly label: (key: string) => string };
   readonly direction: -1 | 0 | 1;
   readonly directionRationale: string;
   readonly severity?: PackRuleProposal['severity'];
@@ -67,20 +69,35 @@ export function revenueConcentrationRule(config: ConcentrationConfig): PackRule 
         const name = row.canonical['customer_name'] ?? row.canonical['customer_id'] ?? 'Unnamed';
         byName.set(name, (byName.get(name) ?? new D(0)).plus(amountOf(row, 'amount')));
       }
-      const chosen = config.group
-        ? [...byName.keys()].filter((name) => config.group?.match.test(name))
-        : [[...byName.entries()].sort((a, b) => b[1].comparedTo(a[1]) || a[0].localeCompare(b[0]))[0]?.[0] ?? ''];
-      if (chosen.length === 0 || chosen[0] === '') return [];
+      const largest = (totals: Map<string, Decimal>) => [...totals.entries()].sort((a, b) => b[1].comparedTo(a[1]) || a[0].localeCompare(b[0]))[0]?.[0] ?? '';
+      let chosen: string[];
+      let label: string;
+      if (config.group) {
+        chosen = [...byName.keys()].filter((name) => config.group?.match.test(name));
+        label = config.group.label;
+      } else if (config.groupBy) {
+        const byGroup = new Map<string, Decimal>();
+        for (const [name, amount] of byName) {
+          const key = config.groupBy.key(name);
+          if (key) byGroup.set(key, (byGroup.get(key) ?? new D(0)).plus(amount));
+        }
+        const top = largest(byGroup);
+        chosen = top ? [...byName.keys()].filter((name) => config.groupBy?.key(name) === top) : [];
+        label = top ? config.groupBy.label(top) : '';
+      } else {
+        chosen = [largest(byName)].filter((name) => name !== '');
+        label = chosen[0] ?? '';
+      }
+      if (chosen.length === 0) return [];
       const share = chosen.reduce((sum, name) => sum.plus(byName.get(name) ?? 0), new D(0)).div(total);
       if (share.lt(config.threshold)) return [];
-      const label = config.group?.label ?? chosen[0] ?? '';
       const cited = month.filter((row) => chosen.includes(row.canonical['customer_name'] ?? row.canonical['customer_id'] ?? 'Unnamed'));
       return [
         {
           key: `${latest}:${label}`,
           domain: config.domain,
           title: config.title,
-          description: `${label} ${chosen.length > 1 ? 'are' : 'is'} ${percent(share)} of ${monthName(latest)} revenue (${currency} ${grouped(total)} in the month).${config.consequence ? ` ${config.consequence}` : ''}`,
+          description: `${label} ${chosen.length > 1 && !config.groupBy ? 'are' : 'is'} ${percent(share)} of ${monthName(latest)} revenue (${currency} ${grouped(total)} in the month).${config.consequence ? ` ${config.consequence}` : ''}`,
           severity: config.severity ?? (share.gte('0.5') ? 'HIGH' : 'MEDIUM'),
           confidence: 'HIGH',
           direction: config.direction,

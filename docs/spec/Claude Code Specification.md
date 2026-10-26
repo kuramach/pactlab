@@ -1394,6 +1394,13 @@ Five further packs in two clusters. Hotels, multifamily and commercial property 
 - What transfers: the Metrics engine transfers nearly untouched — new labels and inclusion policies, not new mathematics. Concentration analysis carries over to subscriber/revenue concentration.
 - Pack scope is adapters for subscriber-billing evidence, relabeled metric definitions with sector inclusion policies, and minor valuation tweaks for churn/ARPU-driven scenario inputs.
 
+**3a. Telecom / media — activation amendment (T-062, 2026-10-25)**
+
+- **Import target (CSV, ADR 0010):** `TELECOM_SUBSCRIBERS` (month, region, plan, billed_subscribers, arpu → `telecom.subscribers_month`, one record per month, region and plan), alongside the billing import. Counts and ARPU only; no subscriber identities.
+- **Finding rules (deterministic, versioned, drafts only):** `telecom-reported-subscribers` — the subscriber count a management document reports against the latest month's billed subscribers (a gap of 2% or more; a drag the reviewer prices); `telecom-churn-turning` — billed subscribers grew to a peak and fell every month since (at least three), set against the churn rate management reports; `telecom-regional-concentration` — the largest region's share of the latest month's revenue at 40% or more, neutral; `telecom-wholesale-review` — a wholesale access re-pricing clause, cited, a drag the reviewer prices.
+- **Valuation:** the SaaS metrics engine runs as it is (ARPU ≈ MRR per account, churn ≈ logo churn); ARR multiple and DCF apply unchanged, with churn and ARPU as scenario inputs. Accepted priced findings reach the purchase-price bridge.
+- **Fixtures and acceptance:** `pactlab-demo-data/telecom-media/{USD,EUR,GBP}` — the four planted findings surface as cited drafts once, and the reviewer-priced subscriber gap reaches a valuation run (`apps/api/src/packs/telecom.acceptance.api.test.ts`).
+
 **4. IT & professional services**
 
 - Roll-ups of agencies, consultancies, and managed-service firms; deal volume is steady and diligence is people-led.
