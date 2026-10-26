@@ -27,6 +27,9 @@ export const DOCUMENT_FINDING_EVIDENCE_TYPE = 'document.finding';
 /** Reference figures and conversion inputs used by the metrics engine. */
 export const MANAGEMENT_KPI_EVIDENCE_TYPE = 'management.kpi';
 export const FX_RATE_EVIDENCE_TYPE = 'fx.rate';
+/** Venture Raise (T-083): the founder's cap table and monthly cash, imported as pack extracts. */
+export const VENTURE_CAP_TABLE_EVIDENCE_TYPE = 'venture.cap_table_row';
+export const VENTURE_FINANCIALS_EVIDENCE_TYPE = 'venture.financials_month';
 
 /**
  * Every evidence type the adapters and engines emit, with the direction each
@@ -90,6 +93,23 @@ export const VALUATION_DIRECTION_MAP: Readonly<Record<string, readonly Direction
       rationale: 'A conversion input; it moves no value by itself.',
     },
   ],
+  // Founder-side: −1 is what an investor will find and price; +1 is confirmed value the founder keeps confidential.
+  [VENTURE_CAP_TABLE_EVIDENCE_TYPE]: [
+    { signal: 'cap-table-mismatch', findingDomain: 'FINANCIAL', defaultDirection: -1, channel: 'PRICED_TERM' },
+    { signal: 'safe-stack', findingDomain: 'FINANCIAL', defaultDirection: -1, channel: 'ASSUMPTION' },
+    { signal: 'missing-83b', findingDomain: 'CONTRACT', defaultDirection: -1, channel: 'PRICED_TERM' },
+    { signal: 'cap-table-reconciles', findingDomain: 'FINANCIAL', defaultDirection: 1, channel: 'CONFIRMATION' },
+  ],
+  [VENTURE_FINANCIALS_EVIDENCE_TYPE]: [
+    { signal: 'runway-short', findingDomain: 'FINANCIAL', defaultDirection: -1, channel: 'ASSUMPTION' },
+    {
+      signal: 'cash-position',
+      findingDomain: 'FINANCIAL',
+      defaultDirection: 0,
+      channel: 'INFORMATIONAL',
+      rationale: 'Cash and burn inform the raise’s timing; only a contradicted runway claim moves the round.',
+    },
+  ],
   [DOCUMENT_FINDING_EVIDENCE_TYPE]: [
     { signal: 'CHANGE_OF_CONTROL', findingDomain: 'CONTRACT', defaultDirection: -1, channel: 'PRICED_TERM' },
     { signal: 'ASSIGNMENT', findingDomain: 'CONTRACT', defaultDirection: -1, channel: 'PRICED_TERM' },
@@ -115,6 +135,8 @@ export const ADAPTER_EVIDENCE_TYPES = [
   JIRA_SPRINT_EVIDENCE_TYPE,
   DELIVERY_CONTRIBUTOR_ACTIVITY_EVIDENCE_TYPE,
   INVOICE_LINE_EVIDENCE_TYPE,
+  VENTURE_CAP_TABLE_EVIDENCE_TYPE,
+  VENTURE_FINANCIALS_EVIDENCE_TYPE,
 ] as const;
 
 /** The default direction for one signal, or null when the map does not know it. */

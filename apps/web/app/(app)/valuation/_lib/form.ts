@@ -53,7 +53,8 @@ export interface ScenarioValues {
         terminal: { kind: 'GORDON'; growth: string } | { kind: 'EXIT_MULTIPLE'; revenueMultiple: string };
       }
     | { method: 'NOI_CAP_RATE'; noi: string; capRate: string }
-    | { method: 'PAYER_MIX_EBITDA'; ebitda: string; netRevenue: string; multiple: string; payers: { payer: string; share: string; rateChange: string }[] };
+    | { method: 'PAYER_MIX_EBITDA'; ebitda: string; netRevenue: string; multiple: string; payers: { payer: string; share: string; rateChange: string }[] }
+    | { method: 'ROUND_PRE_MONEY'; preMoney: string };
   bridge: { cash: string; debt: string; debtLikeItems: string; workingCapitalAdjustment: string };
   stockConsiderationShare: string;
   findingLinks: { findingId: string; point: (typeof ADJUSTMENT_POINTS)[number] }[];
@@ -83,10 +84,14 @@ export function scenarioFromForm(form: FormData, previous: Partial<ScenarioValue
   const name = String(form.get('name') ?? '').trim();
   if (!name || name.length > 200) return { ok: false, message: 'Give the scenario a name.' };
   const chosen = form.get('method');
-  const method = chosen === 'DCF' || chosen === 'NOI_CAP_RATE' || chosen === 'PAYER_MIX_EBITDA' ? chosen : 'ARR_MULTIPLE';
+  const method = chosen === 'DCF' || chosen === 'NOI_CAP_RATE' || chosen === 'PAYER_MIX_EBITDA' || chosen === 'ROUND_PRE_MONEY' ? chosen : 'ARR_MULTIPLE';
 
   let assumptions: ScenarioValues['assumptions'];
-  if (method === 'PAYER_MIX_EBITDA') {
+  if (method === 'ROUND_PRE_MONEY') {
+    const preMoney = amount(form.get('preMoney'));
+    if (!preMoney) return { ok: false, message: 'Enter the pre-money valuation you are asking for.' };
+    assumptions = { method, preMoney };
+  } else if (method === 'PAYER_MIX_EBITDA') {
     const ebitda = amount(form.get('ebitda'));
     const netRevenue = amount(form.get('netRevenue'));
     const multiple = amount(form.get('ebitdaMultiple'));

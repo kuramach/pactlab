@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 420" role="img" aria-labelledby="t">
+<title id="t">Venture Raise: a deck metric checked against billing, a cap table and two offers side by side</title>
+<rect width="640" height="420" rx="28" fill="#f3f5ff"/>
+<circle cx="560" cy="70" r="120" fill="#e6e9ff"/>
+<circle cx="70" cy="380" r="90" fill="#e6e9ff"/>
+<g fill="#c9cffd"><circle cx="40" cy="40" r="2.5"/><circle cx="62" cy="40" r="2.5"/><circle cx="84" cy="40" r="2.5"/><circle cx="106" cy="40" r="2.5"/><circle cx="128" cy="40" r="2.5"/><circle cx="150" cy="40" r="2.5"/><circle cx="172" cy="40" r="2.5"/><circle cx="194" cy="40" r="2.5"/></g>
+
+<g transform="translate(60 110)">
+<rect x="0" y="0" width="250" height="150" rx="14" fill="#ffffff" stroke="#c9cffd" stroke-width="2"/>
+<rect x="0" y="0" width="250" height="30" rx="14" fill="#081127"/>
+<rect x="0" y="16" width="250" height="14" fill="#081127"/>
+<text x="16" y="21" font-family="Manrope, sans-serif" font-size="13" font-weight="700" fill="#ffffff">Deck</text>
+<text x="18" y="66" font-family="Manrope, sans-serif" font-size="13" font-weight="700" fill="#081127">ARR</text>
+<rect x="70" y="54" width="120" height="16" rx="8" fill="#6978ff"/>
+<text x="18" y="104" font-family="Manrope, sans-serif" font-size="13" font-weight="700" fill="#081127">Billing</text>
+<rect x="70" y="92" width="104" height="16" rx="8" fill="#c9cffd"/>
+<g fill="none" stroke-width="4" stroke-linecap="round"><path d="M206 56 l14 14 M220 56 l-14 14" stroke="#081127"/><path d="M190 94 l7 7 l13 -13" stroke="#4a58e8"/></g>
+</g>
+
+<g transform="translate(60 290)">
+<rect x="0" y="0" width="250" height="90" rx="14" fill="#ffffff" stroke="#c9cffd" stroke-width="2"/>
+<text x="16" y="26" font-family="Manrope, sans-serif" font-size="13" font-weight="700" fill="#081127">Cap table</text>
+<g transform="translate(200 50)"><circle r="28" fill="#c9cffd"/><path d="M0 0 L0 -28 A28 28 0 0 1 26 10 z" fill="#6978ff"/><path d="M0 0 L26 10 A28 28 0 0 1 -12 25 z" fill="#081127"/></g>
+<g stroke-linecap="round" stroke-width="7"><line x1="16" y1="50" x2="120" y2="50" stroke="#c9cffd"/><line x1="16" y1="70" x2="96" y2="70" stroke="#c9cffd"/></g>
+</g>
+
+<g transform="translate(350 120)">
+<rect x="0" y="0" width="110" height="160" rx="14" fill="#ffffff" stroke="#c9cffd" stroke-width="2"/>
+<text x="14" y="26" font-family="Manrope, sans-serif" font-size="12" font-weight="700" fill="#081127">Offer A</text>
+<g stroke-linecap="round" stroke-width="7"><line x1="14" y1="52" x2="94" y2="52" stroke="#6978ff"/><line x1="14" y1="76" x2="78" y2="76" stroke="#c9cffd"/><line x1="14" y1="100" x2="88" y2="100" stroke="#c9cffd"/></g>
+<rect x="14" y="120" width="60" height="22" rx="11" fill="#081127"/>
+</g>
+<g transform="translate(476 120)">
+<rect x="0" y="0" width="110" height="160" rx="14" fill="#ffffff" stroke="#c9cffd" stroke-width="2"/>
+<text x="14" y="26" font-family="Manrope, sans-serif" font-size="12" font-weight="700" fill="#081127">Offer B</text>
+<g stroke-linecap="round" stroke-width="7"><line x1="14" y1="52" x2="70" y2="52" stroke="#6978ff"/><line x1="14" y1="76" x2="90" y2="76" stroke="#c9cffd"/><line x1="14" y1="100" x2="80" y2="100" stroke="#c9cffd"/></g>
+<rect x="14" y="120" width="76" height="22" rx="11" fill="#c9cffd"/>
+</g>
+
+<g transform="translate(578 358)">
+  <circle r="30" fill="#081127"/>
+  <path d="M0 -18 c8 6 10 16 6 26 h-12 c-4 -10 -2 -20 6 -26z" fill="none" stroke="#ffffff" stroke-width="3" stroke-linejoin="round"/>
+  <circle cy="-4" r="3.5" fill="#6978ff"/>
+  <path d="M-6 8 l-6 8 h6 M6 8 l6 8 h-6" fill="none" stroke="#6978ff" stroke-width="3" stroke-linejoin="round"/>
+</g>
+</svg>

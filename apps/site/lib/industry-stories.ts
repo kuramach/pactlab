@@ -368,6 +368,39 @@ export const INDUSTRY_STORIES: Readonly<Record<string, IndustryStory>> = {
     ],
   },
 
+  'venture-raise': {
+    headline: 'Walk into diligence knowing what the investor will find.',
+    subhead:
+      'Investors check the deck against billing, the cap table against the corporate record and the IP against the agreements. Venture Raise runs the same checks for the founder first, models every competing offer, and keeps what you find on your side until you choose to share it.',
+    illustrationAlt: 'Illustration of a pitch deck metric checked against billing, a cap table and two term sheets side by side.',
+    pains: [
+      { icon: 'ChartLine', title: 'A deck number billing does not support', body: 'A headline metric the investor’s first check contradicts costs more credibility than any other finding.' },
+      { icon: 'Layers', title: 'SAFEs that convert into more than you think', body: 'Caps, discounts and a forgotten MFN clause decide how much of the company the round really takes.' },
+      { icon: 'FileLock', title: 'IP a contractor still owns', body: 'One agreement without an assignment becomes a closing condition.' },
+    ],
+    walkthrough: [
+      { step: 'Evidence', text: 'Billing, the cap table, monthly cash and burn, the corporate record, contractor agreements, the SAFE register and the term sheets you have received.' },
+      { step: 'Finding', text: 'The deck’s ARR is checked against billing and its runway against cash; SAFEs, the pool and the IP chain are checked against the documents. Every number in the deck becomes a claim: verified, contradicted or unverified.' },
+      { step: 'Review', text: 'You decide what each finding means and fix what you can before an investor sees it. Strengths stay confidential until you choose to show them.' },
+      { step: 'Valuation', text: 'Each offer runs through the round model: price per share, SAFE conversion at cap or discount, the pool shuffle in shares and percent, and the founders’ ownership after the round.' },
+      { step: 'Deal terms', text: 'Liquidation preference and board composition are explained in plain language. Pactlab shows what a term does; the decision stays with you and your counsel.' },
+    ],
+    findings: [
+      { title: 'Deck ARR above billed ARR', severity: 'High', evidence: 'Invoice lines against the deck’s headline metric', term: 'Correct the deck before the investor’s check' },
+      { title: 'MFN SAFE takes a later, lower cap', severity: 'High', evidence: 'Cap table and the SAFE register', term: 'More conversion shares in every scenario' },
+      { title: 'Contractor agreement without IP assignment', severity: 'High', evidence: 'The agreement in the data room', term: 'Confirmatory assignment before closing' },
+    ],
+    deliverables: [
+      { icon: 'ListChecks', title: 'A claims register', body: 'Every deck number with its evidence and status.' },
+      { icon: 'Handshake', title: 'Offers side by side', body: 'Each investor’s terms and what the founders own after each.' },
+      { icon: 'EyeOff', title: 'An investor view', body: 'Verified numbers and the data room, with nothing confidential in it.' },
+    ],
+    faq: [
+      { q: 'Who is this for?', a: 'Founders raising pre-seed, seed or Series A money from angels, incubators and accelerators, or venture funds — the founder is the Pactlab user.' },
+      { q: 'Can I compare several investors?', a: 'Yes. Each investor’s bid is an offer in the same raise; the round model runs for every one and shows them side by side, without ranking them.' },
+      { q: 'Does it give legal or financial advice?', a: 'No. It shows the mechanics and consequences of each term and the evidence behind each finding. Decisions stay with you and your advisers.' },
+    ],
+  },
   'small-clinics': {
     headline: 'In a clinic roll-up, revenue follows the providers.',
     subhead:

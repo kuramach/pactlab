@@ -13,3 +13,4 @@ export * from './commercial-property';
 export * from './hotels';
 export * from './clinics';
 export * from './hospitals';
+export * from './venture';

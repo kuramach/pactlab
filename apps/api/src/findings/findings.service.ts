@@ -9,7 +9,7 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { citationStillValid, SourceIndex } from '@pactlab/ai';
-import { evidence, withTenant, type PrismaClient } from '@pactlab/db';
+import { appendAuditEvent, evidence, withTenant, type PrismaClient } from '@pactlab/db';
 import {
   auditActionFor,
   canDraftFindings,
@@ -23,6 +23,7 @@ import {
   FindingWorkflowError,
   newId,
   ruleProposals,
+  type RuleRunResult,
   type DealRole,
   type Finding,
   type FindingActor,
@@ -355,6 +356,7 @@ export class FindingsService {
     const runs = rules.map((rule) => ruleProposals(rule, { evidence: input, pages: rulePages }, resolve));
     const proposals = runs.flatMap((run) => run.proposals);
     const recorded = await this.recordProposals(tenant, dealId, proposals, { kind: 'SYSTEM', component: 'pack-rules' }, requestId);
+    await this.recordRuleClaims(tenant, dealId, runs.flatMap((run) => run.claims), requestId);
     return {
       pack: pack.id,
       rules: rules.map((rule) => ({ id: rule.id, version: rule.version })),
@@ -364,6 +366,52 @@ export class FindingsService {
       created: recorded.created.length,
       existing: recorded.existing,
     };
+  }
+
+  /**
+   * Claims a rule settled (T-083): one row per statement (origin PACK_RULE),
+   * linked to its finding and evidence; a re-run updates the status if the
+   * evidence changed, never duplicates. Claims are buyer-side (RLS).
+   */
+  private async recordRuleClaims(tenant: TenantContext, dealId: string, claims: RuleRunResult['claims'], requestId: string) {
+    for (const { fingerprint, claim, evidenceIds } of claims) {
+      const finding = await this.findings.findByFingerprint(tenant, dealId, fingerprint);
+      if (!finding) continue;
+      await withTenant(this.prisma, tenant, async (tx) => {
+        const existing = await tx.dealClaim.findFirst({ where: { dealId, origin: 'PACK_RULE', statement: claim.statement } });
+        if (existing && existing.status === claim.status && existing.findingIds.includes(finding.id)) return;
+        const row = existing
+          ? await tx.dealClaim.update({
+              where: { id: existing.id },
+              data: { status: claim.status, rationale: claim.rationale, evidenceItemIds: [...evidenceIds], findingIds: [...new Set([...existing.findingIds, finding.id])], version: { increment: 1 }, updatedBy: tenant.userId, updatedAt: new Date() },
+            })
+          : await tx.dealClaim.create({
+              data: {
+                organizationId: tenant.organizationId,
+                dealId,
+                statement: claim.statement,
+                source: 'Pack rule',
+                origin: 'PACK_RULE',
+                status: claim.status,
+                rationale: claim.rationale,
+                evidenceItemIds: [...evidenceIds],
+                findingIds: [finding.id],
+                createdBy: tenant.userId,
+                updatedBy: tenant.userId,
+              },
+            });
+        await appendAuditEvent(tx, {
+          organizationId: tenant.organizationId,
+          dealId,
+          actorUserId: tenant.userId,
+          action: existing ? 'claim.updated' : 'claim.created',
+          targetType: 'deal_claim',
+          targetId: row.id,
+          outcome: 'SUCCEEDED',
+          requestId,
+        });
+      });
+    }
   }
 
   async update(

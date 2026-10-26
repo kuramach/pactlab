@@ -3,7 +3,7 @@ import type { MoneyValue } from '../metrics/types';
 /** Bumped whenever a formula, bridge rule, rounding rule or output shape changes. */
 export const VALUATION_ENGINE_VERSION = 'valuation-2';
 
-export const VALUATION_METHODS = ['ARR_MULTIPLE', 'DCF', 'NOI_CAP_RATE', 'PAYER_MIX_EBITDA'] as const;
+export const VALUATION_METHODS = ['ARR_MULTIPLE', 'DCF', 'NOI_CAP_RATE', 'PAYER_MIX_EBITDA', 'ROUND_PRE_MONEY'] as const;
 export type ValuationMethod = (typeof VALUATION_METHODS)[number];
 
 /** Mirrors the deal's transaction type; it decides which extra engines must run. */
@@ -87,7 +87,17 @@ export interface PayerMixEbitdaAssumptions {
   readonly payers: readonly PayerAdjustment[];
 }
 
-export type MethodAssumptions = ArrMultipleAssumptions | DcfAssumptions | NoiCapRateAssumptions | PayerMixEbitdaAssumptions;
+/**
+ * Venture Raise (T-083): the round is the price. Enterprise value is the
+ * founder's ask (pre-money); accepted findings adjust it on the bridge, which
+ * shows where the round realistically lands.
+ */
+export interface RoundPreMoneyAssumptions {
+  readonly method: 'ROUND_PRE_MONEY';
+  readonly preMoney: string;
+}
+
+export type MethodAssumptions = ArrMultipleAssumptions | DcfAssumptions | NoiCapRateAssumptions | PayerMixEbitdaAssumptions | RoundPreMoneyAssumptions;
 
 /** Enterprise-to-equity bridge items, before diligence adjustments. */
 export interface BridgeAssumptions {
@@ -184,6 +194,7 @@ export const SENSITIVITY_VARIABLES = [
   'noi',
   'capRate',
   'ebitda',
+  'preMoney',
 ] as const;
 export type SensitivityVariable = (typeof SENSITIVITY_VARIABLES)[number];
 
@@ -238,7 +249,8 @@ export type MethodResult =
       readonly adjustedEbitda: MoneyValue;
       readonly multiple: string;
       readonly payers: readonly { readonly payer: string; readonly share: string; readonly rateChange: string; readonly ebitdaEffect: MoneyValue }[];
-    };
+    }
+  | { readonly method: 'ROUND_PRE_MONEY'; readonly preMoney: MoneyValue };
 
 export const BRIDGE_LINE_KINDS = [
   'ENTERPRISE_VALUE',

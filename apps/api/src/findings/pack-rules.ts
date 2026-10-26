@@ -1,4 +1,4 @@
-import { CLINICS_RULES, COMMERCIAL_PROPERTY_RULES, ECOMMERCE_RULES, FINTECH_RULES, HEALTHCARE_RULES, HOSPITALS_RULES, HOTELS_RULES, MULTIFAMILY_RULES, PHARMA_RULES, SERVICES_RULES, TELECOM_RULES, type PackRule } from '@pactlab/calculations';
+import { CLINICS_RULES, COMMERCIAL_PROPERTY_RULES, ECOMMERCE_RULES, FINTECH_RULES, HEALTHCARE_RULES, HOSPITALS_RULES, HOTELS_RULES, MULTIFAMILY_RULES, PHARMA_RULES, SERVICES_RULES, TELECOM_RULES, VENTURE_RULES, type PackRule } from '@pactlab/calculations';
 import { PACKS, type FindingRule, type PackDefinition, type PackId } from '@pactlab/domain';
 
 /**
@@ -16,7 +16,7 @@ export interface PackRegistry {
 const asFindingRule = (rule: PackRule): FindingRule => rule;
 
 export const PACK_RULES: Readonly<Record<string, FindingRule>> = Object.fromEntries(
-  [...FINTECH_RULES, ...MULTIFAMILY_RULES, ...HEALTHCARE_RULES, ...TELECOM_RULES, ...SERVICES_RULES, ...PHARMA_RULES, ...ECOMMERCE_RULES, ...COMMERCIAL_PROPERTY_RULES, ...HOTELS_RULES, ...CLINICS_RULES, ...HOSPITALS_RULES].map((rule) => [rule.id, asFindingRule(rule)]),
+  [...FINTECH_RULES, ...MULTIFAMILY_RULES, ...HEALTHCARE_RULES, ...TELECOM_RULES, ...SERVICES_RULES, ...PHARMA_RULES, ...ECOMMERCE_RULES, ...COMMERCIAL_PROPERTY_RULES, ...HOTELS_RULES, ...CLINICS_RULES, ...HOSPITALS_RULES, ...VENTURE_RULES].map((rule) => [rule.id, asFindingRule(rule)]),
 );
 
 export const PACK_REGISTRY = Symbol('PACK_REGISTRY');

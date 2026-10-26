@@ -29,6 +29,8 @@ export const IMPORT_TARGETS = [
   'CLINICS_CODING_SUMMARY',
   'HOSPITALS_CENSUS',
   'HOSPITALS_PAYER_MIX',
+  'VENTURE_CAP_TABLE',
+  'VENTURE_FINANCIALS',
 ] as const;
 export type ImportTarget = (typeof IMPORT_TARGETS)[number];
 
@@ -573,6 +575,53 @@ export const HOSPITALS_PAYER_MIX: TargetDefinition = {
   ],
 };
 
+/**
+ * Venture Raise (T-083): the cap table in a Carta/Pulley-like export shape,
+ * one row per security. Holders are pseudonymous references and a holder
+ * type — never names (rule 7).
+ */
+export const VENTURE_CAP_TABLE: TargetDefinition = {
+  target: 'VENTURE_CAP_TABLE',
+  label: 'Cap table',
+  fileName: 'cap-table.csv',
+  people: 'PSEUDONYMOUS',
+  refusesPeopleColumns: true,
+  evidenceType: 'venture.cap_table_row',
+  recordIdField: 'security_id',
+  observedAtFields: [],
+  fields: [
+    { name: 'security_id', label: 'Security id', kind: 'text', required: true, hint: 'The certificate, grant or instrument id, e.g. CS-1 or SAFE-2.' },
+    { name: 'holder_ref', label: 'Holder reference', kind: 'text', required: true, hint: 'A pseudonymous reference such as F-1 or E-07 — never a name.' },
+    { name: 'holder_type', label: 'Holder type', kind: 'code', required: true, hint: 'founder, employee, advisor, investor or pool.' },
+    { name: 'instrument', label: 'Instrument', kind: 'code', required: true, hint: 'common, preferred, option, pool_unallocated, safe or note.' },
+    { name: 'shares', label: 'Shares', kind: 'decimal', required: false, hint: 'Shares or options; empty for SAFEs and notes before they convert.' },
+    { name: 'principal', label: 'Principal', kind: 'money', required: false, hint: `Amount invested on a SAFE or note. ${IN_BASE_CURRENCY}` },
+    { name: 'valuation_cap', label: 'Valuation cap', kind: 'money', required: false, hint: `Post-money cap of a SAFE or note. ${IN_BASE_CURRENCY}` },
+    { name: 'discount_pct', label: 'Discount (%)', kind: 'decimal', required: false, hint: 'Discount to the round price, in percent (e.g. 20).' },
+    { name: 'mfn', label: 'Most-favoured-nation', kind: 'code', required: false, hint: 'yes when the SAFE takes better terms given later.' },
+    { name: 'pro_rata', label: 'Pro-rata right', kind: 'code', required: false, hint: 'yes or no.' },
+    { name: 'vesting', label: 'Subject to vesting', kind: 'code', required: false, hint: 'yes for founder or employee stock that vests.' },
+    { name: 'issued_on', label: 'Issued on', kind: 'date', required: false, hint: 'Issue or signing date.' },
+  ],
+};
+
+/** Venture Raise (T-083): cash and net burn by month, for runway. */
+export const VENTURE_FINANCIALS: TargetDefinition = {
+  target: 'VENTURE_FINANCIALS',
+  label: 'Monthly financials',
+  fileName: 'monthly-financials.csv',
+  people: 'NONE',
+  refusesPeopleColumns: true,
+  evidenceType: 'venture.financials_month',
+  recordIdField: 'month',
+  observedAtFields: [],
+  fields: [
+    { name: 'month', label: 'Month', kind: 'text', required: true, hint: 'YYYY-MM.' },
+    { name: 'cash_balance', label: 'Cash balance', kind: 'money', required: true, hint: `Bank balance at month end. ${IN_BASE_CURRENCY}` },
+    { name: 'net_burn', label: 'Net burn', kind: 'money', required: true, hint: `Cash out minus cash in for the month (positive when burning). ${IN_BASE_CURRENCY}` },
+  ],
+};
+
 export const IMPORT_TARGET_DEFINITIONS: Readonly<Record<ImportTarget, TargetDefinition>> = {
   BILLING_INVOICE_LINE,
   FINTECH_LOAN_TAPE,
@@ -599,6 +648,8 @@ export const IMPORT_TARGET_DEFINITIONS: Readonly<Record<ImportTarget, TargetDefi
   CLINICS_CODING_SUMMARY,
   HOSPITALS_CENSUS,
   HOSPITALS_PAYER_MIX,
+  VENTURE_CAP_TABLE,
+  VENTURE_FINANCIALS,
 };
 
 /**

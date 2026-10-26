@@ -64,6 +64,14 @@ export const PACK_TRENDS: Readonly<Partial<Record<PackId, readonly TrendDefiniti
   HEALTHCARE: [sector('healthcare.reimbursement', 'Reimbursement policy', 'Over five years, do reimbursement rates for these services rise, hold or fall?', [{ lever: 'GROWTH', whenUp: 1 }, { lever: 'MARGIN', whenUp: 1 }])],
   SMALL_CLINICS: [sector('healthcare.reimbursement', 'Reimbursement policy', 'Over five years, do reimbursement rates for these services rise, hold or fall?', [{ lever: 'GROWTH', whenUp: 1 }, { lever: 'MARGIN', whenUp: 1 }])],
   HOSPITALS: [sector('healthcare.reimbursement', 'Reimbursement policy', 'Over five years, do reimbursement rates for these services rise, hold or fall?', [{ lever: 'GROWTH', whenUp: 1 }, { lever: 'MARGIN', whenUp: 1 }])],
+  // Funding-market climate for the founder's timing question (T-083): scenarios, never a prophecy.
+  VENTURE_RAISE: [
+    sector('venture.deployment', 'Venture deployment pace', 'Over five years, does venture capital deployment into companies at this stage rise, hold or fall?', [{ lever: 'MULTIPLE', whenUp: 1 }, { lever: 'GROWTH', whenUp: 1 }]),
+    sector('venture.round_pricing', 'Seed and Series A pricing', 'Over five years, do median seed and Series A pre-money valuations rise, hold or fall?', [{ lever: 'MULTIPLE', whenUp: 1 }]),
+    sector('venture.exit_window', 'IPO and acquisition window', 'Over five years, do IPO and acquisition exits for venture-backed companies open up, hold or close?', [{ lever: 'MULTIPLE', whenUp: 1 }]),
+    sector('venture.down_rounds', 'Down rounds and bridges', 'Over five years, do down rounds and bridge rounds become more common, hold or become rarer?', [{ lever: 'MULTIPLE', whenUp: -1 }, { lever: 'DISCOUNT_RATE', whenUp: 1 }]),
+    sector('venture.sector_heat', 'Sector heat (including the AI premium)', 'Over five years, does investor appetite for this sector, including any AI premium, rise, hold or fall?', [{ lever: 'MULTIPLE', whenUp: 1 }]),
+  ],
   COMMERCIAL_PROPERTY: [sector('commercial.occupancy', 'Office and retail occupancy', 'Over five years, does occupancy for this property type rise, hold or fall?', [{ lever: 'GROWTH', whenUp: 1 }])],
 };
 

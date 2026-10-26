@@ -46,6 +46,7 @@ enum CompanyType {
   HOTELS
   SMALL_CLINICS
   HOSPITALS
+  VENTURE_RAISE
   OTHER
 
   @@map("company_type")
@@ -146,6 +147,8 @@ enum ImportTarget {
   CLINICS_CODING_SUMMARY
   HOSPITALS_CENSUS
   HOSPITALS_PAYER_MIX
+  VENTURE_CAP_TABLE
+  VENTURE_FINANCIALS
 
   @@map("import_target")
 }
@@ -566,6 +569,8 @@ model Deal {
   postCloseItems          PostCloseItem[]
   foresightTrendSets      ForesightTrendSet[]
   foresightQuestions      ForesightQuestion[]
+  ventureRaiseSettings    VentureRaiseSettings[]
+  ventureOffers           VentureOffer[]
 
   @@unique([organizationId, id])
   @@index([organizationId, createdAt])
@@ -1590,7 +1595,7 @@ model DealClaim {
   dealId          String   @map("deal_id") @db.Uuid
   statement       String
   source          String?
-  /// SCREENING_RED_FLAG | MANUAL
+  /// SCREENING_RED_FLAG | MANUAL | PACK_RULE
   origin          String
   /// UNVERIFIED | VERIFIED | CONTRADICTED
   status          String   @default("UNVERIFIED")
@@ -1786,4 +1791,63 @@ model ForesightQuestion {
 
   @@index([organizationId, dealId, askedAt])
   @@map("foresight_questions")
+}
+
+/// Venture Raise (T-083): the round a founder is raising, one row per deal.
+/// Investors' bids are `VentureOffer` rows on the same deal.
+model VentureRaiseSettings {
+  id             String       @id @default(uuid(7)) @db.Uuid
+  organizationId String       @map("organization_id") @db.Uuid
+  dealId         String       @map("deal_id") @db.Uuid
+  /// PRE_SEED | SEED_SAFE | SEED_NOTE | SEED_PRICED | SERIES_A
+  roundType      String       @map("round_type")
+  currency       String       @db.Char(3)
+  /// The founder's ask.
+  targetPreMoney Decimal      @map("target_pre_money") @db.Decimal(24, 4)
+  raiseAmount    Decimal      @map("raise_amount") @db.Decimal(24, 4)
+  /// Post-money option pool target, as a fraction (0.10 = 10%).
+  poolTargetPct  Decimal      @map("pool_target_pct") @db.Decimal(9, 6)
+  sector         CompanyType?
+  version        Int          @default(1)
+  updatedBy      String       @map("updated_by") @db.Uuid
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime     @default(now()) @map("updated_at") @db.Timestamptz(3)
+
+  deal Deal @relation(fields: [organizationId, dealId], references: [organizationId, id], onDelete: Restrict, map: "venture_raise_settings_deal_fkey")
+
+  @@unique([organizationId, dealId])
+  @@map("venture_raise_settings")
+}
+
+/// Venture Raise (T-083): one investor's bid on the round. Several may compete.
+model VentureOffer {
+  id                  String    @id @default(uuid(7)) @db.Uuid
+  organizationId      String    @map("organization_id") @db.Uuid
+  dealId              String    @map("deal_id") @db.Uuid
+  /// The investing organization (a firm or fund), not a person.
+  investorName        String    @map("investor_name")
+  /// ANGEL | INCUBATOR | VC
+  counterpartyType    String    @map("counterparty_type")
+  /// PROSPECT | TERM_SHEET | DECLINED | SIGNED
+  status              String    @default("PROSPECT")
+  preMoney            Decimal?  @map("pre_money") @db.Decimal(24, 4)
+  amount              Decimal?  @db.Decimal(24, 4)
+  poolTargetPct       Decimal?  @map("pool_target_pct") @db.Decimal(9, 6)
+  liquidationMultiple Decimal   @default(1) @map("liquidation_multiple") @db.Decimal(6, 2)
+  participating       Boolean   @default(false)
+  investorBoardSeats  Int?      @map("investor_board_seats")
+  proRata             Boolean   @default(false) @map("pro_rata")
+  mfn                 Boolean   @default(false)
+  receivedOn          DateTime? @map("received_on") @db.Date
+  version             Int       @default(1)
+  createdBy           String    @map("created_by") @db.Uuid
+  updatedBy           String    @map("updated_by") @db.Uuid
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt           DateTime  @default(now()) @map("updated_at") @db.Timestamptz(3)
+
+  deal Deal @relation(fields: [organizationId, dealId], references: [organizationId, id], onDelete: Restrict, map: "venture_offers_deal_fkey")
+
+  @@unique([organizationId, dealId, id])
+  @@index([organizationId, dealId, createdAt])
+  @@map("venture_offers")
 }

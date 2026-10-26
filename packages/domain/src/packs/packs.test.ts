@@ -9,9 +9,9 @@ import { PACK_IDS, PACKS, packFor } from './registry';
 describe('pack registry', () => {
   it('has one pack per company type except OTHER, each with unique slugs', () => {
     expect([...PACK_IDS].sort()).toEqual(COMPANY_TYPES.filter((type) => type !== 'OTHER').sort());
-    expect(PACK_IDS).toHaveLength(12);
+    expect(PACK_IDS).toHaveLength(13);
     const slugs = PACK_IDS.map((id) => PACKS[id].slug);
-    expect(new Set(slugs).size).toBe(12);
+    expect(new Set(slugs).size).toBe(13);
     for (const id of PACK_IDS) expect(PACKS[id].id).toBe(id);
   });
 
