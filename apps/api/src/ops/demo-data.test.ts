@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { BILLING_TEMPLATES, INVOICE_LINE_COLUMNS } from '@pactlab/connectors';
 import { isoCurrencySchema } from '@pactlab/contracts';
-import { applyMapping, BILLING_INVOICE_LINE, detectDateFormat, IMPORT_TARGET_DEFINITIONS, PACK_IDS, PACKS, parseCsv, peopleColumnProblems, suggestFields, type ImportMapping } from '@pactlab/domain';
+import { applyMapping, BILLING_INVOICE_LINE, COMPANY_TYPE_LABELS, detectDateFormat, IMPORT_TARGET_DEFINITIONS, PACK_IDS, PACKS, parseCsv, peopleColumnProblems, suggestFields, type ImportMapping } from '@pactlab/domain';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { documentPages } from '../documents/document-text';
 import { SignatureMalwareScanner, validateUpload } from '../documents/upload-policy';
@@ -113,9 +113,13 @@ describe('demo data set (scripts/demo-data/generate.py)', () => {
         const result = applyMapping(csv, mapping, 'pack', targetDefinition);
         expect(result.issues, where).toEqual([]);
         expect(result.rows.length, where).toBe(csv.rows.length);
-        // The README sends the reader to the pack's own import, by the label Pactlab shows.
-        if (definition?.built) expect(read(join(dir, 'README.md')), where).toContain(`| \`${targetDefinition.fileName}\` | `);
-        if (definition?.built) expect(read(join(dir, 'README.md')), where).toContain(`Sources → Industry data → **Upload ${targetDefinition.label.toLowerCase()}** |`);
+        // The README sends the reader to the pack's own import by the label Pactlab shows, with the row count the Import button will read.
+        if (definition?.built) {
+          const readme = read(join(dir, 'README.md'));
+          expect(readme, where).toContain(`| **Upload ${targetDefinition.label.toLowerCase()}** | \`${targetDefinition.fileName}\` | `);
+          expect(readme, where).toContain(`\`${targetDefinition.fileName}\` | **Upload and map columns** → **Check every row** | **Import ${csv.rows.length} rows** |`);
+          expect(readme, where).toMatch(new RegExp(`\\| \`${targetDefinition.fileName.replaceAll('.', '\\.')}\` \\| .* \\| \\*\\*Yes\\*\\* — industry data step \\|`));
+        }
       }
     }
   });
@@ -161,13 +165,38 @@ describe('demo data set (scripts/demo-data/generate.py)', () => {
     }
   }, 60_000);
 
-  it('every folder has a README with planted findings, and a data-room index naming real files', () => {
+  it('every README is a click-by-click guide that matches what Pactlab shows', () => {
     for (const { pack, currency, dir } of folders) {
       const where = `${pack}/${currency}`;
       const readme = read(join(dir, 'README.md'));
+      const definition = PACK_IDS.map((id) => PACKS[id]).find((entry) => entry.slug === pack);
+      const label = COMPANY_TYPE_LABELS[definition?.id ?? 'OTHER'];
       expect(readme, where).toContain('Synthetic demo data');
-      expect(readme, where).toContain(`base currency **${currency}**`);
-      expect(readme.split('## Planted findings')[1]?.match(/^\d+\. \*\*/gm)?.length ?? 0, where).toBeGreaterThanOrEqual(3);
+      expect(readme, where).toContain(`Base currency: **${currency}**`);
+      // Labels exactly as the wizard and the Findings tab show them.
+      expect(readme, where).toContain(`What kind of company is it?: **${label}**`);
+      expect(readme, where).toContain(`**Run ${label.toLowerCase()} checks**`);
+      // Steps are numbered 1..n.
+      const steps = readme.match(/^## Step (\d+) — /gm)?.map((line) => Number(/\d+/.exec(line)?.[0])) ?? [];
+      expect(steps.length, where).toBeGreaterThanOrEqual(5);
+      expect(steps, where).toEqual(Array.from({ length: steps.length }, (_, i) => i + 1));
+      // The price to test: an asking price in the wizard, or the founder's round for a raise.
+      if (pack === 'venture-raise') expect(readme, where).toMatch(/\| Your ask \(pre-money\) \| `[1-9]\d+` /);
+      else expect(readme, where).toMatch(new RegExp(`\\| Asking price \\| \`[1-9]\\d+\` \\(${currency} [\\d,]+\\) \\|`));
+      // The billing Import button's line count.
+      expect(readme, where).toContain(`**Import ${parseCsv(read(join(dir, 'invoice-lines.csv'))).rows.length} lines**`);
+      // Every PDF is listed for upload with a data class the Documents tab offers; .md sources never are.
+      const pdfs = readdirSync(join(dir, 'documents')).filter((name) => name.endsWith('.md')).map((name) => name.replace(/\.md$/, '.pdf'));
+      for (const pdf of pdfs) {
+        expect(readme, `${where}: ${pdf}`).toMatch(new RegExp(`\\| \\d+ \\| \`documents/${pdf.replaceAll('.', '\\.')}\` \\| \\*\\*(business|financial) information\\*\\* \\|`));
+      }
+      expect(readme, where).toContain(`all ${pdfs.length} documents listed`);
+      expect(readme, where).toContain('| `documents/*.md` | The text each PDF is built from | **No** — never |');
+      // The planted findings: at least three, and the count the README promises.
+      const promised = Number(/You should see exactly these (\d+) findings/.exec(readme)?.[1]);
+      const listed = readme.split('You should see exactly these')[1]?.split('\n3. ')[0]?.match(/^ {3}\d+\. \*\*/gm)?.length ?? 0;
+      expect(listed, where).toBe(promised);
+      expect(listed, where).toBeGreaterThanOrEqual(3);
       const index = parseCsv(read(join(dir, 'vdr-index.csv')));
       for (const row of index.rows) {
         const file = row.cells[2] ?? '';
