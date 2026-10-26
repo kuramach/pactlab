@@ -1,0 +1,4 @@
+-- T-068 small clinics pack import targets (ADR 0010). Expand only.
+ALTER TYPE "import_target" ADD VALUE IF NOT EXISTS 'CLINICS_PATIENT_VOLUME';
+ALTER TYPE "import_target" ADD VALUE IF NOT EXISTS 'CLINICS_EQUIPMENT';
+ALTER TYPE "import_target" ADD VALUE IF NOT EXISTS 'CLINICS_CODING_SUMMARY';

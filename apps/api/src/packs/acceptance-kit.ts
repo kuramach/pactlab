@@ -33,7 +33,7 @@ export interface AcceptanceDeal {
   readonly dealId: string;
   readonly folder: string;
   readonly readme: string;
-  call(method: 'GET' | 'POST' | 'PATCH', url: string, who: string, payload?: unknown): Promise<{ status: number; body: Body }>;
+  call(method: 'GET' | 'POST' | 'PATCH' | 'PUT', url: string, who: string, payload?: unknown): Promise<{ status: number; body: Body }>;
   close(): Promise<void>;
 }
 
@@ -140,3 +140,43 @@ export async function startAcceptanceDeal(packId: PackId, currency: string, opti
 /** Every built pack with rules has an acceptance folder per currency (guards the harness inputs). */
 export const ACCEPTANCE_CURRENCIES = ['USD', 'EUR', 'GBP'] as const;
 export const BUILT_PACKS = PACK_IDS.filter((id) => PACKS[id].built && PACKS[id].findingRules.length > 0);
+
+export type BridgeLine = { kind: string; findingId?: string; amount: { amount: string } };
+
+/**
+ * The human path from a drafted pack finding to a valuation run: optionally
+ * price it (as a reviewer would for a drag the rule leaves unpriced), submit,
+ * accept as a second person, link it to a scenario and run it. Returns the
+ * run's purchase-price bridge lines.
+ */
+export async function acceptAndValue(
+  deal: AcceptanceDeal,
+  finding: { id: string; version: number },
+  options: { pricedRisk?: { type: string; currency: string; low: string; high: string; basis: string }; assumptions?: Record<string, unknown> } = {},
+): Promise<BridgeLine[]> {
+  const base = `/v1/deals/${deal.dealId}/findings/${finding.id}`;
+  let version = finding.version;
+  if (options.pricedRisk) {
+    const priced = await deal.call('PATCH', base, 'lead', { expectedVersion: version, pricedRisk: options.pricedRisk });
+    expect(priced.status, JSON.stringify(priced.body)).toBe(200);
+    version = Number(priced.body['version']);
+  }
+  const submitted = await deal.call('POST', `${base}/reviews`, 'lead', { expectedVersion: version, decision: 'SUBMITTED', rationale: 'Sources checked (synthetic)' });
+  expect(submitted.status, JSON.stringify(submitted.body)).toBe(201);
+  const accepted = await deal.call('POST', `${base}/reviews`, 'reviewer', { expectedVersion: version + 1, decision: 'ACCEPTED', rationale: 'Evidence supports the finding (synthetic)' });
+  expect(accepted.status, JSON.stringify(accepted.body)).toBe(201);
+  const scenarios = `/v1/deals/${deal.dealId}/valuation/scenarios`;
+  const created = await deal.call('POST', scenarios, 'lead', {
+    name: 'Base case',
+    values: {
+      assumptions: options.assumptions ?? { method: 'ARR_MULTIPLE', arr: '6000000.00', multiple: '3' },
+      bridge: { cash: '0', debt: '0', debtLikeItems: '0', workingCapitalAdjustment: '0' },
+      findingLinks: [{ findingId: finding.id, point: 'LOW' }],
+    },
+  });
+  expect(created.status, JSON.stringify(created.body)).toBe(201);
+  const scenarioId = (created.body['scenario'] as { id: string }).id;
+  const ran = await deal.call('POST', `${scenarios}/${scenarioId}/runs`, 'lead', { expectedVersion: 1 });
+  expect(ran.status, JSON.stringify(ran.body)).toBe(201);
+  return (ran.body['latestRun'] as { result: { bridge: { lines: BridgeLine[] } } }).result.bridge.lines;
+}

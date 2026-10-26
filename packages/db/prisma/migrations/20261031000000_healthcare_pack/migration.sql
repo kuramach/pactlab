@@ -1,0 +1,3 @@
+-- T-061 healthcare pack import targets (ADR 0010). Expand only.
+ALTER TYPE "import_target" ADD VALUE IF NOT EXISTS 'HEALTHCARE_CLAIMS_SUMMARY';
+ALTER TYPE "import_target" ADD VALUE IF NOT EXISTS 'HEALTHCARE_PROVIDER_ROSTER';

@@ -2,7 +2,7 @@ import { D, ratio } from '../metrics/decimal';
 import { addMonths } from '../metrics/months';
 
 /** Bumped whenever a rule, threshold or output shape changes. */
-export const ENGINEERING_VERSION = 'engineering-1';
+export const ENGINEERING_VERSION = 'engineering-2';
 
 /** Below this many contributors, no individual profile is shown (aggregates only). */
 export const MIN_PROFILE_COHORT = 5;
@@ -88,6 +88,21 @@ export interface ContributorProfile {
   readonly summary: string;
 }
 
+/** One person on the code-vs-delivery map: compact, so every contributor fits in one response (T-055). */
+export interface ContributorPoint {
+  readonly contributorKey: string;
+  readonly label: string;
+  readonly commits: number;
+  /** Issues created + comments: the coordination signal. */
+  readonly coordination: number;
+  readonly issuesResolved: number;
+  readonly tags: readonly ContributorTag[];
+  readonly status: ContributorStatus;
+  readonly areasActive: readonly string[];
+  readonly areasOwned: readonly string[];
+  readonly areasSolelyOwned: readonly string[];
+}
+
 export interface KeepCandidate {
   readonly contributorKey: string;
   readonly label: string;
@@ -107,6 +122,8 @@ export interface EngineeringReport {
   readonly suppressed: boolean;
   readonly profiles: readonly ContributorProfile[];
   readonly keepList: readonly KeepCandidate[];
+  /** Every profile as a map point (empty when suppressed). */
+  readonly points: readonly ContributorPoint[];
 }
 
 const sum = (values: readonly number[]) => values.reduce((total, value) => total + value, 0);
@@ -164,14 +181,45 @@ export function engineeringReport(input: EngineeringInput): EngineeringReport {
   const to = input.asOfMonth;
   const from = addMonths(to, -(WINDOW_MONTHS - 1));
   const inWindow = (month: string) => month >= from && month <= to;
-  const code = input.code.filter((row) => inWindow(row.month));
-  const delivery = input.delivery.filter((row) => inWindow(row.month));
   const months: string[] = [];
   for (let month = from; month <= to; month = addMonths(month, 1)) months.push(month);
 
+  // One pass over each source: rows by contributor and by month (T-055, linear in the rows).
+  const keys: string[] = [];
+  const seen = new Set<string>();
+  const remember = (key: string) => {
+    if (!seen.has(key)) {
+      seen.add(key);
+      keys.push(key);
+    }
+  };
+  const codeBy = new Map<string, CodeActivity[]>();
+  const workBy = new Map<string, DeliveryActivity[]>();
+  const codeByMonth = new Map<string, CodeActivity[]>();
+  const workByMonth = new Map<string, DeliveryActivity[]>();
+  const push = <T>(map: Map<string, T[]>, key: string, row: T) => {
+    const list = map.get(key);
+    if (list) list.push(row);
+    else map.set(key, [row]);
+  };
+  const code: CodeActivity[] = [];
+  for (const row of input.code) {
+    if (!inWindow(row.month)) continue;
+    code.push(row);
+    push(codeBy, row.contributorKey, row);
+    push(codeByMonth, row.month, row);
+  }
+  for (const row of code) remember(row.contributorKey);
+  for (const row of input.delivery) {
+    if (!inWindow(row.month)) continue;
+    push(workBy, row.contributorKey, row);
+    push(workByMonth, row.month, row);
+    remember(row.contributorKey);
+  }
+
   const monthHealth: MonthHealth[] = months.map((month) => {
-    const codeRows = code.filter((row) => row.month === month);
-    const deliveryRows = delivery.filter((row) => row.month === month);
+    const codeRows = codeByMonth.get(month) ?? [];
+    const deliveryRows = workByMonth.get(month) ?? [];
     const resolved = sum(deliveryRows.map((row) => row.issuesResolved));
     return {
       month,
@@ -184,7 +232,7 @@ export function engineeringReport(input: EngineeringInput): EngineeringReport {
     };
   });
 
-  // Area ownership: commits per area per contributor.
+  // Area ownership: commits per area per contributor, and each area's total, once.
   const areaCommits = new Map<string, Map<string, number>>();
   for (const row of code) {
     for (const [area, count] of Object.entries(row.areas)) {
@@ -193,12 +241,12 @@ export function engineeringReport(input: EngineeringInput): EngineeringReport {
       areaCommits.set(area, owners);
     }
   }
+  const areaTotal = new Map([...areaCommits.entries()].map(([area, owners]) => [area, sum([...owners.values()])]));
   const areas: AreaHealth[] = [...areaCommits.entries()]
-    .map(([area, owners]) => ({ area, commits: sum([...owners.values()]), contributors: owners.size, busFactor: busFactor([...owners.values()]) }))
+    .map(([area, owners]) => ({ area, commits: areaTotal.get(area) ?? 0, contributors: owners.size, busFactor: busFactor([...owners.values()]) }))
     .sort((a, b) => b.commits - a.commits || a.area.localeCompare(b.area));
 
-  const keys = [...new Set([...code.map((row) => row.contributorKey), ...delivery.map((row) => row.contributorKey)])];
-  const commitsBy = new Map(keys.map((key) => [key, sum(code.filter((row) => row.contributorKey === key).map((row) => row.commits))]));
+  const commitsBy = new Map(keys.map((key) => [key, sum((codeBy.get(key) ?? []).map((row) => row.commits))]));
   const totalCommits = sum([...commitsBy.values()]);
   const unmatched = sum(keys.filter((key) => (input.statuses.get(key) ?? 'UNKNOWN') !== 'CURRENT').map((key) => commitsBy.get(key) ?? 0));
 
@@ -211,20 +259,19 @@ export function engineeringReport(input: EngineeringInput): EngineeringReport {
     busFactor: busFactor([...commitsBy.values()].filter((count) => count > 0)),
     unmatchedOrDepartedShare: totalCommits === 0 ? null : ratio(new D(unmatched), new D(totalCommits)),
   } as const;
-  if (keys.length < MIN_PROFILE_COHORT) return { ...base, suppressed: true, profiles: [], keepList: [] };
+  if (keys.length < MIN_PROFILE_COHORT) return { ...base, suppressed: true, profiles: [], keepList: [], points: [] };
 
   const recent = new Set(months.slice(-3));
   const previous = new Set(months.slice(-6, -3));
   const raw = keys.map((key) => {
-    const mine = code.filter((row) => row.contributorKey === key);
-    const work = delivery.filter((row) => row.contributorKey === key);
+    const mine = codeBy.get(key) ?? [];
+    const work = workBy.get(key) ?? [];
     const activeMonths = [...mine.filter((row) => row.commits > 0), ...work.filter((row) => row.issuesResolved + row.issuesCreated + row.comments > 0)].map((row) => row.month).sort();
     const areaTotals = new Map<string, number>();
     for (const row of mine) for (const [area, count] of Object.entries(row.areas)) areaTotals.set(area, (areaTotals.get(area) ?? 0) + count);
     const share = (area: string) => {
-      const owners = areaCommits.get(area);
-      const total = owners ? sum([...owners.values()]) : 0;
-      return { total, share: total === 0 ? new D(0) : new D(owners?.get(key) ?? 0).dividedBy(total) };
+      const total = areaTotal.get(area) ?? 0;
+      return { total, share: total === 0 ? new D(0) : new D(areaCommits.get(area)?.get(key) ?? 0).dividedBy(total) };
     };
     const areasActive = [...areaTotals.keys()].sort();
     const areasOwned = areasActive.filter((area) => share(area).total >= OWNED_MIN_COMMITS && share(area).share.greaterThanOrEqualTo(OWNED_SHARE));
@@ -283,5 +330,18 @@ export function engineeringReport(input: EngineeringInput): EngineeringReport {
         : `Coordinates delivery: ${plural(profile.issuesCreated, 'issue')} created and ${plural(profile.comments, 'comment')} in 12 months, with few commits.`,
     }));
 
-  return { ...base, suppressed: false, profiles, keepList };
+  const points: ContributorPoint[] = profiles.map((profile) => ({
+    contributorKey: profile.contributorKey,
+    label: profile.label,
+    commits: profile.commits,
+    coordination: profile.issuesCreated + profile.comments,
+    issuesResolved: profile.issuesResolved,
+    tags: profile.tags,
+    status: profile.status,
+    areasActive: profile.areasActive,
+    areasOwned: profile.areasOwned,
+    areasSolelyOwned: profile.areasSolelyOwned,
+  }));
+
+  return { ...base, suppressed: false, profiles, keepList, points };
 }

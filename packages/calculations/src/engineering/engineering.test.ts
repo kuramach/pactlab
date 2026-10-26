@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { engineeringReport, type CodeActivity, type DeliveryActivity } from '.';
+import { referenceReport } from './reference-v1';
 
 const code = (key: string, month: string, commits: number, areas: Record<string, number>): CodeActivity => ({
   contributorKey: key,
@@ -94,4 +95,69 @@ describe('engineeringReport', () => {
     expect(small).toMatchObject({ suppressed: true, profiles: [], keepList: [], contributors: 3 });
     expect(small.months.length).toBe(12);
   });
+});
+
+describe('engineering at scale (T-055)', () => {
+  /** Deterministic pseudo-random integers (no Math.random), so inputs repeat exactly. */
+  function lcg(seed: number) {
+    let state = seed;
+    return (max: number) => {
+      state = (state * 1103515245 + 12345) % 2147483648;
+      return state % max;
+    };
+  }
+  function synthetic(people: number, months: readonly string[], seed: number, dense = false) {
+    const next = lcg(seed);
+    const areas = Array.from({ length: 40 }, (_, index) => `area-${String(index).padStart(2, '0')}`);
+    const key = (index: number) => index.toString(16).padStart(16, '0');
+    const codeRows: CodeActivity[] = [];
+    const deliveryRows: DeliveryActivity[] = [];
+    for (let person = 0; person < people; person += 1) {
+      const home = areas[person % areas.length] as string;
+      for (const month of months) {
+        if (dense || next(10) < 7) {
+          const commits = 1 + next(12);
+          const other = areas[next(areas.length)] as string;
+          codeRows.push(code(key(person), month, commits, other === home ? { [home]: commits } : { [home]: commits - Math.floor(commits / 3), [other]: Math.floor(commits / 3) }));
+        }
+        if (dense || next(10) < 5) deliveryRows.push(work(key(person), month, { issuesResolved: next(5), pointsResolved: next(13), issuesCreated: next(4), comments: next(9), resolvedReopened: next(2), sprints: 1 }));
+      }
+    }
+    return { code: codeRows, delivery: deliveryRows };
+  }
+  const MONTHS = ['2025-10', '2025-11', '2025-12', '2026-01', '2026-02', '2026-03', '2026-04', '2026-05', '2026-06', '2026-07', '2026-08', '2026-09'];
+
+  it('gives the same report as engineering-1 on the fixtures and on random teams (except the version)', () => {
+    const same = (input: Parameters<typeof engineeringReport>[0]) => {
+      const { version, points, ...next } = engineeringReport(input);
+      const { version: before, ...reference } = referenceReport(input);
+      expect(version).toBe('engineering-2');
+      expect(before).toBe('engineering-1');
+      expect(next).toEqual(reference);
+      expect(points.map((point) => point.contributorKey)).toEqual(next.profiles.map((profile) => profile.contributorKey));
+    };
+    same({ code: CODE, delivery: DELIVERY, statuses, asOfMonth: '2026-09' });
+    same({ code: CODE.slice(0, 3), delivery: [], statuses, asOfMonth: '2026-09' });
+    for (const seed of [1, 7, 42]) {
+      const team = synthetic(60 + seed, MONTHS, seed);
+      same({ ...team, statuses: new Map(), asOfMonth: '2026-09' });
+    }
+  });
+
+  it('3,000 people and 144,000 rows (24 months, code and delivery): everyone present, within budget', () => {
+    const earlier = MONTHS.map((month) => `${Number(month.slice(0, 4)) - 1}${month.slice(4)}`);
+    const team = synthetic(3000, [...earlier, ...MONTHS], 11, true);
+    expect(team.code.length + team.delivery.length).toBe(144_000);
+    const started = performance.now();
+    const report = engineeringReport({ ...team, statuses: new Map(), asOfMonth: '2026-09' });
+    const elapsed = performance.now() - started;
+    expect(report.contributors).toBe(3000);
+    expect(report.profiles).toHaveLength(3000);
+    expect(report.points).toHaveLength(3000);
+    expect(report.areas).toHaveLength(40);
+    // About 60 ms on a laptop; CI runners under parallel load are far slower. The quadratic
+    // engineering-1 takes ~35× longer on the same input, so this budget still catches it.
+    expect(elapsed).toBeLessThan(10_000);
+    // Building the 144,000-row input takes longer than the calculation on a busy runner.
+  }, 60_000);
 });

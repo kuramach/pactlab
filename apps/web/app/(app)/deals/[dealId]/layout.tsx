@@ -26,6 +26,8 @@ export default async function DealLayout({ children, params }: { children: React
   }
   const buyer = parties.kind === 'ok' ? parties.data.items.find((party) => party.role === 'BUYER') : undefined;
   const seller = parties.kind === 'ok' ? parties.data.items.find((party) => party.role === 'SELLER') : undefined;
+  // Founder-side (T-083): the seller is the founder's own startup, raising a round.
+  const venture = seller?.companyType === 'VENTURE_RAISE';
 
   return (
     <div className="flex flex-col gap-6">
@@ -36,7 +38,11 @@ export default async function DealLayout({ children, params }: { children: React
           breadcrumbs={[{ href: '/', label: 'Home' }, { href: '/deals', label: 'My deals' }, { label: deal.data.name }]}
           title={deal.data.name}
           description={
-            buyer && seller ? (
+            venture && seller ? (
+              <>
+                <span className="font-semibold text-white">{partyLabel(seller)}</span> raising a round
+              </>
+            ) : buyer && seller ? (
               <>
                 <span className="font-semibold text-white">{partyLabel(buyer)}</span> acquiring{' '}
                 <span className="font-semibold text-white">{partyLabel(seller)}</span>
@@ -56,7 +62,7 @@ export default async function DealLayout({ children, params }: { children: React
             </>
           }
         />
-        <DealTabs dealId={dealId} />
+        <DealTabs dealId={dealId} venture={venture} />
       </div>
       {children}
     </div>

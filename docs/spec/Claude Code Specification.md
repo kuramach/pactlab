@@ -1383,11 +1383,25 @@ Five further packs in two clusters. Hotels, multifamily and commercial property 
 - What transfers: the compliance module carries the regulatory finding types; the Team module carries provider-credential and key-clinician risk; the buyer persona (PE firm) is unchanged from the baseline.
 - Pack scope is adapters for reimbursement and compliance evidence, finding types for reimbursement/regulatory risk, and valuation tweaks for payer-mix and reimbursement-rate sensitivity.
 
+**2a. Healthcare — activation amendment (T-061, 2026-10-25)**
+
+- **Import targets (CSV, ADR 0010):** `HEALTHCARE_CLAIMS_SUMMARY` (month, payer, claims, billed, paid, denial_rate_pct → `healthcare.claims_month`, one record per month and payer) and `HEALTHCARE_PROVIDER_ROSTER` (provider_ref, specialty, fte, credential_expiry → `healthcare.provider`, pseudonymous references only), alongside the billing import. No patient-level data is accepted; provider rows never reach a model or an embedding (rule 7).
+- **Finding rules (deterministic, versioned, drafts only):** `healthcare-government-concentration` — government programmes' share of the latest month's billed revenue at or above 50%, neutral (the reviewer prices reimbursement exposure); `healthcare-director-fee` — the medical-director fee against the hours the agreement documents and the time records show, priced as an indemnity (low = a year of the unsupported fee, high = three years); `healthcare-privacy-assessment` — the privacy risk assessment's date and lapsed review, cited, neutral; `healthcare-credentials-expiring` — roster providers whose credentials expire by the end of the latest billed year, neutral.
+- **Valuation:** DCF and ARR multiple apply unchanged; payer-mix and reimbursement-rate sensitivity run as the existing scenario sensitivities on growth and margin, and accepted priced findings reach the purchase-price bridge (an indemnity as a holdback). Healthtech targets also run the software path.
+- **Fixtures and acceptance:** `pactlab-demo-data/healthcare/{USD,EUR,GBP}` — imported into a fresh healthcare deal, the four planted findings surface as cited drafts once, and the accepted director-fee indemnity reaches the bridge (`apps/api/src/packs/healthcare.acceptance.api.test.ts`).
+
 **3. Telecom / media**
 
 - Subscriber businesses map directly onto the SaaS metrics model: ARPU ≈ MRR per account, churn ≈ logo churn, subscriber cohorts ≈ revenue cohorts.
 - What transfers: the Metrics engine transfers nearly untouched — new labels and inclusion policies, not new mathematics. Concentration analysis carries over to subscriber/revenue concentration.
 - Pack scope is adapters for subscriber-billing evidence, relabeled metric definitions with sector inclusion policies, and minor valuation tweaks for churn/ARPU-driven scenario inputs.
+
+**3a. Telecom / media — activation amendment (T-062, 2026-10-25)**
+
+- **Import target (CSV, ADR 0010):** `TELECOM_SUBSCRIBERS` (month, region, plan, billed_subscribers, arpu → `telecom.subscribers_month`, one record per month, region and plan), alongside the billing import. Counts and ARPU only; no subscriber identities.
+- **Finding rules (deterministic, versioned, drafts only):** `telecom-reported-subscribers` — the subscriber count a management document reports against the latest month's billed subscribers (a gap of 2% or more; a drag the reviewer prices); `telecom-churn-turning` — billed subscribers grew to a peak and fell every month since (at least three), set against the churn rate management reports; `telecom-regional-concentration` — the largest region's share of the latest month's revenue at 40% or more, neutral; `telecom-wholesale-review` — a wholesale access re-pricing clause, cited, a drag the reviewer prices.
+- **Valuation:** the SaaS metrics engine runs as it is (ARPU ≈ MRR per account, churn ≈ logo churn); ARR multiple and DCF apply unchanged, with churn and ARPU as scenario inputs. Accepted priced findings reach the purchase-price bridge.
+- **Fixtures and acceptance:** `pactlab-demo-data/telecom-media/{USD,EUR,GBP}` — the four planted findings surface as cited drafts once, and the reviewer-priced subscriber gap reaches a valuation run (`apps/api/src/packs/telecom.acceptance.api.test.ts`).
 
 **4. IT & professional services**
 
@@ -1396,12 +1410,25 @@ Five further packs in two clusters. Hotels, multifamily and commercial property 
 - What transfers: utilization/attrition map to Team and key-person risk; client concentration maps to the existing concentration analysis in the Metrics module.
 - Pack scope is adapters for HRIS/timesheet and PSA evidence, finding types for utilization/attrition/concentration risk, and valuation tweaks for earnings-quality adjustments on people-driven revenue.
 
+**4a. IT & professional services — activation amendment (T-063, 2026-10-25)**
+
+- **Import targets (CSV, ADR 0010):** `SERVICES_TIMESHEETS` (month, team, headcount, available_hours, billable_hours → `services.timesheet_month`, one record per month and team) and `SERVICES_HEADCOUNT` (month, role_family, starters, leavers, headcount → `services.headcount_month`, one record per month and role family), alongside the billing import. Aggregates only: named, contact or pay columns are refused (rule 7).
+- **Finding rules (deterministic, versioned, drafts only):** `services-utilization-gap` — billable ÷ available hours over the last twelve months against the utilization management reports (3 points or more; a drag the reviewer prices); `services-client-termination` — the largest client (20% or more of the latest month's revenue) can terminate for convenience under an agreement that names it, cited; `services-delivery-attrition` — delivery leavers in the last three months at least double the first three, with annualised attrition for both.
+- **Valuation:** DCF first, ARR multiple for retainer revenue; earnings-quality adjustments arrive as reviewer-priced findings on the purchase-price bridge.
+- **Fixtures and acceptance:** `pactlab-demo-data/professional-services/{USD,EUR,GBP}` — the three planted findings surface as cited drafts once, and the reviewer-priced utilization gap reaches a valuation run (`apps/api/src/packs/services.acceptance.api.test.ts`).
+
 **5. Pharma / biotech**
 
 - Largest deal values of any pack, but diligence is the most specialized: clinical-trial evidence, FDA/EMA regulatory pathway and approval risk, patent-cliff and exclusivity analysis, and GMP/manufacturing quality.
 - What transfers: the evidence→finding→valuation skeleton and the document/citation machinery transfer; almost none of the baseline finding types or evidence adapters do. This is the highest-build-cost pack and is sequenced fifth for that reason despite the deal values.
 - Pack scope is a materially new adapter family (trial registries, regulatory filings, patent data) and a new finding-type library, plugged into the unchanged core.
 
+**5a. Pharma / biotech — activation amendment (T-064, 2026-10-25)**
+
+- **Import targets (CSV, ADR 0010):** `PHARMA_PATENTS` (family, product, jurisdiction, type, expiry → `pharma.patent`, one record per family and jurisdiction) and `PHARMA_PIPELINE` (programme, indication, phase, next_milestone, expected → `pharma.programme`), alongside the billing import. No trial-subject or patient data.
+- **Finding rules (deterministic, versioned, drafts only):** `pharma-patent-before-forecast` — a forecast sentence assuming a product's exclusivity through a year, against the product's latest composition-of-matter expiry (or latest expiry of any type), cited to both; `pharma-supplier-observations` — open inspection observations at a contract manufacturer, cited, neutral (a close-out deliverable); `pharma-partner-concentration` — the largest partner across its revenue lines at 40% or more of the latest month's revenue, naming its largest line.
+- **Valuation:** DCF, with exclusivity and approval timing as scenario inputs; milestones and contingent payments are deal terms, not price. Reviewer-priced exposures reach the purchase-price bridge.
+- **Fixtures and acceptance:** `pactlab-demo-data/pharma-biotech/{USD,EUR,GBP}` — the three planted findings surface as cited drafts once, and the reviewer-priced patent exposure reaches a DCF run (`apps/api/src/packs/pharma.acceptance.api.test.ts`).
 **6. E-commerce / DTC**
 
 - Aggregator and roll-up deals for consumer brands; smaller average deal sizes.
@@ -1409,6 +1436,13 @@ Five further packs in two clusters. Hotels, multifamily and commercial property 
 - What transfers: CAC/LTV/repeat-purchase fit the Metrics engine's cohort and concentration machinery; contract review covers marketplace and supplier terms.
 - Pack scope is adapters for storefront/marketplace and ad-platform evidence, finding types for unit-economics and channel risk, and no change to the valuation methods.
 
+
+**6a. E-commerce / DTC — activation amendment (T-065, 2026-10-25)**
+
+- **Import targets (CSV, ADR 0010):** `ECOMMERCE_COHORTS` (first_purchase_month, month, months_since_first, active_customers → `ecommerce.cohort_month`, one record per cohort and month) and `ECOMMERCE_AD_SPEND` (month, channel, spend, new_customers → `ecommerce.ad_spend_month`, one record per month and channel), alongside the billing import. Counts and amounts only; no customer is identified.
+- **Finding rules (deterministic, versioned, drafts only):** `ecommerce-marketplace-majority` — a marketplace above half of the latest month's revenue whose seller terms let it change fees or delist on notice, cited, neutral (a channel-risk sensitivity); `ecommerce-cohort-repeat-decline` — the first cohort from which every cohort keeps at least three points fewer second-month customers than every earlier one (a drag the reviewer prices); `ecommerce-channel-cac-rising` — a channel whose spend rose and whose new customers fell every month for at least six months.
+- **Valuation:** methods unchanged (DCF, ARR multiple); unit economics are scenario inputs and channel risks arrive as findings.
+- **Fixtures and acceptance:** `pactlab-demo-data/ecommerce-dtc/{USD,EUR,GBP}` — the three planted findings surface as cited drafts once, and the reviewer-priced cohort decline reaches a valuation run (`apps/api/src/packs/ecommerce.acceptance.api.test.ts`).
 **7. Multifamily**
 
 - Acquisitions of apartment communities and portfolios, usually by real-estate private equity and operators.
@@ -1433,6 +1467,13 @@ Five further packs in two clusters. Hotels, multifamily and commercial property 
 - Valuation tweaks: WALT and the rollover schedule as scenario inputs, and capitalization-rate sensitivity.
 - What transfers: lease abstraction runs on the document and citation machinery; tenant concentration reuses the concentration analysis.
 
+
+**8a. Commercial property — activation amendment (T-066, 2026-10-25)**
+
+- **Import targets (CSV, ADR 0010):** `CRE_RENT_ROLL` (tenant, suite, sqft, lease_start, lease_end, monthly_base_rent, monthly_market_rent → `cre.lease`, one record per suite) and `CRE_CAM_RECONCILIATION` (year, category, expenses, recoveries → `cre.cam_category`, one record per year and category), alongside the billing import. Tenants are businesses; no people data.
+- **Finding rules (deterministic, versioned, drafts only):** `cre-anchor-rollover` — the largest lease at 30% or more of base rent ending within two years of the latest billed month, with the rent-weighted average lease term, confirmed by a lease abstract that names the tenant; `cre-environmental-condition` — a recognized environmental condition and the Phase II recommendation, cited (an escrow or indemnity the reviewer prices); `cre-cam-under-recovery` — CAM categories recovering less than they cost in the latest year; `cre-below-market-anchor` — the largest lease at the deepest discount to market rent, confirmed value (+1) and never a price input.
+- **Valuation:** NOI ÷ cap rate (T-059) with a DCF of the rollover schedule; WALT and rollover as inputs, cap-rate sensitivity in the scenarios.
+- **Fixtures and acceptance:** `pactlab-demo-data/commercial-property/{USD,EUR,GBP}` — the four planted findings surface as cited drafts once, and the reviewer-priced environmental escrow is held back in an NOI ÷ cap-rate run (`apps/api/src/packs/commercial-property.acceptance.api.test.ts`).
 **9. Hotels (hospitality)**
 
 - Acquisitions of branded and independent hotels by hospitality funds, owner-operators and REITs.
@@ -1441,6 +1482,13 @@ Five further packs in two clusters. Hotels, multifamily and commercial property 
 - Valuation tweaks: RevPAR and gross-operating-profit (GOP) margin trends. PIP capex lands as remediation or price terms (−1 drag).
 - What transfers: daily revenue history fits the metrics engine's period and cohort machinery; brand and management agreements run through contract review.
 
+
+**9a. Hotels — activation amendment (T-067, 2026-10-25)**
+
+- **Import targets (CSV, ADR 0010):** `HOTELS_OPERATING_HISTORY` (month, rooms_available, rooms_sold, adr, revpar, room_revenue, fb_revenue, gross_operating_profit → `hotels.operating_month`) and `HOTELS_STR_BENCHMARK` (month, occupancy, adr, revpar, comp_set_revpar → `hotels.benchmark_month`), one record per month each, alongside the billing import (revenue by channel). No guest data.
+- **Finding rules (deterministic, versioned, drafts only):** `hotels-brand-pip` — the franchise's property improvement plan on change of ownership, priced as remediation at the estimate it states; `hotels-revpar-gap` — RevPAR trailing the competitive set, widening by two points or more to at least 5%; `hotels-channel-concentration` — the largest channel at 35% or more of the latest month's revenue, neutral; `hotels-seasonal-demand` — the two strongest months at 1.5× the weakest or more in the last twelve, neutral (a working-capital input); `hotels-management-termination-fee` — a management-contract fee to terminate on sale, cited, a drag the reviewer prices.
+- **Valuation:** NOI ÷ cap rate (T-059) with a DCF of RevPAR and GOP-margin trends; the PIP reaches the bridge as a remediation cost or, if the reviewer chooses, an escrow.
+- **Fixtures and acceptance:** `pactlab-demo-data/hotels/{USD,EUR,GBP}` — the five planted findings surface as cited drafts once, and the accepted PIP comes off the price in an NOI ÷ cap-rate run (`apps/api/src/packs/hotels.acceptance.api.test.ts`).
 **10. Small clinics (extends healthcare services)**
 
 - PE roll-ups of physician, dental, veterinary and therapy clinics.
@@ -1449,6 +1497,13 @@ Five further packs in two clusters. Hotels, multifamily and commercial property 
 - Valuation tweaks: revenue per provider, and post-close provider retention risk.
 - What transfers: pack 2's reimbursement and compliance finding types; provider concentration reuses key-person risk. Provider data follows rule 7: aggregates by default, named data gated, never sent to a model.
 
+
+**10a. Small clinics — activation amendment (T-068, 2026-10-25)**
+
+- **Import targets (CSV, ADR 0010):** `CLINICS_PATIENT_VOLUME` (month, site, provider_ref, visits, revenue → `clinics.volume_month`, one record per month, site and pseudonymous provider), `CLINICS_EQUIPMENT` (asset, site, acquired, useful_life_years, status → `clinics.equipment`) and `CLINICS_CODING_SUMMARY` (quarter, high_complexity_share, policy_benchmark → `clinics.coding_quarter`), alongside the billing import. No patient data; providers are pseudonymous references and appear in site aggregates only; nothing reaches a model (rule 7).
+- **Finding rules (deterministic, versioned, drafts only):** `clinics-provider-carries-site` — one provider earning half or more of a site's revenue over the last twelve months (retention risk, never a ranking); `clinics-coding-above-policy` — every quarter's highest-complexity share above 1.5× the policy benchmark, cited to the coding policy; `clinics-equipment-past-life` — equipment in service past its useful life at the latest month, a remediation the reviewer prices. The healthcare rules for government concentration, the medical-director fee and the privacy assessment also run.
+- **Valuation:** DCF; revenue per provider and retention are scenario inputs; equipment replacement reaches the bridge as a remediation cost.
+- **Fixtures and acceptance:** `pactlab-demo-data/small-clinics/{USD,EUR,GBP}` — the three planted findings surface as cited drafts once, and the reviewer-priced replacement reaches a DCF run (`apps/api/src/packs/clinics.acceptance.api.test.ts`).
 **11. Hospitals (extends healthcare services)**
 
 - Acquisitions of acute-care and specialty hospitals by health systems and healthcare private equity.
@@ -1456,6 +1511,24 @@ Five further packs in two clusters. Hotels, multifamily and commercial property 
 - Finding types: payer concentration, licensure or accreditation gaps, and key-physician dependence.
 - Valuation tweaks: payer-mix-adjusted EBITDA, and regulatory capital expenditure.
 - What transfers: pack 2's reimbursement and regulatory finding types; key-physician dependence reuses key-person risk under rule 7.
+
+
+**11a. Hospitals — activation amendment (T-069, 2026-10-25)**
+
+- **Import targets (CSV, ADR 0010):** `HOSPITALS_CENSUS` (month, service_line, admissions, patient_days, average_daily_census → `hospitals.census_month`, one record per month and service line) and `HOSPITALS_PAYER_MIX` (month, payer, gross_charges, net_revenue → `hospitals.payer_month`, one record per month and payer), alongside the billing import. Aggregates only; no patient data; physician dependence is read only from aggregate staffing documents; nothing reaches a model (rule 7).
+- **Finding rules (deterministic, versioned, drafts only):** `hospitals-payer-concentration` — one payer at 40% or more of the latest month's net revenue in the payer mix, neutral (a payer-mix sensitivity); `hospitals-accreditation-transfer` — accreditation that does not transfer on a change of ownership, cited, a closing condition; `hospitals-physician-dependence` — a stated share of a service line's procedures carried by a few physicians, cited, a drag the reviewer prices; `hospitals-regulatory-capex` — committed regulatory capital expenditure, priced as remediation at the amount the cost report states. The healthcare rules for the medical-director fee and the privacy assessment also run.
+- **Valuation:** a new method through the T-057 interface, `PAYER_MIX_EBITDA` — enterprise value = (reported EBITDA + Σ net revenue × payer share × expected rate change) × multiple, with full flow-through of rate changes to EBITDA; payer shares may not exceed 100% in total and rate changes are bounded at ±100%; sensitivity on EBITDA and the multiple. DCF alongside. Regulatory capex reaches the bridge as a remediation cost.
+- **Fixtures and acceptance:** `pactlab-demo-data/hospitals/{USD,EUR,GBP}` — the four planted findings surface as cited drafts once, and the accepted capex comes off the price in a payer-mix-adjusted EBITDA run (`apps/api/src/packs/hospitals.acceptance.api.test.ts`).
+**12. Venture Raise (founder-side; T-083, 2026-10-25)**
+
+- **The seat is flipped.** The Pactlab user is a founder raising pre-seed, seed or Series A money; investors (angels, incubators and accelerators, venture funds) are the counterparty. A Venture Raise pact is an ordinary pact whose seller type is `VENTURE_RAISE` (Kumar's decision: the pack is still the seller's company type). Phases (T-071) apply unchanged: Pre is the readiness screen, Diligence the claims register and investor questions, Post the reporting and milestones the money was raised on.
+- **The round and competing offers.** `venture_raise_settings` holds the round (type, currency, the founder's ask, raise amount, post-money pool target, optional sector). Several investors may bid: each bid is a `venture_offers` row (investor organization, counterparty type, status, pre-money, amount, pool target, liquidation multiple and participation, board seats, pro-rata, MFN). `GET …/venture/offers/compare` runs every offer through the round model side by side — mechanics only, no ranking and no recommendation.
+- **Import targets (CSV, ADR 0010):** `VENTURE_CAP_TABLE` (one row per security, Carta/Pulley-like; holders are pseudonymous references and a holder type) and `VENTURE_FINANCIALS` (month, cash balance, net burn), alongside the billing import. Corporate records, agreements, SAFEs and term sheets are documents; GitHub and Jira read as for any software target.
+- **Round model (`@pactlab/calculations` `venture/round.ts`, deterministic, decimal-only):** fully diluted pre-money including the pool increase and converting instruments; each SAFE or note converts at the lower of cap ÷ pre-money shares and the round price less its discount; an MFN SAFE takes the best later cap and discount; note interest is not modelled; the pool shuffle's cost to the founders is stated in shares and in points against the same round with no pool increase; liquidation preference is described against the 1x non-participating baseline. Valuation method `ROUND_PRE_MONEY`: enterprise value is the founder's ask, and accepted findings adjust it on the bridge to where the round realistically lands.
+- **Finding rules (drafts only, cited):** −1 `venture-deck-metric` (deck ARR or MRR more than 2% from billing; a CONTRADICTED claim), `venture-ip-assignment` (a contractor agreement without an assignment), `venture-cap-table-record` (issued shares against the corporate record), `venture-safe-stack` (an understated SAFE total or a triggered MFN), `venture-runway-short` (cash ÷ three-month burn two or more months below the deck; a CONTRADICTED claim), `venture-missing-83b`, `venture-undisclosed-concentration`; +1 confirmed value, founder-confidential: deck metric ties within 0.5% (a VERIFIED claim), cap table reconciles, IP chain complete; 0 `venture-term-variance` (a preference other than 1x non-participating; board composition). Rule proposals may carry a claim: the pack-rule runner records it in the claims register (origin `PACK_RULE`), linked to the finding and its evidence.
+- **Readiness** is a checklist per counterparty type (angels light, incubators the program list, venture funds the institutional pass), defaulting to the most demanding active offer.
+- **The investor view** (`GET …/venture/investor-view?offerId=`) is the only outward surface: company and round basics, that investor's own terms, VERIFIED claims, billed revenue, the cap table by holder type and the data room as the checklist sees it. It never carries a finding of any direction, an unverified or contradicted claim, another investor's bid, or cash and runway; every read is audited.
+- **Fixtures and acceptance:** `pactlab-demo-data/venture-raise/{USD,EUR,GBP}` (Loopwise, a fictional seed-stage SaaS) — six planted findings surface once, deck metrics become contradicted claims, two competing offers compare with the pool shuffle stated, readiness differs by investor type and the investor view carries nothing confidential (`apps/api/src/packs/venture.acceptance.api.test.ts`).
 
 ### Pack framework (ADR 0009, ADR 0010)
 

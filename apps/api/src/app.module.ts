@@ -9,6 +9,7 @@ import { AI_OFF, type AiStatusView } from './ai/ai-provider';
 import { AiModule } from './ai/ai.module';
 import { BalanceSheetModule } from './balance-sheet/balance-sheet.module';
 import { PhasesModule } from './phases/phases.module';
+import { VentureModule } from './venture/venture.module';
 import { AdminModule } from './admin/admin.module';
 import { ForesightModule } from './foresight/foresight.module';
 import { EngineeringModule } from './engineering/engineering.module';
@@ -114,6 +115,7 @@ export class AppModule {
         PactsModule,
         BalanceSheetModule,
         PhasesModule,
+        VentureModule,
         ForesightModule.register({
           gateway: deps.documents?.gateway ?? new NotConfiguredClaudeGateway(),
           aiEnabled: deps.aiStatus?.enabled ?? false,
