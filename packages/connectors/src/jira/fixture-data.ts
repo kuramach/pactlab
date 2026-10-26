@@ -1,4 +1,5 @@
 import { FIXTURE_NAMES } from '../github/fixture-data';
+import { SCALECO_SITE, scalecoSite } from './scale-fixture';
 import type { JiraIssue, JiraPerson, JiraSprint } from './types';
 
 /**
@@ -178,4 +179,8 @@ export const JIRA_FIXTURES: Readonly<Record<string, JiraFixtureSite>> = {
   'healthyco.atlassian.net': { site: 'healthyco.atlassian.net', readableProjects: ['HC'], ...healthy },
   'troubledco.atlassian.net': { site: 'troubledco.atlassian.net', readableProjects: ['TC'], ...troubled },
   'sparseco.atlassian.net': { site: 'sparseco.atlassian.net', readableProjects: ['SP'], ...sparse },
+  // 3,000 engineers (T-055), generated the first time it is read.
+  get [SCALECO_SITE]() {
+    return scalecoSite();
+  },
 };

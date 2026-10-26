@@ -493,6 +493,8 @@ const PEOPLE_GROUP_COLORS: Readonly<Record<string, string>> = {
 };
 
 export interface PeopleMapChartPoint {
+  /** Stable key, used to pick out one person (search). */
+  readonly key?: string;
   readonly name: string;
   readonly code: number;
   readonly coordination: number;
@@ -512,19 +514,26 @@ export function PeopleMapChart({
   points,
   medians,
   height = 400,
+  large = false,
+  highlight = null,
 }: {
   label: string;
   points: readonly PeopleMapChartPoint[];
   medians: { readonly code: number; readonly coordination: number };
   height?: number;
+  /** Large teams (T-055): no labels, small points, zoom and pan. */
+  large?: boolean;
+  /** Key of one person to pick out (search). */
+  highlight?: string | null;
 }) {
   const ref = useChart(
     () => {
       const groups = [...new Set(points.map((point) => point.group))];
       const maxResolved = Math.max(1, ...points.map((point) => point.resolved));
-      const size = (resolved: number) => 12 + 30 * Math.sqrt(resolved / maxResolved);
+      const size = (resolved: number) => (large ? 4 + 8 * Math.sqrt(resolved / maxResolved) : 12 + 30 * Math.sqrt(resolved / maxResolved));
       return {
         grid: { left: 8, right: 24, top: 24, bottom: 52, containLabel: true },
+        ...(large ? { dataZoom: [{ type: 'inside', xAxisIndex: 0 }, { type: 'inside', yAxisIndex: 0 }] } : {}),
         legend: { bottom: 0, icon: 'circle', itemWidth: 10, itemHeight: 10, textStyle: { fontSize: 11 } },
         tooltip: {
           trigger: 'item',
@@ -538,12 +547,23 @@ export function PeopleMapChart({
           name: group,
           type: 'scatter',
           cursor: 'pointer',
-          itemStyle: { color: PEOPLE_GROUP_COLORS[group] ?? CHART_COLORS.slate, opacity: 0.85, borderColor: '#fff', borderWidth: 1.5 },
-          label: { show: true, position: 'right', formatter: '{b}', fontSize: 10, color: '#4b5568' },
+          itemStyle: { color: PEOPLE_GROUP_COLORS[group] ?? CHART_COLORS.slate, opacity: large ? 0.7 : 0.85, borderColor: '#fff', borderWidth: large ? 0 : 1.5 },
+          label: { show: !large, position: 'right', formatter: '{b}', fontSize: 10, color: '#4b5568' },
           labelLayout: { hideOverlap: true },
           data: points
             .filter((point) => point.group === group)
-            .map((point) => ({ name: point.name, value: [point.code, point.coordination], symbolSize: size(point.resolved), resolved: point.resolved, group: point.group, href: point.href })),
+            .map((point) => {
+              const picked = point.key === highlight;
+              return {
+                name: point.name,
+                value: [point.code, point.coordination],
+                symbolSize: picked ? 22 : size(point.resolved),
+                resolved: point.resolved,
+                group: point.group,
+                href: point.href,
+                ...(picked ? { itemStyle: { borderColor: CHART_COLORS.rose, borderWidth: 3, opacity: 1 }, label: { show: true, fontWeight: 'bold' }, z: 10 } : {}),
+              };
+            }),
           ...(index === 0
             ? {
                 markLine: {
@@ -558,7 +578,7 @@ export function PeopleMapChart({
         })),
       };
     },
-    [JSON.stringify(points), medians.code, medians.coordination],
+    [JSON.stringify(points), medians.code, medians.coordination, large, highlight],
     (chart) => chart.on('click', openHref),
   );
   return <Frame label={label} height={height} chartRef={ref} />;
@@ -566,7 +586,8 @@ export function PeopleMapChart({
 
 export interface OwnershipNetworkData {
   readonly people: readonly { id: string; name: string; href: string; critical: boolean; departed: boolean }[];
-  readonly areas: readonly { id: string; area: string; commits: number; busFactor: number }[];
+  /** `others`: people in the area not drawn (large teams); click the area to show them. */
+  readonly areas: readonly { id: string; area: string; commits: number; busFactor: number; others?: number }[];
   readonly links: readonly { source: string; target: string; strength: 'SOLE' | 'OWNER' | 'ACTIVE' }[];
 }
 
@@ -576,7 +597,18 @@ export interface OwnershipNetworkData {
  * (≥ 50%), thin grey is other activity; red squares are areas with a bus
  * factor of one. Drag to rearrange; click a person to open the profile.
  */
-export function OwnershipNetworkChart({ label, graph, height = 460 }: { label: string; graph: OwnershipNetworkData; height?: number }) {
+export function OwnershipNetworkChart({
+  label,
+  graph,
+  height = 460,
+  onAreaClick,
+}: {
+  label: string;
+  graph: OwnershipNetworkData;
+  height?: number;
+  /** Large teams (T-055): clicking an area expands or collapses its people. */
+  onAreaClick?: (area: string) => void;
+}) {
   const ref = useChart(
     () => {
       const maxCommits = Math.max(1, ...graph.areas.map((area) => area.commits));
@@ -621,13 +653,14 @@ export function OwnershipNetworkChart({ label, graph, height = 460 }: { label: s
               })),
               ...graph.areas.map((area) => ({
                 id: area.id,
-                name: area.area,
+                name: area.others ? `${area.area} (+${area.others})` : area.area,
+                area: area.area,
                 category: 1,
                 symbol: 'roundRect',
                 symbolSize: 18 + 22 * Math.sqrt(area.commits / maxCommits),
                 itemStyle: { color: area.busFactor <= 1 ? CHART_COLORS.rose : CHART_COLORS.indigo },
                 label: { position: 'bottom', color: '#2b3245', fontWeight: 'bold' },
-                tip: `${area.area}: ${area.commits} commits · bus factor ${area.busFactor}`,
+                tip: `${area.area}: ${area.commits} commits · bus factor ${area.busFactor}${area.others ? ` · ${area.others} more people — click to show them` : ''}`,
               })),
             ],
             links: graph.links.map((link) => ({ source: link.source, target: link.target, lineStyle: linkStyle[link.strength] })),
@@ -636,7 +669,12 @@ export function OwnershipNetworkChart({ label, graph, height = 460 }: { label: s
       };
     },
     [JSON.stringify(graph)],
-    (chart) => chart.on('click', openHref),
+    (chart) =>
+      chart.on('click', (params: unknown) => {
+        const area = (params as { data?: { area?: string } }).data?.area;
+        if (area && onAreaClick) onAreaClick(area);
+        else openHref(params as Parameters<typeof openHref>[0]);
+      }),
   );
   return <Frame label={label} height={height} chartRef={ref} />;
 }
