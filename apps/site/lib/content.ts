@@ -702,6 +702,52 @@ export const INDUSTRIES: readonly Industry[] = [
   },
 ];
 
+export interface PactCard {
+  readonly id: string;
+  readonly name: string;
+  /** The outcome, in one line. */
+  readonly line: string;
+  readonly href: string;
+  /** The pack's illustration in public/illustrations. */
+  readonly image: string;
+}
+
+const industryName = (slug: string) => INDUSTRIES.find((industry) => industry.slug === slug)?.name ?? slug;
+const packCard = (slug: string, line: string): PactCard => ({
+  id: slug,
+  name: industryName(slug),
+  line,
+  href: `/industries/${slug}`,
+  image: `/illustrations/${slug}.svg`,
+});
+
+/**
+ * The home page's "Pacts you can run" carousel (T-086). Order is deliberate:
+ * the core technology deal first, the packs through the middle, and the
+ * founder's side of the table last.
+ */
+export const PACT_CARDS: readonly PactCard[] = [
+  {
+    id: 'technology',
+    name: 'Technology acquisition',
+    line: 'Diligence a software company end to end: code, contracts, financials and valuation.',
+    href: '/product',
+    image: '/illustrations/software-saas.svg',
+  },
+  packCard('fintech', 'Test payment volumes, loan losses and compliance evidence before you sign.'),
+  packCard('healthcare', 'See payer mix, billing integrity and provider risk in the evidence.'),
+  packCard('telecom-media', 'Reconcile subscribers, churn and network commitments to billing.'),
+  packCard('professional-services', 'Check utilization and client concentration against the timesheets.'),
+  packCard('pharma-biotech', 'Test the pipeline, patent dates and partner terms behind the forecast.'),
+  packCard('ecommerce-dtc', 'Read cohorts, channel concentration and acquisition cost from the orders.'),
+  packCard('multifamily', 'Tie the rent roll and T-12 to the offering memorandum, unit by unit.'),
+  packCard('commercial-property', 'See tenant concentration, lease rollover and recoveries before you price.'),
+  packCard('hotels', 'Weigh RevPAR, franchise terms and PIP capex against the asking price.'),
+  packCard('small-clinics', 'See per-site economics, provider dependence and coding against policy.'),
+  packCard('hospitals', 'Value on payer-mix-adjusted EBITDA, with census and accreditation in view.'),
+  packCard('venture-raise', 'You are the one being diligenced. See what the investor will find, first.'),
+];
+
 export const NAV = [
   { href: '/product', label: 'Product' },
   { href: '/industries', label: 'Industries' },

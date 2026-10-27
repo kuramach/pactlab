@@ -179,3 +179,26 @@ describe('industry stories', () => {
     for (const industry of PUBLISHED_INDUSTRIES) expect(INDUSTRY_STORIES[industry.slug]!.faq.length, industry.slug).toBeGreaterThanOrEqual(3);
   });
 });
+
+describe('pacts carousel (T-086)', () => {
+  const publicDir = join(APP, '../public');
+
+  it('shows 13 pacts in order: the core deal first, every pack, the founder side last', () => {
+    expect(content.PACT_CARDS.map((card) => card.id)).toEqual([
+      'technology',
+      ...content.INDUSTRIES.filter((industry) => industry.pack !== null && industry.slug !== 'venture-raise').map((industry) => industry.slug),
+      'venture-raise',
+    ]);
+  });
+
+  it('links every card to a page that renders, with an existing illustration', () => {
+    for (const card of content.PACT_CARDS) {
+      expect(routeExists(card.href), card.href).toBe(true);
+      // Industry pages render only for published stories; anything else would 404.
+      const slug = /^\/industries\/(.+)$/.exec(card.href)?.[1];
+      if (slug) expect(PUBLISHED_INDUSTRIES.map((industry) => industry.slug), card.href).toContain(slug);
+      expect(existsSync(join(publicDir, card.image.replace(/^\/illustrations\//, 'illustrations/'))), card.image).toBe(true);
+      expect(card.line.length, card.id).toBeLessThanOrEqual(90);
+    }
+  });
+});
