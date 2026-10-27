@@ -7,11 +7,13 @@ import { PageHero, Section } from '../../components/page-hero';
 import { StatusBadge } from '../../components/status-badge';
 import { INDUSTRY_STORIES, PUBLISHED_INDUSTRIES } from '../../lib/industry-stories';
 import { INDUSTRY_CORE, PILOT } from '../../lib/content';
+import { pageMetadata } from '../../lib/seo';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: 'Industries',
-  description: 'Software and SaaS today; fintech, healthcare, telecom and media, services, pharma and biotech, and e-commerce packs to follow.',
-};
+  description: 'One diligence loop with a pack for each industry: software and SaaS, fintech, healthcare, hospitals, clinics, telecom, services, pharma, e-commerce, real estate, hotels and venture raises.',
+  path: '/industries',
+});
 
 export default function IndustriesPage() {
   return (

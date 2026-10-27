@@ -8,6 +8,7 @@ import { Section } from '../../../components/page-hero';
 import { StatusBadge } from '../../../components/status-badge';
 import { FLOW, PILOT, PLANNED_NOTE } from '../../../lib/content';
 import { INDUSTRY_STORIES, PUBLISHED_INDUSTRIES } from '../../../lib/industry-stories';
+import { faqPageJsonLd, jsonLdScript, pageMetadata } from '../../../lib/seo';
 
 export const dynamicParams = false;
 
@@ -21,11 +22,12 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const industry = find((await params).slug);
   const story = industry ? INDUSTRY_STORIES[industry.slug] : undefined;
   return industry && story
-    ? {
+    ? pageMetadata({
         title: `${industry.name} M&A diligence`,
         description: story.subhead,
-        openGraph: { images: [{ url: `/illustrations/${industry.slug}.svg`, alt: story.illustrationAlt }] },
-      }
+        path: `/industries/${industry.slug}`,
+        image: { url: `/illustrations/${industry.slug}.svg`, alt: story.illustrationAlt },
+      })
     : {};
 }
 
@@ -187,6 +189,7 @@ export default async function IndustryPage({ params }: { params: Promise<{ slug:
       </Section>
 
       {/* FAQ */}
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdScript(faqPageJsonLd(story.faq)) }} />
       <Section title="Questions buyers ask">
         <div className="flex max-w-3xl flex-col divide-y divide-navy/10 rounded-2xl border border-navy/10">
           {story.faq.map((item) => (

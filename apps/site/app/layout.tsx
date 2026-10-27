@@ -6,6 +6,7 @@ import { SiteHeader } from '../components/site-header';
 import { siteConfig } from '../lib/config';
 import { DESCRIPTOR, HOME, TAGLINE } from '../lib/content';
 import './globals.css';
+import { jsonLdScript, organizationJsonLd } from '../lib/seo';
 
 // Brand typeface. Self-hosted at build time by next/font; no runtime request to Google.
 const manrope = Manrope({ subsets: ['latin'], display: 'swap', variable: '--font-manrope' });
@@ -38,6 +39,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <SiteHeader loginUrl={loginUrl} signUpUrl={signUpUrl} contactHref={contactHref} />
         <main id="main">{children}</main>
         <SiteFooter />
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdScript(organizationJsonLd()) }} />
       </body>
     </html>
   );
