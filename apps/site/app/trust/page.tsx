@@ -3,8 +3,9 @@ import { CtaBand } from '../../components/cta';
 import { FeatureGrid } from '../../components/features';
 import { PageHero, Section } from '../../components/page-hero';
 import { PILOT, PRINCIPLES, TRUST } from '../../lib/content';
+import { pageMetadata } from '../../lib/seo';
 
-export const metadata: Metadata = { title: 'Trust', description: TRUST.intro };
+export const metadata: Metadata = pageMetadata({ title: 'Trust', description: TRUST.intro, path: '/trust' });
 
 export default function TrustPage() {
   return (

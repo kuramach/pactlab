@@ -1,11 +1,13 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { HeroCarousel } from '../components/hero-carousel';
 import { PactCarousel } from '../components/pact-carousel';
 import { IconTile, ModuleMark } from '../components/icon';
 import { Lockup } from '../components/lockup';
 import { siteConfig } from '../lib/config';
-import { CAROUSEL, CLOSING, FOUNDER, MODULES, NAME_STORY, PACT_CARDS, PILLAR, PRINCIPLES, STORY, TAGLINE } from '../lib/content';
+import { CAROUSEL, CLOSING, FOUNDER, HOME, MODULES, NAME_STORY, PACT_CARDS, PILLAR, PRINCIPLES, STORY, TAGLINE } from '../lib/content';
 import { Demos } from './demos';
+import { jsonLdScript, pageMetadata, softwareApplicationJsonLd } from '../lib/seo';
 
 const { contactHref, signUpUrl } = siteConfig();
 
@@ -23,9 +25,12 @@ function PrimaryCta({ tone = 'light' }: { tone?: 'light' | 'dark' }) {
   );
 }
 
+export const metadata: Metadata = pageMetadata({ description: HOME.body, path: '/' });
+
 export default function HomePage() {
   return (
     <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdScript(softwareApplicationJsonLd()) }} />
       <HeroCarousel slides={CAROUSEL} cta={contactHref ? { href: contactHref, label: 'Request a pilot' } : null} />
 
       {/* Value proposition */}

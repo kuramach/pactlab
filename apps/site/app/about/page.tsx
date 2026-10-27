@@ -3,8 +3,9 @@ import Link from 'next/link';
 import { IconTile } from '../../components/icon';
 import { PageHero } from '../../components/page-hero';
 import { ABOUT_PAGES, NAME_STORY } from '../../lib/content';
+import { pageMetadata } from '../../lib/seo';
 
-export const metadata: Metadata = { title: 'About', description: NAME_STORY.teaser };
+export const metadata: Metadata = pageMetadata({ title: 'About', description: NAME_STORY.teaser, path: '/about' });
 
 export default function AboutPage() {
   return (

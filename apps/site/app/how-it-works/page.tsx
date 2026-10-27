@@ -4,8 +4,9 @@ import { FeatureGrid } from '../../components/features';
 import { Flow } from '../../components/flow';
 import { PageHero, Section } from '../../components/page-hero';
 import { PILOT, PRINCIPLES, SOURCES } from '../../lib/content';
+import { pageMetadata } from '../../lib/seo';
 
-export const metadata: Metadata = { title: 'How it works', description: 'From source evidence to deal terms, with a person deciding at every step that matters.' };
+export const metadata: Metadata = pageMetadata({ title: 'How it works', description: 'From source evidence to deal terms, with a person deciding at every step that matters.', path: '/how-it-works' });
 
 const OUTPUTS = [
   { icon: 'ArrowLeftRight', title: 'Reconciled revenue', body: 'An approved bridge from reported to billed ARR.' },

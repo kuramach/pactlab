@@ -3,11 +3,9 @@ import Link from 'next/link';
 import { CtaBand } from '../../../components/cta';
 import { Icon, IconTile } from '../../../components/icon';
 import { FOUNDER, PILOT, type IconName } from '../../../lib/content';
+import { pageMetadata } from '../../../lib/seo';
 
-export const metadata: Metadata = {
-  title: 'Founder’s vision',
-  description: FOUNDER.title,
-};
+export const metadata: Metadata = pageMetadata({ title: 'Founder’s vision', description: FOUNDER.title, path: '/about/vision' });
 
 /** The founder's vision for Pactlab, in his own voice. */
 export default function VisionPage() {

@@ -7,6 +7,7 @@ import { Flow } from '../../../components/flow';
 import { ModuleMark } from '../../../components/icon';
 import { PageHero, Section } from '../../../components/page-hero';
 import { MODULES, PILOT } from '../../../lib/content';
+import { pageMetadata } from '../../../lib/seo';
 
 /** Where each module sits in the decision loop. */
 const FLOW_STEPS: Readonly<Record<string, readonly string[]>> = {
@@ -28,7 +29,7 @@ const find = (slug: string) => MODULES.find((module) => module.slug === slug);
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const module = find((await params).slug);
-  return module ? { title: module.name, description: module.summary } : {};
+  return module ? pageMetadata({ title: module.name, description: module.summary, path: `/product/${module.slug}` }) : {};
 }
 
 export default async function ModulePage({ params }: { params: Promise<{ slug: string }> }) {
@@ -37,7 +38,17 @@ export default async function ModulePage({ params }: { params: Promise<{ slug: s
   const others = MODULES.filter((other) => other.slug !== module.slug);
   return (
     <>
-      <PageHero eyebrow={module.name} title={module.question} body={module.intro} icon={module.icon} />
+      <PageHero
+        eyebrow={module.name}
+        title={module.question}
+        body={module.intro}
+        icon={module.icon}
+        crumbs={[
+          { label: 'Home', href: '/' },
+          { label: 'Product', href: '/product' },
+          { label: module.name, href: `/product/${module.slug}` },
+        ]}
+      />
       <Section title="What it does">
         <FeatureGrid features={module.features} />
       </Section>

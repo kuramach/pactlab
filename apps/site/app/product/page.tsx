@@ -4,8 +4,13 @@ import { CtaBand } from '../../components/cta';
 import { Icon, ModuleMark } from '../../components/icon';
 import { PageHero, Section } from '../../components/page-hero';
 import { MODULES, PILOT } from '../../lib/content';
+import { pageMetadata } from '../../lib/seo';
 
-export const metadata: Metadata = { title: 'Product', description: 'Six modules, one decision loop: revenue, technology, delivery, documents, findings and valuation.' };
+export const metadata: Metadata = pageMetadata({
+  title: 'Product',
+  description: 'Six modules, one decision loop: revenue, technology, delivery, documents, findings and valuation.',
+  path: '/product',
+});
 
 export default function ProductPage() {
   return (
