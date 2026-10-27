@@ -10,7 +10,7 @@ test('a data-room document uploads, opens by page, and AI explains plainly that 
   await expect(page.getByText('customer-contract.txt — page 1 of 1')).toBeVisible();
   await expect(page.getByText('may terminate for convenience')).toBeVisible();
 
-  await page.getByRole('button', { name: 'Run AI extraction' }).click();
+  await page.getByRole('button', { name: 'Re-run AI extraction' }).click();
   await expect(page.getByText('AI is not switched on for this environment yet.')).toBeVisible();
   await expect(page.getByText('The model call failed or timed out')).toHaveCount(0);
 });

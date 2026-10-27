@@ -1,10 +1,11 @@
-import { Badge, Button, Card, CardContent, CardHeader, CardTitle, EmptyState, FileDrop, Glossed } from '@pactlab/ui';
+import { Badge, Button, Card, CardContent, CardHeader, CardTitle, EmptyState, Glossed } from '@pactlab/ui';
 import Link from 'next/link';
 import { apiGet } from '../../_lib/api';
 import { OutcomeBanner } from '../../_lib/outcome';
 import { ApiState } from '../../_lib/states';
 import { can, dealViewer } from '../../_lib/viewer';
-import { extractDocument, reviewDocumentFinding, uploadDocument } from './actions';
+import { extractDocument, reviewDocumentFinding } from './actions';
+import { DocumentUploader } from './uploader';
 import { AI_UNAVAILABLE } from './ai-messages';
 import { AskBox } from './ask-box';
 import { PdfPageView } from './pdf-page-view';
@@ -133,38 +134,10 @@ export default async function DocumentsPage({
       <div className="grid gap-4 lg:grid-cols-[1fr_1.2fr]">
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Upload a document</CardTitle>
+            <CardTitle className="text-base">Upload documents</CardTitle>
           </CardHeader>
           <CardContent>
-            <form action={uploadDocument.bind(null, dealId)} className="flex flex-col gap-3 text-sm">
-              <FileDrop
-                name="file"
-                accept=".pdf,.docx,.xlsx,.csv,.txt,.md,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,text/plain,text/markdown"
-                required
-                formats={['PDF', 'Word', 'Excel', 'CSV', 'Text', 'Markdown']}
-                hint="PDF, Word and Excel up to 10 MB; CSV and text up to 512 KB"
-              />
-              <div className="flex flex-wrap items-center gap-4">
-                <label className="flex items-center gap-2">
-                  Contains
-                  <select name="dataClass" className="rounded-md border border-border bg-background px-2 py-1">
-                    <option value="BUSINESS">business information</option>
-                    <option value="FINANCIAL">financial information</option>
-                  </select>
-                </label>
-                <label className="flex items-center gap-2">
-                  <input type="checkbox" name="aiExcluded" /> Keep away from <Glossed text="AI" />
-                </label>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                <Glossed text="PDF, Word or Excel up to 10 MB; CSV, text or Markdown up to 512 KB. Word documents are split into sections and each Excel sheet starts a new page. HR, pay and performance documents are never sent to a model." />
-              </p>
-              <div>
-                <Button type="submit" size="sm">
-                  Upload
-                </Button>
-              </div>
-            </form>
+            <DocumentUploader dealId={dealId} aiOn={aiOn} />
           </CardContent>
         </Card>
         <Card>
@@ -213,7 +186,7 @@ export default async function DocumentsPage({
             {page?.kind === 'ok' && writer ? (
               <form action={extractDocument.bind(null, dealId, page.data.documentId)}>
                 <Button type="submit" size="sm" variant="outline">
-                  Run AI extraction
+                  Re-run AI extraction
                 </Button>
               </form>
             ) : null}
