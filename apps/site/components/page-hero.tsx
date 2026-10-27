@@ -1,4 +1,6 @@
 import type { ReactNode } from 'react';
+import type { Crumb } from '../lib/seo';
+import { Breadcrumbs } from './breadcrumbs';
 import type { IconName } from '../lib/content';
 import { Icon } from './icon';
 
@@ -8,17 +10,21 @@ export function PageHero({
   title,
   body,
   icon,
+  crumbs,
   children,
 }: {
   eyebrow: string;
   title: string;
   body: string;
   icon?: IconName;
+  /** Breadcrumb trail ending with this page; omitted on top-level pages. */
+  crumbs?: readonly Crumb[];
   children?: ReactNode;
 }) {
   return (
     <section className="bg-navy text-white">
       <div className="mx-auto flex max-w-6xl flex-col gap-5 px-6 py-16 md:py-20">
+        {crumbs ? <Breadcrumbs crumbs={crumbs} tone="dark" /> : null}
         <p className="inline-flex items-center gap-2 text-sm font-bold uppercase tracking-widest text-indigo">
           {icon ? <Icon name={icon} className="h-4 w-4" /> : null}
           {eyebrow}

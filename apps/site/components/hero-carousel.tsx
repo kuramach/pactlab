@@ -16,8 +16,16 @@ export function HeroCarousel({ slides, cta }: { slides: readonly Slide[]; cta: {
   const [index, setIndex] = useState(0);
   const [playing, setPlaying] = useState(true);
   const [held, setHeld] = useState(false);
+  // The first slide shows at once (no fade), so it paints as early as possible (LCP); later slides fade in.
+  const [moved, setMoved] = useState(false);
   const count = slides.length;
-  const go = useCallback((next: number) => setIndex(((next % count) + count) % count), [count]);
+  const go = useCallback(
+    (next: number) => {
+      setMoved(true);
+      setIndex(((next % count) + count) % count);
+    },
+    [count],
+  );
 
   useEffect(() => {
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) setPlaying(false);
@@ -58,7 +66,7 @@ export function HeroCarousel({ slides, cta }: { slides: readonly Slide[]; cta: {
                 aria-label={`${position + 1} of ${count}: ${slide.eyebrow}`}
                 aria-hidden={!active}
                 inert={!active}
-                className={`grid items-center gap-12 md:grid-cols-[1.15fr_1fr] ${active ? 'animate-[fade_600ms_ease-out]' : 'hidden'}`}
+                className={`grid items-center gap-12 md:grid-cols-[1.15fr_1fr] ${active ? (moved ? 'animate-[fade_600ms_ease-out]' : '') : 'hidden'}`}
               >
                 <div className="flex flex-col gap-6">
                   <p className="text-sm font-bold uppercase tracking-widest text-indigo">{slide.eyebrow}</p>
