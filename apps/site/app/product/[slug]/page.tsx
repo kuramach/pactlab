@@ -38,7 +38,17 @@ export default async function ModulePage({ params }: { params: Promise<{ slug: s
   const others = MODULES.filter((other) => other.slug !== module.slug);
   return (
     <>
-      <PageHero eyebrow={module.name} title={module.question} body={module.intro} icon={module.icon} />
+      <PageHero
+        eyebrow={module.name}
+        title={module.question}
+        body={module.intro}
+        icon={module.icon}
+        crumbs={[
+          { label: 'Home', href: '/' },
+          { label: 'Product', href: '/product' },
+          { label: module.name, href: `/product/${module.slug}` },
+        ]}
+      />
       <Section title="What it does">
         <FeatureGrid features={module.features} />
       </Section>

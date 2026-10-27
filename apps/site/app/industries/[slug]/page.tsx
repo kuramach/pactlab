@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { Breadcrumbs } from '../../../components/breadcrumbs';
 import { CtaBand, PilotButton, SignUpLink } from '../../../components/cta';
 import { FeatureGrid } from '../../../components/features';
 import { Icon, ModuleMark } from '../../../components/icon';
@@ -46,6 +47,14 @@ export default async function IndustryPage({ params }: { params: Promise<{ slug:
       <section className="bg-navy text-white">
         <div className="mx-auto grid max-w-6xl items-center gap-12 px-6 py-16 md:grid-cols-[1.15fr_1fr] md:py-20">
           <div className="flex flex-col gap-6">
+            <Breadcrumbs
+              tone="dark"
+              crumbs={[
+                { label: 'Home', href: '/' },
+                { label: 'Industries', href: '/industries' },
+                { label: industry.name, href: `/industries/${industry.slug}` },
+              ]}
+            />
             <p className="inline-flex items-center gap-2 text-sm font-bold uppercase tracking-widest text-indigo">
               <Icon name={industry.icon} className="h-4 w-4" />
               {industry.name} M&amp;A
@@ -227,6 +236,12 @@ export default async function IndustryPage({ params }: { params: Promise<{ slug:
             </li>
           ))}
         </ul>
+        <p className="mt-8 text-slate-text">
+          Every pack runs on the same core.{' '}
+          <Link href="/product" className="font-semibold text-indigo-ink underline-offset-4 hover:underline">
+            See the six product modules →
+          </Link>
+        </p>
       </Section>
 
       <CtaBand

@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { DESCRIPTOR, HOME, INDUSTRY_CORE, MODULES, PILOT, TAGLINE, TRUST } from './content';
+import { COMPARISONS, FAQS, GUIDES } from './answers';
 import { INDUSTRY_STORIES, PUBLISHED_INDUSTRIES } from './industry-stories';
 
 /**
@@ -21,6 +22,11 @@ export const SITE_ROUTES: readonly string[] = [
   '/industries',
   ...PUBLISHED_INDUSTRIES.map((industry) => `/industries/${industry.slug}`),
   '/how-it-works',
+  '/guides',
+  ...GUIDES.map((guide) => `/guides/${guide.slug}`),
+  '/faq',
+  ...FAQS.map((page) => `/faq/${page.slug}`),
+  ...COMPARISONS.map((comparison) => `/compare/${comparison.slug}`),
   '/trust',
   '/pilot',
   '/about',
@@ -122,6 +128,15 @@ export function llmsText(): string {
       return `- [${industry.name}](${absolute(`/industries/${industry.slug}`)}): ${story?.subhead ?? industry.summary}`;
     }),
     '',
+    '## Guides',
+    '',
+    ...GUIDES.map((guide) => `- [${guide.title}](${absolute(`/guides/${guide.slug}`)}): ${guide.description}`),
+    '',
+    '## Questions and answers',
+    '',
+    ...FAQS.map((page) => `- [${page.title}](${absolute(`/faq/${page.slug}`)}): ${page.description}`),
+    ...COMPARISONS.map((comparison) => `- [${comparison.title}](${absolute(`/compare/${comparison.slug}`)}): ${comparison.description}`),
+    '',
     '## More',
     '',
     `- [How it works](${absolute('/how-it-works')}): from source evidence to deal terms, with a person deciding at every step that matters.`,
@@ -132,3 +147,14 @@ export function llmsText(): string {
   ];
   return lines.join('\n');
 }
+
+export interface Crumb {
+  readonly label: string;
+  readonly href: string;
+}
+
+export const breadcrumbJsonLd = (crumbs: readonly Crumb[]) => ({
+  '@context': 'https://schema.org',
+  '@type': 'BreadcrumbList',
+  itemListElement: crumbs.map((crumb, index) => ({ '@type': 'ListItem', position: index + 1, name: crumb.label, item: absolute(crumb.href) })),
+});
