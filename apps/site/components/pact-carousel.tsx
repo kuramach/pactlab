@@ -16,7 +16,7 @@ const INTERVAL_MS = 5000;
  * JavaScript the row still scrolls.
  */
 export function PactCarousel({ cards }: { cards: readonly PactCard[] }) {
-  const track = useRef<HTMLUListElement>(null);
+  const track = useRef<HTMLDivElement>(null);
   const [index, setIndex] = useState(0);
   const [held, setHeld] = useState(false);
   const [stopped, setStopped] = useState(false);
@@ -116,7 +116,7 @@ export function PactCarousel({ cards }: { cards: readonly PactCard[] }) {
         </div>
 
         <div aria-roledescription="carousel" aria-label="Pacts you can run" className="mt-8">
-          <ul
+          <div
             ref={track}
             aria-live="off"
             onScroll={onScroll}
@@ -127,7 +127,7 @@ export function PactCarousel({ cards }: { cards: readonly PactCard[] }) {
             className="relative -mx-6 flex snap-x snap-mandatory gap-4 overflow-x-auto scroll-px-6 px-6 pb-4 sm:mx-0 sm:scroll-px-0 sm:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           >
             {cards.map((card, position) => (
-              <li
+              <div
                 key={card.id}
                 role="group"
                 aria-roledescription="slide"
@@ -152,9 +152,9 @@ export function PactCarousel({ cards }: { cards: readonly PactCard[] }) {
                     <span className="mt-auto pt-2 text-sm font-semibold text-indigo-ink group-hover:underline">Explore →</span>
                   </span>
                 </Link>
-              </li>
+              </div>
             ))}
-          </ul>
+          </div>
 
           <div className="mt-4 flex flex-wrap justify-center" role="group" aria-label="Choose a pact">
             {cards.map((card, position) => (
