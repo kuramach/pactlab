@@ -4,8 +4,9 @@ import { FeatureGrid } from '../../components/features';
 import { PageHero, Section } from '../../components/page-hero';
 import { siteConfig } from '../../lib/config';
 import { PILOT } from '../../lib/content';
+import { pageMetadata } from '../../lib/seo';
 
-export const metadata: Metadata = { title: 'Pilot', description: PILOT.body };
+export const metadata: Metadata = pageMetadata({ title: 'Pilot', description: PILOT.body, path: '/pilot' });
 
 export default function PilotPage() {
   const { contactHref } = siteConfig();

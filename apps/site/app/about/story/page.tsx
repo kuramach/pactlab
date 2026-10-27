@@ -2,11 +2,13 @@ import type { Metadata } from 'next';
 import { CtaBand } from '../../../components/cta';
 import { PageHero } from '../../../components/page-hero';
 import { NAME_STORY, PILOT } from '../../../lib/content';
+import { pageMetadata } from '../../../lib/seo';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: 'The story of the pact',
-  description: NAME_STORY.teaser,
-};
+  description: 'Where the name comes from: the Roman pact, the clasped hands of Fides, and the lab that tests the promise.',
+  path: '/about/story',
+});
 
 /** Where the name comes from: the Roman pact, the clasped hands of Fides, and the lab that tests the promise. */
 export default function StoryPage() {
