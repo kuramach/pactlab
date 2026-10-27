@@ -1,11 +1,11 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { HeroCarousel } from '../components/hero-carousel';
-import { Icon, IconTile, ModuleMark } from '../components/icon';
+import { PactCarousel } from '../components/pact-carousel';
+import { IconTile, ModuleMark } from '../components/icon';
 import { Lockup } from '../components/lockup';
 import { siteConfig } from '../lib/config';
-import { CAROUSEL, CLOSING, FOUNDER, HOME, MODULES, NAME_STORY, PILLAR, PRINCIPLES, STORY, TAGLINE } from '../lib/content';
-import { PUBLISHED_INDUSTRIES } from '../lib/industry-stories';
+import { CAROUSEL, CLOSING, FOUNDER, HOME, MODULES, NAME_STORY, PACT_CARDS, PILLAR, PRINCIPLES, STORY, TAGLINE } from '../lib/content';
 import { Demos } from './demos';
 import { jsonLdScript, pageMetadata, softwareApplicationJsonLd } from '../lib/seo';
 
@@ -137,27 +137,8 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Industries strip */}
-      <section aria-labelledby="industries-title" className="bg-white">
-        <div className="mx-auto max-w-6xl px-6 py-16">
-          <h2 id="industries-title" className="text-center text-sm font-bold uppercase tracking-widest text-slate-text">
-            Built for acquirers in
-          </h2>
-          <ul className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
-            {PUBLISHED_INDUSTRIES.map((industry) => (
-              <li key={industry.slug}>
-                <Link
-                  href={`/industries/${industry.slug}`}
-                  className="flex h-full flex-col items-center gap-2 rounded-xl border border-navy/10 px-3 py-5 text-center text-sm font-semibold hover:border-indigo hover:bg-mist"
-                >
-                  <Icon name={industry.icon} className="h-6 w-6 text-indigo-ink" />
-                  {industry.name}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </div>
-      </section>
+      {/* Pacts you can run (T-086) */}
+      <PactCarousel cards={PACT_CARDS} />
 
       <Demos />
 
