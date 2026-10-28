@@ -2,6 +2,7 @@ import { DEAL_PHASE_LABELS, DEAL_PHASES, type DealPhase } from '@pactlab/domain'
 import { Badge, buttonVariants, Card, EmptyState, IconTile, PageHeader } from '@pactlab/ui';
 import { ArrowRight, Building2, Plus } from 'lucide-react';
 import Link from 'next/link';
+import { DeleteDealButton } from './delete-deal-button';
 import { dealsApi, type DealListItem } from './_lib/api';
 import { DEAL_TYPE_LABELS, partyLabel, STAGE_LABELS } from './_lib/labels';
 import { EmptyMarkIcon } from './_lib/empty-marks';
@@ -109,9 +110,12 @@ export default async function DealsPage({ searchParams }: { searchParams: Promis
                     </span>
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <Link href={`/deals/${deal.id}`} aria-label={`Open ${deal.name}`} className="inline-flex">
-                      <ArrowRight aria-hidden className="h-4 w-4 text-muted-foreground group-hover:text-indigo-ink" />
-                    </Link>
+                    <span className="inline-flex items-center gap-3">
+                      {deal.myRole === 'DEAL_LEAD' ? <DeleteDealButton dealId={deal.id} dealName={deal.name} /> : null}
+                      <Link href={`/deals/${deal.id}`} aria-label={`Open ${deal.name}`} className="inline-flex">
+                        <ArrowRight aria-hidden className="h-4 w-4 text-muted-foreground group-hover:text-indigo-ink" />
+                      </Link>
+                    </span>
                   </td>
                 </tr>
               ))}

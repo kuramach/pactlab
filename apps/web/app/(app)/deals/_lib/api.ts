@@ -38,6 +38,8 @@ export interface DealListItem {
   initiatedBy?: 'BUYER' | 'SELLER';
   parties?: DealSummary['parties'];
   askingPrice?: DealSummary['askingPrice'];
+  /** The viewer's role on this deal; a DEAL_LEAD may delete it. */
+  myRole?: string | null;
 }
 
 export interface EvidencePage {
@@ -76,7 +78,7 @@ export type SendResult<T> = ApiResult<T> | { kind: 'conflict' } | { kind: 'inval
 
 /** Server-side write; the browser never holds the token or calls the API directly. */
 export async function apiSend<T>(
-  method: 'POST' | 'PATCH' | 'PUT',
+  method: 'POST' | 'PATCH' | 'PUT' | 'DELETE',
   path: string,
   body: unknown,
   headers: Record<string, string> = {},
