@@ -570,6 +570,7 @@ model Deal {
   foresightTrendSets      ForesightTrendSet[]
   foresightForecasts      ForesightForecast[]
   foresightBaselines      ForesightBaseline[]
+  invitations             DealInvitation[]
   foresightQuestions      ForesightQuestion[]
   ventureRaiseSettings    VentureRaiseSettings[]
   ventureOffers           VentureOffer[]
@@ -1903,4 +1904,31 @@ model ForesightBaseline {
 
   @@unique([organizationId, dealId])
   @@map("foresight_baselines")
+}
+
+/// An invitation to one pact (T-094 B12, ADR 0014): one email, one side and
+/// role. The token is stored only as its hash. Accepting makes the invitee a
+/// guest on the pact (a deal membership), never a member of this organization.
+model DealInvitation {
+  id             String    @id @default(uuid(7)) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  dealId         String    @map("deal_id") @db.Uuid
+  email          String
+  /// BUYER | SELLER | ADVISOR
+  side           String
+  role           DealRole
+  tokenHash      String    @unique @map("token_hash")
+  /// PENDING | ACCEPTED | REVOKED (expiry is read from expires_at)
+  status         String    @default("PENDING")
+  invitedBy      String    @map("invited_by") @db.Uuid
+  expiresAt      DateTime  @map("expires_at") @db.Timestamptz(3)
+  acceptedBy     String?   @map("accepted_by") @db.Uuid
+  acceptedAt     DateTime? @map("accepted_at") @db.Timestamptz(3)
+  revokedAt      DateTime? @map("revoked_at") @db.Timestamptz(3)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  deal Deal @relation(fields: [organizationId, dealId], references: [organizationId, id], onDelete: Restrict, map: "deal_invitations_deal_fkey")
+
+  @@index([organizationId, dealId, createdAt])
+  @@map("deal_invitations")
 }

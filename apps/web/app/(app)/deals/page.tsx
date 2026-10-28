@@ -7,6 +7,7 @@ import { DEAL_TYPE_LABELS, partyLabel, STAGE_LABELS } from './_lib/labels';
 import { EmptyMarkIcon } from './_lib/empty-marks';
 import { ApiState } from './_lib/states';
 import { formatMoney } from '../metrics/_lib/format';
+import { getSessionContext } from '../../../lib/session';
 
 // Per-user data: never prerender.
 export const dynamic = 'force-dynamic';
@@ -28,6 +29,9 @@ function partiesLine(deal: DealListItem): string {
 }
 
 export default async function DealsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  // Guests on another organization's pacts never start one there (ADR 0014; the API refuses too).
+  const session = await getSessionContext();
+  const guest = session.kind === 'signed-in' && session.guest;
   const phaseParam = (await searchParams)['phase'];
   const phase = typeof phaseParam === 'string' && (DEAL_PHASES as readonly string[]).includes(phaseParam) ? (phaseParam as DealPhase) : null;
   const listed = await dealsApi.list();
@@ -40,7 +44,7 @@ export default async function DealsPage({ searchParams }: { searchParams: Promis
         breadcrumbs={[{ href: '/', label: 'Home' }, { label: 'My deals' }]}
         title="My deals"
         description="Every Pact you are a member of. Open one to collect evidence, review findings and value it."
-        actions={<StartPactLink />}
+        actions={guest ? undefined : <StartPactLink />}
       />
       <nav aria-label="Filter by phase" className="flex flex-wrap gap-2 text-sm">
         {[null, ...DEAL_PHASES].map((option) => (
@@ -61,7 +65,7 @@ export default async function DealsPage({ searchParams }: { searchParams: Promis
           icon={<EmptyMarkIcon name="deals" />}
           title="No deals yet"
           description="Start a Pact to open your first deal, or ask a deal lead to add you."
-          action={<StartPactLink />}
+          action={guest ? undefined : <StartPactLink />}
         />
       ) : (
         <Card className="overflow-hidden">
