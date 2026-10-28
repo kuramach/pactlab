@@ -179,4 +179,42 @@ describe('balance-sheet items through the API', () => {
     expect(refused.body).toMatchObject({ status: 422, code: 'TERMS_DEBT_ONLY' });
     expect((await call('analyst', 'POST', items(), item({ label: 'Bad rate', interestRatePercent: '150' }))).status).toBe(400);
   });
+
+  it('proposes items from an uploaded balance sheet; nothing is recorded until a person confirms (T-094 B9)', async () => {
+    const sheet = await upload('bs-2026.txt', 'Northwind Ltd — balance sheet at 30 September 2026 (synthetic)\n\nCash at bank: USD 75,000\nTerm loan with Harbor Bank, outstanding principal: USD 300,000\nTrade receivables: USD 40,000', 'FINANCIAL');
+    const before = await call('analyst', 'GET', items());
+    const proposed = await call('analyst', 'GET', items(`/proposals/${sheet}`));
+    expect(proposed.status).toBe(200);
+    expect(proposed.body).toMatchObject({ asOf: '2026-09-30', alreadyRecorded: 0 });
+    const lines = proposed.body['proposals'] as Body[];
+    expect(lines.map((line) => [line['category'], line['amount']])).toEqual([
+      ['CASH', '75000'],
+      ['TERM_LOAN', '300000'],
+    ]);
+    // Reading proposals records nothing: the bridge is untouched.
+    expect((await call('analyst', 'GET', items())).body['items']).toEqual(before.body['items']);
+
+    // Confirming one goes through the normal, quote-verified create.
+    const loan = lines[1] as Body;
+    const created = await call('analyst', 'POST', items(), {
+      kind: loan['kind'],
+      category: loan['category'],
+      label: loan['label'],
+      amount: loan['amount'],
+      currency: 'USD',
+      asOf: '2026-09-30',
+      documentId: sheet,
+      pageNumber: loan['pageNumber'],
+      quote: loan['quote'],
+      lender: loan['lender'],
+    });
+    expect(created.status).toBe(201);
+    const again = await call('analyst', 'GET', items(`/proposals/${sheet}`));
+    expect(again.body).toMatchObject({ alreadyRecorded: 1 });
+    expect((again.body['proposals'] as Body[]).map((line) => line['category'])).toEqual(['CASH']);
+
+    expect((await call('target_contributor', 'GET', items(`/proposals/${sheet}`))).status).toBe(403);
+    expect((await call('other', 'GET', items(`/proposals/${sheet}`))).status).toBe(404);
+    expect((await call('analyst', 'GET', items(`/proposals/${hrDocumentId}`))).status).toBe(404);
+  });
 });

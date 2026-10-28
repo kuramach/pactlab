@@ -1,6 +1,6 @@
 'use server';
 
-import { balanceSheetItemInputSchema, reviseBalanceSheetItemSchema, withdrawBalanceSheetItemSchema } from '@pactlab/contracts';
+import { balanceSheetItemInputSchema, reviseBalanceSheetItemSchema, withdrawBalanceSheetItemSchema, type BalanceSheetProposalsView } from '@pactlab/contracts';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import { apiGet, apiSend } from '../../_lib/api';
@@ -57,4 +57,26 @@ export async function loadPageText(dealId: string, documentId: string, pageNumbe
   if (page.kind === 'not-found') return { ok: false, message: `That document has no page ${pageNumber}.` };
   if (page.kind !== 'ok') return { ok: false, message: 'The page could not be read (it may be people data, purged or unavailable).' };
   return page.data.text ? { ok: true, text: page.data.text } : { ok: false, message: 'This page has no readable text.' };
+}
+
+export type ProposalsResult = { ok: true; view: BalanceSheetProposalsView } | { ok: false; message: string };
+
+/** Lines read from an uploaded balance sheet (T-094 B9); reading records nothing. */
+export async function readBalanceSheet(dealId: string, documentId: string): Promise<ProposalsResult> {
+  if (!uuid.safeParse(dealId).success || !uuid.safeParse(documentId).success) return { ok: false, message: 'Choose a document first.' };
+  const result = await apiGet<BalanceSheetProposalsView>(`/v1/deals/${dealId}/balance-sheet-items/proposals/${documentId}`);
+  if (result.kind === 'ok') return { ok: true, view: result.data };
+  if (result.kind === 'not-found') return { ok: false, message: 'That document cannot be read for balance-sheet items (purged, or people data).' };
+  return { ok: false, message: 'The balance sheet could not be read. Try again.' };
+}
+
+/** Confirm one proposed line into a recorded item; the API re-checks the quote against the page. */
+export async function confirmBalanceSheetProposal(dealId: string, documentId: string, input: Record<string, string>): Promise<{ ok: true } | { ok: false; message: string }> {
+  if (!uuid.safeParse(dealId).success || !uuid.safeParse(documentId).success) return { ok: false, message: 'Unknown document.' };
+  const parsed = balanceSheetItemInputSchema.safeParse({ ...input, documentId });
+  if (!parsed.success) return { ok: false, message: `Check ${String(parsed.error.issues[0]?.path[0] ?? 'the line')}: ${parsed.error.issues[0]?.message ?? 'invalid'}.` };
+  const result = await apiSend('POST', `/v1/deals/${dealId}/balance-sheet-items`, parsed.data);
+  if (result.kind === 'ok') return { ok: true };
+  if (result.kind === 'forbidden') return { ok: false, message: 'Your role cannot record balance-sheet items.' };
+  return { ok: false, message: `Not recorded${'code' in result && result.code ? ` (${result.code})` : ''}. Check the amount and date, or add it by hand below.` };
 }
