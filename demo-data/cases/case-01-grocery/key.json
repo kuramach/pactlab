@@ -1,0 +1,15 @@
+{
+  "case": "case-01-grocery",
+  "fixedOn": "2026-10-28",
+  "note": "Written before the first run. Changed only by a documented recalibration (README, 'Recalibrations'), stating whether the case or the platform was wrong.",
+  "items": [
+    { "id": 1, "defect": "Overlap pockets: local markets where the pair are the only full-service competitors", "check": "overlap-pockets", "phase": "PRE", "direction": -1, "minSeverity": "HIGH" },
+    { "id": 2, "defect": "Unused divestiture headroom under the 650-site cap", "check": "unused-headroom", "phase": "DILIGENCE", "direction": -1, "minSeverity": "HIGH" },
+    { "id": 3, "defect": "Cherry-picked package: divested sites weaker than those kept", "check": "cherry-pick", "phase": "DILIGENCE", "direction": -1, "minSeverity": "MEDIUM" },
+    { "id": 4, "defect": "Incoherent package: banners without shared distribution or systems", "check": "incoherent-package", "phase": "DILIGENCE", "direction": -1, "minSeverity": "MEDIUM" },
+    { "id": 5, "defect": "Low-viability remedy buyer with a precedent failure", "check": "buyer-viability", "phase": "DILIGENCE", "direction": -1, "minSeverity": "HIGH" },
+    { "id": 6, "defect": "Regulator feedback round 2 (coherence) never answered by a revision", "check": "unaddressed-feedback", "phase": "DILIGENCE", "direction": -1, "minSeverity": "MEDIUM" },
+    { "id": 7, "defect": "Unverifiable headline price pledge", "check": "unverifiable-pledge", "phase": "DILIGENCE", "direction": -1, "minSeverity": "MEDIUM" },
+    { "id": 8, "defect": "Labor exposure: union density and shared bargaining agreements in overlap markets", "check": "labor-exposure", "phase": "PRE", "direction": -1, "minSeverity": "HIGH" }
+  ]
+}

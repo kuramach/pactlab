@@ -31,7 +31,8 @@ const dealSelect = {
 /** All repository functions take a tenant-scoped transaction from `withTenant`. */
 export const deals = {
   async list(tx: TransactionClient): Promise<DealRecord[]> {
-    return tx.deal.findMany({ select: dealSelect, orderBy: { createdAt: 'desc' } });
+    // A deleted deal is unreachable anyway (every membership is revoked); never list it.
+    return tx.deal.findMany({ where: { status: { not: 'DELETED' } }, select: dealSelect, orderBy: { createdAt: 'desc' } });
   },
 
   async get(tx: TransactionClient, dealId: string): Promise<DealRecord | null> {
@@ -55,7 +56,7 @@ export const deals = {
        ORDER BY ts_rank(to_tsvector('simple'::regconfig, name || ' ' || target_name), plainto_tsquery('simple', ${query})) DESC, id
        LIMIT 50`;
     if (ids.length === 0) return [];
-    const rows = await tx.deal.findMany({ where: { id: { in: ids.map((row) => row.id) } }, select: dealSelect });
+    const rows = await tx.deal.findMany({ where: { id: { in: ids.map((row) => row.id) }, status: { not: 'DELETED' } }, select: dealSelect });
     const order = new Map(ids.map((row, index) => [row.id, index]));
     return rows.sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
   },

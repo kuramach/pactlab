@@ -1,0 +1,12 @@
+{
+  "name": "Crossdock Wholesale Supply (synthetic)",
+  "retailSitesOperated": 23,
+  "yearsOperatingRetail": 3,
+  "precedents": [
+    {
+      "year": 2015,
+      "note": "Tidewell Grocers (synthetic) bought 146 stores divested by Harvest Lane Foods in an earlier merger and filed for bankruptcy within the year",
+      "source": "Case brief, \"Precedent\" (modelled on the 2015 Haggen collapse after the Albertsons-Safeway divestitures)"
+    }
+  ]
+}

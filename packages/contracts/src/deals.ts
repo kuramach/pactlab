@@ -32,6 +32,10 @@ export const dealSummarySchema = z.object({
     .object({ amount: z.string(), currency: z.string(), basis: z.enum(['ENTERPRISE_VALUE', 'EQUITY_VALUE']) })
     .nullable()
     .optional(),
+  /** The caller's own role on the deal (list responses only): who may delete it. */
+  myRole: z.string().nullable().optional(),
+  /** BUYER or SELLER: who opened the pact (T-097). */
+  initiatedBy: z.string().optional(),
 });
 export type DealSummary = z.infer<typeof dealSummarySchema>;
 

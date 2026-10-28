@@ -535,6 +535,9 @@ model Deal {
   /// The sale this buyer-led pact came from (another organization's seller-led pact, T-097). Reference only.
   linkedOrganizationId    String?                 @map("linked_organization_id") @db.Uuid
   linkedDealId            String?                 @map("linked_deal_id") @db.Uuid
+  /// Set when the deal lead deletes the deal (status DELETED); one-way.
+  deletedAt               DateTime?               @map("deleted_at") @db.Timestamptz(3)
+  deletedBy               String?                 @map("deleted_by") @db.Uuid
   createdAt       DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt       DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
 
