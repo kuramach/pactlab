@@ -33,6 +33,7 @@ export async function uploadOne(dealId: string, formData: FormData): Promise<Upl
     contentBase64: Buffer.from(await file.arrayBuffer()).toString('base64'),
     dataClass: formData.get('dataClass') === 'FINANCIAL' ? 'FINANCIAL' : 'BUSINESS',
     aiExcluded: formData.get('aiExcluded') === 'on',
+    shared: formData.get('shared') === 'on',
   });
   if (result.kind === 'ok') return { kind: 'ok', id: result.data.id, duplicate: result.data.duplicate === true };
   if (result.kind === 'invalid') return { kind: 'error', message: UPLOAD_PROBLEMS.rejected };
@@ -74,6 +75,7 @@ export async function uploadArchive(dealId: string, formData: FormData): Promise
       contentBase64: Buffer.from(await file.arrayBuffer()).toString('base64'),
       dataClass: formData.get('dataClass') === 'FINANCIAL' ? 'FINANCIAL' : 'BUSINESS',
       aiExcluded: formData.get('aiExcluded') === 'on',
+      shared: formData.get('shared') === 'on',
     },
   );
   if (result.kind === 'ok') {

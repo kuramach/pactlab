@@ -53,6 +53,8 @@ export const uploadArchiveBodySchema = z.strictObject({
   retentionClass: z.enum(RETENTION_CLASSES).default('DEAL_TERM'),
   dataClass: z.enum(DATA_CLASSIFICATIONS).default('BUSINESS'),
   aiExcluded: z.boolean().default(false),
+  /** Share every file in the archive with the counterparty (see uploadDocumentBodySchema). */
+  shared: z.boolean().default(false),
 });
 export type UploadArchiveBody = z.infer<typeof uploadArchiveBodySchema>;
 

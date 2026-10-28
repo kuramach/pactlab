@@ -23,5 +23,6 @@ export async function startPact(_previous: StartPactState, formData: FormData): 
   // Foresight's published and AI forecasts start in the background now, so the tab opens populated (T-094 B10).
   // Best effort: if this fails, opening Foresight starts them instead.
   await apiPost(`/v1/deals/${result.data.id}/foresight/baseline`, {}).catch(() => undefined);
-  redirect(`/deals/${result.data.id}/sources?started=1`);
+  // A seller-led pact opens on its bidders board (T-097).
+  redirect(parsed.command.initiatedBy === 'SELLER' ? `/deals/${result.data.id}/bidders` : `/deals/${result.data.id}/sources?started=1`);
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { pactFromForm, problemUpTo } from './form';
+import { pactFromForm, problemUpTo, stepsFor } from './form';
 
 function form(values: Record<string, string>) {
   const data = new FormData();
@@ -20,6 +20,21 @@ const VALID = {
   'askingPrice.known': 'no',
 };
 
+describe('seller-led pacts (T-097)', () => {
+  it('names no buyer and skips the buying-entity step', () => {
+    const { 'buyer.name': _name, 'buyer.ownership': _ownership, ...rest } = VALID;
+    const result = pactFromForm(form({ ...rest, initiatedBy: 'SELLER' }));
+    expect(result).toMatchObject({ ok: true, command: { initiatedBy: 'SELLER', buyer: null } });
+    expect(stepsFor({ initiatedBy: 'SELLER' })).toEqual(['pact', 'seller', 'asking', 'review']);
+    expect(stepsFor({})).toEqual(['pact', 'buyer', 'seller', 'asking', 'review']);
+  });
+
+  it('still needs a buyer when the buyer opens the pact', () => {
+    const { 'buyer.name': _name, ...rest } = VALID;
+    expect(pactFromForm(form(rest))).toMatchObject({ ok: false });
+  });
+});
+
 describe('pactFromForm', () => {
   it('builds the start-a-Pact command from the wizard fields', () => {
     expect(pactFromForm(form(VALID))).toEqual({
@@ -27,6 +42,7 @@ describe('pactFromForm', () => {
       command: {
         name: 'Project Harbor',
         baseCurrency: 'USD',
+        initiatedBy: 'BUYER',
         buyer: { name: 'Alpha Capital', ownership: 'PRIVATE', ticker: null, exchange: null, website: null, companyType: null },
         seller: {
           name: 'Harbor Software',

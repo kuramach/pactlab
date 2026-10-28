@@ -614,7 +614,7 @@ export class DocumentsService {
             retentionClass: body.retentionClass,
             dataClass: body.dataClass,
             aiExcluded: body.aiExcluded,
-            shared: false,
+            shared: body.shared,
           },
           entry.folder,
           requestId,

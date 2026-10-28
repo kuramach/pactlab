@@ -9,6 +9,8 @@ export interface DealSection {
   readonly label: string;
   /** Venture Raise pacts only (T-083). */
   readonly ventureOnly?: boolean;
+  /** Seller-led pacts only: the bid process (T-097). */
+  readonly sellerLedOnly?: boolean;
 }
 
 export interface DealGroup {
@@ -29,6 +31,7 @@ export const DEAL_GROUPS: readonly DealGroup[] = [
     label: 'Overview',
     sections: [
       { path: '', label: 'Summary' },
+      { path: '/bidders', label: 'Bidders', sellerLedOnly: true },
       { path: '/screening', label: 'Screening' },
       { path: '/team', label: 'Team' },
     ],
@@ -73,19 +76,20 @@ export function dealGroup(section: string): DealGroup {
   return DEAL_GROUPS.find((group) => group.sections.some((entry) => entry.path === section)) ?? (DEAL_GROUPS[0] as DealGroup);
 }
 
-const visible = (sections: readonly DealSection[], venture: boolean) => sections.filter((section) => venture || !section.ventureOnly);
+const visible = (sections: readonly DealSection[], venture: boolean, sellerLed = false) =>
+  sections.filter((section) => (venture || !section.ventureOnly) && (sellerLed || !section.sellerLedOnly));
 
 /** Four tabs across the deal, and the open tab's sections beneath them; sub-pages keep their section highlighted. */
-export function DealTabs({ dealId, venture = false }: { dealId: string; venture?: boolean }) {
+export function DealTabs({ dealId, venture = false, sellerLed = false }: { dealId: string; venture?: boolean; sellerLed?: boolean }) {
   const active = dealSection(dealId, usePathname());
   const group = dealGroup(active);
-  const sections = visible(group.sections, venture);
+  const sections = visible(group.sections, venture, sellerLed);
   return (
     <div className="flex flex-col gap-3">
       <TabNav
         label="Deal sections"
         items={DEAL_GROUPS.map((entry) => ({
-          href: `/deals/${dealId}${visible(entry.sections, venture)[0]?.path ?? ''}`,
+          href: `/deals/${dealId}${visible(entry.sections, venture, sellerLed)[0]?.path ?? ''}`,
           label: entry.label,
           active: entry.key === group.key,
         }))}

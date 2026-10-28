@@ -48,7 +48,9 @@ export function pactFromForm(form: FormData): PactFormResult {
   const parsed = startPactSchema.safeParse({
     name: form.get('name'),
     baseCurrency: form.get('baseCurrency') || undefined,
-    buyer: party(form, 'buyer'),
+    initiatedBy: form.get('initiatedBy') === 'SELLER' ? 'SELLER' : 'BUYER',
+    // A seller-led pact names no buyer: bidders are invited once it starts (T-097).
+    buyer: form.get('initiatedBy') === 'SELLER' ? null : party(form, 'buyer'),
     seller: party(form, 'seller'),
     askingPrice: asking(form) ?? null,
   });
@@ -59,6 +61,11 @@ export function pactFromForm(form: FormData): PactFormResult {
   }
   const path = parsed.error.issues[0]?.path.join('.') ?? '';
   return { ok: false, field: path, message: MESSAGES[path] ?? 'Check the details and try again.' };
+}
+
+/** The steps this pact uses: a seller-led pact has no buying entity to describe (T-097). */
+export function stepsFor(values: Readonly<Record<string, string>>): readonly WizardStep[] {
+  return values['initiatedBy'] === 'SELLER' ? WIZARD_STEPS.filter((step) => step !== 'buyer') : WIZARD_STEPS;
 }
 
 /** Wizard steps in order; each owns the fields with its prefix. */
