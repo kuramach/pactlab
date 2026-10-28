@@ -101,6 +101,7 @@ export default async function DocumentsPage({
   const citedAt = citedPages.findIndex((c) => c.documentId === view.documentId && c.pageNumber === view.page);
   const previousCited = citedAt > 0 ? citedPages[citedAt - 1] : undefined;
   const nextCited = citedAt === -1 ? citedPages[0] : citedPages[citedAt + 1];
+  const documentName = (id: string) => (documents.kind === 'ok' ? (documents.data.items.find((doc) => doc.id === id)?.fileName ?? 'another document') : 'another document');
 
   return (
     <div className="flex max-w-7xl flex-col gap-6">
@@ -177,8 +178,8 @@ export default async function DocumentsPage({
           <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2">
             <CardTitle>
               {page?.kind === 'ok'
-                ? `${page.data.fileName} — page ${page.data.pageNumber} of ${page.data.pageCount}`
-                : 'Page'}
+                ? page.data.fileName
+                : 'Document'}
             </CardTitle>
             {page?.kind === 'ok' && writer ? (
               <form action={extractDocument.bind(null, dealId, page.data.documentId)}>
@@ -203,21 +204,24 @@ export default async function DocumentsPage({
               />
             ) : (
               <>
+                <PagePager dealId={dealId} documentId={page.data.documentId} pageNumber={page.data.pageNumber} pageCount={page.data.pageCount} />
                 {citedPages.length > 0 ? (
                   <nav aria-label="Cited quotes" className="mb-3 flex items-center justify-between gap-2 text-sm">
                     {previousCited ? (
                       <Link href={citationHref(dealId, previousCited)} className="hover:underline">
-                        ← Previous quote
+                        ← Previous quoted page{previousCited.documentId !== view.documentId ? ` (${documentName(previousCited.documentId)} p. ${previousCited.pageNumber})` : ` (p. ${previousCited.pageNumber})`}
                       </Link>
                     ) : (
                       <span />
                     )}
                     <span className="text-xs text-muted-foreground">
-                      {citedAt === -1 ? `${citedPages.length} cited pages in the review queue` : `Cited page ${citedAt + 1} of ${citedPages.length}`}
+                      {citedAt === -1
+                        ? `${citedPages.length} page${citedPages.length === 1 ? '' : 's'} with quotes in the review queue — none on this page`
+                        : `Quoted page ${citedAt + 1} of ${citedPages.length} in the review queue · ${quotesOnPage.length} quote${quotesOnPage.length === 1 ? '' : 's'} highlighted here`}
                     </span>
                     {nextCited ? (
                       <Link href={citationHref(dealId, nextCited)} className="hover:underline">
-                        Next quote →
+                        Next quoted page{nextCited.documentId !== view.documentId ? ` (${documentName(nextCited.documentId)} p. ${nextCited.pageNumber})` : ` (p. ${nextCited.pageNumber})`} →
                       </Link>
                     ) : (
                       <span />
@@ -240,31 +244,8 @@ export default async function DocumentsPage({
                 ) : (
                   <ExtractedText text={page.data.text} quotes={quotesOnPage} />
                 )}
-                <div className="mt-4 flex justify-between text-sm">
-                  {page.data.pageNumber > 1 ? (
-                    <Link
-                      href={citationHref(dealId, {
-                        documentId: page.data.documentId,
-                        pageNumber: page.data.pageNumber - 1,
-                      })}
-                      className="hover:underline"
-                    >
-                      ← Previous page
-                    </Link>
-                  ) : (
-                    <span />
-                  )}
-                  {page.data.pageNumber < page.data.pageCount ? (
-                    <Link
-                      href={citationHref(dealId, {
-                        documentId: page.data.documentId,
-                        pageNumber: page.data.pageNumber + 1,
-                      })}
-                      className="hover:underline"
-                    >
-                      Next page →
-                    </Link>
-                  ) : null}
+                <div className="mt-4">
+                  <PagePager dealId={dealId} documentId={page.data.documentId} pageNumber={page.data.pageNumber} pageCount={page.data.pageCount} />
                 </div>
               </>
             )}
@@ -284,7 +265,7 @@ export default async function DocumentsPage({
                 description="Upload documents above. With AI on, extraction starts on its own and drafts appear here."
               />
             ) : (
-              <ReviewQueue dealId={dealId} findings={queue} reviewer={reviewer} reviewerName={viewer.name(viewer.userId)} />
+              <ReviewQueue dealId={dealId} findings={queue} reviewer={reviewer} reviewerName={viewer.name(viewer.userId)} openPage={view.documentId ? { documentId: view.documentId, pageNumber: view.page } : null} />
             )}
           </CardContent>
         </Card>
@@ -306,5 +287,30 @@ function ExtractedText({ text, quotes }: { text: string; quotes: readonly string
         ),
       )}
     </pre>
+  );
+}
+
+/** One page concept: "Page X of N" for the open document, with previous and next. */
+function PagePager({ dealId, documentId, pageNumber, pageCount }: { dealId: string; documentId: string; pageNumber: number; pageCount: number }) {
+  return (
+    <nav aria-label="Pages" className="mb-3 flex items-center justify-between gap-2 text-sm">
+      {pageNumber > 1 ? (
+        <Link href={citationHref(dealId, { documentId, pageNumber: pageNumber - 1 })} scroll={false} className="hover:underline">
+          ← Previous page
+        </Link>
+      ) : (
+        <span />
+      )}
+      <span className="font-medium">
+        Page {pageNumber} of {pageCount}
+      </span>
+      {pageNumber < pageCount ? (
+        <Link href={citationHref(dealId, { documentId, pageNumber: pageNumber + 1 })} scroll={false} className="hover:underline">
+          Next page →
+        </Link>
+      ) : (
+        <span />
+      )}
+    </nav>
   );
 }

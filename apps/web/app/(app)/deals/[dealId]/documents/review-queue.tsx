@@ -60,11 +60,14 @@ export function ReviewQueue({
   findings,
   reviewer,
   reviewerName,
+  openPage = null,
 }: {
   dealId: string;
   findings: readonly DocumentFindingItem[];
   reviewer: boolean;
   reviewerName: string;
+  /** The page open in the document pane, so findings quoted there are marked. */
+  openPage?: { documentId: string; pageNumber: number } | null;
 }) {
   const router = useRouter();
   const [, startRefresh] = useTransition();
@@ -127,12 +130,15 @@ export function ReviewQueue({
             </Badge>
             <Badge variant={finding.severity === 'HIGH' || finding.severity === 'CRITICAL' ? 'danger' : 'neutral'}>{finding.severity}</Badge>
             <h2 className="font-medium">{finding.title}</h2>
+            {openPage && finding.citations.some((c) => c.documentId === openPage.documentId && c.pageNumber === openPage.pageNumber) ? (
+              <Badge variant="evidence">Quoted on the open page</Badge>
+            ) : null}
           </div>
           <p className="text-sm">{finding.summary}</p>
           <div className="flex flex-wrap gap-2">
             {finding.citations.map((citation) => (
-              <Link key={citation.citationId} href={citationHref(dealId, citation)} scroll={false}>
-                <Badge variant="evidence">p. {citation.pageNumber}</Badge>
+              <Link key={citation.citationId} href={citationHref(dealId, citation)} scroll={false} title={`“${citation.quote}”`}>
+                <Badge variant="evidence">Show on page {citation.pageNumber}</Badge>
               </Link>
             ))}
           </div>
