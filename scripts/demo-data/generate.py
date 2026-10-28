@@ -4,7 +4,7 @@
 Everything is invented. Deterministic: same output every run.
 Usage: python3 scripts/demo-data/generate.py <out_dir>   (or scripts/demo-data/build.sh, which also builds the PDFs)
 Writes per dataset: README.md, invoice-lines.csv, <extract>.csv,
-vdr-index.csv, documents/*.md (PDFs are built afterwards by kit:build).
+vdr-index.csv, bidders.csv (the seller-side test), documents/*.md (PDFs are built afterwards by kit:build).
 """
 import csv, io, os, random, sys
 from decimal import Decimal, ROUND_HALF_UP
@@ -92,6 +92,43 @@ class Dataset:
     def doc(self, name, text, description, data_class='Business'):
         self.docs[name] = (text.strip() + '\n', description, data_class)
 
+    def bidders(self):
+        """Three synthetic bidding firms for the seller-side test (T-097): one offers just under the ask and
+        raises in round 2, one offers lower with an earn-out, one passes. For a raise: investors with a pre-money."""
+        c = self.cur
+        if self.pack == 'venture-raise':
+            return [
+                dict(firm='Harborline Ventures (synthetic)', tag='harborline', kind='Venture fund',
+                     question='How many months of runway do you have after this round?', scope='ALL',
+                     answer='About 20 months at the current burn, by our own estimate.',
+                     price=self.amt(2000000), round2=self.amt(2000000), pre_money=self.amt(10000000), round2_pre=self.amt(11000000),
+                     structure='Series Seed preferred, 1x non-participating', conditions='One investor board seat; pro-rata rights', outcome='Awarded in round 2'),
+                dict(firm='Kestrel Seed Fund (synthetic)', tag='kestrel', kind='Seed fund',
+                     question='Can you share the founders\' vesting schedules?', scope='PRIVATE',
+                     answer='Four years with a one-year cliff, from February 2023; the schedules are in the data room.',
+                     price=self.amt(1500000), round2=self.amt(1500000), pre_money=self.amt(9000000), round2_pre=self.amt(9500000),
+                     structure='SAFE, valuation cap as the pre-money, 15% discount', conditions='Most-favoured-nation clause', outcome='Shortlisted, then declined at the award'),
+                dict(firm='Atlas Angels (synthetic)', tag='atlas', kind='Angel group',
+                     question='', scope='', answer='', price=None, round2=None, pre_money=None, round2_pre=None,
+                     structure='', conditions='', outcome='Passes: "Too early for our fund this year."'),
+            ]
+        ask = sig2(self.billed_arr() * ASKING_MULTIPLE[self.pack])
+        return [
+            dict(firm='Harbor Capital Partners (synthetic)', tag='harbor', kind='Private equity',
+                 question='Can any customer or supplier contract be ended on a change of control?', scope='ALL',
+                 answer='One customer contract has a change-of-control clause; it is in the shared documents.',
+                 price=sig2(ask * D('0.92')), round2=sig2(ask * D('0.97')), pre_money=None, round2_pre=None,
+                 structure='Cash at close for 100% of the shares', conditions='Subject to confirmatory diligence and committed financing', outcome='Awarded in round 2'),
+            dict(firm='Northline Strategic (synthetic)', tag='northline', kind='Corporate (strategic acquirer)',
+                 question='Can you share the last three years of audited accounts?', scope='PRIVATE',
+                 answer='FY2024 and FY2025 are audited; FY2026 closes in December. We will add them to the data room.',
+                 price=sig2(ask * D('0.85')), round2=sig2(ask * D('0.88')), pre_money=None, round2_pre=None,
+                 structure='80% cash at close, 20% earn-out over 24 months', conditions='Key-person retention for the founders', outcome='Shortlisted, then declined at the award'),
+            dict(firm='Atlas Growth Equity (synthetic)', tag='atlas', kind='Growth equity',
+                 question='', scope='', answer='', price=None, round2=None, pre_money=None, round2_pre=None,
+                 structure='', conditions='', outcome='Passes: "Outside our sector focus this year."'),
+        ]
+
     def write(self):
         d = os.path.join(OUT, self.pack, self.cur)
         os.makedirs(os.path.join(d, 'documents'), exist_ok=True)
@@ -132,7 +169,87 @@ class Dataset:
         for name, (_, desc, dc) in self.docs.items():
             i += 1; ww.writerow([f'{self.prefix.upper()}-{i:03d}', desc, f'documents/{name}.pdf', dc, '2026-09-30'])
         open(os.path.join(d, 'vdr-index.csv'), 'w').write(b.getvalue())
+        # Who to invite in the seller-side test, and what each bidder asks and offers.
+        b = io.StringIO(); ww = csv.writer(b, lineterminator='\n')
+        ww.writerow(['firm', 'invite_tag', 'kind', 'question', 'answer_to', 'answer', 'offer_round_1', 'offer_round_2', 'pre_money_round_1', 'pre_money_round_2', 'currency', 'structure', 'conditions', 'outcome'])
+        for bd in self.bidders():
+            fmt = lambda v: '' if v is None else f'{v:.0f}'
+            ww.writerow([bd['firm'], bd['tag'], bd['kind'], bd['question'], {'ALL': 'all bidders', 'PRIVATE': 'only this bidder'}.get(bd['scope'], ''), bd['answer'],
+                         fmt(bd['price']), fmt(bd['round2']), fmt(bd['pre_money']), fmt(bd['round2_pre']), self.cur if bd['price'] is not None else '', bd['structure'], bd['conditions'], bd['outcome']])
+        open(os.path.join(d, 'bidders.csv'), 'w').write(b.getvalue())
         open(os.path.join(d, 'README.md'), 'w').write(self.readme())
+
+    def seller_side(self):
+        """Part B (T-097): the seller runs a bid process. Labels are exactly what Pactlab shows."""
+        c, venture = self.cur, self.pack == 'venture-raise'
+        label = COMPANY_TYPE_LABELS[self.pack]
+        pdfs = list(self.docs.keys())
+        teaser = pdfs[0] if pdfs else None
+        bidders = self.bidders()
+        a, b, passer = bidders
+        who = 'investor' if venture else 'bidder'
+        title = 'run a round' if venture else 'run a bid process'
+        out = [f'# Part B — Seller side: {title}', '',
+               f'Here you are {self.company.rstrip(".")}{" raising a round" if venture else ""}. You invite three {who}s from `bidders.csv`, share a little, answer their questions and choose one.',
+               f'Each {who} sees only their own bid — never another {who}\'s questions, offers or whether they passed. Part B checks that too.', '',
+               '**Addresses.** This folder holds no email addresses. Invite **an address you can read for each firm**: your own address with `+` and the firm\'s tag from `bidders.csv` added before the @ (for tag `harbor`: *yourname+harbor* at your email domain — Gmail, Outlook and most providers deliver it to you). On your own computer (`pnpm dev`) any made-up address works: every email Pactlab sends, invitations and sign-in codes, is written to `apps/api/.data/mail/`.', '']
+        n = 0
+        def step(t):
+            nonlocal n
+            n += 1
+            out.extend([f'## Step B{n} — {t}', ''])
+        step('Start the Pact as the seller')
+        out += ['1. Click **Start a Pact** (top right).',
+                f'2. Under *Who are you in this deal?* choose **We are selling (or raising)**. Pact name: `Project {self.brand.split()[0]} Sale` · Base currency: **{c}** → **Next**. (There is no buying-entity step.)',
+                f'3. **Selling entity** — Legal or trading name: `{self.company}` · **Private** · What kind of company is it?: **{label}** → **Next**.',
+                '4. **Asking price** — ' + ('choose **Not known yet** → **Next**.' if venture else f'enter the same asking price as Part A, Step 1 (`{sig2(self.billed_arr() * ASKING_MULTIPLE[self.pack]):.0f}`) → **Next**.'),
+                '5. **Review and start** — the Buyer box says *Bid process — you invite buyers once the pact starts* → **Start Pact**.', '',
+                '**You should see:** the **Bidders** page, with no bidders yet.', '']
+        step(f'Decide what {who}s see')
+        out += ['On **Bidders**, under **What bidders see**:', '',
+                '| Field | Enter |', '|---|---|',
+                f'| Shared summary | `{self.summary}` |',
+                f'| Your data room (link) | `https://dataroom.example/{self.pack}` (Pactlab is not the data room; this is where you would grant access) |',
+                f'| NDA | `Mutual NDA (synthetic): everything shared about {self.company} stays confidential.` |',
+                '| Offer deadline (UTC) | a date a week from today |', '',
+                '→ **Save**.', '']
+        if teaser:
+            out += [f'Then open the **Documents** tab and upload `documents/{teaser}.pdf` with **Share with bidders** ticked (it is chosen at upload and cannot be changed later). Upload nothing else as shared — the rest stays with you.', '']
+        out += [f'**You should see:** "Saved. Bidders see the shared view once they accept the NDA."' + (f' On Documents, `{teaser}.pdf` is listed.' if teaser else ''), '']
+        step(f'Add the three {who}s and invite them')
+        out += ['On **Bidders**, for each row of `bidders.csv`:', '',
+                '| Bidding firm | Then invite | Tag |', '|---|---|---|']
+        out += [f'| `{x["firm"]}` → **Add bidder** | your address with `+{x["tag"]}` in *Invite someone from {x["firm"]}* → **Invite** | `{x["tag"]}` |' for x in bidders]
+        out += ['', '**You should see:** three firms marked **Invited**, each listing the address you invited.', '']
+        step(f'Be each {who} (a private window per {who})')
+        out += [f'For each {who}: open the invitation link (from the email, or the newest file in `apps/api/.data/mail/`) in a **private window**, create the account with the firm\'s name, sign in with the code, then **Accept and open the pact**.', '',
+                f'1. You land on **Your bid** and see only the NDA. Click **I accept the NDA** — the shared summary, the data-room link{" and the shared document" if teaser else ""} appear.',
+                f'2. **{a["firm"]}**: ask `{a["question"]}` → **Ask**. Then offer:', '',
+                '   | Field | Enter |', '   |---|---|',
+                f'   | Price | `{a["price"]:.0f}` ({money(c, a["price"])}){" — the amount invested" if venture else ""} |',
+                f'   | Currency | `{c}` |']
+        if venture:
+            out.append(f'   | Pre-money valuation (investment rounds only) | `{a["pre_money"]:.0f}` ({money(c, a["pre_money"])}) |')
+        out += [f'   | Structure (cash, shares, earn-out…) | `{a["structure"]}` |', f'   | Conditions | `{a["conditions"]}` |', '', '   → **Submit offer**.',
+                f'3. **{b["firm"]}**: ask `{b["question"]}` → **Ask**. Then offer **Price** `{b["price"]:.0f}` ({money(c, b["price"])})' + (f', **Pre-money** `{b["pre_money"]:.0f}`' if venture else '') + f', **Structure** `{b["structure"]}`, **Conditions** `{b["conditions"]}` → **Submit offer**.',
+                f'4. **{passer["firm"]}**: accept the NDA, then type `{passer["outcome"].split(": ", 1)[1].strip(chr(34))}` as the reason → **Pass on this pact**.', '',
+                f'**You should see**, as {b["firm"]}: your own question and offer only — nothing of {a["firm"]}\'s question or offer, and no sign that {passer["firm"]} passed. There are no deal tabs; trying `/deals/<id>/bidders` shows nothing of the seller\'s side.', '']
+        step('Answer the questions')
+        out += ['Back as the seller (your normal window), on **Bidders** under **Questions from bidders**:', '',
+                f'- {a["firm"]}\'s question → answer `{a["answer"]}` → choose **All bidders (without naming who asked)** → **Answer**.',
+                f'- {b["firm"]}\'s question → answer `{b["answer"]}` → keep **Only {b["firm"]}** → **Answer**.', '',
+                f'**You should see**, as {b["firm"]} (refresh **Your bid**): your private answer, and under *Answered to all bidders* the {"runway" if venture else "change-of-control"} question — without the name of who asked it. {a["firm"]} sees the answer to all, but not {b["firm"]}\'s private one.', '']
+        step('Compare the offers')
+        out += ['On **Bidders**, **Offers side by side** sets the two offers next to each other — price' + (', pre-money' if venture else '') + ', structure, conditions, version. Pactlab does not rank them or recommend one.', '',
+                f'**You should see:** {a["firm"]} at {money(c, a["price"])} and {b["firm"]} at {money(c, b["price"])}; {passer["firm"]} marked **Passed** with its reason.', '']
+        if venture:
+            out += ['For each investor, click **Add to round comparison**. Open the **Raise** tab: both appear under **Offers**. To see what the founders own after each, import `cap-table.csv` on **Sources** first, as in Part A.', '']
+        step('Shortlist, run round 2 and choose')
+        out += [f'1. Click **Shortlist** on {a["firm"]} and on {b["firm"]}, then **Start round 2 with 2 shortlisted**.',
+                f'2. As each {who}, submit a revised offer on **Your bid**: {a["firm"]} `{a["round2"]:.0f}`' + (f' (pre-money `{a["round2_pre"]:.0f}`)' if venture else '') + f', {b["firm"]} `{b["round2"]:.0f}`' + (f' (pre-money `{b["round2_pre"]:.0f}`)' if venture else '') + ' → **Submit revised offer**. Every version stays listed.',
+                f'3. As the seller, click **Award to {a["firm"]}**.', '',
+                f'**You should see:** "Awarded. Every other bidder has been declined and their access ended." {a["firm"]}\'s **Your bid** says **Selected by the seller**; {b["firm"]} can no longer open the pact. The **Team** tab and the audit log record every step.', '']
+        return out
 
     def readme(self):
         """A click-by-click guide: every label below is exactly what Pactlab shows on screen."""
@@ -149,7 +266,12 @@ class Dataset:
                f'- You upload **{1 + len(imports)} CSV file{"s" if imports else ""}** and **{len(pdfs)} PDF{"s" if len(pdfs) != 1 else ""}**. Nothing else.',
                '- **Never upload the `.md` files** in `documents/`. They are the text each PDF is built from; Pactlab reads the PDFs.',
                '- `vdr-index.csv` is for reference only (how a data room would list these files). Do not upload it.',
-               '- Text in **bold** below is a button, tab or option exactly as Pactlab shows it.', '']
+               '- Text in **bold** below is a button, tab or option exactly as Pactlab shows it.', '',
+               '## Two ways to test this company', '',
+               f'- **Part A — Buyer side** (Steps 1 onwards): you {"are the founder, diligencing your own startup before investors do" if venture else "are a buyer doing diligence on " + self.company}.',
+               f'- **Part B — Seller side** ([below](#part-b--seller-side-run-a-{"round" if venture else "bid-process"})): you {"are the founder, inviting several investors" if venture else "are " + self.company + ", inviting several buyers"} — they ask questions, then offer or pass, and you choose one. Uses `bidders.csv`.',
+               '- Each part starts its own Pact, so you can do either one, or both.', '',
+               '# Part A — Buyer side', '']
         step = 0
         def heading(title):
             nonlocal step
@@ -239,6 +361,7 @@ class Dataset:
                     '2. Fill in the valuation method\'s fields — the hint under each field says where its number comes from (usually the **Finances** tab) — and save.',
                     '3. Click **Run** on the scenario.', '',
                     '**You should see:** **Asking vs Sextant** — the asking price against the value the evidence supports, before and after the findings you accepted.', '']
+        out += self.seller_side()
         out += ['## Every file in this folder', '', '| File | What it is | Upload it? |', '|---|---|---|',
                 f'| `invoice-lines.csv` | {self.line_count} revenue lines, one per {self.kind_label} per month | **Yes** — billing export step |']
         for name, (_, rows, desc) in self.extracts.items():
@@ -248,7 +371,8 @@ class Dataset:
                 out.append(f'| `{name}.csv` | {desc} ({len(rows)} rows) | **No** — it is already inside `documents/99-data-room-extracts.pdf`, which you upload |')
         for name, desc, _ in pdfs:
             out.append(f'| `documents/{name}.pdf` | {desc} | **Yes** — documents step |')
-        out += ['| `documents/*.md` | The text each PDF is built from | **No** — never |',
+        out += ['| `bidders.csv` | The three bidding firms for Part B: who to invite, what each asks and offers | **No** — read it while you follow Part B |',
+                '| `documents/*.md` | The text each PDF is built from | **No** — never |',
                 '| `vdr-index.csv` | Index of every file, as a data room would list it | **No** — reference only |']
         if self.notes:
             out += ['', '## Notes', ''] + [f'- {n}' for n in self.notes]
