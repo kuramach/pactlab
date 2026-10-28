@@ -1,3 +1,4 @@
+import type { ClaimView } from '@pactlab/contracts';
 import { PRICED_RISK_TYPES, type Finding, type FindingReview } from '@pactlab/domain';
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from '@pactlab/ui';
 import Link from 'next/link';
@@ -19,6 +20,7 @@ import { ApiState } from '../../../_lib/states';
 import { FindingEvidenceChip } from '../../../_lib/finding-evidence';
 import { can, dealViewer } from '../../../_lib/viewer';
 import { decideFinding, priceFinding, setFindingDirection } from '../actions';
+import { claimsFor, SellerClaims } from '../../../_lib/seller-claims';
 
 // Per-user data: never prerender.
 export const dynamic = 'force-dynamic';
@@ -61,10 +63,12 @@ export default async function FindingPage({
   const { dealId, findingId } = await params;
   const { outcome } = await searchParams;
   if (!isUuidParam(dealId) || !isUuidParam(findingId)) notFound();
-  const [result, viewer] = await Promise.all([
+  const [result, viewer, claimsResult] = await Promise.all([
     apiGet<{ finding: Finding; reviews: FindingReview[] }>(`/v1/deals/${dealId}/findings/${findingId}`),
     dealViewer(dealId),
+    apiGet<{ items: ClaimView[] }>(`/v1/deals/${dealId}/claims`),
   ]);
+  const linkedClaims = claimsResult.kind === 'ok' ? claimsFor(claimsResult.data.items, findingId) : [];
   if (result.kind !== 'ok') return <ApiState result={result} />;
   const { finding, reviews } = result.data;
   const decide = decideFinding.bind(null, dealId, findingId);
@@ -99,6 +103,14 @@ export default async function FindingPage({
 
       <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
         <div className="flex flex-col gap-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">What the seller said</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <SellerClaims claims={linkedClaims} />
+            </CardContent>
+          </Card>
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Evidence</CardTitle>

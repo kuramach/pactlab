@@ -35,7 +35,7 @@ test('screen a pact, say go, test its red flags as claims, then close it', async
   await first.getByLabel('What the evidence shows').fill('Billing shows the top customer at 41%.');
   await first.getByRole('button', { name: 'Save' }).click();
   await expect(page.getByText('Claim updated.')).toBeVisible();
-  await expect(claims.getByRole('listitem').filter({ hasText: 'Top customer is 35% of revenue' }).getByText('Contradicted', { exact: true })).toBeVisible();
+  await expect(claims.getByRole('listitem').filter({ hasText: 'Top customer is 35% of revenue' }).locator('span').getByText('Contradicted by the evidence', { exact: true })).toBeVisible();
 
   // Post-Close: closing opens the registers.
   await page.goto(`/deals/${dealId}`);

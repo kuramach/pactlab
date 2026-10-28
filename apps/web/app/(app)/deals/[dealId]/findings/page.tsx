@@ -1,3 +1,4 @@
+import type { ClaimView } from '@pactlab/contracts';
 import { FINDING_DOMAINS, FINDING_STATUSES, PACKS, type Finding } from '@pactlab/domain';
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle, EmptyState, Glossed, IconTile } from '@pactlab/ui';
 import {
@@ -38,6 +39,7 @@ import {
   directionText,
   directionVariant,
 } from '../../../findings/_lib/view';
+import { ClaimVerdictBadge, claimsFor } from '../../_lib/seller-claims';
 
 /**
  * Technology review: findings grouped by domain, each with the commit, tool
@@ -89,13 +91,15 @@ export default async function FindingsPage({
   const query = findingsQuery(filters);
   // Records opened from this list come back to it with the same filters.
   const here = `/deals/${dealId ?? ''}/findings${query ? `?${query}` : ''}`;
-  const [fetched, fromDocuments, plan] = dealId
+  const [fetched, fromDocuments, plan, claimsResult] = dealId
     ? await Promise.all([
         apiGet<{ items: Finding[] }>(`/v1/deals/${encodeURIComponent(dealId)}/findings${query ? `?${query}` : ''}`),
         apiGet<{ pending: number }>(`/v1/deals/${encodeURIComponent(dealId)}/findings/from-documents`),
         dealsApi.sourcePlan(dealId),
+        apiGet<{ items: ClaimView[] }>(`/v1/deals/${encodeURIComponent(dealId)}/claims`),
       ])
-    : [null, null, null];
+    : [null, null, null, null];
+  const claims = claimsResult?.kind === 'ok' ? claimsResult.data.items : [];
   // "Needs pricing" is a view over the list (direction and price are on every finding).
   const result = fetched?.kind === 'ok' && filters.pricing === 'needed' ? { ...fetched, data: { items: fetched.data.items.filter(needsPricing) } } : fetched;
   const unpriced = fetched?.kind === 'ok' ? fetched.data.items.filter(needsPricing).length : 0;
@@ -110,6 +114,11 @@ export default async function FindingsPage({
     <div className="flex max-w-6xl flex-col gap-6">
       <div className="flex flex-col gap-1">
         <h2 className="text-lg font-semibold tracking-tight">Findings</h2>
+        {dealId ? (
+          <Link href={`/deals/${dealId}/claims`} className="text-sm font-semibold text-indigo-ink hover:underline">
+            Seller statements ({claims.length}) — what the seller said, checked against the evidence →
+          </Link>
+        ) : null}
         <p className="text-sm text-muted-foreground">
           Drafts from scanners and heuristics stay drafts until a reviewer accepts or rejects them.
         </p>
@@ -310,6 +319,9 @@ export default async function FindingsPage({
                             <div className="text-muted-foreground">
                               {finding.origin.toLowerCase()} · confidence{' '}
                               {finding.confidence.toLowerCase()}
+                            </div>
+                            <div className="mt-1">
+                              <ClaimVerdictBadge claims={claimsFor(claims, finding.id)} />
                             </div>
                             {fromDocumentReview(finding) ? (
                               <Link href={`/deals/${dealId}/documents`} className="mt-1 inline-flex">
