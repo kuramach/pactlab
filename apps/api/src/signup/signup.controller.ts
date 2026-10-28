@@ -26,7 +26,7 @@ export class SignupController {
   @Public()
   @Post('verify')
   @HttpCode(201)
-  verify(@Body(new ZodValidationPipe(verifySignupSchema)) body: { email: string; code: string }): Promise<SignupResult> {
-    return this.service.verify(body.email, body.code);
+  verify(@Body(new ZodValidationPipe(verifySignupSchema)) body: { email: string; code: string; invitationToken?: string }): Promise<SignupResult> {
+    return this.service.verify(body.email, body.code, body.invitationToken);
   }
 }

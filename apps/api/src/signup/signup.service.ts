@@ -1,10 +1,11 @@
 import { randomInt } from 'node:crypto';
 import { Inject, Injectable, UnauthorizedException, UnprocessableEntityException } from '@nestjs/common';
-import { signup, type PrismaClient } from '@pactlab/db';
+import { invitationLinks, signup, type PrismaClient } from '@pactlab/db';
 import type { Logger } from '@pactlab/observability';
 import { keyedHash, normalizeEmail } from '../email-login/client-address';
 import type { EmailSender, OutboundEmail } from '../email-login/email-sender';
 import { emails } from '../email-login/emails';
+import { hashToken } from '../invitations/invitations.service';
 import { LOGGER, PRISMA } from '../tokens';
 import { isFreeMailAddress } from './free-mail';
 import type { StartSignupBody } from './signup.schemas';
@@ -56,9 +57,15 @@ export class SignupService {
     });
   }
 
+  /** A pending, unexpired pact invitation for this address. */
+  private async invited(token: string | undefined, email: string): Promise<boolean> {
+    if (!token) return false;
+    return invitationLinks.validFor(this.prisma, hashToken(token), normalizeEmail(email));
+  }
+
   async start(body: StartSignupBody, clientAddress: string): Promise<void> {
-    // Domain policy is public, so rejecting it reveals nothing about accounts.
-    if (isFreeMailAddress(body.email)) throw new UnprocessableEntityException('WORK_EMAIL_REQUIRED');
+    // Domain policy is public, so rejecting it reveals nothing about accounts. An invited seller may use any address.
+    if (isFreeMailAddress(body.email) && !(await this.invited(body.invitationToken, body.email))) throw new UnprocessableEntityException('WORK_EMAIL_REQUIRED');
     const email = normalizeEmail(body.email);
     const code = randomInt(0, 1_000_000).toString().padStart(6, '0');
     const begun = await signup.begin(this.prisma, {
@@ -73,11 +80,13 @@ export class SignupService {
     if (begun.kind === 'existing-user') this.deliver(emails.signupExistingAccount(email, this.deps.loginUrl), 'signup-existing');
   }
 
-  async verify(email: string, code: string): Promise<SignupResult> {
+  async verify(email: string, code: string, invitationToken?: string): Promise<SignupResult> {
+    // An invitee's home organization is active at once: the inviting pact vouches for them.
+    const invited = await this.invited(invitationToken, email);
     const created = await signup.verify(this.prisma, {
       email: normalizeEmail(email),
       codeHash: this.codeHash(email, code),
-      requiresApproval: this.deps.requiresApproval,
+      requiresApproval: this.deps.requiresApproval && !invited,
     });
     if (!created || created.status === 'SUSPENDED') throw new UnauthorizedException();
     if (created.status === 'PENDING_APPROVAL' && this.deps.operatorEmail) {

@@ -41,10 +41,12 @@ export function Topbar({ session, sections }: { session: SessionContext; section
         </a>
       ) : (
         <div className="flex items-center gap-2">
-          <Link href="/pacts/new" className={`${buttonVariants({ size: 'sm' })} hidden sm:inline-flex`}>
-            <Plus aria-hidden className="h-4 w-4" />
-            Start a Pact
-          </Link>
+          {session.guest ? null : (
+            <Link href="/pacts/new" className={`${buttonVariants({ size: 'sm' })} hidden sm:inline-flex`}>
+              <Plus aria-hidden className="h-4 w-4" />
+              Start a Pact
+            </Link>
+          )}
           <Link href="/settings" aria-label="Settings" title="Settings" className={buttonVariants({ variant: 'ghost', size: 'sm' })}>
             <Settings aria-hidden className="h-5 w-5" />
           </Link>

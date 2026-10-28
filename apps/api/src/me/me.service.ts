@@ -44,8 +44,15 @@ export class MeService {
         orderBy: { organization: { name: 'asc' } },
       });
 
+      // Guest pacts are email-code sessions only (ADR 0014); Auth0 guests arrive with T-070.
+      const guestPacts =
+        issuer === 'AUTH0'
+          ? []
+          : await tx.$queryRaw<{ organization_id: string; organization_name: string; deal_id: string; deal_name: string; role: string }[]>`
+              SELECT organization_id::text, organization_name, deal_id::text, deal_name, role FROM app_guest_pacts(${user.id}::uuid)`;
       return {
         user,
+        guestPacts: guestPacts.map((row) => ({ organizationId: row.organization_id, organizationName: row.organization_name, dealId: row.deal_id, dealName: row.deal_name, role: row.role })),
         organizations: memberships.map(({ role, organization }) => {
           const granted = permissionsForOrganizationRole(role as OrganizationRole);
           return {

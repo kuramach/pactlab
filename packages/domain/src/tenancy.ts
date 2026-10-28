@@ -1,5 +1,5 @@
 import type { DealId, OrganizationId, UserId } from './ids';
-import type { OrganizationRole } from './roles';
+import type { TenantOrganizationRole } from './roles';
 
 /**
  * Verified server-side tenant context. Built only from a verified identity
@@ -9,7 +9,8 @@ import type { OrganizationRole } from './roles';
 export interface TenantContext {
   readonly organizationId: OrganizationId;
   readonly userId: UserId;
-  readonly organizationRole: OrganizationRole;
+  /** GUEST: on some of this organization's pacts, not a member of it (ADR 0014). */
+  readonly organizationRole: TenantOrganizationRole;
   /** Deals the principal may access; RLS denies every other deal row. */
   readonly dealIds: readonly DealId[];
 }

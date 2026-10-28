@@ -10,7 +10,7 @@ import { BugReporter } from './_lib/bugs/bug-reporter';
 export default async function AppLayout({ children }: { children: ReactNode }) {
   const env = publicEnv();
   const session = await getSessionContext();
-  const sections = visibleSections(session.permissions);
+  const sections = visibleSections(session.permissions, undefined, session.kind === 'signed-in' && session.guest);
   return (
     <AppShell
       environmentLabel={env.NEXT_PUBLIC_APP_ENV === 'production' ? undefined : env.NEXT_PUBLIC_APP_ENV}

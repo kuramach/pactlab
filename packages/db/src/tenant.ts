@@ -95,7 +95,7 @@ export async function resolvePrincipal(
       where: { userId: user.id, status: 'ACTIVE', organization },
       select: { organizationId: true, role: true },
     });
-    if (!membership) return null;
+    if (!membership) return resolveGuest(tx, user.id, claims);
 
     await tx.$executeRaw`SELECT set_config('app.organization_id', ${membership.organizationId}, true)`;
     const dealMemberships = await tx.dealMembership.findMany({
@@ -111,6 +111,36 @@ export async function resolvePrincipal(
       dealIds: dealMemberships.map((row) => row.dealId as DealId),
     };
   });
+}
+
+/**
+ * A guest (ADR 0014): an email-code session scoped to an organization the
+ * user is not a member of, admitted only for the pacts where they hold an
+ * active deal membership. The session's organization was set server-side by
+ * the rescope function, which checks the same thing; tightened policies keep
+ * the organization's own data (members, comparables, org audit log) out of
+ * reach.
+ */
+async function resolveGuest(
+  tx: Parameters<Parameters<PrismaClient['$transaction']>[0]>[0],
+  userId: string,
+  claims: PrincipalClaims,
+): Promise<TenantContext | null> {
+  if (claims.issuer !== 'PACTLAB' || !isUuid(claims.externalOrganizationId)) return null;
+  const organizationId = claims.externalOrganizationId;
+  await tx.$executeRaw`SELECT set_config('app.organization_id', ${organizationId}, true)`;
+  const dealMemberships = await tx.dealMembership.findMany({
+    where: { userId, organizationId, status: 'ACTIVE' },
+    select: { dealId: true },
+    orderBy: { dealId: 'asc' },
+  });
+  if (dealMemberships.length === 0) return null;
+  return {
+    organizationId: organizationId as OrganizationId,
+    userId: userId as UserId,
+    organizationRole: 'GUEST',
+    dealIds: dealMemberships.map((row) => row.dealId as DealId),
+  };
 }
 
 /**

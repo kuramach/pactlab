@@ -12,7 +12,7 @@ import { redirect } from 'next/navigation';
 import { organizationLoginPath, organizationStep, safeReturnTo } from '../../lib/auth-flow';
 import { getMe } from '../../lib/session';
 import { signOut } from '../_actions/sign-out';
-import { chooseOrganization } from './actions';
+import { chooseGuestPact, chooseOrganization } from './actions';
 
 // Per-user data: never prerender.
 export const dynamic = 'force-dynamic';
@@ -63,7 +63,8 @@ export default async function SelectOrganizationPage({
     redirect(organizationLoginPath(step.organization.auth0OrganizationId, returnTo));
   }
   const choices = step.kind === 'single' ? [step.organization] : step.kind === 'pick' ? step.organizations : [];
-  if (step.kind === 'none') {
+  const guestPacts = me.data.guestPacts ?? [];
+  if (step.kind === 'none' && guestPacts.length === 0) {
     return (
       <AuthFrame>
         <div className="flex flex-col items-center gap-4 text-center">
@@ -97,6 +98,21 @@ export default async function SelectOrganizationPage({
               </Button>
             </form>
           ))}
+          {guestPacts.length > 0 ? (
+            <div className="mt-3 flex flex-col gap-2 border-t border-border pt-3">
+              <p className="text-sm font-semibold">Pacts shared with you</p>
+              {guestPacts.map((pact) => (
+                <form key={`${pact.organizationId}:${pact.dealId}`} action={chooseGuestPact}>
+                  <input type="hidden" name="organizationId" value={pact.organizationId} />
+                  <input type="hidden" name="dealId" value={pact.dealId} />
+                  <Button type="submit" variant="outline" className="w-full justify-between">
+                    <span>{pact.dealName}</span>
+                    <span className="text-xs opacity-80">{pact.organizationName}</span>
+                  </Button>
+                </form>
+              ))}
+            </div>
+          ) : null}
           <SignOut />
         </CardContent>
       </Card>

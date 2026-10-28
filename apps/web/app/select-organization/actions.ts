@@ -39,3 +39,19 @@ export async function chooseOrganization(formData: FormData): Promise<void> {
   await storeNativeSession(scoped.data as IssuedSession);
   redirect(returnTo);
 }
+
+const guestChoice = z.strictObject({ organizationId: z.uuid(), dealId: z.uuid() });
+
+/** Open a pact shared with you by another organization: the session moves there as a guest on its pacts only (ADR 0014). */
+export async function chooseGuestPact(formData: FormData): Promise<void> {
+  const parsed = guestChoice.safeParse({ organizationId: formData.get('organizationId'), dealId: formData.get('dealId') });
+  if (!parsed.success) redirect(SELECT_ORGANIZATION_PATH);
+  const me = await getMe();
+  if (me.kind !== 'ok' || !(me.data.guestPacts ?? []).some((pact) => pact.organizationId === parsed.data.organizationId && pact.dealId === parsed.data.dealId)) redirect(SELECT_ORGANIZATION_PATH);
+  const token = await nativeSessionToken();
+  if (!token) redirect(SELECT_ORGANIZATION_PATH);
+  const scoped = await authApi('/v1/auth/session/organization', { organizationId: parsed.data.organizationId }, token);
+  if (scoped.status !== 200) redirect(SELECT_ORGANIZATION_PATH);
+  await storeNativeSession(scoped.data as IssuedSession);
+  redirect(`/deals/${parsed.data.dealId}`);
+}

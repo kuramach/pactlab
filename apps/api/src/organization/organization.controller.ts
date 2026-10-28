@@ -1,4 +1,4 @@
-import { Controller, Get, Inject } from '@nestjs/common';
+import { Controller, Get, Inject, NotFoundException } from '@nestjs/common';
 import { withTenant, type PrismaClient } from '@pactlab/db';
 import type { TenantContext } from '@pactlab/domain';
 import { Tenant } from '../auth/tenant.decorator';
@@ -21,6 +21,8 @@ export class OrganizationController {
 
   @Get('members')
   async members(@Tenant() tenant: TenantContext): Promise<{ items: OrganizationMemberView[] }> {
+    // Guests never see the organization's people (ADR 0014); RLS returns only themselves anyway.
+    if (tenant.organizationRole === 'GUEST') throw new NotFoundException();
     const rows = await withTenant(this.prisma, tenant, (tx) =>
       tx.organizationMembership.findMany({
         where: { organizationId: tenant.organizationId, status: 'ACTIVE' },
