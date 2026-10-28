@@ -316,11 +316,17 @@ export class SaleService {
   async mine(tenant: TenantContext, dealId: string, requestId: string) {
     await this.access.require(tenant, dealId, isBidder, { action: 'sale.bid.viewed', requestId });
     return withTenant(this.prisma, tenant, async (tx) => {
-      const [process, bid, deal] = await Promise.all([
+      const [process, bid, deal, seller] = await Promise.all([
         this.process(tx, dealId),
         this.myBid(tx, dealId),
         tx.deal.findFirst({ where: { id: dealId }, select: { name: true, targetName: true, baseCurrency: true } }),
+        tx.dealParty.findFirst({ where: { dealId, role: 'SELLER' }, select: { companyType: true } }),
       ]);
+      // The winner starts their own diligence pact (linked, in their organization) and invites the seller's lead into it.
+      const lead =
+        bid.status === 'WON'
+          ? await tx.dealMembership.findFirst({ where: { dealId, role: 'DEAL_LEAD', status: 'ACTIVE' }, select: { user: { select: { email: true, displayName: true } } } })
+          : null;
       const open = bid.ndaAcceptedAt !== null || !process.ndaText;
       const [offers, questions, published] = await Promise.all([
         tx.bidOffer.findMany({ where: { dealId, bidId: bid.id }, orderBy: { version: 'asc' } }),
@@ -328,7 +334,8 @@ export class SaleService {
         open ? tx.bidAnswerPublished.findMany({ where: { dealId }, orderBy: { publishedAt: 'asc' } }) : Promise.resolve([]),
       ]);
       return {
-        pact: { name: deal?.name ?? '', company: deal?.targetName ?? '', currency: deal?.baseCurrency ?? 'USD' },
+        pact: { organizationId: tenant.organizationId, dealId, name: deal?.name ?? '', company: deal?.targetName ?? '', companyType: seller?.companyType ?? null, currency: deal?.baseCurrency ?? 'USD' },
+        handover: bid.status === 'WON' ? { sellerLeadName: lead?.user.displayName ?? null, sellerLeadEmail: lead?.user.email ?? null } : null,
         process: {
           status: process.status,
           round: process.round,

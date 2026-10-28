@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { expect, test, type Page } from '@playwright/test';
 import { MAIL_DIR } from '../support/env';
+import { LEAD } from '../support/login';
 import { latestCode } from '../support/mail';
 
 /** The newest invitation link emailed to an address. */
@@ -115,5 +116,16 @@ test('a seller-led pact: invite a bidder, answer their question, compare and awa
   await guest.goto(`/deals/${dealId}/bid`);
   await expect(guest.getByText('NRR is 112% (synthetic).')).toBeVisible();
   await expect(guest.getByText('Selected by the seller')).toBeVisible();
+
+  // The winner's own diligence: a linked buyer-led pact in their own organization, with the seller's lead invited as the seller.
+  const handover = Date.now() - 1_000;
+  await guest.getByRole('button', { name: 'Start your diligence pact' }).click();
+  await expect(guest).toHaveURL(/\/deals\/[0-9a-f-]{36}\/sources\?started=1&linked=1/);
+  const linkedId = /\/deals\/([0-9a-f-]{36})\//.exec(guest.url())?.[1] ?? '';
+  expect(linkedId).not.toBe(dealId);
+  await expect(guest.getByText(/our diligence/).first()).toBeVisible();
+  await expect(guest.getByText(/Harbor Capital \(synthetic\)/).first()).toBeVisible();
+  await expect(guest.getByRole('link', { name: 'Diligence' })).toBeVisible();
+  await inviteLink(LEAD, handover);
   await context.close();
 });

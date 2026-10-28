@@ -78,6 +78,8 @@ export interface CreateDealInput {
   transactionType: DealRecord['transactionType'];
   baseCurrency: string;
   initiatedBy?: 'BUYER' | 'SELLER';
+  linkedOrganizationId?: string | null;
+  linkedDealId?: string | null;
 }
 
 /**
