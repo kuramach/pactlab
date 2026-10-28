@@ -62,6 +62,8 @@ export function serverEnv(): Record<string, string> {
     DOCUMENT_STORE_DIR: join(WORK, 'documents'),
     // AI stays off: browser tests never call a model.
     AI_PROVIDER: 'none',
+    // Published macro forecasts come from invented fixture series: browser tests never call out.
+    MACRO_FORECAST_SOURCE: 'fixture',
     NEXT_PUBLIC_APP_ENV: 'local',
     NEXT_PUBLIC_API_ORIGIN: API_ORIGIN,
     NEXT_TELEMETRY_DISABLED: '1',

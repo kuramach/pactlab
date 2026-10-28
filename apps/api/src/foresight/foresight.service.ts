@@ -1,5 +1,6 @@
 import { ConflictException, Inject, Injectable, NotFoundException, ServiceUnavailableException, UnprocessableEntityException } from '@nestjs/common';
 import {
+  foresightForecastPrompt,
   foresightQaPrompt,
   foresightTrendsPrompt,
   GatewayPolicyError,
@@ -9,7 +10,7 @@ import {
   type SpeechToText,
   type TextToSpeech,
 } from '@pactlab/ai';
-import { projectValue, type ProjectionTrend } from '@pactlab/calculations';
+import { D, projectValue, type ProjectionTrend } from '@pactlab/calculations';
 import type {
   ForesightAnswerView,
   ForesightLineView,
@@ -17,6 +18,7 @@ import type {
   ForesightQuestionInput,
   ForesightScenarioInput,
   ForesightTrendView,
+  ForesightUserForecastInput,
   ForesightView,
   ForesightVoiceQuestionInput,
   UpdateForesightScenarioInput,
@@ -24,6 +26,8 @@ import type {
 import { appendAuditEvent, askingPrices, withTenant, type PrismaClient, type TransactionClient } from '@pactlab/db';
 import {
   COMPANY_TYPE_LABELS,
+  foresightMetricsFor,
+  macroAreaFor,
   permissionsForDealRole,
   trendDefinitionsFor,
   type CompanyType,
@@ -32,7 +36,9 @@ import {
   type TenantContext,
   type TrendDefinition,
 } from '@pactlab/domain';
+import type { MacroForecastProvider } from '@pactlab/connectors';
 import { DealAccess } from '../deals/deal-access';
+import { BASELINE_MAX_AGE_MS, BASELINE_STALE_RUN_MS, forecastsView, forecastYears } from './forecasts';
 import { PRISMA } from '../tokens';
 
 export const FORESIGHT_DEPENDENCIES = Symbol('FORESIGHT_DEPENDENCIES');
@@ -41,6 +47,10 @@ export interface ForesightDependencies {
   readonly aiEnabled: boolean;
   readonly speechToText: SpeechToText;
   readonly textToSpeech: TextToSpeech;
+  /** Published macro forecasts (IMF live, or fixture series in tests). */
+  readonly macroForecasts: MacroForecastProvider;
+  /** Refresh the forecast baseline in the background when Foresight is opened (off only in tests that drive generation by hand). */
+  readonly autoBaseline: boolean;
 }
 
 const canRead = (role: DealRole) => permissionsForDealRole(role).has('BUYER_ANALYSIS_READ');
@@ -187,6 +197,8 @@ export class ForesightService {
 
   async view(tenant: TenantContext, dealId: string, requestId: string): Promise<ForesightView> {
     const role = await this.access.require(tenant, dealId, canRead, { action: 'foresight.viewed', requestId });
+    // Opening Foresight never waits on a provider or the model: a missing or old baseline refreshes in the background.
+    if (this.deps.autoBaseline) await this.ensureBaseline(tenant, dealId, requestId);
     return withTenant(this.prisma, tenant, async (tx) => {
       const set = await tx.foresightTrendSet.findFirst({ where: { dealId }, orderBy: { createdAt: 'desc' } });
       const start = await this.startValue(tx, dealId);
@@ -203,8 +215,27 @@ export class ForesightService {
       }
       const questions = await tx.foresightQuestion.findMany({ where: { dealId }, orderBy: { askedAt: 'desc' }, take: 20 });
       const names = new Map(lines.filter((line) => line.id).map((line) => [line.id as string, line.name]));
+      const { pack } = await this.pack(tx, dealId);
+      const deal = await tx.deal.findFirst({ where: { id: dealId }, select: { baseCurrency: true } });
+      const [baselineRow, rows] = await Promise.all([
+        tx.foresightBaseline.findFirst({ where: { dealId } }),
+        tx.foresightForecast.findMany({ where: { dealId }, orderBy: [{ metricKey: 'asc' }, { version: 'desc' }] }),
+      ]);
+      const authors = [...new Set(rows.map((row) => row.createdBy).filter((id): id is string => id !== null))];
+      const users = authors.length ? await tx.user.findMany({ where: { id: { in: authors } }, select: { id: true, displayName: true } }) : [];
+      const forecasts = forecastsView({
+        pack,
+        currency: deal?.baseCurrency ?? null,
+        baseline: baselineRow,
+        rows,
+        names: new Map(users.map((user) => [user.id, user.displayName])),
+        start,
+        baseGrowth: set ? set.baseGrowth.toFixed() : '0.10',
+        now: new Date(),
+      });
       return {
         baseline: set ? { id: set.id, asOf: set.asOf.toISOString().slice(0, 10), modelId: set.modelId, promptVersion: `${set.promptId}@${set.promptVersion}` } : null,
+        forecasts,
         lines,
         projectionUnavailable: start ? null : 'Run a valuation scenario (or record the asking price) to project value.',
         questions: questions.map((question) => ({
@@ -226,6 +257,12 @@ export class ForesightService {
   /** Ask the model for this deal's baseline trend set: the generic questions plus the pack's own. */
   async generate(tenant: TenantContext, dealId: string, requestId: string): Promise<ForesightView> {
     await this.access.require(tenant, dealId, canWrite, { action: 'foresight.generated', requestId });
+    await this.generateTrendSet(tenant, dealId, requestId);
+    return this.view(tenant, dealId, requestId);
+  }
+
+  /** Ask the model for the trend set (no access check: callers check). */
+  private async generateTrendSet(tenant: TenantContext, dealId: string, requestId: string): Promise<void> {
     const { pack, companyType, deal } = await withTenant(this.prisma, tenant, async (tx) => ({
       ...(await this.pack(tx, dealId)),
       deal: await tx.deal.findFirst({ where: { id: dealId }, select: { targetName: true, baseCurrency: true } }),
@@ -267,6 +304,204 @@ export class ForesightService {
       });
       await this.audit(tx, tenant, dealId, 'foresight.generated', 'foresight_trend_set', set.id, requestId);
     });
+  }
+
+  // --- Numeric forecasts (T-094 B10) -------------------------------------------
+
+  /**
+   * Start a background refresh of the published and AI forecasts (and the AI
+   * trend lines, if there are none) when the baseline is missing, older than
+   * 30 days, failed a while ago, or a previous run was lost. Returns at once.
+   */
+  private async ensureBaseline(tenant: TenantContext, dealId: string, requestId: string): Promise<void> {
+    const now = Date.now();
+    const claimed = await withTenant(this.prisma, tenant, async (tx) => {
+      const row = await tx.foresightBaseline.findFirst({ where: { dealId } });
+      if (row) {
+        if (row.status === 'RUNNING' && now - row.startedAt.getTime() < BASELINE_STALE_RUN_MS) return false;
+        if (row.status !== 'RUNNING' && row.finishedAt) {
+          const age = now - row.finishedAt.getTime();
+          if (row.status === 'FAILED' ? age < BASELINE_STALE_RUN_MS : age < BASELINE_MAX_AGE_MS) return false;
+        }
+        const { count } = await tx.foresightBaseline.updateMany({ where: { id: row.id, startedAt: row.startedAt }, data: { status: 'RUNNING', startedAt: new Date(now), finishedAt: null, notes: [] } });
+        return count === 1;
+      }
+      try {
+        await tx.foresightBaseline.create({ data: { organizationId: tenant.organizationId, dealId, status: 'RUNNING', startedAt: new Date(now) } });
+        return true;
+      } catch {
+        return false; // Another request claimed it first.
+      }
+    });
+    if (claimed) {
+      const run = this.refreshBaseline(tenant, dealId, requestId).finally(() => this.running.delete(run));
+      this.running.add(run);
+    }
+  }
+
+  private readonly running = new Set<Promise<void>>();
+
+  /** Resolves when every background refresh started so far has finished (tests and graceful shutdown). */
+  async whenIdle(): Promise<void> {
+    while (this.running.size > 0) await Promise.allSettled([...this.running]);
+  }
+
+  /** Start the baseline right after a pact is created, so Foresight opens populated. */
+  async requestBaseline(tenant: TenantContext, dealId: string, requestId: string): Promise<{ status: string }> {
+    await this.access.require(tenant, dealId, canRead, { action: 'foresight.baseline_requested', requestId });
+    await this.ensureBaseline(tenant, dealId, requestId);
+    const row = await withTenant(this.prisma, tenant, (tx) => tx.foresightBaseline.findFirst({ where: { dealId }, select: { status: true } }));
+    return { status: row?.status ?? 'NONE' };
+  }
+
+  private async refreshBaseline(tenant: TenantContext, dealId: string, requestId: string): Promise<void> {
+    const notes: string[] = [];
+    let filled = 0;
+    try {
+      const { pack, companyType, deal } = await withTenant(this.prisma, tenant, async (tx) => ({
+        ...(await this.pack(tx, dealId)),
+        deal: await tx.deal.findFirst({ where: { id: dealId }, select: { baseCurrency: true } }),
+      }));
+      if (!deal) throw new NotFoundException();
+      const metrics = foresightMetricsFor(pack);
+      const years = forecastYears(new Date());
+      const area = macroAreaFor(deal.baseCurrency);
+      const published: string[] = [];
+
+      // 1. Published forecasts (IMF WEO) for the macro metrics.
+      for (const metric of metrics) {
+        if (!metric.external) continue;
+        if (!area) {
+          notes.push(`No published ${metric.label.toLowerCase()} forecast for ${deal.baseCurrency}; the AI forecast is used.`);
+          continue;
+        }
+        const result = await this.deps.macroForecasts.forecast(metric.external, area, years);
+        if (result.status !== 'OK' || years.some((year) => result.series.values[year] === undefined)) {
+          notes.push(`The published ${metric.label.toLowerCase()} forecast could not be fetched; it will be tried again later.`);
+          continue;
+        }
+        const values = years.map((year) => result.series.values[year] as string);
+        published.push(`${metric.key}: ${years.map((year, index) => `${year} ${values[index]}%`).join(', ')} (${result.series.sourceName})`);
+        await this.saveForecast(tenant, dealId, { metricKey: metric.key, source: 'EXTERNAL', firstYear: years[0] as number, values, sourceName: result.series.sourceName, sourceUrl: result.series.sourceUrl, sourceAsOf: result.series.asOf, createdBy: null });
+        filled += 1;
+      }
+
+      // 2. AI forecasts for every metric, with the published figures as context.
+      if (!this.deps.aiEnabled) {
+        notes.push('AI is off in this environment: AI forecasts appear once it is switched on.');
+      } else {
+        try {
+          const response = await this.deps.gateway.invoke(foresightForecastPrompt, {
+            organizationId: tenant.organizationId,
+            dealId,
+            inputs: [
+              // Sector, currency and public figures only: no deal documents, findings or people data reach the model.
+              { name: 'deal', classification: 'BUSINESS', text: `Sector: ${companyType ? COMPANY_TYPE_LABELS[companyType] : 'Software & SaaS'}. Reporting currency: ${deal.baseCurrency}. Economy: ${area ?? 'not mapped'}.` },
+              { name: 'published', classification: 'PUBLIC', text: published.join('\n') || 'None.' },
+              { name: 'years', classification: 'PUBLIC', text: `${years[0]}–${years[4]}` },
+              { name: 'metrics', classification: 'PUBLIC', text: metrics.map((metric) => `${metric.key}: ${metric.label} (percent a year)`).join('\n') },
+            ],
+          });
+          await withTenant(this.prisma, tenant, (tx) => this.recordRun(tx, response.run));
+          const byKey = new Map(metrics.map((metric) => [metric.key, metric]));
+          const answers = (response.output?.metrics ?? []).filter((answer, index, all) => byKey.has(answer.key) && all.findIndex((other) => other.key === answer.key) === index);
+          for (const answer of answers) {
+            await this.saveForecast(tenant, dealId, {
+              metricKey: answer.key,
+              source: 'AI',
+              firstYear: years[0] as number,
+              values: answer.values.map((value) => value.toFixed(2)),
+              rationale: answer.rationale,
+              modelId: response.run.resolvedModelId,
+              promptId: foresightForecastPrompt.id,
+              promptVersion: foresightForecastPrompt.version,
+              aiRunId: response.run.id,
+              createdBy: null,
+            });
+            filled += 1;
+          }
+          if (answers.length < metrics.length) notes.push('The AI did not forecast every metric; missing ones use the published forecast or the neutral level.');
+        } catch {
+          notes.push('The AI forecast could not be made just now; it will be tried again later.');
+        }
+
+        // 3. The AI trend lines Foresight's scenarios and questions build on, if there are none yet.
+        const hasTrends = await withTenant(this.prisma, tenant, (tx) => tx.foresightTrendSet.findFirst({ where: { dealId }, select: { id: true } }));
+        if (!hasTrends) {
+          try {
+            await this.generateTrendSet(tenant, dealId, requestId);
+          } catch {
+            notes.push('The AI trend lines could not be made just now; they will be tried again later.');
+          }
+        }
+      }
+    } catch {
+      notes.push('The forecasts could not be refreshed; they will be tried again later.');
+    }
+    const status = notes.length === 0 ? 'READY' : filled > 0 ? 'PARTIAL' : 'FAILED';
+    await withTenant(this.prisma, tenant, (tx) => tx.foresightBaseline.updateMany({ where: { dealId }, data: { status, notes, finishedAt: new Date() } })).catch(() => undefined);
+  }
+
+  /** Append a forecast version; an unchanged EXTERNAL or AI series is not stored twice. */
+  private async saveForecast(
+    tenant: TenantContext,
+    dealId: string,
+    input: {
+      metricKey: string;
+      source: 'EXTERNAL' | 'AI' | 'USER';
+      firstYear: number;
+      values: string[];
+      sourceName?: string | null;
+      sourceUrl?: string | null;
+      sourceAsOf?: string | null;
+      rationale?: string | null;
+      modelId?: string | null;
+      promptId?: string | null;
+      promptVersion?: string | null;
+      aiRunId?: string | null;
+      createdBy: string | null;
+    },
+  ): Promise<string | null> {
+    return withTenant(this.prisma, tenant, async (tx) => {
+      const last = await tx.foresightForecast.findFirst({ where: { dealId, metricKey: input.metricKey, source: input.source }, orderBy: { version: 'desc' } });
+      if (
+        last &&
+        input.source !== 'USER' &&
+        last.firstYear === input.firstYear &&
+        last.values.map((value) => value.toString()).join() === input.values.map((value) => new D(value).toString()).join()
+      )
+        return null;
+      const row = await tx.foresightForecast.create({
+        data: {
+          organizationId: tenant.organizationId,
+          dealId,
+          metricKey: input.metricKey,
+          source: input.source,
+          version: (last?.version ?? 0) + 1,
+          firstYear: input.firstYear,
+          values: input.values,
+          sourceName: input.sourceName ?? null,
+          sourceUrl: input.sourceUrl ?? null,
+          sourceAsOf: input.sourceAsOf ? new Date(`${input.sourceAsOf}T00:00:00Z`) : null,
+          rationale: input.rationale ?? null,
+          modelId: input.modelId ?? null,
+          promptId: input.promptId ?? null,
+          promptVersion: input.promptVersion ?? null,
+          aiRunId: input.aiRunId ?? null,
+          createdBy: input.createdBy,
+        },
+      });
+      return row.id;
+    });
+  }
+
+  /** The user's own five-year path for one metric, kept as a new version. */
+  async saveUserForecast(tenant: TenantContext, dealId: string, input: ForesightUserForecastInput, requestId: string): Promise<ForesightView> {
+    await this.access.require(tenant, dealId, canWrite, { action: 'foresight.user_forecast_saved', requestId });
+    const { pack } = await withTenant(this.prisma, tenant, (tx) => this.pack(tx, dealId));
+    if (!foresightMetricsFor(pack).some((metric) => metric.key === input.metricKey)) throw new UnprocessableEntityException({ code: 'UNKNOWN_METRIC' });
+    const id = await this.saveForecast(tenant, dealId, { metricKey: input.metricKey, source: 'USER', firstYear: forecastYears(new Date())[0] as number, values: input.values, createdBy: tenant.userId });
+    if (id) await withTenant(this.prisma, tenant, (tx) => this.audit(tx, tenant, dealId, 'foresight.user_forecast_saved', 'foresight_forecast', id, requestId));
     return this.view(tenant, dealId, requestId);
   }
 

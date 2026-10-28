@@ -4,10 +4,12 @@ import {
   foresightQuestionSchema,
   foresightScenarioInputSchema,
   foresightScenarioParamsSchema,
+  foresightUserForecastSchema,
   foresightVoiceQuestionSchema,
   updateForesightScenarioSchema,
   type ForesightQuestionInput,
   type ForesightScenarioInput,
+  type ForesightUserForecastInput,
   type ForesightVoiceQuestionInput,
   type UpdateForesightScenarioInput,
 } from '@pactlab/contracts';
@@ -27,6 +29,24 @@ export class ForesightController {
   @Get()
   view(@Tenant() tenant: TenantContext, @RequestId() requestId: string, @Param(new ZodValidationPipe(dealParamsSchema)) params: DealParams) {
     return this.foresight.view(tenant, params.dealId, requestId);
+  }
+
+  /** Start the published + AI forecast baseline in the background (called right after a pact is created). */
+  @Post('baseline')
+  @HttpCode(202)
+  requestBaseline(@Tenant() tenant: TenantContext, @RequestId() requestId: string, @Param(new ZodValidationPipe(dealParamsSchema)) params: DealParams) {
+    return this.foresight.requestBaseline(tenant, params.dealId, requestId);
+  }
+
+  /** The user's own five-year path for one key metric (T-094 B10). */
+  @Post('user-forecasts')
+  saveUserForecast(
+    @Tenant() tenant: TenantContext,
+    @RequestId() requestId: string,
+    @Param(new ZodValidationPipe(dealParamsSchema)) params: DealParams,
+    @Body(new ZodValidationPipe(foresightUserForecastSchema)) body: ForesightUserForecastInput,
+  ) {
+    return this.foresight.saveUserForecast(tenant, params.dealId, body, requestId);
   }
 
   @Post('trend-sets')
