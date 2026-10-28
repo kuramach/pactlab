@@ -520,6 +520,7 @@ export async function seedDemo(
               retentionClass: 'DEAL_TERM',
               dataClass: 'FINANCIAL',
               aiExcluded: false,
+              shared: false,
             },
             REQUEST_ID,
           )) as { id: string }).id;
@@ -571,6 +572,7 @@ export async function seedDemo(
             retentionClass: 'DEAL_TERM',
             dataClass: 'BUSINESS',
             aiExcluded: false,
+              shared: false,
           },
           REQUEST_ID,
         )) as { id: string };

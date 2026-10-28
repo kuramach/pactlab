@@ -35,6 +35,22 @@ export interface DocumentListItem {
   aiExcluded: boolean;
   retentionClass: string;
   createdAt: string;
+  /** Intake (T-098): what the file is and who decided. */
+  intake?: DocumentIntakeView;
+  /** The data room it was read from, and whether it is still there. */
+  source?: { sourceId: string; state: 'CURRENT' | 'REPLACED' | 'REMOVED' } | null;
+}
+
+export interface DocumentIntakeView {
+  state: 'UNCLASSIFIED' | 'FILED' | 'NEEDS_YOU' | 'NOT_READ';
+  category: string | null;
+  source: 'AI' | 'PERSON' | null;
+  confidence: number | null;
+  reason: string | null;
+  question: string | null;
+  entityName: string | null;
+  counterpartyName: string | null;
+  sourcePath: string | null;
 }
 
 export interface DocumentPageView {

@@ -7,6 +7,8 @@
 #   1. generate.py writes CSVs, Markdown documents and READMEs (deterministic).
 #   2. The FreshCo kit builder (apps/api/src/ops/test-kit.ts) turns each
 #      documents/*.md into a PDF, so PDFs match what Pactlab's upload reads.
+#   3. dataroom.py arranges each dataset as a seller's data room (dataroom/,
+#      dataroom.zip) with deliberate intake tests, and adds them to the README.
 # Then copy <out_dir>/* over a clone of pactlab-demo-data and open a PR there.
 # Synthetic data only — never edit real data into the generator.
 #
@@ -29,4 +31,6 @@ for d in "$OUT"/*/*/; do
   cp "$t"/generated/*.pdf "$d"documents/
   n=$((n + 1))
 done
+# 3. Arrange each dataset as a seller's data room (dataroom/ and dataroom.zip) for the intake test (T-098).
+python3 "$ROOT/scripts/demo-data/dataroom.py" "$OUT" >/dev/null
 echo "demo data: $n pack/currency folders in $OUT"

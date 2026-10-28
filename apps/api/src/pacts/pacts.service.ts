@@ -61,17 +61,22 @@ export class PactsService {
 
   /** Any active organization member may start a Pact; they become its DEAL_LEAD. */
   async start(tenant: TenantContext, command: StartPactCommand, requestId: string): Promise<DealSummary> {
-    const transactionType = deriveTransactionType(command.buyer, command.seller);
+    // A seller-led pact has no single buyer yet: it is typed as a private acquisition until one is chosen.
+    const transactionType = deriveTransactionType(command.buyer ?? { ownership: 'PRIVATE' }, command.seller);
     // Guests work inside the pacts they were invited to; they never start one in another organization (ADR 0014).
     if (tenant.organizationRole === 'GUEST') throw new ForbiddenException();
     const deal = await createDealWithLead(
       this.prisma,
       tenant,
-      { name: command.name, targetName: command.seller.name, transactionType, baseCurrency: command.baseCurrency },
+      { name: command.name, targetName: command.seller.name, transactionType, baseCurrency: command.baseCurrency, initiatedBy: command.initiatedBy },
       async (tx, created) => {
         const scope = { organizationId: tenant.organizationId, dealId: created.id };
-        await dealParties.create(tx, { ...scope, role: 'BUYER', ...command.buyer });
+        if (command.buyer) await dealParties.create(tx, { ...scope, role: 'BUYER', ...command.buyer });
         await dealParties.create(tx, { ...scope, role: 'SELLER', ...command.seller });
+        // A seller-led pact runs a bid process (T-097, ADR 0015).
+        if (command.initiatedBy === 'SELLER') {
+          await tx.saleProcess.create({ data: { ...scope, updatedBy: tenant.userId } });
+        }
         if (command.askingPrice) {
           await askingPrices.record(tx, { ...scope, ...command.askingPrice, recordedBy: tenant.userId });
           await appendAuditEvent(tx, {

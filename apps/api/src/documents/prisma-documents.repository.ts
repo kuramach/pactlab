@@ -8,13 +8,16 @@ import {
 } from '@pactlab/db';
 import type { TenantContext } from '@pactlab/domain';
 import type { DocumentsRepository } from './documents.repository';
+import type { CategorySource, IntakeState } from '@pactlab/domain';
 import type {
   AcceptedContentType,
+  DocumentIntake,
   DocumentFinding,
   DocumentFindingReview,
   DocumentFindingStatus,
   DocumentPageRecord,
   DocumentRecord,
+  DocumentSourceLink,
 } from './documents.types';
 
 type DocumentRow = Prisma.DocumentGetPayload<object>;
@@ -45,6 +48,26 @@ function toDocument(row: DocumentRow): DocumentRecord {
     uploadedBy: row.uploadedBy,
     createdAt: row.createdAt.toISOString(),
     purgedAt: iso(row.purgedAt),
+    intake: {
+      state: row.intakeState as IntakeState,
+      category: row.category,
+      source: row.categorySource as CategorySource | null,
+      confidence: row.categoryConfidence === null ? null : Number(row.categoryConfidence),
+      reason: row.categoryReason,
+      question: row.intakeQuestion,
+      entityName: row.entityName,
+      counterpartyName: row.counterpartyName,
+      sourcePath: row.sourcePath,
+      classifiedRunId: row.classifiedRunId,
+      categorizedBy: row.categorizedBy,
+      categorizedAt: iso(row.categorizedAt),
+    },
+    source:
+      row.sourceId && row.sourceExternalId && row.sourceState
+        ? { sourceId: row.sourceId, externalId: row.sourceExternalId, version: row.sourceVersion, state: row.sourceState as DocumentSourceLink['state'] }
+        : null,
+    recategorizedFrom: row.recategorizedFrom,
+    recategorizedAt: iso(row.recategorizedAt),
   };
 }
 
@@ -105,6 +128,32 @@ function toReview(row: ReviewRow): DocumentFindingReview {
   };
 }
 
+/** Spec `ai_runs`: hashes, counts and model only — never content. */
+function createAiRun(tx: Prisma.TransactionClient, run: AiRunRecord) {
+  return tx.aiRun.create({
+    data: {
+      id: run.id,
+      organizationId: run.organizationId,
+      dealId: run.dealId,
+      taskType: run.taskType,
+      promptId: run.promptId,
+      promptVersion: run.promptVersion,
+      promptHash: run.promptHash,
+      modelAlias: run.modelAlias,
+      resolvedModelId: run.resolvedModelId,
+      inputHashes: [...run.inputHashes],
+      outputHash: run.outputHash,
+      status: run.status,
+      repairAttempted: run.repairAttempted,
+      injectionSignals: run.injectionSignals,
+      inputTokens: run.inputTokens,
+      outputTokens: run.outputTokens,
+      latencyMs: run.latencyMs,
+      createdAt: new Date(run.createdAt),
+    },
+  });
+}
+
 const findingOrder = [{ createdAt: 'asc' }, { id: 'asc' }] as const satisfies Prisma.DocumentFindingOrderByWithRelationInput[];
 
 /**
@@ -143,6 +192,11 @@ export class PrismaDocumentsRepository implements DocumentsRepository {
           uploadedBy: document.uploadedBy,
           createdAt: new Date(document.createdAt),
           purgedAt: document.purgedAt ? new Date(document.purgedAt) : null,
+          sourcePath: document.intake.sourcePath,
+          sourceId: document.source?.sourceId ?? null,
+          sourceExternalId: document.source?.externalId ?? null,
+          sourceVersion: document.source?.version ?? null,
+          sourceState: document.source?.state ?? null,
         },
       });
       await tx.documentPage.createMany({ data: pages.map((page) => ({ ...page })) });
@@ -221,26 +275,38 @@ export class PrismaDocumentsRepository implements DocumentsRepository {
 
   async recordAiRun(tenant: TenantContext, run: AiRunRecord, audit: AuditEventInput): Promise<void> {
     await withTenant(this.prisma, tenant, async (tx) => {
-      await tx.aiRun.create({
+      await createAiRun(tx, run);
+      await appendAuditEvent(tx, audit);
+    });
+  }
+
+  async updateIntake(
+    tenant: TenantContext,
+    dealId: string,
+    documentId: string,
+    intake: Omit<DocumentIntake, 'sourcePath'>,
+    options: { excludeFromAi: boolean; run: AiRunRecord | null; recategorizedFrom?: string | null },
+    audit: AuditEventInput,
+  ): Promise<void> {
+    await withTenant(this.prisma, tenant, async (tx) => {
+      if (options.run) await createAiRun(tx, options.run);
+      await tx.document.updateMany({
+        where: { id: documentId, dealId },
         data: {
-          id: run.id,
-          organizationId: run.organizationId,
-          dealId: run.dealId,
-          taskType: run.taskType,
-          promptId: run.promptId,
-          promptVersion: run.promptVersion,
-          promptHash: run.promptHash,
-          modelAlias: run.modelAlias,
-          resolvedModelId: run.resolvedModelId,
-          inputHashes: [...run.inputHashes],
-          outputHash: run.outputHash,
-          status: run.status,
-          repairAttempted: run.repairAttempted,
-          injectionSignals: run.injectionSignals,
-          inputTokens: run.inputTokens,
-          outputTokens: run.outputTokens,
-          latencyMs: run.latencyMs,
-          createdAt: new Date(run.createdAt),
+          intakeState: intake.state,
+          category: intake.category,
+          categorySource: intake.source,
+          categoryConfidence: intake.confidence,
+          categoryReason: intake.reason,
+          intakeQuestion: intake.question,
+          entityName: intake.entityName,
+          counterpartyName: intake.counterpartyName,
+          classifiedRunId: intake.classifiedRunId,
+          categorizedBy: intake.categorizedBy,
+          categorizedAt: intake.categorizedAt ? new Date(intake.categorizedAt) : null,
+          ...(options.recategorizedFrom !== undefined ? { recategorizedFrom: options.recategorizedFrom, recategorizedAt: new Date() } : {}),
+          // Exclusion is one-way (rule 7): only ever switched on here; a trigger refuses lifting it.
+          ...(options.excludeFromAi ? { aiExcluded: true } : {}),
         },
       });
       await appendAuditEvent(tx, audit);

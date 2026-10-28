@@ -40,7 +40,7 @@ import {
   type PrismaClient,
   type TransactionClient,
 } from '@pactlab/db';
-import { permissionsForDealRole, type DealRole, type TenantContext } from '@pactlab/domain';
+import { isCounterpartyRole, permissionsForDealRole, type DealRole, type TenantContext } from '@pactlab/domain';
 import { DealAccess } from '../deals/deal-access';
 import { defaultAsOfMonth, loadMetricsEvidence } from '../metrics/metrics.inputs';
 import { PRISMA } from '../tokens';
@@ -167,7 +167,7 @@ export class ComparablesService {
     const rows = await withTenant(this.prisma, tenant, (tx) =>
       tx.dealMembership.findMany({ where: { userId: tenant.userId, status: 'ACTIVE' }, select: { role: true } }),
     );
-    return rows.map((row) => row.role).filter((role) => role !== 'TARGET_CONTRIBUTOR');
+    return rows.map((row) => row.role).filter((role) => !isCounterpartyRole(role));
   }
 
   private async requireReader(tenant: TenantContext, action: string, requestId: string) {

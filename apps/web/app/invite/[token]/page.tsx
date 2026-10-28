@@ -9,13 +9,13 @@ interface Preview {
   dealName: string;
   organizationName: string;
   email: string;
-  side: 'BUYER' | 'SELLER' | 'ADVISOR';
+  side: 'BUYER' | 'SELLER' | 'ADVISOR' | 'BIDDER';
   role: string;
   status: 'PENDING' | 'ACCEPTED' | 'REVOKED' | 'EXPIRED';
   expiresAt: string;
 }
 
-const SIDE = { BUYER: 'on the buying team', SELLER: 'for the seller', ADVISOR: 'as an advisor' } as const;
+const SIDE = { BUYER: 'on the buying team', SELLER: 'for the seller', ADVISOR: 'as an advisor', BIDDER: 'as a bidder' } as const;
 const ROLE: Record<string, string> = {
   TARGET_CONTRIBUTOR: 'Seller contributor — you share what is asked and see what is shared with you',
   ADVISER: 'Advisor — read the evidence',

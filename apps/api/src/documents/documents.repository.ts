@@ -5,6 +5,7 @@ import type {
   DocumentFinding,
   DocumentFindingReview,
   DocumentFindingStatus,
+  DocumentIntake,
   DocumentPageRecord,
   DocumentRecord,
 } from './documents.types';
@@ -55,6 +56,19 @@ export interface DocumentsRepository {
     audit: AuditEventInput,
   ): Promise<void>;
   recordAiRun(tenant: TenantContext, run: AiRunRecord, audit: AuditEventInput): Promise<void>;
+  /**
+   * Intake: file the document (category, state, question). `aiExcluded`
+   * may only turn exclusion on. Writes the AI run (when given) and the audit
+   * event in the same transaction.
+   */
+  updateIntake(
+    tenant: TenantContext,
+    dealId: string,
+    documentId: string,
+    intake: Omit<DocumentIntake, 'sourcePath'>,
+    options: { excludeFromAi: boolean; run: AiRunRecord | null; recategorizedFrom?: string | null },
+    audit: AuditEventInput,
+  ): Promise<void>;
   insertFindings(
     tenant: TenantContext,
     findings: readonly DocumentFinding[],

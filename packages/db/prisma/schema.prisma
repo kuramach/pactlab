@@ -216,6 +216,7 @@ enum DealRole {
   ADVISER
   TARGET_CONTRIBUTOR
   VIEWER
+  BIDDER
 
   @@map("deal_role")
 }
@@ -461,6 +462,8 @@ model Organization {
   valuationSubmissions    ValuationSubmission[]
   valuationDecisions      ValuationSubmissionDecision[]
   documents               Document[]
+  documentSources DocumentSource[]
+  documentRequests DocumentRequest[]
   documentPages           DocumentPage[]
   aiRuns                  AiRun[]
   documentFindings        DocumentFinding[]
@@ -527,6 +530,8 @@ model Deal {
   status          String          @default("ACTIVE")
   baseCurrency    String          @default("USD") @map("base_currency") @db.Char(3)
   createdBy       String          @map("created_by") @db.Uuid
+  /// BUYER: the buyer opened the pact (diligence). SELLER: the seller runs a bid process (T-097, ADR 0015).
+  initiatedBy             String                  @default("BUYER") @map("initiated_by")
   createdAt       DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt       DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
 
@@ -550,6 +555,8 @@ model Deal {
   valuationSubmissions    ValuationSubmission[]
   valuationDecisions      ValuationSubmissionDecision[]
   documents               Document[]
+  documentSources DocumentSource[]
+  documentRequests DocumentRequest[]
   documentPages           DocumentPage[]
   aiRuns                  AiRun[]
   documentFindings        DocumentFinding[]
@@ -609,6 +616,8 @@ model DealMembership {
   dealId         String           @map("deal_id") @db.Uuid
   userId         String           @map("user_id") @db.Uuid
   role           DealRole
+  /// For a BIDDER: the bid (firm) they act for.
+  bidId          String?          @map("bid_id") @db.Uuid
   status         MembershipStatus @default(ACTIVE)
   createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
 
@@ -1100,16 +1109,93 @@ model Document {
   uploadedBy     String             @map("uploaded_by") @db.Uuid
   createdAt      DateTime           @map("created_at") @db.Timestamptz(3)
   purgedAt       DateTime?          @map("purged_at") @db.Timestamptz(3)
+  /// Intake (T-098, ADR 0016): the file's category — a document category or an import target.
+  category           String?
+  /// AI (clear enough to file alone) or PERSON (answered or corrected).
+  categorySource     String?   @map("category_source")
+  categoryConfidence Decimal?  @map("category_confidence") @db.Decimal(4, 3)
+  categoryReason     String?   @map("category_reason")
+  /// UNCLASSIFIED | FILED | NEEDS_YOU | NOT_READ
+  intakeState        String    @default("UNCLASSIFIED") @map("intake_state")
+  intakeQuestion     String?   @map("intake_question")
+  entityName         String?   @map("entity_name")
+  /// For contracts: the other party, only when named in the file.
+  counterpartyName   String?   @map("counterparty_name")
+  /// Folder inside the zip or data room the file came from.
+  sourcePath         String?   @map("source_path")
+  classifiedRunId    String?   @map("classified_run_id") @db.Uuid
+  categorizedBy      String?   @map("categorized_by") @db.Uuid
+  categorizedAt      DateTime? @map("categorized_at") @db.Timestamptz(3)
+  /// The connected data room or drive it was read from (T-098), if any.
+  sourceId           String?   @map("source_id") @db.Uuid
+  sourceExternalId   String?   @map("source_external_id")
+  sourceVersion      String?   @map("source_version")
+  /// CURRENT | REPLACED (a newer version was read) | REMOVED (gone at the source)
+  sourceState        String?   @map("source_state")
+  /// The category before a person re-filed it; results built under it are listed to recheck.
+  recategorizedFrom  String?   @map("recategorized_from")
+  recategorizedAt    DateTime? @map("recategorized_at") @db.Timestamptz(3)
 
   organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   deal         Deal              @relation(fields: [organizationId, dealId], references: [organizationId, id], onDelete: Restrict)
+  source       DocumentSource?   @relation(fields: [organizationId, dealId, sourceId], references: [organizationId, dealId, id], onDelete: Restrict, map: "documents_source_fkey")
   pages        DocumentPage[]
   findings     DocumentFinding[]
 
   @@unique([organizationId, dealId, id])
   @@unique([objectKey])
   @@index([organizationId, dealId, sha256])
+  @@index([organizationId, dealId, intakeState], map: "documents_intake_state_idx")
+  @@index([organizationId, dealId, sourceId, sourceExternalId], map: "documents_source_idx")
   @@map("documents")
+}
+
+/// A data room or drive folder documents are read from (T-098, ADR 0016). Read-only. Buyer side.
+model DocumentSource {
+  id              String    @id @db.Uuid
+  organizationId  String    @map("organization_id") @db.Uuid
+  dealId          String    @map("deal_id") @db.Uuid
+  /// google-drive | onedrive | vdr
+  provider        String
+  /// FIXTURE | LIVE
+  mode            String
+  displayName     String    @map("display_name")
+  config          Json
+  credentialRef   String?   @map("credential_ref")
+  /// ACTIVE | DISABLED
+  status          String    @default("ACTIVE")
+  lastSyncedAt    DateTime? @map("last_synced_at") @db.Timestamptz(3)
+  lastSyncSummary Json?     @map("last_sync_summary")
+  createdBy       String    @map("created_by") @db.Uuid
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  deal         Deal         @relation(fields: [organizationId, dealId], references: [organizationId, id], onDelete: Restrict, map: "document_sources_deal_fkey")
+  documents    Document[]
+
+  @@unique([organizationId, dealId, id], map: "document_sources_org_deal_id_key")
+  @@index([organizationId, dealId, createdAt], map: "document_sources_org_deal_created_idx")
+  @@map("document_sources")
+}
+
+/// A request to the seller for missing inputs (T-098). Both sides read it; the buyer side writes it.
+model DocumentRequest {
+  id             String    @id @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  dealId         String    @map("deal_id") @db.Uuid
+  items          String[]
+  note           String?
+  /// OPEN | CLOSED
+  status         String    @default("OPEN")
+  createdBy      String    @map("created_by") @db.Uuid
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  closedAt       DateTime? @map("closed_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  deal         Deal         @relation(fields: [organizationId, dealId], references: [organizationId, id], onDelete: Restrict, map: "document_requests_deal_fkey")
+
+  @@index([organizationId, dealId, createdAt], map: "document_requests_org_deal_created_idx")
+  @@map("document_requests")
 }
 
 /// Extracted page. The page id is the citation source id; purge nulls the
@@ -1917,6 +2003,7 @@ model DealInvitation {
   /// BUYER | SELLER | ADVISOR
   side           String
   role           DealRole
+  bidId       String?    @map("bid_id") @db.Uuid
   tokenHash      String    @unique @map("token_hash")
   /// PENDING | ACCEPTED | REVOKED (expiry is read from expires_at)
   status         String    @default("PENDING")
@@ -1931,4 +2018,105 @@ model DealInvitation {
 
   @@index([organizationId, dealId, createdAt])
   @@map("deal_invitations")
+}
+
+/// A seller-led pact's bid process (T-097, ADR 0015). The seller's side runs it; bidders read it.
+model SaleProcess {
+  dealId         String    @map("deal_id") @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  /// OPEN | AWARDED | CLOSED
+  status         String    @default("OPEN")
+  round          Int       @default(1)
+  offerDeadline  DateTime? @map("offer_deadline") @db.Timestamptz(3)
+  sharedSummary  String?   @map("shared_summary")
+  dataRoomUrl    String?   @map("data_room_url")
+  ndaText        String?   @map("nda_text")
+  awardedBidId   String?   @map("awarded_bid_id") @db.Uuid
+  updatedBy      String    @map("updated_by") @db.Uuid
+  updatedAt      DateTime  @default(now()) @map("updated_at") @db.Timestamptz(3)
+
+  @@id([organizationId, dealId])
+  @@map("sale_processes")
+}
+
+/// One bidding firm in a seller-led pact. A bidder sees only their own (RLS).
+model Bid {
+  id            String    @id @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  dealId        String    @map("deal_id") @db.Uuid
+  firmName      String    @map("firm_name")
+  /// INVITED | ACTIVE | OFFERED | PASSED | SHORTLISTED | DECLINED | WON
+  status        String    @default("INVITED")
+  round         Int       @default(1)
+  ndaAcceptedAt DateTime? @map("nda_accepted_at") @db.Timestamptz(3)
+  ndaAcceptedBy String?   @map("nda_accepted_by") @db.Uuid
+  passReason    String?   @map("pass_reason")
+  decidedAt     DateTime? @map("decided_at") @db.Timestamptz(3)
+  createdBy     String    @map("created_by") @db.Uuid
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  offers    BidOffer[]
+  questions BidQuestion[]
+
+  @@unique([organizationId, dealId, id], map: "bids_org_deal_id_key")
+  @@index([organizationId, dealId, createdAt], map: "bids_org_deal_created_idx")
+  @@map("bids")
+}
+
+/// A bidder's offer. Every version is kept; money is decimal with its currency.
+model BidOffer {
+  id             String    @id @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  dealId         String    @map("deal_id") @db.Uuid
+  bidId          String    @map("bid_id") @db.Uuid
+  version        Int
+  round          Int
+  price          Decimal   @db.Decimal(24, 4)
+  currency       String    @db.Char(3)
+  preMoney       Decimal?  @map("pre_money") @db.Decimal(24, 4)
+  structure      String
+  conditions     String?
+  validUntil     DateTime? @map("valid_until") @db.Date
+  submittedBy    String    @map("submitted_by") @db.Uuid
+  submittedAt    DateTime  @default(now()) @map("submitted_at") @db.Timestamptz(3)
+
+  bid Bid @relation(fields: [organizationId, dealId, bidId], references: [organizationId, dealId, id], onDelete: Restrict, map: "bid_offers_bid_fkey")
+
+  @@unique([organizationId, dealId, bidId, version], map: "bid_offers_bid_version_key")
+  @@map("bid_offers")
+}
+
+/// A bidder's question; private to that bidder unless an answer is published to all.
+model BidQuestion {
+  id             String    @id @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  dealId         String    @map("deal_id") @db.Uuid
+  bidId          String    @map("bid_id") @db.Uuid
+  question       String
+  askedBy        String    @map("asked_by") @db.Uuid
+  askedAt        DateTime  @default(now()) @map("asked_at") @db.Timestamptz(3)
+  answer         String?
+  /// PRIVATE | ALL
+  answerScope    String?   @map("answer_scope")
+  answeredBy     String?   @map("answered_by") @db.Uuid
+  answeredAt     DateTime? @map("answered_at") @db.Timestamptz(3)
+
+  bid Bid @relation(fields: [organizationId, dealId, bidId], references: [organizationId, dealId, id], onDelete: Restrict, map: "bid_questions_bid_fkey")
+
+  @@index([organizationId, dealId, askedAt], map: "bid_questions_org_deal_asked_idx")
+  @@map("bid_questions")
+}
+
+/// An answer published to every bidder, with no link to who asked.
+model BidAnswerPublished {
+  id             String   @id @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  dealId         String   @map("deal_id") @db.Uuid
+  question       String
+  answer         String
+  publishedBy    String   @map("published_by") @db.Uuid
+  publishedAt    DateTime @default(now()) @map("published_at") @db.Timestamptz(3)
+
+  @@index([organizationId, dealId, publishedAt], map: "bid_answers_published_org_deal_idx")
+  @@map("bid_answers_published")
 }

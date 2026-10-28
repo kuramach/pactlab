@@ -10,6 +10,7 @@ import {
   type DocumentObjectStore,
   type DocumentsRepository,
 } from './documents.repository';
+import { DocumentSourcesService } from './document-sources.service';
 import { DocumentsService } from './documents.service';
 import type { MalwareScanner } from './upload-policy';
 
@@ -33,6 +34,7 @@ export class DocumentsModule {
       controllers: [DocumentsController],
       providers: [
         DocumentsService,
+        DocumentSourcesService,
         DealAccess,
         { provide: DOCUMENTS_REPOSITORY, useValue: deps.repository },
         { provide: DOCUMENT_OBJECT_STORE, useValue: deps.objectStore },

@@ -1,4 +1,4 @@
-import { canonicalJson, type EvidenceSource, type NormalizedEvidence } from '@pactlab/domain';
+import { canonicalJson, isCounterpartyRole, type EvidenceSource, type NormalizedEvidence } from '@pactlab/domain';
 import { appendAuditEvent, enqueueOutboxEvent } from './audit';
 import type { PrismaClient, TransactionClient } from './client';
 import { sha256Hex } from './hash';
@@ -189,7 +189,7 @@ export async function executeSyncRun(
           where: { dealId: run.dealId, userId: job.requestedBy, status: 'ACTIVE' },
           select: { role: true },
         });
-        if (requester && requester.role !== 'TARGET_CONTRIBUTOR') {
+        if (requester && !isCounterpartyRole(requester.role)) {
           await contributorDirectory.upsert(tx, { organizationId: run.organizationId, dealId: run.dealId }, pull.people);
         }
       }

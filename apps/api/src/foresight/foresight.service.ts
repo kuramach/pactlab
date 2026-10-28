@@ -25,6 +25,7 @@ import type {
 } from '@pactlab/contracts';
 import { appendAuditEvent, askingPrices, withTenant, type PrismaClient, type TransactionClient } from '@pactlab/db';
 import {
+  isCounterpartyRole,
   COMPANY_TYPE_LABELS,
   foresightMetricsFor,
   macroAreaFor,
@@ -54,7 +55,7 @@ export interface ForesightDependencies {
 }
 
 const canRead = (role: DealRole) => permissionsForDealRole(role).has('BUYER_ANALYSIS_READ');
-const canWrite = (role: DealRole) => permissionsForDealRole(role).has('DEAL_WRITE') && role !== 'TARGET_CONTRIBUTOR';
+const canWrite = (role: DealRole) => permissionsForDealRole(role).has('DEAL_WRITE') && !isCounterpartyRole(role);
 
 type Override = { direction?: ForesightTrendView['direction']; magnitude?: ForesightTrendView['magnitude']; weight?: string };
 type CustomTrend = ForesightScenarioInput['customTrends'][number];

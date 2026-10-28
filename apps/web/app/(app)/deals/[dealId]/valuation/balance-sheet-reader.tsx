@@ -14,9 +14,10 @@ const KIND_LABEL = { CASH: 'Cash', DEBT: 'Debt', DEBT_LIKE: 'Debt-like' } as con
  * proposal is not stored and never touches the valuation until confirmed;
  * typing an item by hand stays available below.
  */
-export function BalanceSheetReader({ dealId, documents, currency }: { dealId: string; documents: readonly { id: string; fileName: string }[]; currency: string }) {
+export function BalanceSheetReader({ dealId, documents, currency }: { dealId: string; documents: readonly { id: string; fileName: string; category?: string | null }[]; currency: string }) {
   const router = useRouter();
-  const guess = documents.find((doc) => /balance|financ|accounts/i.test(doc.fileName)) ?? documents[0];
+  const guess =
+    documents.find((doc) => doc.category === 'BALANCE_SHEET') ?? documents.find((doc) => /balance|financ|accounts/i.test(doc.fileName)) ?? documents[0];
   const [documentId, setDocumentId] = useState(guess?.id ?? '');
   const [view, setView] = useState<BalanceSheetProposalsView | null>(null);
   const [asOf, setAsOf] = useState('');
