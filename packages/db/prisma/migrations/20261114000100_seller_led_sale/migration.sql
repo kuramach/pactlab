@@ -219,7 +219,11 @@ CREATE POLICY deal_memberships_select ON deal_memberships FOR SELECT TO pactlab_
   );
 
 -- 8. Accepting a bidder invitation records the bid on the membership.
-CREATE OR REPLACE FUNCTION app_accept_deal_invitation(p_token_hash text, p_user uuid)
+--    Dropped and recreated, not replaced: databases that applied an early
+--    draft of 20261111000000_pact_guests hold a version returning two columns,
+--    and CREATE OR REPLACE cannot change a function's return type.
+DROP FUNCTION IF EXISTS app_accept_deal_invitation(text, uuid);
+CREATE FUNCTION app_accept_deal_invitation(p_token_hash text, p_user uuid)
   RETURNS TABLE (organization_id uuid, deal_id uuid, invitation_id uuid)
   LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public
   AS $$
@@ -244,6 +248,8 @@ BEGIN
 END
 $$;
 ALTER FUNCTION app_accept_deal_invitation(text, uuid) OWNER TO pactlab_auth;
+REVOKE ALL ON FUNCTION app_accept_deal_invitation(text, uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION app_accept_deal_invitation(text, uuid) TO pactlab_app;
 GRANT SELECT (bid_id) ON deal_invitations TO pactlab_auth;
 
 -- 9. Policies for the new tables.
