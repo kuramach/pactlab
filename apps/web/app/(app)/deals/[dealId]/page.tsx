@@ -1,3 +1,4 @@
+import { redirect } from 'next/navigation';
 import { COMPANY_TYPE_LABELS, DEAL_PHASE_LABELS, DEAL_STAGES } from '@pactlab/domain';
 import { moveStage } from './stage-actions';
 import { Badge, buttonVariants, Card, CardContent, CardHeader, CardTitle, Glossed, IconTile, Section, Stat, type Accent } from '@pactlab/ui';
@@ -56,6 +57,8 @@ export default async function DealOverviewPage({
 }) {
   const { dealId } = await params;
   const outcome = (await searchParams)['outcome'];
+  // A bidder's pact is their bid (T-097).
+  if ((await dealViewer(dealId)).role === 'BIDDER') redirect(`/deals/${dealId}/bid`);
   const [plan, sources, parties, asking, scenarios, viewer, accepted, deal, documentList, documentFindings] = await Promise.all([
     dealsApi.sourcePlan(dealId),
     dealsApi.sources(dealId),

@@ -10,11 +10,14 @@ export interface DealRecord {
   stage: string;
   status: string;
   baseCurrency: string;
+  /** BUYER: buyer-led diligence. SELLER: the seller runs a bid process (T-097). */
+  initiatedBy: string;
   createdAt: Date;
 }
 
 const dealSelect = {
   id: true,
+  initiatedBy: true,
   organizationId: true,
   name: true,
   targetName: true,

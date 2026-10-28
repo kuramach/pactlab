@@ -11,6 +11,11 @@ export const uploadDocumentBodySchema = z.strictObject({
   retentionClass: z.enum(RETENTION_CLASSES).default('DEAL_TERM'),
   dataClass: z.enum(DATA_CLASSIFICATIONS).default('BUSINESS'),
   aiExcluded: z.boolean().default(false),
+  /**
+   * The pact's own side shares this document with the counterparty — on a
+   * seller-led pact, every bidder (T-097). Chosen at upload; never changed later.
+   */
+  shared: z.boolean().default(false),
 });
 export type UploadDocumentBody = z.infer<typeof uploadDocumentBodySchema>;
 
@@ -48,6 +53,8 @@ export const uploadArchiveBodySchema = z.strictObject({
   retentionClass: z.enum(RETENTION_CLASSES).default('DEAL_TERM'),
   dataClass: z.enum(DATA_CLASSIFICATIONS).default('BUSINESS'),
   aiExcluded: z.boolean().default(false),
+  /** Share every file in the archive with the counterparty (see uploadDocumentBodySchema). */
+  shared: z.boolean().default(false),
 });
 export type UploadArchiveBody = z.infer<typeof uploadArchiveBodySchema>;
 

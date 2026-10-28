@@ -10,7 +10,7 @@ import {
 } from '@pactlab/domain';
 import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Glossed } from '@pactlab/ui';
 import { useActionState, useState } from 'react';
-import { problemUpTo, WIZARD_STEPS, type WizardStep } from '../_lib/form';
+import { problemUpTo, stepsFor, type WizardStep } from '../_lib/form';
 import { startPact, type StartPactState } from './actions';
 
 const STEP_TITLES: Readonly<Record<WizardStep, string>> = {
@@ -286,7 +286,7 @@ function Review({ values }: { values: Values }) {
       <dl className="grid gap-3 sm:grid-cols-2">
         <div className="rounded-lg border border-border p-3">
           <dt className="text-xs uppercase tracking-wide text-muted-foreground">Buyer</dt>
-          <dd className="font-medium">{describe(buyer, 'buyer')}</dd>
+          <dd className="font-medium">{values['initiatedBy'] === 'SELLER' ? 'Bid process — you invite buyers once the pact starts' : describe(buyer, 'buyer')}</dd>
         </div>
         <div className="rounded-lg border border-border p-3">
           <dt className="text-xs uppercase tracking-wide text-muted-foreground">Seller</dt>
@@ -348,7 +348,8 @@ export function PactWizard() {
   const [step, setStep] = useState<WizardStep>('pact');
   const [problem, setProblem] = useState<string | null>(null);
   const [state, action, pending] = useActionState<StartPactState, FormData>(startPact, { error: null });
-  const index = WIZARD_STEPS.indexOf(step);
+  const steps = stepsFor(values);
+  const index = steps.indexOf(step);
   const set = (key: string, value: string) => {
     setValues((current) => ({ ...current, [key]: value }));
     setProblem(null);
@@ -356,7 +357,7 @@ export function PactWizard() {
   const next = () => {
     const found = problemUpTo(step, values);
     setProblem(found);
-    if (!found) setStep(WIZARD_STEPS[index + 1] ?? step);
+    if (!found) setStep(steps[index + 1] ?? step);
   };
   const error = problem ?? state.error;
 
@@ -364,7 +365,7 @@ export function PactWizard() {
     <Card>
       <CardHeader>
         <ol className="flex flex-wrap gap-2 text-xs" aria-label="Steps">
-          {WIZARD_STEPS.map((entry, position) => (
+          {steps.map((entry, position) => (
             <li
               key={entry}
               aria-current={entry === step ? 'step' : undefined}
@@ -396,6 +397,23 @@ export function PactWizard() {
           </p>
         ) : null}
 
+        {step === 'pact' ? (
+          <fieldset className="mb-4 flex flex-col gap-2 text-sm">
+            <legend className="mb-1 font-medium">Who are you in this deal?</legend>
+            <label className="flex items-start gap-2">
+              <input type="radio" name="initiatedBy-choice" checked={values['initiatedBy'] !== 'SELLER'} onChange={() => set('initiatedBy', 'BUYER')} />
+              <span>
+                <span className="font-medium">We are buying</span> — diligence on a target we want to acquire or invest in.
+              </span>
+            </label>
+            <label className="flex items-start gap-2">
+              <input type="radio" name="initiatedBy-choice" checked={values['initiatedBy'] === 'SELLER'} onChange={() => set('initiatedBy', 'SELLER')} />
+              <span>
+                <span className="font-medium">We are selling (or raising)</span> — invite several buyers or investors, answer their questions and compare their offers.
+              </span>
+            </label>
+          </fieldset>
+        ) : null}
         {step === 'pact' ? (
           <div className="grid gap-4 sm:grid-cols-[2fr_1fr]">
             <Field label="Pact name">
@@ -435,7 +453,7 @@ export function PactWizard() {
             disabled={index === 0 || pending}
             onClick={() => {
               setProblem(null);
-              setStep(WIZARD_STEPS[index - 1] ?? step);
+              setStep(steps[index - 1] ?? step);
             }}
           >
             Back

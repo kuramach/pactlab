@@ -86,7 +86,7 @@ export class InvitationsService {
       if (pending) throw new ConflictException({ code: 'ALREADY_INVITED' });
       const token = randomBytes(32).toString('base64url');
       const invitation = await tx.dealInvitation.create({
-        data: { organizationId: tenant.organizationId, dealId, email: body.email, side: body.side, role: body.role, tokenHash: hashToken(token), invitedBy: tenant.userId, expiresAt: new Date(Date.now() + VALID_DAYS * 86_400_000) },
+        data: { organizationId: tenant.organizationId, dealId, email: body.email, side: body.side, role: body.role, bidId: body.bidId ?? null, tokenHash: hashToken(token), invitedBy: tenant.userId, expiresAt: new Date(Date.now() + VALID_DAYS * 86_400_000) },
       });
       const [deal, inviter] = await Promise.all([
         tx.deal.findFirst({ where: { id: dealId }, select: { name: true } }),

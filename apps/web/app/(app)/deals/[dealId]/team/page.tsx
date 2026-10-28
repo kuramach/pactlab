@@ -27,6 +27,7 @@ const ROLE_TEXT: Record<(typeof DEAL_ROLES)[number], { label: string; detail: st
   ADVISER: { label: 'Adviser', detail: 'Reads the deal and its evidence. Cannot change anything.' },
   VIEWER: { label: 'Viewer', detail: 'Reads the deal and its analysis. Cannot change anything.' },
   TARGET_CONTRIBUTOR: { label: 'Target contributor', detail: 'From the seller: supplies data and sees only what is shared with them.' },
+  BIDDER: { label: 'Bidder', detail: 'From a bidding firm: sees the shared view and their own bid only — never other bidders.' },
 };
 
 /** Who works on this deal, with which role — and adding colleagues. */

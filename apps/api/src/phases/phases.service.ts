@@ -12,6 +12,7 @@ import type {
 } from '@pactlab/contracts';
 import { appendAuditEvent, askingPrices, dealMemberships, withTenant, type PrismaClient, type TransactionClient } from '@pactlab/db';
 import {
+  isCounterpartyRole,
   newId,
   permissionsForDealRole,
   postCloseProposals,
@@ -24,7 +25,7 @@ import { DealAccess } from '../deals/deal-access';
 import { PRISMA } from '../tokens';
 
 const canRead = (role: DealRole) => permissionsForDealRole(role).has('BUYER_ANALYSIS_READ');
-const canWrite = (role: DealRole) => permissionsForDealRole(role).has('DEAL_WRITE') && role !== 'TARGET_CONTRIBUTOR';
+const canWrite = (role: DealRole) => permissionsForDealRole(role).has('DEAL_WRITE') && !isCounterpartyRole(role);
 /** Go / no-go is the deal lead's call. */
 const canDecide = (role: DealRole) => role === 'DEAL_LEAD';
 
@@ -284,7 +285,7 @@ export class PhasesService {
             version: row.version,
           }),
         ),
-        members: members.filter((member) => member.status === 'ACTIVE' && member.role !== 'TARGET_CONTRIBUTOR').map((member) => ({ userId: member.userId, displayName: member.displayName })),
+        members: members.filter((member) => member.status === 'ACTIVE' && !isCounterpartyRole(member.role)).map((member) => ({ userId: member.userId, displayName: member.displayName })),
         canEdit: canWrite(role),
       };
     });
@@ -295,7 +296,7 @@ export class PhasesService {
     await withTenant(this.prisma, tenant, async (tx) => {
       if (input.ownerUserId) {
         const owner = (await dealMemberships.list(tx, dealId)).find((member) => member.userId === input.ownerUserId && member.status === 'ACTIVE');
-        if (!owner || owner.role === 'TARGET_CONTRIBUTOR') throw new UnprocessableEntityException({ code: 'OWNER_NOT_MEMBER' });
+        if (!owner || isCounterpartyRole(owner.role)) throw new UnprocessableEntityException({ code: 'OWNER_NOT_MEMBER' });
       }
       const { count } = await tx.postCloseItem.updateMany({
         where: { id: itemId, dealId, version: input.expectedVersion },

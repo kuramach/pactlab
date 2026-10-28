@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   GoneException,
   Inject,
   Injectable,
@@ -31,6 +32,7 @@ import {
   type PrismaClient,
 } from '@pactlab/db';
 import {
+  isCounterpartyRole,
   categoriesForPack,
   categoryDefinition,
   customerContractGaps,
@@ -96,8 +98,9 @@ const has = (role: DealRole, permission: Permission) =>
 
 /** Buyers with deal write, and target contributors, may supply documents. */
 const canUpload = (role: DealRole) => has(role, 'DEAL_WRITE') || role === 'TARGET_CONTRIBUTOR';
+/** Counterparties (seller contributors, bidders) read only what is shared with them (RLS). */
 const canReadDocuments = (role: DealRole) =>
-  has(role, 'EVIDENCE_READ') || role === 'TARGET_CONTRIBUTOR';
+  has(role, 'EVIDENCE_READ') || isCounterpartyRole(role);
 /** Q&A answers are buyer analysis over evidence. */
 const canAsk = (role: DealRole) => has(role, 'EVIDENCE_READ') && has(role, 'BUYER_ANALYSIS_READ');
 const canExtract = (role: DealRole) => has(role, 'DEAL_WRITE') && has(role, 'BUYER_ANALYSIS_READ');
@@ -260,8 +263,10 @@ export class DocumentsService {
       aiExcluded: body.aiExcluded || PROHIBITED.has(body.dataClass),
       retentionClass: body.retentionClass,
       retainUntil: retainUntil(body.retentionClass, now),
-      // Target-supplied documents are visible to the target; buyer uploads are buyer-only.
-      visibility: role === 'TARGET_CONTRIBUTOR' ? 'SHARED' : 'BUYER_ONLY',
+      // Counterparty uploads are visible to the counterparty. The pact's own side keeps uploads to
+      // itself unless it shares one at upload (T-097: the seller's documents for bidders). Visibility
+      // never changes afterwards.
+      visibility: role === 'TARGET_CONTRIBUTOR' || body.shared ? 'SHARED' : 'BUYER_ONLY',
       malwareScanner: this.scanner.name,
       status: 'AVAILABLE',
       uploadedBy: tenant.userId,
@@ -289,7 +294,7 @@ export class DocumentsService {
         this.audit(
           tenant,
           dealId,
-          'document.uploaded',
+          body.shared && role !== 'TARGET_CONTRIBUTOR' ? 'document.uploaded_shared' : 'document.uploaded',
           { type: 'document', id: documentId },
           requestId,
         ),
@@ -317,15 +322,28 @@ export class DocumentsService {
     );
   }
 
+  /**
+   * A bidder opens shared documents only after accepting the seller's NDA
+   * (T-097). Their own bid is the only one RLS lets them read.
+   */
+  private async ndaGate(tenant: TenantContext, dealId: string, role: DealRole) {
+    if (role !== 'BIDDER') return;
+    const [process, bid] = await withTenant(this.prisma, tenant, (tx) =>
+      Promise.all([tx.saleProcess.findFirst({ where: { dealId }, select: { ndaText: true } }), tx.bid.findFirst({ where: { dealId }, select: { ndaAcceptedAt: true } })]),
+    );
+    if (!bid || (process?.ndaText && !bid.ndaAcceptedAt)) throw new ForbiddenException({ code: 'NDA_REQUIRED' });
+  }
+
   private async readable(
     tenant: TenantContext,
     dealId: string,
     documentId: string,
     role: DealRole,
   ) {
+    await this.ndaGate(tenant, dealId, role);
     const document = await this.documents.getDocument(tenant, dealId, documentId);
     if (!document) throw new NotFoundException();
-    if (role === 'TARGET_CONTRIBUTOR' && document.visibility !== 'SHARED')
+    if (isCounterpartyRole(role) && document.visibility !== 'SHARED')
       throw new NotFoundException();
     return document;
   }
@@ -357,11 +375,12 @@ export class DocumentsService {
       action: 'document.list',
       requestId,
     });
+    await this.ndaGate(tenant, dealId, role);
     const items = await this.documents.listDocuments(tenant, dealId, {
-      sharedOnly: role === 'TARGET_CONTRIBUTOR',
+      sharedOnly: isCounterpartyRole(role),
     });
     // The seller sees what their file was filed as, never the AI's reasoning or questions to the buyer.
-    if (role === 'TARGET_CONTRIBUTOR') {
+    if (isCounterpartyRole(role)) {
       return {
         items: items.map((document) => ({
           ...documentView(document),
@@ -595,6 +614,7 @@ export class DocumentsService {
             retentionClass: body.retentionClass,
             dataClass: body.dataClass,
             aiExcluded: body.aiExcluded,
+            shared: body.shared,
           },
           entry.folder,
           requestId,

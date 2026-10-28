@@ -31,6 +31,8 @@ interface Item {
   readonly from?: string;
   dataClass: 'BUSINESS' | 'FINANCIAL';
   aiExcluded: boolean;
+  /** Shared with the other party at upload (T-097); never changed later. */
+  shared: boolean;
   status: Status;
   message?: string;
 }
@@ -84,7 +86,7 @@ const SKIP_REASONS: Readonly<Record<string, string>> = {
  * exports to their import, balance sheets to the debt-and-cash reader. When
  * it is unsure it asks, under "Pactlab needs you". Nothing is dropped silently.
  */
-export function DocumentUploader({ dealId, aiOn }: { dealId: string; aiOn: boolean }) {
+export function DocumentUploader({ dealId, aiOn, shareLabel = null }: { dealId: string; aiOn: boolean; shareLabel?: string | null }) {
   const router = useRouter();
   const input = useRef<HTMLInputElement>(null);
   const [items, setItems] = useState<Item[]>([]);
@@ -109,6 +111,7 @@ export function DocumentUploader({ dealId, aiOn }: { dealId: string; aiOn: boole
         file,
         dataClass: guessDataClass(file.name),
         aiExcluded: false,
+        shared: false,
         status: 'problem' in checked ? 'failed' : 'ready',
         ...('problem' in checked ? { message: UPLOAD_PROBLEMS[checked.problem] } : {}),
       };
@@ -149,6 +152,7 @@ export function DocumentUploader({ dealId, aiOn }: { dealId: string; aiOn: boole
         from: item.name,
         dataClass: item.dataClass,
         aiExcluded: item.aiExcluded,
+        shared: item.shared,
         documentId: file.documentId,
         status: file.outcome === 'UPLOADED' ? 'uploaded' : file.outcome === 'DUPLICATE' ? 'duplicate' : file.outcome === 'SKIPPED' ? 'skipped' : 'failed',
         ...(file.outcome === 'DUPLICATE' ? { message: 'Already in this deal; not added twice.' } : {}),
@@ -173,6 +177,7 @@ export function DocumentUploader({ dealId, aiOn }: { dealId: string; aiOn: boole
       form.set('file', item.file as File);
       form.set('dataClass', item.dataClass);
       if (item.aiExcluded) form.set('aiExcluded', 'on');
+      if (item.shared) form.set('shared', 'on');
       if (isArchive(item.name)) {
         await unpack(item, form);
         router.refresh();
@@ -244,6 +249,11 @@ export function DocumentUploader({ dealId, aiOn }: { dealId: string; aiOn: boole
                   <label className="flex items-center gap-2">
                     <input type="checkbox" checked={item.aiExcluded} onChange={(event) => update(item.key, { aiExcluded: event.target.checked })} /> Keep away from AI
                   </label>
+                  {shareLabel ? (
+                    <label className="flex items-center gap-2" title="Chosen now; it cannot be changed after upload.">
+                      <input type="checkbox" checked={item.shared} onChange={(event) => update(item.key, { shared: event.target.checked })} /> {shareLabel}
+                    </label>
+                  ) : null}
                   <button type="button" className="text-muted-foreground underline" onClick={() => setItems((current) => current.filter((entry) => entry.key !== item.key))}>
                     Remove
                   </button>

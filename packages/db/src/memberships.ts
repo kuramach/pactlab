@@ -77,6 +77,7 @@ export interface CreateDealInput {
   targetName: string;
   transactionType: DealRecord['transactionType'];
   baseCurrency: string;
+  initiatedBy?: 'BUYER' | 'SELLER';
 }
 
 /**
@@ -109,6 +110,7 @@ export async function createDealWithLead(
         stage: true,
         status: true,
         baseCurrency: true,
+        initiatedBy: true,
         createdAt: true,
       },
     });

@@ -216,6 +216,7 @@ enum DealRole {
   ADVISER
   TARGET_CONTRIBUTOR
   VIEWER
+  BIDDER
 
   @@map("deal_role")
 }
@@ -529,6 +530,8 @@ model Deal {
   status          String          @default("ACTIVE")
   baseCurrency    String          @default("USD") @map("base_currency") @db.Char(3)
   createdBy       String          @map("created_by") @db.Uuid
+  /// BUYER: the buyer opened the pact (diligence). SELLER: the seller runs a bid process (T-097, ADR 0015).
+  initiatedBy             String                  @default("BUYER") @map("initiated_by")
   createdAt       DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt       DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
 
@@ -613,6 +616,8 @@ model DealMembership {
   dealId         String           @map("deal_id") @db.Uuid
   userId         String           @map("user_id") @db.Uuid
   role           DealRole
+  /// For a BIDDER: the bid (firm) they act for.
+  bidId          String?          @map("bid_id") @db.Uuid
   status         MembershipStatus @default(ACTIVE)
   createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
 
@@ -1998,6 +2003,7 @@ model DealInvitation {
   /// BUYER | SELLER | ADVISOR
   side           String
   role           DealRole
+  bidId       String?    @map("bid_id") @db.Uuid
   tokenHash      String    @unique @map("token_hash")
   /// PENDING | ACCEPTED | REVOKED (expiry is read from expires_at)
   status         String    @default("PENDING")
@@ -2012,4 +2018,105 @@ model DealInvitation {
 
   @@index([organizationId, dealId, createdAt])
   @@map("deal_invitations")
+}
+
+/// A seller-led pact's bid process (T-097, ADR 0015). The seller's side runs it; bidders read it.
+model SaleProcess {
+  dealId         String    @map("deal_id") @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  /// OPEN | AWARDED | CLOSED
+  status         String    @default("OPEN")
+  round          Int       @default(1)
+  offerDeadline  DateTime? @map("offer_deadline") @db.Timestamptz(3)
+  sharedSummary  String?   @map("shared_summary")
+  dataRoomUrl    String?   @map("data_room_url")
+  ndaText        String?   @map("nda_text")
+  awardedBidId   String?   @map("awarded_bid_id") @db.Uuid
+  updatedBy      String    @map("updated_by") @db.Uuid
+  updatedAt      DateTime  @default(now()) @map("updated_at") @db.Timestamptz(3)
+
+  @@id([organizationId, dealId])
+  @@map("sale_processes")
+}
+
+/// One bidding firm in a seller-led pact. A bidder sees only their own (RLS).
+model Bid {
+  id            String    @id @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  dealId        String    @map("deal_id") @db.Uuid
+  firmName      String    @map("firm_name")
+  /// INVITED | ACTIVE | OFFERED | PASSED | SHORTLISTED | DECLINED | WON
+  status        String    @default("INVITED")
+  round         Int       @default(1)
+  ndaAcceptedAt DateTime? @map("nda_accepted_at") @db.Timestamptz(3)
+  ndaAcceptedBy String?   @map("nda_accepted_by") @db.Uuid
+  passReason    String?   @map("pass_reason")
+  decidedAt     DateTime? @map("decided_at") @db.Timestamptz(3)
+  createdBy     String    @map("created_by") @db.Uuid
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  offers    BidOffer[]
+  questions BidQuestion[]
+
+  @@unique([organizationId, dealId, id], map: "bids_org_deal_id_key")
+  @@index([organizationId, dealId, createdAt], map: "bids_org_deal_created_idx")
+  @@map("bids")
+}
+
+/// A bidder's offer. Every version is kept; money is decimal with its currency.
+model BidOffer {
+  id             String    @id @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  dealId         String    @map("deal_id") @db.Uuid
+  bidId          String    @map("bid_id") @db.Uuid
+  version        Int
+  round          Int
+  price          Decimal   @db.Decimal(24, 4)
+  currency       String    @db.Char(3)
+  preMoney       Decimal?  @map("pre_money") @db.Decimal(24, 4)
+  structure      String
+  conditions     String?
+  validUntil     DateTime? @map("valid_until") @db.Date
+  submittedBy    String    @map("submitted_by") @db.Uuid
+  submittedAt    DateTime  @default(now()) @map("submitted_at") @db.Timestamptz(3)
+
+  bid Bid @relation(fields: [organizationId, dealId, bidId], references: [organizationId, dealId, id], onDelete: Restrict, map: "bid_offers_bid_fkey")
+
+  @@unique([organizationId, dealId, bidId, version], map: "bid_offers_bid_version_key")
+  @@map("bid_offers")
+}
+
+/// A bidder's question; private to that bidder unless an answer is published to all.
+model BidQuestion {
+  id             String    @id @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  dealId         String    @map("deal_id") @db.Uuid
+  bidId          String    @map("bid_id") @db.Uuid
+  question       String
+  askedBy        String    @map("asked_by") @db.Uuid
+  askedAt        DateTime  @default(now()) @map("asked_at") @db.Timestamptz(3)
+  answer         String?
+  /// PRIVATE | ALL
+  answerScope    String?   @map("answer_scope")
+  answeredBy     String?   @map("answered_by") @db.Uuid
+  answeredAt     DateTime? @map("answered_at") @db.Timestamptz(3)
+
+  bid Bid @relation(fields: [organizationId, dealId, bidId], references: [organizationId, dealId, id], onDelete: Restrict, map: "bid_questions_bid_fkey")
+
+  @@index([organizationId, dealId, askedAt], map: "bid_questions_org_deal_asked_idx")
+  @@map("bid_questions")
+}
+
+/// An answer published to every bidder, with no link to who asked.
+model BidAnswerPublished {
+  id             String   @id @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  dealId         String   @map("deal_id") @db.Uuid
+  question       String
+  answer         String
+  publishedBy    String   @map("published_by") @db.Uuid
+  publishedAt    DateTime @default(now()) @map("published_at") @db.Timestamptz(3)
+
+  @@index([organizationId, dealId, publishedAt], map: "bid_answers_published_org_deal_idx")
+  @@map("bid_answers_published")
 }

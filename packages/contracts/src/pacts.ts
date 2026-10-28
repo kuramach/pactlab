@@ -82,12 +82,18 @@ export const startPactSchema = z
   .strictObject({
     name: z.string().trim().min(1).max(200),
     baseCurrency: isoCurrencySchema.default('USD'),
-    buyer: partyInputSchema,
+    /**
+     * Who opens the pact (T-097): BUYER (diligence on a target) or SELLER (the
+     * seller runs a bid process and invites bidders; there is no single buyer yet).
+     */
+    initiatedBy: z.enum(['BUYER', 'SELLER']).default('BUYER'),
+    buyer: partyInputSchema.nullable().default(null),
     seller: partyInputSchema,
     /** Optional: the asking price may not be known when the Pact starts. */
     askingPrice: askingPriceInputSchema.nullable().default(null),
   })
   .superRefine((pact, ctx) => {
+    if (pact.initiatedBy === 'BUYER' && !pact.buyer) ctx.addIssue({ code: 'custom', path: ['buyer'], message: 'Say who is buying' });
     if (!pact.seller.companyType) {
       ctx.addIssue({ code: 'custom', path: ['seller', 'companyType'], message: 'Say what kind of company the seller is' });
     }

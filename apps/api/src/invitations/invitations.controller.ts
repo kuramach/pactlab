@@ -5,7 +5,7 @@ import { Public } from '../auth/auth.guard';
 import { Tenant } from '../auth/tenant.decorator';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { RequestId } from '../deals/request-id.decorator';
-import { createInvitationSchema, invitationParamsSchema, invitationTokenSchema, type CreateInvitationBody } from './invitations.schemas';
+import { publicCreateInvitationSchema, invitationParamsSchema, invitationTokenSchema, type CreateInvitationBody } from './invitations.schemas';
 import { InvitationsService } from './invitations.service';
 
 /** The pact's lead manages invitations to it (T-094 B12). */
@@ -24,7 +24,7 @@ export class DealInvitationsController {
     @Tenant() tenant: TenantContext,
     @RequestId() requestId: string,
     @Param(new ZodValidationPipe(dealParamsSchema)) params: { dealId: string },
-    @Body(new ZodValidationPipe(createInvitationSchema)) body: CreateInvitationBody,
+    @Body(new ZodValidationPipe(publicCreateInvitationSchema)) body: CreateInvitationBody,
   ) {
     return this.invitations.create(tenant, params.dealId, body, requestId);
   }

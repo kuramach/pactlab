@@ -1,6 +1,6 @@
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle, EmptyState, Glossed } from '@pactlab/ui';
 import Link from 'next/link';
-import { apiGet } from '../../_lib/api';
+import { apiGet, dealsApi } from '../../_lib/api';
 import { OutcomeBanner } from '../../_lib/outcome';
 import { ApiState } from '../../_lib/states';
 import { can, dealViewer } from '../../_lib/viewer';
@@ -76,7 +76,7 @@ export default async function DocumentsPage({
   const outcomeParam = (await searchParams)['outcome'];
   const outcome = typeof outcomeParam === 'string' ? outcomeParam : undefined;
   const drafted = outcome?.match(/^ok-drafted-(\d+)$/)?.[1];
-  const [documents, findings, page, viewer, ai, intake, sources, requests] = await Promise.all([
+  const [documents, findings, page, viewer, ai, intake, sources, requests, pact] = await Promise.all([
     apiGet<{ items: DocumentListItem[] }>(`${deal(dealId)}/documents`),
     apiGet<{ items: DocumentFindingItem[] }>(`${deal(dealId)}/document-findings`),
     view.documentId
@@ -89,6 +89,7 @@ export default async function DocumentsPage({
     apiGet<IntakeView>(`${deal(dealId)}/intake`),
     apiGet<SourcesView>(`${deal(dealId)}/document-sources`),
     apiGet<{ items: DocumentRequestView[] }>(`${deal(dealId)}/document-requests`),
+    dealsApi.get(dealId),
   ]);
   const hasSeller = viewer.members.some((member) => member.role === 'TARGET_CONTRIBUTOR' && member.status === 'ACTIVE');
   const categoryLabels = intake.kind === 'ok' ? Object.fromEntries(intake.data.categories.map((category) => [category.id, category.label])) : {};
@@ -147,7 +148,11 @@ export default async function DocumentsPage({
             <CardTitle className="text-base">{viewer.role === 'TARGET_CONTRIBUTOR' ? 'Share documents with the buyer' : 'Upload documents'}</CardTitle>
           </CardHeader>
           <CardContent>
-            <DocumentUploader dealId={dealId} aiOn={aiOn} />
+            <DocumentUploader
+              dealId={dealId}
+              aiOn={aiOn}
+              shareLabel={viewer.role === 'TARGET_CONTRIBUTOR' || viewer.role === 'BIDDER' ? null : pact.kind === 'ok' && pact.data.initiatedBy === 'SELLER' ? 'Share with bidders' : 'Share with the seller'}
+            />
           </CardContent>
         </Card>
         <Card>

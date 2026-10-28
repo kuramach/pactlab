@@ -34,6 +34,8 @@ export interface DealListItem {
   phase: 'PRE' | 'DILIGENCE' | 'POST';
   status: string;
   baseCurrency?: string;
+  /** BUYER: buyer-led diligence. SELLER: the seller runs a bid process (T-097). */
+  initiatedBy?: 'BUYER' | 'SELLER';
   parties?: DealSummary['parties'];
   askingPrice?: DealSummary['askingPrice'];
 }
