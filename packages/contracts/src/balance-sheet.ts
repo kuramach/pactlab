@@ -121,3 +121,27 @@ export interface BalanceSheetView {
   /** Documents that may be cited: not purged, and not people data. */
   documents: { id: string; fileName: string; pageCount: number }[];
 }
+
+/** Read an uploaded balance sheet for proposals (T-094 B9). */
+export const balanceSheetProposalParamsSchema = z.strictObject({ dealId: z.uuid(), documentId: z.uuid() });
+
+/** A line a person may confirm into a balance-sheet item; nothing is recorded until they do. */
+export interface BalanceSheetProposalView {
+  kind: (typeof BALANCE_SHEET_KINDS)[number];
+  category: (typeof ALL_CATEGORIES)[number];
+  label: string;
+  amount: string;
+  currency: string | null;
+  pageNumber: number;
+  quote: string;
+  lender: string | null;
+}
+
+export interface BalanceSheetProposalsView {
+  documentId: string;
+  /** The "as at" date the document states, if it states one. */
+  asOf: string | null;
+  proposals: BalanceSheetProposalView[];
+  /** Lines already recorded as items, so they are not proposed twice. */
+  alreadyRecorded: number;
+}
