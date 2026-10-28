@@ -8,6 +8,7 @@ import { isUuidParam } from '../../_lib/filters';
 import { OutcomeBanner } from '../../_lib/outcome';
 import { ApiState } from '../../_lib/states';
 import { createClaim, updateClaim } from './actions';
+import { CLAIM_VERDICT } from '../../_lib/seller-claims';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,11 +25,7 @@ const OUTCOMES: Record<string, string> = {
   forbidden: 'Your role cannot change claims on this deal.',
 };
 
-const STATUS_LOOK = {
-  UNVERIFIED: { label: 'Unverified', variant: 'draft' },
-  VERIFIED: { label: 'Verified', variant: 'calculation' },
-  CONTRADICTED: { label: 'Contradicted', variant: 'danger' },
-} as const;
+const STATUS_LOOK = CLAIM_VERDICT;
 
 /** Diligence: what the seller says, tested against what the evidence shows. */
 export default async function ClaimsPage({ params, searchParams }: { params: Promise<{ dealId: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
@@ -46,10 +43,10 @@ export default async function ClaimsPage({ params, searchParams }: { params: Pro
   return (
     <div className="flex max-w-5xl flex-col gap-6">
       <div className="flex flex-col gap-1">
-        <h2 className="text-lg font-semibold tracking-tight">Said vs observed</h2>
+        <h2 className="text-lg font-semibold tracking-tight">Seller statements</h2>
         <p className="text-sm text-muted-foreground">
-          What the seller asserts — in the CIM, on management calls, in the data room — tested against the evidence. {counts['UNVERIFIED']} unverified · {counts['VERIFIED']} verified ·{' '}
-          {counts['CONTRADICTED']} contradicted.
+          What the seller asserts — in the CIM, on management calls, in the data room — tested against the evidence. {counts['UNVERIFIED']} not checked yet · {counts['VERIFIED']} confirmed ·{' '}
+          {counts['CONTRADICTED']} contradicted. Each verdict also shows on the findings it is linked to.
         </p>
       </div>
       <OutcomeBanner outcome={typeof outcome === 'string' ? outcome : undefined} messages={OUTCOMES} />
@@ -114,7 +111,7 @@ export default async function ClaimsPage({ params, searchParams }: { params: Pro
                         <label className="flex flex-col gap-1 font-medium">
                           Status
                           <select name="status" defaultValue={claim.status} className={inputClass}>
-                            <option value="UNVERIFIED">Unverified</option>
+                            <option value="UNVERIFIED">Not checked yet</option>
                             <option value="VERIFIED">Verified by the evidence</option>
                             <option value="CONTRADICTED">Contradicted by the evidence</option>
                           </select>

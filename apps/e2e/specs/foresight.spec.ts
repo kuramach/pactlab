@@ -5,7 +5,8 @@ import { startPact } from '../support/deals';
 test('Foresight explains what it needs when AI is off', async ({ page }) => {
   const dealId = await startPact(page, 'Multifamily');
   await page.goto(`/deals/${dealId}`);
-  await page.getByRole('link', { name: 'Foresight' }).click();
+  await page.getByRole('navigation', { name: 'Deal sections' }).getByRole('link', { name: 'Valuation' }).click();
+  await page.getByRole('navigation', { name: 'Valuation sections' }).getByRole('link', { name: 'Foresight' }).click();
   await expect(page).toHaveURL(new RegExp(`/deals/${dealId}/foresight`));
   await expect(page.getByRole('heading', { name: 'Foresight' })).toBeVisible();
   await expect(page.getByText('not a prediction')).toBeVisible();
