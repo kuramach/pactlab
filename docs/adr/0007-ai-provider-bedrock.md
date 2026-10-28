@@ -37,3 +37,27 @@ Turning AI on is an operator action: enable the Claude models in the Bedrock
 console, sign in with SSO, set `AI_PROVIDER`/`AWS_REGION`/`AWS_PROFILE`, run
 `pnpm ai:check`. Streaming, prompt caching, the effort parameter and OCR for
 scanned PDFs are follow-ups.
+
+## Addendum (2026-10-27): always-on AI in deployed environments
+
+Local testing showed the failure mode a human sign-in creates: when the
+operator's SSO session expires, every model call fails. Deployed
+environments must not depend on a person.
+
+- **Identity:** API and worker tasks call Bedrock with an ECS task role,
+  scoped to the configured inference profiles. Credentials come from the
+  default chain and are refreshed by the platform; no profiles, no static
+  keys, no Bedrock API keys. A CDK test enforces this.
+- **Resilience:** transient errors retry with backoff and jitter; a route
+  may name a tested fallback Claude model or profile (recorded on the run);
+  a circuit breaker fails fast with `AI_DELAYED` during an outage.
+- **Durability:** model calls run as idempotent BullMQ jobs, so an outage
+  delays drafts instead of losing them; exhausted jobs go to the
+  dead-letter queue for re-queue.
+- **Degradation:** everything that does not need the model keeps working;
+  the UI says AI is delayed and requests are queued.
+- **Monitoring:** error-class-only metrics and alarms on error rate, AI job
+  age and breaker state.
+
+Local development keeps SSO sign-in by design. Work is tracked in T-096;
+the deployed parts land with T-070.
