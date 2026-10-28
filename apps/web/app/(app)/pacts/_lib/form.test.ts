@@ -53,6 +53,7 @@ describe('pactFromForm', () => {
           companyType: 'SOFTWARE_SAAS',
         },
         askingPrice: null,
+        linkedSale: null,
       },
     });
   });

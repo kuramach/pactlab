@@ -2,7 +2,7 @@ import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from '@pactla
 import { apiGet } from '../../_lib/api';
 import { OutcomeBanner } from '../../_lib/outcome';
 import { ApiState } from '../../_lib/states';
-import { acceptNda, askQuestion, passBid, submitOffer } from './actions';
+import { acceptNda, askQuestion, passBid, startLinkedPact, submitOffer } from './actions';
 
 interface OfferView {
   id: string;
@@ -18,7 +18,8 @@ interface OfferView {
 }
 
 interface MyBidView {
-  pact: { name: string; company: string; currency: string };
+  pact: { organizationId: string; dealId: string; name: string; company: string; companyType: string | null; currency: string };
+  handover: { sellerLeadName: string | null; sellerLeadEmail: string | null } | null;
   process: { status: 'OPEN' | 'AWARDED' | 'CLOSED'; round: number; offerDeadline: string | null; ndaText: string | null; sharedSummary: string | null; dataRoomUrl: string | null };
   bid: { id: string; firmName: string; status: string; round: number; ndaAccepted: boolean; passReason: string | null };
   offers: OfferView[];
@@ -33,6 +34,8 @@ const OUTCOMES: Record<string, string> = {
   'ok-passed': 'You have passed on this pact.',
   'offer-invalid': 'Check the offer: a price above zero, a currency and a few words on structure.',
   'question-short': 'Write a question of at least a few words.',
+  'not-won': 'Only the winning bidder starts a diligence pact from the sale.',
+  'no-home': 'Your own organization could not be opened. Sign out and in again, then try once more.',
   conflict: 'That cannot be done now — the deadline may have passed or the process has closed.',
   forbidden: 'Accept the NDA first.',
 };
@@ -220,7 +223,18 @@ export default async function BidPage({ params, searchParams }: { params: Promis
                   </Button>
                 </form>
               ) : null}
-              {bid.status === 'WON' ? <p className="font-medium">The seller has selected your offer. They will be in touch about next steps.</p> : null}
+              {bid.status === 'WON' ? (
+                <div className="flex flex-col gap-2 rounded-md border border-border bg-muted/30 p-3">
+                  <p className="font-medium">The seller has selected your offer.</p>
+                  <p>
+                    Do your own diligence in a pact of your own: Pactlab starts a buyer-led pact in <span className="font-medium">your</span> organization, linked to this sale, and invites{' '}
+                    {mine.data.handover?.sellerLeadName ?? 'the seller’s deal lead'} into it as the seller. Your analysis stays with your team — the seller sees only what you share.
+                  </p>
+                  <form action={startLinkedPact.bind(null, dealId)}>
+                    <Button type="submit">Start your diligence pact</Button>
+                  </form>
+                </div>
+              ) : null}
               {bid.status === 'PASSED' && bid.passReason ? <p className="text-muted-foreground">You passed: {bid.passReason}</p> : null}
             </CardContent>
           </Card>
