@@ -5,3 +5,4 @@ export * from './engineering';
 export * from './packs';
 export * from './foresight';
 export * from './venture';
+export * from './regulatory';

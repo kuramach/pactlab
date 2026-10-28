@@ -1,0 +1,42 @@
+{
+  "rounds": [
+    {
+      "round": 1,
+      "date": "2023-11-02",
+      "regulator": "Federal antitrust agency (synthetic)",
+      "criticisms": [
+        {
+          "topic": "SIZE",
+          "substance": "The 413-site proposal leaves too many overlap markets untouched."
+        }
+      ]
+    },
+    {
+      "round": 2,
+      "date": "2024-02-12",
+      "regulator": "Federal antitrust agency (synthetic)",
+      "criticisms": [
+        {
+          "topic": "COHERENCE",
+          "substance": "The package is a patchwork of banners and stores without the distribution and systems to run them as one business."
+        }
+      ]
+    }
+  ],
+  "revisions": [
+    {
+      "revision": 2,
+      "date": "2024-01-18",
+      "addresses": [
+        "SIZE"
+      ]
+    },
+    {
+      "revision": 3,
+      "date": "2024-04-22",
+      "addresses": [
+        "SIZE"
+      ]
+    }
+  ]
+}
