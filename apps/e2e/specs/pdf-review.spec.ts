@@ -12,7 +12,8 @@ test('a PDF opens as its original page beside the review queue, with its extract
   await page.locator('input[type="file"]').setInputFiles({ name: 'partner-bank.pdf', mimeType: 'application/pdf', buffer: pdf });
   await page.getByRole('button', { name: 'Upload', exact: true }).click();
   await page.getByRole('navigation', { name: 'Documents' }).getByRole('link', { name: /partner-bank\.pdf/ }).click();
-  await page.getByRole('link', { name: 'Next page →' }).click();
+  await page.getByRole('navigation', { name: 'Pages' }).first().getByRole('link', { name: 'Next page →' }).click();
+  await expect(page.getByRole('navigation', { name: 'Pages' }).first().getByText('Page 2 of 2')).toBeVisible();
 
   const original = page.getByRole('figure', { name: 'partner-bank.pdf, page 2, as the original PDF' });
   await expect(original).toBeVisible();

@@ -7,7 +7,7 @@ test('a data-room document uploads, opens by page, and AI explains plainly that 
   await uploadDocument(page, dealId, 'customer-contract.txt', 'Master subscription agreement (synthetic).\n\nThe customer may terminate for convenience on 30 days notice.');
 
   await page.getByRole('navigation', { name: 'Documents' }).getByRole('link', { name: /customer-contract\.txt/ }).click();
-  await expect(page.getByText('customer-contract.txt — page 1 of 1')).toBeVisible();
+  await expect(page.getByRole('navigation', { name: 'Pages' }).first().getByText('Page 1 of 1')).toBeVisible();
   await expect(page.getByText('may terminate for convenience')).toBeVisible();
 
   await page.getByRole('button', { name: 'Re-run AI extraction' }).click();
