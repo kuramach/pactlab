@@ -5,6 +5,7 @@ describe('document upload rules', () => {
   it('accepts the supported types within their limits', () => {
     expect(checkFile('01-msa.pdf', 200_000)).toEqual({ contentType: 'application/pdf' });
     expect(checkFile('notes.MD', 1_000)).toEqual({ contentType: 'text/markdown' });
+    expect(checkFile('Data room.ZIP', 9 * 1024 * 1024)).toEqual({ contentType: 'application/zip' });
   });
 
   it('names the problem for empty, unsupported and oversized files', () => {
@@ -12,6 +13,7 @@ describe('document upload rules', () => {
     expect(checkFile('old.xls', 1_000)).toEqual({ problem: 'type' });
     expect(checkFile('big.txt', 600 * 1024)).toEqual({ problem: 'too-large' });
     expect(checkFile('big.pdf', 11 * 1024 * 1024)).toEqual({ problem: 'too-large' });
+    expect(checkFile('big.zip', 11 * 1024 * 1024)).toEqual({ problem: 'too-large' });
   });
 
   it('defaults financial-looking files to financial information', () => {

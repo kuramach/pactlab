@@ -51,7 +51,7 @@ export type IntakeDecision =
 /** "a balance sheet", "an income statement (P&L)". */
 function named(category: string): string {
   const text = categoryDefinition(category as IntakeCategory).label;
-  const lower = /^[A-Z][a-z]/.test(text) ? text[0]!.toLowerCase() + text.slice(1) : text;
+  const lower = /^[A-Z][a-z]/.test(text) ? text.charAt(0).toLowerCase() + text.slice(1) : text;
   return `${/^[aeiou]/i.test(lower) ? 'an' : 'a'} ${lower}`;
 }
 

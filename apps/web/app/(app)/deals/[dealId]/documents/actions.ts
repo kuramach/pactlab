@@ -4,7 +4,7 @@ import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import { AI_UNAVAILABLE, aiOutcome } from './ai-messages';
 import { apiSend } from '../../_lib/api';
-import { checkFile, UPLOAD_PROBLEMS } from './upload-rules';
+import { checkFile, isArchive, UPLOAD_PROBLEMS } from './upload-rules';
 
 const uuid = z.uuid();
 
@@ -26,6 +26,7 @@ export async function uploadOne(dealId: string, formData: FormData): Promise<Upl
   if (!(file instanceof File)) return { kind: 'error', message: UPLOAD_PROBLEMS['no-file'] };
   const checked = checkFile(file.name, file.size);
   if ('problem' in checked) return { kind: 'error', message: UPLOAD_PROBLEMS[checked.problem] };
+  if (isArchive(file.name)) return { kind: 'error', message: 'Zip files go through the archive upload.' };
   const result = await apiSend<{ id: string; duplicate?: boolean }>('POST', `/v1/deals/${dealId}/documents`, {
     fileName: file.name,
     contentType: checked.contentType,
@@ -38,6 +39,88 @@ export async function uploadOne(dealId: string, formData: FormData): Promise<Upl
   if (result.kind === 'unavailable') return { kind: 'error', message: UPLOAD_PROBLEMS.unavailable };
   if (result.kind === 'forbidden') return { kind: 'error', message: 'You do not have permission to upload to this deal.' };
   return { kind: 'error', message: UPLOAD_PROBLEMS.failed };
+}
+
+export interface ArchiveFile {
+  readonly path: string;
+  readonly outcome: 'UPLOADED' | 'DUPLICATE' | 'REJECTED' | 'SKIPPED';
+  readonly reason: string | null;
+  readonly documentId: string | null;
+}
+
+export type ArchiveResult = { kind: 'ok'; files: ArchiveFile[] } | { kind: 'error'; message: string };
+
+const ARCHIVE_PROBLEMS: Readonly<Record<string, string>> = {
+  ARCHIVE_NOT_A_ZIP: 'This is not a zip file Pactlab can open. Nothing was uploaded.',
+  ARCHIVE_EMPTY: 'The zip has no files in it. Nothing was uploaded.',
+};
+
+/**
+ * Upload a zip of deal files (T-098). The API unpacks it and uploads every
+ * file inside on its own; each file's outcome comes back so the screen can
+ * list them all — nothing in the archive disappears silently.
+ */
+export async function uploadArchive(dealId: string, formData: FormData): Promise<ArchiveResult> {
+  if (!uuid.safeParse(dealId).success) return { kind: 'error', message: 'Unknown deal.' };
+  const file = formData.get('file');
+  if (!(file instanceof File) || !isArchive(file.name)) return { kind: 'error', message: UPLOAD_PROBLEMS['no-file'] };
+  const checked = checkFile(file.name, file.size);
+  if ('problem' in checked) return { kind: 'error', message: UPLOAD_PROBLEMS[checked.problem] };
+  const result = await apiSend<{ files: { path: string; outcome: ArchiveFile['outcome']; reason: string | null; document: { id: string } | null }[] }>(
+    'POST',
+    `/v1/deals/${dealId}/document-archives`,
+    {
+      fileName: file.name,
+      contentBase64: Buffer.from(await file.arrayBuffer()).toString('base64'),
+      dataClass: formData.get('dataClass') === 'FINANCIAL' ? 'FINANCIAL' : 'BUSINESS',
+      aiExcluded: formData.get('aiExcluded') === 'on',
+    },
+  );
+  if (result.kind === 'ok') {
+    return { kind: 'ok', files: result.data.files.map((entry) => ({ path: entry.path, outcome: entry.outcome, reason: entry.reason, documentId: entry.document?.id ?? null })) };
+  }
+  if (result.kind === 'invalid') return { kind: 'error', message: (result.code && ARCHIVE_PROBLEMS[result.code]) ?? UPLOAD_PROBLEMS.rejected };
+  if (result.kind === 'unavailable') return { kind: 'error', message: UPLOAD_PROBLEMS.unavailable };
+  if (result.kind === 'forbidden') return { kind: 'error', message: 'You do not have permission to upload to this deal.' };
+  return { kind: 'error', message: 'The zip was not accepted. It may be over 10 MB, hold more than 200 files or unpack to more than 100 MB. Nothing was uploaded.' };
+}
+
+/** Where a filed document goes next (mirrors the API's route). */
+export type IntakeRoute = { kind: 'IMPORT'; target: string } | { kind: 'BALANCE_SHEET' } | { kind: 'EXTRACT' } | { kind: 'FILE' };
+
+export type ClassifyResult =
+  | { kind: 'filed'; label: string; route: IntakeRoute; counterpartyName: string | null; byPerson: boolean }
+  | { kind: 'needs-you'; question: string }
+  | { kind: 'error'; message: string };
+
+type IntakeResponse = { state: string; label: string | null; route: IntakeRoute | null; question: string | null; counterpartyName: string | null; source: 'AI' | 'PERSON' | null };
+
+/** The AI reads one document and files it, or leaves a question for a person (T-098). */
+export async function classifyOne(dealId: string, documentId: string): Promise<ClassifyResult> {
+  if (!uuid.safeParse(dealId).success || !uuid.safeParse(documentId).success) return { kind: 'error', message: 'Unknown document.' };
+  const result = await apiSend<IntakeResponse>('POST', `/v1/deals/${dealId}/documents/${documentId}/classification`, {});
+  if (result.kind === 'ok') {
+    const data = result.data;
+    if (data.state === 'FILED' && data.route && data.label) {
+      return { kind: 'filed', label: data.label, route: data.route, counterpartyName: data.counterpartyName, byPerson: data.source === 'PERSON' };
+    }
+    return { kind: 'needs-you', question: data.question ?? 'What is this file?' };
+  }
+  if (result.kind === 'unavailable') return { kind: 'error', message: AI_UNAVAILABLE[aiOutcome(result.code)] };
+  return { kind: 'error', message: 'Pactlab could not sort this file. It is listed under “Pactlab needs you” on the next refresh.' };
+}
+
+export type CategorizeResult = { kind: 'ok' } | { kind: 'error'; message: string };
+
+/** A person files a document: answers the AI's question or corrects its category. */
+export async function categorizeDocument(dealId: string, documentId: string, category: string): Promise<CategorizeResult> {
+  if (!uuid.safeParse(dealId).success || !uuid.safeParse(documentId).success) return { kind: 'error', message: 'Unknown document.' };
+  if (!/^[A-Z][A-Z0-9_]{1,59}$/.test(category)) return { kind: 'error', message: 'Choose what this file is.' };
+  const result = await apiSend('PUT', `/v1/deals/${dealId}/documents/${documentId}/category`, { category });
+  if (result.kind === 'ok') return { kind: 'ok' };
+  if (result.kind === 'forbidden') return { kind: 'error', message: 'You do not have permission to file documents in this deal.' };
+  if (result.kind === 'invalid') return { kind: 'error', message: 'That category is not offered for this pact.' };
+  return { kind: 'error', message: 'The answer was not saved. Try again.' };
 }
 
 export type ExtractResult = { kind: 'ok'; drafted: number } | { kind: 'skipped'; message: string } | { kind: 'error'; message: string };

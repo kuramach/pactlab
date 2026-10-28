@@ -5,6 +5,7 @@ import { OutcomeBanner } from '../../_lib/outcome';
 import { ApiState } from '../../_lib/states';
 import { can, dealViewer } from '../../_lib/viewer';
 import { extractDocument } from './actions';
+import { IntakePanel, type IntakeView } from './intake-panel';
 import { DocumentLibrary } from './library';
 import { ReviewQueue } from './review-queue';
 import { DocumentUploader } from './uploader';
@@ -73,7 +74,7 @@ export default async function DocumentsPage({
   const outcomeParam = (await searchParams)['outcome'];
   const outcome = typeof outcomeParam === 'string' ? outcomeParam : undefined;
   const drafted = outcome?.match(/^ok-drafted-(\d+)$/)?.[1];
-  const [documents, findings, page, viewer, ai] = await Promise.all([
+  const [documents, findings, page, viewer, ai, intake] = await Promise.all([
     apiGet<{ items: DocumentListItem[] }>(`${deal(dealId)}/documents`),
     apiGet<{ items: DocumentFindingItem[] }>(`${deal(dealId)}/document-findings`),
     view.documentId
@@ -83,7 +84,9 @@ export default async function DocumentsPage({
       : Promise.resolve(null),
     dealViewer(dealId),
     apiGet<AiStatus>('/v1/ai/status'),
+    apiGet<IntakeView>(`${deal(dealId)}/intake`),
   ]);
+  const categoryLabels = intake.kind === 'ok' ? Object.fromEntries(intake.data.categories.map((category) => [category.id, category.label])) : {};
   const aiOn = ai.kind === 'ok' && ai.data.enabled;
   const balanced = ai.kind === 'ok' ? ai.data.routes.find((route) => route.alias === 'balanced') : undefined;
   const writer = can.draft(viewer.role);
@@ -152,6 +155,17 @@ export default async function DocumentsPage({
         </Card>
       </div>
 
+      {intake.kind === 'ok' ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Intake</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <IntakePanel dealId={dealId} intake={intake.data} writer={writer} />
+          </CardContent>
+        </Card>
+      ) : null}
+
       {documents.kind !== 'ok' ? (
         <ApiState result={documents} />
       ) : documents.data.items.length === 0 ? (
@@ -165,6 +179,7 @@ export default async function DocumentsPage({
           openId={view.documentId}
           aiOn={aiOn}
           writer={writer}
+          categoryLabels={categoryLabels}
           rows={documents.data.items.map((doc) => ({
             ...doc,
             findings: queue.filter((finding) => finding.documentId === doc.id).length,

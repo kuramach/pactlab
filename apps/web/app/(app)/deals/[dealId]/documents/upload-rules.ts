@@ -17,12 +17,16 @@ export const CONTENT_TYPES: Readonly<Record<string, string>> = {
   xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
 };
 
-export const ACCEPT = '.pdf,.docx,.xlsx,.csv,.txt,.md';
+export const ACCEPT = '.pdf,.docx,.xlsx,.csv,.txt,.md,.zip';
+
+/** A whole data room in one zip (T-098): unpacked on the server, every file inside uploaded on its own. */
+export const ARCHIVE_MAX_BYTES = 10 * 1024 * 1024;
+export const isArchive = (name: string) => /\.zip$/i.test(name);
 
 export const UPLOAD_PROBLEMS = {
   'no-file': 'Choose a file to upload.',
-  type: 'Upload a PDF, Word (.docx), Excel (.xlsx), CSV, text or Markdown file. Older .xls workbooks: save as .xlsx first.',
-  'too-large': 'PDF, Word and Excel files can be up to 10 MB; CSV, text and Markdown up to 512 KB.',
+  type: 'Upload a PDF, Word (.docx), Excel (.xlsx), CSV, text or Markdown file, or a .zip of them. Older .xls workbooks: save as .xlsx first.',
+  'too-large': 'PDF, Word, Excel and zip files can be up to 10 MB; CSV, text and Markdown up to 512 KB.',
   rejected:
     'The file was rejected — it may be empty, unreadable, password-protected, a scanned PDF with no text (OCR is not available yet) or flagged by the virus scan.',
   unavailable: 'Uploads are not available in this environment.',
@@ -34,6 +38,7 @@ export type UploadProblem = keyof typeof UPLOAD_PROBLEMS;
 /** The content type to send, or why the file cannot be uploaded. */
 export function checkFile(name: string, size: number): { contentType: string } | { problem: UploadProblem } {
   if (size === 0) return { problem: 'no-file' };
+  if (isArchive(name)) return size > ARCHIVE_MAX_BYTES ? { problem: 'too-large' } : { contentType: 'application/zip' };
   const extension = name.split('.').pop()?.toLowerCase() ?? '';
   const contentType = CONTENT_TYPES[extension];
   if (!contentType) return { problem: 'type' };

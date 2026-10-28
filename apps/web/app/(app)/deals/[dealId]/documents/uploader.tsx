@@ -3,14 +3,31 @@
 import { Badge, Button } from '@pactlab/ui';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
-import { extractOne, uploadOne } from './actions';
-import { ACCEPT, checkFile, guessDataClass, UPLOAD_PROBLEMS } from './upload-rules';
+import { classifyOne, extractOne, uploadArchive, uploadOne, type ArchiveFile } from './actions';
+import { ACCEPT, checkFile, guessDataClass, isArchive, UPLOAD_PROBLEMS } from './upload-rules';
 
-type Status = 'ready' | 'uploading' | 'uploaded' | 'duplicate' | 'failed' | 'extracting' | 'extracted' | 'not-extracted';
+type Status =
+  | 'ready'
+  | 'uploading'
+  | 'unpacked'
+  | 'uploaded'
+  | 'duplicate'
+  | 'failed'
+  | 'skipped'
+  | 'classifying'
+  | 'filed'
+  | 'needs-you'
+  | 'extracting'
+  | 'extracted'
+  | 'not-extracted';
 
 interface Item {
   readonly key: string;
-  readonly file: File;
+  readonly name: string;
+  /** Picked by the user; files unpacked from a zip have none. */
+  readonly file?: File;
+  /** The zip a file came out of, shown as its folder. */
+  readonly from?: string;
   dataClass: 'BUSINESS' | 'FINANCIAL';
   aiExcluded: boolean;
   status: Status;
@@ -20,31 +37,51 @@ interface Item {
 const STATUS_LABEL: Record<Status, string> = {
   ready: 'Ready to upload',
   uploading: 'Uploading…',
+  unpacked: 'Unpacked',
   uploaded: 'Uploaded',
   duplicate: 'Already uploaded',
   failed: 'Upload failed',
-  extracting: 'AI extraction running…',
-  extracted: 'Uploaded · AI drafts ready',
-  'not-extracted': 'Uploaded · AI extraction did not run',
+  skipped: 'Not uploaded',
+  classifying: 'Reading what it is…',
+  filed: 'Filed',
+  'needs-you': 'Pactlab needs you',
+  extracting: 'Filed · AI extraction running…',
+  extracted: 'Filed · AI drafts ready',
+  'not-extracted': 'Uploaded · AI did not run',
 };
 
-const STATUS_TONE: Record<Status, 'neutral' | 'calculation' | 'danger' | 'reviewed'> = {
+const STATUS_TONE: Record<Status, 'neutral' | 'calculation' | 'danger' | 'reviewed' | 'draft'> = {
   ready: 'neutral',
   uploading: 'neutral',
+  unpacked: 'reviewed',
   uploaded: 'reviewed',
   duplicate: 'neutral',
   failed: 'danger',
+  skipped: 'danger',
+  classifying: 'neutral',
+  filed: 'reviewed',
+  'needs-you': 'draft',
   extracting: 'neutral',
   extracted: 'reviewed',
   'not-extracted': 'danger',
 };
 
+const SKIP_REASONS: Readonly<Record<string, string>> = {
+  UNSUPPORTED_TYPE: 'Pactlab does not read this kind of file (PDF, Word, Excel, CSV, text and Markdown only).',
+  NESTED_TOO_DEEP: 'A zip inside a zip inside the zip — unpack it and upload it on its own.',
+  TOO_LARGE: 'Too large (10 MB for PDF, Word and Excel; 512 KB for CSV, text and Markdown).',
+  EMPTY_OR_UNREADABLE: 'Empty or unreadable.',
+  UNREADABLE_OR_INFECTED: 'Unreadable, password-protected, a scanned PDF with no text, or flagged by the virus scan.',
+  FAILED: 'The upload failed. Upload this file again on its own.',
+};
+
 /**
- * Multi-file document upload (T-094 B1–B3). Every chosen file is listed with
- * its own state from the moment it is picked; files upload one at a time,
- * and each starts its own AI extraction as soon as it is in. A failure is
- * shown on that file's row when it happens. Leaving the page with files
- * still waiting asks first, so a chosen file is never silently dropped.
+ * Upload (T-094 B1–B3, T-098): pick or drop many files, or a zip of a whole
+ * data room. Every file — including each one unpacked from a zip — gets its
+ * own row and state from the moment it is known. After upload the AI reads
+ * what each file is and files it: contracts go on to extraction, structured
+ * exports to their import, balance sheets to the debt-and-cash reader. When
+ * it is unsure it asks, under "Pactlab needs you". Nothing is dropped silently.
  */
 export function DocumentUploader({ dealId, aiOn }: { dealId: string; aiOn: boolean }) {
   const router = useRouter();
@@ -67,6 +104,7 @@ export function DocumentUploader({ dealId, aiOn }: { dealId: string; aiOn: boole
       const checked = checkFile(file.name, file.size);
       return {
         key: `${file.name}:${file.size}:${file.lastModified}:${Math.random()}`,
+        name: file.name,
         file,
         dataClass: guessDataClass(file.name),
         aiExcluded: false,
@@ -80,14 +118,89 @@ export function DocumentUploader({ dealId, aiOn }: { dealId: string; aiOn: boole
 
   const update = (key: string, change: Partial<Item>) => setItems((current) => current.map((item) => (item.key === key ? { ...item, ...change } : item)));
 
+  /** After upload: the AI files the document, then the next step for its kind runs. */
+  const sort = async (key: string, documentId: string, aiExcluded: boolean) => {
+    if (!aiOn) {
+      update(key, { status: 'uploaded', message: 'AI is off here; Pactlab will sort this file once it is switched on.' });
+      return;
+    }
+    update(key, { status: 'classifying' });
+    const filed = await classifyOne(dealId, documentId).catch(() => ({ kind: 'error' as const, message: 'Pactlab could not sort this file. Try again from the library.' }));
+    if (filed.kind === 'error') {
+      update(key, { status: 'not-extracted', message: filed.message });
+      return;
+    }
+    if (filed.kind === 'needs-you') {
+      update(key, { status: 'needs-you', message: `${filed.question} Answer it under “Pactlab needs you” below.` });
+      return;
+    }
+    const as = `Filed as ${filed.label.toLowerCase()}${filed.counterpartyName ? ` — ${filed.counterpartyName}` : ''}.`;
+    if (filed.route.kind === 'IMPORT') {
+      update(key, { status: 'filed', message: `${as} Its rows are imported on Sources.` });
+      return;
+    }
+    if (filed.route.kind === 'BALANCE_SHEET') {
+      update(key, { status: 'filed', message: `${as} Read its debt and cash on Valuation; nothing reaches the bridge until you confirm it.` });
+      return;
+    }
+    if (filed.route.kind === 'FILE' || aiExcluded) {
+      update(key, { status: 'filed', message: as });
+      return;
+    }
+    update(key, { status: 'extracting', message: as });
+    const extracted = await extractOne(dealId, documentId).catch(() => ({ kind: 'error' as const, message: 'AI extraction failed. Use “Re-run AI extraction” on the document to try again.' }));
+    if (extracted.kind === 'ok') update(key, { status: 'extracted', message: `${as} ${extracted.drafted} new cited draft(s) in the review queue.` });
+    else update(key, { status: extracted.kind === 'skipped' ? 'filed' : 'not-extracted', message: `${as} ${extracted.message}` });
+  };
+
+  const unpack = async (item: Item, form: FormData) => {
+    const result = await uploadArchive(dealId, form).catch(() => ({ kind: 'error' as const, message: UPLOAD_PROBLEMS.failed }));
+    if (result.kind === 'error') {
+      update(item.key, { status: 'failed', message: result.message });
+      return;
+    }
+    const count = (outcome: ArchiveFile['outcome']) => result.files.filter((file) => file.outcome === outcome).length;
+    const refused = count('REJECTED') + count('SKIPPED');
+    update(item.key, {
+      status: 'unpacked',
+      message: `${result.files.length} file(s) inside: ${count('UPLOADED')} uploaded, ${count('DUPLICATE')} already here${refused > 0 ? `, ${refused} not uploaded (listed below)` : ''}.`,
+    });
+    const children = result.files.map(
+      (file): Item & { documentId: string | null } => ({
+        key: `${item.key}/${file.path}`,
+        name: file.path,
+        from: item.name,
+        dataClass: item.dataClass,
+        aiExcluded: item.aiExcluded,
+        documentId: file.documentId,
+        status: file.outcome === 'UPLOADED' ? 'uploaded' : file.outcome === 'DUPLICATE' ? 'duplicate' : file.outcome === 'SKIPPED' ? 'skipped' : 'failed',
+        ...(file.outcome === 'DUPLICATE' ? { message: 'Already in this deal; not added twice.' } : {}),
+        ...(file.reason ? { message: SKIP_REASONS[file.reason] ?? SKIP_REASONS['FAILED'] } : {}),
+      }),
+    );
+    setItems((current) => {
+      const at = current.findIndex((entry) => entry.key === item.key);
+      return [...current.slice(0, at + 1), ...children, ...current.slice(at + 1)];
+    });
+    router.refresh();
+    for (const child of children) {
+      if (child.status === 'uploaded' && child.documentId) await sort(child.key, child.documentId, child.aiExcluded);
+    }
+  };
+
   const uploadAll = async () => {
     setBusy(true);
-    for (const item of items.filter((entry) => entry.status === 'ready')) {
+    for (const item of items.filter((entry) => entry.status === 'ready' && entry.file)) {
       update(item.key, { status: 'uploading', message: undefined });
       const form = new FormData();
-      form.set('file', item.file);
+      form.set('file', item.file as File);
       form.set('dataClass', item.dataClass);
       if (item.aiExcluded) form.set('aiExcluded', 'on');
+      if (isArchive(item.name)) {
+        await unpack(item, form);
+        router.refresh();
+        continue;
+      }
       let result: Awaited<ReturnType<typeof uploadOne>>;
       try {
         result = await uploadOne(dealId, form);
@@ -103,19 +216,7 @@ export function DocumentUploader({ dealId, aiOn }: { dealId: string; aiOn: boole
         continue;
       }
       router.refresh();
-      if (!aiOn || item.aiExcluded) {
-        update(item.key, { status: 'uploaded', message: item.aiExcluded ? 'Kept away from AI.' : 'AI is off here; drafts appear once it is switched on.' });
-        continue;
-      }
-      update(item.key, { status: 'extracting' });
-      let extracted: Awaited<ReturnType<typeof extractOne>>;
-      try {
-        extracted = await extractOne(dealId, result.id);
-      } catch {
-        extracted = { kind: 'error', message: 'AI extraction failed. Use “Re-run AI extraction” on the document to try again.' };
-      }
-      if (extracted.kind === 'ok') update(item.key, { status: 'extracted', message: `${extracted.drafted} new cited draft(s) in the review queue.` });
-      else update(item.key, { status: extracted.kind === 'skipped' ? 'uploaded' : 'not-extracted', message: extracted.message });
+      await sort(item.key, result.id, item.aiExcluded);
       router.refresh();
     }
     setBusy(false);
@@ -137,8 +238,8 @@ export function DocumentUploader({ dealId, aiOn }: { dealId: string; aiOn: boole
         }}
         className={`flex cursor-pointer flex-col items-center gap-1 rounded-lg border-2 border-dashed p-6 text-center ${over ? 'border-primary bg-muted' : 'border-border'}`}
       >
-        <span className="font-medium">Drop files here, or click to choose — several at once is fine</span>
-        <span className="text-xs text-muted-foreground">PDF, Word and Excel up to 10 MB; CSV, text and Markdown up to 512 KB</span>
+        <span className="font-medium">Drop everything here — many files at once, or one zip of the whole data room</span>
+        <span className="text-xs text-muted-foreground">PDF, Word, Excel and zip up to 10 MB; CSV, text and Markdown up to 512 KB. Pactlab works out what each file is.</span>
         <input ref={input} type="file" multiple accept={ACCEPT} className="sr-only" aria-label="Choose documents" onChange={(event) => add(event.target.files)} />
       </label>
 
@@ -147,7 +248,7 @@ export function DocumentUploader({ dealId, aiOn }: { dealId: string; aiOn: boole
           {items.map((item) => (
             <li key={item.key} className="flex flex-col gap-2 p-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="font-medium">{item.file.name}</span>
+                <span className={item.from ? 'pl-4 font-medium' : 'font-medium'}>{item.name}</span>
                 <Badge variant={STATUS_TONE[item.status]}>{STATUS_LABEL[item.status]}</Badge>
               </div>
               {item.status === 'ready' ? (
@@ -171,8 +272,8 @@ export function DocumentUploader({ dealId, aiOn }: { dealId: string; aiOn: boole
                   </button>
                 </div>
               ) : null}
-              {item.message ? <p className={`text-xs ${item.status === 'failed' || item.status === 'not-extracted' ? 'text-red-700' : 'text-muted-foreground'}`}>{item.message}</p> : null}
-              {item.status === 'failed' && 'contentType' in checkFile(item.file.name, item.file.size) ? (
+              {item.message ? <p className={`text-xs ${item.status === 'failed' || item.status === 'skipped' || item.status === 'not-extracted' ? 'text-red-700' : 'text-muted-foreground'}`}>{item.message}</p> : null}
+              {item.status === 'failed' && item.file && 'contentType' in checkFile(item.file.name, item.file.size) ? (
                 <button type="button" className="self-start text-xs underline" onClick={() => update(item.key, { status: 'ready', message: undefined })}>
                   Try again
                 </button>
@@ -197,8 +298,8 @@ export function DocumentUploader({ dealId, aiOn }: { dealId: string; aiOn: boole
         ) : null}
       </div>
       <p className="text-xs text-muted-foreground">
-        Word documents are split into sections and each Excel sheet starts a new page. HR, pay and performance documents are never sent to a model. With AI on, extraction starts for each document as soon
-        as it is uploaded.
+        With AI on, Pactlab reads each file as it arrives and files it: contracts go on to extraction, exports to their import, balance sheets to the debt-and-cash reader. When it is unsure it asks you.
+        HR, pay and performance documents are never sent to a model.
       </p>
     </div>
   );
