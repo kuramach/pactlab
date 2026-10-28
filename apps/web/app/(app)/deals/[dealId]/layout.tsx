@@ -7,6 +7,7 @@ import { DealTabs } from '../_lib/deal-tabs';
 import { isUuidParam } from '../_lib/filters';
 import { DEAL_TYPE_LABELS, partyLabel, STAGE_LABELS } from '../_lib/labels';
 import { ApiState } from '../_lib/states';
+import { TeamButton } from '../_lib/team-button';
 
 /**
  * Deal workspace: who is buying whom, the deal type and stage, and tabs for
@@ -15,7 +16,7 @@ import { ApiState } from '../_lib/states';
 export default async function DealLayout({ children, params }: { children: ReactNode; params: Promise<{ dealId: string }> }) {
   const { dealId } = await params;
   if (!isUuidParam(dealId)) notFound();
-  const [deal, parties] = await Promise.all([dealsApi.get(dealId), dealsApi.parties(dealId)]);
+  const [deal, parties, members] = await Promise.all([dealsApi.get(dealId), dealsApi.parties(dealId), dealsApi.members(dealId)]);
   if (deal.kind !== 'ok') {
     return (
       <div className="flex flex-col gap-6">
@@ -51,6 +52,7 @@ export default async function DealLayout({ children, params }: { children: React
               deal.data.targetName
             )
           }
+          actions={members.kind === 'ok' ? <TeamButton dealId={dealId} members={members.data.items.filter((member) => member.status === 'ACTIVE')} /> : undefined}
           meta={
             <>
               <Badge className="border-white/20 bg-white/10 text-white">{DEAL_TYPE_LABELS[deal.data.transactionType] ?? deal.data.transactionType}</Badge>

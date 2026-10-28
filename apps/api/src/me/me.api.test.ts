@@ -70,6 +70,8 @@ describe('GET /v1/me', () => {
     expect(response.status).toBe(200);
     expect(response.body).toEqual({
       user: { id: a.userId, displayName: 'Alpha Lead' },
+      // Auth0 sessions have no guest pacts yet (ADR 0014; Auth0 guests arrive with T-070).
+      guestPacts: [],
       organizations: [
         {
           id: a.organizationId,

@@ -79,6 +79,8 @@ describe('Foresight through the API (T-073)', { timeout: 30_000 }, () => {
       documents: { gateway },
       aiStatus: { enabled: true, provider: 'synthetic', region: null, routes: [] },
       voice: { speechToText: speech, textToSpeech: speech },
+      // These cases drive trend generation by hand; the automatic forecast baseline has its own suite.
+      foresightAutoBaseline: false,
     });
     tokens['lead'] = await token(a.subject, a);
     tokens['other'] = await token(b.subject, b);

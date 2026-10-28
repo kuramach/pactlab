@@ -4,45 +4,52 @@ import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import { AI_UNAVAILABLE, aiOutcome } from './ai-messages';
 import { apiSend } from '../../_lib/api';
+import { checkFile, UPLOAD_PROBLEMS } from './upload-rules';
 
 const uuid = z.uuid();
-/** Text files up to 512 KB; PDF and Word up to 10 MB (the API enforces the same limits). */
-const TEXT_MAX_BYTES = 512 * 1024;
-const BINARY_MAX_BYTES = 10 * 1024 * 1024;
-const TYPES: Record<string, string> = {
-  txt: 'text/plain',
-  md: 'text/markdown',
-  markdown: 'text/markdown',
-  pdf: 'application/pdf',
-  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  csv: 'text/csv',
-  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-};
 
 function back(dealId: string, outcome: string, documentId?: string): never {
   const query = new URLSearchParams({ outcome, ...(documentId ? { documentId, page: '1' } : {}) });
   redirect(`/deals/${dealId}/documents?${query.toString()}`);
 }
 
-/** Upload a PDF, Word, text or Markdown document. The API scans, pages and classifies it. */
-export async function uploadDocument(dealId: string, formData: FormData): Promise<void> {
-  if (!uuid.safeParse(dealId).success) redirect('/deals');
+export type UploadResult = { kind: 'ok'; id: string; duplicate: boolean } | { kind: 'error'; message: string };
+
+/**
+ * Upload one PDF, Word, Excel, CSV, text or Markdown document and say what
+ * happened. Returns instead of redirecting, so a multi-file upload keeps
+ * every file's outcome on screen. The API scans, pages and classifies it.
+ */
+export async function uploadOne(dealId: string, formData: FormData): Promise<UploadResult> {
+  if (!uuid.safeParse(dealId).success) return { kind: 'error', message: 'Unknown deal.' };
   const file = formData.get('file');
-  if (!(file instanceof File) || file.size === 0) back(dealId, 'no-file');
-  const extension = file.name.split('.').pop()?.toLowerCase() ?? '';
-  const contentType = TYPES[extension];
-  if (!contentType) back(dealId, 'type');
-  if (file.size > (contentType.startsWith('text/') ? TEXT_MAX_BYTES : BINARY_MAX_BYTES)) back(dealId, 'too-large');
-  const dataClass = formData.get('dataClass') === 'FINANCIAL' ? 'FINANCIAL' : 'BUSINESS';
-  const result = await apiSend<{ id: string }>('POST', `/v1/deals/${dealId}/documents`, {
+  if (!(file instanceof File)) return { kind: 'error', message: UPLOAD_PROBLEMS['no-file'] };
+  const checked = checkFile(file.name, file.size);
+  if ('problem' in checked) return { kind: 'error', message: UPLOAD_PROBLEMS[checked.problem] };
+  const result = await apiSend<{ id: string; duplicate?: boolean }>('POST', `/v1/deals/${dealId}/documents`, {
     fileName: file.name,
-    contentType,
+    contentType: checked.contentType,
     contentBase64: Buffer.from(await file.arrayBuffer()).toString('base64'),
-    dataClass,
+    dataClass: formData.get('dataClass') === 'FINANCIAL' ? 'FINANCIAL' : 'BUSINESS',
     aiExcluded: formData.get('aiExcluded') === 'on',
   });
-  if (result.kind === 'ok') back(dealId, 'ok-uploaded', result.data.id);
-  back(dealId, result.kind === 'invalid' ? 'rejected' : result.kind);
+  if (result.kind === 'ok') return { kind: 'ok', id: result.data.id, duplicate: result.data.duplicate === true };
+  if (result.kind === 'invalid') return { kind: 'error', message: UPLOAD_PROBLEMS.rejected };
+  if (result.kind === 'unavailable') return { kind: 'error', message: UPLOAD_PROBLEMS.unavailable };
+  if (result.kind === 'forbidden') return { kind: 'error', message: 'You do not have permission to upload to this deal.' };
+  return { kind: 'error', message: UPLOAD_PROBLEMS.failed };
+}
+
+export type ExtractResult = { kind: 'ok'; drafted: number } | { kind: 'skipped'; message: string } | { kind: 'error'; message: string };
+
+/** Draft cited findings from one document, returning the outcome (used right after upload). */
+export async function extractOne(dealId: string, documentId: string): Promise<ExtractResult> {
+  if (!uuid.safeParse(dealId).success || !uuid.safeParse(documentId).success) return { kind: 'error', message: 'Unknown document.' };
+  const result = await apiSend<{ drafted: number }>('POST', `/v1/deals/${dealId}/documents/${documentId}/extractions`, {});
+  if (result.kind === 'ok') return { kind: 'ok', drafted: result.data.drafted };
+  if (result.kind === 'invalid') return { kind: 'skipped', message: 'Kept away from AI — no drafts for this document.' };
+  if (result.kind === 'unavailable') return { kind: 'error', message: AI_UNAVAILABLE[aiOutcome(result.code)] };
+  return { kind: 'error', message: 'AI extraction failed. Use “Re-run AI extraction” on the document to try again.' };
 }
 
 /** Ask the model to draft cited findings from one document. */
@@ -59,17 +66,27 @@ const review = z.strictObject({
   expectedVersion: z.coerce.number().int().min(1),
 });
 
-/** Accept or reject an AI draft. Acceptance re-verifies every citation. */
-export async function reviewDocumentFinding(dealId: string, findingId: string, documentId: string, formData: FormData): Promise<void> {
-  if (![dealId, findingId, documentId].every((id) => uuid.safeParse(id).success)) redirect('/deals');
-  const parsed = review.safeParse({
-    decision: formData.get('decision'),
-    rationale: formData.get('rationale'),
-    expectedVersion: formData.get('expectedVersion'),
-  });
-  if (!parsed.success) back(dealId, 'rationale', documentId);
+export type DecideResult = { kind: 'ok' } | { kind: 'error'; message: string };
+
+/**
+ * Accept or reject an AI draft in place (T-094 B4): returns the outcome
+ * instead of redirecting, so the reviewer keeps their place in the queue.
+ * Acceptance re-verifies every citation on the API.
+ */
+export async function decideDocumentFinding(
+  dealId: string,
+  findingId: string,
+  input: { decision: 'ACCEPT' | 'REJECT'; rationale: string; expectedVersion: number },
+): Promise<DecideResult> {
+  if (![dealId, findingId].every((id) => uuid.safeParse(id).success)) return { kind: 'error', message: 'Unknown finding.' };
+  const parsed = review.safeParse(input);
+  if (!parsed.success) return { kind: 'error', message: 'Write a short rationale (a few words) for the decision.' };
   const result = await apiSend('POST', `/v1/deals/${dealId}/document-findings/${findingId}/reviews`, parsed.data);
-  back(dealId, result.kind === 'ok' ? `ok-${parsed.data.decision.toLowerCase()}` : result.kind, documentId);
+  if (result.kind === 'ok') return { kind: 'ok' };
+  if (result.kind === 'conflict') return { kind: 'error', message: 'Someone else decided this draft first, or it changed. The queue has been refreshed.' };
+  if (result.kind === 'invalid') return { kind: 'error', message: 'A citation no longer matches its page, so this draft cannot be accepted. Reject it or ask for support.' };
+  if (result.kind === 'forbidden') return { kind: 'error', message: 'You do not have permission to decide findings in this deal.' };
+  return { kind: 'error', message: 'The decision was not saved. Try again.' };
 }
 
 export type AskState =

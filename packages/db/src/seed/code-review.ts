@@ -1,26 +1,13 @@
+import { createGitHubEvidenceSource, GitHubFixtureAdapter, readAllCommits, REPOSITORY_HEAD_EVIDENCE_TYPE } from '@pactlab/connectors';
 import {
-  createGitHubEvidenceSource,
-  GitHubFixtureAdapter,
-  readAllCommits,
-  REPOSITORY_HEAD_EVIDENCE_TYPE,
-} from '@pactlab/connectors';
-import {
-  analyseKeyPersonRisk,
-  createDraft,
-  detectGhostCommits,
-  ghostCommitFinding,
-  healthyOwnershipFinding,
-  keyPersonFindings,
-  newId,
   type DealId,
   type FindingActor,
   type OrganizationId,
   type TenantContext,
   type UserId,
 } from '@pactlab/domain';
-import { appendAuditEvent } from '../audit';
 import type { PrismaClient } from '../client';
-import { findings } from '../findings';
+import { recordCodeSignalFindings } from '../code-signals';
 import type { SyncRunOutcome } from '../sync';
 import { seedSync } from './seed-sync';
 import { withTenant } from '../tenant';
@@ -82,52 +69,24 @@ export async function seedCodeReview(
     dealIds: [input.dealId as DealId],
   };
   const head = await adapter.head(scope);
-  const evidenceItem = await withTenant(prisma, tenant, (tx) =>
-    tx.evidenceItem.findFirst({
-      where: {
-        dealId: input.dealId,
-        connectionId,
-        evidenceType: REPOSITORY_HEAD_EVIDENCE_TYPE,
-        sourceRecordId: `${head.repository}@${head.headSha}`,
-      },
-      select: { id: true },
-    }),
-  );
-  if (!evidenceItem) throw new Error('Seed repository evidence missing');
-
-  const commits = await readAllCommits(adapter, scope);
-  const source = { evidenceItemId: evidenceItem.id, headCommitSha: head.headSha };
-  const ghost = ghostCommitFinding(detectGhostCommits(commits, await adapter.identityMap(scope)), source);
-  const ownership = analyseKeyPersonRisk(commits);
-  const healthy = healthyOwnershipFinding(ownership, source);
-  const proposals = [...(ghost ? [ghost] : []), ...keyPersonFindings(ownership, source), ...(healthy ? [healthy] : [])];
-
-  let findingsCreated = 0;
-  let findingsExisting = 0;
-  for (const proposal of proposals) {
-    const created = await withTenant(prisma, tenant, async (tx) => {
-      if (await findings.findByFingerprint(tx, input.dealId, proposal.fingerprint)) return false;
-      const finding = createDraft(proposal, SEED_SCAN_ACTOR, {
-        id: newId(),
-        organizationId: input.organizationId,
-        dealId: input.dealId,
-        now: new Date().toISOString(),
-      });
-      await findings.insert(tx, finding);
-      await appendAuditEvent(tx, {
-        organizationId: input.organizationId,
-        dealId: input.dealId,
-        actorUserId: null,
-        action: 'finding.drafted',
-        targetType: 'finding',
-        targetId: finding.id,
-        outcome: 'SUCCEEDED',
-        requestId: 'seed',
-      });
-      return true;
-    });
-    if (created) findingsCreated += 1;
-    else findingsExisting += 1;
-  }
+  const recorded = await recordCodeSignalFindings(prisma, tenant, {
+    dealId: input.dealId,
+    connectionId,
+    head,
+    commits: await readAllCommits(adapter, scope),
+    identityMap: await adapter.identityMap(scope),
+    actor: SEED_SCAN_ACTOR,
+    requestId: 'seed',
+  });
+  if (recorded.created + recorded.existing === 0 && !(await hasHeadEvidence(prisma, tenant, input.dealId, connectionId, head))) throw new Error('Seed repository evidence missing');
+  const findingsCreated = recorded.created;
+  const findingsExisting = recorded.existing;
   return { sync, failed, findingsCreated, findingsExisting };
+}
+
+async function hasHeadEvidence(prisma: PrismaClient, tenant: TenantContext, dealId: string, connectionId: string, head: { repository: string; headSha: string }) {
+  const row = await withTenant(prisma, tenant, (tx) =>
+    tx.evidenceItem.findFirst({ where: { dealId, connectionId, evidenceType: REPOSITORY_HEAD_EVIDENCE_TYPE, sourceRecordId: `${head.repository}@${head.headSha}` }, select: { id: true } }),
+  );
+  return row !== null;
 }

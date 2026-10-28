@@ -1,7 +1,7 @@
 'use server';
 
 import { redirect } from 'next/navigation';
-import { dealsApi } from '../../deals/_lib/api';
+import { apiPost, dealsApi } from '../../deals/_lib/api';
 import { pactFromForm } from '../_lib/form';
 
 export interface StartPactState {
@@ -20,5 +20,8 @@ export async function startPact(_previous: StartPactState, formData: FormData): 
   if (!parsed.ok) return { error: parsed.message };
   const result = await dealsApi.startPact(parsed.command);
   if (result.kind !== 'ok') return { error: FAILURES[result.kind] ?? 'The Pact could not be started. Try again shortly.' };
+  // Foresight's published and AI forecasts start in the background now, so the tab opens populated (T-094 B10).
+  // Best effort: if this fails, opening Foresight starts them instead.
+  await apiPost(`/v1/deals/${result.data.id}/foresight/baseline`, {}).catch(() => undefined);
   redirect(`/deals/${result.data.id}/sources?started=1`);
 }

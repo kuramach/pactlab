@@ -12,6 +12,7 @@ import {
   appendAuditEvent,
   connections,
   executeSyncRun,
+  recordCodeSignalFindings,
   IdempotencyConflictError,
   syncRuns,
   withTenant,
@@ -32,6 +33,10 @@ import {
 import { DealAccess } from '../deals/deal-access';
 import { PRISMA } from '../tokens';
 import { resolveAdapter } from './adapter-registry';
+import { ProviderSyncAdapter } from './adapters/provider-sync.adapter';
+
+/** Who drafts code-signal findings after a sync: the scanner, never a person. */
+const CODE_SIGNAL_ACTOR = { kind: 'SYSTEM', component: 'sync:code-signals' } as const;
 import { GITHUB_FIXTURES, JIRA_FIXTURES } from '@pactlab/connectors';
 import { PROVIDER_DEPENDENCIES, type ProviderDependencies } from './provider-dependencies';
 import type { EvidenceSample } from './adapters/evidence-sample';
@@ -539,8 +544,35 @@ export class ConnectionsService {
       } catch {
         // The engine records FAILED with an error class; the run resource reports it.
       }
+      await this.recordCodeSignals(tenant, dealId, connection, adapter, requested.run.id, requestId);
     }
     return this.getRun(tenant, dealId, requested.run.id, requestId);
+  }
+
+  /**
+   * After a successful source-control sync, draft the ghost-commit and
+   * key-person findings for it (T-094 B8) — the same checks the seeded
+   * TroubledCo deal shows. Idempotent; drafts only, a person decides. A
+   * repository the installation cannot fully read is skipped (its sync
+   * already reports why).
+   */
+  private async recordCodeSignals(
+    tenant: TenantContext,
+    dealId: string,
+    connection: ConnectionRecord,
+    adapter: ReturnType<typeof resolveAdapter>,
+    runId: string,
+    requestId: string,
+  ): Promise<void> {
+    if (!(adapter instanceof ProviderSyncAdapter) || !adapter.codeSignals) return;
+    const run = await withTenant(this.prisma, tenant, (tx) => syncRuns.get(tx, dealId, runId));
+    if (run?.status !== 'SUCCEEDED') return;
+    try {
+      const input = await adapter.codeSignals(this.scope(connection));
+      await recordCodeSignalFindings(this.prisma, tenant, { dealId, connectionId: connection.id, ...input, actor: CODE_SIGNAL_ACTOR, requestId });
+    } catch {
+      // Commits or the identity map could not be read (e.g. a partial-permission installation); the sync run already reports it.
+    }
   }
 
   async getRun(

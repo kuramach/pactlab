@@ -7,7 +7,8 @@ import { apiGet } from '../../_lib/api';
 import { isUuidParam } from '../../_lib/filters';
 import { OutcomeBanner } from '../../_lib/outcome';
 import { ApiState } from '../../_lib/states';
-import { generateBaseline, saveScenario } from './actions';
+import { saveScenario } from './actions';
+import { ForecastsSection } from './forecasts';
 import { AskForesight } from './ask-foresight';
 import { fractionToPercent } from './format';
 
@@ -17,7 +18,9 @@ const inputClass = 'rounded-md border border-border bg-background px-2 py-1 text
 const DIRECTION = { UP: '↑ rises', FLAT: '→ holds', DOWN: '↓ falls' } as const;
 
 const OUTCOMES: Record<string, string> = {
-  'ok-generated': 'AI baseline generated. It is dated and versioned; scenarios layer on top without changing it.',
+  'ok-forecast': 'Your forecast is saved as a new version; the value under yours is updated below.',
+  'invalid-forecast': 'Enter five yearly values as percents, e.g. 2.5 or -1.',
+  'error-UNKNOWN_METRIC': 'That metric is not forecast for this pact.',
   'ok-scenario': 'Scenario saved and projected.',
   'error-AI_OFF': 'AI is not switched on for this environment yet, so no baseline can be generated. Scenarios need a baseline.',
   'error-AI_ACCESS': 'AI is unavailable: the AWS sign-in for this environment has expired. An operator needs to sign in again.',
@@ -180,36 +183,26 @@ export default async function ForesightPage({ params, searchParams }: { params: 
       <div className="flex flex-col gap-1">
         <h2 className="text-lg font-semibold tracking-tight">Foresight</h2>
         <p className="text-sm text-muted-foreground">
-          Five-year trend lines for this deal and the projected value of the business under them. Every figure is a projection under the assumptions shown — not a prediction.
+          Five-year forecasts and trend lines for this deal, and the projected value of the business under them. Every figure is a projection under the assumptions shown — not a prediction.
         </p>
       </div>
       <OutcomeBanner outcome={typeof outcome === 'string' ? outcome : undefined} messages={OUTCOMES} />
 
+      <ForecastsSection dealId={dealId} forecasts={view.forecasts} canEdit={view.canEdit} />
+
       {!view.baseline ? (
         <EmptyState
           title="No trend lines yet"
-          description={view.ai.enabled ? 'Generate the AI baseline: the macro questions every deal faces, plus this sector’s own.' : 'AI is not switched on for this environment yet; the baseline needs it.'}
-          action={
-            view.canEdit && view.ai.enabled ? (
-              <form action={generateBaseline.bind(null, dealId)}>
-                <Button type="submit" size="sm">
-                  Generate AI baseline
-                </Button>
-              </form>
-            ) : undefined
+          description={
+            view.ai.enabled
+              ? 'The AI trend lines are being prepared with the forecasts above; they appear here on their own.'
+              : 'AI is not switched on for this environment yet; the trend lines and AI forecasts need it. Published forecasts and yours work without it.'
           }
         />
       ) : (
         <>
           <div className="text-xs text-muted-foreground">
-            AI baseline as of {view.baseline.asOf} · model {view.baseline.modelId} · prompt {view.baseline.promptVersion}. AI trends are labelled AI; yours are labelled Yours.
-            {view.canEdit && view.ai.enabled ? (
-              <form action={generateBaseline.bind(null, dealId)} className="ml-2 inline">
-                <button type="submit" className="text-indigo-ink underline">
-                  Refresh baseline
-                </button>
-              </form>
-            ) : null}
+            AI trend lines as of {view.baseline.asOf} · model {view.baseline.modelId} · prompt {view.baseline.promptVersion}. AI trends are labelled AI; yours are labelled Yours.
           </div>
 
           {view.projectionUnavailable ? (

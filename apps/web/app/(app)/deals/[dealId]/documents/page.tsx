@@ -1,10 +1,13 @@
-import { Badge, Button, Card, CardContent, CardHeader, CardTitle, EmptyState, FileDrop, Glossed } from '@pactlab/ui';
+import { Badge, Button, Card, CardContent, CardHeader, CardTitle, EmptyState, Glossed } from '@pactlab/ui';
 import Link from 'next/link';
 import { apiGet } from '../../_lib/api';
 import { OutcomeBanner } from '../../_lib/outcome';
 import { ApiState } from '../../_lib/states';
 import { can, dealViewer } from '../../_lib/viewer';
-import { extractDocument, reviewDocumentFinding, uploadDocument } from './actions';
+import { extractDocument } from './actions';
+import { DocumentLibrary } from './library';
+import { ReviewQueue } from './review-queue';
+import { DocumentUploader } from './uploader';
 import { AI_UNAVAILABLE } from './ai-messages';
 import { AskBox } from './ask-box';
 import { PdfPageView } from './pdf-page-view';
@@ -42,7 +45,6 @@ const OUTCOMES: Record<string, string> = {
   rationale: 'Write a short rationale (a few words) for the decision.',
 };
 
-const inputClass = 'w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring';
 
 /**
  * Document review: page on the left, AI drafts and decisions on the right.
@@ -99,6 +101,7 @@ export default async function DocumentsPage({
   const citedAt = citedPages.findIndex((c) => c.documentId === view.documentId && c.pageNumber === view.page);
   const previousCited = citedAt > 0 ? citedPages[citedAt - 1] : undefined;
   const nextCited = citedAt === -1 ? citedPages[0] : citedPages[citedAt + 1];
+  const documentName = (id: string) => (documents.kind === 'ok' ? (documents.data.items.find((doc) => doc.id === id)?.fileName ?? 'another document') : 'another document');
 
   return (
     <div className="flex max-w-7xl flex-col gap-6">
@@ -133,38 +136,10 @@ export default async function DocumentsPage({
       <div className="grid gap-4 lg:grid-cols-[1fr_1.2fr]">
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Upload a document</CardTitle>
+            <CardTitle className="text-base">Upload documents</CardTitle>
           </CardHeader>
           <CardContent>
-            <form action={uploadDocument.bind(null, dealId)} className="flex flex-col gap-3 text-sm">
-              <FileDrop
-                name="file"
-                accept=".pdf,.docx,.xlsx,.csv,.txt,.md,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,text/plain,text/markdown"
-                required
-                formats={['PDF', 'Word', 'Excel', 'CSV', 'Text', 'Markdown']}
-                hint="PDF, Word and Excel up to 10 MB; CSV and text up to 512 KB"
-              />
-              <div className="flex flex-wrap items-center gap-4">
-                <label className="flex items-center gap-2">
-                  Contains
-                  <select name="dataClass" className="rounded-md border border-border bg-background px-2 py-1">
-                    <option value="BUSINESS">business information</option>
-                    <option value="FINANCIAL">financial information</option>
-                  </select>
-                </label>
-                <label className="flex items-center gap-2">
-                  <input type="checkbox" name="aiExcluded" /> Keep away from <Glossed text="AI" />
-                </label>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                <Glossed text="PDF, Word or Excel up to 10 MB; CSV, text or Markdown up to 512 KB. Word documents are split into sections and each Excel sheet starts a new page. HR, pay and performance documents are never sent to a model." />
-              </p>
-              <div>
-                <Button type="submit" size="sm">
-                  Upload
-                </Button>
-              </div>
-            </form>
+            <DocumentUploader dealId={dealId} aiOn={aiOn} />
           </CardContent>
         </Card>
         <Card>
@@ -185,21 +160,17 @@ export default async function DocumentsPage({
           description="Upload a contract or data-room file to this deal to start."
         />
       ) : (
-        <nav aria-label="Documents" className="flex flex-wrap gap-2 text-sm">
-          {documents.data.items.map((doc) => (
-            <Link
-              key={doc.id}
-              href={citationHref(dealId, { documentId: doc.id, pageNumber: 1 })}
-              className={`rounded-md border border-border px-3 py-1 ${doc.id === view.documentId ? 'bg-muted font-medium' : ''}`}
-            >
-              <Glossed text={doc.fileName} />
-              <span className="ml-2 text-muted-foreground">
-                {doc.status === 'PURGED' ? 'purged' : `${doc.pageCount} pp`}
-                {doc.aiExcluded ? ' · AI excluded' : ''}
-              </span>
-            </Link>
-          ))}
-        </nav>
+        <DocumentLibrary
+          dealId={dealId}
+          openId={view.documentId}
+          aiOn={aiOn}
+          writer={writer}
+          rows={documents.data.items.map((doc) => ({
+            ...doc,
+            findings: queue.filter((finding) => finding.documentId === doc.id).length,
+            pending: queue.filter((finding) => finding.documentId === doc.id && finding.status === 'DRAFT').length,
+          }))}
+        />
       )}
 
       <div className="grid gap-6 lg:grid-cols-2">
@@ -207,13 +178,13 @@ export default async function DocumentsPage({
           <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2">
             <CardTitle>
               {page?.kind === 'ok'
-                ? `${page.data.fileName} — page ${page.data.pageNumber} of ${page.data.pageCount}`
-                : 'Page'}
+                ? page.data.fileName
+                : 'Document'}
             </CardTitle>
             {page?.kind === 'ok' && writer ? (
               <form action={extractDocument.bind(null, dealId, page.data.documentId)}>
                 <Button type="submit" size="sm" variant="outline">
-                  Run AI extraction
+                  Re-run AI extraction
                 </Button>
               </form>
             ) : null}
@@ -233,21 +204,24 @@ export default async function DocumentsPage({
               />
             ) : (
               <>
+                <PagePager dealId={dealId} documentId={page.data.documentId} pageNumber={page.data.pageNumber} pageCount={page.data.pageCount} />
                 {citedPages.length > 0 ? (
                   <nav aria-label="Cited quotes" className="mb-3 flex items-center justify-between gap-2 text-sm">
                     {previousCited ? (
                       <Link href={citationHref(dealId, previousCited)} className="hover:underline">
-                        ← Previous quote
+                        ← Previous quoted page{previousCited.documentId !== view.documentId ? ` (${documentName(previousCited.documentId)} p. ${previousCited.pageNumber})` : ` (p. ${previousCited.pageNumber})`}
                       </Link>
                     ) : (
                       <span />
                     )}
                     <span className="text-xs text-muted-foreground">
-                      {citedAt === -1 ? `${citedPages.length} cited pages in the review queue` : `Cited page ${citedAt + 1} of ${citedPages.length}`}
+                      {citedAt === -1
+                        ? `${citedPages.length} page${citedPages.length === 1 ? '' : 's'} with quotes in the review queue — none on this page`
+                        : `Quoted page ${citedAt + 1} of ${citedPages.length} in the review queue · ${quotesOnPage.length} quote${quotesOnPage.length === 1 ? '' : 's'} highlighted here`}
                     </span>
                     {nextCited ? (
                       <Link href={citationHref(dealId, nextCited)} className="hover:underline">
-                        Next quote →
+                        Next quoted page{nextCited.documentId !== view.documentId ? ` (${documentName(nextCited.documentId)} p. ${nextCited.pageNumber})` : ` (p. ${nextCited.pageNumber})`} →
                       </Link>
                     ) : (
                       <span />
@@ -270,31 +244,8 @@ export default async function DocumentsPage({
                 ) : (
                   <ExtractedText text={page.data.text} quotes={quotesOnPage} />
                 )}
-                <div className="mt-4 flex justify-between text-sm">
-                  {page.data.pageNumber > 1 ? (
-                    <Link
-                      href={citationHref(dealId, {
-                        documentId: page.data.documentId,
-                        pageNumber: page.data.pageNumber - 1,
-                      })}
-                      className="hover:underline"
-                    >
-                      ← Previous page
-                    </Link>
-                  ) : (
-                    <span />
-                  )}
-                  {page.data.pageNumber < page.data.pageCount ? (
-                    <Link
-                      href={citationHref(dealId, {
-                        documentId: page.data.documentId,
-                        pageNumber: page.data.pageNumber + 1,
-                      })}
-                      className="hover:underline"
-                    >
-                      Next page →
-                    </Link>
-                  ) : null}
+                <div className="mt-4">
+                  <PagePager dealId={dealId} documentId={page.data.documentId} pageNumber={page.data.pageNumber} pageCount={page.data.pageCount} />
                 </div>
               </>
             )}
@@ -311,97 +262,10 @@ export default async function DocumentsPage({
             ) : queue.length === 0 ? (
               <EmptyState
                 title="Nothing to review"
-                description="Run contract extraction on a document to create draft findings."
+                description="Upload documents above. With AI on, extraction starts on its own and drafts appear here."
               />
             ) : (
-              queue.map((finding) => (
-                <article
-                  key={finding.id}
-                  className="flex flex-col gap-2 border-b border-border pb-4 last:border-0"
-                >
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge
-                      variant={
-                        finding.status === 'DRAFT'
-                          ? 'draft'
-                          : finding.status === 'ACCEPTED'
-                            ? 'reviewed'
-                            : 'neutral'
-                      }
-                    >
-                      {finding.status === 'DRAFT'
-                        ? 'AI draft'
-                        : finding.status === 'ACCEPTED'
-                          ? 'Accepted'
-                          : 'Rejected'}
-                    </Badge>
-                    <Badge
-                      variant={
-                        finding.severity === 'HIGH' || finding.severity === 'CRITICAL'
-                          ? 'danger'
-                          : 'neutral'
-                      }
-                    >
-                      {finding.severity}
-                    </Badge>
-                    <h2 className="font-medium">{finding.title}</h2>
-                  </div>
-                  <p className="text-sm">{finding.summary}</p>
-                  <div className="flex flex-wrap gap-2">
-                    {finding.citations.map((citation) => (
-                      <Link key={citation.citationId} href={citationHref(dealId, citation)}>
-                        <Badge variant="evidence">p. {citation.pageNumber}</Badge>
-                      </Link>
-                    ))}
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Model-generated · {finding.provenance.promptId} v
-                    {finding.provenance.promptVersion} · {finding.provenance.resolvedModelId}
-                    {finding.reviewer ? null : ' · awaiting human review'}
-                  </p>
-                  {finding.reviewer ? (
-                    <p className="rounded-lg border border-navy/10 bg-mist px-3 py-2 text-xs">
-                      <span className="font-semibold">
-                        {finding.status === 'ACCEPTED' ? 'Accepted' : finding.status === 'REJECTED' ? 'Rejected' : 'Decided'} by {finding.reviewer.displayName}
-                        {finding.decidedAt ? ` on ${finding.decidedAt.slice(0, 10)}` : ''}
-                      </span>
-                      {finding.decisionRationale ? <>: “{finding.decisionRationale}”</> : null}
-                    </p>
-                  ) : null}
-                  {finding.status === 'ACCEPTED' ? (
-                    <Link href={`/deals/${dealId}/findings?source=document-review`} className="text-xs font-semibold text-indigo-ink hover:underline">
-                      In the findings register — decide its valuation direction and price →
-                    </Link>
-                  ) : null}
-                  {finding.status === 'DRAFT' && reviewer ? (
-                    <form
-                      action={reviewDocumentFinding.bind(null, dealId, finding.id, finding.documentId)}
-                      className="flex flex-col gap-2"
-                    >
-                      <input type="hidden" name="expectedVersion" value={finding.version} />
-                      <label className="flex flex-col gap-1 text-xs font-semibold">
-                        Reason for your decision <span className="font-normal text-muted-foreground">Required · saved in the audit trail with your name</span>
-                        <textarea
-                          name="rationale"
-                          required
-                          minLength={3}
-                          rows={2}
-                          placeholder="Accepting: what did you confirm in the document? e.g. “Clause 14 on p. 2 matches; termination needs 30 days’ notice.” Rejecting: why is it wrong or not relevant? e.g. “Clause was deleted in the 2025 amendment.”"
-                          className={`${inputClass} font-normal`}
-                        />
-                      </label>
-                      <div className="flex gap-2">
-                        <Button type="submit" name="decision" value="ACCEPT" size="sm">
-                          Accept
-                        </Button>
-                        <Button type="submit" name="decision" value="REJECT" size="sm" variant="outline">
-                          Reject
-                        </Button>
-                      </div>
-                    </form>
-                  ) : null}
-                </article>
-              ))
+              <ReviewQueue dealId={dealId} findings={queue} reviewer={reviewer} reviewerName={viewer.name(viewer.userId)} openPage={view.documentId ? { documentId: view.documentId, pageNumber: view.page } : null} />
             )}
           </CardContent>
         </Card>
@@ -423,5 +287,30 @@ function ExtractedText({ text, quotes }: { text: string; quotes: readonly string
         ),
       )}
     </pre>
+  );
+}
+
+/** One page concept: "Page X of N" for the open document, with previous and next. */
+function PagePager({ dealId, documentId, pageNumber, pageCount }: { dealId: string; documentId: string; pageNumber: number; pageCount: number }) {
+  return (
+    <nav aria-label="Pages" className="mb-3 flex items-center justify-between gap-2 text-sm">
+      {pageNumber > 1 ? (
+        <Link href={citationHref(dealId, { documentId, pageNumber: pageNumber - 1 })} scroll={false} className="hover:underline">
+          ← Previous page
+        </Link>
+      ) : (
+        <span />
+      )}
+      <span className="font-medium">
+        Page {pageNumber} of {pageCount}
+      </span>
+      {pageNumber < pageCount ? (
+        <Link href={citationHref(dealId, { documentId, pageNumber: pageNumber + 1 })} scroll={false} className="hover:underline">
+          Next page →
+        </Link>
+      ) : (
+        <span />
+      )}
+    </nav>
   );
 }

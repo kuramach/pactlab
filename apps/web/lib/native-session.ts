@@ -6,6 +6,8 @@ import { publicEnv, serverEnv } from './env';
 const PENDING_EMAIL = {
   login: { name: 'pactlab_login_email', path: '/login' },
   signup: { name: 'pactlab_signup_email', path: '/signup' },
+  // Sign-up from a pact invitation happens on /invite/<token> (T-094 B12).
+  invite: { name: 'pactlab_invite_email', path: '/invite' },
 } as const;
 export type CodeFlow = keyof typeof PENDING_EMAIL;
 

@@ -2,10 +2,12 @@ import { Body, Controller, Get, HttpCode, Inject, Param, Post, Put } from '@nest
 import {
   balanceSheetItemInputSchema,
   balanceSheetItemParamsSchema,
+  balanceSheetProposalParamsSchema,
   dealParamsSchema,
   reviseBalanceSheetItemSchema,
   withdrawBalanceSheetItemSchema,
   type BalanceSheetItemInput,
+  type BalanceSheetProposalsView,
   type BalanceSheetView,
   type ReviseBalanceSheetItem,
   type WithdrawBalanceSheetItem,
@@ -27,6 +29,16 @@ export class BalanceSheetController {
     @Param(new ZodValidationPipe(dealParamsSchema)) params: { dealId: string },
   ): Promise<BalanceSheetView> {
     return this.service.list(tenant, params.dealId, requestId);
+  }
+
+  /** Lines read from an uploaded balance sheet for a person to confirm (T-094 B9); nothing is stored. */
+  @Get('proposals/:documentId')
+  proposals(
+    @Tenant() tenant: TenantContext,
+    @RequestId() requestId: string,
+    @Param(new ZodValidationPipe(balanceSheetProposalParamsSchema)) params: { dealId: string; documentId: string },
+  ): Promise<BalanceSheetProposalsView> {
+    return this.service.proposals(tenant, params.dealId, params.documentId, requestId);
   }
 
   @Post()

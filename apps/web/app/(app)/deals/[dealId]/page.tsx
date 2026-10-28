@@ -31,6 +31,7 @@ import { SextantExplanation } from '../_lib/sextant-explanation';
 import { STAGE_LABELS } from '../_lib/labels';
 import { can, dealViewer } from '../_lib/viewer';
 import { partyLabel } from '../_lib/labels';
+import { PipelineCard, pipelineSteps } from '../_lib/pipeline';
 
 // Per-user data: never prerender.
 export const dynamic = 'force-dynamic';
@@ -55,7 +56,7 @@ export default async function DealOverviewPage({
 }) {
   const { dealId } = await params;
   const outcome = (await searchParams)['outcome'];
-  const [plan, sources, parties, asking, scenarios, viewer, accepted, deal] = await Promise.all([
+  const [plan, sources, parties, asking, scenarios, viewer, accepted, deal, documentList, documentFindings] = await Promise.all([
     dealsApi.sourcePlan(dealId),
     dealsApi.sources(dealId),
     dealsApi.parties(dealId),
@@ -64,7 +65,17 @@ export default async function DealOverviewPage({
     dealViewer(dealId),
     apiGet<{ items: Finding[] }>(`/v1/deals/${dealId}/findings?status=ACCEPTED`),
     dealsApi.get(dealId),
+    apiGet<{ items: { id: string }[] }>(`/v1/deals/${dealId}/documents`),
+    apiGet<{ items: { status: string }[] }>(`/v1/deals/${dealId}/document-findings`),
   ]);
+  const scenarioItems = scenarios.kind === 'ok' ? scenarios.data.items : [];
+  const pipeline = pipelineSteps(dealId, {
+    documents: documentList.kind === 'ok' ? documentList.data.items.length : 0,
+    drafts: documentFindings.kind === 'ok' ? documentFindings.data.items.filter((item) => item.status === 'DRAFT').length : 0,
+    accepted: accepted.kind === 'ok' ? accepted.data.items.length : 0,
+    scenarios: scenarioItems.length,
+    staleScenarios: scenarioItems.filter((view) => view.stale === true).length,
+  });
   const current = asking.kind === 'ok' ? asking.data.current : null;
   // Headline scenario: the approved one if there is one, else the latest that has run.
   const compared = (scenarios.kind === 'ok' ? scenarios.data.items : []).filter((view) => view.askingComparison?.comparable);
@@ -111,6 +122,7 @@ export default async function DealOverviewPage({
           </button>
         </form>
       ) : null}
+      <PipelineCard steps={pipeline} />
       {asking.kind === 'ok' ? (
         <Card className="border-indigo/30 bg-secondary/60">
           <CardContent className="flex flex-wrap items-center justify-between gap-4 p-5">

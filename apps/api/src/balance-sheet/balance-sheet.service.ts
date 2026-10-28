@@ -1,10 +1,11 @@
 import { ConflictException, Inject, Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import { citationStillValid, PROHIBITED_CLASSIFICATIONS, SourceIndex, type CitableSource } from '@pactlab/ai';
-import { D } from '@pactlab/calculations';
+import { balanceSheetDate, D, proposeBalanceSheetItems } from '@pactlab/calculations';
 import {
   hasLoanTerms,
   type BalanceSheetItemInput,
   type BalanceSheetItemView,
+  type BalanceSheetProposalsView,
   type BalanceSheetView,
   type ReviseBalanceSheetItem,
   type WithdrawBalanceSheetItem,
@@ -73,6 +74,31 @@ export class BalanceSheetService {
     if (!check.ok) throw new UnprocessableEntityException({ code: check.reason, message: `Citation refused: ${check.reason}` });
     const { citationId: _id, ...citation } = check.citation;
     return citation;
+  }
+
+  /**
+   * Proposals read from an uploaded balance sheet (T-094 B9): deterministic,
+   * never stored, never on the bridge. A person confirms each one through
+   * create(), which re-verifies the quote against the page.
+   */
+  async proposals(tenant: TenantContext, dealId: string, documentId: string, requestId: string): Promise<BalanceSheetProposalsView> {
+    await this.access.require(tenant, dealId, canRead, { action: 'balance_sheet.proposals_read', requestId });
+    return withTenant(this.prisma, tenant, async (tx) => {
+      const document = await tx.document.findFirst({
+        where: { id: documentId, dealId, status: 'AVAILABLE', dataClass: { notIn: [...PROHIBITED_CLASSIFICATIONS] } },
+        select: { id: true },
+      });
+      if (!document) throw new NotFoundException();
+      const [pages, items] = await Promise.all([
+        tx.documentPage.findMany({ where: { dealId, documentId }, select: { pageNumber: true, text: true }, orderBy: { pageNumber: 'asc' } }),
+        balanceSheetItems.list(tx, dealId),
+      ]);
+      const readable = pages.filter((page): page is { pageNumber: number; text: string } => page.text !== null);
+      const recorded = new Set(items.filter((item) => item.citation.documentId === documentId).map((item) => `${item.citation.pageNumber}:${item.citation.quote}`));
+      const all = proposeBalanceSheetItems(readable);
+      const proposals = all.filter((proposal) => !recorded.has(`${proposal.pageNumber}:${proposal.quote}`));
+      return { documentId, asOf: balanceSheetDate(readable[0]?.text ?? ''), proposals, alreadyRecorded: all.length - proposals.length };
+    });
   }
 
   async list(tenant: TenantContext, dealId: string, requestId: string): Promise<BalanceSheetView> {

@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import type {
   AskingPriceInput,
   AskingPriceView,
@@ -62,6 +62,8 @@ export class PactsService {
   /** Any active organization member may start a Pact; they become its DEAL_LEAD. */
   async start(tenant: TenantContext, command: StartPactCommand, requestId: string): Promise<DealSummary> {
     const transactionType = deriveTransactionType(command.buyer, command.seller);
+    // Guests work inside the pacts they were invited to; they never start one in another organization (ADR 0014).
+    if (tenant.organizationRole === 'GUEST') throw new ForbiddenException();
     const deal = await createDealWithLead(
       this.prisma,
       tenant,

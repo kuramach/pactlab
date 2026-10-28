@@ -59,5 +59,5 @@ environments must not depend on a person.
 - **Monitoring:** error-class-only metrics and alarms on error rate, AI job
   age and breaker state.
 
-Local development keeps SSO sign-in by design. Work is tracked in T-095;
+Local development keeps SSO sign-in by design. Work is tracked in T-096;
 the deployed parts land with T-070.

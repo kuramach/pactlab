@@ -10,6 +10,8 @@ export interface NavItem {
   readonly requires?: Permission;
   /** `exact` for the home page; everything else is active on its sub-pages too. */
   readonly match?: 'exact' | 'prefix';
+  /** Hidden for guests on another organization's pacts (ADR 0014). */
+  readonly membersOnly?: boolean;
 }
 
 export interface NavSection {
@@ -24,9 +26,9 @@ export const NAV_SECTIONS: readonly NavSection[] = [
     items: [
       { href: '/', label: 'Home', icon: 'home', match: 'exact' },
       { href: '/deals', label: 'My deals', icon: 'deals' },
-      { href: '/pacts/new', label: 'Start a Pact', icon: 'start' },
+      { href: '/pacts/new', label: 'Start a Pact', icon: 'start', membersOnly: true },
       // The firm's comparables; the API refuses target contributors.
-      { href: '/comparables', label: 'Comparables', icon: 'comparables' },
+      { href: '/comparables', label: 'Comparables', icon: 'comparables', membersOnly: true },
     ],
   },
   {
@@ -41,11 +43,13 @@ export const NAV_SECTIONS: readonly NavSection[] = [
 export function visibleSections(
   permissions: ReadonlySet<Permission>,
   sections: readonly NavSection[] = NAV_SECTIONS,
+  guest = false,
 ): NavSection[] {
   return sections
     .map((section) => ({
       ...section,
-      items: section.items.filter((item) => item.requires === undefined || permissions.has(item.requires)),
+      // Guests work inside the pacts they were invited to: no starting pacts, no organization library (ADR 0014).
+      items: section.items.filter((item) => (item.requires === undefined || permissions.has(item.requires)) && !(guest && item.membersOnly)),
     }))
     .filter((section) => section.items.length > 0);
 }

@@ -46,3 +46,29 @@ test('a debt item quotes its page, rejects a bad amount without losing input, an
   await expect(schedule.getByText('Within 12 months')).toBeVisible();
   await expect(schedule.getByText('loan-agreement.txt, p. 1')).toBeVisible();
 });
+
+test('an uploaded balance sheet is read into lines that are recorded only when confirmed (T-094 B9)', async ({ page }) => {
+  const dealId = await startPact(page, 'Software & SaaS');
+  await uploadDocument(
+    page,
+    dealId,
+    'balance-sheet-2026.txt',
+    'Northwind Ltd — balance sheet at 30 September 2026 (synthetic)\nCash and cash equivalents: USD 310,000\nTrade receivables: USD 118,000\nTerm loan with Lakeshore Bank, outstanding principal: USD 450,000',
+  );
+  await page.goto(`/deals/${dealId}/valuation`);
+  await page.getByRole('button', { name: 'Find cash and debt lines' }).click();
+  const lines = page.getByRole('list', { name: 'Lines found' });
+  await expect(lines.getByRole('listitem')).toHaveCount(2);
+  await expect(lines.getByText('Trade receivables')).toHaveCount(0);
+  await expect(page.getByLabel('Balance sheet date')).toHaveValue('2026-09-30');
+
+  const cash = lines.getByRole('listitem').filter({ hasText: 'Cash and cash equivalents' });
+  await cash.getByRole('button', { name: 'Confirm' }).click();
+  await expect(cash.getByText('Recorded — now on the bridge')).toBeVisible();
+
+  // Reading again proposes only the line not yet recorded.
+  await page.reload();
+  await page.getByRole('button', { name: 'Find cash and debt lines' }).click();
+  await expect(page.getByRole('list', { name: 'Lines found' }).getByRole('listitem')).toHaveCount(1);
+  await expect(page.getByRole('list', { name: 'Lines found' }).getByText('Term loan with Lakeshore Bank', { exact: true })).toBeVisible();
+});

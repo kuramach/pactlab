@@ -17,9 +17,19 @@ export interface MeOrganization {
   permissions: Permission[];
 }
 
+/** A pact in another organization the user joined by invitation (T-094 B12). */
+export interface MeGuestPact {
+  organizationId: string;
+  organizationName: string;
+  dealId: string;
+  dealName: string;
+  role: string;
+}
+
 export interface MeResponse {
   user: { id: string; displayName: string };
   organizations: MeOrganization[];
+  guestPacts: MeGuestPact[];
 }
 
 export type MeResult =
@@ -50,8 +60,22 @@ export type SessionContext =
       displayName: string;
       /** The organization the session's token is scoped to; null if not (yet) resolvable. */
       organization: MeOrganization | null;
+      /** On another organization's pacts by invitation, not a member (ADR 0014). */
+      guest: boolean;
       permissions: ReadonlySet<Permission>;
     };
+
+/**
+ * A guest session (ADR 0014): scoped to another organization's pacts, with no
+ * membership there. Shown by name, marked as a guest, with no organization
+ * permissions; the API enforces what the deal roles allow.
+ */
+function guestOrganization(me: MeResponse, organizationId: string | null): MeOrganization | null {
+  const pact = (me.guestPacts ?? []).find((entry) => entry.organizationId === organizationId);
+  return pact
+    ? { id: pact.organizationId, name: `${pact.organizationName} (guest)`, slug: '', auth0OrganizationId: null, authMethod: 'EMAIL_CODE', role: 'MEMBER', permissions: [] }
+    : null;
+}
 
 /**
  * Signed-in user and active organization for the shell. The active
@@ -65,7 +89,7 @@ export const getSessionContext = cache(async (): Promise<SessionContext> => {
   if (!session && !nativeToken) return { kind: 'signed-out', permissions: new Set() };
   const me = await getMe();
   const nativeOrganization = nativeToken ? tokenOrganization(nativeToken) : null;
-  const organization =
+  const member =
     me.kind !== 'ok'
       ? null
       : session
@@ -73,6 +97,8 @@ export const getSessionContext = cache(async (): Promise<SessionContext> => {
             ? me.data.organizations.find((org) => org.auth0OrganizationId === session.user.org_id)
             : undefined) ?? null
         : (me.data.organizations.find((org) => org.id === nativeOrganization) ?? null);
+  const guest = !member && me.kind === 'ok' && !session ? guestOrganization(me.data, nativeOrganization) : null;
+  const organization = member ?? guest;
   return {
     kind: 'signed-in',
     displayName:
@@ -80,6 +106,7 @@ export const getSessionContext = cache(async (): Promise<SessionContext> => {
         ? me.data.user.displayName
         : (session?.user.name ?? session?.user.email ?? 'Signed in'),
     organization,
+    guest: guest !== null,
     permissions: new Set(organization?.permissions ?? []),
   };
 });

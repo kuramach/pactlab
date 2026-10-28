@@ -26,6 +26,21 @@ export const emails = {
     };
   },
 
+  /** An invitation to one pact (T-094 B12): who, which pact, which side and role; the link expires. */
+  dealInvitation(to: string, invite: { inviterName: string; dealName: string; side: string; role: string; link: string; days: number }): OutboundEmail {
+    const side = invite.side === 'SELLER' ? 'the seller side' : invite.side === 'ADVISOR' ? 'as an advisor' : 'the buyer side';
+    return {
+      to,
+      subject: `${invite.inviterName} invited you to a pact on Pactlab`,
+      text: [
+        `${invite.inviterName} invited you to “${invite.dealName}” on Pactlab, ${side} (${invite.role.toLowerCase().replaceAll('_', ' ')}).`,
+        `Open the invitation: ${invite.link}`,
+        `You join this pact only — not the inviting company. The link works once and expires in ${invite.days} days.`,
+        'If you were not expecting this, ignore this email.',
+      ].join('\n'),
+    };
+  },
+
   /** Sent instead of a code when the address already has an account. */
   signupExistingAccount(to: string, loginUrl: string): OutboundEmail {
     return {

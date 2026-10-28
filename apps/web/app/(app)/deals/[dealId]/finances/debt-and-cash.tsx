@@ -26,17 +26,16 @@ export function DebtAndCashCard({ dealId, view }: { dealId: string; view: Balanc
         <div className="flex min-w-0 flex-1 flex-col gap-1">
           <CardTitle id="debt-and-cash">Debt &amp; cash</CardTitle>
           <CardDescription>
-            Cash, debt and debt-like items, each quoting its document. Record or revise them on{' '}
+            Cash, debt and debt-like items, each quoting its document.{' '}
             <Link href={`/deals/${dealId}/valuation#balance-sheet`} className="font-semibold text-indigo-ink hover:underline">
-              Valuation
+              Read an uploaded balance sheet, or record an item by hand →
             </Link>
-            .
           </CardDescription>
         </div>
       </CardHeader>
       <CardContent className="flex flex-col gap-5 text-sm">
         {view.items.length === 0 ? (
-          <p className="text-muted-foreground">No cash or debt recorded yet.</p>
+          <p className="text-muted-foreground">No cash or debt recorded yet. Upload the balance sheet on Documents, then confirm its lines on Valuation.</p>
         ) : (
           <>
             {totals ? (

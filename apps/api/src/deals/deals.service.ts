@@ -1,4 +1,4 @@
-import { Inject, Injectable, NotFoundException, Optional } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException, Optional, ForbiddenException } from '@nestjs/common';
 import type { DealSummary } from '@pactlab/contracts';
 import {
   appendAuditEvent,
@@ -68,6 +68,8 @@ export class DealsService {
     command: CreateDealCommand,
     requestId: string,
   ): Promise<DealSummary> {
+    // Guests work inside the pacts they were invited to; they never start one in another organization (ADR 0014).
+    if (tenant.organizationRole === 'GUEST') throw new ForbiddenException();
     const deal = await createDealWithLead(this.prisma, tenant, command, async (tx, created) => {
       await appendAuditEvent(tx, {
         organizationId: tenant.organizationId,

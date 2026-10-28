@@ -568,6 +568,9 @@ model Deal {
   claims                  DealClaim[]
   postCloseItems          PostCloseItem[]
   foresightTrendSets      ForesightTrendSet[]
+  foresightForecasts      ForesightForecast[]
+  foresightBaselines      ForesightBaseline[]
+  invitations             DealInvitation[]
   foresightQuestions      ForesightQuestion[]
   ventureRaiseSettings    VentureRaiseSettings[]
   ventureOffers           VentureOffer[]
@@ -1850,4 +1853,82 @@ model VentureOffer {
   @@unique([organizationId, dealId, id])
   @@index([organizationId, dealId, createdAt])
   @@map("venture_offers")
+}
+
+/// A five-year numeric forecast for one Foresight key metric (T-094 B10):
+/// published (EXTERNAL, e.g. IMF WEO), AI, or the user's own. Append-only
+/// per (metric, source): a new version supersedes the last. Values are
+/// percent a year for `first_year` .. `first_year + 4`.
+model ForesightForecast {
+  id             String    @id @default(uuid(7)) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  dealId         String    @map("deal_id") @db.Uuid
+  metricKey      String    @map("metric_key")
+  /// EXTERNAL | AI | USER
+  source         String
+  version        Int       @default(1)
+  firstYear      Int       @map("first_year")
+  values         Decimal[] @db.Decimal(9, 4)
+  sourceName     String?   @map("source_name")
+  sourceUrl      String?   @map("source_url")
+  sourceAsOf     DateTime? @map("source_as_of") @db.Date
+  rationale      String?
+  modelId        String?   @map("model_id")
+  promptId       String?   @map("prompt_id")
+  promptVersion  String?   @map("prompt_version")
+  aiRunId        String?   @map("ai_run_id") @db.Uuid
+  /// Null when drafted by the system (published or AI refresh).
+  createdBy      String?   @map("created_by") @db.Uuid
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  deal Deal @relation(fields: [organizationId, dealId], references: [organizationId, id], onDelete: Restrict, map: "foresight_forecasts_deal_fkey")
+
+  @@unique([organizationId, dealId, metricKey, source, version], map: "foresight_forecasts_metric_version_key")
+  @@index([organizationId, dealId, createdAt])
+  @@map("foresight_forecasts")
+}
+
+/// The state of a pact's Foresight baseline refresh (published + AI forecasts), so the tab never waits on a live call.
+model ForesightBaseline {
+  id             String    @id @default(uuid(7)) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  dealId         String    @map("deal_id") @db.Uuid
+  /// RUNNING | READY | PARTIAL | FAILED
+  status         String
+  /// Plain-language notes on what could not be fetched (never provider text).
+  notes          String[]  @default([])
+  startedAt      DateTime  @map("started_at") @db.Timestamptz(3)
+  finishedAt     DateTime? @map("finished_at") @db.Timestamptz(3)
+
+  deal Deal @relation(fields: [organizationId, dealId], references: [organizationId, id], onDelete: Restrict, map: "foresight_baselines_deal_fkey")
+
+  @@unique([organizationId, dealId])
+  @@map("foresight_baselines")
+}
+
+/// An invitation to one pact (T-094 B12, ADR 0014): one email, one side and
+/// role. The token is stored only as its hash. Accepting makes the invitee a
+/// guest on the pact (a deal membership), never a member of this organization.
+model DealInvitation {
+  id             String    @id @default(uuid(7)) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  dealId         String    @map("deal_id") @db.Uuid
+  email          String
+  /// BUYER | SELLER | ADVISOR
+  side           String
+  role           DealRole
+  tokenHash      String    @unique @map("token_hash")
+  /// PENDING | ACCEPTED | REVOKED (expiry is read from expires_at)
+  status         String    @default("PENDING")
+  invitedBy      String    @map("invited_by") @db.Uuid
+  expiresAt      DateTime  @map("expires_at") @db.Timestamptz(3)
+  acceptedBy     String?   @map("accepted_by") @db.Uuid
+  acceptedAt     DateTime? @map("accepted_at") @db.Timestamptz(3)
+  revokedAt      DateTime? @map("revoked_at") @db.Timestamptz(3)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  deal Deal @relation(fields: [organizationId, dealId], references: [organizationId, id], onDelete: Restrict, map: "deal_invitations_deal_fkey")
+
+  @@index([organizationId, dealId, createdAt])
+  @@map("deal_invitations")
 }

@@ -8,6 +8,7 @@ import { DonutChart, CHART_COLORS } from '../../../_lib/charts';
 import { addBalanceSheetItem, reviseBalanceSheetItem, withdrawBalanceSheetItem } from './balance-sheet-actions';
 import { BalanceSheetItemForm } from './balance-sheet-form';
 import { KIND_LABELS, CATEGORY_LABELS, describeTerms } from './balance-sheet-form-state';
+import { BalanceSheetReader } from './balance-sheet-reader';
 
 export const BALANCE_SHEET_OUTCOMES: Readonly<Record<string, string>> = {
   'ok-item': 'Item recorded with its citation. Link it to a scenario and re-run.',
@@ -144,8 +145,10 @@ export function BalanceSheetCard({ dealId, view, currency }: { dealId: string; v
           view.documents.length === 0 ? (
             <p className="text-sm text-muted-foreground">Upload a balance sheet or loan agreement first — every item must quote its source.</p>
           ) : (
+            <>
+            <BalanceSheetReader dealId={dealId} documents={view.documents} currency={currency} />
             <details className="rounded-2xl border border-dashed border-navy/20 p-4">
-              <summary className="cursor-pointer text-sm font-bold text-indigo-ink">Add an item</summary>
+              <summary className="cursor-pointer text-sm font-bold text-indigo-ink">Add an item by hand</summary>
               <BalanceSheetItemForm
                 action={addBalanceSheetItem.bind(null, dealId)}
                 dealId={dealId}
@@ -154,6 +157,7 @@ export function BalanceSheetCard({ dealId, view, currency }: { dealId: string; v
                 submitLabel="Record item"
               />
             </details>
+            </>
           )
         ) : null}
       </CardContent>

@@ -1,6 +1,14 @@
 export const ORGANIZATION_ROLES = ['ORG_OWNER', 'ORG_ADMIN', 'MEMBER'] as const;
 export type OrganizationRole = (typeof ORGANIZATION_ROLES)[number];
 
+/**
+ * How a session holds its organization (T-094 B12, ADR 0014): as a member
+ * (one of ORGANIZATION_ROLES), or as a GUEST — someone from another party on
+ * one or more of the organization's pacts, with no organization membership.
+ * GUEST is never stored as a membership role.
+ */
+export type TenantOrganizationRole = OrganizationRole | 'GUEST';
+
 export const DEAL_ROLES = [
   'DEAL_LEAD',
   'ANALYST',
@@ -32,16 +40,18 @@ const DEAL_ROLE_PERMISSIONS: Record<DealRole, readonly Permission[]> = {
   VIEWER: ['DEAL_READ', 'BUYER_ANALYSIS_READ'],
 };
 
-const ORGANIZATION_ROLE_PERMISSIONS: Record<OrganizationRole, readonly Permission[]> = {
+const ORGANIZATION_ROLE_PERMISSIONS: Record<TenantOrganizationRole, readonly Permission[]> = {
   ORG_OWNER: ['ORG_ADMIN', 'AUDIT_READ'],
   ORG_ADMIN: ['ORG_ADMIN', 'AUDIT_READ'],
   MEMBER: [],
+  // Guests act only through their deal roles.
+  GUEST: [],
 };
 
 export function permissionsForDealRole(role: DealRole): ReadonlySet<Permission> {
   return new Set(DEAL_ROLE_PERMISSIONS[role]);
 }
 
-export function permissionsForOrganizationRole(role: OrganizationRole): ReadonlySet<Permission> {
+export function permissionsForOrganizationRole(role: TenantOrganizationRole): ReadonlySet<Permission> {
   return new Set(ORGANIZATION_ROLE_PERMISSIONS[role]);
 }

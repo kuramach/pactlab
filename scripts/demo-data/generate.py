@@ -69,6 +69,7 @@ class Dataset:
         self.findings = []    # (title, where to look)
         self.notes = []
         self.summary = ''
+        self.engineering = False
         self.prefix = ''.join(w[0] for w in pack.split('-'))[:3]
 
     def amt(self, usd):
@@ -214,6 +215,15 @@ class Dataset:
                     '   | Received on | 30 September 2026 |', '',
                     '   → **Record offer**.', '',
                     '**You should see:** **Offers side by side** showing Harborline\'s price per share and what the founders own after the round.', '']
+        if self.engineering:
+            heading('Connect the code and delivery data (Engineering)')
+            out += ['Code and delivery data come through their APIs, never as files. Local and dev Pactlab include a synthetic Brightwave repository and Jira site for this:', '',
+                    '1. Open the **Sources** tab → **Connect synthetic code and Jira data**.',
+                    '2. Repository: **brightwave/platform** · Jira site: **brightwave.atlassian.net (BW)** → **Connect and sync**.',
+                    '3. Pactlab opens **Engineering** when the sync finishes (a few seconds).', '',
+                    '**You should see** on **Engineering**: the Brightwave team (six engineers and a product manager who files work but never commits), `billing/` maintained by one person, one engineer marked departed, and delivery slipping in the last two sprints. On **Findings**, two engineering drafts:', '',
+                    '- **Single-contributor concentration in billing/** — one engineer wrote every billing change.',
+                    '- **Commits attributed to unmatched or departed identities** — commits still arrive under an engineer who left in May.', '']
         heading('Run the checks and review the findings')
         out += [f'1. Open the **Findings** tab → **Run {label.lower()} checks**.',
                 f'2. **You should see exactly these {len(self.findings)} findings** (running the checks again adds nothing):', '']
@@ -354,7 +364,8 @@ Deferred revenue on annual subscriptions billed in advance: {money(c, ds.amt(960
         ('Largest customer can leave on a sale', '`documents/02-master-services-agreement-northgate.pdf` page 2, clause 14 — termination on change of control.'),
         ('Contraction hidden in the logo count', 'Amberline Hotels drops by 30% from April 2026; the KPI pack reports 14 active customers, the ledger has 13.'),
     ]
-    ds.notes = ['Code and delivery data (GitHub, Jira) connect through their APIs, not files: in a local or dev Pactlab, use **Sources → Connect synthetic code and Jira data**.']
+    ds.notes = ['Code and delivery data (GitHub, Jira) connect through their APIs, never files. The synthetic Brightwave repository and Jira site in the Engineering step are built into local and dev Pactlab; production connects the real ones.']
+    ds.engineering = True
 
 def fintech(ds):
     ds.kind, ds.kind_label = 'platform_fee', 'merchant platform fee'
