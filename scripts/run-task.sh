@@ -42,6 +42,10 @@ git worktree add -B "$BRANCH" "$WT" HEAD >>"$LOG" 2>&1
 TIER="${CONTEXT_TIER:-$(grep -E '^Context:' "$ACTIVE" | head -1 | sed 's/^Context:[[:space:]]*//' || true)}"
 TIER="${TIER:-standard}"
 case "$TIER" in light|standard|deep) ;; *) echo "warn: unknown Context: '$TIER', using standard" | tee -a "$LOG"; TIER=standard ;; esac
+
+# --- model routing: MODEL env > task's Model: > routed from the attempt's tier (see tasks/README.md) ---
+TASK_MODEL="$(grep -E '^Model:' "$ACTIVE" | head -1 | sed 's/^Model:[[:space:]]*//' || true)"
+case "$TASK_MODEL" in ""|haiku|sonnet|opus) ;; *) echo "warn: unknown Model: '$TASK_MODEL', ignoring" | tee -a "$LOG"; TASK_MODEL="" ;; esac
 next_tier() { case "$1" in light) echo standard ;; standard) echo deep ;; *) echo "" ;; esac; }
 
 CHECKS="$(grep -E '^Checks:' "$ACTIVE" | head -1 | sed 's/^Checks:[[:space:]]*//')"
@@ -60,14 +64,16 @@ When finished: run the task's Checks:, commit your work on this branch, and push
 End with a plain report: files changed, each command run with its result, and anything unfinished.
 
 $(cat "$CTX")"
+  local model="${MODEL:-$TASK_MODEL}"
+  if [[ -z "$model" ]]; then case "$tier" in light) model=haiku ;; deep) model=opus ;; *) model=sonnet ;; esac; fi
   core=$(wc -c <"$WT/CLAUDE.md" 2>/dev/null || echo 0)
   ctx_chars=$(printf '%s' "$prompt" | wc -c)
   # Initial context = always-loaded CLAUDE.md + this prompt; ~4 characters per token.
   echo "context: tier=$tier chars=$((core + ctx_chars)) claude_md=$core prompt=$ctx_chars approx_tokens=$(((core + ctx_chars) / 4))" | tee -a "$LOG"
 
-  echo "=== launching claude for $TASK_ID (tier $tier) ===" | tee -a "$LOG"
+  echo "=== launching claude for $TASK_ID (tier $tier, model $model) ===" | tee -a "$LOG"
   # shellcheck disable=SC2086
-  (cd "$WT" && claude -p "$prompt" ${CLAUDE_FLAGS:-} 2>&1 | tee "$OUT" | tee -a "$LOG") \
+  (cd "$WT" && claude -p "$prompt" --model "$model" ${CLAUDE_FLAGS:-} 2>&1 | tee "$OUT" | tee -a "$LOG") \
     || echo "warn: claude exited non-zero" | tee -a "$LOG"
   STARVED="$(grep -m1 -E '^CONTEXT-STARVED:' "$OUT" || true)"
 
