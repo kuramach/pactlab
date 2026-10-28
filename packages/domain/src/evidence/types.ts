@@ -1,4 +1,4 @@
-import { permissionsForDealRole, type DealRole } from '../roles';
+import { isCounterpartyRole, permissionsForDealRole, type DealRole } from '../roles';
 
 /** Persisted, audited per connection. Downstream logic never branches on mode. */
 export const CONNECTION_MODES = ['FIXTURE', 'LIVE'] as const;
@@ -113,9 +113,9 @@ export interface EvidenceSource {
   pull(): Promise<EvidencePull>;
 }
 
-/** Deal roles on the buyer side of the contributor boundary. */
+/** Deal roles on the pact's own side of the contributor boundary (not a seller contributor or a bidder). */
 export function isBuyerSideRole(role: DealRole): boolean {
-  return role !== 'TARGET_CONTRIBUTOR';
+  return !isCounterpartyRole(role);
 }
 
 export function canSeeEvidence(role: DealRole, visibility: EvidenceVisibility): boolean {
@@ -127,5 +127,5 @@ export function canSeeEvidence(role: DealRole, visibility: EvidenceVisibility): 
  * them to SHARED items; every other role needs EVIDENCE_READ.
  */
 export function canBrowseEvidence(role: DealRole): boolean {
-  return role === 'TARGET_CONTRIBUTOR' || permissionsForDealRole(role).has('EVIDENCE_READ');
+  return isCounterpartyRole(role) || permissionsForDealRole(role).has('EVIDENCE_READ');
 }

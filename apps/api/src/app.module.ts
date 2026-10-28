@@ -38,6 +38,7 @@ import { IDENTITY_VERIFIER, LOGGER, PRISMA } from './tokens';
 import { PROVIDER_DEPENDENCIES, providerDependencies, type ProviderSettings } from './connections/provider-dependencies';
 import type { PackRegistry } from './findings/pack-rules';
 import { FixtureMacroForecastProvider, type MacroForecastProvider } from '@pactlab/connectors';
+import { SaleModule } from './sale/sale.module';
 import { InvitationsModule } from './invitations/invitations.module';
 
 export interface AppDependencies {
@@ -111,6 +112,10 @@ export class AppModule {
       pactlab: tokens,
       pactlabIssuer: PACTLAB_TOKEN_ISSUER,
     });
+    const invitations = InvitationsModule.register({
+      emailSender: deps.emailLogin?.emailSender ?? new UnavailableEmailSender(),
+      appOrigin: deps.signup?.loginUrl ? new URL(deps.signup.loginUrl).origin : 'http://localhost:3000',
+    });
     return {
       module: AppModule,
       imports: [
@@ -163,10 +168,8 @@ export class AppModule {
               }),
             ]
           : []),
-        InvitationsModule.register({
-          emailSender: deps.emailLogin?.emailSender ?? new UnavailableEmailSender(),
-          appOrigin: deps.signup?.loginUrl ? new URL(deps.signup.loginUrl).origin : 'http://localhost:3000',
-        }),
+        invitations,
+        SaleModule.register(invitations),
         ...(deps.emailLogin && deps.signup
           ? [
               SignupModule.register({

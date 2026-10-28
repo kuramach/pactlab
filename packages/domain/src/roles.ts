@@ -16,8 +16,19 @@ export const DEAL_ROLES = [
   'ADVISER',
   'TARGET_CONTRIBUTOR',
   'VIEWER',
+  /** A bidding firm's person in a seller-led pact (T-097, ADR 0015). */
+  'BIDDER',
 ] as const;
 export type DealRole = (typeof DEAL_ROLES)[number];
+
+/**
+ * The other party on a pact: the seller's contributor on a buyer-led pact,
+ * or a bidder on a seller-led one. Never the pact's own side, so never
+ * shown the owner's confidential analysis.
+ */
+export function isCounterpartyRole(role: DealRole): boolean {
+  return role === 'TARGET_CONTRIBUTOR' || role === 'BIDDER';
+}
 
 export const PERMISSIONS = [
   'DEAL_READ',
@@ -38,6 +49,8 @@ const DEAL_ROLE_PERMISSIONS: Record<DealRole, readonly Permission[]> = {
   // Target contributors never receive buyer-only analysis by role.
   TARGET_CONTRIBUTOR: ['DEAL_READ'],
   VIEWER: ['DEAL_READ', 'BUYER_ANALYSIS_READ'],
+  // A bidder reads the seller's shared view and their own bid; nothing else.
+  BIDDER: ['DEAL_READ'],
 };
 
 const ORGANIZATION_ROLE_PERMISSIONS: Record<TenantOrganizationRole, readonly Permission[]> = {

@@ -3,6 +3,7 @@ import { billedMrr, capTableOf, D, liquidationPreference, roundScenario, RoundMo
 import type { CreateOfferInput, OfferView, UpdateOfferInput, VentureSettingsInput, VentureSettingsView } from '@pactlab/contracts';
 import { appendAuditEvent, withTenant, type PrismaClient, type TransactionClient } from '@pactlab/db';
 import {
+  isCounterpartyRole,
   IMPORT_TARGET_DEFINITIONS,
   permissionsForDealRole,
   readinessOf,
@@ -16,7 +17,7 @@ import { loadPackEvidence } from '../packs/pack-evidence';
 import { PRISMA } from '../tokens';
 
 const canRead = (role: DealRole) => permissionsForDealRole(role).has('BUYER_ANALYSIS_READ');
-const canWrite = (role: DealRole) => permissionsForDealRole(role).has('DEAL_WRITE') && role !== 'TARGET_CONTRIBUTOR';
+const canWrite = (role: DealRole) => permissionsForDealRole(role).has('DEAL_WRITE') && !isCounterpartyRole(role);
 const CAP_TABLE = 'venture.cap_table_row';
 const ACTIVE: readonly string[] = ['PROSPECT', 'TERM_SHEET', 'SIGNED'];
 const text = (value: { toString(): string } | null) => (value === null ? null : value.toString());

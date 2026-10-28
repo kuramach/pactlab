@@ -208,7 +208,7 @@ export class DocumentSourcesService {
           tenant,
           dealId,
           role,
-          { fileName: file.name, contentType, contentBase64: Buffer.from(bytes).toString('base64'), retentionClass: 'DEAL_TERM', dataClass: 'BUSINESS', aiExcluded: false },
+          { fileName: file.name, contentType, contentBase64: Buffer.from(bytes).toString('base64'), retentionClass: 'DEAL_TERM', dataClass: 'BUSINESS', aiExcluded: false, shared: false },
           file.folder || null,
           requestId,
           { sourceId, externalId: file.externalId, version: file.version },
