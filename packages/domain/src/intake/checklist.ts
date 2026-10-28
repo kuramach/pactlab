@@ -70,7 +70,8 @@ export interface IntakeFile {
   readonly intakeState: IntakeState;
 }
 
-export type ChecklistState = 'RECEIVED' | 'CONNECTED' | 'MISSING';
+/** PARTIAL: some received, but specific ones are still missing (e.g. contracts for named top customers). */
+export type ChecklistState = 'RECEIVED' | 'PARTIAL' | 'CONNECTED' | 'MISSING';
 
 export interface ChecklistItem {
   readonly id: ExpectedInputId;
@@ -83,6 +84,8 @@ export interface ChecklistItem {
   readonly connections: readonly string[];
   /** Providers that could feed it, offered when it is missing. */
   readonly connectable: readonly string[];
+  /** Specific items still missing, by name (customer contracts for top customers). */
+  readonly missingFor: readonly string[];
 }
 
 /**
@@ -94,13 +97,17 @@ export function intakeChecklist(
   pack: PackDefinition,
   files: readonly IntakeFile[],
   activeProviders: readonly string[],
+  /** Named gaps inside an input, e.g. CUSTOMER_CONTRACT → top customers without one. */
+  gaps: Partial<Readonly<Record<ExpectedInputId, readonly string[]>>> = {},
 ): ChecklistItem[] {
   return expectedInputs(pack).map((input) => {
     const documentIds = files
       .filter((file) => file.intakeState === 'FILED' && file.category === input.id)
       .map((file) => file.id);
     const connections = activeProviders.filter((provider) => CONNECTION_COVERAGE[provider]?.includes(input.id));
-    const state: ChecklistState = connections.length > 0 ? 'CONNECTED' : documentIds.length > 0 ? 'RECEIVED' : 'MISSING';
+    const missingFor = gaps[input.id] ?? [];
+    const state: ChecklistState =
+      connections.length > 0 ? 'CONNECTED' : documentIds.length === 0 ? 'MISSING' : missingFor.length > 0 ? 'PARTIAL' : 'RECEIVED';
     return {
       id: input.id,
       label: expectedInputLabel(input.id),
@@ -109,16 +116,19 @@ export function intakeChecklist(
       documentIds,
       connections,
       connectable: providersFor(input.id),
+      missingFor,
     };
   });
 }
 
 /** Plain-text request list for the counterparty, required items first. */
 export function missingRequest(items: readonly ChecklistItem[]): string {
-  const missing = items.filter((item) => item.state === 'MISSING');
+  const missing = items.filter((item) => item.state === 'MISSING' || item.state === 'PARTIAL');
   if (missing.length === 0) return 'Nothing is missing.';
   const lines = (need: ExpectedInput['need']) =>
-    missing.filter((item) => item.need === need).map((item) => `- ${item.label}`);
+    missing
+      .filter((item) => item.need === need)
+      .map((item) => (item.missingFor.length > 0 ? `- ${item.label}: ${item.missingFor.join(', ')}` : `- ${item.label}`));
   const required = lines('REQUIRED');
   const optional = lines('OPTIONAL');
   return [

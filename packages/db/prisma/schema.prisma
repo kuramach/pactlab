@@ -461,6 +461,8 @@ model Organization {
   valuationSubmissions    ValuationSubmission[]
   valuationDecisions      ValuationSubmissionDecision[]
   documents               Document[]
+  documentSources DocumentSource[]
+  documentRequests DocumentRequest[]
   documentPages           DocumentPage[]
   aiRuns                  AiRun[]
   documentFindings        DocumentFinding[]
@@ -550,6 +552,8 @@ model Deal {
   valuationSubmissions    ValuationSubmission[]
   valuationDecisions      ValuationSubmissionDecision[]
   documents               Document[]
+  documentSources DocumentSource[]
+  documentRequests DocumentRequest[]
   documentPages           DocumentPage[]
   aiRuns                  AiRun[]
   documentFindings        DocumentFinding[]
@@ -1117,9 +1121,19 @@ model Document {
   classifiedRunId    String?   @map("classified_run_id") @db.Uuid
   categorizedBy      String?   @map("categorized_by") @db.Uuid
   categorizedAt      DateTime? @map("categorized_at") @db.Timestamptz(3)
+  /// The connected data room or drive it was read from (T-098), if any.
+  sourceId           String?   @map("source_id") @db.Uuid
+  sourceExternalId   String?   @map("source_external_id")
+  sourceVersion      String?   @map("source_version")
+  /// CURRENT | REPLACED (a newer version was read) | REMOVED (gone at the source)
+  sourceState        String?   @map("source_state")
+  /// The category before a person re-filed it; results built under it are listed to recheck.
+  recategorizedFrom  String?   @map("recategorized_from")
+  recategorizedAt    DateTime? @map("recategorized_at") @db.Timestamptz(3)
 
   organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   deal         Deal              @relation(fields: [organizationId, dealId], references: [organizationId, id], onDelete: Restrict)
+  source       DocumentSource?   @relation(fields: [organizationId, dealId, sourceId], references: [organizationId, dealId, id], onDelete: Restrict, map: "documents_source_fkey")
   pages        DocumentPage[]
   findings     DocumentFinding[]
 
@@ -1127,7 +1141,56 @@ model Document {
   @@unique([objectKey])
   @@index([organizationId, dealId, sha256])
   @@index([organizationId, dealId, intakeState], map: "documents_intake_state_idx")
+  @@index([organizationId, dealId, sourceId, sourceExternalId], map: "documents_source_idx")
   @@map("documents")
+}
+
+/// A data room or drive folder documents are read from (T-098, ADR 0016). Read-only. Buyer side.
+model DocumentSource {
+  id              String    @id @db.Uuid
+  organizationId  String    @map("organization_id") @db.Uuid
+  dealId          String    @map("deal_id") @db.Uuid
+  /// google-drive | onedrive | vdr
+  provider        String
+  /// FIXTURE | LIVE
+  mode            String
+  displayName     String    @map("display_name")
+  config          Json
+  credentialRef   String?   @map("credential_ref")
+  /// ACTIVE | DISABLED
+  status          String    @default("ACTIVE")
+  lastSyncedAt    DateTime? @map("last_synced_at") @db.Timestamptz(3)
+  lastSyncSummary Json?     @map("last_sync_summary")
+  createdBy       String    @map("created_by") @db.Uuid
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  deal         Deal         @relation(fields: [organizationId, dealId], references: [organizationId, id], onDelete: Restrict, map: "document_sources_deal_fkey")
+  documents    Document[]
+
+  @@unique([organizationId, dealId, id], map: "document_sources_org_deal_id_key")
+  @@index([organizationId, dealId, createdAt], map: "document_sources_org_deal_created_idx")
+  @@map("document_sources")
+}
+
+/// A request to the seller for missing inputs (T-098). Both sides read it; the buyer side writes it.
+model DocumentRequest {
+  id             String    @id @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  dealId         String    @map("deal_id") @db.Uuid
+  items          String[]
+  note           String?
+  /// OPEN | CLOSED
+  status         String    @default("OPEN")
+  createdBy      String    @map("created_by") @db.Uuid
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  closedAt       DateTime? @map("closed_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  deal         Deal         @relation(fields: [organizationId, dealId], references: [organizationId, id], onDelete: Restrict, map: "document_requests_deal_fkey")
+
+  @@index([organizationId, dealId, createdAt], map: "document_requests_org_deal_created_idx")
+  @@map("document_requests")
 }
 
 /// Extracted page. The page id is the citation source id; purge nulls the

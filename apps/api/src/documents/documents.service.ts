@@ -33,7 +33,10 @@ import {
 import {
   categoriesForPack,
   categoryDefinition,
+  customerContractGaps,
   decideIntake,
+  expectedInputLabel,
+  expectedInputs,
   intakeChecklist,
   isIntakeCategory,
   missingRequest,
@@ -43,6 +46,7 @@ import {
   tenantObjectKey,
   type CompanyType,
   type DealRole,
+  type ExpectedInputId,
   type IntakeCategory,
   type PackDefinition,
   type Permission,
@@ -68,12 +72,13 @@ import {
 import type {
   AskQuestionBody,
   CategorizeDocumentBody,
+  CreateDocumentRequestBody,
   ListDocumentFindingsQuery,
   ReviewDocumentFindingBody,
   UploadArchiveBody,
   UploadDocumentBody,
 } from './documents.schemas';
-import { UNCLASSIFIED_INTAKE, type DocumentIntake, type DocumentPageRecord, type DocumentRecord } from './documents.types';
+import { UNCLASSIFIED_INTAKE, type DocumentIntake, type DocumentPageRecord, type DocumentRecord, type DocumentSourceLink } from './documents.types';
 import { documentPages } from './document-text';
 import { ExtractionError } from './extraction';
 import {
@@ -198,14 +203,18 @@ export class DocumentsService {
     return this.ingest(tenant, dealId, role, body, null, requestId);
   }
 
-  /** One file through the secure upload path: scan, type check, pages, store. */
-  private async ingest(
+  /**
+   * One file through the secure upload path: scan, type check, pages, store.
+   * Used by uploads, zips and connected sources alike.
+   */
+  async ingest(
     tenant: TenantContext,
     dealId: string,
     role: DealRole,
     body: UploadDocumentBody,
     sourcePath: string | null,
     requestId: string,
+    source: Omit<DocumentSourceLink, 'state'> | null = null,
   ) {
     let validated;
     let pages;
@@ -259,6 +268,9 @@ export class DocumentsService {
       createdAt: now.toISOString(),
       purgedAt: null,
       intake: { ...UNCLASSIFIED_INTAKE, sourcePath },
+      source: source ? { ...source, state: 'CURRENT' } : null,
+      recategorizedFrom: null,
+      recategorizedAt: null,
     };
     const pageRecords: DocumentPageRecord[] = pages.map((page) => ({
       id: newId(),
@@ -348,6 +360,17 @@ export class DocumentsService {
     const items = await this.documents.listDocuments(tenant, dealId, {
       sharedOnly: role === 'TARGET_CONTRIBUTOR',
     });
+    // The seller sees what their file was filed as, never the AI's reasoning or questions to the buyer.
+    if (role === 'TARGET_CONTRIBUTOR') {
+      return {
+        items: items.map((document) => ({
+          ...documentView(document),
+          intake: { ...UNCLASSIFIED_INTAKE, state: document.intake.state === 'FILED' ? 'FILED' : 'UNCLASSIFIED', category: document.intake.state === 'FILED' ? document.intake.category : null },
+          recategorizedFrom: null,
+          recategorizedAt: null,
+        })),
+      };
+    }
     return { items: items.map(documentView) };
   }
 
@@ -717,15 +740,50 @@ export class DocumentsService {
       categorizedAt: new Date().toISOString(),
     };
     const excludeFromAi = categoryDefinition(body.category).people;
+    // Re-filing a settled document: remember what it was, so results built under it are listed to recheck.
+    const refiled = document.intake.state === 'FILED' && document.intake.category !== null && document.intake.category !== body.category;
     await this.documents.updateIntake(
       tenant,
       dealId,
       documentId,
       intake,
-      { excludeFromAi, run: null },
+      { excludeFromAi, run: null, ...(refiled ? { recategorizedFrom: document.intake.category } : {}) },
       this.audit(tenant, dealId, 'document.categorized', { type: 'document', id: documentId }, requestId),
     );
-    return this.intakeView({ ...document, aiExcluded: document.aiExcluded || excludeFromAi, intake });
+    return {
+      ...this.intakeView({ ...document, aiExcluded: document.aiExcluded || excludeFromAi, intake }),
+      recategorizedFrom: refiled ? document.intake.category : document.recategorizedFrom,
+      recheck: refiled ? await this.recheck(tenant, dealId, documentId) : null,
+    };
+  }
+
+  /** What was built from a document under its old category: drafts, accepted findings, balance-sheet lines. */
+  private async recheck(tenant: TenantContext, dealId: string, documentId: string) {
+    return withTenant(this.prisma, tenant, async (tx) => {
+      const [draftFindings, acceptedFindings, balanceSheetItems] = await Promise.all([
+        tx.documentFinding.count({ where: { dealId, documentId, status: 'DRAFT' } }),
+        tx.documentFinding.count({ where: { dealId, documentId, status: 'ACCEPTED' } }),
+        tx.balanceSheetItem.count({ where: { dealId, status: 'ACTIVE', citation: { path: ['documentId'], equals: documentId } } }),
+      ]);
+      return { draftFindings, acceptedFindings, balanceSheetItems };
+    });
+  }
+
+  /** Billing lines and contract counterparties → the top customers with no contract filed. */
+  private async customerGaps(tenant: TenantContext, dealId: string, documents: readonly DocumentRecord[]): Promise<string[]> {
+    const lines = await withTenant(this.prisma, tenant, (tx) =>
+      tx.evidenceItem.findMany({ where: { dealId, evidenceType: 'billing.invoice_line' }, select: { canonical: true }, take: 50_000 }),
+    );
+    if (lines.length === 0) return [];
+    const billed = lines.map(({ canonical }) => {
+      const row = canonical as Record<string, unknown>;
+      const text = (key: string) => (typeof row[key] === 'string' ? (row[key] as string) : null);
+      return { customerId: text('customer_id'), customerName: text('customer_name'), amount: text('amount') ?? '' };
+    });
+    const counterparties = documents
+      .filter((document) => document.intake.state === 'FILED' && document.intake.category === 'CUSTOMER_CONTRACT' && document.intake.counterpartyName)
+      .map((document) => document.intake.counterpartyName as string);
+    return [...customerContractGaps(billed, counterparties).missing];
   }
 
   /**
@@ -742,7 +800,10 @@ export class DocumentsService {
         tx.connection.findMany({ where: { dealId, status: 'ACTIVE' }, select: { provider: true } }),
       ),
     ]);
-    const available = documents.filter((document) => document.status === 'AVAILABLE');
+    // A file replaced or removed at its source no longer counts as received.
+    const available = documents.filter((document) => document.status === 'AVAILABLE' && (document.source === null || document.source.state === 'CURRENT'));
+    const wantsContracts = expectedInputs(pack).some((input) => input.id === 'CUSTOMER_CONTRACT');
+    const missingContracts = wantsContracts ? await this.customerGaps(tenant, dealId, available) : [];
     const checklist = intakeChecklist(
       pack,
       available.map((document) => ({
@@ -752,6 +813,19 @@ export class DocumentsService {
         intakeState: document.intake.state,
       })),
       [...new Set(connections.map((connection) => connection.provider))],
+      missingContracts.length > 0 ? { CUSTOMER_CONTRACT: missingContracts } : {},
+    );
+    const refiled = await Promise.all(
+      available
+        .filter((document) => document.recategorizedFrom !== null)
+        .map(async (document) => ({
+          documentId: document.id,
+          fileName: document.fileName,
+          from: categoryDefinition(document.recategorizedFrom as IntakeCategory).label,
+          to: document.intake.category ? categoryDefinition(document.intake.category as IntakeCategory).label : null,
+          at: document.recategorizedAt,
+          recheck: await this.recheck(tenant, dealId, document.id),
+        })),
     );
     return {
       pack: { id: pack.id, label: pack.label },
@@ -761,8 +835,71 @@ export class DocumentsService {
         .filter((document) => document.intake.state === 'NEEDS_YOU' || document.intake.state === 'NOT_READ')
         .map((document) => this.intakeView(document)),
       unclassified: available.filter((document) => document.intake.state === 'UNCLASSIFIED').map((document) => document.id),
+      refiled: refiled.filter((entry) => entry.recheck.draftFindings + entry.recheck.acceptedFindings + entry.recheck.balanceSheetItems > 0),
+      removedAtSource: documents
+        .filter((document) => document.source?.state === 'REMOVED')
+        .map((document) => ({ documentId: document.id, fileName: document.fileName })),
       categories: categoriesForPack(pack).map((category) => ({ id: category.id, label: category.label, route: category.route.kind })),
     };
+  }
+
+  /**
+   * Ask the seller for what is missing (T-098). The request names categories
+   * only — never buyer analysis — so both sides of the pact read it.
+   */
+  async createRequest(tenant: TenantContext, dealId: string, body: CreateDocumentRequestBody, requestId: string) {
+    await this.access.require(tenant, dealId, canExtract, { action: 'document_request.created', requestId });
+    const pack = await this.packOf(tenant, dealId);
+    const offered = new Set<string>(expectedInputs(pack).map((input) => input.id));
+    if (body.items.some((item) => !offered.has(item))) throw new UnprocessableEntityException({ code: 'UNKNOWN_CATEGORY' });
+    const id = newId();
+    await withTenant(this.prisma, tenant, async (tx) => {
+      await tx.documentRequest.create({
+        data: { id, organizationId: tenant.organizationId, dealId, items: [...new Set(body.items)], note: body.note ?? null, createdBy: tenant.userId },
+      });
+      await appendAuditEvent(tx, this.audit(tenant, dealId, 'document_request.created', { type: 'document_request', id }, requestId));
+    });
+    return { id };
+  }
+
+  /**
+   * Open and closed requests, each item ticked off when a file of that
+   * category has been filed since the request — judged only from the
+   * documents the caller can see (a seller sees their own shared uploads).
+   */
+  async listRequests(tenant: TenantContext, dealId: string, requestId: string) {
+    await this.access.require(tenant, dealId, canReadDocuments, { action: 'document_request.list', requestId });
+    const [requests, documents] = await Promise.all([
+      withTenant(this.prisma, tenant, (tx) => tx.documentRequest.findMany({ where: { dealId }, orderBy: { createdAt: 'desc' } })),
+      this.documents.listDocuments(tenant, dealId, { sharedOnly: false }),
+    ]);
+    return {
+      items: requests.map((request) => ({
+        id: request.id,
+        status: request.status,
+        note: request.note,
+        createdAt: request.createdAt.toISOString(),
+        items: request.items.map((item) => {
+          const received = documents.filter(
+            (document) => document.status === 'AVAILABLE' && document.intake.state === 'FILED' && document.intake.category === item && document.createdAt >= request.createdAt.toISOString(),
+          );
+          return { id: item, label: expectedInputLabel(item as ExpectedInputId), received: received.length > 0, documentIds: received.map((document) => document.id) };
+        }),
+      })),
+    };
+  }
+
+  async closeRequest(tenant: TenantContext, dealId: string, documentRequestId: string, requestId: string) {
+    await this.access.require(tenant, dealId, canExtract, { action: 'document_request.closed', requestId });
+    const closed = await withTenant(this.prisma, tenant, async (tx) => {
+      const updated = await tx.documentRequest.updateMany({ where: { id: documentRequestId, dealId, status: 'OPEN' }, data: { status: 'CLOSED', closedAt: new Date() } });
+      if (updated.count > 0) {
+        await appendAuditEvent(tx, this.audit(tenant, dealId, 'document_request.closed', { type: 'document_request', id: documentRequestId }, requestId));
+      }
+      return updated.count > 0;
+    });
+    if (!closed) throw new NotFoundException();
+    return { id: documentRequestId, status: 'CLOSED' };
   }
 
   async extract(tenant: TenantContext, dealId: string, documentId: string, requestId: string) {

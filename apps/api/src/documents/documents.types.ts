@@ -33,6 +33,19 @@ export interface DocumentRecord {
   readonly purgedAt: string | null;
   /** Intake (T-098, ADR 0016). */
   readonly intake: DocumentIntake;
+  /** The data room or drive it was read from; null for uploads. */
+  readonly source: DocumentSourceLink | null;
+  /** The category before a person re-filed it (results built under it are listed to recheck). */
+  readonly recategorizedFrom: string | null;
+  readonly recategorizedAt: string | null;
+}
+
+export interface DocumentSourceLink {
+  readonly sourceId: string;
+  readonly externalId: string;
+  readonly version: string | null;
+  /** CURRENT, or REPLACED by a newer version, or REMOVED at the source. Never deleted here. */
+  readonly state: 'CURRENT' | 'REPLACED' | 'REMOVED';
 }
 
 /** What the file is, who decided, and what is still open. */

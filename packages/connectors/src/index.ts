@@ -1,5 +1,6 @@
 export * from './contract';
 export * from './cross-links';
+export * from './document-source';
 export * from './credentials';
 export * from './http/cassette';
 export * from './github';

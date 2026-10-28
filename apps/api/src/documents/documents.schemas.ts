@@ -1,4 +1,5 @@
 import { DATA_CLASSIFICATIONS } from '@pactlab/ai';
+import { DOCUMENT_SOURCE_PROVIDERS, documentSourceConfigSchema } from '@pactlab/connectors';
 import { z } from 'zod';
 import { DOCUMENT_FINDING_STATUSES, RETENTION_CLASSES } from './documents.types';
 
@@ -57,3 +58,28 @@ export const categorizeDocumentBodySchema = z.strictObject({
   counterpartyName: z.string().trim().min(1).max(200).nullable().optional(),
 });
 export type CategorizeDocumentBody = z.infer<typeof categorizeDocumentBodySchema>;
+
+/**
+ * Connect a data room or drive folder (T-098). FIXTURE reads a synthetic
+ * room (local and dev only); LIVE needs a read-only access token, stored once
+ * in the secret store and never returned, logged or audited.
+ */
+export const connectDocumentSourceBodySchema = z.strictObject({
+  provider: z.enum(DOCUMENT_SOURCE_PROVIDERS),
+  mode: z.enum(['FIXTURE', 'LIVE']),
+  displayName: z.string().trim().min(1).max(200),
+  folder: documentSourceConfigSchema.shape.folder,
+  token: z.string().min(10).max(8000).optional(),
+});
+export type ConnectDocumentSourceBody = z.infer<typeof connectDocumentSourceBodySchema>;
+
+export const sourceParamsSchema = z.strictObject({ dealId: z.uuid(), sourceId: z.uuid() });
+
+/** Ask the seller for missing inputs: expected-input ids for this pact, and an optional note. */
+export const createDocumentRequestBodySchema = z.strictObject({
+  items: z.array(z.string().regex(/^[A-Z][A-Z0-9_]{1,59}$/)).min(1).max(50),
+  note: z.string().trim().min(1).max(2000).optional(),
+});
+export type CreateDocumentRequestBody = z.infer<typeof createDocumentRequestBodySchema>;
+
+export const documentRequestParamsSchema = z.strictObject({ dealId: z.uuid(), documentRequestId: z.uuid() });

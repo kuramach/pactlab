@@ -17,6 +17,7 @@ import type {
   DocumentFindingStatus,
   DocumentPageRecord,
   DocumentRecord,
+  DocumentSourceLink,
 } from './documents.types';
 
 type DocumentRow = Prisma.DocumentGetPayload<object>;
@@ -61,6 +62,12 @@ function toDocument(row: DocumentRow): DocumentRecord {
       categorizedBy: row.categorizedBy,
       categorizedAt: iso(row.categorizedAt),
     },
+    source:
+      row.sourceId && row.sourceExternalId && row.sourceState
+        ? { sourceId: row.sourceId, externalId: row.sourceExternalId, version: row.sourceVersion, state: row.sourceState as DocumentSourceLink['state'] }
+        : null,
+    recategorizedFrom: row.recategorizedFrom,
+    recategorizedAt: iso(row.recategorizedAt),
   };
 }
 
@@ -186,6 +193,10 @@ export class PrismaDocumentsRepository implements DocumentsRepository {
           createdAt: new Date(document.createdAt),
           purgedAt: document.purgedAt ? new Date(document.purgedAt) : null,
           sourcePath: document.intake.sourcePath,
+          sourceId: document.source?.sourceId ?? null,
+          sourceExternalId: document.source?.externalId ?? null,
+          sourceVersion: document.source?.version ?? null,
+          sourceState: document.source?.state ?? null,
         },
       });
       await tx.documentPage.createMany({ data: pages.map((page) => ({ ...page })) });
@@ -274,7 +285,7 @@ export class PrismaDocumentsRepository implements DocumentsRepository {
     dealId: string,
     documentId: string,
     intake: Omit<DocumentIntake, 'sourcePath'>,
-    options: { excludeFromAi: boolean; run: AiRunRecord | null },
+    options: { excludeFromAi: boolean; run: AiRunRecord | null; recategorizedFrom?: string | null },
     audit: AuditEventInput,
   ): Promise<void> {
     await withTenant(this.prisma, tenant, async (tx) => {
@@ -293,6 +304,7 @@ export class PrismaDocumentsRepository implements DocumentsRepository {
           classifiedRunId: intake.classifiedRunId,
           categorizedBy: intake.categorizedBy,
           categorizedAt: intake.categorizedAt ? new Date(intake.categorizedAt) : null,
+          ...(options.recategorizedFrom !== undefined ? { recategorizedFrom: options.recategorizedFrom, recategorizedAt: new Date() } : {}),
           // Exclusion is one-way (rule 7): only ever switched on here; a trigger refuses lifting it.
           ...(options.excludeFromAi ? { aiExcluded: true } : {}),
         },

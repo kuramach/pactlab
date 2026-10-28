@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { PACKS } from '../packs/registry';
 import { categoriesForPack, categoryDefinition, isIntakeCategory } from './categories';
 import { expectedInputs, intakeChecklist, missingRequest, type IntakeFile } from './checklist';
+import { customerContractGaps, scaledAmount } from './customers';
 import { decideIntake } from './decide';
 
 const saas = PACKS.SOFTWARE_SAAS;
@@ -128,5 +129,44 @@ describe('intake checklist', () => {
     expect(text).toContain('If available, also:\n- Lease');
     expect(text).not.toContain('Balance sheet');
     expect(text).not.toContain('Invoice lines');
+  });
+});
+
+describe('customer contract gaps', () => {
+  const line = (customerId: string, customerName: string, amount: string) => ({ customerId, customerName, amount });
+  const lines = [
+    line('c1', 'Harborline Freight (synthetic)', '14500.00'),
+    line('c1', 'Harborline Freight (synthetic)', '14500.00'),
+    line('c2', 'Northgate Logistics (synthetic)', '8160.00'),
+    line('c3', 'Granite Peak Energy (synthetic)', '6240.00'),
+    line('c4', 'Copperfield Legal (synthetic)', '4200.10'),
+    line('c5', 'Tidewater Marine (synthetic)', '0.00'),
+  ];
+
+  it('names the largest customers without a contract, largest first', () => {
+    const gaps = customerContractGaps(lines, ['Northgate Logistics, LLC', 'HARBORLINE FREIGHT INC.'], 10);
+    expect(gaps).toEqual({ checked: 4, missing: ['Granite Peak Energy (synthetic)', 'Copperfield Legal (synthetic)'] });
+  });
+
+  it('checks only the top N', () => {
+    expect(customerContractGaps(lines, [], 2)).toEqual({ checked: 2, missing: ['Harborline Freight (synthetic)', 'Northgate Logistics (synthetic)'] });
+  });
+
+  it('sums money exactly', () => {
+    expect(scaledAmount('0.1')).toBe(1000n);
+    expect(scaledAmount('4200.10')).toBe(42001000n);
+    expect(scaledAmount('-3.5')).toBe(-35000n);
+    expect(scaledAmount('1e3')).toBeNull();
+  });
+
+  it('shows a received input with named gaps as partial, and lists the names in the request', () => {
+    const items = intakeChecklist(
+      saas,
+      [{ id: 'c', fileName: 'msa.pdf', category: 'CUSTOMER_CONTRACT', intakeState: 'FILED' }],
+      [],
+      { CUSTOMER_CONTRACT: ['Granite Peak Energy', 'Copperfield Legal'] },
+    );
+    expect(items.find((item) => item.id === 'CUSTOMER_CONTRACT')).toMatchObject({ state: 'PARTIAL', missingFor: ['Granite Peak Energy', 'Copperfield Legal'] });
+    expect(missingRequest(items)).toContain('- Customer contract: Granite Peak Energy, Copperfield Legal');
   });
 });

@@ -66,7 +66,7 @@ export interface DocumentsRepository {
     dealId: string,
     documentId: string,
     intake: Omit<DocumentIntake, 'sourcePath'>,
-    options: { excludeFromAi: boolean; run: AiRunRecord | null },
+    options: { excludeFromAi: boolean; run: AiRunRecord | null; recategorizedFrom?: string | null },
     audit: AuditEventInput,
   ): Promise<void>;
   insertFindings(
