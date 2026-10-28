@@ -165,6 +165,30 @@ const troubled = generate(
   },
 );
 
+// Brightwave (the public software-saas demo company, T-094 B8): delivery
+// slips in the last two sprints, a few highest-priority billing bugs sit
+// open, and the engineering lead coordinates most of the work.
+const brightwave = generate(
+  'BW',
+  [
+    { committed: 40, completed: 38, bugsOpened: 3, bugsFixed: 3 },
+    { committed: 42, completed: 38, bugsOpened: 3, bugsFixed: 2 },
+    { committed: 42, completed: 36, bugsOpened: 4, bugsFixed: 3 },
+    { committed: 45, completed: 34, bugsOpened: 4, bugsFixed: 2 },
+    { committed: 45, completed: 26, bugsOpened: 5, bugsFixed: 2 },
+    { committed: 45, completed: 22, bugsOpened: 6, bugsFixed: 1 },
+  ],
+  {
+    staleHighestBugs: 2,
+    reopenEvery: 7,
+    people: {
+      assignees: ['bw-dev-01', 'bw-dev-02', 'bw-dev-03', 'bw-dev-04', 'bw-dev-05', 'bw-lead-01'],
+      reporters: ['bw-lead-01', 'bw-pm-01'],
+      coordinatorComments: 3,
+    },
+  },
+);
+
 // SparseCo: unestimated work, an open-ended sprint, and a project the
 // installation cannot read.
 const sparse = generate(
@@ -181,6 +205,7 @@ export const JIRA_FIXTURES: Readonly<Record<string, JiraFixtureSite>> = {
   'healthyco.atlassian.net': { site: 'healthyco.atlassian.net', readableProjects: ['HC'], ...healthy },
   'troubledco.atlassian.net': { site: 'troubledco.atlassian.net', readableProjects: ['TC'], ...troubled },
   'sparseco.atlassian.net': { site: 'sparseco.atlassian.net', readableProjects: ['SP'], ...sparse },
+  'brightwave.atlassian.net': { site: 'brightwave.atlassian.net', readableProjects: ['BW'], ...brightwave },
   // 3,000 engineers (T-055), generated the first time it is read.
   get [SCALECO_SITE]() {
     return scalecoSite();
