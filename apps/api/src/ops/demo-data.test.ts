@@ -6,6 +6,7 @@ import { BILLING_TEMPLATES, INVOICE_LINE_COLUMNS } from '@pactlab/connectors';
 import { isoCurrencySchema } from '@pactlab/contracts';
 import { applyMapping, BILLING_INVOICE_LINE, COMPANY_TYPE_LABELS, detectDateFormat, IMPORT_TARGET_DEFINITIONS, PACK_IDS, PACKS, parseCsv, peopleColumnProblems, suggestFields, type ImportMapping } from '@pactlab/domain';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { offerSchema } from '../sale/sale.schemas';
 import { documentPages } from '../documents/document-text';
 import { SignatureMalwareScanner, validateUpload } from '../documents/upload-policy';
 
@@ -121,6 +122,31 @@ describe('demo data set (scripts/demo-data/generate.py)', () => {
           expect(readme, where).toMatch(new RegExp(`\\| \`${targetDefinition.fileName.replaceAll('.', '\\.')}\` \\| .* \\| \\*\\*Yes\\*\\* — industry data step \\|`));
         }
       }
+    }
+  });
+
+  it('every README has both flows, and bidders.csv holds offers the bid API accepts (T-097)', () => {
+    for (const { pack, currency, dir } of folders) {
+      const where = `${pack}/${currency}`;
+      const readme = read(join(dir, 'README.md'));
+      expect(readme, where).toContain('# Part A — Buyer side');
+      expect(readme, where).toMatch(/# Part B — Seller side: run a (bid process|round)/);
+      // Labels exactly as the wizard and the Bidders and Your bid pages show them.
+      for (const label of ['**We are selling (or raising)**', '**Add bidder**', '**I accept the NDA**', '**All bidders (without naming who asked)**', '**Start round 2 with 2 shortlisted**', '**Pass on this pact**']) {
+        expect(readme, `${where}: ${label}`).toContain(label);
+      }
+      const table = parseCsv(read(join(dir, 'bidders.csv')));
+      const csv = { rows: table.rows.map((row) => Object.fromEntries(table.header.map((column, i) => [column, row.cells[i] ?? ''])) as Record<string, string>) };
+      expect(csv.rows, where).toHaveLength(3);
+      const offers = csv.rows.filter((row) => row['offer_round_1']);
+      expect(offers, where).toHaveLength(2);
+      for (const row of offers) {
+        for (const column of ['offer_round_1', 'offer_round_2']) {
+          expect(offerSchema.safeParse({ price: row[column], currency, structure: row['structure'], conditions: row['conditions'] }).success, `${where} ${row['firm']} ${column}`).toBe(true);
+        }
+        expect(readme, where).toContain(`\`+${row['invite_tag']}\``);
+      }
+      expect(csv.rows.some((row) => row['outcome']?.startsWith('Passes')), where).toBe(true);
     }
   });
 
