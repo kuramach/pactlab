@@ -5,6 +5,7 @@ import {
   createJiraAdapter,
   createJiraEvidenceSource,
   JiraFixtureAdapter,
+  readAllCommits,
   type ConnectionMode,
   type ConnectionScope,
   type DryRunResult,
@@ -13,8 +14,14 @@ import {
   type JiraLiveOptions,
   type ValidationResult,
 } from '@pactlab/connectors';
-import type { EvidenceSource } from '@pactlab/domain';
+import type { CommitMetadata, ContributorIdentity, EvidenceSource } from '@pactlab/domain';
 import { toSample, type EvidenceSample } from './evidence-sample';
+
+export interface CodeSignalInput {
+  head: { repository: string; headSha: string };
+  commits: readonly CommitMetadata[];
+  identityMap: readonly ContributorIdentity[];
+}
 
 interface ProviderEvidence {
   readonly provider: string;
@@ -34,6 +41,8 @@ export class ProviderSyncAdapter {
     private readonly source: (scope: ConnectionScope) => EvidenceSource,
     /** Whether the live adapter actually reads the provider yet. */
     private readonly liveReads = false,
+    /** Source control only: the head, every commit and the identity map, for the code-signal checks (T-094 B8). */
+    readonly codeSignals?: (scope: ConnectionScope) => Promise<CodeSignalInput>,
   ) {}
 
   get provider() {
@@ -70,7 +79,13 @@ export function githubSyncAdapter(
   live: { resolveAuth?: GitHubAuthResolver; fetch?: FetchLike } = {},
 ): ProviderSyncAdapter | null {
   const adapter = createGitHubAdapter(mode, config, live);
-  return adapter ? new ProviderSyncAdapter(adapter, (scope) => createGitHubEvidenceSource(adapter, scope), true) : null;
+  return adapter
+    ? new ProviderSyncAdapter(adapter, (scope) => createGitHubEvidenceSource(adapter, scope), true, async (scope) => ({
+        head: await adapter.head(scope),
+        commits: await readAllCommits(adapter, scope),
+        identityMap: await adapter.identityMap(scope),
+      }))
+    : null;
 }
 
 export function jiraSyncAdapter(mode: ConnectionMode, config: unknown, live: JiraLiveOptions = {}): ProviderSyncAdapter | null {

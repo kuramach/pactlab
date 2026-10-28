@@ -189,6 +189,24 @@ const troubledCommits = plannedCommits(
   { project: 'TC', issues: 111, every: 2, unmatchedAuthors: ['tc-contractor-x'] },
 );
 
+// Brightwave (the public software-saas demo company, T-094 B8): bw-dev-01
+// alone maintains billing/; bw-dev-05 left in May but commits still arrive
+// under that identity; most history cites BW issues, so code and delivery join.
+const brightwaveCommits = plannedCommits(
+  'brightwave/platform',
+  [
+    { author: 'bw-dev-01', path: 'billing', count: 28, from: '2026-01-06T09:00:00Z' },
+    { author: 'bw-dev-02', path: 'web', count: 14, from: '2026-01-12T09:00:00Z' },
+    { author: 'bw-dev-03', path: 'web', count: 11, from: '2026-02-02T09:00:00Z' },
+    { author: 'bw-dev-03', path: 'api', count: 6, from: '2026-03-02T09:00:00Z' },
+    { author: 'bw-dev-04', path: 'api', count: 12, from: '2026-02-16T09:00:00Z' },
+    { author: 'bw-dev-05', path: 'integrations', count: 9, from: '2025-12-01T09:00:00Z' },
+    { author: 'bw-dev-05', path: 'integrations', count: 3, from: '2026-06-15T09:00:00Z' },
+    { author: 'bw-lead-01', path: 'infra', count: 4, from: '2026-03-20T09:00:00Z' },
+  ],
+  { project: 'BW', issues: 80, every: 1 },
+);
+
 // Small cohort (suppressed aggregates), stale history, commits without
 // paths, look-alike identities, and an installation missing contents:read.
 const sparseCommits = plannedCommits(
@@ -231,6 +249,23 @@ export const GITHUB_FIXTURES: Readonly<Record<string, GitHubFixtureRepository>> 
       open: 1,
       reviewer: (author) => (author === 'tc-dev-01' || author === 'tc-contractor-x' ? null : 'tc-lead-01'),
       failing: (index) => index % 3 === 2,
+    }),
+  },
+  // Billing changes by its sole maintainer merge without a second reviewer; one in four pull requests fails a check.
+  'brightwave/platform': {
+    repository: 'brightwave/platform',
+    defaultBranch: 'main',
+    grantedPermissions: ALL_PERMISSIONS,
+    commits: brightwaveCommits,
+    identityMap: [
+      ...current('bw-dev-01', 'bw-dev-02', 'bw-dev-03', 'bw-dev-04', 'bw-lead-01'),
+      { identity: 'bw-dev-05', status: 'DEPARTED', departedOn: '2026-05-31' },
+    ],
+    ...plannedPulls(brightwaveCommits, {
+      size: 3,
+      open: 2,
+      reviewer: (author) => (author === 'bw-dev-01' ? null : author === 'bw-lead-01' ? 'bw-dev-02' : 'bw-lead-01'),
+      failing: (index) => index % 4 === 3,
     }),
   },
   // No pull-request or checks permission: review evidence is unavailable, said so.
