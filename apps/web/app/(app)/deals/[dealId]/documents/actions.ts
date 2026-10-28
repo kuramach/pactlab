@@ -66,17 +66,27 @@ const review = z.strictObject({
   expectedVersion: z.coerce.number().int().min(1),
 });
 
-/** Accept or reject an AI draft. Acceptance re-verifies every citation. */
-export async function reviewDocumentFinding(dealId: string, findingId: string, documentId: string, formData: FormData): Promise<void> {
-  if (![dealId, findingId, documentId].every((id) => uuid.safeParse(id).success)) redirect('/deals');
-  const parsed = review.safeParse({
-    decision: formData.get('decision'),
-    rationale: formData.get('rationale'),
-    expectedVersion: formData.get('expectedVersion'),
-  });
-  if (!parsed.success) back(dealId, 'rationale', documentId);
+export type DecideResult = { kind: 'ok' } | { kind: 'error'; message: string };
+
+/**
+ * Accept or reject an AI draft in place (T-094 B4): returns the outcome
+ * instead of redirecting, so the reviewer keeps their place in the queue.
+ * Acceptance re-verifies every citation on the API.
+ */
+export async function decideDocumentFinding(
+  dealId: string,
+  findingId: string,
+  input: { decision: 'ACCEPT' | 'REJECT'; rationale: string; expectedVersion: number },
+): Promise<DecideResult> {
+  if (![dealId, findingId].every((id) => uuid.safeParse(id).success)) return { kind: 'error', message: 'Unknown finding.' };
+  const parsed = review.safeParse(input);
+  if (!parsed.success) return { kind: 'error', message: 'Write a short rationale (a few words) for the decision.' };
   const result = await apiSend('POST', `/v1/deals/${dealId}/document-findings/${findingId}/reviews`, parsed.data);
-  back(dealId, result.kind === 'ok' ? `ok-${parsed.data.decision.toLowerCase()}` : result.kind, documentId);
+  if (result.kind === 'ok') return { kind: 'ok' };
+  if (result.kind === 'conflict') return { kind: 'error', message: 'Someone else decided this draft first, or it changed. The queue has been refreshed.' };
+  if (result.kind === 'invalid') return { kind: 'error', message: 'A citation no longer matches its page, so this draft cannot be accepted. Reject it or ask for support.' };
+  if (result.kind === 'forbidden') return { kind: 'error', message: 'You do not have permission to decide findings in this deal.' };
+  return { kind: 'error', message: 'The decision was not saved. Try again.' };
 }
 
 export type AskState =
