@@ -37,6 +37,7 @@ import { ValuationModule } from './valuation/valuation.module';
 import { IDENTITY_VERIFIER, LOGGER, PRISMA } from './tokens';
 import { PROVIDER_DEPENDENCIES, providerDependencies, type ProviderSettings } from './connections/provider-dependencies';
 import type { PackRegistry } from './findings/pack-rules';
+import { FixtureMacroForecastProvider, type MacroForecastProvider } from '@pactlab/connectors';
 
 export interface AppDependencies {
   prisma: PrismaClient;
@@ -72,6 +73,10 @@ export interface AppDependencies {
   appVersion?: string;
   /** Foresight voice (Amazon Transcribe and Polly). Omitted: voice is unavailable; typing works. */
   voice?: { speechToText: SpeechToText; textToSpeech: TextToSpeech };
+  /** Published macro forecasts for Foresight (T-094 B10). Omitted: invented fixture series (tests). */
+  macroForecasts?: MacroForecastProvider;
+  /** Refresh Foresight forecasts in the background when the tab is opened. Default on. */
+  foresightAutoBaseline?: boolean;
   /** Pack and finding-rule registries. Omitted: the domain registries (tests inject a test-only rule). */
   packs?: PackRegistry;
 }
@@ -121,6 +126,8 @@ export class AppModule {
           aiEnabled: deps.aiStatus?.enabled ?? false,
           speechToText: deps.voice?.speechToText ?? NO_SPEECH_TO_TEXT,
           textToSpeech: deps.voice?.textToSpeech ?? NO_TEXT_TO_SPEECH,
+          macroForecasts: deps.macroForecasts ?? new FixtureMacroForecastProvider(),
+          autoBaseline: deps.foresightAutoBaseline ?? true,
         }),
         AdminModule.register({
           emailSender: deps.emailLogin?.emailSender ?? null,

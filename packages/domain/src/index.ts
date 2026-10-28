@@ -11,3 +11,4 @@ export * from './transaction-type';
 export * from './deal-phases';
 export * from './bugs';
 export * from './foresight';
+export * from './foresight-metrics';

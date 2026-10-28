@@ -11,6 +11,7 @@ import { FileSystemObjectStore } from './documents/storage-adapters';
 import { BullMqImportQueue } from './imports/bullmq-import-queue';
 import { LocalFileEmailSender } from './email-login/email-sender';
 import { SignatureMalwareScanner } from './documents/upload-policy';
+import { FixtureMacroForecastProvider, ImfMacroForecastProvider } from '@pactlab/connectors';
 
 // Fail closed: invalid configuration or an RLS-bypassing role stops startup.
 const config = loadConfig(apiEnvSchema);
@@ -69,6 +70,7 @@ const app = await createApp(
     ...(localDocuments ? { uploads: { ...localDocuments, importQueue: config.REDIS_URL ? new BullMqImportQueue(config.REDIS_URL) : null } } : {}),
     aiStatus: ai.status,
     environment: config.APP_ENV,
+    macroForecasts: config.MACRO_FORECAST_SOURCE === 'fixture' ? new FixtureMacroForecastProvider() : new ImfMacroForecastProvider(),
     // Foresight voice uses Amazon Transcribe and Polly with the same AWS sign-in as Bedrock.
     ...(config.AI_PROVIDER === 'bedrock' && config.AWS_REGION
       ? { voice: { speechToText: new TranscribeSpeechToText(config.AWS_REGION), textToSpeech: new PollyTextToSpeech(config.AWS_REGION) } }

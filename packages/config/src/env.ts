@@ -88,6 +88,8 @@ export const apiEnvSchema = baseEnvSchema.extend({
   ),
   /** Allow synthetic GitHub/Jira test connections. Default: on for local, test, dev and qa; off for stage and production. */
   ALLOW_FIXTURE_CONNECTIONS: unsetIfBlank(z.enum(['true', 'false']).optional()),
+  /** Published macro forecasts for Foresight (T-094 B10): `imf` reads the IMF DataMapper API (public, no key); `fixture` uses invented series (tests, offline). */
+  MACRO_FORECAST_SOURCE: unsetIfBlank(z.enum(['imf', 'fixture']).default('imf')),
   /** Model provider for document AI: `none` keeps AI off; `bedrock` calls Claude on Amazon Bedrock. */
   AI_PROVIDER: unsetIfBlank(z.enum(['none', 'bedrock']).default('none')),
   /** Bedrock Region; credentials come from the AWS SDK default chain (e.g. AWS_PROFILE after `aws sso login`). */

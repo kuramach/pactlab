@@ -1,6 +1,6 @@
 'use server';
 
-import { foresightQuestionSchema, foresightScenarioInputSchema, foresightVoiceQuestionSchema, updateForesightScenarioSchema, type ForesightAnswerView } from '@pactlab/contracts';
+import { foresightQuestionSchema, foresightScenarioInputSchema, foresightUserForecastSchema, foresightVoiceQuestionSchema, updateForesightScenarioSchema, type ForesightAnswerView } from '@pactlab/contracts';
 import { TREND_DIRECTIONS, TREND_MAGNITUDES } from '@pactlab/domain';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
@@ -11,10 +11,13 @@ const uuid = z.uuid();
 const back = (dealId: string, outcome: string): never => redirect(`/deals/${dealId}/foresight?outcome=${outcome}`);
 const failure = (kind: string, code?: string) => (code ? `error-${code}` : kind);
 
-export async function generateBaseline(dealId: string): Promise<void> {
+/** Save the user's own five-year path for one metric (T-094 B10); values in percent a year. */
+export async function saveUserForecast(dealId: string, metricKey: string, formData: FormData): Promise<void> {
   if (!uuid.safeParse(dealId).success) redirect('/deals');
-  const result = await apiPost(`/v1/deals/${dealId}/foresight/trend-sets`, {});
-  back(dealId, result.kind === 'ok' ? 'ok-generated' : failure(result.kind, 'code' in result ? result.code : undefined));
+  const parsed = foresightUserForecastSchema.safeParse({ metricKey, values: [0, 1, 2, 3, 4].map((index) => String(formData.get(`y${index}`) ?? '').trim()) });
+  if (!parsed.success) back(dealId, 'invalid-forecast');
+  const result = await apiPost(`/v1/deals/${dealId}/foresight/user-forecasts`, parsed.data);
+  back(dealId, result.kind === 'ok' ? 'ok-forecast' : failure(result.kind, 'code' in result ? result.code : undefined));
 }
 
 /** Save a scenario from the editor: assumptions in percent, overrides per trend, one optional custom trend. */

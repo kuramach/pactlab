@@ -88,8 +88,70 @@ export interface ForesightLineView {
   projection: ForesightProjectionView | null;
 }
 
+/** One five-year series for a metric (T-094 B10): values in percent a year, as decimal strings. */
+export interface ForesightSeriesView {
+  values: string[];
+  version: number;
+  sourceName: string | null;
+  sourceUrl: string | null;
+  asOf: string | null;
+  rationale: string | null;
+  modelId: string | null;
+  createdByName: string | null;
+  createdAt: string;
+}
+
+export interface ForesightMetricView {
+  key: string;
+  label: string;
+  help: string;
+  /** Percent a year at which the metric neither helps nor hurts value. */
+  neutral: string;
+  external: ForesightSeriesView | null;
+  ai: ForesightSeriesView | null;
+  user: ForesightSeriesView | null;
+}
+
+export interface ForesightOutcomeView {
+  /** Year 0 is today; value rounded to three significant figures. */
+  path: { year: number; calendarYear: number; value: string }[];
+  drivers: { key: string; label: string; year5Change: string }[];
+  /** Which series each metric used in this set, e.g. "AI forecast" or "Published (IMF)". */
+  basis: { key: string; used: 'AI' | 'EXTERNAL' | 'USER' | 'NEUTRAL' }[];
+}
+
+export interface ForesightForecastsView {
+  /** NONE until the first refresh starts; the tab never waits on it. */
+  status: 'NONE' | 'RUNNING' | 'READY' | 'PARTIAL' | 'FAILED';
+  notes: string[];
+  refreshedAt: string | null;
+  years: number[];
+  /** IMF area the published forecasts are for (USA, EURO, GBR), or null. */
+  area: string | null;
+  metrics: ForesightMetricView[];
+  outcomes: {
+    currency: string;
+    startValue: string;
+    startValueSource: string;
+    baseGrowth: string;
+    engineVersion: string;
+    /** Published + AI forecasts (AI where it exists, else the published series). */
+    reference: ForesightOutcomeView;
+    /** The user's forecasts where entered, the reference set elsewhere. */
+    user: ForesightOutcomeView;
+  } | null;
+}
+
+/** The user's own five-year path for one metric (percent a year). */
+export const foresightUserForecastSchema = z.strictObject({
+  metricKey: z.string().trim().min(1).max(80),
+  values: z.array(z.string().trim().regex(/^-?\d{1,3}(\.\d{1,2})?$/, 'A percent such as 2.5 or -1')).length(5),
+});
+export type ForesightUserForecastInput = z.infer<typeof foresightUserForecastSchema>;
+
 export interface ForesightView {
   baseline: { id: string; asOf: string; modelId: string; promptVersion: string } | null;
+  forecasts: ForesightForecastsView;
   lines: ForesightLineView[];
   /** Why there is no projection yet (no valuation run and no asking price). */
   projectionUnavailable: string | null;

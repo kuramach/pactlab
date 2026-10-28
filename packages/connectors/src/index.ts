@@ -10,3 +10,4 @@ export * from './stripe';
 export * from './market/comparables-provider';
 export * from './valuation-direction';
 export * from './people';
+export * from './market/macro-forecasts';
