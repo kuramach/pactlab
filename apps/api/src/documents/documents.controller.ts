@@ -7,6 +7,7 @@ import {
   Inject,
   Param,
   Post,
+  Put,
   Query,
   Res,
 } from '@nestjs/common';
@@ -18,15 +19,19 @@ import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { RequestId } from '../deals/request-id.decorator';
 import {
   askQuestionBodySchema,
+  categorizeDocumentBodySchema,
   documentParamsSchema,
   findingParamsSchema,
   listFindingsQuerySchema,
   pageParamsSchema,
   reviewFindingBodySchema,
+  uploadArchiveBodySchema,
   uploadDocumentBodySchema,
   type AskQuestionBody,
+  type CategorizeDocumentBody,
   type ListDocumentFindingsQuery,
   type ReviewDocumentFindingBody,
+  type UploadArchiveBody,
   type UploadDocumentBody,
 } from './documents.schemas';
 import { DocumentsService } from './documents.service';
@@ -46,6 +51,27 @@ export class DocumentsController {
     @Body(new ZodValidationPipe(uploadDocumentBodySchema)) body: UploadDocumentBody,
   ) {
     return this.service.upload(tenant, params.dealId, body, requestId);
+  }
+
+  /** A zip of deal files, unpacked on the server (T-098). */
+  @Post('document-archives')
+  async uploadArchive(
+    @Tenant() tenant: TenantContext,
+    @RequestId() requestId: string,
+    @Param(new ZodValidationPipe(dealParamsSchema)) params: DealParams,
+    @Body(new ZodValidationPipe(uploadArchiveBodySchema)) body: UploadArchiveBody,
+  ) {
+    return this.service.uploadArchive(tenant, params.dealId, body, requestId);
+  }
+
+  /** The intake checklist, the files waiting for a person, and the request for what is missing. */
+  @Get('intake')
+  async intake(
+    @Tenant() tenant: TenantContext,
+    @RequestId() requestId: string,
+    @Param(new ZodValidationPipe(dealParamsSchema)) params: DealParams,
+  ) {
+    return this.service.intake(tenant, params.dealId, requestId);
   }
 
   @Get('documents')
@@ -105,6 +131,28 @@ export class DocumentsController {
     @Param(new ZodValidationPipe(documentParamsSchema)) params: DocumentParams,
   ) {
     return this.service.purge(tenant, params.dealId, params.documentId, requestId);
+  }
+
+  /** The AI reads the file and files it, or leaves a question for a person. */
+  @Post('documents/:documentId/classification')
+  @HttpCode(200)
+  async classify(
+    @Tenant() tenant: TenantContext,
+    @RequestId() requestId: string,
+    @Param(new ZodValidationPipe(documentParamsSchema)) params: DocumentParams,
+  ) {
+    return this.service.classify(tenant, params.dealId, params.documentId, requestId);
+  }
+
+  /** A person's answer or correction. */
+  @Put('documents/:documentId/category')
+  async categorize(
+    @Tenant() tenant: TenantContext,
+    @RequestId() requestId: string,
+    @Param(new ZodValidationPipe(documentParamsSchema)) params: DocumentParams,
+    @Body(new ZodValidationPipe(categorizeDocumentBodySchema)) body: CategorizeDocumentBody,
+  ) {
+    return this.service.categorize(tenant, params.dealId, params.documentId, body, requestId);
   }
 
   @Post('documents/:documentId/extractions')

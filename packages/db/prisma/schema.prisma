@@ -1100,6 +1100,23 @@ model Document {
   uploadedBy     String             @map("uploaded_by") @db.Uuid
   createdAt      DateTime           @map("created_at") @db.Timestamptz(3)
   purgedAt       DateTime?          @map("purged_at") @db.Timestamptz(3)
+  /// Intake (T-098, ADR 0016): the file's category — a document category or an import target.
+  category           String?
+  /// AI (clear enough to file alone) or PERSON (answered or corrected).
+  categorySource     String?   @map("category_source")
+  categoryConfidence Decimal?  @map("category_confidence") @db.Decimal(4, 3)
+  categoryReason     String?   @map("category_reason")
+  /// UNCLASSIFIED | FILED | NEEDS_YOU | NOT_READ
+  intakeState        String    @default("UNCLASSIFIED") @map("intake_state")
+  intakeQuestion     String?   @map("intake_question")
+  entityName         String?   @map("entity_name")
+  /// For contracts: the other party, only when named in the file.
+  counterpartyName   String?   @map("counterparty_name")
+  /// Folder inside the zip or data room the file came from.
+  sourcePath         String?   @map("source_path")
+  classifiedRunId    String?   @map("classified_run_id") @db.Uuid
+  categorizedBy      String?   @map("categorized_by") @db.Uuid
+  categorizedAt      DateTime? @map("categorized_at") @db.Timestamptz(3)
 
   organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   deal         Deal              @relation(fields: [organizationId, dealId], references: [organizationId, id], onDelete: Restrict)
@@ -1109,6 +1126,7 @@ model Document {
   @@unique([organizationId, dealId, id])
   @@unique([objectKey])
   @@index([organizationId, dealId, sha256])
+  @@index([organizationId, dealId, intakeState], map: "documents_intake_state_idx")
   @@map("documents")
 }
 

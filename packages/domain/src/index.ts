@@ -2,6 +2,7 @@ export * from './evidence';
 export * from './findings';
 export * from './ids';
 export * from './imports';
+export * from './intake';
 export * from './object-keys';
 export * from './packs';
 export * from './pacts';

@@ -14,6 +14,8 @@ import {
 } from '@nestjs/common';
 import {
   askDocuments,
+  CLASSIFY_MAX_PAGES,
+  classifyDocument,
   extractContractTerms,
   GatewayPolicyError,
   PROHIBITED_CLASSIFICATIONS,
@@ -29,13 +31,24 @@ import {
   type PrismaClient,
 } from '@pactlab/db';
 import {
+  categoriesForPack,
+  categoryDefinition,
+  decideIntake,
+  intakeChecklist,
+  isIntakeCategory,
+  missingRequest,
   newId,
+  packFor,
   permissionsForDealRole,
   tenantObjectKey,
+  type CompanyType,
   type DealRole,
+  type IntakeCategory,
+  type PackDefinition,
   type Permission,
   type TenantContext,
 } from '@pactlab/domain';
+import { ArchiveError, unpackArchive } from './archive';
 import { DealAccess } from '../deals/deal-access';
 import { FindingsService } from '../findings/findings.service';
 import { PRISMA } from '../tokens';
@@ -54,11 +67,13 @@ import {
 } from './documents.repository';
 import type {
   AskQuestionBody,
+  CategorizeDocumentBody,
   ListDocumentFindingsQuery,
   ReviewDocumentFindingBody,
+  UploadArchiveBody,
   UploadDocumentBody,
 } from './documents.schemas';
-import type { DocumentPageRecord, DocumentRecord } from './documents.types';
+import { UNCLASSIFIED_INTAKE, type DocumentIntake, type DocumentPageRecord, type DocumentRecord } from './documents.types';
 import { documentPages } from './document-text';
 import { ExtractionError } from './extraction';
 import {
@@ -112,6 +127,15 @@ function gatewayError(error: unknown): never {
     throw new ServiceUnavailableException();
   }
   throw error;
+}
+
+/** Why one file in an archive was refused, in the upload's own terms. */
+function rejectionReason(error: unknown): string {
+  if (error instanceof PayloadTooLargeException) return 'TOO_LARGE';
+  if (error instanceof UnsupportedMediaTypeException) return 'UNSUPPORTED_TYPE';
+  if (error instanceof BadRequestException) return 'EMPTY_OR_UNREADABLE';
+  if (error instanceof UnprocessableEntityException) return 'UNREADABLE_OR_INFECTED';
+  return 'FAILED';
 }
 
 function documentView(document: DocumentRecord) {
@@ -171,6 +195,18 @@ export class DocumentsService {
       action: 'document.uploaded',
       requestId,
     });
+    return this.ingest(tenant, dealId, role, body, null, requestId);
+  }
+
+  /** One file through the secure upload path: scan, type check, pages, store. */
+  private async ingest(
+    tenant: TenantContext,
+    dealId: string,
+    role: DealRole,
+    body: UploadDocumentBody,
+    sourcePath: string | null,
+    requestId: string,
+  ) {
     let validated;
     let pages;
     try {
@@ -222,6 +258,7 @@ export class DocumentsService {
       uploadedBy: tenant.userId,
       createdAt: now.toISOString(),
       purgedAt: null,
+      intake: { ...UNCLASSIFIED_INTAKE, sourcePath },
     };
     const pageRecords: DocumentPageRecord[] = pages.map((page) => ({
       id: newId(),
@@ -495,6 +532,236 @@ export class DocumentsService {
         resolvedModelId: run.resolvedModelId,
       },
       documentIds: eligible.map((d) => d.id),
+    };
+  }
+
+  /**
+   * Zip intake (T-098): unpack on the server and send every file inside
+   * through the same upload path as a direct upload. Each file's outcome is
+   * returned — uploaded, already there, refused (with why) or skipped — so
+   * nothing in the archive disappears silently.
+   */
+  async uploadArchive(tenant: TenantContext, dealId: string, body: UploadArchiveBody, requestId: string) {
+    const role = await this.access.require(tenant, dealId, canUpload, { action: 'document.archive.uploaded', requestId });
+    let entries;
+    try {
+      entries = unpackArchive(Buffer.from(body.contentBase64, 'base64'));
+    } catch (error) {
+      if (!(error instanceof ArchiveError)) throw error;
+      await this.auditRejection(tenant, dealId, requestId);
+      if (error.reason === 'TOO_LARGE' || error.reason === 'EXPANDS_TOO_FAR' || error.reason === 'TOO_MANY_FILES') {
+        throw new PayloadTooLargeException({ code: `ARCHIVE_${error.reason}` });
+      }
+      throw new UnprocessableEntityException({ code: `ARCHIVE_${error.reason}` });
+    }
+    const files = [];
+    for (const entry of entries) {
+      if (entry.kind === 'SKIPPED') {
+        files.push({ path: entry.path, outcome: 'SKIPPED' as const, reason: entry.reason, document: null });
+        continue;
+      }
+      try {
+        const uploaded = await this.ingest(
+          tenant,
+          dealId,
+          role,
+          {
+            fileName: entry.fileName,
+            contentType: entry.contentType,
+            contentBase64: Buffer.from(entry.bytes).toString('base64'),
+            retentionClass: body.retentionClass,
+            dataClass: body.dataClass,
+            aiExcluded: body.aiExcluded,
+          },
+          entry.folder,
+          requestId,
+        );
+        files.push({ path: entry.path, outcome: uploaded.duplicate ? ('DUPLICATE' as const) : ('UPLOADED' as const), reason: null, document: uploaded });
+      } catch (error) {
+        // A scanner outage fails the whole archive closed; anything else is this file's problem.
+        if (error instanceof ServiceUnavailableException) throw error;
+        files.push({ path: entry.path, outcome: 'REJECTED' as const, reason: rejectionReason(error), document: null });
+      }
+    }
+    await withTenant(this.prisma, tenant, (tx) =>
+      appendAuditEvent(tx, this.audit(tenant, dealId, 'document.archive.unpacked', { type: 'deal', id: dealId }, requestId)),
+    );
+    return { fileName: body.fileName, files };
+  }
+
+  private async packOf(tenant: TenantContext, dealId: string): Promise<PackDefinition> {
+    const seller = await withTenant(this.prisma, tenant, (tx) =>
+      tx.dealParty.findFirst({ where: { dealId, role: 'SELLER' }, select: { companyType: true } }),
+    );
+    return packFor((seller?.companyType ?? null) as CompanyType | null);
+  }
+
+  private intakeView(document: DocumentRecord) {
+    const category = document.intake.category as IntakeCategory | null;
+    const definition = category ? categoryDefinition(category) : null;
+    return {
+      documentId: document.id,
+      fileName: document.fileName,
+      ...document.intake,
+      label: definition?.label ?? null,
+      route: document.intake.state === 'FILED' ? (definition?.route ?? null) : null,
+    };
+  }
+
+  /**
+   * What is this file? The AI proposes a category; `decideIntake` files it
+   * when that is clear and otherwise leaves a question for a person. A
+   * person's answer is never overwritten by a later AI run. Files the AI may
+   * not read are left for a person, unread.
+   */
+  async classify(tenant: TenantContext, dealId: string, documentId: string, requestId: string) {
+    await this.access.require(tenant, dealId, canExtract, { action: 'document.classified', requestId });
+    const document = await this.documents.getDocument(tenant, dealId, documentId);
+    if (!document) throw new NotFoundException();
+    if (document.status === 'PURGED') throw new GoneException();
+    if (document.intake.source === 'PERSON') return this.intakeView(document);
+    const now = new Date().toISOString();
+    const audit = this.audit(tenant, dealId, 'document.classified', { type: 'document', id: documentId }, requestId);
+
+    if (!modelEligible(document)) {
+      const intake: DocumentIntake = {
+        ...UNCLASSIFIED_INTAKE,
+        sourcePath: document.intake.sourcePath,
+        state: 'NOT_READ',
+        question: 'This file is kept away from AI, so Pactlab has not read it. What is it?',
+      };
+      await this.documents.updateIntake(tenant, dealId, documentId, intake, { excludeFromAi: false, run: null }, audit);
+      return this.intakeView({ ...document, intake });
+    }
+
+    const pack = await this.packOf(tenant, dealId);
+    // Only the first pages are read, so a long file is classified like a short one.
+    const sources: CitableSource[] = (await this.documents.listPages(tenant, dealId, [documentId]))
+      .filter((page) => page.text !== null && page.pageNumber <= CLASSIFY_MAX_PAGES)
+      .map((page) => ({
+        citationId: page.id,
+        documentId,
+        documentName: document.fileName,
+        pageNumber: page.pageNumber,
+        text: page.text ?? '',
+        classification: document.dataClass,
+      }));
+    let outcome;
+    try {
+      outcome = await classifyDocument(this.gateway, {
+        organizationId: tenant.organizationId,
+        dealId,
+        fileName: document.fileName,
+        folder: document.intake.sourcePath,
+        categories: categoriesForPack(pack).map((category) => ({ id: category.id, description: category.description })),
+        pages: sources,
+      });
+    } catch (error) {
+      gatewayError(error);
+    }
+    const { run, classification, providerError } = outcome;
+    if (run.status === 'PROVIDER_ERROR') {
+      await this.documents.recordAiRun(tenant, run, audit);
+      throw providerUnavailable(providerError);
+    }
+
+    let intake: DocumentIntake;
+    if (!classification) {
+      intake = {
+        ...UNCLASSIFIED_INTAKE,
+        sourcePath: document.intake.sourcePath,
+        state: 'NEEDS_YOU',
+        question: 'Pactlab could not tell what this file is. What is it?',
+        classifiedRunId: run.id,
+        categorizedAt: now,
+      };
+    } else {
+      const decision = decideIntake(pack, classification);
+      intake = {
+        state: decision.state,
+        category: decision.category,
+        source: decision.category ? 'AI' : null,
+        confidence: classification.confidence,
+        reason: classification.reason,
+        question: decision.state === 'NEEDS_YOU' ? decision.question : null,
+        entityName: classification.entity,
+        counterpartyName: classification.counterparty?.name ?? null,
+        sourcePath: document.intake.sourcePath,
+        classifiedRunId: run.id,
+        categorizedBy: null,
+        categorizedAt: now,
+      };
+    }
+    const excludeFromAi = intake.state === 'FILED' && intake.category !== null && categoryDefinition(intake.category as IntakeCategory).people;
+    await this.documents.updateIntake(tenant, dealId, documentId, intake, { excludeFromAi, run }, audit);
+    return this.intakeView({ ...document, aiExcluded: document.aiExcluded || excludeFromAi, intake });
+  }
+
+  /** A person answers the AI's question, or corrects a category. Their answer is final until they change it. */
+  async categorize(tenant: TenantContext, dealId: string, documentId: string, body: CategorizeDocumentBody, requestId: string) {
+    await this.access.require(tenant, dealId, canExtract, { action: 'document.categorized', requestId });
+    const document = await this.documents.getDocument(tenant, dealId, documentId);
+    if (!document) throw new NotFoundException();
+    if (document.status === 'PURGED') throw new GoneException();
+    const pack = await this.packOf(tenant, dealId);
+    if (!isIntakeCategory(pack, body.category)) throw new UnprocessableEntityException({ code: 'UNKNOWN_CATEGORY' });
+    const intake: DocumentIntake = {
+      ...document.intake,
+      state: 'FILED',
+      category: body.category,
+      source: 'PERSON',
+      confidence: null,
+      question: null,
+      counterpartyName: body.counterpartyName === undefined ? document.intake.counterpartyName : body.counterpartyName,
+      categorizedBy: tenant.userId,
+      categorizedAt: new Date().toISOString(),
+    };
+    const excludeFromAi = categoryDefinition(body.category).people;
+    await this.documents.updateIntake(
+      tenant,
+      dealId,
+      documentId,
+      intake,
+      { excludeFromAi, run: null },
+      this.audit(tenant, dealId, 'document.categorized', { type: 'document', id: documentId }, requestId),
+    );
+    return this.intakeView({ ...document, aiExcluded: document.aiExcluded || excludeFromAi, intake });
+  }
+
+  /**
+   * The intake picture for a pact: what the pack expects and whether each is
+   * received, connected or missing; the files waiting for a person; the
+   * request list for what is missing; and the categories a person may pick.
+   */
+  async intake(tenant: TenantContext, dealId: string, requestId: string) {
+    await this.access.require(tenant, dealId, canAsk, { action: 'document.intake.viewed', requestId });
+    const [pack, documents, connections] = await Promise.all([
+      this.packOf(tenant, dealId),
+      this.documents.listDocuments(tenant, dealId, { sharedOnly: false }),
+      withTenant(this.prisma, tenant, (tx) =>
+        tx.connection.findMany({ where: { dealId, status: 'ACTIVE' }, select: { provider: true } }),
+      ),
+    ]);
+    const available = documents.filter((document) => document.status === 'AVAILABLE');
+    const checklist = intakeChecklist(
+      pack,
+      available.map((document) => ({
+        id: document.id,
+        fileName: document.fileName,
+        category: document.intake.category as IntakeCategory | null,
+        intakeState: document.intake.state,
+      })),
+      [...new Set(connections.map((connection) => connection.provider))],
+    );
+    return {
+      pack: { id: pack.id, label: pack.label },
+      checklist,
+      request: missingRequest(checklist),
+      needsYou: available
+        .filter((document) => document.intake.state === 'NEEDS_YOU' || document.intake.state === 'NOT_READ')
+        .map((document) => this.intakeView(document)),
+      unclassified: available.filter((document) => document.intake.state === 'UNCLASSIFIED').map((document) => document.id),
+      categories: categoriesForPack(pack).map((category) => ({ id: category.id, label: category.label, route: category.route.kind })),
     };
   }
 

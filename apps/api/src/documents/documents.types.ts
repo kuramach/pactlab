@@ -1,4 +1,5 @@
 import type { DataClassification, ResolvedCitation } from '@pactlab/ai';
+import type { CategorySource, IntakeState } from '@pactlab/domain';
 
 export const RETENTION_CLASSES = ['DEAL_TERM', 'SHORT_90D', 'LEGAL_HOLD'] as const;
 export type RetentionClass = (typeof RETENTION_CLASSES)[number];
@@ -30,7 +31,44 @@ export interface DocumentRecord {
   readonly uploadedBy: string;
   readonly createdAt: string;
   readonly purgedAt: string | null;
+  /** Intake (T-098, ADR 0016). */
+  readonly intake: DocumentIntake;
 }
+
+/** What the file is, who decided, and what is still open. */
+export interface DocumentIntake {
+  readonly state: IntakeState;
+  /** A document category or an import target; null until classified. */
+  readonly category: string | null;
+  readonly source: CategorySource | null;
+  /** The AI's confidence in its category (0–1); null for a person's answer. */
+  readonly confidence: number | null;
+  readonly reason: string | null;
+  /** The question waiting for a person, while NEEDS_YOU or NOT_READ. */
+  readonly question: string | null;
+  readonly entityName: string | null;
+  readonly counterpartyName: string | null;
+  /** Folder inside the zip or data room it came from. */
+  readonly sourcePath: string | null;
+  readonly classifiedRunId: string | null;
+  readonly categorizedBy: string | null;
+  readonly categorizedAt: string | null;
+}
+
+export const UNCLASSIFIED_INTAKE: DocumentIntake = {
+  state: 'UNCLASSIFIED',
+  category: null,
+  source: null,
+  confidence: null,
+  reason: null,
+  question: null,
+  entityName: null,
+  counterpartyName: null,
+  sourcePath: null,
+  classifiedRunId: null,
+  categorizedBy: null,
+  categorizedAt: null,
+};
 
 /**
  * Spec `document_pages`. The page id is the citation source id. After a

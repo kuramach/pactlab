@@ -38,3 +38,22 @@ export const reviewFindingBodySchema = z.strictObject({
   expectedVersion: z.number().int().min(1),
 });
 export type ReviewDocumentFindingBody = z.infer<typeof reviewFindingBodySchema>;
+
+/** A zip of deal files (T-098): every file inside goes through the normal upload path. */
+export const uploadArchiveBodySchema = z.strictObject({
+  fileName: z.string().trim().min(1).max(255).regex(/\.zip$/i),
+  /** Base64 of up to 10 MB of archive. */
+  contentBase64: z.string().min(1).max(14_000_000),
+  retentionClass: z.enum(RETENTION_CLASSES).default('DEAL_TERM'),
+  dataClass: z.enum(DATA_CLASSIFICATIONS).default('BUSINESS'),
+  aiExcluded: z.boolean().default(false),
+});
+export type UploadArchiveBody = z.infer<typeof uploadArchiveBodySchema>;
+
+/** A person files a document: answers the AI's question or corrects its category. */
+export const categorizeDocumentBodySchema = z.strictObject({
+  category: z.string().regex(/^[A-Z][A-Z0-9_]{1,59}$/),
+  /** For contracts: the customer or supplier; null clears it, absent keeps it. */
+  counterpartyName: z.string().trim().min(1).max(200).nullable().optional(),
+});
+export type CategorizeDocumentBody = z.infer<typeof categorizeDocumentBodySchema>;

@@ -1,4 +1,5 @@
 import type { ImportTarget } from '../imports/targets';
+import type { ExpectedInput } from '../intake/checklist';
 import { COMPANY_TYPES, COMPANY_TYPE_LABELS, type CompanyType } from '../pacts/types';
 
 /**
@@ -36,6 +37,8 @@ export interface PackDefinition {
   readonly valuationMethods: readonly PackValuationMethod[];
   /** True once the pack's own task has shipped; until then the core applies as it is. */
   readonly built: boolean;
+  /** What intake expects to receive (T-098); absent → derived by `expectedInputs`. */
+  readonly expectedInputs?: readonly ExpectedInput[];
 }
 
 /** What every pack starts with: the software core, which transfers as it is. */

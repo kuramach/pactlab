@@ -118,8 +118,8 @@ export interface BalanceSheetView {
   items: BalanceSheetItemView[];
   totals: { currency: string; cash: string; debt: string; debtLike: string } | null;
   canEdit: boolean;
-  /** Documents that may be cited: not purged, and not people data. */
-  documents: { id: string; fileName: string; pageCount: number }[];
+  /** Documents that may be cited: not purged, and not people data. Files intake filed as balance sheets come first (T-098). */
+  documents: { id: string; fileName: string; pageCount: number; category: string | null }[];
 }
 
 /** Read an uploaded balance sheet for proposals (T-094 B9). */

@@ -109,10 +109,12 @@ export class BalanceSheetService {
         balanceSheetItems.history(tx, dealId),
         tx.document.findMany({
           where: { dealId, status: 'AVAILABLE', dataClass: { notIn: [...PROHIBITED_CLASSIFICATIONS] } },
-          select: { id: true, fileName: true, pageCount: true },
+          select: { id: true, fileName: true, pageCount: true, category: true },
           orderBy: { fileName: 'asc' },
         }),
       ]);
+      // Files intake has filed as balance sheets (T-098) come first, so the reader opens on one.
+      documents.sort((a, b) => Number(b.category === 'BALANCE_SHEET') - Number(a.category === 'BALANCE_SHEET'));
       const pages = await tx.documentPage.findMany({
         where: { dealId, OR: items.map((item) => ({ documentId: item.citation.documentId, pageNumber: item.citation.pageNumber })) },
         select: { documentId: true, pageNumber: true, text: true, document: { select: { fileName: true } } },

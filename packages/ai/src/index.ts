@@ -1,5 +1,6 @@
 export * from './bedrock';
 export * from './citations';
+export * from './classify';
 export * from './context';
 export * from './gateway';
 export * from './hash';
