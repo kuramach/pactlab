@@ -46,8 +46,11 @@ export class DealsService {
       const parties = await dealParties.forDeals(tx, rows.map((row) => row.id));
       // RLS returns asking prices only on the buyer side.
       const asking = await askingPrices.currentFor(tx, rows.map((row) => row.id));
+      const mine = await tx.dealMembership.findMany({ where: { userId: tenant.userId, status: 'ACTIVE', dealId: { in: rows.map((row) => row.id) } }, select: { dealId: true, role: true } });
+      const roles = new Map(mine.map((membership) => [membership.dealId, membership.role]));
       return rows.map((row) => ({
         ...toSummary(row),
+        myRole: roles.get(row.id) ?? null,
         parties: (parties.get(row.id) ?? []).map(({ role, name, ownership, ticker }) => ({ role, name, ownership, ticker })),
         askingPrice: (() => {
           const price = asking.get(row.id);
