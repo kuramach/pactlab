@@ -6,6 +6,8 @@ import { ApiState } from '../../_lib/states';
 import { can, dealViewer } from '../../_lib/viewer';
 import { extractDocument } from './actions';
 import { IntakePanel, type IntakeView } from './intake-panel';
+import { RequestsCard, type DocumentRequestView } from './requests-card';
+import { SourcesPanel, type SourcesView } from './sources-panel';
 import { DocumentLibrary } from './library';
 import { ReviewQueue } from './review-queue';
 import { DocumentUploader } from './uploader';
@@ -74,7 +76,7 @@ export default async function DocumentsPage({
   const outcomeParam = (await searchParams)['outcome'];
   const outcome = typeof outcomeParam === 'string' ? outcomeParam : undefined;
   const drafted = outcome?.match(/^ok-drafted-(\d+)$/)?.[1];
-  const [documents, findings, page, viewer, ai, intake] = await Promise.all([
+  const [documents, findings, page, viewer, ai, intake, sources, requests] = await Promise.all([
     apiGet<{ items: DocumentListItem[] }>(`${deal(dealId)}/documents`),
     apiGet<{ items: DocumentFindingItem[] }>(`${deal(dealId)}/document-findings`),
     view.documentId
@@ -85,7 +87,10 @@ export default async function DocumentsPage({
     dealViewer(dealId),
     apiGet<AiStatus>('/v1/ai/status'),
     apiGet<IntakeView>(`${deal(dealId)}/intake`),
+    apiGet<SourcesView>(`${deal(dealId)}/document-sources`),
+    apiGet<{ items: DocumentRequestView[] }>(`${deal(dealId)}/document-requests`),
   ]);
+  const hasSeller = viewer.members.some((member) => member.role === 'TARGET_CONTRIBUTOR' && member.status === 'ACTIVE');
   const categoryLabels = intake.kind === 'ok' ? Object.fromEntries(intake.data.categories.map((category) => [category.id, category.label])) : {};
   const aiOn = ai.kind === 'ok' && ai.data.enabled;
   const balanced = ai.kind === 'ok' ? ai.data.routes.find((route) => route.alias === 'balanced') : undefined;
@@ -139,7 +144,7 @@ export default async function DocumentsPage({
       <div className="grid gap-4 lg:grid-cols-[1fr_1.2fr]">
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Upload documents</CardTitle>
+            <CardTitle className="text-base">{viewer.role === 'TARGET_CONTRIBUTOR' ? 'Share documents with the buyer' : 'Upload documents'}</CardTitle>
           </CardHeader>
           <CardContent>
             <DocumentUploader dealId={dealId} aiOn={aiOn} />
@@ -155,13 +160,32 @@ export default async function DocumentsPage({
         </Card>
       </div>
 
+      {requests.kind === 'ok' && requests.data.items.some((request) => request.status === 'OPEN') ? (
+        <Card>
+          <CardContent className="pt-6">
+            <RequestsCard dealId={dealId} requests={requests.data.items} buyer={writer && viewer.role !== 'TARGET_CONTRIBUTOR'} />
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {sources.kind === 'ok' ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Data room</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <SourcesPanel dealId={dealId} sources={sources.data} aiOn={aiOn} />
+          </CardContent>
+        </Card>
+      ) : null}
+
       {intake.kind === 'ok' ? (
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Intake</CardTitle>
           </CardHeader>
           <CardContent>
-            <IntakePanel dealId={dealId} intake={intake.data} writer={writer} />
+            <IntakePanel dealId={dealId} intake={intake.data} writer={writer} aiOn={aiOn} hasSeller={hasSeller} />
           </CardContent>
         </Card>
       ) : null}

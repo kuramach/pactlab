@@ -30,7 +30,7 @@ export const DOCUMENT_SOURCE_SCOPES: Readonly<Record<DocumentSourceProvider, rea
 /** Non-secret settings: which folder (or fixture room) to read. */
 export const documentSourceConfigSchema = z.strictObject({
   /** Fixture room id, Drive folder id, or `<drive-id>/<item-id>` for OneDrive/SharePoint. */
-  folder: z.string().trim().regex(/^[A-Za-z0-9!_.:\/-]{1,300}$/),
+  folder: z.string().trim().regex(/^[A-Za-z0-9!_.:/-]{1,300}$/),
 });
 export type DocumentSourceConfig = z.infer<typeof documentSourceConfigSchema>;
 

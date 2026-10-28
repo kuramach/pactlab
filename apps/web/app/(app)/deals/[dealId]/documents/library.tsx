@@ -233,6 +233,10 @@ export function DocumentLibrary({
                     <Link href={citationHref(dealId, { documentId: row.id, pageNumber: 1 })} scroll={false} className="font-medium hover:underline" aria-current={row.id === openId ? 'page' : undefined}>
                       {row.fileName}
                     </Link>
+                    {row.source && row.source.state !== 'CURRENT' ? (
+                      <span className="ml-2 text-xs text-muted-foreground">{row.source.state === 'REMOVED' ? 'removed from the data room' : 'older version'}</span>
+                    ) : null}
+                    {row.intake?.sourcePath ? <span className="block text-xs text-muted-foreground">{row.intake.sourcePath}</span> : null}
                   </td>
                   <td className="px-2 py-2">
                     <Badge variant={category.tone} title={category.title}>

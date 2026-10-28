@@ -76,16 +76,63 @@ They wait for a person as NOT_READ. A file filed as PEOPLE_RECORD (by the AI
 or a person) is excluded from all further AI processing. A database trigger
 makes `ai_excluded` one-way, so nothing can lift it.
 
+## Connected sources
+
+7. **Document sources are read-only adapters behind one interface**
+   (`@pactlab/connectors` `document-source`), fixture-first. They live in
+   their own table (`document_sources`, buyer side). They are not evidence
+   connections, because they produce documents, not evidence rows.
+   - **Google Drive:** `files.list` recursively under the folder, then
+     `files.get?alt=media`, or `files.export` to Word or Excel for Google Docs
+     and Sheets (10 MB export limit). Scope: `drive.readonly`.
+   - **OneDrive / SharePoint (Microsoft Graph):** driveItem `children`
+     recursively, then `/content`. Its 302 points at a pre-authenticated URL,
+     which is fetched without the token. Least privilege: `Files.Read`
+     (delegated) or `Files.Read.All` (application).
+   - **VDR:** live fails closed (`SOURCE_NOT_CONFIGURED`) until a partner is
+     chosen. Synthetic rooms work in local and dev.
+
+   A live connection takes a read-only access token, which is stored once
+   in the secret store as a `secretref:` and never returned, logged or
+   audited. Rotating or refreshing tokens through an OAuth consent flow is
+   not built yet.
+8. **Sync is incremental and never deletes.**
+   - New and changed files (by provider version) go through the normal upload
+     path.
+   - A changed file becomes a new document; the old one is REPLACED.
+   - A file gone at the source is REMOVED and stays, with its lineage.
+   - Neither counts toward the checklist.
+9. **Requests to the seller** (`document_requests`) name categories only,
+   never buyer analysis, so both sides read them. Only the buyer side writes
+   them. An item ticks off when a file of that category is filed after the
+   request. Seller uploads are sorted as soon as a buyer with AI on opens
+   Documents. Sellers see what their files were filed as, never the AI's
+   reasoning.
+10. **Customer contract gaps.**
+    - The top 10 customers by billed revenue come from `billing.invoice_line`
+      evidence, summed exactly as scaled integers.
+    - Each is matched by normalized name to the counterparties read from
+      filed customer contracts.
+    - Unmatched customers appear by name on the checklist (PARTIAL) and in
+      the request.
+11. **Re-filing** a settled document records the previous category. Intake
+    lists the drafts, accepted findings and balance-sheet lines built from
+    the file, to recheck. Results are flagged, not rewritten.
+
 ## Consequences
 
-- Migration `20261112000000_document_intake` only adds columns, so existing
-  documents show as "Not sorted". Rollback is dropping the columns.
-- Not in this slice; these follow in T-098:
-  - live data-room and drive adapters (fixture-first, on the existing VDR
-    adapter interface, with each provider's verified read-only scope listed
-    here when added);
-  - re-sync;
-  - stale propagation when a category is corrected;
-  - customer-specific gaps ("contracts for 3 of your top 10 customers");
-  - requests inside the pact for a seller guest;
-  - the demo-data restructure.
+- Migrations `20261112000000_document_intake` and
+  `20261113000000_document_sources` only add tables and columns. Rollback is
+  dropping them.
+- Demo data: `scripts/demo-data/dataroom.py` arranges every dataset as a
+  seller's data room (`dataroom/`, `dataroom.zip`). Each one has a misfiled
+  balance sheet, a duplicate, an ambiguous summary and two gaps. Each README
+  gains an "Intake test" section listing what intake should conclude. The
+  synthetic rooms behind fixture sources (`fixture-rooms.ts`) carry the same
+  kinds of test.
+- Still open:
+  - OAuth consent and token refresh for Drive and Graph;
+  - a live VDR partner;
+  - moving large rooms and zips onto the worker queue (today both run inside
+    the request, bounded at 500 files per sync and 10 MB / 200 files per
+    zip).

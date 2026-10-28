@@ -207,3 +207,64 @@ export async function askQuestion(dealId: string, _previous: AskState, formData:
     model: result.data.generatedBy.resolvedModelId,
   };
 }
+
+export interface SourceSyncFile {
+  readonly path: string;
+  readonly outcome: 'NEW' | 'UPDATED' | 'UNCHANGED' | 'DUPLICATE' | 'REMOVED' | 'SKIPPED' | 'REJECTED';
+  readonly reason: string | null;
+  readonly documentId: string | null;
+}
+
+const SOURCE_PROBLEMS: Readonly<Record<string, string>> = {
+  SOURCE_ACCESS: 'Pactlab could not sign in to this source. Check the access token is current and read-only access was granted.',
+  SOURCE_NOT_FOUND: 'That folder or room was not found. Check the folder id.',
+  SOURCE_NOT_CONFIGURED: 'This kind of data room cannot be read live yet. Export it as a zip and upload that instead.',
+  SOURCE_UNAVAILABLE: 'The source did not answer. Try again in a minute.',
+  FIXTURES_OFF: 'Synthetic data rooms are only available in local and dev environments.',
+};
+
+const sourceProblem = (result: { kind: string; code?: string }) =>
+  ('code' in result && result.code && SOURCE_PROBLEMS[result.code]) ||
+  (result.kind === 'forbidden' ? 'You do not have permission to manage data rooms in this deal.' : 'The data room could not be read. Try again.');
+
+/** Connect a data room or drive folder (T-098). A live token goes to the secret store and is never shown again. */
+export async function connectSource(
+  dealId: string,
+  input: { provider: 'google-drive' | 'onedrive' | 'vdr'; mode: 'FIXTURE' | 'LIVE'; displayName: string; folder: string; token?: string },
+): Promise<{ kind: 'ok'; id: string } | { kind: 'error'; message: string }> {
+  if (!uuid.safeParse(dealId).success) return { kind: 'error', message: 'Unknown deal.' };
+  if (!input.folder.trim() || !input.displayName.trim()) return { kind: 'error', message: 'Name the source and say which folder to read.' };
+  const result = await apiSend<{ id: string }>('POST', `/v1/deals/${dealId}/document-sources`, {
+    provider: input.provider,
+    mode: input.mode,
+    displayName: input.displayName.trim(),
+    folder: input.folder.trim(),
+    ...(input.token ? { token: input.token.trim() } : {}),
+  });
+  if (result.kind === 'ok') return { kind: 'ok', id: result.data.id };
+  return { kind: 'error', message: sourceProblem(result) };
+}
+
+/** Read new and changed files from a connected source. */
+export async function syncSource(dealId: string, sourceId: string): Promise<{ kind: 'ok'; files: SourceSyncFile[] } | { kind: 'error'; message: string }> {
+  if (!uuid.safeParse(dealId).success || !uuid.safeParse(sourceId).success) return { kind: 'error', message: 'Unknown source.' };
+  const result = await apiSend<{ files: SourceSyncFile[] }>('POST', `/v1/deals/${dealId}/document-sources/${sourceId}/sync`, {});
+  if (result.kind === 'ok') return { kind: 'ok', files: result.data.files };
+  return { kind: 'error', message: sourceProblem(result) };
+}
+
+/** Ask the seller for missing inputs, inside the pact (T-098). */
+export async function requestFromSeller(dealId: string, items: readonly string[], note: string): Promise<{ kind: 'ok' } | { kind: 'error'; message: string }> {
+  if (!uuid.safeParse(dealId).success) return { kind: 'error', message: 'Unknown deal.' };
+  if (items.length === 0) return { kind: 'error', message: 'Nothing is missing to ask for.' };
+  const result = await apiSend('POST', `/v1/deals/${dealId}/document-requests`, { items, ...(note.trim() ? { note: note.trim() } : {}) });
+  if (result.kind === 'ok') return { kind: 'ok' };
+  if (result.kind === 'forbidden') return { kind: 'error', message: 'Only the buyer team can send requests.' };
+  return { kind: 'error', message: 'The request was not sent. Try again.' };
+}
+
+export async function closeRequest(dealId: string, requestId: string): Promise<{ kind: 'ok' } | { kind: 'error'; message: string }> {
+  if (!uuid.safeParse(dealId).success || !uuid.safeParse(requestId).success) return { kind: 'error', message: 'Unknown request.' };
+  const result = await apiSend('POST', `/v1/deals/${dealId}/document-requests/${requestId}/close`, {});
+  return result.kind === 'ok' ? { kind: 'ok' } : { kind: 'error', message: 'The request could not be closed.' };
+}

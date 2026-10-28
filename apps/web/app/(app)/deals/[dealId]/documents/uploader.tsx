@@ -3,7 +3,8 @@
 import { Badge, Button } from '@pactlab/ui';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
-import { classifyOne, extractOne, uploadArchive, uploadOne, type ArchiveFile } from './actions';
+import { uploadArchive, uploadOne, type ArchiveFile } from './actions';
+import { sortDocument } from './sorting';
 import { ACCEPT, checkFile, guessDataClass, isArchive, UPLOAD_PROBLEMS } from './upload-rules';
 
 type Status =
@@ -119,38 +120,14 @@ export function DocumentUploader({ dealId, aiOn }: { dealId: string; aiOn: boole
   const update = (key: string, change: Partial<Item>) => setItems((current) => current.map((item) => (item.key === key ? { ...item, ...change } : item)));
 
   /** After upload: the AI files the document, then the next step for its kind runs. */
-  const sort = async (key: string, documentId: string, aiExcluded: boolean) => {
+  const sort = async (key: string, documentId: string) => {
     if (!aiOn) {
       update(key, { status: 'uploaded', message: 'AI is off here; Pactlab will sort this file once it is switched on.' });
       return;
     }
     update(key, { status: 'classifying' });
-    const filed = await classifyOne(dealId, documentId).catch(() => ({ kind: 'error' as const, message: 'Pactlab could not sort this file. Try again from the library.' }));
-    if (filed.kind === 'error') {
-      update(key, { status: 'not-extracted', message: filed.message });
-      return;
-    }
-    if (filed.kind === 'needs-you') {
-      update(key, { status: 'needs-you', message: `${filed.question} Answer it under “Pactlab needs you” below.` });
-      return;
-    }
-    const as = `Filed as ${filed.label.toLowerCase()}${filed.counterpartyName ? ` — ${filed.counterpartyName}` : ''}.`;
-    if (filed.route.kind === 'IMPORT') {
-      update(key, { status: 'filed', message: `${as} Its rows are imported on Sources.` });
-      return;
-    }
-    if (filed.route.kind === 'BALANCE_SHEET') {
-      update(key, { status: 'filed', message: `${as} Read its debt and cash on Valuation; nothing reaches the bridge until you confirm it.` });
-      return;
-    }
-    if (filed.route.kind === 'FILE' || aiExcluded) {
-      update(key, { status: 'filed', message: as });
-      return;
-    }
-    update(key, { status: 'extracting', message: as });
-    const extracted = await extractOne(dealId, documentId).catch(() => ({ kind: 'error' as const, message: 'AI extraction failed. Use “Re-run AI extraction” on the document to try again.' }));
-    if (extracted.kind === 'ok') update(key, { status: 'extracted', message: `${as} ${extracted.drafted} new cited draft(s) in the review queue.` });
-    else update(key, { status: extracted.kind === 'skipped' ? 'filed' : 'not-extracted', message: `${as} ${extracted.message}` });
+    const outcome = await sortDocument(dealId, documentId, (message) => update(key, { status: 'extracting', message }));
+    update(key, outcome);
   };
 
   const unpack = async (item: Item, form: FormData) => {
@@ -184,7 +161,7 @@ export function DocumentUploader({ dealId, aiOn }: { dealId: string; aiOn: boole
     });
     router.refresh();
     for (const child of children) {
-      if (child.status === 'uploaded' && child.documentId) await sort(child.key, child.documentId, child.aiExcluded);
+      if (child.status === 'uploaded' && child.documentId) await sort(child.key, child.documentId);
     }
   };
 
@@ -216,7 +193,7 @@ export function DocumentUploader({ dealId, aiOn }: { dealId: string; aiOn: boole
         continue;
       }
       router.refresh();
-      await sort(item.key, result.id, item.aiExcluded);
+      await sort(item.key, result.id);
       router.refresh();
     }
     setBusy(false);

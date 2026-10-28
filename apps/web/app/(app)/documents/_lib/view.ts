@@ -37,6 +37,8 @@ export interface DocumentListItem {
   createdAt: string;
   /** Intake (T-098): what the file is and who decided. */
   intake?: DocumentIntakeView;
+  /** The data room it was read from, and whether it is still there. */
+  source?: { sourceId: string; state: 'CURRENT' | 'REPLACED' | 'REMOVED' } | null;
 }
 
 export interface DocumentIntakeView {
