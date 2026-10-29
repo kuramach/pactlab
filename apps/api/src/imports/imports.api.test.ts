@@ -138,7 +138,12 @@ describe('billing CSV import through the API', { timeout: 30_000 }, () => {
     const targets = await call('GET', `/v1/deals/${standard.dealId}/import-targets`, bearer);
     expect(targets.status).toBe(200);
     const items = targets.body['items'] as { target: string; label: string; people: string; templateCsv: string }[];
-    expect(items.map((item) => [item.target, item.label, item.people])).toEqual([['BILLING_INVOICE_LINE', 'Invoice lines', 'NONE']]);
+    // Billing, then the regulatory screen's footprint and package (T-091), offered wherever it runs at full depth.
+    expect(items.map((item) => [item.target, item.label, item.people])).toEqual([
+      ['BILLING_INVOICE_LINE', 'Invoice lines', 'NONE'],
+      ['REGULATORY_FOOTPRINT', 'Site footprint', 'NONE'],
+      ['REMEDY_PACKAGE', 'Divestiture package', 'NONE'],
+    ]);
     expect(items[0]?.templateCsv.startsWith('line_id,invoice_id,customer_id,')).toBe(true);
     const template = await app.inject({ method: 'GET', url: `/v1/deals/${standard.dealId}/import-targets/BILLING_INVOICE_LINE/template.csv`, headers: { authorization: `Bearer ${bearer}` } });
     expect(template.statusCode).toBe(200);
