@@ -1,6 +1,6 @@
-# The failed-deal case library
+# The case library: what pact outcomes teach
 
-Famous deal failures, encoded as **synthetic regression cases**. A platform that claims to find what kills deals should be made to find it in the best-documented failures, with the defects planted at realistic strength and the expected findings written down before the first run. (T-092; the checks are T-091's, in `packages/calculations/src/regulatory`.)
+What Pactlab learns from good and bad pact outcomes, and how it protects future pacts. Each case is a real deal, encoded as a **synthetic regression case**: the lesson becomes a check, and the check is held to the record. A platform that claims to find what kills deals should be made to find it in the best-documented cases, with the defects planted at realistic strength and the expected findings written down before the first run. (T-092; the checks are T-091's, in `packages/calculations/src/regulatory`.)
 
 ## What a case is
 
