@@ -18,6 +18,7 @@ export function SiteFooter() {
       links: [
         ...NAV.filter((n) => n.href !== '/product' && n.href !== '/industries').map((n) => ({ href: n.href, label: n.label })),
         { href: '/guides', label: 'Guides' },
+        { href: '/case-studies', label: 'Case studies' },
         { href: '/faq', label: 'Questions and answers' },
         { href: '/compare/valuation-software', label: 'Compared with valuation software' },
         ...account,

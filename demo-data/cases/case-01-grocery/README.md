@@ -4,7 +4,29 @@
 
 ## The real case
 
-The narrative brief with citations to the court rulings, regulator filings and reporting is written together with the public case-study page (T-092, slice 3). Every fact there is checked against its source before it is published. Until then this section is intentionally empty: nothing unverified goes in.
+Kroger / Albertsons, 2022–2024. Public page: <https://pactlab.ai/case-studies/kroger-albertsons/> (same facts, same sources). Status as of 28 October 2026.
+
+- **The deal.** On 14 October 2022 Kroger agreed to acquire Albertsons for about $24.6 billion including net debt ($34.10 per share in cash) [1]. The agreement required "reasonable best efforts" to clear, treated divesting "in excess of 650 Stores" as a material divestment event, and set a $600 million termination fee payable by Kroger in specified circumstances [2].
+- **The remedy.** September 2023: 413 stores, banners and eight distribution centers to C&S Wholesale Grocers; expanded to 579 stores on 22 April 2024 [3, 4].
+- **The challenge.** 26 February 2024: the FTC and nine states sued, alleging lost head-to-head competition in local supermarket markets and lost competition for union grocery labor [5]. The FTC called the package a "hodgepodge" of assets "cobbled together" for a buyer that operated 23 supermarkets [8].
+- **The rulings.** 10 December 2024: the Oregon federal court granted a preliminary injunction, finding "ample evidence that the divestiture is not sufficient in scale" and "structured in a way that will significantly disadvantage C&S" [6, 7], and gave "limited weight" to the non-binding $1 billion price pledge [10]. The same day King County Superior Court permanently enjoined the merger under Washington law [11]. The deal was abandoned and the C&S agreement terminated [3].
+- **Precedent.** Haggen bought 146 stores divested in the 2015 Albertsons–Safeway merger and filed for bankruptcy that year [9].
+- **Still open (allegations).** Albertsons sued Kroger in the Delaware Court of Chancery alleging breach of the merger agreement, including its efforts obligations, and seeking more than $9.3 billion; Kroger disputes the claims and says no termination fee is owed [3, 12]. The bench trial began on 19 October 2026; no ruling as of this date [13].
+
+Sources:
+1. Albertsons Companies, press release, 14 Oct 2022 — https://www.albertsonscompanies.com/newsroom/press-releases/news-details/2022/Kroger-and-Albertsons-Companies-Announce-Definitive-Merger-Agreement/default.aspx
+2. Agreement and Plan of Merger, Exhibit 2.1 to Kroger Form 8-K, §6.3, §8.4(d) — https://www.sec.gov/Archives/edgar/data/56873/000110465922108671/tm2227942d1_ex2-1.htm
+3. Kroger Form 10-Q, quarter ended 9 Nov 2024 — https://www.sec.gov/Archives/edgar/data/56873/000155837024016233/kr-20241109x10q.htm
+4. Kroger Form 8-K Exhibit 99.1, 22 Apr 2024 — https://www.sec.gov/Archives/edgar/data/56873/000110465924049754/tm2412341d1_ex99-1.htm
+5. FTC press release, 26 Feb 2024 — https://www.ftc.gov/news-events/news/press-releases/2024/02/ftc-challenges-krogers-acquisition-albertsons
+6. FTC statement, 10 Dec 2024 — https://www.ftc.gov/news-events/news/press-releases/2024/12/statement-ftc-victory-securing-halt-kroger-albertsons-grocery-merger
+7. Bloomberg Law, 10 Dec 2024 — https://news.bloomberglaw.com/mergers-and-acquisitions/krogers-24-6-billion-albertsons-deal-blocked-by-federal-judge
+8. Wilson Sonsini client alert, Mar 2024 — https://www.wsgr.com/en/insights/issues-at-check-out-ftc-challenges-krogers-acquisition-of-albertsons-with-novel-theories-about-labor-market-harm-and-adequate-remedies.html
+9. The Daily Herald (Everett), 14 Dec 2015 — https://www.heraldnet.com/2015/12/14/more-than-buyer-must-beware/
+10. Associated Press, 10 Dec 2024 — https://www.news4jax.com/business/2024/12/10/a-federal-judge-temporarily-halts-the-proposed-supermarket-merger-of-kroger-and-albertsons/
+11. Washington AG, 10 Dec 2024 — https://www.atg.wa.gov/news/news-releases/judge-blocks-kroger-albertsons-merger-following-ag-ferguson-challenge
+12. Bloomberg, 12 Oct 2026 — https://www.bloomberg.com/news/articles/2026-10-12/albertsons-seeks-more-than-9-billion-over-busted-kroger-deal
+13. U.S. News & World Report (Reuters), 19 Oct 2026 — https://money.usnews.com/investing/news/articles/2026-10-19/albertsons-begins-its-8-billion-trial-against-kroger-over-failed-merger
 
 ## The synthetic deal
 

@@ -3,6 +3,7 @@ import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { COMPARISONS, FAQS, GUIDES } from './answers';
+import { CASE_STUDIES } from './cases';
 import { BANNED_WORDS, MODULES } from './content';
 import { INDUSTRY_STORIES, PUBLISHED_INDUSTRIES } from './industry-stories';
 import { AI_CRAWLERS, absolute, faqPageJsonLd, jsonLdScript, llmsText, organizationJsonLd, SITE_ROUTES, softwareApplicationJsonLd } from './seo';
@@ -19,6 +20,7 @@ function appRoutes(dir = APP): string[] {
     if (route === '/product/[slug]') return MODULES.map((module) => `/product/${module.slug}`);
     if (route === '/industries/[slug]') return PUBLISHED_INDUSTRIES.map((industry) => `/industries/${industry.slug}`);
     if (route === '/guides/[slug]') return GUIDES.map((guide) => `/guides/${guide.slug}`);
+    if (route === '/case-studies/[slug]') return CASE_STUDIES.map((study) => `/case-studies/${study.slug}`);
     if (route === '/faq/[slug]') return FAQS.map((page) => `/faq/${page.slug}`);
     if (route === '/compare/[slug]') return COMPARISONS.map((comparison) => `/compare/${comparison.slug}`);
     return [route];
@@ -74,5 +76,26 @@ describe('machine-readable site (T-085 Part 1)', () => {
     for (const claim of ['trusted by', 'our customers', '% faster', 'guarantee', 'certified', 'best-in-class', 'leading']) expect(copy).not.toContain(claim);
     // Claims about another product carry their public source.
     for (const comparison of COMPARISONS) expect(comparison.sources.length, comparison.slug).toBeGreaterThanOrEqual(1);
+  });
+
+  it('cites every fact in a case study, frames the open litigation as allegation, and claims no outcome (T-092)', () => {
+    expect(CASE_STUDIES.length).toBeGreaterThanOrEqual(1);
+    for (const study of CASE_STUDIES) {
+      const ids = study.sources.map((source) => source.id);
+      const facts = [...study.deal, ...study.defects.map((defect) => defect.record), ...study.status.facts];
+      for (const fact of facts) {
+        expect(fact.sources.length, fact.text).toBeGreaterThanOrEqual(1);
+        for (const id of fact.sources) expect(ids, fact.text).toContain(id);
+      }
+      // Every listed source is cited somewhere, and every link is https.
+      for (const id of ids) expect(facts.some((fact) => fact.sources.includes(id)), `${study.slug} source ${id}`).toBe(true);
+      for (const source of study.sources) expect(source.url.startsWith('https://'), source.url).toBe(true);
+      expect(study.status.asOf).toMatch(/^\d{1,2} \w+ \d{4}$/);
+      expect(study.status.facts.map((fact) => fact.text).join(' ')).toMatch(/alleg/);
+      for (const defect of study.defects) expect(SITE_ROUTES, defect.href).toContain(defect.href);
+      const copy = JSON.stringify({ defects: study.defects.map(({ check, how }) => ({ check, how })), line: study.line, description: study.description }).toLowerCase();
+      for (const word of BANNED_WORDS) expect(copy).not.toContain(word);
+      for (const claim of ['would have prevented', 'would have saved', 'would have caught', 'guarantee']) expect(copy).not.toContain(claim);
+    }
   });
 });
