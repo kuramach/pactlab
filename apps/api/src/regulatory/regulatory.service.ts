@@ -7,15 +7,15 @@ import {
   certaintyStatus,
   cherryPick,
   coherence,
-  D,
   comparePackages,
+  D,
+  divestedEarnings,
   gradeCommitment,
   headroom,
   incoherentPackage,
   laborExposure,
   localConcentration,
   overlapPockets,
-  divestedEarnings,
   remedyCost,
   residualPresumed,
   unaddressedFeedback,
@@ -47,6 +47,7 @@ import {
   type TenantContext,
 } from '@pactlab/domain';
 import { DealAccess } from '../deals/deal-access';
+import { postureView } from './posture';
 import { FindingsService } from '../findings/findings.service';
 import { loadPackEvidence, TooMuchPackEvidenceError } from '../packs/pack-evidence';
 import { PRISMA } from '../tokens';
@@ -199,7 +200,8 @@ export class RegulatoryService {
     const feedback = entries.filter((entry) => entry.kind === 'FEEDBACK');
     const revisions = entries.filter((entry) => entry.kind === 'REVISION');
     const commitments = entries.filter((entry) => entry.kind === 'COMMITMENT');
-    return { sites, siteEvidence, packages, remedy, packageEvidence, terms, buyer, feedback, revisions, commitments };
+    const posture = entries.filter((entry) => entry.kind === 'POSTURE');
+    return { sites, siteEvidence, packages, remedy, packageEvidence, terms, buyer, feedback, revisions, commitments, posture };
   }
 
   /** Every candidate package: the imported revisions, then the analyst's scenarios. */
@@ -294,6 +296,8 @@ export class RegulatoryService {
           : [],
       revisionsAvailable: inputs.packages.map((remedy) => remedy.revision),
       certainty: terms ? { ...certaintyStatus(terms, asOf), divestitureCap: terms.divestitureCap, outsideDate: terms.outsideDate, effortsStandard: terms.effortsStandard, currency: terms.currency } : null,
+      // The enforcement climate, as dated and cited evidence. Foresight's government-posture trend reads the same entries.
+      posture: postureView(inputs.posture),
       commitments: inputs.commitments.map((entry) => {
         const payload = entry.payload as Omit<Commitment, 'id'>;
         return { id: entry.id, text: payload.text, grade: gradeCommitment({ id: entry.id, ...payload }) };

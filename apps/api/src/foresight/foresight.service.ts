@@ -33,6 +33,7 @@ import {
   trendDefinitionsFor,
   type CompanyType,
   type DealRole,
+  type DocumentCitation,
   type PackId,
   type TenantContext,
   type TrendDefinition,
@@ -40,6 +41,7 @@ import {
 import type { MacroForecastProvider } from '@pactlab/connectors';
 import { DealAccess } from '../deals/deal-access';
 import { BASELINE_MAX_AGE_MS, BASELINE_STALE_RUN_MS, forecastsView, forecastYears } from './forecasts';
+import { postureView } from '../regulatory/posture';
 import { PRISMA } from '../tokens';
 
 export const FORESIGHT_DEPENDENCIES = Symbol('FORESIGHT_DEPENDENCIES');
@@ -214,6 +216,14 @@ export class ForesightService {
           lines.push({ ...line, projection: this.project(line, start) });
         }
       }
+      // One posture record (T-091): the cited enforcement-climate entries behind the government-posture trend. Buyer-side by RLS.
+      const posture = postureView(
+        (await tx.regulatoryEntry.findMany({ where: { dealId, kind: 'POSTURE' }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] })).map((row) => ({
+          id: row.id,
+          payload: row.payload,
+          citation: row.citation as unknown as DocumentCitation,
+        })),
+      );
       const questions = await tx.foresightQuestion.findMany({ where: { dealId }, orderBy: { askedAt: 'desc' }, take: 20 });
       const names = new Map(lines.filter((line) => line.id).map((line) => [line.id as string, line.name]));
       const { pack } = await this.pack(tx, dealId);
@@ -238,6 +248,7 @@ export class ForesightService {
         baseline: set ? { id: set.id, asOf: set.asOf.toISOString().slice(0, 10), modelId: set.modelId, promptVersion: `${set.promptId}@${set.promptVersion}` } : null,
         forecasts,
         lines,
+        posture: { trendKey: 'macro.regulation', ...posture },
         projectionUnavailable: start ? null : 'Run a valuation scenario (or record the asking price) to project value.',
         questions: questions.map((question) => ({
           id: question.id,

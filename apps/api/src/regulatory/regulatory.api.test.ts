@@ -76,7 +76,7 @@ describe('regulatory & deal certainty on Case 1', () => {
 
     await importCsv('sites.csv', 'REGULATORY_FOOTPRINT');
     await importCsv('remedy-package.csv', 'REMEDY_PACKAGE');
-    for (const file of ['merger-agreement.md', 'regulator-letter-round-1.md', 'regulator-letter-round-2.md', 'package-revision-notes.md', 'price-pledge-press-release.md', 'remedy-buyer-profile.md']) {
+    for (const file of ['merger-agreement.md', 'regulator-letter-round-1.md', 'regulator-letter-round-2.md', 'package-revision-notes.md', 'price-pledge-press-release.md', 'remedy-buyer-profile.md', 'enforcement-climate-memo.md']) {
       const uploaded = await call('lead', 'POST', '/documents', { fileName: file, contentType: 'text/markdown', contentBase64: readFileSync(join(CASE, file)).toString('base64') });
       expect(uploaded.status).toBe(201);
       docs[file] = uploaded.body['id'] as string;
@@ -190,6 +190,29 @@ describe('regulatory & deal certainty on Case 1', () => {
         { action: 'regulatory.exported', targetId: scenarioId, outcome: 'SUCCEEDED' },
       ]),
     );
+  });
+
+  it('keeps one posture record: cited signals on the screen, and the same entries behind Foresight’s government-posture trend', async () => {
+    const signals = [
+      { date: '2023-12-18', authority: 'Federal antitrust agencies', scope: 'GUIDELINES', direction: 'TIGHTENING', signal: 'Lower presumption threshold.', quote: 'presume harm at lower concentration than before' },
+      { date: '2024-01-15', authority: 'State attorney general (synthetic)', scope: 'SECTOR_SIGNAL', direction: 'TIGHTENING', signal: 'Grocery-pricing inquiry.', quote: 'opened a grocery-pricing inquiry in January 2024' },
+    ];
+    for (const { quote, ...payload } of signals) {
+      const added = await call('lead', 'POST', '/regulatory/entries', { kind: 'POSTURE', payload, citation: cite('enforcement-climate-memo.md', quote) });
+      expect(added.status, JSON.stringify(added.body)).toBe(201);
+    }
+    expect((await call('lead', 'POST', '/regulatory/entries', { kind: 'POSTURE', payload: { ...signals[0], quote: undefined, direction: 'SIDEWAYS' }, citation: cite('enforcement-climate-memo.md', 'presume harm at lower concentration than before') })).status).toBe(400);
+
+    const screen = (await call('lead', 'GET', '/regulatory')).body['posture'] as { summary: Body; signals: Body[] };
+    expect(screen.summary).toEqual({ signals: 2, tightening: 2, holding: 0, loosening: 0, latest: '2024-01-15', lean: 'TIGHTENING' });
+    expect(screen.signals.map((signal) => signal['date'])).toEqual(['2024-01-15', '2023-12-18']);
+    expect(screen.signals[0]?.['citation']).toEqual({ documentId: docs['enforcement-climate-memo.md'], pageNumber: 1 });
+    // Posture informs; it adds no finding and leaves the band where the checks put it.
+    expect((await call('lead', 'GET', '/regulatory')).body['clearance']).toMatchObject({ band: 'NO_GO' });
+
+    const foresight = await call('lead', 'GET', '/foresight');
+    expect(foresight.status).toBe(200);
+    expect(foresight.body['posture']).toEqual({ trendKey: 'macro.regulation', ...screen });
   });
 
   it('is buyer-side analysis: a target contributor reads none of it', async () => {

@@ -41,6 +41,29 @@ test('the regulatory screen reads Case 1 and records its drafts', async ({ page 
   await expect(page.getByText('GO — with the remedy priced').first()).toBeVisible();
   await expect(page.getByText(/USD 600,000,000/).first()).toBeVisible();
 
+  // One posture record: a cited signal on Regulatory is the evidence behind Foresight's government-posture trend.
+  await page.goto(`/deals/${dealId}/documents`);
+  await page.getByLabel('Choose documents').setInputFiles(join(CASE, 'enforcement-climate-memo.md'));
+  await page.getByRole('button', { name: 'Upload', exact: true }).click();
+  await expect(page.getByRole('list', { name: 'Files to upload' }).getByText(/^Uploaded/)).toBeVisible();
+  await page.goto(`/deals/${dealId}/regulatory`);
+  const posture = page.locator('details').filter({ has: page.locator('summary', { hasText: /^Posture signal$/ }) });
+  await posture.locator('summary').click();
+  await posture.getByLabel('Date (YYYY-MM-DD)').fill('2024-01-15');
+  await posture.getByLabel('Authority').fill('State attorney general (synthetic)');
+  await posture.getByLabel(/^Scope:/).fill('SECTOR_SIGNAL');
+  await posture.getByLabel(/^Direction:/).fill('TIGHTENING');
+  await posture.getByLabel('The signal').fill('Grocery-pricing inquiry.');
+  await posture.getByLabel('Cited document').selectOption({ label: 'enforcement-climate-memo.md' });
+  await posture.getByLabel('Cited passage').fill('opened a grocery-pricing inquiry in January 2024');
+  await posture.getByRole('button', { name: 'Add posture signal' }).click();
+  await expect(page.getByText('Entry added, with its citation.')).toBeVisible();
+  await expect(page.locator('#posture').getByText('2024-01-15 · State attorney general (synthetic)')).toBeVisible();
+  await page.goto(`/deals/${dealId}/foresight`);
+  await expect(page.getByRole('heading', { name: 'Government and regulatory posture: the evidence' })).toBeVisible();
+  await expect(page.getByText(/1 cited posture signal\(s\) — 1 tightening/).first()).toBeVisible();
+  await page.goto(`/deals/${dealId}/regulatory`);
+
   await page.getByRole('button', { name: 'Add to findings register' }).click();
   await expect(page.getByText(/Recorded in the findings register: \d+ new draft/)).toBeVisible();
   await page.goto(`/deals/${dealId}/findings`);

@@ -64,7 +64,7 @@ It also asks for certainty risk to be priced into the bridge. The rules:
 - T-092 Case 1 loads through the same path (imports, documents, cited
   entries). The demo seed creates it as **Case 1: Meridian / Harvest Lane
   (synthetic)**, with its regulatory drafts.
-- Not yet built: the Foresight government-posture link (one posture record).
+- The Foresight government-posture link: see the second addendum.
 
 ## Addendum (2026-10-28): candidate packages and the regulator export
 
@@ -96,3 +96,25 @@ It also asks for certainty risk to be priced into the bridge. The rules:
   `@pactlab/calculations` (`remedyCost`, `acquirerFeeExposure`), computed and
   rounded once in decimals. This replaces float arithmetic in the first
   slice.
+
+## Addendum (2026-10-29): one posture record
+
+- **Posture signals are regulatory entries.** A new kind, `POSTURE`, records
+  the enforcement climate as dated, cited evidence. Each entry has an
+  authority, a scope (guidelines, a comparable case or a sector signal) and a
+  direction (tightening, holding or loosening). Like every entry, its quote
+  must be on the cited page. Migration `20261120000000_regulatory_posture`
+  widens the kind check only.
+- **One record, two readers.** The Regulatory screen lists the signals. The
+  same entries appear as the evidence behind Foresight's
+  `macro.regulation` trend, through `postureView`. Nothing is entered twice,
+  and both readers see the same buyer-side RLS.
+- **Evidence, not a lever.** `summarizePosture` counts the signals and names
+  the direction most of them point (or MIXED). Posture adds no finding, moves
+  no clearance band, sets no Foresight forecast and is left out of the
+  regulator export. People read it and decide.
+- Case 1 gains a synthetic enforcement-climate memo, cited by two posture
+  entries in the demo seed. The findings key is unchanged.
+- With this, T-091 and its acceptance fixture T-092 (Case 1) are complete.
+  Later cases are separate tasks.
+

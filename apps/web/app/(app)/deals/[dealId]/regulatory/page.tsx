@@ -47,6 +47,10 @@ interface RegulatoryView {
   coherence: { score: number; banners: number; distributionCovered: string; systemsCovered: string; patchworkRegions: string[] } | null;
   certainty: { elapsedDays: number; daysToOutsideDate: number; feeExposure: { ACQUIRER: string; TARGET: string }; divestitureCap: number; outsideDate: string; effortsStandard: string; currency: string } | null;
   commitments: { id: string; text: string; grade: 'VERIFIABLE' | 'PARTIAL' | 'UNVERIFIABLE' }[];
+  posture: {
+    summary: { signals: number; tightening: number; holding: number; loosening: number; latest: string | null; lean: 'TIGHTENING' | 'HOLDING' | 'LOOSENING' | 'MIXED' | null };
+    signals: { id: string; date: string; authority: string; scope: string; direction: 'TIGHTENING' | 'HOLDING' | 'LOOSENING'; signal: string; citation: { documentId: string; pageNumber: number } }[];
+  };
   findings: RegFinding[];
   packages: PackageRow[];
   revisionsAvailable: number[];
@@ -202,6 +206,41 @@ export default async function RegulatoryPage({ params, searchParams }: { params:
           ) : null}
         </Section>
       ) : null}
+
+      <Section id="posture" title="Enforcement posture">
+        {view.posture.signals.length === 0 ? (
+          <p className="text-muted-foreground">No posture signals yet. Add the guideline regime, comparable rulings and sector signals below, each dated and cited.</p>
+        ) : (
+          <>
+            <p>
+              {view.posture.summary.signals} signal(s): {view.posture.summary.tightening} tightening, {view.posture.summary.holding} holding, {view.posture.summary.loosening} loosening
+              {view.posture.summary.latest ? `; latest ${view.posture.summary.latest}` : ''}.
+            </p>
+            <ul className="flex flex-col gap-2">
+              {view.posture.signals.map((signal) => (
+                <li key={signal.id} className="rounded-md border border-border p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="font-medium">
+                      {signal.date} · {signal.authority}
+                    </span>
+                    <Badge variant={signal.direction === 'TIGHTENING' ? 'danger' : signal.direction === 'LOOSENING' ? 'reviewed' : 'neutral'}>{signal.direction.toLowerCase()}</Badge>
+                  </div>
+                  <p className="mt-1 text-muted-foreground">
+                    {signal.signal} <span className="text-xs">({signal.scope.replaceAll('_', ' ').toLowerCase()}; cited page {signal.citation.pageNumber})</span>
+                  </p>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+        <p className="text-xs text-muted-foreground">
+          One record: these same entries are the evidence behind the government-posture trend on{' '}
+          <Link href={`/deals/${dealId}/foresight`} className="underline">
+            Foresight
+          </Link>
+          . They inform the people forecasting and screening; they move no band and price nothing by themselves.
+        </p>
+      </Section>
 
       <Section title="Remedy workbench and feedback log">
         <Findings items={diligence} empty="No workbench findings." />
@@ -361,6 +400,7 @@ export default async function RegulatoryPage({ params, searchParams }: { params:
             ['FEEDBACK', 'Regulator feedback', [['round', 'Round'], ['date', 'Date (YYYY-MM-DD)'], ['regulator', 'Regulator'], ['topic', 'Topic (e.g. SIZE, COHERENCE, BUYER)'], ['substance', 'What they said']]],
             ['REVISION', 'Package revision', [['revision', 'Revision'], ['date', 'Date (YYYY-MM-DD)'], ['addresses', 'Topics it answers (comma-separated)']]],
             ['COMMITMENT', 'Pledge', [['text', 'The pledge'], ['measurement', 'How it is measured (if at all)'], ['enforcementParty', 'Who can enforce it (if anyone)'], ['durationMonths', 'Term in months (if any)']]],
+            ['POSTURE', 'Posture signal', [['date', 'Date (YYYY-MM-DD)'], ['authority', 'Authority'], ['scope', 'Scope: GUIDELINES, COMPARABLE_CASE or SECTOR_SIGNAL'], ['direction', 'Direction: TIGHTENING, HOLDING or LOOSENING'], ['signal', 'The signal']]],
           ] as const
         ).map(([kind, label, fields]) => (
           <details key={kind} className="rounded-md border border-border p-3">

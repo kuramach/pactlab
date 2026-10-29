@@ -153,6 +153,16 @@ export interface ForesightView {
   baseline: { id: string; asOf: string; modelId: string; promptVersion: string } | null;
   forecasts: ForesightForecastsView;
   lines: ForesightLineView[];
+  /**
+   * The cited enforcement-climate entries (T-091 posture signals) behind the
+   * government-posture trend — one record, shared with the regulatory screen.
+   * Evidence for the person forecasting; it never moves a line by itself.
+   */
+  posture: {
+    trendKey: 'macro.regulation';
+    summary: { signals: number; tightening: number; holding: number; loosening: number; latest: string | null; lean: 'TIGHTENING' | 'HOLDING' | 'LOOSENING' | 'MIXED' | null };
+    signals: { id: string; date: string; authority: string; scope: 'GUIDELINES' | 'COMPARABLE_CASE' | 'SECTOR_SIGNAL'; direction: 'TIGHTENING' | 'HOLDING' | 'LOOSENING'; signal: string; citation: { documentId: string; pageNumber: number } }[];
+  };
   /** Why there is no projection yet (no valuation run and no asking price). */
   projectionUnavailable: string | null;
   questions: { id: string; via: 'TEXT' | 'VOICE'; question: string; answer: string; reliesOn: string[]; askedAt: string; scenarioName: string | null }[];

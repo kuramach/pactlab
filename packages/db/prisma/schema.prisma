@@ -2174,7 +2174,7 @@ model RegulatoryEntry {
   id             String   @id @db.Uuid
   organizationId String   @map("organization_id") @db.Uuid
   dealId         String   @map("deal_id") @db.Uuid
-  /// TERMS | BUYER | FEEDBACK | REVISION | COMMITMENT
+  /// TERMS | BUYER | FEEDBACK | REVISION | COMMITMENT | POSTURE
   kind           String
   payload        Json
   /// { documentId, pageNumber, quote }

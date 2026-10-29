@@ -1,5 +1,6 @@
 import type { ForesightLineView, ForesightView } from '@pactlab/contracts';
 import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, EmptyState } from '@pactlab/ui';
+import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { LineChart } from '../../../_lib/charts';
 import { formatMoney } from '../../../metrics/_lib/format';
@@ -33,7 +34,23 @@ const OUTCOMES: Record<string, string> = {
   forbidden: 'Your role cannot change Foresight on this deal.',
 };
 
-function TrendTable({ line }: { line: ForesightLineView }) {
+type Posture = ForesightView['posture'];
+
+/** The cited posture signals behind the government-posture trend: one record, kept on the Regulatory screen. */
+function PostureEvidence({ dealId, posture }: { dealId: string; posture: Posture }) {
+  const { summary } = posture;
+  return (
+    <span className="mt-1 block text-xs">
+      Evidence: {summary.signals} cited posture signal(s) — {summary.tightening} tightening, {summary.holding} holding, {summary.loosening} loosening
+      {summary.latest ? `, latest ${summary.latest}` : ''}.{' '}
+      <Link href={`/deals/${dealId}/regulatory#posture`} className="underline">
+        See them on Regulatory
+      </Link>
+    </span>
+  );
+}
+
+function TrendTable({ line, dealId, posture }: { line: ForesightLineView; dealId: string; posture: Posture }) {
   return (
     <table className="w-full text-left text-sm" aria-label={`Trends in ${line.name}`}>
       <thead className="text-xs uppercase text-muted-foreground">
@@ -50,6 +67,7 @@ function TrendTable({ line }: { line: ForesightLineView }) {
             <td className="py-1.5 pr-2">
               <span className="font-medium">{trend.label}</span>
               <span className="block text-xs text-muted-foreground">{trend.narrative}</span>
+              {trend.key === posture.trendKey && posture.signals.length > 0 ? <PostureEvidence dealId={dealId} posture={posture} /> : null}
             </td>
             <td className="py-1.5 pr-2">
               {DIRECTION[trend.direction]} · {trend.magnitude.toLowerCase()}
@@ -190,6 +208,30 @@ export default async function ForesightPage({ params, searchParams }: { params: 
 
       <ForecastsSection dealId={dealId} forecasts={view.forecasts} canEdit={view.canEdit} />
 
+      {view.posture.signals.length > 0 ? (
+        <Card aria-label="Government and regulatory posture">
+          <CardHeader>
+            <CardTitle className="text-base">Government and regulatory posture: the evidence</CardTitle>
+            <CardDescription>
+              The dated, cited signals recorded on Regulatory, read here for the five-year posture question. They inform your forecast; they do not set it.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ul className="flex flex-col gap-1 text-sm">
+              {view.posture.signals.map((signal) => (
+                <li key={signal.id} className="flex flex-wrap items-center gap-2">
+                  <Badge variant={signal.direction === 'TIGHTENING' ? 'danger' : signal.direction === 'LOOSENING' ? 'reviewed' : 'neutral'}>{signal.direction.toLowerCase()}</Badge>
+                  <span>
+                    {signal.date} · {signal.authority}: {signal.signal}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <PostureEvidence dealId={dealId} posture={view.posture} />
+          </CardContent>
+        </Card>
+      ) : null}
+
       {!view.baseline ? (
         <EmptyState
           title="No trend lines yet"
@@ -258,7 +300,7 @@ export default async function ForesightPage({ params, searchParams }: { params: 
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="flex flex-col gap-3">
-                  <TrendTable line={line} />
+                  <TrendTable line={line} dealId={dealId} posture={view.posture} />
                   {line.projection ? (
                     <details className="text-sm">
                       <summary className="cursor-pointer font-semibold text-indigo-ink">What the projection rests on</summary>

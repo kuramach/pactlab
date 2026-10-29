@@ -9,7 +9,7 @@ import { z } from 'zod';
 const date = z.iso.date();
 const money = z.string().regex(/^\d{1,18}(\.\d{1,4})?$/);
 
-export const REGULATORY_ENTRY_KINDS = ['TERMS', 'BUYER', 'FEEDBACK', 'REVISION', 'COMMITMENT'] as const;
+export const REGULATORY_ENTRY_KINDS = ['TERMS', 'BUYER', 'FEEDBACK', 'REVISION', 'COMMITMENT', 'POSTURE'] as const;
 export type RegulatoryEntryKind = (typeof REGULATORY_ENTRY_KINDS)[number];
 
 export const termsPayloadSchema = z.strictObject({
@@ -46,6 +46,22 @@ export const commitmentPayloadSchema = z.strictObject({
   durationMonths: z.number().int().min(1).max(600).nullable(),
 });
 
+/**
+ * A posture signal: the enforcement climate as dated, cited evidence — the
+ * guideline regime, a comparable ruling or consent, a sector signal. One
+ * record serves both the regulatory screen and Foresight's government-posture
+ * trend (T-073); it informs people, and prices nothing by itself.
+ */
+export const POSTURE_SCOPES = ['GUIDELINES', 'COMPARABLE_CASE', 'SECTOR_SIGNAL'] as const;
+export const POSTURE_DIRECTIONS = ['TIGHTENING', 'HOLDING', 'LOOSENING'] as const;
+export const posturePayloadSchema = z.strictObject({
+  date,
+  authority: z.string().trim().min(1).max(200),
+  scope: z.enum(POSTURE_SCOPES),
+  direction: z.enum(POSTURE_DIRECTIONS),
+  signal: z.string().trim().min(3).max(1000),
+});
+
 export const regulatoryCitationSchema = z.strictObject({
   documentId: z.uuid(),
   pageNumber: z.number().int().min(1).max(10_000),
@@ -59,7 +75,9 @@ export const createRegulatoryEntrySchema = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('FEEDBACK'), payload: feedbackPayloadSchema, citation: regulatoryCitationSchema }),
   z.strictObject({ kind: z.literal('REVISION'), payload: revisionPayloadSchema, citation: regulatoryCitationSchema }),
   z.strictObject({ kind: z.literal('COMMITMENT'), payload: commitmentPayloadSchema, citation: regulatoryCitationSchema }),
+  z.strictObject({ kind: z.literal('POSTURE'), payload: posturePayloadSchema, citation: regulatoryCitationSchema }),
 ]);
+export type PosturePayload = z.infer<typeof posturePayloadSchema>;
 export type CreateRegulatoryEntry = z.infer<typeof createRegulatoryEntrySchema>;
 export type RegulatoryCitation = z.infer<typeof regulatoryCitationSchema>;
 

@@ -87,7 +87,7 @@ describe('synthetic decision-loop seed', () => {
     // Seeded for each demo organization.
     const lines = report.filter((line) => line.includes(CASE_1_NAME));
     expect(lines.length).toBeGreaterThan(0);
-    for (const line of lines) expect(line).toContain(`${CASE_1_NAME}: footprint, package, 6 documents, 7 cited entries; 10 regulatory draft findings`);
+    for (const line of lines) expect(line).toContain(`${CASE_1_NAME}: footprint, package, 7 documents, 9 cited entries; 10 regulatory draft findings`);
     const findings = await rows(`SELECT count(*)::int AS n FROM findings f JOIN deals d ON d.id = f.deal_id WHERE d.name = $1 AND f.domain = 'REGULATORY' AND f.status = 'DRAFT'`, [CASE_1_NAME]);
     expect(findings[0]?.['n']).toBeGreaterThanOrEqual(10);
   });
