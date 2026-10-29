@@ -48,3 +48,40 @@ export async function passBid(dealId: string, form: FormData): Promise<void> {
   const reason = String(form.get('reason') ?? '').trim();
   back(dealId, kind(await apiPost(`/v1/deals/${dealId}/my-bid/pass`, reason ? { reason } : {}), 'ok-passed'));
 }
+
+/** Comment on a shared document (or follow up in your thread). Only the seller and your firm see it. */
+export async function commentOnDocument(dealId: string, documentId: string, parentId: string | null, form: FormData): Promise<void> {
+  if (![dealId, documentId].every((id) => uuid.safeParse(id).success) || (parentId && !uuid.safeParse(parentId).success)) redirect('/deals');
+  const body = String(form.get('body') ?? '').trim();
+  if (!body) back(dealId, 'comment-empty');
+  const page = Number(form.get('pageNumber') ?? '');
+  const quote = String(form.get('quote') ?? '').trim();
+  const result = await apiPost(`/v1/deals/${dealId}/my-bid/comments`, {
+    documentId,
+    body,
+    ...(parentId ? { parentId } : {}),
+    ...(Number.isInteger(page) && page > 0 ? { pageNumber: page } : {}),
+    ...(quote ? { quote } : {}),
+  });
+  back(dealId, kind(result, 'ok-commented'));
+}
+
+const FILE_TYPES: Readonly<Record<string, string>> = {
+  pdf: 'application/pdf',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  csv: 'text/csv',
+  txt: 'text/plain',
+  md: 'text/markdown',
+};
+
+/** Attach a file to your bid: a marked-up agreement, a letter of intent. Scanned; seen by the seller and your firm only. */
+export async function attachFile(dealId: string, form: FormData): Promise<void> {
+  if (!uuid.safeParse(dealId).success) redirect('/deals');
+  const file = form.get('file');
+  if (!(file instanceof File) || file.size === 0) back(dealId, 'file-missing');
+  const contentType = FILE_TYPES[(file.name.split('.').pop() ?? '').toLowerCase()];
+  if (!contentType) back(dealId, 'file-type');
+  const result = await apiPost(`/v1/deals/${dealId}/my-bid/files`, { fileName: file.name, contentType, contentBase64: Buffer.from(await file.arrayBuffer()).toString('base64') });
+  back(dealId, result.kind === 'invalid' ? 'file-rejected' : kind(result, 'ok-attached'));
+}

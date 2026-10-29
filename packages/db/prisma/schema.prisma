@@ -2123,3 +2123,43 @@ model BidAnswerPublished {
   @@index([organizationId, dealId, publishedAt], map: "bid_answers_published_org_deal_idx")
   @@map("bid_answers_published")
 }
+
+/// A bidder's comment on a document the seller shared, or a reply in that thread (T-097). Bid-scoped (RLS).
+model BidComment {
+  id             String   @id @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  dealId         String   @map("deal_id") @db.Uuid
+  bidId          String   @map("bid_id") @db.Uuid
+  documentId     String   @map("document_id") @db.Uuid
+  pageNumber     Int?     @map("page_number")
+  quote          String?
+  body           String
+  parentId       String?  @map("parent_id") @db.Uuid
+  /// BIDDER | SELLER
+  authorSide     String   @map("author_side")
+  authorId       String   @map("author_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@unique([organizationId, dealId, id], map: "bid_comments_org_deal_id_key")
+  @@index([organizationId, dealId, bidId, createdAt], map: "bid_comments_bid_idx")
+  @@map("bid_comments")
+}
+
+/// A file a bidder attaches to their bid (a marked-up agreement, a letter of intent). Bid-scoped (RLS); never in the shared library.
+model BidFile {
+  id             String   @id @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  dealId         String   @map("deal_id") @db.Uuid
+  bidId          String   @map("bid_id") @db.Uuid
+  fileName       String   @map("file_name")
+  contentType    String   @map("content_type")
+  sizeBytes      Int      @map("size_bytes")
+  sha256         String   @db.Char(64)
+  objectKey      String   @unique(map: "bid_files_object_key_key") @map("object_key")
+  malwareScanner String   @map("malware_scanner")
+  uploadedBy     String   @map("uploaded_by") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([organizationId, dealId, bidId, createdAt], map: "bid_files_bid_idx")
+  @@map("bid_files")
+}

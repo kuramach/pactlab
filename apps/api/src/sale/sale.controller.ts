@@ -1,4 +1,5 @@
-import { Body, Controller, Get, HttpCode, Inject, Param, Post, Put } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Inject, Param, Post, Put, Res } from '@nestjs/common';
+import type { FastifyReply } from 'fastify';
 import type { TenantContext } from '@pactlab/domain';
 import { Tenant } from '../auth/tenant.decorator';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
@@ -7,7 +8,12 @@ import {
   addBidSchema,
   answerSchema,
   askSchema,
+  bidFileSchema,
   bidParamsSchema,
+  commentParamsSchema,
+  commentSchema,
+  fileParamsSchema,
+  replySchema,
   inviteBidderSchema,
   offerSchema,
   passSchema,
@@ -17,6 +23,9 @@ import {
   type AddBidBody,
   type AnswerBody,
   type AskBody,
+  type BidFileBody,
+  type CommentBody,
+  type ReplyBody,
   type InviteBidderBody,
   type OfferBody,
   type PassBody,
@@ -138,6 +147,56 @@ export class SaleController {
     @Body(new ZodValidationPipe(offerSchema)) body: OfferBody,
   ) {
     return this.sale.offer(tenant, params.dealId, body, requestId);
+  }
+
+  /** Comment on a document the seller shared; only the seller and your firm see it. */
+  @Post('my-bid/comments')
+  comment(
+    @Tenant() tenant: TenantContext,
+    @RequestId() requestId: string,
+    @Param(new ZodValidationPipe(saleParamsSchema)) params: DealParams,
+    @Body(new ZodValidationPipe(commentSchema)) body: CommentBody,
+  ) {
+    return this.sale.comment(tenant, params.dealId, body, requestId);
+  }
+
+  /** Attach a file to your bid (a marked-up agreement, a letter of intent). */
+  @Post('my-bid/files')
+  attach(
+    @Tenant() tenant: TenantContext,
+    @RequestId() requestId: string,
+    @Param(new ZodValidationPipe(saleParamsSchema)) params: DealParams,
+    @Body(new ZodValidationPipe(bidFileSchema)) body: BidFileBody,
+  ) {
+    return this.sale.attach(tenant, params.dealId, body, requestId);
+  }
+
+  /** A bid file: the bidder's own, or any bid's for the seller's side. */
+  @Get('bid-files/:fileId')
+  async file(
+    @Tenant() tenant: TenantContext,
+    @RequestId() requestId: string,
+    @Param(new ZodValidationPipe(fileParamsSchema)) params: { dealId: string; fileId: string },
+    @Res({ passthrough: true }) reply: FastifyReply,
+  ) {
+    const file = await this.sale.download(tenant, params.dealId, params.fileId, requestId);
+    void reply
+      .header('content-type', file.contentType)
+      .header('content-disposition', `attachment; filename="${file.fileName.replace(/[^\w.-]/g, '_')}"`)
+      .header('x-content-type-options', 'nosniff')
+      .header('cache-control', 'private, no-store');
+    return Buffer.from(file.bytes);
+  }
+
+  /** The seller replies in a bidder's thread on a document. */
+  @Post('bid-comments/:commentId/replies')
+  replyToComment(
+    @Tenant() tenant: TenantContext,
+    @RequestId() requestId: string,
+    @Param(new ZodValidationPipe(commentParamsSchema)) params: { dealId: string; commentId: string },
+    @Body(new ZodValidationPipe(replySchema)) body: ReplyBody,
+  ) {
+    return this.sale.reply(tenant, params.dealId, params.commentId, body, requestId);
   }
 
   @Post('my-bid/pass')

@@ -1,10 +1,20 @@
-import { ConflictException, ForbiddenException, Inject, Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
+import { createHash } from 'node:crypto';
+import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException, PayloadTooLargeException, ServiceUnavailableException, UnprocessableEntityException, UnsupportedMediaTypeException } from '@nestjs/common';
 import { appendAuditEvent, withTenant, type AuditEventInput, type PrismaClient, type TransactionClient } from '@pactlab/db';
-import { isCounterpartyRole, newId, packFor, permissionsForDealRole, type CompanyType, type DealRole, type TenantContext } from '@pactlab/domain';
+import { isCounterpartyRole, newId, packFor, permissionsForDealRole, tenantObjectKey, type CompanyType, type DealRole, type TenantContext } from '@pactlab/domain';
+import type { DocumentObjectStore } from '../documents/documents.repository';
+import { UploadRejectedError, validateUpload, type MalwareScanner } from '../documents/upload-policy';
 import { DealAccess } from '../deals/deal-access';
 import { InvitationsService } from '../invitations/invitations.service';
 import { PRISMA } from '../tokens';
-import type { AddBidBody, AnswerBody, AskBody, InviteBidderBody, OfferBody, PassBody, UpdateProcessBody } from './sale.schemas';
+import type { AddBidBody, AnswerBody, AskBody, BidFileBody, CommentBody, InviteBidderBody, OfferBody, PassBody, ReplyBody, UpdateProcessBody } from './sale.schemas';
+
+export const SALE_FILES = Symbol('SALE_FILES');
+/** Where bid files are stored and how they are scanned: the document store and scanner. */
+export interface SaleFileDependencies {
+  readonly objectStore: DocumentObjectStore;
+  readonly scanner: MalwareScanner;
+}
 
 /** The seller's own team runs the process: write access, never a counterparty. */
 const canRun = (role: DealRole) => permissionsForDealRole(role).has('DEAL_WRITE') && !isCounterpartyRole(role);
@@ -46,7 +56,149 @@ export class SaleService {
     @Inject(PRISMA) private readonly prisma: PrismaClient,
     @Inject(DealAccess) private readonly access: DealAccess,
     @Inject(InvitationsService) private readonly invitations: InvitationsService,
+    @Inject(SALE_FILES) private readonly files: SaleFileDependencies,
   ) {}
+
+  // ------------------------------------------------------------------ comments and files (both sides)
+
+  /** Threads on shared documents and the files attached to bids, for the bids the caller may see (RLS). */
+  private async threads(tx: TransactionClient, dealId: string, bidIds: readonly string[]) {
+    const [comments, files] = await Promise.all([
+      tx.bidComment.findMany({ where: { dealId, bidId: { in: [...bidIds] } }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] }),
+      tx.bidFile.findMany({ where: { dealId, bidId: { in: [...bidIds] } }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] }),
+    ]);
+    const documents = await tx.document.findMany({ where: { dealId, id: { in: [...new Set(comments.map((comment) => comment.documentId))] } }, select: { id: true, fileName: true } });
+    const people = await tx.user.findMany({ where: { id: { in: [...new Set([...comments.map((comment) => comment.authorId), ...files.map((file) => file.uploadedBy)])] } }, select: { id: true, displayName: true } });
+    const name = new Map(people.map((person) => [person.id, person.displayName]));
+    const title = new Map(documents.map((document) => [document.id, document.fileName]));
+    const view = (comment: (typeof comments)[number]) => ({
+      id: comment.id,
+      documentId: comment.documentId,
+      documentName: title.get(comment.documentId) ?? 'A shared document',
+      pageNumber: comment.pageNumber,
+      quote: comment.quote,
+      body: comment.body,
+      authorSide: comment.authorSide,
+      authorName: name.get(comment.authorId) ?? null,
+      createdAt: comment.createdAt.toISOString(),
+    });
+    return (bidId: string) => ({
+      comments: comments
+        .filter((comment) => comment.bidId === bidId && comment.parentId === null)
+        .map((comment) => ({ ...view(comment), replies: comments.filter((reply) => reply.parentId === comment.id).map(view) })),
+      files: files
+        .filter((file) => file.bidId === bidId)
+        .map((file) => ({ id: file.id, fileName: file.fileName, contentType: file.contentType, sizeBytes: file.sizeBytes, uploadedBy: name.get(file.uploadedBy) ?? null, createdAt: file.createdAt.toISOString() })),
+    });
+  }
+
+  /** A bidder comments on a document the seller shared (or follows up in their own thread). Only the seller and this firm see it. */
+  async comment(tenant: TenantContext, dealId: string, body: CommentBody, requestId: string) {
+    await this.access.require(tenant, dealId, isBidder, { action: 'sale.comment.added', requestId });
+    const id = newId();
+    await withTenant(this.prisma, tenant, async (tx) => {
+      const { bid } = await this.openBid(tx, dealId);
+      // RLS shows a bidder only shared documents.
+      const document = await tx.document.findFirst({ where: { id: body.documentId, dealId, visibility: 'SHARED', status: 'AVAILABLE' }, select: { id: true } });
+      if (!document) throw new NotFoundException();
+      if (body.parentId) {
+        const parent = await tx.bidComment.findFirst({ where: { id: body.parentId, dealId, bidId: bid.id, parentId: null }, select: { documentId: true } });
+        if (!parent || parent.documentId !== body.documentId) throw new NotFoundException();
+      }
+      await tx.bidComment.create({
+        data: {
+          id,
+          organizationId: tenant.organizationId,
+          dealId,
+          bidId: bid.id,
+          documentId: body.documentId,
+          pageNumber: body.pageNumber ?? null,
+          quote: body.quote || null,
+          body: body.body,
+          parentId: body.parentId ?? null,
+          authorSide: 'BIDDER',
+          authorId: tenant.userId,
+        },
+      });
+      await appendAuditEvent(tx, this.audit(tenant, dealId, 'sale.comment.added', { type: 'bid_comment', id }, requestId));
+    });
+    return { id };
+  }
+
+  /** The seller replies in a bidder's thread; only that bidder sees the reply. */
+  async reply(tenant: TenantContext, dealId: string, commentId: string, body: ReplyBody, requestId: string) {
+    await this.access.require(tenant, dealId, canRun, { action: 'sale.comment.replied', requestId });
+    const id = newId();
+    await withTenant(this.prisma, tenant, async (tx) => {
+      const parent = await tx.bidComment.findFirst({ where: { id: commentId, dealId, parentId: null } });
+      if (!parent) throw new NotFoundException();
+      await tx.bidComment.create({
+        data: { id, organizationId: tenant.organizationId, dealId, bidId: parent.bidId, documentId: parent.documentId, body: body.body, parentId: parent.id, authorSide: 'SELLER', authorId: tenant.userId },
+      });
+      await appendAuditEvent(tx, this.audit(tenant, dealId, 'sale.comment.replied', { type: 'bid_comment', id }, requestId));
+    });
+    return { id };
+  }
+
+  /** A bidder attaches a file to their bid: scanned like any upload, stored under the bid, never in the shared library. */
+  async attach(tenant: TenantContext, dealId: string, body: BidFileBody, requestId: string) {
+    await this.access.require(tenant, dealId, isBidder, { action: 'sale.file.attached', requestId });
+    const bid = await withTenant(this.prisma, tenant, async (tx) => (await this.openBid(tx, dealId)).bid);
+    let validated;
+    try {
+      validated = await validateUpload(body, this.files.scanner);
+    } catch (error) {
+      if (!(error instanceof UploadRejectedError)) throw error;
+      if (error.reason === 'TOO_LARGE') throw new PayloadTooLargeException();
+      if (error.reason === 'UNSUPPORTED_TYPE' || error.reason === 'TYPE_MISMATCH') throw new UnsupportedMediaTypeException();
+      if (error.reason === 'SCAN_UNAVAILABLE') throw new ServiceUnavailableException();
+      if (error.reason === 'MALWARE') throw new UnprocessableEntityException();
+      throw new BadRequestException();
+    }
+    const id = newId();
+    const objectKey = tenantObjectKey(tenant.organizationId, dealId, 'bids', bid.id, id);
+    await this.files.objectStore.put(objectKey, validated.bytes, { contentType: validated.contentType, sha256: validated.sha256 });
+    try {
+      await withTenant(this.prisma, tenant, async (tx) => {
+        await tx.bidFile.create({
+          data: {
+            id,
+            organizationId: tenant.organizationId,
+            dealId,
+            bidId: bid.id,
+            fileName: validated.fileName,
+            contentType: validated.contentType,
+            sizeBytes: validated.bytes.length,
+            sha256: validated.sha256,
+            objectKey,
+            malwareScanner: this.files.scanner.name,
+            uploadedBy: tenant.userId,
+          },
+        });
+        await appendAuditEvent(tx, this.audit(tenant, dealId, 'sale.file.attached', { type: 'bid_file', id }, requestId));
+      });
+    } catch (error) {
+      await this.files.objectStore.delete(objectKey);
+      throw error;
+    }
+    return { id, fileName: validated.fileName };
+  }
+
+  /** A bid file, for the bidder who attached it or the seller's side (RLS decides); hash re-checked, read audited. */
+  async download(tenant: TenantContext, dealId: string, fileId: string, requestId: string) {
+    await this.access.require(tenant, dealId, (role) => isBidder(role) || canWatch(role), { action: 'sale.file.read', requestId });
+    const file = await withTenant(this.prisma, tenant, (tx) => tx.bidFile.findFirst({ where: { id: fileId, dealId } }));
+    if (!file) throw new NotFoundException();
+    let bytes: Uint8Array;
+    try {
+      bytes = await this.files.objectStore.get(file.objectKey);
+    } catch {
+      throw new ServiceUnavailableException();
+    }
+    if (createHash('sha256').update(bytes).digest('hex') !== file.sha256) throw new ConflictException();
+    await withTenant(this.prisma, tenant, (tx) => appendAuditEvent(tx, { ...this.audit(tenant, dealId, 'sale.file.read', { type: 'bid_file', id: fileId }, requestId), outcome: 'ALLOWED' }));
+    return { bytes, contentType: file.contentType, fileName: file.fileName };
+  }
 
   private audit(tenant: TenantContext, dealId: string, action: string, target: { type: string; id: string }, requestId: string): AuditEventInput {
     return { organizationId: tenant.organizationId, dealId, actorUserId: tenant.userId, action, targetType: target.type, targetId: target.id, outcome: 'SUCCEEDED', requestId };
@@ -88,6 +240,7 @@ export class SaleService {
       ]);
       const pending = await tx.dealInvitation.findMany({ where: { dealId, role: 'BIDDER', status: 'PENDING', expiresAt: { gt: new Date() } }, select: { bidId: true, email: true } });
       const firm = new Map(bids.map((bid) => [bid.id, bid.firmName]));
+      const threadsOf = await this.threads(tx, dealId, bids.map((bid) => bid.id));
       return {
         canRun: canRun(role),
         venture: packFor((seller?.companyType ?? null) as CompanyType | null).id === 'VENTURE_RAISE',
@@ -114,6 +267,7 @@ export class SaleService {
             latestOffer: mine.length > 0 ? offerView(mine[mine.length - 1] as OfferRow) : null,
             offers: mine.map(offerView),
             openQuestions: questions.filter((question) => question.bidId === bid.id && question.answer === null).length,
+            ...threadsOf(bid.id),
           };
         }),
         questions: questions.map((question) => ({
@@ -347,6 +501,7 @@ export class SaleService {
           passReason: bid.passReason,
         },
         offers: offers.map(offerView),
+        ...(await this.threads(tx, dealId, [bid.id]))(bid.id),
         questions: questions.map((question) => ({ id: question.id, question: question.question, askedAt: question.askedAt.toISOString(), answer: question.answer, scope: question.answerScope })),
         published: published.map((entry) => ({ id: entry.id, question: entry.question, answer: entry.answer, publishedAt: entry.publishedAt.toISOString() })),
       };
