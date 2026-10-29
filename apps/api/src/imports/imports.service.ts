@@ -47,6 +47,8 @@ import {
   mappingProblems,
   newId,
   packFor,
+  regulatoryProfile,
+  REGULATORY_TARGETS,
   peopleColumnProblems,
   permissionsForDealRole,
   suggestFields,
@@ -56,6 +58,7 @@ import {
   type DealRole,
   type ImportMapping,
   type ImportTarget,
+  type PackDefinition,
   type TargetDefinition,
   type TenantContext,
 } from '@pactlab/domain';
@@ -162,6 +165,11 @@ function tableProblem(error: TableReadError): Error {
  * Billing CSV import: upload → preview a mapping → import through the
  * idempotent sync engine. Only billing exports are accepted (ADR 0004).
  */
+/** A pack's own imports, plus the regulatory screen's footprint and package where it runs at full depth (T-091). */
+function importableTargets(pack: PackDefinition): readonly ImportTarget[] {
+  return regulatoryProfile(pack.id).depth === 'FULL' ? [...pack.importTargets, ...REGULATORY_TARGETS] : pack.importTargets;
+}
+
 @Injectable()
 export class ImportsService {
   constructor(
@@ -181,7 +189,7 @@ export class ImportsService {
   async importTargets(tenant: TenantContext, dealId: string, requestId: string): Promise<ImportTargetView[]> {
     await this.access.require(tenant, dealId, canRead, { action: 'source_upload.targets', requestId });
     const companyType = await withTenant(this.prisma, tenant, (tx) => this.sellerType(tx, dealId));
-    return packFor(companyType).importTargets.map((target) => targetView(definitionOf(target)));
+    return importableTargets(packFor(companyType)).map((target) => targetView(definitionOf(target)));
   }
 
   private async sellerType(tx: TransactionClient, dealId: string): Promise<CompanyType | null> {
@@ -228,7 +236,7 @@ export class ImportsService {
     }
     const row = await withTenant(this.prisma, tenant, async (tx) => {
       // A file is imported only as a target the deal's pack offers.
-      if (!packFor(await this.sellerType(tx, dealId)).importTargets.includes(query.target)) throw new UnprocessableEntityException();
+      if (!importableTargets(packFor(await this.sellerType(tx, dealId))).includes(query.target)) throw new UnprocessableEntityException();
       const created = await sourceUploads.create(tx, {
         id,
         organizationId: tenant.organizationId,

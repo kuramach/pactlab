@@ -149,6 +149,8 @@ enum ImportTarget {
   HOSPITALS_PAYER_MIX
   VENTURE_CAP_TABLE
   VENTURE_FINANCIALS
+  REGULATORY_FOOTPRINT
+  REMEDY_PACKAGE
 
   @@map("import_target")
 }
@@ -2165,4 +2167,21 @@ model BidFile {
 
   @@index([organizationId, dealId, bidId, createdAt], map: "bid_files_bid_idx")
   @@map("bid_files")
+}
+
+/// Regulatory & deal-certainty inputs that are not imports (T-091): terms, remedy buyer, feedback, revisions, pledges. Each cites a document page. Append-only; buyer side.
+model RegulatoryEntry {
+  id             String   @id @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  dealId         String   @map("deal_id") @db.Uuid
+  /// TERMS | BUYER | FEEDBACK | REVISION | COMMITMENT
+  kind           String
+  payload        Json
+  /// { documentId, pageNumber, quote }
+  citation       Json
+  createdBy      String   @map("created_by") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([organizationId, dealId, kind, createdAt], map: "regulatory_entries_org_deal_idx")
+  @@map("regulatory_entries")
 }

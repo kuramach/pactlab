@@ -39,6 +39,7 @@ import { PROVIDER_DEPENDENCIES, providerDependencies, type ProviderSettings } fr
 import type { PackRegistry } from './findings/pack-rules';
 import { FixtureMacroForecastProvider, type MacroForecastProvider } from '@pactlab/connectors';
 import { SaleModule } from './sale/sale.module';
+import { RegulatoryModule } from './regulatory/regulatory.module';
 import { DealDeletionModule } from './deals/deletion/deal-deletion.module';
 import { InvitationsModule } from './invitations/invitations.module';
 
@@ -170,6 +171,7 @@ export class AppModule {
             ]
           : []),
         invitations,
+        RegulatoryModule,
         SaleModule.register(invitations, {
           objectStore: deps.documents?.objectStore ?? new UnavailableObjectStore(),
           scanner: deps.documents?.malwareScanner ?? new UnavailableMalwareScanner(),

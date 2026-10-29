@@ -10,3 +10,4 @@ export * from './phases';
 export * from './admin';
 export * from './foresight';
 export * from './venture';
+export * from './regulatory';

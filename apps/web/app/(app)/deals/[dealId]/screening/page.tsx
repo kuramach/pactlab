@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import type { ScreeningView } from '@pactlab/contracts';
 import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle } from '@pactlab/ui';
 import { notFound } from 'next/navigation';
@@ -41,7 +42,10 @@ export default async function ScreeningPage({ params, searchParams }: { params: 
   const { dealId } = await params;
   if (!isUuidParam(dealId)) notFound();
   const outcome = (await searchParams)['outcome'];
-  const result = await apiGet<ScreeningView>(`/v1/deals/${dealId}/screening`);
+  const [result, regulatory] = await Promise.all([
+    apiGet<ScreeningView>(`/v1/deals/${dealId}/screening`),
+    apiGet<{ clearance: { band: 'GO' | 'GO_WITH_REMEDY_PRICED' | 'NO_GO'; reasons: string[] }; inputs: { sites: number } }>(`/v1/deals/${dealId}/regulatory`),
+  ]);
   if (result.kind !== 'ok') return <ApiState result={result} />;
   const view = result.data;
   const read = sanity(view);
@@ -56,6 +60,32 @@ export default async function ScreeningPage({ params, searchParams }: { params: 
         </p>
       </div>
       <OutcomeBanner outcome={typeof outcome === 'string' ? outcome : undefined} messages={OUTCOMES} />
+      {regulatory.kind === 'ok' && regulatory.data.inputs.sites > 0 ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Clearance risk (T-091)</CardTitle>
+            <CardDescription>
+              {regulatory.data.clearance.band === 'GO'
+                ? 'GO — nothing in the regulatory Pre-screen calls for a remedy.'
+                : regulatory.data.clearance.band === 'GO_WITH_REMEDY_PRICED'
+                  ? 'GO with the remedy priced — overlap calls for a remedy; price it into the bridge from day one.'
+                  : 'NO-GO as it stands — the overlap needs a remedy, and the remedy as offered has a critical defect.'}{' '}
+              <Link href={`/deals/${dealId}/regulatory`} className="underline">
+                See the regulatory screen
+              </Link>
+            </CardDescription>
+          </CardHeader>
+          {regulatory.data.clearance.reasons.length > 0 ? (
+            <CardContent className="text-sm">
+              <ul className="list-disc pl-5">
+                {regulatory.data.clearance.reasons.map((reason) => (
+                  <li key={reason}>{reason}</li>
+                ))}
+              </ul>
+            </CardContent>
+          ) : null}
+        </Card>
+      ) : null}
 
       {view.verdict ? (
         <Card>

@@ -44,6 +44,11 @@ The narrative brief with citations to the court rulings, regulator filings and r
 
 Run the case with `pnpm --filter @pactlab/calculations exec vitest run src/regulatory/case-01.test.ts`. It prints PASS or MISS for each item.
 
+**As a demo pact:** `pnpm seed` (the demo seed) creates **Case 1: Meridian / Harvest Lane (synthetic)**. Its footprint and package are imported, its six documents uploaded, its seven cited entries added, and its regulatory results recorded as draft findings. Open it, then **Diligence → Regulatory**. To load it by hand instead:
+1. On **Sources**, import `sites.csv` as **Site footprint** and `remedy-package.csv` as **Divestiture package**.
+2. On **Documents**, upload the six `.md` documents.
+3. Add the entries on **Regulatory**, each citing its document.
+
 ## Calibration log
 
 **2026-10-28 (before the key's first committed run): dataset rebalanced; the key was not changed.** The first draft caught every defect, but too loudly:

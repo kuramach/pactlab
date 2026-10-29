@@ -46,6 +46,7 @@ export const DEAL_GROUPS: readonly DealGroup[] = [
       { path: '/evidence', label: 'Evidence' },
       { path: '/finances', label: 'Finances' },
       { path: '/engineering', label: 'Engineering' },
+      { path: '/regulatory', label: 'Regulatory' },
       { path: '/claims', label: 'Seller statements' },
     ],
   },
