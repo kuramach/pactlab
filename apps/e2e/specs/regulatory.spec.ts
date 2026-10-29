@@ -45,4 +45,27 @@ test('the regulatory screen reads Case 1 and records its drafts', async ({ page 
   await expect(page.getByText(/Recorded in the findings register: \d+ new draft/)).toBeVisible();
   await page.goto(`/deals/${dealId}/findings`);
   await expect(page.getByText('Termination fee exposure if clearance fails').first()).toBeVisible();
+
+  // Scenario builder: close the overlaps revision 3 leaves, compare side by side, export for the regulator.
+  await page.goto(`/deals/${dealId}/regulatory#packages`);
+  const packages = page.locator('#packages');
+  await expect(packages.getByText('66 of 78')).toBeVisible();
+  const builder = packages.locator('details').filter({ has: page.locator('summary', { hasText: /^Build a scenario$/ }) });
+  await builder.locator('summary').click();
+  await builder.getByLabel('Scenario name').fill('Close the overlaps');
+  await builder.getByLabel('Add every market the starting package leaves presumed').check();
+  await builder.getByRole('button', { name: 'Save scenario' }).click();
+  await expect(page.getByText('Scenario saved.')).toBeVisible();
+  await expect(packages.getByRole('columnheader', { name: /Close the overlaps/ })).toBeVisible();
+  await expect(packages.getByText('0 of 78')).toBeVisible();
+  await expect(packages.getByText('312 over the cap')).toBeVisible();
+
+  // The scenario is the last column.
+  const exportForm = packages.locator('form[action$="/regulatory/export"]').last();
+  await exportForm.getByLabel('This leaves the pact').check();
+  const download = page.waitForEvent('download');
+  await exportForm.getByRole('button', { name: 'Export' }).click();
+  const file = await download;
+  expect(file.suggestedFilename()).toMatch(/^remedy-package-close-the-overlaps-\d{4}-\d{2}-\d{2}\.md$/);
 });
+

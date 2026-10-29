@@ -64,8 +64,35 @@ It also asks for certainty risk to be priced into the bridge. The rules:
 - T-092 Case 1 loads through the same path (imports, documents, cited
   entries). The demo seed creates it as **Case 1: Meridian / Harvest Lane
   (synthetic)**, with its regulatory drafts.
-- Not yet built:
-  - A scenario builder for comparing several candidate packages side by side
-    (today: the latest imported revision).
-  - The Foresight government-posture link (one posture record).
-  - Regulator-facing exports.
+- Not yet built: the Foresight government-posture link (one posture record).
+
+## Addendum (2026-10-28): candidate packages and the regulator export
+
+- **Every package is a candidate.** Each imported revision and each
+  analyst-built scenario runs through the same checks side by side
+  (`comparePackages`). One new measure answers what a package is for:
+  *presumed markets left* re-runs the 2023 presumption with the divested
+  sites held by the remedy buyer. A package beyond the agreement's cap is
+  flagged (`over-cap`). The verdict (`RESOLVES`, `RESOLVES_WITH_DEFECTS`,
+  `LEAVES_OVERLAP`) describes the inputs; it is not a clearance prediction.
+  Findings and bridge lines still come from the latest imported revision
+  only — a scenario is analysis, not a fact about the deal.
+- **Scenarios store explicit site lists.** A recipe (start revision, add
+  markets or every residual market, add and remove sites, transfer
+  operations) is resolved once, when saved, into `regulatory_scenarios`.
+  The recipe is kept beside the list, so a re-imported footprint never
+  silently changes a saved scenario. The table is append-only and buyer-side,
+  under the same RLS as `regulatory_entries`. Migration
+  `20261119000000_regulatory_scenarios` only adds things; rollback is
+  dropping the table.
+- **The regulator export is the deal lead's deliberate, audited act.** The
+  lead confirms that it leaves the pact; the API builds a Markdown file and
+  records `regulatory.exported` against the package. The file carries the
+  package, its markets before and after, coherence, the remedy buyer with its
+  citation, and only the pledges graded VERIFIABLE or PARTIAL. It never
+  carries price, multiple, fees, remedy cost or internal findings. Analysts
+  and counterparties are refused.
+- **Money is decimal throughout.** Remedy cost and fee exposure moved into
+  `@pactlab/calculations` (`remedyCost`, `acquirerFeeExposure`), computed and
+  rounded once in decimals. This replaces float arithmetic in the first
+  slice.

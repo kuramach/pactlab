@@ -71,6 +71,8 @@ describe('regulatory & deal certainty on Case 1', () => {
     tokens['lead'] = await token(a.subject, a.auth0OrganizationId);
     const contributor = await addSyntheticDealMember(db.owner, a, 'TARGET_CONTRIBUTOR');
     tokens['contributor'] = await token(contributor.subject, a.auth0OrganizationId);
+    const analyst = await addSyntheticDealMember(db.owner, a, 'ANALYST');
+    tokens['analyst'] = await token(analyst.subject, a.auth0OrganizationId);
 
     await importCsv('sites.csv', 'REGULATORY_FOOTPRINT');
     await importCsv('remedy-package.csv', 'REMEDY_PACKAGE');
@@ -140,6 +142,54 @@ describe('regulatory & deal certainty on Case 1', () => {
     expect(regulatory.every((finding) => finding.status === 'DRAFT' && finding.evidence.length > 0)).toBe(true);
     expect(regulatory.find((finding) => finding.title === 'Termination fee exposure if clearance fails')?.pricedRisk).toMatchObject({ type: 'REMEDIATION_COST', currency: 'USD', low: '0', high: '600000000' });
     expect(regulatory.find((finding) => finding.title === 'Expected remedy cost: the divested sites')?.pricedRisk).toMatchObject({ type: 'PRICE_REDUCTION', currency: 'USD' });
+  });
+
+  it('compares the offered revision with an analyst scenario that closes the remaining overlaps', async () => {
+    const before = await call('lead', 'GET', '/regulatory');
+    expect(before.body['revisionsAvailable']).toEqual([3]);
+    expect(before.body['packages']).toMatchObject([{ id: 'revision-3', kind: 'REVISION', sites: 579, presumedBefore: 78, residualCount: 66, unusedHeadroom: 71, verdict: 'LEAVES_OVERLAP' }]);
+
+    expect((await call('lead', 'POST', '/regulatory/scenarios', { name: 'Bad', baseRevision: 9 })).body).toMatchObject({ code: 'UNKNOWN_REVISION' });
+    expect((await call('lead', 'POST', '/regulatory/scenarios', { name: 'Bad', baseRevision: null, addMarkets: ['Nowhere'] })).body).toMatchObject({ code: 'UNKNOWN_MARKETS' });
+    expect((await call('lead', 'POST', '/regulatory/scenarios', { name: 'Bad', baseRevision: 3, addSites: ['NOPE'] })).body).toMatchObject({ code: 'UNKNOWN_SITES' });
+    expect((await call('contributor', 'POST', '/regulatory/scenarios', { name: 'Peek', baseRevision: 3 })).status).toBe(403);
+
+    const added = await call('analyst', 'POST', '/regulatory/scenarios', { name: 'Close the overlaps', baseRevision: 3, addResidualMarkets: true });
+    expect(added.status, JSON.stringify(added.body)).toBe(201);
+    expect(added.body).toMatchObject({ sites: 962, unknownSites: [] });
+
+    const after = (await call('lead', 'GET', '/regulatory')).body['packages'] as Body[];
+    expect(after).toHaveLength(2);
+    expect(after[1]).toMatchObject({ id: added.body['id'], kind: 'SCENARIO', label: 'Close the overlaps', sites: 962, residualCount: 0, unusedHeadroom: -312, verdict: 'RESOLVES_WITH_DEFECTS' });
+    expect((after[1]?.['defects'] as { check: string }[]).map((defect) => defect.check)).toEqual(['over-cap', 'buyer-viability']);
+    expect(after[1]?.['remedyCost']).toMatch(/^\d+$/);
+  });
+
+  it('exports one package for the regulator: the lead only, acknowledged, audited — with no price and no unverifiable pledge', async () => {
+    const packages = (await call('lead', 'GET', '/regulatory')).body['packages'] as Body[];
+    const scenarioId = packages[1]?.['id'] as string;
+    expect((await call('analyst', 'POST', '/regulatory/exports', { packageId: scenarioId, acknowledged: true })).status).toBe(403);
+    expect((await call('contributor', 'POST', '/regulatory/exports', { packageId: scenarioId, acknowledged: true })).status).toBe(403);
+    expect((await call('lead', 'POST', '/regulatory/exports', { packageId: scenarioId })).status).toBe(400);
+    expect((await call('lead', 'POST', '/regulatory/exports', { packageId: 'revision-7', acknowledged: true })).status).toBe(404);
+
+    const exported = await call('lead', 'POST', '/regulatory/exports', { packageId: scenarioId, acknowledged: true });
+    expect(exported.status, JSON.stringify(exported.body)).toBe(200);
+    const content = exported.body['content'] as string;
+    expect(exported.body['fileName']).toMatch(/^remedy-package-close-the-overlaps-\d{4}-\d{2}-\d{2}\.md$/);
+    expect(content).toContain('- Sites divested: 962');
+    expect(content).toContain('- Overlap markets meeting the presumption before the remedy: 78');
+    expect(content).toContain('- Still meeting it after the remedy: 0');
+    expect(content).toContain('1 pledge(s) with no measurement, enforcement or term are not included');
+    for (const secret of ['$1 billion', '600000000', '600,000,000', 'multiple', 'termination', 'EBITDA']) expect(content).not.toContain(secret);
+
+    const audited = (await db.owner.query(`SELECT action, target_id AS "targetId", outcome FROM audit_events WHERE deal_id = $1 AND action IN ('regulatory.exported', 'regulatory.scenario.added') ORDER BY chain_seq`, [a.dealId])) as { rows: Body[] };
+    expect(audited.rows).toEqual(
+      expect.arrayContaining([
+        { action: 'regulatory.scenario.added', targetId: scenarioId, outcome: 'SUCCEEDED' },
+        { action: 'regulatory.exported', targetId: scenarioId, outcome: 'SUCCEEDED' },
+      ]),
+    );
   });
 
   it('is buyer-side analysis: a target contributor reads none of it', async () => {

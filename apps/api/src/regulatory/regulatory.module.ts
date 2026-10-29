@@ -1,5 +1,13 @@
 import { Body, Controller, Get, HttpCode, Inject, Module, Param, Post } from '@nestjs/common';
-import { createRegulatoryEntrySchema, dealParamsSchema, type CreateRegulatoryEntry } from '@pactlab/contracts';
+import {
+  createRegulatoryEntrySchema,
+  createRegulatoryExportSchema,
+  createRegulatoryScenarioSchema,
+  dealParamsSchema,
+  type CreateRegulatoryEntry,
+  type CreateRegulatoryExport,
+  type CreateRegulatoryScenario,
+} from '@pactlab/contracts';
 import type { TenantContext } from '@pactlab/domain';
 import { Tenant } from '../auth/tenant.decorator';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
@@ -27,6 +35,29 @@ class RegulatoryController {
     @Body(new ZodValidationPipe(createRegulatoryEntrySchema)) body: CreateRegulatoryEntry,
   ) {
     return this.service.addEntry(tenant, params.dealId, body, requestId);
+  }
+
+  /** Save a candidate remedy package for side-by-side comparison. */
+  @Post('scenarios')
+  addScenario(
+    @Tenant() tenant: TenantContext,
+    @RequestId() requestId: string,
+    @Param(new ZodValidationPipe(dealParamsSchema)) params: DealParams,
+    @Body(new ZodValidationPipe(createRegulatoryScenarioSchema)) body: CreateRegulatoryScenario,
+  ) {
+    return this.service.addScenario(tenant, params.dealId, body, requestId);
+  }
+
+  /** The regulator-facing view of one package: the lead's deliberate, audited act. */
+  @Post('exports')
+  @HttpCode(200)
+  exportPackage(
+    @Tenant() tenant: TenantContext,
+    @RequestId() requestId: string,
+    @Param(new ZodValidationPipe(dealParamsSchema)) params: DealParams,
+    @Body(new ZodValidationPipe(createRegulatoryExportSchema)) body: CreateRegulatoryExport,
+  ) {
+    return this.service.exportPackage(tenant, params.dealId, body, requestId);
   }
 
   /** Record the current results as DRAFT findings in the register. */

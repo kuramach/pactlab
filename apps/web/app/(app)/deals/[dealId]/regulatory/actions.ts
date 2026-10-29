@@ -54,3 +54,24 @@ export async function proposeFindings(dealId: string): Promise<void> {
   const result = await apiPost<{ created: number; existing: number }>(`/v1/deals/${dealId}/regulatory/findings`, {});
   back(dealId, result.kind === 'ok' ? `ok-proposed-${result.data.created}-${result.data.existing}` : result.kind === 'not-found' ? 'nothing' : result.kind);
 }
+
+const list = (value: string) => [...new Set(value.split(/[\s,]+/).map((item) => item.trim()).filter(Boolean))];
+
+/** Save a candidate remedy package; the API resolves the recipe into an explicit site list. */
+export async function addScenario(dealId: string, form: FormData): Promise<void> {
+  if (!uuid.safeParse(dealId).success) redirect('/deals');
+  const base = text(form, 'baseRevision');
+  const result = await apiPost(`/v1/deals/${dealId}/regulatory/scenarios`, {
+    name: text(form, 'name'),
+    baseRevision: base ? Number(base) : null,
+    remedyBuyer: optional(form, 'remedyBuyer'),
+    addMarkets: text(form, 'addMarkets').split(/\n|;/).map((market) => market.trim()).filter(Boolean),
+    addResidualMarkets: form.get('addResidualMarkets') === 'on',
+    divestingParty: text(form, 'divestingParty') === 'ACQUIRER' ? 'ACQUIRER' : 'TARGET',
+    addSites: list(text(form, 'addSites')),
+    removeSites: list(text(form, 'removeSites')),
+    transferOperations: form.get('transferOperations') === 'on',
+  });
+  const code = result.kind === 'invalid' ? result.code : undefined;
+  back(dealId, result.kind === 'ok' ? 'ok-scenario' : code === 'UNKNOWN_MARKETS' || code === 'UNKNOWN_SITES' || code === 'UNKNOWN_REVISION' || code === 'EMPTY_PACKAGE' ? `scenario-${code.toLowerCase().replaceAll('_', '-')}` : result.kind === 'invalid' ? 'scenario-invalid' : result.kind);
+}
