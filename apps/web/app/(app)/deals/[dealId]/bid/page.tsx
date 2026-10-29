@@ -2,7 +2,8 @@ import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from '@pactla
 import { apiGet } from '../../_lib/api';
 import { OutcomeBanner } from '../../_lib/outcome';
 import { ApiState } from '../../_lib/states';
-import { acceptNda, askQuestion, passBid, startLinkedPact, submitOffer } from './actions';
+import { acceptNda, askQuestion, attachFile, commentOnDocument, passBid, startLinkedPact, submitOffer } from './actions';
+import { BidFiles, CommentThreads, type BidFileView, type CommentView } from './threads';
 
 interface OfferView {
   id: string;
@@ -23,6 +24,8 @@ interface MyBidView {
   process: { status: 'OPEN' | 'AWARDED' | 'CLOSED'; round: number; offerDeadline: string | null; ndaText: string | null; sharedSummary: string | null; dataRoomUrl: string | null };
   bid: { id: string; firmName: string; status: string; round: number; ndaAccepted: boolean; passReason: string | null };
   offers: OfferView[];
+  comments: CommentView[];
+  files: BidFileView[];
   questions: { id: string; question: string; askedAt: string; answer: string | null; scope: 'PRIVATE' | 'ALL' | null }[];
   published: { id: string; question: string; answer: string; publishedAt: string }[];
 }
@@ -34,6 +37,12 @@ const OUTCOMES: Record<string, string> = {
   'ok-passed': 'You have passed on this pact.',
   'offer-invalid': 'Check the offer: a price above zero, a currency and a few words on structure.',
   'question-short': 'Write a question of at least a few words.',
+  'ok-commented': 'Comment sent. Only the seller and your firm see it.',
+  'ok-attached': 'File attached to your bid. Only the seller and your firm see it.',
+  'comment-empty': 'Write a comment first.',
+  'file-missing': 'Choose a file to attach.',
+  'file-type': 'Attach a PDF, Word, Excel, CSV, text or Markdown file.',
+  'file-rejected': 'The file was refused: it may be empty, unreadable, too large or flagged by the virus scan.',
   'not-won': 'Only the winning bidder starts a diligence pact from the sale.',
   'no-home': 'Your own organization could not be opened. Sign out and in again, then try once more.',
   conflict: 'That cannot be done now — the deadline may have passed or the process has closed.',
@@ -69,7 +78,7 @@ export default async function BidPage({ params, searchParams }: { params: Promis
   const outcome = (await searchParams)['outcome'];
   const mine = await apiGet<MyBidView>(`/v1/deals/${dealId}/my-bid`);
   if (mine.kind !== 'ok') return <ApiState result={mine} />;
-  const { pact, process, bid, offers, questions, published } = mine.data;
+  const { pact, process, bid, offers, questions, published, comments, files } = mine.data;
   const ndaPending = Boolean(process.ndaText) && !bid.ndaAccepted;
   const live = process.status === 'OPEN' && ['INVITED', 'ACTIVE', 'OFFERED', 'SHORTLISTED'].includes(bid.status);
   const documents = ndaPending ? null : await apiGet<{ items: SharedDocument[] }>(`/v1/deals/${dealId}/documents`);
@@ -126,6 +135,23 @@ export default async function BidPage({ params, searchParams }: { params: Promis
                           {document.fileName}
                         </a>{' '}
                         <span className="text-xs text-muted-foreground">({document.pageCount} pp)</span>
+                        {live ? (
+                          <details className="mt-1">
+                            <summary className="cursor-pointer text-xs text-indigo-ink">Comment on {document.fileName}</summary>
+                            <form action={commentOnDocument.bind(null, dealId, document.id, null)} className="mt-2 flex flex-col gap-2">
+                              <div className="flex flex-wrap gap-2">
+                                <input name="pageNumber" inputMode="numeric" placeholder="Page (optional)" aria-label={`Page in ${document.fileName}`} className="w-32 rounded-md border border-border bg-background px-2 py-1 text-sm" />
+                                <input name="quote" placeholder="Passage you mean (optional)" aria-label={`Passage in ${document.fileName}`} className="min-w-64 flex-1 rounded-md border border-border bg-background px-2 py-1 text-sm" />
+                              </div>
+                              <textarea name="body" rows={2} required aria-label={`Comment on ${document.fileName}`} className={inputClass} />
+                              <div>
+                                <Button type="submit" size="sm" variant="outline">
+                                  Send comment to the seller
+                                </Button>
+                              </div>
+                            </form>
+                          </details>
+                        ) : null}
                       </li>
                     ))}
                   </ul>
@@ -133,6 +159,18 @@ export default async function BidPage({ params, searchParams }: { params: Promis
               ) : null}
             </CardContent>
           </Card>
+
+          {comments.length > 0 ? (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Your comments on documents</CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-2">
+                <p className="text-xs text-muted-foreground">Only the seller and your firm see these threads.</p>
+                <CommentThreads comments={comments} reply={(comment) => commentOnDocument.bind(null, dealId, comment.documentId, comment.id)} replyLabel="Follow up" />
+              </CardContent>
+            </Card>
+          ) : null}
 
           <Card>
             <CardHeader>
@@ -215,6 +253,19 @@ export default async function BidPage({ params, searchParams }: { params: Promis
                   </div>
                 </form>
               ) : null}
+              <div className="flex flex-col gap-2 border-t border-border pt-3">
+                <span className="font-medium">Files with your bid</span>
+                <BidFiles dealId={dealId} files={files} />
+                {live ? (
+                  <form action={attachFile.bind(null, dealId)} className="flex flex-wrap items-center gap-2">
+                    <input name="file" type="file" required accept=".pdf,.docx,.xlsx,.csv,.txt,.md" aria-label="File to attach to your bid" className="text-sm" />
+                    <Button type="submit" size="sm" variant="outline">
+                      Attach a file
+                    </Button>
+                    <span className="text-xs text-muted-foreground">A marked-up agreement, a letter of intent… Only the seller and your firm see it.</span>
+                  </form>
+                ) : null}
+              </div>
               {live ? (
                 <form action={passBid.bind(null, dealId)} className="flex flex-wrap items-center gap-2 border-t border-border pt-3">
                   <input name="reason" placeholder="Why you are passing (optional, seller only)" aria-label="Reason for passing" className="w-80 rounded-md border border-border bg-background px-2 py-1" />

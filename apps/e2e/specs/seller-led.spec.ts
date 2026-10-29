@@ -54,6 +54,14 @@ test('a seller-led pact: invite a bidder, answer their question, compare and awa
   await page.getByRole('button', { name: 'Save' }).click();
   await expect(page.getByText(/Saved\. Bidders see the shared view/)).toBeVisible();
 
+  // One document shared with every bidder, chosen at upload.
+  await page.goto(`/deals/${dealId}/documents`);
+  await page.getByLabel('Choose documents').setInputFiles([{ name: 'Teaser.txt', mimeType: 'text/plain', buffer: Buffer.from('Teaser (synthetic). 14. Change of control: customers may terminate.') }]);
+  await page.getByLabel('Share with bidders').check();
+  await page.getByRole('button', { name: 'Upload', exact: true }).click();
+  await expect(page.getByRole('list', { name: 'Files to upload' }).getByText(/^Uploaded/)).toBeVisible();
+  await page.goto(`/deals/${dealId}/bidders`);
+
   await page.getByLabel('Bidding firm').fill('Harbor Capital (synthetic)');
   await page.getByRole('button', { name: 'Add bidder' }).click();
   await expect(page.getByText('Bidder added.')).toBeVisible();
@@ -90,6 +98,17 @@ test('a seller-led pact: invite a bidder, answer their question, compare and awa
   await guest.getByRole('button', { name: 'I accept the NDA' }).click();
   await expect(guest.getByText(/Workflow software for logistics/)).toBeVisible();
 
+  // Comment on the shared teaser, and attach a marked-up file — only the seller sees them.
+  await guest.getByText('Comment on Teaser.txt').click();
+  await guest.getByLabel('Passage in Teaser.txt').fill('14. Change of control');
+  await guest.getByLabel('Comment on Teaser.txt').fill('We would need clause 14 removed.');
+  await guest.getByRole('button', { name: 'Send comment to the seller' }).click();
+  await expect(guest.getByText(/Comment sent/)).toBeVisible();
+  await guest.getByLabel('File to attach to your bid').setInputFiles([{ name: 'SPA markup.txt', mimeType: 'text/plain', buffer: Buffer.from('Clause 14: delete (synthetic).') }]);
+  await guest.getByRole('button', { name: 'Attach a file' }).click();
+  await expect(guest.getByText(/File attached to your bid/)).toBeVisible();
+  await expect(guest.getByRole('link', { name: 'SPA markup.txt' })).toBeVisible();
+
   await guest.getByLabel('Question for the seller').fill('What is net revenue retention?');
   await guest.getByRole('button', { name: 'Ask' }).click();
   await expect(guest.getByText('Waiting for the seller’s answer.')).toBeVisible();
@@ -108,6 +127,13 @@ test('a seller-led pact: invite a bidder, answer their question, compare and awa
   await page.getByLabel('Answer').fill('NRR is 112% (synthetic).');
   await page.getByRole('button', { name: 'Answer', exact: true }).click();
   await expect(page.getByText(/Answered privately/).first()).toBeVisible();
+  // The bidder's comment and file, and a private reply.
+  await expect(page.getByText('We would need clause 14 removed.')).toBeVisible();
+  const markup = await page.request.get(await page.getByRole('link', { name: 'SPA markup.txt' }).getAttribute('href') ?? '');
+  expect(await markup.text()).toBe('Clause 14: delete (synthetic).');
+  await page.getByLabel('Reply on Teaser.txt').fill('We can cap clause 14 at 12 months (synthetic).');
+  await page.getByRole('button', { name: 'Reply', exact: true }).click();
+  await expect(page.getByText(/Reply sent/)).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Offers side by side' })).toBeVisible();
   await expect(page.getByRole('cell', { name: 'USD 52,000,000' })).toBeVisible();
   await page.getByRole('button', { name: 'Award to Harbor Capital (synthetic)' }).click();
@@ -115,6 +141,7 @@ test('a seller-led pact: invite a bidder, answer their question, compare and awa
 
   await guest.goto(`/deals/${dealId}/bid`);
   await expect(guest.getByText('NRR is 112% (synthetic).')).toBeVisible();
+  await expect(guest.getByText('We can cap clause 14 at 12 months (synthetic).')).toBeVisible();
   await expect(guest.getByText('Selected by the seller')).toBeVisible();
 
   // The winner's own diligence: a linked buyer-led pact in their own organization, with the seller's lead invited as the seller.

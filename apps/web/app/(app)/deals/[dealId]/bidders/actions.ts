@@ -65,3 +65,11 @@ export async function answerQuestion(dealId: string, questionId: string, form: F
   const result = await apiPost(`/v1/deals/${dealId}/bid-questions/${questionId}/answer`, { answer, scope });
   back(dealId, kind(result, scope === 'ALL' ? 'ok-answered-all' : 'ok-answered'));
 }
+
+/** Reply privately in a bidder's thread on a document. */
+export async function replyToComment(dealId: string, commentId: string, form: FormData): Promise<void> {
+  if (![dealId, commentId].every((id) => uuid.safeParse(id).success)) redirect('/deals');
+  const body = String(form.get('body') ?? '').trim();
+  if (!body) back(dealId, 'answer-missing');
+  back(dealId, kind(await apiPost(`/v1/deals/${dealId}/bid-comments/${commentId}/replies`, { body }), 'ok-replied'));
+}

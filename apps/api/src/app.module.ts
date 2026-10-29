@@ -172,7 +172,10 @@ export class AppModule {
           : []),
         invitations,
         RegulatoryModule,
-        SaleModule.register(invitations),
+        SaleModule.register(invitations, {
+          objectStore: deps.documents?.objectStore ?? new UnavailableObjectStore(),
+          scanner: deps.documents?.malwareScanner ?? new UnavailableMalwareScanner(),
+        }),
         DealDeletionModule.register({
           documents: deps.documents?.objectStore ?? new UnavailableObjectStore(),
           uploads: deps.uploads?.objectStore ?? new UnavailableUploadStore(),

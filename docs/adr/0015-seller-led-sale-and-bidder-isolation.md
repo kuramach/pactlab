@@ -84,18 +84,29 @@ has the same shape (ADR 0012).
    - The API accepts the link only from the sale's winner, checked by
      `app_won_sale`, a security-definer function that answers only about the
      caller, and only once per sale.
-10. **Still open:**
-    - An attachment on offers. A bidder's upload would need per-bid document
-      visibility, which today's SHARED/BUYER_ONLY model cannot express
-      without exposing it to other bidders.
-    - Auth0 (SSO) bidders join with T-070.
+10. **Comments on shared documents, and files on a bid** (Kumar,
+    2026-10-28). Both are **bid-scoped rows** (`bid_comments`, `bid_files`),
+    never documents in the shared library, so per-bid isolation applies
+    exactly as it does for questions and offers.
+    - **Comments:** a bidder comments on a document the seller shared,
+      optionally pinned to a page and a quoted passage. The seller's team
+      replies privately; the bidder can follow up. Each thread belongs to
+      one bid.
+    - **Files:** a bidder attaches files to their bid (a marked-up agreement,
+      a letter of intent). They are scanned like any upload and stored under
+      `<org>/<deal>/bids/<bid>/`. Reads re-check the hash and are audited.
+    - **Who sees what:** the seller's side and that bidder's firm only.
+      Bidders write only as themselves on their own bid; the seller writes
+      only replies. Both tables are append-only.
+11. **Still open:** Auth0 (SSO) bidders join with T-070.
 - **Bidder teams** are supported: several people per firm, invited one by one.
 - **NDA** is a click-through on the seller's text, recorded with who and when.
 
 ## Consequences
 
 - Migrations: `20261114000000_bidder_role` (enum value, on its own),
-  `20261114000100_seller_led_sale` and `20261116000000_linked_pacts`. Both only add tables, columns and
+  `20261114000100_seller_led_sale`, `20261116000000_linked_pacts` and
+  `20261117000000_bid_comments_files`. Both only add tables, columns and
   functions. Rollback: drop them and restore the functions and policies named
   in the migration header.
 - Any new deal-scoped table follows the existing pattern and stays closed to

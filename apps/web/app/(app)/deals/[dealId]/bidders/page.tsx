@@ -2,7 +2,8 @@ import { Badge, Button, Card, CardContent, CardHeader, CardTitle, EmptyState } f
 import { apiGet } from '../../_lib/api';
 import { OutcomeBanner } from '../../_lib/outcome';
 import { ApiState } from '../../_lib/states';
-import { addBidder, answerQuestion, bidAction, inviteBidder, nextRound, saveProcess } from './actions';
+import { BidFiles, CommentThreads, type BidFileView, type CommentView } from '../bid/threads';
+import { addBidder, answerQuestion, bidAction, inviteBidder, nextRound, replyToComment, saveProcess } from './actions';
 
 interface OfferView {
   id: string;
@@ -33,6 +34,8 @@ interface BoardView {
     latestOffer: OfferView | null;
     offers: OfferView[];
     openQuestions: number;
+    comments: CommentView[];
+    files: BidFileView[];
   }[];
   questions: { id: string; firmName: string; question: string; askedAt: string; answer: string | null; scope: 'PRIVATE' | 'ALL' | null }[];
   published: { id: string; question: string; answer: string }[];
@@ -60,6 +63,7 @@ const OUTCOMES: Record<string, string> = {
   'ok-next-round': 'Next round started. Bidders not shortlisted were declined.',
   'ok-answered': 'Answered privately: only that bidder sees it.',
   'ok-answered-all': 'Answered to all bidders, without naming who asked.',
+  'ok-replied': 'Reply sent. Only that bidder sees it.',
   'firm-missing': 'Name the bidding firm.',
   'answer-missing': 'Write an answer first.',
   conflict: 'That cannot be done in the bid’s current state.',
@@ -131,6 +135,22 @@ export default async function BiddersPage({ params, searchParams }: { params: Pr
                   </div>
                 ) : null}
                 {bid.passReason ? <div className="text-xs text-muted-foreground">Passed: {bid.passReason}</div> : null}
+                {bid.files.length > 0 ? (
+                  <div className="text-xs">
+                    <span className="font-medium">Files from {bid.firmName}:</span>
+                    <BidFiles dealId={dealId} files={bid.files} />
+                  </div>
+                ) : null}
+                {bid.comments.length > 0 ? (
+                  <details className="text-xs" open={bid.comments.some((comment) => (comment.replies ?? []).length === 0)}>
+                    <summary className="cursor-pointer font-medium">
+                      {bid.comments.length} comment thread(s) on your documents — only {bid.firmName} sees your replies
+                    </summary>
+                    <div className="mt-2">
+                      <CommentThreads comments={bid.comments} reply={(comment) => replyToComment.bind(null, dealId, comment.id)} replyLabel="Reply" />
+                    </div>
+                  </details>
+                ) : null}
                 {canRun && open && ['INVITED', 'ACTIVE', 'OFFERED', 'SHORTLISTED'].includes(bid.status) ? (
                   <div className="flex flex-wrap items-center gap-2">
                     <form action={inviteBidder.bind(null, dealId, bid.id)} className="flex items-center gap-2">

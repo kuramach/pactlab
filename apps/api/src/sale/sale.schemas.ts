@@ -42,5 +42,30 @@ export const offerSchema = z.strictObject({
 });
 export type OfferBody = z.infer<typeof offerSchema>;
 
+export const commentSchema = z.strictObject({
+  documentId: z.uuid(),
+  pageNumber: z.number().int().min(1).max(10_000).nullable().optional(),
+  quote: z.string().trim().max(2000).nullable().optional(),
+  body: z.string().trim().min(1).max(8000),
+  /** Reply in an existing thread. */
+  parentId: z.uuid().nullable().optional(),
+});
+export type CommentBody = z.infer<typeof commentSchema>;
+
+export const replySchema = z.strictObject({ body: z.string().trim().min(1).max(8000) });
+export type ReplyBody = z.infer<typeof replySchema>;
+
+/** A file attached to a bid: same types and limits as a document upload. */
+export const bidFileSchema = z.strictObject({
+  fileName: z.string().trim().min(1).max(255),
+  contentType: z.string().trim().min(1).max(100),
+  contentBase64: z.string().min(1).max(14_000_000),
+});
+export type BidFileBody = z.infer<typeof bidFileSchema>;
+
+export const fileParamsSchema = z.strictObject({ dealId: z.uuid(), fileId: z.uuid() });
+export const bidFileParamsSchema = z.strictObject({ dealId: z.uuid(), bidId: z.uuid(), fileId: z.uuid() });
+export const commentParamsSchema = z.strictObject({ dealId: z.uuid(), commentId: z.uuid() });
+
 export const passSchema = z.strictObject({ reason: z.string().trim().max(2000).nullable().optional() });
 export type PassBody = z.infer<typeof passSchema>;
