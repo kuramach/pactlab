@@ -20,6 +20,7 @@
     "test:fixtures": "vitest run --config vitest.fixtures.config.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "3.1149.0",
     "@pactlab/connectors": "workspace:*",
     "@pactlab/domain": "workspace:*",
     "@prisma/adapter-pg": "7.10.0",

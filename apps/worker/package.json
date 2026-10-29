@@ -12,6 +12,7 @@
     "test:integration": "vitest run --config vitest.integration.config.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "3.1149.0",
     "@pactlab/config": "workspace:*",
     "@pactlab/contracts": "workspace:*",
     "@pactlab/db": "workspace:*",

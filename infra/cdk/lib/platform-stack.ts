@@ -8,10 +8,15 @@ import type * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import * as ssm from 'aws-cdk-lib/aws-ssm';
 import type { Construct } from 'constructs';
 import type { EnvironmentConfig } from '../config';
+import { PactlabCompute } from './compute';
 import { StatefulProtectionAspect } from './protection';
 
 export interface PactlabPlatformStackProps extends StackProps {
   readonly config: EnvironmentConfig;
+  /** The release image tag (commit SHA); required to deploy an environment with a service. */
+  readonly imageTag?: string;
+  /** The tag the services run during a release (see PactlabCompute); defaults to `imageTag`. */
+  readonly serviceImageTag?: string;
 }
 
 /**
@@ -28,9 +33,10 @@ export class PactlabPlatformStack extends Stack {
   readonly redis: elasticache.CfnReplicationGroup;
   readonly evidenceBucket: s3.Bucket;
   readonly auditArchiveBucket: s3.Bucket;
+  readonly compute?: PactlabCompute;
 
   constructor(scope: Construct, id: string, props: PactlabPlatformStackProps) {
-    const { config, ...stackProps } = props;
+    const { config, imageTag, serviceImageTag, ...stackProps } = props;
     super(scope, id, { ...stackProps, terminationProtection: config.protectedState });
     Tags.of(this).add('pactlab:environment', config.name);
 
@@ -167,11 +173,28 @@ export class PactlabPlatformStack extends Stack {
 
     // Approved feature flags for this environment. Changing one is a reviewed
     // config change deployed like any other; rollback is a revert.
-    new ssm.StringParameter(this, 'FeatureFlags', {
+    const featureFlags = new ssm.StringParameter(this, 'FeatureFlags', {
       parameterName: `/pactlab/${config.name}/feature-flags`,
       description: 'Pactlab approved feature flags (pilot guardrails)',
       stringValue: JSON.stringify(config.featureFlags),
     });
+
+    // The running application (ADR 0019), for environments that have one.
+    if (config.service) {
+      this.compute = new PactlabCompute(this, 'App', {
+        config,
+        service: config.service,
+        imageTag: imageTag ?? 'unset',
+        serviceImageTag: serviceImageTag ?? imageTag ?? 'unset',
+        vpc: this.vpc,
+        appSecurityGroup: this.appSecurityGroup,
+        dataKey: this.dataKey,
+        database: this.database,
+        redis: this.redis,
+        evidenceBucket: this.evidenceBucket,
+        featureFlagsParameterArn: featureFlags.parameterArn,
+      });
+    }
 
     if (config.protectedState) Aspects.of(this).add(new StatefulProtectionAspect());
   }

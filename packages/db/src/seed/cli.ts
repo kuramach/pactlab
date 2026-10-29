@@ -17,7 +17,8 @@ const client = new pg.Client({ connectionString: url, options: '-c TimeZone=UTC'
 const prisma = createPrismaClient({ connectionString: url, maxConnections: 2 });
 await client.connect();
 try {
-  const report = await seedSynthetic(client, prisma);
+  const inbox = process.env['DEMO_INBOX'];
+  const report = await seedSynthetic(client, prisma, inbox ? { inbox } : {});
   process.stdout.write(`Seeded ${report.tenants} synthetic tenants\n`);
   for (const { company, dealId, sync } of report.companies) {
     process.stdout.write(

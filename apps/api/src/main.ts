@@ -1,8 +1,10 @@
-import { apiEnvSchema, loadConfig } from '@pactlab/config';
-import { assertRuntimeRoleIsolation, createPrismaClient } from '@pactlab/db';
+import { apiEnvSchema, applyDatabaseUrls, loadConfig } from '@pactlab/config';
+import { assertRuntimeRoleIsolation, createPrismaClient, S3ObjectStore } from '@pactlab/db';
 import { readFileSync } from 'node:fs';
 import { LocalEncryptedSecretStore, parseSelfHostedHosts } from '@pactlab/connectors';
 import { createLogger } from '@pactlab/observability';
+import { S3Client } from '@aws-sdk/client-s3';
+import { SESv2Client } from '@aws-sdk/client-sesv2';
 import { PollyTextToSpeech, TranscribeSpeechToText } from '@pactlab/ai';
 import { createAiGateway } from './ai/ai-provider';
 import { createApp } from './app';
@@ -10,25 +12,30 @@ import { createAuth0Verifier, DisabledIdentityVerifier } from './auth/identity';
 import { FileSystemObjectStore } from './documents/storage-adapters';
 import { BullMqImportQueue } from './imports/bullmq-import-queue';
 import { LocalFileEmailSender } from './email-login/email-sender';
+import { SesEmailSender } from './email-login/ses-email-sender';
 import { SignatureMalwareScanner } from './documents/upload-policy';
 import { FixtureMacroForecastProvider, ImfMacroForecastProvider } from '@pactlab/connectors';
 
+// Deployed tasks get database credentials as separate secret fields; build the URL from them.
+applyDatabaseUrls();
 // Fail closed: invalid configuration or an RLS-bypassing role stops startup.
 const config = loadConfig(apiEnvSchema);
 const logger = createLogger('api', { level: config.LOG_LEVEL });
 const prisma = createPrismaClient({ connectionString: config.DATABASE_URL });
 await assertRuntimeRoleIsolation(prisma);
 
-// Local runs keep originals on disk and use the signature scanner. Deployed
-// environments have no managed bucket or scanner wired yet, so document
-// uploads fail closed there.
-const localDocuments =
-  config.APP_ENV === 'local' && config.DOCUMENT_STORE_DIR
-    ? {
-        objectStore: new FileSystemObjectStore(config.DOCUMENT_STORE_DIR),
-        malwareScanner: new SignatureMalwareScanner(),
-      }
-    : undefined;
+// Originals: the environment's bucket when deployed (task-role credentials,
+// SSE-KMS), the local file store on a laptop. Scanning: the signature scanner
+// locally and, by explicit setting, in dev and qa (ADR 0019); stage and
+// production need a managed scanner. Without both, uploads fail closed.
+const objectStore =
+  config.DOCUMENT_STORE === 's3' && config.DOCUMENT_BUCKET && config.DOCUMENT_KMS_KEY_ID
+    ? new S3ObjectStore(new S3Client({ region: config.AWS_REGION }), config.DOCUMENT_BUCKET, config.DOCUMENT_KMS_KEY_ID)
+    : config.APP_ENV === 'local' && config.DOCUMENT_STORE_DIR
+      ? new FileSystemObjectStore(config.DOCUMENT_STORE_DIR)
+      : undefined;
+const malwareScanner = config.APP_ENV === 'local' || config.MALWARE_SCANNER === 'signature' ? new SignatureMalwareScanner() : undefined;
+const localDocuments = objectStore && malwareScanner ? { objectStore, malwareScanner } : undefined;
 
 // Document AI: Claude on Bedrock when AI_PROVIDER=bedrock (SSO credentials from
 // the AWS default chain); otherwise every model call fails closed.
@@ -75,8 +82,7 @@ const app = await createApp(
     ...(config.AI_PROVIDER === 'bedrock' && config.AWS_REGION
       ? { voice: { speechToText: new TranscribeSpeechToText(config.AWS_REGION), textToSpeech: new PollyTextToSpeech(config.AWS_REGION) } }
       : {}),
-    // Sign-in codes are written to files locally; no email provider is wired
-    // for deployed environments yet, so codes are not delivered there.
+    // Sign-in codes: Amazon SES when deployed (EMAIL_PROVIDER=ses), a local mail folder on a laptop.
     signup: {
       requiresApproval: config.SIGNUP_REQUIRES_APPROVAL,
       operatorEmail: config.OPERATOR_EMAIL ?? null,
@@ -84,9 +90,11 @@ const app = await createApp(
     },
     emailLogin: {
       tokenSecret: config.AUTH_TOKEN_SECRET,
-      ...(config.APP_ENV === 'local' && config.LOCAL_MAIL_DIR
-        ? { emailSender: new LocalFileEmailSender(config.LOCAL_MAIL_DIR) }
-        : {}),
+      ...(config.EMAIL_PROVIDER === 'ses' && config.EMAIL_FROM
+        ? { emailSender: new SesEmailSender(new SESv2Client({ region: config.AWS_REGION }), config.EMAIL_FROM) }
+        : config.APP_ENV === 'local' && config.LOCAL_MAIL_DIR
+          ? { emailSender: new LocalFileEmailSender(config.LOCAL_MAIL_DIR) }
+          : {}),
     },
   },
   { webOrigin: config.APP_WEB_ORIGIN },

@@ -44,6 +44,21 @@ describe('loadConfig', () => {
     expect(() => loadConfig(apiEnvSchema, { ...validApi, AI_PROVIDER: 'openai' })).toThrow(/AI_PROVIDER/);
   });
 
+  it('needs the bucket, key and Region for the S3 store, and a sender for SES', () => {
+    const s3 = { ...validApi, APP_ENV: 'dev', DOCUMENT_STORE: 's3', DOCUMENT_BUCKET: 'evidence', DOCUMENT_KMS_KEY_ID: 'key', AWS_REGION: 'us-east-1' };
+    expect(loadConfig(apiEnvSchema, s3)).toMatchObject({ DOCUMENT_STORE: 's3', DOCUMENT_BUCKET: 'evidence' });
+    expect(() => loadConfig(apiEnvSchema, { ...s3, DOCUMENT_BUCKET: '' })).toThrow(/DOCUMENT_BUCKET/);
+    expect(() => loadConfig(apiEnvSchema, { ...s3, DOCUMENT_KMS_KEY_ID: undefined })).toThrow(/DOCUMENT_KMS_KEY_ID/);
+    expect(() => loadConfig(workerEnvSchema, { APP_ENV: 'dev', DATABASE_URL: validApi.DATABASE_URL, REDIS_URL: 'redis://localhost:6379', DOCUMENT_STORE: 's3', DOCUMENT_BUCKET: 'evidence', DOCUMENT_KMS_KEY_ID: 'key' })).toThrow(/AWS_REGION/);
+    expect(() => loadConfig(apiEnvSchema, { ...validApi, EMAIL_PROVIDER: 'ses', AWS_REGION: 'us-east-1' })).toThrow(/EMAIL_FROM/);
+    expect(loadConfig(apiEnvSchema, { ...validApi, EMAIL_PROVIDER: 'ses', EMAIL_FROM: 'no-reply@pactlab.ai', AWS_REGION: 'us-east-1' }).EMAIL_PROVIDER).toBe('ses');
+  });
+
+  it('allows the signature scanner in development environments only', () => {
+    for (const APP_ENV of ['local', 'test', 'dev', 'qa']) expect(loadConfig(apiEnvSchema, { ...validApi, APP_ENV, MALWARE_SCANNER: 'signature' }).MALWARE_SCANNER).toBe('signature');
+    for (const APP_ENV of ['stage', 'production']) expect(() => loadConfig(apiEnvSchema, { ...validApi, APP_ENV, MALWARE_SCANNER: 'signature' })).toThrow(/managed scanner/);
+  });
+
   it('requires a strong token secret for email-code sign-in', () => {
     expect(() => loadConfig(apiEnvSchema, { ...validApi, AUTH_TOKEN_SECRET: 'short' })).toThrow(/AUTH_TOKEN_SECRET/);
   });

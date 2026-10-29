@@ -6,8 +6,9 @@
  */
 import 'reflect-metadata';
 import { defaultPromptRegistry, ScriptedModelTransport, TransportClaudeGateway } from '@pactlab/ai';
-import { apiEnvSchema, loadConfig } from '@pactlab/config';
-import { createPrismaClient } from '@pactlab/db';
+import { S3Client } from '@aws-sdk/client-s3';
+import { apiEnvSchema, applyDatabaseUrls, loadConfig } from '@pactlab/config';
+import { createPrismaClient, S3ObjectStore } from '@pactlab/db';
 import pg from 'pg';
 import { createLogger } from '@pactlab/observability';
 import { createApp } from '../app';
@@ -16,9 +17,17 @@ import { FileSystemObjectStore } from '../documents/storage-adapters';
 import { SignatureMalwareScanner } from '../documents/upload-policy';
 import { DEMO_HOLDERS, demoModelResponse, seedDemo } from './seed';
 
+applyDatabaseUrls();
 const config = loadConfig(apiEnvSchema);
-if (config.APP_ENV !== 'local' || !config.DOCUMENT_STORE_DIR) {
-  process.stderr.write('The demo seed runs only locally (APP_ENV=local) with DOCUMENT_STORE_DIR set.\n');
+// Synthetic data only, so only where synthetic data belongs: a laptop (file store), or the dev and qa environments (their bucket).
+const objectStore =
+  config.APP_ENV === 'local' && config.DOCUMENT_STORE_DIR
+    ? new FileSystemObjectStore(config.DOCUMENT_STORE_DIR)
+    : (config.APP_ENV === 'dev' || config.APP_ENV === 'qa') && config.DOCUMENT_STORE === 's3' && config.DOCUMENT_BUCKET && config.DOCUMENT_KMS_KEY_ID
+      ? new S3ObjectStore(new S3Client({ region: config.AWS_REGION }), config.DOCUMENT_BUCKET, config.DOCUMENT_KMS_KEY_ID)
+      : null;
+if (!objectStore) {
+  process.stderr.write('The demo seed runs locally (APP_ENV=local with DOCUMENT_STORE_DIR) or in dev/qa with the S3 store.\n');
   process.exit(1);
 }
 
@@ -29,9 +38,9 @@ const app = await createApp({
   identityVerifier: new DisabledIdentityVerifier(),
   logger: createLogger('demo-seed', { level: 'warn' }),
   // Case 1 (T-092) imports its footprint and package through the real import path.
-  uploads: { objectStore: new FileSystemObjectStore(config.DOCUMENT_STORE_DIR), malwareScanner: new SignatureMalwareScanner(), importQueue: null },
+  uploads: { objectStore, malwareScanner: new SignatureMalwareScanner(), importQueue: null },
   documents: {
-    objectStore: new FileSystemObjectStore(config.DOCUMENT_STORE_DIR),
+    objectStore,
     malwareScanner: new SignatureMalwareScanner(),
     gateway: new TransportClaudeGateway({
       transport: new ScriptedModelTransport(demoModelResponse),

@@ -37,6 +37,33 @@ function allOrNone<T extends Record<string, unknown>>(keys: readonly (keyof T & 
   };
 }
 
+/**
+ * Deployed storage, email and scanning (ADR 0019). Unset keeps the local
+ * behaviour (file store and mail folder under APP_ENV=local); anything else
+ * fails closed. The signature scanner is a development stand-in, refused in
+ * stage and production, which need a managed scanner.
+ */
+const SIGNATURE_SCANNER_ENVS: readonly AppEnvironment[] = ['local', 'test', 'dev', 'qa'];
+const deployedStorageFields = {
+  /** `s3`: originals in the environment's evidence bucket (task-role credentials). Unset: the local file store. */
+  DOCUMENT_STORE: unsetIfBlank(z.enum(['s3']).optional()),
+  DOCUMENT_BUCKET: unsetIfBlank(nonEmpty.optional()),
+  /** KMS key (ARN or id) for SSE-KMS on every original. */
+  DOCUMENT_KMS_KEY_ID: unsetIfBlank(nonEmpty.optional()),
+  /** `signature`: the built-in signature scanner (dev and qa only). Unset: local runs only. */
+  MALWARE_SCANNER: unsetIfBlank(z.enum(['signature']).optional()),
+};
+function deployedStorageRules(value: { APP_ENV: AppEnvironment; DOCUMENT_STORE?: string | undefined; DOCUMENT_BUCKET?: string | undefined; DOCUMENT_KMS_KEY_ID?: string | undefined; MALWARE_SCANNER?: string | undefined; AWS_REGION?: string | undefined }, context: z.RefinementCtx) {
+  if (value.DOCUMENT_STORE === 's3') {
+    for (const key of ['DOCUMENT_BUCKET', 'DOCUMENT_KMS_KEY_ID', 'AWS_REGION'] as const) {
+      if (!value[key]) context.addIssue({ code: 'custom', path: [key], message: 'required when DOCUMENT_STORE is s3' });
+    }
+  }
+  if (value.MALWARE_SCANNER === 'signature' && !SIGNATURE_SCANNER_ENVS.includes(value.APP_ENV)) {
+    context.addIssue({ code: 'custom', path: ['MALWARE_SCANNER'], message: 'the signature scanner is for local, test, dev and qa only; stage and production need a managed scanner' });
+  }
+}
+
 /** True when the deployment has Auth0 configured. */
 export function auth0Configured(env: { AUTH0_DOMAIN?: string | undefined }): boolean {
   return env.AUTH0_DOMAIN !== undefined;
@@ -98,6 +125,11 @@ export const apiEnvSchema = baseEnvSchema.extend({
   BEDROCK_MODEL_BALANCED: unsetIfBlank(nonEmpty.optional()),
   BEDROCK_MODEL_DEEP_REVIEW: unsetIfBlank(nonEmpty.optional()),
   BEDROCK_MODEL_FAST: unsetIfBlank(nonEmpty.optional()),
+  ...deployedStorageFields,
+  /** `ses`: sign-in and invitation email through Amazon SES (task-role credentials). Unset: the local mail folder. */
+  EMAIL_PROVIDER: unsetIfBlank(z.enum(['ses']).optional()),
+  /** Sender for SES, e.g. `Pactlab <no-reply@pactlab.ai>`; must be a verified identity. */
+  EMAIL_FROM: unsetIfBlank(nonEmpty.optional()),
 })
   .superRefine(allOrNone(['AUTH0_DOMAIN', 'AUTH0_AUDIENCE']))
   .superRefine(allOrNone(['LOCAL_SECRETS_DIR', 'LOCAL_SECRETS_KEY']))
@@ -106,7 +138,13 @@ export const apiEnvSchema = baseEnvSchema.extend({
     if (value.AI_PROVIDER === 'bedrock' && !value.AWS_REGION) {
       context.addIssue({ code: 'custom', path: ['AWS_REGION'], message: 'required when AI_PROVIDER is bedrock' });
     }
-  });
+    if (value.EMAIL_PROVIDER === 'ses') {
+      for (const key of ['EMAIL_FROM', 'AWS_REGION'] as const) {
+        if (!value[key]) context.addIssue({ code: 'custom', path: [key], message: 'required when EMAIL_PROVIDER is ses' });
+      }
+    }
+  })
+  .superRefine(deployedStorageRules);
 export type ApiEnv = z.infer<typeof apiEnvSchema>;
 
 export const workerEnvSchema = baseEnvSchema.extend({
@@ -115,7 +153,9 @@ export const workerEnvSchema = baseEnvSchema.extend({
   /** Local-only directory of uploaded originals, shared with the API (background imports read it). */
   DOCUMENT_STORE_DIR: nonEmpty.optional(),
   WORKER_CONCURRENCY: z.coerce.number().int().min(1).max(64).default(4),
-});
+  AWS_REGION: unsetIfBlank(z.string().regex(/^[a-z]{2}(-gov)?-[a-z]+-\d$/, 'an AWS Region such as us-east-1').optional()),
+  ...deployedStorageFields,
+}).superRefine(deployedStorageRules);
 export type WorkerEnv = z.infer<typeof workerEnvSchema>;
 
 export const scannerEnvSchema = baseEnvSchema.extend({

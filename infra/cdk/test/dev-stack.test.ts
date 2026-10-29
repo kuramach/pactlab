@@ -17,7 +17,8 @@ describe('PactlabDevStack', () => {
       PubliclyAccessible: false,
       EnableIAMDatabaseAuthentication: true,
     });
-    template.resourceCountIs('AWS::SecretsManager::Secret', 1);
+    // The RDS owner secret, plus the app's runtime login and token key (ADR 0019).
+    template.resourceCountIs('AWS::SecretsManager::Secret', 3);
   });
 
   it('enforces TLS and UTC on PostgreSQL', () => {
@@ -36,7 +37,8 @@ describe('PactlabDevStack', () => {
   it('admits data-store traffic only from the application security group', () => {
     const ingress = template.findResources('AWS::EC2::SecurityGroupIngress');
     const ports = Object.values(ingress).map((resource) => (resource as { Properties: { FromPort: number } }).Properties.FromPort);
-    expect(ports.sort()).toEqual([5432, 6379]);
+    // Data stores (5432, 6379) and the app ports (3000 web, 4000 api, from the load balancer only).
+    expect(ports.sort()).toEqual([3000, 4000, 5432, 6379]);
     for (const resource of Object.values(ingress)) {
       expect((resource as { Properties: Record<string, unknown> }).Properties).toHaveProperty('SourceSecurityGroupId');
       expect((resource as { Properties: Record<string, unknown> }).Properties).not.toHaveProperty('CidrIp');

@@ -1,0 +1,24 @@
+# Build context for infra/docker/Dockerfile: source and synthetic fixtures only.
+**/node_modules
+**/.next
+**/.turbo
+**/dist
+**/coverage
+**/cdk.out
+**/.data
+**/*.log
+**/.DS_Store
+.git
+.github
+.env
+.env.*
+!.env.example
+apps/site/out
+apps/e2e
+infra/cdk
+docs
+tasks
+brand
+packages/db/src/generated
+**/playwright-report
+**/test-results
