@@ -137,6 +137,8 @@ export function llmsText(): string {
     '',
     '## Case studies',
     '',
+    'What Pactlab learns from good and bad pact outcomes, and how each lesson becomes a check that protects future pacts.',
+    '',
     ...CASE_STUDIES.map((study) => `- [${study.title}](${absolute(`/case-studies/${study.slug}`)}): ${study.description}`),
     '',
     '## Questions and answers',

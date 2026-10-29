@@ -93,7 +93,7 @@ describe('machine-readable site (T-085 Part 1)', () => {
       expect(study.status.asOf).toMatch(/^\d{1,2} \w+ \d{4}$/);
       expect(study.status.facts.map((fact) => fact.text).join(' ')).toMatch(/alleg/);
       for (const defect of study.defects) expect(SITE_ROUTES, defect.href).toContain(defect.href);
-      const copy = JSON.stringify({ defects: study.defects.map(({ check, how }) => ({ check, how })), line: study.line, description: study.description }).toLowerCase();
+      const copy = JSON.stringify({ defects: study.defects.map(({ check, how }) => ({ check, how })), line: study.line, description: study.description, lesson: study.lesson }).toLowerCase();
       for (const word of BANNED_WORDS) expect(copy).not.toContain(word);
       for (const claim of ['would have prevented', 'would have saved', 'would have caught', 'guarantee']) expect(copy).not.toContain(claim);
     }
