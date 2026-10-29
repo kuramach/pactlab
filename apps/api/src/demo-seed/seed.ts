@@ -719,7 +719,7 @@ async function seedCase1(
     await imports.import(lead, dealId, upload.id, upload.suggestedMapping, REQUEST_ID);
   }
   const docs: Record<string, string> = {};
-  for (const file of ['merger-agreement.md', 'regulator-letter-round-1.md', 'regulator-letter-round-2.md', 'package-revision-notes.md', 'price-pledge-press-release.md', 'remedy-buyer-profile.md']) {
+  for (const file of ['merger-agreement.md', 'regulator-letter-round-1.md', 'regulator-letter-round-2.md', 'package-revision-notes.md', 'price-pledge-press-release.md', 'remedy-buyer-profile.md', 'enforcement-climate-memo.md']) {
     const uploaded = (await documents.upload(
       lead,
       dealId,
@@ -739,8 +739,10 @@ async function seedCase1(
     { kind: 'REVISION', payload: { revision: 2, date: '2024-01-18', addresses: ['SIZE'] }, citation: cite('package-revision-notes.md', 'expanded from 413 to 520 sites') },
     { kind: 'REVISION', payload: { revision: 3, date: '2024-04-22', addresses: ['SIZE'] }, citation: cite('package-revision-notes.md', 'expanded to 579 sites') },
     { kind: 'COMMITMENT', payload: { text: 'Meridian will invest $1 billion in lowering prices after closing.', measurement: null, enforcementParty: null, durationMonths: null }, citation: cite('price-pledge-press-release.md', 'Meridian will invest $1 billion in lowering prices') },
+    { kind: 'POSTURE', payload: { date: '2023-12-18', authority: 'Federal antitrust agencies', scope: 'GUIDELINES', direction: 'TIGHTENING', signal: 'The 2023 Merger Guidelines presume harm from a post-merger HHI above 1,800.' }, citation: cite('enforcement-climate-memo.md', 'presume harm at lower concentration than before') },
+    { kind: 'POSTURE', payload: { date: '2024-01-15', authority: 'State attorney general (synthetic)', scope: 'SECTOR_SIGNAL', direction: 'TIGHTENING', signal: 'A grocery-pricing inquiry, and a stated intent to review any supermarket merger in the state.' }, citation: cite('enforcement-climate-memo.md', 'opened a grocery-pricing inquiry in January 2024') },
   ];
   for (const entry of entries) await regulatory.addEntry(lead, dealId, createRegulatoryEntrySchema.parse(entry), REQUEST_ID);
   const proposed = await regulatory.propose(lead, dealId, REQUEST_ID);
-  return `${CASE_1_NAME}: footprint, package, 6 documents, ${entries.length} cited entries; ${proposed.created} regulatory draft findings`;
+  return `${CASE_1_NAME}: footprint, package, 7 documents, ${entries.length} cited entries; ${proposed.created} regulatory draft findings`;
 }

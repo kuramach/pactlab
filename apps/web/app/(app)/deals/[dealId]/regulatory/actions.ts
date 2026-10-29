@@ -11,7 +11,7 @@ const optional = (form: FormData, name: string) => text(form, name) || null;
 const topics = (value: string) => value.split(',').map((topic) => topic.trim().toUpperCase().replaceAll(/[^A-Z_]/g, '_')).filter((topic) => /^[A-Z][A-Z_]{1,40}$/.test(topic));
 
 /** Add a cited regulatory entry (terms, buyer, feedback, revision or pledge). The API checks the quote is on the page. */
-export async function addEntry(dealId: string, kind: 'TERMS' | 'BUYER' | 'FEEDBACK' | 'REVISION' | 'COMMITMENT', form: FormData): Promise<void> {
+export async function addEntry(dealId: string, kind: 'TERMS' | 'BUYER' | 'FEEDBACK' | 'REVISION' | 'COMMITMENT' | 'POSTURE', form: FormData): Promise<void> {
   if (!uuid.safeParse(dealId).success) redirect('/deals');
   const citation = { documentId: text(form, 'documentId'), pageNumber: Number(text(form, 'pageNumber') || '1'), quote: text(form, 'quote') };
   const payloads = {
@@ -42,6 +42,13 @@ export async function addEntry(dealId: string, kind: 'TERMS' | 'BUYER' | 'FEEDBA
       measurement: optional(form, 'measurement'),
       enforcementParty: optional(form, 'enforcementParty'),
       durationMonths: text(form, 'durationMonths') ? Number(text(form, 'durationMonths')) : null,
+    }),
+    POSTURE: () => ({
+      date: text(form, 'date'),
+      authority: text(form, 'authority'),
+      scope: text(form, 'scope').toUpperCase(),
+      direction: text(form, 'direction').toUpperCase(),
+      signal: text(form, 'signal'),
     }),
   };
   const result = await apiPost(`/v1/deals/${dealId}/regulatory/entries`, { kind, payload: payloads[kind](), citation });
