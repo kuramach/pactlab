@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import type {
   AskingPriceInput,
   AskingPriceView,
@@ -65,10 +65,29 @@ export class PactsService {
     const transactionType = deriveTransactionType(command.buyer ?? { ownership: 'PRIVATE' }, command.seller);
     // Guests work inside the pacts they were invited to; they never start one in another organization (ADR 0014).
     if (tenant.organizationRole === 'GUEST') throw new ForbiddenException();
+    if (command.linkedSale) {
+      const sale = command.linkedSale;
+      const [won, existing] = await withTenant(this.prisma, tenant, async (tx) => [
+        (await tx.$queryRaw<{ won: boolean }[]>`SELECT app_won_sale(${sale.organizationId}::uuid, ${sale.dealId}::uuid) AS won`)[0]?.won === true,
+        await tx.deal.findFirst({ where: { linkedOrganizationId: sale.organizationId, linkedDealId: sale.dealId }, select: { id: true } }),
+      ] as const);
+      // Only the winner of that sale links a pact to it, once.
+      if (!won) throw new ForbiddenException();
+      if (existing) throw new ConflictException({ code: 'ALREADY_LINKED', dealId: existing.id });
+      if (command.initiatedBy !== 'BUYER') throw new UnprocessableEntityException({ code: 'LINKED_PACT_IS_BUYER_LED' });
+    }
     const deal = await createDealWithLead(
       this.prisma,
       tenant,
-      { name: command.name, targetName: command.seller.name, transactionType, baseCurrency: command.baseCurrency, initiatedBy: command.initiatedBy },
+      {
+        name: command.name,
+        targetName: command.seller.name,
+        transactionType,
+        baseCurrency: command.baseCurrency,
+        initiatedBy: command.initiatedBy,
+        linkedOrganizationId: command.linkedSale?.organizationId ?? null,
+        linkedDealId: command.linkedSale?.dealId ?? null,
+      },
       async (tx, created) => {
         const scope = { organizationId: tenant.organizationId, dealId: created.id };
         if (command.buyer) await dealParties.create(tx, { ...scope, role: 'BUYER', ...command.buyer });

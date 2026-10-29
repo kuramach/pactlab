@@ -1,6 +1,6 @@
 # ADR 0015 — Seller-led sale: the seller runs a bid process; bidders never see each other
 
-Status: accepted (T-097, 2026-10-28; decisions by Kumar, two open points below)
+Status: accepted (T-097, 2026-10-28; decisions by Kumar)
 
 ## Context
 
@@ -67,22 +67,35 @@ has the same shape (ADR 0012).
    meant migrating a shipped feature for no user-visible gain. Flagged for
    Kumar.
 
-## Open points for Kumar
+## The winner's diligence (decided by Kumar, 2026-10-28)
 
-- **The winner's diligence.** The brief's default was "the same pact". But
-  the seller owns this pact, so the winner cannot keep buyer-confidential
-  analysis in it: everything they write would be visible to the seller's
-  side. Proposal: on award, the winner starts a **linked buyer-led pact in
-  their own organization**, prefilled, with the seller invited as a target
-  contributor. Not built; the award itself is.
+9. **A linked buyer-led pact in the winner's own organization.** The winner
+   cannot do confidential analysis inside the seller's pact: the seller's
+   side would see everything they write.
+   - On award, **Your bid** offers **Start your diligence pact**. Pactlab
+     carries over what the winner may know: the company, its type, the
+     currency and the winning firm.
+   - It moves the winner's session to their home organization and starts a
+     buyer-led pact there, with `deals.linked_organization_id` and
+     `linked_deal_id` naming the sale. This is a reference only, with no
+     cross-organization join.
+   - It invites the seller's deal lead into that pact as a target
+     contributor.
+   - The API accepts the link only from the sale's winner, checked by
+     `app_won_sale`, a security-definer function that answers only about the
+     caller, and only once per sale.
+10. **Still open:**
+    - An attachment on offers. A bidder's upload would need per-bid document
+      visibility, which today's SHARED/BUYER_ONLY model cannot express
+      without exposing it to other bidders.
+    - Auth0 (SSO) bidders join with T-070.
 - **Bidder teams** are supported: several people per firm, invited one by one.
-- **NDA** is a click-through on the seller's text, recorded with who and
-  when. An uploaded signed NDA can follow.
+- **NDA** is a click-through on the seller's text, recorded with who and when.
 
 ## Consequences
 
-- Migrations: `20261114000000_bidder_role` (enum value, on its own) and
-  `20261114000100_seller_led_sale`. Both only add tables, columns and
+- Migrations: `20261114000000_bidder_role` (enum value, on its own),
+  `20261114000100_seller_led_sale` and `20261116000000_linked_pacts`. Both only add tables, columns and
   functions. Rollback: drop them and restore the functions and policies named
   in the migration header.
 - Any new deal-scoped table follows the existing pattern and stays closed to

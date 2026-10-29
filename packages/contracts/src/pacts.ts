@@ -91,6 +91,11 @@ export const startPactSchema = z
     seller: partyInputSchema,
     /** Optional: the asking price may not be known when the Pact starts. */
     askingPrice: askingPriceInputSchema.nullable().default(null),
+    /**
+     * The winning bidder's own diligence pact (T-097): the seller-led sale it
+     * came from. Accepted only if the caller won that sale.
+     */
+    linkedSale: z.strictObject({ organizationId: z.uuid(), dealId: z.uuid() }).nullable().default(null),
   })
   .superRefine((pact, ctx) => {
     if (pact.initiatedBy === 'BUYER' && !pact.buyer) ctx.addIssue({ code: 'custom', path: ['buyer'], message: 'Say who is buying' });
