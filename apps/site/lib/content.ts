@@ -752,6 +752,7 @@ export const NAV = [
   { href: '/product', label: 'Product' },
   { href: '/industries', label: 'Industries' },
   { href: '/how-it-works', label: 'How it works' },
+  { href: '/case-studies', label: 'Case studies' },
   { href: '/trust', label: 'Trust' },
   { href: '/about', label: 'About' },
   { href: '/pilot', label: 'Pilot' },
