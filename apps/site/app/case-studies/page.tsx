@@ -7,8 +7,8 @@ import { PILOT } from '../../lib/content';
 import { pageMetadata } from '../../lib/seo';
 
 export const metadata: Metadata = pageMetadata({
-  title: 'Failed-deal case studies',
-  description: 'Real mergers that failed, told from court rulings and regulator filings with every fact cited, and the Pactlab checks built for each failure mode.',
+  title: 'Case studies: what pact outcomes teach',
+  description: 'What Pactlab learns from good and bad pact outcomes — real deals told from the record with every fact cited — and how each lesson becomes a check that protects future pacts.',
   path: '/case-studies',
 });
 
@@ -17,8 +17,8 @@ export default function CaseStudiesIndexPage() {
     <>
       <PageHero
         eyebrow="Case studies"
-        title="Failed-deal case studies"
-        body="Real deals that failed, told from the record with every fact cited, mapped defect by defect to the checks Pactlab is built to run. Each comes with a synthetic dataset you can run yourself."
+        title="What pact outcomes teach"
+        body="Pactlab learns from how pacts turn out, good and bad. Each case study tells a real deal from the public record, every fact cited, names the lessons, and shows the check Pactlab now runs so future pacts are protected. Each comes with a synthetic dataset you can run yourself."
         icon="ListChecks"
         crumbs={[
           { label: 'Home', href: '/' },
@@ -30,7 +30,9 @@ export default function CaseStudiesIndexPage() {
           {CASE_STUDIES.map((study) => (
             <li key={study.slug}>
               <Link href={`/case-studies/${study.slug}`} className="flex h-full flex-col gap-2 rounded-2xl border border-navy/10 p-6 hover:border-indigo hover:bg-mist">
-                <span className="text-sm font-bold uppercase tracking-widest text-slate-text">Case {study.number}</span>
+                <span className="text-sm font-bold uppercase tracking-widest text-slate-text">
+                  Case {study.number} · {study.outcome.label}
+                </span>
                 <span className="text-lg font-bold">{study.title}</span>
                 <span className="text-sm text-slate-text">{study.line}</span>
               </Link>

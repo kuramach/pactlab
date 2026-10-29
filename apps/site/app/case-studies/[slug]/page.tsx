@@ -52,7 +52,7 @@ export default async function CaseStudyPage({ params }: { params: Promise<{ slug
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdScript(article) }} />
       <PageHero
-        eyebrow={`Case study ${study.number}`}
+        eyebrow={`Case study ${study.number} · ${study.outcome.label}`}
         title={study.title}
         body={study.line}
         icon="ListChecks"
@@ -64,22 +64,24 @@ export default async function CaseStudyPage({ params }: { params: Promise<{ slug
       />
       <section className="bg-white">
         <div className="mx-auto flex max-w-3xl flex-col gap-4 px-6 py-16">
-          <h2 className="text-2xl font-extrabold tracking-tight">The deal</h2>
+          <h2 className="text-2xl font-extrabold tracking-tight">What Pactlab learns</h2>
+          <p className="leading-relaxed text-slate-text">{study.lesson}</p>
+          <h2 className="mt-8 text-2xl font-extrabold tracking-tight">The deal</h2>
           {study.deal.map((fact) => (
             <Fact key={fact.text} fact={fact} />
           ))}
         </div>
       </section>
       <Section
-        title="What failed, and the check built for it"
-        body="Each defect from the record, beside the Pactlab check designed for that failure mode. The mapping describes what Pactlab is built to do; Pactlab played no part in this deal and this page makes no claim about how it would have ended."
+        title="The lessons, and how Pactlab protects future pacts"
+        body="Each lesson from the record, beside the check Pactlab runs on every pact so the same defect surfaces early. The mapping describes what Pactlab is built to do; Pactlab played no part in this deal and this page makes no claim about how it would have ended."
         tone="mist"
       >
         <ol className="mt-8 flex flex-col gap-6">
           {study.defects.map((defect, index) => (
             <li key={defect.name} className="grid gap-6 rounded-2xl border border-navy/10 bg-white p-6 md:grid-cols-2">
               <div className="flex flex-col gap-2">
-                <span className="text-sm font-bold uppercase tracking-widest text-slate-text">Defect {index + 1}</span>
+                <span className="text-sm font-bold uppercase tracking-widest text-slate-text">Lesson {index + 1}</span>
                 <h3 className="text-lg font-bold">{defect.name}</h3>
                 <Fact fact={defect.record} />
               </div>

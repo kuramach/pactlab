@@ -1,6 +1,7 @@
 /**
- * The failed-deal case library, public pages (T-092). Each published case
- * tells what really happened — from court rulings, regulator filings, company
+ * Case studies (T-092): what Pactlab learns from good and bad pact outcomes,
+ * and how it protects future pacts. Each published case tells what really
+ * happened — from court rulings, regulator filings, company
  * filings and reputable reporting, every factual sentence citing its source —
  * and how Pactlab is set up to surface each defect. That mapping is stated as
  * design intent, never as a claim that Pactlab was involved or would have
@@ -38,9 +39,13 @@ export interface CaseStudy {
   readonly slug: string;
   readonly number: number;
   readonly title: string;
-  /** The deal, the outcome and the failure in a phrase (the index line). */
+  /** GOOD or BAD outcome, and the outcome in a few words. */
+  readonly outcome: { readonly kind: 'GOOD' | 'BAD'; readonly label: string };
+  /** The deal, the outcome and the lesson in a phrase (the index line). */
   readonly line: string;
   readonly description: string;
+  /** What Pactlab learns from this pact, and how that protects the next one. */
+  readonly lesson: string;
   readonly deal: readonly CitedFact[];
   readonly defects: readonly CaseDefect[];
   /** Still-litigated matters, framed as allegations, with the date of this status. */
@@ -55,9 +60,12 @@ export const CASE_STUDIES: readonly CaseStudy[] = [
     slug: 'kroger-albertsons',
     number: 1,
     title: 'Why did the Kroger–Albertsons merger fail?',
-    line: 'Kroger / Albertsons (2022–2024): blocked by federal and state courts on the same day; the divestiture package did not answer the overlap.',
+    outcome: { kind: 'BAD', label: 'Blocked in court' },
+    line: 'Kroger / Albertsons (2022–2024): blocked by federal and state courts on the same day. The lesson: a remedy has to answer the overlap, and that can be tested before signing.',
     description:
-      'The anatomy of the Kroger–Albertsons grocery merger: a $24.6 billion deal blocked in December 2024, a divestiture package the court found insufficient, and the checks Pactlab is built to run on exactly these failure modes.',
+      'What Pactlab learns from the Kroger–Albertsons grocery merger — a $24.6 billion deal blocked in December 2024 over a divestiture package the court found insufficient — and the checks that protect future pacts from the same defects.',
+    lesson:
+      'Every defect the courts relied on was in the data before the deal was blocked: overlap markets, a remedy smaller than the agreement allowed, weaker stores sold, a patchwork package, a buyer without the record, a pledge nobody could enforce. Pactlab turns each into a check that runs on every pact with overlapping footprints — from the Pre-screen onward — so the next team sees the defect while it can still change the package, the price or the decision.',
     deal: [
       {
         text: 'On 14 October 2022 Kroger agreed to acquire Albertsons for about $24.6 billion including net debt — $34.10 per share in cash — combining two of the largest US supermarket operators.',

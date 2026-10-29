@@ -46,6 +46,11 @@ case "$TIER" in light|standard|deep) ;; *) echo "warn: unknown Context: '$TIER',
 # --- model routing: MODEL env > task's Model: > routed from the attempt's tier (see tasks/README.md) ---
 TASK_MODEL="$(grep -E '^Model:' "$ACTIVE" | head -1 | sed 's/^Model:[[:space:]]*//' || true)"
 case "$TASK_MODEL" in ""|haiku|sonnet|opus) ;; *) echo "warn: unknown Model: '$TASK_MODEL', ignoring" | tee -a "$LOG"; TASK_MODEL="" ;; esac
+
+# --- engine: ENGINE env > task's Engine: > claude (see tasks/README.md "Engine split") ---
+TASK_ENGINE="${ENGINE:-$(grep -E '^Engine:' "$ACTIVE" | head -1 | sed 's/^Engine:[[:space:]]*//' || true)}"
+TASK_ENGINE="${TASK_ENGINE:-claude}"
+case "$TASK_ENGINE" in claude|codex) ;; *) echo "warn: unknown Engine: '$TASK_ENGINE', using claude" | tee -a "$LOG"; TASK_ENGINE=claude ;; esac
 next_tier() { case "$1" in light) echo standard ;; standard) echo deep ;; *) echo "" ;; esac; }
 
 CHECKS="$(grep -E '^Checks:' "$ACTIVE" | head -1 | sed 's/^Checks:[[:space:]]*//')"
@@ -71,10 +76,19 @@ $(cat "$CTX")"
   # Initial context = always-loaded CLAUDE.md + this prompt; ~4 characters per token.
   echo "context: tier=$tier chars=$((core + ctx_chars)) claude_md=$core prompt=$ctx_chars approx_tokens=$(((core + ctx_chars) / 4))" | tee -a "$LOG"
 
-  echo "=== launching claude for $TASK_ID (tier $tier, model $model) ===" | tee -a "$LOG"
-  # shellcheck disable=SC2086
-  (cd "$WT" && claude -p "$prompt" --model "$model" ${CLAUDE_FLAGS:-} 2>&1 | tee "$OUT" | tee -a "$LOG") \
-    || echo "warn: claude exited non-zero" | tee -a "$LOG"
+  if [[ "$TASK_ENGINE" == "codex" ]]; then
+    local cflag=""
+    [[ -n "${CODEX_MODEL:-}" ]] && cflag="-m $CODEX_MODEL"
+    echo "=== launching codex for $TASK_ID (tier $tier) ===" | tee -a "$LOG"
+    # shellcheck disable=SC2086
+    (cd "$WT" && codex exec --sandbox workspace-write --ask-for-approval never $cflag ${CODEX_FLAGS:-} "$prompt" 2>&1 | tee "$OUT" | tee -a "$LOG") \
+      || echo "warn: codex exited non-zero" | tee -a "$LOG"
+  else
+    echo "=== launching claude for $TASK_ID (tier $tier, model $model) ===" | tee -a "$LOG"
+    # shellcheck disable=SC2086
+    (cd "$WT" && claude -p "$prompt" --model "$model" ${CLAUDE_FLAGS:-} 2>&1 | tee "$OUT" | tee -a "$LOG") \
+      || echo "warn: claude exited non-zero" | tee -a "$LOG"
+  fi
   STARVED="$(grep -m1 -E '^CONTEXT-STARVED:' "$OUT" || true)"
 
   # --- install deps before checks (agent may not have run it) ---
