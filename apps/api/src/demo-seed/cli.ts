@@ -28,6 +28,8 @@ const app = await createApp({
   prisma,
   identityVerifier: new DisabledIdentityVerifier(),
   logger: createLogger('demo-seed', { level: 'warn' }),
+  // Case 1 (T-092) imports its footprint and package through the real import path.
+  uploads: { objectStore: new FileSystemObjectStore(config.DOCUMENT_STORE_DIR), malwareScanner: new SignatureMalwareScanner(), importQueue: null },
   documents: {
     objectStore: new FileSystemObjectStore(config.DOCUMENT_STORE_DIR),
     malwareScanner: new SignatureMalwareScanner(),

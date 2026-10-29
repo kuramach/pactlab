@@ -13,3 +13,4 @@ export * from './deal-phases';
 export * from './bugs';
 export * from './foresight';
 export * from './foresight-metrics';
+export * from './regulatory/registry';

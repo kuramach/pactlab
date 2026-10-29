@@ -9,7 +9,7 @@ import { createApp } from '../app';
 import { DisabledIdentityVerifier } from '../auth/identity';
 import { InMemoryObjectStore } from '../documents/testing';
 import { SignatureMalwareScanner } from '../documents/upload-policy';
-import { demoModelResponse, seedDemo } from './seed';
+import { CASE_1_NAME, demoModelResponse, seedDemo } from './seed';
 
 type Row = Record<string, unknown>;
 const CHARLIE = '01900000-0000-7000-8000-00000000c001';
@@ -28,6 +28,7 @@ describe('synthetic decision-loop seed', () => {
       prisma: db.prisma,
       identityVerifier: new DisabledIdentityVerifier(),
       logger: createLogger('api-test', { level: 'silent' }),
+      uploads: { objectStore: new InMemoryObjectStore(), malwareScanner: new SignatureMalwareScanner() },
       documents: {
         objectStore: new InMemoryObjectStore(),
         malwareScanner: new SignatureMalwareScanner(),
@@ -82,9 +83,18 @@ describe('synthetic decision-loop seed', () => {
     ]);
   });
 
+  it('loads Case 1 (T-092) as a demo pact with its regulatory draft findings', async () => {
+    // Seeded for each demo organization.
+    const lines = report.filter((line) => line.includes(CASE_1_NAME));
+    expect(lines.length).toBeGreaterThan(0);
+    for (const line of lines) expect(line).toContain(`${CASE_1_NAME}: footprint, package, 6 documents, 7 cited entries; 10 regulatory draft findings`);
+    const findings = await rows(`SELECT count(*)::int AS n FROM findings f JOIN deals d ON d.id = f.deal_id WHERE d.name = $1 AND f.domain = 'REGULATORY' AND f.status = 'DRAFT'`, [CASE_1_NAME]);
+    expect(findings[0]?.['n']).toBeGreaterThanOrEqual(10);
+  });
+
   it('uploads contracts with cited AI drafts recorded as synthetic, one accepted by the reviewer', async () => {
-    const docs = await rows(`SELECT count(*)::int AS n FROM documents WHERE organization_id = $1`, [CHARLIE]);
-    // Four contracts and Troubled's balance sheet.
+    const docs = await rows(`SELECT count(*)::int AS n FROM documents d JOIN deals p ON p.id = d.deal_id WHERE d.organization_id = $1 AND p.name <> $2`, [CHARLIE, CASE_1_NAME]);
+    // Four contracts and Troubled's balance sheet (Case 1's six documents are counted in its own test).
     expect(docs[0]!['n']).toBe(5);
     const models = await rows(`SELECT DISTINCT resolved_model_id FROM ai_runs WHERE organization_id = $1`, [CHARLIE]);
     expect(models).toEqual([{ resolved_model_id: 'synthetic-fixture' }]);

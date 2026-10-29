@@ -1,7 +1,9 @@
+import { readFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 import type { INestApplicationContext } from '@nestjs/common';
 import { neutralizeMarkup, type ModelRequest } from '@pactlab/ai';
 import { comparables, deals, resolvePrincipal, withTenant, type PrismaClient } from '@pactlab/db';
-import { balanceSheetItemInputSchema, type AskingPriceInput } from '@pactlab/contracts';
+import { balanceSheetItemInputSchema, createRegulatoryEntrySchema, startPactSchema, uploadQuerySchema, type AskingPriceInput } from '@pactlab/contracts';
 import type { TenantContext } from '@pactlab/domain';
 import { BalanceSheetService } from '../balance-sheet/balance-sheet.service';
 import { ComparablesService } from '../comparables/comparables.service';
@@ -12,6 +14,8 @@ import { PactsService } from '../pacts/pacts.service';
 import { DealsService } from '../deals/deals.service';
 import { PhasesService } from '../phases/phases.service';
 import { ForesightService } from '../foresight/foresight.service';
+import { ImportsService } from '../imports/imports.service';
+import { RegulatoryService } from '../regulatory/regulatory.service';
 import { updateAssumptionsSchema } from '../valuation/valuation.schemas';
 import { ValuationService } from '../valuation/valuation.service';
 import { DEMO_CONTRACTS, type SyntheticContract } from './contracts';
@@ -202,6 +206,8 @@ export async function seedDemo(
   const phases = app.get(PhasesService, { strict: false });
   const dealsService = app.get(DealsService, { strict: false });
   const foresightService = app.get(ForesightService, { strict: false });
+  const imports = app.get(ImportsService, { strict: false });
+  const regulatory = app.get(RegulatoryService, { strict: false });
   const report: string[] = [];
 
   for (const holder of DEMO_HOLDERS) {
@@ -661,6 +667,16 @@ export async function seedDemo(
       }
     }
 
+    // --- Case 1 (T-091/T-092): the synthetic Kroger/Albertsons analog, loaded like any pact ---
+    if (!dealRows.some((deal) => deal.name === CASE_1_NAME)) {
+      try {
+        report.push(`${holder.label} · ${await seedCase1(who.lead, { pacts, imports, documents, regulatory })}`);
+      } catch (error) {
+        // Without an upload store (some test harnesses) the case cannot import its footprint; say so, never half-seed silently.
+        report.push(`${holder.label} · ${CASE_1_NAME}: not seeded (${error instanceof Error ? error.message : 'unknown error'})`);
+      }
+    }
+
     const healthyClose = dealId('Project Healthy');
     if (healthyClose && dealRows.find((deal) => deal.id === healthyClose)?.stage !== 'CLOSED') {
       await dealsService.update(who.lead, healthyClose, { stage: 'CLOSED' }, REQUEST_ID);
@@ -669,4 +685,62 @@ export async function seedDemo(
     }
   }
   return report;
+}
+
+export const CASE_1_NAME = 'Case 1: Meridian / Harvest Lane (synthetic)';
+const CASE_1 = resolve(import.meta.dirname, '../../../../demo-data/cases/case-01-grocery');
+
+/**
+ * Case 1 of the failed-deal library (T-092) as a demo pact: footprint and
+ * package through the import path, the cited documents on Documents, the
+ * regulatory entries citing them, and the results recorded as draft findings.
+ * "Run the deal that failed, watch it get caught."
+ */
+async function seedCase1(
+  leadBefore: TenantContext,
+  services: { pacts: PactsService; imports: ImportsService; documents: DocumentsService; regulatory: RegulatoryService },
+): Promise<string> {
+  const { pacts, imports, documents, regulatory } = services;
+  const started = await pacts.start(
+    leadBefore,
+    startPactSchema.parse({
+      name: CASE_1_NAME,
+      baseCurrency: 'USD',
+      buyer: { name: 'Meridian Markets (synthetic)', ownership: 'PUBLIC', ticker: 'MRDN', exchange: 'NYSE' },
+      seller: { name: 'Harvest Lane Foods (synthetic)', ownership: 'PRIVATE', companyType: 'OTHER' },
+    }),
+    REQUEST_ID,
+  );
+  const dealId = started.id;
+  // The session context was resolved before the pact existed; the lead now holds it.
+  const lead: TenantContext = { ...leadBefore, dealIds: [...leadBefore.dealIds, dealId as TenantContext['dealIds'][number]] };
+  for (const [file, target] of [['sites.csv', 'REGULATORY_FOOTPRINT'], ['remedy-package.csv', 'REMEDY_PACKAGE']] as const) {
+    const upload = await imports.upload(lead, dealId, uploadQuerySchema.parse({ system: 'pactlab_standard', fileName: file, target }), new Uint8Array(readFileSync(join(CASE_1, file))), REQUEST_ID);
+    await imports.import(lead, dealId, upload.id, upload.suggestedMapping, REQUEST_ID);
+  }
+  const docs: Record<string, string> = {};
+  for (const file of ['merger-agreement.md', 'regulator-letter-round-1.md', 'regulator-letter-round-2.md', 'package-revision-notes.md', 'price-pledge-press-release.md', 'remedy-buyer-profile.md']) {
+    const uploaded = (await documents.upload(
+      lead,
+      dealId,
+      { fileName: file, contentType: 'text/markdown', contentBase64: readFileSync(join(CASE_1, file)).toString('base64'), retentionClass: 'DEAL_TERM', dataClass: 'BUSINESS', aiExcluded: false, shared: false },
+      REQUEST_ID,
+    )) as { id: string };
+    docs[file] = uploaded.id;
+  }
+  const cite = (file: string, quote: string) => ({ documentId: docs[file] as string, pageNumber: 1, quote });
+  const json = (file: string) => JSON.parse(readFileSync(join(CASE_1, file), 'utf8')) as Record<string, unknown>;
+  const terms = json('terms.json');
+  const entries = [
+    { kind: 'TERMS', payload: { signedOn: terms['signedOn'], outsideDate: terms['outsideDate'], effortsStandard: terms['effortsStandard'], divestitureCap: terms['divestitureCap'], currency: 'USD', terminationFees: terms['terminationFees'], ebitdaMultiple: '8' }, citation: cite('merger-agreement.md', 'Meridian shall not be required to divest more than 650 stores') },
+    { kind: 'BUYER', payload: json('buyer.json'), citation: cite('remedy-buyer-profile.md', 'It operates 23 retail stores today') },
+    { kind: 'FEEDBACK', payload: { round: 1, date: '2023-11-02', regulator: 'Federal antitrust agency (synthetic)', criticisms: [{ topic: 'SIZE', substance: 'The 413-site proposal leaves too many overlap markets untouched.' }] }, citation: cite('regulator-letter-round-1.md', 'leaves too many overlap markets untouched') },
+    { kind: 'FEEDBACK', payload: { round: 2, date: '2024-02-12', regulator: 'Federal antitrust agency (synthetic)', criticisms: [{ topic: 'COHERENCE', substance: 'The package is a patchwork of banners and stores without the distribution and systems to run them as one business.' }] }, citation: cite('regulator-letter-round-2.md', 'The package is a patchwork of banners and stores') },
+    { kind: 'REVISION', payload: { revision: 2, date: '2024-01-18', addresses: ['SIZE'] }, citation: cite('package-revision-notes.md', 'expanded from 413 to 520 sites') },
+    { kind: 'REVISION', payload: { revision: 3, date: '2024-04-22', addresses: ['SIZE'] }, citation: cite('package-revision-notes.md', 'expanded to 579 sites') },
+    { kind: 'COMMITMENT', payload: { text: 'Meridian will invest $1 billion in lowering prices after closing.', measurement: null, enforcementParty: null, durationMonths: null }, citation: cite('price-pledge-press-release.md', 'Meridian will invest $1 billion in lowering prices') },
+  ];
+  for (const entry of entries) await regulatory.addEntry(lead, dealId, createRegulatoryEntrySchema.parse(entry), REQUEST_ID);
+  const proposed = await regulatory.propose(lead, dealId, REQUEST_ID);
+  return `${CASE_1_NAME}: footprint, package, 6 documents, ${entries.length} cited entries; ${proposed.created} regulatory draft findings`;
 }

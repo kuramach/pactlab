@@ -107,6 +107,40 @@ dump('feedback.json', dict(
     revisions=[dict(revision=2, date='2024-01-18', addresses=['SIZE']), dict(revision=3, date='2024-04-22', addresses=['SIZE'])]))
 dump('commitments.json', [dict(id='price-pledge', text='Meridian will invest $1 billion in lowering prices after closing.', measurement=None, enforcementParty=None, durationMonths=None)])
 
+# The package as an import (Sources → Divestiture package): one row per site of the current revision.
+dc_moving = {'HDC-Northwest', 'MDC-Mountain'}
+by_id = {s['site_id']: s for s in sites}
+write_csv('remedy-package.csv', [dict(revision='3', revision_date='2024-04-22', site_id=sid, buyer='Crossdock Wholesale Supply (synthetic)',
+                                      distribution_center_transferred='yes' if by_id[sid]['distribution_center'] in dc_moving else 'no',
+                                      systems_transferred='yes' if by_id[sid]['systems'] == 'HarvestOne' else 'no') for sid in package],
+          ['revision', 'revision_date', 'site_id', 'buyer', 'distribution_center_transferred', 'systems_transferred'])
+
+# The documents the regulatory entries cite (uploaded on Documents).
+docs = {
+    'regulator-letter-round-1.md': """Federal antitrust agency (synthetic) to Meridian Markets and Harvest Lane Foods, 2 November 2023
+Re: proposed divestiture package (413 sites)
+The 413-site proposal leaves too many overlap markets untouched. Staff will not recommend acceptance in its current form.
+""",
+    'regulator-letter-round-2.md': """Federal antitrust agency (synthetic) to Meridian Markets and Harvest Lane Foods, 12 February 2024
+Re: revised divestiture package (revision 2)
+The package is a patchwork of banners and stores without the distribution and systems to run them as one business.
+""",
+    'package-revision-notes.md': """Meridian Markets: divestiture package revisions (synthetic)
+Revision 2, 18 January 2024: expanded from 413 to 520 sites to cover more overlap markets.
+Revision 3, 22 April 2024: expanded to 579 sites to cover more overlap markets.
+""",
+    'price-pledge-press-release.md': """Meridian Markets press release (synthetic), 14 October 2022
+Meridian will invest $1 billion in lowering prices after closing.
+""",
+    'remedy-buyer-profile.md': """Crossdock Wholesale Supply (synthetic): company profile
+Crossdock is a grocery wholesaler. It operates 23 retail stores today, all acquired within the last three years.
+In 2015, Tidewell Grocers (synthetic) bought 146 stores divested by Harvest Lane Foods in an earlier merger and filed for bankruptcy within the year.
+""",
+}
+for name, text in docs.items():
+    with open(os.path.join(HERE, name), 'w') as f:
+        f.write(text)
+
 with open(os.path.join(HERE, 'merger-agreement.md'), 'w') as f:
     f.write("""AGREEMENT AND PLAN OF MERGER (synthetic excerpt)
 between Meridian Markets, Inc. and Harvest Lane Foods, Inc., dated 14 October 2022

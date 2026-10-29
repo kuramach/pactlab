@@ -31,6 +31,8 @@ export const IMPORT_TARGETS = [
   'HOSPITALS_PAYER_MIX',
   'VENTURE_CAP_TABLE',
   'VENTURE_FINANCIALS',
+  'REGULATORY_FOOTPRINT',
+  'REMEDY_PACKAGE',
 ] as const;
 export type ImportTarget = (typeof IMPORT_TARGETS)[number];
 
@@ -622,6 +624,61 @@ export const VENTURE_FINANCIALS: TargetDefinition = {
   ],
 };
 
+/**
+ * Regulatory & deal certainty (T-091): the merging parties' and rivals' sites
+ * by local market — the input to the local-market concentration screen. Sales
+ * and union status are per site (aggregates, never people).
+ */
+export const REGULATORY_FOOTPRINT: TargetDefinition = {
+  target: 'REGULATORY_FOOTPRINT',
+  label: 'Site footprint',
+  fileName: 'footprint.csv',
+  people: 'NONE',
+  refusesPeopleColumns: true,
+  evidenceType: 'regulatory.site',
+  recordIdField: 'site_id',
+  observedAtFields: [],
+  fields: [
+    { name: 'site_id', label: 'Site id', kind: 'text', required: true, hint: 'Unique id of the store, plant or facility.' },
+    { name: 'party', label: 'Party', kind: 'code', required: true, hint: 'ACQUIRER, TARGET or RIVAL.' },
+    { name: 'firm', label: 'Firm', kind: 'text', required: true, hint: 'The firm that owns the site (for rivals, their name).' },
+    { name: 'market', label: 'Local market', kind: 'text', required: true, hint: 'The local market the site competes in.' },
+    { name: 'region', label: 'Region', kind: 'text', required: true, hint: 'The wider region (for package coherence).' },
+    { name: 'banner', label: 'Banner or brand', kind: 'text', required: true, hint: 'Trading banner or brand.' },
+    { name: 'full_service', label: 'Full-service competitor', kind: 'code', required: true, hint: 'yes or no: whether the site competes in the relevant market.' },
+    { name: 'sales', label: 'Annual sales', kind: 'decimal', required: true, hint: 'Annual sales of the site; shares are computed from it.' },
+    { name: 'performance', label: 'Performance measure', kind: 'decimal', required: true, hint: 'e.g. EBITDA margin; used to compare divested and kept sites.' },
+    { name: 'unionized', label: 'Unionized', kind: 'code', required: true, hint: 'yes or no.' },
+    { name: 'cba_id', label: 'Bargaining agreement', kind: 'text', required: false, hint: 'The collective bargaining agreement covering the site, if any.' },
+    { name: 'distribution_center', label: 'Distribution center', kind: 'text', required: true, hint: 'The distribution center that supplies the site.' },
+    { name: 'systems', label: 'Store systems', kind: 'text', required: true, hint: 'The operating systems platform the site runs on.' },
+  ],
+};
+
+/** Regulatory & deal certainty (T-091): the sites in a divestiture (remedy) package, by revision. */
+export const REMEDY_PACKAGE: TargetDefinition = {
+  target: 'REMEDY_PACKAGE',
+  label: 'Divestiture package',
+  fileName: 'remedy-package.csv',
+  people: 'NONE',
+  refusesPeopleColumns: true,
+  evidenceType: 'regulatory.remedy_site',
+  recordIdField: 'site_id',
+  recordIdFields: ['revision', 'site_id'],
+  observedAtFields: ['revision_date'],
+  fields: [
+    { name: 'revision', label: 'Package revision', kind: 'text', required: true, hint: 'The revision number of the package (1, 2, 3…).' },
+    { name: 'revision_date', label: 'Revision date', kind: 'date', required: true, hint: 'When this revision was offered.' },
+    { name: 'site_id', label: 'Site id', kind: 'text', required: true, hint: 'A site from the footprint.' },
+    { name: 'buyer', label: 'Remedy buyer', kind: 'text', required: true, hint: 'Who would buy the divested sites.' },
+    { name: 'distribution_center_transferred', label: 'Distribution center transferred', kind: 'code', required: true, hint: 'yes or no: whether the site\'s distribution center goes with it.' },
+    { name: 'systems_transferred', label: 'Systems transferred', kind: 'code', required: true, hint: 'yes or no: whether the site\'s store systems go with it.' },
+  ],
+};
+
+/** Imports every pack offers when its regulatory screen runs at full depth (T-091). */
+export const REGULATORY_TARGETS = ['REGULATORY_FOOTPRINT', 'REMEDY_PACKAGE'] as const satisfies readonly ImportTarget[];
+
 export const IMPORT_TARGET_DEFINITIONS: Readonly<Record<ImportTarget, TargetDefinition>> = {
   BILLING_INVOICE_LINE,
   FINTECH_LOAN_TAPE,
@@ -650,6 +707,8 @@ export const IMPORT_TARGET_DEFINITIONS: Readonly<Record<ImportTarget, TargetDefi
   HOSPITALS_PAYER_MIX,
   VENTURE_CAP_TABLE,
   VENTURE_FINANCIALS,
+  REGULATORY_FOOTPRINT,
+  REMEDY_PACKAGE,
 };
 
 /**
