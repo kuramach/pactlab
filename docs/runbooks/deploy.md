@@ -48,10 +48,14 @@ active credentials resolve to a different account.
 If the code, config, context, digest or target account changes after the
 diff was reviewed, rerun and re-review the diff.
 
-## Open items (outside T-007's Touches)
+## Application environments (ADR 0019)
 
-- The GitHub Actions release workflow and per-account GitHub OIDC deploy roles
-  with permission boundaries that deny deletion of stateful resources.
-- ECS services, CodeDeploy blue/green and the migration task definition.
+The running application (web, api and worker on Fargate behind one HTTPS host)
+is deployed by `.github/workflows/deploy.yml`, dispatched per environment
+behind its GitHub Environment gate. The order is: images, then the release on
+the one-off tasks only, then migrations, then the services. Dev is wired today;
+the operator steps are in `docs/runbooks/environments.md`.
 
-Until those exist, nothing is deployed to stage or production.
+Stage and production get their service blocks in T-070 slice 2. Until then,
+and until a managed malware scanner is wired (the app refuses the signature
+scanner there), nothing runs in stage or production.

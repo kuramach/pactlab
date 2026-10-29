@@ -16,9 +16,13 @@
     "ai:check": "tsx --env-file-if-exists=../../.env src/ops/ai-check.ts",
     "eval:live": "tsx --env-file-if-exists=../../.env src/ops/eval-live.ts",
     "kit:build": "tsx src/ops/test-kit.ts",
-    "ops:operator": "tsx --env-file-if-exists=../../.env src/ops/operator.ts"
+    "ops:operator": "tsx --env-file-if-exists=../../.env src/ops/operator.ts",
+    "migrate:deployed": "tsx src/ops/migrate.ts",
+    "seed:deployed": "tsx src/ops/seed-deployed.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "3.1149.0",
+    "@aws-sdk/client-sesv2": "3.1149.0",
     "@nestjs/common": "12.1.2",
     "@nestjs/core": "12.1.2",
     "@nestjs/platform-fastify": "12.1.2",

@@ -3,7 +3,8 @@ import { fileURLToPath } from 'node:url';
 import { App } from 'aws-cdk-lib';
 import { ENVIRONMENT_NAMES, ENVIRONMENTS } from '../config';
 import { siteConfig } from '../config/site';
-import { PactlabDeployAccessStack } from '../lib/deploy-access-stack';
+import { PactlabDeployAccessStack, PactlabEnvironmentDeployAccessStack } from '../lib/deploy-access-stack';
+import { PactlabRegistryStack } from '../lib/compute';
 import { PactlabPlatformStack } from '../lib/platform-stack';
 import { assertTargetAccount } from '../lib/protection';
 import { PactlabSiteStack } from '../lib/site-stack';
@@ -18,10 +19,30 @@ for (const name of ENVIRONMENT_NAMES) {
   const declared = app.node.tryGetContext(`pactlab:${name}:account`) as string | undefined;
   assertTargetAccount(name, declared, declared ? process.env['CDK_DEFAULT_ACCOUNT'] : undefined);
   const stackId = `Pactlab${name.charAt(0).toUpperCase()}${name.slice(1)}`;
-  new PactlabPlatformStack(app, stackId, {
-    config,
-    ...(declared ? { env: { account: declared, region: config.region } } : {}),
-  });
+  const env = declared ? { env: { account: declared, region: config.region } } : {};
+  // A deployable environment runs images by commit SHA. Binding to an account to deploy it requires the tag;
+  // environment-agnostic synthesis (CI, review) uses a placeholder.
+  const imageTag = app.node.tryGetContext(`pactlab:${name}:imageTag`) as string | undefined;
+  // Bound to an account without a tag, the application stack is left out (so it cannot be deployed by mistake
+  // with no image); its registry and deploy access can still be deployed first.
+  const withoutApp = Boolean(config.service && declared && !imageTag);
+  if (config.service) new PactlabRegistryStack(app, `${stackId}Registry`, { config, ...env });
+  if (config.service) {
+    // An account that already holds GitHub's OIDC provider (PactLab Dev holds the site's) reuses it:
+    // `-c pactlab:<env>:githubOidc=existing`.
+    const reuseOidc = app.node.tryGetContext(`pactlab:${name}:githubOidc`) === 'existing';
+    const existingOidcProviderArn = reuseOidc && declared ? `arn:aws:iam::${declared}:oidc-provider/token.actions.githubusercontent.com` : undefined;
+    new PactlabEnvironmentDeployAccessStack(app, `${stackId}DeployAccess`, {
+      environment: name,
+      githubSubjectPrefix: siteConfig.githubSubjectPrefix,
+      appStackName: stackId,
+      ...(existingOidcProviderArn ? { existingOidcProviderArn } : {}),
+      ...env,
+    });
+  }
+  // During a release the services may stay on the running tag (or `none` on a first deploy) while migrations run.
+  const serviceImageTag = app.node.tryGetContext(`pactlab:${name}:serviceImageTag`) as string | undefined;
+  if (!withoutApp) new PactlabPlatformStack(app, stackId, { config, ...(imageTag ? { imageTag } : {}), ...(serviceImageTag ? { serviceImageTag } : {}), ...env });
 }
 // The public site (ADR 0003): one instance, its own account context.
 const siteAccount = app.node.tryGetContext('pactlab:site:account') as string | undefined;

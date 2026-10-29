@@ -4,7 +4,8 @@ import type { EnvironmentConfig } from './types';
 export const qaConfig: EnvironmentConfig = {
   name: 'qa',
   profile: 'pactlab-qa',
-  region: 'us-east-1',
+  // The organization's guardrail (SCP) allows CloudFormation only in us-east-2 (ADR 0003 amendment).
+  region: 'us-east-2',
   protectedState: false,
   network: { maxAzs: 2, natGateways: 1 },
   database: {

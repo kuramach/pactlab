@@ -166,7 +166,20 @@ export interface SeedReport {
  * owner with ON CONFLICT DO NOTHING; evidence goes through the real sync
  * engine under RLS with a stable idempotency key, so re-running is a no-op.
  */
-export async function seedSynthetic(owner: SqlExecutor, prisma: PrismaClient): Promise<SeedReport> {
+/**
+ * Where the email-code people receive mail. Locally, the `.example` addresses
+ * (codes land in LOCAL_MAIL_DIR). In a deployed dev or qa environment, which
+ * sends real email, `inbox` gives each a plus-address on a real mailbox
+ * (`you+charlie-lead@domain`), so the demo can be signed into from anywhere.
+ */
+export function seedEmail(address: string, role: string, inbox?: string): string {
+  if (!inbox) return address;
+  const [local, domain] = inbox.split('@');
+  if (!local || !domain) throw new Error('DEMO_INBOX must be an email address');
+  return `${local}+${role}@${domain}`;
+}
+
+export async function seedSynthetic(owner: SqlExecutor, prisma: PrismaClient, options: { inbox?: string } = {}): Promise<SeedReport> {
   const alpha = SEED_TENANTS[0];
   await owner.query('BEGIN');
   try {
@@ -204,7 +217,7 @@ export async function seedSynthetic(owner: SqlExecutor, prisma: PrismaClient): P
     );
     await owner.query(
       `INSERT INTO users (id, auth0_subject, display_name, email) VALUES ($1, $2, $3, $4) ON CONFLICT (id) DO NOTHING`,
-      [charlie.userId, `pactlab|${charlie.userId}`, charlie.displayName, charlie.email],
+      [charlie.userId, `pactlab|${charlie.userId}`, charlie.displayName, seedEmail(charlie.email, 'charlie-lead', options.inbox)],
     );
     await owner.query(
       `INSERT INTO organization_memberships (id, organization_id, user_id, role) VALUES ($1, $2, $3, 'ORG_ADMIN')
@@ -224,7 +237,7 @@ export async function seedSynthetic(owner: SqlExecutor, prisma: PrismaClient): P
     const charlieReviewer = SEED_EMAIL_CODE_REVIEWER;
     await owner.query(
       `INSERT INTO users (id, auth0_subject, display_name, email) VALUES ($1, $2, $3, $4) ON CONFLICT (id) DO NOTHING`,
-      [charlieReviewer.userId, `pactlab|${charlieReviewer.userId}`, charlieReviewer.displayName, charlieReviewer.email],
+      [charlieReviewer.userId, `pactlab|${charlieReviewer.userId}`, charlieReviewer.displayName, seedEmail(charlieReviewer.email, 'charlie-reviewer', options.inbox)],
     );
     await owner.query(
       `INSERT INTO organization_memberships (id, organization_id, user_id, role) VALUES ($1, $2, $3, 'MEMBER')

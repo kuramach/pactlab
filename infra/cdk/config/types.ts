@@ -35,6 +35,11 @@ export interface EnvironmentConfig {
   readonly evidenceNoncurrentVersionDays: number;
   /** Object Lock default retention for exported audit archives. */
   readonly auditArchive: { readonly mode: 'GOVERNANCE' | 'COMPLIANCE'; readonly days: number };
+  /**
+   * The running application (ADR 0019): containers on Fargate behind one HTTPS
+   * load balancer host. Absent: the environment has the data layer only.
+   */
+  readonly service?: ServiceConfig;
   /** Approved feature flags, published to SSM for the application to read. */
   readonly featureFlags: {
     /** Pilot guardrails on: invite-only organizations, no self-serve signup. */
@@ -42,4 +47,33 @@ export interface EnvironmentConfig {
     /** Whether a deal connection may be switched to LIVE mode at all. */
     readonly liveConnectors: boolean;
   };
+}
+
+/** CPU units (1024 = 1 vCPU) and memory for one Fargate task, and how many run. */
+export interface TaskSize {
+  readonly cpu: 256 | 512 | 1024 | 2048;
+  readonly memoryMiB: 512 | 1024 | 2048 | 4096;
+  readonly desiredCount: number;
+}
+
+export interface ServiceConfig {
+  /** The one public host: the web app, with `/v1/*` and `/health` routed to the API. */
+  readonly domain: string;
+  readonly web: TaskSize;
+  readonly api: TaskSize;
+  readonly worker: TaskSize;
+  /** SES: the verified domain identity, and the sender used for sign-in and invitation email. */
+  readonly email: { readonly identityDomain: string; readonly from: string };
+  /**
+   * `signature`: the built-in scanner (dev and qa only; enforced by the app's
+   * config schema too). Stage and production need a managed scanner (slice 2).
+   */
+  readonly malwareScanner: 'signature';
+  /**
+   * Bedrock models the task role may call: foundation-model id patterns and
+   * the matching cross-Region inference-profile patterns (the app's routes).
+   */
+  readonly bedrock: { readonly foundationModels: readonly string[]; readonly inferenceProfiles: readonly string[] };
+  /** Turn on pilot sign-up approval (`SIGNUP_REQUIRES_APPROVAL`). */
+  readonly signupRequiresApproval: boolean;
 }

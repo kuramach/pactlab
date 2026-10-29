@@ -1,0 +1,117 @@
+name: deploy
+
+# Deploys one application environment (ADR 0019). Dispatched by a person; the
+# job waits on that environment's GitHub Environment (reviewers, variables).
+# AWS access is short-lived via GitHub OIDC; no stored AWS keys.
+#
+# Order, so code never runs ahead of its schema:
+#   1. registry stack, then build and push the release images (tag = commit SHA)
+#   2. app stack with the release on the one-off tasks only; services stay on the
+#      image they run (zero tasks on a first deploy)
+#   3. migrations (one-off task); a failure stops here
+#   4. app stack again with the services on the release; wait for them; smoke test
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Environment to deploy
+        type: choice
+        options: [dev]
+        required: true
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: deploy-${{ inputs.environment }}
+  cancel-in-progress: false
+
+env:
+  # The organization's guardrail allows CloudFormation only in us-east-2 (ADR 0003 amendment).
+  AWS_REGION: us-east-2
+  ENV_NAME: ${{ inputs.environment }}
+  TAG: ${{ github.sha }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04-arm
+    environment:
+      name: ${{ inputs.environment }}
+      url: ${{ steps.release.outputs.origin }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          role-session-name: deploy-${{ inputs.environment }}-${{ github.run_id }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Names
+        run: |
+          STACK="Pactlab$(echo "${ENV_NAME:0:1}" | tr a-z A-Z)${ENV_NAME:1}"
+          echo "STACK=$STACK" >> "$GITHUB_ENV"
+          echo "CDK=pnpm --filter @pactlab/cdk exec cdk -c pactlab:${ENV_NAME}:account=${{ vars.AWS_ACCOUNT_ID }} -c pactlab:${ENV_NAME}:imageTag=${TAG} -c pactlab:${ENV_NAME}:githubOidc=existing" >> "$GITHUB_ENV"
+
+      - name: 1. Registry
+        run: $CDK deploy "${STACK}Registry" --require-approval never
+
+      - uses: aws-actions/amazon-ecr-login@v2
+        id: ecr
+      - name: 1. Build and push images (skipped when this commit is already pushed)
+        run: |
+          REGISTRY="${{ steps.ecr.outputs.registry }}"
+          ORIGIN="https://${{ vars.APP_DOMAIN }}"
+          for IMAGE in server web; do
+            REPO="pactlab-${ENV_NAME}-${IMAGE}"
+            if aws ecr describe-images --repository-name "$REPO" --image-ids imageTag="$TAG" >/dev/null 2>&1; then
+              echo "$REPO:$TAG already pushed"; continue
+            fi
+            docker build -f infra/docker/Dockerfile --target "$IMAGE" \
+              --build-arg NEXT_PUBLIC_APP_ENV="${{ vars.APP_ENV }}" --build-arg NEXT_PUBLIC_API_ORIGIN="$ORIGIN" \
+              -t "$REGISTRY/$REPO:$TAG" .
+            docker push "$REGISTRY/$REPO:$TAG"
+          done
+
+      - name: 2. Ship the release to the one-off tasks (services stay on their current image)
+        run: |
+          CURRENT=$(aws cloudformation describe-stacks --stack-name "$STACK" \
+            --query "Stacks[0].Outputs[?OutputKey=='ServiceImageTag'].OutputValue" --output text 2>/dev/null || true)
+          if [ -z "$CURRENT" ] || [ "$CURRENT" = "None" ]; then CURRENT=none; fi
+          echo "Services stay on: $CURRENT"
+          $CDK diff "$STACK" -c pactlab:${ENV_NAME}:serviceImageTag="$CURRENT" || true
+          $CDK deploy "$STACK" --require-approval never -c pactlab:${ENV_NAME}:serviceImageTag="$CURRENT" \
+            --outputs-file "$RUNNER_TEMP/outputs.json"
+
+      - name: 3. Migrations
+        run: |
+          out() { node -e "console.log(require(process.argv[1])[process.argv[2]][process.argv[3]])" "$RUNNER_TEMP/outputs.json" "$STACK" "$1"; }
+          CLUSTER=$(out ClusterName); FAMILY=$(out MigrateTaskDefinition)
+          SUBNETS=$(out AppSubnets); GROUP=$(out AppTaskSecurityGroupId)
+          TASK=$(aws ecs run-task --cluster "$CLUSTER" --task-definition "$FAMILY" --launch-type FARGATE \
+            --network-configuration "awsvpcConfiguration={subnets=[$SUBNETS],securityGroups=[$GROUP],assignPublicIp=DISABLED}" \
+            --query 'tasks[0].taskArn' --output text)
+          echo "Migration task: $TASK"
+          aws ecs wait tasks-stopped --cluster "$CLUSTER" --tasks "$TASK"
+          CODE=$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$TASK" --query 'tasks[0].containers[0].exitCode' --output text)
+          echo "Migration exit code: $CODE"
+          test "$CODE" = "0"
+
+      - name: 4. Move the services to the release
+        id: release
+        run: |
+          $CDK deploy "$STACK" --require-approval never --outputs-file "$RUNNER_TEMP/outputs.json"
+          ORIGIN=$(node -e "console.log(require(process.argv[1])[process.argv[2]].Origin)" "$RUNNER_TEMP/outputs.json" "$STACK")
+          echo "origin=$ORIGIN" >> "$GITHUB_OUTPUT"
+
+      - name: Smoke test
+        run: |
+          ORIGIN="${{ steps.release.outputs.origin }}"
+          curl --fail --silent --show-error --retry 10 --retry-delay 15 --retry-all-errors "$ORIGIN/health"
+          curl --fail --silent --show-error --output /dev/null --retry 5 --retry-delay 10 --retry-all-errors "$ORIGIN/login"

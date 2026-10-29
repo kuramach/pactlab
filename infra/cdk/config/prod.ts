@@ -4,7 +4,8 @@ import type { EnvironmentConfig } from './types';
 export const prodConfig: EnvironmentConfig = {
   name: 'prod',
   profile: 'pactlab-prod',
-  region: 'us-east-1',
+  // The organization's guardrail (SCP) allows CloudFormation only in us-east-2 (ADR 0003 amendment).
+  region: 'us-east-2',
   protectedState: true,
   network: { maxAzs: 3, natGateways: 3 },
   database: {

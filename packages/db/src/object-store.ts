@@ -1,3 +1,4 @@
+import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand, type S3Client } from '@aws-sdk/client-s3';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, resolve, sep } from 'node:path';
 import { isUuid } from '@pactlab/domain';
@@ -58,6 +59,48 @@ export class FileSystemObjectStore implements TenantObjectStore {
 
   async get(key: string): Promise<Uint8Array> {
     return new Uint8Array(await readFile(this.pathFor(key)));
+  }
+}
+
+/**
+ * Deployed object store: the environment's evidence bucket, encrypted with
+ * the environment's KMS data key (SSE-KMS). Keys keep the tenant prefix the
+ * file store enforces, and a write never overwrites an existing original
+ * (`If-None-Match: *`), the same rule as the file store's `wx` flag.
+ * Credentials come from the task role through the SDK default chain.
+ */
+export class S3ObjectStore implements TenantObjectStore {
+  constructor(
+    private readonly client: S3Client,
+    private readonly bucket: string,
+    private readonly kmsKeyId: string,
+  ) {}
+
+  async put(key: string, bytes: Uint8Array, meta?: { contentType: string; sha256: string }): Promise<void> {
+    assertTenantKey(key);
+    await this.client.send(
+      new PutObjectCommand({
+        Bucket: this.bucket,
+        Key: key,
+        Body: bytes,
+        IfNoneMatch: '*',
+        ServerSideEncryption: 'aws:kms',
+        SSEKMSKeyId: this.kmsKeyId,
+        ...(meta ? { ContentType: meta.contentType, Metadata: { sha256: meta.sha256 } } : {}),
+      }),
+    );
+  }
+
+  async get(key: string): Promise<Uint8Array> {
+    assertTenantKey(key);
+    const object = await this.client.send(new GetObjectCommand({ Bucket: this.bucket, Key: key }));
+    if (!object.Body) throw new Error('Object has no body');
+    return object.Body.transformToByteArray();
+  }
+
+  async delete(key: string): Promise<void> {
+    assertTenantKey(key);
+    await this.client.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: key }));
   }
 }
 
