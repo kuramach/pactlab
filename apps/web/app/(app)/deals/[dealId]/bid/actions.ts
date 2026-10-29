@@ -87,6 +87,8 @@ export async function attachFile(dealId: string, form: FormData): Promise<void> 
   if (!contentType) back(dealId, 'file-type');
   const result = await apiPost(`/v1/deals/${dealId}/my-bid/files`, { fileName: file.name, contentType, contentBase64: Buffer.from(await file.arrayBuffer()).toString('base64') });
   back(dealId, result.kind === 'invalid' ? 'file-rejected' : kind(result, 'ok-attached'));
+}
+
 interface Handover {
   pact: { organizationId: string; dealId: string; company: string; companyType: string | null; currency: string };
   bid: { firmName: string; status: string };
