@@ -1,0 +1,20 @@
+{
+  "signedOn": "2022-10-14",
+  "outsideDate": "2025-01-14",
+  "effortsStandard": "REASONABLE_BEST_EFFORTS",
+  "divestitureCap": 650,
+  "currency": "USD",
+  "terminationFees": [
+    {
+      "payer": "ACQUIRER",
+      "amount": "600000000",
+      "trigger": "Failure to obtain antitrust clearance by the outside date"
+    }
+  ],
+  "sources": {
+    "divestitureCap": "merger-agreement.md \u00a76.3(b)",
+    "outsideDate": "merger-agreement.md \u00a78.1(b)",
+    "terminationFees": "merger-agreement.md \u00a78.3(a)",
+    "effortsStandard": "merger-agreement.md \u00a76.3(a)"
+  }
+}

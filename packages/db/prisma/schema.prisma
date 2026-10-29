@@ -532,12 +532,12 @@ model Deal {
   createdBy       String          @map("created_by") @db.Uuid
   /// BUYER: the buyer opened the pact (diligence). SELLER: the seller runs a bid process (T-097, ADR 0015).
   initiatedBy             String                  @default("BUYER") @map("initiated_by")
-  /// Set when the deal lead deletes the deal (status DELETED); one-way.
-  deletedAt               DateTime?               @map("deleted_at") @db.Timestamptz(3)
-  deletedBy               String?                 @map("deleted_by") @db.Uuid
   /// The sale this buyer-led pact came from (another organization's seller-led pact, T-097). Reference only.
   linkedOrganizationId    String?                 @map("linked_organization_id") @db.Uuid
   linkedDealId            String?                 @map("linked_deal_id") @db.Uuid
+  /// Set when the deal lead deletes the deal (status DELETED); one-way.
+  deletedAt               DateTime?               @map("deleted_at") @db.Timestamptz(3)
+  deletedBy               String?                 @map("deleted_by") @db.Uuid
   createdAt       DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt       DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
 
