@@ -62,3 +62,35 @@ export const createRegulatoryEntrySchema = z.discriminatedUnion('kind', [
 ]);
 export type CreateRegulatoryEntry = z.infer<typeof createRegulatoryEntrySchema>;
 export type RegulatoryCitation = z.infer<typeof regulatoryCitationSchema>;
+
+const siteId = z.string().trim().min(1).max(100);
+const marketName = z.string().trim().min(1).max(200);
+
+/**
+ * A candidate remedy package built by the analyst (T-091 Part 2): start from
+ * an imported revision (or nothing), add every full-service site of one party
+ * in named markets, add and remove named sites. The server resolves it into
+ * an explicit site list once, when it is saved.
+ */
+export const createRegulatoryScenarioSchema = z.strictObject({
+  name: z.string().trim().min(1).max(120),
+  baseRevision: z.number().int().min(1).max(100).nullable(),
+  remedyBuyer: z.string().trim().min(1).max(200).nullable().default(null),
+  addMarkets: z.array(marketName).max(500).default([]),
+  /** Close every market the base package leaves presumed (resolved server-side to market names). */
+  addResidualMarkets: z.boolean().default(false),
+  divestingParty: z.enum(['ACQUIRER', 'TARGET']).default('TARGET'),
+  addSites: z.array(siteId).max(5000).default([]),
+  removeSites: z.array(siteId).max(5000).default([]),
+  transferOperations: z.boolean().default(true),
+});
+export type CreateRegulatoryScenario = z.infer<typeof createRegulatoryScenarioSchema>;
+
+/** Regulator-facing export: a deliberate, audited act on one candidate package. */
+export const createRegulatoryExportSchema = z.strictObject({
+  /** `revision-<n>` for an imported revision, or a scenario id. */
+  packageId: z.union([z.string().regex(/^revision-\d{1,3}$/), z.uuid()]),
+  /** The person confirms the export leaves the pact. */
+  acknowledged: z.literal(true),
+});
+export type CreateRegulatoryExport = z.infer<typeof createRegulatoryExportSchema>;

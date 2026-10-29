@@ -4,7 +4,7 @@ import type { ReactNode } from 'react';
 import { apiGet } from '../../_lib/api';
 import { OutcomeBanner } from '../../_lib/outcome';
 import { ApiState } from '../../_lib/states';
-import { addEntry, proposeFindings } from './actions';
+import { addEntry, addScenario, proposeFindings } from './actions';
 
 interface RegFinding {
   check: string;
@@ -13,6 +13,29 @@ interface RegFinding {
   description: string;
   severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 }
+
+interface PackageRow {
+  id: string;
+  label: string;
+  kind: 'REVISION' | 'SCENARIO';
+  remedyBuyer: string;
+  sites: number;
+  presumedBefore: number;
+  residualCount: number;
+  residualPresumed: string[];
+  unusedHeadroom: number | null;
+  coherence: { score: number };
+  divestedEarnings: string;
+  remedyCost: string | null;
+  defects: { check: string; title: string; severity: RegFinding['severity'] }[];
+  verdict: 'RESOLVES' | 'RESOLVES_WITH_DEFECTS' | 'LEAVES_OVERLAP';
+}
+
+const VERDICT: Record<PackageRow['verdict'], { label: string; tone: 'reviewed' | 'draft' | 'danger' }> = {
+  RESOLVES: { label: 'Resolves the overlap', tone: 'reviewed' },
+  RESOLVES_WITH_DEFECTS: { label: 'Resolves the overlap, with defects', tone: 'draft' },
+  LEAVES_OVERLAP: { label: 'Leaves presumed markets', tone: 'danger' },
+};
 
 interface RegulatoryView {
   pack: { id: string; label: string };
@@ -25,6 +48,8 @@ interface RegulatoryView {
   certainty: { elapsedDays: number; daysToOutsideDate: number; feeExposure: { ACQUIRER: string; TARGET: string }; divestitureCap: number; outsideDate: string; effortsStandard: string; currency: string } | null;
   commitments: { id: string; text: string; grade: 'VERIFIABLE' | 'PARTIAL' | 'UNVERIFIABLE' }[];
   findings: RegFinding[];
+  packages: PackageRow[];
+  revisionsAvailable: number[];
   entries: { id: string; kind: string; citation: { documentId: string; pageNumber: number; quote: string }; createdAt: string }[];
 }
 
@@ -40,9 +65,23 @@ const OUTCOMES: Record<string, string> = {
   'entry-invalid': 'Some fields were not accepted. Check dates (YYYY-MM-DD), numbers and topics.',
   nothing: 'Nothing to record yet: import the footprint, or add entries.',
   forbidden: 'Your role cannot change this deal.',
+  'ok-scenario': 'Scenario saved. It is compared with the imported revisions below.',
+  'scenario-unknown-markets': 'One or more markets are not in the imported footprint. Use the names exactly as imported, one per line.',
+  'scenario-unknown-sites': 'One or more site ids are not in the imported footprint.',
+  'scenario-unknown-revision': 'That revision has not been imported.',
+  'scenario-empty-package': 'That recipe leaves no sites in the package.',
+  'scenario-invalid': 'The scenario was not accepted. Give it a name, and check the fields.',
+  'export-unconfirmed': 'Confirm that the export leaves the pact before downloading it.',
+  'export-forbidden': 'Only the deal lead can export for a regulator.',
+  'export-failed': 'The export could not be built. Try again.',
 };
 const pct = (value: string) => `${(Number(value) * 100).toFixed(1)}%`;
-const money = (currency: string, value: string) => `${currency} ${Number(value).toLocaleString('en-US')}`;
+/** Thousands separators on a decimal string, without passing money through a float. */
+const grouped = (value: string) => {
+  const [whole = '', fraction] = value.split('.');
+  return `${whole.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}${fraction ? `.${fraction}` : ''}`;
+};
+const money = (currency: string, value: string) => `${currency} ${grouped(value)}`;
 const inputClass = 'rounded-md border border-border bg-background px-2 py-1 text-sm';
 
 /**
@@ -174,6 +213,119 @@ export default async function RegulatoryPage({ params, searchParams }: { params:
         ) : null}
       </Section>
 
+      {view.depth === 'FULL' && view.inputs.sites > 0 ? (
+        <Section id="packages" title="Candidate packages, side by side">
+          {view.packages.length === 0 ? (
+            <p className="text-muted-foreground">No package yet: import a divestiture package, or build a scenario below.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[40rem] text-left text-sm">
+                <thead className="text-xs text-muted-foreground">
+                  <tr>
+                    <th className="py-1 pr-3 font-medium" scope="col">
+                      Package
+                    </th>
+                    {view.packages.map((row) => (
+                      <th key={row.id} scope="col" className="py-1 pr-3 align-bottom font-medium text-foreground">
+                        {row.label}
+                        <div className="text-xs font-normal text-muted-foreground">{row.kind === 'REVISION' ? 'Imported revision' : 'Scenario'}</div>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  <Row label="Verdict" cells={view.packages.map((row) => <Badge key={row.id} variant={VERDICT[row.verdict].tone}>{VERDICT[row.verdict].label}</Badge>)} />
+                  <Row label="Sites divested" cells={view.packages.map((row) => row.sites.toLocaleString('en-US'))} />
+                  <Row label="Remedy buyer" cells={view.packages.map((row) => row.remedyBuyer || '—')} />
+                  <Row
+                    label="Presumed markets left"
+                    cells={view.packages.map((row) => (
+                      <span key={row.id} title={row.residualPresumed.join(', ')}>
+                        {row.residualCount} of {row.presumedBefore}
+                      </span>
+                    ))}
+                  />
+                  <Row label="Unused cap" cells={view.packages.map((row) => (row.unusedHeadroom === null ? '—' : row.unusedHeadroom < 0 ? `${-row.unusedHeadroom} over the cap` : `${row.unusedHeadroom} sites`))} />
+                  <Row label="Coherence" cells={view.packages.map((row) => `${row.coherence.score}/100`)} />
+                  <Row label="Divested earnings a year" cells={view.packages.map((row) => (view.certainty ? money(view.certainty.currency, row.divestedEarnings) : grouped(row.divestedEarnings)))} />
+                  <Row label="Remedy cost (value given up)" cells={view.packages.map((row) => (row.remedyCost === null ? 'Add a multiple to the terms' : view.certainty ? money(view.certainty.currency, row.remedyCost) : grouped(row.remedyCost)))} />
+                  <Row
+                    label="Defects"
+                    cells={view.packages.map((row) =>
+                      row.defects.length === 0 ? (
+                        'None'
+                      ) : (
+                        <ul key={row.id} className="flex flex-col gap-1">
+                          {row.defects.map((defect) => (
+                            <li key={defect.check}>
+                              <Badge variant={TONE[defect.severity]}>{defect.severity.toLowerCase()}</Badge> {defect.title}
+                            </li>
+                          ))}
+                        </ul>
+                      ),
+                    )}
+                  />
+                  <Row
+                    label="For the regulator"
+                    cells={view.packages.map((row) => (
+                      <form key={row.id} method="post" action={`/deals/${dealId}/regulatory/export`} className="flex flex-col items-start gap-1">
+                        <input type="hidden" name="packageId" value={row.id} />
+                        <label className="flex items-center gap-1 text-xs">
+                          <input type="checkbox" name="acknowledged" required /> This leaves the pact
+                        </label>
+                        <Button type="submit" size="sm" variant="outline">
+                          Export
+                        </Button>
+                      </form>
+                    ))}
+                  />
+                </tbody>
+              </table>
+            </div>
+          )}
+          <p className="text-xs text-muted-foreground">
+            Every package runs through the same checks; “presumed markets left” re-runs the 2023 Merger Guidelines presumption with the divested sites held by the remedy buyer. Describes the inputs — not a prediction of clearance. The regulator export
+            is the deal lead’s deliberate, audited act: it carries the package, the markets, coherence, the buyer and only the pledges that can be verified — never price, multiple, fees or internal findings.
+          </p>
+          <details className="rounded-md border border-border p-3">
+            <summary className="cursor-pointer font-medium">Build a scenario</summary>
+            <form action={addScenario.bind(null, dealId)} className="mt-2 grid gap-2 sm:grid-cols-2">
+              <input name="name" required maxLength={120} placeholder="Name (e.g. Close the remaining overlaps)" aria-label="Scenario name" className={inputClass} />
+              <select name="baseRevision" aria-label="Start from" className={inputClass} defaultValue={String(view.revisionsAvailable.at(-1) ?? '')}>
+                <option value="">Start from nothing</option>
+                {view.revisionsAvailable.map((revision) => (
+                  <option key={revision} value={revision}>
+                    Start from revision {revision}
+                  </option>
+                ))}
+              </select>
+              <input name="remedyBuyer" placeholder="Remedy buyer (default: the revision’s)" aria-label="Remedy buyer" className={inputClass} />
+              <select name="divestingParty" aria-label="Party that divests in added markets" className={inputClass} defaultValue="TARGET">
+                <option value="TARGET">Added markets: divest the target’s sites</option>
+                <option value="ACQUIRER">Added markets: divest the acquirer’s sites</option>
+              </select>
+              <label className="flex items-center gap-2 text-sm sm:col-span-2">
+                <input type="checkbox" name="addResidualMarkets" /> Add every market the starting package leaves presumed
+              </label>
+              <textarea name="addMarkets" rows={3} placeholder="Add markets, one per line (all full-service sites of the divesting party)" aria-label="Add markets" className={inputClass} />
+              <div className="flex flex-col gap-2">
+                <textarea name="addSites" rows={1} placeholder="Add site ids (comma or space separated)" aria-label="Add sites" className={inputClass} />
+                <textarea name="removeSites" rows={1} placeholder="Remove site ids" aria-label="Remove sites" className={inputClass} />
+              </div>
+              <label className="flex items-center gap-2 text-sm sm:col-span-2">
+                <input type="checkbox" name="transferOperations" defaultChecked /> Transfer the distribution centers and store systems of every divested site
+              </label>
+              <div>
+                <Button type="submit" size="sm" variant="outline">
+                  Save scenario
+                </Button>
+              </div>
+            </form>
+            <p className="mt-2 text-xs text-muted-foreground">The recipe is resolved into an explicit site list when saved, so a scenario does not change if the footprint is re-imported. Scenarios are append-only; build a new one to change it.</p>
+          </details>
+        </Section>
+      ) : null}
+
       {view.certainty ? (
         <Section title="Covenants and deal certainty">
           <dl className="grid gap-3 sm:grid-cols-4">
@@ -239,14 +391,29 @@ export default async function RegulatoryPage({ params, searchParams }: { params:
   );
 }
 
-function Section({ title, children }: { title: string; children: ReactNode }) {
+function Section({ id, title, children }: { id?: string; title: string; children: ReactNode }) {
   return (
-    <Card>
+    <Card id={id}>
       <CardHeader>
         <CardTitle className="text-base">{title}</CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-3 text-sm">{children}</CardContent>
     </Card>
+  );
+}
+
+function Row({ label, cells }: { label: string; cells: readonly ReactNode[] }) {
+  return (
+    <tr className="border-t border-border align-top">
+      <th scope="row" className="py-2 pr-3 text-xs font-medium text-muted-foreground">
+        {label}
+      </th>
+      {cells.map((cell, index) => (
+        <td key={index} className="py-2 pr-3 tabular-nums">
+          {cell}
+        </td>
+      ))}
+    </tr>
   );
 }
 

@@ -2185,3 +2185,23 @@ model RegulatoryEntry {
   @@index([organizationId, dealId, kind, createdAt], map: "regulatory_entries_org_deal_idx")
   @@map("regulatory_entries")
 }
+
+/// T-091 Part 2: an analyst-built candidate remedy package (explicit site list), append-only, buyer-side.
+model RegulatoryScenario {
+  id                  String   @id @db.Uuid
+  organizationId      String   @map("organization_id") @db.Uuid
+  dealId              String   @map("deal_id") @db.Uuid
+  name                String
+  baseRevision        Int?     @map("base_revision")
+  remedyBuyer         String   @map("remedy_buyer")
+  siteIds             Json     @map("site_ids")
+  distributionCenters Json     @map("distribution_centers")
+  systemsTransferred  Json     @map("systems_transferred")
+  /// How it was built: { addMarkets, divestingParty, addSites, removeSites, transferOperations }
+  recipe              Json
+  createdBy           String   @map("created_by") @db.Uuid
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([organizationId, dealId, createdAt], map: "regulatory_scenarios_org_deal_idx")
+  @@map("regulatory_scenarios")
+}

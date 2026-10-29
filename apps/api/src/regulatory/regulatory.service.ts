@@ -1,16 +1,23 @@
 import { Inject, Injectable, NotFoundException, PayloadTooLargeException, UnprocessableEntityException } from '@nestjs/common';
 import { quoteHash } from '@pactlab/ai';
 import {
+  acquirerFeeExposure,
+  buildScenario,
   buyerViability,
   certaintyStatus,
   cherryPick,
   coherence,
+  D,
+  comparePackages,
   gradeCommitment,
   headroom,
   incoherentPackage,
   laborExposure,
   localConcentration,
   overlapPockets,
+  divestedEarnings,
+  remedyCost,
+  residualPresumed,
   unaddressedFeedback,
   unverifiablePledges,
   type Commitment,
@@ -22,7 +29,7 @@ import {
   type RemedyPackage,
   type Site,
 } from '@pactlab/calculations';
-import type { CreateRegulatoryEntry } from '@pactlab/contracts';
+import type { CreateRegulatoryEntry, CreateRegulatoryExport, CreateRegulatoryScenario } from '@pactlab/contracts';
 import { appendAuditEvent, withTenant, type PrismaClient, type TransactionClient } from '@pactlab/db';
 import {
   canDraftFindings,
@@ -47,6 +54,8 @@ import { PRISMA } from '../tokens';
 /** Buyer-side analysis: read with analysis access, write with deal write; never a counterparty. */
 const canRead = (role: DealRole) => permissionsForDealRole(role).has('BUYER_ANALYSIS_READ') && !isCounterpartyRole(role);
 const canWrite = (role: DealRole) => permissionsForDealRole(role).has('DEAL_WRITE') && !isCounterpartyRole(role);
+/** Sending analysis outside the pact is the lead's call. */
+const canExport = (role: DealRole) => role === 'DEAL_LEAD';
 
 const SITE = 'regulatory.site';
 const PACKAGE_SITE = 'regulatory.remedy_site';
@@ -63,6 +72,25 @@ interface Entry {
   readonly citation: DocumentCitation;
   readonly createdAt: Date;
 }
+
+/** Thousands separators on a whole-number decimal string, without passing through a float. */
+const grouped = (value: string) => {
+  const [whole = '', fraction] = value.split('.');
+  return `${whole.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}${fraction ? `.${fraction}` : ''}`;
+};
+
+type ScenarioRow = {
+  readonly id: string;
+  readonly name: string;
+  readonly baseRevision: number | null;
+  readonly remedyBuyer: string;
+  readonly siteIds: unknown;
+  readonly distributionCenters: unknown;
+  readonly systemsTransferred: unknown;
+  readonly createdAt: Date;
+};
+
+const pctText = (share: string) => `${new D(share).mul(100).toDecimalPlaces(1).toString()}%`;
 
 const yes = (value: string | null | undefined) => (value ?? '').toLowerCase() === 'yes';
 
@@ -116,7 +144,8 @@ export class RegulatoryService {
       citation: row.citation as unknown as DocumentCitation,
       createdAt: row.createdAt,
     }));
-    return { pack, evidence, entries };
+    const scenarios = await tx.regulatoryScenario.findMany({ where: { dealId }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] });
+    return { pack, evidence, entries, scenarios };
   }
 
   /** Everything the checks need, assembled from evidence and entries — and where each piece came from. */
@@ -142,21 +171,23 @@ export class RegulatoryService {
       };
     });
     const packageRows = evidence.filter((row) => row.evidenceType === PACKAGE_SITE);
-    const latestRevision = Math.max(0, ...packageRows.map((row) => Number(row.canonical['revision'] ?? '0')));
-    const current = packageRows.filter((row) => Number(row.canonical['revision'] ?? '0') === latestRevision);
+    const revisionOf = (row: (typeof packageRows)[number]) => Number(row.canonical['revision'] ?? '0');
     const bySite = new Map(sites.map((site) => [site.siteId, site]));
-    const remedy: RemedyPackage | null =
-      current.length === 0
-        ? null
-        : {
-            id: `revision-${latestRevision}`,
-            revision: latestRevision,
-            date: current[0]?.canonical['revision_date'] ?? '',
-            siteIds: current.map((row) => row.canonical['site_id'] ?? ''),
-            distributionCenters: [...new Set(current.filter((row) => yes(row.canonical['distribution_center_transferred'])).map((row) => bySite.get(row.canonical['site_id'] ?? '')?.distributionCenter ?? ''))].filter(Boolean),
-            systemsTransferred: [...new Set(current.filter((row) => yes(row.canonical['systems_transferred'])).map((row) => bySite.get(row.canonical['site_id'] ?? '')?.systems ?? ''))].filter(Boolean),
-            buyer: current[0]?.canonical['buyer'] ?? '',
-          };
+    const toPackage = (revision: number): RemedyPackage => {
+      const rows = packageRows.filter((row) => revisionOf(row) === revision);
+      return {
+        id: `revision-${revision}`,
+        revision,
+        date: rows[0]?.canonical['revision_date'] ?? '',
+        siteIds: rows.map((row) => row.canonical['site_id'] ?? ''),
+        distributionCenters: [...new Set(rows.filter((row) => yes(row.canonical['distribution_center_transferred'])).map((row) => bySite.get(row.canonical['site_id'] ?? '')?.distributionCenter ?? ''))].filter(Boolean),
+        systemsTransferred: [...new Set(rows.filter((row) => yes(row.canonical['systems_transferred'])).map((row) => bySite.get(row.canonical['site_id'] ?? '')?.systems ?? ''))].filter(Boolean),
+        buyer: rows[0]?.canonical['buyer'] ?? '',
+      };
+    };
+    const packages = [...new Set(packageRows.map(revisionOf))].sort((a, b) => a - b).map(toPackage);
+    const remedy: RemedyPackage | null = packages.at(-1) ?? null;
+    const current = packageRows.filter((row) => remedy !== null && revisionOf(row) === remedy.revision);
     const packageEvidence = new Map(current.map((row) => [row.canonical['site_id'] ?? '', row.id]));
     const latest = (kind: string) => [...entries].reverse().find((entry) => entry.kind === kind) ?? null;
     const termsEntry = latest('TERMS');
@@ -168,7 +199,34 @@ export class RegulatoryService {
     const feedback = entries.filter((entry) => entry.kind === 'FEEDBACK');
     const revisions = entries.filter((entry) => entry.kind === 'REVISION');
     const commitments = entries.filter((entry) => entry.kind === 'COMMITMENT');
-    return { sites, siteEvidence, remedy, packageEvidence, terms, buyer, feedback, revisions, commitments };
+    return { sites, siteEvidence, packages, remedy, packageEvidence, terms, buyer, feedback, revisions, commitments };
+  }
+
+  /** Every candidate package: the imported revisions, then the analyst's scenarios. */
+  private candidates(inputs: ReturnType<RegulatoryService['assemble']>, scenarios: readonly ScenarioRow[]) {
+    return [
+      ...inputs.packages.map((remedy) => ({ label: `Revision ${remedy.revision}${remedy.date ? ` (${remedy.date})` : ''}`, kind: 'REVISION' as const, remedy })),
+      ...scenarios.map((row) => ({
+        label: row.name,
+        kind: 'SCENARIO' as const,
+        remedy: {
+          id: row.id,
+          revision: row.baseRevision ?? 0,
+          date: row.createdAt.toISOString().slice(0, 10),
+          siteIds: row.siteIds as string[],
+          distributionCenters: row.distributionCenters as string[],
+          systemsTransferred: row.systemsTransferred as string[],
+          buyer: row.remedyBuyer,
+        } satisfies RemedyPackage,
+      })),
+    ];
+  }
+
+  private compare(inputs: ReturnType<RegulatoryService['assemble']>, scenarios: readonly ScenarioRow[]) {
+    const terms = inputs.terms ? (inputs.terms.payload as unknown as DealCertaintyTerms & { ebitdaMultiple?: string | null }) : null;
+    const candidates = this.candidates(inputs, scenarios);
+    const rows = comparePackages({ sites: inputs.sites, candidates, terms, buyer: inputs.buyer ? (inputs.buyer.payload as RemedyBuyer) : null, multiple: terms?.ebitdaMultiple ?? null });
+    return rows.map((row, index) => ({ ...row, kind: candidates[index]?.kind ?? 'REVISION', remedyBuyer: candidates[index]?.remedy.buyer ?? '' }));
   }
 
   private run(depth: 'FULL' | 'LIGHT', inputs: ReturnType<RegulatoryService['assemble']>, asOf: string): RegFinding[] {
@@ -191,7 +249,7 @@ export class RegulatoryService {
   /** The screen, the workbench and the covenant status for the deal, computed now from its inputs. */
   async analyze(tenant: TenantContext, dealId: string, requestId: string) {
     await this.access.require(tenant, dealId, canRead, { action: 'regulatory.viewed', requestId });
-    const { pack, evidence, entries } = await withTenant(this.prisma, tenant, (tx) => this.load(tx, dealId));
+    const { pack, evidence, entries, scenarios } = await withTenant(this.prisma, tenant, (tx) => this.load(tx, dealId));
     const profile = regulatoryProfile(pack.id);
     const inputs = this.assemble(evidence, entries);
     const asOf = new Date().toISOString().slice(0, 10);
@@ -224,6 +282,17 @@ export class RegulatoryService {
         top: [...markets].sort((a, b) => b.delta - a.delta).slice(0, 15),
       },
       coherence: inputs.remedy ? coherence(inputs.sites, inputs.remedy) : null,
+      // Candidate packages side by side; the full residual list stays on the server (the export carries it).
+      packages:
+        profile.depth === 'FULL' && inputs.sites.length > 0
+          ? this.compare(inputs, scenarios).map((row) => ({
+              ...row,
+              residualCount: row.residualPresumed.length,
+              residualPresumed: row.residualPresumed.slice(0, 20),
+              defects: row.defects.map((defect) => ({ check: defect.check, title: defect.title, severity: defect.severity })),
+            }))
+          : [],
+      revisionsAvailable: inputs.packages.map((remedy) => remedy.revision),
       certainty: terms ? { ...certaintyStatus(terms, asOf), divestitureCap: terms.divestitureCap, outsideDate: terms.outsideDate, effortsStandard: terms.effortsStandard, currency: terms.currency } : null,
       commitments: inputs.commitments.map((entry) => {
         const payload = entry.payload as Omit<Commitment, 'id'>;
@@ -313,37 +382,36 @@ export class RegulatoryService {
     const terms = [...entries].reverse().find((entry) => entry.kind === 'TERMS');
     if (terms && initiatedBy === 'BUYER') {
       const payload = terms.payload as DealCertaintyTerms & { ebitdaMultiple: string | null };
-      const fee = payload.terminationFees.filter((item) => item.payer === 'ACQUIRER').reduce((total, item) => total + Number(item.amount), 0);
-      if (fee > 0) {
+      const fee = acquirerFeeExposure(payload);
+      if (new D(fee).gt(0)) {
         proposals.push({
           domain: 'REGULATORY',
           title: 'Termination fee exposure if clearance fails',
-          description: `The agreement makes the acquirer pay ${payload.currency} ${fee.toLocaleString('en-US')} if clearance is not obtained by the outside date (${payload.outsideDate}).`,
+          description: `The agreement makes the acquirer pay ${payload.currency} ${grouped(fee)} if clearance is not obtained by the outside date (${payload.outsideDate}).`,
           severity: 'HIGH',
           confidence: 'HIGH',
           origin: 'HEURISTIC',
           fingerprint: 'regulatory:termination-fee',
           evidence: [link(null, terms.citation)],
-          pricedRisk: { type: 'REMEDIATION_COST', currency: payload.currency, low: '0', high: payload.terminationFees.filter((item) => item.payer === 'ACQUIRER').map((item) => item.amount).reduce((a, b) => (Number(a) >= Number(b) ? a : b)), basis: 'The termination fee the agreement makes the acquirer pay if clearance fails; zero if the deal clears.' },
+          pricedRisk: { type: 'REMEDIATION_COST', currency: payload.currency, low: '0', high: fee, basis: 'The termination fee the agreement makes the acquirer pay if clearance fails; zero if the deal clears.' },
           direction: -1,
           directionRationale: 'Certainty risk priced as a range: nothing if the deal clears, the fee if it does not.',
         });
       }
       if (payload.ebitdaMultiple && inputs.remedy) {
-        const divested = inputs.sites.filter((site) => inputs.remedy?.siteIds.includes(site.siteId));
-        const ebitda = divested.reduce((total, site) => total + Number(site.sales) * Number(site.performance), 0);
-        const value = Math.round(ebitda * Number(payload.ebitdaMultiple));
-        if (value > 0) {
+        const ebitda = divestedEarnings(inputs.sites, inputs.remedy);
+        const value = remedyCost(inputs.sites, inputs.remedy, payload.ebitdaMultiple);
+        if (new D(value).gt(0)) {
           proposals.push({
             domain: 'REGULATORY',
             title: 'Expected remedy cost: the divested sites',
-            description: `The ${divested.length} sites in package revision ${inputs.remedy.revision} earn about ${payload.currency} ${Math.round(ebitda).toLocaleString('en-US')} a year (sales × performance margin); at the analyst's ${payload.ebitdaMultiple}× multiple that is ${payload.currency} ${value.toLocaleString('en-US')} of value the acquirer does not keep.`,
+            description: `The ${inputs.remedy.siteIds.length} sites in package revision ${inputs.remedy.revision} earn about ${payload.currency} ${grouped(ebitda)} a year (sales × performance margin); at the analyst's ${payload.ebitdaMultiple}× multiple that is ${payload.currency} ${grouped(value)} of value the acquirer does not keep.`,
             severity: 'HIGH',
             confidence: 'MEDIUM',
             origin: 'HEURISTIC',
             fingerprint: `regulatory:remedy-cost:${inputs.remedy.revision}`,
             evidence: [link(null, terms.citation), ...[...inputs.packageEvidence.values()].slice(0, MAX_LINKS - 1).map((id) => link(id, null))],
-            pricedRisk: { type: 'PRICE_REDUCTION', currency: payload.currency, low: String(value), high: String(value), basis: `Divested sites' EBITDA × ${payload.ebitdaMultiple} (the multiple in the cited terms entry).` },
+            pricedRisk: { type: 'PRICE_REDUCTION', currency: payload.currency, low: value, high: value, basis: `Divested sites' EBITDA × ${payload.ebitdaMultiple} (the multiple in the cited terms entry).` },
             direction: -1,
             directionRationale: 'Value given up to obtain clearance.',
           });
@@ -353,5 +421,136 @@ export class RegulatoryService {
     if (proposals.length === 0) throw new NotFoundException({ code: 'NOTHING_TO_PROPOSE' });
     const recorded = await this.findings.recordProposals(tenant, dealId, proposals, { kind: 'SYSTEM', component: `${TOOL}@${TOOL_VERSION}` }, requestId);
     return { created: recorded.created.length, existing: recorded.existing };
+  }
+
+  /**
+   * Save a candidate package. The recipe is resolved into an explicit site
+   * list now, against the footprint as imported today, and stored with it.
+   */
+  async addScenario(tenant: TenantContext, dealId: string, body: CreateRegulatoryScenario, requestId: string) {
+    await this.access.require(tenant, dealId, canWrite, { action: 'regulatory.scenario.added', requestId });
+    const id = newId();
+    const { remedy, unknownSites } = await withTenant(this.prisma, tenant, async (tx) => {
+      const { evidence, entries } = await this.load(tx, dealId);
+      const inputs = this.assemble(evidence, entries);
+      if (inputs.sites.length === 0) throw new UnprocessableEntityException({ code: 'NO_FOOTPRINT' });
+      const base = body.baseRevision === null ? null : (inputs.packages.find((item) => item.revision === body.baseRevision) ?? null);
+      if (body.baseRevision !== null && !base) throw new UnprocessableEntityException({ code: 'UNKNOWN_REVISION' });
+      const known = new Set(inputs.sites.map((site) => site.market));
+      const unknownMarkets = body.addMarkets.filter((market) => !known.has(market));
+      if (unknownMarkets.length > 0) throw new UnprocessableEntityException({ code: 'UNKNOWN_MARKETS', markets: unknownMarkets.slice(0, 20) });
+      const residual = body.addResidualMarkets ? residualPresumed(inputs.sites, base ?? { id: 'none', revision: 0, date: '', siteIds: [], distributionCenters: [], systemsTransferred: [], buyer: '' }) : [];
+      const built = buildScenario({
+        sites: inputs.sites,
+        id,
+        base,
+        buyer: body.remedyBuyer ?? base?.buyer ?? inputs.remedy?.buyer ?? 'Remedy buyer',
+        addMarkets: [...new Set([...body.addMarkets, ...residual])],
+        divestingParty: body.divestingParty,
+        addSites: body.addSites,
+        removeSites: body.removeSites,
+        transferOperations: body.transferOperations,
+      });
+      if (built.unknownSites.length > 0) throw new UnprocessableEntityException({ code: 'UNKNOWN_SITES', sites: built.unknownSites.slice(0, 20) });
+      if (built.remedy.siteIds.length === 0) throw new UnprocessableEntityException({ code: 'EMPTY_PACKAGE' });
+      await tx.regulatoryScenario.create({
+        data: {
+          id,
+          organizationId: tenant.organizationId,
+          dealId,
+          name: body.name,
+          baseRevision: body.baseRevision,
+          remedyBuyer: built.remedy.buyer,
+          siteIds: [...built.remedy.siteIds],
+          distributionCenters: [...built.remedy.distributionCenters],
+          systemsTransferred: [...built.remedy.systemsTransferred],
+          recipe: { addMarkets: body.addMarkets, addResidualMarkets: body.addResidualMarkets, divestingParty: body.divestingParty, addSites: body.addSites, removeSites: body.removeSites, transferOperations: body.transferOperations },
+          createdBy: tenant.userId,
+        },
+      });
+      await appendAuditEvent(tx, { organizationId: tenant.organizationId, dealId, actorUserId: tenant.userId, action: 'regulatory.scenario.added', targetType: 'regulatory_scenario', targetId: id, outcome: 'SUCCEEDED', requestId });
+      return built;
+    });
+    return { id, sites: remedy.siteIds.length, unknownSites };
+  }
+
+  /**
+   * The regulator-facing view of one candidate package, as a Markdown file.
+   * A deliberate, audited act by the deal lead. It carries what a regulator
+   * weighs — the package, the markets it resolves and leaves, its coherence,
+   * the buyer, and only the pledges that can be measured and enforced — and
+   * never the acquirer's price, multiple, fees or internal findings.
+   */
+  async exportPackage(tenant: TenantContext, dealId: string, body: CreateRegulatoryExport, requestId: string) {
+    await this.access.require(tenant, dealId, canExport, { action: 'regulatory.exported', requestId });
+    const { pack, evidence, entries, scenarios, deal } = await withTenant(this.prisma, tenant, async (tx) => ({
+      ...(await this.load(tx, dealId)),
+      deal: await tx.deal.findFirst({ where: { id: dealId }, select: { name: true } }),
+    }));
+    if (regulatoryProfile(pack.id).depth !== 'FULL') throw new NotFoundException({ code: 'NO_REGULATORY_SCREEN' });
+    const inputs = this.assemble(evidence, entries);
+    const candidate = this.candidates(inputs, scenarios).find((item) => item.remedy.id === body.packageId);
+    if (!candidate) throw new NotFoundException({ code: 'UNKNOWN_PACKAGE' });
+    const terms = inputs.terms ? (inputs.terms.payload as unknown as DealCertaintyTerms) : null;
+    const [row] = comparePackages({ sites: inputs.sites, candidates: [candidate], terms, buyer: inputs.buyer ? (inputs.buyer.payload as RemedyBuyer) : null });
+    if (!row) throw new NotFoundException({ code: 'UNKNOWN_PACKAGE' });
+    const asOf = new Date().toISOString().slice(0, 10);
+    const credited = inputs.commitments
+      .map((entry) => ({ entry, payload: entry.payload as Omit<Commitment, 'id'> }))
+      .map((item) => ({ ...item, grade: gradeCommitment({ id: item.entry.id, ...item.payload }) }));
+    const kept = credited.filter((item) => item.grade !== 'UNVERIFIABLE');
+    const buyer = inputs.buyer ? (inputs.buyer.payload as RemedyBuyer) : null;
+    const cite = (citation: DocumentCitation) => `document ${citation.documentId}, page ${citation.pageNumber}`;
+    const lines = [
+      `# Proposed remedy package: ${candidate.label}`,
+      '',
+      `${deal?.name ?? 'Pact'} — prepared ${asOf}. Figures are computed by deterministic checks from the deal's imported footprint; this is analysis for discussion, not a legal conclusion.`,
+      '',
+      '## The package',
+      '',
+      `- Sites divested: ${row.sites}`,
+      `- Remedy buyer: ${candidate.remedy.buyer || 'not named'}`,
+      `- Distribution centers transferred: ${candidate.remedy.distributionCenters.length > 0 ? candidate.remedy.distributionCenters.join(', ') : 'none'}`,
+      `- Store systems transferred: ${candidate.remedy.systemsTransferred.length > 0 ? candidate.remedy.systemsTransferred.join(', ') : 'none'}`,
+      '',
+      '## Local markets',
+      '',
+      `Measured against the structural presumption of the 2023 Merger Guidelines (post-merger HHI above 1,800 with a change above 100, or a share above 30% with a change above 100), with the divested sites held by the remedy buyer.`,
+      '',
+      `- Overlap markets meeting the presumption before the remedy: ${row.presumedBefore}`,
+      `- Still meeting it after the remedy: ${row.residualPresumed.length}${row.residualPresumed.length > 0 ? ` (${row.residualPresumed.join(', ')})` : ''}`,
+      '',
+      '## Can the package run as a business?',
+      '',
+      `- Coherence score: ${row.coherence.score}/100`,
+      `- Banners: ${row.coherence.banners}`,
+      `- Sites keeping their distribution center: ${pctText(row.coherence.distributionCovered)}`,
+      `- Sites keeping their store systems: ${pctText(row.coherence.systemsCovered)}`,
+      ...(row.coherence.patchworkRegions.length > 0 ? [`- Regions mixing banners with no distribution behind them: ${row.coherence.patchworkRegions.join(', ')}`] : []),
+      '',
+      '## The remedy buyer',
+      '',
+      ...(buyer
+        ? [
+            `- ${buyer.name} runs ${buyer.retailSitesOperated} retail sites today and has ${buyer.yearsOperatingRetail} years operating retail.`,
+            ...buyer.precedents.map((precedent) => `- Precedent, ${precedent.year}: ${precedent.note} (${precedent.source})`),
+            ...(inputs.buyer ? [`- Source: ${cite(inputs.buyer.citation)}`] : []),
+          ]
+        : ['- No remedy-buyer profile recorded.']),
+      '',
+      '## Commitments offered',
+      '',
+      ...(kept.length > 0
+        ? kept.map((item) => `- ${item.payload.text} — measured by ${item.payload.measurement ?? 'not stated'}; enforced by ${item.payload.enforcementParty ?? 'not stated'}; term ${item.payload.durationMonths ? `${item.payload.durationMonths} months` : 'not stated'} (${item.grade.toLowerCase()}; ${cite(item.entry.citation)})`)
+        : ['- None that can be measured and enforced.']),
+      ...(credited.length > kept.length ? ['', `${credited.length - kept.length} pledge(s) with no measurement, enforcement or term are not included: they cannot be verified.`] : []),
+      '',
+    ];
+    const content = lines.join('\n');
+    await withTenant(this.prisma, tenant, (tx) =>
+      appendAuditEvent(tx, { organizationId: tenant.organizationId, dealId, actorUserId: tenant.userId, action: 'regulatory.exported', targetType: 'regulatory_package', targetId: candidate.remedy.id, outcome: 'SUCCEEDED', requestId }),
+    );
+    const slug = candidate.label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 60) || 'package';
+    return { fileName: `remedy-package-${slug}-${asOf}.md`, content };
   }
 }
