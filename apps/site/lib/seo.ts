@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { DESCRIPTOR, HOME, INDUSTRY_CORE, MODULES, PILOT, TAGLINE, TRUST } from './content';
 import { COMPARISONS, FAQS, GUIDES } from './answers';
+import { CASE_STUDIES } from './cases';
 import { INDUSTRY_STORIES, PUBLISHED_INDUSTRIES } from './industry-stories';
 
 /**
@@ -24,6 +25,8 @@ export const SITE_ROUTES: readonly string[] = [
   '/how-it-works',
   '/guides',
   ...GUIDES.map((guide) => `/guides/${guide.slug}`),
+  '/case-studies',
+  ...CASE_STUDIES.map((study) => `/case-studies/${study.slug}`),
   '/faq',
   ...FAQS.map((page) => `/faq/${page.slug}`),
   ...COMPARISONS.map((comparison) => `/compare/${comparison.slug}`),
@@ -131,6 +134,10 @@ export function llmsText(): string {
     '## Guides',
     '',
     ...GUIDES.map((guide) => `- [${guide.title}](${absolute(`/guides/${guide.slug}`)}): ${guide.description}`),
+    '',
+    '## Case studies',
+    '',
+    ...CASE_STUDIES.map((study) => `- [${study.title}](${absolute(`/case-studies/${study.slug}`)}): ${study.description}`),
     '',
     '## Questions and answers',
     '',
