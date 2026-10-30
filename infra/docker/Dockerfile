@@ -21,7 +21,9 @@ FROM build AS web-build
 # Public settings are compiled into the browser bundle, so they are build arguments per environment.
 ARG NEXT_PUBLIC_APP_ENV
 ARG NEXT_PUBLIC_API_ORIGIN
-ENV NEXT_PUBLIC_APP_ENV=${NEXT_PUBLIC_APP_ENV} NEXT_PUBLIC_API_ORIGIN=${NEXT_PUBLIC_API_ORIGIN} NEXT_STANDALONE=1
+# Pages pre-rendered at build time read the server config too; the app is served from the same origin.
+# (The task sets APP_BASE_URL again at run time.)
+ENV NEXT_PUBLIC_APP_ENV=${NEXT_PUBLIC_APP_ENV} NEXT_PUBLIC_API_ORIGIN=${NEXT_PUBLIC_API_ORIGIN} APP_BASE_URL=${NEXT_PUBLIC_API_ORIGIN} NEXT_STANDALONE=1
 RUN test -n "$NEXT_PUBLIC_APP_ENV" && test -n "$NEXT_PUBLIC_API_ORIGIN" \
  && pnpm --filter @pactlab/web build
 
