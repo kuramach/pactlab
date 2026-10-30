@@ -14,8 +14,7 @@
 .env.*
 !.env.example
 apps/site/out
-apps/e2e
-infra/cdk
+# Workspace packages stay in (the lockfile lists them); only their build output is left out.
 docs
 tasks
 brand
