@@ -130,6 +130,13 @@ export class PactlabCompute extends Construct {
       DOCUMENT_KMS_KEY_ID: dataKey.keyArn,
       MALWARE_SCANNER: service.malwareScanner,
       AI_PROVIDER: 'bedrock',
+      ...(service.bedrock.modelOverrides
+        ? {
+            BEDROCK_MODEL_BALANCED: service.bedrock.modelOverrides.balanced,
+            BEDROCK_MODEL_DEEP_REVIEW: service.bedrock.modelOverrides.deep_review,
+            BEDROCK_MODEL_FAST: service.bedrock.modelOverrides.fast,
+          }
+        : {}),
     };
     const apiEnvironment: Record<string, string> = {
       ...serverEnvironment,

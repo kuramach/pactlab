@@ -67,3 +67,24 @@ Decided with Kumar:
 - **SES starts in its sandbox:** only verified recipients until production access is requested.
 - **Images carry the full workspace** (tsx at runtime, dev dependencies included). That is acceptable for dev; bundling is a later optimisation.
 - **Slice 2 (T-070):** qa, stage and prod service blocks at the skinny tier, their domains and deploy roles, the Auth0 checklist (prod on its own tenant), the managed scanner, and the documented scaled-target profile.
+
+## Addendum (2026-10-30): interim Nova in dev
+
+Claude model access for the PactLab Dev account is pending with AWS. Until it
+is granted, dev's API runs on **Amazon Nova** through `BEDROCK_MODEL_*`
+overrides: Nova Pro for `balanced` and `deep_review`, Nova Lite for `fast`,
+all via US inference profiles. The task role may call those models besides
+Claude. This was Kumar's decision, made so the AI flows can be exercised on
+AWS in the meantime.
+
+- **Dev only, temporary.** The settled stack stays Claude on Bedrock. Remove
+  `modelOverrides` and the Nova patterns in `infra/cdk/config/dev.ts` once
+  access is granted, and redeploy.
+- The prompts and their evaluations were tuned for Claude. Nova output
+  (extraction quality, citation discipline, refusals) is not evaluated, and
+  findings it drafts are judged with that in mind. Every draft still needs a
+  resolvable citation and a person's decision.
+- Each prompt's `maxOutputTokens` (up to 6,000 for contract extraction) must be
+  within the Nova model's output limit. A request above it fails visibly as an
+  AI error, never silently.
+

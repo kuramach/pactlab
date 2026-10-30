@@ -28,7 +28,13 @@ export const devConfig: EnvironmentConfig = {
     email: { identityDomain: 'pactlab.ai', from: 'Pactlab <no-reply@pactlab.ai>' },
     malwareScanner: 'signature',
     // The app's default routes are US cross-Region inference profiles for Claude (packages/ai/src/models.ts).
-    bedrock: { foundationModels: ['anthropic.claude-*'], inferenceProfiles: ['us.anthropic.claude-*'] },
+    // INTERIM (2026-10-30, Kumar): Claude access for this account is pending with AWS, so dev runs on
+    // Amazon Nova until it is granted. Remove `modelOverrides` and the Nova patterns to return to Claude.
+    bedrock: {
+      foundationModels: ['anthropic.claude-*', 'amazon.nova-*'],
+      inferenceProfiles: ['us.anthropic.claude-*', 'us.amazon.nova-*'],
+      modelOverrides: { balanced: 'us.amazon.nova-pro-v1:0', deep_review: 'us.amazon.nova-pro-v1:0', fast: 'us.amazon.nova-lite-v1:0' },
+    },
     signupRequiresApproval: true,
   },
 };
