@@ -35,8 +35,9 @@ RUN chown -R node:node /repo/apps/api /repo/apps/worker
 USER node
 ENV NODE_ENV=production
 EXPOSE 4000
-# The task definition picks the command: api (default), worker, migrate or seed.
-CMD ["pnpm", "--filter", "@pactlab/api", "start"]
+# The task definition picks the program (api by default, worker, migrate or seed), run with its package's own tsx.
+WORKDIR /repo/apps/api
+CMD ["./node_modules/.bin/tsx", "src/main.ts"]
 
 # --- web -------------------------------------------------------------------
 FROM ${NODE_IMAGE} AS web

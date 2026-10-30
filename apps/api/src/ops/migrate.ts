@@ -46,5 +46,6 @@ try {
 }
 
 const dbPackage = fileURLToPath(new URL('../../../../packages/db', import.meta.url));
-execFileSync('pnpm', ['exec', 'prisma', 'migrate', 'deploy'], { cwd: dbPackage, stdio: 'inherit', env: process.env });
+// Prisma's own binary, not `pnpm exec`: pnpm would check and reinstall dependencies first.
+execFileSync('./node_modules/.bin/prisma', ['migrate', 'deploy'], { cwd: dbPackage, stdio: 'inherit', env: process.env });
 process.stdout.write('migrate: done\n');

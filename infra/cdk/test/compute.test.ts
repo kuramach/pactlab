@@ -74,6 +74,18 @@ describe('dev: the running application (ADR 0019)', () => {
     expect(bedrock).toContain('foundation-model/amazon.nova-*');
   });
 
+  it('starts each program with its own tsx, never through pnpm', () => {
+    const containers = Object.values(template.findResources('AWS::ECS::TaskDefinition')).flatMap((definition) => (definition as { Properties: { ContainerDefinitions: { Name: string; Command?: string[]; WorkingDirectory?: string }[] } }).Properties.ContainerDefinitions);
+    const server = containers.filter((container) => container.Name !== 'web');
+    expect(server.map((container) => [container.Name, container.WorkingDirectory, container.Command?.join(' ')]).sort()).toEqual([
+      ['api', '/repo/apps/api', './node_modules/.bin/tsx src/main.ts'],
+      ['migrate', '/repo/apps/api', './node_modules/.bin/tsx src/ops/migrate.ts'],
+      ['seed', '/repo/apps/api', './node_modules/.bin/tsx src/ops/seed-deployed.ts'],
+      ['worker', '/repo/apps/worker', './node_modules/.bin/tsx src/main.ts'],
+    ]);
+    expect(JSON.stringify(containers)).not.toContain('pnpm');
+  });
+
   it('runs the images by commit SHA from the environment registry', () => {
     expect(JSON.stringify(template.findResources('AWS::ECS::TaskDefinition'))).toContain('pactlab-dev-server:abc1234');
   });
