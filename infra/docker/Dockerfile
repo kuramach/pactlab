@@ -7,8 +7,9 @@
 ARG NODE_IMAGE=node:22.19.0-bookworm-slim
 
 FROM ${NODE_IMAGE} AS base
-ENV PNPM_HOME=/pnpm PATH=/pnpm:$PATH CI=true NEXT_TELEMETRY_DISABLED=1
-RUN corepack enable && corepack prepare pnpm@12.8.1 --activate
+ENV CI=true NEXT_TELEMETRY_DISABLED=1
+# pnpm from npm, pinned to the repo's packageManager: corepack cannot run pnpm 12's package layout.
+RUN npm install --global --no-audit --no-fund pnpm@12.8.1 && pnpm --version
 WORKDIR /repo
 
 FROM base AS build
