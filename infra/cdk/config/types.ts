@@ -73,7 +73,15 @@ export interface ServiceConfig {
    * Bedrock models the task role may call: foundation-model id patterns and
    * the matching cross-Region inference-profile patterns (the app's routes).
    */
-  readonly bedrock: { readonly foundationModels: readonly string[]; readonly inferenceProfiles: readonly string[] };
+  readonly bedrock: {
+    readonly foundationModels: readonly string[];
+    readonly inferenceProfiles: readonly string[];
+    /**
+     * Per-alias model overrides (`BEDROCK_MODEL_*`). Absent: the app's Claude
+     * routes. An interim stand-in only, while Claude access is pending (ADR 0019).
+     */
+    readonly modelOverrides?: { readonly balanced: string; readonly deep_review: string; readonly fast: string };
+  };
   /** Turn on pilot sign-up approval (`SIGNUP_REQUIRES_APPROVAL`). */
   readonly signupRequiresApproval: boolean;
 }

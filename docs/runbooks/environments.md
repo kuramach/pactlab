@@ -17,7 +17,7 @@ data-layer stack until slice 2 (T-070) adds their service blocks.
 | One host | `https://dev.pactlab.ai`: web; `/v1/*` and `/health` to the API | ALB + ACM certificate |
 | Data | Postgres 18 (t4g.medium), Redis (t4g.micro, TLS), S3 evidence bucket (KMS) | existing platform stack |
 | Email | Amazon SES, `no-reply@pactlab.ai` | sandbox until you request production access |
-| AI | Claude on Bedrock with the API's **task role**. No SSO, nothing expires | |
+| AI | Claude on Bedrock with the API's **task role**. No SSO, nothing expires. **Interim:** Amazon Nova until Claude access is granted (ADR 0019 addendum) | |
 
 Expected cost always on: about **$120–140 a month** (NAT ~$34, ALB ~$18, RDS t4g.medium ~$50, Redis micro ~$9, Fargate ~$20, logs and misc ~$5), plus Bedrock usage. Tear down when idle (below).
 
