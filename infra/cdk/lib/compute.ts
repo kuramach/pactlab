@@ -183,6 +183,9 @@ export class PactlabCompute extends Construct {
     }
 
     // --- Task definitions.
+    // Programs start with their own tsx, not through pnpm: pnpm checks and reinstalls dependencies
+    // before running, which a read-only, non-root container must not do.
+    const run = (dir: string, script: string) => ({ workingDirectory: `/repo/${dir}`, command: ['./node_modules/.bin/tsx', script] });
     const definition = (name: string, size: TaskSize | { cpu: 256 | 512 | 1024; memoryMiB: 512 | 1024 | 2048 }, taskRole: iam.Role) =>
       new ecs.FargateTaskDefinition(this, `${name}Task`, {
         cpu: size.cpu,
@@ -195,7 +198,7 @@ export class PactlabCompute extends Construct {
     const apiTask = definition('Api', service.api, this.roles.api);
     apiTask.addContainer('api', {
       image: serviceImage('server'),
-      command: ['pnpm', '--filter', '@pactlab/api', 'start'],
+      ...run('apps/api', 'src/main.ts'),
       environment: apiEnvironment,
       secrets: { DB_PASSWORD: runtimePassword, AUTH_TOKEN_SECRET: ecs.Secret.fromSecretsManager(tokenSecret) },
       portMappings: [{ containerPort: 4000 }],
@@ -204,7 +207,7 @@ export class PactlabCompute extends Construct {
     const workerTask = definition('Worker', service.worker, this.roles.worker);
     workerTask.addContainer('worker', {
       image: serviceImage('server'),
-      command: ['pnpm', '--filter', '@pactlab/worker', 'start'],
+      ...run('apps/worker', 'src/main.ts'),
       environment: serverEnvironment,
       secrets: { DB_PASSWORD: runtimePassword },
       logging: logging('worker'),
@@ -220,7 +223,7 @@ export class PactlabCompute extends Construct {
     const migrateTask = definition('Migrate', { cpu: 512, memoryMiB: 1024 }, this.roles.migrate);
     migrateTask.addContainer('migrate', {
       image: image('server'),
-      command: ['pnpm', '--filter', '@pactlab/api', 'migrate:deployed'],
+      ...run('apps/api', 'src/ops/migrate.ts'),
       environment: { ...serverEnvironment },
       secrets: { DB_PASSWORD: runtimePassword, ...ownerFields },
       logging: logging('migrate'),
@@ -228,7 +231,7 @@ export class PactlabCompute extends Construct {
     const seedTask = definition('Seed', { cpu: 1024, memoryMiB: 2048 }, this.roles.seed);
     seedTask.addContainer('seed', {
       image: image('server'),
-      command: ['pnpm', '--filter', '@pactlab/api', 'seed:deployed'],
+      ...run('apps/api', 'src/ops/seed-deployed.ts'),
       environment: { ...apiEnvironment, EMAIL_PROVIDER: '', EMAIL_FROM: '' },
       secrets: { DB_PASSWORD: runtimePassword, AUTH_TOKEN_SECRET: ecs.Secret.fromSecretsManager(tokenSecret), ...ownerFields },
       logging: logging('seed'),

@@ -14,7 +14,11 @@ if (environment !== 'dev' && environment !== 'qa') {
   process.exit(2);
 }
 applyDatabaseUrls();
+// Each seed with its package's own tsx, not through pnpm (which would check and reinstall dependencies first).
 const root = fileURLToPath(new URL('../../../..', import.meta.url));
-for (const filter of ['@pactlab/db', '@pactlab/api']) {
-  execFileSync('pnpm', ['--filter', filter, 'seed'], { cwd: root, stdio: 'inherit', env: process.env });
+for (const [dir, script] of [
+  ['packages/db', 'src/seed/cli.ts'],
+  ['apps/api', 'src/demo-seed/cli.ts'],
+] as const) {
+  execFileSync('./node_modules/.bin/tsx', [script], { cwd: `${root}/${dir}`, stdio: 'inherit', env: process.env });
 }
