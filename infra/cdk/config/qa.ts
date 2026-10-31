@@ -19,5 +19,7 @@ export const qaConfig: EnvironmentConfig = {
   redis: { nodeType: 'cache.t4g.micro', numCacheClusters: 1, snapshotRetentionDays: 0 },
   evidenceNoncurrentVersionDays: 7,
   auditArchive: { mode: 'GOVERNANCE', days: 1 },
+  // Only production runs all the time: this environment pauses after an hour without use.
+  idlePause: { idleMinutes: 60 },
   featureFlags: { pilotMode: true, liveConnectors: false },
 };

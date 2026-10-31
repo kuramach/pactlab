@@ -117,6 +117,26 @@ Every environment uses the same layout as live (ADR 0019 addendum):
 
 Sign-up in dev is approved automatically: a new organization is active once its email is confirmed.
 
+## Idle pause (dev, qa, stage)
+
+Only production runs all the time. Every other environment pauses after **an hour with no API request**:
+- its services scale to zero and its database stops;
+- its addresses, DNS, Redis and site stay as they are.
+
+**Waking it** takes about 5–8 minutes, and the data is all there. Any of these works:
+- **The wake page.** Open `https://app.<env>.pactlab.ai`. While paused it shows a page with a **Wake it up** button, which works from a phone, and refreshes until the app is back.
+- **The wake workflow:** GitHub → Actions → **wake** → the environment.
+- **A deploy.** Its first step wakes a paused environment.
+- **The command line**, with the account's credentials: `AWS_REGION=us-east-2 scripts/wake-environment.sh dev`.
+
+**Checking the state:**
+```
+aws ssm get-parameter --name /pactlab/dev/power --profile pactlab-dev --region us-east-2 --query Parameter.Value --output text
+```
+It returns `awake`, `paused` or `waking`. The Step Functions console shows each pause and wake under `pactlab-dev-pause` and `pactlab-dev-wake`.
+
+AWS restarts a stopped database after 7 days. A daily run stops it again while the environment is still paused.
+
 ## Every later deploy
 
 Actions → **deploy** → `dev` → approve. The workflow:

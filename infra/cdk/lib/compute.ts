@@ -73,6 +73,10 @@ export interface PactlabComputeProps {
 export class PactlabCompute extends Construct {
   readonly cluster: ecs.Cluster;
   readonly loadBalancer: elbv2.ApplicationLoadBalancer;
+  /** For the idle pause (ADR 0019): the HTTPS listener, the app's target groups and services with their running counts. */
+  readonly httpsListener: elbv2.ApplicationListener;
+  readonly targetGroups: { readonly web: elbv2.ApplicationTargetGroup; readonly api: elbv2.ApplicationTargetGroup };
+  readonly services: readonly { readonly service: ecs.FargateService; readonly desiredCount: number }[];
   readonly roles: { readonly api: iam.Role; readonly worker: iam.Role; readonly web: iam.Role; readonly migrate: iam.Role; readonly seed: iam.Role };
 
   constructor(scope: Construct, id: string, props: PactlabComputeProps) {
@@ -261,10 +265,16 @@ export class PactlabCompute extends Construct {
     const serviceProps = { cluster: this.cluster, vpcSubnets: appSubnets, circuitBreaker: { enable: true, rollback: true }, minHealthyPercent: 100, maxHealthyPercent: 200 };
     const web = new ecs.FargateService(this, 'WebService', { ...serviceProps, taskDefinition: webTask, desiredCount: desired(service.web), securityGroups: [webSecurityGroup] });
     const api = new ecs.FargateService(this, 'ApiService', { ...serviceProps, taskDefinition: apiTask, desiredCount: desired(service.api), securityGroups: [props.appSecurityGroup] });
-    new ecs.FargateService(this, 'WorkerService', { ...serviceProps, taskDefinition: workerTask, desiredCount: desired(service.worker), securityGroups: [props.appSecurityGroup] });
+    const worker = new ecs.FargateService(this, 'WorkerService', { ...serviceProps, taskDefinition: workerTask, desiredCount: desired(service.worker), securityGroups: [props.appSecurityGroup] });
+    this.httpsListener = https;
+    this.services = [
+      { service: web, desiredCount: service.web.desiredCount },
+      { service: api, desiredCount: service.api.desiredCount },
+      { service: worker, desiredCount: service.worker.desiredCount },
+    ];
 
-    https.addTargets('Web', { port: 3000, protocol: elbv2.ApplicationProtocol.HTTP, targets: [web], healthCheck: { path: '/login', healthyHttpCodes: '200-399', interval: Duration.seconds(30) }, deregistrationDelay: Duration.seconds(15) });
-    https.addTargets('Api', {
+    const webTargets = https.addTargets('Web', { port: 3000, protocol: elbv2.ApplicationProtocol.HTTP, targets: [web], healthCheck: { path: '/login', healthyHttpCodes: '200-399', interval: Duration.seconds(30) }, deregistrationDelay: Duration.seconds(15) });
+    const apiTargets = https.addTargets('Api', {
       priority: 10,
       conditions: [elbv2.ListenerCondition.pathPatterns(['/v1/*', '/health'])],
       port: 4000,
@@ -273,6 +283,7 @@ export class PactlabCompute extends Construct {
       healthCheck: { path: '/health', healthyHttpCodes: '200', interval: Duration.seconds(30) },
       deregistrationDelay: Duration.seconds(15),
     });
+    this.targetGroups = { web: webTargets, api: apiTargets };
 
     // --- What the deploy workflow and the operator need (no secrets).
     const outputs: Record<string, string> = {

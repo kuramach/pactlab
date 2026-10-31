@@ -116,3 +116,41 @@ Sign up or Sign in, use that environment's app. Decided the same day:
   environment's account. Until it's granted, only verified addresses receive
   codes.
 
+## Addendum (2026-10-31): only production runs all the time
+
+Kumar's rule: production is the only environment always on. dev, qa and stage
+**pause after an hour without use**. A pause keeps everything that gives an
+environment its addresses and data, so nothing has to be rebuilt or
+re-pointed.
+
+- **Idle** means no request reached the API for 60 minutes. That's a CloudWatch
+  alarm on the API target group's `RequestCount`, which excludes health
+  checks. The web app calls the API when a person uses it; bots browsing pages
+  don't count.
+- **Pause** (a Step Functions machine, `pactlab-<env>-pause`):
+  1. The load balancer's top-priority rule switches from a path nothing uses
+     to `/*`, so every request reaches the wake page.
+  2. The services scale to zero.
+  3. The database stops.
+  4. `/pactlab/<env>/power` is set to `paused`.
+
+  The load balancer, NAT, Redis and the site stay up.
+- **Wake** (`pactlab-<env>-wake`, one execution per pause):
+  1. Start the database and wait for it.
+  2. Start the services and wait until web and API are healthy.
+  3. Route back to the app, set `power` to `awake`, and re-arm the idle alarm.
+
+  It takes about 5–8 minutes.
+- **Ways to wake:**
+  - the wake page's **Wake it up** button, a POST, so crawlers that only GET
+    never wake an environment;
+  - the **wake** workflow;
+  - every deploy, whose first step wakes a paused environment.
+- **AWS restarts a stopped database after 7 days.** A daily run stops it again
+  while the environment is still paused.
+- **Steps are code, waits are Step Functions.** Each step is one call to a
+  small function tested against fake AWS clients. The state machines only wait
+  and loop.
+- **Cost:** about $65–70 a month while paused, against about $135 always on.
+  Production has no pause; a test fails if it ever gets one.
+

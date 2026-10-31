@@ -128,6 +128,14 @@ export class PactlabEnvironmentDeployAccessStack extends Stack {
       }),
     );
     this.role.addToPolicy(new iam.PolicyStatement({ sid: 'ReadStackOutputs', actions: ['cloudformation:DescribeStacks'], resources: [arn('cloudformation', `stack/${appStackName}/*`)] }));
+    // Idle pause (ADR 0019): a deploy wakes a paused environment first; the wake workflow does the same.
+    this.role.addToPolicy(new iam.PolicyStatement({ sid: 'ReadPower', actions: ['ssm:GetParameter'], resources: [`arn:${this.partition}:ssm:${this.region}:${account}:parameter/pactlab/${environment}/power`] }));
+    this.role.addToPolicy(
+      new iam.PolicyStatement({ sid: 'Wake', actions: ['states:StartExecution'], resources: [arn('states', `stateMachine:pactlab-${environment}-wake`)] }),
+    );
+    this.role.addToPolicy(
+      new iam.PolicyStatement({ sid: 'WatchWake', actions: ['states:DescribeExecution'], resources: [arn('states', `execution:pactlab-${environment}-wake:*`)] }),
+    );
     this.role.addToPolicy(new iam.PolicyStatement({ sid: 'ReadTaskLogs', actions: ['logs:GetLogEvents', 'logs:FilterLogEvents'], resources: [arn('logs', `log-group:/pactlab/${environment}/app:*`)] }));
 
     new CfnOutput(this, 'DeployRoleArn', { value: this.role.roleArn });

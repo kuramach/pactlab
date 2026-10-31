@@ -4,7 +4,7 @@ name: deploy
 # job waits on that environment's GitHub Environment (reviewers, variables).
 # AWS access is short-lived via GitHub OIDC; no stored AWS keys.
 #
-# Order, so code never runs ahead of its schema:
+# Order, so code never runs ahead of its schema (a paused environment is woken first):
 #   1. registry stack, then build and push the release images (tag = commit SHA), in
 #      parallel with layers cached between runs
 #   2. app stack with the release on the one-off tasks only; services stay on the
@@ -60,6 +60,10 @@ jobs:
           STACK="Pactlab$(echo "${ENV_NAME:0:1}" | tr a-z A-Z)${ENV_NAME:1}"
           echo "STACK=$STACK" >> "$GITHUB_ENV"
           echo "CDK=pnpm --filter @pactlab/cdk exec cdk -c pactlab:${ENV_NAME}:account=${{ vars.AWS_ACCOUNT_ID }} -c pactlab:${ENV_NAME}:imageTag=${TAG} -c pactlab:${ENV_NAME}:githubOidc=existing" >> "$GITHUB_ENV"
+
+      # dev, qa and stage pause when idle (ADR 0019): wake a paused environment before changing it.
+      - name: 0. Make sure the environment is awake
+        run: scripts/wake-environment.sh "$ENV_NAME"
 
       - name: 1. Registry
         run: $CDK deploy "${STACK}Registry" --require-approval never
