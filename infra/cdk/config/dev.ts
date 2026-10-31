@@ -21,7 +21,8 @@ export const devConfig: EnvironmentConfig = {
   featureFlags: { pilotMode: false, liveConnectors: false },
   // The running app (ADR 0019), sized for small and medium pacts: one task each.
   service: {
-    domain: 'dev.pactlab.ai',
+    // Same shape as production: site at <env>.pactlab.ai, app at app.<env>.pactlab.ai.
+    domain: 'app.dev.pactlab.ai',
     web: { cpu: 256, memoryMiB: 512, desiredCount: 1 },
     api: { cpu: 512, memoryMiB: 1024, desiredCount: 1 },
     worker: { cpu: 256, memoryMiB: 512, desiredCount: 1 },
@@ -35,6 +36,8 @@ export const devConfig: EnvironmentConfig = {
       inferenceProfiles: ['us.anthropic.claude-*', 'us.amazon.nova-*'],
       modelOverrides: { balanced: 'us.amazon.nova-pro-v1:0', deep_review: 'us.amazon.nova-pro-v1:0', fast: 'us.amazon.nova-lite-v1:0' },
     },
-    signupRequiresApproval: true,
+    // Dev and qa: new organizations are active at once, so sign-up can be tested end to end.
+    signupRequiresApproval: false,
   },
+  site: { domain: 'dev.pactlab.ai', indexing: 'none' },
 };

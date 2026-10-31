@@ -40,6 +40,12 @@ export interface EnvironmentConfig {
    * load balancer host. Absent: the environment has the data layer only.
    */
   readonly service?: ServiceConfig;
+  /**
+   * The environment's own copy of the marketing site, so the whole journey
+   * (site → Sign up / Sign in → app) can be tested before live. Production's
+   * site is `pactlab.ai` (PactlabSite, ADR 0003).
+   */
+  readonly site?: EnvironmentSiteConfig;
   /** Approved feature flags, published to SSM for the application to read. */
   readonly featureFlags: {
     /** Pilot guardrails on: invite-only organizations, no self-serve signup. */
@@ -84,4 +90,11 @@ export interface ServiceConfig {
   };
   /** Turn on pilot sign-up approval (`SIGNUP_REQUIRES_APPROVAL`). */
   readonly signupRequiresApproval: boolean;
+}
+
+export interface EnvironmentSiteConfig {
+  /** e.g. `dev.pactlab.ai`; the app is at `app.<this domain>`. */
+  readonly domain: string;
+  /** `none` outside production: noindex header, robots.txt disallows everything. */
+  readonly indexing: 'public' | 'none';
 }

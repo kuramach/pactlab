@@ -127,8 +127,8 @@ describe('navigation', () => {
 
 describe('siteConfig', () => {
   it('hides calls to action that are not configured', () => {
-    expect(siteConfig({})).toEqual({ loginUrl: null, signUpUrl: null, contactHref: null });
-    expect(siteConfig({ NEXT_PUBLIC_APP_URL: ' ', NEXT_PUBLIC_CONTACT_EMAIL: '' })).toEqual({ loginUrl: null, signUpUrl: null, contactHref: null });
+    expect(siteConfig({})).toEqual({ loginUrl: null, signUpUrl: null, contactHref: null, indexed: true });
+    expect(siteConfig({ NEXT_PUBLIC_APP_URL: ' ', NEXT_PUBLIC_CONTACT_EMAIL: '' })).toEqual({ loginUrl: null, signUpUrl: null, contactHref: null, indexed: true });
   });
 
   it('builds sign-in and mailto links when configured', () => {
@@ -136,7 +136,25 @@ describe('siteConfig', () => {
       loginUrl: 'https://app.example.test/login',
       signUpUrl: 'https://app.example.test/signup',
       contactHref: 'mailto:pilots@example.test?subject=Pactlab%20pilot',
+      indexed: true,
     });
+  });
+
+  it('closes an environment copy of the site to search engines; production stays open', async () => {
+    expect(siteConfig({ NEXT_PUBLIC_SITE_INDEXING: 'none' }).indexed).toBe(false);
+    expect(siteConfig({ NEXT_PUBLIC_SITE_INDEXING: 'public' }).indexed).toBe(true);
+    expect(() => siteConfig({ NEXT_PUBLIC_SITE_INDEXING: 'sometimes' })).toThrow();
+    const { default: robots } = await import('../app/robots');
+    const previous = process.env['NEXT_PUBLIC_SITE_INDEXING'];
+    try {
+      process.env['NEXT_PUBLIC_SITE_INDEXING'] = 'none';
+      expect(robots()).toEqual({ rules: [{ userAgent: '*', disallow: '/' }] });
+      delete process.env['NEXT_PUBLIC_SITE_INDEXING'];
+      expect(JSON.stringify(robots())).toContain('"allow":"/"');
+    } finally {
+      if (previous === undefined) delete process.env['NEXT_PUBLIC_SITE_INDEXING'];
+      else process.env['NEXT_PUBLIC_SITE_INDEXING'] = previous;
+    }
   });
 
   it('rejects malformed values instead of shipping them', () => {

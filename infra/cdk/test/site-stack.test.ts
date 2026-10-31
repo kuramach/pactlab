@@ -8,10 +8,10 @@ import { siteConfig, type SiteConfig } from '../config/site';
 import { PactlabDeployAccessStack } from '../lib/deploy-access-stack';
 import { CONTENT_SECURITY_POLICY, PactlabSiteStack, REWRITE_FUNCTION_CODE } from '../lib/site-stack';
 
-function siteTemplate(config: SiteConfig = siteConfig) {
+function siteTemplate(config: SiteConfig = siteConfig, environment?: ConstructorParameters<typeof PactlabSiteStack>[2]['environment']) {
   const contentDir = mkdtempSync(join(tmpdir(), 'pactlab-site-'));
   writeFileSync(join(contentDir, 'index.html'), '<!doctype html><title>t</title>');
-  return Template.fromStack(new PactlabSiteStack(new App(), 'Site', { config, contentDir }));
+  return Template.fromStack(new PactlabSiteStack(new App(), 'Site', { config, contentDir, ...(environment ? { environment } : {}) }));
 }
 
 describe('PactlabSiteStack', () => {
@@ -76,6 +76,26 @@ describe('PactlabSiteStack', () => {
         Aliases: ['pactlab.ai', 'www.pactlab.ai'],
         ViewerCertificate: Match.objectLike({ AcmCertificateArn: certificateArn }),
       }),
+    });
+  });
+
+  it('gives each environment its own copy: its domain only, never indexed; production stays open', () => {
+    const certificateArn = 'arn:aws:acm:us-east-1:111111111111:certificate/11111111-1111-1111-1111-111111111111';
+    const dev = siteTemplate(siteConfig, { name: 'dev', domain: 'dev.pactlab.ai', indexing: 'none', certificateArn });
+    dev.hasResourceProperties('AWS::CloudFront::Distribution', {
+      DistributionConfig: Match.objectLike({ Aliases: ['dev.pactlab.ai'], ViewerCertificate: Match.objectLike({ AcmCertificateArn: certificateArn }) }),
+    });
+    dev.hasResourceProperties('AWS::CloudFront::ResponseHeadersPolicy', {
+      ResponseHeadersPolicyConfig: Match.objectLike({
+        CustomHeadersConfig: { Items: [{ Header: 'X-Robots-Tag', Value: 'noindex, nofollow', Override: true }] },
+      }),
+    });
+    // Without its certificate yet, an environment's site is served on its CloudFront address only.
+    siteTemplate(siteConfig, { name: 'dev', domain: 'dev.pactlab.ai', indexing: 'none' }).hasResourceProperties('AWS::CloudFront::Distribution', {
+      DistributionConfig: Match.objectLike({ Aliases: Match.absent() }),
+    });
+    siteTemplate().hasResourceProperties('AWS::CloudFront::ResponseHeadersPolicy', {
+      ResponseHeadersPolicyConfig: Match.objectLike({ CustomHeadersConfig: Match.absent() }),
     });
   });
 

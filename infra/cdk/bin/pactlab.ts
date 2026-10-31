@@ -14,6 +14,9 @@ import { PactlabSiteStack } from '../lib/site-stack';
 // (CI, local review). With it, the stack is bound to that account and region and
 // synthesis fails closed if the active credentials resolve to another account.
 const app = new App();
+// The static site export (`pnpm --filter @pactlab/site build`); site stacks are skipped without it,
+// so a plain synth (CI) does not depend on building the site.
+const siteContent = fileURLToPath(new URL('../../../apps/site/out', import.meta.url));
 for (const name of ENVIRONMENT_NAMES) {
   const config = ENVIRONMENTS[name];
   const declared = app.node.tryGetContext(`pactlab:${name}:account`) as string | undefined;
@@ -43,6 +46,16 @@ for (const name of ENVIRONMENT_NAMES) {
   // During a release the services may stay on the running tag (or `none` on a first deploy) while migrations run.
   const serviceImageTag = app.node.tryGetContext(`pactlab:${name}:serviceImageTag`) as string | undefined;
   if (!withoutApp) new PactlabPlatformStack(app, stackId, { config, ...(imageTag ? { imageTag } : {}), ...(serviceImageTag ? { serviceImageTag } : {}), ...env });
+  // The environment's copy of the site, published by deploy.yml after it builds apps/site for this environment.
+  if (config.site && existsSync(siteContent)) {
+    const certificateArn = app.node.tryGetContext(`pactlab:${name}:siteCertificateArn`) as string | undefined;
+    new PactlabSiteStack(app, `${stackId}Site`, {
+      config: siteConfig,
+      contentDir: siteContent,
+      environment: { name, domain: config.site.domain, indexing: config.site.indexing, ...(certificateArn ? { certificateArn } : {}) },
+      ...env,
+    });
+  }
 }
 // The public site (ADR 0003): one instance, its own account context.
 const siteAccount = app.node.tryGetContext('pactlab:site:account') as string | undefined;
@@ -51,7 +64,6 @@ const siteEnv = siteAccount ? { env: { account: siteAccount, region: siteConfig.
 new PactlabDeployAccessStack(app, 'PactlabDeployAccess', { config: siteConfig, ...siteEnv });
 // Needs the static export (`pnpm --filter @pactlab/site build`); skipped otherwise so
 // a plain synth (CI) does not depend on building the site.
-const siteContent = fileURLToPath(new URL('../../../apps/site/out', import.meta.url));
 if (existsSync(siteContent)) {
   new PactlabSiteStack(app, 'PactlabSite', { config: siteConfig, contentDir: siteContent, ...siteEnv });
 }

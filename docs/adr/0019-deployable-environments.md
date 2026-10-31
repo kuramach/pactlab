@@ -88,3 +88,31 @@ AWS in the meantime.
   within the Nova model's output limit. A request above it fails visibly as an
   AI error, never silently.
 
+## Addendum (2026-10-30): every environment has its own site and app
+
+Kumar wants the whole journey testable before live: land on the site, click
+Sign up or Sign in, use that environment's app. Decided the same day:
+
+- **Same layout everywhere.** Live is the site at `pactlab.ai` with the app at
+  `app.pactlab.ai`. Every other environment is the site at `<env>.pactlab.ai`
+  with the app at `app.<env>.pactlab.ai`. The dev app moves from
+  `dev.pactlab.ai` to `app.dev.pactlab.ai`.
+- **Each environment's site uses production's hosting.** That's
+  `PactlabSiteStack`, deployed as `Pactlab<Env>Site`: private bucket,
+  CloudFront, the same security headers, and the static export built for that
+  environment, with `NEXT_PUBLIC_APP_URL` pointing at its app.
+  - Its CloudFront certificate is requested in us-east-1 with the CLI, as for
+    `pactlab.ai` (ADR 0003), and passed as context.
+  - `deploy.yml` publishes the site after the app's smoke test.
+- **Only production is indexed.** Environment copies send
+  `X-Robots-Tag: noindex, nofollow`, their `robots.txt` disallows everything,
+  and pages carry `noindex` (`NEXT_PUBLIC_SITE_INDEXING=none`). Canonical URLs
+  keep pointing at `pactlab.ai`.
+- **Sign-up is approved automatically in dev and qa**
+  (`signupRequiresApproval: false`), so a new organization can be tested end
+  to end. Stage and live keep operator approval, through an AWS ops task that
+  arrives with their slice.
+- **Delivery to any address needs SES production access** in each
+  environment's account. Until it's granted, only verified addresses receive
+  codes.
+

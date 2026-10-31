@@ -23,6 +23,8 @@ export const metadata: Metadata = {
     images: [{ url: '/brand/pactlab-symbol.png', width: 512, height: 512, alt: 'Pactlab' }],
     type: 'website',
   },
+  // An environment's copy of the site is never indexed (canonical URLs still point at pactlab.ai).
+  ...(siteConfig().indexed ? {} : { robots: { index: false, follow: false } }),
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
