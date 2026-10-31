@@ -3,7 +3,6 @@ import * as acm from 'aws-cdk-lib/aws-certificatemanager';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as ecr from 'aws-cdk-lib/aws-ecr';
 import * as ecs from 'aws-cdk-lib/aws-ecs';
-import type * as elasticache from 'aws-cdk-lib/aws-elasticache';
 import * as elbv2 from 'aws-cdk-lib/aws-elasticloadbalancingv2';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import type * as kms from 'aws-cdk-lib/aws-kms';
@@ -54,11 +53,22 @@ export interface PactlabComputeProps {
    * zero on a first deploy: `none`), runs migrations, then moves the services.
    */
   readonly serviceImageTag: string;
-  readonly vpc: ec2.Vpc;
+  readonly vpc: ec2.IVpc;
   readonly appSecurityGroup: ec2.SecurityGroup;
   readonly dataKey: kms.Key;
   readonly database: rds.DatabaseInstance;
-  readonly redis: elasticache.CfnReplicationGroup;
+  /** `rediss://host:port[/db]` — on shared infrastructure, the environment's own logical database. */
+  readonly redisUrl: string;
+  /**
+   * The shared non-live load balancer (dev and qa; ADR 0019). The environment
+   * attaches host-based rules in its own priority block. Absent: it has its own.
+   */
+  readonly shared?: {
+    readonly loadBalancer: elbv2.ApplicationLoadBalancer;
+    readonly loadBalancerSecurityGroup: ec2.ISecurityGroup;
+    readonly httpsListener: elbv2.ApplicationListener;
+    readonly priorityBase: number;
+  };
   readonly evidenceBucket: s3.Bucket;
   readonly featureFlagsParameterArn: string;
 }
@@ -77,11 +87,13 @@ export class PactlabCompute extends Construct {
   readonly httpsListener: elbv2.ApplicationListener;
   readonly targetGroups: { readonly web: elbv2.ApplicationTargetGroup; readonly api: elbv2.ApplicationTargetGroup };
   readonly services: readonly { readonly service: ecs.FargateService; readonly desiredCount: number }[];
+  /** On a shared listener: the host and priority block this environment's rules use (the pause's wake rule too). */
+  readonly ruleScope: { readonly host: string; readonly priorityBase: number } | null;
   readonly roles: { readonly api: iam.Role; readonly worker: iam.Role; readonly web: iam.Role; readonly migrate: iam.Role; readonly seed: iam.Role };
 
   constructor(scope: Construct, id: string, props: PactlabComputeProps) {
     super(scope, id);
-    const { config, service, vpc, dataKey, database, redis, evidenceBucket } = props;
+    const { config, service, vpc, dataKey, database, evidenceBucket } = props;
     const stack = Stack.of(this);
     const statefulRemoval = config.protectedState ? RemovalPolicy.RETAIN : RemovalPolicy.DESTROY;
     const origin = `https://${service.domain}`;
@@ -127,7 +139,7 @@ export class PactlabCompute extends Construct {
       DB_PORT: database.dbInstanceEndpointPort,
       DB_NAME: 'pactlab',
       DB_USER: 'pactlab_api',
-      REDIS_URL: `rediss://${redis.attrPrimaryEndPointAddress}:${redis.attrPrimaryEndPointPort}`,
+      REDIS_URL: props.redisUrl,
       AWS_REGION: stack.region,
       DOCUMENT_STORE: 's3',
       DOCUMENT_BUCKET: evidenceBucket.bucketName,
@@ -242,24 +254,38 @@ export class PactlabCompute extends Construct {
     });
 
     // --- Network: the load balancer is the only way in; web reaches nothing internal but the API through it.
-    const albSecurityGroup = new ec2.SecurityGroup(this, 'LoadBalancerSecurityGroup', { vpc, description: 'Pactlab public HTTPS' });
-    albSecurityGroup.addIngressRule(ec2.Peer.anyIpv4(), ec2.Port.tcp(443), 'HTTPS');
-    albSecurityGroup.addIngressRule(ec2.Peer.anyIpv4(), ec2.Port.tcp(80), 'HTTP, redirected to HTTPS');
+    const { shared } = props;
+    let albSecurityGroup: ec2.ISecurityGroup;
+    if (shared) {
+      albSecurityGroup = shared.loadBalancerSecurityGroup;
+    } else {
+      const own = new ec2.SecurityGroup(this, 'LoadBalancerSecurityGroup', { vpc, description: 'Pactlab public HTTPS' });
+      own.addIngressRule(ec2.Peer.anyIpv4(), ec2.Port.tcp(443), 'HTTPS');
+      own.addIngressRule(ec2.Peer.anyIpv4(), ec2.Port.tcp(80), 'HTTP, redirected to HTTPS');
+      albSecurityGroup = own;
+    }
     const webSecurityGroup = new ec2.SecurityGroup(this, 'WebSecurityGroup', { vpc, description: 'Pactlab web tasks' });
     webSecurityGroup.addIngressRule(albSecurityGroup, ec2.Port.tcp(3000), 'load balancer to web');
     props.appSecurityGroup.addIngressRule(albSecurityGroup, ec2.Port.tcp(4000), 'load balancer to api');
 
-    this.loadBalancer = new elbv2.ApplicationLoadBalancer(this, 'LoadBalancer', {
-      vpc,
-      internetFacing: true,
-      securityGroup: albSecurityGroup,
-      vpcSubnets: { subnetType: ec2.SubnetType.PUBLIC },
-      dropInvalidHeaderFields: true,
-    });
-    // DNS-validated: the deploy waits until the CNAME (shown in ACM) is added at the registrar.
-    const certificate = new acm.Certificate(this, 'Certificate', { domainName: service.domain, validation: acm.CertificateValidation.fromDns() });
-    this.loadBalancer.addListener('Http', { port: 80, defaultAction: elbv2.ListenerAction.redirect({ protocol: 'HTTPS', port: '443', permanent: true }) });
-    const https = this.loadBalancer.addListener('Https', { port: 443, certificates: [certificate], sslPolicy: elbv2.SslPolicy.RECOMMENDED_TLS, open: false });
+    let https: elbv2.ApplicationListener;
+    if (shared) {
+      // The shared listener carries this host's certificate (the base stack).
+      this.loadBalancer = shared.loadBalancer;
+      https = shared.httpsListener;
+    } else {
+      this.loadBalancer = new elbv2.ApplicationLoadBalancer(this, 'LoadBalancer', {
+        vpc,
+        internetFacing: true,
+        securityGroup: albSecurityGroup,
+        vpcSubnets: { subnetType: ec2.SubnetType.PUBLIC },
+        dropInvalidHeaderFields: true,
+      });
+      // DNS-validated: the deploy waits until the CNAME (shown in ACM) is added at the registrar.
+      const certificate = new acm.Certificate(this, 'Certificate', { domainName: service.domain, validation: acm.CertificateValidation.fromDns() });
+      this.loadBalancer.addListener('Http', { port: 80, defaultAction: elbv2.ListenerAction.redirect({ protocol: 'HTTPS', port: '443', permanent: true }) });
+      https = this.loadBalancer.addListener('Https', { port: 443, certificates: [certificate], sslPolicy: elbv2.SslPolicy.RECOMMENDED_TLS, open: false });
+    }
 
     const appSubnets = { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS };
     const serviceProps = { cluster: this.cluster, vpcSubnets: appSubnets, circuitBreaker: { enable: true, rollback: true }, minHealthyPercent: 100, maxHealthyPercent: 200 };
@@ -273,17 +299,35 @@ export class PactlabCompute extends Construct {
       { service: worker, desiredCount: service.worker.desiredCount },
     ];
 
-    const webTargets = https.addTargets('Web', { port: 3000, protocol: elbv2.ApplicationProtocol.HTTP, targets: [web], healthCheck: { path: '/login', healthyHttpCodes: '200-399', interval: Duration.seconds(30) }, deregistrationDelay: Duration.seconds(15) });
-    const apiTargets = https.addTargets('Api', {
-      priority: 10,
-      conditions: [elbv2.ListenerCondition.pathPatterns(['/v1/*', '/health'])],
+    // Target groups and rules live in this environment's stack, also when the listener is shared.
+    const webTargets = new elbv2.ApplicationTargetGroup(this, 'WebTargets', {
+      vpc,
+      port: 3000,
+      protocol: elbv2.ApplicationProtocol.HTTP,
+      targets: [web],
+      healthCheck: { path: '/login', healthyHttpCodes: '200-399', interval: Duration.seconds(30) },
+      deregistrationDelay: Duration.seconds(15),
+    });
+    const apiTargets = new elbv2.ApplicationTargetGroup(this, 'ApiTargets', {
+      vpc,
       port: 4000,
       protocol: elbv2.ApplicationProtocol.HTTP,
       targets: [api],
       healthCheck: { path: '/health', healthyHttpCodes: '200', interval: Duration.seconds(30) },
       deregistrationDelay: Duration.seconds(15),
     });
+    const apiPaths = elbv2.ListenerCondition.pathPatterns(['/v1/*', '/health']);
+    if (shared) {
+      // Host-scoped rules in this environment's priority block, so environments never see each other's traffic.
+      const host = elbv2.ListenerCondition.hostHeaders([service.domain]);
+      new elbv2.ApplicationListenerRule(this, 'ApiRule', { listener: https, priority: shared.priorityBase + 10, conditions: [host, apiPaths], targetGroups: [apiTargets] });
+      new elbv2.ApplicationListenerRule(this, 'WebRule', { listener: https, priority: shared.priorityBase + 20, conditions: [host], targetGroups: [webTargets] });
+    } else {
+      https.addTargetGroups('Web', { targetGroups: [webTargets] });
+      https.addTargetGroups('Api', { priority: 10, conditions: [apiPaths], targetGroups: [apiTargets] });
+    }
     this.targetGroups = { web: webTargets, api: apiTargets };
+    this.ruleScope = shared ? { host: service.domain, priorityBase: shared.priorityBase } : null;
 
     // --- What the deploy workflow and the operator need (no secrets).
     const outputs: Record<string, string> = {

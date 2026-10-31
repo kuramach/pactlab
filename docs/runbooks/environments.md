@@ -137,6 +137,24 @@ It returns `awake`, `paused` or `waking`. The Step Functions console shows each 
 
 AWS restarts a stopped database after 7 days. A daily run stops it again while the environment is still paused.
 
+## Shared non-live base (dev and qa)
+
+dev and qa share one network (with a NAT instance), one load balancer and one Redis, in `PactlabNonliveBase` in the dev account (ADR 0019). Each still has its own database, secrets, buckets, services and pause. Deploys of dev or qa deploy the base first; that's a no-op when it hasn't changed.
+
+**Moving dev onto it (one time; synthetic data only).** The database moves to the new network, so dev is rebuilt and re-seeded:
+1. `cdk deploy PactlabNonliveBase` (dev profile and account context). ACM shows a validation CNAME for `app.dev.pactlab.ai` on the new load balancer; add it at Namecheap.
+2. `cdk destroy PactlabDev`. The database leaves a final snapshot.
+3. Dispatch the deploy, then run the seed task.
+4. Namecheap: point `app.dev` at the base's `LoadBalancerDns`, a new address.
+
+**Monthly cost (estimates):**
+
+| | Always on | Paused |
+|---|---|---|
+| live | ~$140 | never pauses |
+| stage (own, NAT instance) | ~$110 | ~$40 |
+| dev + qa (shared) | ~$150 | ~$50 together |
+
 ## Every later deploy
 
 Actions → **deploy** → `dev` → approve. The workflow:

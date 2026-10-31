@@ -1,10 +1,9 @@
 import { createRequire } from 'node:module';
-import { App } from 'aws-cdk-lib';
-import { Match, Template } from 'aws-cdk-lib/assertions';
+import { Match } from 'aws-cdk-lib/assertions';
 import { describe, expect, it } from 'vitest';
 import { devConfig, ENVIRONMENTS, ENVIRONMENT_NAMES } from '../config';
 import { NEVER_MATCHING_PATH } from '../lib/idle-pause';
-import { PactlabPlatformStack } from '../lib/platform-stack';
+import { platformStack } from './helpers';
 
 const require = createRequire(import.meta.url);
 type Steps = Record<string, () => Promise<Record<string, unknown>>>;
@@ -21,7 +20,7 @@ describe('only production runs all the time (ADR 0019)', () => {
     }
   });
 
-  const template = Template.fromStack(new PactlabPlatformStack(new App(), 'PactlabDev', { config: devConfig, imageTag: 'abc1234' }));
+  const template = platformStack(devConfig, { imageTag: 'abc1234' }).template;
 
   it('pauses on an hour without API requests, and keeps a paused database stopped daily', () => {
     template.hasResourceProperties('AWS::CloudWatch::Alarm', {
@@ -42,9 +41,13 @@ describe('only production runs all the time (ADR 0019)', () => {
   });
 
   it('puts the wake page first, on a path nothing uses until the environment pauses', () => {
+    // On the shared listener: first in dev's block, and only for dev's host, so pausing dev never touches qa.
     template.hasResourceProperties('AWS::ElasticLoadBalancingV2::ListenerRule', {
-      Priority: 1,
-      Conditions: [{ Field: 'path-pattern', PathPatternConfig: { Values: [NEVER_MATCHING_PATH] } }],
+      Priority: 101,
+      Conditions: [
+        { Field: 'host-header', HostHeaderConfig: { Values: ['app.dev.pactlab.ai'] } },
+        { Field: 'path-pattern', PathPatternConfig: { Values: [NEVER_MATCHING_PATH] } },
+      ],
     });
     template.hasResourceProperties('AWS::ElasticLoadBalancingV2::TargetGroup', { TargetType: 'lambda' });
   });
@@ -58,7 +61,7 @@ describe('only production runs all the time (ADR 0019)', () => {
   });
 
   it('has no pause in production', () => {
-    const prod = Template.fromStack(new PactlabPlatformStack(new App(), 'PactlabProd', { config: { ...ENVIRONMENTS.prod, service: devConfig.service }, imageTag: 'abc1234' }));
+    const prod = platformStack({ ...ENVIRONMENTS.prod, service: devConfig.service }, { imageTag: 'abc1234' }).template;
     prod.resourceCountIs('AWS::StepFunctions::StateMachine', 0);
     prod.resourceCountIs('AWS::CloudWatch::Alarm', 0);
   });

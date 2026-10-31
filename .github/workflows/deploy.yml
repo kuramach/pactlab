@@ -65,6 +65,11 @@ jobs:
       - name: 0. Make sure the environment is awake
         run: scripts/wake-environment.sh "$ENV_NAME"
 
+      # dev and qa share one network, NAT instance, load balancer and Redis (ADR 0019); a no-op when unchanged.
+      - name: 1. Shared non-live base (dev and qa)
+        if: env.ENV_NAME == 'dev' || env.ENV_NAME == 'qa'
+        run: $CDK deploy PactlabNonliveBase --require-approval never
+
       - name: 1. Registry
         run: $CDK deploy "${STACK}Registry" --require-approval never
 

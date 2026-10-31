@@ -7,6 +7,8 @@ export const devConfig: EnvironmentConfig = {
   region: 'us-east-2',
   protectedState: false,
   network: { maxAzs: 2, natGateways: 1 },
+  // dev and qa share one network, NAT instance, load balancer and Redis (ADR 0019); dev uses Redis database 0.
+  shared: { base: 'nonlive', redisDb: 0, rulePriorityBase: 100 },
   database: {
     instanceClass: 't4g',
     instanceSize: 'medium',

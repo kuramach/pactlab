@@ -5,6 +5,7 @@ import { ENVIRONMENT_NAMES, ENVIRONMENTS } from '../config';
 import { siteConfig } from '../config/site';
 import { PactlabDeployAccessStack, PactlabEnvironmentDeployAccessStack } from '../lib/deploy-access-stack';
 import { PactlabRegistryStack } from '../lib/compute';
+import { PactlabNonliveBaseStack } from '../lib/nonlive-base-stack';
 import { PactlabPlatformStack } from '../lib/platform-stack';
 import { assertTargetAccount } from '../lib/protection';
 import { PactlabSiteStack } from '../lib/site-stack';
@@ -17,9 +18,26 @@ const app = new App();
 // The static site export (`pnpm --filter @pactlab/site build`); site stacks are skipped without it,
 // so a plain synth (CI) does not depend on building the site.
 const siteContent = fileURLToPath(new URL('../../../apps/site/out', import.meta.url));
+
+// The shared non-live base (ADR 0019): dev and qa's network, NAT instance, load balancer and Redis, in the
+// dev account. An environment on it is bound to the same account (its own context may only repeat it).
+const sharedNames = ENVIRONMENT_NAMES.filter((name) => ENVIRONMENTS[name].shared);
+// Whichever shared environment is being deployed names the account (dev's, today; qa's is the same account).
+const baseAccount = sharedNames.map((name) => app.node.tryGetContext(`pactlab:${name}:account`) as string | undefined).find(Boolean);
+assertTargetAccount('nonlive-base', baseAccount, baseAccount ? process.env['CDK_DEFAULT_ACCOUNT'] : undefined);
+const baseEnv = baseAccount ? { env: { account: baseAccount, region: ENVIRONMENTS.dev.region } } : {};
+const sharedBase = sharedNames.length
+  ? new PactlabNonliveBaseStack(app, 'PactlabNonliveBase', {
+      hosts: sharedNames.flatMap((name) => (ENVIRONMENTS[name].service ? [ENVIRONMENTS[name].service.domain] : [])),
+      ...baseEnv,
+    })
+  : undefined;
+
 for (const name of ENVIRONMENT_NAMES) {
   const config = ENVIRONMENTS[name];
-  const declared = app.node.tryGetContext(`pactlab:${name}:account`) as string | undefined;
+  const own = app.node.tryGetContext(`pactlab:${name}:account`) as string | undefined;
+  if (config.shared && own && baseAccount && own !== baseAccount) throw new Error(`${name} runs on the shared base in ${baseAccount}; it cannot be bound to ${own}`);
+  const declared = own ?? (config.shared ? baseAccount : undefined);
   assertTargetAccount(name, declared, declared ? process.env['CDK_DEFAULT_ACCOUNT'] : undefined);
   const stackId = `Pactlab${name.charAt(0).toUpperCase()}${name.slice(1)}`;
   const env = declared ? { env: { account: declared, region: config.region } } : {};
@@ -45,7 +63,15 @@ for (const name of ENVIRONMENT_NAMES) {
   }
   // During a release the services may stay on the running tag (or `none` on a first deploy) while migrations run.
   const serviceImageTag = app.node.tryGetContext(`pactlab:${name}:serviceImageTag`) as string | undefined;
-  if (!withoutApp) new PactlabPlatformStack(app, stackId, { config, ...(imageTag ? { imageTag } : {}), ...(serviceImageTag ? { serviceImageTag } : {}), ...env });
+  if (!withoutApp) {
+    new PactlabPlatformStack(app, stackId, {
+      config,
+      ...(imageTag ? { imageTag } : {}),
+      ...(serviceImageTag ? { serviceImageTag } : {}),
+      ...(config.shared && sharedBase ? { sharedBase } : {}),
+      ...env,
+    });
+  }
   // The environment's copy of the site, published by deploy.yml after it builds apps/site for this environment.
   if (config.site && existsSync(siteContent)) {
     const certificateArn = app.node.tryGetContext(`pactlab:${name}:siteCertificateArn`) as string | undefined;

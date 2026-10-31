@@ -154,3 +154,32 @@ re-pointed.
 - **Cost:** about $65–70 a month while paused, against about $135 always on.
   Production has no pause; a test fails if it ever gets one.
 
+## Addendum (2026-10-31): cheaper non-live environments
+
+Decided with Kumar the same day:
+
+- **NAT instance outside live.** dev, qa and stage get outbound internet
+  through one t4g.nano NAT instance (`NatProvider.instanceV2`, about $3–4 a
+  month) instead of a managed NAT gateway (about $33). If the instance stops,
+  outbound access stops until it's replaced. That's acceptable outside live.
+  Live keeps managed NAT gateways, one per zone.
+- **dev and qa share a base** (`PactlabNonliveBase`, in the dev account): one
+  network, NAT instance, load balancer and Redis.
+  - Each environment keeps its own database, secrets, KMS key, buckets, task
+    roles, services and pause.
+  - **Traffic:** its rules on the shared listener match its own host,
+    `app.<env>.pactlab.ai`, in its own priority block (dev 100s, qa 200s). The
+    pause's wake rule is host-scoped too, so pausing one environment never
+    touches the other.
+  - **Data:** its database admits only its own tasks' security group.
+  - **Redis:** it uses its own logical database (dev `/0`, qa `/1`), so queues
+    and keys never cross. The shared node admits both environments' task
+    groups.
+- **Stage stays separate,** shaped like live: its own network, load balancer
+  and Redis, but with the NAT instance. It's the rehearsal for live, so it
+  mustn't differ from live in ways that matter. Live never runs on shared
+  infrastructure; the platform stack refuses it.
+- **Cost (estimates):** dev and qa together about $50 a month while paused,
+  stage about $40, live about $140. That's about $230 in total, against about
+  $350 without these changes.
+
