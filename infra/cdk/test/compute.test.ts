@@ -3,9 +3,9 @@ import { Match, Template } from 'aws-cdk-lib/assertions';
 import { describe, expect, it } from 'vitest';
 import { devConfig, ENVIRONMENTS } from '../config';
 import { PactlabRegistryStack } from '../lib/compute';
-import { PactlabPlatformStack } from '../lib/platform-stack';
+import { platformStack } from './helpers';
 
-const synth = () => Template.fromStack(new PactlabPlatformStack(new App(), 'PactlabDev', { config: devConfig, imageTag: 'abc1234' }));
+const synth = () => platformStack(devConfig, { imageTag: 'abc1234' }).template;
 type Statement = { Action: string | string[]; Resource: unknown; Sid?: string };
 const statements = (template: Template, rolePrefix: string): Statement[] =>
   Object.entries(template.findResources('AWS::IAM::Policy'))
@@ -26,16 +26,24 @@ describe('dev: the running application (ADR 0019)', () => {
     template.resourceCountIs('AWS::ECS::TaskDefinition', 5);
   });
 
-  it('serves one HTTPS host: web by default, /v1/* and /health to the API, HTTP redirected', () => {
-    template.hasResourceProperties('AWS::CertificateManager::Certificate', { DomainName: 'app.dev.pactlab.ai', ValidationMethod: 'DNS' });
-    template.hasResourceProperties('AWS::ElasticLoadBalancingV2::Listener', { Port: 443, Protocol: 'HTTPS' });
-    template.hasResourceProperties('AWS::ElasticLoadBalancingV2::Listener', {
+  it('serves app.dev on the shared load balancer: host-scoped rules, /v1/* and /health to the API, HTTP redirected', () => {
+    const base = platformStack(devConfig, { imageTag: 'abc1234' }).baseTemplate;
+    base?.hasResourceProperties('AWS::CertificateManager::Certificate', { DomainName: 'app.dev.pactlab.ai', ValidationMethod: 'DNS' });
+    base?.hasResourceProperties('AWS::ElasticLoadBalancingV2::Listener', { Port: 443, Protocol: 'HTTPS', DefaultActions: [Match.objectLike({ Type: 'fixed-response' })] });
+    base?.hasResourceProperties('AWS::ElasticLoadBalancingV2::Listener', {
       Port: 80,
       DefaultActions: [Match.objectLike({ Type: 'redirect', RedirectConfig: Match.objectLike({ Protocol: 'HTTPS', StatusCode: 'HTTP_301' }) })],
     });
+    template.resourceCountIs('AWS::ElasticLoadBalancingV2::LoadBalancer', 0);
+    template.resourceCountIs('AWS::ElasticLoadBalancingV2::Listener', 0);
     template.hasResourceProperties('AWS::ElasticLoadBalancingV2::ListenerRule', {
-      Conditions: [{ Field: 'path-pattern', PathPatternConfig: { Values: ['/v1/*', '/health'] } }],
+      Priority: 110,
+      Conditions: [
+        { Field: 'host-header', HostHeaderConfig: { Values: ['app.dev.pactlab.ai'] } },
+        { Field: 'path-pattern', PathPatternConfig: { Values: ['/v1/*', '/health'] } },
+      ],
     });
+    template.hasResourceProperties('AWS::ElasticLoadBalancingV2::ListenerRule', { Priority: 120, Conditions: [{ Field: 'host-header', HostHeaderConfig: { Values: ['app.dev.pactlab.ai'] } }] });
   });
 
   it('gives each task only what it uses: scoped Bedrock and SES for the API, nothing for web', () => {
@@ -93,13 +101,13 @@ describe('dev: the running application (ADR 0019)', () => {
   });
 
   it('can ship a release to the migration task first, keeping services on the running image or at zero', () => {
-    const staged = Template.fromStack(new PactlabPlatformStack(new App(), 'PactlabDev', { config: devConfig, imageTag: 'new0001', serviceImageTag: 'old0001' }));
+    const staged = platformStack(devConfig, { imageTag: 'new0001', serviceImageTag: 'old0001' }).template;
     const containers = Object.values(staged.findResources('AWS::ECS::TaskDefinition')).flatMap((definition) => (definition as { Properties: { ContainerDefinitions: { Name: string; Image: unknown }[] } }).Properties.ContainerDefinitions);
     const tagOf = (name: string) => JSON.stringify(containers.find((container) => container.Name === name)?.Image);
     expect(tagOf('migrate')).toContain(':new0001');
     expect(tagOf('api')).toContain(':old0001');
     expect(tagOf('web')).toContain(':old0001');
-    const first = Template.fromStack(new PactlabPlatformStack(new App(), 'PactlabDev', { config: devConfig, imageTag: 'new0001', serviceImageTag: 'none' }));
+    const first = platformStack(devConfig, { imageTag: 'new0001', serviceImageTag: 'none' }).template;
     first.allResourcesProperties('AWS::ECS::Service', { DesiredCount: 0 });
     first.hasOutput('ServiceImageTag', { Value: 'none' });
   });
@@ -107,7 +115,7 @@ describe('dev: the running application (ADR 0019)', () => {
 
 describe('environments without a service block', () => {
   it.each(['qa', 'stage', 'prod'] as const)('%s has the data layer only (slice 2 adds its service)', (name) => {
-    const template = Template.fromStack(new PactlabPlatformStack(new App(), `Pactlab-${name}`, { config: ENVIRONMENTS[name] }));
+    const template = platformStack(ENVIRONMENTS[name]).template;
     template.resourceCountIs('AWS::ECS::Service', 0);
     template.resourceCountIs('AWS::ElasticLoadBalancingV2::LoadBalancer', 0);
   });

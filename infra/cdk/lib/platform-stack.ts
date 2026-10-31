@@ -10,6 +10,7 @@ import type { Construct } from 'constructs';
 import type { EnvironmentConfig } from '../config';
 import { PactlabCompute } from './compute';
 import { IdlePause } from './idle-pause';
+import { pactlabVpc, type PactlabNonliveBaseStack } from './nonlive-base-stack';
 import { StatefulProtectionAspect } from './protection';
 
 export interface PactlabPlatformStackProps extends StackProps {
@@ -18,6 +19,8 @@ export interface PactlabPlatformStackProps extends StackProps {
   readonly imageTag?: string;
   /** The tag the services run during a release (see PactlabCompute); defaults to `imageTag`. */
   readonly serviceImageTag?: string;
+  /** The shared non-live base, for an environment whose config says `shared` (dev and qa). */
+  readonly sharedBase?: PactlabNonliveBaseStack;
 }
 
 /**
@@ -27,32 +30,38 @@ export interface PactlabPlatformStackProps extends StackProps {
  * deployed exclusively by GitHub Actions.
  */
 export class PactlabPlatformStack extends Stack {
-  readonly vpc: ec2.Vpc;
+  readonly vpc: ec2.IVpc;
   readonly appSecurityGroup: ec2.SecurityGroup;
   readonly dataKey: kms.Key;
   readonly database: rds.DatabaseInstance;
-  readonly redis: elasticache.CfnReplicationGroup;
+  /** The environment's own Redis; absent on shared infrastructure, where it has a logical database on the base's. */
+  readonly redis?: elasticache.CfnReplicationGroup;
+  readonly redisUrl: string;
   readonly evidenceBucket: s3.Bucket;
   readonly auditArchiveBucket: s3.Bucket;
   readonly compute?: PactlabCompute;
 
   constructor(scope: Construct, id: string, props: PactlabPlatformStackProps) {
-    const { config, imageTag, serviceImageTag, ...stackProps } = props;
+    const { config, imageTag, serviceImageTag, sharedBase, ...stackProps } = props;
+    if (config.shared && !sharedBase)
+      throw new Error(`${config.name} runs on the shared non-live base: pass sharedBase`);
+    if (!config.shared && sharedBase)
+      throw new Error(`${config.name} has its own infrastructure; it takes no shared base`);
+    if (config.shared && config.name === 'prod')
+      throw new Error('Live never runs on shared infrastructure');
     super(scope, id, { ...stackProps, terminationProtection: config.protectedState });
     Tags.of(this).add('pactlab:environment', config.name);
 
     const statefulRemoval = config.protectedState ? RemovalPolicy.RETAIN : RemovalPolicy.DESTROY;
 
-    this.vpc = new ec2.Vpc(this, 'Vpc', {
-      maxAzs: config.network.maxAzs,
-      natGateways: config.network.natGateways,
-      subnetConfiguration: [
-        { name: 'public', subnetType: ec2.SubnetType.PUBLIC, cidrMask: 24 },
-        { name: 'app', subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS, cidrMask: 22 },
-        { name: 'data', subnetType: ec2.SubnetType.PRIVATE_ISOLATED, cidrMask: 24 },
-      ],
-    });
-    this.vpc.addFlowLog('FlowLog');
+    // Own network (stage, live), or the shared non-live one (dev, qa).
+    this.vpc = sharedBase
+      ? sharedBase.vpc
+      : pactlabVpc(this, 'Vpc', {
+          maxAzs: config.network.maxAzs,
+          natGateways: config.network.natGateways,
+          nat: config.network.nat ?? 'gateway',
+        });
 
     // Application tasks (api, worker) join this group; data stores admit only it.
     this.appSecurityGroup = new ec2.SecurityGroup(this, 'AppSecurityGroup', {
@@ -108,33 +117,48 @@ export class PactlabPlatformStack extends Stack {
       statefulRemoval,
     );
 
-    const redisSecurityGroup = new ec2.SecurityGroup(this, 'RedisSecurityGroup', {
-      vpc: this.vpc,
-      description: 'Pactlab Redis (BullMQ)',
-      allowAllOutbound: false,
-    });
-    redisSecurityGroup.addIngressRule(this.appSecurityGroup, ec2.Port.tcp(6379), 'app to redis');
+    if (sharedBase && config.shared) {
+      // The shared Redis admits this environment's tasks; the environment uses its own logical database.
+      new ec2.CfnSecurityGroupIngress(this, 'SharedRedisFromApp', {
+        groupId: sharedBase.redisSecurityGroup.securityGroupId,
+        sourceSecurityGroupId: this.appSecurityGroup.securityGroupId,
+        ipProtocol: 'tcp',
+        fromPort: 6379,
+        toPort: 6379,
+        description: `${config.name} app to shared redis`,
+      });
+      this.redisUrl = `rediss://${sharedBase.redis.attrPrimaryEndPointAddress}:${sharedBase.redis.attrPrimaryEndPointPort}/${config.shared.redisDb}`;
+    } else {
+      const redisSecurityGroup = new ec2.SecurityGroup(this, 'RedisSecurityGroup', {
+        vpc: this.vpc,
+        description: 'Pactlab Redis (BullMQ)',
+        allowAllOutbound: false,
+      });
+      redisSecurityGroup.addIngressRule(this.appSecurityGroup, ec2.Port.tcp(6379), 'app to redis');
 
-    const redisSubnets = new elasticache.CfnSubnetGroup(this, 'RedisSubnets', {
-      description: 'Pactlab Redis isolated subnets',
-      subnetIds: this.vpc.selectSubnets({ subnetType: ec2.SubnetType.PRIVATE_ISOLATED }).subnetIds,
-    });
+      const redisSubnets = new elasticache.CfnSubnetGroup(this, 'RedisSubnets', {
+        description: 'Pactlab Redis isolated subnets',
+        subnetIds: this.vpc.selectSubnets({ subnetType: ec2.SubnetType.PRIVATE_ISOLATED })
+          .subnetIds,
+      });
 
-    const redisFailover = config.redis.numCacheClusters > 1;
-    this.redis = new elasticache.CfnReplicationGroup(this, 'Redis', {
-      replicationGroupDescription: `Pactlab BullMQ queues (${config.name})`,
-      engine: 'redis',
-      engineVersion: '7.1',
-      cacheNodeType: config.redis.nodeType,
-      numCacheClusters: config.redis.numCacheClusters,
-      automaticFailoverEnabled: redisFailover,
-      multiAzEnabled: redisFailover,
-      snapshotRetentionLimit: config.redis.snapshotRetentionDays,
-      atRestEncryptionEnabled: true,
-      transitEncryptionEnabled: true,
-      cacheSubnetGroupName: redisSubnets.ref,
-      securityGroupIds: [redisSecurityGroup.securityGroupId],
-    });
+      const redisFailover = config.redis.numCacheClusters > 1;
+      this.redis = new elasticache.CfnReplicationGroup(this, 'Redis', {
+        replicationGroupDescription: `Pactlab BullMQ queues (${config.name})`,
+        engine: 'redis',
+        engineVersion: '7.1',
+        cacheNodeType: config.redis.nodeType,
+        numCacheClusters: config.redis.numCacheClusters,
+        automaticFailoverEnabled: redisFailover,
+        multiAzEnabled: redisFailover,
+        snapshotRetentionLimit: config.redis.snapshotRetentionDays,
+        atRestEncryptionEnabled: true,
+        transitEncryptionEnabled: true,
+        cacheSubnetGroupName: redisSubnets.ref,
+        securityGroupIds: [redisSecurityGroup.securityGroupId],
+      });
+      this.redisUrl = `rediss://${this.redis.attrPrimaryEndPointAddress}:${this.redis.attrPrimaryEndPointPort}`;
+    }
 
     // Uploaded and VDR-sourced documents. Never source code (scan workspaces
     // are ephemeral and live elsewhere). Versioned so deletes are recoverable.
@@ -191,9 +215,19 @@ export class PactlabPlatformStack extends Stack {
         appSecurityGroup: this.appSecurityGroup,
         dataKey: this.dataKey,
         database: this.database,
-        redis: this.redis,
+        redisUrl: this.redisUrl,
         evidenceBucket: this.evidenceBucket,
         featureFlagsParameterArn: featureFlags.parameterArn,
+        ...(sharedBase && config.shared
+          ? {
+              shared: {
+                loadBalancer: sharedBase.loadBalancer,
+                loadBalancerSecurityGroup: sharedBase.loadBalancerSecurityGroup,
+                httpsListener: sharedBase.httpsListener,
+                priorityBase: config.shared.rulePriorityBase,
+              },
+            }
+          : {}),
       });
       // Only production runs all the time; the others pause when idle (ADR 0019).
       if (config.idlePause) {
@@ -205,6 +239,7 @@ export class PactlabPlatformStack extends Stack {
           database: this.database,
           listener: this.compute.httpsListener,
           targetGroups: this.compute.targetGroups,
+          ...(this.compute.ruleScope ? { ruleScope: this.compute.ruleScope } : {}),
         });
       }
     }

@@ -17,7 +17,19 @@ export interface EnvironmentConfig {
    * StatefulProtectionAspect, which fails synthesis when any is missing.
    */
   readonly protectedState: boolean;
-  readonly network: { readonly maxAzs: number; readonly natGateways: number };
+  /**
+   * The environment's own network. `nat`: managed NAT gateways (production) or
+   * one NAT instance (non-live, about $3–4 a month instead of about $33).
+   * Ignored when the environment is on shared infrastructure (`shared`).
+   */
+  readonly network: { readonly maxAzs: number; readonly natGateways: number; readonly nat?: 'gateway' | 'instance' };
+  /**
+   * On the shared non-live base (dev and qa; Kumar, 2026-10-31; ADR 0019): one
+   * network, NAT instance, load balancer and Redis. The environment keeps its
+   * own database, secrets, key, buckets, services and pause; it uses its own
+   * Redis logical database and a block of listener-rule priorities.
+   */
+  readonly shared?: { readonly base: 'nonlive'; readonly redisDb: number; readonly rulePriorityBase: number };
   readonly database: {
     readonly instanceClass: 't4g' | 'm7g' | 'r7g';
     readonly instanceSize: 'medium' | 'large' | 'xlarge';

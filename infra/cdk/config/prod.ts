@@ -7,7 +7,8 @@ export const prodConfig: EnvironmentConfig = {
   // The organization's guardrail (SCP) allows CloudFormation only in us-east-2 (ADR 0003 amendment).
   region: 'us-east-2',
   protectedState: true,
-  network: { maxAzs: 3, natGateways: 3 },
+  // Live keeps managed NAT gateways: no single NAT instance on the path to customers (ADR 0019).
+  network: { maxAzs: 3, natGateways: 3, nat: 'gateway' },
   database: {
     instanceClass: 'm7g',
     instanceSize: 'large',

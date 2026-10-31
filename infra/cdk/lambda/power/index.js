@@ -14,7 +14,7 @@ const EVERYTHING = '/*';
 function makeSteps(aws, env) {
   const services = JSON.parse(env.SERVICES); // [{ name, desiredCount }]
   const targetGroups = JSON.parse(env.TARGET_GROUPS); // [arn]
-  const routeTo = (path) => aws.setRulePath(env.RULE_ARN, path);
+  const routeTo = (path) => aws.setRulePath(env.RULE_ARN, path, env.RULE_HOST || null);
   const ignore = (...names) => (error) => {
     if (!names.includes(error.name)) throw error;
   };
@@ -81,7 +81,17 @@ function live() {
     {
       getPower: async (name) => (await ssm.send(new GetParameterCommand({ Name: name }))).Parameter.Value,
       putPower: (name, value) => ssm.send(new PutParameterCommand({ Name: name, Value: value, Overwrite: true })),
-      setRulePath: (ruleArn, path) => elb.send(new ModifyRuleCommand({ RuleArn: ruleArn, Conditions: [{ Field: 'path-pattern', PathPatternConfig: { Values: [path] } }] })),
+      // On a shared listener the host condition is kept: pausing one environment never touches another.
+      setRulePath: (ruleArn, path, host) =>
+        elb.send(
+          new ModifyRuleCommand({
+            RuleArn: ruleArn,
+            Conditions: [
+              ...(host ? [{ Field: 'host-header', HostHeaderConfig: { Values: [host] } }] : []),
+              { Field: 'path-pattern', PathPatternConfig: { Values: [path] } },
+            ],
+          }),
+        ),
       setDesiredCount: (cluster, service, desiredCount) => ecs.send(new UpdateServiceCommand({ cluster, service, desiredCount })),
       stopDatabase: (id) => rds.send(new StopDBInstanceCommand({ DBInstanceIdentifier: id })),
       startDatabase: (id) => rds.send(new StartDBInstanceCommand({ DBInstanceIdentifier: id })),

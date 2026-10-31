@@ -7,7 +7,8 @@ export const stageConfig: EnvironmentConfig = {
   // The organization's guardrail (SCP) allows CloudFormation only in us-east-2 (ADR 0003 amendment).
   region: 'us-east-2',
   protectedState: true,
-  network: { maxAzs: 2, natGateways: 2 },
+  // Stage keeps its own network, load balancer and Redis, shaped like live, but with a NAT instance (ADR 0019).
+  network: { maxAzs: 2, natGateways: 1, nat: 'instance' },
   database: {
     instanceClass: 't4g',
     instanceSize: 'large',

@@ -1,10 +1,12 @@
 import { App, Aspects, RemovalPolicy, Stack } from 'aws-cdk-lib';
-import { Annotations, Match, Template } from 'aws-cdk-lib/assertions';
+import type { Template } from 'aws-cdk-lib/assertions';
+import { Annotations, Match } from 'aws-cdk-lib/assertions';
 import type * as rds from 'aws-cdk-lib/aws-rds';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import { describe, expect, it } from 'vitest';
 import { ENVIRONMENT_NAMES, ENVIRONMENTS, prodConfig, stageConfig } from '../config';
 import { PactlabPlatformStack } from '../lib/platform-stack';
+import { platformStack } from './helpers';
 import {
   assertTargetAccount,
   STATEFUL_RESOURCE_TYPES,
@@ -12,10 +14,8 @@ import {
 } from '../lib/protection';
 
 function synth(name: (typeof ENVIRONMENT_NAMES)[number]) {
-  const stack = new PactlabPlatformStack(new App(), `Pactlab-${name}`, {
-    config: ENVIRONMENTS[name],
-  });
-  return { stack, template: Template.fromStack(stack) };
+  const { stack, template } = platformStack(ENVIRONMENTS[name]);
+  return { stack, template };
 }
 
 function statefulResources(template: Template) {

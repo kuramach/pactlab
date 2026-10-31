@@ -31,6 +31,8 @@ export interface IdlePauseProps {
   readonly database: rds.DatabaseInstance;
   readonly listener: elbv2.ApplicationListener;
   readonly targetGroups: { readonly web: elbv2.ApplicationTargetGroup; readonly api: elbv2.ApplicationTargetGroup };
+  /** On a shared listener: the environment's host and priority block, so pausing it never touches another environment. */
+  readonly ruleScope?: { readonly host: string; readonly priorityBase: number };
 }
 
 /**
@@ -82,10 +84,11 @@ export class IdlePause extends Construct {
       logRetention: logs.RetentionDays.ONE_MONTH,
       environment: { ENV_NAME: env, POWER_PARAMETER: this.powerParameter.parameterName },
     });
+    const ruleScope = props.ruleScope;
     const wakeRule = new elbv2.ApplicationListenerRule(this, 'WakeRule', {
       listener: props.listener,
-      priority: 1,
-      conditions: [elbv2.ListenerCondition.pathPatterns([NEVER_MATCHING_PATH])],
+      priority: ruleScope ? ruleScope.priorityBase + 1 : 1,
+      conditions: [...(ruleScope ? [elbv2.ListenerCondition.hostHeaders([ruleScope.host])] : []), elbv2.ListenerCondition.pathPatterns([NEVER_MATCHING_PATH])],
       targetGroups: [new elbv2.ApplicationTargetGroup(this, 'WakeTargets', { targets: [new elbv2Targets.LambdaTarget(wakePage)] })],
     });
 
@@ -105,6 +108,8 @@ export class IdlePause extends Construct {
         TARGET_GROUPS: stack.toJsonString([props.targetGroups.web.targetGroupArn, props.targetGroups.api.targetGroupArn]),
         DB_INSTANCE: props.database.instanceIdentifier,
         RULE_ARN: wakeRule.listenerRuleArn,
+        // Shared listener: the rule keeps its host condition when its path changes.
+        RULE_HOST: ruleScope?.host ?? '',
         POWER_PARAMETER: this.powerParameter.parameterName,
         ALARM_NAME: alarm.alarmName,
       },
