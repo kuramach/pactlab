@@ -18,6 +18,8 @@ export const devConfig: EnvironmentConfig = {
   redis: { nodeType: 'cache.t4g.micro', numCacheClusters: 1, snapshotRetentionDays: 0 },
   evidenceNoncurrentVersionDays: 7,
   auditArchive: { mode: 'GOVERNANCE', days: 1 },
+  // Only production runs all the time: this environment pauses after an hour without use.
+  idlePause: { idleMinutes: 60 },
   featureFlags: { pilotMode: false, liveConnectors: false },
   // The running app (ADR 0019), sized for small and medium pacts: one task each.
   service: {

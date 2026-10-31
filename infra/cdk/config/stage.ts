@@ -20,5 +20,7 @@ export const stageConfig: EnvironmentConfig = {
   evidenceNoncurrentVersionDays: 30,
   auditArchive: { mode: 'GOVERNANCE', days: 30 },
   // Stage runs read-only vendor-sandbox dry runs before production promotion.
+  // Only production runs all the time: this environment pauses after an hour without use.
+  idlePause: { idleMinutes: 60 },
   featureFlags: { pilotMode: true, liveConnectors: true },
 };

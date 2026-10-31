@@ -9,6 +9,7 @@ import * as ssm from 'aws-cdk-lib/aws-ssm';
 import type { Construct } from 'constructs';
 import type { EnvironmentConfig } from '../config';
 import { PactlabCompute } from './compute';
+import { IdlePause } from './idle-pause';
 import { StatefulProtectionAspect } from './protection';
 
 export interface PactlabPlatformStackProps extends StackProps {
@@ -194,6 +195,18 @@ export class PactlabPlatformStack extends Stack {
         evidenceBucket: this.evidenceBucket,
         featureFlagsParameterArn: featureFlags.parameterArn,
       });
+      // Only production runs all the time; the others pause when idle (ADR 0019).
+      if (config.idlePause) {
+        new IdlePause(this, 'IdlePause', {
+          env: config.name,
+          idleMinutes: config.idlePause.idleMinutes,
+          cluster: this.compute.cluster,
+          services: this.compute.services,
+          database: this.database,
+          listener: this.compute.httpsListener,
+          targetGroups: this.compute.targetGroups,
+        });
+      }
     }
 
     if (config.protectedState) Aspects.of(this).add(new StatefulProtectionAspect());

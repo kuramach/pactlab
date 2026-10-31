@@ -46,6 +46,12 @@ export interface EnvironmentConfig {
    * site is `pactlab.ai` (PactlabSite, ADR 0003).
    */
   readonly site?: EnvironmentSiteConfig;
+  /**
+   * Pause when idle (Kumar's rule, 2026-10-30): only production runs all the
+   * time. After `idleMinutes` without a request to the API, the services scale
+   * to zero and the database stops; a wake page brings it back (ADR 0019).
+   */
+  readonly idlePause?: { readonly idleMinutes: number };
   /** Approved feature flags, published to SSM for the application to read. */
   readonly featureFlags: {
     /** Pilot guardrails on: invite-only organizations, no self-serve signup. */

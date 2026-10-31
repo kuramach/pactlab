@@ -1,0 +1,32 @@
+name: wake
+
+# Wakes a paused environment (dev, qa and stage pause after an hour idle; ADR 0019).
+# The wake page at app.<env>.pactlab.ai does the same with its button, from any browser.
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Environment to wake
+        type: choice
+        options: [dev]
+        required: true
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-east-2
+
+jobs:
+  wake:
+    runs-on: ubuntu-24.04-arm
+    environment: ${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          role-session-name: wake-${{ inputs.environment }}-${{ github.run_id }}
+          aws-region: ${{ env.AWS_REGION }}
+      - run: scripts/wake-environment.sh "${{ inputs.environment }}"
