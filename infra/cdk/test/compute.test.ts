@@ -27,7 +27,7 @@ describe('dev: the running application (ADR 0019)', () => {
   });
 
   it('serves one HTTPS host: web by default, /v1/* and /health to the API, HTTP redirected', () => {
-    template.hasResourceProperties('AWS::CertificateManager::Certificate', { DomainName: 'dev.pactlab.ai', ValidationMethod: 'DNS' });
+    template.hasResourceProperties('AWS::CertificateManager::Certificate', { DomainName: 'app.dev.pactlab.ai', ValidationMethod: 'DNS' });
     template.hasResourceProperties('AWS::ElasticLoadBalancingV2::Listener', { Port: 443, Protocol: 'HTTPS' });
     template.hasResourceProperties('AWS::ElasticLoadBalancingV2::Listener', {
       Port: 80,
@@ -57,7 +57,9 @@ describe('dev: the running application (ADR 0019)', () => {
     const definitions = Object.values(template.findResources('AWS::ECS::TaskDefinition')) as { Properties: { ContainerDefinitions: { Name: string; Environment?: { Name: string; Value: unknown }[]; Secrets?: { Name: string }[] }[] } }[];
     const api = definitions.flatMap((definition) => definition.Properties.ContainerDefinitions).find((container) => container.Name === 'api');
     const environment = Object.fromEntries((api?.Environment ?? []).map((item) => [item.Name, item.Value]));
-    expect(environment).toMatchObject({ APP_ENV: 'dev', DOCUMENT_STORE: 's3', EMAIL_PROVIDER: 'ses', AI_PROVIDER: 'bedrock', MALWARE_SCANNER: 'signature', APP_WEB_ORIGIN: 'https://dev.pactlab.ai' });
+    expect(environment).toMatchObject({ APP_ENV: 'dev', DOCUMENT_STORE: 's3', EMAIL_PROVIDER: 'ses', AI_PROVIDER: 'bedrock', MALWARE_SCANNER: 'signature', APP_WEB_ORIGIN: 'https://app.dev.pactlab.ai' });
+    // Dev: new organizations are active at once, so sign-up can be tested end to end.
+    expect(environment['SIGNUP_REQUIRES_APPROVAL']).toBe('false');
     expect(Object.keys(environment).some((name) => /PASSWORD|SECRET/.test(name))).toBe(false);
     expect(api?.Secrets?.map((secret) => secret.Name).sort()).toEqual(['AUTH_TOKEN_SECRET', 'DB_PASSWORD']);
     const migrate = definitions.flatMap((definition) => definition.Properties.ContainerDefinitions).find((container) => container.Name === 'migrate');

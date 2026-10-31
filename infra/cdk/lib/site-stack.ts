@@ -11,6 +11,17 @@ export interface PactlabSiteStackProps extends StackProps {
   readonly config: SiteConfig;
   /** The static export (`apps/site/out`). */
   readonly contentDir: string;
+  /**
+   * An environment's copy of the site (dev, qa, stage): its own domain, and
+   * closed to search engines. Absent: the production site, pactlab.ai.
+   */
+  readonly environment?: {
+    readonly name: string;
+    readonly domain: string;
+    /** us-east-1 certificate for the domain, requested with the CLI (CloudFront); absent: the CloudFront address only. */
+    readonly certificateArn?: string;
+    readonly indexing: 'public' | 'none';
+  };
 }
 
 /**
@@ -52,9 +63,11 @@ export class PactlabSiteStack extends Stack {
   readonly distribution: cloudfront.Distribution;
 
   constructor(scope: Construct, id: string, props: PactlabSiteStackProps) {
-    const { config, contentDir, ...stackProps } = props;
+    const { config, contentDir, environment, ...stackProps } = props;
     super(scope, id, stackProps);
     Tags.of(this).add('pactlab:component', 'site');
+    if (environment) Tags.of(this).add('pactlab:environment', environment.name);
+    const label = environment ? environment.domain : 'pactlab.ai';
 
     this.bucket = new s3.Bucket(this, 'SiteBucket', {
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
@@ -75,7 +88,7 @@ export class PactlabSiteStack extends Stack {
     });
 
     const headers = new cloudfront.ResponseHeadersPolicy(this, 'SecurityHeaders', {
-      comment: 'pactlab.ai security headers',
+      comment: `${label} security headers`,
       securityHeadersBehavior: {
         strictTransportSecurity: {
           accessControlMaxAge: Duration.days(365),
@@ -91,22 +104,24 @@ export class PactlabSiteStack extends Stack {
         },
         contentSecurityPolicy: { contentSecurityPolicy: CONTENT_SECURITY_POLICY, override: true },
       },
+      // An environment's copy is never indexed, whatever a page says.
+      ...(environment?.indexing === 'none'
+        ? { customHeadersBehavior: { customHeaders: [{ header: 'X-Robots-Tag', value: 'noindex, nofollow', override: true }] } }
+        : {}),
     });
 
     // Requested in us-east-1 outside CloudFormation (see SiteConfig.domain).
-    const certificate = config.domain
-      ? acm.Certificate.fromCertificateArn(this, 'Certificate', config.domain.certificateArn)
-      : undefined;
+    const certificateArn = environment ? environment.certificateArn : config.domain?.certificateArn;
+    const certificate = certificateArn ? acm.Certificate.fromCertificateArn(this, 'Certificate', certificateArn) : undefined;
+    const domainNames = environment ? [environment.domain] : config.domain ? [config.domain.name, `www.${config.domain.name}`] : [];
 
     this.distribution = new cloudfront.Distribution(this, 'Distribution', {
-      comment: 'pactlab.ai marketing site',
+      comment: environment ? `Pactlab ${environment.name} site (${environment.domain})` : 'pactlab.ai marketing site',
       defaultRootObject: 'index.html',
       httpVersion: cloudfront.HttpVersion.HTTP2_AND_3,
       priceClass: cloudfront.PriceClass.PRICE_CLASS_100,
       minimumProtocolVersion: cloudfront.SecurityPolicyProtocol.TLS_V1_2_2021,
-      ...(certificate && config.domain
-        ? { certificate, domainNames: [config.domain.name, `www.${config.domain.name}`] }
-        : {}),
+      ...(certificate && domainNames.length > 0 ? { certificate, domainNames } : {}),
       defaultBehavior: {
         origin: origins.S3BucketOrigin.withOriginAccessControl(this.bucket),
         viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,

@@ -10,6 +10,7 @@ name: deploy
 #      image they run (zero tasks on a first deploy)
 #   3. migrations (one-off task); a failure stops here
 #   4. app stack again with the services on the release; wait for them; smoke test
+#   5. the environment's copy of the marketing site, built to point at this app (never indexed)
 on:
   workflow_dispatch:
     inputs:
@@ -115,3 +116,22 @@ jobs:
           ORIGIN="${{ steps.release.outputs.origin }}"
           curl --fail --silent --show-error --retry 10 --retry-delay 15 --retry-all-errors "$ORIGIN/health"
           curl --fail --silent --show-error --output /dev/null --retry 5 --retry-delay 10 --retry-all-errors "$ORIGIN/login"
+
+      # 5. The environment's own site (<env>.pactlab.ai): Sign up / Sign in go to this app (app.<env>.pactlab.ai).
+      #    Closed to search engines (robots.txt and noindex). Skipped until the environment sets SITE_DOMAIN.
+      - name: 5. Publish the environment's site
+        if: vars.SITE_DOMAIN != ''
+        env:
+          NEXT_PUBLIC_APP_URL: https://${{ vars.APP_DOMAIN }}
+          NEXT_PUBLIC_CONTACT_EMAIL: ${{ vars.SITE_CONTACT_EMAIL }}
+          NEXT_PUBLIC_SITE_INDEXING: none
+        run: |
+          pnpm --filter @pactlab/site build
+          CERT="${{ vars.SITE_CERTIFICATE_ARN }}"
+          $CDK deploy "${STACK}Site" --require-approval never ${CERT:+-c pactlab:${ENV_NAME}:siteCertificateArn=$CERT} \
+            --outputs-file "$RUNNER_TEMP/site.json"
+          SITE=$(node -e "console.log(require(process.argv[1])[process.argv[2]].SiteUrl)" "$RUNNER_TEMP/site.json" "${STACK}Site")
+          echo "Site: $SITE (custom domain: https://${{ vars.SITE_DOMAIN }} once its DNS points at it)"
+          curl --fail --silent --show-error --output /dev/null --retry 5 --retry-delay 10 --retry-all-errors "$SITE/"
+          curl --fail --silent --show-error "$SITE/robots.txt" | grep -q "Disallow: /"
+

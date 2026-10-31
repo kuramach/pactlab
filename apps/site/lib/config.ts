@@ -7,6 +7,11 @@ import { z } from 'zod';
 const schema = z.object({
   NEXT_PUBLIC_APP_URL: z.url().optional(),
   NEXT_PUBLIC_CONTACT_EMAIL: z.email().optional(),
+  /**
+   * `public` (default): the production site, open to search engines and AI assistants.
+   * `none`: an environment's copy (dev, qa, stage), never indexed.
+   */
+  NEXT_PUBLIC_SITE_INDEXING: z.enum(['public', 'none']).default('public'),
 });
 
 export interface SiteConfig {
@@ -16,6 +21,8 @@ export interface SiteConfig {
   signUpUrl: string | null;
   /** mailto: link for pilot requests. */
   contactHref: string | null;
+  /** False on an environment's copy of the site: robots.txt disallows everything and pages carry noindex. */
+  indexed: boolean;
 }
 
 export function siteConfig(source: Record<string, string | undefined> = process.env): SiteConfig {
@@ -23,6 +30,7 @@ export function siteConfig(source: Record<string, string | undefined> = process.
   const parsed = schema.parse({
     NEXT_PUBLIC_APP_URL: blankToUndefined(source['NEXT_PUBLIC_APP_URL']),
     NEXT_PUBLIC_CONTACT_EMAIL: blankToUndefined(source['NEXT_PUBLIC_CONTACT_EMAIL']),
+    NEXT_PUBLIC_SITE_INDEXING: blankToUndefined(source['NEXT_PUBLIC_SITE_INDEXING']),
   });
   return {
     loginUrl: parsed.NEXT_PUBLIC_APP_URL ? new URL('/login', parsed.NEXT_PUBLIC_APP_URL).toString() : null,
@@ -30,5 +38,6 @@ export function siteConfig(source: Record<string, string | undefined> = process.
     contactHref: parsed.NEXT_PUBLIC_CONTACT_EMAIL
       ? `mailto:${parsed.NEXT_PUBLIC_CONTACT_EMAIL}?subject=${encodeURIComponent('Pactlab pilot')}`
       : null,
+    indexed: parsed.NEXT_PUBLIC_SITE_INDEXING === 'public',
   };
 }

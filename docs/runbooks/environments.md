@@ -14,7 +14,8 @@ data-layer stack until slice 2 (T-070) adds their service blocks.
 | Web | Next.js, Fargate ARM64 | 0.25 vCPU / 0.5 GB × 1 |
 | API | NestJS, Fargate ARM64 | 0.5 vCPU / 1 GB × 1 |
 | Worker | BullMQ imports, Fargate ARM64 | 0.25 vCPU / 0.5 GB × 1 |
-| One host | `https://dev.pactlab.ai`: web; `/v1/*` and `/health` to the API | ALB + ACM certificate |
+| App host | `https://app.dev.pactlab.ai`: web; `/v1/*` and `/health` to the API | ALB + ACM certificate |
+| Site | `https://dev.pactlab.ai`: the marketing site, Sign up / Sign in go to the app; never indexed | CloudFront + S3 (as `pactlab.ai`) |
 | Data | Postgres 18 (t4g.medium), Redis (t4g.micro, TLS), S3 evidence bucket (KMS) | existing platform stack |
 | Email | Amazon SES, `no-reply@pactlab.ai` | sandbox until you request production access |
 | AI | Claude on Bedrock with the API's **task role**. No SSO, nothing expires. **Interim:** Amazon Nova until Claude access is granted (ADR 0019 addendum) | |
@@ -88,6 +89,33 @@ $CDK deploy PactlabDevRegistry PactlabDevDeployAccess
    ```
 
    Then sign in at `https://dev.pactlab.ai/login` as `you+charlie-lead@example.com`. The code arrives by email.
+
+## Each environment's site and app (2026-10-30)
+
+Every environment uses the same layout as live (ADR 0019 addendum):
+
+| Environment | Site | App |
+|---|---|---|
+| live (prod) | `pactlab.ai` (+ `www`) | `app.pactlab.ai` |
+| stage | `stage.pactlab.ai` | `app.stage.pactlab.ai` |
+| qa | `qa.pactlab.ai` | `app.qa.pactlab.ai` |
+| dev | `dev.pactlab.ai` | `app.dev.pactlab.ai` |
+
+**Moving dev to this layout (one time, operator):**
+1. **App DNS first.** At Namecheap, add a CNAME `app.dev` pointing to the load balancer, the same value as today's `dev` record.
+2. **Site certificate** (CloudFront needs it in us-east-1):
+   ```bash
+   aws acm request-certificate --region us-east-1 --domain-name dev.pactlab.ai --validation-method DNS --profile pactlab-dev
+   aws acm describe-certificate --region us-east-1 --profile pactlab-dev --certificate-arn <arn> \
+     --query 'Certificate.DomainValidationOptions[0].ResourceRecord'
+   ```
+   Add the validation CNAME at Namecheap.
+3. **GitHub Environment `dev`:** set `APP_DOMAIN=app.dev.pactlab.ai`, `SITE_DOMAIN=dev.pactlab.ai`, `SITE_CERTIFICATE_ARN=<arn>`, and optionally `SITE_CONTACT_EMAIL`.
+4. **Deploy.** The app's certificate is replaced for `app.dev.pactlab.ai`, so add its validation CNAME when ACM (us-east-2) shows it. The deploy then publishes the site and prints its CloudFront address.
+5. **Site DNS:** change the `dev` CNAME to the site's CloudFront address (`d…cloudfront.net`).
+6. **SES production access** (SES → Account dashboard) lets sign-up codes reach any address. Until then, only addresses verified in this account receive codes.
+
+Sign-up in dev is approved automatically: a new organization is active once its email is confirmed.
 
 ## Every later deploy
 
