@@ -2,6 +2,7 @@
 #   server — api, worker, and the one-off migrate and seed tasks (different commands)
 #   web    — the Next.js app as a standalone server
 # Build from the repository root:  docker build -f infra/docker/Dockerfile --target server .
+# Deploys build both images in parallel with `docker buildx bake -f infra/docker/docker-bake.hcl`.
 # Never bake secrets or .env files into an image: configuration arrives as task environment and secrets.
 
 ARG NODE_IMAGE=node:22.19.0-bookworm-slim
@@ -12,9 +13,15 @@ ENV CI=true NEXT_TELEMETRY_DISABLED=1
 RUN npm install --global --no-audit --no-fund pnpm@12.8.1 && pnpm --version
 WORKDIR /repo
 
-FROM base AS build
+# Dependencies first, from the lockfile alone: this layer is reused (from the build cache) until
+# pnpm-lock.yaml or pnpm-workspace.yaml changes, so a code-only change downloads nothing.
+FROM base AS deps
+COPY pnpm-lock.yaml pnpm-workspace.yaml ./
+RUN pnpm fetch
+
+FROM deps AS build
 COPY . .
-RUN pnpm install --frozen-lockfile \
+RUN pnpm install --frozen-lockfile --offline \
  && pnpm --filter @pactlab/db exec prisma generate
 
 FROM build AS web-build

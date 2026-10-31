@@ -5,7 +5,8 @@ name: deploy
 # AWS access is short-lived via GitHub OIDC; no stored AWS keys.
 #
 # Order, so code never runs ahead of its schema:
-#   1. registry stack, then build and push the release images (tag = commit SHA)
+#   1. registry stack, then build and push the release images (tag = commit SHA), in
+#      parallel with layers cached between runs
 #   2. app stack with the release on the one-off tasks only; services stay on the
 #      image they run (zero tasks on a first deploy)
 #   3. migrations (one-off task); a failure stops here
@@ -64,20 +65,39 @@ jobs:
 
       - uses: aws-actions/amazon-ecr-login@v2
         id: ecr
-      - name: 1. Build and push images (skipped when this commit is already pushed)
+      - uses: docker/setup-buildx-action@v3
+
+      - name: 1. Which images this commit still needs
+        id: need
         run: |
-          REGISTRY="${{ steps.ecr.outputs.registry }}"
-          ORIGIN="https://${{ vars.APP_DOMAIN }}"
+          TARGETS=""
           for IMAGE in server web; do
-            REPO="pactlab-${ENV_NAME}-${IMAGE}"
-            if aws ecr describe-images --repository-name "$REPO" --image-ids imageTag="$TAG" >/dev/null 2>&1; then
-              echo "$REPO:$TAG already pushed"; continue
+            if aws ecr describe-images --repository-name "pactlab-${ENV_NAME}-${IMAGE}" --image-ids imageTag="$TAG" >/dev/null 2>&1; then
+              echo "pactlab-${ENV_NAME}-${IMAGE}:${TAG} already pushed"
+            else
+              TARGETS="${TARGETS:+$TARGETS,}$IMAGE"
             fi
-            docker build -f infra/docker/Dockerfile --target "$IMAGE" \
-              --build-arg NEXT_PUBLIC_APP_ENV="${{ vars.APP_ENV }}" --build-arg NEXT_PUBLIC_API_ORIGIN="$ORIGIN" \
-              -t "$REGISTRY/$REPO:$TAG" .
-            docker push "$REGISTRY/$REPO:$TAG"
           done
+          echo "targets=$TARGETS" >> "$GITHUB_OUTPUT"
+
+      # Both images in one parallel build, sharing the dependency and build layers. Layers are cached in
+      # GitHub Actions' cache between runs (server: shared; web: per environment), so a code-only change
+      # skips the package download and reuses everything that did not change. See infra/docker/docker-bake.hcl.
+      - name: 1. Build and push images (parallel, cached)
+        if: steps.need.outputs.targets != ''
+        uses: docker/bake-action@v6
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+          ENV_NAME: ${{ env.ENV_NAME }}
+          TAG: ${{ env.TAG }}
+          APP_ENV: ${{ vars.APP_ENV }}
+          ORIGIN: https://${{ vars.APP_DOMAIN }}
+          CACHE: gha
+        with:
+          source: .
+          files: infra/docker/docker-bake.hcl
+          targets: ${{ steps.need.outputs.targets }}
+          push: true
 
       - name: 2. Ship the release to the one-off tasks (services stay on their current image)
         run: |
@@ -85,7 +105,7 @@ jobs:
             --query "Stacks[0].Outputs[?OutputKey=='ServiceImageTag'].OutputValue" --output text 2>/dev/null || true)
           if [ -z "$CURRENT" ] || [ "$CURRENT" = "None" ]; then CURRENT=none; fi
           echo "Services stay on: $CURRENT"
-          $CDK diff "$STACK" -c pactlab:${ENV_NAME}:serviceImageTag="$CURRENT" || true
+          $CDK diff "$STACK" --method=template -c pactlab:${ENV_NAME}:serviceImageTag="$CURRENT" || true
           $CDK deploy "$STACK" --require-approval never -c pactlab:${ENV_NAME}:serviceImageTag="$CURRENT" \
             --outputs-file "$RUNNER_TEMP/outputs.json"
 
