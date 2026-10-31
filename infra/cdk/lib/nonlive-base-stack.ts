@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { CfnOutput, Stack, Tags, type StackProps } from 'aws-cdk-lib';
 import * as acm from 'aws-cdk-lib/aws-certificatemanager';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
@@ -5,12 +6,46 @@ import * as elasticache from 'aws-cdk-lib/aws-elasticache';
 import * as elbv2 from 'aws-cdk-lib/aws-elasticloadbalancingv2';
 import type { Construct } from 'constructs';
 
+/**
+ * NAT on Amazon Linux 2023. CDK's default script finds the outbound interface
+ * with `route`, which AL2023 does not ship, so no MASQUERADE rule is ever
+ * added and nothing gets out. This one uses `ip route` and fails loudly.
+ */
+export const NAT_USER_DATA_COMMANDS = [
+  'set -euo pipefail',
+  'dnf install -y iptables-services',
+  'systemctl enable --now iptables',
+  'echo "net.ipv4.ip_forward=1" > /etc/sysctl.d/custom-ip-forwarding.conf',
+  'sysctl -p /etc/sysctl.d/custom-ip-forwarding.conf',
+  "IFACE=$(ip route show default | awk '{print $5; exit}')",
+  'test -n "$IFACE"',
+  'iptables -t nat -A POSTROUTING -o "$IFACE" -j MASQUERADE',
+  'iptables -F FORWARD',
+  'service iptables save',
+];
+
 /** The NAT instance non-live environments use instead of a managed NAT gateway (about $3–4 a month, not about $33). */
 export function natInstanceProvider(): ec2.NatInstanceProviderV2 {
+  const userData = ec2.UserData.forLinux();
+  userData.addCommands(...NAT_USER_DATA_COMMANDS);
   return ec2.NatProvider.instanceV2({
     instanceType: new ec2.InstanceType('t4g.nano'),
     machineImage: ec2.MachineImage.latestAmazonLinux2023({ cpuType: ec2.AmazonLinuxCpuType.ARM_64 }),
+    userData,
+    // Nothing from the internet may open a connection to the NAT instance; only the VPC's own traffic (below) comes in.
+    defaultAllowedTraffic: ec2.NatTrafficDirection.OUTBOUND_ONLY,
   });
+}
+
+/** A changed start-up script runs only on a new instance: tie each NAT instance's identity to its script. */
+function replaceNatInstancesOnScriptChange(vpc: ec2.Vpc): void {
+  const digest = createHash('sha256').update(NAT_USER_DATA_COMMANDS.join('\n')).digest('hex').slice(0, 8);
+  for (const subnet of vpc.publicSubnets) {
+    const instance = subnet.node.tryFindChild('NatInstance') as ec2.Instance | undefined;
+    if (!instance) continue;
+    const cfn = instance.node.defaultChild as ec2.CfnInstance;
+    cfn.overrideLogicalId(`${Stack.of(vpc).getLogicalId(cfn)}${digest}`);
+  }
 }
 
 /** A VPC with Pactlab's three tiers: public, app (outbound through NAT) and data (isolated). */
@@ -28,6 +63,7 @@ export function pactlabVpc(scope: Construct, id: string, network: { maxAzs: numb
   });
   // The NAT instance forwards the private subnets' outbound traffic; it must accept it from inside the VPC.
   instance?.connections.allowFrom(ec2.Peer.ipv4(vpc.vpcCidrBlock), ec2.Port.allTraffic(), 'VPC outbound through the NAT instance');
+  if (instance) replaceNatInstancesOnScriptChange(vpc);
   vpc.addFlowLog('FlowLog');
   return vpc;
 }
