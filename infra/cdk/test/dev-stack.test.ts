@@ -30,6 +30,9 @@ describe('dev on the shared non-live base', () => {
     expect(script).toContain('ip route show default');
     expect(script).toContain('MASQUERADE');
     expect(script).not.toContain('$(route ');
+    // The package install runs out of memory on a t4g.nano without swap.
+    expect(script.indexOf('swapon')).toBeGreaterThan(-1);
+    expect(script.indexOf('swapon')).toBeLessThan(script.indexOf('dnf install'));
     const ingress = JSON.stringify(Object.values(base.findResources('AWS::EC2::SecurityGroup')).map((group) => (group as { Properties: { SecurityGroupIngress?: unknown } }).Properties.SecurityGroupIngress));
     // The NAT instance admits the VPC's own range (its CIDR, by reference) and nothing else.
     expect(ingress).toContain('CidrBlock');
