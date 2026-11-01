@@ -9,11 +9,15 @@ import type { Construct } from 'constructs';
 /**
  * NAT on Amazon Linux 2023. CDK's default script finds the outbound interface
  * with `route`, which AL2023 does not ship, so no MASQUERADE rule is ever
- * added and nothing gets out. This one uses `ip route` and fails loudly.
+ * added and nothing gets out. This one uses `ip route`, gives the 0.5 GB
+ * instance swap so the package install is not killed, and fails loudly.
  */
 export const NAT_USER_DATA_COMMANDS = [
   'set -euo pipefail',
-  'dnf install -y iptables-services',
+  // A t4g.nano has 0.5 GB; dnf's repository metadata alone gets it OOM-killed. Swap first.
+  'if [ ! -f /swapfile ]; then fallocate -l 1G /swapfile && chmod 600 /swapfile && mkswap /swapfile; fi',
+  'swapon /swapfile || true',
+  'dnf install -y --setopt=install_weak_deps=False iptables-services',
   'systemctl enable --now iptables',
   'echo "net.ipv4.ip_forward=1" > /etc/sysctl.d/custom-ip-forwarding.conf',
   'sysctl -p /etc/sysctl.d/custom-ip-forwarding.conf',
