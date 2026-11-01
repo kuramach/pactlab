@@ -24,6 +24,20 @@ describe('dev on the shared non-live base', () => {
     base.hasResourceProperties('AWS::ElastiCache::ReplicationGroup', { CacheNodeType: 'cache.t4g.micro', AtRestEncryptionEnabled: true, TransitEncryptionEnabled: true });
   });
 
+  it('runs a NAT instance that forwards on Amazon Linux 2023 and accepts nothing from the internet', () => {
+    const instance = Object.values(base.findResources('AWS::EC2::Instance'))[0] as { Properties: { UserData: { 'Fn::Base64': string } } };
+    const script = JSON.stringify(instance.Properties.UserData);
+    expect(script).toContain('ip route show default');
+    expect(script).toContain('MASQUERADE');
+    expect(script).not.toContain('$(route ');
+    const ingress = JSON.stringify(Object.values(base.findResources('AWS::EC2::SecurityGroup')).map((group) => (group as { Properties: { SecurityGroupIngress?: unknown } }).Properties.SecurityGroupIngress));
+    // The NAT instance admits the VPC's own range (its CIDR, by reference) and nothing else.
+    expect(ingress).toContain('CidrBlock');
+    // Only the load balancer accepts traffic from anywhere, and only on 80 and 443.
+    const open = Object.values(base.findResources('AWS::EC2::SecurityGroup')).flatMap((group) => ((group as { Properties: { SecurityGroupIngress?: { CidrIp?: string; IpProtocol: string; FromPort?: number }[] } }).Properties.SecurityGroupIngress ?? []).filter((rule) => rule.CidrIp === '0.0.0.0/0'));
+    expect(open.map((rule) => rule.FromPort).sort()).toEqual([443, 80]);
+  });
+
   it('uses its own Redis logical database: dev /0, qa /1', () => {
     const redisUrl = (environment: typeof devConfig) => {
       const { stack } = platformStack(environment, { imageTag: 'abc1234' });
