@@ -114,7 +114,7 @@ describe('dev: the running application (ADR 0019)', () => {
 });
 
 describe('environments without a service block', () => {
-  it.each(['qa', 'stage', 'prod'] as const)('%s has the data layer only (slice 2 adds its service)', (name) => {
+  it.each(['stage', 'prod'] as const)('%s has the data layer only (slice 2 adds its service)', (name) => {
     const template = platformStack(ENVIRONMENTS[name]).template;
     template.resourceCountIs('AWS::ECS::Service', 0);
     template.resourceCountIs('AWS::ElasticLoadBalancingV2::LoadBalancer', 0);
@@ -149,3 +149,30 @@ describe('environment deploy access', () => {
     expect(policy).not.toContain('pactlab-prod');
   });
 });
+
+describe('qa on the shared base, beside dev', () => {
+  const { template, baseTemplate } = platformStack(ENVIRONMENTS.qa, { imageTag: 'abc1234' });
+
+  it('serves only app.qa, in its own priority block, wake rule included', () => {
+    for (const [priority, values] of [
+      [210, ['app.qa.pactlab.ai']],
+      [220, ['app.qa.pactlab.ai']],
+      [201, ['app.qa.pactlab.ai']],
+    ] as const) {
+      template.hasResourceProperties('AWS::ElasticLoadBalancingV2::ListenerRule', { Priority: priority, Conditions: Match.arrayWith([{ Field: 'host-header', HostHeaderConfig: { Values: values } }]) });
+    }
+    expect(JSON.stringify(template.findResources('AWS::ElasticLoadBalancingV2::ListenerRule'))).not.toContain('app.dev.pactlab.ai');
+  });
+
+  it('sends as the SES identity dev holds in the same account, without creating a second', () => {
+    template.resourceCountIs('AWS::SES::EmailIdentity', 0);
+    expect(JSON.stringify(template.findResources('AWS::IAM::Policy'))).toContain('identity/pactlab.ai');
+    platformStack(devConfig, { imageTag: 'abc1234' }).template.resourceCountIs('AWS::SES::EmailIdentity', 1);
+  });
+
+  it('puts both app hosts on the shared listener', () => {
+    baseTemplate?.hasResourceProperties('AWS::CertificateManager::Certificate', { DomainName: 'app.dev.pactlab.ai' });
+    baseTemplate?.hasResourceProperties('AWS::CertificateManager::Certificate', { DomainName: 'app.qa.pactlab.ai' });
+  });
+});
+

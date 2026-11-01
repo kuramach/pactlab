@@ -87,7 +87,12 @@ export interface ServiceConfig {
   readonly api: TaskSize;
   readonly worker: TaskSize;
   /** SES: the verified domain identity, and the sender used for sign-in and invitation email. */
-  readonly email: { readonly identityDomain: string; readonly from: string };
+  /**
+   * `identityOwner: false`: another environment in the same account already
+   * holds the SES identity (an account holds a domain identity once); this one
+   * only sends as it.
+   */
+  readonly email: { readonly identityDomain: string; readonly from: string; readonly identityOwner?: boolean };
   /**
    * `signature`: the built-in scanner (dev and qa only; enforced by the app's
    * config schema too). Stage and production need a managed scanner (slice 2).
