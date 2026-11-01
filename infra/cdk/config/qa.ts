@@ -24,4 +24,23 @@ export const qaConfig: EnvironmentConfig = {
   // Only production runs all the time: this environment pauses after an hour without use.
   idlePause: { idleMinutes: 60 },
   featureFlags: { pilotMode: true, liveConnectors: false },
+  // Same shape as dev and live: site at qa.pactlab.ai, app at app.qa.pactlab.ai, on the shared non-live base.
+  service: {
+    domain: 'app.qa.pactlab.ai',
+    web: { cpu: 256, memoryMiB: 512, desiredCount: 1 },
+    api: { cpu: 512, memoryMiB: 1024, desiredCount: 1 },
+    worker: { cpu: 256, memoryMiB: 512, desiredCount: 1 },
+    // dev's stack holds the pactlab.ai SES identity in this account; qa sends as it.
+    email: { identityDomain: 'pactlab.ai', from: 'Pactlab <no-reply@pactlab.ai>', identityOwner: false },
+    malwareScanner: 'signature',
+    // INTERIM, as dev (2026-10-30): Amazon Nova until Claude access is granted; remove `modelOverrides` then.
+    bedrock: {
+      foundationModels: ['anthropic.claude-*', 'amazon.nova-*'],
+      inferenceProfiles: ['us.anthropic.claude-*', 'us.amazon.nova-*'],
+      modelOverrides: { balanced: 'us.amazon.nova-pro-v1:0', deep_review: 'us.amazon.nova-pro-v1:0', fast: 'us.amazon.nova-lite-v1:0' },
+    },
+    // Dev and qa: new organizations are active at once, so sign-up can be tested end to end.
+    signupRequiresApproval: false,
+  },
+  site: { domain: 'qa.pactlab.ai', indexing: 'none' },
 };

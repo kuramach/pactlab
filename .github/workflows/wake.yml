@@ -8,7 +8,7 @@ on:
       environment:
         description: Environment to wake
         type: choice
-        options: [dev]
+        options: [dev, qa]
         required: true
 
 permissions:

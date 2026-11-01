@@ -186,7 +186,8 @@ export class PactlabCompute extends Construct {
     );
     // Foresight voice (Transcribe streaming and Polly) has no resource-level scoping.
     this.roles.api.addToPolicy(new iam.PolicyStatement({ sid: 'Voice', actions: ['transcribe:StartStreamTranscription', 'polly:SynthesizeSpeech'], resources: ['*'] }));
-    const identity = new ses.EmailIdentity(this, 'EmailIdentity', { identity: ses.Identity.domain(service.email.identityDomain) });
+    // An account holds a domain identity once: the owning environment creates it, others in the account send as it.
+    const identity = service.email.identityOwner === false ? null : new ses.EmailIdentity(this, 'EmailIdentity', { identity: ses.Identity.domain(service.email.identityDomain) });
     this.roles.api.addToPolicy(
       new iam.PolicyStatement({
         sid: 'SendSignInEmail',
@@ -343,6 +344,6 @@ export class PactlabCompute extends Construct {
     };
     // Stack-level outputs with fixed names, read by the deploy workflow.
     for (const [name, value] of Object.entries(outputs)) new CfnOutput(stack, name, { value });
-    identity.dkimRecords.forEach((record, index) => new CfnOutput(stack, `SesDkimRecord${index + 1}`, { value: `${record.name} CNAME ${record.value}` }));
+    identity?.dkimRecords.forEach((record, index) => new CfnOutput(stack, `SesDkimRecord${index + 1}`, { value: `${record.name} CNAME ${record.value}` }));
   }
 }

@@ -46,7 +46,9 @@ for (const name of ENVIRONMENT_NAMES) {
   const imageTag = app.node.tryGetContext(`pactlab:${name}:imageTag`) as string | undefined;
   // Bound to an account without a tag, the application stack is left out (so it cannot be deployed by mistake
   // with no image); its registry and deploy access can still be deployed first.
-  const withoutApp = Boolean(config.service && declared && !imageTag);
+  // An environment bound only through the shared base (its neighbour is the one being deployed) is still synthesized,
+  // so the base keeps the exports that environment's deployed stack uses; it is never the stack being deployed.
+  const withoutApp = Boolean(config.service && own && !imageTag);
   if (config.service) new PactlabRegistryStack(app, `${stackId}Registry`, { config, ...env });
   if (config.service) {
     // An account that already holds GitHub's OIDC provider (PactLab Dev holds the site's) reuses it:

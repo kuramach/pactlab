@@ -18,7 +18,7 @@ on:
       environment:
         description: Environment to deploy
         type: choice
-        options: [dev]
+        options: [dev, qa]
         required: true
 
 permissions:
