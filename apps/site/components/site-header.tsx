@@ -61,7 +61,7 @@ function MegaMenu({ href, active }: { href: string; active: boolean }) {
   return (
     <details ref={ref} className="group relative [&_summary::-webkit-details-marker]:hidden">
       <summary
-        className={`flex cursor-pointer list-none items-center gap-1 rounded-md px-3 py-2 text-sm font-semibold hover:text-navy ${
+        className={`flex cursor-pointer list-none items-center gap-1 whitespace-nowrap rounded-md px-3 py-2 text-sm font-semibold hover:text-navy ${
           active ? 'text-indigo-ink' : 'text-navy/75'
         }`}
       >
@@ -116,11 +116,12 @@ export function SiteHeader({
         </p>
       </div>
       <header className="sticky top-0 z-40 border-b border-navy/10 bg-white/95 backdrop-blur">
-        <nav aria-label="Primary" className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-6 py-3">
+        {/* The full menu needs about 1,150px: it shows from xl (1,280px); below that, the compact menu. Labels never wrap. */}
+        <nav aria-label="Primary" className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-6 py-3">
           <Link href="/" aria-label="Pactlab home" className="shrink-0">
             <Lockup withTagline />
           </Link>
-          <div className="hidden items-center gap-1 lg:flex">
+          <div className="hidden items-center gap-1 xl:flex">
             {NAV.map((item) =>
               MENUS[item.href] ? (
                 <MegaMenu key={item.href} href={item.href} active={isActive(pathname, item.href)} />
@@ -129,31 +130,31 @@ export function SiteHeader({
                   key={item.href}
                   href={item.href}
                   aria-current={isActive(pathname, item.href) ? 'page' : undefined}
-                  className="rounded-md px-3 py-2 text-sm font-semibold text-navy/75 hover:text-navy aria-[current=page]:text-indigo-ink"
+                  className="whitespace-nowrap rounded-md px-3 py-2 text-sm font-semibold text-navy/75 hover:text-navy aria-[current=page]:text-indigo-ink"
                 >
                   {item.label}
                 </Link>
               ),
             )}
           </div>
-          <div className="hidden items-center gap-2 lg:flex">
+          <div className="hidden shrink-0 items-center gap-2 xl:flex">
             {loginUrl ? (
-              <a href={loginUrl} className="rounded-md px-3 py-2 text-sm font-semibold text-navy/75 hover:text-navy">
+              <a href={loginUrl} className="whitespace-nowrap rounded-md px-3 py-2 text-sm font-semibold text-navy/75 hover:text-navy">
                 Log in
               </a>
             ) : null}
             {signUpUrl ? (
-              <a href={signUpUrl} className="rounded-lg border border-navy/20 px-4 py-2 text-sm font-bold text-navy hover:border-navy">
+              <a href={signUpUrl} className="whitespace-nowrap rounded-lg border border-navy/20 px-4 py-2 text-sm font-bold text-navy hover:border-navy">
                 Sign up
               </a>
             ) : null}
             {contactHref ? (
-              <a href={contactHref} className="rounded-lg bg-navy px-4 py-2 text-sm font-bold text-white hover:bg-indigo hover:text-navy">
+              <a href={contactHref} className="whitespace-nowrap rounded-lg bg-navy px-4 py-2 text-sm font-bold text-white hover:bg-indigo hover:text-navy">
                 Talk to us
               </a>
             ) : null}
           </div>
-          <details ref={mobile} className="relative lg:hidden [&_summary::-webkit-details-marker]:hidden">
+          <details ref={mobile} className="relative xl:hidden [&_summary::-webkit-details-marker]:hidden">
             <summary aria-label="Menu" className="flex cursor-pointer list-none items-center rounded-lg border border-navy/20 p-2">
               <Menu aria-hidden className="h-5 w-5" />
             </summary>
