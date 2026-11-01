@@ -133,7 +133,7 @@ Only production runs all the time. Every other environment pauses after **an hou
 ```
 aws ssm get-parameter --name /pactlab/dev/power --profile pactlab-dev --region us-east-2 --query Parameter.Value --output text
 ```
-It returns `awake`, `paused` or `waking`. The Step Functions console shows each pause and wake under `pactlab-dev-pause` and `pactlab-dev-wake`.
+It returns `awake`, `paused` or `waking`. The Step Functions console shows each wake under `pactlab-dev-wake`. Pauses come from the idle check (Lambda `…IdlePausePowerSteps…`, every 5 minutes), whose logs say why it did or didn't pause.
 
 AWS restarts a stopped database after 7 days. A daily run stops it again while the environment is still paused.
 

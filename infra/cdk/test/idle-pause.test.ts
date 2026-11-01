@@ -22,22 +22,14 @@ describe('only production runs all the time (ADR 0019)', () => {
 
   const template = platformStack(devConfig, { imageTag: 'abc1234' }).template;
 
-  it('pauses on an hour without API requests, and keeps a paused database stopped daily', () => {
-    template.hasResourceProperties('AWS::CloudWatch::Alarm', {
-      MetricName: 'RequestCount',
-      Namespace: 'AWS/ApplicationELB',
-      Statistic: 'Sum',
-      Period: 300,
-      EvaluationPeriods: 12,
-      Threshold: 1,
-      ComparisonOperator: 'LessThanThreshold',
-      TreatMissingData: 'breaching',
-    });
-    template.hasResourceProperties('AWS::Events::Rule', { EventPattern: Match.objectLike({ 'detail-type': ['CloudWatch Alarm State Change'] }) });
-    template.hasResourceProperties('AWS::Events::Rule', { ScheduleExpression: 'rate(1 day)' });
-    template.hasResourceProperties('AWS::StepFunctions::StateMachine', { StateMachineName: 'pactlab-dev-pause' });
+  it('checks every 5 minutes for an hour without API requests, and keeps a paused database stopped daily', () => {
+    template.resourceCountIs('AWS::CloudWatch::Alarm', 0);
+    template.hasResourceProperties('AWS::Events::Rule', { ScheduleExpression: 'rate(5 minutes)', Targets: [Match.objectLike({ Input: JSON.stringify({ step: 'checkIdle' }) })] });
+    template.hasResourceProperties('AWS::Events::Rule', { ScheduleExpression: 'rate(1 day)', Targets: [Match.objectLike({ Input: JSON.stringify({ step: 'keepStopped' }) })] });
+    template.resourceCountIs('AWS::StepFunctions::StateMachine', 1);
     template.hasResourceProperties('AWS::StepFunctions::StateMachine', { StateMachineName: 'pactlab-dev-wake' });
     template.hasResourceProperties('AWS::SSM::Parameter', { Name: '/pactlab/dev/power', Value: 'awake' });
+    template.hasResourceProperties('AWS::Lambda::Function', { Environment: { Variables: Match.objectLike({ IDLE_MINUTES: '60' }) } });
   });
 
   it('puts the wake page first, on a path nothing uses until the environment pauses', () => {
@@ -68,7 +60,7 @@ describe('only production runs all the time (ADR 0019)', () => {
 });
 
 /** A fake of the AWS calls, recording what each step did. */
-function fakeAws(state: { power: string; db: string; healthy?: number }) {
+function fakeAws(state: { power: string; db: string; healthy?: number; changedAt?: number; requests?: number }) {
   const calls: string[] = [];
   return {
     calls,
@@ -92,17 +84,40 @@ function fakeAws(state: { power: string; db: string; healthy?: number }) {
       },
       databaseStatus: async () => state.db,
       healthyTargets: async () => state.healthy ?? 0,
-      resetAlarm: async () => void calls.push('alarm reset'),
+      getPowerState: async () => ({ value: state.power, changedAt: state.changedAt ?? 0 }),
+      apiRequests: async () => state.requests ?? 0,
     },
   };
 }
-const ENV = { SERVICES: JSON.stringify([{ name: 'web', desiredCount: 1 }, { name: 'api', desiredCount: 1 }, { name: 'worker', desiredCount: 1 }]), TARGET_GROUPS: JSON.stringify(['tg-web', 'tg-api']), RULE_ARN: 'rule', POWER_PARAMETER: 'p', DB_INSTANCE: 'db', CLUSTER: 'c', ALARM_NAME: 'a' };
+const ENV = { IDLE_MINUTES: '60', SERVICES: JSON.stringify([{ name: 'web', desiredCount: 1 }, { name: 'api', desiredCount: 1 }, { name: 'worker', desiredCount: 1 }]), TARGET_GROUPS: JSON.stringify(['tg-web', 'tg-api']), RULE_ARN: 'rule', POWER_PARAMETER: 'p', DB_INSTANCE: 'db', CLUSTER: 'c', ALARM_NAME: 'a' };
 
 describe('pause and wake steps', () => {
   it('pauses an awake environment: wake page first, services to zero, database stopped', async () => {
     const fake = fakeAws({ power: 'awake', db: 'available' });
     expect(await makeSteps(fake.aws, ENV)['pause']?.()).toEqual({ paused: true });
     expect(fake.calls).toEqual([`route ${EVERYTHING}`, 'web=0', 'api=0', 'worker=0', 'db stop', 'power=paused']);
+  });
+
+  it('pauses only after a full idle window: never right after a wake, never while in use', async () => {
+    const hour = 60 * 60_000;
+    const justWoke = fakeAws({ power: 'awake', db: 'available', changedAt: Date.now() - 2 * 60_000, requests: 0 });
+    expect(await makeSteps(justWoke.aws, ENV)['checkIdle']?.()).toEqual({ paused: false, reason: 'recently awake' });
+    expect(justWoke.calls).toEqual([]);
+    const inUse = fakeAws({ power: 'awake', db: 'available', changedAt: Date.now() - 2 * hour, requests: 3 });
+    expect(await makeSteps(inUse.aws, ENV)['checkIdle']?.()).toEqual({ paused: false, reason: 'in use' });
+    const idle = fakeAws({ power: 'awake', db: 'available', changedAt: Date.now() - 2 * hour, requests: 0 });
+    expect(await makeSteps(idle.aws, ENV)['checkIdle']?.()).toEqual({ paused: true });
+    const paused = fakeAws({ power: 'paused', db: 'stopped', changedAt: 0 });
+    expect(await makeSteps(paused.aws, ENV)['checkIdle']?.()).toEqual({ paused: false, reason: 'paused' });
+  });
+
+  it('restarts a database that was still stopping when the wake began', async () => {
+    const fake = fakeAws({ power: 'paused', db: 'stopping' });
+    const steps = makeSteps(fake.aws, ENV);
+    await steps['startWake']?.();
+    fake.state.db = 'stopped';
+    expect(await steps['databaseReady']?.()).toEqual({ ready: false });
+    expect(fake.calls.filter((call) => call === 'db start')).toHaveLength(2);
   });
 
   it('never pauses twice, nor mid-wake', async () => {
@@ -125,7 +140,7 @@ describe('pause and wake steps', () => {
     fake.state.healthy = 1;
     expect(await steps['targetsHealthy']?.()).toEqual({ healthy: true });
     await steps['finishWake']?.();
-    expect(fake.calls).toEqual(['power=waking', 'db start', 'web=1', 'api=1', 'worker=1', `route ${NEVER}`, 'power=awake', 'alarm reset']);
+    expect(fake.calls).toEqual(['power=waking', 'db start', 'web=1', 'api=1', 'worker=1', `route ${NEVER}`, 'power=awake']);
   });
 
   it('stops a paused database that AWS restarted, and leaves an awake one alone', async () => {
