@@ -24,6 +24,7 @@ import {
 import {
   CONNECT_METHODS,
   deriveTransactionType,
+  isReleasedCompanyType,
   sourceKindForProvider,
   sourcesFor,
   type PartyRole,
@@ -32,7 +33,7 @@ import {
   phaseOf,
 } from '@pactlab/domain';
 import { DealAccess } from '../deals/deal-access';
-import { PRISMA } from '../tokens';
+import { PACK_RELEASE, PRISMA } from '../tokens';
 
 function toPartyView(party: DealPartyRecord): DealPartyView {
   return { ...party, updatedAt: party.updatedAt.toISOString() };
@@ -57,6 +58,7 @@ export class PactsService {
   constructor(
     @Inject(PRISMA) private readonly prisma: PrismaClient,
     @Inject(DealAccess) private readonly access: DealAccess,
+    @Inject(PACK_RELEASE) private readonly release: { readonly preview: boolean },
   ) {}
 
   /** Any active organization member may start a Pact; they become its DEAL_LEAD. */
@@ -65,6 +67,10 @@ export class PactsService {
     const transactionType = deriveTransactionType(command.buyer ?? { ownership: 'PRIVATE' }, command.seller);
     // Guests work inside the pacts they were invited to; they never start one in another organization (ADR 0014).
     if (tenant.organizationRole === 'GUEST') throw new ForbiddenException();
+    // Packs launch one at a time (Kumar, 2026-11-01): outside preview, only released company types start a pact.
+    if (!this.release.preview && !isReleasedCompanyType(command.seller.companyType ?? 'OTHER')) {
+      throw new UnprocessableEntityException({ code: 'PACK_NOT_RELEASED' });
+    }
     if (command.linkedSale) {
       const sale = command.linkedSale;
       const [won, existing] = await withTenant(this.prisma, tenant, async (tx) => [

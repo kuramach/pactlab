@@ -64,6 +64,15 @@ function deployedStorageRules(value: { APP_ENV: AppEnvironment; DOCUMENT_STORE?:
   }
 }
 
+/**
+ * Unreleased packs (Kumar, 2026-11-01): previewable where they are tested
+ * (local, test, dev, qa), hidden in stage and production. `PACK_PREVIEW`
+ * overrides the default either way.
+ */
+export function packPreviewEnabled(appEnv: AppEnvironment, setting: 'true' | 'false' | undefined): boolean {
+  return setting ? setting === 'true' : ['local', 'test', 'dev', 'qa'].includes(appEnv);
+}
+
 /** True when the deployment has Auth0 configured. */
 export function auth0Configured(env: { AUTH0_DOMAIN?: string | undefined }): boolean {
   return env.AUTH0_DOMAIN !== undefined;
@@ -115,6 +124,8 @@ export const apiEnvSchema = baseEnvSchema.extend({
   ),
   /** Allow synthetic GitHub/Jira test connections. Default: on for local, test, dev and qa; off for stage and production. */
   ALLOW_FIXTURE_CONNECTIONS: unsetIfBlank(z.enum(['true', 'false']).optional()),
+  /** Offer unreleased packs when starting a pact. Default: on for local, test, dev and qa; off for stage and production. */
+  PACK_PREVIEW: unsetIfBlank(z.enum(['true', 'false']).optional()),
   /** Published macro forecasts for Foresight (T-094 B10): `imf` reads the IMF DataMapper API (public, no key); `fixture` uses invented series (tests, offline). */
   MACRO_FORECAST_SOURCE: unsetIfBlank(z.enum(['imf', 'fixture']).default('imf')),
   /** Model provider for document AI: `none` keeps AI off; `bedrock` calls Claude on Amazon Bedrock. */

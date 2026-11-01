@@ -34,7 +34,7 @@ import { MetricsModule } from './metrics/metrics.module';
 import { PactsModule } from './pacts/pacts.module';
 import { PrismaValuationRepository } from './valuation/prisma-valuation.repository';
 import { ValuationModule } from './valuation/valuation.module';
-import { IDENTITY_VERIFIER, LOGGER, PRISMA } from './tokens';
+import { IDENTITY_VERIFIER, LOGGER, PACK_RELEASE, PRISMA } from './tokens';
 import { PROVIDER_DEPENDENCIES, providerDependencies, type ProviderSettings } from './connections/provider-dependencies';
 import type { PackRegistry } from './findings/pack-rules';
 import { FixtureMacroForecastProvider, type MacroForecastProvider } from '@pactlab/connectors';
@@ -74,6 +74,8 @@ export interface AppDependencies {
   signup?: { requiresApproval?: boolean; operatorEmail?: string | null; loginUrl: string };
   /** Shown to operators so they always know which environment the console is looking at. */
   environment?: string;
+  /** Whether unreleased packs may be started (default: yes, as in local runs and tests). */
+  packPreview?: boolean;
   appVersion?: string;
   /** Foresight voice (Amazon Transcribe and Polly). Omitted: voice is unavailable; typing works. */
   voice?: { speechToText: SpeechToText; textToSpeech: TextToSpeech };
@@ -95,9 +97,10 @@ class InfrastructureModule {
         { provide: PRISMA, useValue: deps.prisma },
         { provide: IDENTITY_VERIFIER, useValue: identityVerifier },
         { provide: LOGGER, useValue: deps.logger },
+        { provide: PACK_RELEASE, useValue: { preview: deps.packPreview ?? true } },
         { provide: PROVIDER_DEPENDENCIES, useValue: providerDependencies(deps.providers) },
       ],
-      exports: [PRISMA, IDENTITY_VERIFIER, LOGGER, PROVIDER_DEPENDENCIES],
+      exports: [PRISMA, IDENTITY_VERIFIER, LOGGER, PACK_RELEASE, PROVIDER_DEPENDENCIES],
     };
   }
 }
