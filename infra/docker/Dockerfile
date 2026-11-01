@@ -37,8 +37,11 @@ RUN test -n "$NEXT_PUBLIC_APP_ENV" && test -n "$NEXT_PUBLIC_API_ORIGIN" \
 # --- server: api / worker / migrate / seed ---------------------------------
 FROM build AS server
 # TLS to RDS is verified against Amazon's published certificate bundle.
-ADD --chmod=644 https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem /etc/pactlab/rds-ca-bundle.pem
-RUN chown -R node:node /repo/apps/api /repo/apps/worker
+ADD https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem /etc/pactlab/rds-ca-bundle.pem
+# Readable by the non-root user the tasks run as (ADD's own --chmod is not applied by every builder), and checked.
+RUN chmod 755 /etc/pactlab && chmod 644 /etc/pactlab/rds-ca-bundle.pem \
+ && grep -q "BEGIN CERTIFICATE" /etc/pactlab/rds-ca-bundle.pem \
+ && chown -R node:node /repo/apps/api /repo/apps/worker
 USER node
 ENV NODE_ENV=production
 EXPOSE 4000
