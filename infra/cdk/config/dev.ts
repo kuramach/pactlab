@@ -32,13 +32,13 @@ export const devConfig: EnvironmentConfig = {
     worker: { cpu: 256, memoryMiB: 512, desiredCount: 1 },
     email: { identityDomain: 'pactlab.ai', from: 'Pactlab <no-reply@pactlab.ai>' },
     malwareScanner: 'signature',
-    // The app's default routes are US cross-Region inference profiles for Claude (packages/ai/src/models.ts).
-    // INTERIM (2026-10-30, Kumar): Claude access for this account is pending with AWS, so dev runs on
-    // Amazon Nova until it is granted. Remove `modelOverrides` and the Nova patterns to return to Claude.
+    // The app's default routes are the Claude 5.5 models (packages/ai/src/models.ts), which AWS has not yet
+    // enabled for this account (2026-11-02; neither the Claude 5 family nor Opus 4.7/4.8 are). Until it does,
+    // the newest Claude models it can call. Remove `modelOverrides` once the defaults answer `pnpm ai:check`.
     bedrock: {
-      foundationModels: ['anthropic.claude-*', 'amazon.nova-*'],
-      inferenceProfiles: ['us.anthropic.claude-*', 'us.amazon.nova-*'],
-      modelOverrides: { balanced: 'us.amazon.nova-pro-v1:0', deep_review: 'us.amazon.nova-pro-v1:0', fast: 'us.amazon.nova-lite-v1:0' },
+      foundationModels: ['anthropic.claude-*'],
+      inferenceProfiles: ['us.anthropic.claude-*'],
+      modelOverrides: { balanced: 'us.anthropic.claude-sonnet-4-6', deep_review: 'us.anthropic.claude-opus-4-6-v1', fast: 'us.anthropic.claude-haiku-4-5-20251001-v1:0' },
     },
     // Dev and qa: new organizations are active at once, so sign-up can be tested end to end.
     signupRequiresApproval: false,

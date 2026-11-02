@@ -202,3 +202,15 @@ waited for a database that never came.
 - **The wake recovers from a database that was still stopping.** If the
   database has stopped, the wake starts it again instead of waiting forever.
 
+## Addendum (2026-11-02): Claude replaces Nova in dev and qa
+
+Claude is now callable from the PactLab Dev account (the Anthropic use-case
+form is on file), but not every model: the app's default routes (Sonnet,
+Opus and Haiku 5.5), the rest of the Claude 5 family and Opus 4.7/4.8 return
+"not available for this account". Until AWS enables them, dev and qa route
+`balanced` to Sonnet 4.6, `deep_review` to Opus 4.6 and `fast` to Haiku 4.5
+through `BEDROCK_MODEL_*` overrides, and the task role may call Claude only
+(the Nova patterns are removed). The prompts were written for Claude, so the
+Nova caveats above no longer apply. Remove `modelOverrides` in
+`infra/cdk/config/{dev,qa}.ts` once `pnpm ai:check` passes on the defaults.
+
