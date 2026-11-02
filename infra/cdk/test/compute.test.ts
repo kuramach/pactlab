@@ -176,3 +176,19 @@ describe('qa on the shared base, beside dev', () => {
   });
 });
 
+describe('rollout speed', () => {
+  it('releases quickly in dev and qa, and keeps the careful defaults elsewhere', () => {
+    const dev = platformStack(devConfig, { imageTag: 'abc1234' }).template;
+    // The web and API groups (the wake page's group is a Lambda, with no health checks).
+    const groups = Object.values(dev.findResources('AWS::ElasticLoadBalancingV2::TargetGroup')).map((group) => (group as { Properties: { TargetType?: string; HealthCheckIntervalSeconds?: number; HealthyThresholdCount?: number } }).Properties).filter((group) => group.TargetType !== 'lambda');
+    expect(groups.map((group) => [group.HealthCheckIntervalSeconds, group.HealthyThresholdCount])).toEqual([
+      [10, 2],
+      [10, 2],
+    ]);
+    expect(JSON.stringify(dev.findResources('AWS::ElasticLoadBalancingV2::TargetGroup'))).toContain('"deregistration_delay.timeout_seconds","Value":"5"');
+    const careful = platformStack({ ...ENVIRONMENTS.stage, service: { ...devConfig.service!, rollout: 'careful' } }, { imageTag: 'abc1234' }).template;
+    const intervals = Object.values(careful.findResources('AWS::ElasticLoadBalancingV2::TargetGroup')).map((group) => (group as { Properties: { HealthCheckIntervalSeconds?: number } }).Properties.HealthCheckIntervalSeconds);
+    expect(intervals.filter((value) => value !== undefined)).toEqual([30, 30]);
+  });
+});
+

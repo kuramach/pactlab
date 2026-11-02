@@ -300,22 +300,29 @@ export class PactlabCompute extends Construct {
       { service: worker, desiredCount: service.worker.desiredCount },
     ];
 
+    // Fast rollout (dev, qa): a new task serves after ~20 seconds of passing checks; old ones drain in 5.
+    const fast = service.rollout === 'fast';
+    const health = (path: string, codes: string) =>
+      fast
+        ? { path, healthyHttpCodes: codes, interval: Duration.seconds(10), timeout: Duration.seconds(5), healthyThresholdCount: 2, unhealthyThresholdCount: 3 }
+        : { path, healthyHttpCodes: codes, interval: Duration.seconds(30) };
+    const drain = Duration.seconds(fast ? 5 : 15);
     // Target groups and rules live in this environment's stack, also when the listener is shared.
     const webTargets = new elbv2.ApplicationTargetGroup(this, 'WebTargets', {
       vpc,
       port: 3000,
       protocol: elbv2.ApplicationProtocol.HTTP,
       targets: [web],
-      healthCheck: { path: '/login', healthyHttpCodes: '200-399', interval: Duration.seconds(30) },
-      deregistrationDelay: Duration.seconds(15),
+      healthCheck: health('/login', '200-399'),
+      deregistrationDelay: drain,
     });
     const apiTargets = new elbv2.ApplicationTargetGroup(this, 'ApiTargets', {
       vpc,
       port: 4000,
       protocol: elbv2.ApplicationProtocol.HTTP,
       targets: [api],
-      healthCheck: { path: '/health', healthyHttpCodes: '200', interval: Duration.seconds(30) },
-      deregistrationDelay: Duration.seconds(15),
+      healthCheck: health('/health', '200'),
+      deregistrationDelay: drain,
     });
     const apiPaths = elbv2.ListenerCondition.pathPatterns(['/v1/*', '/health']);
     if (shared) {
