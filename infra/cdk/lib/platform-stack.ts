@@ -239,6 +239,7 @@ export class PactlabPlatformStack extends Stack {
           database: this.database,
           listener: this.compute.httpsListener,
           targetGroups: this.compute.targetGroups,
+          loadBalancer: this.compute.loadBalancer,
           ...(this.compute.ruleScope ? { ruleScope: this.compute.ruleScope } : {}),
         });
       }

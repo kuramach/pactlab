@@ -23,6 +23,19 @@ function makeSteps(aws, env) {
     async status() {
       return { power: await aws.getPower(env.POWER_PARAMETER) };
     },
+    /**
+     * Every 5 minutes: pause only an environment that has been awake for the
+     * whole idle window and had no API request in it. Never one that just woke
+     * (a wake looking back at the hour it slept through must not pause again).
+     */
+    async checkIdle() {
+      const idleMs = Number(env.IDLE_MINUTES) * 60_000;
+      const { value, changedAt } = await aws.getPowerState(env.POWER_PARAMETER);
+      if (value !== 'awake') return { paused: false, reason: value };
+      if (Date.now() - changedAt < idleMs) return { paused: false, reason: 'recently awake' };
+      if ((await aws.apiRequests(idleMs)) > 0) return { paused: false, reason: 'in use' };
+      return this.pause();
+    },
     /** The alarm says nobody has used the app for the idle window: pause, if awake. */
     async pause() {
       if ((await aws.getPower(env.POWER_PARAMETER)) !== 'awake') return { paused: false };
@@ -45,7 +58,10 @@ function makeSteps(aws, env) {
       return {};
     },
     async databaseReady() {
-      return { ready: (await aws.databaseStatus(env.DB_INSTANCE)) === 'available' };
+      const status = await aws.databaseStatus(env.DB_INSTANCE);
+      // Woken while the database was still stopping: the first start was refused; start it now it has stopped.
+      if (status === 'stopped') await aws.startDatabase(env.DB_INSTANCE).catch(ignore('InvalidDBInstanceStateFault'));
+      return { ready: status === 'available' };
     },
     async startServices() {
       for (const service of services) await aws.setDesiredCount(env.CLUSTER, service.name, service.desiredCount);
@@ -55,11 +71,10 @@ function makeSteps(aws, env) {
       for (const arn of targetGroups) if ((await aws.healthyTargets(arn)) === 0) return { healthy: false };
       return { healthy: true };
     },
-    /** Back to the app; re-arm the idle alarm so the next quiet hour pauses again. */
+    /** Back to the app. The idle check counts the idle window from now. */
     async finishWake() {
       await routeTo(NEVER);
       await aws.putPower(env.POWER_PARAMETER, 'awake');
-      await aws.resetAlarm(env.ALARM_NAME);
       return { awake: true };
     },
   };
@@ -71,7 +86,7 @@ function live() {
   const { RDSClient, StartDBInstanceCommand, StopDBInstanceCommand, DescribeDBInstancesCommand } = require('@aws-sdk/client-rds');
   const { ElasticLoadBalancingV2Client, ModifyRuleCommand, DescribeTargetHealthCommand } = require('@aws-sdk/client-elastic-load-balancing-v2');
   const { SSMClient, GetParameterCommand, PutParameterCommand } = require('@aws-sdk/client-ssm');
-  const { CloudWatchClient, SetAlarmStateCommand } = require('@aws-sdk/client-cloudwatch');
+  const { CloudWatchClient, GetMetricStatisticsCommand } = require('@aws-sdk/client-cloudwatch');
   const ecs = new ECSClient({});
   const rds = new RDSClient({});
   const elb = new ElasticLoadBalancingV2Client({});
@@ -80,6 +95,29 @@ function live() {
   return makeSteps(
     {
       getPower: async (name) => (await ssm.send(new GetParameterCommand({ Name: name }))).Parameter.Value,
+      getPowerState: async (name) => {
+        const { Parameter } = await ssm.send(new GetParameterCommand({ Name: name }));
+        return { value: Parameter.Value, changedAt: new Date(Parameter.LastModifiedDate).getTime() };
+      },
+      // Requests the load balancer sent to this environment's API (health checks are not counted).
+      apiRequests: async (windowMs) => {
+        const end = new Date();
+        const { Datapoints } = await cloudwatch.send(
+          new GetMetricStatisticsCommand({
+            Namespace: 'AWS/ApplicationELB',
+            MetricName: 'RequestCount',
+            Dimensions: [
+              { Name: 'LoadBalancer', Value: process.env.LOAD_BALANCER },
+              { Name: 'TargetGroup', Value: process.env.API_TARGET_GROUP },
+            ],
+            StartTime: new Date(end.getTime() - windowMs),
+            EndTime: end,
+            Period: 300,
+            Statistics: ['Sum'],
+          }),
+        );
+        return (Datapoints || []).reduce((total, point) => total + (point.Sum || 0), 0);
+      },
       putPower: (name, value) => ssm.send(new PutParameterCommand({ Name: name, Value: value, Overwrite: true })),
       // On a shared listener the host condition is kept: pausing one environment never touches another.
       setRulePath: (ruleArn, path, host) =>
@@ -98,7 +136,6 @@ function live() {
       databaseStatus: async (id) => (await rds.send(new DescribeDBInstancesCommand({ DBInstanceIdentifier: id }))).DBInstances[0].DBInstanceStatus,
       healthyTargets: async (arn) =>
         (await elb.send(new DescribeTargetHealthCommand({ TargetGroupArn: arn }))).TargetHealthDescriptions.filter((target) => target.TargetHealth.State === 'healthy').length,
-      resetAlarm: (name) => cloudwatch.send(new SetAlarmStateCommand({ AlarmName: name, StateValue: 'OK', StateReason: 'Environment woke up; idle timer restarts.' })),
     },
     process.env,
   );

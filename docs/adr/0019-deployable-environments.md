@@ -127,7 +127,7 @@ re-pointed.
   alarm on the API target group's `RequestCount`, which excludes health
   checks. The web app calls the API when a person uses it; bots browsing pages
   don't count.
-- **Pause** (a Step Functions machine, `pactlab-<env>-pause`):
+- **Pause** (the power function, run by a check every 5 minutes; see the 2026-11-01 addendum):
   1. The load balancer's top-priority rule switches from a path nothing uses
      to `/*`, so every request reaches the wake page.
   2. The services scale to zero.
@@ -138,7 +138,7 @@ re-pointed.
 - **Wake** (`pactlab-<env>-wake`, one execution per pause):
   1. Start the database and wait for it.
   2. Start the services and wait until web and API are healthy.
-  3. Route back to the app, set `power` to `awake`, and re-arm the idle alarm.
+  3. Route back to the app and set `power` to `awake`.
 
   It takes about 5–8 minutes.
 - **Ways to wake:**
@@ -182,4 +182,22 @@ Decided with Kumar the same day:
 - **Cost (estimates):** dev and qa together about $50 a month while paused,
   stage about $40, live about $140. That's about $230 in total, against about
   $350 without these changes.
+
+## Addendum (2026-11-01): the idle check replaces the alarm
+
+The first version paused through a CloudWatch alarm on 60 idle minutes.
+Re-arming that alarm at the end of a wake made it look back over the hour
+the environment had just slept through, so it fired again at once. Dev paused
+two minutes after waking up. A click during that pause then started a wake
+while the database was still stopping: AWS refused the start, and the wake
+waited for a database that never came.
+
+- **Idle check every 5 minutes** (EventBridge → the power function). It
+  pauses only if `power` is `awake` **and** has been for the whole idle
+  window, **and** the API target group received no request in that window
+  (CloudWatch `RequestCount`, which excludes health checks). An environment
+  that has just woken can't be paused. There's no alarm and no pause state
+  machine any more.
+- **The wake recovers from a database that was still stopping.** If the
+  database has stopped, the wake starts it again instead of waiting forever.
 
