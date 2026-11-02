@@ -1,5 +1,4 @@
 import { ArnFormat, CfnOutput, Duration, Stack } from 'aws-cdk-lib';
-import * as cloudwatch from 'aws-cdk-lib/aws-cloudwatch';
 import type * as ecs from 'aws-cdk-lib/aws-ecs';
 import * as elbv2 from 'aws-cdk-lib/aws-elasticloadbalancingv2';
 import * as elbv2Targets from 'aws-cdk-lib/aws-elasticloadbalancingv2-targets';
@@ -17,7 +16,6 @@ import { fileURLToPath } from 'node:url';
 import type { EnvironmentName } from '../config';
 
 const lambdaDir = (name: string) => fileURLToPath(new URL(`../lambda/${name}`, import.meta.url));
-export const pauseMachineName = (env: EnvironmentName) => `pactlab-${env}-pause`;
 export const wakeMachineName = (env: EnvironmentName) => `pactlab-${env}-wake`;
 export const powerParameterName = (env: EnvironmentName) => `/pactlab/${env}/power`;
 /** Awake, the wake page's rule matches a path nothing uses; paused, it matches everything. */
@@ -31,6 +29,8 @@ export interface IdlePauseProps {
   readonly database: rds.DatabaseInstance;
   readonly listener: elbv2.ApplicationListener;
   readonly targetGroups: { readonly web: elbv2.ApplicationTargetGroup; readonly api: elbv2.ApplicationTargetGroup };
+  /** For the idle check's request count (the API target group's metric on this load balancer). */
+  readonly loadBalancer: elbv2.ApplicationLoadBalancer;
   /** On a shared listener: the environment's host and priority block, so pausing it never touches another environment. */
   readonly ruleScope?: { readonly host: string; readonly priorityBase: number };
 }
@@ -44,7 +44,6 @@ export interface IdlePauseProps {
  * change. The wake page's button (a POST) or the wake workflow brings it back.
  */
 export class IdlePause extends Construct {
-  readonly pauseMachine: sfn.StateMachine;
   readonly wakeMachine: sfn.StateMachine;
   readonly powerParameter: ssm.StringParameter;
 
@@ -57,19 +56,6 @@ export class IdlePause extends Construct {
       parameterName: powerParameterName(env),
       description: `Pactlab ${env}: awake, paused or waking (idle pause, ADR 0019)`,
       stringValue: 'awake',
-    });
-
-    // Idle: no request reached the API for the whole window. Missing data (no traffic at all) counts as idle.
-    const periods = Math.max(1, Math.round(props.idleMinutes / 5));
-    const alarm = new cloudwatch.Alarm(this, 'IdleAlarm', {
-      alarmName: `pactlab-${env}-idle`,
-      alarmDescription: `No API request for ${props.idleMinutes} minutes: pause ${env}`,
-      metric: props.targetGroups.api.metrics.requestCount({ period: Duration.minutes(5), statistic: 'Sum' }),
-      threshold: 1,
-      comparisonOperator: cloudwatch.ComparisonOperator.LESS_THAN_THRESHOLD,
-      evaluationPeriods: periods,
-      datapointsToAlarm: periods,
-      treatMissingData: cloudwatch.TreatMissingData.BREACHING,
     });
 
     // The wake page, behind a top-priority rule that matches nothing while awake.
@@ -111,7 +97,9 @@ export class IdlePause extends Construct {
         // Shared listener: the rule keeps its host condition when its path changes.
         RULE_HOST: ruleScope?.host ?? '',
         POWER_PARAMETER: this.powerParameter.parameterName,
-        ALARM_NAME: alarm.alarmName,
+        IDLE_MINUTES: String(props.idleMinutes),
+        LOAD_BALANCER: props.loadBalancer.loadBalancerFullName,
+        API_TARGET_GROUP: props.targetGroups.api.targetGroupFullName,
       },
     });
     this.powerParameter.grantRead(power);
@@ -123,21 +111,11 @@ export class IdlePause extends Construct {
     power.addToRolePolicy(new iam.PolicyStatement({ sid: 'Route', actions: ['elasticloadbalancing:ModifyRule'], resources: [wakeRule.listenerRuleArn] }));
     // DescribeTargetHealth has no resource-level permissions.
     power.addToRolePolicy(new iam.PolicyStatement({ sid: 'Health', actions: ['elasticloadbalancing:DescribeTargetHealth'], resources: ['*'] }));
-    power.addToRolePolicy(new iam.PolicyStatement({ sid: 'RearmAlarm', actions: ['cloudwatch:SetAlarmState'], resources: [alarm.alarmArn] }));
+    // GetMetricStatistics has no resource-level permissions.
+    power.addToRolePolicy(new iam.PolicyStatement({ sid: 'ReadRequests', actions: ['cloudwatch:GetMetricStatistics'], resources: ['*'] }));
 
     const step = (name: string, id = name) =>
       new tasks.LambdaInvoke(this, `Step${id}`, { lambdaFunction: power, payload: sfn.TaskInput.fromObject({ step: name }), payloadResponseOnly: true, resultPath: '$.result' });
-
-    // Pause (from the idle alarm), or keep the database stopped (daily, while paused).
-    this.pauseMachine = new sfn.StateMachine(this, 'PauseMachine', {
-      stateMachineName: pauseMachineName(env),
-      timeout: Duration.minutes(10),
-      definitionBody: sfn.DefinitionBody.fromChainable(
-        new sfn.Choice(this, 'Which')
-          .when(sfn.Condition.stringEquals('$.mode', 'keep-stopped'), step('keepStopped', 'KeepStopped'))
-          .otherwise(step('pause', 'Pause')),
-      ),
-    });
 
     // Wake: start the database, wait for it, start the services, wait until both serve, then route back to the app.
     const waitForDatabase = new sfn.Wait(this, 'WaitForDatabase', { time: sfn.WaitTime.duration(Duration.seconds(30)) });
@@ -169,16 +147,17 @@ export class IdlePause extends Construct {
     const wakeExecutions = stack.formatArn({ service: 'states', resource: 'execution', resourceName: `${wakeMachineName(env)}:*`, arnFormat: ArnFormat.COLON_RESOURCE_NAME });
     wakePage.addToRolePolicy(new iam.PolicyStatement({ sid: 'WakeProgress', actions: ['states:GetExecutionHistory'], resources: [wakeExecutions] }));
 
-    // Idle → pause. Daily → keep a paused database stopped (AWS restarts it after 7 days).
-    new events.Rule(this, 'OnIdle', {
-      description: `Pause ${env} when idle`,
-      eventPattern: { source: ['aws.cloudwatch'], detailType: ['CloudWatch Alarm State Change'], resources: [alarm.alarmArn], detail: { state: { value: ['ALARM'] } } },
-      targets: [new eventTargets.SfnStateMachine(this.pauseMachine, { input: events.RuleTargetInput.fromObject({ mode: 'pause' }) })],
+    // Every 5 minutes: pause if awake for the whole idle window with no API request (never right after a wake).
+    // Daily: AWS restarts a database stopped for 7 days; stop it again while still paused.
+    new events.Rule(this, 'IdleCheck', {
+      description: `Pause ${env} after ${props.idleMinutes} idle minutes`,
+      schedule: events.Schedule.rate(Duration.minutes(5)),
+      targets: [new eventTargets.LambdaFunction(power, { event: events.RuleTargetInput.fromObject({ step: 'checkIdle' }) })],
     });
     new events.Rule(this, 'KeepStoppedDaily', {
       description: `Keep a paused ${env} database stopped`,
       schedule: events.Schedule.rate(Duration.days(1)),
-      targets: [new eventTargets.SfnStateMachine(this.pauseMachine, { input: events.RuleTargetInput.fromObject({ mode: 'keep-stopped' }) })],
+      targets: [new eventTargets.LambdaFunction(power, { event: events.RuleTargetInput.fromObject({ step: 'keepStopped' }) })],
     });
 
     new CfnOutput(stack, 'WakeStateMachineArn', { value: this.wakeMachine.stateMachineArn });
