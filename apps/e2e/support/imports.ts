@@ -10,5 +10,6 @@ export async function importPackExtract(page: Page, dealId: string, label: strin
   await page.getByRole('button', { name: 'Check every row' }).click();
   await expect(page.getByText(`${rows} of ${rows} rows are ready to import`)).toBeVisible();
   await page.getByRole('button', { name: `Import ${rows} rows` }).click();
-  await expect(page.getByRole('status')).toContainText(`${label} imported: ${rows} new records`);
+  // A large extract (thousands of rows) can take well over the default 15 seconds on a CI runner.
+  await expect(page.getByRole('status')).toContainText(`${label} imported: ${rows} new records`, { timeout: 120_000 });
 }

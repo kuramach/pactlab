@@ -43,19 +43,22 @@
     "lint": {
       "dependsOn": [
         "^generate",
-        "generate"
+        "generate",
+        "^transit"
       ]
     },
     "typecheck": {
       "dependsOn": [
         "^generate",
-        "generate"
+        "generate",
+        "^transit"
       ]
     },
     "test": {
       "dependsOn": [
         "^generate",
-        "generate"
+        "generate",
+        "^transit"
       ],
       "outputs": []
     },
@@ -69,7 +72,8 @@
     "test:fixtures": {
       "dependsOn": [
         "^generate",
-        "generate"
+        "generate",
+        "^transit"
       ],
       "outputs": []
     },
@@ -88,6 +92,11 @@
       ],
       "cache": false,
       "persistent": true
+    },
+    "transit": {
+      "dependsOn": [
+        "^transit"
+      ]
     }
   }
 }
