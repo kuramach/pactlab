@@ -111,6 +111,12 @@ export interface ServiceConfig {
      */
     readonly modelOverrides?: { readonly balanced: string; readonly deep_review: string; readonly fast: string };
   };
+  /**
+   * `fast` (dev, qa): health checks every 10 seconds, healthy after 2, old
+   * tasks drained in 5 seconds, so a release is serving in about a minute.
+   * `careful` (default; stage, live): AWS's slower defaults.
+   */
+  readonly rollout?: 'fast' | 'careful';
   /** Turn on pilot sign-up approval (`SIGNUP_REQUIRES_APPROVAL`). */
   readonly signupRequiresApproval: boolean;
 }

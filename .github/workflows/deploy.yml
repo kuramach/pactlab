@@ -12,6 +12,10 @@ name: deploy
 #   3. migrations (one-off task); a failure stops here
 #   4. app stack again with the services on the release; wait for them; smoke test
 #   5. the environment's copy of the marketing site, built to point at this app (never indexed)
+#
+# Fast path: when no migration changed since the release the services run, steps 2 and 3 are
+# skipped and step 4 moves everything in one deploy; when nothing under the site changed, step 5
+# is skipped. A first deploy, or `full`, always runs every step.
 on:
   workflow_dispatch:
     inputs:
@@ -20,6 +24,10 @@ on:
         type: choice
         options: [dev, qa]
         required: true
+      full:
+        description: Run every step (migrations and site), even if nothing changed for them
+        type: boolean
+        default: false
 
 permissions:
   id-token: write
@@ -43,6 +51,9 @@ jobs:
       url: ${{ steps.release.outputs.origin }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The plan compares this commit with the one the services run.
+          fetch-depth: 0
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
@@ -60,6 +71,27 @@ jobs:
           STACK="Pactlab$(echo "${ENV_NAME:0:1}" | tr a-z A-Z)${ENV_NAME:1}"
           echo "STACK=$STACK" >> "$GITHUB_ENV"
           echo "CDK=pnpm --filter @pactlab/cdk exec cdk -c pactlab:${ENV_NAME}:account=${{ vars.AWS_ACCOUNT_ID }} -c pactlab:${ENV_NAME}:imageTag=${TAG} -c pactlab:${ENV_NAME}:githubOidc=existing" >> "$GITHUB_ENV"
+
+      # What this release needs: migrations only if a migration changed, the site only if the site changed.
+      - name: Plan
+        id: plan
+        run: |
+          CURRENT=$(aws cloudformation describe-stacks --stack-name "$STACK" \
+            --query "Stacks[0].Outputs[?OutputKey=='ServiceImageTag'].OutputValue" --output text 2>/dev/null || true)
+          if [ -z "$CURRENT" ] || [ "$CURRENT" = "None" ]; then CURRENT=none; fi
+          echo "current=$CURRENT" >> "$GITHUB_OUTPUT"
+          changed() {  # true unless the running commit is known and nothing under these paths changed since it
+            [ "${{ inputs.full }}" = "true" ] && { echo true; return; }
+            [ "$CURRENT" = none ] && { echo true; return; }
+            git cat-file -e "${CURRENT}^{commit}" 2>/dev/null || { echo true; return; }
+            git diff --quiet "$CURRENT" "$TAG" -- "$@" && echo false || echo true
+          }
+          MIGRATIONS=$(changed packages/db/prisma apps/api/src/ops/migrate.ts)
+          SITE=$(changed apps/site infra/cdk/lib/site-stack.ts infra/cdk/config .github/workflows/deploy.yml)
+          aws cloudformation describe-stacks --stack-name "${STACK}Site" >/dev/null 2>&1 || SITE=true
+          echo "migrations=$MIGRATIONS" >> "$GITHUB_OUTPUT"
+          echo "site=$SITE" >> "$GITHUB_OUTPUT"
+          echo "Services run: $CURRENT · migrations needed: $MIGRATIONS · site changed: $SITE"
 
       # dev, qa and stage pause when idle (ADR 0019): wake a paused environment before changing it.
       - name: 0. Make sure the environment is awake
@@ -110,16 +142,16 @@ jobs:
           push: true
 
       - name: 2. Ship the release to the one-off tasks (services stay on their current image)
+        if: steps.plan.outputs.migrations == 'true'
         run: |
-          CURRENT=$(aws cloudformation describe-stacks --stack-name "$STACK" \
-            --query "Stacks[0].Outputs[?OutputKey=='ServiceImageTag'].OutputValue" --output text 2>/dev/null || true)
-          if [ -z "$CURRENT" ] || [ "$CURRENT" = "None" ]; then CURRENT=none; fi
+          CURRENT="${{ steps.plan.outputs.current }}"
           echo "Services stay on: $CURRENT"
           $CDK diff "$STACK" --method=template -c pactlab:${ENV_NAME}:serviceImageTag="$CURRENT" || true
           $CDK deploy "$STACK" --require-approval never -c pactlab:${ENV_NAME}:serviceImageTag="$CURRENT" \
             --outputs-file "$RUNNER_TEMP/outputs.json"
 
       - name: 3. Migrations
+        if: steps.plan.outputs.migrations == 'true'
         run: |
           out() { node -e "console.log(require(process.argv[1])[process.argv[2]][process.argv[3]])" "$RUNNER_TEMP/outputs.json" "$STACK" "$1"; }
           CLUSTER=$(out ClusterName); FAMILY=$(out MigrateTaskDefinition)
@@ -149,7 +181,7 @@ jobs:
       # 5. The environment's own site (<env>.pactlab.ai): Sign up / Sign in go to this app (app.<env>.pactlab.ai).
       #    Closed to search engines (robots.txt and noindex). Skipped until the environment sets SITE_DOMAIN.
       - name: 5. Publish the environment's site
-        if: vars.SITE_DOMAIN != ''
+        if: vars.SITE_DOMAIN != '' && steps.plan.outputs.site == 'true'
         env:
           NEXT_PUBLIC_APP_URL: https://${{ vars.APP_DOMAIN }}
           NEXT_PUBLIC_CONTACT_EMAIL: ${{ vars.SITE_CONTACT_EMAIL }}

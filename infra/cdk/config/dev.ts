@@ -42,6 +42,8 @@ export const devConfig: EnvironmentConfig = {
     },
     // Dev and qa: new organizations are active at once, so sign-up can be tested end to end.
     signupRequiresApproval: false,
+    // Quick releases here; stage and live keep AWS's slower, more cautious checks.
+    rollout: 'fast',
   },
   site: { domain: 'dev.pactlab.ai', indexing: 'none' },
 };
