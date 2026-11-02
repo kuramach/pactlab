@@ -164,7 +164,10 @@ export class IdlePause extends Construct {
     const wakeMachineArn = stack.formatArn({ service: 'states', resource: 'stateMachine', resourceName: wakeMachineName(env), arnFormat: ArnFormat.COLON_RESOURCE_NAME });
     wakePage.addEnvironment('WAKE_STATE_MACHINE_ARN', wakeMachineArn);
     this.powerParameter.grantRead(wakePage);
-    wakePage.addToRolePolicy(new iam.PolicyStatement({ sid: 'StartWake', actions: ['states:StartExecution'], resources: [wakeMachineArn] }));
+    wakePage.addToRolePolicy(new iam.PolicyStatement({ sid: 'StartWake', actions: ['states:StartExecution', 'states:ListExecutions'], resources: [wakeMachineArn] }));
+    // Progress while waking: which step the wake is on, and how long recent wakes took.
+    const wakeExecutions = stack.formatArn({ service: 'states', resource: 'execution', resourceName: `${wakeMachineName(env)}:*`, arnFormat: ArnFormat.COLON_RESOURCE_NAME });
+    wakePage.addToRolePolicy(new iam.PolicyStatement({ sid: 'WakeProgress', actions: ['states:GetExecutionHistory'], resources: [wakeExecutions] }));
 
     // Idle → pause. Daily → keep a paused database stopped (AWS restarts it after 7 days).
     new events.Rule(this, 'OnIdle', {

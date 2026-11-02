@@ -8,8 +8,9 @@ import { platformStack } from './helpers';
 const require = createRequire(import.meta.url);
 type Steps = Record<string, () => Promise<Record<string, unknown>>>;
 const { makeSteps, NEVER, EVERYTHING } = require('../lambda/power/index.js') as { makeSteps: (aws: object, env: object) => Steps; NEVER: string; EVERYTHING: string };
-const { makeHandler } = require('../lambda/wake-page/index.js') as {
+const { makeHandler, estimate } = require('../lambda/wake-page/index.js') as {
   makeHandler: (deps: object) => (event: { httpMethod: string }) => Promise<{ statusCode: number; body: string; headers: Record<string, string> }>;
+  estimate: (progress: { startedAt: number; state: string; pastSeconds: number[] } | null, now: number) => { elapsed: number; phase: number; leftMinutes: number; basis: string } | null;
 };
 
 describe('only production runs all the time (ADR 0019)', () => {
@@ -161,5 +162,44 @@ describe('the wake page', () => {
     expect(waking.started).toEqual([]);
     expect(response.body).toContain('Waking up');
     expect(response.body).not.toContain('<form');
+  });
+
+  it('shows the step, elapsed time and minutes left while waking', async () => {
+    const start = Date.UTC(2026, 10, 1, 12, 0, 0);
+    const handler = makeHandler({
+      envName: 'dev',
+      readPower: async () => ({ value: 'waking', version: 9 }),
+      startWake: async () => undefined,
+      readProgress: async () => ({ startedAt: start, state: 'WaitForDatabase', pastSeconds: [400, 420, 440] }),
+      now: () => start + 150_000,
+    });
+    const response = await handler({ httpMethod: 'GET' });
+    expect(response.body).toContain('About <strong>5 minutes</strong> left');
+    expect(response.body).toContain('estimate from the last 3 wakes');
+    expect(response.body).toContain('● 1 of 3: Starting the database');
+    expect(response.body).toContain('2:30');
+    expect(response.headers['retry-after']).toBe('15');
+  });
+
+  it('still shows the page when progress cannot be read', async () => {
+    const handler = makeHandler({
+      envName: 'dev',
+      readPower: async () => ({ value: 'waking', version: 9 }),
+      startWake: async () => undefined,
+      readProgress: async () => {
+        throw new Error('throttled');
+      },
+    });
+    expect((await handler({ httpMethod: 'GET' })).body).toContain('Waking up');
+  });
+});
+
+describe('the wake estimate', () => {
+  const start = 0;
+  it('uses the median of recent wakes, then a typical 7 minutes, never promising zero', () => {
+    expect(estimate({ startedAt: start, state: 'StepStartServices', pastSeconds: [300, 900, 360] }, 60_000)).toMatchObject({ phase: 1, leftMinutes: 5, basis: 'the last 3 wakes' });
+    expect(estimate({ startedAt: start, state: 'StepStartWake', pastSeconds: [] }, 60_000)).toMatchObject({ phase: 0, leftMinutes: 6, basis: 'a typical wake' });
+    expect(estimate({ startedAt: start, state: 'StepTargetsHealthy', pastSeconds: [300] }, 600_000)).toMatchObject({ phase: 2, leftMinutes: 1 });
+    expect(estimate(null, 0)).toBeNull();
   });
 });
