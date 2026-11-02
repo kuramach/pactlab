@@ -1,5 +1,5 @@
-# Both images in one parallel build (deploy.yml), sharing the dependency and
-# build layers. Layers are cached in GitHub Actions' cache between runs: the
+# All three images in one parallel build (deploy.yml), sharing the dependency
+# and build layers. Layers are cached in GitHub Actions' cache between runs: the
 # server image is the same for every environment; the web image compiles its
 # environment's public settings, so its cache is kept per environment.
 
@@ -12,7 +12,7 @@ variable "ORIGIN" { default = "https://dev.pactlab.ai" }
 variable "CACHE" { default = "" }
 
 group "default" {
-  targets = ["server", "web"]
+  targets = ["server", "tools", "web"]
 }
 
 target "_common" {
@@ -28,6 +28,15 @@ target "server" {
   tags       = ["${REGISTRY}/pactlab-${ENV_NAME}-server:${TAG}"]
   cache-from = CACHE == "gha" ? ["type=gha,scope=server"] : []
   cache-to   = CACHE == "gha" ? ["type=gha,mode=max,scope=server"] : []
+}
+
+# The one-off tasks' image (migrate, seed): same repository, "-tools" tag.
+target "tools" {
+  inherits   = ["_common"]
+  target     = "tools"
+  tags       = ["${REGISTRY}/pactlab-${ENV_NAME}-server:${TAG}-tools"]
+  cache-from = CACHE == "gha" ? ["type=gha,scope=tools"] : []
+  cache-to   = CACHE == "gha" ? ["type=gha,mode=max,scope=tools"] : []
 }
 
 target "web" {

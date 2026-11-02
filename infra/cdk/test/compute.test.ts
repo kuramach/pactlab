@@ -104,7 +104,9 @@ describe('dev: the running application (ADR 0019)', () => {
     const staged = platformStack(devConfig, { imageTag: 'new0001', serviceImageTag: 'old0001' }).template;
     const containers = Object.values(staged.findResources('AWS::ECS::TaskDefinition')).flatMap((definition) => (definition as { Properties: { ContainerDefinitions: { Name: string; Image: unknown }[] } }).Properties.ContainerDefinitions);
     const tagOf = (name: string) => JSON.stringify(containers.find((container) => container.Name === name)?.Image);
-    expect(tagOf('migrate')).toContain(':new0001');
+    expect(tagOf('migrate')).toContain(':new0001-tools');
+    expect(tagOf('seed')).toContain(':new0001-tools');
+    expect(tagOf('worker')).toContain(':old0001');
     expect(tagOf('api')).toContain(':old0001');
     expect(tagOf('web')).toContain(':old0001');
     const first = platformStack(devConfig, { imageTag: 'new0001', serviceImageTag: 'none' }).template;
@@ -189,6 +191,22 @@ describe('rollout speed', () => {
     const careful = platformStack({ ...ENVIRONMENTS.stage, service: { ...devConfig.service!, rollout: 'careful' } }, { imageTag: 'abc1234' }).template;
     const intervals = Object.values(careful.findResources('AWS::ElasticLoadBalancingV2::TargetGroup')).map((group) => (group as { Properties: { HealthCheckIntervalSeconds?: number } }).Properties.HealthCheckIntervalSeconds);
     expect(intervals.filter((value) => value !== undefined)).toEqual([30, 30]);
+  });
+
+  it('replaces the worker in place in dev and qa only; api and web start new before stopping old', () => {
+    const rolloutOf = (template: Template) =>
+      Object.entries(template.findResources('AWS::ECS::Service')).map(([id, resource]) => [id.replace(/[0-9A-F]{8}$/, ''), (resource as { Properties: { DeploymentConfiguration: { MinimumHealthyPercent: number; MaximumPercent: number } } }).Properties.DeploymentConfiguration]);
+    const workerStop = (template: Template) => JSON.stringify(Object.values(template.findResources('AWS::ECS::TaskDefinition')).flatMap((definition) => (definition as { Properties: { ContainerDefinitions: { Name: string; StopTimeout?: number }[] } }).Properties.ContainerDefinitions).find((container) => container.Name === 'worker')?.StopTimeout);
+    const dev = platformStack(devConfig, { imageTag: 'abc1234' }).template;
+    expect(Object.fromEntries(rolloutOf(dev))).toMatchObject({
+      AppWorkerService: { MinimumHealthyPercent: 0, MaximumPercent: 100 },
+      AppApiService: { MinimumHealthyPercent: 100, MaximumPercent: 200 },
+      AppWebService: { MinimumHealthyPercent: 100, MaximumPercent: 200 },
+    });
+    expect(workerStop(dev)).toBe('10');
+    const careful = platformStack({ ...ENVIRONMENTS.stage, service: { ...devConfig.service!, rollout: 'careful' } }, { imageTag: 'abc1234' }).template;
+    expect(Object.fromEntries(rolloutOf(careful))).toMatchObject({ AppWorkerService: { MinimumHealthyPercent: 100, MaximumPercent: 200 } });
+    expect(workerStop(careful)).toBeUndefined();
   });
 });
 

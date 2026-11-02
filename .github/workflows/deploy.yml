@@ -113,17 +113,19 @@ jobs:
         id: need
         run: |
           TARGETS=""
-          for IMAGE in server web; do
-            if aws ecr describe-images --repository-name "pactlab-${ENV_NAME}-${IMAGE}" --image-ids imageTag="$TAG" >/dev/null 2>&1; then
-              echo "pactlab-${ENV_NAME}-${IMAGE}:${TAG} already pushed"
+          # target:repository:tag — "tools" (migrate, seed) lives in the server repository as "<sha>-tools".
+          for ENTRY in "server:server:$TAG" "tools:server:$TAG-tools" "web:web:$TAG"; do
+            IFS=: read -r TARGET IMAGE IMAGE_TAG <<< "$ENTRY"
+            if aws ecr describe-images --repository-name "pactlab-${ENV_NAME}-${IMAGE}" --image-ids imageTag="$IMAGE_TAG" >/dev/null 2>&1; then
+              echo "pactlab-${ENV_NAME}-${IMAGE}:${IMAGE_TAG} already pushed"
             else
-              TARGETS="${TARGETS:+$TARGETS,}$IMAGE"
+              TARGETS="${TARGETS:+$TARGETS,}$TARGET"
             fi
           done
           echo "targets=$TARGETS" >> "$GITHUB_OUTPUT"
 
-      # Both images in one parallel build, sharing the dependency and build layers. Layers are cached in
-      # GitHub Actions' cache between runs (server: shared; web: per environment), so a code-only change
+      # All three images in one parallel build, sharing the dependency and build layers. Layers are cached in
+      # GitHub Actions' cache between runs (server and tools: shared; web: per environment), so a code-only change
       # skips the package download and reuses everything that did not change. See infra/docker/docker-bake.hcl.
       - name: 1. Build and push images (parallel, cached)
         if: steps.need.outputs.targets != ''

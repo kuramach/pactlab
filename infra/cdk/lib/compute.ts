@@ -114,7 +114,7 @@ export class PactlabCompute extends Construct {
       removalPolicy: statefulRemoval,
     });
 
-    // --- Images: one server image (api, worker, migrate, seed) and the web image, by commit SHA.
+    // --- Images by commit SHA: the slim server image (api, worker), its "-tools" variant (migrate, seed) and the web image.
     const repositories = {
       server: ecr.Repository.fromRepositoryName(this, 'ServerRepository', repositoryName(config.name, 'server')),
       web: ecr.Repository.fromRepositoryName(this, 'WebRepository', repositoryName(config.name, 'web')),
@@ -221,10 +221,13 @@ export class PactlabCompute extends Construct {
       portMappings: [{ containerPort: 4000 }],
       logging: logging('api'),
     });
+    // Fast rollout (dev, qa): the worker is replaced in place and gets 10 seconds to close its queues.
+    const fast = service.rollout === 'fast';
     const workerTask = definition('Worker', service.worker, this.roles.worker);
     workerTask.addContainer('worker', {
       image: serviceImage('server'),
       ...run('apps/worker', 'src/main.ts'),
+      ...(fast ? { stopTimeout: Duration.seconds(10) } : {}),
       environment: serverEnvironment,
       secrets: { DB_PASSWORD: runtimePassword },
       logging: logging('worker'),
@@ -239,7 +242,7 @@ export class PactlabCompute extends Construct {
     // One-off tasks, run by the deploy workflow: migrations as the schema owner, before any rollout.
     const migrateTask = definition('Migrate', { cpu: 512, memoryMiB: 1024 }, this.roles.migrate);
     migrateTask.addContainer('migrate', {
-      image: image('server'),
+      image: image('server', `${props.imageTag}-tools`),
       ...run('apps/api', 'src/ops/migrate.ts'),
       environment: { ...serverEnvironment },
       secrets: { DB_PASSWORD: runtimePassword, ...ownerFields },
@@ -247,7 +250,7 @@ export class PactlabCompute extends Construct {
     });
     const seedTask = definition('Seed', { cpu: 1024, memoryMiB: 2048 }, this.roles.seed);
     seedTask.addContainer('seed', {
-      image: image('server'),
+      image: image('server', `${props.imageTag}-tools`),
       ...run('apps/api', 'src/ops/seed-deployed.ts'),
       environment: { ...apiEnvironment, EMAIL_PROVIDER: '', EMAIL_FROM: '' },
       secrets: { DB_PASSWORD: runtimePassword, AUTH_TOKEN_SECRET: ecs.Secret.fromSecretsManager(tokenSecret), ...ownerFields },
@@ -292,7 +295,10 @@ export class PactlabCompute extends Construct {
     const serviceProps = { cluster: this.cluster, vpcSubnets: appSubnets, circuitBreaker: { enable: true, rollback: true }, minHealthyPercent: 100, maxHealthyPercent: 200 };
     const web = new ecs.FargateService(this, 'WebService', { ...serviceProps, taskDefinition: webTask, desiredCount: desired(service.web), securityGroups: [webSecurityGroup] });
     const api = new ecs.FargateService(this, 'ApiService', { ...serviceProps, taskDefinition: apiTask, desiredCount: desired(service.api), securityGroups: [props.appSecurityGroup] });
-    const worker = new ecs.FargateService(this, 'WorkerService', { ...serviceProps, taskDefinition: workerTask, desiredCount: desired(service.worker), securityGroups: [props.appSecurityGroup] });
+    // The worker serves no traffic and its jobs wait in Redis, so in fast rollout the old task stops before
+    // the new one starts, instead of both running until ECS sees the new one stable.
+    const workerRollout = fast ? { minHealthyPercent: 0, maxHealthyPercent: 100 } : {};
+    const worker = new ecs.FargateService(this, 'WorkerService', { ...serviceProps, ...workerRollout, taskDefinition: workerTask, desiredCount: desired(service.worker), securityGroups: [props.appSecurityGroup] });
     this.httpsListener = https;
     this.services = [
       { service: web, desiredCount: service.web.desiredCount },
@@ -301,7 +307,6 @@ export class PactlabCompute extends Construct {
     ];
 
     // Fast rollout (dev, qa): a new task serves after ~20 seconds of passing checks; old ones drain in 5.
-    const fast = service.rollout === 'fast';
     const health = (path: string, codes: string) =>
       fast
         ? { path, healthyHttpCodes: codes, interval: Duration.seconds(10), timeout: Duration.seconds(5), healthyThresholdCount: 2, unhealthyThresholdCount: 3 }

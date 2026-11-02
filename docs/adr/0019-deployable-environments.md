@@ -19,8 +19,8 @@ Decided with Kumar:
 
 ## Decision
 
-1. **One image build, two images.**
-   - `infra/docker/Dockerfile` builds a `server` image (API, worker, and the one-off migrate and seed tasks, each a different command) and a `web` image (Next.js standalone).
+1. **One image build, three images.**
+   - `infra/docker/Dockerfile` builds a slim `server` image (API and worker: their production dependencies only), a `tools` image tagged `<sha>-tools` in the same repository (the full workspace, for the one-off migrate and seed tasks) and a `web` image (Next.js standalone).
    - Images are tagged by commit SHA in per-environment, immutable, scanned ECR repositories. These live in their own `Pactlab<Env>Registry` stack, so images can be pushed before the app stack runs them.
 2. **Fargate (ARM64) behind one HTTPS host.**
    - The ALB serves the web app. `/v1/*` and `/health` go to the API on the same origin.
@@ -65,7 +65,7 @@ Decided with Kumar:
 - **Malware scanning is a known gap.** Dev uses the built-in signature scanner by explicit setting (`MALWARE_SCANNER=signature`). The app's config refuses it in stage and production, so those cannot go live until a managed scanner (GuardDuty Malware Protection for S3) is wired.
 - **Bedrock cross-Region inference** may be denied by the organization's Region guardrail. The runbook checks it before AI is relied on in dev.
 - **SES starts in its sandbox:** only verified recipients until production access is requested.
-- **Images carry the full workspace** (tsx at runtime, dev dependencies included). That is acceptable for dev; bundling is a later optimisation.
+- **The server image still runs TypeScript with tsx** (about 137 MB compressed, down from 561 MB for the full workspace). Bundling is a later optimisation. Only the `tools` image carries the full workspace.
 - **Slice 2 (T-070):** qa, stage and prod service blocks at the skinny tier, their domains and deploy roles, the Auth0 checklist (prod on its own tenant), the managed scanner, and the documented scaled-target profile.
 
 ## Addendum (2026-10-30): interim Nova in dev
