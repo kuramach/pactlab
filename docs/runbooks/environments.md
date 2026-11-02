@@ -158,12 +158,12 @@ dev and qa share one network (with a NAT instance), one load balancer and one Re
 ## Every later deploy
 
 Actions → **deploy** → `dev` → approve. The workflow:
-1. Builds and pushes the images for the commit. It skips images already pushed.
+1. Builds and pushes the images for the commit: `server` (api and worker, slim), `server:<sha>-tools` (migrate and seed) and `web`. It skips images already pushed.
 2. Ships the release to the migration task, with the services still on the old image.
 3. Runs the migrations, and stops on failure.
 4. Moves the services, waits for them, then smoke-tests `/health` and `/login`.
 
-ECS circuit breakers roll a failing service back on their own.
+ECS circuit breakers roll a failing service back on their own. In dev and qa the worker is replaced in place (the old task stops first; queued jobs wait in Redis), while api and web start the new task before stopping the old one.
 
 **Rollback:** dispatch the workflow on the earlier commit. Migrations are expand-only (backward compatible), so the old code runs on the newer schema.
 
