@@ -30,7 +30,10 @@ function appRoutes(dir = APP): string[] {
 describe('machine-readable site (T-085 Part 1)', () => {
   it('lists every page in the sitemap routes, and nothing that is not a page', () => {
     expect([...SITE_ROUTES].sort()).toEqual(appRoutes().sort());
-    expect(SITE_ROUTES).toContain('/industries/venture-raise');
+    // Only released packs are on the live site (Kumar, 2026-11-01).
+    expect(SITE_ROUTES).toContain('/industries/software-saas');
+    expect(SITE_ROUTES).toContain('/industries/multifamily');
+    expect(SITE_ROUTES).not.toContain('/industries/venture-raise');
     expect(new Set(SITE_ROUTES).size).toBe(SITE_ROUTES.length);
   });
 
@@ -68,8 +71,9 @@ describe('machine-readable site (T-085 Part 1)', () => {
     for (const page of pages) for (const link of page.related) expect(SITE_ROUTES, `${page.slug} -> ${link.href}`).toContain(link.href);
     // Every guide leads to a pack or product page.
     for (const guide of GUIDES) expect(guide.related.some((link) => /^\/(industries|product)\//.test(link.href)), guide.slug).toBe(true);
-    expect(FAQS.map((page) => page.slug)).toEqual(['acquirers', 'founders', 'advisors']);
-    expect(GUIDES.length).toBeGreaterThanOrEqual(3);
+    // The founder pages sell Venture Raise, which is not released yet.
+    expect(FAQS.map((page) => page.slug)).toEqual(['acquirers', 'advisors']);
+    expect(GUIDES.length).toBeGreaterThanOrEqual(2);
     for (const guide of GUIDES) expect(guide.title.endsWith('?'), guide.slug).toBe(true);
     const copy = JSON.stringify({ FAQS, GUIDES, COMPARISONS }).toLowerCase();
     for (const word of BANNED_WORDS) expect(copy).not.toContain(word);

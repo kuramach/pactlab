@@ -470,9 +470,24 @@ export const INDUSTRY_STORIES: Readonly<Record<string, IndustryStory>> = {
   },
 };
 
+/** Industries with a story (and so a page). A pack can be defined in `INDUSTRIES` before its page is written (ADR 0008). */
+export const WRITTEN_INDUSTRIES = INDUSTRIES.filter((industry) => industry.slug in INDUSTRY_STORIES);
+
 /**
- * Industries the site shows: those with a story (and so a page). A pack can
- * be defined in `INDUSTRIES` before its page is written (ADR 0008); it stays
- * off the index, navigation and cross-links until then.
+ * The packs on sale (Kumar, 2026-11-01): Software & SaaS and Multifamily,
+ * with the others released one at a time after testing. Same list as the
+ * app's RELEASED_COMPANY_TYPES (packages/domain/src/packs/release.ts).
  */
-export const PUBLISHED_INDUSTRIES = INDUSTRIES.filter((industry) => industry.slug in INDUSTRY_STORIES);
+export const RELEASED_INDUSTRY_SLUGS: readonly string[] = ['software-saas', 'multifamily'];
+
+/** An environment's copy of the site (dev, qa) previews every written pack, for testing before release. */
+export const PACK_PREVIEW = process.env['NEXT_PUBLIC_PACK_PREVIEW'] === 'true';
+
+/** Industries the site shows: written, and released (or previewed). Index, navigation, footer, sitemap and llms.txt read this. */
+export const PUBLISHED_INDUSTRIES = WRITTEN_INDUSTRIES.filter((industry) => PACK_PREVIEW || RELEASED_INDUSTRY_SLUGS.includes(industry.slug));
+
+/** Whether a link may be shown: anything that is not an industry page, or a published industry's page. */
+export function isPublishedHref(href: string): boolean {
+  const match = /^\/industries\/([^/]+)/.exec(href);
+  return !match || PUBLISHED_INDUSTRIES.some((industry) => industry.slug === match[1]);
+}

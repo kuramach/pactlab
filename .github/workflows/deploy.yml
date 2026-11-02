@@ -154,6 +154,8 @@ jobs:
           NEXT_PUBLIC_APP_URL: https://${{ vars.APP_DOMAIN }}
           NEXT_PUBLIC_CONTACT_EMAIL: ${{ vars.SITE_CONTACT_EMAIL }}
           NEXT_PUBLIC_SITE_INDEXING: none
+          # dev and qa preview every pack for testing before release; stage and live show released packs only.
+          NEXT_PUBLIC_PACK_PREVIEW: ${{ (inputs.environment == 'dev' || inputs.environment == 'qa') && 'true' || 'false' }}
         run: |
           pnpm --filter @pactlab/site build
           CERT="${{ vars.SITE_CERTIFICATE_ARN }}"
