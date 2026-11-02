@@ -119,6 +119,11 @@ export class PactlabEnvironmentDeployAccessStack extends Stack {
     this.role.addToPolicy(
       new iam.PolicyStatement({ sid: 'WatchRollout', actions: ['ecs:DescribeTasks', 'ecs:DescribeServices', 'ecs:ListTasks'], resources: ['*'], conditions: { ArnEquals: { 'ecs:cluster': cluster } } }),
     );
+    // dev and qa: the deploy moves the worker to its new task revision itself (scripts/roll-worker.sh).
+    this.role.addToPolicy(
+      new iam.PolicyStatement({ sid: 'RollWorker', actions: ['ecs:UpdateService'], resources: [arn('ecs', `service/pactlab-${environment}/${appStackName}-AppWorkerService*`)] }),
+    );
+    this.role.addToPolicy(new iam.PolicyStatement({ sid: 'ReadTaskDefinitions', actions: ['ecs:DescribeTaskDefinition', 'ecs:ListTaskDefinitions'], resources: ['*'] }));
     this.role.addToPolicy(
       new iam.PolicyStatement({
         sid: 'PassTaskRoles',

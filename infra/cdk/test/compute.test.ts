@@ -109,9 +109,26 @@ describe('dev: the running application (ADR 0019)', () => {
     expect(tagOf('worker')).toContain(':old0001');
     expect(tagOf('api')).toContain(':old0001');
     expect(tagOf('web')).toContain(':old0001');
+    expect(tagOf('worker')).toContain(':old0001');
     const first = platformStack(devConfig, { imageTag: 'new0001', serviceImageTag: 'none' }).template;
     first.allResourcesProperties('AWS::ECS::Service', { DesiredCount: 0 });
     first.hasOutput('ServiceImageTag', { Value: 'none' });
+  });
+
+  it('keeps an unchanged service on the image it runs, and records what each runs', () => {
+    const { template: release } = platformStack(devConfig, { imageTag: 'new0001', imageTags: { web: 'web0001', worker: 'wrk0001', tools: 'tls0001' } });
+    const containers = Object.values(release.findResources('AWS::ECS::TaskDefinition')).flatMap((definition) => (definition as { Properties: { ContainerDefinitions: { Name: string; Image: unknown }[] } }).Properties.ContainerDefinitions);
+    const tagOf = (name: string) => JSON.stringify(containers.find((container) => container.Name === name)?.Image);
+    expect(tagOf('web')).toContain('pactlab-dev-web:web0001');
+    expect(tagOf('api')).toContain('pactlab-dev-server:new0001');
+    expect(tagOf('worker')).toContain('pactlab-dev-server:wrk0001');
+    expect(tagOf('migrate')).toContain(':tls0001-tools');
+    expect(tagOf('seed')).toContain(':tls0001-tools');
+    for (const [output, value] of [['WebImageTag', 'web0001'], ['ApiImageTag', 'new0001'], ['WorkerImageTag', 'wrk0001'], ['ToolsImageTag', 'tls0001'], ['ServiceImageTag', 'new0001']]) {
+      release.hasOutput(output!, { Value: value });
+    }
+    release.hasOutput('WorkerServiceName', {});
+    release.hasOutput('WorkerTaskFamily', {});
   });
 });
 
@@ -149,6 +166,9 @@ describe('environment deploy access', () => {
     expect(policy).toContain('cluster/pactlab-dev');
     expect(policy).toContain('ecs-tasks.amazonaws.com');
     expect(policy).not.toContain('pactlab-prod');
+    // The deploy may move only this environment's worker service.
+    expect(policy).toContain('ecs:UpdateService');
+    expect(policy).toContain('service/pactlab-dev/PactlabDev-AppWorkerService*');
   });
 });
 
@@ -208,6 +228,18 @@ describe('rollout speed', () => {
     const careful = platformStack({ ...ENVIRONMENTS.stage, service: { ...devConfig.service!, rollout: 'careful' } }, { imageTag: 'abc1234' }).template;
     expect(Object.fromEntries(rolloutOf(careful))).toMatchObject({ AppWorkerService: { MinimumHealthyPercent: 100, MaximumPercent: 200 } });
     expect(workerStop(careful)).toBeUndefined();
+  });
+
+  it('lets the deploy move the worker in dev and qa (the service names its task family), not elsewhere', () => {
+    const workerService = (template: Template) => Object.entries(template.findResources('AWS::ECS::Service')).find(([id]) => id.startsWith('AppWorkerService'))![1] as { Properties: { TaskDefinition: unknown }; DependsOn?: string[] };
+    const workerTaskId = (template: Template) => Object.keys(template.findResources('AWS::ECS::TaskDefinition')).find((id) => id.startsWith('AppWorkerTask'))!;
+    const dev = platformStack(devConfig, { imageTag: 'abc1234' }).template;
+    const fast = workerService(dev);
+    const family = (dev.findResources('AWS::ECS::TaskDefinition')[workerTaskId(dev)] as { Properties: { Family: string } }).Properties.Family;
+    expect(fast.Properties.TaskDefinition).toBe(family);
+    expect(fast.DependsOn).toContain(workerTaskId(dev));
+    const careful = platformStack({ ...ENVIRONMENTS.stage, service: { ...devConfig.service!, rollout: 'careful' } }, { imageTag: 'abc1234' }).template;
+    expect(workerService(careful).Properties.TaskDefinition).toEqual({ Ref: workerTaskId(careful) });
   });
 });
 

@@ -165,6 +165,10 @@ Actions → **deploy** → `dev` → approve. The workflow:
 
 ECS circuit breakers roll a failing service back on their own. In dev and qa the worker is replaced in place (the old task stops first; queued jobs wait in Redis), while api and web start the new task before stopping the old one.
 
+Only what changed moves. The plan compares each service's running commit (stack outputs `WebImageTag`, `ApiImageTag`, `WorkerImageTag`, `ToolsImageTag`) with the release (`scripts/service-changed.sh`); an unchanged service keeps its image and is not touched, and its image is not rebuilt. **Run with `full`** to rebuild and move everything.
+
+In dev and qa the deploy moves the worker itself, alongside the stack update (`scripts/roll-worker.sh`): the worker service names its task family, so CloudFormation registers the new revision without waiting minutes for ECS to call the worker steady. If the stack update fails, the script puts the worker back on its previous revision.
+
 **Rollback:** dispatch the workflow on the earlier commit. Migrations are expand-only (backward compatible), so the old code runs on the newer schema.
 
 ## Logs and access

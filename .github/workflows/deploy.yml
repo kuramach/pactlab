@@ -15,7 +15,9 @@ name: deploy
 #
 # Fast path: when no migration changed since the release the services run, steps 2 and 3 are
 # skipped and step 4 moves everything in one deploy; when nothing under the site changed, step 5
-# is skipped. A first deploy, or `full`, always runs every step.
+# is skipped. Only services whose code changed get a new image (scripts/service-changed.sh); the
+# others stay on the image they run, untouched. In dev and qa the worker is moved alongside the stack
+# update (scripts/roll-worker.sh). A first deploy, or `full`, always runs and moves everything.
 on:
   workflow_dispatch:
     inputs:
@@ -72,12 +74,14 @@ jobs:
           echo "STACK=$STACK" >> "$GITHUB_ENV"
           echo "CDK=pnpm --filter @pactlab/cdk exec cdk -c pactlab:${ENV_NAME}:account=${{ vars.AWS_ACCOUNT_ID }} -c pactlab:${ENV_NAME}:imageTag=${TAG} -c pactlab:${ENV_NAME}:githubOidc=existing" >> "$GITHUB_ENV"
 
-      # What this release needs: migrations only if a migration changed, the site only if the site changed.
+      # What this release needs: migrations only if a migration changed, the site only if the site changed,
+      # and a new image only for the services whose code changed.
       - name: Plan
         id: plan
         run: |
-          CURRENT=$(aws cloudformation describe-stacks --stack-name "$STACK" \
-            --query "Stacks[0].Outputs[?OutputKey=='ServiceImageTag'].OutputValue" --output text 2>/dev/null || true)
+          OUTPUTS=$(aws cloudformation describe-stacks --stack-name "$STACK" --query "Stacks[0].Outputs" --output json 2>/dev/null || echo '[]')
+          out() { node -e 'const o = (JSON.parse(process.argv[1]) || []).find((x) => x.OutputKey === process.argv[2]); console.log(o ? o.OutputValue : "")' "$OUTPUTS" "$1"; }
+          CURRENT=$(out ServiceImageTag)
           if [ -z "$CURRENT" ] || [ "$CURRENT" = "None" ]; then CURRENT=none; fi
           echo "current=$CURRENT" >> "$GITHUB_OUTPUT"
           changed() {  # true unless the running commit is known and nothing under these paths changed since it
@@ -92,6 +96,21 @@ jobs:
           echo "migrations=$MIGRATIONS" >> "$GITHUB_OUTPUT"
           echo "site=$SITE" >> "$GITHUB_OUTPUT"
           echo "Services run: $CURRENT · migrations needed: $MIGRATIONS · site changed: $SITE"
+          # Per image: what it runs now (stacks from before per-service tags: the release), and whether it changed.
+          for IMAGE in web api worker tools; do
+            RUNNING=$(out "$(echo "${IMAGE:0:1}" | tr a-z A-Z)${IMAGE:1}ImageTag")
+            if [ -z "$RUNNING" ] || [ "$RUNNING" = None ]; then
+              [ "$IMAGE" = tools ] && RUNNING=$(out ReleaseImageTag) || RUNNING=$CURRENT
+            fi
+            if [ -z "$RUNNING" ] || [ "$RUNNING" = None ]; then RUNNING=none; fi
+            if [ "${{ inputs.full }}" = "true" ]; then CHANGED=true
+            elif [ "$IMAGE" = tools ]; then
+              CHANGED=$MIGRATIONS; [ "$CHANGED" = true ] || CHANGED=$(scripts/service-changed.sh server "$RUNNING")
+            else CHANGED=$(scripts/service-changed.sh "$IMAGE" "$RUNNING"); fi
+            echo "${IMAGE}_running=$RUNNING" >> "$GITHUB_OUTPUT"
+            echo "${IMAGE}_changed=$CHANGED" >> "$GITHUB_OUTPUT"
+            echo "$IMAGE: runs $RUNNING · changed: $CHANGED"
+          done
 
       # dev, qa and stage pause when idle (ADR 0019): wake a paused environment before changing it.
       - name: 0. Make sure the environment is awake
@@ -109,22 +128,44 @@ jobs:
         id: ecr
       - uses: docker/setup-buildx-action@v3
 
+      # Each image's tag for this release: the new commit if it changed (or its running image is gone), else the
+      # tag it runs. Builds only new images not already pushed.
       - name: 1. Which images this commit still needs
         id: need
         run: |
-          TARGETS=""
-          # target:repository:tag — "tools" (migrate, seed) lives in the server repository as "<sha>-tools".
-          for ENTRY in "server:server:$TAG" "tools:server:$TAG-tools" "web:web:$TAG"; do
-            IFS=: read -r TARGET IMAGE IMAGE_TAG <<< "$ENTRY"
-            if aws ecr describe-images --repository-name "pactlab-${ENV_NAME}-${IMAGE}" --image-ids imageTag="$IMAGE_TAG" >/dev/null 2>&1; then
-              echo "pactlab-${ENV_NAME}-${IMAGE}:${IMAGE_TAG} already pushed"
+          exists() { aws ecr describe-images --repository-name "pactlab-${ENV_NAME}-$1" --image-ids imageTag="$2" >/dev/null 2>&1; }
+          TARGETS=""; RELEASE_CTX=""; RUNNING_CTX=""
+          for IMAGE in web api worker tools; do
+            case "$IMAGE" in web) REPO=web; TARGET=web; SUFFIX="" ;; tools) REPO=server; TARGET=tools; SUFFIX=-tools ;; *) REPO=server; TARGET=server; SUFFIX="" ;; esac
+            R="RUNNING_$IMAGE"; C="CHANGED_$IMAGE"; RUNNING=${!R}; CHANGED=${!C}
+            if [ "$CHANGED" != true ] && [ "$RUNNING" != none ] && exists "$REPO" "$RUNNING$SUFFIX"; then
+              USE=$RUNNING
+              echo "$IMAGE: stays on $RUNNING"
             else
-              TARGETS="${TARGETS:+$TARGETS,}$TARGET"
+              USE=$TAG
+              if exists "$REPO" "$TAG$SUFFIX"; then echo "$IMAGE: pactlab-${ENV_NAME}-${REPO}:${TAG}${SUFFIX} already pushed"
+              else case ",$TARGETS," in *",$TARGET,"*) ;; *) TARGETS="${TARGETS:+$TARGETS,}$TARGET" ;; esac; fi
             fi
+            RELEASE_CTX="$RELEASE_CTX -c pactlab:${ENV_NAME}:${IMAGE}ImageTag=$USE"
+            # While migrations run, services stay where they are; the one-off tasks get the release.
+            if [ "$IMAGE" = tools ]; then RUNNING_CTX="$RUNNING_CTX -c pactlab:${ENV_NAME}:toolsImageTag=$USE"
+            elif [ "$RUNNING" != none ]; then RUNNING_CTX="$RUNNING_CTX -c pactlab:${ENV_NAME}:${IMAGE}ImageTag=$RUNNING"; fi
           done
           echo "targets=$TARGETS" >> "$GITHUB_OUTPUT"
+          echo "RELEASE_CTX=$RELEASE_CTX" >> "$GITHUB_ENV"
+          echo "RUNNING_CTX=$RUNNING_CTX" >> "$GITHUB_ENV"
+          echo "build: ${TARGETS:-nothing}"
+        env:
+          RUNNING_web: ${{ steps.plan.outputs.web_running }}
+          RUNNING_api: ${{ steps.plan.outputs.api_running }}
+          RUNNING_worker: ${{ steps.plan.outputs.worker_running }}
+          RUNNING_tools: ${{ steps.plan.outputs.tools_running }}
+          CHANGED_web: ${{ steps.plan.outputs.web_changed }}
+          CHANGED_api: ${{ steps.plan.outputs.api_changed }}
+          CHANGED_worker: ${{ steps.plan.outputs.worker_changed }}
+          CHANGED_tools: ${{ steps.plan.outputs.tools_changed }}
 
-      # All three images in one parallel build, sharing the dependency and build layers. Layers are cached in
+      # The new images in one parallel build, sharing the dependency and build layers. Layers are cached in
       # GitHub Actions' cache between runs (server and tools: shared; web: per environment), so a code-only change
       # skips the package download and reuses everything that did not change. See infra/docker/docker-bake.hcl.
       - name: 1. Build and push images (parallel, cached)
@@ -148,8 +189,8 @@ jobs:
         run: |
           CURRENT="${{ steps.plan.outputs.current }}"
           echo "Services stay on: $CURRENT"
-          $CDK diff "$STACK" --method=template -c pactlab:${ENV_NAME}:serviceImageTag="$CURRENT" || true
-          $CDK deploy "$STACK" --require-approval never -c pactlab:${ENV_NAME}:serviceImageTag="$CURRENT" \
+          $CDK diff "$STACK" --method=template -c pactlab:${ENV_NAME}:serviceImageTag="$CURRENT" $RUNNING_CTX || true
+          $CDK deploy "$STACK" --require-approval never -c pactlab:${ENV_NAME}:serviceImageTag="$CURRENT" $RUNNING_CTX \
             --outputs-file "$RUNNER_TEMP/outputs.json"
 
       - name: 3. Migrations
@@ -170,7 +211,15 @@ jobs:
       - name: 4. Move the services to the release
         id: release
         run: |
-          $CDK deploy "$STACK" --require-approval never --outputs-file "$RUNNER_TEMP/outputs.json"
+          # dev and qa: the worker is moved alongside the stack update, without CloudFormation's minutes-long wait.
+          DONE="$RUNNER_TEMP/cdk-exit"; : > "$DONE"
+          ( set +e; $CDK deploy "$STACK" --require-approval never $RELEASE_CTX --outputs-file "$RUNNER_TEMP/outputs.json"; echo $? > "$DONE" ) &
+          CDK_PID=$!
+          ROLL_PID=""
+          if [ "$ENV_NAME" = dev ] || [ "$ENV_NAME" = qa ]; then scripts/roll-worker.sh "$STACK" "$DONE" & ROLL_PID=$!; fi
+          wait "$CDK_PID"
+          ROLL=0; [ -z "$ROLL_PID" ] || wait "$ROLL_PID" || ROLL=$?
+          test "$(cat "$DONE")" = 0 && test "$ROLL" = 0
           ORIGIN=$(node -e "console.log(require(process.argv[1])[process.argv[2]].Origin)" "$RUNNER_TEMP/outputs.json" "$STACK")
           echo "origin=$ORIGIN" >> "$GITHUB_OUTPUT"
 

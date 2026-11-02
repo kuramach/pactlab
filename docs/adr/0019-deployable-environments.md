@@ -21,6 +21,7 @@ Decided with Kumar:
 
 1. **One image build, three images.**
    - `infra/docker/Dockerfile` builds a slim `server` image (API and worker: their production dependencies only), a `tools` image tagged `<sha>-tools` in the same repository (the full workspace, for the one-off migrate and seed tasks) and a `web` image (Next.js standalone).
+   - A deploy builds and moves only the services whose code changed; the others keep the image they run. In dev and qa the deploy moves the worker itself, outside CloudFormation's stabilization wait.
    - Images are tagged by commit SHA in per-environment, immutable, scanned ECR repositories. These live in their own `Pactlab<Env>Registry` stack, so images can be pushed before the app stack runs them.
 2. **Fargate (ARM64) behind one HTTPS host.**
    - The ALB serves the web app. `/v1/*` and `/health` go to the API on the same origin.

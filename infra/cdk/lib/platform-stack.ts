@@ -19,6 +19,8 @@ export interface PactlabPlatformStackProps extends StackProps {
   readonly imageTag?: string;
   /** The tag the services run during a release (see PactlabCompute); defaults to `imageTag`. */
   readonly serviceImageTag?: string;
+  /** Per-image overrides (see PactlabCompute): unchanged services stay on the tag they run. */
+  readonly imageTags?: Partial<Record<'web' | 'api' | 'worker' | 'tools', string>>;
   /** The shared non-live base, for an environment whose config says `shared` (dev and qa). */
   readonly sharedBase?: PactlabNonliveBaseStack;
 }
@@ -42,7 +44,7 @@ export class PactlabPlatformStack extends Stack {
   readonly compute?: PactlabCompute;
 
   constructor(scope: Construct, id: string, props: PactlabPlatformStackProps) {
-    const { config, imageTag, serviceImageTag, sharedBase, ...stackProps } = props;
+    const { config, imageTag, serviceImageTag, imageTags, sharedBase, ...stackProps } = props;
     if (config.shared && !sharedBase)
       throw new Error(`${config.name} runs on the shared non-live base: pass sharedBase`);
     if (!config.shared && sharedBase)
@@ -211,6 +213,7 @@ export class PactlabPlatformStack extends Stack {
         service: config.service,
         imageTag: imageTag ?? 'unset',
         serviceImageTag: serviceImageTag ?? imageTag ?? 'unset',
+        ...(imageTags ? { imageTags } : {}),
         vpc: this.vpc,
         appSecurityGroup: this.appSecurityGroup,
         dataKey: this.dataKey,
