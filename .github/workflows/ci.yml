@@ -38,6 +38,13 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # Turbo's task cache across runs: a package whose inputs (and internal dependencies) did not change
+      # is not linted, type-checked or tested again. Saved per commit, restored from the latest.
+      - uses: actions/cache@v4
+        with:
+          path: .turbo/cache
+          key: turbo-${{ runner.os }}-${{ github.sha }}
+          restore-keys: turbo-${{ runner.os }}-
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test
@@ -56,7 +63,6 @@ jobs:
 
   # Browser tests (apps/e2e): real API, web app and database; synthetic data only, AI off.
   e2e:
-    needs: build
     runs-on: ubuntu-latest
     services:
       postgres:
