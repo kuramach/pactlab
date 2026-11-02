@@ -74,14 +74,15 @@ describe('dev: the running application (ADR 0019)', () => {
     expect(migrate?.Secrets?.map((secret) => secret.Name).sort()).toEqual(['DB_OWNER_PASSWORD', 'DB_OWNER_USER', 'DB_PASSWORD']);
   });
 
-  it('runs dev on Amazon Nova while Claude access is pending, and lets the role call only those models', () => {
+  it('runs dev on the Claude models this account can call, and lets the role call only Claude', () => {
     const definitions = Object.values(template.findResources('AWS::ECS::TaskDefinition')) as { Properties: { ContainerDefinitions: { Name: string; Environment?: { Name: string; Value: unknown }[] }[] } }[];
     const api = definitions.flatMap((definition) => definition.Properties.ContainerDefinitions).find((container) => container.Name === 'api');
     const environment = Object.fromEntries((api?.Environment ?? []).map((item) => [item.Name, item.Value]));
-    expect(environment).toMatchObject({ BEDROCK_MODEL_BALANCED: 'us.amazon.nova-pro-v1:0', BEDROCK_MODEL_FAST: 'us.amazon.nova-lite-v1:0' });
+    expect(environment).toMatchObject({ BEDROCK_MODEL_BALANCED: 'us.anthropic.claude-sonnet-4-6', BEDROCK_MODEL_DEEP_REVIEW: 'us.anthropic.claude-opus-4-6-v1', BEDROCK_MODEL_FAST: 'us.anthropic.claude-haiku-4-5-20251001-v1:0' });
     const bedrock = JSON.stringify(statements(template, 'ApiTaskRole').find((statement) => statement.Sid === 'Bedrock')?.Resource);
-    expect(bedrock).toContain('inference-profile/us.amazon.nova-*');
-    expect(bedrock).toContain('foundation-model/amazon.nova-*');
+    expect(bedrock).toContain('inference-profile/us.anthropic.claude-*');
+    expect(bedrock).toContain('foundation-model/anthropic.claude-*');
+    expect(bedrock).not.toContain('nova');
   });
 
   it('starts each program with its own tsx, never through pnpm', () => {

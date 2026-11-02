@@ -18,7 +18,7 @@ data-layer stack until slice 2 (T-070) adds their service blocks.
 | Site | `https://dev.pactlab.ai`: the marketing site, Sign up / Sign in go to the app; never indexed | CloudFront + S3 (as `pactlab.ai`) |
 | Data | Postgres 18 (t4g.medium), Redis (t4g.micro, TLS), S3 evidence bucket (KMS) | existing platform stack |
 | Email | Amazon SES, `no-reply@pactlab.ai` | sandbox until you request production access |
-| AI | Claude on Bedrock with the API's **task role**. No SSO, nothing expires. **Interim:** Amazon Nova until Claude access is granted (ADR 0019 addendum) | |
+| AI | Claude on Bedrock with the API's **task role**. No SSO, nothing expires. **Interim:** Sonnet 4.6, Opus 4.6 and Haiku 4.5 until AWS enables the app's default Claude 5.5 models for this account (ADR 0019 addendum) | |
 
 Expected cost always on: about **$120–140 a month** (NAT ~$34, ALB ~$18, RDS t4g.medium ~$50, Redis micro ~$9, Fargate ~$20, logs and misc ~$5), plus Bedrock usage. Tear down when idle (below).
 

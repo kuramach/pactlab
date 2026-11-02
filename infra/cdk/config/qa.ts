@@ -33,11 +33,13 @@ export const qaConfig: EnvironmentConfig = {
     // dev's stack holds the pactlab.ai SES identity in this account; qa sends as it.
     email: { identityDomain: 'pactlab.ai', from: 'Pactlab <no-reply@pactlab.ai>', identityOwner: false },
     malwareScanner: 'signature',
-    // INTERIM, as dev (2026-10-30): Amazon Nova until Claude access is granted; remove `modelOverrides` then.
+    // The app's default routes are the Claude 5.5 models (packages/ai/src/models.ts), which AWS has not yet
+    // enabled for this account (2026-11-02; neither the Claude 5 family nor Opus 4.7/4.8 are). Until it does,
+    // the newest Claude models it can call. Remove `modelOverrides` once the defaults answer `pnpm ai:check`.
     bedrock: {
-      foundationModels: ['anthropic.claude-*', 'amazon.nova-*'],
-      inferenceProfiles: ['us.anthropic.claude-*', 'us.amazon.nova-*'],
-      modelOverrides: { balanced: 'us.amazon.nova-pro-v1:0', deep_review: 'us.amazon.nova-pro-v1:0', fast: 'us.amazon.nova-lite-v1:0' },
+      foundationModels: ['anthropic.claude-*'],
+      inferenceProfiles: ['us.anthropic.claude-*'],
+      modelOverrides: { balanced: 'us.anthropic.claude-sonnet-4-6', deep_review: 'us.anthropic.claude-opus-4-6-v1', fast: 'us.anthropic.claude-haiku-4-5-20251001-v1:0' },
     },
     // Dev and qa: new organizations are active at once, so sign-up can be tested end to end.
     signupRequiresApproval: false,
