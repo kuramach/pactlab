@@ -296,8 +296,9 @@ export class PactlabCompute extends Construct {
     const web = new ecs.FargateService(this, 'WebService', { ...serviceProps, taskDefinition: webTask, desiredCount: desired(service.web), securityGroups: [webSecurityGroup] });
     const api = new ecs.FargateService(this, 'ApiService', { ...serviceProps, taskDefinition: apiTask, desiredCount: desired(service.api), securityGroups: [props.appSecurityGroup] });
     // The worker serves no traffic and its jobs wait in Redis, so in fast rollout the old task stops before
-    // the new one starts, instead of both running until ECS sees the new one stable.
-    const workerRollout = fast ? { minHealthyPercent: 0, maxHealthyPercent: 100 } : {};
+    // the new one starts, instead of both running until ECS sees the new one stable. ECS allows that only
+    // without Availability Zone rebalancing (which needs room above 100%); one worker task has nothing to rebalance.
+    const workerRollout = fast ? { minHealthyPercent: 0, maxHealthyPercent: 100, availabilityZoneRebalancing: ecs.AvailabilityZoneRebalancing.DISABLED } : {};
     const worker = new ecs.FargateService(this, 'WorkerService', { ...serviceProps, ...workerRollout, taskDefinition: workerTask, desiredCount: desired(service.worker), securityGroups: [props.appSecurityGroup] });
     this.httpsListener = https;
     this.services = [
