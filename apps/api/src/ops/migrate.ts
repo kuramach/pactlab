@@ -34,9 +34,12 @@ try {
   END $$;`);
   const exists = (await client.query('SELECT 1 FROM pg_roles WHERE rolname = $1', [runtimeUser])).rowCount === 1;
   const password = client.escapeLiteral(runtimePassword);
+  // Created with its restrictions once. Later runs only refresh login and password: on RDS the owner is not a
+  // superuser and may not even restate SUPERUSER/BYPASSRLS. The API refuses to start if they ever drift
+  // (assertRuntimeRoleIsolation), so the restrictions stay checked on every start.
   await client.query(
     exists
-      ? `ALTER ROLE ${runtimeUser} WITH LOGIN PASSWORD ${password} NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS NOINHERIT`
+      ? `ALTER ROLE ${runtimeUser} WITH LOGIN PASSWORD ${password}`
       : `CREATE ROLE ${runtimeUser} LOGIN PASSWORD ${password} NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS NOINHERIT`,
   );
   await client.query(`GRANT pactlab_app TO ${runtimeUser}`);
