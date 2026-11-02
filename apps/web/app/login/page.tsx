@@ -53,7 +53,15 @@ export default async function LoginPage({
           {codeStep ? (
             <form action={submitCode} className="flex flex-col gap-3">
               <p className="text-sm text-muted-foreground">
-                If that address can sign in with a code, we have emailed one. It expires in 10 minutes.
+                If that address has a Pactlab account, we have emailed it a 6-digit code. It expires in 10 minutes.
+              </p>
+              {/* Codes go only to existing accounts (the page never reveals which): point newcomers to sign-up. */}
+              <p className="text-sm text-muted-foreground">
+                No email after a minute? Check spam, or you may not have an account yet:{' '}
+                <a href="/signup" className="font-medium text-foreground underline underline-offset-4">
+                  sign up
+                </a>
+                .
               </p>
               {publicEnv().NEXT_PUBLIC_APP_ENV === 'local' ? (
                 <p className="rounded-md border border-dashed border-border bg-muted px-3 py-2 text-xs text-muted-foreground">
