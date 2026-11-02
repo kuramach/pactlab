@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic';
 
 const ERRORS: Record<string, string> = {
   details: 'Fill in your name, your organization (at least 2 characters) and a valid email address.',
-  'work-email': 'Use your work email address — personal mailboxes such as Gmail or Outlook.com can’t own an organization.',
+  'sso-work-email': 'Company single sign-on needs your work email address. Use it, or untick SSO to continue with this address and sign in with codes.',
   code: 'That code did not work. Check it, or start again for a new one.',
   expired: 'Your sign-up attempt expired. Start again.',
   unavailable: 'Sign-up is unavailable right now. Try again shortly.',
@@ -60,7 +60,7 @@ export default async function SignupPage({
               <CardDescription>
                 {step === 'code'
                   ? `Enter the 6-digit code we emailed you. It expires in 10 minutes.${publicEnv().NEXT_PUBLIC_APP_ENV === 'local' ? ' (Local development: run pnpm login:code to see it.)' : ''}`
-                  : 'Your team signs in with one-time codes sent to their work email.'}
+                  : 'Your team signs in with one-time codes sent to their email. A work or personal address both work.'}
               </CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col gap-5">
@@ -100,7 +100,7 @@ export default async function SignupPage({
                     <input name="displayName" required maxLength={120} autoComplete="name" className={inputClass} />
                   </label>
                   <label className="flex flex-col gap-1 text-sm font-medium">
-                    Work email
+                    Email
                     <input name="email" type="email" required autoComplete="email" className={inputClass} />
                   </label>
                   <label className="flex items-start gap-2 text-sm">

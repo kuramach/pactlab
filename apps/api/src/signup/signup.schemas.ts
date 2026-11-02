@@ -7,7 +7,7 @@ export const startSignupSchema = z.strictObject({
   displayName: z.string().trim().min(1).max(120),
   organizationName: z.string().trim().min(2).max(120),
   ssoRequested: z.boolean().default(false),
-  /** Signing up from a pact invitation (T-094 B12): the work-email rule and operator approval do not apply. */
+  /** Signing up from a pact invitation (T-094 B12): operator approval does not apply. */
   invitationToken: z.string().regex(/^[A-Za-z0-9_-]{43}$/).optional(),
 });
 export type StartSignupBody = z.infer<typeof startSignupSchema>;

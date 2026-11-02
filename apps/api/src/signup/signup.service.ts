@@ -64,8 +64,12 @@ export class SignupService {
   }
 
   async start(body: StartSignupBody, clientAddress: string): Promise<void> {
-    // Domain policy is public, so rejecting it reveals nothing about accounts. An invited seller may use any address.
-    if (isFreeMailAddress(body.email) && !(await this.invited(body.invitationToken, body.email))) throw new UnprocessableEntityException('WORK_EMAIL_REQUIRED');
+    // Any address may own an organization (Kumar, 2026-11-02): founders, solo advisors and small firms use personal
+    // mailboxes. Company single sign-on is the exception: it needs the company's domain. The policy is public,
+    // so refusing it reveals nothing about accounts. An invited seller may ask for anything.
+    if (body.ssoRequested && isFreeMailAddress(body.email) && !(await this.invited(body.invitationToken, body.email))) {
+      throw new UnprocessableEntityException({ code: 'WORK_EMAIL_FOR_SSO' });
+    }
     const email = normalizeEmail(body.email);
     const code = randomInt(0, 1_000_000).toString().padStart(6, '0');
     const begun = await signup.begin(this.prisma, {

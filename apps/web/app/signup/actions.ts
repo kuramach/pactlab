@@ -27,7 +27,7 @@ export async function startSignup(formData: FormData): Promise<void> {
   });
   if (!parsed.success) redirect(signupUrl({ error: 'details' }));
   const started = await authApi('/v1/signup/start', parsed.data);
-  if (started.status === 422) redirect(signupUrl({ error: 'work-email' }));
+  if (started.status === 422) redirect(signupUrl({ error: 'sso-work-email' }));
   if (started.status !== 202) redirect(signupUrl({ error: 'unavailable' }));
   await rememberPendingEmail(parsed.data.email, 'signup');
   redirect(signupUrl({ step: 'code' }));

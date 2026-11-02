@@ -1,6 +1,7 @@
 /**
- * Consumer mailbox providers. Sign-up asks for a work address so an
- * organization belongs to a company domain. Kept short and explicit.
+ * Consumer mailbox providers. Any address may sign up; asking for company
+ * single sign-on needs a company domain, so these are refused for it. Kept
+ * short and explicit.
  */
 const FREE_MAIL_DOMAINS = new Set([
   'gmail.com',

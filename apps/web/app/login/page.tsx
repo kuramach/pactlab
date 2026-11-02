@@ -107,7 +107,7 @@ export default async function LoginPage({
               ) : null}
               <form action={requestCode} className="flex flex-col gap-3">
                 <label className="flex flex-col gap-1 text-sm font-medium">
-                  Work email
+                  Email
                   <input name="email" type="email" autoComplete="email" required className={inputClass} />
                 </label>
                 <input type="hidden" name="returnTo" value={returnTo} />
