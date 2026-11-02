@@ -1,6 +1,6 @@
 import { ForbiddenException, Inject, Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
-import type { BugReportDetailView, BugReportSummaryView, FileBugReportInput, TriageBugInput } from '@pactlab/contracts';
-import { OperatorRequiredError, operatorOps, prismaExecutor, type BugListRow, type PrismaClient, type SqlExecutor } from '@pactlab/db';
+import type { BugReportDetailView, BugReportSummaryView, FileBugReportInput, MyBugReportView, TriageBugInput } from '@pactlab/contracts';
+import { OperatorRequiredError, operatorOps, prismaExecutor, type BugListRow, type MyBugRow, type PrismaClient, type SqlExecutor } from '@pactlab/db';
 import { bugFingerprint, bugReference, scrubContext, type TenantContext } from '@pactlab/domain';
 import type { EmailSender } from '../email-login/email-sender';
 import { decide, listPending } from '../ops/organizations';
@@ -26,6 +26,23 @@ const summary = (row: BugListRow): BugReportSummaryView => ({
   firstSeenAt: row.firstSeenAt.toISOString(),
   lastSeenAt: row.lastSeenAt.toISOString(),
   hasScreenshot: row.hasScreenshot,
+});
+
+const mine = (row: MyBugRow): MyBugReportView => ({
+  id: row.id,
+  reference: bugReference(row.number),
+  trigger: row.trigger,
+  title: row.title,
+  severity: row.severity,
+  status: row.status,
+  occurrences: row.occurrences,
+  filedAt: row.firstSeenAt.toISOString(),
+  lastSeenAt: row.lastSeenAt.toISOString(),
+  updatedAt: row.updatedAt.toISOString(),
+  page: row.route,
+  dealId: row.dealId,
+  hasScreenshot: row.hasScreenshot,
+  hasReply: row.hasReply,
 });
 
 const PNG = [0x89, 0x50, 0x4e, 0x47];
@@ -182,8 +199,22 @@ export class AdminService {
     }
   }
 
-  async myBugs(tenant: TenantContext): Promise<{ items: BugReportSummaryView[] }> {
-    return { items: (await operatorOps.bugs(this.sql, tenant.userId, true)).map(summary) };
+  /** The caller's own reports (Bugs submitted); scoped to them in SQL. */
+  async myBugs(tenant: TenantContext): Promise<{ items: MyBugReportView[] }> {
+    return { items: (await operatorOps.myBugs(this.sql, tenant.userId)).map(mine) };
+  }
+
+  /** One of the caller's own reports, with Pactlab's reply. Anyone else's is not found. */
+  async myBug(tenant: TenantContext, bugId: string) {
+    const row = await operatorOps.myBug(this.sql, tenant.userId, bugId);
+    if (!row) throw new NotFoundException();
+    return { ...mine(row), whatHappened: row.whatHappened, expected: row.expected, reply: row.reply };
+  }
+
+  async myScreenshot(tenant: TenantContext, bugId: string) {
+    const row = await operatorOps.myBug(this.sql, tenant.userId, bugId);
+    if (!row?.screenshot || !row.screenshotType) throw new NotFoundException();
+    return { bytes: row.screenshot, contentType: row.screenshotType };
   }
 
   bugs(tenant: TenantContext) {
@@ -204,6 +235,7 @@ export class AdminService {
         expected: row.expected,
         context: row.context,
         internalNotes: row.internalNotes,
+        reporterNote: row.reporterNote,
       };
     });
   }
@@ -218,7 +250,9 @@ export class AdminService {
 
   triage(tenant: TenantContext, bugId: string, input: TriageBugInput) {
     return this.asOperator(async () => {
-      if (!(await operatorOps.triageBug(this.sql, tenant.userId, bugId, input))) throw new NotFoundException();
+      // A triage without a reply keeps the one already sent.
+      const reporterNote = input.reporterNote === undefined ? ((await operatorOps.bug(this.sql, tenant.userId, bugId))?.reporterNote ?? null) : input.reporterNote;
+      if (!(await operatorOps.triageBug(this.sql, tenant.userId, bugId, { status: input.status, severity: input.severity, internalNotes: input.internalNotes, reporterNote }))) throw new NotFoundException();
       return this.bug(tenant, bugId);
     });
   }

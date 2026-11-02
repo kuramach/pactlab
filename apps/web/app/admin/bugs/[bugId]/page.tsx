@@ -24,7 +24,7 @@ export default async function BugDetailPage({ params, searchParams }: { params: 
       <h1 className="text-xl font-bold">
         <span className="font-mono">{view.reference}</span> {view.title}
       </h1>
-      {outcome === 'ok-triaged' ? <p role="status" className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">Saved. The reporter sees the new status in My bug reports.</p> : null}
+      {outcome === 'ok-triaged' ? <p role="status" className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">Saved. The reporter sees the status and your reply in Bugs submitted.</p> : null}
       <div className="flex flex-wrap gap-2 text-sm">
         <Badge>{view.trigger.toLowerCase().replaceAll('_', ' ')}</Badge>
         <Badge variant={view.severity === 'BLOCKER' || view.severity === 'HIGH' ? 'danger' : 'neutral'}>{view.severity.toLowerCase()}</Badge>
@@ -55,7 +55,7 @@ export default async function BugDetailPage({ params, searchParams }: { params: 
       <Card>
         <CardHeader><CardTitle className="text-base">Triage</CardTitle></CardHeader>
         <CardContent>
-          <form action={triageBug.bind(null, view.id)} className="grid gap-3 sm:grid-cols-[1fr_1fr_2fr_auto] sm:items-end text-sm">
+          <form action={triageBug.bind(null, view.id)} className="grid gap-3 text-sm sm:grid-cols-[1fr_1fr_2fr_auto] sm:items-end">
             <label className="flex flex-col gap-1 font-medium">Status
               <select name="status" defaultValue={view.status} className="rounded-md border border-border px-2 py-1.5">
                 {['NEW', 'TRIAGED', 'IN_PROGRESS', 'RESOLVED', 'WONT_FIX'].map((value) => <option key={value} value={value}>{value.toLowerCase().replace('_', ' ')}</option>)}
@@ -68,6 +68,9 @@ export default async function BugDetailPage({ params, searchParams }: { params: 
             </label>
             <label className="flex flex-col gap-1 font-medium">Internal notes (operators only)
               <input name="internalNotes" defaultValue={view.internalNotes ?? ''} maxLength={5000} className="rounded-md border border-border px-2 py-1.5" />
+            </label>
+            <label className="flex flex-col gap-1 font-medium sm:col-span-4">Reply to the reporter (they see this)
+              <textarea name="reporterNote" defaultValue={view.reporterNote ?? ''} maxLength={5000} rows={3} placeholder="What you found and what happens next" className="rounded-md border border-border px-2 py-1.5 font-normal" />
             </label>
             <button className="rounded-md bg-indigo px-3 py-1.5 font-semibold text-navy">Save</button>
           </form>

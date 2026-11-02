@@ -1,8 +1,11 @@
 import { Badge, buttonVariants, Card, CardContent, CardDescription, CardHeader, CardTitle, EmptyState, PageHeader } from '@pactlab/ui';
-import { ArrowRight, LogOut } from 'lucide-react';
+import type { MyBugReportView } from '@pactlab/contracts';
+import { ArrowRight, Bug, LogOut } from 'lucide-react';
 import Link from 'next/link';
 import { getSessionContext } from '../../../lib/session';
 import { signOut } from '../../_actions/sign-out';
+import { apiGet } from '../deals/_lib/api';
+import { isOpen, STATUS_LABELS, statusBadge } from './bug-reports/_lib/status';
 
 // Per-user data: never prerender.
 export const dynamic = 'force-dynamic';
@@ -15,6 +18,46 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
       <dt className="text-sm text-muted-foreground">{label}</dt>
       <dd className="text-sm font-medium">{children}</dd>
     </div>
+  );
+}
+
+/** Bugs submitted, near the top: open and closed counts and the latest three. */
+async function BugsSubmittedCard() {
+  const result = await apiGet<{ items: MyBugReportView[] }>('/v1/bug-reports/mine');
+  const items = result.kind === 'ok' ? result.data.items : [];
+  const open = items.filter((bug) => isOpen(bug.status)).length;
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-start justify-between gap-3">
+        <div className="flex flex-col gap-1.5">
+          <CardTitle className="flex items-center gap-2">
+            <Bug aria-hidden className="h-4 w-4" /> Bugs submitted
+          </CardTitle>
+          <CardDescription>
+            {items.length === 0 ? 'Nothing reported yet. Use the bug button at the bottom right of any page.' : `${open} open · ${items.length - open} closed. Open one to see where it stands and our reply.`}
+          </CardDescription>
+        </div>
+        <Link href="/settings/bug-reports" className={buttonVariants({ variant: 'outline', size: 'sm' })}>
+          See all <ArrowRight aria-hidden className="h-4 w-4" />
+        </Link>
+      </CardHeader>
+      {items.length > 0 ? (
+        <CardContent>
+          <ul className="divide-y divide-border text-sm" aria-label="Latest bugs submitted">
+            {items.slice(0, 3).map((bug) => (
+              <li key={bug.id}>
+                <Link href={`/settings/bug-reports/${bug.id}`} className="flex flex-wrap items-center gap-2 py-2 hover:underline">
+                  <span className="font-mono text-xs text-muted-foreground">{bug.reference}</span>
+                  <span className="font-medium">{bug.title}</span>
+                  <Badge variant={statusBadge(bug.status)}>{STATUS_LABELS[bug.status] ?? bug.status}</Badge>
+                  {bug.hasReply ? <span className="text-xs font-semibold text-indigo-ink">Replied</span> : null}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </CardContent>
+      ) : null}
+    </Card>
   );
 }
 
@@ -50,6 +93,8 @@ export default async function SettingsPage() {
           </dl>
         </CardContent>
       </Card>
+
+      <BugsSubmittedCard />
 
       <Card>
         <CardHeader>
@@ -106,15 +151,6 @@ export default async function SettingsPage() {
           </CardContent>
         </Card>
       ) : null}
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Bug reports</CardTitle>
-          <CardDescription>
-            Reports you sent with the bug button, and their status: <Link href="/settings/bug-reports" className="text-indigo-ink underline">My bug reports</Link>.
-          </CardDescription>
-        </CardHeader>
-      </Card>
 
       <Card>
         <CardHeader>

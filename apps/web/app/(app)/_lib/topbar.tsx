@@ -1,5 +1,5 @@
 import { buttonVariants, PactlabLockup } from '@pactlab/ui';
-import { LogOut, Menu, Plus, Settings, ArrowLeftRight } from 'lucide-react';
+import { ArrowLeftRight, Bug, LogOut, Menu, Plus, Settings } from 'lucide-react';
 import Link from 'next/link';
 import type { NavSection } from '../../../lib/navigation';
 import type { SessionContext } from '../../../lib/session';
@@ -65,6 +65,9 @@ export function Topbar({ session, sections }: { session: SessionContext; section
             <div className="py-1">
               <Link href="/settings" className={menuItem}>
                 <Settings aria-hidden className="h-4 w-4" /> Settings
+              </Link>
+              <Link href="/settings/bug-reports" className={menuItem}>
+                <Bug aria-hidden className="h-4 w-4" /> Bugs submitted
               </Link>
               <Link href="/select-organization" className={menuItem}>
                 <ArrowLeftRight aria-hidden className="h-4 w-4" /> Switch organization

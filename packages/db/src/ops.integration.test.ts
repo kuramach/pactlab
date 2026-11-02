@@ -50,8 +50,24 @@ describe.runIf(runtimeUrl && ownerUrl)('operator functions against PostgreSQL', 
     expect(again).toMatchObject({ id: first.id, deduplicated: true });
     expect((await operatorOps.bugs(sql, customer.userId, true)).map((bug) => bug.id)).toContain(first.id);
     await expect(operatorOps.bug(sql, customer.userId, first.id)).rejects.toBeInstanceOf(OperatorRequiredError);
-    expect(await operatorOps.triageBug(sql, operator.userId, first.id, { status: 'TRIAGED', severity: 'LOW', internalNotes: null })).toBe(true);
+    expect(await operatorOps.triageBug(sql, operator.userId, first.id, { status: 'TRIAGED', severity: 'LOW', internalNotes: null, reporterNote: null })).toBe(true);
     // The runtime role still cannot read the table directly.
     await expect(prisma.$queryRaw`SELECT count(*) FROM bug_reports`).rejects.toThrow(/permission denied/);
+  });
+
+  it('shows a reporter their own report and Pactlab\'s reply, never operator notes, and nothing to anyone else', async () => {
+    const sql = prismaExecutor(prisma);
+    const filed = await operatorOps.fileBug(sql, { organizationId: customer.organizationId, dealId: null, reporterUserId: customer.userId, trigger: 'USER_REPORT', fingerprint: `user-${Date.now()}`, title: 'Button does nothing', whatHappened: 'Clicked Save', expected: 'It saves', severity: 'LOW', context: { route: '/deals' }, screenshot: null, screenshotType: null });
+    expect(await operatorOps.triageBug(sql, operator.userId, filed.id, { status: 'IN_PROGRESS', severity: 'MEDIUM', internalNotes: 'secret triage note', reporterNote: 'Thanks — fixing it this week.' })).toBe(true);
+
+    const mine = await operatorOps.myBug(sql, customer.userId, filed.id);
+    expect(mine).toMatchObject({ status: 'IN_PROGRESS', whatHappened: 'Clicked Save', expected: 'It saves', reply: 'Thanks — fixing it this week.', route: '/deals', hasReply: true });
+    expect(JSON.stringify(mine)).not.toContain('secret triage note');
+    expect((await operatorOps.myBugs(sql, customer.userId)).find((bug) => bug.id === filed.id)).toMatchObject({ hasReply: true, route: '/deals' });
+    // Another user (the operator, here) is not the reporter: no row, not even for operators.
+    expect(await operatorOps.myBug(sql, operator.userId, filed.id)).toBeNull();
+    expect((await operatorOps.myBugs(sql, operator.userId)).map((bug) => bug.id)).not.toContain(filed.id);
+    // Operators see the reply they sent.
+    expect((await operatorOps.bug(sql, operator.userId, filed.id))?.reporterNote).toBe('Thanks — fixing it this week.');
   });
 });

@@ -50,6 +50,8 @@ export const triageBugSchema = z.strictObject({
   status: z.enum(BUG_STATUSES),
   severity: z.enum(BUG_SEVERITIES),
   internalNotes: text(5000),
+  /** Pactlab's reply, shown to the reporter. Omitted: the current reply is kept. */
+  reporterNote: text(5000).optional(),
 });
 export type TriageBugInput = z.infer<typeof triageBugSchema>;
 
@@ -59,6 +61,7 @@ export const memberStatusSchema = z.strictObject({ status: z.enum(['ACTIVE', 'SU
 export const decideOrganizationSchema = z.strictObject({ decision: z.enum(['approve', 'reject']) });
 export const usersQuerySchema = z.strictObject({ organizationId: z.uuid().optional(), q: z.string().trim().min(1).max(120).optional() });
 export const auditQuerySchema = z.strictObject({ action: z.string().trim().max(60).optional(), since: z.iso.date().optional() });
+export const myBugParamsSchema = z.strictObject({ bugId: z.uuid() });
 export const adminBugParamsSchema = z.strictObject({ bugId: z.uuid() });
 export const adminOrganizationParamsSchema = z.strictObject({ organizationId: z.uuid() });
 export const adminMemberParamsSchema = z.strictObject({ organizationId: z.uuid(), userId: z.uuid() });
@@ -86,4 +89,32 @@ export interface BugReportDetailView extends BugReportSummaryView {
   expected: string | null;
   context: Record<string, unknown>;
   internalNotes: string | null;
+  /** The reply the reporter sees. */
+  reporterNote: string | null;
+}
+
+/** One of the caller's own reports, as listed in Bugs submitted. Never operator notes or raw context. */
+export interface MyBugReportView {
+  id: string;
+  reference: string;
+  trigger: string;
+  title: string;
+  severity: string;
+  status: string;
+  occurrences: number;
+  filedAt: string;
+  lastSeenAt: string;
+  updatedAt: string;
+  /** The app page it was filed from. */
+  page: string | null;
+  dealId: string | null;
+  hasScreenshot: boolean;
+  hasReply: boolean;
+}
+
+export interface MyBugReportDetailView extends MyBugReportView {
+  whatHappened: string | null;
+  expected: string | null;
+  /** Pactlab's reply. */
+  reply: string | null;
 }

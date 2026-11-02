@@ -1780,6 +1780,8 @@ model BugReport {
   screenshot     Bytes?
   screenshotType String?  @map("screenshot_type")
   internalNotes  String?  @map("internal_notes")
+  /// Pactlab's reply, shown to the reporter (internal_notes never is).
+  reporterNote   String?  @map("reporter_note")
   occurrences    Int      @default(1)
   firstSeenAt    DateTime @default(now()) @map("first_seen_at") @db.Timestamptz(3)
   lastSeenAt     DateTime @default(now()) @map("last_seen_at") @db.Timestamptz(3)

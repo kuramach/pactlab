@@ -165,6 +165,25 @@ describe('operator console and bug reports (T-072)', { timeout: 30_000 }, () => 
     expect(JSON.stringify(mine)).not.toContain('Repro on fixtures'); // internal notes stay with operators
     expect(await audit('bug.triaged')).toBe(1);
 
+    // Bugs submitted: the reporter opens the report and reads Pactlab's reply; operator notes never reach them.
+    await call('operator', 'PUT', `/v1/admin/bugs/${id}`, { status: 'IN_PROGRESS', severity: 'MEDIUM', internalNotes: 'Repro on fixtures', reporterNote: 'Thanks, we can reproduce it and are fixing it.' });
+    const opened = await call('customer', 'GET', `/v1/bug-reports/mine/${id}`);
+    expect(opened.status).toBe(200);
+    expect(opened.body).toMatchObject({ id, status: 'IN_PROGRESS', expected: 'The import to start', reply: 'Thanks, we can reproduce it and are fixing it.', hasReply: true, hasScreenshot: true, dealId: customer.dealId });
+    expect(String(opened.body['page'])).toContain(`/deals/${customer.dealId}/sources`);
+    expect(JSON.stringify(opened.body)).not.toContain('Repro on fixtures');
+    expect(opened.body).not.toHaveProperty('context');
+    expect(opened.body).not.toHaveProperty('fingerprint');
+    const own = await call('customer', 'GET', `/v1/bug-reports/mine/${id}/screenshot`);
+    expect(Buffer.from(own.raw.rawPayload).equals(PNG)).toBe(true);
+    // Someone else's report is not found, even for an operator (who reads it in the console instead).
+    expect((await call('operator', 'GET', `/v1/bug-reports/mine/${id}`)).status).toBe(404);
+    expect((await call('operator', 'GET', `/v1/bug-reports/mine/${id}/screenshot`)).status).toBe(404);
+    // A triage without a reply keeps the one already sent.
+    await call('operator', 'PUT', `/v1/admin/bugs/${id}`, { status: 'RESOLVED', severity: 'MEDIUM', internalNotes: 'Repro on fixtures' });
+    expect((await call('customer', 'GET', `/v1/bug-reports/mine/${id}`)).body).toMatchObject({ status: 'RESOLVED', reply: 'Thanks, we can reproduce it and are fixing it.' });
+    expect((await call('operator', 'GET', `/v1/admin/bugs/${id}`)).body['reporterNote']).toBe('Thanks, we can reproduce it and are fixing it.');
+
     const task = (await call('operator', 'GET', `/v1/admin/bugs/${id}/task?consoleUrl=http://localhost:3000`)).body;
     expect(task['fileName']).toMatch(/^PLB-\d{4}\.md$/);
     for (const part of ['Import button does nothing', 'MEDIUM', 'The import to start', 'Synthetic browser', 'http://localhost:3000/admin/bugs/']) {
