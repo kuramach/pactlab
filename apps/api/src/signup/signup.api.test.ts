@@ -84,14 +84,14 @@ describe('self-serve sign-up through the API', () => {
     await db?.stop();
   });
 
-  it('asks for a work address', async () => {
-    const response = await call('POST', '/v1/signup/start', {
-      email: 'someone@gmail.com',
-      displayName: 'Someone',
-      organizationName: 'Someone Capital',
-    });
-    expect(response.status).toBe(422);
-    expect(mail.to('someone@gmail.com')).toHaveLength(0);
+  it('lets a personal address own an organization, and asks for a work address only for company SSO', async () => {
+    const personal = await call('POST', '/v1/signup/start', { email: 'someone@gmail.com', displayName: 'Someone', organizationName: 'Someone Capital' });
+    expect(personal.status).toBe(202);
+    expect(mail.to('someone@gmail.com')).toHaveLength(1);
+    const sso = await call('POST', '/v1/signup/start', { email: 'another@gmail.com', displayName: 'Another', organizationName: 'Another Capital', ssoRequested: true });
+    expect(sso.status).toBe(422);
+    expect(sso.body).toMatchObject({ code: 'WORK_EMAIL_FOR_SSO' });
+    expect(mail.to('another@gmail.com')).toHaveLength(0);
   });
 
   it('answers the same for new and existing addresses, emailing only the right message', async () => {

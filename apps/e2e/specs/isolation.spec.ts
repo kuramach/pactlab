@@ -26,7 +26,7 @@ test('a second organization cannot open another tenant’s deal', async ({ page,
   await page.goto('/signup');
   await page.getByLabel('Organization name').fill(`Isolation ${tag} (synthetic)`);
   await page.getByLabel('Your name').fill('Isolation Owner (synthetic)');
-  await page.getByLabel('Work email').fill(email);
+  await page.getByLabel('Email', { exact: true }).fill(email);
   await page.getByRole('button', { name: 'Email me a code' }).click();
   await page.getByLabel('6-digit code').fill(await latestCode(email, requested));
   await page.getByRole('button', { name: 'Create organization' }).click();

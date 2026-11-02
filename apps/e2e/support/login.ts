@@ -8,7 +8,7 @@ export const REVIEWER = 'reviewer@charlie.example';
 export async function signIn(page: Page, address: string): Promise<void> {
   const requested = Date.now() - 1_000;
   await page.goto('/login');
-  await page.getByLabel('Work email').fill(address);
+  await page.getByLabel('Email', { exact: true }).fill(address);
   await page.getByRole('button', { name: 'Email me a sign-in code' }).click();
   await expect(page.getByLabel('6-digit code')).toBeVisible();
   await page.getByLabel('6-digit code').fill(await latestCode(address, requested));

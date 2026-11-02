@@ -105,8 +105,8 @@ describe('pact invitations and guests', { timeout: 60_000 }, () => {
     expect((await call('POST', '/v1/signup/start', { email: 'seller.founder@gmail.com', displayName: 'Sam Seller', organizationName: 'Loopwise (synthetic)', invitationToken: token })).status).toBe(202);
     const code = /\b(\d{6})\b/.exec((await lastMail('seller.founder@gmail.com')).text)?.[1];
     expect((await call('POST', '/v1/signup/verify', { email: 'seller.founder@gmail.com', code, invitationToken: token })).body).toMatchObject({ status: 'ACTIVE' });
-    // Without an invitation the work-email rule still applies.
-    expect((await call('POST', '/v1/signup/start', { email: 'someone@gmail.com', displayName: 'X', organizationName: 'Xyz Ltd' })).status).toBe(422);
+    // Without an invitation a personal address may sign up too, but cannot ask for company SSO.
+    expect((await call('POST', '/v1/signup/start', { email: 'someone@gmail.com', displayName: 'X', organizationName: 'Xyz Ltd', ssoRequested: true })).status).toBe(422);
 
     // Someone else cannot accept it: the signed-in address must match.
     expect((await call('POST', `/v1/invitations/${token}/accept`, undefined, await signIn('colleague@charlie.example'))).status).toBe(422);

@@ -6,7 +6,7 @@ test.describe('email-code sign-in', () => {
 
   test('a wrong code is refused with a clear message', async ({ page }) => {
     await page.goto('/login');
-    await page.getByLabel('Work email').fill(LEAD);
+    await page.getByLabel('Email', { exact: true }).fill(LEAD);
     await page.getByRole('button', { name: 'Email me a sign-in code' }).click();
     await page.getByLabel('6-digit code').fill('000000');
     await page.getByRole('button', { name: 'Sign in' }).click();
