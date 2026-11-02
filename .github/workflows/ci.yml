@@ -1,5 +1,10 @@
 name: ci
-on: [push, pull_request]
+# Pull requests run once (pull_request); main runs on push. A push to a PR branch used to start two
+# identical runs (push and pull_request).
+on:
+  push:
+    branches: [main]
+  pull_request:
 
 permissions:
   contents: read
