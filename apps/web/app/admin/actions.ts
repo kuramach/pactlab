@@ -39,7 +39,7 @@ export async function setMemberStatus(organizationId: string, userId: string, fo
 }
 
 export async function triageBug(bugId: string, formData: FormData): Promise<void> {
-  const parsed = triageBugSchema.safeParse({ status: formData.get('status'), severity: formData.get('severity'), internalNotes: formData.get('internalNotes') });
+  const parsed = triageBugSchema.safeParse({ status: formData.get('status'), severity: formData.get('severity'), internalNotes: formData.get('internalNotes'), reporterNote: formData.get('reporterNote') });
   if (!parsed.success || !uuid.safeParse(bugId).success) redirect(`/admin/bugs/${bugId}?outcome=invalid`);
   const result = await apiSend('PUT', `/v1/admin/bugs/${bugId}`, parsed.data);
   redirect(`/admin/bugs/${bugId}?outcome=${result.kind === 'ok' ? 'ok-triaged' : result.kind}`);

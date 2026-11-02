@@ -8,7 +8,7 @@ const makeOperator = (email: string) => {
   expect(result.status, result.stderr).toBe(0);
 };
 
-test('a bug reported from any page reaches the operator inbox; its status flows back to the reporter', async ({ page }) => {
+test('a bug reported from any page reaches the operator inbox; its status and reply flow back to the reporter', async ({ page }) => {
   await page.goto('/deals');
   await page.getByRole('button', { name: 'Report a bug' }).click();
   const dialog = page.getByRole('dialog', { name: 'Report a bug' });
@@ -21,8 +21,10 @@ test('a bug reported from any page reaches the operator inbox; its status flows 
   const reference = (await page.getByRole('heading', { name: /Thanks — report/ }).textContent())?.match(/PLB-\d{4}/)?.[0] ?? '';
   await page.getByRole('button', { name: 'Close' }).click();
 
-  await page.goto('/settings/bug-reports');
-  const mine = page.getByRole('list', { name: 'My bug reports' });
+  // Bugs submitted, from the account menu.
+  await page.getByLabel('Account menu').click();
+  await page.getByRole('link', { name: 'Bugs submitted' }).click();
+  const mine = page.getByRole('list', { name: 'Bugs submitted' });
   await expect(mine.getByText(reference)).toBeVisible();
   await expect(mine.getByText('New', { exact: true })).toBeVisible();
 
@@ -34,13 +36,21 @@ test('a bug reported from any page reaches the operator inbox; its status flows 
   await expect(page.getByText('Deals list sorts oddly (synthetic)')).toBeVisible();
   await page.getByLabel('Status').selectOption('TRIAGED');
   await page.getByLabel('Internal notes (operators only)').fill('Reproduced on fixtures');
+  await page.getByLabel('Reply to the reporter (they see this)').fill('Thanks — we can reproduce it and have queued a fix.');
   await page.getByRole('button', { name: 'Save' }).click();
-  await expect(page.getByText('Saved. The reporter sees the new status')).toBeVisible();
+  await expect(page.getByText('Saved. The reporter sees the status and your reply')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Convert to task' })).toBeVisible();
   await expect(page.getByRole('link', { name: `Download ${reference}.md` })).toBeVisible();
 
   await page.goto('/settings/bug-reports');
-  await expect(page.getByRole('list', { name: 'My bug reports' }).getByText('Triaged', { exact: true })).toBeVisible();
+  const row = page.getByRole('list', { name: 'Bugs submitted' }).getByRole('listitem').filter({ hasText: reference });
+  await expect(row.getByText('Triaged', { exact: true })).toBeVisible();
+  await expect(row.getByText('Replied')).toBeVisible();
+  await row.getByRole('link').click();
+  await expect(page.getByRole('heading', { name: 'Deals list sorts oddly (synthetic)' })).toBeVisible();
+  await expect(page.getByText('Confirmed — we know what is wrong')).toBeVisible();
+  await expect(page.getByText('Thanks — we can reproduce it and have queued a fix.')).toBeVisible();
+  await expect(page.getByText('Newest deal shows last.')).toBeVisible();
   await expect(page.getByText('Reproduced on fixtures')).toHaveCount(0);
 });
 

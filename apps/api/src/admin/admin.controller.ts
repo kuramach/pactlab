@@ -1,6 +1,7 @@
 import { Body, Controller, Get, HttpCode, Inject, Param, Post, Put, Query, Res } from '@nestjs/common';
 import {
   adminBugParamsSchema,
+  myBugParamsSchema,
   adminMemberParamsSchema,
   adminOrganizationParamsSchema,
   auditQuerySchema,
@@ -132,6 +133,18 @@ export class BugReportsController {
   @Get('mine')
   mine(@Tenant() tenant: TenantContext) {
     return this.admin.myBugs(tenant);
+  }
+
+  @Get('mine/:bugId')
+  mineOne(@Tenant() tenant: TenantContext, @Param(new ZodValidationPipe(myBugParamsSchema)) params: { bugId: string }) {
+    return this.admin.myBug(tenant, params.bugId);
+  }
+
+  @Get('mine/:bugId/screenshot')
+  async mineScreenshot(@Tenant() tenant: TenantContext, @Param(new ZodValidationPipe(myBugParamsSchema)) params: { bugId: string }, @Res({ passthrough: true }) reply: FastifyReply) {
+    const image = await this.admin.myScreenshot(tenant, params.bugId);
+    void reply.header('content-type', image.contentType).header('cache-control', 'private, no-store').header('x-content-type-options', 'nosniff');
+    return Buffer.from(image.bytes);
   }
 }
 

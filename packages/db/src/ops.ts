@@ -100,12 +100,39 @@ export interface BugListRow {
   hasScreenshot: boolean;
 }
 
+/** A reporter's own report: what they sent and where it stands; never operator notes or raw context. */
+export interface MyBugRow {
+  id: string;
+  number: number;
+  dealId: string | null;
+  trigger: string;
+  title: string;
+  severity: string;
+  status: string;
+  occurrences: number;
+  firstSeenAt: Date;
+  lastSeenAt: Date;
+  updatedAt: Date;
+  route: string | null;
+  hasScreenshot: boolean;
+  hasReply: boolean;
+}
+
+export interface MyBugDetailRow extends MyBugRow {
+  whatHappened: string | null;
+  expected: string | null;
+  reply: string | null;
+  screenshot: Uint8Array | null;
+  screenshotType: string | null;
+}
+
 export interface BugDetailRow extends BugListRow {
   fingerprint: string;
   whatHappened: string | null;
   expected: string | null;
   context: Record<string, unknown>;
   internalNotes: string | null;
+  reporterNote: string | null;
   screenshot: Uint8Array | null;
   screenshotType: string | null;
 }
@@ -255,6 +282,7 @@ export const operatorOps = {
   async bug(sql: SqlExecutor, actor: string, id: string): Promise<BugDetailRow | null> {
     const [row] = await call<Record<string, unknown>>(sql, 'SELECT * FROM app_bug_get($1::uuid, $2::uuid)', [actor, id]);
     if (!row) return null;
+    const [reply] = await call<{ note: string | null }>(sql, 'SELECT app_bug_reply_get($1::uuid, $2::uuid) AS note', [actor, id]);
     return {
       ...bugRow(row),
       hasScreenshot: row['screenshot'] != null,
@@ -263,16 +291,55 @@ export const operatorOps = {
       expected: (row['expected'] as string | null) ?? null,
       context: (row['context'] as Record<string, unknown>) ?? {},
       internalNotes: (row['internal_notes'] as string | null) ?? null,
+      reporterNote: reply?.note ?? null,
       screenshot: row['screenshot'] ? new Uint8Array(row['screenshot'] as Uint8Array) : null,
       screenshotType: (row['screenshot_type'] as string | null) ?? null,
     };
   },
 
-  async triageBug(sql: SqlExecutor, actor: string, id: string, input: { status: string; severity: string; internalNotes: string | null }): Promise<boolean> {
-    const [row] = await call<{ ok: boolean }>(sql, 'SELECT app_bug_triage($1::uuid, $2::uuid, $3, $4, $5) AS ok', [actor, id, input.status, input.severity, input.internalNotes]);
+  async triageBug(sql: SqlExecutor, actor: string, id: string, input: { status: string; severity: string; internalNotes: string | null; reporterNote: string | null }): Promise<boolean> {
+    const [row] = await call<{ ok: boolean }>(sql, 'SELECT app_bug_triage_v2($1::uuid, $2::uuid, $3, $4, $5, $6) AS ok', [actor, id, input.status, input.severity, input.internalNotes, input.reporterNote]);
     return row?.ok === true;
   },
+
+  /** The caller's own reports (any signed-in user; scoped to them in SQL). */
+  async myBugs(sql: SqlExecutor, actor: string): Promise<MyBugRow[]> {
+    return (await call<Record<string, unknown>>(sql, 'SELECT * FROM app_bug_mine_list($1::uuid)', [actor])).map(myBugRow);
+  },
+
+  /** One of the caller's own reports; null for anyone else's. */
+  async myBug(sql: SqlExecutor, actor: string, id: string): Promise<MyBugDetailRow | null> {
+    const [row] = await call<Record<string, unknown>>(sql, 'SELECT * FROM app_bug_mine_get($1::uuid, $2::uuid)', [actor, id]);
+    if (!row) return null;
+    return {
+      ...myBugRow(row),
+      whatHappened: (row['what_happened'] as string | null) ?? null,
+      expected: (row['expected'] as string | null) ?? null,
+      reply: (row['reporter_note'] as string | null) ?? null,
+      screenshot: row['screenshot'] ? new Uint8Array(row['screenshot'] as Uint8Array) : null,
+      screenshotType: (row['screenshot_type'] as string | null) ?? null,
+    };
+  },
 };
+
+function myBugRow(row: Record<string, unknown>): MyBugRow {
+  return {
+    id: String(row['id']),
+    number: num(row['number']),
+    dealId: (row['deal_id'] as string | null) ?? null,
+    trigger: String(row['trigger']),
+    title: String(row['title']),
+    severity: String(row['severity']),
+    status: String(row['status']),
+    occurrences: num(row['occurrences']),
+    firstSeenAt: new Date(row['first_seen_at'] as string),
+    lastSeenAt: new Date(row['last_seen_at'] as string),
+    updatedAt: new Date(row['updated_at'] as string),
+    route: (row['route'] as string | null) ?? null,
+    hasScreenshot: row['has_screenshot'] === true,
+    hasReply: row['has_reply'] === true,
+  };
+}
 
 function bugRow(row: Record<string, unknown>): BugListRow {
   return {
