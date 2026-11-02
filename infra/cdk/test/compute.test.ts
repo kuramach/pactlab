@@ -204,6 +204,7 @@ describe('rollout speed', () => {
       AppWebService: { MinimumHealthyPercent: 100, MaximumPercent: 200 },
     });
     expect(workerStop(dev)).toBe('10');
+    dev.hasResourceProperties('AWS::ECS::Service', { DeploymentConfiguration: Match.objectLike({ MinimumHealthyPercent: 0, MaximumPercent: 100 }), AvailabilityZoneRebalancing: 'DISABLED' });
     const careful = platformStack({ ...ENVIRONMENTS.stage, service: { ...devConfig.service!, rollout: 'careful' } }, { imageTag: 'abc1234' }).template;
     expect(Object.fromEntries(rolloutOf(careful))).toMatchObject({ AppWorkerService: { MinimumHealthyPercent: 100, MaximumPercent: 200 } });
     expect(workerStop(careful)).toBeUndefined();
