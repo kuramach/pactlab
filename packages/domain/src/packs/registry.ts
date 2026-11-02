@@ -59,7 +59,10 @@ const pack = (id: PackId, slug: string, cluster: PackCluster, built = false): Pa
 });
 
 export const PACKS: Readonly<Record<PackId, PackDefinition>> = {
-  SOFTWARE_SAAS: pack('SOFTWARE_SAAS', 'software-saas', 'technology', true),
+  SOFTWARE_SAAS: {
+    ...pack('SOFTWARE_SAAS', 'software-saas', 'technology', true),
+    findingRules: ['saas-reported-arr', 'saas-revenue-concentration', 'saas-customer-change-of-control', 'saas-hidden-contraction'],
+  },
   FINTECH: {
     ...pack('FINTECH', 'fintech', 'technology', true),
     importTargets: ['BILLING_INVOICE_LINE', 'FINTECH_LOAN_TAPE', 'FINTECH_AML_ALERT'],

@@ -453,6 +453,7 @@ def software(ds):
     churned = ds.amt(650) * 12
     deck = whole(arr + churned + ds.amt(18000))
     top, share = ds.share_top()
+    northgate = next(mo for _, n, mo in ds.customers if n.startswith('Northgate'))[LAST] / (ds.billed_arr() / 12)
     c = ds.cur
     ds.doc('01-board-kpi-pack-2026-09', f'''
 {ds.company} — board KPI pack, September 2026 (synthetic demo data)
@@ -472,7 +473,7 @@ Master services agreement between {ds.company} and Northgate Logistics (syntheti
 ---page---
 14. Change of control. Customer may terminate this agreement on thirty days' written notice if the Supplier undergoes a change of control.
 {sign_block(ds, 'Dana Whitlow, CEO', 'Morgan Ashby, COO')}
-''', 'Largest customer contract, with change-of-control clause')
+''', 'Northgate Logistics contract, with a change-of-control clause')
     ds.doc('03-balance-sheet-2026-09-30', f'''
 {ds.company} — balance sheet at 30 September 2026 (synthetic, unaudited)
 
@@ -485,8 +486,8 @@ Deferred revenue on annual subscriptions billed in advance: {money(c, ds.amt(960
     ds.findings = [
         (f'Management ARR exceeds billed ARR', f'the KPI pack reports {money(c, deck)}; `invoice-lines.csv` supports {money(c, arr)} at September 2026 — a gap of {money(c, deck - arr)}. The KPI pack still counts Quarry Lane Studios, whose last invoice was June 2026.'),
         (f'Revenue concentration', f'{top} is {pct(share)} of September 2026 billed revenue.'),
-        ('Largest customer can leave on a sale', '`documents/02-master-services-agreement-northgate.pdf` page 2, clause 14 — termination on change of control.'),
-        ('Contraction hidden in the logo count', 'Amberline Hotels drops by 30% from April 2026; the KPI pack reports 14 active customers, the ledger has 13.'),
+        ('Customer can terminate on change of control', f'`documents/02-master-services-agreement-northgate.pdf` page 2, clause 14 — Northgate Logistics ({pct(northgate)} of September 2026 billed revenue) may leave if the company is sold.'),
+        ('Contraction hidden in the logo count', 'Amberline Hotels (synthetic) pays 30.0% less from April 2026; the KPI pack reports 14 active customers, billing has 13 in September 2026.'),
     ]
     ds.notes = ['Code and delivery data (GitHub, Jira) connect through their APIs, never files. The synthetic Brightwave repository and Jira site in the Engineering step are built into local and dev Pactlab; production connects the real ones.']
     ds.engineering = True

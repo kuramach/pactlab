@@ -14,3 +14,4 @@ export * from './hotels';
 export * from './clinics';
 export * from './hospitals';
 export * from './venture';
+export * from './software';
