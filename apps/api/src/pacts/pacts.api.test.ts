@@ -30,6 +30,7 @@ describe('Start a Pact through the API', () => {
   let a: SyntheticTenant;
   let b: SyntheticTenant;
   let signingKey: CryptoKey;
+  let jwk: Record<string, unknown>;
 
   const token = (subject: string, tenant: SyntheticTenant) =>
     new SignJWT({ org_id: tenant.auth0OrganizationId })
@@ -57,7 +58,7 @@ describe('Start a Pact through the API', () => {
     b = await createSyntheticTenant(db.owner, 'Bravo');
     const pair = await generateKeyPair('RS256');
     signingKey = pair.privateKey;
-    const jwk = { ...(await exportJWK(pair.publicKey)), kid: 'test', alg: 'RS256' };
+    jwk = { ...(await exportJWK(pair.publicKey)), kid: 'test', alg: 'RS256' };
     app = await createApp({
       prisma: db.prisma,
       identityVerifier: new JwtIdentityVerifier({ issuer: ISSUER, audience: AUDIENCE, keys: createLocalJWKSet({ keys: [jwk] }) }),
@@ -109,6 +110,28 @@ describe('Start a Pact through the API', () => {
     expect((await call('POST', '/v1/pacts', await token(a.subject, a), payload)).status).toBe(400);
     const after = (await db.owner.query(`SELECT count(*)::int AS n FROM deals`)) as { rows: { n: number }[] };
     expect(after.rows[0]!.n).toBe(before.rows[0]!.n);
+  });
+
+  it('starts only released packs where unreleased ones are not previewed (stage, production)', async () => {
+    const live = await createApp({
+      prisma: db.prisma,
+      identityVerifier: new JwtIdentityVerifier({ issuer: ISSUER, audience: AUDIENCE, keys: createLocalJWKSet({ keys: [jwk as never] }) }),
+      logger: createLogger('api-test', { level: 'silent' }),
+      packPreview: false,
+    });
+    try {
+      const lead = await token(a.subject, a);
+      const start = async (companyType: string) =>
+        live.inject({ method: 'POST', url: '/v1/pacts', headers: { authorization: `Bearer ${lead}` }, payload: { ...PACT, name: `Project ${companyType}`, seller: { ...PACT.seller, companyType } } });
+      for (const companyType of ['HOSPITALS', 'VENTURE_RAISE', 'OTHER']) {
+        const refused = await start(companyType);
+        expect(refused.statusCode, companyType).toBe(422);
+        expect(refused.json()).toMatchObject({ code: 'PACK_NOT_RELEASED' });
+      }
+      for (const companyType of ['SOFTWARE_SAAS', 'MULTIFAMILY']) expect((await start(companyType)).statusCode, companyType).toBe(201);
+    } finally {
+      await live.close();
+    }
   });
 
   it('drops ticker and exchange for a private company', async () => {

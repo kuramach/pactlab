@@ -5,6 +5,7 @@ import { PactCarousel } from '../components/pact-carousel';
 import { IconTile, ModuleMark } from '../components/icon';
 import { Lockup } from '../components/lockup';
 import { siteConfig } from '../lib/config';
+import { isPublishedHref } from '../lib/industry-stories';
 import { CAROUSEL, CLOSING, FOUNDER, HOME, MODULES, NAME_STORY, PACT_CARDS, PILLAR, PRINCIPLES, STORY, TAGLINE } from '../lib/content';
 import { Demos } from './demos';
 import { jsonLdScript, pageMetadata, softwareApplicationJsonLd } from '../lib/seo';
@@ -138,7 +139,7 @@ export default function HomePage() {
       </section>
 
       {/* Pacts you can run (T-086) */}
-      <PactCarousel cards={PACT_CARDS} />
+      <PactCarousel cards={PACT_CARDS.filter((card) => isPublishedHref(card.href))} />
 
       <Demos />
 

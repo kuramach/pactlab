@@ -2,8 +2,8 @@
 
 import {
   COMPANY_TYPE_LABELS,
-  COMPANY_TYPES,
   deriveTransactionType,
+  isReleasedCompanyType,
   sourcesFor,
   TRANSACTION_TYPE_EXPLANATIONS,
   type CompanyType,
@@ -161,10 +161,13 @@ function PartyFields({
   role,
   values,
   set,
+  companyTypes,
 }: {
   role: 'buyer' | 'seller';
   values: Values;
   set: (key: string, value: string) => void;
+  /** Released packs only, or every type in preview (dev, qa), where unreleased ones are marked. */
+  companyTypes: readonly CompanyType[];
 }) {
   const key = (field: string) => `${role}.${field}`;
   const ownership = values[key('ownership')] ?? '';
@@ -238,7 +241,7 @@ function PartyFields({
         <fieldset className="flex flex-col gap-2">
           <legend className="mb-1 text-sm font-medium">What kind of company is it?</legend>
           <div className="grid gap-2 sm:grid-cols-2">
-            {COMPANY_TYPES.map((type) => {
+            {companyTypes.map((type) => {
               const plan = sourcesFor(type);
               const selected = values[key('companyType')] === type;
               return (
@@ -256,6 +259,7 @@ function PartyFields({
                       onChange={() => set(key('companyType'), type)}
                     />
                     {COMPANY_TYPE_LABELS[type]}
+                    {isReleasedCompanyType(type) ? null : <Badge variant="draft">Preview</Badge>}
                   </span>
                   {type === 'OTHER' ? null : plan.packAvailable ? (
                     <Badge variant="calculation">Full pack</Badge>
@@ -338,7 +342,7 @@ function Review({ values }: { values: Values }) {
 }
 
 /** Five steps, one form. The server action re-validates and the API decides. */
-export function PactWizard() {
+export function PactWizard({ companyTypes }: { companyTypes: readonly CompanyType[] }) {
   const [values, setValues] = useState<Values>({
     baseCurrency: 'USD',
     'askingPrice.known': 'yes',
@@ -439,8 +443,8 @@ export function PactWizard() {
             </Field>
           </div>
         ) : null}
-        {step === 'buyer' ? <PartyFields key="buyer" role="buyer" values={values} set={set} /> : null}
-        {step === 'seller' ? <PartyFields key="seller" role="seller" values={values} set={set} /> : null}
+        {step === 'buyer' ? <PartyFields key="buyer" role="buyer" values={values} set={set} companyTypes={companyTypes} /> : null}
+        {step === 'seller' ? <PartyFields key="seller" role="seller" values={values} set={set} companyTypes={companyTypes} /> : null}
         {step === 'asking' ? <AskingFields values={values} set={set} /> : null}
         {step === 'review' ? <Review values={values} /> : null}
 

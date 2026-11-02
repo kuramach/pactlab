@@ -1,3 +1,4 @@
+import { isPublishedHref } from './industry-stories';
 /**
  * Answer-shaped pages (T-085 Part 3): FAQs for the three audiences,
  * question-titled guides and one comparison. Same voice rules as the rest of
@@ -20,7 +21,7 @@ export interface FaqPage {
   readonly related: readonly { readonly href: string; readonly label: string }[];
 }
 
-export const FAQS: readonly FaqPage[] = [
+const ALL_FAQS: readonly FaqPage[] = [
   {
     slug: 'acquirers',
     audience: 'Acquirers',
@@ -146,7 +147,7 @@ export interface Guide {
   readonly related: readonly { readonly href: string; readonly label: string }[];
 }
 
-export const GUIDES: readonly Guide[] = [
+const ALL_GUIDES: readonly Guide[] = [
   {
     slug: 'saas-acquisition-due-diligence',
     title: 'How do you run due diligence on a SaaS acquisition?',
@@ -299,6 +300,19 @@ export interface Comparison {
   readonly conclusion: string;
   readonly sources: readonly { readonly href: string; readonly label: string }[];
 }
+
+/**
+ * Pages written for an unreleased pack stay off the site until it is released
+ * (or previewed in dev and qa): the founder pages sell Venture Raise. Links
+ * to unpublished industry pages are dropped everywhere.
+ */
+const FOR_PACK: Readonly<Record<string, string>> = { founders: 'venture-raise', 'prepare-for-vc-due-diligence': 'venture-raise' };
+const live = <T extends { slug: string; related: readonly { href: string }[] }>(pages: readonly T[]): T[] =>
+  pages
+    .filter((page) => !FOR_PACK[page.slug] || isPublishedHref(`/industries/${FOR_PACK[page.slug]}`))
+    .map((page) => ({ ...page, related: page.related.filter((link) => isPublishedHref(link.href)) }));
+export const FAQS: readonly FaqPage[] = live(ALL_FAQS);
+export const GUIDES: readonly Guide[] = live(ALL_GUIDES);
 
 export const COMPARISONS: readonly Comparison[] = [
   {

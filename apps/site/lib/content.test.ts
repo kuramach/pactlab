@@ -1,11 +1,11 @@
 import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { siteConfig } from './config';
 import * as content from './content';
 import { ICONS } from './icons';
-import { INDUSTRY_STORIES, PUBLISHED_INDUSTRIES } from './industry-stories';
+import { INDUSTRY_STORIES, isPublishedHref, PUBLISHED_INDUSTRIES, WRITTEN_INDUSTRIES } from './industry-stories';
 
 const APP = join(dirname(fileURLToPath(import.meta.url)), '../app');
 const copy = JSON.stringify({ ...content, BANNED_WORDS: [] }).toLowerCase();
@@ -163,13 +163,33 @@ describe('siteConfig', () => {
 });
 
 describe('industry stories', () => {
-  it('every pack has a page, and every story belongs to a listed industry', () => {
-    // The index, navigation and footer list PUBLISHED_INDUSTRIES: a pack without a story would be missing from them.
-    expect(PUBLISHED_INDUSTRIES.map((industry) => industry.slug)).toEqual(content.INDUSTRIES.map((industry) => industry.slug));
-    expect(PUBLISHED_INDUSTRIES).toHaveLength(13);
+  it('every pack has a written page, and every story belongs to a listed industry', () => {
+    expect(WRITTEN_INDUSTRIES.map((industry) => industry.slug)).toEqual(content.INDUSTRIES.map((industry) => industry.slug));
+    expect(WRITTEN_INDUSTRIES).toHaveLength(13);
     for (const slug of Object.keys(INDUSTRY_STORIES)) {
       expect(content.INDUSTRIES.map((industry) => industry.slug), slug).toContain(slug);
       expect(routeExists(`/industries/${slug}`), slug).toBe(true);
+    }
+  });
+
+  it('publishes only the released packs: Software & SaaS and Multifamily (Kumar, 2026-11-01)', () => {
+    expect(PUBLISHED_INDUSTRIES.map((industry) => industry.slug)).toEqual(['software-saas', 'multifamily']);
+    expect(isPublishedHref('/industries/hospitals')).toBe(false);
+    expect(isPublishedHref('/industries/multifamily')).toBe(true);
+    expect(isPublishedHref('/product')).toBe(true);
+  });
+
+  it('previews every written pack in an environment copy of the site (dev, qa)', async () => {
+    vi.resetModules();
+    vi.stubEnv('NEXT_PUBLIC_PACK_PREVIEW', 'true');
+    try {
+      const preview = await import('./industry-stories');
+      expect(preview.PUBLISHED_INDUSTRIES).toHaveLength(13);
+      const answers = await import('./answers');
+      expect(answers.FAQS.map((page) => page.slug)).toContain('founders');
+    } finally {
+      vi.unstubAllEnvs();
+      vi.resetModules();
     }
   });
 
@@ -209,8 +229,8 @@ describe('pacts carousel (T-086)', () => {
     ]);
   });
 
-  it('links every card to a page that renders, with an existing illustration', () => {
-    for (const card of content.PACT_CARDS) {
+  it('links every shown card to a page that renders, with an existing illustration', () => {
+    for (const card of content.PACT_CARDS.filter((pact) => isPublishedHref(pact.href))) {
       expect(routeExists(card.href), card.href).toBe(true);
       // Industry pages render only for published stories; anything else would 404.
       const slug = /^\/industries\/(.+)$/.exec(card.href)?.[1];

@@ -1,4 +1,4 @@
-import { apiEnvSchema, applyDatabaseUrls, loadConfig } from '@pactlab/config';
+import { apiEnvSchema, applyDatabaseUrls, loadConfig, packPreviewEnabled } from '@pactlab/config';
 import { assertRuntimeRoleIsolation, createPrismaClient, S3ObjectStore } from '@pactlab/db';
 import { readFileSync } from 'node:fs';
 import { LocalEncryptedSecretStore, parseSelfHostedHosts } from '@pactlab/connectors';
@@ -77,6 +77,8 @@ const app = await createApp(
     ...(localDocuments ? { uploads: { ...localDocuments, importQueue: config.REDIS_URL ? new BullMqImportQueue(config.REDIS_URL) : null } } : {}),
     aiStatus: ai.status,
     environment: config.APP_ENV,
+    // Packs launch one at a time: unreleased ones are previewable in dev and qa only (or by PACK_PREVIEW).
+    packPreview: packPreviewEnabled(config.APP_ENV, config.PACK_PREVIEW),
     macroForecasts: config.MACRO_FORECAST_SOURCE === 'fixture' ? new FixtureMacroForecastProvider() : new ImfMacroForecastProvider(),
     // Foresight voice uses Amazon Transcribe and Polly with the same AWS sign-in as Bedrock.
     ...(config.AI_PROVIDER === 'bedrock' && config.AWS_REGION

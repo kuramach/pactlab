@@ -1,6 +1,9 @@
+import { packPreviewEnabled } from '@pactlab/config';
+import { selectableCompanyTypes } from '@pactlab/domain';
 import { PageHeader } from '@pactlab/ui';
 import { redirect } from 'next/navigation';
 import { getSessionContext } from '../../../../lib/session';
+import { publicEnv } from '../../../../lib/env';
 import { PactWizard } from './wizard';
 
 // Per-user: reads the session.
@@ -15,7 +18,8 @@ export default async function StartPactPage() {
         title="Start a Pact"
         description="Every Pact is a deal. Tell us who is buying and who is selling; Pactlab works out the deal type and switches on the sources worth collecting."
       />
-      <PactWizard />
+      {/* Packs launch one at a time: released ones only, or every type in preview (dev, qa), unreleased ones marked. */}
+      <PactWizard companyTypes={selectableCompanyTypes(packPreviewEnabled(publicEnv().NEXT_PUBLIC_APP_ENV, process.env['PACK_PREVIEW'] === 'true' ? 'true' : process.env['PACK_PREVIEW'] === 'false' ? 'false' : undefined))} />
     </div>
   );
 }
