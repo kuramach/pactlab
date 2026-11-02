@@ -53,6 +53,11 @@ export interface PactlabComputeProps {
    * zero on a first deploy: `none`), runs migrations, then moves the services.
    */
   readonly serviceImageTag: string;
+  /**
+   * Per-image overrides: the deploy keeps an unchanged service on the tag it runs, so CloudFormation leaves it
+   * alone. `tools` is the migrate and seed image (pushed as `<tag>-tools`).
+   */
+  readonly imageTags?: Partial<Record<'web' | 'api' | 'worker' | 'tools', string>>;
   readonly vpc: ec2.IVpc;
   readonly appSecurityGroup: ec2.SecurityGroup;
   readonly dataKey: kms.Key;
@@ -121,7 +126,9 @@ export class PactlabCompute extends Construct {
     };
     const image = (kind: 'server' | 'web', tag = props.imageTag) => ecs.ContainerImage.fromEcrRepository(repositories[kind], tag);
     const firstDeploy = props.serviceImageTag === 'none';
-    const serviceImage = (kind: 'server' | 'web') => image(kind, firstDeploy ? props.imageTag : props.serviceImageTag);
+    const serviceTag = (name: 'web' | 'api' | 'worker') => props.imageTags?.[name] ?? (firstDeploy ? props.imageTag : props.serviceImageTag);
+    const toolsTag = props.imageTags?.tools ?? props.imageTag;
+    const serviceImage = (name: 'web' | 'api' | 'worker') => image(name === 'web' ? 'web' : 'server', serviceTag(name));
     const desired = (size: TaskSize) => (firstDeploy ? 0 : size.desiredCount);
 
     this.cluster = new ecs.Cluster(this, 'Cluster', { vpc, clusterName: `pactlab-${config.name}` });
@@ -214,7 +221,7 @@ export class PactlabCompute extends Construct {
 
     const apiTask = definition('Api', service.api, this.roles.api);
     apiTask.addContainer('api', {
-      image: serviceImage('server'),
+      image: serviceImage('api'),
       ...run('apps/api', 'src/main.ts'),
       environment: apiEnvironment,
       secrets: { DB_PASSWORD: runtimePassword, AUTH_TOKEN_SECRET: ecs.Secret.fromSecretsManager(tokenSecret) },
@@ -225,7 +232,7 @@ export class PactlabCompute extends Construct {
     const fast = service.rollout === 'fast';
     const workerTask = definition('Worker', service.worker, this.roles.worker);
     workerTask.addContainer('worker', {
-      image: serviceImage('server'),
+      image: serviceImage('worker'),
       ...run('apps/worker', 'src/main.ts'),
       ...(fast ? { stopTimeout: Duration.seconds(10) } : {}),
       environment: serverEnvironment,
@@ -242,7 +249,7 @@ export class PactlabCompute extends Construct {
     // One-off tasks, run by the deploy workflow: migrations as the schema owner, before any rollout.
     const migrateTask = definition('Migrate', { cpu: 512, memoryMiB: 1024 }, this.roles.migrate);
     migrateTask.addContainer('migrate', {
-      image: image('server', `${props.imageTag}-tools`),
+      image: image('server', `${toolsTag}-tools`),
       ...run('apps/api', 'src/ops/migrate.ts'),
       environment: { ...serverEnvironment },
       secrets: { DB_PASSWORD: runtimePassword, ...ownerFields },
@@ -250,7 +257,7 @@ export class PactlabCompute extends Construct {
     });
     const seedTask = definition('Seed', { cpu: 1024, memoryMiB: 2048 }, this.roles.seed);
     seedTask.addContainer('seed', {
-      image: image('server', `${props.imageTag}-tools`),
+      image: image('server', `${toolsTag}-tools`),
       ...run('apps/api', 'src/ops/seed-deployed.ts'),
       environment: { ...apiEnvironment, EMAIL_PROVIDER: '', EMAIL_FROM: '' },
       secrets: { DB_PASSWORD: runtimePassword, AUTH_TOKEN_SECRET: ecs.Secret.fromSecretsManager(tokenSecret), ...ownerFields },
@@ -300,6 +307,14 @@ export class PactlabCompute extends Construct {
     // without Availability Zone rebalancing (which needs room above 100%); one worker task has nothing to rebalance.
     const workerRollout = fast ? { minHealthyPercent: 0, maxHealthyPercent: 100, availabilityZoneRebalancing: ecs.AvailabilityZoneRebalancing.DISABLED } : {};
     const worker = new ecs.FargateService(this, 'WorkerService', { ...serviceProps, ...workerRollout, taskDefinition: workerTask, desiredCount: desired(service.worker), securityGroups: [props.appSecurityGroup] });
+    if (fast) {
+      // The deploy moves the worker itself (scripts/roll-worker.sh), alongside the stack update, so CloudFormation
+      // does not wait minutes for ECS to call it steady. The service names its task family ("latest active
+      // revision"), so a new revision leaves the service's template, and CloudFormation, untouched.
+      const cfnWorker = worker.node.defaultChild as ecs.CfnService;
+      cfnWorker.addPropertyOverride('TaskDefinition', workerTask.family);
+      cfnWorker.addDependency(workerTask.node.defaultChild as ecs.CfnTaskDefinition);
+    }
     this.httpsListener = https;
     this.services = [
       { service: web, desiredCount: service.web.desiredCount },
@@ -354,6 +369,13 @@ export class PactlabCompute extends Construct {
       Origin: origin,
       ServiceImageTag: firstDeploy ? 'none' : props.serviceImageTag,
       ReleaseImageTag: props.imageTag,
+      // What each service (and the one-off tasks) runs, so the next deploy only moves what changed.
+      WebImageTag: firstDeploy ? 'none' : serviceTag('web'),
+      ApiImageTag: firstDeploy ? 'none' : serviceTag('api'),
+      WorkerImageTag: firstDeploy ? 'none' : serviceTag('worker'),
+      ToolsImageTag: toolsTag,
+      WorkerServiceName: worker.serviceName,
+      WorkerTaskFamily: workerTask.family,
     };
     // Stack-level outputs with fixed names, read by the deploy workflow.
     for (const [name, value] of Object.entries(outputs)) new CfnOutput(stack, name, { value });
