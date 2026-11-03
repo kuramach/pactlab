@@ -21,3 +21,8 @@ To publish: copy the output over a clone of `pactlab-demo-data`, review the
 diff, and open a PR there. Everything must stay fictional: invented names,
 customers marked "(synthetic)", people only as roles, units or pseudonymous
 references, no emails or credentials. Data is CC0 in that repo.
+
+Case studies (`<pack>/case-studies/` in that repo) are written by hand, not
+generated: public record only, every fact cited in the study's `sources.csv`,
+never internal documents or invented figures for real companies. `build.sh`
+never touches them.
