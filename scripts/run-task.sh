@@ -81,7 +81,7 @@ $(cat "$CTX")"
     [[ -n "${CODEX_MODEL:-}" ]] && cflag="-m $CODEX_MODEL"
     echo "=== launching codex for $TASK_ID (tier $tier) ===" | tee -a "$LOG"
     # shellcheck disable=SC2086
-    (cd "$WT" && codex exec --sandbox workspace-write --ask-for-approval never $cflag ${CODEX_FLAGS:-} "$prompt" 2>&1 | tee "$OUT" | tee -a "$LOG") \
+    (cd "$WT" && codex exec --sandbox workspace-write -c approval_policy="never" $cflag ${CODEX_FLAGS:-} "$prompt" 2>&1 | tee "$OUT" | tee -a "$LOG") \
       || echo "warn: codex exited non-zero" | tee -a "$LOG"
   else
     echo "=== launching claude for $TASK_ID (tier $tier, model $model) ===" | tee -a "$LOG"
