@@ -21,7 +21,9 @@ MAX_ITERS="${MAX_ITERS:-0}"
 AUTO_MERGE_FLAG=""
 [[ "${1:-}" == "--auto-merge" ]] && AUTO_MERGE_FLAG="--auto-merge"
 
-field() { grep -E "^$2:" "$1" | head -1 | sed "s/^$2:[[:space:]]*//"; }
+field() {
+  sed -nE "s/^\\*{0,2}$2:\\*{0,2}[[:space:]]*//p" "$1" | head -1 || true
+}
 
 needs_met() {
   local needs n

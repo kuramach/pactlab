@@ -71,7 +71,7 @@ export function pageMetadata({ title, description, path, image }: { title?: stri
       url: absolute(path),
       siteName: 'Pactlab',
       type: 'website',
-      images: [image ?? { url: '/brand/pactlab-symbol.png', width: 512, height: 512, alt: 'Pactlab' }],
+      images: [image ?? { url: '/brand/icon-512.png', width: 512, height: 512, alt: 'Pactlab' }],
     },
   };
 }
@@ -81,7 +81,7 @@ export const organizationJsonLd = () => ({
   '@type': 'Organization',
   name: 'Pactlab',
   url: SITE_URL,
-  logo: absolute('/brand/pactlab-symbol.png').replace(/\/$/, ''),
+  logo: absolute('/brand/pactlab-logo.svg').replace(/\/$/, ''),
   slogan: TAGLINE,
   description: HOME.body,
 });

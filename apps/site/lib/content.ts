@@ -1053,8 +1053,7 @@ export const NAME_STORY = {
       title: 'Clasped right hands: the sign of good faith',
       body:
         'Romans sealed agreements with the dextrarum iunctio, the joining of right hands. The right hand belonged to Fides, ' +
-        'the goddess of good faith, and clasped hands appear on Roman coins and monuments as her emblem. ' +
-        'It is the handshake inside our logo.',
+        'the goddess of good faith, and clasped hands appear on Roman coins and monuments as her emblem.',
     },
     {
       title: 'Spondesne? Spondeo. The question before the promise',

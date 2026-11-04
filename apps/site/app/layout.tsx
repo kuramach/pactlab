@@ -13,6 +13,13 @@ const manrope = Manrope({ subsets: ['latin'], display: 'swap', variable: '--font
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://pactlab.ai'),
+  icons: {
+    icon: [
+      { url: '/brand/favicon.svg', type: 'image/svg+xml' },
+      { url: '/brand/favicon-32.png', sizes: '32x32', type: 'image/png' },
+    ],
+    apple: '/brand/apple-touch-icon.png',
+  },
   title: { default: `Pactlab — ${TAGLINE} ${DESCRIPTOR}`, template: '%s · Pactlab' },
   description: HOME.body,
   openGraph: {
@@ -20,7 +27,7 @@ export const metadata: Metadata = {
     description: HOME.body,
     url: 'https://pactlab.ai',
     siteName: 'Pactlab',
-    images: [{ url: '/brand/pactlab-symbol.png', width: 512, height: 512, alt: 'Pactlab' }],
+    images: [{ url: '/brand/icon-512.png', width: 512, height: 512, alt: 'Pactlab' }],
     type: 'website',
   },
   // An environment's copy of the site is never indexed (canonical URLs still point at pactlab.ai).
@@ -41,7 +48,10 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <SiteHeader loginUrl={loginUrl} signUpUrl={signUpUrl} contactHref={contactHref} />
         <main id="main">{children}</main>
         <SiteFooter />
-        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdScript(organizationJsonLd()) }} />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: jsonLdScript(organizationJsonLd()) }}
+        />
       </body>
     </html>
   );

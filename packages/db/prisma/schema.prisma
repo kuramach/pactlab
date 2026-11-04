@@ -2207,3 +2207,66 @@ model RegulatoryScenario {
   @@index([organizationId, dealId, createdAt], map: "regulatory_scenarios_org_deal_idx")
   @@map("regulatory_scenarios")
 }
+
+/// A pact's public page: a seller-written teaser at an unguessable link (never evidence).
+model DealListing {
+  id             String    @id @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  dealId         String    @map("deal_id") @db.Uuid
+  slug           String    @unique(map: "deal_listings_slug_key")
+  /// DRAFT | PUBLISHED | CLOSED
+  status         String    @default("DRAFT")
+  /// ANONYMOUS | NAMED
+  visibility     String    @default("ANONYMOUS")
+  codename       String
+  publicName     String?   @map("public_name")
+  headline       String
+  sector         String?
+  region         String?
+  sizeBand       String?   @map("size_band")
+  askingLow      Decimal?  @map("asking_low") @db.Decimal(20, 2)
+  askingHigh     Decimal?  @map("asking_high") @db.Decimal(20, 2)
+  askingCurrency String?   @map("asking_currency") @db.Char(3)
+  summary        String    @default("")
+  highlights     String[]  @default([])
+  indexable      Boolean   @default(false)
+  publishedAt    DateTime? @map("published_at") @db.Timestamptz(3)
+  createdBy      String    @map("created_by") @db.Uuid
+  updatedBy      String    @map("updated_by") @db.Uuid
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime  @default(now()) @map("updated_at") @db.Timestamptz(3)
+
+  @@unique([organizationId, dealId], map: "deal_listings_org_deal_key")
+  @@unique([organizationId, dealId, id], map: "deal_listings_org_deal_id_key")
+  @@map("deal_listings")
+}
+
+/// A request for access left on a public page. Only the seller's side sees it (RLS).
+model ListingInterest {
+  id               String    @id @db.Uuid
+  organizationId   String    @map("organization_id") @db.Uuid
+  dealId           String    @map("deal_id") @db.Uuid
+  listingId        String    @map("listing_id") @db.Uuid
+  name             String
+  firm             String
+  email            String
+  /// STRATEGIC | FINANCIAL | INDIVIDUAL | ADVISER
+  intent           String
+  message          String?
+  /// PENDING_EMAIL | NEW | APPROVED | DECLINED
+  status           String    @default("PENDING_EMAIL")
+  tokenHash        String?   @unique(map: "listing_interests_token_key") @map("token_hash")
+  ipHash           String    @map("ip_hash")
+  emailConfirmedAt DateTime? @map("email_confirmed_at") @db.Timestamptz(3)
+  decidedAt        DateTime? @map("decided_at") @db.Timestamptz(3)
+  decidedBy        String?   @map("decided_by") @db.Uuid
+  decisionNote     String?   @map("decision_note")
+  bidId            String?   @map("bid_id") @db.Uuid
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([listingId, createdAt], map: "listing_interests_listing_idx")
+  @@index([ipHash, createdAt], map: "listing_interests_ip_idx")
+  @@index([organizationId, dealId, status, createdAt], map: "listing_interests_org_deal_idx")
+  @@map("listing_interests")
+}
+

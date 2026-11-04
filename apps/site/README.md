@@ -1,7 +1,7 @@
 # Pactlab marketing site
 
-Multi-page site for pactlab.ai, built from the brand kit in `brand/`
-(logos, navy/indigo palette, Manrope, voice). Fully static.
+Multi-page site for pactlab.ai, built from the locked B2 brand kit in `brand/`
+(SVG logo assets, navy/indigo palette, Manrope, voice). Fully static.
 
 Pages: home, product (overview + six modules), industries (overview + seven
 sectors), how it works, trust, pilot. Module and industry pages are generated
