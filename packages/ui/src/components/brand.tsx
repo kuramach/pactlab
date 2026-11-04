@@ -13,6 +13,20 @@ const LOGO = {
   symbol: { src: '/brand/pactlab-symbol.svg', width: 120, height: 120 },
 } as const;
 
+function LockupArtwork({ src, className }: { src: string; className?: string }) {
+  return (
+    <span className={cn('relative block overflow-hidden', className)}>
+      <img
+        src={src}
+        width={LOGO.onLight.width}
+        height={LOGO.onLight.height}
+        alt="Pactlab"
+        className="absolute left-0 top-[-25%] h-[150%] w-auto max-w-none"
+      />
+    </span>
+  );
+}
+
 /**
  * Locked Pactlab B2 flask and outlined wordmark for light and dark surfaces.
  */
@@ -28,7 +42,7 @@ export function PactlabLogo({
   const logo = LOGO[tone];
   return (
     <div className={cn('flex flex-col gap-1', className)}>
-      <img src={logo.src} width={logo.width} height={logo.height} alt="Pactlab" className="h-8 w-auto self-start" />
+      <LockupArtwork src={logo.src} className="h-8 w-[126px] self-start" />
       {withTagline ? (
         <p className={cn('text-xs', tone === 'onDark' ? 'text-white/80' : 'text-muted-foreground')}>{PACTLAB_TAGLINE}</p>
       ) : null}
@@ -65,12 +79,9 @@ export function PactlabLockup({
   return (
     <span className={cn('inline-flex items-center gap-3', className)}>
       <span className="flex flex-col gap-0.5">
-        <img
+        <LockupArtwork
           src={LOGO[tone].src}
-          width={LOGO[tone].width}
-          height={LOGO[tone].height}
-          alt="Pactlab"
-          className={cn('w-auto self-start', withTagline ? 'h-8' : 'h-10')}
+          className={cn('self-start', withTagline ? 'h-8 w-[126px]' : 'h-10 w-[157px]')}
         />
         {withTagline ? (
           <span className={cn('text-[11px] font-semibold tracking-wide', tone === 'onDark' ? 'text-white/70' : 'text-slate-text')}>
