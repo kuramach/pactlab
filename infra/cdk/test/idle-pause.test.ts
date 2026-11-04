@@ -108,6 +108,11 @@ describe('pause and wake steps', () => {
     expect(await makeSteps(inUse.aws, ENV)['checkIdle']?.()).toEqual({ paused: false, reason: 'in use' });
     const idle = fakeAws({ power: 'awake', db: 'available', changedAt: Date.now() - 2 * hour, requests: 0 });
     expect(await makeSteps(idle.aws, ENV)['checkIdle']?.()).toEqual({ paused: true });
+    // As the Lambda handler calls it: the step on its own, not as a method (this crashed in dev, 2026-11-04).
+    const detached = fakeAws({ power: 'awake', db: 'available', changedAt: Date.now() - 2 * hour, requests: 0 });
+    const checkIdle = makeSteps(detached.aws, ENV)['checkIdle'];
+    expect(await checkIdle?.call(undefined)).toEqual({ paused: true });
+    expect(detached.calls).toContain('power=paused');
     const paused = fakeAws({ power: 'paused', db: 'stopped', changedAt: 0 });
     expect(await makeSteps(paused.aws, ENV)['checkIdle']?.()).toEqual({ paused: false, reason: 'paused' });
   });

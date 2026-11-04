@@ -19,7 +19,8 @@ function makeSteps(aws, env) {
     if (!names.includes(error.name)) throw error;
   };
 
-  return {
+  // Named, so a step that calls another (checkIdle → pause) works however it is invoked.
+  const steps = {
     async status() {
       return { power: await aws.getPower(env.POWER_PARAMETER) };
     },
@@ -34,7 +35,7 @@ function makeSteps(aws, env) {
       if (value !== 'awake') return { paused: false, reason: value };
       if (Date.now() - changedAt < idleMs) return { paused: false, reason: 'recently awake' };
       if ((await aws.apiRequests(idleMs)) > 0) return { paused: false, reason: 'in use' };
-      return this.pause();
+      return steps.pause();
     },
     /** The alarm says nobody has used the app for the idle window: pause, if awake. */
     async pause() {
@@ -78,6 +79,7 @@ function makeSteps(aws, env) {
       return { awake: true };
     },
   };
+  return steps;
 }
 
 let steps;
