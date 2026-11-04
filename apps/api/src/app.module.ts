@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import { Global, Module, type DynamicModule } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { NO_SPEECH_TO_TEXT, NO_TEXT_TO_SPEECH, NotConfiguredClaudeGateway, type SpeechToText, type TextToSpeech } from '@pactlab/ai';
@@ -175,10 +176,19 @@ export class AppModule {
           : []),
         invitations,
         RegulatoryModule,
-        SaleModule.register(invitations, {
-          objectStore: deps.documents?.objectStore ?? new UnavailableObjectStore(),
-          scanner: deps.documents?.malwareScanner ?? new UnavailableMalwareScanner(),
-        }),
+        SaleModule.register(
+          invitations,
+          {
+            objectStore: deps.documents?.objectStore ?? new UnavailableObjectStore(),
+            scanner: deps.documents?.malwareScanner ?? new UnavailableMalwareScanner(),
+          },
+          {
+            emailSender: deps.emailLogin?.emailSender ?? new UnavailableEmailSender(),
+            appOrigin: deps.signup?.loginUrl ? new URL(deps.signup.loginUrl).origin : 'http://localhost:3000',
+            // Without the token secret (some tests), a per-process key: rate limits then hold within one process.
+            hashSecret: deps.emailLogin?.tokenSecret ?? randomBytes(32).toString('hex'),
+          },
+        ),
         DealDeletionModule.register({
           documents: deps.documents?.objectStore ?? new UnavailableObjectStore(),
           uploads: deps.uploads?.objectStore ?? new UnavailableUploadStore(),

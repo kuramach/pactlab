@@ -63,7 +63,11 @@ export class InvitationsService {
     });
   }
 
-  async create(tenant: TenantContext, dealId: string, body: CreateInvitationBody, requestId: string): Promise<{ kind: 'ADDED' | 'INVITED' }> {
+  /**
+   * `options.dealLabel` names the pact in the email instead of its own name, e.g. a public
+   * page's codename for a buyer who has not yet signed the NDA.
+   */
+  async create(tenant: TenantContext, dealId: string, body: CreateInvitationBody, requestId: string, options: { dealLabel?: string } = {}): Promise<{ kind: 'ADDED' | 'INVITED' }> {
     this.requireMember(tenant);
     await this.access.require(tenant, dealId, 'DEAL_MEMBERS_MANAGE', { action: 'deal.invitation.created', requestId });
     const result = await withTenant(this.prisma, tenant, async (tx) => {
@@ -97,7 +101,7 @@ export class InvitationsService {
     });
     if (result.kind === 'INVITED') {
       const link = new URL(`/invite/${result.token}`, this.deps.appOrigin).toString();
-      void this.deps.emailSender.send(emails.dealInvitation(body.email, { inviterName: result.inviterName, dealName: result.dealName, side: body.side, role: body.role, link, days: VALID_DAYS })).catch((error: unknown) => {
+      void this.deps.emailSender.send(emails.dealInvitation(body.email, { inviterName: result.inviterName, dealName: options.dealLabel ?? result.dealName, side: body.side, role: body.role, link, days: VALID_DAYS })).catch((error: unknown) => {
         // Never log the link or the address.
         this.logger.error({ requestId, errorClass: error instanceof Error ? error.name : 'unknown' }, 'invitation email delivery failed');
       });

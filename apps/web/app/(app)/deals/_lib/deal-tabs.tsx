@@ -32,6 +32,7 @@ export const DEAL_GROUPS: readonly DealGroup[] = [
     sections: [
       { path: '', label: 'Summary' },
       { path: '/bidders', label: 'Bidders', sellerLedOnly: true },
+      { path: '/listing', label: 'Public page', sellerLedOnly: true },
       { path: '/screening', label: 'Screening' },
       { path: '/team', label: 'Team' },
     ],

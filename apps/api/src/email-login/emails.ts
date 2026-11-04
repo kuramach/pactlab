@@ -41,6 +41,32 @@ export const emails = {
     };
   },
 
+  /** Confirm a request for access left on a public deal page. The seller sees it only once confirmed. */
+  listingInterestConfirm(to: string, request: { codename: string; link: string; days: number }): OutboundEmail {
+    return {
+      to,
+      subject: `Confirm your request for ${request.codename}`,
+      text: [
+        `You asked for access to “${request.codename}” on Pactlab.`,
+        `Confirm your email address to send the request to the seller: ${request.link}`,
+        `The link works once and expires in ${request.days} days. If you did not ask, ignore this email.`,
+      ].join('\n'),
+    };
+  },
+
+  /** The seller decided not to go ahead with a request; their note, if any, is passed on. */
+  listingInterestDeclined(to: string, request: { codename: string; note: string | null }): OutboundEmail {
+    return {
+      to,
+      subject: `Your request for ${request.codename}`,
+      text: [
+        `The seller of “${request.codename}” is not taking your request further at this time.`,
+        ...(request.note ? [`Their note: ${request.note}`] : []),
+        'Thank you for your interest.',
+      ].join('\n'),
+    };
+  },
+
   /** Sent instead of a code when the address already has an account. */
   signupExistingAccount(to: string, loginUrl: string): OutboundEmail {
     return {

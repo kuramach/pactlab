@@ -320,13 +320,13 @@ export class SaleService {
   }
 
   /** Invite a person from a bidding firm. They join this pact as that firm's bidder — never the seller's organization. */
-  async inviteToBid(tenant: TenantContext, dealId: string, bidId: string, body: InviteBidderBody, requestId: string) {
+  async inviteToBid(tenant: TenantContext, dealId: string, bidId: string, body: InviteBidderBody, requestId: string, options: { dealLabel?: string } = {}) {
     await this.access.require(tenant, dealId, canRun, { action: 'sale.bidder.invited', requestId });
     await withTenant(this.prisma, tenant, async (tx) => {
       const bid = await this.bid(tx, dealId, bidId);
       if (!(LIVE as readonly string[]).includes(bid.status)) throw new ConflictException({ code: 'BID_CLOSED' });
     });
-    return this.invitations.create(tenant, dealId, { email: body.email, side: 'BIDDER', role: 'BIDDER', bidId }, requestId);
+    return this.invitations.create(tenant, dealId, { email: body.email, side: 'BIDDER', role: 'BIDDER', bidId }, requestId, options);
   }
 
   /** Answer privately (only the asker) or to all (published with no link to who asked). */

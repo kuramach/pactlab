@@ -6,16 +6,29 @@ export const PACTLAB_TAGLINE = 'AI rigor. Human judgment.';
 export const PACTLAB_PROMISE = 'Test the pact before you sign it.';
 export const PACTLAB_PILLAR = 'AI diligence. Human instinct.';
 
-/** Logo files from `brand/logos`, served by the host app under `/brand`. */
+/** Locked B2 brand assets served by the host app under `/brand`. */
 const LOGO = {
-  onLight: { src: '/brand/pactlab-logo.png', width: 800, height: 228 },
-  onDark: { src: '/brand/pactlab-logo-light.png', width: 800, height: 228 },
-  symbol: { src: '/brand/pactlab-symbol.png', width: 256, height: 256 },
+  onLight: { src: '/brand/pactlab-logo.svg', width: 393, height: 150 },
+  onDark: { src: '/brand/pactlab-logo-light.svg', width: 393, height: 150 },
+  symbol: { src: '/brand/pactlab-symbol.svg', width: 120, height: 120 },
 } as const;
 
+function LockupArtwork({ src, className }: { src: string; className?: string }) {
+  return (
+    <span className={cn('relative block overflow-hidden', className)}>
+      <img
+        src={src}
+        width={LOGO.onLight.width}
+        height={LOGO.onLight.height}
+        alt="Pactlab"
+        className="absolute left-0 top-[-25%] h-[150%] w-auto max-w-none"
+      />
+    </span>
+  );
+}
+
 /**
- * Pactlab wordmark: lowercase "pact" in deep navy, "lab" in indigo, the "b"
- * a flask. `onDark` uses the reversed artwork for navy surfaces.
+ * Locked Pactlab B2 flask and outlined wordmark for light and dark surfaces.
  */
 export function PactlabLogo({
   className,
@@ -29,7 +42,7 @@ export function PactlabLogo({
   const logo = LOGO[tone];
   return (
     <div className={cn('flex flex-col gap-1', className)}>
-      <img src={logo.src} width={logo.width} height={logo.height} alt="Pactlab" className="h-8 w-auto self-start" />
+      <LockupArtwork src={logo.src} className="h-8 w-[126px] self-start" />
       {withTagline ? (
         <p className={cn('text-xs', tone === 'onDark' ? 'text-white/80' : 'text-muted-foreground')}>{PACTLAB_TAGLINE}</p>
       ) : null}
@@ -37,7 +50,7 @@ export function PactlabLogo({
   );
 }
 
-/** Standalone symbol: the pact (handshake) inside the lab flask. */
+/** Standalone B2 flask symbol. */
 export function PactlabSymbol({ className, label }: { className?: string; label?: string }) {
   return (
     <img
@@ -52,8 +65,7 @@ export function PactlabSymbol({ className, label }: { className?: string; label?
 }
 
 /**
- * Website lockup: symbol, wordmark and tagline together. On navy the symbol
- * sits on a white tile and the reversed wordmark is used.
+ * Website lockup: B2 flask and outlined wordmark together with the tagline.
  */
 export function PactlabLockup({
   tone = 'onLight',
@@ -66,20 +78,10 @@ export function PactlabLockup({
 }) {
   return (
     <span className={cn('inline-flex items-center gap-3', className)}>
-      {tone === 'onDark' ? (
-        <span className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-white p-1">
-          <img src={LOGO.symbol.src} alt="" width={LOGO.symbol.width} height={LOGO.symbol.height} className="h-full w-auto" />
-        </span>
-      ) : (
-        <img src={LOGO.symbol.src} alt="" width={LOGO.symbol.width} height={LOGO.symbol.height} className="h-11 w-auto" />
-      )}
       <span className="flex flex-col gap-0.5">
-        <img
+        <LockupArtwork
           src={LOGO[tone].src}
-          width={LOGO[tone].width}
-          height={LOGO[tone].height}
-          alt="Pactlab"
-          className="h-7 w-auto self-start"
+          className={cn('self-start', withTagline ? 'h-8 w-[126px]' : 'h-10 w-[157px]')}
         />
         {withTagline ? (
           <span className={cn('text-[11px] font-semibold tracking-wide', tone === 'onDark' ? 'text-white/70' : 'text-slate-text')}>

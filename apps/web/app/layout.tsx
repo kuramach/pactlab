@@ -8,6 +8,13 @@ import './globals.css';
 const manrope = Manrope({ subsets: ['latin'], display: 'swap', variable: '--font-manrope' });
 
 export const metadata: Metadata = {
+  icons: {
+    icon: [
+      { url: '/brand/favicon.svg', type: 'image/svg+xml' },
+      { url: '/brand/favicon-32.png', sizes: '32x32', type: 'image/png' },
+    ],
+    apple: '/brand/apple-touch-icon.png',
+  },
   title: { default: 'Pactlab', template: '%s · Pactlab' },
   description: PACTLAB_TAGLINE,
 };

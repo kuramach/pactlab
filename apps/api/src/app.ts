@@ -31,6 +31,8 @@ export async function createApp(deps: AppDependencies, options: { webOrigin?: st
     if (route.method === 'POST' && /^\/v1\/deals\/:dealId\/documents\/?$/.test(route.url)) route.bodyLimit = 15 * 1_048_576;
     // Bug reports may carry a masked screenshot of the app view (≤ 1 MB, base64 in JSON).
     if (route.method === 'POST' && route.url === '/v1/bug-reports') route.bodyLimit = 2 * 1_048_576;
+    // Public deal-page pictures (≤ 5 MB, base64 in JSON).
+    if (route.method === 'POST' && route.url === '/v1/deals/:dealId/listing/media/images') route.bodyLimit = 8 * 1_048_576;
     // A spoken Foresight question: about a minute of 16 kHz PCM, base64 in JSON.
     if (route.method === 'POST' && route.url === '/v1/deals/:dealId/foresight/voice-questions') route.bodyLimit = 4 * 1_048_576;
   });

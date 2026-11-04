@@ -14,6 +14,7 @@ export const PROTECTED_PATH_PREFIXES = [
   '/settings',
   '/audit',
   '/admin',
+  '/preview',
   '/select-organization',
 ] as const;
 

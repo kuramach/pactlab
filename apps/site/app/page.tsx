@@ -58,7 +58,7 @@ export default function HomePage() {
             </div>
           </div>
           <div className="flex flex-col items-center gap-5 rounded-3xl bg-mist p-10">
-            <img src="/brand/pactlab-symbol.png" alt="" width={512} height={512} className="h-auto w-48" />
+            <img src="/brand/pactlab-symbol.svg" alt="" width={120} height={120} className="h-auto w-24" />
             <Lockup />
             <p className="text-center text-sm font-semibold text-slate-text">{TAGLINE}</p>
           </div>

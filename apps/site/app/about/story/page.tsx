@@ -20,7 +20,7 @@ export default function StoryPage() {
           <div className="md:sticky md:top-28 md:self-start">
             <img src="/illustrations/fides-coin.svg" alt="A Roman coin showing clasped right hands, the emblem of Fides" width={480} height={480} className="mx-auto h-auto w-full max-w-sm" />
             <p className="mt-6 text-center text-sm text-slate-text">
-              Clasped right hands — the Roman sign of good faith, and the handshake inside the Pactlab symbol.
+              Clasped right hands — the Roman sign of good faith and the emblem of Fides.
             </p>
           </div>
           <ol className="relative flex flex-col gap-12 border-l-2 border-indigo/30 pl-8">
@@ -38,7 +38,7 @@ export default function StoryPage() {
       </section>
       <section className="bg-navy text-white">
         <div className="mx-auto flex max-w-6xl flex-col items-center gap-6 px-6 py-16 text-center">
-          <img src="/brand/pactlab-symbol.png" alt="" width={512} height={512} className="h-24 w-24 rounded-2xl bg-white p-2" />
+          <img src="/brand/pactlab-symbol-light.svg" alt="" width={120} height={120} className="h-24 w-24" />
           <p className="max-w-2xl text-3xl font-extrabold tracking-tight">{NAME_STORY.closing}</p>
         </div>
       </section>

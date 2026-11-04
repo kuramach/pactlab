@@ -117,7 +117,7 @@ describe('PactlabSiteStack', () => {
     expect(rewrite('/product')).toBe('/product/index.html');
     expect(rewrite('/product/')).toBe('/product/index.html');
     expect(rewrite('/industries/fintech')).toBe('/industries/fintech/index.html');
-    expect(rewrite('/brand/pactlab-logo.png')).toBe('/brand/pactlab-logo.png');
+    expect(rewrite('/brand/pactlab-logo.svg')).toBe('/brand/pactlab-logo.svg');
     expect(rewrite('/_next/static/chunk.js')).toBe('/_next/static/chunk.js');
   });
 });
