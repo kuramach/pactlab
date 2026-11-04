@@ -112,9 +112,10 @@ jobs:
             echo "$IMAGE: runs $RUNNING · changed: $CHANGED"
           done
 
-      # dev, qa and stage pause when idle (ADR 0019): wake a paused environment before changing it.
+      # dev, qa and stage pause when idle (ADR 0019): wake a paused environment before changing it, and keep it awake.
       - name: 0. Make sure the environment is awake
-        run: scripts/wake-environment.sh "$ENV_NAME"
+        # --hold: an awake environment restarts its idle clock, so the idle check cannot pause it mid-deploy.
+        run: scripts/wake-environment.sh "$ENV_NAME" --hold
 
       # dev and qa share one network, NAT instance, load balancer and Redis (ADR 0019); a no-op when unchanged.
       - name: 1. Shared non-live base (dev and qa)
