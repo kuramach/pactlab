@@ -2270,3 +2270,27 @@ model ListingInterest {
   @@map("listing_interests")
 }
 
+/// A picture or video link on a public deal page. Images are in the object store; videos are a provider and id.
+model ListingMedia {
+  id             String   @id @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  dealId         String   @map("deal_id") @db.Uuid
+  listingId      String   @map("listing_id") @db.Uuid
+  /// IMAGE | VIDEO
+  kind           String
+  position       Int
+  caption        String?
+  objectKey      String?  @map("object_key")
+  contentType    String?  @map("content_type")
+  sha256         String?
+  byteSize       Int?     @map("byte_size")
+  /// YOUTUBE | VIMEO
+  videoProvider  String?  @map("video_provider")
+  videoId        String?  @map("video_id")
+  createdBy      String   @map("created_by") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([listingId, position], map: "listing_media_listing_idx")
+  @@map("listing_media")
+}
+

@@ -1,14 +1,16 @@
-import { randomBytes } from 'node:crypto';
-import { ConflictException, Inject, Injectable, Logger, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
-import type { DeclineListingInterestBody, ListingInterestBody, ListingInterestView, ListingStatusBody, ListingView, PublicListingView, SaveListingBody } from '@pactlab/contracts';
+import { createHash, randomBytes } from 'node:crypto';
+import { BadRequestException, ConflictException, Inject, Injectable, Logger, NotFoundException, PayloadTooLargeException, ServiceUnavailableException, UnprocessableEntityException, UnsupportedMediaTypeException } from '@nestjs/common';
+import { LISTING_MEDIA_LIMITS, type AddListingImageBody, type AddListingVideoBody, type DeclineListingInterestBody, type ListingInterestBody, type ListingInterestView, type ListingMediaView, type ListingStatusBody, type ListingView, type PublicListingView, type SaveListingBody } from '@pactlab/contracts';
 import { appendAuditEvent, publicListings, withTenant, type PrismaClient } from '@pactlab/db';
-import { isCounterpartyRole, newId, permissionsForDealRole, type DealRole, type TenantContext } from '@pactlab/domain';
+import { isCounterpartyRole, newId, permissionsForDealRole, tenantObjectKey, type DealRole, type TenantContext } from '@pactlab/domain';
 import { DealAccess } from '../deals/deal-access';
 import type { EmailSender } from '../email-login/email-sender';
 import { emails } from '../email-login/emails';
 import { keyedHash } from '../email-login/client-address';
 import { hashToken } from '../invitations/invitations.service';
-import { SaleService } from '../sale/sale.service';
+import { SALE_FILES, SaleService, type SaleFileDependencies } from '../sale/sale.service';
+import { ImageRejectedError, stripImageMetadata } from './strip-image-metadata';
+import { parseVideoUrl } from './video-url';
 import { PRISMA } from '../tokens';
 
 export const LISTINGS = Symbol('LISTINGS');
@@ -28,12 +30,23 @@ const iso = (value: Date | null) => (value ? value.toISOString() : null);
 
 type ListingRow = NonNullable<Awaited<ReturnType<PrismaClient['dealListing']['findFirst']>>>;
 type InterestRow = NonNullable<Awaited<ReturnType<PrismaClient['listingInterest']['findFirst']>>>;
+type MediaRow = { id: string; kind: string; caption: string | null; videoProvider: string | null; videoId: string | null };
+
+function mediaView(row: MediaRow): ListingMediaView {
+  return {
+    id: row.id,
+    kind: row.kind === 'VIDEO' ? 'VIDEO' : 'IMAGE',
+    caption: row.caption,
+    videoProvider: row.videoProvider === 'YOUTUBE' || row.videoProvider === 'VIMEO' ? row.videoProvider : null,
+    videoId: row.videoId,
+  };
+}
 
 function asking(low: { toString(): string } | string | null, high: { toString(): string } | string | null, currency: string | null) {
   return low !== null && currency ? { low: low.toString(), high: high === null ? null : high.toString(), currency } : null;
 }
 
-function listingView(row: ListingRow): ListingView {
+function listingView(row: ListingRow, media: readonly MediaRow[] = []): ListingView {
   return {
     id: row.id,
     slug: row.slug,
@@ -51,6 +64,7 @@ function listingView(row: ListingRow): ListingView {
     indexable: row.indexable,
     publishedAt: iso(row.publishedAt),
     updatedAt: row.updatedAt.toISOString(),
+    media: media.map(mediaView),
   };
 }
 
@@ -85,6 +99,7 @@ export class ListingsService {
     @Inject(DealAccess) private readonly access: DealAccess,
     @Inject(SaleService) private readonly sale: SaleService,
     @Inject(LISTINGS) private readonly deps: ListingDependencies,
+    @Inject(SALE_FILES) private readonly files: SaleFileDependencies,
   ) {}
 
   // ------------------------------------------------------------------ seller
@@ -92,8 +107,11 @@ export class ListingsService {
   /** The pact's page, or null before the seller writes one. */
   async get(tenant: TenantContext, dealId: string, requestId: string): Promise<{ listing: ListingView | null }> {
     await this.access.require(tenant, dealId, canRun, { action: 'listing.viewed', requestId });
-    const row = await withTenant(this.prisma, tenant, (tx) => tx.dealListing.findFirst({ where: { dealId } }));
-    return { listing: row ? listingView(row) : null };
+    const found = await withTenant(this.prisma, tenant, async (tx) => {
+      const row = await tx.dealListing.findFirst({ where: { dealId } });
+      return row ? { row, media: await tx.listingMedia.findMany({ where: { listingId: row.id }, orderBy: [{ position: 'asc' }, { id: 'asc' }] }) } : null;
+    });
+    return { listing: found ? listingView(found.row, found.media) : null };
   }
 
   async save(tenant: TenantContext, dealId: string, body: SaveListingBody, requestId: string): Promise<{ listing: ListingView }> {
@@ -124,7 +142,7 @@ export class ListingsService {
       await appendAuditEvent(tx, { organizationId: tenant.organizationId, dealId, actorUserId: tenant.userId, action: 'listing.saved', targetType: 'deal_listing', targetId: saved.id, outcome: 'SUCCEEDED', requestId });
       return saved;
     });
-    return { listing: listingView(row) };
+    return { listing: listingView(row, await this.mediaRows(tenant, row.id)) };
   }
 
   /** Publish, unpublish (back to draft) or close the page. */
@@ -141,7 +159,142 @@ export class ListingsService {
       await appendAuditEvent(tx, { organizationId: tenant.organizationId, dealId, actorUserId: tenant.userId, action, targetType: 'deal_listing', targetId: saved.id, outcome: 'SUCCEEDED', requestId });
       return saved;
     });
-    return { listing: listingView(row) };
+    return { listing: listingView(row, await this.mediaRows(tenant, row.id)) };
+  }
+
+  private mediaRows(tenant: TenantContext, listingId: string) {
+    return withTenant(this.prisma, tenant, (tx) => tx.listingMedia.findMany({ where: { listingId }, orderBy: [{ position: 'asc' }, { id: 'asc' }] }));
+  }
+
+  // ------------------------------------------------------------------ media (seller)
+
+  private async listingFor(tenant: TenantContext, dealId: string) {
+    const listing = await withTenant(this.prisma, tenant, (tx) => tx.dealListing.findFirst({ where: { dealId }, select: { id: true } }));
+    if (!listing) throw new NotFoundException({ code: 'NO_PAGE' });
+    return listing;
+  }
+
+  private async nextPosition(tenant: TenantContext, listingId: string, kind: 'IMAGE' | 'VIDEO') {
+    return withTenant(this.prisma, tenant, async (tx) => {
+      const [count, last] = await Promise.all([tx.listingMedia.count({ where: { listingId, kind } }), tx.listingMedia.findFirst({ where: { listingId }, orderBy: { position: 'desc' }, select: { position: true } })]);
+      return { count, position: (last?.position ?? -1) + 1 };
+    });
+  }
+
+  /**
+   * A picture: recognised by its bytes (JPEG, PNG or WebP; never SVG), up to 5 MB, scanned,
+   * and stored without metadata (camera, location, comments) — the stripped bytes are what
+   * is hashed, stored and ever shown.
+   */
+  async addImage(tenant: TenantContext, dealId: string, body: AddListingImageBody, requestId: string): Promise<{ listing: ListingView }> {
+    await this.access.require(tenant, dealId, canRun, { action: 'listing.media.added', requestId });
+    const listing = await this.listingFor(tenant, dealId);
+    const raw = new Uint8Array(Buffer.from(body.contentBase64, 'base64'));
+    if (raw.length === 0) throw new BadRequestException();
+    if (raw.length > LISTING_MEDIA_LIMITS.imageBytes) throw new PayloadTooLargeException();
+    let image;
+    try {
+      image = stripImageMetadata(raw);
+    } catch (error) {
+      if (error instanceof ImageRejectedError) throw new UnsupportedMediaTypeException({ code: error.reason === 'NOT_AN_IMAGE' ? 'NOT_AN_IMAGE' : 'MALFORMED_IMAGE' });
+      throw error;
+    }
+    const verdict = await this.files.scanner.scan(raw);
+    if (verdict === 'UNAVAILABLE') throw new ServiceUnavailableException();
+    if (verdict !== 'CLEAN') throw new UnprocessableEntityException({ code: 'MALWARE' });
+    const { count, position } = await this.nextPosition(tenant, listing.id, 'IMAGE');
+    if (count >= LISTING_MEDIA_LIMITS.images) throw new ConflictException({ code: 'TOO_MANY_IMAGES' });
+    const id = newId();
+    const sha256 = createHash('sha256').update(image.bytes).digest('hex');
+    const objectKey = tenantObjectKey(tenant.organizationId, dealId, 'listing-media', id);
+    await this.files.objectStore.put(objectKey, image.bytes, { contentType: image.contentType, sha256 });
+    try {
+      await withTenant(this.prisma, tenant, async (tx) => {
+        await tx.listingMedia.create({
+          data: { id, organizationId: tenant.organizationId, dealId, listingId: listing.id, kind: 'IMAGE', position, caption: body.caption, objectKey, contentType: image.contentType, sha256, byteSize: image.bytes.length, createdBy: tenant.userId },
+        });
+        await appendAuditEvent(tx, { organizationId: tenant.organizationId, dealId, actorUserId: tenant.userId, action: 'listing.media.added', targetType: 'listing_media', targetId: id, outcome: 'SUCCEEDED', requestId });
+      });
+    } catch (error) {
+      await this.files.objectStore.delete(objectKey);
+      throw error;
+    }
+    return this.get(tenant, dealId, requestId) as Promise<{ listing: ListingView }>;
+  }
+
+  /** A YouTube or Vimeo link, kept only as provider and id. */
+  async addVideo(tenant: TenantContext, dealId: string, body: AddListingVideoBody, requestId: string): Promise<{ listing: ListingView }> {
+    await this.access.require(tenant, dealId, canRun, { action: 'listing.media.added', requestId });
+    const listing = await this.listingFor(tenant, dealId);
+    const video = parseVideoUrl(body.url);
+    if (!video) throw new UnprocessableEntityException({ code: 'UNSUPPORTED_VIDEO_LINK' });
+    const { count, position } = await this.nextPosition(tenant, listing.id, 'VIDEO');
+    if (count >= LISTING_MEDIA_LIMITS.videos) throw new ConflictException({ code: 'TOO_MANY_VIDEOS' });
+    const id = newId();
+    await withTenant(this.prisma, tenant, async (tx) => {
+      await tx.listingMedia.create({ data: { id, organizationId: tenant.organizationId, dealId, listingId: listing.id, kind: 'VIDEO', position, caption: body.caption, videoProvider: video.provider, videoId: video.id, createdBy: tenant.userId } });
+      await appendAuditEvent(tx, { organizationId: tenant.organizationId, dealId, actorUserId: tenant.userId, action: 'listing.media.added', targetType: 'listing_media', targetId: id, outcome: 'SUCCEEDED', requestId });
+    });
+    return this.get(tenant, dealId, requestId) as Promise<{ listing: ListingView }>;
+  }
+
+  async captionMedia(tenant: TenantContext, dealId: string, mediaId: string, caption: string | null, requestId: string): Promise<{ listing: ListingView }> {
+    await this.access.require(tenant, dealId, canRun, { action: 'listing.media.updated', requestId });
+    await withTenant(this.prisma, tenant, async (tx) => {
+      const { count } = await tx.listingMedia.updateMany({ where: { id: mediaId, dealId }, data: { caption } });
+      if (count === 0) throw new NotFoundException();
+      await appendAuditEvent(tx, { organizationId: tenant.organizationId, dealId, actorUserId: tenant.userId, action: 'listing.media.updated', targetType: 'listing_media', targetId: mediaId, outcome: 'SUCCEEDED', requestId });
+    });
+    return this.get(tenant, dealId, requestId) as Promise<{ listing: ListingView }>;
+  }
+
+  /** The page's media in the given order; the list must name every item once. */
+  async orderMedia(tenant: TenantContext, dealId: string, ids: readonly string[], requestId: string): Promise<{ listing: ListingView }> {
+    await this.access.require(tenant, dealId, canRun, { action: 'listing.media.ordered', requestId });
+    await withTenant(this.prisma, tenant, async (tx) => {
+      const current = await tx.listingMedia.findMany({ where: { dealId }, select: { id: true } });
+      const known = new Set(current.map((item) => item.id));
+      if (ids.length !== known.size || new Set(ids).size !== ids.length || ids.some((id) => !known.has(id))) throw new UnprocessableEntityException({ code: 'ORDER_MISMATCH' });
+      for (const [position, id] of ids.entries()) await tx.listingMedia.update({ where: { id }, data: { position } });
+      await appendAuditEvent(tx, { organizationId: tenant.organizationId, dealId, actorUserId: tenant.userId, action: 'listing.media.ordered', targetType: 'deal_listing', targetId: dealId, outcome: 'SUCCEEDED', requestId });
+    });
+    return this.get(tenant, dealId, requestId) as Promise<{ listing: ListingView }>;
+  }
+
+  /** Remove a picture (and its stored file) or a video link. */
+  async removeMedia(tenant: TenantContext, dealId: string, mediaId: string, requestId: string): Promise<{ listing: ListingView }> {
+    await this.access.require(tenant, dealId, canRun, { action: 'listing.media.removed', requestId });
+    const removed = await withTenant(this.prisma, tenant, async (tx) => {
+      const found = await tx.listingMedia.findFirst({ where: { id: mediaId, dealId }, select: { id: true, objectKey: true } });
+      if (!found) throw new NotFoundException();
+      await tx.listingMedia.delete({ where: { id: found.id } });
+      await appendAuditEvent(tx, { organizationId: tenant.organizationId, dealId, actorUserId: tenant.userId, action: 'listing.media.removed', targetType: 'listing_media', targetId: mediaId, outcome: 'SUCCEEDED', requestId });
+      return found;
+    });
+    if (removed.objectKey) {
+      await this.files.objectStore.delete(removed.objectKey).catch((error: unknown) => {
+        this.logger.error({ requestId, errorClass: error instanceof Error ? error.name : 'unknown' }, 'listing image delete failed');
+      });
+    }
+    return this.get(tenant, dealId, requestId) as Promise<{ listing: ListingView }>;
+  }
+
+  /** The seller's own picture (also while the page is a draft), hash re-checked. */
+  async ownImage(tenant: TenantContext, dealId: string, mediaId: string, requestId: string): Promise<{ bytes: Uint8Array; contentType: string }> {
+    await this.access.require(tenant, dealId, canRun, { action: 'listing.media.viewed', requestId });
+    const found = await withTenant(this.prisma, tenant, (tx) => tx.listingMedia.findFirst({ where: { id: mediaId, dealId, kind: 'IMAGE' } }));
+    if (!found?.objectKey || !found.contentType) throw new NotFoundException();
+    const bytes = await this.read(found.objectKey);
+    if (createHash('sha256').update(bytes).digest('hex') !== found.sha256) throw new ConflictException();
+    return { bytes, contentType: found.contentType };
+  }
+
+  private async read(objectKey: string): Promise<Uint8Array> {
+    try {
+      return await this.files.objectStore.get(objectKey);
+    } catch {
+      throw new ServiceUnavailableException();
+    }
   }
 
   /** Confirmed requests, newest first. Unconfirmed ones never reach the seller. */
@@ -229,7 +382,15 @@ export class ListingsService {
       highlights: row.highlights,
       indexable: row.indexable,
       publishedAt: iso(row.publishedAt),
+      media: (await publicListings.media(this.prisma, slug)).map(mediaView),
     };
+  }
+
+  /** One picture of a published page, for anyone with the link. */
+  async publicImage(slug: string, mediaId: string): Promise<{ bytes: Uint8Array; contentType: string }> {
+    const image = await publicListings.image(this.prisma, slug, mediaId);
+    if (!image) throw new NotFoundException();
+    return { bytes: await this.read(image.objectKey), contentType: image.contentType };
   }
 
   /**

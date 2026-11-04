@@ -59,3 +59,45 @@ export async function declineInterest(dealId: string, interestId: string, form: 
   if (!parsed.success) back(dealId, 'invalid');
   back(dealId, kind(await apiPost(`/v1/deals/${dealId}/listing/interests/${interestId}/decline`, parsed.data), 'ok-declined'));
 }
+
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+
+/** Upload one or more pictures; each is checked and stripped of metadata by the API. */
+export async function addImages(dealId: string, form: FormData): Promise<void> {
+  if (!uuid.safeParse(dealId).success) redirect('/deals');
+  const files = form.getAll('images').filter((value): value is File => value instanceof File && value.size > 0);
+  if (files.length === 0) back(dealId, 'no-file');
+  const caption = text(form, 'caption');
+  for (const file of files) {
+    if (file.size > MAX_IMAGE_BYTES) back(dealId, 'image-too-large');
+    const result = await apiPost(`/v1/deals/${dealId}/listing/media/images`, { contentBase64: Buffer.from(await file.arrayBuffer()).toString('base64'), caption: files.length === 1 ? caption : null });
+    if (result.kind !== 'ok') back(dealId, result.kind === 'conflict' ? 'too-many-images' : result.kind === 'invalid' ? 'not-an-image' : kind(result, 'ok-media'));
+  }
+  back(dealId, 'ok-media');
+}
+
+export async function addVideo(dealId: string, form: FormData): Promise<void> {
+  if (!uuid.safeParse(dealId).success) redirect('/deals');
+  const result = await apiPost(`/v1/deals/${dealId}/listing/media/videos`, { url: text(form, 'url') ?? '', caption: text(form, 'caption') });
+  back(dealId, result.kind === 'conflict' ? 'too-many-videos' : result.kind === 'invalid' ? 'bad-video-link' : kind(result, 'ok-media'));
+}
+
+export async function captionMedia(dealId: string, mediaId: string, form: FormData): Promise<void> {
+  if (![dealId, mediaId].every((id) => uuid.safeParse(id).success)) redirect('/deals');
+  back(dealId, kind(await apiSend('PUT', `/v1/deals/${dealId}/listing/media/${mediaId}`, { caption: text(form, 'caption') }), 'ok-media'));
+}
+
+/** Move one item up or down: the whole order is sent, as the API expects. */
+export async function moveMedia(dealId: string, ids: string[], index: number, direction: -1 | 1): Promise<void> {
+  if (![dealId, ...ids].every((id) => uuid.safeParse(id).success)) redirect('/deals');
+  const target = index + direction;
+  if (target < 0 || target >= ids.length) back(dealId, 'ok-media');
+  const order = [...ids];
+  [order[index], order[target]] = [order[target] as string, order[index] as string];
+  back(dealId, kind(await apiSend('PUT', `/v1/deals/${dealId}/listing/media/order`, { ids: order }), 'ok-media'));
+}
+
+export async function removeMedia(dealId: string, mediaId: string): Promise<void> {
+  if (![dealId, mediaId].every((id) => uuid.safeParse(id).success)) redirect('/deals');
+  back(dealId, kind(await apiSend('DELETE', `/v1/deals/${dealId}/listing/media/${mediaId}`, {}), 'ok-media'));
+}

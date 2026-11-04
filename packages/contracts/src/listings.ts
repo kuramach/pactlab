@@ -63,6 +63,33 @@ export const confirmListingInterestSchema = z.strictObject({ token: z.string().r
 export const declineListingInterestSchema = z.strictObject({ note: optionalText(1000) });
 export type DeclineListingInterestBody = z.infer<typeof declineListingInterestSchema>;
 
+export const listingMediaParamsSchema = z.strictObject({ dealId: z.uuid(), mediaId: z.uuid() });
+export const publicListingMediaParamsSchema = z.strictObject({ slug: listingSlugSchema, mediaId: z.uuid() });
+export const LISTING_MEDIA_LIMITS = { images: 8, videos: 3, imageBytes: 5 * 1024 * 1024 } as const;
+
+/** A picture: JPEG, PNG or WebP up to 5 MB, as base64 (the type is read from the bytes). */
+export const addListingImageSchema = z.strictObject({
+  contentBase64: z.string().min(1).max(Math.ceil((LISTING_MEDIA_LIMITS.imageBytes * 4) / 3) + 4).regex(/^[A-Za-z0-9+/]*={0,2}$/),
+  caption: optionalText(200),
+});
+export type AddListingImageBody = z.infer<typeof addListingImageSchema>;
+
+/** A YouTube or Vimeo link. */
+export const addListingVideoSchema = z.strictObject({ url: z.string().trim().min(1).max(500), caption: optionalText(200) });
+export type AddListingVideoBody = z.infer<typeof addListingVideoSchema>;
+
+export const listingMediaCaptionSchema = z.strictObject({ caption: optionalText(200) });
+export const listingMediaOrderSchema = z.strictObject({ ids: z.array(z.uuid()).min(1).max(LISTING_MEDIA_LIMITS.images + LISTING_MEDIA_LIMITS.videos) });
+
+/** A picture or a video on the page, in page order. A video is a provider and id, embedded by the page. */
+export interface ListingMediaView {
+  id: string;
+  kind: 'IMAGE' | 'VIDEO';
+  caption: string | null;
+  videoProvider: 'YOUTUBE' | 'VIMEO' | null;
+  videoId: string | null;
+}
+
 /** What anyone with the link sees. */
 export interface PublicListingView {
   slug: string;
@@ -78,6 +105,7 @@ export interface PublicListingView {
   highlights: string[];
   indexable: boolean;
   publishedAt: string | null;
+  media: ListingMediaView[];
 }
 
 /** The seller's own view of their page. */

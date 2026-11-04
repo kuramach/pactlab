@@ -56,6 +56,26 @@ test('public deal page: publish, request access, confirm, approve, join', async 
   await page.getByLabel(/^Highlights/).fill('Founder-led\nNet revenue retention above 110%');
   await page.getByRole('button', { name: 'Create the page' }).click();
   await expect(page.getByText('Saved.')).toBeVisible();
+
+  // A picture (a real 1×1 PNG) and a YouTube link, then the full-page preview while still a draft.
+  const pixel = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64');
+  await page.getByLabel(/^Add pictures/).setInputFiles([{ name: 'office.png', mimeType: 'image/png', buffer: pixel }]);
+  await page.getByLabel(/^Caption \(for a single picture\)/).fill('Head office (synthetic)');
+  await page.getByRole('button', { name: 'Upload' }).click();
+  await expect(page.getByText('Pictures and video updated.')).toBeVisible();
+  await page.getByLabel(/^Video link/).fill('https://youtu.be/dQw4w9WgXcQ');
+  await page.getByRole('button', { name: 'Add video' }).click();
+  await expect(page.getByRole('list', { name: 'Pictures and video on the page' }).getByRole('listitem')).toHaveCount(2);
+  await page.getByLabel(/^Video link/).fill('https://evil.example/watch?v=dQw4w9WgXcQ');
+  await page.getByRole('button', { name: 'Add video' }).click();
+  await expect(page.getByText(/Use a YouTube or Vimeo link/)).toBeVisible();
+
+  await page.goto(`/preview/listing/${dealId}`);
+  await expect(page.getByText(/Preview — not published/)).toBeVisible();
+  await expect(page.getByRole('img', { name: 'Head office (synthetic)' })).toBeVisible();
+  await expect(page.locator('iframe[src="https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ"]')).toHaveCount(1);
+  await expect(page.getByRole('button', { name: 'Send request' })).toBeDisabled();
+  await page.getByRole('link', { name: 'Back to editing' }).click();
   await page.getByRole('button', { name: 'Publish' }).click();
   await expect(page.getByText(/Published\. Anyone with the link/)).toBeVisible();
   const link = new URL((await page.getByText(/\/listings\/pl-[a-z0-9]{10}/).textContent()) ?? '');
@@ -68,6 +88,13 @@ test('public deal page: publish, request access, confirm, approve, join', async 
   await expect(visitor.getByText('Founder-led')).toBeVisible();
   await expect(visitor.getByText(`Secret Seller ${tag}`)).toHaveCount(0);
   await expect(visitor.getByText(/Workflow software for logistics/)).toHaveCount(0);
+  const picture = visitor.getByRole('img', { name: 'Head office (synthetic)' });
+  await expect(picture).toBeVisible();
+  await expect(visitor.locator('iframe[src="https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ"]')).toHaveCount(1);
+  const served = await visitor.request.get((await picture.getAttribute('src')) ?? '');
+  expect(served.status()).toBe(200);
+  expect(served.headers()['x-content-type-options']).toBe('nosniff');
+  expect(served.headers()['content-type']).toBe('image/png');
 
   const buyer = `buyer-${Date.now()}@gmail.com`;
   const asked = Date.now() - 1_000;

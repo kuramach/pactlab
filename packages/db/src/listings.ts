@@ -34,6 +34,15 @@ export interface PublicListingRow {
   publishedAt: Date | null;
 }
 
+export interface PublicListingMediaRow {
+  id: string;
+  kind: 'IMAGE' | 'VIDEO';
+  caption: string | null;
+  contentType: string | null;
+  videoProvider: 'YOUTUBE' | 'VIMEO' | null;
+  videoId: string | null;
+}
+
 export const publicListings = {
   /** The teaser of a published listing; null for an unknown, draft or closed one. */
   async get(prisma: PrismaClient, slug: string): Promise<PublicListingRow | null> {
@@ -70,6 +79,25 @@ export const publicListings = {
         SELECT app_listing_interest_file(${input.slug}, ${input.name}, ${input.firm}, ${input.email}, ${input.intent}, ${input.message}, ${input.ipHash}, ${input.tokenHash}) AS ok`,
     );
     return row?.ok === true;
+  },
+
+  /** A published page's pictures and video links, in order (never storage keys). */
+  async media(prisma: PrismaClient, slug: string): Promise<PublicListingMediaRow[]> {
+    const rows = await asApp(prisma, (tx) => tx.$queryRaw<Record<string, unknown>[]>`SELECT * FROM app_listing_media(${slug})`);
+    return rows.map((row) => ({
+      id: String(row['id']),
+      kind: row['kind'] === 'VIDEO' ? 'VIDEO' : 'IMAGE',
+      caption: (row['caption'] as string | null) ?? null,
+      contentType: (row['content_type'] as string | null) ?? null,
+      videoProvider: (row['video_provider'] as 'YOUTUBE' | 'VIMEO' | null) ?? null,
+      videoId: (row['video_id'] as string | null) ?? null,
+    }));
+  },
+
+  /** Where one image of a published page is stored; null for anything else. */
+  async image(prisma: PrismaClient, slug: string, mediaId: string): Promise<{ objectKey: string; contentType: string } | null> {
+    const [row] = await asApp(prisma, (tx) => tx.$queryRaw<{ object_key: string; content_type: string }[]>`SELECT * FROM app_listing_image(${slug}, ${mediaId}::uuid)`);
+    return row ? { objectKey: row.object_key, contentType: row.content_type } : null;
   },
 
   /** Confirm a request's email address. The listing's slug when confirmed; null otherwise. */

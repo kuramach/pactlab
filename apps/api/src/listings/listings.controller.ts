@@ -1,6 +1,14 @@
-import { Body, Controller, Get, HttpCode, Inject, Param, Post, Put, Req } from '@nestjs/common';
-import type { FastifyRequest } from 'fastify';
+import { Body, Controller, Delete, Get, HttpCode, Inject, Param, Post, Put, Req, Res } from '@nestjs/common';
+import type { FastifyReply, FastifyRequest } from 'fastify';
 import {
+  addListingImageSchema,
+  addListingVideoSchema,
+  listingMediaCaptionSchema,
+  listingMediaOrderSchema,
+  listingMediaParamsSchema,
+  publicListingMediaParamsSchema,
+  type AddListingImageBody,
+  type AddListingVideoBody,
   confirmListingInterestSchema,
   declineListingInterestSchema,
   listingInterestParamsSchema,
@@ -24,6 +32,12 @@ import { ListingsService } from './listings.service';
 
 type DealParams = { dealId: string };
 type InterestParams = { dealId: string; interestId: string };
+type MediaParams = { dealId: string; mediaId: string };
+
+function sendImage(reply: FastifyReply, image: { bytes: Uint8Array; contentType: string }, cache: string) {
+  void reply.header('content-type', image.contentType).header('cache-control', cache).header('x-content-type-options', 'nosniff').header('content-disposition', 'inline');
+  return Buffer.from(image.bytes);
+}
 
 /** The seller's public page for a pact, and the requests for access left on it. */
 @Controller('v1/deals/:dealId/listing')
@@ -43,6 +57,36 @@ export class ListingsController {
   @Put('status')
   setStatus(@Tenant() tenant: TenantContext, @RequestId() requestId: string, @Param(new ZodValidationPipe(listingParamsSchema)) params: DealParams, @Body(new ZodValidationPipe(listingStatusSchema)) body: ListingStatusBody) {
     return this.listings.setStatus(tenant, params.dealId, body, requestId);
+  }
+
+  @Post('media/images')
+  addImage(@Tenant() tenant: TenantContext, @RequestId() requestId: string, @Param(new ZodValidationPipe(listingParamsSchema)) params: DealParams, @Body(new ZodValidationPipe(addListingImageSchema)) body: AddListingImageBody) {
+    return this.listings.addImage(tenant, params.dealId, body, requestId);
+  }
+
+  @Post('media/videos')
+  addVideo(@Tenant() tenant: TenantContext, @RequestId() requestId: string, @Param(new ZodValidationPipe(listingParamsSchema)) params: DealParams, @Body(new ZodValidationPipe(addListingVideoSchema)) body: AddListingVideoBody) {
+    return this.listings.addVideo(tenant, params.dealId, body, requestId);
+  }
+
+  @Put('media/order')
+  orderMedia(@Tenant() tenant: TenantContext, @RequestId() requestId: string, @Param(new ZodValidationPipe(listingParamsSchema)) params: DealParams, @Body(new ZodValidationPipe(listingMediaOrderSchema)) body: { ids: string[] }) {
+    return this.listings.orderMedia(tenant, params.dealId, body.ids, requestId);
+  }
+
+  @Put('media/:mediaId')
+  captionMedia(@Tenant() tenant: TenantContext, @RequestId() requestId: string, @Param(new ZodValidationPipe(listingMediaParamsSchema)) params: MediaParams, @Body(new ZodValidationPipe(listingMediaCaptionSchema)) body: { caption: string | null }) {
+    return this.listings.captionMedia(tenant, params.dealId, params.mediaId, body.caption, requestId);
+  }
+
+  @Delete('media/:mediaId')
+  removeMedia(@Tenant() tenant: TenantContext, @RequestId() requestId: string, @Param(new ZodValidationPipe(listingMediaParamsSchema)) params: MediaParams) {
+    return this.listings.removeMedia(tenant, params.dealId, params.mediaId, requestId);
+  }
+
+  @Get('media/:mediaId/image')
+  async ownImage(@Tenant() tenant: TenantContext, @RequestId() requestId: string, @Param(new ZodValidationPipe(listingMediaParamsSchema)) params: MediaParams, @Res({ passthrough: true }) reply: FastifyReply) {
+    return sendImage(reply, await this.listings.ownImage(tenant, params.dealId, params.mediaId, requestId), 'private, no-store');
   }
 
   @Get('interests')
@@ -77,6 +121,13 @@ export class PublicListingsController {
   @Get('listings/:slug')
   view(@Param(new ZodValidationPipe(listingSlugParamsSchema)) params: { slug: string }) {
     return this.listings.publicView(params.slug);
+  }
+
+  /** One picture of a published page. */
+  @Public()
+  @Get('listings/:slug/media/:mediaId')
+  async image(@Param(new ZodValidationPipe(publicListingMediaParamsSchema)) params: { slug: string; mediaId: string }, @Res({ passthrough: true }) reply: FastifyReply) {
+    return sendImage(reply, await this.listings.publicImage(params.slug, params.mediaId), 'public, max-age=300');
   }
 
   /** Always 202 "check your email" for a published page, whatever happened to the request. */

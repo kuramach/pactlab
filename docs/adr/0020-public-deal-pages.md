@@ -47,3 +47,20 @@ Decided with Kumar:
   - the full end-to-end flow.
 - **Before the NDA, the invitation page still shows the pact's name and the seller organisation's name**, as it already does for seller-invited bidders (ADR 0015). Sellers should give an anonymous pact a codename-like name. Hiding these on the invitation page needs a label stored on the invitation; that's a follow-up.
 - **The audit chain trigger runs as the inserting role**, so `pactlab_public` can read the chain columns (organization, deal, sequence, hash) of `audit_events`, and nothing else.
+
+## Addendum (2026-11-04): pictures, video links and a full preview
+
+- **Pictures:**
+  - JPEG, PNG or WebP only, recognised by their bytes (never SVG);
+  - at most 8 per page, 5 MB each;
+  - scanned like any upload;
+  - stored in the document object store under the pact's tenant prefix.
+- **Metadata:** EXIF, XMP, IPTC and text chunks are stripped before storage, so camera and location details never become public. The stripped bytes are the ones hashed, stored and served.
+- **Serving:**
+  - signed-out visitors get a picture only through `app_listing_image(slug, id)`, and only for a published page;
+  - `app_listing_media(slug)` lists media without storage keys;
+  - responses carry `nosniff`.
+- **Videos:**
+  - YouTube or Vimeo links only, stored as provider and id (never the pasted URL), at most 3;
+  - pages embed the privacy-enhanced players (`youtube-nocookie.com`, Vimeo with `dnt=1`) in sandboxed iframes.
+- **Preview:** the seller previews the exact public page, drafts included, at `/preview/listing/<pact>`. Only the seller's team can open it, and its form is disabled.

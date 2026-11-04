@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { askingLabel, grouped, Teaser, teaserTitle } from './teaser';
+import { askingLabel, embedUrl, grouped, Media, Teaser, teaserTitle } from './teaser';
 
 const listing = {
   visibility: 'ANONYMOUS' as const,
@@ -35,3 +35,31 @@ describe('public teaser', () => {
     expect(askingLabel(null)).toBeNull();
   });
 });
+
+describe('pictures and video on the page', () => {
+  const media = [
+    { id: 'img-1', kind: 'IMAGE' as const, caption: 'Head office', videoProvider: null, videoId: null },
+    { id: 'img-2', kind: 'IMAGE' as const, caption: null, videoProvider: null, videoId: null },
+    { id: 'vid-1', kind: 'VIDEO' as const, caption: 'Product tour', videoProvider: 'YOUTUBE' as const, videoId: 'dQw4w9WgXcQ' },
+    { id: 'vid-2', kind: 'VIDEO' as const, caption: null, videoProvider: 'VIMEO' as const, videoId: '76979871' },
+  ];
+
+  it('embeds only the providers\' privacy-enhanced players, for well-formed ids', () => {
+    expect(embedUrl(media[2]!)).toBe('https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ');
+    expect(embedUrl(media[3]!)).toBe('https://player.vimeo.com/video/76979871?dnt=1');
+    expect(embedUrl({ videoProvider: 'YOUTUBE', videoId: '"><script>' })).toBeNull();
+    expect(embedUrl({ videoProvider: null, videoId: null })).toBeNull();
+  });
+
+  it('shows the first picture large, the rest as thumbnails, and sandboxed players', () => {
+    const html = renderToStaticMarkup(<Media media={media} imageHref={(id) => `/listings/pl-abcdefghij/media/${id}`} />);
+    expect(html).toContain('src="/listings/pl-abcdefghij/media/img-1"');
+    expect(html).toContain('aria-label="More pictures"');
+    expect(html).toContain('Head office');
+    expect(html).toContain('src="https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ"');
+    expect(html).toContain('sandbox="allow-scripts allow-same-origin allow-presentation allow-popups"');
+    expect(html).toContain('referrerPolicy="strict-origin-when-cross-origin"');
+    expect(renderToStaticMarkup(<Media media={[]} imageHref={(id) => id} />)).toBe('');
+  });
+});
+

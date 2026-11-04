@@ -7,7 +7,19 @@ import { createLocalJWKSet, exportJWK, generateKeyPair } from 'jose';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createApp } from '../app';
 import { JwtIdentityVerifier } from '../auth/identity';
+import { InMemoryObjectStore } from '../documents/testing';
+import { SignatureMalwareScanner } from '../documents/upload-policy';
 import type { EmailSender, OutboundEmail } from '../email-login/email-sender';
+
+// A tiny synthetic PNG carrying fake location metadata in an eXIf chunk.
+const pngChunk = (type: string, data: Buffer) => {
+  const length = Buffer.alloc(4);
+  length.writeUInt32BE(data.length);
+  return Buffer.concat([length, Buffer.from(type, 'latin1'), data, Buffer.alloc(4)]);
+};
+const png = (extra: Buffer[] = []) =>
+  Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), pngChunk('IHDR', Buffer.alloc(13, 1)), ...extra, pngChunk('IDAT', Buffer.from('PIXELS')), pngChunk('IEND', Buffer.alloc(0))]);
+const EICAR = 'X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*';
 
 const SECRET = 'test-secret-'.padEnd(48, 'x');
 type Body = Record<string, unknown>;
@@ -29,13 +41,14 @@ describe('public deal page (listing)', { timeout: 60_000 }, () => {
   let db: TestDatabase;
   let app: NestFastifyApplication;
   const mail = new CapturingEmailSender();
+  const store = new InMemoryObjectStore();
   const seller = { organizationId: newId(), lead: newId() };
   const other = { organizationId: newId(), lead: newId() };
   let lead = '';
   let dealId = '';
   let slug = '';
 
-  async function call(method: 'GET' | 'POST' | 'PUT', url: string, payload?: Body, bearer?: string, headers: Record<string, string> = {}) {
+  async function call(method: 'GET' | 'POST' | 'PUT' | 'DELETE', url: string, payload?: Body, bearer?: string, headers: Record<string, string> = {}) {
     const response = await app.inject({ method, url, headers: { ...headers, ...(bearer ? { authorization: `Bearer ${bearer}` } : {}) }, ...(payload ? { payload } : {}) });
     return { status: response.statusCode, body: (response.body ? response.json() : null) as Body };
   }
@@ -71,6 +84,7 @@ describe('public deal page (listing)', { timeout: 60_000 }, () => {
       logger: createLogger('api-test', { level: process.env['DEBUG_API'] ? 'error' : 'silent' }),
       emailLogin: { tokenSecret: SECRET, emailSender: mail },
       signup: { requiresApproval: true, loginUrl: 'https://app.pactlab.test/login' },
+      documents: { objectStore: store, malwareScanner: new SignatureMalwareScanner() },
     });
     lead = await signIn('lead@brightwave.example');
     const pact = await call('POST', '/v1/pacts', { name: 'Brightwave sale', baseCurrency: 'USD', initiatedBy: 'SELLER', seller: { name: 'Brightwave Software Inc. (synthetic)', ownership: 'PRIVATE', companyType: 'SOFTWARE_SAAS' } }, lead);
@@ -103,11 +117,75 @@ describe('public deal page (listing)', { timeout: 60_000 }, () => {
     for (const secret of [dealId, 'Brightwave', 'Brightwave sale']) expect(JSON.stringify(open.body)).not.toContain(secret);
   });
 
+  it('pictures and video links: safe types only, no metadata, public only while published', async () => {
+    const media = `/v1/deals/${dealId}/listing/media`;
+    const listingOf = (response: { body: Body }) => response.body['listing'] as { media: { id: string; kind: string; caption: string | null; videoProvider: string | null; videoId: string | null }[] };
+    // Back to draft while the seller adds media.
+    await call('PUT', `/v1/deals/${dealId}/listing/status`, { status: 'DRAFT' }, lead);
+
+    const added = await call('POST', `${media}/images`, { contentBase64: png([pngChunk('eXIf', Buffer.from('GPS 51.5N 0.12W'))]).toString('base64'), caption: 'Head office (synthetic)' }, lead);
+    expect(added.status, JSON.stringify(added.body)).toBe(201);
+    const [image] = listingOf(added).media;
+    expect(image).toMatchObject({ kind: 'IMAGE', caption: 'Head office (synthetic)' });
+    // Stored without the location metadata.
+    const stored = [...store.objects.entries()].find(([key]) => key.includes(image?.id ?? '-'));
+    expect(stored).toBeDefined();
+    expect(Buffer.from(stored?.[1] ?? []).includes('GPS')).toBe(false);
+    expect(Buffer.from(stored?.[1] ?? []).includes('PIXELS')).toBe(true);
+    const own = await app.inject({ method: 'GET', url: `${media}/${image?.id}/image`, headers: { authorization: `Bearer ${lead}` } });
+    expect(own.statusCode).toBe(200);
+    expect(own.headers['content-type']).toBe('image/png');
+    expect(own.headers['x-content-type-options']).toBe('nosniff');
+
+    // Never SVG, never a disguised file, never malware; nothing over 5 MB.
+    expect((await call('POST', `${media}/images`, { contentBase64: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>').toString('base64') }, lead)).status).toBe(415);
+    expect((await call('POST', `${media}/images`, { contentBase64: Buffer.from('%PDF-1.7 not an image').toString('base64') }, lead)).status).toBe(415);
+    expect((await call('POST', `${media}/images`, { contentBase64: png([pngChunk('tEXt', Buffer.from(EICAR, 'latin1'))]).toString('base64') }, lead)).status).toBe(422);
+    expect([400, 413]).toContain((await call('POST', `${media}/images`, { contentBase64: Buffer.concat([png(), Buffer.alloc(5 * 1024 * 1024)]).toString('base64') }, lead)).status);
+
+    // Video links: YouTube and Vimeo only, at most three.
+    expect((await call('POST', `${media}/videos`, { url: 'https://evil.example/watch?v=dQw4w9WgXcQ' }, lead)).status).toBe(422);
+    const video = await call('POST', `${media}/videos`, { url: 'https://youtu.be/dQw4w9WgXcQ', caption: 'Product tour' }, lead);
+    expect(listingOf(video).media.find((item) => item.kind === 'VIDEO')).toMatchObject({ videoProvider: 'YOUTUBE', videoId: 'dQw4w9WgXcQ', caption: 'Product tour' });
+    await call('POST', `${media}/videos`, { url: 'https://vimeo.com/76979871' }, lead);
+    await call('POST', `${media}/videos`, { url: 'https://www.youtube.com/watch?v=aaaaaaaaaaa' }, lead);
+    expect((await call('POST', `${media}/videos`, { url: 'https://youtu.be/bbbbbbbbbbb' }, lead)).status).toBe(409);
+
+    // Reorder (the video first), caption, remove one.
+    const all = listingOf(await call('GET', `/v1/deals/${dealId}/listing`, undefined, lead)).media;
+    const [first, ...rest] = all;
+    const reordered = await call('PUT', `${media}/order`, { ids: [...rest.map((item) => item.id), first?.id] }, lead);
+    expect(listingOf(reordered).media.at(-1)?.id).toBe(first?.id);
+    expect((await call('PUT', `${media}/order`, { ids: [first?.id] }, lead)).status).toBe(422);
+    expect(listingOf(await call('PUT', `${media}/${image?.id}`, { caption: 'Our office (synthetic)' }, lead)).media.find((item) => item.id === image?.id)?.caption).toBe('Our office (synthetic)');
+    const last = rest.at(-1);
+    expect(listingOf(await call('DELETE', `${media}/${last?.id}`, undefined, lead)).media.map((item) => item.id)).not.toContain(last?.id);
+
+    // Signed out: nothing while a draft; the image and the media list once published, never storage keys.
+    expect((await app.inject({ method: 'GET', url: `/v1/public/listings/${slug}/media/${image?.id}` })).statusCode).toBe(404);
+    await call('PUT', `/v1/deals/${dealId}/listing/status`, { status: 'PUBLISHED' }, lead);
+    const page = await call('GET', `/v1/public/listings/${slug}`);
+    expect((page.body['media'] as Body[]).map((item) => item['kind'])).toEqual(['VIDEO', 'VIDEO', 'IMAGE']);
+    expect(JSON.stringify(page.body)).not.toContain(dealId);
+    expect(JSON.stringify(page.body)).not.toContain('listing-media');
+    const served = await app.inject({ method: 'GET', url: `/v1/public/listings/${slug}/media/${image?.id}` });
+    expect(served.statusCode).toBe(200);
+    expect(served.headers['x-content-type-options']).toBe('nosniff');
+    expect(Buffer.from(served.rawPayload).includes('GPS')).toBe(false);
+    // A video id is not an image; another page's slug never serves it.
+    const aVideo = all.find((item) => item.kind === 'VIDEO' && item.id !== last?.id);
+    expect((await app.inject({ method: 'GET', url: `/v1/public/listings/${slug}/media/${aVideo?.id}` })).statusCode).toBe(404);
+    expect((await app.inject({ method: 'GET', url: `/v1/public/listings/pl-0000000000/media/${image?.id}` })).statusCode).toBe(404);
+  });
+
   it('another organization and a signed-out caller cannot run it', async () => {
     const elsewhere = await signIn('lead@elsewhere.example');
     expect((await call('GET', `/v1/deals/${dealId}/listing`, undefined, elsewhere)).status).toBe(404);
     expect((await call('GET', `/v1/deals/${dealId}/listing/interests`, undefined, elsewhere)).status).toBe(404);
     expect((await call('GET', `/v1/deals/${dealId}/listing`)).status).toBe(401);
+    const [picture] = ((await call('GET', `/v1/deals/${dealId}/listing`, undefined, lead)).body['listing'] as { media: { id: string; kind: string }[] }).media.filter((item) => item.kind === 'IMAGE');
+    expect((await app.inject({ method: 'GET', url: `/v1/deals/${dealId}/listing/media/${picture?.id}/image`, headers: { authorization: `Bearer ${elsewhere}` } })).statusCode).toBe(404);
+    expect((await call('POST', `/v1/deals/${dealId}/listing/media/videos`, { url: 'https://youtu.be/ccccccccccc' }, elsewhere)).status).toBe(404);
   });
 
   it('a request reaches the seller only after its email is confirmed; duplicates and bots get the same answer', async () => {

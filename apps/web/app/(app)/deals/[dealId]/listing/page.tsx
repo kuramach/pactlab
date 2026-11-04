@@ -1,12 +1,13 @@
-import type { ListingInterestView, ListingView } from '@pactlab/contracts';
-import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle } from '@pactlab/ui';
-import { ExternalLink } from 'lucide-react';
+import type { ListingInterestView, ListingMediaView, ListingView } from '@pactlab/contracts';
+import { Badge, Button, buttonVariants, Card, CardContent, CardDescription, CardHeader, CardTitle } from '@pactlab/ui';
+import { ArrowDown, ArrowUp, Eye, ExternalLink, Trash2 } from 'lucide-react';
+import Link from 'next/link';
 import { CopyButton } from '../../../_lib/copy-button';
 import { serverEnv } from '../../../../../lib/env';
-import { Teaser } from '../../../../listings/_lib/teaser';
+import { embedUrl, Teaser } from '../../../../listings/_lib/teaser';
 import { apiGet } from '../../_lib/api';
 import { ApiState } from '../../_lib/states';
-import { approveInterest, declineInterest, saveListing, setListingStatus } from './actions';
+import { addImages, addVideo, approveInterest, captionMedia, declineInterest, moveMedia, removeMedia, saveListing, setListingStatus } from './actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,6 +30,13 @@ const OUTCOMES: Record<string, { tone: 'ok' | 'error'; text: string }> = {
   invalid: { tone: 'error', text: 'Some details are missing or invalid. Check the codename, headline and asking range.' },
   conflict: { tone: 'error', text: 'That request was already decided.' },
   forbidden: { tone: 'error', text: 'Only the seller’s team can run this page.' },
+  'ok-media': { tone: 'ok', text: 'Pictures and video updated.' },
+  'no-file': { tone: 'error', text: 'Choose at least one picture.' },
+  'image-too-large': { tone: 'error', text: 'Each picture must be 5 MB or smaller.' },
+  'not-an-image': { tone: 'error', text: 'Only JPEG, PNG and WebP pictures can be added.' },
+  'too-many-images': { tone: 'error', text: 'A page can have up to 8 pictures.' },
+  'too-many-videos': { tone: 'error', text: 'A page can have up to 3 videos.' },
+  'bad-video-link': { tone: 'error', text: 'Use a YouTube or Vimeo link, for example https://youtu.be/… or https://vimeo.com/….' },
   error: { tone: 'error', text: 'Something went wrong. Try again.' },
 };
 
@@ -39,6 +47,84 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
       {children}
       {hint ? <span className="text-xs font-normal text-muted-foreground">{hint}</span> : null}
     </label>
+  );
+}
+
+function MediaEditor({ dealId, media }: { dealId: string; media: readonly ListingMediaView[] }) {
+  const ids = media.map((item) => item.id);
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="grid gap-4 md:grid-cols-2">
+        <form action={addImages.bind(null, dealId)} className="flex flex-col gap-2 rounded-xl border border-border p-3">
+          <Field label="Add pictures" hint="JPEG, PNG or WebP, up to 5 MB each, 8 in all. Location and camera details are removed.">
+            <input type="file" name="images" accept="image/jpeg,image/png,image/webp" multiple className="text-sm" />
+          </Field>
+          <Field label="Caption (for a single picture)">
+            <input name="caption" maxLength={200} className={inputClass} />
+          </Field>
+          <Button type="submit" size="sm" variant="outline">
+            Upload
+          </Button>
+        </form>
+        <form action={addVideo.bind(null, dealId)} className="flex flex-col gap-2 rounded-xl border border-border p-3">
+          <Field label="Video link (YouTube or Vimeo)" hint="Up to 3. Shown with the provider's privacy-enhanced player.">
+            <input name="url" type="url" placeholder="https://youtu.be/…" className={inputClass} />
+          </Field>
+          <Field label="Caption">
+            <input name="caption" maxLength={200} className={inputClass} />
+          </Field>
+          <Button type="submit" size="sm" variant="outline">
+            Add video
+          </Button>
+        </form>
+      </div>
+      {media.length > 0 ? (
+        <ol className="flex flex-col gap-2" aria-label="Pictures and video on the page">
+          {media.map((item, index) => {
+            const video = item.kind === 'VIDEO' ? embedUrl(item) : null;
+            return (
+              <li key={item.id} className="flex flex-wrap items-center gap-3 rounded-xl border border-border p-2 text-sm">
+                {item.kind === 'IMAGE' ? (
+                  <img src={`/deals/${dealId}/listing/media/${item.id}`} alt={item.caption ?? 'Picture'} className="h-16 w-24 rounded object-cover" />
+                ) : (
+                  <span className="flex h-16 w-24 items-center justify-center rounded bg-navy text-xs font-semibold text-white">{item.videoProvider === 'VIMEO' ? 'Vimeo' : 'YouTube'}</span>
+                )}
+                <form action={captionMedia.bind(null, dealId, item.id)} className="flex flex-1 items-center gap-2">
+                  <input name="caption" maxLength={200} defaultValue={item.caption ?? ''} placeholder="Caption" aria-label={`Caption for item ${index + 1}`} className={inputClass} />
+                  <Button type="submit" size="sm" variant="ghost">
+                    Save
+                  </Button>
+                </form>
+                {video ? (
+                  <a href={video} target="_blank" rel="noreferrer" className="text-xs text-indigo-ink underline">
+                    Watch
+                  </a>
+                ) : null}
+                <span className="flex gap-1">
+                  <form action={moveMedia.bind(null, dealId, ids, index, -1)}>
+                    <Button type="submit" size="sm" variant="ghost" disabled={index === 0} aria-label={`Move item ${index + 1} up`}>
+                      <ArrowUp aria-hidden className="h-4 w-4" />
+                    </Button>
+                  </form>
+                  <form action={moveMedia.bind(null, dealId, ids, index, 1)}>
+                    <Button type="submit" size="sm" variant="ghost" disabled={index === ids.length - 1} aria-label={`Move item ${index + 1} down`}>
+                      <ArrowDown aria-hidden className="h-4 w-4" />
+                    </Button>
+                  </form>
+                  <form action={removeMedia.bind(null, dealId, item.id)}>
+                    <Button type="submit" size="sm" variant="ghost" aria-label={`Remove item ${index + 1}`}>
+                      <Trash2 aria-hidden className="h-4 w-4" />
+                    </Button>
+                  </form>
+                </span>
+              </li>
+            );
+          })}
+        </ol>
+      ) : (
+        <p className="text-sm text-muted-foreground">No pictures or videos yet. The first picture is shown large at the top of the page.</p>
+      )}
+    </div>
   );
 }
 
@@ -101,6 +187,7 @@ export default async function ListingTab({ params, searchParams }: { params: Pro
     asking: listing?.asking ?? null,
     summary: listing?.summary ?? '',
     highlights: listing?.highlights ?? [],
+    media: listing?.media ?? [],
   } as const;
 
   return (
@@ -126,6 +213,9 @@ export default async function ListingTab({ params, searchParams }: { params: Pro
                 Open <ExternalLink aria-hidden className="h-3.5 w-3.5" />
               </a>
             ) : null}
+            <Link href={`/preview/listing/${dealId}`} target="_blank" className={`${buttonVariants({ size: 'sm', variant: 'outline' })} inline-flex items-center gap-1`}>
+              <Eye aria-hidden className="h-4 w-4" /> Preview as a visitor
+            </Link>
             <span className="ml-auto flex gap-2">
               {listing.status !== 'PUBLISHED' ? (
                 <form action={setListingStatus.bind(null, dealId, 'PUBLISHED')}>
@@ -212,9 +302,21 @@ export default async function ListingTab({ params, searchParams }: { params: Pro
             <CardTitle className="text-base">Preview</CardTitle>
             <CardDescription>What visitors see (after your last save).</CardDescription>
           </CardHeader>
-          <CardContent>{listing ? <Teaser listing={draft} /> : <p className="text-sm text-muted-foreground">Save the teaser to preview it.</p>}</CardContent>
+          <CardContent>{listing ? <Teaser listing={draft} imageHref={(id) => `/deals/${dealId}/listing/media/${id}`} /> : <p className="text-sm text-muted-foreground">Save the teaser to preview it.</p>}</CardContent>
         </Card>
       </div>
+
+      {listing ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Pictures and video</CardTitle>
+            <CardDescription>Public once the page is published. Use pictures you have the right to share.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <MediaEditor dealId={dealId} media={listing.media} />
+          </CardContent>
+        </Card>
+      ) : null}
 
       {listing ? (
         <Card>

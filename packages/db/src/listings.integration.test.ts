@@ -77,6 +77,33 @@ describe.runIf(runtimeUrl && ownerUrl)('public listing functions against Postgre
     expect(results).toEqual([true, true, true, false]);
   });
 
+  it('lists a published page\'s media without storage keys, and serves an image only for that page', async () => {
+    const media = async (value: string, kind: string, extra: string) => {
+      const listing = await owner.query<{ id: string; organization_id: string; deal_id: string; created_by: string }>(`SELECT id, organization_id, deal_id, created_by FROM deal_listings WHERE slug = $1`, [value]);
+      const row = listing.rows[0];
+      const id = (await owner.query<{ id: string }>(`SELECT uuidv7()::text AS id`)).rows[0]?.id ?? '';
+      await owner.query(
+        `INSERT INTO listing_media (id, organization_id, deal_id, listing_id, kind, position, caption, object_key, content_type, sha256, byte_size, video_provider, video_id, created_by)
+         VALUES ($1, $2, $3, $4, $5, 0, 'Synthetic', ${extra}, $6)`,
+        [id, row?.organization_id, row?.deal_id, row?.id, kind, row?.created_by],
+      );
+      return id;
+    };
+    const image = await media(published, 'IMAGE', `'secret/key/photo', 'image/png', '${'a'.repeat(64)}', 10, NULL, NULL`);
+    const video = await media(published, 'VIDEO', `NULL, NULL, NULL, NULL, 'YOUTUBE', 'dQw4w9WgXcQ'`);
+    const hidden = await media(draft, 'IMAGE', `'secret/key/draft', 'image/jpeg', '${'b'.repeat(64)}', 10, NULL, NULL`);
+
+    const listed = await publicListings.media(prisma, published);
+    expect(listed.map((item) => [item.id, item.kind])).toEqual(expect.arrayContaining([[image, 'IMAGE'], [video, 'VIDEO']]));
+    expect(JSON.stringify(listed)).not.toContain('secret/key');
+    expect(await publicListings.media(prisma, draft)).toEqual([]);
+
+    expect(await publicListings.image(prisma, published, image)).toEqual({ objectKey: 'secret/key/photo', contentType: 'image/png' });
+    expect(await publicListings.image(prisma, published, video)).toBeNull();
+    expect(await publicListings.image(prisma, published, hidden)).toBeNull();
+    expect(await publicListings.image(prisma, draft, hidden)).toBeNull();
+  });
+
   it('gives the runtime role no direct reads without a tenant', async () => {
     await expect(prisma.$queryRawUnsafe('SELECT count(*) FROM listing_interests')).rejects.toThrow(/permission denied/);
   });
