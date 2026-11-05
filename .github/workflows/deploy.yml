@@ -20,15 +20,19 @@ name: deploy
 # update (scripts/roll-worker.sh). A first deploy, or `full`, always runs and moves everything.
 #
 # Branches: dev and stage accept any branch (stage is where a customer tests a feature branch before it
-# merges); qa — and live, later — accept main only. Promotion: branch → dev → stage (customer) → merge →
-# main → dev → qa → stage → live. Stage waits for its GitHub Environment's reviewer.
+# merges); qa and live accept main only. Stage and live wait for their GitHub Environment's reviewer.
+# Live is dispatched as `live` (its GitHub Environment); its AWS resources keep the CDK name `prod`.
+#
+# Promotion — interim (Kumar, 2026-11-05, T-101), until the packs are complete or the first customer:
+#   branch → dev → merge → main → dev → live. qa and stage are parked (idle-paused), still deployable.
+# Then the full path returns (ADR 0019): branch → dev → stage (customer) → merge → main → dev → qa → stage → live.
 on:
   workflow_dispatch:
     inputs:
       environment:
         description: Environment to deploy
         type: choice
-        options: [dev, qa, stage]
+        options: [dev, qa, stage, live]
         required: true
       full:
         description: Run every step (migrations and site), even if nothing changed for them
@@ -46,7 +50,8 @@ concurrency:
 env:
   # The organization's guardrail allows CloudFormation only in us-east-2 (ADR 0003 amendment).
   AWS_REGION: us-east-2
-  ENV_NAME: ${{ inputs.environment }}
+  # The CDK environment name: live's is `prod` (stacks, repositories, cluster, parameters).
+  ENV_NAME: ${{ inputs.environment == 'live' && 'prod' || inputs.environment }}
   TAG: ${{ github.sha }}
 
 jobs:

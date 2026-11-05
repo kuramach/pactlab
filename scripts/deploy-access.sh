@@ -2,7 +2,7 @@
 # Deploy the GitHub deploy role (Pactlab<Env>DeployAccess) for one or more environments, with your own
 # AWS sign-in. The deploy workflow cannot change its own permissions, so a person runs this whenever the
 # role changes (and once when an environment is first set up).
-# Usage: scripts/deploy-access.sh dev qa      or      scripts/deploy-access.sh stage
+# Usage: scripts/deploy-access.sh dev qa      or      scripts/deploy-access.sh stage      or      scripts/deploy-access.sh live
 # Sign in first if needed: aws login --profile pactlab-mgmt
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -11,10 +11,12 @@ CONTEXT=()
 STACKS=()
 PROFILE=""
 for ENV_NAME in "$@"; do
-  case "$ENV_NAME" in dev | qa | stage) ;; *) echo "unknown environment: $ENV_NAME (dev, qa or stage)" >&2; exit 2 ;; esac
+  # Live's AWS resources keep the CDK name `prod`.
+  [ "$ENV_NAME" = live ] && ENV_NAME=prod
+  case "$ENV_NAME" in dev | qa | stage | prod) ;; *) echo "unknown environment: $ENV_NAME (dev, qa, stage or live)" >&2; exit 2 ;; esac
   # dev and qa share the dev account; stage has its own.
   ENV_PROFILE="pactlab-$([ "$ENV_NAME" = qa ] && echo dev || echo "$ENV_NAME")"
-  if [ -n "$PROFILE" ] && [ "$PROFILE" != "$ENV_PROFILE" ]; then echo "run stage on its own: scripts/deploy-access.sh stage" >&2; exit 2; fi
+  if [ -n "$PROFILE" ] && [ "$PROFILE" != "$ENV_PROFILE" ]; then echo "stage and live each run on their own: scripts/deploy-access.sh stage (or live)" >&2; exit 2; fi
   PROFILE="$ENV_PROFILE"
   ACCOUNT=$(aws sts get-caller-identity --profile "$PROFILE" --query Account --output text)
   CONTEXT+=(-c "pactlab:${ENV_NAME}:account=${ACCOUNT}")

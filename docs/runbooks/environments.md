@@ -214,6 +214,39 @@ Rules:
 8. **AI:** in the stage account's Bedrock console, submit the Anthropic use-case form (as for dev), then run `pnpm ai:check` with that profile.
 9. **Email:** request SES production access for the stage account (new accounts start in the SES sandbox).
 
+## Live (app.pactlab.ai)
+
+Live is the CDK environment `prod`, deployed as the GitHub Environment **`live`**:
+- **Branches:** `main` only.
+- **Approval:** Kumar approves every deploy.
+- **Uptime:** always on, never idle-paused.
+- **Isolation:** its own account, never shared. Production data never moves to another environment.
+
+**Size:** skinny, about $150–180 a month: single-AZ `t4g.medium` database (35-day backups, deletion protection), one managed NAT gateway, micro Redis, one task each. To scale up, spread `PROD_SCALED_TARGET` (in `infra/cdk/config/prod.ts`) over `prodConfig` and deploy.
+
+**Not yet:**
+- **Managed malware scanner** (T-103): live accepts the signature scanner for now.
+- **Auth0 SSO** (T-104): sign-in is by email code.
+
+**Interim release path** (T-101; until the packs are complete or the first customer): branch → dev → merge → `main` → dev → live. qa and stage stay parked (idle-paused), deployable by hand.
+
+### First time (Kumar)
+
+1. **AWS account:** AWS Organizations → *Add an AWS account* → **PactLab Live**, signed in as `kuramach`, not root. Send the ID; the `pactlab-prod` profile is added the same way as stage's.
+2. **Prepare the account:** `scripts/bootstrap-account.sh live`, then `scripts/deploy-access.sh live`. Note the `DeployRoleArn`.
+3. **GitHub Environment `live`:**
+   - **Protection:** required reviewer Kumar; deployment branches `main` only.
+   - **Variables:** `AWS_ACCOUNT_ID`, `AWS_DEPLOY_ROLE_ARN`, `APP_ENV=production`, `APP_DOMAIN=app.pactlab.ai`.
+   - **No `SITE_DOMAIN`:** the live site is `site.yml`'s.
+4. **First deploy:** Actions → **deploy** → `main` → `live` → approve. At Namecheap, add the certificate CNAME for `app.pactlab.ai` and the three DKIM CNAMEs (read them from ACM and SES). The `mail` MX and TXT records already cover live.
+5. **Point the name:** `app` → the stack output `LoadBalancerDns`, then deploy again. The smoke test checks `/health` and `/login`.
+6. **Account requests in the live account:** SES production access, and the Bedrock (Anthropic) use-case form.
+7. **First operator:**
+   1. Sign up at app.pactlab.ai.
+   2. Run `scripts/ops-task.sh live src/ops/operator.ts <your email>`.
+   3. Approve your organisation in `/admin`, and every later one there.
+8. **Billing guardrail:** a budget alert on the live account.
+
 ## Email deliverability (sign-in codes)
 
 Sign-in codes are sent through Amazon SES as `no-reply@pactlab.ai`. Each account that owns the `pactlab.ai` identity (dev, which qa shares, and stage) signs with DKIM and uses **`mail.pactlab.ai` as its MAIL FROM domain**. That way SPF passes for pactlab.ai, aligned with DKIM.

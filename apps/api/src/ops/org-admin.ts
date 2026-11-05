@@ -4,7 +4,11 @@
  *   pnpm org:approve <slug>
  *   pnpm org:reject <slug>
  */
+import { applyDatabaseUrls } from '@pactlab/config';
 import pg from 'pg';
+
+// In a deployed one-off task (scripts/ops-task.sh) the owner connection comes as DB_* parts; locally, from .env.
+applyDatabaseUrls();
 import { LocalFileEmailSender } from '../email-login/email-sender';
 import { decide, listPending } from './organizations';
 
