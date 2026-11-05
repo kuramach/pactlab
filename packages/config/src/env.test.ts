@@ -54,9 +54,11 @@ describe('loadConfig', () => {
     expect(loadConfig(apiEnvSchema, { ...validApi, EMAIL_PROVIDER: 'ses', EMAIL_FROM: 'no-reply@pactlab.ai', AWS_REGION: 'us-east-1' }).EMAIL_PROVIDER).toBe('ses');
   });
 
-  it('allows the signature scanner in development environments only', () => {
+  it('allows the signature scanner everywhere except production', () => {
     for (const APP_ENV of ['local', 'test', 'dev', 'qa']) expect(loadConfig(apiEnvSchema, { ...validApi, APP_ENV, MALWARE_SCANNER: 'signature' }).MALWARE_SCANNER).toBe('signature');
-    for (const APP_ENV of ['stage', 'production']) expect(() => loadConfig(apiEnvSchema, { ...validApi, APP_ENV, MALWARE_SCANNER: 'signature' })).toThrow(/managed scanner/);
+    expect(() => loadConfig(apiEnvSchema, { ...validApi, APP_ENV: 'production', MALWARE_SCANNER: 'signature' })).toThrow(/managed scanner/);
+    // Stage runs the signature scanner like dev and qa; only production needs the managed one.
+    expect(() => loadConfig(apiEnvSchema, { ...validApi, APP_ENV: 'stage', MALWARE_SCANNER: 'signature' })).not.toThrow();
   });
 
   it('requires a strong token secret for email-code sign-in', () => {

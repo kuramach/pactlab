@@ -214,3 +214,18 @@ through `BEDROCK_MODEL_*` overrides, and the task role may call Claude only
 Nova caveats above no longer apply. Remove `modelOverrides` in
 `infra/cdk/config/{dev,qa}.ts` once `pnpm ai:check` passes on the defaults.
 
+## Addendum (2026-11-04): stage for customer testing, and branch deploys
+
+Decided with Kumar:
+- **Stage runs in its own AWS account**, because customers may test there with real documents.
+  - **Like live:** its own network (with a NAT instance), load balancer, Redis and SES identity; protected state; careful rollouts; sign-ups need approval.
+  - **Unlike live:** it pauses when idle.
+- **Branches:**
+  - dev and stage deploy any branch;
+  - qa (and live, later) deploy `main` only;
+  - the deploy refuses otherwise, and warns when stage runs a branch.
+  - **Promotion:** branch → dev → stage (customer tests) → merge → `main` → dev → qa → stage → live.
+  - **One customer branch on stage at a time.** Behaviour for a single customer goes behind that organization's feature flags, never behind a long-lived branch.
+- **Malware scanning: only live gets the managed scanner.** Stage runs the signature scanner like dev and qa. Real customer documents uploaded to stage get only the signature check; that is accepted for customer testing.
+- **Real customer data never moves from stage to dev or qa.**
+
