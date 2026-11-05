@@ -103,6 +103,8 @@ export const apiEnvSchema = baseEnvSchema.extend({
   SIGNUP_REQUIRES_APPROVAL: z.enum(['true', 'false']).default('true').transform((value) => value === 'true'),
   /** Who is emailed about new sign-ups. Unset: run `pnpm org:pending` to see them. */
   OPERATOR_EMAIL: z.email().optional(),
+  /** The environment's release parameter (T-100); set in deployed environments, unset locally. */
+  RELEASE_PARAMETER: unsetIfBlank(z.string().regex(/^\/pactlab\/[a-z]+\/release$/).optional()),
   /** Local-only encrypted store for provider credentials (directory and 32-byte base64 key). */
   LOCAL_SECRETS_DIR: nonEmpty.optional(),
   LOCAL_SECRETS_KEY: z

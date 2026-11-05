@@ -14,6 +14,7 @@ import { BullMqImportQueue } from './imports/bullmq-import-queue';
 import { LocalFileEmailSender } from './email-login/email-sender';
 import { SesEmailSender } from './email-login/ses-email-sender';
 import { BrandedEmailSender, emailAssets } from './email-login/branded-email';
+import { ReleaseInfo, ssmReleaseSource } from './health/release-info';
 import { SignatureMalwareScanner } from './documents/upload-policy';
 import { FixtureMacroForecastProvider, ImfMacroForecastProvider } from '@pactlab/connectors';
 
@@ -68,6 +69,7 @@ const app = await createApp(
     prisma,
     logger,
     providers,
+    release: new ReleaseInfo(config.RELEASE_PARAMETER ? ssmReleaseSource(config.RELEASE_PARAMETER, config.AWS_REGION) : null),
     // Auth0 is optional per deployment; without it only email-code tokens verify.
     identityVerifier:
       config.AUTH0_DOMAIN && config.AUTH0_AUDIENCE

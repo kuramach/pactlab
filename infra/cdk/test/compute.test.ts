@@ -155,6 +155,8 @@ describe('live (GitHub Environment live, CDK prod)', () => {
     template.resourceCountIs('AWS::StepFunctions::StateMachine', 0);
     expect(JSON.stringify(template.toJSON())).not.toContain('PactlabNonliveBase');
     expect(JSON.stringify(template.findResources('AWS::ECS::TaskDefinition'))).toContain('"Name":"SIGNUP_REQUIRES_APPROVAL","Value":"true"');
+    // Kumar hears about every sign-up waiting for him.
+    expect(JSON.stringify(template.findResources('AWS::ECS::TaskDefinition'))).toContain('"Name":"OPERATOR_EMAIL","Value":"kumar@pactlab.ai"');
     template.hasResourceProperties('AWS::SES::EmailIdentity', { MailFromAttributes: { MailFromDomain: 'mail.pactlab.ai', BehaviorOnMxFailure: 'USE_DEFAULT_VALUE' } });
   });
 
@@ -320,3 +322,26 @@ describe('rollout speed', () => {
   });
 });
 
+
+describe('the release shown in the app (T-100)', () => {
+  const parameterValue = (template: Template) => {
+    const parameter = Object.values(template.findResources('AWS::SSM::Parameter')).find((resource) => (resource as { Properties: { Name: string } }).Properties.Name === '/pactlab/dev/release') as { Properties: { Value: string } };
+    return JSON.parse(parameter.Properties.Value) as { version: string | null; sha: string };
+  };
+
+  it('records the release tag and the commit the services run, and lets only the API read it', () => {
+    const tagged = platformStack(devConfig, { imageTag: 'abc1234', releaseVersion: 'v2026.11.1' }).template;
+    expect(parameterValue(tagged)).toEqual({ version: 'v2026.11.1', sha: 'abc1234' });
+    expect(parameterValue(platformStack(devConfig, { imageTag: 'abc1234' }).template)).toEqual({ version: null, sha: 'abc1234' });
+    expect(JSON.stringify(statements(tagged, 'ApiTaskRole').find((statement) => statement.Sid === 'Release'))).toContain('ssm:GetParameter');
+    expect(JSON.stringify(tagged.findResources('AWS::ECS::TaskDefinition'))).toContain('"Name":"RELEASE_PARAMETER"');
+  });
+
+  it('a new version alone changes no task definition, so it rolls no service', () => {
+    const definitions = (template: Template) => JSON.stringify(template.findResources('AWS::ECS::TaskDefinition'));
+    const before = platformStack(devConfig, { imageTag: 'abc1234', releaseVersion: 'v2026.11.1' }).template;
+    const after = platformStack(devConfig, { imageTag: 'abc1234', releaseVersion: 'v2026.11.2' }).template;
+    expect(definitions(after)).toBe(definitions(before));
+    expect(parameterValue(after).version).toBe('v2026.11.2');
+  });
+});

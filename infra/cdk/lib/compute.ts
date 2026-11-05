@@ -76,6 +76,8 @@ export interface PactlabComputeProps {
   };
   readonly evidenceBucket: s3.Bucket;
   readonly featureFlagsParameterArn: string;
+  /** The release the services run (T-100), read by the API for /health and the app's version line. */
+  readonly releaseParameter: { readonly name: string; readonly arn: string };
 }
 
 /**
@@ -164,10 +166,12 @@ export class PactlabCompute extends Construct {
     const apiEnvironment: Record<string, string> = {
       ...serverEnvironment,
       API_PORT: '4000',
+      RELEASE_PARAMETER: props.releaseParameter.name,
       APP_WEB_ORIGIN: origin,
       EMAIL_PROVIDER: 'ses',
       EMAIL_FROM: service.email.from,
       SIGNUP_REQUIRES_APPROVAL: String(service.signupRequiresApproval),
+      ...(service.operatorEmail ? { OPERATOR_EMAIL: service.operatorEmail } : {}),
     };
     const runtimePassword = ecs.Secret.fromSecretsManager(runtimeSecret, 'password');
     const ownerFields = { DB_OWNER_USER: ecs.Secret.fromSecretsManager(ownerSecret, 'username'), DB_OWNER_PASSWORD: ecs.Secret.fromSecretsManager(ownerSecret, 'password') };
@@ -215,6 +219,7 @@ export class PactlabCompute extends Construct {
     for (const name of ['api', 'worker'] as const) {
       this.roles[name].addToPolicy(new iam.PolicyStatement({ sid: 'FeatureFlags', actions: ['ssm:GetParameter'], resources: [props.featureFlagsParameterArn] }));
     }
+    this.roles.api.addToPolicy(new iam.PolicyStatement({ sid: 'Release', actions: ['ssm:GetParameter'], resources: [props.releaseParameter.arn] }));
 
     // --- Task definitions.
     // Programs start with their own tsx, not through pnpm: pnpm checks and reinstalls dependencies

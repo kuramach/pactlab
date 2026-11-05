@@ -21,6 +21,8 @@ export interface PactlabPlatformStackProps extends StackProps {
   readonly serviceImageTag?: string;
   /** Per-image overrides (see PactlabCompute): unchanged services stay on the tag they run. */
   readonly imageTags?: Partial<Record<'web' | 'api' | 'worker' | 'tools', string>>;
+  /** The release tag (T-100, e.g. v2026.11.1) of the commit the services run; absent when untagged. */
+  readonly releaseVersion?: string;
   /** The shared non-live base, for an environment whose config says `shared` (dev and qa). */
   readonly sharedBase?: PactlabNonliveBaseStack;
 }
@@ -44,7 +46,7 @@ export class PactlabPlatformStack extends Stack {
   readonly compute?: PactlabCompute;
 
   constructor(scope: Construct, id: string, props: PactlabPlatformStackProps) {
-    const { config, imageTag, serviceImageTag, imageTags, sharedBase, ...stackProps } = props;
+    const { config, imageTag, serviceImageTag, imageTags, releaseVersion, sharedBase, ...stackProps } = props;
     if (config.shared && !sharedBase)
       throw new Error(`${config.name} runs on the shared non-live base: pass sharedBase`);
     if (!config.shared && sharedBase)
@@ -206,8 +208,18 @@ export class PactlabPlatformStack extends Stack {
       stringValue: JSON.stringify(config.featureFlags),
     });
 
+    // The release the services run, shown in the app (T-100). A parameter, not a task setting, so a
+    // new version alone never rolls the services.
+    const release = config.service
+      ? new ssm.StringParameter(this, 'Release', {
+          parameterName: `/pactlab/${config.name}/release`,
+          description: 'Pactlab: the release the services run (version tag and commit)',
+          stringValue: JSON.stringify({ version: releaseVersion ?? null, sha: serviceImageTag ?? imageTag ?? 'unset' }),
+        })
+      : null;
+
     // The running application (ADR 0019), for environments that have one.
-    if (config.service) {
+    if (config.service && release) {
       this.compute = new PactlabCompute(this, 'App', {
         config,
         service: config.service,
@@ -221,6 +233,7 @@ export class PactlabPlatformStack extends Stack {
         redisUrl: this.redisUrl,
         evidenceBucket: this.evidenceBucket,
         featureFlagsParameterArn: featureFlags.parameterArn,
+        releaseParameter: { name: release.parameterName, arn: release.parameterArn },
         ...(sharedBase && config.shared
           ? {
               shared: {

@@ -119,6 +119,8 @@ export interface ServiceConfig {
   readonly rollout?: 'fast' | 'careful';
   /** Turn on pilot sign-up approval (`SIGNUP_REQUIRES_APPROVAL`). */
   readonly signupRequiresApproval: boolean;
+  /** Who is emailed when an organization signs up and waits for approval (`OPERATOR_EMAIL`). */
+  readonly operatorEmail?: string;
 }
 
 export interface EnvironmentSiteConfig {

@@ -121,6 +121,15 @@ jobs:
           echo "migrations=$MIGRATIONS" >> "$GITHUB_OUTPUT"
           echo "site=$SITE" >> "$GITHUB_OUTPUT"
           echo "Services run: $CURRENT · migrations needed: $MIGRATIONS · site changed: $SITE"
+          # The release tag (T-100) on the commit being deployed and on the one running now, if any.
+          release_of() { git tag --points-at "$1" --list 'v*' 2>/dev/null | sort -V | tail -1; }
+          RELEASE=$(release_of "$TAG")
+          RUNNING_RELEASE=$([ "$CURRENT" = none ] || release_of "$CURRENT")
+          echo "release=$RELEASE" >> "$GITHUB_OUTPUT"
+          echo "running_release=$RUNNING_RELEASE" >> "$GITHUB_OUTPUT"
+          if [ -n "$RELEASE" ]; then LINE="Release $RELEASE (sha ${TAG:0:8})"; else LINE="Commit ${TAG:0:8} (no release tag)"; fi
+          echo "$LINE → ${{ inputs.environment }}"
+          echo "**${LINE}** → ${{ inputs.environment }}" >> "$GITHUB_STEP_SUMMARY"
           # Per image: what it runs now (stacks from before per-service tags: the release), and whether it changed.
           for IMAGE in web api worker tools; do
             RUNNING=$(out "$(echo "${IMAGE:0:1}" | tr a-z A-Z)${IMAGE:1}ImageTag")
@@ -177,6 +186,9 @@ jobs:
             if [ "$IMAGE" = tools ]; then RUNNING_CTX="$RUNNING_CTX -c pactlab:${ENV_NAME}:toolsImageTag=$USE"
             elif [ "$RUNNING" != none ]; then RUNNING_CTX="$RUNNING_CTX -c pactlab:${ENV_NAME}:${IMAGE}ImageTag=$RUNNING"; fi
           done
+          # The version the app shows (an SSM parameter, never the task definitions): the release while migrating, then the new one.
+          [ -n "$RELEASE_VERSION" ] && RELEASE_CTX="$RELEASE_CTX -c pactlab:${ENV_NAME}:releaseVersion=$RELEASE_VERSION"
+          [ -n "$RUNNING_RELEASE" ] && RUNNING_CTX="$RUNNING_CTX -c pactlab:${ENV_NAME}:releaseVersion=$RUNNING_RELEASE"
           echo "targets=$TARGETS" >> "$GITHUB_OUTPUT"
           echo "RELEASE_CTX=$RELEASE_CTX" >> "$GITHUB_ENV"
           echo "RUNNING_CTX=$RUNNING_CTX" >> "$GITHUB_ENV"
@@ -190,6 +202,8 @@ jobs:
           CHANGED_api: ${{ steps.plan.outputs.api_changed }}
           CHANGED_worker: ${{ steps.plan.outputs.worker_changed }}
           CHANGED_tools: ${{ steps.plan.outputs.tools_changed }}
+          RELEASE_VERSION: ${{ steps.plan.outputs.release }}
+          RUNNING_RELEASE: ${{ steps.plan.outputs.running_release }}
 
       # The new images in one parallel build, sharing the dependency and build layers. Layers are cached in
       # GitHub Actions' cache between runs (server and tools: shared; web: per environment), so a code-only change

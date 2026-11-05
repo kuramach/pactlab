@@ -25,5 +25,10 @@ TASK=$(aws ecs run-task --cluster "$CLUSTER" --task-definition "$FAMILY" --launc
 echo "Running $SCRIPT in $ENV_NAME: $TASK"
 aws ecs wait tasks-stopped --cluster "$CLUSTER" --tasks "$TASK"
 CODE=$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$TASK" --query 'tasks[0].containers[0].exitCode' --output text)
-echo "Exit code: $CODE (logs: CloudWatch /pactlab/${ENV_NAME}/app, stream migrate/)"
+# The script's own output, from the task's log stream.
+echo "--- output"
+aws logs get-log-events --log-group-name "/pactlab/${ENV_NAME}/app" --log-stream-name "migrate/migrate/${TASK##*/}" \
+  --start-from-head --query 'events[].message' --output text 2>/dev/null | tr '\t' '\n' || echo "(no output yet; CloudWatch /pactlab/${ENV_NAME}/app, stream migrate/migrate/${TASK##*/})"
+echo "---"
+echo "Exit code: $CODE"
 [ "$CODE" = 0 ]

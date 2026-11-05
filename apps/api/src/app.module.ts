@@ -27,6 +27,7 @@ import { UnavailableMalwareScanner, UnavailableObjectStore } from './documents/s
 import { FindingsModule } from './findings/findings.module';
 import { PrismaFindingsRepository } from './findings/prisma-findings.repository';
 import { HealthController } from './health/health.controller';
+import { ReleaseInfo } from './health/release-info';
 import { MeModule } from './me/me.module';
 import { OrganizationModule } from './organization/organization.module';
 import { ImportsModule, type ImportsModuleDependencies } from './imports/imports.module';
@@ -48,6 +49,8 @@ export interface AppDependencies {
   prisma: PrismaClient;
   identityVerifier: IdentityVerifier;
   logger: Logger;
+  /** Which release the services run (T-100); omitted: a local release (APP_VERSION, commit "local"). */
+  release?: ReleaseInfo;
   /**
    * Document storage, scanning and model access. Omitted adapters fail
    * closed: uploads are rejected and AI calls report NOT_CONFIGURED.
@@ -206,7 +209,7 @@ export class AppModule {
           : []),
       ],
       controllers: [HealthController],
-      providers: [{ provide: APP_GUARD, useClass: AuthGuard }],
+      providers: [{ provide: APP_GUARD, useClass: AuthGuard }, { provide: ReleaseInfo, useValue: deps.release ?? new ReleaseInfo(null) }],
     };
   }
 }

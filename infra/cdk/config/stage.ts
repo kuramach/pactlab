@@ -44,6 +44,8 @@ export const stageConfig: EnvironmentConfig = {
     },
     // Like live: a new organization waits for approval.
     signupRequiresApproval: true,
+    // Emailed on every sign-up waiting for approval, so nobody waits unnoticed (Kumar, 2026-11-05).
+    operatorEmail: 'kumar@pactlab.ai',
     // Like live: start new before stopping old, 30-second health checks, and CloudFormation moves the worker.
     rollout: 'careful',
   },

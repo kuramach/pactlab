@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { getSessionContext } from '../../../lib/session';
 import { signOut } from '../../_actions/sign-out';
 import { apiGet } from '../deals/_lib/api';
+import { currentRelease, releaseLabel } from '../../../lib/release';
 import { isOpen, STATUS_LABELS, statusBadge } from './bug-reports/_lib/status';
 
 // Per-user data: never prerender.
@@ -57,6 +58,21 @@ async function BugsSubmittedCard() {
           </ul>
         </CardContent>
       ) : null}
+    </Card>
+  );
+}
+
+/** Which release of Pactlab this is (T-100): the version tag and the build. */
+async function AboutCard() {
+  const release = await currentRelease();
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>About Pactlab</CardTitle>
+        <CardDescription>
+          Version: <span className="font-mono">{releaseLabel(release)}</span>
+        </CardDescription>
+      </CardHeader>
     </Card>
   );
 }
@@ -151,6 +167,8 @@ export default async function SettingsPage() {
           </CardContent>
         </Card>
       ) : null}
+
+      <AboutCard />
 
       <Card>
         <CardHeader>
