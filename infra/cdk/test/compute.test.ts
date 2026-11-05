@@ -201,6 +201,8 @@ describe('environment deploy access', () => {
     expect(policy).not.toContain('pactlab-prod');
     // The deploy may move only this environment's worker service.
     expect(policy).toContain('ecs:UpdateService');
+    // Outputs of the app stack and its siblings (the site's certificate, the registry), nothing else.
+    expect(policy).toContain('stack/PactlabDev*/*');
     expect(policy).toContain('service/pactlab-dev/PactlabDev-AppWorkerService*');
   });
 });
@@ -223,6 +225,15 @@ describe('qa on the shared base, beside dev', () => {
     template.resourceCountIs('AWS::SES::EmailIdentity', 0);
     expect(JSON.stringify(template.findResources('AWS::IAM::Policy'))).toContain('identity/pactlab.ai');
     platformStack(devConfig, { imageTag: 'abc1234' }).template.resourceCountIs('AWS::SES::EmailIdentity', 1);
+    expect(Object.keys(template.toJSON().Outputs ?? {})).not.toContain('SesMailFromMx');
+  });
+
+  it('sends with pactlab.ai\'s own envelope domain, falling back to SES\'s until its DNS exists', () => {
+    const dev = platformStack(devConfig, { imageTag: 'abc1234' }).template;
+    dev.hasResourceProperties('AWS::SES::EmailIdentity', { EmailIdentity: 'pactlab.ai', MailFromAttributes: { MailFromDomain: 'mail.pactlab.ai', BehaviorOnMxFailure: 'USE_DEFAULT_VALUE' } });
+    const outputs = dev.toJSON().Outputs as Record<string, { Value: unknown }>;
+    expect(JSON.stringify(outputs['SesMailFromMx']?.Value)).toContain('mail.pactlab.ai MX 10 feedback-smtp.');
+    expect(outputs['SesMailFromSpf']?.Value).toBe('mail.pactlab.ai TXT "v=spf1 include:amazonses.com ~all"');
   });
 
   it('puts both app hosts on the shared listener', () => {

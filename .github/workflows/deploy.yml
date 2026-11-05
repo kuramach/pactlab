@@ -109,7 +109,10 @@ jobs:
           }
           MIGRATIONS=$(changed packages/db/prisma apps/api/src/ops/migrate.ts)
           SITE=$(changed apps/site infra/cdk/lib/site-stack.ts infra/cdk/config .github/workflows/deploy.yml)
-          aws cloudformation describe-stacks --stack-name "${STACK}Site" >/dev/null 2>&1 || SITE=true
+          # No site stack yet, or a different certificate than the environment's: publish the site.
+          SITE_CERT=$(aws cloudformation describe-stacks --stack-name "${STACK}Site" --query "Stacks[0].Outputs[?OutputKey=='CertificateArn'].OutputValue" --output text 2>/dev/null || echo missing)
+          WANT_CERT="${{ vars.SITE_CERTIFICATE_ARN }}"
+          if [ "$SITE_CERT" = missing ] || [ "$SITE_CERT" != "${WANT_CERT:-none}" ]; then SITE=true; fi
           echo "migrations=$MIGRATIONS" >> "$GITHUB_OUTPUT"
           echo "site=$SITE" >> "$GITHUB_OUTPUT"
           echo "Services run: $CURRENT · migrations needed: $MIGRATIONS · site changed: $SITE"

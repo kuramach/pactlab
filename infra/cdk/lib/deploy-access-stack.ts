@@ -132,7 +132,8 @@ export class PactlabEnvironmentDeployAccessStack extends Stack {
         conditions: { StringEquals: { 'iam:PassedToService': 'ecs-tasks.amazonaws.com' } },
       }),
     );
-    this.role.addToPolicy(new iam.PolicyStatement({ sid: 'ReadStackOutputs', actions: ['cloudformation:DescribeStacks'], resources: [arn('cloudformation', `stack/${appStackName}/*`)] }));
+    // The app stack and its siblings (…Site, …Registry): the plan reads their outputs (e.g. the site's certificate).
+    this.role.addToPolicy(new iam.PolicyStatement({ sid: 'ReadStackOutputs', actions: ['cloudformation:DescribeStacks'], resources: [arn('cloudformation', `stack/${appStackName}*/*`)] }));
     // Idle pause (ADR 0019): a deploy wakes a paused environment first; the wake workflow does the same.
     this.role.addToPolicy(new iam.PolicyStatement({ sid: 'ReadPower', actions: ['ssm:GetParameter'], resources: [`arn:${this.partition}:ssm:${this.region}:${account}:parameter/pactlab/${environment}/power`] }));
     this.role.addToPolicy(
