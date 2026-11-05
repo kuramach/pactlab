@@ -67,6 +67,8 @@ for (const name of ENVIRONMENT_NAMES) {
   }
   // During a release the services may stay on the running tag (or `none` on a first deploy) while migrations run.
   const serviceImageTag = app.node.tryGetContext(`pactlab:${name}:serviceImageTag`) as string | undefined;
+  // The release tag of the commit the services run (T-100), shown in the app.
+  const releaseVersion = app.node.tryGetContext(`pactlab:${name}:releaseVersion`) as string | undefined;
   // Unchanged services stay on the tag they run: `-c pactlab:<env>:webImageTag=<sha>` (also api, worker, tools).
   const imageTags = Object.fromEntries(
     (['web', 'api', 'worker', 'tools'] as const).flatMap((image) => {
@@ -80,6 +82,7 @@ for (const name of ENVIRONMENT_NAMES) {
       ...(imageTag ? { imageTag } : {}),
       ...(serviceImageTag ? { serviceImageTag } : {}),
       ...(Object.keys(imageTags).length ? { imageTags } : {}),
+      ...(releaseVersion && /^v\d{4}\.\d{2}\.\d+$/.test(releaseVersion) ? { releaseVersion } : {}),
       ...(config.shared && sharedBase ? { sharedBase } : {}),
       ...env,
     });

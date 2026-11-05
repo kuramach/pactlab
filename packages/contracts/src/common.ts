@@ -17,6 +17,9 @@ export type ProblemDetails = z.infer<typeof problemDetailsSchema>;
 export const healthResponseSchema = z.object({
   status: z.enum(['ok', 'degraded']),
   service: z.string(),
-  version: z.string(),
+  /** The release tag (T-100, e.g. v2026.11.1) the services run; null when the commit carries none. */
+  version: z.string().nullable(),
+  /** The commit the services run ('local' on a laptop). */
+  sha: z.string(),
 });
 export type HealthResponse = z.infer<typeof healthResponseSchema>;
