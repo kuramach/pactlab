@@ -155,6 +155,8 @@ describe('live (GitHub Environment live, CDK prod)', () => {
     template.resourceCountIs('AWS::StepFunctions::StateMachine', 0);
     expect(JSON.stringify(template.toJSON())).not.toContain('PactlabNonliveBase');
     expect(JSON.stringify(template.findResources('AWS::ECS::TaskDefinition'))).toContain('"Name":"SIGNUP_REQUIRES_APPROVAL","Value":"true"');
+    // Kumar hears about every sign-up waiting for him.
+    expect(JSON.stringify(template.findResources('AWS::ECS::TaskDefinition'))).toContain('"Name":"OPERATOR_EMAIL","Value":"kumar@pactlab.ai"');
     template.hasResourceProperties('AWS::SES::EmailIdentity', { MailFromAttributes: { MailFromDomain: 'mail.pactlab.ai', BehaviorOnMxFailure: 'USE_DEFAULT_VALUE' } });
   });
 

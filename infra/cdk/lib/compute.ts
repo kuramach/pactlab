@@ -171,6 +171,7 @@ export class PactlabCompute extends Construct {
       EMAIL_PROVIDER: 'ses',
       EMAIL_FROM: service.email.from,
       SIGNUP_REQUIRES_APPROVAL: String(service.signupRequiresApproval),
+      ...(service.operatorEmail ? { OPERATOR_EMAIL: service.operatorEmail } : {}),
     };
     const runtimePassword = ecs.Secret.fromSecretsManager(runtimeSecret, 'password');
     const ownerFields = { DB_OWNER_USER: ecs.Secret.fromSecretsManager(ownerSecret, 'username'), DB_OWNER_PASSWORD: ecs.Secret.fromSecretsManager(ownerSecret, 'password') };

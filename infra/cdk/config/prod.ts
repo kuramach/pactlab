@@ -65,6 +65,8 @@ export const prodConfig: EnvironmentConfig = {
     },
     // A new organization waits for an operator's approval.
     signupRequiresApproval: true,
+    // Emailed on every sign-up waiting for approval, so nobody waits unnoticed (Kumar, 2026-11-05).
+    operatorEmail: 'kumar@pactlab.ai',
     // Start new before stopping old, 30-second health checks; CloudFormation moves the worker.
     rollout: 'careful',
   },
