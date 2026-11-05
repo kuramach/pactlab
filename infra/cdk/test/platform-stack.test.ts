@@ -30,8 +30,9 @@ describe('environment configs', () => {
     }
   });
 
-  it('keeps production on Multi-AZ, long backups and compliance-mode audit retention', () => {
-    expect(prodConfig.database.multiAz).toBe(true);
+  it('keeps production on long backups and compliance-mode audit retention (Multi-AZ returns with the scaled profile)', () => {
+    // Skinny interim profile (T-102): single-AZ until the flip back to the scaled target.
+    expect(prodConfig.database.multiAz).toBe(false);
     expect(prodConfig.database.backupRetentionDays).toBeGreaterThanOrEqual(35);
     expect(prodConfig.auditArchive.mode).toBe('COMPLIANCE');
     expect(stageConfig.database.multiAz).toBe(true);
@@ -58,10 +59,11 @@ describe.each(['stage', 'prod'] as const)('%s stack', (name) => {
     }
   });
 
-  it('protects the database from deletion and runs it Multi-AZ', () => {
+  it('protects the database from deletion and runs it with the configured AZ redundancy', () => {
     template.hasResourceProperties('AWS::RDS::DBInstance', {
       DeletionProtection: true,
-      MultiAZ: true,
+      // Stage is Multi-AZ today; prod is single-AZ on the skinny interim profile (T-102).
+      MultiAZ: ENVIRONMENTS[name].database.multiAz,
       StorageEncrypted: true,
       KmsKeyId: Match.anyValue(),
     });

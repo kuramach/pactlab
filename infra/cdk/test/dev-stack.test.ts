@@ -62,15 +62,15 @@ describe('dev on the shared non-live base', () => {
 });
 
 describe('stage and live keep their own infrastructure', () => {
-  it('stage: its own network with a NAT instance; live: managed NAT gateways, never shared', () => {
+  it('stage: its own network with a NAT instance; live: a managed NAT gateway, never shared', () => {
     const stage = platformStack(stageConfig).template;
     stage.resourceCountIs('AWS::EC2::VPC', 1);
     stage.resourceCountIs('AWS::EC2::NatGateway', 0);
     stage.hasResourceProperties('AWS::EC2::Instance', { InstanceType: 't4g.nano' });
     stage.resourceCountIs('AWS::ElastiCache::ReplicationGroup', 1);
     const live = platformStack(prodConfig).template;
-    // Managed NAT gateways, one per zone (without an account bound, CDK synthesizes two zones).
-    expect(Object.keys(live.findResources('AWS::EC2::NatGateway')).length).toBeGreaterThanOrEqual(2);
+    // One managed NAT gateway on the skinny profile (T-102); the scaled profile restores one per zone.
+    expect(Object.keys(live.findResources('AWS::EC2::NatGateway')).length).toBe(1);
     live.resourceCountIs('AWS::EC2::Instance', 0);
     expect(prodConfig.shared).toBeUndefined();
   });
