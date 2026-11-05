@@ -214,6 +214,24 @@ Rules:
 8. **AI:** in the stage account's Bedrock console, submit the Anthropic use-case form (as for dev), then run `pnpm ai:check` with that profile.
 9. **Email:** request SES production access for the stage account (new accounts start in the SES sandbox).
 
+## Email deliverability (sign-in codes)
+
+Sign-in codes are sent through Amazon SES as `no-reply@pactlab.ai`. Each account that owns the `pactlab.ai` identity (dev, which qa shares, and stage) signs with DKIM and uses **`mail.pactlab.ai` as its MAIL FROM domain**. That way SPF passes for pactlab.ai, aligned with DKIM.
+
+**DNS, once.** Both accounts are in us-east-2, so the same two records serve both. Stack outputs `SesMailFromMx` and `SesMailFromSpf` repeat them:
+
+| Type | Host | Value |
+|---|---|---|
+| MX | `mail` | `feedback-smtp.us-east-2.amazonses.com` (priority 10) |
+| TXT | `mail` | `v=spf1 include:amazonses.com ~all` |
+
+**Checks:**
+- **SES:** `aws sesv2 get-email-identity --email-identity pactlab.ai` should show `MailFromDomainStatus: SUCCESS` in each account.
+- **Before the records exist:** SES uses its own envelope (`USE_DEFAULT_VALUE`), so mail still goes out.
+- **The root SPF record** (Google, for your mailbox) stays as it is.
+
+**If a code lands in Junk:** mark it *Not junk*. Mailbox providers learn from that while the sender is new. DMARC is `p=none` for now; raising it to `p=quarantine` is a later decision, once sending is steady.
+
 ## Logs and access
 
 - Logs go to CloudWatch `/pactlab/dev/app`, with streams `web/`, `api/`, `worker/`, `migrate/` and `seed/`. They contain no secrets, codes or document text.

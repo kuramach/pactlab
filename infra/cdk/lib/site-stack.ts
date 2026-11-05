@@ -150,5 +150,7 @@ export class PactlabSiteStack extends Stack {
 
     new CfnOutput(this, 'SiteUrl', { value: `https://${this.distribution.distributionDomainName}` });
     new CfnOutput(this, 'DistributionId', { value: this.distribution.distributionId });
+    // Read by the deploy's plan: a new certificate means the site must be published again.
+    new CfnOutput(this, 'CertificateArn', { value: certificateArn ?? 'none' });
   }
 }

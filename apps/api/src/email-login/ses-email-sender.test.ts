@@ -15,6 +15,13 @@ describe('SesEmailSender', () => {
     });
   });
 
+  it('sends the branded HTML beside the text when there is one', async () => {
+    const sent: SendEmailCommand[] = [];
+    const client = { send: async (command: SendEmailCommand) => void sent.push(command) } as unknown as SESv2Client;
+    await new SesEmailSender(client, 'Pactlab <no-reply@pactlab.ai>').send({ to: 'lead@example.com', subject: 'Your code', text: 'Code 123456', html: '<p>Code 123456</p>' });
+    expect(sent[0]?.input.Content?.Simple?.Body).toEqual({ Text: { Data: 'Code 123456', Charset: 'UTF-8' }, Html: { Data: '<p>Code 123456</p>', Charset: 'UTF-8' } });
+  });
+
   it('fails without echoing the address or the body', async () => {
     const client = {
       send: async () => {

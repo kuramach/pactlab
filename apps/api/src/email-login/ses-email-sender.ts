@@ -21,7 +21,13 @@ export class SesEmailSender implements EmailSender {
         new SendEmailCommand({
           FromEmailAddress: this.from,
           Destination: { ToAddresses: [message.to] },
-          Content: { Simple: { Subject: { Data: message.subject, Charset: 'UTF-8' }, Body: { Text: { Data: message.text, Charset: 'UTF-8' } } } },
+          Content: {
+            Simple: {
+              Subject: { Data: message.subject, Charset: 'UTF-8' },
+              // Plain text always; the branded HTML alongside when there is one (mail apps pick).
+              Body: { Text: { Data: message.text, Charset: 'UTF-8' }, ...(message.html ? { Html: { Data: message.html, Charset: 'UTF-8' } } : {}) },
+            },
+          },
         }),
       );
     } catch (error) {

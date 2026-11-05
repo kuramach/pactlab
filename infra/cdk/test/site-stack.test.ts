@@ -90,10 +90,14 @@ describe('PactlabSiteStack', () => {
         CustomHeadersConfig: { Items: [{ Header: 'X-Robots-Tag', Value: 'noindex, nofollow', Override: true }] },
       }),
     });
+    // The deploy's plan reads which certificate the site serves, to republish when it changes.
+    dev.hasOutput('CertificateArn', { Value: certificateArn });
     // Without its certificate yet, an environment's site is served on its CloudFront address only.
-    siteTemplate(siteConfig, { name: 'dev', domain: 'dev.pactlab.ai', indexing: 'none' }).hasResourceProperties('AWS::CloudFront::Distribution', {
+    const bare = siteTemplate(siteConfig, { name: 'dev', domain: 'dev.pactlab.ai', indexing: 'none' });
+    bare.hasResourceProperties('AWS::CloudFront::Distribution', {
       DistributionConfig: Match.objectLike({ Aliases: Match.absent() }),
     });
+    bare.hasOutput('CertificateArn', { Value: 'none' });
     siteTemplate().hasResourceProperties('AWS::CloudFront::ResponseHeadersPolicy', {
       ResponseHeadersPolicyConfig: Match.objectLike({ CustomHeadersConfig: Match.absent() }),
     });

@@ -194,7 +194,17 @@ export class PactlabCompute extends Construct {
     // Foresight voice (Transcribe streaming and Polly) has no resource-level scoping.
     this.roles.api.addToPolicy(new iam.PolicyStatement({ sid: 'Voice', actions: ['transcribe:StartStreamTranscription', 'polly:SynthesizeSpeech'], resources: ['*'] }));
     // An account holds a domain identity once: the owning environment creates it, others in the account send as it.
-    const identity = service.email.identityOwner === false ? null : new ses.EmailIdentity(this, 'EmailIdentity', { identity: ses.Identity.domain(service.email.identityDomain) });
+    // Its own envelope (MAIL FROM) domain, so SPF passes for pactlab.ai's mail, aligned with DKIM; until the
+    // DNS records exist, SES keeps using its default envelope rather than failing.
+    const mailFromDomain = `mail.${service.email.identityDomain}`;
+    const identity =
+      service.email.identityOwner === false
+        ? null
+        : new ses.EmailIdentity(this, 'EmailIdentity', {
+            identity: ses.Identity.domain(service.email.identityDomain),
+            mailFromDomain,
+            mailFromBehaviorOnMxFailure: ses.MailFromBehaviorOnMxFailure.USE_DEFAULT_VALUE,
+          });
     this.roles.api.addToPolicy(
       new iam.PolicyStatement({
         sid: 'SendSignInEmail',
@@ -380,5 +390,10 @@ export class PactlabCompute extends Construct {
     // Stack-level outputs with fixed names, read by the deploy workflow.
     for (const [name, value] of Object.entries(outputs)) new CfnOutput(stack, name, { value });
     identity?.dkimRecords.forEach((record, index) => new CfnOutput(stack, `SesDkimRecord${index + 1}`, { value: `${record.name} CNAME ${record.value}` }));
+    if (identity) {
+      // The two records the MAIL FROM domain needs (the same in every account of this region).
+      new CfnOutput(stack, 'SesMailFromMx', { value: `${mailFromDomain} MX 10 feedback-smtp.${stack.region}.amazonses.com` });
+      new CfnOutput(stack, 'SesMailFromSpf', { value: `${mailFromDomain} TXT "v=spf1 include:amazonses.com ~all"` });
+    }
   }
 }
