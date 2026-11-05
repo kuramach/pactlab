@@ -72,9 +72,11 @@ export class PactlabEnvironmentDeployAccessStack extends Stack {
       /** The application stack's name (e.g. `PactlabDev`): task roles it may pass are named from it. */
       readonly appStackName: string;
       readonly existingOidcProviderArn?: string;
+      /** The GitHub Environment that may assume the role, when it is named differently (live → `prod`). */
+      readonly githubEnvironment?: string;
     },
   ) {
-    const { environment, githubSubjectPrefix, appStackName, existingOidcProviderArn, ...stackProps } = props;
+    const { environment, githubSubjectPrefix, appStackName, existingOidcProviderArn, githubEnvironment = environment, ...stackProps } = props;
     super(scope, id, stackProps);
     Tags.of(this).add('pactlab:component', 'deploy-access');
     Tags.of(this).add('pactlab:environment', environment);
@@ -90,7 +92,7 @@ export class PactlabEnvironmentDeployAccessStack extends Stack {
       assumedBy: new iam.OpenIdConnectPrincipal(provider, {
         StringEquals: {
           'token.actions.githubusercontent.com:aud': 'sts.amazonaws.com',
-          'token.actions.githubusercontent.com:sub': `${githubSubjectPrefix}:environment:${environment}`,
+          'token.actions.githubusercontent.com:sub': `${githubSubjectPrefix}:environment:${githubEnvironment}`,
         },
       }),
     });

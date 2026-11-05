@@ -59,6 +59,8 @@ for (const name of ENVIRONMENT_NAMES) {
       environment: name,
       githubSubjectPrefix: siteConfig.githubSubjectPrefix,
       appStackName: stackId,
+      // Live deploys from the GitHub Environment `live`; its AWS resources keep the CDK name `prod`.
+      ...(name === 'prod' ? { githubEnvironment: 'live' } : {}),
       ...(existingOidcProviderArn ? { existingOidcProviderArn } : {}),
       ...env,
     });

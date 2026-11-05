@@ -133,11 +133,44 @@ describe('dev: the running application (ADR 0019)', () => {
   });
 });
 
-describe('environments without a service block', () => {
-  it('prod has the data layer only (its service comes with the live slice)', () => {
-    const template = platformStack(ENVIRONMENTS.prod).template;
-    template.resourceCountIs('AWS::ECS::Service', 0);
-    template.resourceCountIs('AWS::ElasticLoadBalancingV2::LoadBalancer', 0);
+describe('live (GitHub Environment live, CDK prod)', () => {
+  const { template } = platformStack(ENVIRONMENTS.prod, { imageTag: 'abc1234' });
+
+  it('is pinned to the skinny tier: single-AZ t4g database, one managed NAT gateway, micro Redis', () => {
+    template.hasResourceProperties('AWS::RDS::DBInstance', { DBInstanceClass: 'db.t4g.medium', MultiAZ: false });
+    template.resourceCountIs('AWS::EC2::NatGateway', 1);
+    template.resourceCountIs('AWS::EC2::Instance', 0);
+    template.hasResourceProperties('AWS::ElastiCache::ReplicationGroup', { CacheNodeType: 'cache.t4g.micro', NumCacheClusters: 1 });
+  });
+
+  it('keeps production\'s protections: 35-day backups, deletion protection, retained data', () => {
+    template.hasResourceProperties('AWS::RDS::DBInstance', { BackupRetentionPeriod: 35, DeletionProtection: true });
+    template.hasResource('AWS::RDS::DBInstance', { DeletionPolicy: 'Retain' });
+  });
+
+  it('runs the app always on, on its own load balancer, like stage but never paused', () => {
+    template.resourceCountIs('AWS::ECS::Service', 3);
+    template.resourceCountIs('AWS::ElasticLoadBalancingV2::LoadBalancer', 1);
+    template.hasResourceProperties('AWS::CertificateManager::Certificate', { DomainName: 'app.pactlab.ai' });
+    template.resourceCountIs('AWS::StepFunctions::StateMachine', 0);
+    expect(JSON.stringify(template.toJSON())).not.toContain('PactlabNonliveBase');
+    expect(JSON.stringify(template.findResources('AWS::ECS::TaskDefinition'))).toContain('"Name":"SIGNUP_REQUIRES_APPROVAL","Value":"true"');
+    template.hasResourceProperties('AWS::SES::EmailIdentity', { MailFromAttributes: { MailFromDomain: 'mail.pactlab.ai', BehaviorOnMxFailure: 'USE_DEFAULT_VALUE' } });
+  });
+
+  it('keeps the full profile as a one-change scaled target', async () => {
+    const { PROD_SCALED_TARGET } = await import('../config/prod');
+    expect(PROD_SCALED_TARGET).toMatchObject({ network: { maxAzs: 3, natGateways: 3 }, database: { instanceClass: 'm7g', multiAz: true }, redis: { nodeType: 'cache.m7g.large', numCacheClusters: 2 } });
+  });
+
+  it('its deploy role trusts only the GitHub Environment live', async () => {
+    const { PactlabEnvironmentDeployAccessStack } = await import('../lib/deploy-access-stack');
+    const access = Template.fromStack(new PactlabEnvironmentDeployAccessStack(new App(), 'PactlabProdDeployAccess', { environment: 'prod', githubEnvironment: 'live', githubSubjectPrefix: 'repo:owner/repo', appStackName: 'PactlabProd' }));
+    access.hasResourceProperties('AWS::IAM::Role', {
+      RoleName: 'pactlab-github-prod-deploy',
+      AssumeRolePolicyDocument: Match.objectLike({ Statement: [Match.objectLike({ Condition: { StringEquals: Match.objectLike({ 'token.actions.githubusercontent.com:sub': 'repo:owner/repo:environment:live' }) } })] }),
+    });
+    expect(JSON.stringify(access.findResources('AWS::IAM::Policy'))).toContain('repository/pactlab-prod-server');
   });
 });
 

@@ -4,7 +4,11 @@
  *   pnpm ops:operator <email>
  *   pnpm ops:operator <email> --revoke
  */
+import { applyDatabaseUrls } from '@pactlab/config';
 import pg from 'pg';
+
+// In a deployed one-off task (scripts/ops-task.sh) the owner connection comes as DB_* parts; locally, from .env.
+applyDatabaseUrls();
 
 const [email, flag] = process.argv.slice(2);
 const url = process.env['DATABASE_MIGRATION_URL'];

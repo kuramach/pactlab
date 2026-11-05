@@ -229,3 +229,13 @@ Decided with Kumar:
 - **Malware scanning: only live gets the managed scanner.** Stage runs the signature scanner like dev and qa. Real customer documents uploaded to stage get only the signature check; that is accepted for customer testing.
 - **Real customer data never moves from stage to dev or qa.**
 
+## Addendum (2026-11-05): live, skinny
+
+Decided with Kumar, who wanted live as soon as possible:
+- **Live is the CDK environment `prod`**, dispatched and approved as the GitHub Environment `live` (the deploy role trusts `environment:live`). It has its own AWS account, runs the app at `app.pactlab.ai` (the site `pactlab.ai` stays its own stack), is always on (no idle pause), never shares infrastructure, and deploys from `main` only, after approval.
+- **Skinny:** single-AZ `t4g.medium` database with 35-day backups and deletion protection, one managed NAT gateway, `cache.t4g.micro` Redis, one task each. About $150–180 a month. The full profile is kept as `PROD_SCALED_TARGET` in `infra/cdk/config/prod.ts`; scaling up is one change.
+- **Accepted risk: malware scanning.** Live launches with the signature scanner. Uploads get only the signature check until the managed scanner lands (T-103).
+- **Sign-in:** email codes only. The Auth0 production tenant (company SSO) waits for the first customer who needs it (T-104).
+- **Interim promotion (T-101):** branch → dev → merge → `main` → dev → live, with qa and stage parked (idle-paused, still deployable), until the packs are complete or the first customer arrives.
+- **Operator actions from inside an environment:** `scripts/ops-task.sh` runs an `src/ops/` script as a one-off task with the migrate task's owner credentials, for example to make the first platform operator.
+

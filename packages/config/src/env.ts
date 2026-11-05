@@ -40,11 +40,12 @@ function allOrNone<T extends Record<string, unknown>>(keys: readonly (keyof T & 
 /**
  * Deployed storage, email and scanning (ADR 0019). Unset keeps the local
  * behaviour (file store and mail folder under APP_ENV=local); anything else
- * fails closed. The signature scanner is a stand-in, refused only in production,
- * which needs a managed scanner. Stage uses it too (decided 2026-11-04): customers
- * may test there with real documents, which then get only the signature check.
+ * fails closed. The signature scanner is a stand-in for a managed scanner.
+ * ACCEPTED RISK (Kumar, 2026-11-05): live launches with it too, so every
+ * environment allows it until the managed scanner lands (T-103); uploads then get
+ * only the signature check. Remove 'production' here when T-103 ships.
  */
-const SIGNATURE_SCANNER_ENVS: readonly AppEnvironment[] = ['local', 'test', 'dev', 'qa', 'stage'];
+const SIGNATURE_SCANNER_ENVS: readonly AppEnvironment[] = ['local', 'test', 'dev', 'qa', 'stage', 'production'];
 const deployedStorageFields = {
   /** `s3`: originals in the environment's evidence bucket (task-role credentials). Unset: the local file store. */
   DOCUMENT_STORE: unsetIfBlank(z.enum(['s3']).optional()),
@@ -61,7 +62,7 @@ function deployedStorageRules(value: { APP_ENV: AppEnvironment; DOCUMENT_STORE?:
     }
   }
   if (value.MALWARE_SCANNER === 'signature' && !SIGNATURE_SCANNER_ENVS.includes(value.APP_ENV)) {
-    context.addIssue({ code: 'custom', path: ['MALWARE_SCANNER'], message: 'the signature scanner is not allowed in production, which needs a managed scanner' });
+    context.addIssue({ code: 'custom', path: ['MALWARE_SCANNER'], message: 'the signature scanner is not allowed here, which needs a managed scanner' });
   }
 }
 
