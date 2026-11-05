@@ -1,6 +1,9 @@
 import type { OutboundEmail } from './email-sender';
 
-/** Message templates. Plain, direct, no tracking links. */
+/**
+ * Message templates. Plain, direct, no tracking links. `text` is what is said; `content`
+ * mirrors it for the branded HTML version (BrandedEmailSender adds the logo and footer).
+ */
 export const emails = {
   signInCode(to: string, code: string, minutes: number): OutboundEmail {
     return {
@@ -11,6 +14,12 @@ export const emails = {
         `It expires in ${minutes} minutes and works once.`,
         'If you did not try to sign in, ignore this email.',
       ].join('\n'),
+      content: {
+        heading: 'Your sign-in code',
+        paragraphs: ['Enter this code on the Pactlab sign-in page:'],
+        code,
+        footnote: `It expires in ${minutes} minutes and works once. If you did not try to sign in, ignore this email.`,
+      },
     };
   },
 
@@ -23,6 +32,12 @@ export const emails = {
         `It expires in ${minutes} minutes and works once.`,
         'If you did not sign up for Pactlab, ignore this email.',
       ].join('\n'),
+      content: {
+        heading: 'Confirm your sign-up',
+        paragraphs: ['Enter this code to finish creating your Pactlab account:'],
+        code,
+        footnote: `It expires in ${minutes} minutes and works once. If you did not sign up for Pactlab, ignore this email.`,
+      },
     };
   },
 
@@ -38,6 +53,12 @@ export const emails = {
         `You join this pact only — not the inviting company. The link works once and expires in ${invite.days} days.`,
         'If you were not expecting this, ignore this email.',
       ].join('\n'),
+      content: {
+        heading: `You're invited to “${invite.dealName}”`,
+        paragraphs: [`${invite.inviterName} invited you to this pact on Pactlab, ${side}${invite.role === 'BIDDER' ? '' : ` (${invite.role.toLowerCase().replaceAll('_', ' ')})`}.`, 'You join this pact only — not the inviting company.'],
+        action: { label: 'Open the invitation', url: invite.link },
+        footnote: `The link works once and expires in ${invite.days} days. If you were not expecting this, ignore this email.`,
+      },
     };
   },
 
@@ -51,6 +72,12 @@ export const emails = {
         `Confirm your email address to send the request to the seller: ${request.link}`,
         `The link works once and expires in ${request.days} days. If you did not ask, ignore this email.`,
       ].join('\n'),
+      content: {
+        heading: 'Confirm your request',
+        paragraphs: [`You asked for access to “${request.codename}” on Pactlab. Confirm your email address to send the request to the seller.`],
+        action: { label: 'Confirm my request', url: request.link },
+        footnote: `The link works once and expires in ${request.days} days. If you did not ask, ignore this email.`,
+      },
     };
   },
 
@@ -64,6 +91,10 @@ export const emails = {
         ...(request.note ? [`Their note: ${request.note}`] : []),
         'Thank you for your interest.',
       ].join('\n'),
+      content: {
+        heading: `About your request for ${request.codename}`,
+        paragraphs: [`The seller of “${request.codename}” is not taking your request further at this time.`, ...(request.note ? [`Their note: ${request.note}`] : []), 'Thank you for your interest.'],
+      },
     };
   },
 
@@ -77,6 +108,12 @@ export const emails = {
         `To get in, log in at ${loginUrl}`,
         'If this was not you, no action is needed.',
       ].join('\n'),
+      content: {
+        heading: 'You already have an account',
+        paragraphs: ['Someone tried to sign up for Pactlab with this address, which already has an account.'],
+        action: { label: 'Log in', url: loginUrl },
+        footnote: 'If this was not you, no action is needed.',
+      },
     };
   },
 
@@ -94,6 +131,15 @@ export const emails = {
         `Approve:  pnpm org:approve ${signup.slug}`,
         `Reject:   pnpm org:reject ${signup.slug}`,
       ].join('\n'),
+      content: {
+        heading: `New sign-up: ${signup.organizationName}`,
+        paragraphs: [
+          `${signup.ownerName} <${signup.ownerEmail}> signed up ${signup.organizationName}.`,
+          signup.ssoRequested ? 'They asked for company SSO (Auth0) — see the SSO runbook.' : 'Sign-in: email codes.',
+          `Approve: pnpm org:approve ${signup.slug}`,
+          `Reject: pnpm org:reject ${signup.slug}`,
+        ],
+      },
     };
   },
 
@@ -102,6 +148,11 @@ export const emails = {
       to,
       subject: `${organizationName} is ready on Pactlab`,
       text: [`Your organization ${organizationName} is approved.`, `Log in at ${loginUrl} with this email address.`].join('\n'),
+      content: {
+        heading: `${organizationName} is ready`,
+        paragraphs: [`Your organization ${organizationName} is approved. Log in with this email address.`],
+        action: { label: 'Log in to Pactlab', url: loginUrl },
+      },
     };
   },
 };

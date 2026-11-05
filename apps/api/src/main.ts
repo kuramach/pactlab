@@ -13,6 +13,7 @@ import { FileSystemObjectStore } from './documents/storage-adapters';
 import { BullMqImportQueue } from './imports/bullmq-import-queue';
 import { LocalFileEmailSender } from './email-login/email-sender';
 import { SesEmailSender } from './email-login/ses-email-sender';
+import { BrandedEmailSender, emailAssets } from './email-login/branded-email';
 import { SignatureMalwareScanner } from './documents/upload-policy';
 import { FixtureMacroForecastProvider, ImfMacroForecastProvider } from '@pactlab/connectors';
 
@@ -93,9 +94,9 @@ const app = await createApp(
     emailLogin: {
       tokenSecret: config.AUTH_TOKEN_SECRET,
       ...(config.EMAIL_PROVIDER === 'ses' && config.EMAIL_FROM
-        ? { emailSender: new SesEmailSender(new SESv2Client({ region: config.AWS_REGION }), config.EMAIL_FROM) }
+        ? { emailSender: new BrandedEmailSender(new SesEmailSender(new SESv2Client({ region: config.AWS_REGION }), config.EMAIL_FROM), emailAssets(config.APP_WEB_ORIGIN)) }
         : config.APP_ENV === 'local' && config.LOCAL_MAIL_DIR
-          ? { emailSender: new LocalFileEmailSender(config.LOCAL_MAIL_DIR) }
+          ? { emailSender: new BrandedEmailSender(new LocalFileEmailSender(config.LOCAL_MAIL_DIR), emailAssets(config.APP_WEB_ORIGIN)) }
           : {}),
     },
   },
