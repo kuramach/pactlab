@@ -171,6 +171,49 @@ In dev and qa the deploy moves the worker itself, alongside the stack update (`s
 
 **Rollback:** dispatch the workflow on the earlier commit. Migrations are expand-only (backward compatible), so the old code runs on the newer schema.
 
+## Stage: customer testing
+
+Stage is its own AWS account, shaped like live (own network, load balancer, Redis and SES; protected state; careful rollouts; sign-ups need approval) and paused when idle. Customers may test there with real documents, so its data never moves to dev or qa. It runs the signature malware scanner like dev and qa; only live gets the managed scanner.
+
+### Testing a customer's branch
+
+1. Work on a branch, for example `feat/acme-reports`. Customer-only behaviour goes behind the customer organization's feature flags, never behind the branch itself.
+2. Actions → **deploy** → *Use workflow from* your branch → `dev`, and check it there.
+3. The same with `stage`. It waits for your approval, warns that stage now runs a branch, and the customer tests on app.stage.pactlab.ai.
+4. When they approve: merge the PR, then deploy `main` to dev → qa → stage (→ live).
+
+Rules:
+- **One customer branch on stage at a time.** Merge it, or redeploy `main`, before the next.
+- **Migrations on a branch:** stage then has that schema until it merges. Migrations are expand-only, so `main` still runs on it.
+- **qa takes `main` only**; the workflow refuses a branch.
+
+### First time (Kumar; agents never create accounts)
+
+1. **AWS account:** AWS Organizations → *Add an AWS account* → **PactLab Stage**. Note its 12-digit ID.
+2. **Profile:** add it to `~/.aws/config`. Accounts created by Organizations already have `OrganizationAccountAccessRole`.
+   ```
+   [profile pactlab-stage]
+   role_arn = arn:aws:iam::<STAGE_ACCOUNT_ID>:role/OrganizationAccountAccessRole
+   source_profile = pactlab-mgmt
+   region = us-east-2
+   ```
+   Check it with `aws sts get-caller-identity --profile pactlab-stage`.
+3. **Prepare the account for CDK:** `scripts/bootstrap-account.sh stage`.
+4. **Deploy role:** `scripts/deploy-access.sh stage`. Note the output `DeployRoleArn` (role `pactlab-github-stage-deploy`).
+5. **GitHub:** Settings → Environments → **New environment** `stage`.
+   - **Required reviewers:** you.
+   - **Variables:**
+     - `AWS_ACCOUNT_ID` = the stage account ID
+     - `AWS_DEPLOY_ROLE_ARN` = the role from step 4
+     - `APP_ENV` = `stage`
+     - `APP_DOMAIN` = `app.stage.pactlab.ai`
+     - `SITE_DOMAIN` = `stage.pactlab.ai`
+     - `SITE_CERTIFICATE_ARN`: added once the site certificate exists, as for dev
+6. **First deploy:** Actions → **deploy** → `main` → `stage` → approve. It stops at the certificate until DNS validates. In ACM (us-east-2) and in SES, copy the CNAME records it asks for into Namecheap: the certificate for `app.stage`, and SES's DKIM records for `pactlab.ai`, which sit beside dev's.
+7. **Point the names:** in Namecheap, point `app.stage` at the stack output `LoadBalancerDns` and `stage` at the site's CloudFront domain. Then deploy again.
+8. **AI:** in the stage account's Bedrock console, submit the Anthropic use-case form (as for dev), then run `pnpm ai:check` with that profile.
+9. **Email:** request SES production access for the stage account (new accounts start in the SES sandbox).
+
 ## Logs and access
 
 - Logs go to CloudWatch `/pactlab/dev/app`, with streams `web/`, `api/`, `worker/`, `migrate/` and `seed/`. They contain no secrets, codes or document text.
@@ -188,6 +231,6 @@ This removes the services, load balancer, database (after a final snapshot), Red
 
 ## Known gaps (slice 2 and later)
 
-- **Malware scanning:** dev uses the built-in signature scanner (`MALWARE_SCANNER=signature`), which the app refuses in stage and prod. A managed scanner (GuardDuty Malware Protection for S3) is required before those.
+- **Malware scanning:** dev, qa and stage use the built-in signature scanner (`MALWARE_SCANNER=signature`); the app refuses it in production. A managed scanner (GuardDuty Malware Protection for S3) is required before live.
 - **Other environments:** qa, stage and prod get their service blocks, domains (`qa.`, `stage.`, `app.pactlab.ai`), deploy roles, Auth0 registration (prod on its own tenant) and cost band in slice 2 (T-070).
 - **Auth0 in dev:** email-code sign-in works without it. To add Auth0, register `https://dev.pactlab.ai` callbacks on the dev tenant and add the web's Auth0 settings as secrets.

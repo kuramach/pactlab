@@ -18,13 +18,17 @@ name: deploy
 # is skipped. Only services whose code changed get a new image (scripts/service-changed.sh); the
 # others stay on the image they run, untouched. In dev and qa the worker is moved alongside the stack
 # update (scripts/roll-worker.sh). A first deploy, or `full`, always runs and moves everything.
+#
+# Branches: dev and stage accept any branch (stage is where a customer tests a feature branch before it
+# merges); qa — and live, later — accept main only. Promotion: branch → dev → stage (customer) → merge →
+# main → dev → qa → stage → live. Stage waits for its GitHub Environment's reviewer.
 on:
   workflow_dispatch:
     inputs:
       environment:
         description: Environment to deploy
         type: choice
-        options: [dev, qa]
+        options: [dev, qa, stage]
         required: true
       full:
         description: Run every step (migrations and site), even if nothing changed for them
@@ -52,6 +56,19 @@ jobs:
       name: ${{ inputs.environment }}
       url: ${{ steps.release.outputs.origin }}
     steps:
+      - name: Which branches may deploy here
+        env:
+          REF: ${{ github.ref_name }}
+        run: |
+          case "$ENV_NAME" in
+            dev) echo "dev accepts any branch: deploying $REF" ;;
+            stage)
+              if [ "$REF" = main ]; then echo "stage: deploying main"
+              else echo "::warning title=Branch on stage::stage now runs $REF, not main. Merge it, then deploy main through dev, qa and stage again. One customer branch on stage at a time."; fi ;;
+            *)
+              if [ "$REF" != main ]; then echo "::error title=main only::$ENV_NAME deploys main only (this run is on $REF). Use dev or stage for a branch."; exit 1; fi
+              echo "$ENV_NAME: deploying main" ;;
+          esac
       - uses: actions/checkout@v4
         with:
           # The plan compares this commit with the one the services run.

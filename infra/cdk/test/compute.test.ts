@@ -134,10 +134,42 @@ describe('dev: the running application (ADR 0019)', () => {
 });
 
 describe('environments without a service block', () => {
-  it.each(['stage', 'prod'] as const)('%s has the data layer only (slice 2 adds its service)', (name) => {
-    const template = platformStack(ENVIRONMENTS[name]).template;
+  it('prod has the data layer only (its service comes with the live slice)', () => {
+    const template = platformStack(ENVIRONMENTS.prod).template;
     template.resourceCountIs('AWS::ECS::Service', 0);
     template.resourceCountIs('AWS::ElasticLoadBalancingV2::LoadBalancer', 0);
+  });
+});
+
+describe('stage, for customer testing', () => {
+  const { template } = platformStack(ENVIRONMENTS.stage, { imageTag: 'abc1234' });
+
+  it('runs the app on its own load balancer and network, never the shared non-live base', () => {
+    template.resourceCountIs('AWS::ECS::Service', 3);
+    template.resourceCountIs('AWS::ElasticLoadBalancingV2::LoadBalancer', 1);
+    template.hasResourceProperties('AWS::CertificateManager::Certificate', { DomainName: 'app.stage.pactlab.ai' });
+    expect(JSON.stringify(template.toJSON())).not.toContain('PactlabNonliveBase');
+  });
+
+  it('behaves like live: careful rollouts, CloudFormation moves the worker, sign-ups need approval', () => {
+    const services = Object.values(template.findResources('AWS::ECS::Service')) as { Properties: { DeploymentConfiguration: { MinimumHealthyPercent: number; MaximumPercent: number }; TaskDefinition: unknown } }[];
+    for (const service of services) expect(service.Properties.DeploymentConfiguration).toMatchObject({ MinimumHealthyPercent: 100, MaximumPercent: 200 });
+    // The worker names a task definition revision, not its family: the deploy never moves it by hand here.
+    for (const service of services) expect(typeof service.Properties.TaskDefinition).not.toBe('string');
+    expect(JSON.stringify(template.findResources('AWS::ECS::TaskDefinition'))).toContain('"Name":"SIGNUP_REQUIRES_APPROVAL","Value":"true"');
+  });
+
+  it('owns its SES identity and its deploy role trusts only the stage GitHub environment', async () => {
+    template.resourceCountIs('AWS::SES::EmailIdentity', 1);
+    const { PactlabEnvironmentDeployAccessStack } = await import('../lib/deploy-access-stack');
+    const access = Template.fromStack(new PactlabEnvironmentDeployAccessStack(new App(), 'PactlabStageDeployAccess', { environment: 'stage', githubSubjectPrefix: 'repo:owner/repo', appStackName: 'PactlabStage' }));
+    access.hasResourceProperties('AWS::IAM::Role', {
+      RoleName: 'pactlab-github-stage-deploy',
+      AssumeRolePolicyDocument: Match.objectLike({ Statement: [Match.objectLike({ Condition: { StringEquals: Match.objectLike({ 'token.actions.githubusercontent.com:sub': 'repo:owner/repo:environment:stage' }) } })] }),
+    });
+    const policy = JSON.stringify(access.findResources('AWS::IAM::Policy'));
+    expect(policy).toContain('repository/pactlab-stage-server');
+    expect(policy).not.toContain('pactlab-dev');
   });
 });
 
