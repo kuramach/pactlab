@@ -124,6 +124,24 @@ function citationIdFor(request: ModelRequest, quote: string): string | null {
  * id `synthetic-fixture`, never as a real model.
  */
 export function demoModelResponse(request: ModelRequest): string {
+  // Negotiation brief (T-105): one synthetic, grounded section per finding carried by the terms.
+  if (request.system.includes('negotiation brief')) {
+    const prompt = request.messages[0]?.content ?? '';
+    const tone = /<tone>([A-Z_]+)<\/tone>/.exec(prompt)?.[1] ?? 'BALANCED';
+    const rows = [...prompt.matchAll(/^([0-9a-f-]{36}) \| ([A-Z_]+) \| (.+?) \| ([A-Z_]+)$/gm)];
+    const framing: Record<string, string> = {
+      QUALITY_AND_RISK: 'Treat this as a question of durability: fix it in the structure of the deal rather than in the headline price',
+      BALANCED: 'Weigh this evenly between price and protection, and keep the discussion on the evidence',
+      DOWNSIDE_AND_LEVERAGE: 'Price this for the bad case and move the risk back to the seller through holdbacks and deferred consideration',
+    };
+    const sections = rows.slice(0, 5).map((row) => ({
+      heading: `${row[3]!.slice(0, 80)}`.replace(/\d/g, ''),
+      body: `${framing[tone] ?? framing['BALANCED']}. Carried as ${row[4]!.toLowerCase().replace(/_/g, ' ')} ${SYNTHETIC}.`.replace(/\d/g, ''),
+      citedFindingIds: [row[1]!],
+    }));
+    const opening = `Lead with the terms in the order shown, and keep every point tied to accepted evidence ${SYNTHETIC}.`;
+    return JSON.stringify({ sections: [{ heading: 'How to open', body: opening, citedFindingIds: rows.slice(0, 3).map((row) => row[1]!) }, ...sections] });
+  }
   // Foresight baseline (T-073): a synthetic, balanced view for each question asked.
   if (request.system.includes('Answer every question you are given')) {
     const prompt = request.messages[0]?.content ?? '';

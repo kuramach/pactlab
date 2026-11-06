@@ -160,7 +160,7 @@ export class AppModule {
           importQueue: deps.uploads?.importQueue ?? null,
         }),
         FindingsModule.register(findings, deps.packs),
-        ValuationModule.register({ valuation, findings }),
+        ValuationModule.register({ valuation, findings, pricing: { gateway: deps.documents?.gateway ?? new NotConfiguredClaudeGateway() } }),
         ComparablesModule.register({ valuation, findings }),
         DocumentsModule.register({
           repository: new PrismaDocumentsRepository(deps.prisma),

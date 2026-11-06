@@ -1,0 +1,16 @@
+import { BUYER_PERSONAS } from '@pactlab/calculations';
+import { z } from 'zod';
+
+export const personaBodySchema = z.strictObject({ persona: z.enum(BUYER_PERSONAS).nullable() });
+export type PersonaBody = z.infer<typeof personaBodySchema>;
+
+export const evaluateBodySchema = z.strictObject({ persona: z.enum(BUYER_PERSONAS) });
+export type EvaluateBody = z.infer<typeof evaluateBodySchema>;
+
+export const sellerNotesBodySchema = z.strictObject({
+  notes: z.array(z.strictObject({ ordinal: z.number().int().min(0).max(100), sellerNote: z.string().trim().max(1000) })).max(100),
+});
+export type SellerNotesBody = z.infer<typeof sellerNotesBodySchema>;
+
+export const evaluationParamsSchema = z.strictObject({ dealId: z.uuid(), evaluationId: z.uuid() });
+export const batchParamsSchema = z.strictObject({ dealId: z.uuid(), batchId: z.uuid() });
