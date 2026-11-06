@@ -124,6 +124,8 @@ export async function startLinkedPact(dealId: string): Promise<void> {
     seller: { name: pact.company, ownership: 'PRIVATE', ticker: null, exchange: null, website: null, companyType: (pact.companyType ?? 'OTHER') as StartPactCommand['seller']['companyType'] },
     askingPrice: null,
     linkedSale: { organizationId: pact.organizationId, dealId: pact.dealId },
+    // The winner's organization default prices it (T-105).
+    persona: null,
   };
   const started = await dealsApi.startPact(command);
   if (started.kind === 'conflict') redirect('/deals?outcome=already-linked');

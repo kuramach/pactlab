@@ -13,6 +13,9 @@ import { ApiState } from '../../_lib/states';
 import { ConfirmedValue } from '../../_lib/confirmed-value';
 import { can, dealViewer, type DealViewer } from '../../_lib/viewer';
 import { decideSubmission, recordAskingPrice, runScenario, submitScenario } from './actions';
+import { PRICING_OUTCOMES, PricingPanel } from './pricing-panel';
+import { setScenarioCase } from './pricing-actions';
+import { CASE_LABELS } from '../../../valuation/_lib/pricing';
 import { formatDecimal, formatMoney, formatRatio } from '../../../metrics/_lib/format';
 import {
   BASIS_LABELS,
@@ -361,6 +364,23 @@ function ScenarioCard({
     <Card>
       <CardHeader className="flex flex-row flex-wrap items-center gap-2">
         <CardTitle className="mr-auto">{scenario.name}</CardTitle>
+        {can.draft(viewer.role) ? (
+          <form action={setScenarioCase.bind(null, dealId, scenario.id)} className="flex items-center gap-1" title="The case buyer personas weight this scenario as">
+            <select name="scenarioCase" defaultValue={scenario.scenarioCase ?? ''} className="rounded-md border border-border bg-background px-2 py-1 text-xs" aria-label="Scenario case">
+              <option value="">No case</option>
+              {(['DOWNSIDE', 'BASE', 'UPSIDE'] as const).map((value) => (
+                <option key={value} value={value}>
+                  {CASE_LABELS[value]}
+                </option>
+              ))}
+            </select>
+            <Button size="sm" variant="ghost" type="submit">
+              Set
+            </Button>
+          </form>
+        ) : scenario.scenarioCase ? (
+          <Badge variant="neutral">{CASE_LABELS[scenario.scenarioCase]}</Badge>
+        ) : null}
         <Badge variant={statusVariant(scenario.status)}>{scenario.status.toLowerCase()}</Badge>
         <Badge variant={fresh.variant}>{fresh.label}</Badge>
       </CardHeader>
@@ -594,7 +614,7 @@ export default async function ValuationPage({
         ) : null}
       </div>
 
-      <OutcomeBanner outcome={typeof outcome === 'string' ? outcome : undefined} messages={{ ...BENCHMARK_OUTCOMES, ...ANCHOR_OUTCOMES, ...BALANCE_SHEET_OUTCOMES, ...OUTCOMES }} />
+      <OutcomeBanner outcome={typeof outcome === 'string' ? outcome : undefined} messages={{ ...BENCHMARK_OUTCOMES, ...ANCHOR_OUTCOMES, ...BALANCE_SHEET_OUTCOMES, ...PRICING_OUTCOMES, ...OUTCOMES }} />
 
       {dealId && viewer ? <AskingPanel dealId={dealId} viewer={viewer} currency={currency} /> : null}
 
@@ -605,6 +625,8 @@ export default async function ValuationPage({
       {dealId && anchors?.kind === 'ok' && (anchors.data.items.length > 0 || anchors.data.canEdit) ? (
         <NegotiationAnchors dealId={dealId} view={anchors.data} returnTo={`/deals/${dealId}/valuation`} />
       ) : null}
+
+      {dealId && viewer && result?.kind === 'ok' && result.data.items.length > 0 ? <PricingPanel dealId={dealId} viewer={viewer} /> : null}
 
       {!dealId || !viewer ? (
         <EmptyState

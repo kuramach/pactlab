@@ -93,6 +93,8 @@ export class PactsService {
         initiatedBy: command.initiatedBy,
         linkedOrganizationId: command.linkedSale?.organizationId ?? null,
         linkedDealId: command.linkedSale?.dealId ?? null,
+        // A seller-led pact has no buyer to price for.
+        persona: command.initiatedBy === 'BUYER' ? command.persona : null,
       },
       async (tx, created) => {
         const scope = { organizationId: tenant.organizationId, dealId: created.id };

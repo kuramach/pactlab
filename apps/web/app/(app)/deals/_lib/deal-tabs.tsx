@@ -11,6 +11,8 @@ export interface DealSection {
   readonly ventureOnly?: boolean;
   /** Seller-led pacts only: the bid process (T-097). */
   readonly sellerLedOnly?: boolean;
+  /** Buyer-led pacts only: terms the buyer proposes to the seller (T-105). */
+  readonly buyerLedOnly?: boolean;
 }
 
 export interface DealGroup {
@@ -58,6 +60,7 @@ export const DEAL_GROUPS: readonly DealGroup[] = [
       { path: '/raise', label: 'Raise', ventureOnly: true },
       { path: '/valuation', label: 'Scenarios and bridge' },
       { path: '/foresight', label: 'Foresight' },
+      { path: '/terms', label: 'Proposed terms', buyerLedOnly: true },
     ],
   },
   { key: 'close', label: 'Close', sections: [{ path: '/post-close', label: 'Post-close' }] },
@@ -79,7 +82,7 @@ export function dealGroup(section: string): DealGroup {
 }
 
 const visible = (sections: readonly DealSection[], venture: boolean, sellerLed = false) =>
-  sections.filter((section) => (venture || !section.ventureOnly) && (sellerLed || !section.sellerLedOnly));
+  sections.filter((section) => (venture || !section.ventureOnly) && (sellerLed || !section.sellerLedOnly) && (!sellerLed || !section.buyerLedOnly));
 
 /** Four tabs across the deal, and the open tab's sections beneath them; sub-pages keep their section highlighted. */
 export function DealTabs({ dealId, venture = false, sellerLed = false }: { dealId: string; venture?: boolean; sellerLed?: boolean }) {

@@ -104,6 +104,18 @@ export function ScenarioForm({
             Scenario name
             <input name="name" defaultValue={name} required maxLength={200} className={inputClass} readOnly={values !== null} />
           </label>
+          {values === null ? (
+            <label className="flex flex-col gap-1 text-sm font-medium">
+              Case
+              <select name="scenarioCase" defaultValue="" className={inputClass}>
+                <option value="">No case</option>
+                <option value="DOWNSIDE">Downside</option>
+                <option value="BASE">Base</option>
+                <option value="UPSIDE">Upside</option>
+              </select>
+              <span className="text-xs font-normal text-muted-foreground">Buyer personas weight Downside, Base and Upside scenarios differently. You can change it later.</span>
+            </label>
+          ) : null}
           <input type="hidden" name="method" value={method} />
           <div className="grid gap-2 sm:grid-cols-2">
             {[...new Set([...methods, ...(assumptions ? [assumptions.method] : [])])].map((option) => (

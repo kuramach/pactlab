@@ -28,6 +28,7 @@ describe('deal tabs (T-094 B13)', () => {
     expect(dealGroup(dealSection(id, `/deals/${id}/documents`)).key).toBe('diligence');
     expect(dealGroup(dealSection(id, `/deals/${id}/findings/abc`)).key).toBe('diligence');
     expect(dealGroup(dealSection(id, `/deals/${id}/foresight`)).key).toBe('valuation');
+    expect(dealGroup(dealSection(id, `/deals/${id}/terms`)).key).toBe('valuation');
     expect(dealGroup(dealSection(id, `/deals/${id}/post-close`)).key).toBe('close');
     expect(dealGroup(dealSection(id, `/deals/${id}`)).key).toBe('overview');
   });

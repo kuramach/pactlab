@@ -7,6 +7,8 @@ import { signOut } from '../../_actions/sign-out';
 import { apiGet } from '../deals/_lib/api';
 import { currentRelease, releaseLabel } from '../../../lib/release';
 import { isOpen, STATUS_LABELS, statusBadge } from './bug-reports/_lib/status';
+import { setDefaultPersona } from './persona-actions';
+import type { PersonaOption } from '../valuation/_lib/pricing';
 
 // Per-user data: never prerender.
 export const dynamic = 'force-dynamic';
@@ -19,6 +21,51 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
       <dt className="text-sm text-muted-foreground">{label}</dt>
       <dd className="text-sm font-medium">{children}</dd>
     </div>
+  );
+}
+
+/**
+ * The organization's deal-making style (T-105): the buyer persona new pacts
+ * price under. Owners and admins change it; everyone sees it. Buyer-confidential.
+ */
+async function DealStyleCard() {
+  const result = await apiGet<{ defaultPersona: string | null; effective: string; canEdit: boolean; options: PersonaOption[] }>('/v1/organization/persona');
+  if (result.kind !== 'ok') return null;
+  const { effective, canEdit, options, defaultPersona } = result.data;
+  return (
+    <Card id="deal-style">
+      <CardHeader>
+        <CardTitle>Deal-making style</CardTitle>
+        <CardDescription>
+          How your organization prices what diligence finds. New pacts start with this persona; each pact can change it, and any pact can be re-evaluated through another. Never shown to sellers.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form action={setDefaultPersona} className="flex flex-col gap-3">
+          <fieldset className="grid gap-3 md:grid-cols-3" disabled={!canEdit}>
+            {options.map((option) => (
+              <label key={option.persona} className={`flex cursor-pointer flex-col gap-1 rounded-lg border p-3 text-sm ${option.persona === effective ? 'border-indigo-ink bg-muted' : 'border-border'}`}>
+                <span className="flex items-center gap-2 font-semibold">
+                  <input type="radio" name="persona" value={option.persona} defaultChecked={option.persona === (defaultPersona ?? effective)} />
+                  {option.label}
+                  {option.persona === 'VALUE_INVESTOR' ? <span className="text-xs font-normal text-muted-foreground">(default)</span> : null}
+                </span>
+                <span className="text-muted-foreground">{option.descriptor}</span>
+              </label>
+            ))}
+          </fieldset>
+          {canEdit ? (
+            <div>
+              <button type="submit" className={buttonVariants({ size: 'sm' })}>
+                Save style
+              </button>
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground">Organization owners and administrators can change this.</p>
+          )}
+        </form>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -111,6 +158,8 @@ export default async function SettingsPage() {
       </Card>
 
       <BugsSubmittedCard />
+
+      {organization ? <DealStyleCard /> : null}
 
       <Card>
         <CardHeader>

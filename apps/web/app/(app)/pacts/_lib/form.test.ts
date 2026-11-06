@@ -54,6 +54,7 @@ describe('pactFromForm', () => {
         },
         askingPrice: null,
         linkedSale: null,
+        persona: null,
       },
     });
   });
@@ -115,5 +116,14 @@ describe('asking price in the wizard', () => {
     expect(problemUpTo('asking', { ...PRICED, 'askingPrice.amount': '' })).toBe('Enter the asking price, or choose “Not known yet”.');
     expect(problemUpTo('asking', { ...PRICED, 'askingPrice.amount': 'lots' })).toBe('Enter the asking price as a number, e.g. 25,000,000.');
     expect(problemUpTo('seller', { ...PRICED, 'askingPrice.amount': '' })).toBeNull();
+  });
+});
+
+describe('deal-making style (T-105)', () => {
+  it('carries the buyer’s persona, and none for a seller-led pact', () => {
+    expect(pactFromForm(form({ ...VALID, persona: 'GRAVE_DANCER' }))).toMatchObject({ ok: true, command: { persona: 'GRAVE_DANCER' } });
+    expect(pactFromForm(form(VALID))).toMatchObject({ ok: true, command: { persona: null } });
+    const { 'buyer.name': _name, 'buyer.ownership': _ownership, ...rest } = VALID;
+    expect(pactFromForm(form({ ...rest, initiatedBy: 'SELLER', persona: 'GRAVE_DANCER' }))).toMatchObject({ ok: true, command: { persona: null } });
   });
 });

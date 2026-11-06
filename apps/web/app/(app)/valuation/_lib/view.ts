@@ -159,6 +159,8 @@ export interface ScenarioView {
     transactionType: string;
     status: ScenarioStatus;
     assumptionVersion: number;
+    /** The case buyer personas weight it as (T-105); null is untagged. */
+    scenarioCase: 'DOWNSIDE' | 'BASE' | 'UPSIDE' | null;
     version: number;
   };
   latestRun: {

@@ -9,6 +9,7 @@ import { apiGet, apiSend } from '../../_lib/api';
 
 const uuid = z.uuid();
 const version = z.coerce.number().int().positive();
+const scenarioCase = z.enum(['DOWNSIDE', 'BASE', 'UPSIDE']);
 const base = (dealId: string) => `/v1/deals/${dealId}/valuation/scenarios`;
 
 function back(dealId: string, outcome: string): never {
@@ -45,7 +46,7 @@ export async function saveScenario(
   if (!parsed.ok) return { error: parsed.message };
   const result = scenarioId
     ? await apiSend('PUT', `${base(dealId)}/${scenarioId}/assumptions`, { expectedVersion, values: parsed.values })
-    : await apiSend('POST', base(dealId), { name: parsed.name, values: parsed.values });
+    : await apiSend('POST', base(dealId), { name: parsed.name, scenarioCase: scenarioCase.safeParse(formData.get('scenarioCase')).data ?? null, values: parsed.values });
   if (result.kind !== 'ok') return { error: FAILURES[result.kind] ?? 'The scenario could not be saved. Try again.' };
   back(dealId, scenarioId ? 'ok-saved' : 'ok-created');
 }

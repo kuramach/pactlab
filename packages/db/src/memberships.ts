@@ -80,6 +80,8 @@ export interface CreateDealInput {
   initiatedBy?: 'BUYER' | 'SELLER';
   linkedOrganizationId?: string | null;
   linkedDealId?: string | null;
+  /** The buyer persona the pact prices under (T-105); null follows the organization default. */
+  persona?: string | null;
 }
 
 /**
