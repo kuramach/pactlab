@@ -722,7 +722,7 @@ const packCard = (slug: string, line: string): PactCard => ({
 });
 
 /**
- * The home page's "Pacts you can run" carousel (T-086). Order is deliberate:
+ * The pacts shown as slides in the home page's top slider (T-086). Order is deliberate:
  * the core technology deal first, the packs through the middle, and the
  * founder's side of the table last.
  */
@@ -747,6 +747,43 @@ export const PACT_CARDS: readonly PactCard[] = [
   packCard('hospitals', 'Value on payer-mix-adjusted EBITDA, with census and accreditation in view.'),
   packCard('venture-raise', 'You are the one being diligenced. See what the investor will find, first.'),
 ];
+
+/** Slide copy for the pacts written up so far; any other published pact falls back to its card's line and its pack's findings. */
+const PACT_SLIDE_COPY: Readonly<Record<string, Pick<Slide, 'title' | 'body' | 'points' | 'imageAlt'> & { readonly linkLabel: string }>> = {
+  technology: {
+    title: 'Buying a software company? Diligence it end to end.',
+    body:
+      'Pactlab reads the recurring revenue, the code, the delivery history and the contracts, reconciles them to the ' +
+      'seller’s numbers, and carries every accepted finding into Sextant’s valuation.',
+    points: ['ARR and churn reconciled to the invoices', 'Code, licenses and key people traced', 'Accepted findings priced into the bridge'],
+    imageAlt: 'Software and SaaS: code, recurring revenue and commit history',
+    linkLabel: 'Run a technology pact',
+  },
+  multifamily: {
+    title: 'The rent roll sets the price, not the offering memorandum.',
+    body:
+      'Pactlab ties the rent roll, the T-12 and the lease files to the offering memorandum unit by unit, so loss-to-lease, ' +
+      'delinquency and deferred maintenance are in the net operating income before you bid.',
+    points: ['Rent roll and T-12 tied to the memorandum', 'Loss-to-lease and delinquency by unit', 'Capital expenditure per door priced as remediation'],
+    imageAlt: 'Multifamily: apartment buildings, the rent roll and net operating income',
+    linkLabel: 'Run a multifamily pact',
+  },
+};
+
+/** A pact as a slide in the home page's top slider, beside the message slides. */
+export function pactSlide(card: PactCard): Slide {
+  const copy = PACT_SLIDE_COPY[card.id];
+  return {
+    id: `pact-${card.id}`,
+    eyebrow: `${card.name} pact`,
+    title: copy?.title ?? card.name,
+    body: copy?.body ?? card.line,
+    points: copy?.points ?? INDUSTRIES.find((industry) => industry.slug === card.id)?.pack?.findings ?? [],
+    image: card.image,
+    imageAlt: copy?.imageAlt ?? `${card.name} illustration`,
+    link: { href: card.href, label: copy?.linkLabel ?? `Run a ${card.name.toLowerCase()} pact` },
+  };
+}
 
 export const NAV = [
   { href: '/product', label: 'Product' },
@@ -966,7 +1003,7 @@ export const DEMOS: Demo[] = [
   },
 ];
 
-/** Home page carousel: the four things Pactlab stands for. */
+/** Home page top slider: the four things Pactlab stands for, followed by one slide per published pact. */
 export interface Slide {
   readonly id: string;
   readonly eyebrow: string;
@@ -1079,42 +1116,57 @@ export const FOUNDER = {
   initials: 'KR',
   photo: '/team/kumar-ramachandran.jpg',
   linkedin: 'https://www.linkedin.com/in/kuramach/',
-  title: 'Price every asset. Protect every asset. Before, during and after the deal.',
+  title: 'An excellent business, at the right price. Then keep what you paid for.',
   intro:
-    'I have spent my career on deal teams. Different deals, different industries — and the same gap every time.',
-  dealsIntro: 'I have worked on acquisitions made for every reason a company buys another:',
+    'I have spent my career at the deal table, in technology and in real estate: software companies and platforms, ' +
+    'apartment portfolios and commercial property. Different assets, different counterparties, and the same lesson every time.',
+  dealsIntro: 'I have seen companies and properties bought for every reason a buyer buys:',
   deals: [
-    { icon: 'TrendingUp', title: 'Top-line growth', body: 'Buying revenue, customers and a pipeline faster than we could build them.' },
-    { icon: 'Target', title: 'New markets', body: 'Entering a geography or a segment through a company already trusted there.' },
-    { icon: 'Layers', title: 'Competitive consolidation', body: 'Buying out a competitor to take its customers and its place in the market.' },
-    { icon: 'Boxes', title: 'Volume and scale', body: 'Combining operations for scale: more volume through the same platform, at a lower unit cost.' },
+    { icon: 'TrendingUp', title: 'Top-line growth', body: 'Buying revenue, customers and a pipeline faster than they could be built.' },
+    { icon: 'Target', title: 'New markets', body: 'Entering a geography or a segment through a business already trusted there.' },
+    { icon: 'Layers', title: 'Consolidation', body: 'Buying out a competitor to take its customers and its place in the market.' },
+    { icon: 'Boxes', title: 'Volume and scale', body: 'More customers through the same platform, more doors under the same management, at a lower cost each.' },
   ],
+  artTitle: 'Pricing a deal is an art, not a search for the lowest number',
+  art: [
+    'No deal turns on price alone. Every one holds competing terms in tension: price against earn-out, escrow against ' +
+      'indemnity, speed to close against depth of diligence, the seller’s retention against the buyer’s plan. Move one and the others move with it.',
+    'The cheapest deal is rarely the most lucrative. A low price for a business with fragile revenue, unowned code or a rent roll ' +
+      'that does not hold up is not a bargain; it is a discount on problems you will pay for later. A fair price for an excellent asset compounds.',
+  ],
+  principle: {
+    quote: 'It’s far better to buy a wonderful company at a fair price than a fair company at a wonderful price.',
+    attribution: 'Warren Buffett, 1989 letter to Berkshire Hathaway shareholders, crediting the lesson to Charlie Munger',
+    body:
+      'Munger’s discipline is the one Pactlab is built for: know whether the business is excellent, decide what it is worth to you, ' +
+      'and agree the terms that protect that value.',
+  },
   problemTitle: 'What every one of those deals was missing',
   problems: [
     {
       title: 'No holistic view of the assets',
       body:
-        'Revenue sat in one spreadsheet, the code in a technical memo, the contracts in a data room and the people in an HR summary. ' +
-        'Nobody could see all the assets together, so nobody could see how they depended on each other.',
+        'Revenue sat in one spreadsheet, the code or the property condition in a technical memo, the contracts in a data room and the people in an HR summary. ' +
+        'Nobody could see the assets together, so nobody could see how they depended on each other.',
     },
     {
       title: 'Risk and reward never calibrated',
       body:
-        'Findings arrived as prose, late, and rarely made it into the price. We negotiated on a model that did not know what diligence had found, ' +
-        'and we could not say how much risk we were really taking for the return we expected.',
+        'Findings arrived as prose, late, and rarely made it into the price or the terms. We negotiated on a model that did not know what diligence had found, ' +
+        'and could not say how much risk we were taking for the return we expected.',
     },
     {
-      title: 'Assets lost after closing — above all, people',
+      title: 'Value lost after closing, above all people',
       body:
         'Once the deal closed, the diligence went into a drawer. The engineers who held the product together, the account owners, the ' +
-        'specialists — the human capital we had paid for — walked out in the first year, and the value went with them.',
+        'specialists, the human capital we had paid for, walked out in the first year, and the value went with them.',
     },
   ],
   visionTitle: 'Why I built Pactlab',
   vision:
-    'Pactlab is one platform for the whole life of a deal. It prices every asset against your risk tolerance before you sign, ' +
-    'carries that evidence through negotiation into the terms, and keeps tracking and protecting those assets after close — ' +
-    'so the value you paid for is the value you keep.',
+    'Pactlab is one platform for the whole life of a deal. It shows whether the asset is as good as it looks, prices every finding ' +
+    'against your risk tolerance, weighs the terms against each other so you negotiate the whole deal rather than the headline number, ' +
+    'and keeps protecting what you bought after close, so the value you paid for is the value you keep.',
   phases: [
     {
       icon: 'ScanSearch',
@@ -1125,8 +1177,8 @@ export const FOUNDER = {
     {
       icon: 'Handshake',
       phase: 'During the deal',
-      title: 'Negotiate from evidence',
-      body: 'Accepted risks flow into Sextant’s scenarios, the purchase-price bridge, escrows and indemnities — every term traceable to its source.',
+      title: 'Negotiate the whole deal from evidence',
+      body: 'Accepted risks flow into Sextant’s scenarios, the purchase-price bridge, escrows and indemnities, every term traceable to its source.',
     },
     {
       icon: 'ShieldCheck',
@@ -1135,5 +1187,5 @@ export const FOUNDER = {
       body: 'A hundred-day plan tied to what diligence found, with key people, retention and integration risks tracked until the value is secure.',
     },
   ],
-  signoff: 'Maximum value is not found at signing. It is protected after it.',
+  signoff: 'The cheapest price is rarely the best deal. The right price for an excellent business is.',
 } as const;

@@ -57,6 +57,24 @@ export default function VisionPage() {
         </div>
       </section>
 
+      <section className="bg-navy text-white">
+        <div className="mx-auto grid max-w-6xl gap-12 px-6 py-20 md:grid-cols-[1.2fr_1fr]">
+          <div className="flex flex-col gap-5">
+            <h2 className="text-3xl font-extrabold tracking-tight sm:text-4xl">{FOUNDER.artTitle}</h2>
+            {FOUNDER.art.map((paragraph) => (
+              <p key={paragraph} className="text-lg leading-relaxed text-white/85">
+                {paragraph}
+              </p>
+            ))}
+          </div>
+          <figure className="flex flex-col justify-center gap-5 border-l-4 border-indigo pl-8">
+            <blockquote className="text-2xl font-extrabold leading-snug tracking-tight">“{FOUNDER.principle.quote}”</blockquote>
+            <figcaption className="text-sm text-white/70">{FOUNDER.principle.attribution}</figcaption>
+            <p className="leading-relaxed text-white/85">{FOUNDER.principle.body}</p>
+          </figure>
+        </div>
+      </section>
+
       <section className="bg-mist">
         <div className="mx-auto max-w-6xl px-6 py-20">
           <h2 className="text-3xl font-extrabold tracking-tight sm:text-4xl">{FOUNDER.problemTitle}</h2>

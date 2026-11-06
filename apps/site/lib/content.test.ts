@@ -239,4 +239,14 @@ describe('pacts carousel (T-086)', () => {
       expect(card.line.length, card.id).toBeLessThanOrEqual(90);
     }
   });
+
+  it('gives every shown pact a full slide in the top slider', () => {
+    for (const card of content.PACT_CARDS.filter((pact) => isPublishedHref(pact.href))) {
+      const slide = content.pactSlide(card);
+      expect(slide.link.href).toBe(card.href);
+      expect(slide.image).toBe(card.image);
+      expect(slide.points.length, card.id).toBeGreaterThanOrEqual(3);
+      expect(content.CAROUSEL.map((message) => message.id)).not.toContain(slide.id);
+    }
+  });
 });
