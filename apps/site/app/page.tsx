@@ -5,14 +5,14 @@ import { IconTile, ModuleMark } from '../components/icon';
 import { Lockup } from '../components/lockup';
 import { siteConfig } from '../lib/config';
 import { isPublishedHref } from '../lib/industry-stories';
-import { CAROUSEL, CLOSING, FOUNDER, HOME, MODULES, NAME_STORY, PACT_CARDS, PILLAR, PRINCIPLES, STORY, TAGLINE, pactSlide } from '../lib/content';
+import { CLOSING, FOUNDER, HOME, MODULES, NAME_STORY, PACT_CARDS, PILLAR, PRINCIPLES, STORY, TAGLINE, heroSlides, pactSlide } from '../lib/content';
 import { Demos } from './demos';
 import { jsonLdScript, pageMetadata, softwareApplicationJsonLd } from '../lib/seo';
 
 const { contactHref, signUpUrl } = siteConfig();
 
-// One marketing slider at the top: the message slides, then a slide per published pact (T-086).
-const SLIDES = [...CAROUSEL, ...PACT_CARDS.filter((card) => isPublishedHref(card.href)).map(pactSlide)];
+// One marketing slider at the top: platform messages and a slide per published pact (T-086), alternating.
+const SLIDES = heroSlides(PACT_CARDS.filter((card) => isPublishedHref(card.href)).map(pactSlide));
 
 function PrimaryCta({ tone = 'light' }: { tone?: 'light' | 'dark' }) {
   if (!contactHref) return null;

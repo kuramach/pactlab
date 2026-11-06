@@ -749,8 +749,10 @@ export const PACT_CARDS: readonly PactCard[] = [
 ];
 
 /** Slide copy for the pacts written up so far; any other published pact falls back to its card's line and its pack's findings. */
-const PACT_SLIDE_COPY: Readonly<Record<string, Pick<Slide, 'title' | 'body' | 'points' | 'imageAlt'> & { readonly linkLabel: string }>> = {
+const PACT_SLIDE_COPY: Readonly<Record<string, Pick<Slide, 'short' | 'title' | 'body' | 'points' | 'imageAlt'> & { readonly linkLabel: string; readonly icon: IconName }>> = {
   technology: {
+    short: 'Technology',
+    icon: 'AppWindow',
     title: 'Buying a software company? Diligence it end to end.',
     body:
       'Pactlab reads the recurring revenue, the code, the delivery history and the contracts, reconciles them to the ' +
@@ -760,6 +762,8 @@ const PACT_SLIDE_COPY: Readonly<Record<string, Pick<Slide, 'title' | 'body' | 'p
     linkLabel: 'Run a technology pact',
   },
   multifamily: {
+    short: 'Multifamily',
+    icon: 'Building2',
     title: 'The rent roll sets the price, not the offering memorandum.',
     body:
       'Pactlab ties the rent roll, the T-12 and the lease files to the offering memorandum unit by unit, so loss-to-lease, ' +
@@ -773,12 +777,16 @@ const PACT_SLIDE_COPY: Readonly<Record<string, Pick<Slide, 'title' | 'body' | 'p
 /** A pact as a slide in the home page's top slider, beside the message slides. */
 export function pactSlide(card: PactCard): Slide {
   const copy = PACT_SLIDE_COPY[card.id];
+  const industry = INDUSTRIES.find((entry) => entry.slug === card.id);
   return {
     id: `pact-${card.id}`,
+    group: 'pact',
+    short: copy?.short ?? card.name,
+    icon: copy?.icon ?? industry?.icon,
     eyebrow: `${card.name} pact`,
     title: copy?.title ?? card.name,
     body: copy?.body ?? card.line,
-    points: copy?.points ?? INDUSTRIES.find((industry) => industry.slug === card.id)?.pack?.findings ?? [],
+    points: copy?.points ?? industry?.pack?.findings ?? [],
     image: card.image,
     imageAlt: copy?.imageAlt ?? `${card.name} illustration`,
     link: { href: card.href, label: copy?.linkLabel ?? `Run a ${card.name.toLowerCase()} pact` },
@@ -1006,6 +1014,12 @@ export const DEMOS: Demo[] = [
 /** Home page top slider: the four things Pactlab stands for, followed by one slide per published pact. */
 export interface Slide {
   readonly id: string;
+  /** Platform message or runnable pact: the slider groups its buttons by this. */
+  readonly group: 'platform' | 'pact';
+  /** The slide's button label: a word or two. */
+  readonly short: string;
+  /** Shown on pact slides beside the "Pact" tag. */
+  readonly icon?: IconName;
   readonly eyebrow: string;
   readonly title: string;
   readonly body: string;
@@ -1018,6 +1032,8 @@ export interface Slide {
 export const CAROUSEL: readonly Slide[] = [
   {
     id: 'rigor',
+    group: 'platform',
+    short: 'AI rigor',
     eyebrow: 'AI rigor. Human judgment.',
     title: 'The machine does the diligence. You make the call.',
     body:
@@ -1030,6 +1046,8 @@ export const CAROUSEL: readonly Slide[] = [
   },
   {
     id: 'deal-360',
+    group: 'platform',
+    short: '360° view',
     eyebrow: 'A 360° view of the deal',
     title: 'Every deal term in one view — including human capital.',
     body:
@@ -1042,6 +1060,8 @@ export const CAROUSEL: readonly Slide[] = [
   },
   {
     id: 'sextant',
+    group: 'platform',
+    short: 'Sextant',
     eyebrow: 'Sextant',
     title: 'Sextant: take your bearings before you commit.',
     body:
@@ -1054,6 +1074,8 @@ export const CAROUSEL: readonly Slide[] = [
   },
   {
     id: 'security',
+    group: 'platform',
+    short: 'Security',
     eyebrow: 'Security first. Built on AWS.',
     title: 'Deal data held to the highest standard.',
     body:
@@ -1065,6 +1087,21 @@ export const CAROUSEL: readonly Slide[] = [
     link: { href: '/trust', label: 'How we protect deal data' },
   },
 ];
+
+/**
+ * The top slider's rotation: platform and pact slides alternate, so a concrete pact shows within the
+ * first two slides; whichever group is longer finishes the rotation. The buttons stay grouped.
+ */
+export function heroSlides(pacts: readonly Slide[]): Slide[] {
+  const slides: Slide[] = [];
+  for (let position = 0; position < Math.max(CAROUSEL.length, pacts.length); position += 1) {
+    const platform = CAROUSEL[position];
+    const pact = pacts[position];
+    if (platform) slides.push(platform);
+    if (pact) slides.push(pact);
+  }
+  return slides;
+}
 
 /** Promotion bar above the header. */
 export const ANNOUNCEMENT = {

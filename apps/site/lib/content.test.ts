@@ -247,6 +247,17 @@ describe('pacts carousel (T-086)', () => {
       expect(slide.image).toBe(card.image);
       expect(slide.points.length, card.id).toBeGreaterThanOrEqual(3);
       expect(content.CAROUSEL.map((message) => message.id)).not.toContain(slide.id);
+      expect(slide.group).toBe('pact');
     }
+  });
+
+  it('alternates platform and pact slides in the top slider, keeping every slide once', () => {
+    const pacts = content.PACT_CARDS.filter((pact) => isPublishedHref(pact.href)).map(content.pactSlide);
+    const slides = content.heroSlides(pacts);
+    expect(slides).toHaveLength(content.CAROUSEL.length + pacts.length);
+    expect(slides[0]?.group).toBe('platform');
+    if (pacts.length > 0) expect(slides[1]?.group).toBe('pact');
+    expect(slides.filter((slide) => slide.group === 'platform').map((slide) => slide.id)).toEqual(content.CAROUSEL.map((slide) => slide.id));
+    for (const slide of slides) expect(slide.short.length, slide.id).toBeLessThanOrEqual(14);
   });
 });
