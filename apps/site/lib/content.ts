@@ -774,6 +774,15 @@ const PACT_SLIDE_COPY: Readonly<Record<string, Pick<Slide, 'short' | 'title' | '
   },
 };
 
+/** The most pacts the top slider shows; every other published pact is one click away via "All pacts". */
+export const MAX_FEATURED_PACTS = 3;
+
+/**
+ * The pacts featured in the top slider, in order: pick the newest release or the one being pushed.
+ * Unpublished ids are skipped, and at most MAX_FEATURED_PACTS show.
+ */
+export const FEATURED_PACTS: readonly string[] = ['technology', 'multifamily'];
+
 /** A pact as a slide in the home page's top slider, beside the message slides. */
 export function pactSlide(card: PactCard): Slide {
   const copy = PACT_SLIDE_COPY[card.id];

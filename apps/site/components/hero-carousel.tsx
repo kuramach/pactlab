@@ -19,7 +19,16 @@ const GROUPS = [
  * focus or the pause button, and never auto-rotates for users who prefer
  * reduced motion (WCAG 2.2.2). Without JavaScript the first slide shows.
  */
-export function HeroCarousel({ slides, cta }: { slides: readonly Slide[]; cta: { href: string; label: string } | null }) {
+export function HeroCarousel({
+  slides,
+  cta,
+  allPacts,
+}: {
+  slides: readonly Slide[];
+  cta: { href: string; label: string } | null;
+  /** Ends the pact buttons: the slider features a few pacts, this link reaches the rest. */
+  allPacts?: { href: string; label: string };
+}) {
   const [index, setIndex] = useState(0);
   const [playing, setPlaying] = useState(true);
   const [held, setHeld] = useState(false);
@@ -144,6 +153,11 @@ export function HeroCarousel({ slides, cta }: { slides: readonly Slide[]; cta: {
                         {slide.short}
                       </button>
                     ))}
+                    {group === 'pact' && allPacts ? (
+                      <Link href={allPacts.href} className="inline-flex items-center px-2 py-2 text-sm font-semibold text-white underline-offset-4 hover:underline">
+                        {allPacts.label} →
+                      </Link>
+                    ) : null}
                   </div>
                 </div>
               );

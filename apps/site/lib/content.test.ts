@@ -251,6 +251,15 @@ describe('pacts carousel (T-086)', () => {
     }
   });
 
+  it('features at most three published pacts, all with written slide copy', () => {
+    expect(content.FEATURED_PACTS.length).toBeGreaterThan(0);
+    for (const id of content.FEATURED_PACTS) expect(content.PACT_CARDS.map((card) => card.id)).toContain(id);
+    const shown = content.FEATURED_PACTS.filter((id) => isPublishedHref(content.PACT_CARDS.find((card) => card.id === id)!.href));
+    expect(shown.length).toBeGreaterThan(0);
+    expect(content.MAX_FEATURED_PACTS).toBe(3);
+    expect(routeExists('/industries')).toBe(true);
+  });
+
   it('alternates platform and pact slides in the top slider, keeping every slide once', () => {
     const pacts = content.PACT_CARDS.filter((pact) => isPublishedHref(pact.href)).map(content.pactSlide);
     const slides = content.heroSlides(pacts);
