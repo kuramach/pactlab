@@ -192,7 +192,7 @@ export class PricingService {
           ...persona,
           options: BUYER_PERSONAS.map((key) => ({ persona: key, label: PERSONA_PROFILE[key].label, descriptor: PERSONA_PROFILE[key].descriptor })),
         },
-        active: activeRow ? { evaluationId: activeRow.id, adoptedAt: adoption!.adoptedAt.toISOString(), adoptedBy: adoption!.adoptedBy } : null,
+        active: activeRow && adoption ? { evaluationId: activeRow.id, adoptedAt: adoption.adoptedAt.toISOString(), adoptedBy: adoption.adoptedBy } : null,
         evaluations: evaluations.map((evaluation) => ({
           ...evaluation,
           deltaToActive: activeRow && evaluation.id !== activeRow.id ? evaluationDelta(evaluation.termMix, activeRow.termMix) : null,
@@ -254,16 +254,18 @@ export class PricingService {
       body.persona,
     );
     const weights = PERSONA_PROFILE[body.persona].weights;
-    const base = runs.find((run) => run.scenarioCase === 'BASE') ?? [...runs].sort((x, y) => new D(weights[y.scenarioCase]).comparedTo(weights[x.scenarioCase]))[0]!;
+    const base = runs.find((run) => run.scenarioCase === 'BASE') ?? [...runs].sort((x, y) => new D(weights[y.scenarioCase]).comparedTo(weights[x.scenarioCase]))[0];
+    if (!base) throw new UnprocessableEntityException();
     const mix = termMix(body.persona, price, base);
     const now = new Date();
-    const runIds = runs.map(() => newId());
+    const priced = runs.map((run) => ({ ...run, runId: newId() }));
+    const runIds = priced.map((run) => run.runId);
     const evaluationId = newId();
     await withTenant(this.prisma, tenant, async (tx) => {
-      for (const [index, run] of runs.entries()) {
+      for (const run of priced) {
         await tx.valuationRun.create({
           data: {
-            id: runIds[index]!,
+            id: run.runId,
             organizationId: tenant.organizationId,
             dealId,
             scenarioId: run.scenarioId,
@@ -287,8 +289,8 @@ export class PricingService {
           personaVersion: mix.personaVersion,
           runIds,
           cases: json(
-            runs.map((run, index): EvaluationCase => ({
-              runId: runIds[index]!,
+            priced.map((run): EvaluationCase => ({
+              runId: run.runId,
               scenarioId: run.scenarioId,
               scenarioName: run.scenarioName,
               case: run.scenarioCase,

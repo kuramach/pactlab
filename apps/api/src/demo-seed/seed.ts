@@ -134,13 +134,13 @@ export function demoModelResponse(request: ModelRequest): string {
       BALANCED: 'Weigh this evenly between price and protection, and keep the discussion on the evidence',
       DOWNSIDE_AND_LEVERAGE: 'Price this for the bad case and move the risk back to the seller through holdbacks and deferred consideration',
     };
-    const sections = rows.slice(0, 5).map((row) => ({
-      heading: `${row[3]!.slice(0, 80)}`.replace(/\d/g, ''),
-      body: `${framing[tone] ?? framing['BALANCED']}. Carried as ${row[4]!.toLowerCase().replace(/_/g, ' ')} ${SYNTHETIC}.`.replace(/\d/g, ''),
-      citedFindingIds: [row[1]!],
+    const sections = rows.slice(0, 5).map(([, id = '', , title = '', lever = '']) => ({
+      heading: title.slice(0, 80).replace(/\d/g, ''),
+      body: `${framing[tone] ?? framing['BALANCED']}. Carried as ${lever.toLowerCase().replace(/_/g, ' ')} ${SYNTHETIC}.`.replace(/\d/g, ''),
+      citedFindingIds: [id],
     }));
     const opening = `Lead with the terms in the order shown, and keep every point tied to accepted evidence ${SYNTHETIC}.`;
-    return JSON.stringify({ sections: [{ heading: 'How to open', body: opening, citedFindingIds: rows.slice(0, 3).map((row) => row[1]!) }, ...sections] });
+    return JSON.stringify({ sections: [{ heading: 'How to open', body: opening, citedFindingIds: rows.slice(0, 3).map(([, id = '']) => id) }, ...sections] });
   }
   // Foresight baseline (T-073): a synthetic, balanced view for each question asked.
   if (request.system.includes('Answer every question you are given')) {

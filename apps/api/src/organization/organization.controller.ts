@@ -1,14 +1,12 @@
 import { Body, Controller, ForbiddenException, Get, Inject, NotFoundException, Put } from '@nestjs/common';
 import { BUYER_PERSONAS, isBuyerPersona, PERSONA_PROFILE, resolvePersona, type BuyerPersona } from '@pactlab/calculations';
 import { appendAuditEvent, withTenant, type PrismaClient } from '@pactlab/db';
-import { z } from 'zod';
+import { personaBodySchema } from '../pricing/pricing.schemas';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { RequestId } from '../deals/request-id.decorator';
 import type { TenantContext } from '@pactlab/domain';
 import { Tenant } from '../auth/tenant.decorator';
 import { PRISMA } from '../tokens';
-
-const personaSchema = z.strictObject({ persona: z.enum(BUYER_PERSONAS).nullable() });
 
 export interface OrganizationMemberView {
   userId: string;
@@ -58,7 +56,7 @@ export class OrganizationController {
   async setPersona(
     @Tenant() tenant: TenantContext,
     @RequestId() requestId: string,
-    @Body(new ZodValidationPipe(personaSchema)) body: { persona: BuyerPersona | null },
+    @Body(new ZodValidationPipe(personaBodySchema)) body: { persona: BuyerPersona | null },
   ) {
     if (tenant.organizationRole !== 'ORG_OWNER' && tenant.organizationRole !== 'ORG_ADMIN') throw new ForbiddenException();
     await withTenant(this.prisma, tenant, async (tx) => {
