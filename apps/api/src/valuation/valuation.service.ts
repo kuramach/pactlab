@@ -21,6 +21,7 @@ import {
   type LinkedBalanceSheetItem,
   type LinkedFindingState,
   type LinkedItemState,
+  type ScenarioCase,
   type ValuationInputs,
 } from '@pactlab/calculations';
 import { appendAuditEvent, askingPrices, balanceSheetItems, deals, withTenant, type PrismaClient } from '@pactlab/db';
@@ -41,6 +42,7 @@ import {
 import type {
   CreateScenarioBody,
   DecideSubmissionBody,
+  ScenarioCaseBody,
   UpdateAssumptionsBody,
   VersionedCommandBody,
 } from './valuation.schemas';
@@ -320,6 +322,7 @@ export class ValuationService {
       transactionType: deal.transactionType,
       status: 'DRAFT',
       assumptionVersion: 1,
+      scenarioCase: body.scenarioCase,
       createdBy: tenant.userId,
       createdAt: now,
       updatedAt: now,
@@ -340,6 +343,35 @@ export class ValuationService {
       this.audit(tenant, scenario, 'valuation.scenario.created', requestId),
     );
     return this.get(tenant, dealId, scenario.id, requestId);
+  }
+
+  /** Tag a scenario Downside, Base or Upside for persona weighting (T-105); allowed in any status. */
+  async setCase(tenant: TenantContext, dealId: string, scenarioId: string, body: ScenarioCaseBody, requestId: string) {
+    await this.access.require(tenant, dealId, canWriteValuation, { action: 'valuation.scenario.case_set', requestId });
+    const record = await this.load(tenant, dealId, scenarioId);
+    await this.scenarios.setCase(tenant, record.scenario, body.scenarioCase, this.audit(tenant, record.scenario, 'valuation.scenario.case_set', requestId));
+    return this.get(tenant, dealId, scenarioId, requestId);
+  }
+
+  /**
+   * The scenarios a persona evaluation prices (T-105), with their current
+   * inputs resolved: the latest scenario tagged for each case, or, when none
+   * is tagged, the latest scenario as Base. Callers check access.
+   */
+  async pricingInputs(tenant: TenantContext, dealId: string): Promise<{ scenario: Scenario; scenarioCase: ScenarioCase; inputs: ValuationInputs }[]> {
+    const records = [...(await this.scenarios.list(tenant, dealId))].sort((x, y) => (x.scenario.updatedAt < y.scenario.updatedAt ? 1 : -1));
+    const picked = new Map<ScenarioCase, ScenarioRecord>();
+    for (const record of records) {
+      if (record.scenario.scenarioCase && !picked.has(record.scenario.scenarioCase)) picked.set(record.scenario.scenarioCase, record);
+    }
+    if (picked.size === 0 && records[0]) picked.set('BASE', records[0]);
+    return Promise.all(
+      [...picked].map(async ([scenarioCase, record]) => ({
+        scenario: record.scenario,
+        scenarioCase,
+        inputs: await this.buildInputs(tenant, record.scenario, this.currentAssumptions(record).values),
+      })),
+    );
   }
 
   private requireDraft(record: ScenarioRecord, expectedVersion: number) {

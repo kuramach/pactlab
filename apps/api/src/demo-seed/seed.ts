@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import type { INestApplicationContext } from '@nestjs/common';
 import { neutralizeMarkup, type ModelRequest } from '@pactlab/ai';
+import type { ScenarioCase } from '@pactlab/calculations';
 import { comparables, deals, resolvePrincipal, withTenant, type PrismaClient } from '@pactlab/db';
 import { balanceSheetItemInputSchema, createRegulatoryEntrySchema, startPactSchema, uploadQuerySchema, type AskingPriceInput } from '@pactlab/contracts';
 import type { TenantContext } from '@pactlab/domain';
@@ -329,11 +330,14 @@ export async function seedDemo(
       scenarioName: string,
       values: Parameters<ValuationService['create']>[2]['values'],
       steps: { run: boolean; submitAndApprove: boolean },
+      // The case buyer personas weight it as (T-105).
+      scenarioCase: ScenarioCase | null = null,
     ) => {
       const id = dealId(name);
       if (!id) return;
       const existing = (await valuation.list(who.lead, id, REQUEST_ID)).items.find((view) => view.scenario.name === scenarioName);
-      let view = existing ?? (await valuation.create(who.lead, id, { name: scenarioName, values }, REQUEST_ID));
+      let view = existing ?? (await valuation.create(who.lead, id, { name: scenarioName, scenarioCase, values }, REQUEST_ID));
+      if (view.scenario.scenarioCase !== scenarioCase) view = await valuation.setCase(who.lead, id, view.scenario.id, { scenarioCase }, REQUEST_ID);
       if (steps.run && !view.latestRun) {
         await valuation.run(who.lead, id, view.scenario.id, { expectedVersion: view.scenario.version }, REQUEST_ID);
         view = await valuation.get(who.lead, id, view.scenario.id, REQUEST_ID);
@@ -377,7 +381,17 @@ export async function seedDemo(
         },
       },
       { run: true, submitAndApprove: true },
+      'BASE',
     );
+    for (const [caseName, scenarioCase, multiple] of [['Downside — ARR multiple', 'DOWNSIDE', '5.5'], ['Upside — ARR multiple', 'UPSIDE', '7.5']] as const) {
+      await scenario(
+        'Project Healthy',
+        caseName,
+        { ...defaults, assumptions: { method: 'ARR_MULTIPLE', arr: '402840', multiple }, bridge: bridge('250000', '0', '40000', '-15000'), findingLinks: [] },
+        { run: true, submitAndApprove: false },
+        scenarioCase,
+      );
+    }
 
     const accepted = troubled
       ? (await findingsService.list(who.lead, troubled, { status: 'ACCEPTED' }, REQUEST_ID)).items.filter((finding) => finding.pricedRisk)
@@ -392,6 +406,19 @@ export async function seedDemo(
         findingLinks: accepted.slice(0, 1).map((finding) => ({ findingId: finding.id, point: 'MID' as const })),
       },
       { run: true, submitAndApprove: false },
+      'BASE',
+    );
+    await scenario(
+      'Project Troubled',
+      'Upside — ARR multiple, risk-adjusted',
+      {
+        ...defaults,
+        assumptions: { method: 'ARR_MULTIPLE', arr: '268000', multiple: '5' },
+        bridge: bridge('90000', '120000', '35000', '-20000'),
+        findingLinks: accepted.slice(0, 1).map((finding) => ({ findingId: finding.id, point: 'MID' as const })),
+      },
+      { run: true, submitAndApprove: false },
+      'UPSIDE',
     );
     await scenario(
       'Project Troubled',
@@ -412,9 +439,10 @@ export async function seedDemo(
           terminal: { kind: 'GORDON', growth: '0.03' },
         },
         bridge: bridge('90000', '120000', '35000', '-20000'),
-        findingLinks: [],
+        findingLinks: accepted.slice(0, 1).map((finding) => ({ findingId: finding.id, point: 'MID' as const })),
       },
       { run: true, submitAndApprove: false },
+      'DOWNSIDE',
     );
     await scenario(
       'Project Sparse',

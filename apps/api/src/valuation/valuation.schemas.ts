@@ -1,5 +1,6 @@
 import {
   ADJUSTMENT_POINTS,
+  SCENARIO_CASES,
   SENSITIVITY_VARIABLES,
 } from '@pactlab/calculations';
 import { z } from 'zod';
@@ -90,6 +91,8 @@ export const createScenarioSchema = z.strictObject({
     .string()
     .regex(/^[A-Z]{3}$/)
     .optional(),
+  /** The case a persona weights this scenario as (T-105). */
+  scenarioCase: z.enum(SCENARIO_CASES).nullable().default(null),
   values: scenarioAssumptionsSchema,
 });
 export type CreateScenarioBody = z.infer<typeof createScenarioSchema>;
@@ -104,6 +107,9 @@ export const versionedCommandSchema = z.strictObject({
   expectedVersion: z.number().int().positive(),
 });
 export type VersionedCommandBody = z.infer<typeof versionedCommandSchema>;
+
+export const scenarioCaseSchema = z.strictObject({ scenarioCase: z.enum(SCENARIO_CASES).nullable() });
+export type ScenarioCaseBody = z.infer<typeof scenarioCaseSchema>;
 
 export const decideSubmissionSchema = z.strictObject({
   expectedVersion: z.number().int().positive(),

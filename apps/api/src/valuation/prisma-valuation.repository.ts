@@ -1,4 +1,4 @@
-import type { ValuationInputs, ValuationResult } from '@pactlab/calculations';
+import { SCENARIO_CASES, type ScenarioCase, type ValuationInputs, type ValuationResult } from '@pactlab/calculations';
 import {
   appendAuditEvent,
   withTenant,
@@ -22,7 +22,8 @@ import type {
 
 const recordInclude = {
   assumptionSets: { orderBy: { version: 'asc' } },
-  runs: { orderBy: [{ ranAt: 'desc' }, { id: 'desc' }], take: 1 },
+  // Persona-priced runs belong to pricing evaluations (T-105): never submitted, never a scenario's latest.
+  runs: { where: { persona: null }, orderBy: [{ ranAt: 'desc' }, { id: 'desc' }], take: 1 },
   submissions: {
     orderBy: [{ submittedAt: 'asc' }, { id: 'asc' }],
     include: { decisions: { orderBy: [{ decidedAt: 'asc' }, { id: 'asc' }] } },
@@ -45,6 +46,7 @@ function toScenario(row: ScenarioRow): Scenario {
     transactionType: row.transactionType,
     status: row.status,
     assumptionVersion: row.assumptionVersion,
+    scenarioCase: (SCENARIO_CASES as readonly string[]).includes(row.scenarioCase ?? '') ? (row.scenarioCase as ScenarioCase) : null,
     createdBy: row.createdBy,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
@@ -231,6 +233,7 @@ export class PrismaValuationRepository implements ValuationRepository {
           transactionType: scenario.transactionType,
           status: scenario.status,
           assumptionVersion: scenario.assumptionVersion,
+          scenarioCase: scenario.scenarioCase,
           createdBy: scenario.createdBy,
           createdAt: new Date(scenario.createdAt),
           updatedAt: new Date(scenario.updatedAt),
@@ -263,6 +266,13 @@ export class PrismaValuationRepository implements ValuationRepository {
       await appendChange(tx, scenario, change);
       await appendAuditEvent(tx, audit);
       return true;
+    });
+  }
+
+  async setCase(tenant: TenantContext, scenario: Scenario, scenarioCase: ScenarioCase | null, audit: AuditEventInput): Promise<void> {
+    await withTenant(this.prisma, tenant, async (tx) => {
+      await tx.valuationScenario.updateMany({ where: { id: scenario.id, dealId: scenario.dealId }, data: { scenarioCase } });
+      await appendAuditEvent(tx, audit);
     });
   }
 }

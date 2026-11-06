@@ -1,6 +1,7 @@
 import type {
   AccretionDilutionAssumptions,
   AdjustmentPoint,
+  ScenarioCase,
   BridgeAssumptions,
   LboAssumptions,
   MethodAssumptions,
@@ -31,6 +32,8 @@ export interface Scenario {
   readonly status: ScenarioStatus;
   /** Version of the current assumption set. */
   readonly assumptionVersion: number;
+  /** The case a persona weights this scenario as (T-105); null is untagged. */
+  readonly scenarioCase: ScenarioCase | null;
   readonly createdBy: string;
   readonly createdAt: string;
   readonly updatedAt: string;
@@ -105,6 +108,7 @@ export interface ScenarioRecord {
   readonly scenario: Scenario;
   /** Oldest first; append-only. */
   readonly assumptionSets: readonly AssumptionSet[];
+  /** The latest scenario run; persona-priced runs (T-105) belong to evaluations, never here. */
   readonly latestRun: ValuationRun | null;
   /** Oldest first; append-only. */
   readonly submissions: readonly Submission[];
@@ -149,4 +153,6 @@ export interface ValuationRepository {
     change: ScenarioChange,
     audit: AuditEventInput,
   ): Promise<boolean>;
+  /** Tag a scenario's case. Not an assumption change: no new version, nothing goes stale. */
+  setCase(tenant: TenantContext, scenario: Scenario, scenarioCase: ScenarioCase | null, audit: AuditEventInput): Promise<void>;
 }
