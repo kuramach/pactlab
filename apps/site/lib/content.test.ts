@@ -239,4 +239,34 @@ describe('pacts carousel (T-086)', () => {
       expect(card.line.length, card.id).toBeLessThanOrEqual(90);
     }
   });
+
+  it('gives every shown pact a full slide in the top slider', () => {
+    for (const card of content.PACT_CARDS.filter((pact) => isPublishedHref(pact.href))) {
+      const slide = content.pactSlide(card);
+      expect(slide.link.href).toBe(card.href);
+      expect(slide.image).toBe(card.image);
+      expect(slide.points.length, card.id).toBeGreaterThanOrEqual(3);
+      expect(content.CAROUSEL.map((message) => message.id)).not.toContain(slide.id);
+      expect(slide.group).toBe('pact');
+    }
+  });
+
+  it('features at most three published pacts, all with written slide copy', () => {
+    expect(content.FEATURED_PACTS.length).toBeGreaterThan(0);
+    for (const id of content.FEATURED_PACTS) expect(content.PACT_CARDS.map((card) => card.id)).toContain(id);
+    const shown = content.FEATURED_PACTS.filter((id) => isPublishedHref(content.PACT_CARDS.find((card) => card.id === id)!.href));
+    expect(shown.length).toBeGreaterThan(0);
+    expect(content.MAX_FEATURED_PACTS).toBe(3);
+    expect(routeExists('/industries')).toBe(true);
+  });
+
+  it('alternates platform and pact slides in the top slider, keeping every slide once', () => {
+    const pacts = content.PACT_CARDS.filter((pact) => isPublishedHref(pact.href)).map(content.pactSlide);
+    const slides = content.heroSlides(pacts);
+    expect(slides).toHaveLength(content.CAROUSEL.length + pacts.length);
+    expect(slides[0]?.group).toBe('platform');
+    if (pacts.length > 0) expect(slides[1]?.group).toBe('pact');
+    expect(slides.filter((slide) => slide.group === 'platform').map((slide) => slide.id)).toEqual(content.CAROUSEL.map((slide) => slide.id));
+    for (const slide of slides) expect(slide.short.length, slide.id).toBeLessThanOrEqual(14);
+  });
 });

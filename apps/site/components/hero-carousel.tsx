@@ -4,15 +4,31 @@ import { ChevronLeft, ChevronRight, Pause, Play } from 'lucide-react';
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import type { Slide } from '../lib/content';
+import { Icon } from './icon';
 
-const INTERVAL_MS = 8000;
+const INTERVAL_MS = 6000;
+
+const GROUPS = [
+  { group: 'platform', label: 'Platform' },
+  { group: 'pact', label: 'Pacts you can run' },
+] as const;
 
 /**
- * Home page hero carousel. Rotates every 8 s, pauses on hover, keyboard
+ * Home page hero carousel: platform messages and runnable pacts, with the
+ * buttons grouped by kind. Rotates every 6 s, pauses on hover, keyboard
  * focus or the pause button, and never auto-rotates for users who prefer
  * reduced motion (WCAG 2.2.2). Without JavaScript the first slide shows.
  */
-export function HeroCarousel({ slides, cta }: { slides: readonly Slide[]; cta: { href: string; label: string } | null }) {
+export function HeroCarousel({
+  slides,
+  cta,
+  allPacts,
+}: {
+  slides: readonly Slide[];
+  cta: { href: string; label: string } | null;
+  /** Ends the pact buttons: the slider features a few pacts, this link reaches the rest. */
+  allPacts?: { href: string; label: string };
+}) {
   const [index, setIndex] = useState(0);
   const [playing, setPlaying] = useState(true);
   const [held, setHeld] = useState(false);
@@ -69,7 +85,17 @@ export function HeroCarousel({ slides, cta }: { slides: readonly Slide[]; cta: {
                 className={`grid items-center gap-12 md:grid-cols-[1.15fr_1fr] ${active ? (moved ? 'animate-[fade_600ms_ease-out]' : '') : 'hidden'}`}
               >
                 <div className="flex flex-col gap-6">
-                  <p className="text-sm font-bold uppercase tracking-widest text-indigo">{slide.eyebrow}</p>
+                  {slide.group === 'pact' ? (
+                    <p className="flex items-center gap-3 text-sm font-bold uppercase tracking-widest text-indigo">
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-indigo px-3 py-1 text-xs text-navy">
+                        {slide.icon ? <Icon name={slide.icon} className="h-4 w-4" /> : null}
+                        Pact
+                      </span>
+                      {slide.eyebrow}
+                    </p>
+                  ) : (
+                    <p className="text-sm font-bold uppercase tracking-widest text-indigo">{slide.eyebrow}</p>
+                  )}
                   {position === 0 ? (
                     <h1 className="text-4xl font-extrabold leading-[1.08] tracking-tight sm:text-5xl">{slide.title}</h1>
                   ) : (
@@ -104,20 +130,38 @@ export function HeroCarousel({ slides, cta }: { slides: readonly Slide[]; cta: {
         </div>
 
         <div className="mt-10 flex flex-wrap items-center justify-between gap-4 border-t border-white/10 pt-6">
-          <div className="flex flex-wrap gap-2" role="group" aria-label="Choose a slide">
-            {slides.map((slide, position) => (
-              <button
-                key={slide.id}
-                type="button"
-                onClick={() => go(position)}
-                aria-current={position === index ? 'true' : undefined}
-                className={`rounded-full px-4 py-2 text-sm font-semibold transition-colors ${
-                  position === index ? 'bg-indigo text-navy' : 'bg-white/10 text-white/80 hover:bg-white/20'
-                }`}
-              >
-                {slide.eyebrow}
-              </button>
-            ))}
+          <div className="flex flex-wrap gap-x-8 gap-y-4">
+            {GROUPS.map(({ group, label }) => {
+              const members = slides.map((slide, position) => ({ slide, position })).filter(({ slide }) => slide.group === group);
+              if (members.length === 0) return null;
+              return (
+                <div key={group} role="group" aria-label={label} className="flex flex-col gap-2">
+                  <p className="text-xs font-bold uppercase tracking-widest text-white/50">{label}</p>
+                  <div className="flex flex-wrap gap-2">
+                    {members.map(({ slide, position }) => (
+                      <button
+                        key={slide.id}
+                        type="button"
+                        onClick={() => go(position)}
+                        aria-current={position === index ? 'true' : undefined}
+                        aria-label={slide.eyebrow}
+                        className={`inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold transition-colors ${
+                          position === index ? 'bg-indigo text-navy' : 'bg-white/10 text-white/80 hover:bg-white/20'
+                        }`}
+                      >
+                        {slide.icon ? <Icon name={slide.icon} className="h-4 w-4" /> : null}
+                        {slide.short}
+                      </button>
+                    ))}
+                    {group === 'pact' && allPacts ? (
+                      <Link href={allPacts.href} className="inline-flex items-center px-2 py-2 text-sm font-semibold text-white underline-offset-4 hover:underline">
+                        {allPacts.label} →
+                      </Link>
+                    ) : null}
+                  </div>
+                </div>
+              );
+            })}
           </div>
           <div className="flex items-center gap-2">
             <button type="button" onClick={() => go(index - 1)} aria-label="Previous slide" className="rounded-full border border-white/25 p-2 hover:border-white">

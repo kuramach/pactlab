@@ -1,16 +1,26 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { HeroCarousel } from '../components/hero-carousel';
-import { PactCarousel } from '../components/pact-carousel';
 import { IconTile, ModuleMark } from '../components/icon';
 import { Lockup } from '../components/lockup';
 import { siteConfig } from '../lib/config';
 import { isPublishedHref } from '../lib/industry-stories';
-import { CAROUSEL, CLOSING, FOUNDER, HOME, MODULES, NAME_STORY, PACT_CARDS, PILLAR, PRINCIPLES, STORY, TAGLINE } from '../lib/content';
+import { CLOSING, FOUNDER, HOME, MODULES, NAME_STORY, PACT_CARDS, PILLAR, PRINCIPLES, STORY, TAGLINE, FEATURED_PACTS, heroSlides, MAX_FEATURED_PACTS, pactSlide } from '../lib/content';
 import { Demos } from './demos';
 import { jsonLdScript, pageMetadata, softwareApplicationJsonLd } from '../lib/seo';
 
 const { contactHref, signUpUrl } = siteConfig();
+
+// One marketing slider at the top: platform messages and the featured pacts (T-086), alternating.
+const PUBLISHED_PACTS = PACT_CARDS.filter((card) => isPublishedHref(card.href));
+const FEATURED = FEATURED_PACTS.map((id) => PUBLISHED_PACTS.find((card) => card.id === id))
+  .filter((card) => card !== undefined)
+  .slice(0, MAX_FEATURED_PACTS);
+const SLIDES = heroSlides(FEATURED.map(pactSlide));
+const ALL_PACTS = {
+  href: '/industries',
+  label: PUBLISHED_PACTS.length > FEATURED.length ? `All ${PUBLISHED_PACTS.length} pacts` : 'All pacts',
+};
 
 function PrimaryCta({ tone = 'light' }: { tone?: 'light' | 'dark' }) {
   if (!contactHref) return null;
@@ -32,7 +42,7 @@ export default function HomePage() {
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdScript(softwareApplicationJsonLd()) }} />
-      <HeroCarousel slides={CAROUSEL} cta={contactHref ? { href: contactHref, label: 'Request a pilot' } : null} />
+      <HeroCarousel slides={SLIDES} allPacts={ALL_PACTS} cta={contactHref ? { href: contactHref, label: 'Request a pilot' } : null} />
 
       {/* Value proposition */}
       <section aria-labelledby="value-title" className="bg-white">
@@ -137,9 +147,6 @@ export default function HomePage() {
           </Link>
         </div>
       </section>
-
-      {/* Pacts you can run (T-086) */}
-      <PactCarousel cards={PACT_CARDS.filter((card) => isPublishedHref(card.href))} />
 
       <Demos />
 
