@@ -1,5 +1,5 @@
 import type { ForesightLineView, ForesightView } from '@pactlab/contracts';
-import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, EmptyState } from '@pactlab/ui';
+import { AiBadge, Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, EmptyState } from '@pactlab/ui';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { LineChart } from '../../../_lib/charts';
@@ -22,6 +22,11 @@ const OUTCOMES: Record<string, string> = {
   'ok-forecast': 'Your forecast is saved as a new version; the value under yours is updated below.',
   'invalid-forecast': 'Enter five yearly values as percents, e.g. 2.5 or -1.',
   'error-UNKNOWN_METRIC': 'That metric is not forecast for this pact.',
+  'ok-metric': 'Metric added. Ask the AI to forecast it, or drag your own line.',
+  'invalid-metric': 'Give the metric a name, a one-line definition, a neutral level as a percent (e.g. 3) and how it moves value.',
+  'ok-metric-forecast': 'The AI forecast is in, shown dashed next to your line.',
+  'error-AI_DECLINED': 'The AI could not forecast this metric. Set your own line instead.',
+  'ok-metric-archived': 'Metric removed from this pact.',
   'ok-scenario': 'Scenario saved and projected.',
   'error-AI_OFF': 'AI is not switched on for this environment yet, so no baseline can be generated. Scenarios need a baseline.',
   'error-AI_ACCESS': 'AI is unavailable: the AWS sign-in for this environment has expired. An operator needs to sign in again.',
@@ -75,7 +80,7 @@ function TrendTable({ line, dealId, posture }: { line: ForesightLineView; dealId
             </td>
             <td className="py-1.5 pr-2">{trend.confidence.toLowerCase()}</td>
             <td className="py-1.5">
-              {trend.provenance === 'AI' ? <Badge variant="draft">AI</Badge> : <Badge variant="calculation">{trend.adjusted ? 'Yours (adjusted)' : 'Yours'}</Badge>}
+              {trend.provenance === 'AI' ? <AiBadge /> : <Badge variant="calculation">{trend.adjusted ? 'Yours (adjusted)' : 'Yours'}</Badge>}
             </td>
           </tr>
         ))}
@@ -206,7 +211,7 @@ export default async function ForesightPage({ params, searchParams }: { params: 
       </div>
       <OutcomeBanner outcome={typeof outcome === 'string' ? outcome : undefined} messages={OUTCOMES} />
 
-      <ForecastsSection dealId={dealId} forecasts={view.forecasts} canEdit={view.canEdit} />
+      <ForecastsSection dealId={dealId} forecasts={view.forecasts} canEdit={view.canEdit} aiEnabled={view.ai.enabled} />
 
       {view.posture.signals.length > 0 ? (
         <Card aria-label="Government and regulatory posture">

@@ -1,37 +1,35 @@
-import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from '@pactlab/ui';
+import { AiBadge, Badge, Button, Card, CardContent, CardHeader, CardTitle, HumanBadge } from '@pactlab/ui';
 import Link from 'next/link';
 import { apiGet } from '../../_lib/api';
 import { can, type DealViewer } from '../../_lib/viewer';
 import { formatMoney } from '../../../metrics/_lib/format';
+import { PersonaCard, PersonaIcon } from '../../../valuation/_lib/persona-card';
 import {
   CASE_LABELS,
+  DECISION_LABELS,
   formatDelta,
   latestByPersona,
   LEVER_LABELS,
+  pricingMessage,
   type EvaluationView,
   type PricingView,
   type TermBatchView,
   type TermLever,
 } from '../../../valuation/_lib/pricing';
-import { adoptEvaluation, draftBrief, draftTerms, evaluateAs, proposeTerms, saveSellerNotes, setPactPersona } from './pricing-actions';
-
-export const PRICING_OUTCOMES: Record<string, string> = {
-  'ok-evaluated': 'Evaluated under the new persona. The findings and earlier runs are unchanged.',
-  'ok-adopted': 'Adopted as the active pricing. Nothing changes for the seller until you propose terms.',
-  'ok-persona': 'Persona saved for this pact.',
-  'ok-drafted': 'Terms drafted from the active pricing. Add notes for the seller, then propose.',
-  'ok-notes': 'Seller notes saved.',
-  'ok-proposed': 'Terms proposed to the seller. They are frozen; draft a new version to change them.',
-  'ok-brief': 'Negotiation brief drafted. It is for your team only.',
-  'ok-case': 'Scenario case saved.',
-  'pricing-no-scenario': 'Create a valuation scenario (and tag Downside, Base or Upside) before pricing under a persona.',
-  'adopt-first': 'Adopt a pricing evaluation before drafting terms.',
-  'terms-frozen': 'Those terms were already proposed and are frozen. Draft a new version.',
-  'brief-unavailable': 'The brief could not be drafted right now. Try again shortly.',
-  'brief-no-findings': 'The active pricing carries no accepted findings to brief on.',
-};
+import { acceptCounters, adoptEvaluation, draftBrief, draftTerms, evaluateAs, proposeTerms, saveSellerNotes, setPactPersona } from './pricing-actions';
 
 const inputClass = 'w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring';
+
+/** The result of the last action, shown inside the section it came from (batch 1: never only at the top of the page). */
+function Notice({ outcome, section }: { outcome: string | undefined; section: 'evaluate' | 'terms' | 'brief' }) {
+  const message = pricingMessage(outcome, section);
+  if (!message) return null;
+  return (
+    <p role={message.tone === 'ok' ? 'status' : 'alert'} className={`rounded-md border px-3 py-2 text-sm ${message.tone === 'ok' ? 'border-teal/40 bg-teal/10' : 'border-amber-300 bg-amber-50 text-amber-900'}`}>
+      {message.text}
+    </p>
+  );
+}
 
 const leverTotal = (evaluation: EvaluationView, lever: TermLever) =>
   evaluation.termMix.lines.filter((line) => line.lever === lever).reduce((total, line) => total + Number(line.amount.amount), 0);
@@ -44,6 +42,7 @@ function Delta({ value }: { value: string | undefined }) {
 function Compare({ dealId, view, writer }: { dealId: string; view: PricingView; writer: boolean }) {
   const columns = latestByPersona(view.evaluations, view.persona.options.map((option) => option.persona));
   if (columns.length === 0) return <p className="text-sm text-muted-foreground">No evaluation yet. Evaluate the pact under a persona to see its price and terms.</p>;
+  const option = (persona: string) => view.persona.options.find((entry) => entry.persona === persona);
   const levers = [...new Set(columns.flatMap((column) => column.termMix.lines.map((line) => line.lever)))];
   const rows: { label: string; value: (evaluation: EvaluationView) => string; delta: (evaluation: EvaluationView) => string | undefined; strong?: boolean }[] = [
     { label: 'Price (weighted)', value: (e) => formatMoney(e.termMix.price), delta: (e) => e.deltaToActive?.price, strong: true },
@@ -58,23 +57,29 @@ function Compare({ dealId, view, writer }: { dealId: string; view: PricingView; 
         <thead>
           <tr className="border-b border-border text-left">
             <th className="py-2 pr-4 font-medium text-muted-foreground">Compare</th>
-            {columns.map((column) => (
-              <th key={column.id} className="py-2 pr-4 align-bottom">
-                <span className="block font-semibold">{column.personaLabel}</span>
-                <span className="block text-xs font-normal text-muted-foreground">
-                  {column.cases.map((entry) => CASE_LABELS[entry.case]).join(' · ')} · {column.createdAt.slice(0, 10)}
-                </span>
-                {view.active?.evaluationId === column.id ? (
-                  <Badge variant="reviewed" className="mt-1">active</Badge>
-                ) : writer ? (
-                  <form action={adoptEvaluation.bind(null, dealId, column.id)} className="mt-1">
-                    <Button size="sm" variant="outline" type="submit">
-                      Adopt
-                    </Button>
-                  </form>
-                ) : null}
-              </th>
-            ))}
+            {columns.map((column) => {
+              const persona = option(column.persona);
+              return (
+                <th key={column.id} className="py-2 pr-4 align-bottom">
+                  <span className="flex items-center gap-2 font-semibold">
+                    {persona ? <PersonaIcon icon={persona.icon} className="h-4 w-4" /> : null}
+                    {column.personaLabel}
+                  </span>
+                  <span className="block text-xs font-normal text-muted-foreground">
+                    {column.cases.map((entry) => CASE_LABELS[entry.case]).join(' · ')} · {column.createdAt.slice(0, 10)}
+                  </span>
+                  {view.active?.evaluationId === column.id ? (
+                    <HumanBadge className="mt-1">Adopted</HumanBadge>
+                  ) : writer ? (
+                    <form action={adoptEvaluation.bind(null, dealId, column.id)} className="mt-1">
+                      <Button size="sm" variant="outline" type="submit">
+                        Adopt
+                      </Button>
+                    </form>
+                  ) : null}
+                </th>
+              );
+            })}
           </tr>
         </thead>
         <tbody className="divide-y divide-border">
@@ -106,20 +111,67 @@ function Compare({ dealId, view, writer }: { dealId: string; view: PricingView; 
   );
 }
 
-function Terms({ dealId, view, writer, titles }: { dealId: string; view: PricingView; writer: boolean; titles: ReadonlyMap<string, string> }) {
+/** The seller's latest answer to one term, as the buyer sees it. */
+function SellerAnswer({ response, currency }: { response: TermBatchView['terms'][number]['response']; currency: string }) {
+  if (!response) return <span className="text-xs text-muted-foreground">No answer yet</span>;
+  return (
+    <span className="flex flex-col gap-0.5 text-xs">
+      <span>
+        <Badge variant={response.decision === 'ACCEPT' ? 'reviewed' : response.decision === 'REJECT' ? 'danger' : 'draft'}>{DECISION_LABELS[response.decision]}</Badge>
+        {response.counterAmount ? <span className="ml-2 font-medium">{formatMoney({ amount: response.counterAmount, currency })}</span> : null}
+      </span>
+      {response.note ? <span className="text-muted-foreground">“{response.note}”</span> : null}
+    </span>
+  );
+}
+
+function Terms({ dealId, view, writer, titles, outcome }: { dealId: string; view: PricingView; writer: boolean; titles: ReadonlyMap<string, string>; outcome: string | undefined }) {
   const latest: TermBatchView | undefined = view.batches[0];
   const proposed = view.batches.find((batch) => batch.proposedAt);
+  const agreed = view.batches.find((batch) => batch.agreedAt);
+  const countered = proposed && !proposed.agreedAt && proposed.terms.some((term) => term.response?.decision === 'COUNTER');
   return (
-    <section className="flex flex-col gap-3">
+    <section id="pricing-terms" className="flex scroll-mt-24 flex-col gap-3">
       <div className="flex flex-wrap items-center gap-2">
         <h3 className="mr-auto font-bold">Proposed terms</h3>
-        {proposed ? <Badge variant="evidence">seller sees v{proposed.version}</Badge> : <Badge variant="draft">nothing proposed yet</Badge>}
+        {agreed ? <HumanBadge>Agreed v{agreed.version}</HumanBadge> : proposed ? <Badge variant="evidence">seller sees v{proposed.version}</Badge> : <Badge variant="draft">nothing proposed yet</Badge>}
       </div>
-      {view.sellerSeesOtherPricing ? (
+      <Notice outcome={outcome} section="terms" />
+      {view.sellerSeesOtherPricing && !agreed ? (
         <p role="status" className="rounded-md border border-border bg-muted px-3 py-2 text-sm">
           The seller still sees v{proposed?.version} from an earlier pricing. Draft and propose new terms to change what they see.
         </p>
       ) : null}
+
+      {proposed && (proposed === latest || !latest || latest.proposedAt) ? (
+        <div className="flex flex-col gap-2">
+          <p className="text-sm text-muted-foreground">
+            v{proposed.version}, proposed {proposed.proposedAt?.slice(0, 10)}
+            {proposed.agreedAt ? `, agreed ${proposed.agreedAt.slice(0, 10)}` : ''}. The seller’s answers:
+          </p>
+          <table className="w-full text-sm">
+            <tbody className="divide-y divide-border">
+              {proposed.terms.map((term) => (
+                <tr key={term.ordinal}>
+                  <td className="w-48 py-2 pr-3 font-medium">{LEVER_LABELS[term.lever]}</td>
+                  <td className="w-40 py-2 pr-3">{formatMoney({ amount: term.amount, currency: term.currency })}</td>
+                  <td className="py-2">
+                    <SellerAnswer response={term.response} currency={term.currency} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {writer && countered ? (
+            <form action={acceptCounters.bind(null, dealId, proposed.id)}>
+              <Button size="sm" type="submit">
+                Accept counters into v{(latest?.version ?? proposed.version) + 1}
+              </Button>
+            </form>
+          ) : null}
+        </div>
+      ) : null}
+
       {latest && !latest.proposedAt ? (
         <form action={saveSellerNotes.bind(null, dealId, latest.id)} className="flex flex-col gap-3">
           <p className="text-sm text-muted-foreground">Draft v{latest.version}. The seller sees each term’s lever, amount and your note, and nothing about how it was priced.</p>
@@ -139,16 +191,16 @@ function Terms({ dealId, view, writer, titles }: { dealId: string; view: Pricing
           </table>
           {writer ? (
             <div className="flex flex-wrap gap-2">
-              <Button size="sm" variant="outline" type="submit">
-                Save notes
-              </Button>
               <Button size="sm" type="submit" formAction={proposeTerms.bind(null, dealId, latest.id)}>
                 Propose to seller (v{latest.version})
+              </Button>
+              <Button size="sm" variant="outline" type="submit">
+                Save notes
               </Button>
             </div>
           ) : null}
         </form>
-      ) : writer && view.active ? (
+      ) : writer && view.active && !agreed ? (
         <form action={draftTerms.bind(null, dealId)}>
           <Button size="sm" variant="outline" type="submit">
             Draft terms from the active pricing
@@ -159,21 +211,23 @@ function Terms({ dealId, view, writer, titles }: { dealId: string; view: Pricing
   );
 }
 
-function Brief({ dealId, view, writer, titles }: { dealId: string; view: PricingView; writer: boolean; titles: ReadonlyMap<string, string> }) {
+function Brief({ dealId, view, writer, titles, outcome, aiEnabled }: { dealId: string; view: PricingView; writer: boolean; titles: ReadonlyMap<string, string>; outcome: string | undefined; aiEnabled: boolean }) {
   if (!view.active) return null;
   return (
-    <section className="flex flex-col gap-3">
+    <section id="pricing-brief" className="flex scroll-mt-24 flex-col gap-3">
       <div className="flex flex-wrap items-center gap-2">
         <h3 className="mr-auto font-bold">Negotiation brief</h3>
-        <Badge variant="neutral">buyer-only · AI draft</Badge>
+        <AiBadge>AI draft · buyer-only</AiBadge>
         {writer ? (
           <form action={draftBrief.bind(null, dealId, view.active.evaluationId)}>
-            <Button size="sm" variant="outline" type="submit">
+            <Button size="sm" variant="outline" type="submit" disabled={!aiEnabled} title={aiEnabled ? undefined : 'AI is off in this environment'}>
               {view.brief ? 'Redraft' : 'Draft brief'}
             </Button>
           </form>
         ) : null}
       </div>
+      <Notice outcome={outcome} section="brief" />
+      {!aiEnabled ? <p className="text-sm text-muted-foreground">AI is off in this environment, so the brief can’t be drafted here. Everything else on this page works.</p> : null}
       {view.brief ? (
         <ol className="flex flex-col gap-3 text-sm">
           {view.brief.sections.map((section, index) => (
@@ -190,9 +244,9 @@ function Brief({ dealId, view, writer, titles }: { dealId: string; view: Pricing
             </li>
           ))}
         </ol>
-      ) : (
+      ) : aiEnabled ? (
         <p className="text-sm text-muted-foreground">A short framing of the active terms in this persona’s tone, every point citing an accepted finding. Amounts stay in the table above.</p>
-      )}
+      ) : null}
     </section>
   );
 }
@@ -200,12 +254,13 @@ function Brief({ dealId, view, writer, titles }: { dealId: string; view: Pricing
 /**
  * Buyer personas (T-105): price the same accepted findings through another
  * lens in one action, compare against the active pricing, adopt one, propose
- * versioned terms to the seller and draft the brief. Buyer-only.
+ * versioned terms, see the seller's answers, and draft the brief. Buyer-only.
  */
-export async function PricingPanel({ dealId, viewer }: { dealId: string; viewer: DealViewer }) {
-  const [result, accepted] = await Promise.all([
+export async function PricingPanel({ dealId, viewer, outcome }: { dealId: string; viewer: DealViewer; outcome: string | undefined }) {
+  const [result, accepted, ai] = await Promise.all([
     apiGet<PricingView>(`/v1/deals/${encodeURIComponent(dealId)}/pricing`),
     apiGet<{ items: { id: string; title: string }[] }>(`/v1/deals/${encodeURIComponent(dealId)}/findings?status=ACCEPTED`),
+    apiGet<{ enabled: boolean }>('/v1/ai/status'),
   ]);
   if (result.kind !== 'ok') return null;
   const view = result.data;
@@ -215,7 +270,7 @@ export async function PricingPanel({ dealId, viewer }: { dealId: string; viewer:
   const active = view.evaluations.find((evaluation) => evaluation.id === view.active?.evaluationId);
 
   return (
-    <Card id="pricing">
+    <Card id="pricing" className="scroll-mt-24">
       <CardHeader className="flex flex-row flex-wrap items-center gap-2">
         <CardTitle className="mr-auto">Priced as: {active ? active.personaLabel : label(view.persona.effective)}</CardTitle>
         <Badge variant="neutral">buyer-only</Badge>
@@ -224,20 +279,23 @@ export async function PricingPanel({ dealId, viewer }: { dealId: string; viewer:
         <p className="text-muted-foreground">
           The same accepted findings, priced through a buyer’s deal-making style. Evaluating under another persona adds a new run; findings and earlier runs never change, and nothing reaches the seller until you propose terms.
         </p>
+        <Notice outcome={outcome} section="evaluate" />
         {writer ? (
           <div className="flex flex-col gap-3">
             <div className="grid gap-3 md:grid-cols-3">
               {view.persona.options.map((option) => (
-                <form key={option.persona} action={evaluateAs.bind(null, dealId)} className="flex flex-col gap-2 rounded-lg border border-border p-3">
+                <form key={option.persona} action={evaluateAs.bind(null, dealId)} className="h-full">
                   <input type="hidden" name="persona" value={option.persona} />
-                  <span className="font-semibold">
-                    {option.label}
-                    {option.persona === view.persona.effective ? <Badge variant="neutral" className="ml-2">this pact</Badge> : null}
-                  </span>
-                  <span className="text-muted-foreground">{option.descriptor}</span>
-                  <Button size="sm" variant={option.persona === view.persona.effective ? 'default' : 'outline'} type="submit" className="mt-auto self-start">
-                    Evaluate as {option.label}
-                  </Button>
+                  <PersonaCard
+                    option={option}
+                    selected={option.persona === view.persona.effective}
+                    control={option.persona === view.persona.effective ? <Badge variant="neutral">this pact</Badge> : undefined}
+                    footer={
+                      <Button size="sm" variant={option.persona === view.persona.effective ? 'default' : 'outline'} type="submit">
+                        Evaluate as {option.label}
+                      </Button>
+                    }
+                  />
                 </form>
               ))}
             </div>
@@ -253,7 +311,7 @@ export async function PricingPanel({ dealId, viewer }: { dealId: string; viewer:
                   ))}
                 </select>
               </label>
-              <Button size="sm" variant="ghost" type="submit">
+              <Button size="sm" variant="outline" type="submit">
                 Save
               </Button>
             </form>
@@ -261,8 +319,8 @@ export async function PricingPanel({ dealId, viewer }: { dealId: string; viewer:
         ) : null}
 
         <Compare dealId={dealId} view={view} writer={writer} />
-        <Terms dealId={dealId} view={view} writer={writer} titles={titles} />
-        <Brief dealId={dealId} view={view} writer={writer} titles={titles} />
+        <Terms dealId={dealId} view={view} writer={writer} titles={titles} outcome={outcome} />
+        <Brief dealId={dealId} view={view} writer={writer} titles={titles} outcome={outcome} aiEnabled={ai.kind === 'ok' ? ai.data.enabled : false} />
       </CardContent>
     </Card>
   );

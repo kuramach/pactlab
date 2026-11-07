@@ -3,6 +3,7 @@
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import { apiSend } from '../../_lib/api';
+import { pricingAnchor } from '../../../valuation/_lib/pricing';
 
 /** Buyer personas (T-105): every action goes through the API, which re-checks the role. */
 const uuid = z.uuid();
@@ -11,7 +12,7 @@ const scenarioCase = z.enum(['DOWNSIDE', 'BASE', 'UPSIDE']);
 const pricing = (dealId: string) => `/v1/deals/${dealId}/pricing`;
 
 function back(dealId: string, outcome: string): never {
-  redirect(`/deals/${dealId}/valuation?outcome=${outcome}#pricing`);
+  redirect(`/deals/${dealId}/valuation?outcome=${outcome}#${pricingAnchor(outcome)}`);
 }
 
 function ids(...values: string[]) {
@@ -68,7 +69,25 @@ export async function proposeTerms(dealId: string, batchId: string): Promise<voi
 export async function draftBrief(dealId: string, evaluationId: string): Promise<void> {
   ids(dealId, evaluationId);
   const result = await apiSend('POST', `${pricing(dealId)}/evaluations/${evaluationId}/brief`, {});
-  back(dealId, result.kind === 'ok' ? 'ok-brief' : result.kind === 'unavailable' ? 'brief-unavailable' : result.kind === 'invalid' ? 'brief-no-findings' : result.kind);
+  back(
+    dealId,
+    result.kind === 'ok'
+      ? 'ok-brief'
+      : result.kind === 'unavailable'
+        ? result.code === 'AI_OFF'
+          ? 'brief-off'
+          : 'brief-unavailable'
+        : result.kind === 'invalid'
+          ? 'brief-no-findings'
+          : result.kind,
+  );
+}
+
+/** Take the seller's counters into the next draft version. */
+export async function acceptCounters(dealId: string, batchId: string): Promise<void> {
+  ids(dealId, batchId);
+  const result = await apiSend('POST', `${pricing(dealId)}/terms/${batchId}/accept-counters`, {});
+  back(dealId, result.kind === 'ok' ? 'ok-counters' : result.kind === 'conflict' ? 'terms-frozen' : result.kind);
 }
 
 /** Tag a scenario Downside, Base or Upside; empty clears it. */

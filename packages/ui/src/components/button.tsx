@@ -17,6 +17,8 @@ export const buttonVariants = cva(
         default: 'h-9 px-4 py-2',
         sm: 'h-8 px-3',
         lg: 'h-10 px-6',
+        /** Icon-only buttons: square, same height as `sm`. Give them an aria-label. */
+        icon: 'h-8 w-8 p-0',
       },
     },
     defaultVariants: { variant: 'default', size: 'default' },

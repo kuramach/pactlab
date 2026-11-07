@@ -13,7 +13,7 @@ import { ApiState } from '../../_lib/states';
 import { ConfirmedValue } from '../../_lib/confirmed-value';
 import { can, dealViewer, type DealViewer } from '../../_lib/viewer';
 import { decideSubmission, recordAskingPrice, runScenario, submitScenario } from './actions';
-import { PRICING_OUTCOMES, PricingPanel } from './pricing-panel';
+import { PricingPanel } from './pricing-panel';
 import { setScenarioCase } from './pricing-actions';
 import { CASE_LABELS } from '../../../valuation/_lib/pricing';
 import { formatDecimal, formatMoney, formatRatio } from '../../../metrics/_lib/format';
@@ -614,7 +614,7 @@ export default async function ValuationPage({
         ) : null}
       </div>
 
-      <OutcomeBanner outcome={typeof outcome === 'string' ? outcome : undefined} messages={{ ...BENCHMARK_OUTCOMES, ...ANCHOR_OUTCOMES, ...BALANCE_SHEET_OUTCOMES, ...PRICING_OUTCOMES, ...OUTCOMES }} />
+      <OutcomeBanner outcome={typeof outcome === 'string' ? outcome : undefined} messages={{ ...BENCHMARK_OUTCOMES, ...ANCHOR_OUTCOMES, ...BALANCE_SHEET_OUTCOMES, ...OUTCOMES, 'ok-case': 'Scenario case saved.' }} />
 
       {dealId && viewer ? <AskingPanel dealId={dealId} viewer={viewer} currency={currency} /> : null}
 
@@ -626,7 +626,7 @@ export default async function ValuationPage({
         <NegotiationAnchors dealId={dealId} view={anchors.data} returnTo={`/deals/${dealId}/valuation`} />
       ) : null}
 
-      {dealId && viewer && result?.kind === 'ok' && result.data.items.length > 0 ? <PricingPanel dealId={dealId} viewer={viewer} /> : null}
+      {dealId && viewer && result?.kind === 'ok' && result.data.items.length > 0 ? <PricingPanel dealId={dealId} viewer={viewer} outcome={typeof outcome === 'string' ? outcome : undefined} /> : null}
 
       {!dealId || !viewer ? (
         <EmptyState

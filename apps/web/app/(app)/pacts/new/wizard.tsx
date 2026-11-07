@@ -12,11 +12,13 @@ import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitl
 import { useActionState, useState } from 'react';
 import { problemUpTo, stepsFor, type WizardStep } from '../_lib/form';
 import { startPact, type StartPactState } from './actions';
+import { PersonaCard } from '../../valuation/_lib/persona-card';
+import type { PersonaOption } from '../../valuation/_lib/pricing';
 
 /** The buyer's deal-making style (T-105): the options and the organization default it starts on. */
 export interface PersonaChoice {
   readonly defaultPersona: string;
-  readonly options: readonly { readonly persona: string; readonly label: string; readonly descriptor: string }[];
+  readonly options: readonly PersonaOption[];
 }
 
 /** How this buyer prices what diligence finds. Buyer-confidential; changeable any time on the pact. */
@@ -25,14 +27,14 @@ function PersonaField({ values, set, personas }: { values: Values; set: (key: st
     <fieldset className="flex flex-col gap-2 text-sm">
       <legend className="mb-1 font-medium">Deal-making style</legend>
       <p className="text-xs text-muted-foreground">How Sextant prices what diligence finds for this pact. Never shown to the seller; you can re-evaluate under another style at any time.</p>
-      <div className="grid gap-2 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-3">
         {personas.options.map((option) => (
-          <label key={option.persona} className={`flex cursor-pointer flex-col gap-1 rounded-lg border p-3 ${values['persona'] === option.persona ? 'border-indigo-ink bg-muted' : 'border-border'}`}>
-            <span className="flex items-center gap-2 font-medium">
-              <input type="radio" name="persona-choice" checked={values['persona'] === option.persona} onChange={() => set('persona', option.persona)} />
-              {option.label}
-            </span>
-            <span className="text-muted-foreground">{option.descriptor}</span>
+          <label key={option.persona} className="cursor-pointer">
+            <PersonaCard
+              option={option}
+              selected={values['persona'] === option.persona}
+              control={<input type="radio" name="persona-choice" checked={values['persona'] === option.persona} onChange={() => set('persona', option.persona)} className="mt-1 h-4 w-4 accent-navy" aria-label={option.label} />}
+            />
           </label>
         ))}
       </div>

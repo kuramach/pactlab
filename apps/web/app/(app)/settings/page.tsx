@@ -9,6 +9,7 @@ import { currentRelease, releaseLabel } from '../../../lib/release';
 import { isOpen, STATUS_LABELS, statusBadge } from './bug-reports/_lib/status';
 import { setDefaultPersona } from './persona-actions';
 import type { PersonaOption } from '../valuation/_lib/pricing';
+import { PersonaCard } from '../valuation/_lib/persona-card';
 
 // Per-user data: never prerender.
 export const dynamic = 'force-dynamic';
@@ -43,14 +44,14 @@ async function DealStyleCard() {
       <CardContent>
         <form action={setDefaultPersona} className="flex flex-col gap-3">
           <fieldset className="grid gap-3 md:grid-cols-3" disabled={!canEdit}>
+            <legend className="sr-only">Deal-making style</legend>
             {options.map((option) => (
-              <label key={option.persona} className={`flex cursor-pointer flex-col gap-1 rounded-lg border p-3 text-sm ${option.persona === effective ? 'border-indigo-ink bg-muted' : 'border-border'}`}>
-                <span className="flex items-center gap-2 font-semibold">
-                  <input type="radio" name="persona" value={option.persona} defaultChecked={option.persona === (defaultPersona ?? effective)} />
-                  {option.label}
-                  {option.persona === 'VALUE_INVESTOR' ? <span className="text-xs font-normal text-muted-foreground">(default)</span> : null}
-                </span>
-                <span className="text-muted-foreground">{option.descriptor}</span>
+              <label key={option.persona} className="cursor-pointer">
+                <PersonaCard
+                  option={option}
+                  selected={option.persona === effective}
+                  control={<input type="radio" name="persona" value={option.persona} defaultChecked={option.persona === (defaultPersona ?? effective)} className="mt-1 h-4 w-4 accent-navy" aria-label={option.label} />}
+                />
               </label>
             ))}
           </fieldset>
