@@ -26,7 +26,8 @@ import {
 } from '../../../metrics/_lib/format';
 import { approveDifference, recordReconciliation } from './actions';
 import { DebtAndCashCard } from './debt-and-cash';
-import { apiGet } from '../../_lib/api';
+import { hasSubscriptionMetrics, type CompanyType } from '@pactlab/domain';
+import { apiGet, dealsApi } from '../../_lib/api';
 import type { BalanceSheetView } from '@pactlab/contracts';
 
 // Per-user data: never prerender.
@@ -348,20 +349,24 @@ export default async function DealFinancesPage({
   const asOf = parseMonthParam(search['asOf']);
   const open = typeof search['open'] === 'string' && SECTION_ID.test(search['open']) ? search['open'] : undefined;
   const outcome = typeof search['outcome'] === 'string' ? OUTCOMES[search['outcome']] : undefined;
-  const [result, cohorts, pack, balanceSheet] = await Promise.all([
+  const [result, cohorts, pack, balanceSheet, parties] = await Promise.all([
     metricsApi.summary(dealId, asOf),
     metricsApi.cohorts(dealId, asOf),
     metricsApi.pack(dealId),
     apiGet<BalanceSheetView>(`/v1/deals/${encodeURIComponent(dealId)}/balance-sheet-items`),
+    dealsApi.parties(dealId),
   ]);
   const packMetrics = pack.kind === 'ok' ? pack.data : null;
+  // Subscription metrics (ARR, retention, churn) only for subscription businesses (batch 2).
+  const companyType = parties.kind === 'ok' ? ((parties.data.items.find((party) => party.role === 'SELLER')?.companyType as CompanyType | null | undefined) ?? null) : null;
+  const subscription = hasSubscriptionMetrics(companyType);
 
   return (
     <div className="flex max-w-6xl flex-col gap-6">
       <div className="flex flex-col gap-1">
         <h2 className="text-lg font-semibold tracking-tight">Finances</h2>
         <p className="text-sm text-muted-foreground">
-          <Glossed text="Deterministic SaaS metrics from billing evidence. Every number links to the source records it was computed from." />
+          <Glossed text={subscription ? 'Deterministic SaaS metrics from billing evidence. Every number links to the source records it was computed from.' : 'The pack’s own metrics and the debt and cash on the bridge, each from its evidence.'} />
         </p>
       </div>
 
@@ -370,6 +375,7 @@ export default async function DealFinancesPage({
       {/* Buyer-side only: the API refuses roles without analysis access, and then nothing shows. */}
       {balanceSheet.kind === 'ok' ? <DebtAndCashCard dealId={dealId} view={balanceSheet.data} /> : null}
 
+      {subscription ? (
       <form method="get" className="flex items-end gap-3 text-sm" aria-label="Choose as-of month">
         <label className="flex flex-col gap-1">
           <span className="text-muted-foreground">As of (month end)</span>
@@ -384,12 +390,13 @@ export default async function DealFinancesPage({
           Apply
         </Button>
       </form>
+      ) : null}
 
       {outcome ? (
         <p className="rounded-md border border-border px-3 py-2 text-sm">{outcome}</p>
       ) : null}
 
-      {result.kind !== 'ok' ? (
+      {!subscription ? null : result.kind !== 'ok' ? (
         <ApiState result={result} />
       ) : result.data.report.series.length === 0 ? (
         <EmptyState

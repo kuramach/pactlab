@@ -1,4 +1,4 @@
-import { DEAL_PHASE_LABELS } from '@pactlab/domain';
+import { DEAL_PHASE_LABELS, type CompanyType } from '@pactlab/domain';
 import { Badge, PageHeader } from '@pactlab/ui';
 import { notFound } from 'next/navigation';
 import type { ReactNode } from 'react';
@@ -86,7 +86,7 @@ export default async function DealLayout({ children, params }: { children: React
             </>
           }
         />
-        <DealTabs dealId={dealId} venture={venture} sellerLed={sellerLed} />
+        <DealTabs dealId={dealId} companyType={(seller?.companyType as CompanyType | null | undefined) ?? null} sellerLed={sellerLed} />
       </div>
       {children}
     </div>

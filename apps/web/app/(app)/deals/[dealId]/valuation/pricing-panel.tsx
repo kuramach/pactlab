@@ -292,40 +292,45 @@ export async function PricingPanel({ dealId, viewer, outcome }: { dealId: string
         </p>
         <Notice outcome={outcome} section="evaluate" />
         {writer ? (
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-2">
+            <p className="text-xs text-muted-foreground">Choose this pact’s persona by clicking its card. “Evaluate” prices the pact under any persona to compare, without changing the choice.</p>
             <div className="grid gap-3 md:grid-cols-3">
-              {view.persona.options.map((option) => (
-                <form key={option.persona} action={evaluateAs.bind(null, dealId)} className="h-full">
-                  <input type="hidden" name="persona" value={option.persona} />
-                  <PersonaCard
-                    option={option}
-                    selected={option.persona === view.persona.effective}
-                    control={option.persona === view.persona.effective ? <Badge variant="neutral">this pact</Badge> : undefined}
-                    footer={
-                      <Button size="sm" variant={option.persona === view.persona.effective ? 'default' : 'outline'} type="submit">
-                        Evaluate as {option.label}
-                      </Button>
-                    }
-                  />
-                </form>
-              ))}
+              {view.persona.options.map((option) => {
+                const chosen = option.persona === view.persona.effective;
+                return (
+                  <form key={option.persona} action={setPactPersona.bind(null, dealId)} className="relative h-full">
+                    {/* The whole card selects the persona for this pact (batch 2); Evaluate sits above it as its own action. */}
+                    <button
+                      type="submit"
+                      name="persona"
+                      value={option.persona}
+                      aria-pressed={chosen}
+                      aria-label={chosen ? `${option.label} is this pact’s persona` : `Use ${option.label} for this pact`}
+                      className="absolute inset-0 z-0 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    />
+                    <div className="pointer-events-none relative h-full">
+                      <PersonaCard
+                        option={option}
+                        selected={chosen}
+                        control={chosen ? <Badge variant="neutral">This pact</Badge> : undefined}
+                        footer={
+                          <Button size="sm" variant={chosen ? 'default' : 'outline'} type="submit" name="persona" value={option.persona} formAction={evaluateAs.bind(null, dealId)} className="pointer-events-auto relative z-10">
+                            Evaluate as {option.label}
+                          </Button>
+                        }
+                      />
+                    </div>
+                  </form>
+                );
+              })}
             </div>
-            <form action={setPactPersona.bind(null, dealId)} className="flex flex-wrap items-end gap-2">
-              <label className="flex flex-col gap-1">
-                <span className="text-xs text-muted-foreground">This pact’s persona</span>
-                <select name="persona" defaultValue={view.persona.pact ?? ''} className={inputClass}>
-                  <option value="">Organization default ({label(view.persona.organizationDefault ?? 'VALUE_INVESTOR')})</option>
-                  {view.persona.options.map((option) => (
-                    <option key={option.persona} value={option.persona}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <Button size="sm" variant="outline" type="submit">
-                Save
-              </Button>
-            </form>
+            {view.persona.pact ? (
+              <form action={setPactPersona.bind(null, dealId)}>
+                <Button type="submit" name="persona" value="" variant="link" size="sm">
+                  Use the organization default ({label(view.persona.organizationDefault ?? 'VALUE_INVESTOR')}) instead
+                </Button>
+              </form>
+            ) : null}
           </div>
         ) : null}
 

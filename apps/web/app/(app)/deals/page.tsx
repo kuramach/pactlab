@@ -1,5 +1,5 @@
 import { DEAL_PHASE_LABELS, DEAL_PHASES, type DealPhase } from '@pactlab/domain';
-import { Badge, buttonVariants, Card, EmptyState, IconTile, PageHeader } from '@pactlab/ui';
+import { Badge, Button, buttonVariants, Card, EmptyState, IconTile, PageHeader } from '@pactlab/ui';
 import { ArrowRight, Building2, Plus } from 'lucide-react';
 import Link from 'next/link';
 import { DeleteDealButton } from './delete-deal-button';
@@ -33,9 +33,20 @@ export default async function DealsPage({ searchParams }: { searchParams: Promis
   // Guests on another organization's pacts never start one there (ADR 0014; the API refuses too).
   const session = await getSessionContext();
   const guest = session.kind === 'signed-in' && session.guest;
-  const phaseParam = (await searchParams)['phase'];
+  const params = await searchParams;
+  const phaseParam = params['phase'];
   const phase = typeof phaseParam === 'string' && (DEAL_PHASES as readonly string[]).includes(phaseParam) ? (phaseParam as DealPhase) : null;
-  const listed = await dealsApi.list();
+  // Search by pact name or target (batch 2); kept in the address so it can be bookmarked.
+  const query = typeof params['q'] === 'string' ? params['q'].trim().slice(0, 200) : '';
+  const listed = await dealsApi.list(query || undefined);
+  const href = (next: { phase?: DealPhase | null; q?: string }) => {
+    const search = new URLSearchParams();
+    const nextPhase = next.phase === undefined ? phase : next.phase;
+    const nextQuery = next.q === undefined ? query : next.q;
+    if (nextPhase) search.set('phase', nextPhase);
+    if (nextQuery) search.set('q', nextQuery);
+    return search.size ? `/deals?${search}` : '/deals';
+  };
   // The phase filter is a view over the list (the phase is derived from each deal's stage).
   const result = listed.kind === 'ok' && phase ? { ...listed, data: { items: listed.data.items.filter((deal) => deal.phase === phase) } } : listed;
   return (
@@ -47,11 +58,34 @@ export default async function DealsPage({ searchParams }: { searchParams: Promis
         description="Every Pact you are a member of. Open one to collect evidence, review findings and value it."
         actions={guest ? undefined : <StartPactLink />}
       />
+      <form action="/deals" role="search" className="flex flex-wrap items-center gap-2">
+        {phase ? <input type="hidden" name="phase" value={phase} /> : null}
+        <label className="sr-only" htmlFor="deal-search">
+          Search pacts by name or target
+        </label>
+        <input
+          id="deal-search"
+          name="q"
+          type="search"
+          defaultValue={query}
+          placeholder="Search pacts by name or target"
+          maxLength={200}
+          className="w-full max-w-sm rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+        />
+        <Button type="submit" size="sm" variant="outline">
+          Search
+        </Button>
+        {query ? (
+          <Link href={href({ q: '' })} className="text-sm font-semibold text-indigo-ink underline-offset-4 hover:underline">
+            Clear
+          </Link>
+        ) : null}
+      </form>
       <nav aria-label="Filter by phase" className="flex flex-wrap gap-2 text-sm">
         {[null, ...DEAL_PHASES].map((option) => (
           <Link
             key={option ?? 'all'}
-            href={option ? `/deals?phase=${option}` : '/deals'}
+            href={href({ phase: option })}
             aria-current={option === phase ? 'page' : undefined}
             className={`rounded-full border px-3 py-1 ${option === phase ? 'border-indigo-ink bg-muted font-semibold' : 'border-border text-muted-foreground'}`}
           >
@@ -61,6 +95,16 @@ export default async function DealsPage({ searchParams }: { searchParams: Promis
       </nav>
       {result.kind !== 'ok' ? (
         <ApiState result={result} />
+      ) : result.data.items.length === 0 && (query || phase) ? (
+        <EmptyState
+          title={query ? `No pacts match “${query}”` : 'No pacts in this phase'}
+          description="Try another name, or clear the search."
+          action={
+            <Link href="/deals" className="font-semibold text-indigo-ink underline-offset-4 hover:underline">
+              Clear
+            </Link>
+          }
+        />
       ) : result.data.items.length === 0 ? (
         <EmptyState
           icon={<EmptyMarkIcon name="deals" />}

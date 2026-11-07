@@ -1,18 +1,14 @@
 'use client';
 
+import { sectionApplies, type CompanyType } from '@pactlab/domain';
 import { TabNav } from '@pactlab/ui';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
+/** A section of the deal workspace; where it applies is `DEAL_SECTION_RULES` in @pactlab/domain. */
 export interface DealSection {
   readonly path: string;
   readonly label: string;
-  /** Venture Raise pacts only (T-083). */
-  readonly ventureOnly?: boolean;
-  /** Seller-led pacts only: the bid process (T-097). */
-  readonly sellerLedOnly?: boolean;
-  /** Buyer-led pacts only: terms the buyer proposes to the seller (T-105). */
-  readonly buyerLedOnly?: boolean;
 }
 
 export interface DealGroup {
@@ -33,8 +29,8 @@ export const DEAL_GROUPS: readonly DealGroup[] = [
     label: 'Overview',
     sections: [
       { path: '', label: 'Summary' },
-      { path: '/bidders', label: 'Bidders', sellerLedOnly: true },
-      { path: '/listing', label: 'Public page', sellerLedOnly: true },
+      { path: '/bidders', label: 'Bidders' },
+      { path: '/listing', label: 'Public page' },
       { path: '/screening', label: 'Screening' },
       { path: '/team', label: 'Team' },
     ],
@@ -57,10 +53,10 @@ export const DEAL_GROUPS: readonly DealGroup[] = [
     key: 'valuation',
     label: 'Valuation',
     sections: [
-      { path: '/raise', label: 'Raise', ventureOnly: true },
+      { path: '/raise', label: 'Raise' },
       { path: '/valuation', label: 'Scenarios and bridge' },
       { path: '/foresight', label: 'Foresight' },
-      { path: '/terms', label: 'Proposed terms', buyerLedOnly: true },
+      { path: '/terms', label: 'Proposed terms' },
     ],
   },
   {
@@ -68,7 +64,7 @@ export const DEAL_GROUPS: readonly DealGroup[] = [
     label: 'Close',
     sections: [
       // Both sides sign the agreed terms and work the checklist here (T-107).
-      { path: '/closing', label: 'Closing', buyerLedOnly: true },
+      { path: '/closing', label: 'Closing' },
       { path: '/post-close', label: 'Post-close' },
     ],
   },
@@ -89,20 +85,21 @@ export function dealGroup(section: string): DealGroup {
   return DEAL_GROUPS.find((group) => group.sections.some((entry) => entry.path === section)) ?? (DEAL_GROUPS[0] as DealGroup);
 }
 
-const visible = (sections: readonly DealSection[], venture: boolean, sellerLed = false) =>
-  sections.filter((section) => (venture || !section.ventureOnly) && (sellerLed || !section.sellerLedOnly) && (!sellerLed || !section.buyerLedOnly));
+/** Only the sections this pact needs (batch 2): the rule table in @pactlab/domain decides. */
+const visible = (sections: readonly DealSection[], companyType: CompanyType | null, sellerLed = false) =>
+  sections.filter((section) => sectionApplies(section.path, { companyType, initiatedBy: sellerLed ? 'SELLER' : 'BUYER' }));
 
 /** Four tabs across the deal, and the open tab's sections beneath them; sub-pages keep their section highlighted. */
-export function DealTabs({ dealId, venture = false, sellerLed = false }: { dealId: string; venture?: boolean; sellerLed?: boolean }) {
+export function DealTabs({ dealId, companyType = null, sellerLed = false }: { dealId: string; companyType?: CompanyType | null; sellerLed?: boolean }) {
   const active = dealSection(dealId, usePathname());
   const group = dealGroup(active);
-  const sections = visible(group.sections, venture, sellerLed);
+  const sections = visible(group.sections, companyType, sellerLed);
   return (
     <div className="flex flex-col gap-3">
       <TabNav
         label="Deal sections"
         items={DEAL_GROUPS.map((entry) => ({
-          href: `/deals/${dealId}${visible(entry.sections, venture, sellerLed)[0]?.path ?? ''}`,
+          href: `/deals/${dealId}${visible(entry.sections, companyType, sellerLed)[0]?.path ?? ''}`,
           label: entry.label,
           active: entry.key === group.key,
         }))}

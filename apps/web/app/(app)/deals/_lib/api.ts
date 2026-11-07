@@ -243,7 +243,8 @@ export const dealsApi = {
   parties: (dealId: string) => apiGet<DealPartiesResponse>(`/v1/deals/${encodeURIComponent(dealId)}/parties`),
   sourcePlan: (dealId: string) => apiGet<SourcePlanResponse>(`/v1/deals/${encodeURIComponent(dealId)}/source-plan`),
   sources: (dealId: string) => apiGet<{ items: DealSource[] }>(`/v1/deals/${encodeURIComponent(dealId)}/connections`),
-  list: () => apiGet<{ items: DealListItem[] }>('/v1/deals'),
+  /** Every pact the caller is on; `q` searches pact names and targets (batch 2). */
+  list: (q?: string) => apiGet<{ items: DealListItem[] }>(q ? `/v1/deals?${new URLSearchParams({ q })}` : '/v1/deals'),
   get: (dealId: string) => apiGet<DealListItem>(`/v1/deals/${encodeURIComponent(dealId)}`),
   evidence: (dealId: string, query: string) =>
     apiGet<EvidencePage>(
