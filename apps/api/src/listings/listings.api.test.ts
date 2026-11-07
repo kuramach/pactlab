@@ -117,6 +117,39 @@ describe('public deal page (listing)', { timeout: 60_000 }, () => {
     for (const secret of [dealId, 'Brightwave', 'Brightwave sale']) expect(JSON.stringify(open.body)).not.toContain(secret);
   });
 
+  it('property facts (batch 2): looked up, saved only as approved, and the address public only on a named page', async () => {
+    const lookup = await call('POST', `/v1/deals/${dealId}/listing/property-lookup`, { address: '1200 Larkfield Commons Dr, Columbus, OH 43215', country: 'US' }, lead);
+    expect(lookup.status, JSON.stringify(lookup.body)).toBe(200);
+    const facts = lookup.body['facts'] as { key: string; label: string; value: string; source: string; retrievedAt: string }[];
+    expect(lookup.body['available']).toBe(true);
+    expect(facts.length).toBeGreaterThan(0);
+    // Nothing is stored by a lookup.
+    expect(((await call('GET', `/v1/deals/${dealId}/listing`, undefined, lead)).body['listing'] as Body)['propertyFacts']).toEqual([]);
+    // Another organization cannot look up or save on this pact.
+    const outsider = await signIn('lead@elsewhere.example');
+    expect((await call('POST', `/v1/deals/${dealId}/listing/property-lookup`, { address: '1 Any St, Columbus, OH', country: 'US' }, outsider)).status).toBe(404);
+    expect((await call('PUT', `/v1/deals/${dealId}/listing/property`, { address: null, facts: [] }, outsider)).status).toBe(404);
+
+    const approved = facts.slice(0, 2);
+    const saved = await call('PUT', `/v1/deals/${dealId}/listing/property`, { address: lookup.body['formattedAddress'], facts: approved }, lead);
+    expect(saved.status, JSON.stringify(saved.body)).toBe(200);
+    expect(saved.body['listing']).toMatchObject({ propertyFacts: approved });
+    const audit = await db.owner.query(`SELECT 1 FROM audit_events WHERE deal_id = $1 AND action = 'listing.property_saved'`, [dealId]);
+    expect(audit.rows).toHaveLength(1);
+
+    // The page is anonymous: facts are public, the address is not.
+    const anonymous = await call('GET', `/v1/public/listings/${slug}`);
+    expect(anonymous.body).toMatchObject({ propertyFacts: approved, propertyAddress: null });
+    expect(JSON.stringify(anonymous.body)).not.toContain('Larkfield Commons');
+    const listing = (await call('GET', `/v1/deals/${dealId}/listing`, undefined, lead)).body['listing'] as Body;
+    const named = await call('PUT', `/v1/deals/${dealId}/listing`, { visibility: 'NAMED', publicName: 'Larkfield Residential (synthetic)', codename: listing['codename'], headline: listing['headline'], sector: listing['sector'], region: listing['region'], sizeBand: listing['sizeBand'], askingLow: null, askingHigh: null, askingCurrency: null, summary: listing['summary'], highlights: listing['highlights'] }, lead);
+    expect(named.status, JSON.stringify(named.body)).toBe(200);
+    expect((await call('GET', `/v1/public/listings/${slug}`)).body).toMatchObject({ propertyAddress: lookup.body['formattedAddress'] });
+    // Back to anonymous for the tests that follow.
+    expect((await call('PUT', `/v1/deals/${dealId}/listing`, { visibility: 'ANONYMOUS', publicName: null, codename: listing['codename'], headline: listing['headline'], sector: listing['sector'], region: listing['region'], sizeBand: listing['sizeBand'], askingLow: null, askingHigh: null, askingCurrency: null, summary: listing['summary'], highlights: listing['highlights'] }, lead)).status).toBe(200);
+    expect((await call('GET', `/v1/public/listings/${slug}`)).body).toMatchObject({ propertyAddress: null });
+  });
+
   it('pictures and video links: safe types only, no metadata, public only while published', async () => {
     const media = `/v1/deals/${dealId}/listing/media`;
     const listingOf = (response: { body: Body }) => response.body['listing'] as { media: { id: string; kind: string; caption: string | null; videoProvider: string | null; videoId: string | null }[] };

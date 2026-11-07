@@ -239,3 +239,15 @@ Decided with Kumar, who wanted live as soon as possible:
 - **Interim promotion (T-101):** branch → dev → merge → `main` → dev → live, with qa and stage parked (idle-paused, still deployable), until the packs are complete or the first customer arrives.
 - **Operator actions from inside an environment:** `scripts/ops-task.sh` runs an `src/ops/` script as a one-off task with the migrate task's owner credentials, for example to make the first platform operator.
 
+## Amendment (batch 2, November 2026): one demo organization on stage and live
+
+Rule 7 keeps the seed task to dev and qa. One exception: **"Pactlab Demo (synthetic)"**, created by `apps/api/src/ops/demo-org.ts` (runbook: `docs/runbooks/demo-org.md`).
+
+- **What it holds:** synthetic data only, from the public `kuramach/pactlab-demo-data` repository at a pinned commit. Every name ends "(synthetic)". No customer or production data, and nothing is copied between environments.
+- **Isolation:** it is an ordinary tenant under RLS; it sees nothing else and nothing else sees it.
+- **Marking:** `organizations.created_via = 'DEMO'` (a new `organization_origin` value). The script refuses to touch any other organization; `--reset` deletes only this organization's pacts.
+- **Operators:** the console lists it like any organization, named "(synthetic)"; there are no pooled metrics for it to distort.
+- **AI:** model calls during the build are scripted (`demoModelResponse`), so it spends no Bedrock tokens and is repeatable.
+- **Where it runs:** the seed task definition (tools image, owner credentials, read/write on the document bucket). The seed task's own command, `seed-deployed.ts`, still refuses stage and production.
+- **Who runs it:** production ops are the owner's to run; stage may be run by an agent.
+

@@ -64,3 +64,13 @@ Decided with Kumar:
   - YouTube or Vimeo links only, stored as provider and id (never the pasted URL), at most 3;
   - pages embed the privacy-enhanced players (`youtube-nocookie.com`, Vimeo with `dnt=1`) in sandboxed iframes.
 - **Preview:** the seller previews the exact public page, drafts included, at `/preview/listing/<pact>`. Only the seller's team can open it, and its form is disabled.
+
+## Addendum (batch 2, November 2026): property facts on teasers
+
+- **Columns:** `deal_listings.property_address` (text) and `property_facts` (JSONB, at most 20 `{key, label, value, source, retrievedAt}`).
+- **Disclosure:** `app_listing_public` returns `property_facts` always and `property_address` **only on a NAMED teaser**. An anonymous teaser never reveals the address.
+- **Lookup:** `PropertyDataProvider` in `packages/connectors/src/property/`. RentCast (`GET /v1/properties`) in the US when `RENTCAST_API_KEY` is set; the fixture outside production; otherwise the lookup is hidden. Lookups propose facts; nothing is stored until the seller approves each one (`PUT …/listing/property`, audited `listing.property_saved`). Owner and tax details are never mapped.
+- **Licence:** RentCast's terms for showing its data on a public page must be confirmed before a key is set on live.
+- **UK:** HM Land Registry price-paid data is planned; its API could not be verified from the build environment, so the adapter is deferred.
+- **Images:** stay the seller's own uploads; no listing-site photos are scraped or shown.
+
