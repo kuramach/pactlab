@@ -199,6 +199,8 @@ enum OrganizationStatus {
 enum OrganizationOrigin {
   OPERATOR
   SIGNUP
+  /// The one synthetic demo organization per environment (batch 2, ADR 0019 amendment).
+  DEMO
 
   @@map("organization_origin")
 }
@@ -2243,6 +2245,10 @@ model DealListing {
   askingCurrency String?   @map("asking_currency") @db.Char(3)
   summary        String    @default("")
   highlights     String[]  @default([])
+  /// The property's address; shown publicly only on a NAMED teaser (batch 2).
+  propertyAddress String?  @map("property_address")
+  /// Facts the seller approved from a property-data lookup: [{key, label, value, source, retrievedAt}].
+  propertyFacts  Json      @default("[]") @map("property_facts")
   indexable      Boolean   @default(false)
   publishedAt    DateTime? @map("published_at") @db.Timestamptz(3)
   createdBy      String    @map("created_by") @db.Uuid

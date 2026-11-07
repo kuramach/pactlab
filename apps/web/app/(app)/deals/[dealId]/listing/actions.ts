@@ -101,3 +101,22 @@ export async function removeMedia(dealId: string, mediaId: string): Promise<void
   if (![dealId, mediaId].every((id) => uuid.safeParse(id).success)) redirect('/deals');
   back(dealId, kind(await apiSend('DELETE', `/v1/deals/${dealId}/listing/media/${mediaId}`, {}), 'ok-media'));
 }
+
+const factMeta = z.strictObject({ key: z.string().regex(/^[a-z_]{2,40}$/), label: z.string().min(1).max(60), source: z.string().min(1).max(60), retrievedAt: z.iso.datetime() });
+
+/** Save the property's address and the facts the seller ticked, with any value they corrected (batch 2). */
+export async function saveProperty(dealId: string, form: FormData): Promise<void> {
+  if (!uuid.safeParse(dealId).success) redirect('/deals');
+  const facts = [];
+  for (let index = 0; index < 20; index += 1) {
+    const raw = form.get(`fact-${index}`);
+    if (typeof raw !== 'string') break;
+    if (form.get(`use-${index}`) !== 'on') continue;
+    const meta = factMeta.safeParse(JSON.parse(raw));
+    const value = String(form.get(`value-${index}`) ?? '').trim().slice(0, 120);
+    if (meta.success && value) facts.push({ ...meta.data, value });
+  }
+  const address = text(form, 'address');
+  const result = await apiSend('PUT', `/v1/deals/${dealId}/listing/property`, { address: address && address.length >= 5 ? address.slice(0, 300) : null, facts });
+  back(dealId, kind(result, 'ok-property'));
+}

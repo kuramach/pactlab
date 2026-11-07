@@ -11,7 +11,7 @@ import { AiModule } from './ai/ai.module';
 import { BalanceSheetModule } from './balance-sheet/balance-sheet.module';
 import { PhasesModule } from './phases/phases.module';
 import { CloseModule } from './close/close.module';
-import { FixtureSigningProvider, type DocuSignOAuth } from '@pactlab/connectors';
+import { FixturePropertyProvider, FixtureSigningProvider, type DocuSignOAuth, type PropertyDataProvider } from '@pactlab/connectors';
 import { VentureModule } from './venture/venture.module';
 import { AdminModule } from './admin/admin.module';
 import { ForesightModule } from './foresight/foresight.module';
@@ -78,6 +78,8 @@ export interface AppDependencies {
    * their own DocuSign accounts to. `fixture`: the fixture provider, outside production only.
    */
   signing?: { fixture: boolean; docusign: { oauth: DocuSignOAuth; connectHmacKey: string; redirectUri: string } | null };
+  /** Property data for teaser pages (batch 2): RentCast with a key; the fixture outside production; null hides the lookup. */
+  property?: PropertyDataProvider | null;
   /**
    * Self-serve sign-up (needs `emailLogin` for the hash secret and sender).
    * Defaults: approval required, no operator email.
@@ -204,6 +206,8 @@ export class AppModule {
             appOrigin: deps.signup?.loginUrl ? new URL(deps.signup.loginUrl).origin : 'http://localhost:3000',
             // Without the token secret (some tests), a per-process key: rate limits then hold within one process.
             hashSecret: deps.emailLogin?.tokenSecret ?? randomBytes(32).toString('hex'),
+            // Property data for teaser pages (batch 2); the fixture unless an environment says otherwise.
+            property: deps.property === undefined ? new FixturePropertyProvider() : deps.property,
           },
         ),
         DealDeletionModule.register({

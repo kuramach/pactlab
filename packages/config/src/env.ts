@@ -122,6 +122,8 @@ export const apiEnvSchema = baseEnvSchema.extend({
   DOCUSIGN_INTEGRATION_KEY: unsetIfBlank(nonEmpty.optional()),
   DOCUSIGN_CLIENT_SECRET: unsetIfBlank(nonEmpty.optional()),
   DOCUSIGN_AUTH_HOST: unsetIfBlank(z.enum(['account-d.docusign.com', 'account.docusign.com']).optional()),
+  /** RentCast API key for US property data on teaser pages (batch 2). Unset: the fixture outside production, no lookup in production. */
+  RENTCAST_API_KEY: unsetIfBlank(nonEmpty.optional()),
   /** The Connect HMAC key that signs DocuSign's envelope events to this deployment. */
   DOCUSIGN_CONNECT_HMAC_KEY: unsetIfBlank(nonEmpty.optional()),
   /**
