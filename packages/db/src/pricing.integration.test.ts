@@ -121,6 +121,39 @@ describe.runIf(runtimeUrl && ownerUrl)('buyer personas against PostgreSQL', () =
     await expect(withTenant(prisma, a.context, (tx) => tx.foresightCustomMetric.create({ data: { ...metric, metricKey: 'Not A Key' } }))).rejects.toThrow();
   });
 
+  it('two-sided close: each side names its own signatory, only signatories sign off, and checklist items belong to a side (T-107)', async () => {
+    const { id: evaluationId } = await withTenant(prisma, a.context, (tx) => tx.pricingEvaluation.create({ data: evaluation(a) }));
+    const batch = await withTenant(prisma, a.context, (tx) => draftBatch(tx, evaluationId, 20));
+    await withTenant(prisma, a.context, (tx) => tx.termProposalBatch.update({ where: { id: batch.id }, data: { proposedAt: new Date(), proposedBy: a.userId } }));
+    await withTenant(prisma, seller.context, (tx) => tx.termResponse.create({ data: { organizationId: a.organizationId, dealId: a.dealId, batchId: batch.id, ordinal: 0, decision: 'ACCEPT', respondedBy: seller.userId } }));
+    await withTenant(prisma, seller.context, (tx) => tx.termProposalBatch.update({ where: { id: batch.id }, data: { agreedAt: new Date() } }));
+    const name = (who: typeof a.context, by: string, side: string, userId: string) =>
+      withTenant(prisma, who, (tx) => tx.pactSignatory.create({ data: { organizationId: a.organizationId, dealId: a.dealId, side, userId, namedBy: by } }));
+    // The seller cannot name the buyer's signatory, nor the buyer a seller one; nobody names someone off their side.
+    await expect(name(seller.context, seller.userId, 'BUYER', a.userId)).rejects.toThrow(/row-level security/);
+    await expect(name(a.context, a.userId, 'SELLER', seller.userId)).rejects.toThrow(/row-level security/);
+    await expect(name(a.context, a.userId, 'BUYER', seller.userId)).rejects.toThrow(/row-level security/);
+    await name(a.context, a.userId, 'BUYER', a.userId);
+    await name(seller.context, seller.userId, 'SELLER', seller.userId);
+    const signOff = (who: typeof a.context, side: string, userId: string) =>
+      withTenant(prisma, who, (tx) => tx.termSignoff.create({ data: { organizationId: a.organizationId, dealId: a.dealId, batchId: batch.id, side, userId, method: 'IN_APP' } }));
+    await expect(signOff(seller.context, 'BUYER', seller.userId)).rejects.toThrow(/row-level security/);
+    await signOff(a.context, 'BUYER', a.userId);
+    await expect(signOff(a.context, 'BUYER', a.userId)).rejects.toThrow();
+    // Signing has started: the version can no longer be declined.
+    await expect(withTenant(prisma, seller.context, (tx) => tx.termProposalBatch.update({ where: { id: batch.id }, data: { declinedAt: new Date(), declinedBy: seller.userId } }))).rejects.toThrow();
+
+    // Funds: the buyer records, the seller confirms; neither does the other's part.
+    const funds = await withTenant(prisma, a.context, (tx) => tx.closingItem.create({ data: { organizationId: a.organizationId, dealId: a.dealId, kind: 'FUNDS', title: 'Price', ownerSide: 'SELLER', amount: '10.00', currency: 'USD', createdBy: a.userId } }));
+    await expect(withTenant(prisma, seller.context, (tx) => tx.closingItem.update({ where: { id: funds.id }, data: { paidAt: new Date(), paidBy: seller.userId, paidOn: new Date(), paidReference: 'X' } }))).rejects.toThrow(/only the buyer/);
+    await expect(withTenant(prisma, seller.context, (tx) => tx.closingItem.update({ where: { id: funds.id }, data: { doneAt: new Date(), doneBy: seller.userId } }))).rejects.toThrow();
+    await withTenant(prisma, a.context, (tx) => tx.closingItem.update({ where: { id: funds.id }, data: { paidAt: new Date(), paidBy: a.userId, paidOn: new Date(), paidReference: 'WIRE' } }));
+    await expect(withTenant(prisma, a.context, (tx) => tx.closingItem.update({ where: { id: funds.id }, data: { doneAt: new Date(), doneBy: a.userId } }))).rejects.toThrow(/owning side/);
+    await withTenant(prisma, seller.context, (tx) => tx.closingItem.update({ where: { id: funds.id }, data: { doneAt: new Date(), doneBy: seller.userId } }));
+    await expect(withTenant(prisma, a.context, (tx) => tx.closingItem.update({ where: { id: funds.id }, data: { paidReference: 'changed' } }))).rejects.toThrow(/done/);
+    await expect(withTenant(prisma, b.context, (tx) => tx.closingItem.count())).resolves.toBe(0);
+  });
+
   it('lets only an organization admin change the default persona', async () => {
     await withTenant(prisma, a.context, (tx) => tx.organization.update({ where: { id: a.organizationId }, data: { defaultPersona: 'QUALITY_COMPOUNDER' } }));
     const { rows } = (await owner.query('SELECT default_persona FROM organizations WHERE id = $1', [a.organizationId])) as { rows: { default_persona: string }[] };
