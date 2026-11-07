@@ -12,6 +12,8 @@ export const buttonVariants = cva(
         outline: 'border border-navy/20 bg-background text-navy hover:border-navy',
         ghost: 'hover:bg-muted',
         destructive: 'bg-destructive text-destructive-foreground hover:bg-destructive/90',
+        /** A quiet action that reads as a link (remove, retry, close): same font, no box. */
+        link: 'font-semibold text-indigo-ink underline-offset-4 hover:underline',
       },
       size: {
         default: 'h-9 px-4 py-2',
@@ -21,6 +23,8 @@ export const buttonVariants = cva(
         icon: 'h-8 w-8 p-0',
       },
     },
+    // A link-style button has no box, whatever its size.
+    compoundVariants: [{ variant: 'link', className: 'h-auto px-0 py-0' }],
     defaultVariants: { variant: 'default', size: 'default' },
   },
 );

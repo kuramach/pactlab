@@ -1,5 +1,5 @@
 import type { BugReportDetailView } from '@pactlab/contracts';
-import { Badge, Card, CardContent, CardHeader, CardTitle } from '@pactlab/ui';
+import { Badge, Card, CardContent, CardHeader, CardTitle, Button } from '@pactlab/ui';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { apiGet } from '../../../(app)/deals/_lib/api';
@@ -72,7 +72,7 @@ export default async function BugDetailPage({ params, searchParams }: { params: 
             <label className="flex flex-col gap-1 font-medium sm:col-span-4">Reply to the reporter (they see this)
               <textarea name="reporterNote" defaultValue={view.reporterNote ?? ''} maxLength={5000} rows={3} placeholder="What you found and what happens next" className="rounded-md border border-border px-2 py-1.5 font-normal" />
             </label>
-            <button className="rounded-md bg-indigo px-3 py-1.5 font-semibold text-navy">Save</button>
+            <Button size="sm" type="submit">Save</Button>
           </form>
         </CardContent>
       </Card>

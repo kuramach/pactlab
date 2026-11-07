@@ -1,5 +1,6 @@
 'use client';
 
+import { Button } from '@pactlab/ui';
 import { useRef, useState, useTransition } from 'react';
 import { askForesight, askForesightByVoice, type AskOutcome } from './actions';
 
@@ -109,13 +110,13 @@ export function AskForesight({ dealId, lines, voice }: { dealId: string; lines: 
               <input type="checkbox" checked={speak} onChange={(event) => setSpeak(event.target.checked)} /> Speak the answer
             </label>
           ) : null}
-          <button type="submit" disabled={pending} className="rounded-md bg-indigo px-3 py-1.5 font-semibold text-navy">
+          <Button size="sm" type="submit" disabled={pending}>
             {pending ? 'Thinking…' : 'Ask'}
-          </button>
+          </Button>
           {voice.speechToText ? (
-            <button type="button" onClick={() => void record()} disabled={pending} className="rounded-md border border-border px-3 py-1.5" aria-pressed={recording}>
+            <Button variant="outline" size="sm" type="button" onClick={() => void record()} disabled={pending} aria-pressed={recording}>
               {recording ? 'Stop and ask' : 'Ask by voice'}
-            </button>
+            </Button>
           ) : (
             <span className="text-xs text-muted-foreground">Voice is not available here; typing works.</span>
           )}

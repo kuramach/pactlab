@@ -77,3 +77,22 @@ Two buyers looking at identical accepted findings legitimately land on different
 - **Tuning:** each persona's numbers can be changed in one file; a change bumps `PERSONA_VERSION`, and earlier evaluations keep their stamp.
 - **Seller-led sales:** these pacts have no buyer to price for, so pact setup offers the persona only on buyer-led pacts, and the Proposed terms page is hidden there.
 - **Rollback:** the migration is expand-only. Dropping the five tables, the trigger function and the nullable columns restores the previous state.
+
+## Addendum: batch 1 after localhost testing (2026-11-06)
+
+1. **The seller answers proposed terms.** `term_responses` is append-only, and the newest answer per term counts.
+   - **Who answers:** any of the seller's contributors (`TARGET_CONTRIBUTOR`) can accept, reject or counter (with an amount) each term of the open version: the latest proposed, not agreed and not superseded. RLS enforces this, along with "answer as yourself".
+   - **Counters:** the buyer takes counters into the next draft version (`accept-counters`) and proposes it as before. One side always proposes and the other accepts.
+   - **Agreed:** when every term of a version is accepted, `agreed_at` is set once (a trigger re-checks every term) and audited as `terms.agreed`. The version is frozen and shown as the deal terms on the Close tab.
+   - **Confidential:** answers carry no persona, and the seller's shape stays field-by-field.
+2. **Sign-up opens the first session when the new organization is active.**
+   - **How:** `app_signup_verify` inserts the owner's `auth_sessions` row in the same transaction. The sign-up code has just proved the address, so a second sign-in code adds nothing; an invitee's sign-up now accepts the invitation in one step.
+   - **Pending organizations:** never get a session, so live's approval gate holds.
+3. **User-defined Foresight metrics** (`foresight_custom_metrics`, buyer-side).
+   - **Value effect:** the user picks one of three fixed, versioned effects:
+     - GROWTH: 0.5 growth points per point;
+     - RISK: 0.25 discount-rate points per point;
+     - TRACK: none.
+
+     The projection stays deterministic.
+   - **AI forecast:** the AI path reuses `foresight.forecast@1`. The team's definition is sent as data, and a declined forecast stores nothing.

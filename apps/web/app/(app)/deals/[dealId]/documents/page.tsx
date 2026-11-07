@@ -1,4 +1,4 @@
-import { AiBadge, Badge, Button, Card, CardContent, CardHeader, CardTitle, EmptyState, Glossed } from '@pactlab/ui';
+import { AiBadge, Button, Card, CardContent, CardHeader, CardTitle, EmptyState, Glossed } from '@pactlab/ui';
 import Link from 'next/link';
 import { apiGet, dealsApi } from '../../_lib/api';
 import { OutcomeBanner } from '../../_lib/outcome';

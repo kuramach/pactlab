@@ -127,9 +127,9 @@ export function SourcesPanel({ dealId, sources, aiOn }: { dealId: string; source
       {adding ? (
         <ConnectForm dealId={dealId} fixtureRooms={sources.fixtureRooms} onDone={() => setAdding(false)} />
       ) : (
-        <button type="button" className="self-start text-xs underline" onClick={() => setAdding(true)}>
+        <Button variant="link" size="sm" className="self-start" type="button" onClick={() => setAdding(true)}>
           Connect another data room or drive
-        </button>
+        </Button>
       )}
     </div>
   );

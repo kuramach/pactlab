@@ -1,5 +1,6 @@
 'use client';
 
+import { Button } from '@pactlab/ui';
 import { Bug } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
 import { fileBugReport } from './actions';
@@ -97,12 +98,12 @@ export function BugReporter({ appVersion, environment }: { appVersion: string; e
           <span className="font-semibold">Something went wrong — send a bug report?</span>
           <span className="text-muted-foreground">It was logged automatically. Add a line and a screenshot to help fix it.</span>
           <div className="flex gap-2">
-            <button type="button" className="rounded-md bg-indigo px-3 py-1.5 font-semibold text-navy" onClick={() => { setPrompt(null); void open(prompt); }}>
+            <Button size="sm" type="button" onClick={() => { setPrompt(null); void open(prompt); }}>
               Add details
-            </button>
-            <button type="button" className="rounded-md border border-border px-3 py-1.5" onClick={() => setPrompt(null)}>
+            </Button>
+            <Button variant="outline" size="sm" type="button" onClick={() => setPrompt(null)}>
               Dismiss
-            </button>
+            </Button>
           </div>
         </div>
       ) : null}
@@ -121,9 +122,9 @@ export function BugReporter({ appVersion, environment }: { appVersion: string; e
           <div className="flex flex-col gap-3 p-5">
             <h2 id="bug-report-title" className="text-base font-semibold">Thanks — report {sent} sent</h2>
             <p className="text-muted-foreground">You can follow its status under Settings → My bug reports.</p>
-            <button type="button" className="self-start rounded-md border border-border px-3 py-1.5" onClick={() => dialog.current?.close()}>
+            <Button variant="outline" size="sm" className="self-start" type="button" onClick={() => dialog.current?.close()}>
               Close
-            </button>
+            </Button>
           </div>
         ) : (
           <form action={submit} className="flex flex-col gap-3 p-5">
@@ -163,12 +164,12 @@ export function BugReporter({ appVersion, environment }: { appVersion: string; e
             )}
             <p className="text-xs text-muted-foreground">Attached automatically: the page you are on, browser, app version and time. Never passwords or tokens.</p>
             <div className="flex gap-2">
-              <button type="submit" disabled={pending} className="rounded-md bg-indigo px-3 py-1.5 font-semibold text-navy">
+              <Button size="sm" type="submit" disabled={pending}>
                 {pending ? 'Sending…' : 'Send report'}
-              </button>
-              <button type="button" className="rounded-md border border-border px-3 py-1.5" onClick={() => dialog.current?.close()}>
+              </Button>
+              <Button variant="outline" size="sm" type="button" onClick={() => dialog.current?.close()}>
                 Cancel
-              </button>
+              </Button>
             </div>
           </form>
         )}

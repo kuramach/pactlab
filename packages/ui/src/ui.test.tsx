@@ -33,6 +33,12 @@ describe('ui', () => {
     expect(renderToStaticMarkup(<HumanBadge>Accepted</HumanBadge>)).toContain('data-mark="human"');
   });
 
+  it('draws link-style buttons without a box at any size', () => {
+    const html = renderToStaticMarkup(<Button variant="link" size="sm">Remove</Button>);
+    expect(html).toContain('h-auto');
+    expect(html).not.toContain('h-8');
+  });
+
   it('has a square icon size', () => {
     expect(renderToStaticMarkup(<Button size="icon" aria-label="Close">x</Button>)).toContain('w-8');
   });

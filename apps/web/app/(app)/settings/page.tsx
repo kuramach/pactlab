@@ -1,4 +1,4 @@
-import { Badge, buttonVariants, Card, CardContent, CardDescription, CardHeader, CardTitle, EmptyState, PageHeader } from '@pactlab/ui';
+import { Badge, buttonVariants, Card, CardContent, CardDescription, CardHeader, CardTitle, EmptyState, PageHeader, Button } from '@pactlab/ui';
 import type { MyBugReportView } from '@pactlab/contracts';
 import { ArrowRight, Bug, LogOut } from 'lucide-react';
 import Link from 'next/link';
@@ -57,9 +57,9 @@ async function DealStyleCard() {
           </fieldset>
           {canEdit ? (
             <div>
-              <button type="submit" className={buttonVariants({ size: 'sm' })}>
+              <Button type="submit" size="sm">
                 Save style
-              </button>
+              </Button>
             </div>
           ) : (
             <p className="text-xs text-muted-foreground">Organization owners and administrators can change this.</p>
@@ -229,9 +229,9 @@ export default async function SettingsPage() {
         </CardHeader>
         <CardContent>
           <form action={signOut}>
-            <button type="submit" className={buttonVariants({ variant: 'outline', size: 'sm' })}>
+            <Button type="submit" variant="outline" size="sm">
               <LogOut aria-hidden className="h-4 w-4" /> Sign out
-            </button>
+            </Button>
           </form>
         </CardContent>
       </Card>

@@ -138,9 +138,9 @@ export default async function TeamPage({
                         <Badge variant={item.status === 'ACCEPTED' ? 'reviewed' : item.status === 'PENDING' ? 'draft' : 'neutral'}>{item.status.toLowerCase()}</Badge>
                         {item.status === 'PENDING' ? (
                           <form action={revokeInvitation.bind(null, dealId, item.id)}>
-                            <button type="submit" className="text-xs underline">
+                            <Button variant="link" size="sm" type="submit">
                               Withdraw
-                            </button>
+                            </Button>
                           </form>
                         ) : null}
                       </span>

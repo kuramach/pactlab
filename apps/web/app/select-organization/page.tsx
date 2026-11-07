@@ -20,9 +20,9 @@ export const dynamic = 'force-dynamic';
 function SignOut() {
   return (
     <form action={signOut}>
-      <button type="submit" className="text-sm underline">
+      <Button variant="link" size="sm" type="submit">
         Sign out
-      </button>
+      </Button>
     </form>
   );
 }

@@ -227,9 +227,9 @@ export default async function FindingsPage({
                 <option value="needed">Needs pricing{unpriced > 0 ? ` (${unpriced})` : ''}</option>
               </select>
             </label>
-            <button type="submit" className="rounded-md border border-border px-3 py-1 font-medium">
+            <Button variant="outline" size="sm" type="submit">
               Apply
-            </button>
+            </Button>
           </form>
 
           {result && result.kind !== 'ok' ? (
