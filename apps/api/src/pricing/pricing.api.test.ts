@@ -215,7 +215,7 @@ describe('buyer personas API (T-105)', () => {
     const v1 = drafted.batches[0]!;
     expect(v1).toMatchObject({ version: 1, evaluationId: grave.id, proposedAt: null });
     // Nothing reaches the seller before it is proposed.
-    expect((await call('target_contributor', 'GET', deal('/terms/proposed'))).body).toEqual({ proposed: null, draft: null });
+    expect((await call('target_contributor', 'GET', deal('/terms/proposed'))).body).toEqual({ side: 'SELLER', proposed: null, draft: null });
     // The headline price leads every version (T-107).
     expect(v1.terms[0]).toMatchObject({ lever: 'PURCHASE_PRICE', amount: grave.termMix.price.amount });
 
@@ -247,7 +247,7 @@ describe('buyer personas API (T-105)', () => {
   it('shows the seller no persona, parameter, finding or evaluation', async () => {
     const response = await call('target_contributor', 'GET', deal('/terms/proposed'));
     const proposed = response.body['proposed'] as Body;
-    expect(Object.keys(proposed).sort()).toEqual(['agreedAt', 'canAcceptCounters', 'canRespond', 'currency', 'declinedAt', 'initiatedBySide', 'proposedAt', 'terms', 'version']);
+    expect(Object.keys(proposed).sort()).toEqual(['agreedAt', 'canAcceptCounters', 'canRespond', 'currency', 'declinedAt', 'id', 'initiatedBySide', 'proposedAt', 'terms', 'version']);
     for (const term of proposed['terms'] as Body[]) expect(Object.keys(term).sort()).toEqual(['amount', 'currency', 'lever', 'ordinal', 'response', 'sellerNote']);
     const text = response.text.toLowerCase();
     for (const leak of ['persona', 'compounder', 'value investor', 'value_investor', 'grave', 'personas-1', 'materiality', 'weight', 'evaluation', ...Object.values(found)]) {

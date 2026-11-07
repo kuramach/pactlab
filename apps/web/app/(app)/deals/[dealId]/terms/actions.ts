@@ -42,3 +42,36 @@ export async function acceptAllTerms(dealId: string, ordinals: number[]): Promis
   const result = await apiSend('POST', `/v1/deals/${dealId}/terms/proposed/responses`, { responses: ordinals.map((ordinal) => ({ ordinal, decision: 'ACCEPT' })) });
   back(dealId, result.kind === 'ok' ? 'ok-sent' : result.kind === 'conflict' ? 'agreed-already' : result.kind);
 }
+
+/** The proposing side takes the other side's counters into its next version (T-107). */
+export async function acceptCounters(dealId: string, batchId: string): Promise<void> {
+  if (!uuid.safeParse(dealId).success || !uuid.safeParse(batchId).success) redirect('/deals');
+  const result = await apiSend('POST', `/v1/deals/${dealId}/terms/${batchId}/accept-counters`, {});
+  back(dealId, result.kind === 'ok' ? 'ok-counters' : result.kind);
+}
+
+const LEVERS = ['PURCHASE_PRICE', 'PRICE_REDUCTION', 'REMEDIATION_COST', 'ESCROW', 'INDEMNITY', 'RETENTION', 'EARNOUT', 'SELLER_FINANCING'] as const;
+
+/** The seller drafts their own version (T-107): the purchase price first, then any terms they ask for. */
+export async function draftOwnTerms(dealId: string, formData: FormData): Promise<void> {
+  if (!uuid.safeParse(dealId).success) redirect('/deals');
+  const currency = String(formData.get('currency') ?? 'USD');
+  const terms: { lever: string; amount: string; note: string }[] = [];
+  for (let row = 0; row < 6; row += 1) {
+    const lever = String(formData.get(`lever-${row}`) ?? '');
+    const raw = String(formData.get(`amount-${row}`) ?? '').trim();
+    if (!raw) continue;
+    const parsed = amount.safeParse(raw);
+    if (!parsed.success || !(LEVERS as readonly string[]).includes(lever)) back(dealId, 'draft-invalid');
+    terms.push({ lever, amount: parsed.data, note: String(formData.get(`note-${row}`) ?? '').slice(0, 1000) });
+  }
+  if (terms[0]?.lever !== 'PURCHASE_PRICE') back(dealId, 'draft-price-first');
+  const result = await apiSend('POST', `/v1/deals/${dealId}/terms/drafts`, { currency, terms });
+  back(dealId, result.kind === 'ok' ? 'ok-drafted' : result.kind === 'invalid' ? 'draft-invalid' : result.kind);
+}
+
+export async function proposeOwnTerms(dealId: string, batchId: string): Promise<void> {
+  if (!uuid.safeParse(dealId).success || !uuid.safeParse(batchId).success) redirect('/deals');
+  const result = await apiSend('POST', `/v1/deals/${dealId}/terms/${batchId}/propose`, {});
+  back(dealId, result.kind === 'ok' ? 'ok-proposed' : result.kind);
+}

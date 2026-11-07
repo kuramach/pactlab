@@ -116,6 +116,7 @@ export interface EvaluationDelta {
  * spread from a row, so no persona, parameter, finding or evaluation id leaks.
  */
 export interface SellerTermsView {
+  readonly id: string;
   readonly version: number;
   readonly proposedAt: string;
   readonly currency: string;
@@ -443,7 +444,7 @@ export class PricingService {
    * The latest proposed terms, either side's, in the shape both sides may see;
    * null before any are proposed. The seller also gets their own draft, if any.
    */
-  async proposedTerms(tenant: TenantContext, dealId: string, requestId: string): Promise<{ proposed: SellerTermsView | null; draft: SellerDraftView | null }> {
+  async proposedTerms(tenant: TenantContext, dealId: string, requestId: string): Promise<{ side: 'BUYER' | 'SELLER' | null; proposed: SellerTermsView | null; draft: SellerDraftView | null }> {
     const role = await this.access.require(tenant, dealId, canReadProposed, { action: 'terms.viewed', requestId });
     const side = termSide(role);
     const [batch, draft] = await withTenant(this.prisma, tenant, async (tx) => [
@@ -455,11 +456,13 @@ export class PricingService {
     const draftView: SellerDraftView | null = draft
       ? { id: draft.id, version: draft.version, currency: draft.currency, terms: draft.terms.map((term) => ({ ordinal: term.ordinal, lever: term.lever as TermLever, amount: term.amount.toFixed(2), currency: term.currency, note: term.sellerNote })) }
       : null;
-    if (!batch?.proposedAt) return { proposed: null, draft: draftView };
+    if (!batch?.proposedAt) return { side, proposed: null, draft: draftView };
     const responses = latestResponses(batch.responses);
     const open = !batch.agreedAt && !batch.declinedAt;
     return {
+      side,
       proposed: {
+        id: batch.id,
         version: batch.version,
         proposedAt: batch.proposedAt.toISOString(),
         currency: batch.currency,
