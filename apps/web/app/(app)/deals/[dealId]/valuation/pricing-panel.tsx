@@ -134,7 +134,11 @@ function Terms({ dealId, view, writer, titles, outcome }: { dealId: string; view
     <section id="pricing-terms" className="flex scroll-mt-24 flex-col gap-3">
       <div className="flex flex-wrap items-center gap-2">
         <h3 className="mr-auto font-bold">Proposed terms</h3>
-        {agreed ? <HumanBadge>Agreed v{agreed.version}</HumanBadge> : proposed ? <Badge variant="evidence">seller sees v{proposed.version}</Badge> : <Badge variant="draft">nothing proposed yet</Badge>}
+        {agreed ? (
+          <Link href={`/deals/${dealId}/closing`}>
+            <HumanBadge>Agreed v{agreed.version} · sign and close →</HumanBadge>
+          </Link>
+        ) : proposed ? <Badge variant="evidence">seller sees v{proposed.version}</Badge> : <Badge variant="draft">nothing proposed yet</Badge>}
       </div>
       <Notice outcome={outcome} section="terms" />
       {view.sellerSeesOtherPricing && !agreed ? (
@@ -143,7 +147,14 @@ function Terms({ dealId, view, writer, titles, outcome }: { dealId: string; view
         </p>
       ) : null}
 
-      {proposed && (proposed === latest || !latest || latest.proposedAt) ? (
+      {proposed?.initiatedBySide === 'SELLER' && !proposed.agreedAt ? (
+        <p role="status" className="rounded-md border border-border bg-muted px-3 py-2 text-sm">
+          The seller proposed v{proposed.version}.{' '}
+          <Link href={`/deals/${dealId}/terms`} className="font-semibold text-indigo-ink underline-offset-4 hover:underline">
+            Answer it on Proposed terms →
+          </Link>
+        </p>
+      ) : proposed && (proposed === latest || !latest || latest.proposedAt) ? (
         <div className="flex flex-col gap-2">
           <p className="text-sm text-muted-foreground">
             v{proposed.version}, proposed {proposed.proposedAt?.slice(0, 10)}

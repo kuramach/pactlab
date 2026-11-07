@@ -30,6 +30,7 @@ describe('deal tabs (T-094 B13)', () => {
     expect(dealGroup(dealSection(id, `/deals/${id}/foresight`)).key).toBe('valuation');
     expect(dealGroup(dealSection(id, `/deals/${id}/terms`)).key).toBe('valuation');
     expect(dealGroup(dealSection(id, `/deals/${id}/post-close`)).key).toBe('close');
+    expect(dealGroup(dealSection(id, `/deals/${id}/closing`)).key).toBe('close');
     expect(dealGroup(dealSection(id, `/deals/${id}`)).key).toBe('overview');
   });
 });

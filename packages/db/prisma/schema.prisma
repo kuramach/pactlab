@@ -539,6 +539,10 @@ model Deal {
   /// The sale this buyer-led pact came from (another organization's seller-led pact, T-097). Reference only.
   linkedOrganizationId    String?                 @map("linked_organization_id") @db.Uuid
   linkedDealId            String?                 @map("linked_deal_id") @db.Uuid
+  /// The two-sided close (T-107): when, and the signatory of each side.
+  closedAt                DateTime?               @map("closed_at") @db.Timestamptz(3)
+  closedByBuyer           String?                 @map("closed_by_buyer") @db.Uuid
+  closedBySeller          String?                 @map("closed_by_seller") @db.Uuid
   /// The buyer persona this pact prices under (T-105); null follows the organization default. Buyer-confidential.
   persona                 String?
   /// Set when the deal lead deletes the deal (status DELETED); one-way.
@@ -2347,18 +2351,26 @@ model TermProposalBatch {
   id             String    @id @default(uuid(7)) @db.Uuid
   organizationId String    @map("organization_id") @db.Uuid
   dealId         String    @map("deal_id") @db.Uuid
-  evaluationId   String    @map("evaluation_id") @db.Uuid
+  /// The buyer evaluation a buyer version was priced from; null for a seller's version (T-107).
+  evaluationId   String?   @map("evaluation_id") @db.Uuid
   version        Int
   currency       String    @db.Char(3)
+  /// BUYER | SELLER: who drafted and proposed this version; the other side answers it (T-107).
+  initiatedBySide String   @default("BUYER") @map("initiated_by_side")
   createdBy      String    @map("created_by") @db.Uuid
   createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
   proposedAt     DateTime? @map("proposed_at") @db.Timestamptz(3)
   proposedBy     String?   @map("proposed_by") @db.Uuid
-  /// Set once, when the seller has accepted every term of this proposed version.
+  /// Set once, when the other side has accepted every term of this proposed version.
   agreedAt       DateTime? @map("agreed_at") @db.Timestamptz(3)
+  /// A signatory turned an agreed version down before signing; a new version follows (T-107).
+  declinedAt     DateTime? @map("declined_at") @db.Timestamptz(3)
+  declinedBy     String?   @map("declined_by") @db.Uuid
 
   terms     TermProposal[]
   responses TermResponse[]
+  signoffs  TermSignoff[]
+  envelopes SignatureEnvelope[]
 
   @@unique([organizationId, dealId, id], map: "term_proposal_batches_org_deal_id_key")
   @@unique([organizationId, dealId, version], map: "term_proposal_batches_version_key")
@@ -2447,4 +2459,108 @@ model ForesightCustomMetric {
 
   @@unique([organizationId, dealId, metricKey], map: "foresight_custom_metrics_key_key")
   @@map("foresight_custom_metrics")
+}
+
+/// Who signs for each side of a pact (T-107). Append-only; the latest per side counts.
+model PactSignatory {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  dealId         String   @map("deal_id") @db.Uuid
+  /// BUYER | SELLER
+  side           String
+  userId         String   @map("user_id") @db.Uuid
+  namedBy        String   @map("named_by") @db.Uuid
+  namedAt        DateTime @default(now()) @map("named_at") @db.Timestamptz(3)
+
+  @@index([organizationId, dealId, side, namedAt], map: "pact_signatories_deal_idx")
+  @@map("pact_signatories")
+}
+
+/// A side's sign-off on an agreed version (T-107): in the app, or by e-signature. Insert-only.
+model TermSignoff {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  dealId         String   @map("deal_id") @db.Uuid
+  batchId        String   @map("batch_id") @db.Uuid
+  side           String
+  userId         String   @map("user_id") @db.Uuid
+  /// IN_APP | ESIGN
+  method         String
+  envelopeId     String?  @map("envelope_id") @db.Uuid
+  signedAt       DateTime @default(now()) @map("signed_at") @db.Timestamptz(3)
+
+  batch TermProposalBatch @relation(fields: [organizationId, dealId, batchId], references: [organizationId, dealId, id], onDelete: Restrict, map: "term_signoffs_batch_fkey")
+
+  @@unique([batchId, side], map: "term_signoffs_batch_side_key")
+  @@map("term_signoffs")
+}
+
+/// The closing checklist (T-107). FUNDS items: the buyer records the payment, the seller confirms it.
+model ClosingItem {
+  id              String    @id @default(uuid(7)) @db.Uuid
+  organizationId  String    @map("organization_id") @db.Uuid
+  dealId          String    @map("deal_id") @db.Uuid
+  /// CONDITION | FUNDS
+  kind            String    @default("CONDITION")
+  title           String
+  /// BUYER | SELLER: who ticks it (funds: the seller, who receives them)
+  ownerSide       String    @map("owner_side")
+  amount          Decimal?  @db.Decimal(20, 2)
+  currency        String?   @db.Char(3)
+  paidAt          DateTime? @map("paid_at") @db.Timestamptz(3)
+  paidBy          String?   @map("paid_by") @db.Uuid
+  paidOn          DateTime? @map("paid_on") @db.Date
+  paidReference   String?   @map("paid_reference")
+  proofDocumentId String?   @map("proof_document_id") @db.Uuid
+  disputedAt      DateTime? @map("disputed_at") @db.Timestamptz(3)
+  disputeNote     String?   @map("dispute_note")
+  doneAt          DateTime? @map("done_at") @db.Timestamptz(3)
+  doneBy          String?   @map("done_by") @db.Uuid
+  createdBy       String    @map("created_by") @db.Uuid
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([organizationId, dealId, createdAt], map: "closing_items_deal_idx")
+  @@map("closing_items")
+}
+
+/// An e-signature envelope for an agreed version (T-107); its outcome arrives by webhook.
+model SignatureEnvelope {
+  id                  String    @id @default(uuid(7)) @db.Uuid
+  organizationId      String    @map("organization_id") @db.Uuid
+  dealId              String    @map("deal_id") @db.Uuid
+  batchId             String    @map("batch_id") @db.Uuid
+  /// FIXTURE | DOCUSIGN
+  provider            String
+  providerEnvelopeId  String    @map("provider_envelope_id")
+  /// SENT | COMPLETED | DECLINED | VOIDED
+  status              String    @default("SENT")
+  termSheetSha256     String    @map("term_sheet_sha256") @db.Char(64)
+  agreementDocumentId String?   @map("agreement_document_id") @db.Uuid
+  buyerSignatory      String    @map("buyer_signatory") @db.Uuid
+  sellerSignatory     String    @map("seller_signatory") @db.Uuid
+  sentBy              String    @map("sent_by") @db.Uuid
+  sentAt              DateTime  @default(now()) @map("sent_at") @db.Timestamptz(3)
+  completedAt         DateTime? @map("completed_at") @db.Timestamptz(3)
+
+  batch TermProposalBatch @relation(fields: [organizationId, dealId, batchId], references: [organizationId, dealId, id], onDelete: Restrict, map: "signature_envelopes_batch_fkey")
+
+  @@unique([provider, providerEnvelopeId], map: "signature_envelopes_provider_key")
+  @@index([batchId, sentAt], map: "signature_envelopes_batch_idx")
+  @@map("signature_envelopes")
+}
+
+/// An organization's own provider account (T-107: DocuSign). The token lives in the secret store.
+model OrganizationConnection {
+  id             String    @id @default(uuid(7)) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  provider       String
+  credentialRef  String    @map("credential_ref")
+  accountId      String    @map("account_id")
+  accountName    String    @map("account_name")
+  baseUri        String    @map("base_uri")
+  connectedBy    String    @map("connected_by") @db.Uuid
+  connectedAt    DateTime  @default(now()) @map("connected_at") @db.Timestamptz(3)
+  disconnectedAt DateTime? @map("disconnected_at") @db.Timestamptz(3)
+
+  @@map("organization_connections")
 }

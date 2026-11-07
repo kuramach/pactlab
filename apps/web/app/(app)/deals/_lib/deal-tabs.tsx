@@ -63,7 +63,15 @@ export const DEAL_GROUPS: readonly DealGroup[] = [
       { path: '/terms', label: 'Proposed terms', buyerLedOnly: true },
     ],
   },
-  { key: 'close', label: 'Close', sections: [{ path: '/post-close', label: 'Post-close' }] },
+  {
+    key: 'close',
+    label: 'Close',
+    sections: [
+      // Both sides sign the agreed terms and work the checklist here (T-107).
+      { path: '/closing', label: 'Closing', buyerLedOnly: true },
+      { path: '/post-close', label: 'Post-close' },
+    ],
+  },
 ];
 
 /** Every section, flattened; kept for callers that only need the paths. */

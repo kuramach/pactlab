@@ -10,6 +10,8 @@ import { AI_OFF, type AiStatusView } from './ai/ai-provider';
 import { AiModule } from './ai/ai.module';
 import { BalanceSheetModule } from './balance-sheet/balance-sheet.module';
 import { PhasesModule } from './phases/phases.module';
+import { CloseModule } from './close/close.module';
+import { FixtureSigningProvider, type DocuSignOAuth } from '@pactlab/connectors';
 import { VentureModule } from './venture/venture.module';
 import { AdminModule } from './admin/admin.module';
 import { ForesightModule } from './foresight/foresight.module';
@@ -71,6 +73,11 @@ export interface AppDependencies {
    * never delivered.
    */
   emailLogin?: { tokenSecret: string; emailSender?: EmailSender };
+  /**
+   * E-signature (T-107). `docusign`: Pactlab's app registration, which organizations connect
+   * their own DocuSign accounts to. `fixture`: the fixture provider, outside production only.
+   */
+  signing?: { fixture: boolean; docusign: { oauth: DocuSignOAuth; connectHmacKey: string; redirectUri: string } | null };
   /**
    * Self-serve sign-up (needs `emailLogin` for the hash secret and sender).
    * Defaults: approval required, no operator email.
@@ -135,6 +142,13 @@ export class AppModule {
         PactsModule,
         BalanceSheetModule,
         PhasesModule,
+        CloseModule.register({
+          fixtureSigning: deps.signing?.fixture === false ? null : new FixtureSigningProvider(),
+          docusign: deps.signing?.docusign ?? null,
+          secrets: deps.providers?.secrets ?? null,
+          stateSecret: deps.emailLogin?.tokenSecret ?? 'signing-state-unconfigured',
+          documents: deps.documents?.objectStore ?? new UnavailableObjectStore(),
+        }),
         VentureModule,
         ForesightModule.register({
           gateway: deps.documents?.gateway ?? new NotConfiguredClaudeGateway(),
