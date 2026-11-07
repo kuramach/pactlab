@@ -47,7 +47,7 @@ export class OrganizationController {
       defaultPersona,
       effective: resolvePersona(null, defaultPersona),
       canEdit: tenant.organizationRole === 'ORG_OWNER' || tenant.organizationRole === 'ORG_ADMIN',
-      options: BUYER_PERSONAS.map((persona) => ({ persona, label: PERSONA_PROFILE[persona].label, descriptor: PERSONA_PROFILE[persona].descriptor })),
+      options: BUYER_PERSONAS.map((persona) => ({ persona, label: PERSONA_PROFILE[persona].label, descriptor: PERSONA_PROFILE[persona].descriptor, icon: PERSONA_PROFILE[persona].icon, caption: PERSONA_PROFILE[persona].caption })),
     };
   }
 

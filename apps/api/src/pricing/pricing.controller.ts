@@ -10,9 +10,11 @@ import {
   evaluationParamsSchema,
   personaBodySchema,
   sellerNotesBodySchema,
+  termResponsesBodySchema,
   type EvaluateBody,
   type PersonaBody,
   type SellerNotesBody,
+  type TermResponsesBody,
 } from './pricing.schemas';
 import { PricingService } from './pricing.service';
 
@@ -79,6 +81,12 @@ export class PricingController {
     return this.service.updateSellerNotes(tenant, params.dealId, params.batchId, body, requestId);
   }
 
+  @Post('terms/:batchId/accept-counters')
+  @HttpCode(201)
+  acceptCounters(@Tenant() tenant: TenantContext, @RequestId() requestId: string, @Param(new ZodValidationPipe(batchParamsSchema)) params: BatchParams) {
+    return this.service.acceptCounters(tenant, params.dealId, params.batchId, requestId);
+  }
+
   @Post('terms/:batchId/propose')
   @HttpCode(201)
   propose(@Tenant() tenant: TenantContext, @RequestId() requestId: string, @Param(new ZodValidationPipe(batchParamsSchema)) params: BatchParams) {
@@ -94,5 +102,17 @@ export class ProposedTermsController {
   @Get('proposed')
   proposed(@Tenant() tenant: TenantContext, @RequestId() requestId: string, @Param(new ZodValidationPipe(dealParamsSchema)) params: DealParams) {
     return this.service.proposedTerms(tenant, params.dealId, requestId);
+  }
+
+  /** The seller's contributors accept, reject or counter the latest proposed terms. */
+  @Post('proposed/responses')
+  @HttpCode(201)
+  respond(
+    @Tenant() tenant: TenantContext,
+    @RequestId() requestId: string,
+    @Param(new ZodValidationPipe(dealParamsSchema)) params: DealParams,
+    @Body(new ZodValidationPipe(termResponsesBodySchema)) body: TermResponsesBody,
+  ) {
+    return this.service.respond(tenant, params.dealId, body, requestId);
   }
 }

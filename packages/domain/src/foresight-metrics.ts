@@ -72,6 +72,38 @@ const SECTOR: Readonly<Record<PackId, ForesightMetric>> = {
 };
 
 /** The metrics a pact forecasts: macro first, then its sector's. */
+/**
+ * A metric the deal team defines (batch 1). Its effect on value is one of three
+ * fixed, versioned sensitivities, chosen by the user: the engine stays deterministic.
+ */
+export const CUSTOM_METRIC_EFFECTS = {
+  GROWTH: { label: 'Higher is good for growth', growthPerPoint: '0.5', discountPerPoint: '0' },
+  RISK: { label: 'Higher raises risk (the discount rate)', growthPerPoint: '0', discountPerPoint: '0.25' },
+  TRACK: { label: 'Track only — no effect on value', growthPerPoint: '0', discountPerPoint: '0' },
+} as const satisfies Record<string, { label: string; growthPerPoint: string; discountPerPoint: string }>;
+export type CustomMetricEffect = keyof typeof CUSTOM_METRIC_EFFECTS;
+export const CUSTOM_METRIC_EFFECT_KEYS = Object.keys(CUSTOM_METRIC_EFFECTS) as CustomMetricEffect[];
+
+export interface CustomForesightMetric {
+  readonly key: string;
+  readonly label: string;
+  readonly definition: string;
+  readonly neutral: string;
+  readonly effect: CustomMetricEffect;
+}
+
+/** A user-defined metric in the engine's shape. */
+export function customForesightMetric(metric: CustomForesightMetric): ForesightMetric {
+  const effect = CUSTOM_METRIC_EFFECTS[metric.effect];
+  return { key: metric.key, label: metric.label, help: metric.definition, external: null, neutral: metric.neutral, growthPerPoint: effect.growthPerPoint, discountPerPoint: effect.discountPerPoint };
+}
+
+/** `custom.<slug>` from a label: lower-case words joined by hyphens, at most 40 characters. */
+export function customMetricKey(label: string): string {
+  const slug = label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40).replace(/-+$/, '');
+  return `custom.${slug || 'metric'}`;
+}
+
 export function foresightMetricsFor(pack: PackId | null): readonly ForesightMetric[] {
   return [...MACRO, ...(pack ? [SECTOR[pack]] : [SECTOR.SOFTWARE_SAAS])];
 }

@@ -28,7 +28,7 @@ import { DealAccess } from '../deals/deal-access';
 import { FINDINGS_REPOSITORY, type FindingsRepository } from '../findings/findings.repository';
 import { PRISMA } from '../tokens';
 import { ValuationService } from '../valuation/valuation.service';
-import type { EvaluateBody, PersonaBody, SellerNotesBody } from './pricing.schemas';
+import type { EvaluateBody, PersonaBody, SellerNotesBody, TermResponsesBody } from './pricing.schemas';
 
 export const PRICING_DEPENDENCIES = Symbol('PRICING_DEPENDENCIES');
 export interface PricingDependencies {
@@ -40,6 +40,26 @@ const canRead = (role: DealRole) => permissionsForDealRole(role).has('BUYER_ANAL
 const canWrite = (role: DealRole) => permissionsForDealRole(role).has('DEAL_WRITE') && permissionsForDealRole(role).has('BUYER_ANALYSIS_READ');
 /** Anyone on the pact, the seller's contributors included, reads terms once proposed. */
 const canReadProposed = (role: DealRole) => permissionsForDealRole(role).has('DEAL_READ');
+/** Any of the seller's contributors answers for the seller (Kumar, 2026-11-06); each answer is named. */
+const canRespond = (role: DealRole) => role === 'TARGET_CONTRIBUTOR';
+
+export type TermDecision = 'ACCEPT' | 'REJECT' | 'COUNTER';
+export interface TermResponseView {
+  readonly decision: TermDecision;
+  readonly counterAmount: string | null;
+  readonly note: string;
+  readonly respondedBy: string;
+  readonly respondedAt: string;
+}
+
+/** The newest response per term ordinal. */
+function latestResponses(rows: readonly { ordinal: number; decision: string; counterAmount: { toFixed(digits: number): string } | null; note: string; respondedBy: string; respondedAt: Date }[]) {
+  const latest = new Map<number, TermResponseView>();
+  for (const row of [...rows].sort((a, b) => a.respondedAt.getTime() - b.respondedAt.getTime())) {
+    latest.set(row.ordinal, { decision: row.decision as TermDecision, counterAmount: row.counterAmount?.toFixed(2) ?? null, note: row.note, respondedBy: row.respondedBy, respondedAt: row.respondedAt.toISOString() });
+  }
+  return latest;
+}
 
 const json = (value: unknown) => value as Prisma.InputJsonValue;
 
@@ -84,7 +104,19 @@ export interface SellerTermsView {
   readonly version: number;
   readonly proposedAt: string;
   readonly currency: string;
-  readonly terms: readonly { readonly lever: TermLever; readonly amount: string; readonly currency: string; readonly sellerNote: string }[];
+  /** Set once the seller accepted every term: the version is agreed and frozen. */
+  readonly agreedAt: string | null;
+  /** True for the seller's contributors while this version is open for an answer. */
+  readonly canRespond: boolean;
+  readonly terms: readonly {
+    readonly ordinal: number;
+    readonly lever: TermLever;
+    readonly amount: string;
+    readonly currency: string;
+    readonly sellerNote: string;
+    /** The seller side's latest answer to this term. */
+    readonly response: { readonly decision: TermDecision; readonly counterAmount: string | null; readonly note: string; readonly respondedAt: string } | null;
+  }[];
 }
 
 function aiFailure(error: unknown): never {
@@ -179,7 +211,7 @@ export class PricingService {
       const [rows, adoption, batches] = await Promise.all([
         tx.pricingEvaluation.findMany({ where: { dealId }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], take: 30 }),
         tx.pricingAdoption.findFirst({ where: { dealId }, orderBy: [{ adoptedAt: 'desc' }, { id: 'desc' }] }),
-        tx.termProposalBatch.findMany({ where: { dealId }, orderBy: { version: 'desc' }, include: { terms: { orderBy: { ordinal: 'asc' } } }, take: 20 }),
+        tx.termProposalBatch.findMany({ where: { dealId }, orderBy: { version: 'desc' }, include: { terms: { orderBy: { ordinal: 'asc' } }, responses: true }, take: 20 }),
       ]);
       const evaluations = rows.map((row) => this.toView(row));
       const activeRow = adoption ? (evaluations.find((evaluation) => evaluation.id === adoption.evaluationId) ?? this.toView(await tx.pricingEvaluation.findUniqueOrThrow({ where: { id: adoption.evaluationId } }))) : null;
@@ -190,22 +222,26 @@ export class PricingService {
       return {
         persona: {
           ...persona,
-          options: BUYER_PERSONAS.map((key) => ({ persona: key, label: PERSONA_PROFILE[key].label, descriptor: PERSONA_PROFILE[key].descriptor })),
+          options: BUYER_PERSONAS.map((key) => ({ persona: key, label: PERSONA_PROFILE[key].label, descriptor: PERSONA_PROFILE[key].descriptor, icon: PERSONA_PROFILE[key].icon, caption: PERSONA_PROFILE[key].caption })),
         },
         active: activeRow && adoption ? { evaluationId: activeRow.id, adoptedAt: adoption.adoptedAt.toISOString(), adoptedBy: adoption.adoptedBy } : null,
         evaluations: evaluations.map((evaluation) => ({
           ...evaluation,
           deltaToActive: activeRow && evaluation.id !== activeRow.id ? evaluationDelta(evaluation.termMix, activeRow.termMix) : null,
         })),
-        batches: batches.map((batch) => ({
-          id: batch.id,
-          version: batch.version,
-          evaluationId: batch.evaluationId,
-          currency: batch.currency,
-          createdAt: batch.createdAt.toISOString(),
-          proposedAt: batch.proposedAt?.toISOString() ?? null,
-          terms: batch.terms.map((term) => ({ ordinal: term.ordinal, lever: term.lever as TermLever, amount: term.amount.toFixed(2), currency: term.currency, findingId: term.findingId, sellerNote: term.sellerNote })),
-        })),
+        batches: batches.map((batch) => {
+          const responses = latestResponses(batch.responses);
+          return {
+            id: batch.id,
+            version: batch.version,
+            evaluationId: batch.evaluationId,
+            currency: batch.currency,
+            createdAt: batch.createdAt.toISOString(),
+            proposedAt: batch.proposedAt?.toISOString() ?? null,
+            agreedAt: batch.agreedAt?.toISOString() ?? null,
+            terms: batch.terms.map((term) => ({ ordinal: term.ordinal, lever: term.lever as TermLever, amount: term.amount.toFixed(2), currency: term.currency, findingId: term.findingId, sellerNote: term.sellerNote, response: responses.get(term.ordinal) ?? null })),
+          };
+        }),
         // Proposed terms are sticky: true when the seller still sees terms from another evaluation.
         sellerSeesOtherPricing: Boolean(activeRow && proposed && proposed.evaluationId !== activeRow.id),
         brief: brief ? { id: brief.id, evaluationId: brief.evaluationId, sections: brief.sections, createdAt: brief.createdAt.toISOString() } : null,
@@ -388,19 +424,110 @@ export class PricingService {
 
   /** The latest terms proposed to the seller, in the seller-safe shape; null before any are proposed. */
   async proposedTerms(tenant: TenantContext, dealId: string, requestId: string): Promise<{ proposed: SellerTermsView | null }> {
-    await this.access.require(tenant, dealId, canReadProposed, { action: 'terms.viewed', requestId });
+    const role = await this.access.require(tenant, dealId, canReadProposed, { action: 'terms.viewed', requestId });
     const batch = await withTenant(this.prisma, tenant, (tx) =>
-      tx.termProposalBatch.findFirst({ where: { dealId, proposedAt: { not: null } }, orderBy: { version: 'desc' }, include: { terms: { orderBy: { ordinal: 'asc' } } } }),
+      tx.termProposalBatch.findFirst({ where: { dealId, proposedAt: { not: null } }, orderBy: { version: 'desc' }, include: { terms: { orderBy: { ordinal: 'asc' } }, responses: true } }),
     );
     if (!batch?.proposedAt) return { proposed: null };
+    const responses = latestResponses(batch.responses);
     return {
       proposed: {
         version: batch.version,
         proposedAt: batch.proposedAt.toISOString(),
         currency: batch.currency,
-        terms: batch.terms.map((term) => ({ lever: term.lever as TermLever, amount: term.amount.toFixed(2), currency: term.currency, sellerNote: term.sellerNote })),
+        agreedAt: batch.agreedAt?.toISOString() ?? null,
+        canRespond: canRespond(role) && !batch.agreedAt,
+        terms: batch.terms.map((term) => {
+          const response = responses.get(term.ordinal);
+          return {
+            ordinal: term.ordinal,
+            lever: term.lever as TermLever,
+            amount: term.amount.toFixed(2),
+            currency: term.currency,
+            sellerNote: term.sellerNote,
+            response: response ? { decision: response.decision, counterAmount: response.counterAmount, note: response.note, respondedAt: response.respondedAt } : null,
+          };
+        }),
       },
     };
+  }
+
+  /**
+   * The seller's answer to the latest proposed terms: per term, accept, reject
+   * or counter. When every term is accepted, the version is agreed and frozen.
+   */
+  async respond(tenant: TenantContext, dealId: string, body: TermResponsesBody, requestId: string) {
+    await this.access.require(tenant, dealId, canRespond, { action: 'terms.responded', requestId });
+    await withTenant(this.prisma, tenant, async (tx) => {
+      const batch = await tx.termProposalBatch.findFirst({ where: { dealId, proposedAt: { not: null } }, orderBy: { version: 'desc' }, include: { terms: { select: { ordinal: true } } } });
+      if (!batch) throw new NotFoundException();
+      if (batch.agreedAt) throw new ConflictException('These terms are already agreed');
+      const ordinals = new Set(batch.terms.map((term) => term.ordinal));
+      if (body.responses.some((response) => !ordinals.has(response.ordinal))) throw new UnprocessableEntityException('Answer only the proposed terms');
+      const now = new Date();
+      await tx.termResponse.createMany({
+        data: body.responses.map((response) => ({
+          id: newId(),
+          organizationId: tenant.organizationId,
+          dealId,
+          batchId: batch.id,
+          ordinal: response.ordinal,
+          decision: response.decision,
+          counterAmount: response.counterAmount ?? null,
+          note: response.note,
+          respondedBy: tenant.userId,
+          respondedAt: now,
+        })),
+      });
+      await this.audit(tx, tenant, dealId, 'terms.responded', 'term_proposal_batch', batch.id, requestId);
+      const all = await tx.termResponse.findMany({ where: { batchId: batch.id } });
+      const latest = latestResponses(all);
+      if (batch.terms.every((term) => latest.get(term.ordinal)?.decision === 'ACCEPT')) {
+        await tx.termProposalBatch.update({ where: { id: batch.id }, data: { agreedAt: now } });
+        await this.audit(tx, tenant, dealId, 'terms.agreed', 'term_proposal_batch', batch.id, requestId);
+      }
+    });
+    return this.proposedTerms(tenant, dealId, requestId);
+  }
+
+  /**
+   * The buyer takes the seller's counters into the next version: the proposed
+   * terms with each countered amount substituted, as a draft the buyer then
+   * proposes. Always one side proposing, the other accepting.
+   */
+  async acceptCounters(tenant: TenantContext, dealId: string, batchId: string, requestId: string) {
+    await this.access.require(tenant, dealId, canWrite, { action: 'terms.counters_accepted', requestId });
+    await withTenant(this.prisma, tenant, async (tx) => {
+      const batch = await tx.termProposalBatch.findFirst({ where: { id: batchId, dealId }, include: { terms: { orderBy: { ordinal: 'asc' } }, responses: true } });
+      if (!batch) throw new NotFoundException();
+      if (!batch.proposedAt || batch.agreedAt) throw new ConflictException('Only open proposed terms carry counters');
+      const latest = latestResponses(batch.responses);
+      if (![...latest.values()].some((response) => response.decision === 'COUNTER')) throw new ConflictException('The seller has not countered these terms');
+      const newest = await tx.termProposalBatch.findFirst({ where: { dealId }, orderBy: { version: 'desc' }, select: { version: true } });
+      const nextId = newId();
+      await tx.termProposalBatch.create({
+        data: { id: nextId, organizationId: tenant.organizationId, dealId, evaluationId: batch.evaluationId, version: (newest?.version ?? batch.version) + 1, currency: batch.currency, createdBy: tenant.userId },
+      });
+      await tx.termProposal.createMany({
+        data: batch.terms.map((term) => {
+          const response = latest.get(term.ordinal);
+          return {
+            id: newId(),
+            organizationId: tenant.organizationId,
+            dealId,
+            batchId: nextId,
+            ordinal: term.ordinal,
+            lever: term.lever,
+            amount: response?.decision === 'COUNTER' && response.counterAmount ? response.counterAmount : term.amount.toFixed(2),
+            currency: term.currency,
+            findingId: term.findingId,
+            sellerNote: term.sellerNote,
+          };
+        }),
+      });
+      await this.audit(tx, tenant, dealId, 'terms.counters_accepted', 'term_proposal_batch', nextId, requestId);
+    });
+    return this.view(tenant, dealId, requestId);
   }
 
   /**

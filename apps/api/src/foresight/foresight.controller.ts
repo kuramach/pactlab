@@ -1,12 +1,15 @@
 import { Body, Controller, Get, HttpCode, Inject, Param, Post, Put } from '@nestjs/common';
 import {
   dealParamsSchema,
+  foresightCustomMetricSchema,
+  foresightMetricParamsSchema,
   foresightQuestionSchema,
   foresightScenarioInputSchema,
   foresightScenarioParamsSchema,
   foresightUserForecastSchema,
   foresightVoiceQuestionSchema,
   updateForesightScenarioSchema,
+  type ForesightCustomMetricInput,
   type ForesightQuestionInput,
   type ForesightScenarioInput,
   type ForesightUserForecastInput,
@@ -47,6 +50,30 @@ export class ForesightController {
     @Body(new ZodValidationPipe(foresightUserForecastSchema)) body: ForesightUserForecastInput,
   ) {
     return this.foresight.saveUserForecast(tenant, params.dealId, body, requestId);
+  }
+
+  /** A metric of the deal team's own (batch 1). */
+  @Post('metrics')
+  @HttpCode(201)
+  defineMetric(
+    @Tenant() tenant: TenantContext,
+    @RequestId() requestId: string,
+    @Param(new ZodValidationPipe(dealParamsSchema)) params: DealParams,
+    @Body(new ZodValidationPipe(foresightCustomMetricSchema)) body: ForesightCustomMetricInput,
+  ) {
+    return this.foresight.defineMetric(tenant, params.dealId, body, requestId);
+  }
+
+  @Post('metrics/:metricKey/archive')
+  @HttpCode(200)
+  archiveMetric(@Tenant() tenant: TenantContext, @RequestId() requestId: string, @Param(new ZodValidationPipe(foresightMetricParamsSchema)) params: { dealId: string; metricKey: string }) {
+    return this.foresight.archiveMetric(tenant, params.dealId, params.metricKey, requestId);
+  }
+
+  @Post('metrics/:metricKey/ai-forecast')
+  @HttpCode(201)
+  forecastMetric(@Tenant() tenant: TenantContext, @RequestId() requestId: string, @Param(new ZodValidationPipe(foresightMetricParamsSchema)) params: { dealId: string; metricKey: string }) {
+    return this.foresight.forecastMetric(tenant, params.dealId, params.metricKey, requestId);
   }
 
   @Post('trend-sets')

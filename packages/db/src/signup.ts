@@ -27,6 +27,8 @@ export interface SignedUpOrganization {
   organizationName: string;
   ownerName: string;
   ssoRequested: boolean;
+  /** The owner's first session, opened when the organization is active (no second code); null while pending. */
+  session: { sessionId: string; subject: string; expiresAt: Date } | null;
 }
 
 export const signup = {
@@ -66,8 +68,11 @@ export const signup = {
           organization_name: string;
           owner_name: string;
           sso_requested: boolean;
+          session_id: string | null;
+          session_expires_at: Date | null;
         }[]
-      >`SELECT organization_id::text, slug, status::text AS status, owner_user_id::text, organization_name, owner_name, sso_requested
+      >`SELECT organization_id::text, slug, status::text AS status, owner_user_id::text, organization_name, owner_name, sso_requested,
+               session_id::text, session_expires_at
           FROM app_signup_verify(${input.email}, ${input.codeHash}, ${input.requiresApproval})`,
     );
     return row
@@ -79,6 +84,10 @@ export const signup = {
           organizationName: row.organization_name,
           ownerName: row.owner_name,
           ssoRequested: row.sso_requested,
+          session:
+            row.session_id && row.session_expires_at
+              ? { sessionId: row.session_id, subject: `pactlab|${row.owner_user_id}`, expiresAt: new Date(row.session_expires_at) }
+              : null,
         }
       : null;
   },

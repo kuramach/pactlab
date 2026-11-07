@@ -244,12 +244,52 @@ describe('buyer personas API (T-105)', () => {
   it('shows the seller no persona, parameter, finding or evaluation', async () => {
     const response = await call('target_contributor', 'GET', deal('/terms/proposed'));
     const proposed = response.body['proposed'] as Body;
-    expect(Object.keys(proposed).sort()).toEqual(['currency', 'proposedAt', 'terms', 'version']);
-    for (const term of proposed['terms'] as Body[]) expect(Object.keys(term).sort()).toEqual(['amount', 'currency', 'lever', 'sellerNote']);
+    expect(Object.keys(proposed).sort()).toEqual(['agreedAt', 'canRespond', 'currency', 'proposedAt', 'terms', 'version']);
+    for (const term of proposed['terms'] as Body[]) expect(Object.keys(term).sort()).toEqual(['amount', 'currency', 'lever', 'ordinal', 'response', 'sellerNote']);
     const text = response.text.toLowerCase();
     for (const leak of ['persona', 'compounder', 'value investor', 'value_investor', 'grave', 'personas-1', 'materiality', 'weight', 'evaluation', ...Object.values(found)]) {
       expect(text, leak).not.toContain(leak.toLowerCase());
     }
+  });
+
+  it('lets the seller counter, the buyer take counters into the next version, and both agree', async () => {
+    const respond = (who: string, responses: Body[]) => call(who, 'POST', deal('/terms/proposed/responses'), { responses });
+    const before = (await call('target_contributor', 'GET', deal('/terms/proposed'))).body['proposed'] as { version: number; canRespond: boolean; terms: { ordinal: number; amount: string }[] };
+    expect(before.canRespond).toBe(true);
+    // Only the seller's contributors answer.
+    expect((await respond('lead', [{ ordinal: 0, decision: 'ACCEPT' }])).status).toBe(403);
+    expect((await respond('target_contributor', [{ ordinal: 0, decision: 'COUNTER' }])).status).toBe(400);
+    const countered = await respond('target_contributor', [
+      { ordinal: 0, decision: 'COUNTER', counterAmount: '100000.00', note: 'We can hold this much for twelve months.' },
+      ...before.terms.slice(1).map((term) => ({ ordinal: term.ordinal, decision: 'ACCEPT' })),
+    ]);
+    expect(countered.status, countered.text).toBe(201);
+    const seen = countered.body['proposed'] as { agreedAt: string | null; terms: { response: { decision: string; counterAmount: string | null } | null }[] };
+    expect(seen.agreedAt).toBeNull();
+    expect(seen.terms[0]?.response).toMatchObject({ decision: 'COUNTER', counterAmount: '100000.00' });
+
+    // The buyer sees the counter and takes it into the next draft, then proposes it.
+    const buyer = viewOf(await pricing('lead', 'GET'));
+    const answered = buyer.batches.find((batch) => batch.version === before.version)!;
+    expect((answered as unknown as { terms: { response: { decision: string } | null }[] }).terms[0]?.response?.decision).toBe('COUNTER');
+    const next = viewOf(await pricing('lead', 'POST', `/terms/${answered.id}/accept-counters`)).batches[0]!;
+    expect(next.version).toBe(before.version + 1);
+    expect(next.terms[0]?.amount).toBe('100000.00');
+    expect(next.terms.slice(1).map((term) => term.amount)).toEqual(before.terms.slice(1).map((term) => term.amount));
+    await pricing('lead', 'POST', `/terms/${next.id}/propose`);
+    // The superseded version takes no more answers; the new one does.
+    const latest = (await call('target_contributor', 'GET', deal('/terms/proposed'))).body['proposed'] as { version: number; terms: { ordinal: number }[] };
+    expect(latest.version).toBe(next.version);
+
+    const agreed = await respond('target_contributor', latest.terms.map((term) => ({ ordinal: term.ordinal, decision: 'ACCEPT' })));
+    expect((agreed.body['proposed'] as { agreedAt: string | null; canRespond: boolean })).toMatchObject({ agreedAt: expect.any(String), canRespond: false });
+    expect((await respond('target_contributor', [{ ordinal: 0, decision: 'REJECT' }])).status).toBe(409);
+    expect((await pricing('lead', 'POST', `/terms/${next.id}/accept-counters`)).status).toBe(409);
+    const audit = await db.owner.query<{ action: string }>(`SELECT DISTINCT action FROM audit_events WHERE deal_id = $1`, [a.dealId]);
+    expect(audit.rows.map((row) => row.action)).toEqual(expect.arrayContaining(['terms.responded', 'terms.counters_accepted', 'terms.agreed']));
+    // Still nothing about pricing reaches the seller.
+    const text = (await call('target_contributor', 'GET', deal('/terms/proposed'))).text.toLowerCase();
+    for (const leak of ['persona', 'grave', 'compounder', 'evaluation', ...Object.values(found)]) expect(text, leak).not.toContain(leak.toLowerCase());
   });
 
   it('keeps pricing buyer-side and inside the tenant', async () => {

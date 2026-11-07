@@ -2354,8 +2354,11 @@ model TermProposalBatch {
   createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
   proposedAt     DateTime? @map("proposed_at") @db.Timestamptz(3)
   proposedBy     String?   @map("proposed_by") @db.Uuid
+  /// Set once, when the seller has accepted every term of this proposed version.
+  agreedAt       DateTime? @map("agreed_at") @db.Timestamptz(3)
 
-  terms TermProposal[]
+  terms     TermProposal[]
+  responses TermResponse[]
 
   @@unique([organizationId, dealId, id], map: "term_proposal_batches_org_deal_id_key")
   @@unique([organizationId, dealId, version], map: "term_proposal_batches_version_key")
@@ -2403,4 +2406,45 @@ model NegotiationBrief {
 
   @@index([organizationId, dealId, evaluationId, createdAt], map: "negotiation_briefs_org_deal_idx")
   @@map("negotiation_briefs")
+}
+
+/// The seller's answer to one proposed term (batch 1 after T-105): ACCEPT, REJECT or
+/// COUNTER with an amount. Append-only; the newest response per term counts.
+model TermResponse {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  dealId         String   @map("deal_id") @db.Uuid
+  batchId        String   @map("batch_id") @db.Uuid
+  ordinal        Int
+  /// ACCEPT | REJECT | COUNTER
+  decision       String
+  counterAmount  Decimal? @map("counter_amount") @db.Decimal(20, 2)
+  note           String   @default("")
+  respondedBy    String   @map("responded_by") @db.Uuid
+  respondedAt    DateTime @default(now()) @map("responded_at") @db.Timestamptz(3)
+
+  batch TermProposalBatch @relation(fields: [organizationId, dealId, batchId], references: [organizationId, dealId, id], onDelete: Restrict, map: "term_responses_batch_fkey")
+
+  @@index([batchId, ordinal, respondedAt], map: "term_responses_batch_idx")
+  @@map("term_responses")
+}
+
+/// A Foresight metric the deal team defined themselves; its forecasts live in
+/// foresight_forecasts under `metric_key`. Buyer-side.
+model ForesightCustomMetric {
+  id             String    @id @default(uuid(7)) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  dealId         String    @map("deal_id") @db.Uuid
+  metricKey      String    @map("metric_key")
+  label          String
+  definition     String
+  neutral        Decimal   @db.Decimal(9, 4)
+  /// GROWTH | RISK | TRACK
+  effect         String
+  createdBy      String    @map("created_by") @db.Uuid
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  archivedAt     DateTime? @map("archived_at") @db.Timestamptz(3)
+
+  @@unique([organizationId, dealId, metricKey], map: "foresight_custom_metrics_key_key")
+  @@map("foresight_custom_metrics")
 }

@@ -36,6 +36,10 @@ export interface PersonaProfile {
   /** Customer-facing archetype name; never a person's name. */
   readonly label: string;
   readonly descriptor: string;
+  /** A lucide icon name the picker shows, read at a glance (batch 1). */
+  readonly icon: 'Gem' | 'Tag' | 'LifeBuoy';
+  /** Two words under the icon. */
+  readonly caption: string;
   /** Knob 1: drag translation. */
   readonly drag: {
     /** Which point of a priced-risk range a drag is priced at. */
@@ -65,6 +69,8 @@ export const PERSONA_PROFILE: Readonly<Record<BuyerPersona, PersonaProfile>> = {
   QUALITY_COMPOUNDER: {
     label: 'Quality Compounder',
     descriptor: 'A wonderful business at a fair price.',
+    icon: 'Gem',
+    caption: 'Quality first',
     drag: { point: 'LOW', materiality: '0.02', immaterialRoute: 'INDEMNITY', keyPersonAsRetention: true },
     weights: { DOWNSIDE: '0.2', BASE: '0.5', UPSIDE: '0.3' },
     levers: {
@@ -77,6 +83,8 @@ export const PERSONA_PROFILE: Readonly<Record<BuyerPersona, PersonaProfile>> = {
   VALUE_INVESTOR: {
     label: 'Value Investor',
     descriptor: 'Value at a good price.',
+    icon: 'Tag',
+    caption: 'Balanced',
     drag: { point: 'MID', materiality: '0.005', immaterialRoute: 'ESCROW', keyPersonAsRetention: false },
     weights: { DOWNSIDE: '0.25', BASE: '0.5', UPSIDE: '0.25' },
     levers: {
@@ -89,6 +97,8 @@ export const PERSONA_PROFILE: Readonly<Record<BuyerPersona, PersonaProfile>> = {
   GRAVE_DANCER: {
     label: 'Grave Dancer',
     descriptor: 'Price to survive the bad case.',
+    icon: 'LifeBuoy',
+    caption: 'Downside first',
     drag: { point: 'HIGH', materiality: '0', immaterialRoute: 'ESCROW', keyPersonAsRetention: false },
     weights: { DOWNSIDE: '0.5', BASE: '0.4', UPSIDE: '0.1' },
     levers: {

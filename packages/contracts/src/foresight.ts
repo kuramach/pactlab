@@ -110,6 +110,8 @@ export interface ForesightMetricView {
   external: ForesightSeriesView | null;
   ai: ForesightSeriesView | null;
   user: ForesightSeriesView | null;
+  /** Set for a metric the deal team defined themselves (batch 1). */
+  custom?: { definition: string; effect: 'GROWTH' | 'RISK' | 'TRACK' };
 }
 
 export interface ForesightOutcomeView {
@@ -148,6 +150,16 @@ export const foresightUserForecastSchema = z.strictObject({
   values: z.array(z.string().trim().regex(/^-?\d{1,3}(\.\d{1,2})?$/, 'A percent such as 2.5 or -1')).length(5),
 });
 export type ForesightUserForecastInput = z.infer<typeof foresightUserForecastSchema>;
+
+/** A metric the deal team defines (batch 1): what it measures and how it moves value. */
+export const foresightCustomMetricSchema = z.strictObject({
+  label: z.string().trim().min(2).max(80),
+  definition: z.string().trim().min(3).max(300),
+  neutral: z.string().trim().regex(/^-?\d{1,2}(\.\d{1,2})?$/, 'A percent such as 2 or 3.5'),
+  effect: z.enum(['GROWTH', 'RISK', 'TRACK']),
+});
+export type ForesightCustomMetricInput = z.infer<typeof foresightCustomMetricSchema>;
+export const foresightMetricParamsSchema = z.strictObject({ dealId: z.uuid(), metricKey: z.string().regex(/^custom\.[a-z0-9-]{1,40}$/) });
 
 export interface ForesightView {
   baseline: { id: string; asOf: string; modelId: string; promptVersion: string } | null;

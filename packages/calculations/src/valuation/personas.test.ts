@@ -59,6 +59,8 @@ describe('persona registry (T-105)', () => {
       const profile = PERSONA_PROFILE[persona];
       expect(profile.label.length, persona).toBeGreaterThan(0);
       expect(profile.descriptor.length, persona).toBeGreaterThan(0);
+      expect(profile.icon, persona).toBeTruthy();
+      expect(profile.caption.split(' ').length, persona).toBeLessThanOrEqual(2);
       expect(['LOW', 'MID', 'HIGH']).toContain(profile.drag.point);
       expect(new D(profile.drag.materiality).greaterThanOrEqualTo(0)).toBe(true);
       expect(Object.keys(profile.weights).sort()).toEqual([...SCENARIO_CASES].sort());
@@ -66,6 +68,10 @@ describe('persona registry (T-105)', () => {
       expect([...profile.levers.order].sort()).toEqual([...TERM_LEVERS].sort());
       expect(BRIEF_TONES).toContain(profile.briefTone);
     }
+  });
+
+  it('gives each persona its own icon', () => {
+    expect(new Set(BUYER_PERSONAS.map((persona) => PERSONA_PROFILE[persona].icon)).size).toBe(BUYER_PERSONAS.length);
   });
 
   it('never uses a villain’s name as a label', () => {

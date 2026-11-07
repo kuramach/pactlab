@@ -90,6 +90,37 @@ describe.runIf(runtimeUrl && ownerUrl)('buyer personas against PostgreSQL', () =
     await expect(withTenant(prisma, b.context, (tx) => tx.termProposalBatch.count())).resolves.toBe(0);
   });
 
+  it('lets only the seller answer the open proposed version, and marks it agreed once every term is accepted', async () => {
+    const { id: evaluationId } = await withTenant(prisma, a.context, (tx) => tx.pricingEvaluation.create({ data: evaluation(a) }));
+    const batch = await withTenant(prisma, a.context, (tx) => draftBatch(tx, evaluationId, 10));
+    const answer = (who: typeof a.context, respondedBy: string, decision: string, counterAmount: string | null = null) =>
+      withTenant(prisma, who, (tx) => tx.termResponse.create({ data: { organizationId: a.organizationId, dealId: a.dealId, batchId: batch.id, ordinal: 0, decision, counterAmount, respondedBy } }));
+    // Not before it is proposed.
+    await expect(answer(seller.context, seller.userId, 'ACCEPT')).rejects.toThrow(/row-level security/);
+    await withTenant(prisma, a.context, (tx) => tx.termProposalBatch.update({ where: { id: batch.id }, data: { proposedAt: new Date(), proposedBy: a.userId } }));
+    // The buyer cannot answer for the seller, nor can anyone answer as someone else.
+    await expect(answer(a.context, a.userId, 'ACCEPT')).rejects.toThrow(/row-level security/);
+    await expect(answer(seller.context, a.userId, 'ACCEPT')).rejects.toThrow(/row-level security/);
+    await answer(seller.context, seller.userId, 'COUNTER', '200000.00');
+    // Agreeing before every term is accepted is refused.
+    await expect(withTenant(prisma, seller.context, (tx) => tx.termProposalBatch.update({ where: { id: batch.id }, data: { agreedAt: new Date() } }))).rejects.toThrow();
+    await answer(seller.context, seller.userId, 'ACCEPT');
+    await withTenant(prisma, seller.context, (tx) => tx.termProposalBatch.update({ where: { id: batch.id }, data: { agreedAt: new Date() } }));
+    await expect(withTenant(prisma, seller.context, (tx) => tx.termProposalBatch.update({ where: { id: batch.id }, data: { agreedAt: new Date() } }))).rejects.toThrow();
+    // Closed: no more answers; both sides read them; other tenants see nothing.
+    await expect(answer(seller.context, seller.userId, 'REJECT')).rejects.toThrow(/row-level security/);
+    expect(await withTenant(prisma, a.context, (tx) => tx.termResponse.count({ where: { batchId: batch.id } }))).toBe(2);
+    expect(await withTenant(prisma, b.context, (tx) => tx.termResponse.count())).toBe(0);
+  });
+
+  it('keeps the team’s own Foresight metrics buyer-side and inside the tenant', async () => {
+    const metric = { organizationId: a.organizationId, dealId: a.dealId, metricKey: `custom.rls-${Date.now()}`, label: 'RLS metric', definition: 'Synthetic.', neutral: '2', effect: 'TRACK', createdBy: a.userId };
+    await withTenant(prisma, a.context, (tx) => tx.foresightCustomMetric.create({ data: metric }));
+    await expect(withTenant(prisma, seller.context, (tx) => tx.foresightCustomMetric.count())).resolves.toBe(0);
+    await expect(withTenant(prisma, b.context, (tx) => tx.foresightCustomMetric.count())).resolves.toBe(0);
+    await expect(withTenant(prisma, a.context, (tx) => tx.foresightCustomMetric.create({ data: { ...metric, metricKey: 'Not A Key' } }))).rejects.toThrow();
+  });
+
   it('lets only an organization admin change the default persona', async () => {
     await withTenant(prisma, a.context, (tx) => tx.organization.update({ where: { id: a.organizationId }, data: { defaultPersona: 'QUALITY_COMPOUNDER' } }));
     const { rows } = (await owner.query('SELECT default_persona FROM organizations WHERE id = $1', [a.organizationId])) as { rows: { default_persona: string }[] };

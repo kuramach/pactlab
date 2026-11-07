@@ -196,7 +196,7 @@ export class AppModule {
           documents: deps.documents?.objectStore ?? new UnavailableObjectStore(),
           uploads: deps.uploads?.objectStore ?? new UnavailableUploadStore(),
         }),
-        ...(deps.emailLogin && deps.signup
+        ...(tokens && deps.emailLogin && deps.signup
           ? [
               SignupModule.register({
                 emailSender: deps.emailLogin.emailSender ?? new UnavailableEmailSender(),
@@ -204,6 +204,7 @@ export class AppModule {
                 requiresApproval: deps.signup.requiresApproval ?? true,
                 operatorEmail: deps.signup.operatorEmail ?? null,
                 loginUrl: deps.signup.loginUrl,
+                tokens,
               }),
             ]
           : []),

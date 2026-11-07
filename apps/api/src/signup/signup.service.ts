@@ -6,6 +6,7 @@ import { keyedHash, normalizeEmail } from '../email-login/client-address';
 import type { EmailSender, OutboundEmail } from '../email-login/email-sender';
 import { emails } from '../email-login/emails';
 import { hashToken } from '../invitations/invitations.service';
+import type { PactlabTokens } from '../auth/pactlab-token';
 import { LOGGER, PRISMA } from '../tokens';
 import { isFreeMailAddress } from './free-mail';
 import type { StartSignupBody } from './signup.schemas';
@@ -21,11 +22,15 @@ export interface SignupDependencies {
   readonly operatorEmail: string | null;
   /** The app's /login, for "you already have an account" emails. */
   readonly loginUrl: string;
+  /** Signs the first session of an active sign-up, as email sign-in does. */
+  readonly tokens: PactlabTokens;
 }
 
 export interface SignupResult {
   status: 'ACTIVE' | 'PENDING_APPROVAL';
   organizationName: string;
+  /** Present when the organization is active: the owner is signed in, no second code. */
+  session?: { token: string; expiresAt: string; organizationId: string };
 }
 
 const CODE_TTL_MINUTES = 10;
@@ -105,6 +110,17 @@ export class SignupService {
         'operator-new-signup',
       );
     }
-    return { status: created.status, organizationName: created.organizationName };
+    if (!created.session) return { status: created.status, organizationName: created.organizationName };
+    const token = await this.deps.tokens.issue({
+      subject: created.session.subject,
+      sessionId: created.session.sessionId,
+      organizationId: created.organizationId,
+      expiresAt: created.session.expiresAt,
+    });
+    return {
+      status: created.status,
+      organizationName: created.organizationName,
+      session: { token, expiresAt: created.session.expiresAt.toISOString(), organizationId: created.organizationId },
+    };
   }
 }
