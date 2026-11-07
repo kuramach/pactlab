@@ -46,7 +46,7 @@ function MetricBlock({ dealId, metric, years, canEdit, aiEnabled }: { dealId: st
   const formId = `yours-${metric.key}`;
   const row = (values: string[]) => values.map((value, index) => `${years[index]} ${pct(value)}`).join(' · ');
   return (
-    <section className="flex flex-col gap-3 border-t border-border pt-4">
+    <section aria-label={metric.label} className="flex flex-col gap-3 border-t border-border pt-4">
       <div className="flex flex-wrap items-start gap-2">
         <div className="mr-auto flex flex-col gap-0.5">
           <span className="flex items-center gap-2 font-semibold">
@@ -177,10 +177,12 @@ export function ForecastsSection({ dealId, forecasts, canEdit, aiEnabled = true 
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
           <StatusLine forecasts={forecasts} />
+          <div role="region" aria-label="Key metric forecasts" className="flex flex-col gap-4">
           {forecasts.metrics.map((metric) => (
             <MetricBlock key={metric.key} dealId={dealId} metric={metric} years={forecasts.years} canEdit={canEdit} aiEnabled={aiEnabled} />
           ))}
           {canEdit ? <AddMetric dealId={dealId} /> : null}
+          </div>
         </CardContent>
       </Card>
 

@@ -45,15 +45,10 @@ test('a seller invited by email joins one pact as a guest, from their own accoun
   const signup = Date.now() - 1_000;
   await guest.getByLabel('Your name').fill('Sam Seller');
   await guest.getByLabel('Your company').fill('Loopwise (synthetic)');
-  await guest.getByRole('button', { name: `Create an account for ${seller}` }).click();
+  await guest.getByRole('button', { name: 'Create account' }).click();
   await guest.getByLabel('6-digit code').fill(await latestCode(seller, signup));
-  const signin = Date.now() - 1_000;
-  await guest.getByRole('button', { name: 'Create my account' }).click();
-  // A sign-in code follows, and the invitation page comes back signed in.
-  await expect(guest).toHaveURL(/\/login\?/);
-  await guest.getByLabel('6-digit code').fill(await latestCode(seller, signin));
-  await guest.getByRole('button', { name: 'Sign in' }).click();
-  await guest.getByRole('button', { name: 'Accept and open the pact' }).click();
+  // One code: the new account is signed in and the invitation accepted in the same step (batch 1).
+  await guest.getByRole('button', { name: 'Create account and join' }).click();
   await expect(guest).toHaveURL(new RegExp(`/deals/${dealId}$`));
   await expect(guest.getByText('(guest)').first()).toBeVisible();
 

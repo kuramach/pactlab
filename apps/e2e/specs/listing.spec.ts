@@ -131,14 +131,10 @@ test('public deal page: publish, request access, confirm, approve, join', async 
   const signup = Date.now() - 1_000;
   await visitor.getByLabel('Your name').fill('Blair Buyer');
   await visitor.getByLabel('Your company').fill(`Harbor Capital ${tag} (synthetic)`);
-  await visitor.getByRole('button', { name: `Create an account for ${buyer}` }).click();
+  await visitor.getByRole('button', { name: 'Create account' }).click();
   await visitor.getByLabel('6-digit code').fill(await latestCode(buyer, signup));
-  const signin = Date.now() - 1_000;
-  await visitor.getByRole('button', { name: 'Create my account' }).click();
-  await expect(visitor).toHaveURL(/\/login\?/);
-  await visitor.getByLabel('6-digit code').fill(await latestCode(buyer, signin));
-  await visitor.getByRole('button', { name: 'Sign in' }).click();
-  await visitor.getByRole('button', { name: 'Accept and open the pact' }).click();
+  // One code: the new account is signed in and the invitation accepted in the same step (batch 1).
+  await visitor.getByRole('button', { name: 'Create account and join' }).click();
   await expect(visitor).toHaveURL(new RegExp(`/deals/${dealId}/bid$`));
   await expect(visitor.getByText(/Workflow software for logistics/)).toHaveCount(0);
   await visitor.getByRole('button', { name: 'I accept the NDA' }).click();
