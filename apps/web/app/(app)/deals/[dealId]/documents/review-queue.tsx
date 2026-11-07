@@ -1,6 +1,6 @@
 'use client';
 
-import { Badge, Button } from '@pactlab/ui';
+import { AiBadge, Badge, Button, HumanBadge } from '@pactlab/ui';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
@@ -124,10 +124,13 @@ export function ReviewQueue({
       {shown.map((finding) => (
         <article key={finding.id} aria-label={finding.title} className="flex flex-col gap-2 border-b border-border pb-4 last:border-0">
           <div className="flex flex-wrap items-center gap-2">
-            <Badge variant={finding.status === 'DRAFT' ? 'draft' : finding.status === 'ACCEPTED' ? 'reviewed' : 'neutral'}>
-              {finding.status === 'DRAFT' ? 'AI draft' : finding.status === 'ACCEPTED' ? 'Accepted' : 'Rejected'}
-              {finding.saving ? ' · saving…' : ''}
-            </Badge>
+            {finding.status === 'DRAFT' ? (
+              <AiBadge>AI draft{finding.saving ? ' · saving…' : ''}</AiBadge>
+            ) : finding.status === 'ACCEPTED' ? (
+              <HumanBadge>Accepted{finding.saving ? ' · saving…' : ''}</HumanBadge>
+            ) : (
+              <Badge variant="neutral">Rejected{finding.saving ? ' · saving…' : ''}</Badge>
+            )}
             <Badge variant={finding.severity === 'HIGH' || finding.severity === 'CRITICAL' ? 'danger' : 'neutral'}>{finding.severity}</Badge>
             <h2 className="font-medium">{finding.title}</h2>
             {openPage && finding.citations.some((c) => c.documentId === openPage.documentId && c.pageNumber === openPage.pageNumber) ? (

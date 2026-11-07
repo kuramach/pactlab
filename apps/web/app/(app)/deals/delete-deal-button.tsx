@@ -20,9 +20,9 @@ export function DeleteDealButton({ dealId, dealName }: { dealId: string; dealNam
 
   if (!open) {
     return (
-      <button type="button" onClick={() => setOpen(true)} aria-label={`Delete ${dealName}`} className="inline-flex text-muted-foreground hover:text-red-700">
+      <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-red-700" type="button" onClick={() => setOpen(true)} aria-label={`Delete ${dealName}`}>
         <Trash2 aria-hidden className="h-4 w-4" />
-      </button>
+      </Button>
     );
   }
   return (

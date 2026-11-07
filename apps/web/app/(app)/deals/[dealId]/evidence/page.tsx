@@ -1,4 +1,4 @@
-import { Badge, Card, CardContent, EmptyState } from '@pactlab/ui';
+import { Badge, Card, CardContent, EmptyState, Button } from '@pactlab/ui';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { dealsApi } from '../../_lib/api';
@@ -77,9 +77,9 @@ export default async function EvidenceBrowserPage({
             className="rounded-md border border-border bg-background px-2 py-1"
           />
         </label>
-        <button type="submit" className="rounded-md border border-border px-3 py-1 font-medium">
+        <Button variant="outline" size="sm" type="submit">
           Apply
-        </button>
+        </Button>
       </form>
 
       {result.kind !== 'ok' ? (

@@ -8,12 +8,14 @@ import { RequestId } from '../deals/request-id.decorator';
 import {
   createScenarioSchema,
   decideSubmissionSchema,
+  scenarioCaseSchema,
   scenarioParamsSchema,
   submissionParamsSchema,
   updateAssumptionsSchema,
   versionedCommandSchema,
   type CreateScenarioBody,
   type DecideSubmissionBody,
+  type ScenarioCaseBody,
   type UpdateAssumptionsBody,
   type VersionedCommandBody,
 } from './valuation.schemas';
@@ -79,6 +81,17 @@ export class ValuationController {
     @Body(new ZodValidationPipe(versionedCommandSchema)) body: VersionedCommandBody,
   ) {
     return this.service.run(tenant, params.dealId, params.scenarioId, body, requestId);
+  }
+
+  @Post(':scenarioId/case')
+  @HttpCode(200)
+  async setCase(
+    @Tenant() tenant: TenantContext,
+    @RequestId() requestId: string,
+    @Param(new ZodValidationPipe(scenarioParamsSchema)) params: ScenarioParams,
+    @Body(new ZodValidationPipe(scenarioCaseSchema)) body: ScenarioCaseBody,
+  ) {
+    return this.service.setCase(tenant, params.dealId, params.scenarioId, body, requestId);
   }
 
   @Post(':scenarioId/submissions')

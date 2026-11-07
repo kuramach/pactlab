@@ -1,4 +1,4 @@
-import { foresightMetricsFor, macroAreaFor, type ForesightMetric, type PackId } from '@pactlab/domain';
+import { customForesightMetric, foresightMetricsFor, macroAreaFor, type CustomForesightMetric, type ForesightMetric, type PackId } from '@pactlab/domain';
 import { projectWithForecasts } from '@pactlab/calculations';
 import type { ForesightForecastsView, ForesightOutcomeView, ForesightSeriesView } from '@pactlab/contracts';
 
@@ -69,10 +69,15 @@ export function forecastsView(input: {
   start: { amount: string; currency: string; source: string } | null;
   baseGrowth: string;
   now: Date;
+  /** The deal team's own metrics, after the pack's (batch 1). */
+  custom?: readonly CustomForesightMetric[];
 }): ForesightForecastsView {
   const years = forecastYears(input.now);
-  const definitions = foresightMetricsFor(input.pack);
-  const metrics = definitions.map((metric) => ({
+  const custom = new Map((input.custom ?? []).map((metric) => [metric.key, metric]));
+  const definitions = [...foresightMetricsFor(input.pack), ...(input.custom ?? []).map(customForesightMetric)];
+  const metrics = definitions.map((metric) => {
+    const own = custom.get(metric.key);
+    return {
     key: metric.key,
     label: metric.label,
     help: metric.help,
@@ -80,7 +85,9 @@ export function forecastsView(input: {
     external: latest(input.rows, metric.key, 'EXTERNAL', years, input.names),
     ai: latest(input.rows, metric.key, 'AI', years, input.names),
     user: latest(input.rows, metric.key, 'USER', years, input.names),
-  }));
+    ...(own ? { custom: { definition: own.definition, effect: own.effect } } : {}),
+    };
+  });
   const neutral = (metric: ForesightMetric) => years.map(() => metric.neutral);
   const reference = definitions.map((metric, index) => {
     const view = metrics[index];

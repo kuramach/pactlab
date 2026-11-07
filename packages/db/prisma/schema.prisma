@@ -440,6 +440,8 @@ model Organization {
   ssoRequested        Boolean                @default(false) @map("sso_requested")
   createdVia          OrganizationOrigin     @default(OPERATOR) @map("created_via")
   region              String                 @default("us-east-1")
+  /// Buyer persona new pacts default to (T-105): QUALITY_COMPOUNDER | VALUE_INVESTOR | GRAVE_DANCER; null is Value Investor.
+  defaultPersona      String?                @map("default_persona")
   createdAt           DateTime               @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt           DateTime               @updatedAt @map("updated_at") @db.Timestamptz(3)
 
@@ -537,6 +539,8 @@ model Deal {
   /// The sale this buyer-led pact came from (another organization's seller-led pact, T-097). Reference only.
   linkedOrganizationId    String?                 @map("linked_organization_id") @db.Uuid
   linkedDealId            String?                 @map("linked_deal_id") @db.Uuid
+  /// The buyer persona this pact prices under (T-105); null follows the organization default. Buyer-confidential.
+  persona                 String?
   /// Set when the deal lead deletes the deal (status DELETED); one-way.
   deletedAt               DateTime?               @map("deleted_at") @db.Timestamptz(3)
   deletedBy               String?                 @map("deleted_by") @db.Uuid
@@ -993,6 +997,8 @@ model ValuationScenario {
   transactionType   TransactionType @map("transaction_type")
   status            ScenarioStatus  @default(DRAFT)
   assumptionVersion Int             @map("assumption_version")
+  /// DOWNSIDE | BASE | UPSIDE: the case a persona weights this scenario as (T-105); null is untagged.
+  scenarioCase      String?         @map("scenario_case")
   createdBy         String          @map("created_by") @db.Uuid
   createdAt         DateTime        @map("created_at") @db.Timestamptz(3)
   updatedAt         DateTime        @map("updated_at") @db.Timestamptz(3)
@@ -1037,6 +1043,10 @@ model ValuationRun {
   assumptionVersion Int      @map("assumption_version")
   inputs            Json
   result            Json
+  /// Set on persona-priced runs (T-105): the persona, its registry version and how each priced risk was routed.
+  persona           String?
+  personaVersion    String?  @map("persona_version")
+  personaRouting    Json?    @map("persona_routing")
   ranBy             String   @map("ran_by") @db.Uuid
   ranAt             DateTime @map("ran_at") @db.Timestamptz(3)
 
@@ -2294,3 +2304,147 @@ model ListingMedia {
   @@map("listing_media")
 }
 
+/// A pact priced under one buyer persona (T-105, ADR 0021): the persona-priced
+/// runs of its tagged scenarios, the weighted price and the term mix. Insert-only;
+/// switching persona makes a new evaluation. Buyer-confidential.
+model PricingEvaluation {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  dealId         String   @map("deal_id") @db.Uuid
+  persona        String
+  personaVersion String   @map("persona_version")
+  runIds         String[] @map("run_ids") @db.Uuid
+  /// Each run's scenario and case: [{runId, scenarioId, case, equityPurchasePrice}].
+  cases          Json
+  currency       String   @db.Char(3)
+  weightedPrice  Decimal  @map("weighted_price") @db.Decimal(20, 2)
+  termMix        Json     @map("term_mix")
+  createdBy      String   @map("created_by") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@unique([organizationId, dealId, id], map: "pricing_evaluations_org_deal_id_key")
+  @@index([organizationId, dealId, createdAt], map: "pricing_evaluations_org_deal_idx")
+  @@map("pricing_evaluations")
+}
+
+/// Append-only: the latest adoption is the pact's active pricing.
+model PricingAdoption {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  dealId         String   @map("deal_id") @db.Uuid
+  evaluationId   String   @map("evaluation_id") @db.Uuid
+  adoptedBy      String   @map("adopted_by") @db.Uuid
+  adoptedAt      DateTime @default(now()) @map("adopted_at") @db.Timestamptz(3)
+
+  @@index([organizationId, dealId, adoptedAt], map: "pricing_adoptions_org_deal_idx")
+  @@map("pricing_adoptions")
+}
+
+/// A versioned set of deal terms drafted from an evaluation. Proposing it to the
+/// seller is one-way (`proposed_at` is set once). Seller-readable once proposed,
+/// so it carries no persona: the persona stamp is its evaluation's, buyer-only.
+model TermProposalBatch {
+  id             String    @id @default(uuid(7)) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  dealId         String    @map("deal_id") @db.Uuid
+  evaluationId   String    @map("evaluation_id") @db.Uuid
+  version        Int
+  currency       String    @db.Char(3)
+  createdBy      String    @map("created_by") @db.Uuid
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  proposedAt     DateTime? @map("proposed_at") @db.Timestamptz(3)
+  proposedBy     String?   @map("proposed_by") @db.Uuid
+  /// Set once, when the seller has accepted every term of this proposed version.
+  agreedAt       DateTime? @map("agreed_at") @db.Timestamptz(3)
+
+  terms     TermProposal[]
+  responses TermResponse[]
+
+  @@unique([organizationId, dealId, id], map: "term_proposal_batches_org_deal_id_key")
+  @@unique([organizationId, dealId, version], map: "term_proposal_batches_version_key")
+  @@map("term_proposal_batches")
+}
+
+/// One term in a batch. `seller_note` is the buyer's wording for the seller and
+/// the only free text the seller sees; `finding_id` is buyer-only.
+model TermProposal {
+  id             String  @id @default(uuid(7)) @db.Uuid
+  organizationId String  @map("organization_id") @db.Uuid
+  dealId         String  @map("deal_id") @db.Uuid
+  batchId        String  @map("batch_id") @db.Uuid
+  ordinal        Int
+  /// PRICE_REDUCTION | REMEDIATION_COST | ESCROW | INDEMNITY | RETENTION | EARNOUT | SELLER_FINANCING
+  lever          String
+  amount         Decimal @db.Decimal(20, 2)
+  currency       String  @db.Char(3)
+  findingId      String? @map("finding_id") @db.Uuid
+  sellerNote     String  @default("") @map("seller_note")
+
+  batch TermProposalBatch @relation(fields: [organizationId, dealId, batchId], references: [organizationId, dealId, id], onDelete: Cascade, map: "term_proposals_batch_fkey")
+
+  @@unique([batchId, ordinal], map: "term_proposals_batch_ordinal_key")
+  @@map("term_proposals")
+}
+
+/// The AI negotiation brief for an evaluation (T-105): a buyer-only draft whose
+/// tone follows the persona; every section cites accepted findings. Insert-only.
+model NegotiationBrief {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  dealId         String   @map("deal_id") @db.Uuid
+  evaluationId   String   @map("evaluation_id") @db.Uuid
+  persona        String
+  personaVersion String   @map("persona_version")
+  /// [{heading, body, citedFindingIds}]
+  sections       Json
+  promptId       String   @map("prompt_id")
+  promptVersion  String   @map("prompt_version")
+  modelId        String   @map("model_id")
+  aiRunId        String?  @map("ai_run_id") @db.Uuid
+  createdBy      String   @map("created_by") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([organizationId, dealId, evaluationId, createdAt], map: "negotiation_briefs_org_deal_idx")
+  @@map("negotiation_briefs")
+}
+
+/// The seller's answer to one proposed term (batch 1 after T-105): ACCEPT, REJECT or
+/// COUNTER with an amount. Append-only; the newest response per term counts.
+model TermResponse {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  dealId         String   @map("deal_id") @db.Uuid
+  batchId        String   @map("batch_id") @db.Uuid
+  ordinal        Int
+  /// ACCEPT | REJECT | COUNTER
+  decision       String
+  counterAmount  Decimal? @map("counter_amount") @db.Decimal(20, 2)
+  note           String   @default("")
+  respondedBy    String   @map("responded_by") @db.Uuid
+  respondedAt    DateTime @default(now()) @map("responded_at") @db.Timestamptz(3)
+
+  batch TermProposalBatch @relation(fields: [organizationId, dealId, batchId], references: [organizationId, dealId, id], onDelete: Restrict, map: "term_responses_batch_fkey")
+
+  @@index([batchId, ordinal, respondedAt], map: "term_responses_batch_idx")
+  @@map("term_responses")
+}
+
+/// A Foresight metric the deal team defined themselves; its forecasts live in
+/// foresight_forecasts under `metric_key`. Buyer-side.
+model ForesightCustomMetric {
+  id             String    @id @default(uuid(7)) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  dealId         String    @map("deal_id") @db.Uuid
+  metricKey      String    @map("metric_key")
+  label          String
+  definition     String
+  neutral        Decimal   @db.Decimal(9, 4)
+  /// GROWTH | RISK | TRACK
+  effect         String
+  createdBy      String    @map("created_by") @db.Uuid
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  archivedAt     DateTime? @map("archived_at") @db.Timestamptz(3)
+
+  @@unique([organizationId, dealId, metricKey], map: "foresight_custom_metrics_key_key")
+  @@map("foresight_custom_metrics")
+}

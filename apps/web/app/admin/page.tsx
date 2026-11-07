@@ -1,5 +1,5 @@
 import type { BugReportSummaryView } from '@pactlab/contracts';
-import { Badge, Card, CardContent } from '@pactlab/ui';
+import { Badge, Card, CardContent, Button } from '@pactlab/ui';
 import Link from 'next/link';
 import { apiGet } from '../(app)/deals/_lib/api';
 import { ApiState } from '../(app)/deals/_lib/states';
@@ -83,8 +83,8 @@ async function Approvals() {
                 <td className={cell}>{org.createdAt.slice(0, 10)}</td>
                 <td className={cell}>
                   <form action={decideOrganization.bind(null, org.slug)} className="flex gap-2">
-                    <button name="decision" value="approve" className="rounded-md bg-indigo px-3 py-1 font-semibold text-navy">Approve</button>
-                    <button name="decision" value="reject" className="rounded-md border border-border px-3 py-1">Reject</button>
+                    <Button size="sm" type="submit" name="decision" value="approve">Approve</Button>
+                    <Button variant="outline" size="sm" type="submit" name="decision" value="reject">Reject</Button>
                   </form>
                 </td>
               </tr>
@@ -116,15 +116,15 @@ async function Organizations() {
                   <form action={setOrganizationFlags.bind(null, org.id)} className="flex flex-col gap-1" aria-label={`Flags for ${org.name}`}>
                     <label className="flex items-center gap-1"><input type="checkbox" name="pilotMode" defaultChecked={org.flags.pilotMode} /> Pilot mode</label>
                     <label className="flex items-center gap-1"><input type="checkbox" name="liveConnectors" defaultChecked={org.flags.liveConnectors} /> Live connectors</label>
-                    <button className="self-start rounded border border-border px-2 py-0.5 text-xs">Save flags</button>
+                    <Button variant="outline" size="sm" className="self-start" type="submit">Save flags</Button>
                   </form>
                 </td>
                 <td className={cell}>
                   {org.status !== 'PENDING_APPROVAL' ? (
                     <form action={setOrganizationStatus.bind(null, org.id)}>
-                      <button name="status" value={org.status === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE'} className="rounded border border-border px-2 py-1 text-xs">
+                      <Button variant="outline" size="sm" type="submit" name="status" value={org.status === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE'}>
                         {org.status === 'ACTIVE' ? 'Suspend' : 'Reactivate'}
-                      </button>
+                      </Button>
                     </form>
                   ) : null}
                 </td>
@@ -144,7 +144,7 @@ async function Users({ q }: { q: string }) {
       <form method="get" className="flex gap-2 text-sm">
         <input type="hidden" name="tab" value="users" />
         <input name="q" defaultValue={q} placeholder="Search by email or name" className="w-72 rounded-md border border-border px-3 py-1.5" />
-        <button className="rounded-md border border-border px-3 py-1.5">Search</button>
+        <Button variant="outline" size="sm" type="submit">Search</Button>
       </form>
       {result.kind !== 'ok' ? (
         <ApiState result={result} />
@@ -162,9 +162,9 @@ async function Users({ q }: { q: string }) {
                     <td className={cell}>{user.status.toLowerCase()}</td>
                     <td className={cell}>
                       <form action={setMemberStatus.bind(null, user.organizationId, user.userId)}>
-                        <button name="status" value={user.status === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE'} className="rounded border border-border px-2 py-1 text-xs">
+                        <Button variant="outline" size="sm" type="submit" name="status" value={user.status === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE'}>
                           {user.status === 'ACTIVE' ? 'Deactivate' : 'Reactivate'}
-                        </button>
+                        </Button>
                       </form>
                     </td>
                   </tr>
@@ -228,7 +228,7 @@ async function Audit({ action }: { action: string }) {
           <option value="bug.">Bugs</option>
           <option value="operator.">Operators</option>
         </select>
-        <button className="rounded-md border border-border px-3 py-1.5">Filter</button>
+        <Button variant="outline" size="sm" type="submit">Filter</Button>
       </form>
       {result.kind !== 'ok' ? (
         <ApiState result={result} />
@@ -264,7 +264,7 @@ async function Bugs({ status, severity }: { status: string; severity: string }) 
           <option value="">Any severity</option>
           {['BLOCKER', 'HIGH', 'MEDIUM', 'LOW'].map((value) => <option key={value} value={value}>{value.toLowerCase()}</option>)}
         </select>
-        <button className="rounded-md border border-border px-3 py-1.5">Filter</button>
+        <Button variant="outline" size="sm" type="submit">Filter</Button>
       </form>
       <Card>
         <CardContent className="p-0">

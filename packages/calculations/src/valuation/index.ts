@@ -8,3 +8,4 @@ export * from './asking';
 export * from './benchmark';
 export * from './anchors';
 export * from './balance-sheet-reader';
+export * from './personas';

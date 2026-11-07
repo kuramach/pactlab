@@ -254,16 +254,16 @@ export function DocumentUploader({ dealId, aiOn, shareLabel = null }: { dealId: 
                       <input type="checkbox" checked={item.shared} onChange={(event) => update(item.key, { shared: event.target.checked })} /> {shareLabel}
                     </label>
                   ) : null}
-                  <button type="button" className="text-muted-foreground underline" onClick={() => setItems((current) => current.filter((entry) => entry.key !== item.key))}>
+                  <Button variant="link" size="sm" type="button" onClick={() => setItems((current) => current.filter((entry) => entry.key !== item.key))}>
                     Remove
-                  </button>
+                  </Button>
                 </div>
               ) : null}
               {item.message ? <p className={`text-xs ${item.status === 'failed' || item.status === 'skipped' || item.status === 'not-extracted' ? 'text-red-700' : 'text-muted-foreground'}`}>{item.message}</p> : null}
               {item.status === 'failed' && item.file && 'contentType' in checkFile(item.file.name, item.file.size) ? (
-                <button type="button" className="self-start text-xs underline" onClick={() => update(item.key, { status: 'ready', message: undefined })}>
+                <Button variant="link" size="sm" className="self-start" type="button" onClick={() => update(item.key, { status: 'ready', message: undefined })}>
                   Try again
-                </button>
+                </Button>
               ) : null}
             </li>
           ))}
@@ -275,13 +275,12 @@ export function DocumentUploader({ dealId, aiOn, shareLabel = null }: { dealId: 
           {busy ? 'Uploading…' : waiting > 1 ? `Upload ${waiting} files` : 'Upload'}
         </Button>
         {items.length > 0 && !busy ? (
-          <button
+          <Button variant="link" size="sm"
             type="button"
-            className="text-xs text-muted-foreground underline"
             onClick={() => setItems((current) => current.filter((item) => item.status === 'ready'))}
           >
             Clear finished
-          </button>
+          </Button>
         ) : null}
       </div>
       <p className="text-xs text-muted-foreground">

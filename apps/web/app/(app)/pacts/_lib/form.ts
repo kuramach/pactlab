@@ -53,6 +53,8 @@ export function pactFromForm(form: FormData): PactFormResult {
     buyer: form.get('initiatedBy') === 'SELLER' ? null : party(form, 'buyer'),
     seller: party(form, 'seller'),
     askingPrice: asking(form) ?? null,
+    // The buyer's style (T-105); a seller-led pact has none.
+    persona: form.get('initiatedBy') === 'SELLER' ? null : form.get('persona') || null,
   });
   if (parsed.success) {
     if (form.get('askingPrice.known') !== 'no' && asking(form) === undefined)

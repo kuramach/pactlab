@@ -24,7 +24,7 @@ export class MeService {
       await tx.$executeRaw`SELECT set_config('app.auth_subject', ${subject}, true)`;
       const user = await tx.user.findUnique({
         where: { auth0Subject: subject },
-        select: { id: true, displayName: true },
+        select: { id: true, displayName: true, email: true },
       });
       if (!user) return null;
 

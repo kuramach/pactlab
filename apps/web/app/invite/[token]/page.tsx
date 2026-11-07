@@ -1,9 +1,9 @@
-import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle } from '@pactlab/ui';
+import { Badge, Button, buttonVariants, Card, CardContent, CardDescription, CardHeader, CardTitle } from '@pactlab/ui';
 import Link from 'next/link';
 import { publicEnv } from '../../../lib/env';
 import { getSessionContext } from '../../../lib/session';
 import { AuthFrame } from '../../_components/auth-frame';
-import { acceptInvitation, confirmInviteSignup, startInviteSignup } from './actions';
+import { acceptInvitation, confirmInviteSignup, signOutForInvite, startInviteSignup } from './actions';
 
 interface Preview {
   dealName: string;
@@ -24,7 +24,7 @@ const ROLE: Record<string, string> = {
   REVIEWER: 'Reviewer — decide findings',
 };
 const ERRORS: Record<string, string> = {
-  'not-accepted': 'This invitation could not be accepted with the address you are signed in with. Sign out and sign in with the invited address.',
+  'not-accepted': 'This invitation is for a different address than the one you are signed in with. Sign out below and continue as the invited address.',
   switch: 'You joined the pact, but switching to it failed. Use the organization switcher to open it.',
   details: 'Enter your name and your company name.',
   unavailable: 'Sign-up is not available right now. Try again shortly.',
@@ -52,7 +52,11 @@ export default async function InvitePage({ params, searchParams }: { params: Pro
   const { token } = await params;
   const query = await searchParams;
   const invite = await preview(token);
-  const signedIn = (await getSessionContext()).kind === 'signed-in';
+  const session = await getSessionContext();
+  const signedIn = session.kind === 'signed-in';
+  const signedInAs = session.kind === 'signed-in' ? session.email : null;
+  // Signed in as someone else (batch 1): offer to switch instead of failing on accept.
+  const otherAddress = signedIn && invite !== null && signedInAs !== null && signedInAs.toLowerCase() !== invite.email.toLowerCase();
   const error = query.error ? ERRORS[query.error] : undefined;
 
   return (
@@ -83,10 +87,24 @@ export default async function InvitePage({ params, searchParams }: { params: Pro
               ) : null}
               {invite.status !== 'PENDING' ? (
                 <p className="text-muted-foreground">This invitation can no longer be used. Ask whoever invited you to send a new one.</p>
+              ) : otherAddress ? (
+                <div className="flex flex-col gap-3">
+                  <p>
+                    You’re signed in as <strong>{signedInAs}</strong>. This invitation is for <strong>{invite.email}</strong>.
+                  </p>
+                  <form action={signOutForInvite.bind(null, token)}>
+                    <Button type="submit" className="w-full sm:w-auto">
+                      Sign out and continue
+                    </Button>
+                  </form>
+                </div>
               ) : signedIn ? (
-                <form action={acceptInvitation.bind(null, token)}>
-                  <Button type="submit">Accept and open the pact</Button>
-                </form>
+                <div className="flex flex-col gap-3">
+                  {signedInAs ? <p className="text-muted-foreground">Signed in as {signedInAs}.</p> : null}
+                  <form action={acceptInvitation.bind(null, token)}>
+                    <Button type="submit">Accept and open the pact</Button>
+                  </form>
+                </div>
               ) : query.step === 'code' ? (
                 <form action={confirmInviteSignup.bind(null, token)} className="flex flex-col gap-3">
                   <p className="text-muted-foreground">We emailed a 6-digit code to {invite.email}. It expires in 10 minutes.</p>
@@ -94,14 +112,15 @@ export default async function InvitePage({ params, searchParams }: { params: Pro
                     6-digit code
                     <input name="code" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" required className={inputClass} />
                   </label>
-                  <Button type="submit">Create my account</Button>
+                  <Button type="submit">Create account and join</Button>
                 </form>
               ) : (
                 <div className="grid gap-5 sm:grid-cols-2">
                   <div className="flex flex-col gap-2">
                     <p className="font-semibold">Already use Pactlab?</p>
-                    <Link href={`/login?${new URLSearchParams({ returnTo: `/invite/${token}` })}`} className="text-indigo-ink underline">
-                      Sign in as {invite.email}
+                    <p className="text-muted-foreground">Sign in with {invite.email}.</p>
+                    <Link href={`/login?${new URLSearchParams({ returnTo: `/invite/${token}` })}`} className={buttonVariants({ variant: 'outline', className: 'mt-auto w-full' })}>
+                      Sign in
                     </Link>
                   </div>
                   <form action={startInviteSignup.bind(null, token, invite.email)} className="flex flex-col gap-2">
@@ -114,8 +133,8 @@ export default async function InvitePage({ params, searchParams }: { params: Pro
                       Your company
                       <input name="organizationName" required minLength={2} maxLength={120} autoComplete="organization" className={inputClass} />
                     </label>
-                    <Button type="submit" variant="outline">
-                      Create an account for {invite.email}
+                    <Button type="submit" className="mt-auto w-full">
+                      Create account
                     </Button>
                   </form>
                 </div>

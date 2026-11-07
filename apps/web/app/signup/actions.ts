@@ -2,7 +2,7 @@
 
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
-import { authApi, forgetPendingEmail, pendingEmail, rememberPendingEmail } from '../../lib/native-session';
+import { authApi, forgetPendingEmail, pendingEmail, rememberPendingEmail, storeNativeSession, type IssuedSession } from '../../lib/native-session';
 
 const details = z.strictObject({
   email: z.string().trim().toLowerCase().max(254).pipe(z.email()),
@@ -42,6 +42,11 @@ export async function confirmSignup(formData: FormData): Promise<void> {
   const verified = await authApi('/v1/signup/verify', { email, code: code.data });
   if (verified.status !== 201) redirect(signupUrl({ step: 'code', error: 'code' }));
   await forgetPendingEmail('signup');
-  const { status } = verified.data as { status: 'ACTIVE' | 'PENDING_APPROVAL' };
+  const { status, session } = verified.data as { status: 'ACTIVE' | 'PENDING_APPROVAL'; session?: IssuedSession };
+  // An active organization is signed in at once (batch 1): straight to the app, no second code.
+  if (session) {
+    await storeNativeSession(session);
+    redirect('/');
+  }
   redirect(signupUrl({ step: status === 'ACTIVE' ? 'ready' : 'pending' }));
 }

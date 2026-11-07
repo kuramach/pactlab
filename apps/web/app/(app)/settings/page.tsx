@@ -1,4 +1,4 @@
-import { Badge, buttonVariants, Card, CardContent, CardDescription, CardHeader, CardTitle, EmptyState, PageHeader } from '@pactlab/ui';
+import { Badge, buttonVariants, Card, CardContent, CardDescription, CardHeader, CardTitle, EmptyState, PageHeader, Button } from '@pactlab/ui';
 import type { MyBugReportView } from '@pactlab/contracts';
 import { ArrowRight, Bug, LogOut } from 'lucide-react';
 import Link from 'next/link';
@@ -7,6 +7,9 @@ import { signOut } from '../../_actions/sign-out';
 import { apiGet } from '../deals/_lib/api';
 import { currentRelease, releaseLabel } from '../../../lib/release';
 import { isOpen, STATUS_LABELS, statusBadge } from './bug-reports/_lib/status';
+import { setDefaultPersona } from './persona-actions';
+import type { PersonaOption } from '../valuation/_lib/pricing';
+import { PersonaCard } from '../valuation/_lib/persona-card';
 
 // Per-user data: never prerender.
 export const dynamic = 'force-dynamic';
@@ -19,6 +22,51 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
       <dt className="text-sm text-muted-foreground">{label}</dt>
       <dd className="text-sm font-medium">{children}</dd>
     </div>
+  );
+}
+
+/**
+ * The organization's deal-making style (T-105): the buyer persona new pacts
+ * price under. Owners and admins change it; everyone sees it. Buyer-confidential.
+ */
+async function DealStyleCard() {
+  const result = await apiGet<{ defaultPersona: string | null; effective: string; canEdit: boolean; options: PersonaOption[] }>('/v1/organization/persona');
+  if (result.kind !== 'ok') return null;
+  const { effective, canEdit, options, defaultPersona } = result.data;
+  return (
+    <Card id="deal-style">
+      <CardHeader>
+        <CardTitle>Deal-making style</CardTitle>
+        <CardDescription>
+          How your organization prices what diligence finds. New pacts start with this persona; each pact can change it, and any pact can be re-evaluated through another. Never shown to sellers.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form action={setDefaultPersona} className="flex flex-col gap-3">
+          <fieldset className="grid gap-3 md:grid-cols-3" disabled={!canEdit}>
+            <legend className="sr-only">Deal-making style</legend>
+            {options.map((option) => (
+              <label key={option.persona} className="cursor-pointer">
+                <PersonaCard
+                  option={option}
+                  selected={option.persona === effective}
+                  control={<input type="radio" name="persona" value={option.persona} defaultChecked={option.persona === (defaultPersona ?? effective)} className="mt-1 h-4 w-4 accent-navy" aria-label={option.label} />}
+                />
+              </label>
+            ))}
+          </fieldset>
+          {canEdit ? (
+            <div>
+              <Button type="submit" size="sm">
+                Save style
+              </Button>
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground">Organization owners and administrators can change this.</p>
+          )}
+        </form>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -112,6 +160,8 @@ export default async function SettingsPage() {
 
       <BugsSubmittedCard />
 
+      {organization ? <DealStyleCard /> : null}
+
       <Card>
         <CardHeader>
           <CardTitle>Organization</CardTitle>
@@ -179,9 +229,9 @@ export default async function SettingsPage() {
         </CardHeader>
         <CardContent>
           <form action={signOut}>
-            <button type="submit" className={buttonVariants({ variant: 'outline', size: 'sm' })}>
+            <Button type="submit" variant="outline" size="sm">
               <LogOut aria-hidden className="h-4 w-4" /> Sign out
-            </button>
+            </Button>
           </form>
         </CardContent>
       </Card>

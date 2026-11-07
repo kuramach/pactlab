@@ -2,7 +2,7 @@
 
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
-import { authApi, forgetPendingEmail, nativeSessionToken, pendingEmail, rememberPendingEmail, storeNativeSession, type IssuedSession } from '../../../lib/native-session';
+import { authApi, clearNativeSession, forgetPendingEmail, nativeSessionToken, pendingEmail, rememberPendingEmail, storeNativeSession, type IssuedSession } from '../../../lib/native-session';
 
 const tokenSchema = z.string().regex(/^[A-Za-z0-9_-]{43}$/);
 const here = (token: string, params: Record<string, string> = {}) => `/invite/${token}${Object.keys(params).length ? `?${new URLSearchParams(params)}` : ''}`;
@@ -38,7 +38,28 @@ export async function startInviteSignup(token: string, email: string, formData: 
   redirect(here(token, { step: 'code' }));
 }
 
-/** Confirm the sign-up code; then send a sign-in code so the invitee lands back here signed in. */
+/**
+ * Signed in as someone other than the invitee (batch 1): sign out here, then
+ * come straight back to this invitation to sign in or sign up as the invitee.
+ */
+export async function signOutForInvite(token: string): Promise<void> {
+  if (!tokenSchema.safeParse(token).success) redirect('/');
+  const session = await nativeSessionToken();
+  if (session) {
+    try {
+      await authApi('/v1/auth/logout', undefined, session);
+    } finally {
+      await clearNativeSession();
+    }
+  }
+  redirect(here(token));
+}
+
+/**
+ * Confirm the sign-up code. An active sign-up comes back signed in (batch 1),
+ * so the invitation is accepted at once: one code, not two. Otherwise fall
+ * back to a sign-in code.
+ */
 export async function confirmInviteSignup(token: string, formData: FormData): Promise<void> {
   if (!tokenSchema.safeParse(token).success) redirect('/');
   const email = await pendingEmail('invite');
@@ -48,6 +69,11 @@ export async function confirmInviteSignup(token: string, formData: FormData): Pr
   const verified = await authApi('/v1/signup/verify', { email, code: code.data, invitationToken: token });
   if (verified.status !== 201) redirect(here(token, { step: 'code', error: 'code' }));
   await forgetPendingEmail('invite');
+  const session = (verified.data as { session?: IssuedSession }).session;
+  if (session) {
+    await storeNativeSession(session);
+    await acceptInvitation(token);
+  }
   const started = await authApi('/v1/auth/email/start', { email });
   if (started.status !== 202) redirect(`/login?${new URLSearchParams({ returnTo: here(token) })}`);
   await rememberPendingEmail(email, 'login');

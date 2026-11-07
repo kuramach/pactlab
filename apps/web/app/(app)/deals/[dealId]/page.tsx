@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 import { COMPANY_TYPE_LABELS, DEAL_PHASE_LABELS, DEAL_STAGES } from '@pactlab/domain';
 import { moveStage } from './stage-actions';
-import { Badge, buttonVariants, Card, CardContent, CardHeader, CardTitle, Glossed, IconTile, Section, Stat, type Accent } from '@pactlab/ui';
+import { Badge, buttonVariants, Card, CardContent, CardHeader, CardTitle, Glossed, IconTile, Section, Stat, type Accent, Button } from '@pactlab/ui';
 import {
   AlertTriangle,
   ArrowRight,
@@ -120,9 +120,9 @@ export default async function DealOverviewPage({
               ))}
             </select>
           </label>
-          <button type="submit" className="rounded-md border border-border px-3 py-1 font-medium">
+          <Button variant="outline" size="sm" type="submit">
             Move
-          </button>
+          </Button>
         </form>
       ) : null}
       <PipelineCard steps={pipeline} />

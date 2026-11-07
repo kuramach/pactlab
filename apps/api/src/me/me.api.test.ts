@@ -69,7 +69,7 @@ describe('GET /v1/me', () => {
     const response = await get('/v1/me', await token(a.subject));
     expect(response.status).toBe(200);
     expect(response.body).toEqual({
-      user: { id: a.userId, displayName: 'Alpha Lead' },
+      user: { id: a.userId, displayName: 'Alpha Lead', email: null },
       // Auth0 sessions have no guest pacts yet (ADR 0014; Auth0 guests arrive with T-070).
       guestPacts: [],
       organizations: [

@@ -7,7 +7,7 @@ import {
   CardTitle,
   EmptyState,
 } from '@pactlab/ui';
-import { Glossed, IconTile, Term, type Accent } from '@pactlab/ui';
+import { Button, Glossed, IconTile, Term, type Accent } from '@pactlab/ui';
 import { BarChart3, CalendarClock, Gauge, Grid3x3, PieChart, Repeat, ShieldCheck, TrendingUp } from 'lucide-react';
 import Link from 'next/link';
 import { DonutChart, HeatmapChart, LineChart, WaterfallChart } from '../../../_lib/charts';
@@ -253,12 +253,11 @@ function Reconciliation({ dealId, data, pageAsOf }: { dealId: string; data: Metr
         {canDecide ? (
           <div className="flex flex-col gap-3 border-t border-border pt-4">
             <form action={recordReconciliation.bind(null, dealId, asOf)}>
-              <button
+              <Button variant="outline" size="sm"
                 type="submit"
-                className="rounded-md border border-border px-3 py-1 font-medium"
               >
                 Record reconciliation
-              </button>
+              </Button>
             </form>
             {approval.status !== 'APPROVED' ? (
               <form
@@ -282,12 +281,11 @@ function Reconciliation({ dealId, data, pageAsOf }: { dealId: string; data: Metr
                     placeholder="Why the difference is accepted, and how it should be treated."
                   />
                 </label>
-                <button
+                <Button size="sm" className="self-start"
                   type="submit"
-                  className="self-start rounded-md bg-primary px-3 py-1 font-medium text-primary-foreground"
                 >
                   Approve difference
-                </button>
+                </Button>
                 <p className="text-xs text-muted-foreground">
                   Only a reviewer or the deal lead can approve.
                 </p>
@@ -382,9 +380,9 @@ export default async function DealFinancesPage({
             className="rounded-md border border-border bg-background px-2 py-1"
           />
         </label>
-        <button type="submit" className="rounded-md border border-border px-3 py-1 font-medium">
+        <Button variant="outline" size="sm" type="submit">
           Apply
-        </button>
+        </Button>
       </form>
 
       {outcome ? (

@@ -12,6 +12,35 @@ import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitl
 import { useActionState, useState } from 'react';
 import { problemUpTo, stepsFor, type WizardStep } from '../_lib/form';
 import { startPact, type StartPactState } from './actions';
+import { PersonaCard } from '../../valuation/_lib/persona-card';
+import type { PersonaOption } from '../../valuation/_lib/pricing';
+
+/** The buyer's deal-making style (T-105): the options and the organization default it starts on. */
+export interface PersonaChoice {
+  readonly defaultPersona: string;
+  readonly options: readonly PersonaOption[];
+}
+
+/** How this buyer prices what diligence finds. Buyer-confidential; changeable any time on the pact. */
+function PersonaField({ values, set, personas }: { values: Values; set: (key: string, value: string) => void; personas: PersonaChoice }) {
+  return (
+    <fieldset className="flex flex-col gap-2 text-sm">
+      <legend className="mb-1 font-medium">Deal-making style</legend>
+      <p className="text-xs text-muted-foreground">How Sextant prices what diligence finds for this pact. Never shown to the seller; you can re-evaluate under another style at any time.</p>
+      <div className="grid gap-3 sm:grid-cols-3">
+        {personas.options.map((option) => (
+          <label key={option.persona} className="cursor-pointer">
+            <PersonaCard
+              option={option}
+              selected={values['persona'] === option.persona}
+              control={<input type="radio" name="persona-choice" checked={values['persona'] === option.persona} onChange={() => set('persona', option.persona)} className="mt-1 h-4 w-4 accent-navy" aria-label={option.label} />}
+            />
+          </label>
+        ))}
+      </div>
+    </fieldset>
+  );
+}
 
 const STEP_TITLES: Readonly<Record<WizardStep, string>> = {
   pact: 'Name the Pact',
@@ -342,9 +371,10 @@ function Review({ values }: { values: Values }) {
 }
 
 /** Five steps, one form. The server action re-validates and the API decides. */
-export function PactWizard({ companyTypes }: { companyTypes: readonly CompanyType[] }) {
+export function PactWizard({ companyTypes, personas }: { companyTypes: readonly CompanyType[]; personas: PersonaChoice | null }) {
   const [values, setValues] = useState<Values>({
     baseCurrency: 'USD',
+    ...(personas ? { persona: personas.defaultPersona } : {}),
     'askingPrice.known': 'yes',
     'askingPrice.basis': 'ENTERPRISE_VALUE',
     'askingPrice.source': 'TEASER',
@@ -444,6 +474,7 @@ export function PactWizard({ companyTypes }: { companyTypes: readonly CompanyTyp
           </div>
         ) : null}
         {step === 'buyer' ? <PartyFields key="buyer" role="buyer" values={values} set={set} companyTypes={companyTypes} /> : null}
+        {step === 'buyer' && personas ? <PersonaField values={values} set={set} personas={personas} /> : null}
         {step === 'seller' ? <PartyFields key="seller" role="seller" values={values} set={set} companyTypes={companyTypes} /> : null}
         {step === 'asking' ? <AskingFields values={values} set={set} /> : null}
         {step === 'review' ? <Review values={values} /> : null}

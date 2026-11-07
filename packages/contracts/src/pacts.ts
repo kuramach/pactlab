@@ -96,6 +96,8 @@ export const startPactSchema = z
      * came from. Accepted only if the caller won that sale.
      */
     linkedSale: z.strictObject({ organizationId: z.uuid(), dealId: z.uuid() }).nullable().default(null),
+    /** The buyer's deal-making style (T-105; mirrors `BUYER_PERSONAS` in `@pactlab/calculations`); null follows the organization default. Buyer-led pacts only. */
+    persona: z.enum(['QUALITY_COMPOUNDER', 'VALUE_INVESTOR', 'GRAVE_DANCER']).nullable().default(null),
   })
   .superRefine((pact, ctx) => {
     if (pact.initiatedBy === 'BUYER' && !pact.buyer) ctx.addIssue({ code: 'custom', path: ['buyer'], message: 'Say who is buying' });

@@ -104,14 +104,18 @@ describe('pact invitations and guests', { timeout: 60_000 }, () => {
     // Sign-up from the invitation: a personal address is fine and the home organization is active at once.
     expect((await call('POST', '/v1/signup/start', { email: 'seller.founder@gmail.com', displayName: 'Sam Seller', organizationName: 'Loopwise (synthetic)', invitationToken: token })).status).toBe(202);
     const code = /\b(\d{6})\b/.exec((await lastMail('seller.founder@gmail.com')).text)?.[1];
-    expect((await call('POST', '/v1/signup/verify', { email: 'seller.founder@gmail.com', code, invitationToken: token })).body).toMatchObject({ status: 'ACTIVE' });
+    const signedUp = await call('POST', '/v1/signup/verify', { email: 'seller.founder@gmail.com', code, invitationToken: token });
+    // An active sign-up is signed in at once: no second code before accepting.
+    expect(signedUp.body).toMatchObject({ status: 'ACTIVE', session: { token: expect.any(String), organizationId: expect.any(String) } });
+    const firstSession = (signedUp.body['session'] as Body)['token'] as string;
+    expect((await call('GET', '/v1/me', undefined, firstSession)).status).toBe(200);
     // Without an invitation a personal address may sign up too, but cannot ask for company SSO.
     expect((await call('POST', '/v1/signup/start', { email: 'someone@gmail.com', displayName: 'X', organizationName: 'Xyz Ltd', ssoRequested: true })).status).toBe(422);
 
     // Someone else cannot accept it: the signed-in address must match.
     expect((await call('POST', `/v1/invitations/${token}/accept`, undefined, await signIn('colleague@charlie.example'))).status).toBe(422);
 
-    const home = await signIn('seller.founder@gmail.com');
+    const home = firstSession;
     const accepted = await call('POST', `/v1/invitations/${token}/accept`, undefined, home);
     expect(accepted).toEqual({ status: 200, body: { organizationId: charlie.organizationId, dealId: charlie.deal } });
     expect((await call('POST', `/v1/invitations/${token}/accept`, undefined, home)).status).toBe(422); // used once

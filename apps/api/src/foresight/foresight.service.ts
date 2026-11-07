@@ -18,6 +18,7 @@ import type {
   ForesightQuestionInput,
   ForesightScenarioInput,
   ForesightTrendView,
+  ForesightCustomMetricInput,
   ForesightUserForecastInput,
   ForesightView,
   ForesightVoiceQuestionInput,
@@ -27,11 +28,13 @@ import { appendAuditEvent, askingPrices, withTenant, type PrismaClient, type Tra
 import {
   isCounterpartyRole,
   COMPANY_TYPE_LABELS,
+  customMetricKey,
   foresightMetricsFor,
   macroAreaFor,
   permissionsForDealRole,
   trendDefinitionsFor,
   type CompanyType,
+  type CustomForesightMetric,
   type DealRole,
   type DocumentCitation,
   type PackId,
@@ -126,7 +129,8 @@ export class ForesightService {
 
   /** Today's value: the latest valuation run's enterprise value, else the asking price. */
   private async startValue(tx: TransactionClient, dealId: string): Promise<{ amount: string; currency: string; source: string } | null> {
-    const run = await tx.valuationRun.findFirst({ where: { dealId }, orderBy: { ranAt: 'desc' }, select: { result: true, scenario: { select: { name: true } } } });
+    // Scenario runs only: persona-priced runs (T-105) belong to pricing evaluations.
+    const run = await tx.valuationRun.findFirst({ where: { dealId, persona: null }, orderBy: { ranAt: 'desc' }, select: { result: true, scenario: { select: { name: true } } } });
     const ev = (run?.result as { enterpriseValue?: { amount?: string; currency?: string } } | undefined)?.enterpriseValue;
     if (ev?.amount && ev.currency && Number(ev.amount) > 0) return { amount: ev.amount, currency: ev.currency, source: `Enterprise value from the latest valuation run (“${run?.scenario.name ?? 'scenario'}”)` };
     const asking = (await askingPrices.currentFor(tx, [dealId])).get(dealId);
@@ -243,6 +247,7 @@ export class ForesightService {
         start,
         baseGrowth: set ? set.baseGrowth.toFixed() : '0.10',
         now: new Date(),
+        custom: await this.customMetrics(tx, dealId),
       });
       return {
         baseline: set ? { id: set.id, asOf: set.asOf.toISOString().slice(0, 10), modelId: set.modelId, promptVersion: `${set.promptId}@${set.promptVersion}` } : null,
@@ -507,11 +512,96 @@ export class ForesightService {
     });
   }
 
+  /** The deal team's own metrics on this pact, oldest first, archived ones left out. */
+  private async customMetrics(tx: TransactionClient, dealId: string): Promise<CustomForesightMetric[]> {
+    const rows = await tx.foresightCustomMetric.findMany({ where: { dealId, archivedAt: null }, orderBy: { createdAt: 'asc' } });
+    return rows.map((row) => ({ key: row.metricKey, label: row.label, definition: row.definition, neutral: row.neutral.toFixed(), effect: row.effect as CustomForesightMetric['effect'] }));
+  }
+
+  /** Define a metric of the deal team's own: what it measures, its neutral level and how it moves value. */
+  async defineMetric(tenant: TenantContext, dealId: string, input: ForesightCustomMetricInput, requestId: string): Promise<ForesightView> {
+    await this.access.require(tenant, dealId, canWrite, { action: 'foresight.metric_defined', requestId });
+    await withTenant(this.prisma, tenant, async (tx) => {
+      const taken = new Set((await tx.foresightCustomMetric.findMany({ where: { dealId }, select: { metricKey: true } })).map((row) => row.metricKey));
+      const base = customMetricKey(input.label);
+      let metricKey = base;
+      for (let suffix = 2; taken.has(metricKey); suffix += 1) metricKey = `${base.slice(0, 44)}-${suffix}`;
+      const row = await tx.foresightCustomMetric.create({
+        data: { organizationId: tenant.organizationId, dealId, metricKey, label: input.label, definition: input.definition, neutral: input.neutral, effect: input.effect, createdBy: tenant.userId },
+      });
+      await this.audit(tx, tenant, dealId, 'foresight.metric_defined', 'foresight_custom_metric', row.id, requestId);
+    });
+    return this.view(tenant, dealId, requestId);
+  }
+
+  async archiveMetric(tenant: TenantContext, dealId: string, metricKey: string, requestId: string): Promise<ForesightView> {
+    await this.access.require(tenant, dealId, canWrite, { action: 'foresight.metric_archived', requestId });
+    await withTenant(this.prisma, tenant, async (tx) => {
+      const row = await tx.foresightCustomMetric.findFirst({ where: { dealId, metricKey, archivedAt: null } });
+      if (!row) throw new NotFoundException();
+      await tx.foresightCustomMetric.update({ where: { id: row.id }, data: { archivedAt: new Date() } });
+      await this.audit(tx, tenant, dealId, 'foresight.metric_archived', 'foresight_custom_metric', row.id, requestId);
+    });
+    return this.view(tenant, dealId, requestId);
+  }
+
+  /**
+   * Ask the model for a five-year path for one of the team's own metrics. The
+   * definition is the team's text, sent as data; if the model cannot forecast
+   * it, nothing is stored and the team sets their own line.
+   */
+  async forecastMetric(tenant: TenantContext, dealId: string, metricKey: string, requestId: string): Promise<ForesightView> {
+    await this.access.require(tenant, dealId, canWrite, { action: 'foresight.metric_ai_forecast', requestId });
+    if (!this.deps.aiEnabled) throw new ServiceUnavailableException({ code: 'AI_OFF' });
+    const { metric, deal, companyType } = await withTenant(this.prisma, tenant, async (tx) => ({
+      metric: (await this.customMetrics(tx, dealId)).find((entry) => entry.key === metricKey),
+      deal: await tx.deal.findFirst({ where: { id: dealId }, select: { baseCurrency: true } }),
+      ...(await this.pack(tx, dealId)),
+    }));
+    if (!metric || !deal) throw new NotFoundException();
+    const years = forecastYears(new Date());
+    let response;
+    try {
+      response = await this.deps.gateway.invoke(foresightForecastPrompt, {
+        organizationId: tenant.organizationId,
+        dealId,
+        inputs: [
+          // Sector, currency and the team's own definition only: no deal documents, findings or people data.
+          { name: 'deal', classification: 'BUSINESS', text: `Sector: ${companyType ? COMPANY_TYPE_LABELS[companyType] : 'Software & SaaS'}. Reporting currency: ${deal.baseCurrency}. Economy: ${macroAreaFor(deal.baseCurrency) ?? 'not mapped'}.` },
+          { name: 'published', classification: 'PUBLIC', text: 'None.' },
+          { name: 'years', classification: 'PUBLIC', text: `${years[0]}–${years[4]}` },
+          { name: 'metrics', classification: 'BUSINESS', text: `${metric.key}: ${metric.label} — ${metric.definition} (percent a year)` },
+        ],
+      });
+    } catch (error) {
+      aiFailure(error);
+    }
+    await withTenant(this.prisma, tenant, (tx) => this.recordRun(tx, response.run));
+    if (response.status === 'PROVIDER_ERROR') throw providerUnavailable(response.providerError);
+    const answer = response.output?.metrics.find((entry) => entry.key === metric.key);
+    if (!answer) throw new UnprocessableEntityException({ code: 'AI_DECLINED' });
+    const id = await this.saveForecast(tenant, dealId, {
+      metricKey: metric.key,
+      source: 'AI',
+      firstYear: years[0] as number,
+      values: answer.values.map((value) => value.toFixed(2)),
+      rationale: answer.rationale,
+      modelId: response.run.resolvedModelId,
+      promptId: foresightForecastPrompt.id,
+      promptVersion: foresightForecastPrompt.version,
+      aiRunId: response.run.id,
+      createdBy: null,
+    });
+    if (id) await withTenant(this.prisma, tenant, (tx) => this.audit(tx, tenant, dealId, 'foresight.metric_ai_forecast', 'foresight_forecast', id, requestId));
+    return this.view(tenant, dealId, requestId);
+  }
+
   /** The user's own five-year path for one metric, kept as a new version. */
   async saveUserForecast(tenant: TenantContext, dealId: string, input: ForesightUserForecastInput, requestId: string): Promise<ForesightView> {
     await this.access.require(tenant, dealId, canWrite, { action: 'foresight.user_forecast_saved', requestId });
-    const { pack } = await withTenant(this.prisma, tenant, (tx) => this.pack(tx, dealId));
-    if (!foresightMetricsFor(pack).some((metric) => metric.key === input.metricKey)) throw new UnprocessableEntityException({ code: 'UNKNOWN_METRIC' });
+    const { pack, custom } = await withTenant(this.prisma, tenant, async (tx) => ({ ...(await this.pack(tx, dealId)), custom: await this.customMetrics(tx, dealId) }));
+    const known = [...foresightMetricsFor(pack).map((metric) => metric.key), ...custom.map((metric) => metric.key)];
+    if (!known.includes(input.metricKey)) throw new UnprocessableEntityException({ code: 'UNKNOWN_METRIC' });
     const id = await this.saveForecast(tenant, dealId, { metricKey: input.metricKey, source: 'USER', firstYear: forecastYears(new Date())[0] as number, values: input.values, createdBy: tenant.userId });
     if (id) await withTenant(this.prisma, tenant, (tx) => this.audit(tx, tenant, dealId, 'foresight.user_forecast_saved', 'foresight_forecast', id, requestId));
     return this.view(tenant, dealId, requestId);

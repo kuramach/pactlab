@@ -18,7 +18,8 @@ type Body = Record<string, unknown>;
 function modelReply(request: ModelRequest): unknown {
   const prompt = request.messages[0]?.content ?? '';
   if (request.system.includes('five-year forecast for each economic or sector metric')) {
-    const keys = [...prompt.matchAll(/^([a-z_]+): /gm)].map((match) => match[1] ?? '');
+    // Built-in keys, and the team's own (`custom.<slug>`); a metric named "unforecastable" is declined.
+    const keys = [...prompt.matchAll(/^([a-z_]+|custom\.[a-z0-9-]+): /gm)].map((match) => match[1] ?? '').filter((key) => !key.includes('unforecastable'));
     return {
       metrics: [
         ...keys.map((key) => ({ key, values: key === 'inflation' ? [2.5, 2.4, 2.2, 2.1, 2] : [3, 3, 3, 3, 3], rationale: `Synthetic rationale for ${key}: balanced drivers.` })),
@@ -140,6 +141,40 @@ describe('Foresight forecasts (T-094 B10)', { timeout: 60_000 }, () => {
     expect((await call(app, 'viewer', 'POST', '/user-forecasts', { metricKey: 'inflation', values: ['1', '1', '1', '1', '1'] })).status).toBe(403);
     expect((await call(app, 'target_contributor', 'GET', '')).status).toBe(403);
     expect((await call(app, 'other', 'GET', '', undefined, a.dealId)).status).toBe(404);
+  });
+
+  it('the team defines its own metric, the AI forecasts it, and their line moves value by the chosen effect', async () => {
+    type Metric = { key: string; label: string; ai: { values: string[] } | null; user: Body | null; custom?: { effect: string; definition: string } };
+    const metrics = (body: Body) => (body['forecasts'] as { metrics: Metric[] }).metrics;
+    const defined = await call(app, 'analyst', 'POST', '/metrics', { label: 'Texas RevPAR growth', definition: 'Revenue per available room for hotels in Texas, year on year.', neutral: '3', effect: 'GROWTH' });
+    expect(defined.status).toBe(201);
+    const mine = metrics(defined.body).find((metric) => metric.key === 'custom.texas-revpar-growth');
+    expect(mine).toMatchObject({ label: 'Texas RevPAR growth', ai: null, custom: { effect: 'GROWTH' } });
+
+    // The definition reaches the model as data; its answer is stored as the AI line.
+    const forecast = await call(app, 'analyst', 'POST', '/metrics/custom.texas-revpar-growth/ai-forecast');
+    expect(forecast.status).toBe(201);
+    expect(metrics(forecast.body).find((metric) => metric.key === 'custom.texas-revpar-growth')?.ai?.values).toEqual(['3', '3', '3', '3', '3']);
+
+    // The team's own line counts in their outcome, as a growth metric.
+    const saved = await call(app, 'analyst', 'POST', '/user-forecasts', { metricKey: 'custom.texas-revpar-growth', values: ['8', '8', '8', '8', '8'] });
+    expect(saved.status).toBe(201);
+    expect((saved.body['forecasts'] as { outcomes: { user: { basis: Body[] } } }).outcomes.user.basis).toContainEqual({ key: 'custom.texas-revpar-growth', used: 'USER' });
+
+    // A metric the model cannot forecast says so; nothing is stored.
+    await call(app, 'analyst', 'POST', '/metrics', { label: 'Unforecastable thing', definition: 'Something nobody can see coming.', neutral: '0', effect: 'TRACK' });
+    expect((await call(app, 'analyst', 'POST', '/metrics/custom.unforecastable-thing/ai-forecast')).status).toBe(422);
+    // A second metric with the same name gets its own key; archiving hides it.
+    const twin = await call(app, 'analyst', 'POST', '/metrics', { label: 'Texas RevPAR growth', definition: 'A second view.', neutral: '3', effect: 'RISK' });
+    expect(metrics(twin.body).map((metric) => metric.key)).toContain('custom.texas-revpar-growth-2');
+    const archived = await call(app, 'analyst', 'POST', '/metrics/custom.texas-revpar-growth-2/archive');
+    expect(metrics(archived.body).map((metric) => metric.key)).not.toContain('custom.texas-revpar-growth-2');
+
+    expect((await call(app, 'viewer', 'POST', '/metrics', { label: 'Nope', definition: 'Viewers cannot.', neutral: '1', effect: 'TRACK' })).status).toBe(403);
+    expect((await call(offline, 'other_lead', 'POST', '/metrics', { label: 'Offline metric', definition: 'With AI off.', neutral: '1', effect: 'TRACK' }, b.dealId)).status).toBe(201);
+    expect((await call(offline, 'other_lead', 'POST', '/metrics/custom.offline-metric/ai-forecast', undefined, b.dealId)).status).toBe(503);
+    const audit = await db.owner.query<{ action: string }>(`SELECT DISTINCT action FROM audit_events WHERE deal_id = $1`, [a.dealId]);
+    expect(audit.rows.map((row) => row.action)).toEqual(expect.arrayContaining(['foresight.metric_defined', 'foresight.metric_ai_forecast', 'foresight.metric_archived']));
   });
 
   it('with the provider down and AI off, the baseline says what is missing instead of failing silently', async () => {

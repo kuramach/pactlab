@@ -22,7 +22,8 @@ export interface MeGuestPactView {
 }
 
 export interface MeResponse {
-  user: { id: string; displayName: string };
+  /** `email` lets the app say who is signed in, e.g. on an invitation for another address. */
+  user: { id: string; displayName: string; email: string | null };
   organizations: MeOrganizationView[];
   /** Pacts in other organizations this user joined as a guest; switch to one to open it. */
   guestPacts: MeGuestPactView[];

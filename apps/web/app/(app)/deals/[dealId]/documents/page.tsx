@@ -1,4 +1,4 @@
-import { Badge, Button, Card, CardContent, CardHeader, CardTitle, EmptyState, Glossed } from '@pactlab/ui';
+import { AiBadge, Button, Card, CardContent, CardHeader, CardTitle, EmptyState, Glossed } from '@pactlab/ui';
 import Link from 'next/link';
 import { apiGet, dealsApi } from '../../_lib/api';
 import { OutcomeBanner } from '../../_lib/outcome';
@@ -121,11 +121,13 @@ export default async function DocumentsPage({
         </p>
         <div className="mt-1">
           {aiOn ? (
-            <Badge variant="calculation" title={balanced?.modelId}>
-              AI on — {balanced?.label ?? 'Claude'} via Amazon Bedrock{ai.kind === 'ok' && ai.data.region ? ` (${ai.data.region})` : ''}
-            </Badge>
+            <AiBadge>
+              <span title={balanced?.modelId}>
+                AI on — {balanced?.label ?? 'Claude'} via Amazon Bedrock{ai.kind === 'ok' && ai.data.region ? ` (${ai.data.region})` : ''}
+              </span>
+            </AiBadge>
           ) : (
-            <Badge variant="neutral">AI off — uploads, pages and citations still work; drafts and answers need the Claude connection</Badge>
+            <AiBadge className="border-border bg-muted text-muted-foreground">AI off — uploads, pages and citations still work; drafts and answers need the Claude connection</AiBadge>
           )}
         </div>
       </div>

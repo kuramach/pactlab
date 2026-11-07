@@ -1,5 +1,6 @@
 'use client';
 
+import { Button } from '@pactlab/ui';
 import { useEffect, useState } from 'react';
 import { fileBugReport } from './_lib/bugs/actions';
 import { OPEN_BUG_REPORT_EVENT } from './_lib/bugs/bug-reporter';
@@ -27,16 +28,15 @@ export default function AppError({ error, reset }: { error: Error & { digest?: s
         We&apos;ve logged it automatically{reference ? <> — reference <strong>{reference}</strong></> : null}. You can keep working, or try again.
       </p>
       <div className="flex gap-2">
-        <button type="button" onClick={reset} className="rounded-md bg-indigo px-3 py-1.5 text-sm font-semibold text-navy">
+        <Button size="sm" type="button" onClick={reset}>
           Try again
-        </button>
-        <button
+        </Button>
+        <Button variant="outline" size="sm"
           type="button"
           onClick={() => window.dispatchEvent(new CustomEvent(OPEN_BUG_REPORT_EVENT, { detail: { name: error.name, message: error.message } }))}
-          className="rounded-md border border-border px-3 py-1.5 text-sm"
         >
           Tell us what you were doing
-        </button>
+        </Button>
       </div>
     </div>
   );

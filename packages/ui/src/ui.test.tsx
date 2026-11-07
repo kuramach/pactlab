@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { AppShell, Badge, Breadcrumbs, Button, cn, EmptyState, FileDrop, Glossed, TabNav, Term } from './index';
+import { AiBadge, AiMark, AppShell, Badge, Breadcrumbs, Button, cn, EmptyState, FileDrop, Glossed, HumanBadge, HumanMark, TabNav, Term } from './index';
 
 describe('ui', () => {
   it('merges conflicting Tailwind classes', () => {
@@ -21,6 +21,26 @@ describe('ui', () => {
     expect(html).toContain('Choose file');
     expect(html).toContain('drag and drop');
     expect(html).toContain('CSV');
+  });
+
+  it('marks what AI drafted and what a person decided, accessibly and distinctly', () => {
+    const ai = renderToStaticMarkup(<AiMark />);
+    const human = renderToStaticMarkup(<HumanMark />);
+    expect(ai).toContain('aria-label="AI"');
+    expect(ai).toContain('data-mark="ai"');
+    expect(human).toContain('aria-label="A person decided"');
+    expect(renderToStaticMarkup(<AiBadge>AI draft</AiBadge>)).toContain('AI draft');
+    expect(renderToStaticMarkup(<HumanBadge>Accepted</HumanBadge>)).toContain('data-mark="human"');
+  });
+
+  it('draws link-style buttons without a box at any size', () => {
+    const html = renderToStaticMarkup(<Button variant="link" size="sm">Remove</Button>);
+    expect(html).toContain('h-auto');
+    expect(html).not.toContain('h-8');
+  });
+
+  it('has a square icon size', () => {
+    expect(renderToStaticMarkup(<Button size="icon" aria-label="Close">x</Button>)).toContain('w-8');
   });
 
   it('renders buttons with an explicit type', () => {

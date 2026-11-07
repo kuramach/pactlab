@@ -8,3 +8,4 @@ export * from './components/page-header';
 export * from './components/term';
 export * from './utils';
 export * from './components/file-drop';
+export * from './components/marks';

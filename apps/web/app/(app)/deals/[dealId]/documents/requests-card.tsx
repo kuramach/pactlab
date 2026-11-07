@@ -1,6 +1,6 @@
 'use client';
 
-import { Badge } from '@pactlab/ui';
+import { Badge, Button } from '@pactlab/ui';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { closeRequest } from './actions';
@@ -36,9 +36,8 @@ export function RequestsCard({ dealId, requests, buyer }: { dealId: string; requ
                 Sent {request.createdAt.slice(0, 10)} · {received} of {request.items.length} received
               </span>
               {buyer ? (
-                <button
+                <Button variant="link" size="sm"
                   type="button"
-                  className="underline"
                   onClick={() =>
                     void closeRequest(dealId, request.id).then((result) => {
                       if (result.kind === 'error') setError(result.message);
@@ -47,7 +46,7 @@ export function RequestsCard({ dealId, requests, buyer }: { dealId: string; requ
                   }
                 >
                   Close request
-                </button>
+                </Button>
               ) : null}
             </div>
             {request.note ? <p>{request.note}</p> : null}

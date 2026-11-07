@@ -70,16 +70,20 @@ describe('synthetic decision-loop seed', () => {
 
   it('creates scenarios from draft to approved, approved by a second person', async () => {
     const scenarios = await rows(
-      `SELECT s.name, s.status, (SELECT count(*)::int FROM valuation_runs r WHERE r.scenario_id = s.id) AS runs
+      `SELECT s.name, s.status, s.scenario_case AS "case", (SELECT count(*)::int FROM valuation_runs r WHERE r.scenario_id = s.id) AS runs
          FROM valuation_scenarios s WHERE s.organization_id = $1 ORDER BY s.name`,
       [CHARLIE],
     );
+    // Tagged Downside / Base / Upside so buyer personas can weight them (T-105).
     expect(scenarios).toEqual([
-      { name: 'Base case — ARR multiple', status: 'APPROVED', runs: 1 },
+      { name: 'Base case — ARR multiple', status: 'APPROVED', case: 'BASE', runs: 1 },
       // Run once with entered amounts, then again with the cited balance-sheet items.
-      { name: 'Base case — ARR multiple, risk-adjusted', status: 'DRAFT', runs: 2 },
-      { name: 'Downside — DCF', status: 'DRAFT', runs: 1 },
-      { name: 'Early look — DCF', status: 'DRAFT', runs: 0 },
+      { name: 'Base case — ARR multiple, risk-adjusted', status: 'DRAFT', case: 'BASE', runs: 2 },
+      { name: 'Downside — ARR multiple', status: 'DRAFT', case: 'DOWNSIDE', runs: 1 },
+      { name: 'Downside — DCF', status: 'DRAFT', case: 'DOWNSIDE', runs: 1 },
+      { name: 'Early look — DCF', status: 'DRAFT', case: null, runs: 0 },
+      { name: 'Upside — ARR multiple', status: 'DRAFT', case: 'UPSIDE', runs: 1 },
+      { name: 'Upside — ARR multiple, risk-adjusted', status: 'DRAFT', case: 'UPSIDE', runs: 1 },
     ]);
   });
 

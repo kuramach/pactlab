@@ -1,4 +1,4 @@
-import { Badge, Card, CardContent, CardHeader, CardTitle } from '@pactlab/ui';
+import { AiMark, Badge, Card, CardContent, CardHeader, CardTitle, HumanMark } from '@pactlab/ui';
 import Link from 'next/link';
 
 export interface PipelineCounts {
@@ -76,7 +76,11 @@ export function PipelineCard({ steps }: { steps: readonly PipelineStep[] }) {
             <li key={step.key}>
               <Link href={step.href} className="flex h-full flex-col gap-1 rounded-lg border border-border p-3 text-sm hover:bg-muted">
                 <span className="flex items-center justify-between gap-2 font-semibold">
-                  {index + 1}. {step.label}
+                  <span className="flex items-center gap-1.5">
+                    {index + 1}. {step.label}
+                    {/* Drafts come from the AI; acceptance is a person's call. */}
+                    {step.key === 'review' ? <AiMark /> : step.key === 'findings' ? <HumanMark /> : null}
+                  </span>
                   <Badge variant={LOOK[step.state].variant}>{LOOK[step.state].label}</Badge>
                 </span>
                 <span className="text-muted-foreground">{step.detail}</span>

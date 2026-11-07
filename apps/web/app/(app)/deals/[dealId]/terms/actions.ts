@@ -1,0 +1,44 @@
+'use server';
+
+import { redirect } from 'next/navigation';
+import { z } from 'zod';
+import { apiSend } from '../../_lib/api';
+
+const uuid = z.uuid();
+const amount = z.string().transform((value) => value.trim().replace(/,/g, '')).pipe(z.string().regex(/^\d{1,18}(\.\d{1,2})?$/));
+
+function back(dealId: string, outcome: string): never {
+  redirect(`/deals/${dealId}/terms?outcome=${outcome}`);
+}
+
+/**
+ * The seller's answer to each proposed term (batch 1): accept, reject, or
+ * counter with an amount and a note. Terms left unanswered are not sent.
+ */
+export async function respondToTerms(dealId: string, formData: FormData): Promise<void> {
+  if (!uuid.safeParse(dealId).success) redirect('/deals');
+  const ordinals = [...new Set([...formData.keys()].filter((key) => key.startsWith('decision-')).map((key) => Number(key.slice(9))))].filter((ordinal) => Number.isInteger(ordinal) && ordinal >= 0);
+  const responses = [];
+  for (const ordinal of ordinals) {
+    const decision = String(formData.get(`decision-${ordinal}`) ?? '');
+    if (!['ACCEPT', 'REJECT', 'COUNTER'].includes(decision)) continue;
+    const note = String(formData.get(`note-${ordinal}`) ?? '').slice(0, 1000);
+    if (decision === 'COUNTER') {
+      const parsed = amount.safeParse(formData.get(`counter-${ordinal}`) ?? '');
+      if (!parsed.success) back(dealId, 'counter-amount');
+      responses.push({ ordinal, decision, counterAmount: parsed.data, note });
+    } else {
+      responses.push({ ordinal, decision, note });
+    }
+  }
+  if (responses.length === 0) back(dealId, 'nothing-chosen');
+  const result = await apiSend('POST', `/v1/deals/${dealId}/terms/proposed/responses`, { responses });
+  back(dealId, result.kind === 'ok' ? 'ok-sent' : result.kind === 'conflict' ? 'agreed-already' : result.kind);
+}
+
+/** Accept every term of the proposed version as it stands. */
+export async function acceptAllTerms(dealId: string, ordinals: number[]): Promise<void> {
+  if (!uuid.safeParse(dealId).success) redirect('/deals');
+  const result = await apiSend('POST', `/v1/deals/${dealId}/terms/proposed/responses`, { responses: ordinals.map((ordinal) => ({ ordinal, decision: 'ACCEPT' })) });
+  back(dealId, result.kind === 'ok' ? 'ok-sent' : result.kind === 'conflict' ? 'agreed-already' : result.kind);
+}

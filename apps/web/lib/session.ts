@@ -27,7 +27,7 @@ export interface MeGuestPact {
 }
 
 export interface MeResponse {
-  user: { id: string; displayName: string };
+  user: { id: string; displayName: string; email?: string | null };
   organizations: MeOrganization[];
   guestPacts: MeGuestPact[];
 }
@@ -58,6 +58,8 @@ export type SessionContext =
   | {
       kind: 'signed-in';
       displayName: string;
+      /** The signed-in address, when the API knows it (email-code sign-in). */
+      email: string | null;
       /** The organization the session's token is scoped to; null if not (yet) resolvable. */
       organization: MeOrganization | null;
       /** On another organization's pacts by invitation, not a member (ADR 0014). */
@@ -105,6 +107,7 @@ export const getSessionContext = cache(async (): Promise<SessionContext> => {
       me.kind === 'ok'
         ? me.data.user.displayName
         : (session?.user.name ?? session?.user.email ?? 'Signed in'),
+    email: (me.kind === 'ok' ? me.data.user.email : null) ?? session?.user.email ?? null,
     organization,
     guest: guest !== null,
     permissions: new Set(organization?.permissions ?? []),

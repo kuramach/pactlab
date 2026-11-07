@@ -1,6 +1,6 @@
 'use server';
 
-import { foresightQuestionSchema, foresightScenarioInputSchema, foresightUserForecastSchema, foresightVoiceQuestionSchema, updateForesightScenarioSchema, type ForesightAnswerView } from '@pactlab/contracts';
+import { foresightCustomMetricSchema, foresightQuestionSchema, foresightScenarioInputSchema, foresightUserForecastSchema, foresightVoiceQuestionSchema, updateForesightScenarioSchema, type ForesightAnswerView } from '@pactlab/contracts';
 import { TREND_DIRECTIONS, TREND_MAGNITUDES } from '@pactlab/domain';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
@@ -18,6 +18,35 @@ export async function saveUserForecast(dealId: string, metricKey: string, formDa
   if (!parsed.success) back(dealId, 'invalid-forecast');
   const result = await apiPost(`/v1/deals/${dealId}/foresight/user-forecasts`, parsed.data);
   back(dealId, result.kind === 'ok' ? 'ok-forecast' : failure(result.kind, 'code' in result ? result.code : undefined));
+}
+
+const metricKey = z.string().regex(/^custom\.[a-z0-9-]{1,40}$/);
+
+/** Define a metric of the team's own (batch 1): what it measures, its neutral level, how it moves value. */
+export async function defineMetric(dealId: string, formData: FormData): Promise<void> {
+  if (!uuid.safeParse(dealId).success) redirect('/deals');
+  const parsed = foresightCustomMetricSchema.safeParse({
+    label: formData.get('label'),
+    definition: formData.get('definition'),
+    neutral: String(formData.get('neutral') ?? '').trim(),
+    effect: formData.get('effect'),
+  });
+  if (!parsed.success) back(dealId, 'invalid-metric');
+  const result = await apiPost(`/v1/deals/${dealId}/foresight/metrics`, parsed.data);
+  back(dealId, result.kind === 'ok' ? 'ok-metric' : failure(result.kind, 'code' in result ? result.code : undefined));
+}
+
+/** Ask the AI for a five-year path for one of the team's metrics. */
+export async function forecastMetric(dealId: string, key: string): Promise<void> {
+  if (!uuid.safeParse(dealId).success || !metricKey.safeParse(key).success) redirect('/deals');
+  const result = await apiPost(`/v1/deals/${dealId}/foresight/metrics/${key}/ai-forecast`, {});
+  back(dealId, result.kind === 'ok' ? 'ok-metric-forecast' : failure(result.kind, 'code' in result ? result.code : undefined));
+}
+
+export async function archiveMetric(dealId: string, key: string): Promise<void> {
+  if (!uuid.safeParse(dealId).success || !metricKey.safeParse(key).success) redirect('/deals');
+  const result = await apiPost(`/v1/deals/${dealId}/foresight/metrics/${key}/archive`, {});
+  back(dealId, result.kind === 'ok' ? 'ok-metric-archived' : failure(result.kind, 'code' in result ? result.code : undefined));
 }
 
 /** Save a scenario from the editor: assumptions in percent, overrides per trend, one optional custom trend. */

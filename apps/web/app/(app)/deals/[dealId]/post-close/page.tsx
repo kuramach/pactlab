@@ -1,5 +1,7 @@
 import type { PostCloseItemView, PostCloseView } from '@pactlab/contracts';
-import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, EmptyState } from '@pactlab/ui';
+import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, EmptyState, HumanBadge } from '@pactlab/ui';
+import { formatMoney } from '../../../metrics/_lib/format';
+import { LEVER_LABELS, type SellerTermsView } from '../../../valuation/_lib/pricing';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { apiGet, dealsApi } from '../../_lib/api';
@@ -104,7 +106,9 @@ export default async function PostClosePage({ params, searchParams }: { params: 
   const outcomeParam = (await searchParams)['outcome'];
   const outcome = typeof outcomeParam === 'string' ? outcomeParam : undefined;
   const refreshed = outcome?.match(/^ok-refreshed-(\d+)$/)?.[1];
-  const [view, deal] = await Promise.all([apiGet<PostCloseView>(`/v1/deals/${dealId}/post-close`), dealsApi.get(dealId)]);
+  const [view, deal, terms] = await Promise.all([apiGet<PostCloseView>(`/v1/deals/${dealId}/post-close`), dealsApi.get(dealId), apiGet<SellerTermsView>(`/v1/deals/${dealId}/terms/proposed`)]);
+  // The terms both sides agreed (batch 1), carried into Close.
+  const agreed = terms.kind === 'ok' && terms.data.proposed?.agreedAt ? terms.data.proposed : null;
   if (view.kind !== 'ok') return <ApiState result={view} />;
   const closed = deal.kind === 'ok' && deal.data.phase === 'POST';
 
@@ -120,6 +124,30 @@ export default async function PostClosePage({ params, searchParams }: { params: 
         outcome={refreshed !== undefined ? 'ok-refreshed' : outcome}
         messages={{ ...OUTCOMES, 'ok-refreshed': `Registers refreshed from diligence: ${refreshed ?? 0} new item(s).` }}
       />
+      {agreed ? (
+        <Card>
+          <CardHeader className="flex flex-row flex-wrap items-start gap-2">
+            <div className="mr-auto flex flex-col gap-1.5">
+              <CardTitle>Agreed terms</CardTitle>
+              <CardDescription>Version {agreed.version}, agreed on {agreed.agreedAt?.slice(0, 10)} by both sides.</CardDescription>
+            </div>
+            <HumanBadge>Agreed v{agreed.version}</HumanBadge>
+          </CardHeader>
+          <CardContent>
+            <table className="w-full text-sm">
+              <tbody className="divide-y divide-border">
+                {agreed.terms.map((term) => (
+                  <tr key={term.ordinal}>
+                    <td className="py-1.5 pr-4 font-medium">{LEVER_LABELS[term.lever]}</td>
+                    <td className="py-1.5 pr-4">{formatMoney({ amount: term.amount, currency: term.currency })}</td>
+                    <td className="py-1.5 text-muted-foreground">{term.sellerNote || '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </CardContent>
+        </Card>
+      ) : null}
       {!closed ? (
         <EmptyState title="Not closed yet" description="The post-close registers are generated when the pact moves to Closed." />
       ) : (
