@@ -7,6 +7,7 @@ import { getSessionContext } from '../../lib/session';
 import { Sidebar } from './_lib/sidebar';
 import { Topbar } from './_lib/topbar';
 import { BugReporter } from './_lib/bugs/bug-reporter';
+import { PasskeyOffer } from './settings/passkeys-card';
 
 export default async function AppLayout({ children }: { children: ReactNode }) {
   const env = publicEnv();
@@ -19,6 +20,8 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
       sidebar={<Sidebar sections={sections} organizationName={session.kind === 'signed-in' ? (session.organization?.name ?? null) : null} />}
       topbar={<Topbar session={session} sections={sections} />}
     >
+      {/* Right after an email sign-in: the one-time passkey offer (T-108). */}
+      {session.kind === 'signed-in' ? <PasskeyOffer /> : null}
       <div data-app-root>{children}</div>
       {/* Which release this is, on every page (T-100). */}
       <footer className="mt-12 pb-2 text-xs text-muted-foreground" aria-label="Version">

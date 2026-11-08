@@ -155,4 +155,21 @@ export const emails = {
       },
     };
   },
+
+  /** A passkey was added to or removed from the account (T-108): the owner always hears of it. */
+  passkeyChanged(to: string, change: 'added' | 'removed', name: string, settingsUrl: string): OutboundEmail {
+    const line = change === 'added' ? `A passkey, "${name}", was added to your Pactlab sign-in.` : `The passkey "${name}" was removed from your Pactlab sign-in.`;
+    const ifNot = 'If this was not you, sign in with an email code, remove any passkey you do not recognise in Settings, and tell your organization owner.';
+    return {
+      to,
+      subject: change === 'added' ? 'A passkey was added to your Pactlab sign-in' : 'A passkey was removed from your Pactlab sign-in',
+      text: [line, ifNot, `Settings: ${settingsUrl}`].join('\n'),
+      content: {
+        heading: change === 'added' ? 'Passkey added' : 'Passkey removed',
+        paragraphs: [line],
+        action: { label: 'Review your passkeys', url: settingsUrl },
+        footnote: ifNot,
+      },
+    };
+  },
 };

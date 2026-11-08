@@ -8,6 +8,7 @@ import { SESv2Client } from '@aws-sdk/client-sesv2';
 import { PollyTextToSpeech, TranscribeSpeechToText } from '@pactlab/ai';
 import { createAiGateway } from './ai/ai-provider';
 import { createApp } from './app';
+import { relyingParty } from './app.module';
 import { createAuth0Verifier, DisabledIdentityVerifier } from './auth/identity';
 import { FileSystemObjectStore } from './documents/storage-adapters';
 import { BullMqImportQueue } from './imports/bullmq-import-queue';
@@ -95,6 +96,7 @@ const app = await createApp(
     },
     emailLogin: {
       tokenSecret: config.AUTH_TOKEN_SECRET,
+      webauthn: relyingParty(config.APP_WEB_ORIGIN, config.WEBAUTHN_RP_ID),
       ...(config.EMAIL_PROVIDER === 'ses' && config.EMAIL_FROM
         ? { emailSender: new BrandedEmailSender(new SesEmailSender(new SESv2Client({ region: config.AWS_REGION }), config.EMAIL_FROM), emailAssets(config.APP_WEB_ORIGIN)) }
         : config.APP_ENV === 'local' && config.LOCAL_MAIL_DIR

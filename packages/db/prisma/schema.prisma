@@ -445,65 +445,69 @@ model Organization {
   createdAt           DateTime               @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt           DateTime               @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  memberships             OrganizationMembership[]
-  deals                   Deal[]
-  dealMemberships         DealMembership[]
-  auditEvents             AuditEvent[]
-  outboxEvents            OutboxEvent[]
-  jobRuns                 JobRun[]
-  storedFiles             StoredFile[]
-  connections             Connection[]
-  syncRuns                SyncRun[]
-  evidenceItems           EvidenceItem[]
-  evidenceEdges           EvidenceEdge[]
-  citations               Citation[]
-  findings                Finding[]
-  findingLinks            FindingEvidenceLink[]
-  findingReviews          FindingReview[]
-  valuationScenarios      ValuationScenario[]
-  valuationAssumptionSets ValuationAssumptionSet[]
-  valuationRuns           ValuationRun[]
-  valuationSubmissions    ValuationSubmission[]
-  valuationDecisions      ValuationSubmissionDecision[]
-  documents               Document[]
-  documentSources DocumentSource[]
-  documentRequests DocumentRequest[]
-  documentPages           DocumentPage[]
-  aiRuns                  AiRun[]
-  documentFindings        DocumentFinding[]
-  documentFindingReviews  DocumentFindingReview[]
-  authSessions            AuthSession[]
-  dealParties             DealParty[]
-  sourceUploads           SourceUpload[]
-  askingPrices            AskingPrice[]
-  comparables             Comparable[]
-  multipleJudgements      MultipleJudgement[]
-  negotiationAnchors      NegotiationAnchor[]
-  balanceSheetItems       BalanceSheetItem[]
+  memberships              OrganizationMembership[]
+  deals                    Deal[]
+  dealMemberships          DealMembership[]
+  auditEvents              AuditEvent[]
+  outboxEvents             OutboxEvent[]
+  jobRuns                  JobRun[]
+  storedFiles              StoredFile[]
+  connections              Connection[]
+  syncRuns                 SyncRun[]
+  evidenceItems            EvidenceItem[]
+  evidenceEdges            EvidenceEdge[]
+  citations                Citation[]
+  findings                 Finding[]
+  findingLinks             FindingEvidenceLink[]
+  findingReviews           FindingReview[]
+  valuationScenarios       ValuationScenario[]
+  valuationAssumptionSets  ValuationAssumptionSet[]
+  valuationRuns            ValuationRun[]
+  valuationSubmissions     ValuationSubmission[]
+  valuationDecisions       ValuationSubmissionDecision[]
+  documents                Document[]
+  documentSources          DocumentSource[]
+  documentRequests         DocumentRequest[]
+  documentPages            DocumentPage[]
+  aiRuns                   AiRun[]
+  documentFindings         DocumentFinding[]
+  documentFindingReviews   DocumentFindingReview[]
+  authSessions             AuthSession[]
+  dealParties              DealParty[]
+  sourceUploads            SourceUpload[]
+  askingPrices             AskingPrice[]
+  comparables              Comparable[]
+  multipleJudgements       MultipleJudgement[]
+  negotiationAnchors       NegotiationAnchor[]
+  balanceSheetItems        BalanceSheetItem[]
   balanceSheetItemVersions BalanceSheetItemVersion[]
-  contributorIdentities   ContributorIdentity[]
-  peopleAccess            PeopleAccess[]
-  flags                   OrganizationFlags?
-  bugReports              BugReport[]
+  contributorIdentities    ContributorIdentity[]
+  peopleAccess             PeopleAccess[]
+  flags                    OrganizationFlags?
+  bugReports               BugReport[]
 
   @@map("organizations")
 }
 
 model User {
-  id           String   @id @default(uuid(7)) @db.Uuid
+  id                      String    @id @default(uuid(7)) @db.Uuid
   /// Verified `sub` claim: Auth0 subject, or `pactlab|<user id>` for email-code sign-in.
-  auth0Subject String   @unique @map("auth0_subject")
+  auth0Subject            String    @unique @map("auth0_subject")
   /// Lowercased sign-in address for email-code organizations; never sent to models.
-  email        String?  @unique
-  displayName  String   @map("display_name")
+  email                   String?   @unique
+  displayName             String    @map("display_name")
   /// Platform operator (the Pactlab team): may use the admin console (T-072). Set with `pnpm ops:operator`.
-  platformOperator Boolean @default(false) @map("platform_operator")
-  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  platformOperator        Boolean   @default(false) @map("platform_operator")
+  createdAt               DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  /// "Not now" on the one-time passkey offer after an email sign-in (T-108).
+  passkeyOfferDismissedAt DateTime? @map("passkey_offer_dismissed_at") @db.Timestamptz(3)
 
   organizationMemberships OrganizationMembership[]
   dealMemberships         DealMembership[]
   loginChallenges         LoginChallenge[]
   authSessions            AuthSession[]
+  passkeys                UserPasskey[]
+  passkeyChallenges       PasskeyChallenge[]
 
   @@map("users")
 }
@@ -525,74 +529,74 @@ model OrganizationMembership {
 }
 
 model Deal {
-  id              String          @id @default(uuid(7)) @db.Uuid
-  organizationId  String          @map("organization_id") @db.Uuid
-  name            String
-  targetName      String          @map("target_name")
-  transactionType TransactionType @map("transaction_type")
-  stage           String          @default("SCREENING")
-  status          String          @default("ACTIVE")
-  baseCurrency    String          @default("USD") @map("base_currency") @db.Char(3)
-  createdBy       String          @map("created_by") @db.Uuid
+  id                   String          @id @default(uuid(7)) @db.Uuid
+  organizationId       String          @map("organization_id") @db.Uuid
+  name                 String
+  targetName           String          @map("target_name")
+  transactionType      TransactionType @map("transaction_type")
+  stage                String          @default("SCREENING")
+  status               String          @default("ACTIVE")
+  baseCurrency         String          @default("USD") @map("base_currency") @db.Char(3)
+  createdBy            String          @map("created_by") @db.Uuid
   /// BUYER: the buyer opened the pact (diligence). SELLER: the seller runs a bid process (T-097, ADR 0015).
-  initiatedBy             String                  @default("BUYER") @map("initiated_by")
+  initiatedBy          String          @default("BUYER") @map("initiated_by")
   /// The sale this buyer-led pact came from (another organization's seller-led pact, T-097). Reference only.
-  linkedOrganizationId    String?                 @map("linked_organization_id") @db.Uuid
-  linkedDealId            String?                 @map("linked_deal_id") @db.Uuid
+  linkedOrganizationId String?         @map("linked_organization_id") @db.Uuid
+  linkedDealId         String?         @map("linked_deal_id") @db.Uuid
   /// The buyer persona this pact prices under (T-105); null follows the organization default. Buyer-confidential.
-  persona                 String?
+  persona              String?
   /// Set when the deal lead deletes the deal (status DELETED); one-way.
-  deletedAt               DateTime?               @map("deleted_at") @db.Timestamptz(3)
-  deletedBy               String?                 @map("deleted_by") @db.Uuid
-  createdAt       DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt       DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt            DateTime?       @map("deleted_at") @db.Timestamptz(3)
+  deletedBy            String?         @map("deleted_by") @db.Uuid
+  createdAt            DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt            DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  organization            Organization                  @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  memberships             DealMembership[]
-  jobRuns                 JobRun[]
-  storedFiles             StoredFile[]
-  auditEvents             AuditEvent[]
-  outboxEvents            OutboxEvent[]
-  connections             Connection[]
-  syncRuns                SyncRun[]
-  evidenceItems           EvidenceItem[]
-  evidenceEdges           EvidenceEdge[]
-  citations               Citation[]
-  findings                Finding[]
-  findingLinks            FindingEvidenceLink[]
-  findingReviews          FindingReview[]
-  valuationScenarios      ValuationScenario[]
-  valuationAssumptionSets ValuationAssumptionSet[]
-  valuationRuns           ValuationRun[]
-  valuationSubmissions    ValuationSubmission[]
-  valuationDecisions      ValuationSubmissionDecision[]
-  documents               Document[]
-  documentSources DocumentSource[]
-  documentRequests DocumentRequest[]
-  documentPages           DocumentPage[]
-  aiRuns                  AiRun[]
-  documentFindings        DocumentFinding[]
-  documentFindingReviews  DocumentFindingReview[]
-  parties                 DealParty[]
-  sourceUploads           SourceUpload[]
-  askingPrices            AskingPrice[]
-  ownDealComparables      Comparable[]
-  multipleJudgements      MultipleJudgement[]
-  negotiationAnchors      NegotiationAnchor[]
-  balanceSheetItems       BalanceSheetItem[]
+  organization             Organization                  @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  memberships              DealMembership[]
+  jobRuns                  JobRun[]
+  storedFiles              StoredFile[]
+  auditEvents              AuditEvent[]
+  outboxEvents             OutboxEvent[]
+  connections              Connection[]
+  syncRuns                 SyncRun[]
+  evidenceItems            EvidenceItem[]
+  evidenceEdges            EvidenceEdge[]
+  citations                Citation[]
+  findings                 Finding[]
+  findingLinks             FindingEvidenceLink[]
+  findingReviews           FindingReview[]
+  valuationScenarios       ValuationScenario[]
+  valuationAssumptionSets  ValuationAssumptionSet[]
+  valuationRuns            ValuationRun[]
+  valuationSubmissions     ValuationSubmission[]
+  valuationDecisions       ValuationSubmissionDecision[]
+  documents                Document[]
+  documentSources          DocumentSource[]
+  documentRequests         DocumentRequest[]
+  documentPages            DocumentPage[]
+  aiRuns                   AiRun[]
+  documentFindings         DocumentFinding[]
+  documentFindingReviews   DocumentFindingReview[]
+  parties                  DealParty[]
+  sourceUploads            SourceUpload[]
+  askingPrices             AskingPrice[]
+  ownDealComparables       Comparable[]
+  multipleJudgements       MultipleJudgement[]
+  negotiationAnchors       NegotiationAnchor[]
+  balanceSheetItems        BalanceSheetItem[]
   balanceSheetItemVersions BalanceSheetItemVersion[]
-  contributorIdentities   ContributorIdentity[]
-  peopleAccess            PeopleAccess[]
-  screeningReview         ScreeningReview?
-  claims                  DealClaim[]
-  postCloseItems          PostCloseItem[]
-  foresightTrendSets      ForesightTrendSet[]
-  foresightForecasts      ForesightForecast[]
-  foresightBaselines      ForesightBaseline[]
-  invitations             DealInvitation[]
-  foresightQuestions      ForesightQuestion[]
-  ventureRaiseSettings    VentureRaiseSettings[]
-  ventureOffers           VentureOffer[]
+  contributorIdentities    ContributorIdentity[]
+  peopleAccess             PeopleAccess[]
+  screeningReview          ScreeningReview?
+  claims                   DealClaim[]
+  postCloseItems           PostCloseItem[]
+  foresightTrendSets       ForesightTrendSet[]
+  foresightForecasts       ForesightForecast[]
+  foresightBaselines       ForesightBaseline[]
+  invitations              DealInvitation[]
+  foresightQuestions       ForesightQuestion[]
+  ventureRaiseSettings     VentureRaiseSettings[]
+  ventureOffers            VentureOffer[]
 
   @@unique([organizationId, id])
   @@index([organizationId, createdAt])
@@ -930,30 +934,30 @@ model Finding {
 /// An edit appends a new set stamped with the finding version; earlier sets
 /// remain as history.
 model FindingEvidenceLink {
-  id             String   @id @default(uuid(7)) @db.Uuid
-  organizationId String   @map("organization_id") @db.Uuid
-  dealId         String   @map("deal_id") @db.Uuid
-  findingId      String   @map("finding_id") @db.Uuid
-  findingVersion Int      @map("finding_version")
-  ordinal        Int
+  id               String   @id @default(uuid(7)) @db.Uuid
+  organizationId   String   @map("organization_id") @db.Uuid
+  dealId           String   @map("deal_id") @db.Uuid
+  findingId        String   @map("finding_id") @db.Uuid
+  findingVersion   Int      @map("finding_version")
+  ordinal          Int
   /// Null when the link cites a document page instead (`documentCitation`).
-  evidenceItemId String?  @map("evidence_item_id") @db.Uuid
+  evidenceItemId   String?  @map("evidence_item_id") @db.Uuid
   /// ResolvedCitation of a document page quote: documentId, pageNumber, quote, quoteHash, charStart, charEnd.
-  documentCitation Json? @map("document_citation")
+  documentCitation Json?    @map("document_citation")
   /// Null when the cited evidence is not code (pack evidence, ADR 0010).
-  commitSha      String?  @map("commit_sha")
-  toolName       String   @map("tool_name")
-  toolVersion    String   @map("tool_version")
-  rulesetVersion String?  @map("ruleset_version")
+  commitSha        String?  @map("commit_sha")
+  toolName         String   @map("tool_name")
+  toolVersion      String   @map("tool_version")
+  rulesetVersion   String?  @map("ruleset_version")
   /// Repository-relative path; never file contents.
-  path           String?
-  lineStart      Int?     @map("line_start")
-  lineEnd        Int?     @map("line_end")
-  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  path             String?
+  lineStart        Int?     @map("line_start")
+  lineEnd          Int?     @map("line_end")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  deal         Deal         @relation(fields: [organizationId, dealId], references: [organizationId, id], onDelete: Restrict)
-  finding      Finding      @relation(fields: [organizationId, dealId, findingId], references: [organizationId, dealId, id], onDelete: Restrict)
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  deal         Deal          @relation(fields: [organizationId, dealId], references: [organizationId, id], onDelete: Restrict)
+  finding      Finding       @relation(fields: [organizationId, dealId, findingId], references: [organizationId, dealId, id], onDelete: Restrict)
   evidenceItem EvidenceItem? @relation(fields: [organizationId, dealId, evidenceItemId], references: [organizationId, dealId, id], onDelete: Restrict)
 
   @@unique([organizationId, dealId, findingId, findingVersion, ordinal])
@@ -963,20 +967,20 @@ model FindingEvidenceLink {
 
 /// Append-only human decision on a finding.
 model FindingReview {
-  id             String         @id @default(uuid(7)) @db.Uuid
-  organizationId String         @map("organization_id") @db.Uuid
-  dealId         String         @map("deal_id") @db.Uuid
-  findingId      String         @map("finding_id") @db.Uuid
-  decision       ReviewDecision
-  fromStatus     FindingStatus  @map("from_status")
-  toStatus       FindingStatus  @map("to_status")
-  reviewerUserId String         @map("reviewer_user_id") @db.Uuid
-  reviewerRole   DealRole       @map("reviewer_role")
-  rationale      String
+  id                 String         @id @default(uuid(7)) @db.Uuid
+  organizationId     String         @map("organization_id") @db.Uuid
+  dealId             String         @map("deal_id") @db.Uuid
+  findingId          String         @map("finding_id") @db.Uuid
+  decision           ReviewDecision
+  fromStatus         FindingStatus  @map("from_status")
+  toStatus           FindingStatus  @map("to_status")
+  reviewerUserId     String         @map("reviewer_user_id") @db.Uuid
+  reviewerRole       DealRole       @map("reviewer_role")
+  rationale          String
   /// Direction decided on acceptance; null for other decisions.
-  direction          Int?     @db.SmallInt
-  directionRationale String?  @map("direction_rationale")
-  decidedAt      DateTime       @map("decided_at") @db.Timestamptz(3)
+  direction          Int?           @db.SmallInt
+  directionRationale String?        @map("direction_rationale")
+  decidedAt          DateTime       @map("decided_at") @db.Timestamptz(3)
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   deal         Deal         @relation(fields: [organizationId, dealId], references: [organizationId, id], onDelete: Restrict)
@@ -1107,52 +1111,52 @@ model ValuationSubmissionDecision {
 /// Uploaded document metadata. Bytes live in the object store under the
 /// tenant/deal prefix (CHECK in the migration). Target uploads are SHARED.
 model Document {
-  id             String             @id @default(uuid(7)) @db.Uuid
-  organizationId String             @map("organization_id") @db.Uuid
-  dealId         String             @map("deal_id") @db.Uuid
-  fileName       String             @map("file_name")
-  contentType    String             @map("content_type")
-  sizeBytes      Int                @map("size_bytes")
-  sha256         String             @db.Char(64)
-  objectKey      String             @map("object_key")
-  pageCount      Int                @map("page_count")
-  dataClass      DataClassification @map("data_class")
+  id                 String             @id @default(uuid(7)) @db.Uuid
+  organizationId     String             @map("organization_id") @db.Uuid
+  dealId             String             @map("deal_id") @db.Uuid
+  fileName           String             @map("file_name")
+  contentType        String             @map("content_type")
+  sizeBytes          Int                @map("size_bytes")
+  sha256             String             @db.Char(64)
+  objectKey          String             @map("object_key")
+  pageCount          Int                @map("page_count")
+  dataClass          DataClassification @map("data_class")
   /// Per-document AI exclusion; always true for prohibited data classes.
-  aiExcluded     Boolean            @map("ai_excluded")
-  retentionClass RetentionClass     @map("retention_class")
-  retainUntil    DateTime?          @map("retain_until") @db.Timestamptz(3)
-  visibility     EvidenceVisibility
-  malwareScanner String             @map("malware_scanner")
-  status         DocumentStatus     @default(AVAILABLE)
-  uploadedBy     String             @map("uploaded_by") @db.Uuid
-  createdAt      DateTime           @map("created_at") @db.Timestamptz(3)
-  purgedAt       DateTime?          @map("purged_at") @db.Timestamptz(3)
+  aiExcluded         Boolean            @map("ai_excluded")
+  retentionClass     RetentionClass     @map("retention_class")
+  retainUntil        DateTime?          @map("retain_until") @db.Timestamptz(3)
+  visibility         EvidenceVisibility
+  malwareScanner     String             @map("malware_scanner")
+  status             DocumentStatus     @default(AVAILABLE)
+  uploadedBy         String             @map("uploaded_by") @db.Uuid
+  createdAt          DateTime           @map("created_at") @db.Timestamptz(3)
+  purgedAt           DateTime?          @map("purged_at") @db.Timestamptz(3)
   /// Intake (T-098, ADR 0016): the file's category — a document category or an import target.
   category           String?
   /// AI (clear enough to file alone) or PERSON (answered or corrected).
-  categorySource     String?   @map("category_source")
-  categoryConfidence Decimal?  @map("category_confidence") @db.Decimal(4, 3)
-  categoryReason     String?   @map("category_reason")
+  categorySource     String?            @map("category_source")
+  categoryConfidence Decimal?           @map("category_confidence") @db.Decimal(4, 3)
+  categoryReason     String?            @map("category_reason")
   /// UNCLASSIFIED | FILED | NEEDS_YOU | NOT_READ
-  intakeState        String    @default("UNCLASSIFIED") @map("intake_state")
-  intakeQuestion     String?   @map("intake_question")
-  entityName         String?   @map("entity_name")
+  intakeState        String             @default("UNCLASSIFIED") @map("intake_state")
+  intakeQuestion     String?            @map("intake_question")
+  entityName         String?            @map("entity_name")
   /// For contracts: the other party, only when named in the file.
-  counterpartyName   String?   @map("counterparty_name")
+  counterpartyName   String?            @map("counterparty_name")
   /// Folder inside the zip or data room the file came from.
-  sourcePath         String?   @map("source_path")
-  classifiedRunId    String?   @map("classified_run_id") @db.Uuid
-  categorizedBy      String?   @map("categorized_by") @db.Uuid
-  categorizedAt      DateTime? @map("categorized_at") @db.Timestamptz(3)
+  sourcePath         String?            @map("source_path")
+  classifiedRunId    String?            @map("classified_run_id") @db.Uuid
+  categorizedBy      String?            @map("categorized_by") @db.Uuid
+  categorizedAt      DateTime?          @map("categorized_at") @db.Timestamptz(3)
   /// The connected data room or drive it was read from (T-098), if any.
-  sourceId           String?   @map("source_id") @db.Uuid
-  sourceExternalId   String?   @map("source_external_id")
-  sourceVersion      String?   @map("source_version")
+  sourceId           String?            @map("source_id") @db.Uuid
+  sourceExternalId   String?            @map("source_external_id")
+  sourceVersion      String?            @map("source_version")
   /// CURRENT | REPLACED (a newer version was read) | REMOVED (gone at the source)
-  sourceState        String?   @map("source_state")
+  sourceState        String?            @map("source_state")
   /// The category before a person re-filed it; results built under it are listed to recheck.
-  recategorizedFrom  String?   @map("recategorized_from")
-  recategorizedAt    DateTime? @map("recategorized_at") @db.Timestamptz(3)
+  recategorizedFrom  String?            @map("recategorized_from")
+  recategorizedAt    DateTime?          @map("recategorized_at") @db.Timestamptz(3)
 
   organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   deal         Deal              @relation(fields: [organizationId, dealId], references: [organizationId, id], onDelete: Restrict)
@@ -1348,6 +1352,45 @@ model LoginChallenge {
   @@map("login_challenges")
 }
 
+/// A passkey (WebAuthn credential) for email-code sign-in (T-108). Reached only through
+/// pactlab_auth SECURITY DEFINER functions; only the public key is stored.
+model UserPasskey {
+  id           String    @id @default(uuid(7)) @db.Uuid
+  userId       String    @map("user_id") @db.Uuid
+  /// base64url credential id, as the browser reports it.
+  credentialId String    @unique @map("credential_id")
+  publicKey    Bytes     @map("public_key")
+  counter      BigInt    @default(0)
+  transports   String[]  @default([])
+  name         String
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  lastUsedAt   DateTime? @map("last_used_at") @db.Timestamptz(3)
+  revokedAt    DateTime? @map("revoked_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([userId])
+  @@map("user_passkeys")
+}
+
+/// A single-use WebAuthn challenge, valid for 5 minutes (T-108).
+model PasskeyChallenge {
+  id         String    @id @default(uuid(7)) @db.Uuid
+  /// SIGN_IN (no user yet) or REGISTER (the signed-in user).
+  purpose    String
+  userId     String?   @map("user_id") @db.Uuid
+  challenge  String
+  ipHash     String?   @map("ip_hash") @db.Char(64)
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  expiresAt  DateTime  @map("expires_at") @db.Timestamptz(3)
+  consumedAt DateTime? @map("consumed_at") @db.Timestamptz(3)
+
+  user User? @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([ipHash, createdAt])
+  @@map("passkey_challenges")
+}
+
 /// Server-side record of an email-code session. Every Pactlab-issued token
 /// names its session, so revocation takes effect on the next request.
 model AuthSession {
@@ -1457,37 +1500,37 @@ model AskingPrice {
 /// deals. Every row says where it came from; entered rows cite a source.
 /// Rows are never deleted or edited — they are retired.
 model Comparable {
-  id               String           @id @default(uuid(7)) @db.Uuid
-  organizationId   String           @map("organization_id") @db.Uuid
-  kind             ComparableKind
-  origin           ComparableOrigin
-  name             String
-  targetName       String           @map("target_name")
-  acquirerName     String?          @map("acquirer_name")
-  announcedOn      DateTime?        @map("announced_on") @db.Date
-  companyType      CompanyType      @map("company_type")
-  region           String?
-  enterpriseValue  Decimal          @map("enterprise_value") @db.Decimal(24, 4)
-  arr              Decimal          @db.Decimal(24, 4)
+  id              String           @id @default(uuid(7)) @db.Uuid
+  organizationId  String           @map("organization_id") @db.Uuid
+  kind            ComparableKind
+  origin          ComparableOrigin
+  name            String
+  targetName      String           @map("target_name")
+  acquirerName    String?          @map("acquirer_name")
+  announcedOn     DateTime?        @map("announced_on") @db.Date
+  companyType     CompanyType      @map("company_type")
+  region          String?
+  enterpriseValue Decimal          @map("enterprise_value") @db.Decimal(24, 4)
+  arr             Decimal          @db.Decimal(24, 4)
   /// Whether `arr` is annual recurring revenue or (as many announcements disclose) total revenue.
-  arrBasis         ArrBasis         @default(ARR) @map("arr_basis")
-  currency         String           @db.Char(3)
-  arrGrowth        Decimal?         @map("arr_growth") @db.Decimal(9, 4)
-  nrr              Decimal?         @db.Decimal(9, 4)
-  grr              Decimal?         @db.Decimal(9, 4)
-  sourceCitation   String?          @map("source_citation")
-  sourceUrl        String?          @map("source_url")
-  provider         String?
-  providerVersion  String?          @map("provider_version")
-  sourceDealId     String?          @map("source_deal_id") @db.Uuid
-  status           ComparableStatus @default(ACTIVE)
-  recordedBy       String           @map("recorded_by") @db.Uuid
-  recordedAt       DateTime         @default(now()) @map("recorded_at") @db.Timestamptz(3)
-  retiredBy        String?          @map("retired_by") @db.Uuid
-  retiredAt        DateTime?        @map("retired_at") @db.Timestamptz(3)
+  arrBasis        ArrBasis         @default(ARR) @map("arr_basis")
+  currency        String           @db.Char(3)
+  arrGrowth       Decimal?         @map("arr_growth") @db.Decimal(9, 4)
+  nrr             Decimal?         @db.Decimal(9, 4)
+  grr             Decimal?         @db.Decimal(9, 4)
+  sourceCitation  String?          @map("source_citation")
+  sourceUrl       String?          @map("source_url")
+  provider        String?
+  providerVersion String?          @map("provider_version")
+  sourceDealId    String?          @map("source_deal_id") @db.Uuid
+  status          ComparableStatus @default(ACTIVE)
+  recordedBy      String           @map("recorded_by") @db.Uuid
+  recordedAt      DateTime         @default(now()) @map("recorded_at") @db.Timestamptz(3)
+  retiredBy       String?          @map("retired_by") @db.Uuid
+  retiredAt       DateTime?        @map("retired_at") @db.Timestamptz(3)
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  sourceDeal   Deal?        @relation(fields: [organizationId, sourceDealId], references: [organizationId, id], onDelete: Restrict)
+  organization Organization        @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  sourceDeal   Deal?               @relation(fields: [organizationId, sourceDealId], references: [organizationId, id], onDelete: Restrict)
   anchors      NegotiationAnchor[]
 
   @@unique([organizationId, id])
@@ -1500,18 +1543,18 @@ model Comparable {
 /// comparables: in range, high or low, with a rationale. Append-only; the
 /// newest is current. Records the ask and comparable set it was made against.
 model MultipleJudgement {
-  id                   String          @id @default(uuid(7)) @db.Uuid
-  organizationId       String          @map("organization_id") @db.Uuid
-  dealId               String          @map("deal_id") @db.Uuid
-  verdict              MultipleVerdict
-  rationale            String
-  askingVersion        Int?            @map("asking_version")
-  askingMultiple       Decimal?        @map("asking_multiple") @db.Decimal(12, 2)
-  benchmarkVersion     String          @map("benchmark_version")
-  comparableSetHash    String          @map("comparable_set_hash")
-  comparableCount      Int             @map("comparable_count")
-  decidedBy            String          @map("decided_by") @db.Uuid
-  decidedAt            DateTime        @default(now()) @map("decided_at") @db.Timestamptz(3)
+  id                String          @id @default(uuid(7)) @db.Uuid
+  organizationId    String          @map("organization_id") @db.Uuid
+  dealId            String          @map("deal_id") @db.Uuid
+  verdict           MultipleVerdict
+  rationale         String
+  askingVersion     Int?            @map("asking_version")
+  askingMultiple    Decimal?        @map("asking_multiple") @db.Decimal(12, 2)
+  benchmarkVersion  String          @map("benchmark_version")
+  comparableSetHash String          @map("comparable_set_hash")
+  comparableCount   Int             @map("comparable_count")
+  decidedBy         String          @map("decided_by") @db.Uuid
+  decidedAt         DateTime        @default(now()) @map("decided_at") @db.Timestamptz(3)
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   deal         Deal         @relation(fields: [organizationId, dealId], references: [organizationId, id], onDelete: Restrict)
@@ -1821,7 +1864,7 @@ model ForesightTrendSet {
   createdBy      String   @map("created_by") @db.Uuid
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
-  deal      Deal                 @relation(fields: [organizationId, dealId], references: [organizationId, id], onDelete: Restrict, map: "foresight_trend_sets_deal_fkey")
+  deal      Deal                @relation(fields: [organizationId, dealId], references: [organizationId, id], onDelete: Restrict, map: "foresight_trend_sets_deal_fkey")
   trends    ForesightTrend[]
   scenarios ForesightScenario[]
 
@@ -2023,7 +2066,7 @@ model DealInvitation {
   /// BUYER | SELLER | ADVISOR
   side           String
   role           DealRole
-  bidId       String?    @map("bid_id") @db.Uuid
+  bidId          String?   @map("bid_id") @db.Uuid
   tokenHash      String    @unique @map("token_hash")
   /// PENDING | ACCEPTED | REVOKED (expiry is read from expires_at)
   status         String    @default("PENDING")
@@ -2061,19 +2104,19 @@ model SaleProcess {
 
 /// One bidding firm in a seller-led pact. A bidder sees only their own (RLS).
 model Bid {
-  id            String    @id @db.Uuid
-  organizationId String   @map("organization_id") @db.Uuid
-  dealId        String    @map("deal_id") @db.Uuid
-  firmName      String    @map("firm_name")
+  id             String    @id @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  dealId         String    @map("deal_id") @db.Uuid
+  firmName       String    @map("firm_name")
   /// INVITED | ACTIVE | OFFERED | PASSED | SHORTLISTED | DECLINED | WON
-  status        String    @default("INVITED")
-  round         Int       @default(1)
-  ndaAcceptedAt DateTime? @map("nda_accepted_at") @db.Timestamptz(3)
-  ndaAcceptedBy String?   @map("nda_accepted_by") @db.Uuid
-  passReason    String?   @map("pass_reason")
-  decidedAt     DateTime? @map("decided_at") @db.Timestamptz(3)
-  createdBy     String    @map("created_by") @db.Uuid
-  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  status         String    @default("INVITED")
+  round          Int       @default(1)
+  ndaAcceptedAt  DateTime? @map("nda_accepted_at") @db.Timestamptz(3)
+  ndaAcceptedBy  String?   @map("nda_accepted_by") @db.Uuid
+  passReason     String?   @map("pass_reason")
+  decidedAt      DateTime? @map("decided_at") @db.Timestamptz(3)
+  createdBy      String    @map("created_by") @db.Uuid
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
 
   offers    BidOffer[]
   questions BidQuestion[]

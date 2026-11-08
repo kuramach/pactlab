@@ -6,6 +6,7 @@ import { auth0 } from '../../lib/auth0';
 import { publicEnv } from '../../lib/env';
 import { getSessionContext } from '../../lib/session';
 import { requestCode, submitCode } from './actions';
+import { PasskeySignIn } from './passkey-sign-in';
 
 // Per-request: reads cookies and query state.
 export const dynamic = 'force-dynamic';
@@ -105,10 +106,12 @@ export default async function LoginPage({
                   </div>
                 </>
               ) : null}
+              <PasskeySignIn returnTo={returnTo} />
               <form action={requestCode} className="flex flex-col gap-3">
                 <label className="flex flex-col gap-1 text-sm font-medium">
                   Email
-                  <input name="email" type="email" autoComplete="email" required className={inputClass} />
+                  {/* `webauthn` lets the browser suggest a saved passkey right here (T-108). */}
+                  <input name="email" type="email" autoComplete="email webauthn" required className={inputClass} />
                 </label>
                 <input type="hidden" name="returnTo" value={returnTo} />
                 <Button type="submit">Email me a sign-in code</Button>
