@@ -81,14 +81,10 @@ test('a seller-led pact: invite a bidder, answer their question, compare and awa
   const signup = Date.now() - 1_000;
   await guest.getByLabel('Your name').fill('Blair Bidder');
   await guest.getByLabel('Your company').fill('Harbor Capital (synthetic)');
-  await guest.getByRole('button', { name: `Create an account for ${bidder}` }).click();
+  // One code (batch 1): it creates the account, signs in and accepts the invitation.
+  await guest.getByRole('button', { name: 'Create account', exact: true }).click();
   await guest.getByLabel('6-digit code').fill(await latestCode(bidder, signup));
-  const signin = Date.now() - 1_000;
-  await guest.getByRole('button', { name: 'Create my account' }).click();
-  await expect(guest).toHaveURL(/\/login\?/);
-  await guest.getByLabel('6-digit code').fill(await latestCode(bidder, signin));
-  await guest.getByRole('button', { name: 'Sign in' }).click();
-  await guest.getByRole('button', { name: 'Accept and open the pact' }).click();
+  await guest.getByRole('button', { name: 'Create account and join' }).click();
 
   // Straight to their bid: the NDA first, nothing else.
   await expect(guest).toHaveURL(new RegExp(`/deals/${dealId}/bid$`));
