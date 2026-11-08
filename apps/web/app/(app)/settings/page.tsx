@@ -8,6 +8,7 @@ import { apiGet } from '../deals/_lib/api';
 import { currentRelease, releaseLabel } from '../../../lib/release';
 import { isOpen, STATUS_LABELS, statusBadge } from './bug-reports/_lib/status';
 import { setDefaultPersona } from './persona-actions';
+import { connectDocuSign, disconnectDocuSign } from './docusign-actions';
 import type { PersonaOption } from '../valuation/_lib/pricing';
 import { PersonaCard } from '../valuation/_lib/persona-card';
 
@@ -65,6 +66,48 @@ async function DealStyleCard() {
             <p className="text-xs text-muted-foreground">Organization owners and administrators can change this.</p>
           )}
         </form>
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * E-signature (T-107): the organization connects its own DocuSign account, and
+ * agreed terms are sent for signature from it. Hidden where this deployment has
+ * no DocuSign app registration; the pacts then sign off in Pactlab.
+ */
+async function DocuSignCard() {
+  const result = await apiGet<{ available: boolean; connected: { accountName: string; connectedAt: string } | null; canEdit: boolean }>('/v1/organization/docusign');
+  if (result.kind !== 'ok' || !result.data.available) return null;
+  const { connected, canEdit } = result.data;
+  return (
+    <Card id="docusign">
+      <CardHeader>
+        <CardTitle>E-signature (DocuSign)</CardTitle>
+        <CardDescription>Agreed terms are sent for signature from your organization’s own DocuSign account. Pactlab never sends from an account of its own.</CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-wrap items-center gap-3 text-sm">
+        {connected ? (
+          <>
+            <Badge variant="reviewed">Connected · {connected.accountName}</Badge>
+            <span className="text-muted-foreground">since {connected.connectedAt.slice(0, 10)}</span>
+            {canEdit ? (
+              <form action={disconnectDocuSign}>
+                <Button type="submit" size="sm" variant="outline">
+                  Disconnect
+                </Button>
+              </form>
+            ) : null}
+          </>
+        ) : canEdit ? (
+          <form action={connectDocuSign}>
+            <Button type="submit" size="sm">
+              Connect DocuSign
+            </Button>
+          </form>
+        ) : (
+          <span className="text-muted-foreground">Not connected. An organization owner or administrator connects it.</span>
+        )}
       </CardContent>
     </Card>
   );
@@ -161,6 +204,8 @@ export default async function SettingsPage() {
       <BugsSubmittedCard />
 
       {organization ? <DealStyleCard /> : null}
+
+      {organization ? <DocuSignCard /> : null}
 
       <Card>
         <CardHeader>

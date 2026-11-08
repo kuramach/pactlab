@@ -104,6 +104,24 @@ export function Teaser({ listing, imageHref }: { listing: Omit<PublicListingView
           ))}
         </dl>
       ) : null}
+      {listing.propertyFacts.length > 0 || (listing.visibility === 'NAMED' && listing.propertyAddress) ? (
+        <section aria-label="Property" className="flex flex-col gap-2">
+          <h2 className="text-sm font-bold uppercase tracking-wide text-muted-foreground">Property</h2>
+          {/* The address shows only on a named page (batch 2): an anonymous teaser never gives the property away. */}
+          {listing.visibility === 'NAMED' && listing.propertyAddress ? <p className="font-semibold">{listing.propertyAddress}</p> : null}
+          {listing.propertyFacts.length > 0 ? (
+            <dl className="grid gap-x-6 gap-y-1 text-sm sm:grid-cols-2">
+              {listing.propertyFacts.map((fact) => (
+                <div key={fact.key} className="flex justify-between gap-3 border-b border-border py-1">
+                  <dt className="text-muted-foreground">{fact.label}</dt>
+                  <dd className="font-medium">{fact.value}</dd>
+                </div>
+              ))}
+            </dl>
+          ) : null}
+          {listing.propertyFacts.length > 0 ? <p className="text-xs text-muted-foreground">Source: {[...new Set(listing.propertyFacts.map((fact) => fact.source))].join(', ')}.</p> : null}
+        </section>
+      ) : null}
       {listing.media && imageHref ? <Media media={listing.media} imageHref={imageHref} /> : null}
       {listing.summary ? <p className="whitespace-pre-wrap leading-relaxed">{listing.summary}</p> : null}
       {listing.highlights.length > 0 ? (

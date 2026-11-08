@@ -2,7 +2,7 @@ import { formatDecimal } from '../../metrics/_lib/format';
 
 /** Buyer personas (T-105): the shapes the pricing API returns, and their labels. */
 export type Persona = 'QUALITY_COMPOUNDER' | 'VALUE_INVESTOR' | 'GRAVE_DANCER';
-export type TermLever = 'PRICE_REDUCTION' | 'REMEDIATION_COST' | 'ESCROW' | 'INDEMNITY' | 'RETENTION' | 'EARNOUT' | 'SELLER_FINANCING';
+export type TermLever = 'PURCHASE_PRICE' | 'PRICE_REDUCTION' | 'REMEDIATION_COST' | 'ESCROW' | 'INDEMNITY' | 'RETENTION' | 'EARNOUT' | 'SELLER_FINANCING';
 export type ScenarioCase = 'DOWNSIDE' | 'BASE' | 'UPSIDE';
 
 interface Money {
@@ -68,6 +68,9 @@ export interface TermBatchView {
   createdAt: string;
   proposedAt: string | null;
   agreedAt: string | null;
+  declinedAt: string | null;
+  /** Who proposed it (T-107); the other side answers. */
+  initiatedBySide: 'BUYER' | 'SELLER';
   terms: { ordinal: number; lever: TermLever; amount: string; currency: string; findingId: string | null; sellerNote: string; response: TermResponseView | null }[];
 }
 
@@ -81,14 +84,22 @@ export interface PricingView {
 }
 
 export interface SellerTermsView {
+  /** The caller's side on terms (T-107). */
+  side: 'BUYER' | 'SELLER' | null;
   proposed: {
+    id: string;
     version: number;
     proposedAt: string;
     currency: string;
+    initiatedBySide: 'BUYER' | 'SELLER';
     agreedAt: string | null;
+    declinedAt: string | null;
     canRespond: boolean;
+    canAcceptCounters: boolean;
     terms: { ordinal: number; lever: TermLever; amount: string; currency: string; sellerNote: string; response: TermResponseView | null }[];
   } | null;
+  /** The seller's own unproposed version (seller side only). */
+  draft: { id: string; version: number; currency: string; terms: { ordinal: number; lever: TermLever; amount: string; currency: string; note: string }[] } | null;
 }
 
 export const DECISION_LABELS: Readonly<Record<TermDecision, string>> = { ACCEPT: 'Accepted', REJECT: 'Rejected', COUNTER: 'Countered' };
@@ -129,6 +140,7 @@ export function pricingAnchor(outcome: string): string {
 }
 
 export const LEVER_LABELS: Readonly<Record<TermLever, string>> = {
+  PURCHASE_PRICE: 'Purchase price',
   PRICE_REDUCTION: 'Price reduction',
   REMEDIATION_COST: 'Remediation cost',
   ESCROW: 'Escrow holdback',

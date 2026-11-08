@@ -17,6 +17,10 @@ import {
   listingSlugParamsSchema,
   listingStatusSchema,
   saveListingSchema,
+  propertyLookupSchema,
+  savePropertySchema,
+  type PropertyLookupBody,
+  type SavePropertyBody,
   type DeclineListingInterestBody,
   type ListingInterestBody,
   type ListingStatusBody,
@@ -52,6 +56,18 @@ export class ListingsController {
   @Put()
   save(@Tenant() tenant: TenantContext, @RequestId() requestId: string, @Param(new ZodValidationPipe(listingParamsSchema)) params: DealParams, @Body(new ZodValidationPipe(saveListingSchema)) body: SaveListingBody) {
     return this.listings.save(tenant, params.dealId, body, requestId);
+  }
+
+  /** Propose the property's facts from its address (batch 2); nothing is stored. */
+  @Post('property-lookup')
+  @HttpCode(200)
+  lookupProperty(@Tenant() tenant: TenantContext, @RequestId() requestId: string, @Param(new ZodValidationPipe(listingParamsSchema)) params: DealParams, @Body(new ZodValidationPipe(propertyLookupSchema)) body: PropertyLookupBody) {
+    return this.listings.lookupProperty(tenant, params.dealId, body, requestId);
+  }
+
+  @Put('property')
+  saveProperty(@Tenant() tenant: TenantContext, @RequestId() requestId: string, @Param(new ZodValidationPipe(listingParamsSchema)) params: DealParams, @Body(new ZodValidationPipe(savePropertySchema)) body: SavePropertyBody) {
+    return this.listings.saveProperty(tenant, params.dealId, body, requestId);
   }
 
   @Put('status')

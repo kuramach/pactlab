@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { pipelineSteps } from './pipeline';
+import { DEAL_SECTION_RULES } from '@pactlab/domain';
 import { DEAL_GROUPS, dealGroup, dealSection } from './deal-tabs';
 
 const id = '01900000-0000-7000-8000-00000000c003';
@@ -30,7 +31,14 @@ describe('deal tabs (T-094 B13)', () => {
     expect(dealGroup(dealSection(id, `/deals/${id}/foresight`)).key).toBe('valuation');
     expect(dealGroup(dealSection(id, `/deals/${id}/terms`)).key).toBe('valuation');
     expect(dealGroup(dealSection(id, `/deals/${id}/post-close`)).key).toBe('close');
+    expect(dealGroup(dealSection(id, `/deals/${id}/closing`)).key).toBe('close');
     expect(dealGroup(dealSection(id, `/deals/${id}`)).key).toBe('overview');
+  });
+});
+
+describe('sections per pact (batch 2)', () => {
+  it('every tab section has a rule deciding where it applies', () => {
+    for (const group of DEAL_GROUPS) for (const section of group.sections) expect(Object.keys(DEAL_SECTION_RULES), section.path || '(summary)').toContain(section.path);
   });
 });
 

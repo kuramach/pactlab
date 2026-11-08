@@ -15,20 +15,23 @@ PROFILE="pactlab-$([ "$ENV_NAME" = qa ] && echo dev || echo "$ENV_NAME")"
 STACK="Pactlab$(echo "${ENV_NAME:0:1}" | tr a-z A-Z)${ENV_NAME:1}"
 export AWS_PROFILE="$PROFILE" AWS_REGION=us-east-2
 out() { aws cloudformation describe-stacks --stack-name "$STACK" --query "Stacks[0].Outputs[?OutputKey=='$1'].OutputValue" --output text; }
-CLUSTER=$(out ClusterName); FAMILY=$(out MigrateTaskDefinition); SUBNETS=$(out AppSubnets); GROUP=$(out AppTaskSecurityGroupId)
+# The demo organization writes documents, so it runs on the seed task (same tools image and owner credentials, plus the
+# document bucket); everything else on the migrate task, which has no AWS permissions beyond its secrets.
+KIND=migrate; [ "$SCRIPT" = src/ops/demo-org.ts ] && KIND=seed
+CLUSTER=$(out ClusterName); FAMILY=$(out "$([ $KIND = seed ] && echo Seed || echo Migrate)TaskDefinition"); SUBNETS=$(out AppSubnets); GROUP=$(out AppTaskSecurityGroupId)
 # The command as JSON: tsx, the script, then each argument as its own string.
 COMMAND=$(node -e 'console.log(JSON.stringify(["./node_modules/.bin/tsx", ...process.argv.slice(1)]))' "$SCRIPT" "$@")
 TASK=$(aws ecs run-task --cluster "$CLUSTER" --task-definition "$FAMILY" --launch-type FARGATE \
   --network-configuration "awsvpcConfiguration={subnets=[$SUBNETS],securityGroups=[$GROUP],assignPublicIp=DISABLED}" \
-  --overrides "{\"containerOverrides\":[{\"name\":\"migrate\",\"command\":$COMMAND}]}" \
+  --overrides "{\"containerOverrides\":[{\"name\":\"$KIND\",\"command\":$COMMAND}]}" \
   --query 'tasks[0].taskArn' --output text)
 echo "Running $SCRIPT in $ENV_NAME: $TASK"
 aws ecs wait tasks-stopped --cluster "$CLUSTER" --tasks "$TASK"
 CODE=$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$TASK" --query 'tasks[0].containers[0].exitCode' --output text)
 # The script's own output, from the task's log stream.
 echo "--- output"
-aws logs get-log-events --log-group-name "/pactlab/${ENV_NAME}/app" --log-stream-name "migrate/migrate/${TASK##*/}" \
-  --start-from-head --query 'events[].message' --output text 2>/dev/null | tr '\t' '\n' || echo "(no output yet; CloudWatch /pactlab/${ENV_NAME}/app, stream migrate/migrate/${TASK##*/})"
+aws logs get-log-events --log-group-name "/pactlab/${ENV_NAME}/app" --log-stream-name "$KIND/$KIND/${TASK##*/}" \
+  --start-from-head --query 'events[].message' --output text 2>/dev/null | tr '\t' '\n' || echo "(no output yet; CloudWatch /pactlab/${ENV_NAME}/app, stream $KIND/$KIND/${TASK##*/})"
 echo "---"
 echo "Exit code: $CODE"
 [ "$CODE" = 0 ]

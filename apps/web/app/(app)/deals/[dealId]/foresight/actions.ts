@@ -115,3 +115,10 @@ export async function askForesightByVoice(dealId: string, input: unknown): Promi
   if (result.kind === 'ok') return { ok: true, answer: result.data };
   return { ok: false, message: MESSAGES[('code' in result && result.code) || ''] ?? 'The question could not be answered. Try again.' };
 }
+
+/** Ask for the published and AI forecasts again (batch 2): the deal team, at most every few minutes. */
+export async function refreshForecasts(dealId: string): Promise<void> {
+  if (!uuid.safeParse(dealId).success) redirect('/deals');
+  const result = await apiPost(`/v1/deals/${dealId}/foresight/baseline`, {});
+  back(dealId, result.kind === 'ok' ? 'ok-refreshing' : failure(result.kind, 'code' in result ? result.code : undefined));
+}

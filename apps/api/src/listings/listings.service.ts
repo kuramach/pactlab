@@ -1,7 +1,8 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { BadRequestException, ConflictException, Inject, Injectable, Logger, NotFoundException, PayloadTooLargeException, ServiceUnavailableException, UnprocessableEntityException, UnsupportedMediaTypeException } from '@nestjs/common';
-import { LISTING_MEDIA_LIMITS, type AddListingImageBody, type AddListingVideoBody, type DeclineListingInterestBody, type ListingInterestBody, type ListingInterestView, type ListingMediaView, type ListingStatusBody, type ListingView, type PublicListingView, type SaveListingBody } from '@pactlab/contracts';
-import { appendAuditEvent, publicListings, withTenant, type PrismaClient } from '@pactlab/db';
+import { PropertyDataError, type PropertyDataProvider } from '@pactlab/connectors';
+import { LISTING_MEDIA_LIMITS, type AddListingImageBody, type AddListingVideoBody, type DeclineListingInterestBody, type ListingInterestBody, type ListingInterestView, type ListingMediaView, type ListingPropertyFact, type ListingStatusBody, type ListingView, type PropertyLookupBody, type PublicListingView, type SaveListingBody, type SavePropertyBody } from '@pactlab/contracts';
+import { appendAuditEvent, publicListings, withTenant, type Prisma, type PrismaClient } from '@pactlab/db';
 import { isCounterpartyRole, newId, permissionsForDealRole, tenantObjectKey, type DealRole, type TenantContext } from '@pactlab/domain';
 import { DealAccess } from '../deals/deal-access';
 import type { EmailSender } from '../email-login/email-sender';
@@ -20,6 +21,8 @@ export interface ListingDependencies {
   readonly appOrigin: string;
   /** Keys the client-address hash used for rate limits. */
   readonly hashSecret: string;
+  /** Property data by address for the page (batch 2): RentCast in the US; the fixture outside production. Null: no lookup. */
+  readonly property?: PropertyDataProvider | null;
 }
 
 /** The seller's own team runs the page, like the sale process: write access, never a counterparty. */
@@ -65,6 +68,8 @@ function listingView(row: ListingRow, media: readonly MediaRow[] = []): ListingV
     publishedAt: iso(row.publishedAt),
     updatedAt: row.updatedAt.toISOString(),
     media: media.map(mediaView),
+    propertyAddress: row.propertyAddress,
+    propertyFacts: (Array.isArray(row.propertyFacts) ? row.propertyFacts : []) as unknown as ListingPropertyFact[],
   };
 }
 
@@ -112,6 +117,37 @@ export class ListingsService {
       return row ? { row, media: await tx.listingMedia.findMany({ where: { listingId: row.id }, orderBy: [{ position: 'asc' }, { id: 'asc' }] }) } : null;
     });
     return { listing: found ? listingView(found.row, found.media) : null };
+  }
+
+  /**
+   * Propose facts about the property from its address (batch 2). Nothing is
+   * stored: the seller approves each fact, then saves. Never owner names or taxes.
+   */
+  async lookupProperty(tenant: TenantContext, dealId: string, body: PropertyLookupBody, requestId: string): Promise<{ available: boolean; formattedAddress: string | null; facts: ListingPropertyFact[] }> {
+    await this.access.require(tenant, dealId, canRun, { action: 'listing.property_lookup', requestId });
+    const provider = this.deps.property;
+    if (!provider || !provider.countries.includes(body.country)) return { available: false, formattedAddress: null, facts: [] };
+    try {
+      const found = await provider.lookup(body.address, body.country);
+      const retrievedAt = new Date().toISOString();
+      return { available: true, formattedAddress: found?.formattedAddress ?? null, facts: (found?.facts ?? []).map((fact) => ({ ...fact, retrievedAt })) };
+    } catch (error) {
+      if (error instanceof PropertyDataError) throw new ServiceUnavailableException({ code: error.kind === 'RATE_LIMITED' ? 'PROPERTY_RATE_LIMITED' : 'PROPERTY_UNAVAILABLE' });
+      throw error;
+    }
+  }
+
+  /** Save the property's address and the facts the seller approved to the page. */
+  async saveProperty(tenant: TenantContext, dealId: string, body: SavePropertyBody, requestId: string): Promise<{ listing: ListingView }> {
+    await this.access.require(tenant, dealId, canRun, { action: 'listing.property_saved', requestId });
+    const row = await withTenant(this.prisma, tenant, async (tx) => {
+      const existing = await tx.dealListing.findFirst({ where: { dealId }, select: { id: true } });
+      if (!existing) throw new NotFoundException();
+      const saved = await tx.dealListing.update({ where: { id: existing.id }, data: { propertyAddress: body.address, propertyFacts: body.facts as unknown as Prisma.InputJsonValue, updatedBy: tenant.userId, updatedAt: new Date() } });
+      await appendAuditEvent(tx, { organizationId: tenant.organizationId, dealId, actorUserId: tenant.userId, action: 'listing.property_saved', targetType: 'deal_listing', targetId: saved.id, outcome: 'SUCCEEDED', requestId });
+      return saved;
+    });
+    return { listing: listingView(row, await this.mediaRows(tenant, row.id)) };
   }
 
   async save(tenant: TenantContext, dealId: string, body: SaveListingBody, requestId: string): Promise<{ listing: ListingView }> {
@@ -383,6 +419,8 @@ export class ListingsService {
       indexable: row.indexable,
       publishedAt: iso(row.publishedAt),
       media: (await publicListings.media(this.prisma, slug)).map(mediaView),
+      propertyAddress: row.propertyAddress,
+      propertyFacts: row.propertyFacts,
     };
   }
 

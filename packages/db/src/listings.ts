@@ -32,6 +32,8 @@ export interface PublicListingRow {
   highlights: string[];
   indexable: boolean;
   publishedAt: Date | null;
+  propertyAddress: string | null;
+  propertyFacts: { key: string; label: string; value: string; source: string; retrievedAt: string }[];
 }
 
 export interface PublicListingMediaRow {
@@ -66,6 +68,9 @@ export const publicListings = {
       highlights: (row['highlights'] as string[] | null) ?? [],
       indexable: row['indexable'] === true,
       publishedAt: row['published_at'] ? new Date(row['published_at'] as string) : null,
+      // The function returns the address only for a NAMED page.
+      propertyAddress: (row['property_address'] as string | null) ?? null,
+      propertyFacts: Array.isArray(row['property_facts']) ? (row['property_facts'] as PublicListingRow['propertyFacts']) : [],
     };
   },
 

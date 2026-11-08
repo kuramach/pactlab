@@ -2,7 +2,7 @@ import type { ForesightForecastsView, ForesightMetricView, ForesightOutcomeView 
 import { AiBadge, Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, HumanMark } from '@pactlab/ui';
 import { LineChart } from '../../../_lib/charts';
 import { formatMoney } from '../../../metrics/_lib/format';
-import { archiveMetric, defineMetric, forecastMetric, saveUserForecast } from './actions';
+import { archiveMetric, defineMetric, forecastMetric, refreshForecasts, saveUserForecast } from './actions';
 import { ForecastLineEditor } from './forecast-line-editor';
 import { AutoRefresh } from './auto-refresh';
 
@@ -32,6 +32,17 @@ function StatusLine({ forecasts }: { forecasts: ForesightForecastsView }) {
   );
 }
 
+/** Why a metric has no AI forecast, in words (batch 2): never a silent empty row. */
+function aiMissingReason(forecasts: ForesightForecastsView, aiEnabled: boolean): string {
+  if (!aiEnabled) return 'AI is off in this environment.';
+  if (forecasts.status === 'RUNNING' || forecasts.status === 'NONE') return 'Being prepared now.';
+  const note = forecasts.notes.find((entry) => /\bAI\b/.test(entry));
+  const when = forecasts.refreshedAt ? ` (last tried ${forecasts.refreshedAt.slice(0, 10)})` : '';
+  if (note?.startsWith('AI is off')) return `AI was off when this was last prepared${when}; it is tried again within the hour.`;
+  if (note) return `Claude couldn’t be reached${when}; it is tried again within the hour.`;
+  return 'No AI forecast for this metric.';
+}
+
 const EFFECTS = [
   { value: 'GROWTH', label: 'Higher is good for growth' },
   { value: 'RISK', label: 'Higher raises risk (the discount rate)' },
@@ -41,7 +52,7 @@ const EFFECT_LABEL: Record<string, string> = Object.fromEntries(EFFECTS.map((eff
 const inputClass = 'w-full rounded-md border border-border bg-background px-3 py-2 text-sm';
 
 /** One metric (batch 1): your line dragged into shape over the published and AI lines, their values below. */
-function MetricBlock({ dealId, metric, years, canEdit, aiEnabled }: { dealId: string; metric: ForesightMetricView; years: number[]; canEdit: boolean; aiEnabled: boolean }) {
+function MetricBlock({ dealId, metric, years, canEdit, aiEnabled, aiMissingReason }: { dealId: string; metric: ForesightMetricView; years: number[]; canEdit: boolean; aiEnabled: boolean; aiMissingReason: string }) {
   const yours = metric.user?.values ?? metric.ai?.values ?? metric.external?.values ?? years.map(() => metric.neutral);
   const formId = `yours-${metric.key}`;
   const row = (values: string[]) => values.map((value, index) => `${years[index]} ${pct(value)}`).join(' · ');
@@ -104,7 +115,7 @@ function MetricBlock({ dealId, metric, years, canEdit, aiEnabled }: { dealId: st
               </Button>
             </form>
           ) : (
-            'No AI forecast yet.'
+            aiMissingReason
           )}
         </dd>
       </dl>
@@ -176,9 +187,18 @@ export function ForecastsSection({ dealId, forecasts, canEdit, aiEnabled = true 
           <CardDescription>Published forecasts where they exist, the AI’s, and yours. Percent a year. Drag your line into shape and save it to see what it does to value; add metrics of your own.</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
-          <StatusLine forecasts={forecasts} />
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <StatusLine forecasts={forecasts} />
+            {canEdit && aiEnabled && forecasts.status !== 'RUNNING' && forecasts.metrics.some((metric) => !metric.ai && !metric.custom) ? (
+              <form action={refreshForecasts.bind(null, dealId)}>
+                <Button type="submit" size="sm" variant="outline">
+                  Refresh AI forecasts
+                </Button>
+              </form>
+            ) : null}
+          </div>
           {forecasts.metrics.map((metric) => (
-            <MetricBlock key={metric.key} dealId={dealId} metric={metric} years={forecasts.years} canEdit={canEdit} aiEnabled={aiEnabled} />
+            <MetricBlock key={metric.key} dealId={dealId} metric={metric} years={forecasts.years} canEdit={canEdit} aiEnabled={aiEnabled} aiMissingReason={aiMissingReason(forecasts, aiEnabled)} />
           ))}
           {canEdit ? <AddMetric dealId={dealId} /> : null}
         </CardContent>

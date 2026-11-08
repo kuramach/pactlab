@@ -43,7 +43,7 @@ import {
 } from '@pactlab/domain';
 import type { MacroForecastProvider } from '@pactlab/connectors';
 import { DealAccess } from '../deals/deal-access';
-import { BASELINE_MAX_AGE_MS, BASELINE_STALE_RUN_MS, forecastsView, forecastYears } from './forecasts';
+import { aiForecastsMissing, BASELINE_AI_RETRY_MS, BASELINE_MAX_AGE_MS, BASELINE_STALE_RUN_MS, forecastsView, forecastYears } from './forecasts';
 import { postureView } from '../regulatory/posture';
 import { PRISMA } from '../tokens';
 
@@ -330,7 +330,7 @@ export class ForesightService {
    * trend lines, if there are none) when the baseline is missing, older than
    * 30 days, failed a while ago, or a previous run was lost. Returns at once.
    */
-  private async ensureBaseline(tenant: TenantContext, dealId: string, requestId: string): Promise<void> {
+  private async ensureBaseline(tenant: TenantContext, dealId: string, requestId: string, options: { force?: boolean } = {}): Promise<void> {
     const now = Date.now();
     const claimed = await withTenant(this.prisma, tenant, async (tx) => {
       const row = await tx.foresightBaseline.findFirst({ where: { dealId } });
@@ -338,7 +338,11 @@ export class ForesightService {
         if (row.status === 'RUNNING' && now - row.startedAt.getTime() < BASELINE_STALE_RUN_MS) return false;
         if (row.status !== 'RUNNING' && row.finishedAt) {
           const age = now - row.finishedAt.getTime();
-          if (row.status === 'FAILED' ? age < BASELINE_STALE_RUN_MS : age < BASELINE_MAX_AGE_MS) return false;
+          // Missing AI forecasts are retried within the hour once AI is on, not after 30 days; a deal
+          // team member may ask again sooner, at most every few minutes (batch 2).
+          const aiMissing = row.status !== 'READY' && aiForecastsMissing(row.notes) && this.deps.aiEnabled;
+          const wait = options.force || row.status === 'FAILED' ? BASELINE_STALE_RUN_MS : aiMissing ? BASELINE_AI_RETRY_MS : BASELINE_MAX_AGE_MS;
+          if (age < wait) return false;
         }
         const { count } = await tx.foresightBaseline.updateMany({ where: { id: row.id, startedAt: row.startedAt }, data: { status: 'RUNNING', startedAt: new Date(now), finishedAt: null, notes: [] } });
         return count === 1;
@@ -365,8 +369,8 @@ export class ForesightService {
 
   /** Start the baseline right after a pact is created, so Foresight opens populated. */
   async requestBaseline(tenant: TenantContext, dealId: string, requestId: string): Promise<{ status: string }> {
-    await this.access.require(tenant, dealId, canRead, { action: 'foresight.baseline_requested', requestId });
-    await this.ensureBaseline(tenant, dealId, requestId);
+    const role = await this.access.require(tenant, dealId, canRead, { action: 'foresight.baseline_requested', requestId });
+    await this.ensureBaseline(tenant, dealId, requestId, { force: canWrite(role) });
     const row = await withTenant(this.prisma, tenant, (tx) => tx.foresightBaseline.findFirst({ where: { dealId }, select: { status: true } }));
     return { status: row?.status ?? 'NONE' };
   }

@@ -116,6 +116,17 @@ export const apiEnvSchema = baseEnvSchema.extend({
   GITHUB_APP_SLUG: z.string().regex(/^[a-z0-9-]+$/, 'app slug from its public URL').optional(),
   GITHUB_APP_PRIVATE_KEY_PATH: nonEmpty.optional(),
   /**
+   * Pactlab's DocuSign app registration (T-107; optional as a group). Customers connect
+   * their own DocuSign accounts to it; Pactlab sends nothing from an account of its own.
+   */
+  DOCUSIGN_INTEGRATION_KEY: unsetIfBlank(nonEmpty.optional()),
+  DOCUSIGN_CLIENT_SECRET: unsetIfBlank(nonEmpty.optional()),
+  DOCUSIGN_AUTH_HOST: unsetIfBlank(z.enum(['account-d.docusign.com', 'account.docusign.com']).optional()),
+  /** RentCast API key for US property data on teaser pages (batch 2). Unset: the fixture outside production, no lookup in production. */
+  RENTCAST_API_KEY: unsetIfBlank(nonEmpty.optional()),
+  /** The Connect HMAC key that signs DocuSign's envelope events to this deployment. */
+  DOCUSIGN_CONNECT_HMAC_KEY: unsetIfBlank(nonEmpty.optional()),
+  /**
    * Self-hosted Jira servers this deployment may reach, comma-separated host
    * names (e.g. `issues.apache.org`). Atlassian Cloud sites are always allowed;
    * a self-hosted host is reachable only when listed here (T-082).
@@ -149,6 +160,7 @@ export const apiEnvSchema = baseEnvSchema.extend({
   .superRefine(allOrNone(['AUTH0_DOMAIN', 'AUTH0_AUDIENCE']))
   .superRefine(allOrNone(['LOCAL_SECRETS_DIR', 'LOCAL_SECRETS_KEY']))
   .superRefine(allOrNone(['GITHUB_APP_ID', 'GITHUB_APP_SLUG', 'GITHUB_APP_PRIVATE_KEY_PATH']))
+  .superRefine(allOrNone(['DOCUSIGN_INTEGRATION_KEY', 'DOCUSIGN_CLIENT_SECRET', 'DOCUSIGN_AUTH_HOST', 'DOCUSIGN_CONNECT_HMAC_KEY']))
   .superRefine((value, context) => {
     if (value.AI_PROVIDER === 'bedrock' && !value.AWS_REGION) {
       context.addIssue({ code: 'custom', path: ['AWS_REGION'], message: 'required when AI_PROVIDER is bedrock' });

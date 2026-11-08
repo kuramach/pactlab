@@ -106,7 +106,35 @@ export interface PublicListingView {
   indexable: boolean;
   publishedAt: string | null;
   media: ListingMediaView[];
+  /** The property's address: the seller's own view always; the public view only on a NAMED page (batch 2). */
+  propertyAddress: string | null;
+  /** Facts the seller approved from a property-data lookup, each with its source. */
+  propertyFacts: ListingPropertyFact[];
 }
+
+export interface ListingPropertyFact {
+  key: string;
+  label: string;
+  value: string;
+  source: string;
+  retrievedAt: string;
+}
+
+/** Look up a property by address (batch 2): proposals only; nothing is stored. */
+export const propertyLookupSchema = z.strictObject({
+  address: z.string().trim().min(5).max(300),
+  country: z.enum(['US', 'GB']),
+});
+export type PropertyLookupBody = z.infer<typeof propertyLookupSchema>;
+
+/** The address and the facts the seller approved, saved to the page. */
+export const savePropertySchema = z.strictObject({
+  address: z.string().trim().min(5).max(300).nullable(),
+  facts: z
+    .array(z.strictObject({ key: z.string().regex(/^[a-z_]{2,40}$/), label: z.string().trim().min(1).max(60), value: z.string().trim().min(1).max(120), source: z.string().trim().min(1).max(60), retrievedAt: z.iso.datetime() }))
+    .max(20),
+});
+export type SavePropertyBody = z.infer<typeof savePropertySchema>;
 
 /** The seller's own view of their page. */
 export interface ListingView extends Omit<PublicListingView, 'publishedAt'> {

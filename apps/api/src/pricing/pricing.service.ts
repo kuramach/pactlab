@@ -1,4 +1,4 @@
-import { ConflictException, Inject, Injectable, NotFoundException, ServiceUnavailableException, UnprocessableEntityException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, Inject, Injectable, NotFoundException, ServiceUnavailableException, UnprocessableEntityException } from '@nestjs/common';
 import {
   acceptedBriefSections,
   GatewayPolicyError,
@@ -23,12 +23,12 @@ import {
   type TermMix,
 } from '@pactlab/calculations';
 import { appendAuditEvent, withTenant, type Prisma, type PrismaClient, type TransactionClient } from '@pactlab/db';
-import { newId, permissionsForDealRole, type DealRole, type TenantContext } from '@pactlab/domain';
+import { isCounterpartyRole, newId, permissionsForDealRole, type DealRole, type TenantContext } from '@pactlab/domain';
 import { DealAccess } from '../deals/deal-access';
 import { FINDINGS_REPOSITORY, type FindingsRepository } from '../findings/findings.repository';
 import { PRISMA } from '../tokens';
 import { ValuationService } from '../valuation/valuation.service';
-import type { EvaluateBody, PersonaBody, SellerNotesBody, TermResponsesBody } from './pricing.schemas';
+import type { EvaluateBody, PersonaBody, SellerDraftBody, SellerNotesBody, TermResponsesBody } from './pricing.schemas';
 
 export const PRICING_DEPENDENCIES = Symbol('PRICING_DEPENDENCIES');
 export interface PricingDependencies {
@@ -40,10 +40,25 @@ const canRead = (role: DealRole) => permissionsForDealRole(role).has('BUYER_ANAL
 const canWrite = (role: DealRole) => permissionsForDealRole(role).has('DEAL_WRITE') && permissionsForDealRole(role).has('BUYER_ANALYSIS_READ');
 /** Anyone on the pact, the seller's contributors included, reads terms once proposed. */
 const canReadProposed = (role: DealRole) => permissionsForDealRole(role).has('DEAL_READ');
-/** Any of the seller's contributors answers for the seller (Kumar, 2026-11-06); each answer is named. */
-const canRespond = (role: DealRole) => role === 'TARGET_CONTRIBUTOR';
+/** Any of the seller's contributors acts for the seller (Kumar, 2026-11-06); each act is named. */
+const isSeller = (role: DealRole) => role === 'TARGET_CONTRIBUTOR';
+/** Which side a role acts for on terms (T-107): buyer roles that may write, or the seller's contributors. */
+export function termSide(role: DealRole): 'BUYER' | 'SELLER' | null {
+  if (isSeller(role)) return 'SELLER';
+  return !isCounterpartyRole(role) && canWrite(role) ? 'BUYER' : null;
+}
+const termActor = (role: DealRole) => termSide(role) !== null;
+const other = (side: string) => (side === 'BUYER' ? 'SELLER' : 'BUYER');
 
 export type TermDecision = 'ACCEPT' | 'REJECT' | 'COUNTER';
+
+/** The seller's own unproposed version, visible only to the seller side (T-107). */
+export interface SellerDraftView {
+  readonly id: string;
+  readonly version: number;
+  readonly currency: string;
+  readonly terms: readonly { readonly ordinal: number; readonly lever: TermLever; readonly amount: string; readonly currency: string; readonly note: string }[];
+}
 export interface TermResponseView {
   readonly decision: TermDecision;
   readonly counterAmount: string | null;
@@ -101,13 +116,20 @@ export interface EvaluationDelta {
  * spread from a row, so no persona, parameter, finding or evaluation id leaks.
  */
 export interface SellerTermsView {
+  readonly id: string;
   readonly version: number;
   readonly proposedAt: string;
   readonly currency: string;
-  /** Set once the seller accepted every term: the version is agreed and frozen. */
+  /** Who proposed this version (T-107); the other side answers it. */
+  readonly initiatedBySide: 'BUYER' | 'SELLER';
+  /** Set once the other side accepted every term: the version is agreed and frozen. */
   readonly agreedAt: string | null;
-  /** True for the seller's contributors while this version is open for an answer. */
+  /** Set when a signatory turned the agreed version down; a new version follows. */
+  readonly declinedAt: string | null;
+  /** True for the answering side while this version is open for an answer. */
   readonly canRespond: boolean;
+  /** True for the proposing side when the other side has countered. */
+  readonly canAcceptCounters: boolean;
   readonly terms: readonly {
     readonly ordinal: number;
     readonly lever: TermLever;
@@ -239,6 +261,8 @@ export class PricingService {
             createdAt: batch.createdAt.toISOString(),
             proposedAt: batch.proposedAt?.toISOString() ?? null,
             agreedAt: batch.agreedAt?.toISOString() ?? null,
+            declinedAt: batch.declinedAt?.toISOString() ?? null,
+            initiatedBySide: batch.initiatedBySide as 'BUYER' | 'SELLER',
             terms: batch.terms.map((term) => ({ ordinal: term.ordinal, lever: term.lever as TermLever, amount: term.amount.toFixed(2), currency: term.currency, findingId: term.findingId, sellerNote: term.sellerNote, response: responses.get(term.ordinal) ?? null })),
           };
         }),
@@ -376,18 +400,12 @@ export class PricingService {
       await tx.termProposalBatch.create({
         data: { id: batchId, organizationId: tenant.organizationId, dealId, evaluationId: active.id, version: (latest?.version ?? 0) + 1, currency: active.termMix.currency, createdBy: tenant.userId },
       });
+      // The headline price leads every version (T-107); the adjustments follow.
       await tx.termProposal.createMany({
-        data: active.termMix.lines.map((line, ordinal) => ({
-          id: newId(),
-          organizationId: tenant.organizationId,
-          dealId,
-          batchId,
-          ordinal,
-          lever: line.lever,
-          amount: line.amount.amount,
-          currency: line.amount.currency,
-          findingId: line.findingId,
-        })),
+        data: [
+          { lever: 'PURCHASE_PRICE', amount: active.termMix.price.amount, currency: active.termMix.price.currency, findingId: null },
+          ...active.termMix.lines.map((line) => ({ lever: line.lever, amount: line.amount.amount, currency: line.amount.currency, findingId: line.findingId })),
+        ].map((term, ordinal) => ({ id: newId(), organizationId: tenant.organizationId, dealId, batchId, ordinal, ...term })),
       });
       await this.audit(tx, tenant, dealId, 'terms.drafted', 'term_proposal_batch', batchId, requestId);
     });
@@ -422,21 +440,37 @@ export class PricingService {
     return this.view(tenant, dealId, requestId);
   }
 
-  /** The latest terms proposed to the seller, in the seller-safe shape; null before any are proposed. */
-  async proposedTerms(tenant: TenantContext, dealId: string, requestId: string): Promise<{ proposed: SellerTermsView | null }> {
+  /**
+   * The latest proposed terms, either side's, in the shape both sides may see;
+   * null before any are proposed. The seller also gets their own draft, if any.
+   */
+  async proposedTerms(tenant: TenantContext, dealId: string, requestId: string): Promise<{ side: 'BUYER' | 'SELLER' | null; proposed: SellerTermsView | null; draft: SellerDraftView | null }> {
     const role = await this.access.require(tenant, dealId, canReadProposed, { action: 'terms.viewed', requestId });
-    const batch = await withTenant(this.prisma, tenant, (tx) =>
-      tx.termProposalBatch.findFirst({ where: { dealId, proposedAt: { not: null } }, orderBy: { version: 'desc' }, include: { terms: { orderBy: { ordinal: 'asc' } }, responses: true } }),
-    );
-    if (!batch?.proposedAt) return { proposed: null };
+    const side = termSide(role);
+    const [batch, draft] = await withTenant(this.prisma, tenant, async (tx) => [
+      await tx.termProposalBatch.findFirst({ where: { dealId, proposedAt: { not: null } }, orderBy: { version: 'desc' }, include: { terms: { orderBy: { ordinal: 'asc' } }, responses: true } }),
+      side === 'SELLER'
+        ? await tx.termProposalBatch.findFirst({ where: { dealId, initiatedBySide: 'SELLER', proposedAt: null }, orderBy: { version: 'desc' }, include: { terms: { orderBy: { ordinal: 'asc' } } } })
+        : null,
+    ] as const);
+    const draftView: SellerDraftView | null = draft
+      ? { id: draft.id, version: draft.version, currency: draft.currency, terms: draft.terms.map((term) => ({ ordinal: term.ordinal, lever: term.lever as TermLever, amount: term.amount.toFixed(2), currency: term.currency, note: term.sellerNote })) }
+      : null;
+    if (!batch?.proposedAt) return { side, proposed: null, draft: draftView };
     const responses = latestResponses(batch.responses);
+    const open = !batch.agreedAt && !batch.declinedAt;
     return {
+      side,
       proposed: {
+        id: batch.id,
         version: batch.version,
         proposedAt: batch.proposedAt.toISOString(),
         currency: batch.currency,
+        initiatedBySide: batch.initiatedBySide as 'BUYER' | 'SELLER',
         agreedAt: batch.agreedAt?.toISOString() ?? null,
-        canRespond: canRespond(role) && !batch.agreedAt,
+        declinedAt: batch.declinedAt?.toISOString() ?? null,
+        canRespond: open && side !== null && side !== batch.initiatedBySide,
+        canAcceptCounters: open && side === batch.initiatedBySide && [...responses.values()].some((response) => response.decision === 'COUNTER'),
         terms: batch.terms.map((term) => {
           const response = responses.get(term.ordinal);
           return {
@@ -449,19 +483,22 @@ export class PricingService {
           };
         }),
       },
+      draft: draftView,
     };
   }
 
   /**
-   * The seller's answer to the latest proposed terms: per term, accept, reject
-   * or counter. When every term is accepted, the version is agreed and frozen.
+   * The other side's answer to the latest proposed terms (T-107: either side
+   * proposes, the other answers): per term, accept, reject or counter. When
+   * every term is accepted, the version is agreed and frozen.
    */
   async respond(tenant: TenantContext, dealId: string, body: TermResponsesBody, requestId: string) {
-    await this.access.require(tenant, dealId, canRespond, { action: 'terms.responded', requestId });
+    const role = await this.access.require(tenant, dealId, termActor, { action: 'terms.responded', requestId });
     await withTenant(this.prisma, tenant, async (tx) => {
       const batch = await tx.termProposalBatch.findFirst({ where: { dealId, proposedAt: { not: null } }, orderBy: { version: 'desc' }, include: { terms: { select: { ordinal: true } } } });
       if (!batch) throw new NotFoundException();
-      if (batch.agreedAt) throw new ConflictException('These terms are already agreed');
+      if (termSide(role) !== other(batch.initiatedBySide)) throw new ForbiddenException('The other side answers these terms');
+      if (batch.agreedAt || batch.declinedAt) throw new ConflictException('These terms are already agreed');
       const ordinals = new Set(batch.terms.map((term) => term.ordinal));
       if (body.responses.some((response) => !ordinals.has(response.ordinal))) throw new UnprocessableEntityException('Answer only the proposed terms');
       const now = new Date();
@@ -491,22 +528,23 @@ export class PricingService {
   }
 
   /**
-   * The buyer takes the seller's counters into the next version: the proposed
-   * terms with each countered amount substituted, as a draft the buyer then
-   * proposes. Always one side proposing, the other accepting.
+   * The proposing side takes the other side's counters into its next version:
+   * the proposed terms with each countered amount substituted, as a draft it
+   * then proposes. Always one side proposing, the other accepting.
    */
   async acceptCounters(tenant: TenantContext, dealId: string, batchId: string, requestId: string) {
-    await this.access.require(tenant, dealId, canWrite, { action: 'terms.counters_accepted', requestId });
+    const role = await this.access.require(tenant, dealId, termActor, { action: 'terms.counters_accepted', requestId });
     await withTenant(this.prisma, tenant, async (tx) => {
       const batch = await tx.termProposalBatch.findFirst({ where: { id: batchId, dealId }, include: { terms: { orderBy: { ordinal: 'asc' } }, responses: true } });
       if (!batch) throw new NotFoundException();
-      if (!batch.proposedAt || batch.agreedAt) throw new ConflictException('Only open proposed terms carry counters');
+      if (termSide(role) !== batch.initiatedBySide) throw new ForbiddenException('The proposing side takes counters into its next version');
+      if (!batch.proposedAt || batch.agreedAt || batch.declinedAt) throw new ConflictException('Only open proposed terms carry counters');
       const latest = latestResponses(batch.responses);
-      if (![...latest.values()].some((response) => response.decision === 'COUNTER')) throw new ConflictException('The seller has not countered these terms');
-      const newest = await tx.termProposalBatch.findFirst({ where: { dealId }, orderBy: { version: 'desc' }, select: { version: true } });
+      if (![...latest.values()].some((response) => response.decision === 'COUNTER')) throw new ConflictException('The other side has not countered these terms');
+      const newest = await tx.$queryRaw<{ version: number }[]>`SELECT coalesce(max(version), 0)::int AS version FROM term_proposal_batches WHERE deal_id = ${dealId}::uuid`;
       const nextId = newId();
       await tx.termProposalBatch.create({
-        data: { id: nextId, organizationId: tenant.organizationId, dealId, evaluationId: batch.evaluationId, version: (newest?.version ?? batch.version) + 1, currency: batch.currency, createdBy: tenant.userId },
+        data: { id: nextId, organizationId: tenant.organizationId, dealId, evaluationId: batch.evaluationId, initiatedBySide: batch.initiatedBySide, version: Math.max(newest[0]?.version ?? 0, batch.version) + 1, currency: batch.currency, createdBy: tenant.userId },
       });
       await tx.termProposal.createMany({
         data: batch.terms.map((term) => {
@@ -527,7 +565,42 @@ export class PricingService {
       });
       await this.audit(tx, tenant, dealId, 'terms.counters_accepted', 'term_proposal_batch', nextId, requestId);
     });
-    return this.view(tenant, dealId, requestId);
+    return termSide(role) === 'BUYER' ? this.view(tenant, dealId, requestId) : this.proposedTerms(tenant, dealId, requestId);
+  }
+
+  /**
+   * A version of the seller's own (T-107): the seller drafts terms (headline
+   * price first), then proposes them for the buyer to answer.
+   */
+  async draftSellerTerms(tenant: TenantContext, dealId: string, body: SellerDraftBody, requestId: string) {
+    await this.access.require(tenant, dealId, isSeller, { action: 'terms.drafted', requestId });
+    if (body.terms[0]?.lever !== 'PURCHASE_PRICE' || body.terms.filter((term) => term.lever === 'PURCHASE_PRICE').length !== 1) {
+      throw new UnprocessableEntityException('A version leads with the purchase price, once');
+    }
+    await withTenant(this.prisma, tenant, async (tx) => {
+      const newest = await tx.$queryRaw<{ version: number }[]>`SELECT coalesce(max(version), 0)::int AS version FROM term_proposal_batches WHERE deal_id = ${dealId}::uuid`;
+      const batchId = newId();
+      await tx.termProposalBatch.create({
+        data: { id: batchId, organizationId: tenant.organizationId, dealId, evaluationId: null, initiatedBySide: 'SELLER', version: (newest[0]?.version ?? 0) + 1, currency: body.currency, createdBy: tenant.userId },
+      });
+      await tx.termProposal.createMany({
+        data: body.terms.map((term, ordinal) => ({ id: newId(), organizationId: tenant.organizationId, dealId, batchId, ordinal, lever: term.lever, amount: term.amount, currency: body.currency, findingId: null, sellerNote: term.note })),
+      });
+      await this.audit(tx, tenant, dealId, 'terms.drafted', 'term_proposal_batch', batchId, requestId);
+    });
+    return this.proposedTerms(tenant, dealId, requestId);
+  }
+
+  /** The seller proposes their own draft. One-way: it is frozen from here on. */
+  async proposeSellerTerms(tenant: TenantContext, dealId: string, batchId: string, requestId: string) {
+    await this.access.require(tenant, dealId, isSeller, { action: 'terms.proposed', requestId });
+    await withTenant(this.prisma, tenant, async (tx) => {
+      const batch = await this.draft(tx, dealId, batchId);
+      if (batch.initiatedBySide !== 'SELLER') throw new NotFoundException();
+      await tx.termProposalBatch.update({ where: { id: batchId }, data: { proposedAt: new Date(), proposedBy: tenant.userId } });
+      await this.audit(tx, tenant, dealId, 'terms.proposed', 'term_proposal_batch', batchId, requestId);
+    });
+    return this.proposedTerms(tenant, dealId, requestId);
   }
 
   /**

@@ -1,4 +1,4 @@
-import { Inject, Injectable, NotFoundException, Optional, ForbiddenException } from '@nestjs/common';
+import { ConflictException, Inject, Injectable, NotFoundException, Optional, ForbiddenException } from '@nestjs/common';
 import type { DealSummary } from '@pactlab/contracts';
 import {
   appendAuditEvent,
@@ -95,6 +95,11 @@ export class DealsService {
     requestId: string,
   ): Promise<DealSummary> {
     await this.access.require(tenant, dealId, 'DEAL_WRITE', { action: 'deal.updated', requestId });
+    // Once terms are negotiated on Pactlab, a pact closes only two-sided, from the Close tab (T-107).
+    if (command.stage === 'CLOSED') {
+      const negotiated = await withTenant(this.prisma, tenant, (tx) => tx.termProposalBatch.count({ where: { dealId, proposedAt: { not: null } } }));
+      if (negotiated > 0) throw new ConflictException({ code: 'CLOSE_TWO_SIDED' });
+    }
     const deal = await withTenant(this.prisma, tenant, async (tx) => {
       const updated = await deals.update(tx, dealId, command);
       if (updated) {

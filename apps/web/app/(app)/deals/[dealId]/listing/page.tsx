@@ -1,13 +1,13 @@
-import type { ListingInterestView, ListingMediaView, ListingView } from '@pactlab/contracts';
+import type { ListingInterestView, ListingMediaView, ListingPropertyFact, ListingView } from '@pactlab/contracts';
 import { Badge, Button, buttonVariants, Card, CardContent, CardDescription, CardHeader, CardTitle } from '@pactlab/ui';
 import { ArrowDown, ArrowUp, Eye, ExternalLink, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { CopyButton } from '../../../_lib/copy-button';
 import { serverEnv } from '../../../../../lib/env';
 import { embedUrl, Teaser } from '../../../../listings/_lib/teaser';
-import { apiGet } from '../../_lib/api';
+import { apiGet, apiSend } from '../../_lib/api';
 import { ApiState } from '../../_lib/states';
-import { addImages, addVideo, approveInterest, captionMedia, declineInterest, moveMedia, removeMedia, saveListing, setListingStatus } from './actions';
+import { addImages, addVideo, approveInterest, captionMedia, declineInterest, moveMedia, removeMedia, saveListing, saveProperty, setListingStatus } from './actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,6 +20,7 @@ const STATUS: Record<string, { label: string; variant: 'draft' | 'calculation' |
 const INTENT_LABELS: Record<string, string> = { STRATEGIC: 'Strategic buyer', FINANCIAL: 'Fund / financial buyer', INDIVIDUAL: 'Individual buyer', ADVISER: 'Adviser for a buyer' };
 const OUTCOMES: Record<string, { tone: 'ok' | 'error'; text: string }> = {
   'ok-saved': { tone: 'ok', text: 'Saved.' },
+  'ok-property': { tone: 'ok', text: 'Property facts saved to the teaser.' },
   'ok-published': { tone: 'ok', text: 'Published. Anyone with the link can see the teaser and request access.' },
   'ok-draft': { tone: 'ok', text: 'Unpublished. The link shows nothing until you publish again.' },
   'ok-closed': { tone: 'ok', text: 'Closed. The page is offline; requests already received stay below.' },
@@ -169,9 +170,84 @@ function Requests({ dealId, items }: { dealId: string; items: ListingInterestVie
  * The pact's public page: a teaser the seller writes and publishes at an unguessable link,
  * and the requests for access interested buyers leave on it.
  */
-export default async function ListingTab({ params, searchParams }: { params: Promise<{ dealId: string }>; searchParams: Promise<{ outcome?: string }> }) {
+type LookupResult = Awaited<ReturnType<typeof apiSend<{ available: boolean; formattedAddress: string | null; facts: ListingPropertyFact[] }>>> | null;
+
+/**
+ * The property behind the teaser (batch 2): look its facts up by address
+ * (RentCast in the US), approve the ones to show, save. The address is public
+ * only on a named page; anonymous pages show the facts alone.
+ */
+function PropertyCard({ dealId, listing, lookupAddress, lookupCountry, lookup }: { dealId: string; listing: ListingView; lookupAddress: string; lookupCountry: 'US' | 'GB'; lookup: LookupResult }) {
+  const proposals = lookup?.kind === 'ok' ? lookup.data : null;
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Property</CardTitle>
+        <CardDescription>
+          Look the property up by address and choose which facts to show. {listing.visibility === 'NAMED' ? 'The address is shown on your named page.' : 'Your page is anonymous, so the address is never shown; only the facts you choose.'}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4 text-sm">
+        {listing.propertyFacts.length > 0 || listing.propertyAddress ? (
+          <div className="flex flex-col gap-1">
+            {listing.propertyAddress ? <span className="font-semibold">{listing.propertyAddress}</span> : null}
+            <span className="text-muted-foreground">{listing.propertyFacts.map((fact) => `${fact.label}: ${fact.value}`).join(' · ') || 'No facts saved.'}</span>
+          </div>
+        ) : null}
+        <form method="get" className="flex flex-wrap items-end gap-2">
+          <label className="flex min-w-72 flex-1 flex-col gap-1">
+            <span className="text-xs text-muted-foreground">Address</span>
+            <input name="address" required minLength={5} maxLength={300} defaultValue={lookupAddress || listing.propertyAddress || ''} placeholder="5500 Grand Lake Dr, San Antonio, TX 78244" className={inputClass} />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-xs text-muted-foreground">Country</span>
+            <select name="country" defaultValue={lookupCountry} className={inputClass}>
+              <option value="US">United States</option>
+              <option value="GB">United Kingdom</option>
+            </select>
+          </label>
+          <Button type="submit" size="sm" variant="outline">
+            Look up
+          </Button>
+        </form>
+        {lookup && lookup.kind !== 'ok' ? <p role="alert" className="text-amber-800">The property data service couldn’t be reached. Try again shortly.</p> : null}
+        {proposals && !proposals.available ? <p className="text-muted-foreground">Property lookup isn’t available for this country here yet. You can still describe the property in the teaser.</p> : null}
+        {proposals?.available && proposals.facts.length === 0 ? <p className="text-muted-foreground">No record found for that address. Check the spelling, or describe the property in the teaser.</p> : null}
+        {proposals?.available && proposals.facts.length > 0 ? (
+          <form action={saveProperty.bind(null, dealId)} className="flex flex-col gap-2 rounded-lg border border-border p-3">
+            <input type="hidden" name="address" value={proposals.formattedAddress ?? lookupAddress} />
+            <span className="font-semibold">{proposals.formattedAddress ?? lookupAddress}</span>
+            <span className="text-xs text-muted-foreground">Tick the facts to show; edit any value first if it needs correcting.</span>
+            {proposals.facts.map((fact, index) => (
+              <div key={fact.key} className="grid items-center gap-2 sm:grid-cols-[1.5rem_10rem_1fr_8rem]">
+                <input type="checkbox" name={`use-${index}`} defaultChecked aria-label={`Show ${fact.label}`} className="h-4 w-4 accent-navy" />
+                <span>{fact.label}</span>
+                <input name={`value-${index}`} defaultValue={fact.value} maxLength={120} className={inputClass} aria-label={`${fact.label} value`} />
+                <span className="text-xs text-muted-foreground">{fact.source}</span>
+                <input type="hidden" name={`fact-${index}`} value={JSON.stringify({ key: fact.key, label: fact.label, source: fact.source, retrievedAt: fact.retrievedAt })} />
+              </div>
+            ))}
+            <Button type="submit" size="sm" className="self-start">
+              Save to teaser
+            </Button>
+          </form>
+        ) : null}
+      </CardContent>
+    </Card>
+  );
+}
+
+export default async function ListingTab({ params, searchParams }: { params: Promise<{ dealId: string }>; searchParams: Promise<{ outcome?: string; address?: string; country?: string }> }) {
   const { dealId } = await params;
-  const outcome = OUTCOMES[(await searchParams).outcome ?? ''];
+  const query = await searchParams;
+  const outcome = OUTCOMES[query.outcome ?? ''];
+  // A property lookup asked for (batch 2): proposals only, shown for the seller to approve.
+  const lookupAddress = typeof query.address === 'string' ? query.address.trim().slice(0, 300) : '';
+  const lookupCountry = query.country === 'GB' ? 'GB' : 'US';
+  const lookup =
+    lookupAddress.length >= 5
+      ? await apiSend<{ available: boolean; formattedAddress: string | null; facts: ListingPropertyFact[] }>('POST', `/v1/deals/${dealId}/listing/property-lookup`, { address: lookupAddress, country: lookupCountry })
+      : null;
   const [result, interests] = await Promise.all([apiGet<{ listing: ListingView | null }>(`/v1/deals/${dealId}/listing`), apiGet<{ items: ListingInterestView[] }>(`/v1/deals/${dealId}/listing/interests`)]);
   if (result.kind !== 'ok') return <ApiState result={result} />;
   const listing = result.data.listing;
@@ -188,6 +264,8 @@ export default async function ListingTab({ params, searchParams }: { params: Pro
     summary: listing?.summary ?? '',
     highlights: listing?.highlights ?? [],
     media: listing?.media ?? [],
+    propertyAddress: listing?.propertyAddress ?? null,
+    propertyFacts: listing?.propertyFacts ?? [],
   } as const;
 
   return (
@@ -305,6 +383,8 @@ export default async function ListingTab({ params, searchParams }: { params: Pro
           <CardContent>{listing ? <Teaser listing={draft} imageHref={(id) => `/deals/${dealId}/listing/media/${id}`} /> : <p className="text-sm text-muted-foreground">Save the teaser to preview it.</p>}</CardContent>
         </Card>
       </div>
+
+      {listing ? <PropertyCard dealId={dealId} listing={listing} lookupAddress={lookupAddress} lookupCountry={lookupCountry} lookup={lookup} /> : null}
 
       {listing ? (
         <Card>
