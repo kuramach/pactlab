@@ -1,7 +1,7 @@
 import { apiEnvSchema, applyDatabaseUrls, loadConfig, packPreviewEnabled } from '@pactlab/config';
 import { assertRuntimeRoleIsolation, createPrismaClient, S3ObjectStore } from '@pactlab/db';
 import { readFileSync } from 'node:fs';
-import { LocalEncryptedSecretStore, parseSelfHostedHosts } from '@pactlab/connectors';
+import { DocuSignOAuth, FixturePropertyProvider, LocalEncryptedSecretStore, parseSelfHostedHosts, RentCastPropertyProvider } from '@pactlab/connectors';
 import { createLogger } from '@pactlab/observability';
 import { S3Client } from '@aws-sdk/client-s3';
 import { SESv2Client } from '@aws-sdk/client-sesv2';
@@ -93,6 +93,21 @@ const app = await createApp(
       requiresApproval: config.SIGNUP_REQUIRES_APPROVAL,
       operatorEmail: config.OPERATOR_EMAIL ?? null,
       loginUrl: new URL('/login', config.APP_WEB_ORIGIN).toString(),
+    },
+    // Property data for teaser pages (batch 2): RentCast with a key; synthetic facts outside production.
+    property: config.RENTCAST_API_KEY ? new RentCastPropertyProvider(config.RENTCAST_API_KEY) : config.APP_ENV === 'production' ? null : new FixturePropertyProvider(),
+    // E-signature (T-107): organizations connect their own DocuSign to Pactlab's app registration;
+    // the fixture provider stands in outside production.
+    signing: {
+      fixture: config.APP_ENV !== 'production',
+      docusign:
+        config.DOCUSIGN_INTEGRATION_KEY && config.DOCUSIGN_CLIENT_SECRET && config.DOCUSIGN_AUTH_HOST && config.DOCUSIGN_CONNECT_HMAC_KEY
+          ? {
+              oauth: new DocuSignOAuth({ integrationKey: config.DOCUSIGN_INTEGRATION_KEY, clientSecret: config.DOCUSIGN_CLIENT_SECRET, authHost: config.DOCUSIGN_AUTH_HOST }),
+              connectHmacKey: config.DOCUSIGN_CONNECT_HMAC_KEY,
+              redirectUri: new URL('/settings/docusign/callback', config.APP_WEB_ORIGIN).toString(),
+            }
+          : null,
     },
     emailLogin: {
       tokenSecret: config.AUTH_TOKEN_SECRET,

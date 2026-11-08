@@ -2,7 +2,8 @@ import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitl
 import { EyeOff, GitBranch, HeartHandshake, ListChecks, Users } from 'lucide-react';
 import Link from 'next/link';
 import { BarChart, CHART_COLORS, LineChart } from '../../../_lib/charts';
-import { apiGet } from '../../_lib/api';
+import { COMPANY_TYPE_LABELS, sectionApplies, type CompanyType } from '@pactlab/domain';
+import { apiGet, dealsApi } from '../../_lib/api';
 import { OutcomeBanner } from '../../_lib/outcome';
 import { ApiState } from '../../_lib/states';
 import { setPeopleAccess } from './actions';
@@ -52,6 +53,18 @@ export default async function EngineeringPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { dealId } = await params;
+  // Only packs with code or delivery data have engineering analysis (batch 2).
+  const parties = await dealsApi.parties(dealId);
+  const companyType = parties.kind === 'ok' ? ((parties.data.items.find((party) => party.role === 'SELLER')?.companyType as CompanyType | null | undefined) ?? null) : null;
+  const deal = await dealsApi.get(dealId);
+  if (deal.kind === 'ok' && !sectionApplies('/engineering', { companyType, initiatedBy: deal.data.initiatedBy === 'SELLER' ? 'SELLER' : 'BUYER' })) {
+    return (
+      <EmptyState
+        title={`Engineering doesn’t apply to ${companyType ? (COMPANY_TYPE_LABELS[companyType] ?? 'this') : 'this'} pacts`}
+        description="This pack collects no code or delivery data, so there is no engineering analysis. Its diligence is in Documents, Findings and Finances."
+      />
+    );
+  }
   const query = await searchParams;
   const outcome = query['outcome'];
   const peopleView = parsePeopleView(query['people']);

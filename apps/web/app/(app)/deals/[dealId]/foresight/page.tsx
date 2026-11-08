@@ -22,6 +22,7 @@ const OUTCOMES: Record<string, string> = {
   'ok-forecast': 'Your forecast is saved as a new version; the value under yours is updated below.',
   'invalid-forecast': 'Enter five yearly values as percents, e.g. 2.5 or -1.',
   'error-UNKNOWN_METRIC': 'That metric is not forecast for this pact.',
+  'ok-refreshing': 'Preparing the published and AI forecasts again; this page updates by itself.',
   'ok-metric': 'Metric added. Ask the AI to forecast it, or drag your own line.',
   'invalid-metric': 'Give the metric a name, a one-line definition, a neutral level as a percent (e.g. 3) and how it moves value.',
   'ok-metric-forecast': 'The AI forecast is in, shown dashed next to your line.',

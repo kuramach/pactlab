@@ -215,16 +215,19 @@ describe('buyer personas API (T-105)', () => {
     const v1 = drafted.batches[0]!;
     expect(v1).toMatchObject({ version: 1, evaluationId: grave.id, proposedAt: null });
     // Nothing reaches the seller before it is proposed.
-    expect((await call('target_contributor', 'GET', deal('/terms/proposed'))).body).toEqual({ proposed: null });
+    expect((await call('target_contributor', 'GET', deal('/terms/proposed'))).body).toEqual({ side: 'SELLER', proposed: null, draft: null });
+    // The headline price leads every version (T-107).
+    expect(v1.terms[0]).toMatchObject({ lever: 'PURCHASE_PRICE', amount: grave.termMix.price.amount });
 
-    expect((await pricing('lead', 'PUT', `/terms/${v1.id}/notes`, { notes: [{ ordinal: 0, sellerNote: 'Held for 18 months against the open findings.' }] })).status).toBe(200);
+    expect((await pricing('lead', 'PUT', `/terms/${v1.id}/notes`, { notes: [{ ordinal: 1, sellerNote: 'Held for 18 months against the open findings.' }] })).status).toBe(200);
     expect((await pricing('lead', 'POST', `/terms/${v1.id}/propose`)).status).toBe(201);
     const seen = (await call('target_contributor', 'GET', deal('/terms/proposed'))).body['proposed'] as { version: number; terms: { lever: string; amount: string; sellerNote: string }[] };
     expect(seen.version).toBe(1);
-    expect(seen.terms[0]).toMatchObject({ lever: 'ESCROW', sellerNote: 'Held for 18 months against the open findings.' });
+    expect(seen.terms[0]).toMatchObject({ lever: 'PURCHASE_PRICE' });
+    expect(seen.terms[1]).toMatchObject({ lever: 'ESCROW', sellerNote: 'Held for 18 months against the open findings.' });
     // Proposed terms are frozen.
     expect((await pricing('lead', 'POST', `/terms/${v1.id}/propose`)).status).toBe(409);
-    expect((await pricing('lead', 'PUT', `/terms/${v1.id}/notes`, { notes: [{ ordinal: 0, sellerNote: 'changed' }] })).status).toBe(409);
+    expect((await pricing('lead', 'PUT', `/terms/${v1.id}/notes`, { notes: [{ ordinal: 1, sellerNote: 'changed' }] })).status).toBe(409);
 
     // Re-pricing internally changes nothing seller-side.
     const compounder = view.evaluations.find((evaluation) => evaluation.persona === 'QUALITY_COMPOUNDER')!;
@@ -244,7 +247,7 @@ describe('buyer personas API (T-105)', () => {
   it('shows the seller no persona, parameter, finding or evaluation', async () => {
     const response = await call('target_contributor', 'GET', deal('/terms/proposed'));
     const proposed = response.body['proposed'] as Body;
-    expect(Object.keys(proposed).sort()).toEqual(['agreedAt', 'canRespond', 'currency', 'proposedAt', 'terms', 'version']);
+    expect(Object.keys(proposed).sort()).toEqual(['agreedAt', 'canAcceptCounters', 'canRespond', 'currency', 'declinedAt', 'id', 'initiatedBySide', 'proposedAt', 'terms', 'version']);
     for (const term of proposed['terms'] as Body[]) expect(Object.keys(term).sort()).toEqual(['amount', 'currency', 'lever', 'ordinal', 'response', 'sellerNote']);
     const text = response.text.toLowerCase();
     for (const leak of ['persona', 'compounder', 'value investor', 'value_investor', 'grave', 'personas-1', 'materiality', 'weight', 'evaluation', ...Object.values(found)]) {

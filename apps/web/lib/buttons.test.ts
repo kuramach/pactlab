@@ -13,6 +13,8 @@ const ALLOWED: Readonly<Record<string, number>> = {
   'app/(app)/deals/[dealId]/documents/review-queue.tsx': 1,
   'app/(app)/deals/[dealId]/documents/library.tsx': 1,
   'app/(app)/deals/[dealId]/valuation/balance-sheet-form.tsx': 1,
+  // The persona card's whole surface selects it (batch 2).
+  'app/(app)/deals/[dealId]/valuation/pricing-panel.tsx': 1,
 };
 
 function files(dir: string): string[] {

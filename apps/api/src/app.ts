@@ -26,6 +26,10 @@ export async function createApp(deps: AppDependencies, options: { webOrigin?: st
         done(null, body);
       },
     );
+  // E-signature webhooks are verified over their exact bytes (T-107): read them raw, as a buffer.
+  adapter.getInstance().addHook('onRequest', async (request) => {
+    if (request.method === 'POST' && request.url.split('?')[0] === '/v1/webhooks/signing/docusign') request.headers['content-type'] = 'application/octet-stream';
+  });
   // Document uploads (PDF and Word up to 10 MB, sent as base64 JSON) get a larger limit on that route only.
   adapter.getInstance().addHook('onRoute', (route) => {
     if (route.method === 'POST' && /^\/v1\/deals\/:dealId\/documents\/?$/.test(route.url)) route.bodyLimit = 15 * 1_048_576;

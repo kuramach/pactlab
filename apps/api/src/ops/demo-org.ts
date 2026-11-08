@@ -1,0 +1,424 @@
+/**
+ * `scripts/ops-task.sh <env> src/ops/demo-org.ts [--reset]`: the demo organization (batch 2,
+ * ADR 0019 amendment). Creates "Pactlab Demo (synthetic)" with
+ *   - kumar+demo@pactlab.ai: organization owner and deal lead (the buyer),
+ *   - kumar+demoseller@pactlab.ai: the seller's contributor on each pact (a guest),
+ *   - a synthetic reviewer, so findings are accepted by a second person,
+ * and one complete pact per pack (released packs on live; every pack elsewhere), built
+ * through the real services from the public pactlab-demo-data repository at a pinned commit:
+ * the data room, accepted findings, Downside / Base / Upside scenarios, a persona evaluation,
+ * terms countered and agreed, both sides signed off, and a closing checklist with the funds
+ * confirmed. Plus one seller-led Multifamily pact with a published teaser.
+ *
+ * Synthetic only, and only ever this one organization. Model calls are scripted (no Bedrock).
+ * Re-running adds only what is missing; `--reset` deletes the demo organization's pacts first.
+ * Sends no email. Never prints credentials.
+ */
+import 'reflect-metadata';
+import { S3Client } from '@aws-sdk/client-s3';
+import { defaultPromptRegistry, ScriptedModelTransport, TransportClaudeGateway } from '@pactlab/ai';
+import { apiEnvSchema, applyDatabaseUrls, loadConfig } from '@pactlab/config';
+import { FixturePropertyProvider } from '@pactlab/connectors';
+import { createPrismaClient, resolvePrincipal, S3ObjectStore } from '@pactlab/db';
+import { uploadQuerySchema } from '@pactlab/contracts';
+import { COMPANY_TYPES, IMPORT_TARGET_DEFINITIONS, isReleasedCompanyType, newId, packFor, type CompanyType, type TenantContext } from '@pactlab/domain';
+import { createLogger } from '@pactlab/observability';
+import pg from 'pg';
+import type { PrismaClient } from '@pactlab/db';
+import { createApp } from '../app';
+import { DisabledIdentityVerifier } from '../auth/identity';
+import { CloseService } from '../close/close.service';
+import { DealDeletionService } from '../deals/deletion/deal-deletion.service';
+import { demoModelResponse } from '../demo-seed/seed';
+import { DocumentsService } from '../documents/documents.service';
+import { FileSystemObjectStore } from '../documents/storage-adapters';
+import { SignatureMalwareScanner } from '../documents/upload-policy';
+import { FindingsService } from '../findings/findings.service';
+import { ImportsService } from '../imports/imports.service';
+import { ListingsService } from '../listings/listings.service';
+import { PactsService } from '../pacts/pacts.service';
+import { PricingService } from '../pricing/pricing.service';
+import { ValuationService } from '../valuation/valuation.service';
+
+/** Fixed identities, so re-runs find what is there. */
+export const DEMO_ORG = {
+  id: '01900000-0000-7000-8000-0000000de001',
+  name: 'Pactlab Demo (synthetic)',
+  slug: 'pactlab-demo',
+  buyer: { id: '01900000-0000-7000-8000-0000000de002', email: 'kumar+demo@pactlab.ai', name: 'Demo Buyer Lead' },
+  seller: { id: '01900000-0000-7000-8000-0000000de003', email: 'kumar+demoseller@pactlab.ai', name: 'Demo Seller' },
+  reviewer: { id: '01900000-0000-7000-8000-0000000de004', name: 'Demo Reviewer (synthetic)' },
+} as const;
+
+/** The demo data at a pinned commit (https://github.com/kuramach/pactlab-demo-data). */
+export const DEMO_DATA_COMMIT = '8d19312bf422d0a98379a5433d389d8b8afa37b1';
+const REQUEST_ID = 'ops-demo-org';
+const LABELS: Readonly<Record<string, string>> = {
+  SOFTWARE_SAAS: 'Software & SaaS',
+  FINTECH: 'Fintech',
+  HEALTHCARE: 'Healthcare',
+  TELECOM_MEDIA: 'Telecom & Media',
+  ECOMMERCE_DTC: 'E-commerce',
+  MULTIFAMILY: 'Multifamily',
+  COMMERCIAL_PROPERTY: 'Commercial property',
+  HOTELS: 'Hotels',
+  SMALL_CLINICS: 'Clinics',
+  HOSPITALS: 'Hospitals',
+  PROFESSIONAL_SERVICES: 'Professional services',
+  PHARMA_BIOTECH: 'Pharma & Biotech',
+  VENTURE_RAISE: 'Venture raise',
+};
+export const pactName = (type: CompanyType) => `${LABELS[type] ?? type} demo (synthetic)`;
+const SELLER_LED = 'Multifamily for sale demo (synthetic)';
+
+/** Scenario assumptions by valuation method: property by NOI and cap rate, a raise by pre-money, the rest by revenue multiple. */
+function scenarios(type: CompanyType, pricedFindingIds: readonly string[]) {
+  const bridge = { cash: '1500000', debt: '4000000', debtLikeItems: '250000', workingCapitalAdjustment: '0' };
+  const property = type === 'MULTIFAMILY' || type === 'COMMERCIAL_PROPERTY' || type === 'HOTELS';
+  return (['DOWNSIDE', 'BASE', 'UPSIDE'] as const).map((scenarioCase, index) => ({
+    name: `${scenarioCase[0]}${scenarioCase.slice(1).toLowerCase()} (synthetic)`,
+    scenarioCase,
+    values: {
+      assumptions: property
+        ? { method: 'NOI_CAP_RATE' as const, noi: '3200000', capRate: ['0.0675', '0.06', '0.055'][index] as string }
+        : type === 'VENTURE_RAISE'
+          ? { method: 'ROUND_PRE_MONEY' as const, preMoney: ['20000000', '25000000', '30000000'][index] as string }
+          : { method: 'ARR_MULTIPLE' as const, arr: '12000000', multiple: ['4', '5', '6'][index] as string },
+      bridge: type === 'VENTURE_RAISE' ? { cash: '0', debt: '0', debtLikeItems: '0', workingCapitalAdjustment: '0' } : bridge,
+      stockConsiderationShare: '0',
+      // Accepted priced risks move each case: the downside takes their high price, the upside their low.
+      findingLinks: pricedFindingIds.map((findingId) => ({ findingId, point: (['HIGH', 'MID', 'LOW'] as const)[index] as 'LOW' | 'MID' | 'HIGH' })),
+      balanceSheetLinks: [] as string[],
+      lbo: null,
+      accretionDilution: null,
+      sensitivity: null,
+    },
+  }));
+}
+
+/** The schema owner's session: a pg client when deployed, PGlite in tests. */
+export interface OwnerSession {
+  query<T>(sql: string, params?: unknown[]): Promise<{ rows: T[] }>;
+}
+
+/** The organization, its three people and their memberships, as the schema owner. Idempotent. */
+export async function ensureDemoOrganization(owner: OwnerSession): Promise<void> {
+  const other = await owner.query<{ id: string }>(`SELECT id FROM organizations WHERE slug = $1 AND id <> $2`, [DEMO_ORG.slug, DEMO_ORG.id]);
+  if (other.rows.length > 0) throw new Error(`Another organization already uses the slug ${DEMO_ORG.slug}; refusing to touch it.`);
+  await owner.query(
+    `INSERT INTO organizations (id, name, slug, auth_method, status, created_via, updated_at) VALUES ($1, $2, $3, 'EMAIL_CODE', 'ACTIVE', 'DEMO', now())
+     ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, status = 'ACTIVE'`,
+    [DEMO_ORG.id, DEMO_ORG.name, DEMO_ORG.slug],
+  );
+  for (const person of [DEMO_ORG.buyer, DEMO_ORG.seller]) {
+    await owner.query(
+      `INSERT INTO users (id, auth0_subject, display_name, email) VALUES ($1, $2, $3, $4)
+       ON CONFLICT (id) DO UPDATE SET display_name = EXCLUDED.display_name, email = EXCLUDED.email`,
+      [person.id, `pactlab|${person.id}`, person.name, person.email],
+    );
+  }
+  await owner.query(`INSERT INTO users (id, auth0_subject, display_name) VALUES ($1, $2, $3) ON CONFLICT (id) DO NOTHING`, [DEMO_ORG.reviewer.id, `pactlab|${DEMO_ORG.reviewer.id}`, DEMO_ORG.reviewer.name]);
+  await owner.query(
+    `INSERT INTO organization_memberships (id, organization_id, user_id, role) VALUES ($1, $2, $3, 'ORG_OWNER'), ($4, $2, $5, 'MEMBER')
+     ON CONFLICT DO NOTHING`,
+    [newId(), DEMO_ORG.id, DEMO_ORG.buyer.id, newId(), DEMO_ORG.reviewer.id],
+  );
+}
+
+/** The seller (a guest) and the reviewer on a pact. */
+async function addPactPeople(owner: OwnerSession, dealId: string): Promise<void> {
+  await owner.query(
+    `INSERT INTO deal_memberships (id, organization_id, deal_id, user_id, role) VALUES ($1, $2, $3, $4, 'TARGET_CONTRIBUTOR'), ($5, $2, $3, $6, 'REVIEWER')
+     ON CONFLICT (organization_id, deal_id, user_id) DO NOTHING`,
+    [newId(), DEMO_ORG.id, dealId, DEMO_ORG.seller.id, newId(), DEMO_ORG.reviewer.id],
+  );
+}
+
+/** Where a pack's demo files come from: the pinned GitHub commit when deployed, a generated folder in tests. Paths are under `<pack>/USD/`. */
+export interface DemoDataSource {
+  file(type: CompanyType, path: string): Promise<Buffer>;
+  /** The file names in `documents/`. */
+  documents(type: CompanyType): Promise<string[]>;
+}
+
+/** The public demo data at the pinned commit, over HTTPS (raw files, and the contents API for listings). */
+export const githubDemoData: DemoDataSource = {
+  async file(type, path) {
+    const url = `https://raw.githubusercontent.com/kuramach/pactlab-demo-data/${DEMO_DATA_COMMIT}/${packFor(type).slug}/USD/${path}`;
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`Demo data not found: ${path} (${response.status})`);
+    return Buffer.from(await response.arrayBuffer());
+  },
+  async documents(type) {
+    const url = `https://api.github.com/repos/kuramach/pactlab-demo-data/contents/${packFor(type).slug}/USD/documents?ref=${DEMO_DATA_COMMIT}`;
+    const response = await fetch(url, { headers: { accept: 'application/vnd.github+json' } });
+    if (!response.ok) throw new Error(`Demo document list not found (${response.status})`);
+    return ((await response.json()) as { name: string; type: string }[]).filter((entry) => entry.type === 'file').map((entry) => entry.name);
+  },
+};
+
+type App = Awaited<ReturnType<typeof createApp>>;
+interface People {
+  readonly buyer: TenantContext;
+  readonly seller: TenantContext;
+  readonly reviewer: TenantContext;
+}
+
+/** One complete buyer-led pact for a pack, from data room to funds confirmed. Returns a line for the report. */
+export async function buildPact(app: App, owner: OwnerSession, people: People, type: CompanyType, data: DemoDataSource): Promise<string> {
+  const pacts = app.get(PactsService, { strict: false });
+  const documents = app.get(DocumentsService, { strict: false });
+  const findings = app.get(FindingsService, { strict: false });
+  const valuation = app.get(ValuationService, { strict: false });
+  const pricing = app.get(PricingService, { strict: false });
+  const close = app.get(CloseService, { strict: false });
+  const name = pactName(type);
+
+  const started = await pacts.start(
+    people.buyer,
+    {
+      name,
+      baseCurrency: 'USD',
+      initiatedBy: 'BUYER',
+      buyer: { name: 'Demo Capital (synthetic)', ownership: 'PRIVATE', ticker: null, exchange: null, website: null, companyType: null },
+      seller: { name: `${LABELS[type]} Target (synthetic)`, ownership: 'PRIVATE', ticker: null, exchange: null, website: null, companyType: type },
+      askingPrice: null,
+      linkedSale: null,
+      persona: 'VALUE_INVESTOR',
+    },
+    REQUEST_ID,
+  );
+  const dealId = started.id;
+  await addPactPeople(owner, dealId);
+  const scoped = (person: TenantContext): TenantContext => ({ ...person, dealIds: [...person.dealIds, dealId as never] });
+  const buyer = scoped(people.buyer);
+  const seller = scoped(people.seller);
+  const reviewer = scoped(people.reviewer);
+
+  // The data room: one zip, unpacked and sorted by the intake; shared so the seller sees the documents too.
+  const zip = await data.file(type, 'dataroom.zip');
+  await documents.uploadArchive(buyer, dealId, { fileName: 'dataroom.zip', contentBase64: zip.toString('base64'), retentionClass: 'DEAL_TERM', dataClass: 'BUSINESS', aiExcluded: false, shared: true }, REQUEST_ID);
+
+  // The pack's extracts through the import pipeline (metrics, and the checks that run on import), as the pack acceptance tests load them.
+  const imports = app.get(ImportsService, { strict: false });
+  for (const target of packFor(type).importTargets) {
+    const fileName = IMPORT_TARGET_DEFINITIONS[target].fileName;
+    const query = uploadQuerySchema.parse({ system: 'pactlab_standard', fileName, ...(target === 'BILLING_INVOICE_LINE' ? {} : { target }) });
+    const upload = await imports.upload(buyer, dealId, query, new Uint8Array(await data.file(type, fileName)), REQUEST_ID);
+    await imports.import(buyer, dealId, upload.id, upload.suggestedMapping as never, REQUEST_ID);
+  }
+  // The paged documents some checks cite (PDFs, with the extracts' paged copy kept to the financial class).
+  for (const file of (await data.documents(type)).filter((name) => name.endsWith('.pdf'))) {
+    const pdf = await data.file(type, `documents/${file}`);
+    await documents.upload(buyer, dealId, { fileName: file, contentType: 'application/pdf', contentBase64: pdf.toString('base64'), retentionClass: 'DEAL_TERM', dataClass: file.startsWith('99-') ? 'FINANCIAL' : 'BUSINESS', aiExcluded: false, shared: !file.startsWith('99-') }, REQUEST_ID);
+  }
+
+  // Pack rules draft findings from the imported extracts; the lead submits them and a second person accepts.
+  await findings.runPackRules(buyer, dealId, REQUEST_ID).catch(() => undefined);
+  const drafts = (await findings.list(buyer, dealId, { status: 'DRAFT' }, REQUEST_ID)).items.slice(0, 4);
+  let accepted = 0;
+  const pricedIds: string[] = [];
+  for (const draft of drafts) {
+    try {
+      let version = draft.version;
+      // A drag needs a price before it can be accepted; the reviewer's range here is synthetic, staggered per finding.
+      if (draft.direction === -1 && !draft.pricedRisk) {
+        const low = 150_000 * (accepted + 1);
+        const priced = await findings.update(buyer, dealId, draft.id, { expectedVersion: version, pricedRisk: { type: 'PRICE_REDUCTION', currency: 'USD', low: `${low}.00`, high: `${low * 2}.00`, basis: 'Reviewer estimate from the data room (synthetic demo).' } } as never, REQUEST_ID);
+        version = (priced as { version: number }).version;
+      }
+      const submitted = await findings.review(buyer, dealId, draft.id, { expectedVersion: version, decision: 'SUBMITTED', rationale: 'Evidence checked (synthetic demo).' }, REQUEST_ID);
+      await findings.review(reviewer, dealId, draft.id, { expectedVersion: submitted.finding.version, decision: 'ACCEPTED', rationale: 'Confirmed against the data room (synthetic demo).' }, REQUEST_ID);
+      accepted += 1;
+      // Only priced risks move a price; value confirmations are shown without a link.
+      if (draft.direction === -1) pricedIds.push(draft.id);
+    } catch {
+      // A draft that needs more than this demo provides stays a draft for the viewer to review.
+    }
+  }
+
+  // Scenarios tagged for the personas, then a persona evaluation and the active pricing.
+  for (const scenario of scenarios(type, pricedIds)) await valuation.create(buyer, dealId, scenario, REQUEST_ID);
+  if (type === 'VENTURE_RAISE') return `${name}: data room, ${accepted} findings accepted, scenarios (a raise has no buyer terms)`;
+  await pricing.evaluate(buyer, dealId, { persona: 'VALUE_INVESTOR' }, REQUEST_ID);
+
+  // Terms: proposed, the price countered by the seller, revised, then accepted in full.
+  const drafted = await pricing.draftTerms(buyer, dealId, REQUEST_ID);
+  const v1 = drafted.batches[0];
+  if (!v1) return `${name}: terms could not be drafted`;
+  await pricing.propose(buyer, dealId, v1.id, REQUEST_ID);
+  const price = v1.terms[0];
+  const counter = price ? (Math.round(Number(price.amount) * 1.04 * 100) / 100).toFixed(2) : null;
+  await pricing.respond(
+    seller,
+    dealId,
+    { responses: v1.terms.map((term) => (term.ordinal === 0 && counter ? { ordinal: 0, decision: 'COUNTER' as const, counterAmount: counter, note: 'Our floor, given the occupancy trend.' } : { ordinal: term.ordinal, decision: 'ACCEPT' as const, note: '' })) },
+    REQUEST_ID,
+  );
+  const v2 = (await pricing.acceptCounters(buyer, dealId, v1.id, REQUEST_ID)) as { batches: { id: string; terms: { ordinal: number }[] }[] };
+  const next = v2.batches[0];
+  if (!next) return `${name}: counter could not be taken into a new version`;
+  await pricing.propose(buyer, dealId, next.id, REQUEST_ID);
+  await pricing.respond(seller, dealId, { responses: next.terms.map((term) => ({ ordinal: term.ordinal, decision: 'ACCEPT' as const, note: '' })) }, REQUEST_ID);
+
+  // Both signatories sign off in Pactlab, and the closing checklist is worked to the end.
+  await close.nameSignatory(buyer, dealId, 'BUYER', { userId: DEMO_ORG.buyer.id }, REQUEST_ID);
+  await close.nameSignatory(seller, dealId, 'SELLER', { userId: DEMO_ORG.seller.id }, REQUEST_ID);
+  await close.signOff(buyer, dealId, next.id, REQUEST_ID);
+  await close.signOff(seller, dealId, next.id, REQUEST_ID);
+  await close.addItem(seller, dealId, { kind: 'CONDITION', title: 'Third-party consents delivered (synthetic)', ownerSide: 'SELLER' }, REQUEST_ID);
+  const agreedPrice = counter ?? price?.amount ?? '1.00';
+  const withFunds = await close.addItem(buyer, dealId, { kind: 'FUNDS', title: 'Purchase price at completion', amount: agreedPrice, currency: 'USD' }, REQUEST_ID);
+  const funds = withFunds.items.find((item) => item.kind === 'FUNDS');
+  const condition = withFunds.items.find((item) => item.kind === 'CONDITION');
+  if (funds) {
+    await close.recordPayment(buyer, dealId, funds.id, { paidOn: new Date().toISOString().slice(0, 10), reference: 'WIRE-DEMO-001 (synthetic)', proofDocumentId: null }, REQUEST_ID);
+    await close.tick(seller, dealId, funds.id, REQUEST_ID);
+  }
+  if (condition) await close.tick(seller, dealId, condition.id, REQUEST_ID);
+  return `${name}: data room, ${accepted} findings accepted, scenarios, persona pricing, terms countered and agreed, both signed, funds confirmed (ready to close)`;
+}
+
+/** One seller-led Multifamily pact with a published teaser and its property facts. */
+export async function buildTeaser(app: App, people: People): Promise<string> {
+  const pacts = app.get(PactsService, { strict: false });
+  const listings = app.get(ListingsService, { strict: false });
+  const started = await pacts.start(
+    people.buyer,
+    {
+      name: SELLER_LED,
+      baseCurrency: 'USD',
+      initiatedBy: 'SELLER',
+      buyer: null,
+      seller: { name: 'Larkfield Residential (synthetic)', ownership: 'PRIVATE', ticker: null, exchange: null, website: null, companyType: 'MULTIFAMILY' },
+      askingPrice: null,
+      linkedSale: null,
+      persona: null,
+    },
+    REQUEST_ID,
+  );
+  const lead = { ...people.buyer, dealIds: [...people.buyer.dealIds, started.id as never] };
+  await listings.save(
+    lead,
+    started.id,
+    {
+      visibility: 'ANONYMOUS',
+      codename: 'Project Larkfield',
+      publicName: null,
+      headline: '96-unit garden-style apartment community, Midwest (synthetic)',
+      sector: 'Multifamily',
+      region: 'Midwest, United States',
+      sizeBand: '90–100 units',
+      askingLow: '14000000',
+      askingHigh: '16000000',
+      askingCurrency: 'USD',
+      summary: 'A stabilised garden-style community in three buildings. Synthetic demo listing: every name and figure is invented.',
+      highlights: ['94% occupancy over twelve months', 'Value-add on unit interiors', 'Long-tenured on-site team'],
+      indexable: false,
+    },
+    REQUEST_ID,
+  );
+  const proposals = await listings.lookupProperty(lead, started.id, { address: '1200 Larkfield Commons Dr, Columbus, OH 43215', country: 'US' }, REQUEST_ID);
+  await listings.saveProperty(lead, started.id, { address: proposals.formattedAddress, facts: proposals.facts }, REQUEST_ID);
+  await listings.setStatus(lead, started.id, { status: 'PUBLISHED' }, REQUEST_ID);
+  return `${SELLER_LED}: published teaser with property facts`;
+}
+
+/** Creates the organization, then whatever pacts are missing (all of them after `reset`). Returns the report lines. */
+export async function runDemoOrg(
+  app: App,
+  owner: OwnerSession,
+  prisma: PrismaClient,
+  options: { types: readonly CompanyType[]; reset: boolean; data: DemoDataSource },
+): Promise<string[]> {
+  const { types, reset } = options;
+  const report: string[] = [];
+  await ensureDemoOrganization(owner);
+  const principal = (id: string) => resolvePrincipal(prisma, { subject: `pactlab|${id}`, externalOrganizationId: DEMO_ORG.id, issuer: 'PACTLAB' });
+  const existing = await owner.query<{ id: string; name: string }>(`SELECT id, name FROM deals WHERE organization_id = $1 AND status <> 'DELETED'`, [DEMO_ORG.id]);
+  if (reset && existing.rows.length > 0) {
+    const lead = await principal(DEMO_ORG.buyer.id);
+    if (!lead) throw new Error('The demo buyer cannot be resolved.');
+    const deletion = app.get(DealDeletionService, { strict: false });
+    for (const deal of existing.rows) await deletion.delete({ ...lead, dealIds: [...lead.dealIds, deal.id as never] }, deal.id, deal.name, REQUEST_ID);
+    report.push(`reset: ${existing.rows.length} demo pacts deleted`);
+  }
+  const have = new Set(reset ? [] : existing.rows.map((row) => row.name));
+  for (const type of types) {
+    if (have.has(pactName(type))) {
+      report.push(`${pactName(type)}: already present`);
+      continue;
+    }
+    const [buyer, seller, reviewer] = await Promise.all([principal(DEMO_ORG.buyer.id), principal(DEMO_ORG.seller.id), principal(DEMO_ORG.reviewer.id)]);
+    if (!buyer || !reviewer) throw new Error('The demo people cannot be resolved.');
+    // Before the first pact the seller is on nothing yet; a guest context resolves once they are.
+    const sellerContext = seller ?? { organizationId: DEMO_ORG.id, userId: DEMO_ORG.seller.id, organizationRole: 'GUEST', dealIds: [] };
+    try {
+      report.push(await buildPact(app, owner, { buyer, seller: sellerContext as TenantContext, reviewer }, type, options.data));
+    } catch (error) {
+      report.push(`${pactName(type)}: FAILED (${error instanceof Error ? error.message : 'unknown error'})`);
+    }
+  }
+  if (!have.has(SELLER_LED) && types.includes('MULTIFAMILY')) {
+    const buyer = await principal(DEMO_ORG.buyer.id);
+    if (buyer) {
+      try {
+        report.push(await buildTeaser(app, { buyer, seller: buyer, reviewer: buyer }));
+      } catch (error) {
+        report.push(`${SELLER_LED}: FAILED (${error instanceof Error ? error.message : 'unknown error'})`);
+      }
+    }
+  }
+  // Foresight prepares itself the first time each pact's tab is opened.
+  return report;
+}
+
+/** The run: environment checks, then the organization, then whatever pacts are missing. */
+async function main(): Promise<void> {
+  applyDatabaseUrls();
+  const config = loadConfig(apiEnvSchema);
+  const reset = process.argv.includes('--reset');
+  const ownerUrl = process.env['DATABASE_MIGRATION_URL'];
+  if (!ownerUrl) throw new Error('DATABASE_MIGRATION_URL is required (the schema owner creates the demo organization).');
+  const objectStore =
+    config.APP_ENV === 'local' && config.DOCUMENT_STORE_DIR
+      ? new FileSystemObjectStore(config.DOCUMENT_STORE_DIR)
+      : config.DOCUMENT_STORE === 's3' && config.DOCUMENT_BUCKET && config.DOCUMENT_KMS_KEY_ID
+        ? new S3ObjectStore(new S3Client({ region: config.AWS_REGION }), config.DOCUMENT_BUCKET, config.DOCUMENT_KMS_KEY_ID)
+        : null;
+  if (!objectStore) throw new Error('The demo organization needs the document store (DOCUMENT_STORE_DIR locally, or the S3 store when deployed).');
+
+  const owner = new pg.Client({ connectionString: ownerUrl });
+  await owner.connect();
+  const prisma = createPrismaClient({ connectionString: config.DATABASE_URL });
+  const synthetic = { modelId: 'synthetic-fixture', effort: 'low' } as const;
+  // Every pack outside production; the released ones on live.
+  const types = COMPANY_TYPES.filter((type) => type !== 'OTHER' && (config.APP_ENV !== 'production' || isReleasedCompanyType(type)));
+  const app = await createApp({
+    prisma,
+    identityVerifier: new DisabledIdentityVerifier(),
+    logger: createLogger('demo-org', { level: 'warn' }),
+    uploads: { objectStore, malwareScanner: new SignatureMalwareScanner(), importQueue: null },
+    documents: {
+      objectStore,
+      malwareScanner: new SignatureMalwareScanner(),
+      gateway: new TransportClaudeGateway({ transport: new ScriptedModelTransport(demoModelResponse), registry: defaultPromptRegistry(), routes: { balanced: synthetic, deep_review: synthetic, fast: synthetic } }),
+    },
+    // The demo pacts may use packs not yet released here; the script, not the environment, decides which.
+    packPreview: true,
+    property: new FixturePropertyProvider(),
+    signing: { fixture: false, docusign: null },
+  });
+  let report: string[];
+  try {
+    report = await runDemoOrg(app, owner, prisma, { types, reset, data: githubDemoData });
+  } finally {
+    await app.close();
+    await owner.end();
+  }
+  process.stdout.write(`Demo organization "${DEMO_ORG.name}" (${config.APP_ENV}): sign in as ${DEMO_ORG.buyer.email} (buyer) or ${DEMO_ORG.seller.email} (seller).\n${report.map((line) => ` - ${line}`).join('\n')}\n`);
+}
+
+if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).href) {
+  await main();
+}

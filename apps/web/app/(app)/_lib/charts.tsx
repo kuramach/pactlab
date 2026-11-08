@@ -2,6 +2,7 @@
 
 import type { ECharts } from 'echarts';
 import { useEffect, useRef } from 'react';
+import { labelRows } from './label-rows';
 
 /**
  * Brand charts on ECharts (the project's settled visual library), rendered
@@ -385,12 +386,15 @@ export function MultipleRangeChart({
     const values = [...comparables.map((point) => Number(point.multiple)), ...marks.map((mark) => Number(mark.multiple))];
     const max = Math.ceil(Math.max(1, ...values) + 0.5);
     const min = Math.max(0, Math.floor(Math.min(...values, max) - 0.5));
+    // The price marks (Sextant, Ask) label above the plot, stacked when close; the median labels below it (batch 2).
+    const rows = labelRows(marks.map((mark) => Number(mark.multiple)), (max - min) * 0.16);
+    const rowCount = Math.max(1, ...rows.map((row) => row + 1));
     const lines = [
-      ...(stats ? [{ name: 'Median', multiple: stats.median, color: CHART_COLORS.slate, dashed: true }] : []),
-      ...marks.map((mark) => ({ ...mark, dashed: false })),
+      ...(stats ? [{ name: 'Median', multiple: stats.median, color: CHART_COLORS.slate, dashed: true, position: 'start' as const, distance: 6 }] : []),
+      ...marks.map((mark, index) => ({ ...mark, dashed: false, position: 'end' as const, distance: 6 + (rows[index] ?? 0) * 15 })),
     ];
     return {
-      grid: { left: 8, right: 16, top: 34, bottom: 28, containLabel: true },
+      grid: { left: 8, right: 16, top: 20 + rowCount * 15, bottom: stats ? 46 : 28, containLabel: true },
       tooltip: {
         trigger: 'item',
         confine: true,
@@ -419,7 +423,7 @@ export function MultipleRangeChart({
                     data: lines.map((line) => ({
                       xAxis: Number(line.multiple),
                       lineStyle: { color: line.color, width: 2, type: line.dashed ? 'dashed' : 'solid' },
-                      label: { formatter: `${line.name} ${Number(line.multiple).toFixed(1)}×`, color: line.color, fontWeight: 700, fontSize: 11, position: 'end' },
+                      label: { formatter: `${line.name} ${Number(line.multiple).toFixed(1)}×`, color: line.color, fontWeight: 700, fontSize: 11, position: line.position, distance: line.distance },
                     })),
                   },
                 }

@@ -9,10 +9,12 @@ import {
   evaluateBodySchema,
   evaluationParamsSchema,
   personaBodySchema,
+  sellerDraftBodySchema,
   sellerNotesBodySchema,
   termResponsesBodySchema,
   type EvaluateBody,
   type PersonaBody,
+  type SellerDraftBody,
   type SellerNotesBody,
   type TermResponsesBody,
 } from './pricing.schemas';
@@ -104,7 +106,32 @@ export class ProposedTermsController {
     return this.service.proposedTerms(tenant, params.dealId, requestId);
   }
 
-  /** The seller's contributors accept, reject or counter the latest proposed terms. */
+  /** The seller drafts a version of their own (T-107). */
+  @Post('drafts')
+  @HttpCode(201)
+  draft(
+    @Tenant() tenant: TenantContext,
+    @RequestId() requestId: string,
+    @Param(new ZodValidationPipe(dealParamsSchema)) params: DealParams,
+    @Body(new ZodValidationPipe(sellerDraftBodySchema)) body: SellerDraftBody,
+  ) {
+    return this.service.draftSellerTerms(tenant, params.dealId, body, requestId);
+  }
+
+  @Post(':batchId/propose')
+  @HttpCode(201)
+  propose(@Tenant() tenant: TenantContext, @RequestId() requestId: string, @Param(new ZodValidationPipe(batchParamsSchema)) params: BatchParams) {
+    return this.service.proposeSellerTerms(tenant, params.dealId, params.batchId, requestId);
+  }
+
+  /** The proposing side takes the other side's counters into its next version. */
+  @Post(':batchId/accept-counters')
+  @HttpCode(201)
+  acceptCounters(@Tenant() tenant: TenantContext, @RequestId() requestId: string, @Param(new ZodValidationPipe(batchParamsSchema)) params: BatchParams) {
+    return this.service.acceptCounters(tenant, params.dealId, params.batchId, requestId);
+  }
+
+  /** The other side accepts, rejects or counters the latest proposed terms. */
   @Post('proposed/responses')
   @HttpCode(201)
   respond(

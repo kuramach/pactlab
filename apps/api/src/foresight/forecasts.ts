@@ -10,6 +10,14 @@ export function forecastYears(now: Date): number[] {
 
 /** A baseline older than this is refreshed in the background the next time Foresight is opened. */
 export const BASELINE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+/** A refresh that left the AI forecasts missing is tried again after this, once AI is on (batch 2). */
+export const BASELINE_AI_RETRY_MS = 60 * 60 * 1000;
+
+/** True when a baseline's notes say the AI forecasts are missing (AI off, unreachable, or partial). */
+export function aiForecastsMissing(notes: readonly string[]): boolean {
+  return notes.some((note) => /\bAI\b/.test(note));
+}
+
 /** A refresh still RUNNING after this is treated as lost (process restarted) and may start again. */
 export const BASELINE_STALE_RUN_MS = 10 * 60 * 1000;
 

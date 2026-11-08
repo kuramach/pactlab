@@ -30,5 +30,17 @@ export const termResponsesBodySchema = z.strictObject({
 });
 export type TermResponsesBody = z.infer<typeof termResponsesBodySchema>;
 
+const TERM_LEVERS = ['PURCHASE_PRICE', 'PRICE_REDUCTION', 'REMEDIATION_COST', 'ESCROW', 'INDEMNITY', 'RETENTION', 'EARNOUT', 'SELLER_FINANCING'] as const;
+
+/** A version the seller drafts (T-107): the purchase price first, then any terms they ask for. */
+export const sellerDraftBodySchema = z.strictObject({
+  currency: z.string().regex(/^[A-Z]{3}$/),
+  terms: z
+    .array(z.strictObject({ lever: z.enum(TERM_LEVERS), amount: z.string().regex(/^\d{1,18}(\.\d{1,2})?$/), note: z.string().trim().max(1000).default('') }))
+    .min(1)
+    .max(20),
+});
+export type SellerDraftBody = z.infer<typeof sellerDraftBodySchema>;
+
 export const evaluationParamsSchema = z.strictObject({ dealId: z.uuid(), evaluationId: z.uuid() });
 export const batchParamsSchema = z.strictObject({ dealId: z.uuid(), batchId: z.uuid() });

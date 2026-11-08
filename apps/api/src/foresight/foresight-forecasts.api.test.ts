@@ -177,6 +177,23 @@ describe('Foresight forecasts (T-094 B10)', { timeout: 60_000 }, () => {
     expect(audit.rows.map((row) => row.action)).toEqual(expect.arrayContaining(['foresight.metric_defined', 'foresight.metric_ai_forecast', 'foresight.metric_archived']));
   });
 
+  it('retries missing AI forecasts within the hour once AI is on, not after 30 days (batch 2)', async () => {
+    await call(app, 'lead', 'GET', '');
+    await app.get(ForesightService).whenIdle();
+    // As if the last refresh ran with AI off two hours ago.
+    await db.owner.query(`UPDATE foresight_baselines SET status = 'PARTIAL', notes = ARRAY['AI is off in this environment: AI forecasts appear once it is switched on.'], started_at = now() - interval '2 hours', finished_at = now() - interval '2 hours' WHERE deal_id = $1`, [a.dealId]);
+    await db.owner.query(`DELETE FROM foresight_forecasts WHERE deal_id = $1 AND source = 'AI'`, [a.dealId]);
+    await call(app, 'lead', 'GET', '');
+    await app.get(ForesightService).whenIdle();
+    const forecasts = (await call(app, 'lead', 'GET', '')).body['forecasts'] as { status: string; metrics: { key: string; ai: Body | null }[] };
+    expect(forecasts.status).toBe('READY');
+    expect(forecasts.metrics.every((metric) => metric.ai !== null || metric.key.startsWith('custom.'))).toBe(true);
+    // A fresh partial result is not retried again at once.
+    await db.owner.query(`UPDATE foresight_baselines SET status = 'PARTIAL', notes = ARRAY['The AI forecast could not be made just now; it will be tried again later.'], finished_at = now() WHERE deal_id = $1`, [a.dealId]);
+    await call(app, 'lead', 'GET', '');
+    expect(((await call(app, 'lead', 'GET', '')).body['forecasts'] as { status: string }).status).toBe('PARTIAL');
+  });
+
   it('with the provider down and AI off, the baseline says what is missing instead of failing silently', async () => {
     const started = await call(offline, 'other_lead', 'POST', '/baseline', undefined, b.dealId);
     expect(started.status).toBe(202);

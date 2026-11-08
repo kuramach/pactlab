@@ -13,6 +13,8 @@ const listing = {
   asking: { low: '40000000.00', high: '55000000', currency: 'USD' },
   summary: 'Synthetic teaser.',
   highlights: ['Founder-led'],
+  propertyAddress: '5500 Grand Lake Dr, San Antonio, TX 78244',
+  propertyFacts: [{ key: 'units', label: 'Units', value: '48', source: 'RentCast', retrievedAt: '2026-11-07T00:00:00.000Z' }],
 };
 
 describe('public teaser', () => {
@@ -25,6 +27,14 @@ describe('public teaser', () => {
     expect(html).toContain('Project Atlas');
     expect(html).toContain('Confidential sale');
     expect(html).not.toContain('Brightwave');
+  });
+
+  it('shows the property facts with their source, and the address only on a named page (batch 2)', () => {
+    const anonymous = renderToStaticMarkup(<Teaser listing={listing} />);
+    expect(anonymous).toContain('Units');
+    expect(anonymous).toContain('Source: RentCast');
+    expect(anonymous).not.toContain('Grand Lake');
+    expect(renderToStaticMarkup(<Teaser listing={{ ...listing, visibility: 'NAMED', publicName: 'Atlas Apartments' }} />)).toContain('5500 Grand Lake Dr');
   });
 
   it('formats the asking range from decimal strings', () => {
