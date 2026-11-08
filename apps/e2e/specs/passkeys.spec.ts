@@ -17,11 +17,13 @@ test.describe('passkey sign-in', () => {
     });
 
     await signIn(page, REVIEWER);
-    // The one-time offer appears right after an email sign-in.
-    await expect(page.getByRole('complementary', { name: 'Add a passkey' })).toBeVisible();
-
     await page.goto('/settings#sign-in');
     const card = page.locator('#sign-in');
+    // Independent of earlier runs (and retries): start with no passkeys.
+    for (const remove of await card.getByRole('button', { name: /^Remove / }).all()) await remove.click();
+    await expect(card).toContainText('No passkeys yet.');
+    // The one-time offer shows right after an email sign-in, while there is no passkey.
+    await expect(page.getByRole('complementary', { name: 'Add a passkey' })).toBeVisible();
     await card.getByLabel('Name').fill('E2E laptop');
     await card.getByRole('button', { name: 'Add a passkey' }).click();
     await expect(card.getByRole('list', { name: 'Your passkeys' })).toContainText('E2E laptop');
@@ -30,7 +32,11 @@ test.describe('passkey sign-in', () => {
 
     await page.getByRole('main').getByRole('button', { name: 'Sign out' }).click();
     await expect(page).toHaveURL(/\/login/);
-    await page.getByRole('button', { name: 'Sign in with a passkey' }).click();
+    // The browser offers the saved passkey on the email field (autofill) and may sign in on its
+    // own; otherwise the button does. Either way, no email code.
+    const button = page.getByRole('button', { name: 'Sign in with a passkey' });
+    await expect(button).toBeVisible();
+    if (await button.isEnabled()) await button.click({ timeout: 5_000 }).catch(() => undefined);
     await expect(page).not.toHaveURL(/\/login/);
 
     await page.goto('/settings#sign-in');
