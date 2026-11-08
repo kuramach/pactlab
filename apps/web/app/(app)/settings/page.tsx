@@ -9,6 +9,7 @@ import { currentRelease, releaseLabel } from '../../../lib/release';
 import { isOpen, STATUS_LABELS, statusBadge } from './bug-reports/_lib/status';
 import { setDefaultPersona } from './persona-actions';
 import { connectDocuSign, disconnectDocuSign } from './docusign-actions';
+import { PasskeysCard } from './passkeys-card';
 import type { PersonaOption } from '../valuation/_lib/pricing';
 import { PersonaCard } from '../valuation/_lib/persona-card';
 
@@ -200,6 +201,8 @@ export default async function SettingsPage() {
           </dl>
         </CardContent>
       </Card>
+
+      {organization?.authMethod === 'EMAIL_CODE' ? <PasskeysCard /> : null}
 
       <BugsSubmittedCard />
 

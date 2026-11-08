@@ -88,6 +88,8 @@ export const baseEnvSchema = z.object({
 export const apiEnvSchema = baseEnvSchema.extend({
   API_PORT: port.default(4000),
   APP_WEB_ORIGIN: z.url(),
+  /** Passkey relying party (T-108): the web host passkeys are bound to. Unset: APP_WEB_ORIGIN's host. */
+  WEBAUTHN_RP_ID: unsetIfBlank(z.string().trim().regex(/^[a-z0-9.-]+$/).optional()),
   DATABASE_URL: postgresUrl,
   AUTH0_DOMAIN: nonEmpty.optional(),
   AUTH0_AUDIENCE: nonEmpty.optional(),

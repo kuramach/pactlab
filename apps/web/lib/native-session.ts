@@ -36,6 +36,24 @@ export async function storeNativeSession(session: IssuedSession): Promise<void> 
   });
 }
 
+/**
+ * After an email sign-in, the one-time passkey offer (T-108) is shown for 15 minutes,
+ * the window in which a passkey can be added without signing in again.
+ */
+const PASSKEY_OFFER_COOKIE = 'pactlab_passkey_offer';
+
+export async function rememberPasskeyOffer(): Promise<void> {
+  (await cookies()).set(PASSKEY_OFFER_COOKIE, '1', { httpOnly: true, secure: secure(), sameSite: 'lax', path: '/', maxAge: 15 * 60 });
+}
+
+export async function passkeyOfferPending(): Promise<boolean> {
+  return (await cookies()).get(PASSKEY_OFFER_COOKIE)?.value === '1';
+}
+
+export async function forgetPasskeyOffer(): Promise<void> {
+  (await cookies()).delete({ name: PASSKEY_OFFER_COOKIE, path: '/' });
+}
+
 export async function clearNativeSession(): Promise<void> {
   (await cookies()).delete(NATIVE_SESSION_COOKIE);
 }

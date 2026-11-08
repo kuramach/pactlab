@@ -17,6 +17,7 @@
     "@pactlab/contracts": "workspace:*",
     "@pactlab/domain": "workspace:*",
     "@pactlab/ui": "workspace:*",
+    "@simplewebauthn/browser": "14.0.0",
     "echarts": "6.1.0",
     "html-to-image": "1.11.13",
     "lucide-react": "1.52.0",

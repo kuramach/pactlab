@@ -7,6 +7,7 @@ import {
   authApi,
   forgetPendingEmail,
   pendingEmail,
+  rememberPasskeyOffer,
   rememberPendingEmail,
   storeNativeSession,
   type IssuedSession,
@@ -43,6 +44,8 @@ export async function submitCode(formData: FormData): Promise<void> {
   const session = verified.data as IssuedSession;
   await storeNativeSession(session);
   await forgetPendingEmail();
+  // The one-time "add a passkey" offer, while this sign-in is fresh enough to add one (T-108).
+  await rememberPasskeyOffer();
   redirect(
     session.organizationId
       ? returnTo

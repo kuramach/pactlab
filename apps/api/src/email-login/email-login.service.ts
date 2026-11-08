@@ -8,6 +8,7 @@ import { LOGGER, PRISMA } from '../tokens';
 import { keyedHash, normalizeEmail as normalize } from './client-address';
 import type { EmailSender } from './email-sender';
 import { emails } from './emails';
+import type { WebAuthnRelyingParty } from './passkeys.service';
 
 export const EMAIL_LOGIN = Symbol('EMAIL_LOGIN');
 
@@ -16,6 +17,8 @@ export interface EmailLoginDependencies {
   readonly emailSender: EmailSender;
   /** Keys the code and IP hashes; the same secret that signs tokens. */
   readonly hashSecret: string;
+  /** Passkeys (T-108): the web host and origin they are bound to. */
+  readonly webauthn: WebAuthnRelyingParty;
 }
 
 export interface IssuedSession {

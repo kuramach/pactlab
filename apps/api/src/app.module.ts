@@ -24,6 +24,7 @@ import { DocumentsModule, type DocumentsModuleDependencies } from './documents/d
 import { EmailLoginModule } from './email-login/email-login.module';
 import { SignupModule } from './signup/signup.module';
 import { UnavailableEmailSender, type EmailSender } from './email-login/email-sender';
+import type { WebAuthnRelyingParty } from './email-login/passkeys.service';
 import { PrismaDocumentsRepository } from './documents/prisma-documents.repository';
 import { UnavailableMalwareScanner, UnavailableObjectStore } from './documents/storage-adapters';
 import { FindingsModule } from './findings/findings.module';
@@ -72,7 +73,7 @@ export interface AppDependencies {
    * and the /v1/auth endpoints are not mounted. Without a sender, codes are
    * never delivered.
    */
-  emailLogin?: { tokenSecret: string; emailSender?: EmailSender };
+  emailLogin?: { tokenSecret: string; emailSender?: EmailSender; webauthn?: WebAuthnRelyingParty };
   /**
    * E-signature (T-107). `docusign`: Pactlab's app registration, which organizations connect
    * their own DocuSign accounts to. `fixture`: the fixture provider, outside production only.
@@ -98,6 +99,11 @@ export interface AppDependencies {
   foresightAutoBaseline?: boolean;
   /** Pack and finding-rule registries. Omitted: the domain registries (tests inject a test-only rule). */
   packs?: PackRegistry;
+}
+
+/** The passkey relying party for a web origin: its host, unless configured otherwise. */
+export function relyingParty(origin: string, rpId?: string): WebAuthnRelyingParty {
+  return { rpId: rpId ?? new URL(origin).hostname, rpName: 'Pactlab', origin: new URL(origin).origin };
 }
 
 @Global()
@@ -190,6 +196,8 @@ export class AppModule {
                 tokens,
                 emailSender: deps.emailLogin.emailSender ?? new UnavailableEmailSender(),
                 hashSecret: deps.emailLogin.tokenSecret,
+                // Passkeys are bound to the web host (T-108); tests and local runs use the sign-in page's origin.
+                webauthn: deps.emailLogin.webauthn ?? relyingParty(deps.signup?.loginUrl ? new URL(deps.signup.loginUrl).origin : 'http://localhost:3000'),
               }),
             ]
           : []),
