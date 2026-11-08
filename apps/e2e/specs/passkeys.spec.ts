@@ -20,7 +20,11 @@ test.describe('passkey sign-in', () => {
     await page.goto('/settings#sign-in');
     const card = page.locator('#sign-in');
     // Independent of earlier runs (and retries): start with no passkeys.
-    for (const remove of await card.getByRole('button', { name: /^Remove / }).all()) await remove.click();
+    const removeButtons = card.getByRole('button', { name: /^Remove / });
+    for (let left = await removeButtons.count(); left > 0; left -= 1) {
+      await removeButtons.first().click();
+      await expect(removeButtons).toHaveCount(left - 1);
+    }
     await expect(card).toContainText('No passkeys yet.');
     // The one-time offer shows right after an email sign-in, while there is no passkey.
     await expect(page.getByRole('complementary', { name: 'Add a passkey' })).toBeVisible();
