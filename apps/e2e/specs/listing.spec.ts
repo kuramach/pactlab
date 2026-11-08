@@ -47,6 +47,8 @@ test('public deal page: publish, request access, confirm, approve, join', async 
   await page.getByLabel(/Shared summary/).fill('Workflow software for logistics firms (synthetic). ARR 7.6m.');
   await page.getByLabel(/^NDA/).fill('Mutual NDA (synthetic).');
   await page.getByRole('button', { name: 'Save' }).click();
+  // Wait for the save to land: its redirect would otherwise pull the page back from the next tab.
+  await expect(page.getByText(/^Saved\. Bidders see the shared view/)).toBeVisible();
 
   await page.getByRole('link', { name: 'Public page' }).click();
   await expect(page).toHaveURL(new RegExp(`/deals/${dealId}/listing$`));
@@ -131,14 +133,10 @@ test('public deal page: publish, request access, confirm, approve, join', async 
   const signup = Date.now() - 1_000;
   await visitor.getByLabel('Your name').fill('Blair Buyer');
   await visitor.getByLabel('Your company').fill(`Harbor Capital ${tag} (synthetic)`);
-  await visitor.getByRole('button', { name: `Create an account for ${buyer}` }).click();
+  // One code (batch 1): it creates the account, signs in and accepts the invitation.
+  await visitor.getByRole('button', { name: 'Create account', exact: true }).click();
   await visitor.getByLabel('6-digit code').fill(await latestCode(buyer, signup));
-  const signin = Date.now() - 1_000;
-  await visitor.getByRole('button', { name: 'Create my account' }).click();
-  await expect(visitor).toHaveURL(/\/login\?/);
-  await visitor.getByLabel('6-digit code').fill(await latestCode(buyer, signin));
-  await visitor.getByRole('button', { name: 'Sign in' }).click();
-  await visitor.getByRole('button', { name: 'Accept and open the pact' }).click();
+  await visitor.getByRole('button', { name: 'Create account and join' }).click();
   await expect(visitor).toHaveURL(new RegExp(`/deals/${dealId}/bid$`));
   await expect(visitor.getByText(/Workflow software for logistics/)).toHaveCount(0);
   await visitor.getByRole('button', { name: 'I accept the NDA' }).click();
