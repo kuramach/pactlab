@@ -24,6 +24,7 @@
     "@aws-sdk/client-s3": "3.1149.0",
     "@aws-sdk/client-sesv2": "3.1149.0",
     "@aws-sdk/client-ssm": "3.1149.0",
+    "@modelcontextprotocol/sdk": "1.32.2",
     "@nestjs/common": "12.1.2",
     "@nestjs/core": "12.1.2",
     "@nestjs/platform-fastify": "12.1.2",

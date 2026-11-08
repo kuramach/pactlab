@@ -10,5 +10,6 @@ import { DealsService } from './deals.service';
   imports: [ConnectionsModule, EvidenceModule],
   controllers: [DealsController],
   providers: [DealsService, DealAccess],
+  exports: [DealsService, EvidenceModule],
 })
 export class DealsModule {}

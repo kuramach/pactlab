@@ -488,6 +488,8 @@ model Organization {
   flags                    OrganizationFlags?
   bugReports               BugReport[]
 
+  oauthGrants OAuthGrant[]
+
   @@map("organizations")
 }
 
@@ -510,6 +512,7 @@ model User {
   authSessions            AuthSession[]
   passkeys                UserPasskey[]
   passkeyChallenges       PasskeyChallenge[]
+  oauthGrants             OAuthGrant[]
 
   @@map("users")
 }
@@ -1809,6 +1812,8 @@ model OrganizationFlags {
   organizationId String   @id @map("organization_id") @db.Uuid
   pilotMode      Boolean  @default(false) @map("pilot_mode")
   liveConnectors Boolean  @default(true) @map("live_connectors")
+  /// The MCP server for this organization (T-084), off until an operator turns it on.
+  mcpEnabled     Boolean  @default(false) @map("mcp_enabled")
   updatedBy      String?  @map("updated_by") @db.Uuid
   updatedAt      DateTime @default(now()) @map("updated_at") @db.Timestamptz(3)
 
@@ -2612,4 +2617,71 @@ model OrganizationConnection {
   disconnectedAt DateTime? @map("disconnected_at") @db.Timestamptz(3)
 
   @@map("organization_connections")
+}
+
+/// An MCP client registered by Dynamic Client Registration (T-084, RFC 7591). Clients that use
+/// Client ID Metadata Documents are never stored. Reached only through pactlab_auth functions.
+model OAuthClient {
+  clientId     String   @id @map("client_id")
+  clientName   String   @map("client_name")
+  redirectUris String[] @map("redirect_uris")
+  ipHash       String   @map("ip_hash") @db.Char(64)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([ipHash, createdAt])
+  @@map("oauth_clients")
+}
+
+/// What a person allowed an MCP client to do in one organization (T-084).
+model OAuthGrant {
+  id             String    @id @default(uuid(7)) @db.Uuid
+  userId         String    @map("user_id") @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  clientId       String    @map("client_id")
+  clientName     String    @map("client_name")
+  scopes         String[]
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  lastUsedAt     DateTime? @map("last_used_at") @db.Timestamptz(3)
+  revokedAt      DateTime? @map("revoked_at") @db.Timestamptz(3)
+
+  user          User                @relation(fields: [userId], references: [id], onDelete: Restrict)
+  organization  Organization        @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  codes         OAuthCode[]
+  refreshTokens OAuthRefreshToken[]
+
+  @@index([userId])
+  @@map("oauth_grants")
+}
+
+/// A single-use, 60-second authorization code, stored hashed (T-084).
+model OAuthCode {
+  id            String    @id @default(uuid(7)) @db.Uuid
+  grantId       String    @map("grant_id") @db.Uuid
+  codeHash      String    @unique @map("code_hash") @db.Char(64)
+  codeChallenge String    @map("code_challenge")
+  redirectUri   String    @map("redirect_uri")
+  resource      String
+  scopes        String[]
+  expiresAt     DateTime  @map("expires_at") @db.Timestamptz(3)
+  consumedAt    DateTime? @map("consumed_at") @db.Timestamptz(3)
+
+  grant OAuthGrant @relation(fields: [grantId], references: [id], onDelete: Restrict)
+
+  @@map("oauth_codes")
+}
+
+/// A rotating 30-day refresh token, stored hashed (T-084). Reuse revokes the grant.
+model OAuthRefreshToken {
+  id        String    @id @default(uuid(7)) @db.Uuid
+  grantId   String    @map("grant_id") @db.Uuid
+  tokenHash String    @unique @map("token_hash") @db.Char(64)
+  scopes    String[]
+  resource  String
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz(3)
+  usedAt    DateTime? @map("used_at") @db.Timestamptz(3)
+
+  grant OAuthGrant @relation(fields: [grantId], references: [id], onDelete: Restrict)
+
+  @@map("oauth_refresh_tokens")
 }

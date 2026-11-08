@@ -109,6 +109,13 @@ const app = await createApp(
             }
           : null,
     },
+    // The MCP server and Pactlab's OAuth for it (T-084): the web origin issues (consent page and
+    // metadata live there); the MCP server is /v1/mcp wherever the API is reachable.
+    mcp: {
+      issuer: new URL(config.APP_WEB_ORIGIN).origin,
+      // Deployed, /v1 shares the web origin; locally the API listens on its own port.
+      resource: `${new URL(config.API_PUBLIC_ORIGIN ?? (config.APP_ENV === 'local' ? `http://localhost:${config.API_PORT}` : config.APP_WEB_ORIGIN)).origin}/v1/mcp`,
+    },
     emailLogin: {
       tokenSecret: config.AUTH_TOKEN_SECRET,
       webauthn: relyingParty(config.APP_WEB_ORIGIN, config.WEBAUTHN_RP_ID),

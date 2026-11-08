@@ -420,6 +420,38 @@ export class ValuationService {
     return this.get(tenant, dealId, scenarioId, requestId);
   }
 
+  /**
+   * A what-if (T-084): the scenario's current assumptions with some numbers replaced, run
+   * through the same deterministic engine as `run`, and nothing saved. Only fields the
+   * scenario already has can be overridden (the method never changes), and only with decimals.
+   */
+  async preview(
+    tenant: TenantContext,
+    dealId: string,
+    scenarioId: string,
+    overrides: { assumptions?: Readonly<Record<string, string>>; bridge?: Readonly<Record<string, string>> },
+    requestId: string,
+  ) {
+    await this.access.require(tenant, dealId, canReadValuation, { action: 'valuation.previewed', requestId });
+    const record = await this.load(tenant, dealId, scenarioId);
+    const values = this.currentAssumptions(record).values;
+    const replace = <T extends object>(base: T, changes: Readonly<Record<string, string>> | undefined): T => {
+      const next = { ...base } as Record<string, unknown>;
+      for (const [key, value] of Object.entries(changes ?? {})) {
+        if (key === 'method' || typeof next[key] !== 'string') throw new UnprocessableEntityException({ code: 'UNKNOWN_ASSUMPTION' });
+        if (!/^-?\d{1,15}(\.\d{1,10})?$/.test(value)) throw new UnprocessableEntityException({ code: 'INVALID_ASSUMPTION' });
+        next[key] = value;
+      }
+      return next as T;
+    };
+    const inputs = await this.buildInputs(tenant, record.scenario, { ...values, assumptions: replace(values.assumptions, overrides.assumptions), bridge: replace(values.bridge, overrides.bridge) });
+    try {
+      return { scenarioId, assumptionVersion: record.scenario.assumptionVersion, inputs, result: runValuation(inputs) };
+    } catch (error) {
+      translate(error);
+    }
+  }
+
   async run(
     tenant: TenantContext,
     dealId: string,

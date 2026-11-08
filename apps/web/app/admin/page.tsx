@@ -3,7 +3,7 @@ import { Badge, Card, CardContent, Button } from '@pactlab/ui';
 import Link from 'next/link';
 import { apiGet } from '../(app)/deals/_lib/api';
 import { ApiState } from '../(app)/deals/_lib/states';
-import { decideOrganization, setMemberStatus, setOrganizationFlags, setOrganizationStatus } from './actions';
+import { decideOrganization, setMemberStatus, setOrganizationFlags, setOrganizationStatus, setOrganizationMcp } from './actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,6 +22,7 @@ const OUTCOMES: Record<string, string> = {
   'ok-reject': 'Organization rejected.',
   'ok-status': 'Organization status changed.',
   'ok-flags': 'Flags saved — they apply on the next request, no deploy needed.',
+  'ok-mcp': 'MCP switched. Apps already connected stop or start working on their next request.',
   'ok-member': 'Membership changed.',
   forbidden: 'That action is refused (operators cannot deactivate themselves).',
   invalid: 'That request was not valid.',
@@ -99,6 +100,9 @@ async function Approvals() {
 async function Organizations() {
   const result = await apiGet<{ items: Org[] }>('/v1/admin/organizations');
   if (result.kind !== 'ok') return <ApiState result={result} />;
+  // MCP per organization (T-084), off until switched on here.
+  const mcp = await apiGet<{ items: { organizationId: string; mcpEnabled: boolean }[] }>('/v1/admin/mcp');
+  const mcpOn = new Set(mcp.kind === 'ok' ? mcp.data.items.filter((item) => item.mcpEnabled).map((item) => item.organizationId) : []);
   return (
     <Card>
       <CardContent className="overflow-x-auto p-0">
@@ -117,6 +121,10 @@ async function Organizations() {
                     <label className="flex items-center gap-1"><input type="checkbox" name="pilotMode" defaultChecked={org.flags.pilotMode} /> Pilot mode</label>
                     <label className="flex items-center gap-1"><input type="checkbox" name="liveConnectors" defaultChecked={org.flags.liveConnectors} /> Live connectors</label>
                     <Button variant="outline" size="sm" className="self-start" type="submit">Save flags</Button>
+                  </form>
+                  <form action={setOrganizationMcp.bind(null, org.id, !mcpOn.has(org.id))} className="mt-2 flex items-center gap-2" aria-label={`MCP for ${org.name}`}>
+                    <Badge variant={mcpOn.has(org.id) ? 'calculation' : 'draft'}>MCP {mcpOn.has(org.id) ? 'on' : 'off'}</Badge>
+                    <Button variant="ghost" size="sm" type="submit">{mcpOn.has(org.id) ? 'Turn off' : 'Turn on'}</Button>
                   </form>
                 </td>
                 <td className={cell}>
