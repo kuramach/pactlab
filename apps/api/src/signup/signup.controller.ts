@@ -26,7 +26,10 @@ export class SignupController {
   @Public()
   @Post('verify')
   @HttpCode(201)
-  verify(@Body(new ZodValidationPipe(verifySignupSchema)) body: { email: string; code: string; invitationToken?: string }): Promise<SignupResult> {
-    return this.service.verify(body.email, body.code, body.invitationToken);
+  verify(
+    @Body(new ZodValidationPipe(verifySignupSchema)) body: { email: string; code: string; invitationToken?: string; promoCode?: string },
+    @Req() request: FastifyRequest,
+  ): Promise<SignupResult> {
+    return this.service.verify(body.email, body.code, body.invitationToken, body.promoCode ? { code: body.promoCode, ip: rateLimitAddress(request) } : undefined);
   }
 }

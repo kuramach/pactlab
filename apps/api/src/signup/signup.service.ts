@@ -9,6 +9,7 @@ import { hashToken } from '../invitations/invitations.service';
 import type { PactlabTokens } from '../auth/pactlab-token';
 import { LOGGER, PRISMA } from '../tokens';
 import { isFreeMailAddress } from './free-mail';
+import { BillingService } from '../billing/billing.service';
 import type { StartSignupBody } from './signup.schemas';
 
 export const SIGNUP = Symbol('SIGNUP');
@@ -46,6 +47,7 @@ export class SignupService {
     @Inject(PRISMA) private readonly prisma: PrismaClient,
     @Inject(LOGGER) private readonly logger: Logger,
     @Inject(SIGNUP) private readonly deps: SignupDependencies,
+    @Inject(BillingService) private readonly billing: BillingService,
   ) {}
 
   private codeHash(email: string, code: string): string {
@@ -89,15 +91,22 @@ export class SignupService {
     if (begun.kind === 'existing-user') this.deliver(emails.signupExistingAccount(email, this.deps.loginUrl), 'signup-existing');
   }
 
-  async verify(email: string, code: string, invitationToken?: string): Promise<SignupResult> {
+  async verify(email: string, code: string, invitationToken?: string, promo?: { code: string; ip: string }): Promise<SignupResult> {
     // An invitee's home organization is active at once: the inviting pact vouches for them.
     const invited = await this.invited(invitationToken, email);
+    // So does a promo code that skips approval (T-087), checked before the organization exists.
+    const promoCheck = promo ? await this.billing.checkPromo(promo.code, promo.ip) : null;
+    if (promo && !promoCheck?.valid) throw new UnprocessableEntityException({ code: `PROMO_${promoCheck?.reason ?? 'UNKNOWN'}` });
     const created = await signup.verify(this.prisma, {
       email: normalizeEmail(email),
       codeHash: this.codeHash(email, code),
-      requiresApproval: this.deps.requiresApproval && !invited,
+      requiresApproval: this.deps.requiresApproval && !invited && !promoCheck?.skipsApproval,
     });
     if (!created || created.status === 'SUSPENDED') throw new UnauthorizedException();
+    if (promo && created.organizationId) {
+      const redeemed = await this.billing.redeemForNewOrganization(promo.code, created.organizationId);
+      if (redeemed !== 'REDEEMED') this.logger.warn({ reason: redeemed }, 'promo code not redeemed after sign-up');
+    }
     if (created.status === 'PENDING_APPROVAL' && this.deps.operatorEmail) {
       this.deliver(
         emails.operatorNewSignup(this.deps.operatorEmail, {

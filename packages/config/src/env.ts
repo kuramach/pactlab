@@ -128,6 +128,13 @@ export const apiEnvSchema = baseEnvSchema.extend({
   DOCUSIGN_AUTH_HOST: unsetIfBlank(z.enum(['account-d.docusign.com', 'account.docusign.com']).optional()),
   /** RentCast API key for US property data on teaser pages (batch 2). Unset: the fixture outside production, no lookup in production. */
   RENTCAST_API_KEY: unsetIfBlank(nonEmpty.optional()),
+  /** Stripe (T-087): a test (sk_test_) or live key and the webhook signing secret. Unset: the fixture outside production. */
+  STRIPE_SECRET_KEY: unsetIfBlank(nonEmpty.optional()),
+  STRIPE_WEBHOOK_SECRET: unsetIfBlank(nonEmpty.optional()),
+  /** Gate pact creation on payment. Off until go-live (docs/runbooks/billing.md). */
+  BILLING_ENFORCEMENT: z.enum(['on', 'off']).default('off').transform((value) => value === 'on'),
+  /** Stripe Tax on Checkout; decided with a CPA before go-live. */
+  STRIPE_AUTOMATIC_TAX: z.enum(['true', 'false']).default('false').transform((value) => value === 'true'),
   /** The Connect HMAC key that signs DocuSign's envelope events to this deployment. */
   DOCUSIGN_CONNECT_HMAC_KEY: unsetIfBlank(nonEmpty.optional()),
   /**

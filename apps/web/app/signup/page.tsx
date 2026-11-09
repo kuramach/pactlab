@@ -15,6 +15,13 @@ const ERRORS: Record<string, string> = {
   code: 'That code did not work. Check it, or start again for a new one.',
   expired: 'Your sign-up attempt expired. Start again.',
   unavailable: 'Sign-up is unavailable right now. Try again shortly.',
+  // Promo codes (T-087).
+  'promo-UNKNOWN': 'That promo code isn’t one we know. Check it, or leave it empty to sign up without it.',
+  'promo-INACTIVE': 'That promo code is no longer active. Leave it empty to sign up without it.',
+  'promo-NOT_YET': 'That promo code isn’t active yet. Leave it empty, or try again from its start date.',
+  'promo-EXPIRED': 'That promo code has expired. Leave it empty to sign up without it.',
+  'promo-USED_UP': 'That promo code has been fully used. Leave it empty to sign up without it.',
+  'promo-RATE_LIMITED': 'Too many code attempts from here. Wait an hour, or sign up without a code.',
 };
 
 const inputClass =
@@ -109,6 +116,10 @@ export default async function SignupPage({
                       We’ll need company single sign-on (SSO) through our identity provider.{' '}
                       <span className="text-muted-foreground">We’ll set it up with you; until then, codes work.</span>
                     </span>
+                  </label>
+                  <label className="flex flex-col gap-1 text-sm font-medium">
+                    Promo code <span className="font-normal text-muted-foreground">(optional)</span>
+                    <input name="promoCode" maxLength={40} pattern="[A-Za-z0-9-]{4,40}" autoComplete="off" className={`${inputClass} uppercase`} />
                   </label>
                   <Button type="submit">Email me a code</Button>
                 </form>

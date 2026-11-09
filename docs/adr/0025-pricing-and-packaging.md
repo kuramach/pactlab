@@ -47,3 +47,17 @@ Per-deal pricing is the core unit, with subscriptions for repeat buyers. Every p
 - **Sellers:** BizBuySell fees (Baton); Axial pricing (raises.com).
 - **Founders:** DocSend pricing (Peony); Visible pricing.
 - **Diligence spend:** QoE report cost (Bedrock); buy-side diligence cost (Papermark).
+
+## Addendum: the engine (T-087 build, 2026-11-09)
+- **Mirror:** Stripe is the source of truth. Pactlab mirrors it in `billing_accounts`, `pact_credits` and `stripe_events`.
+- **Access:** those tables, plus `billing_plans`, `promo_codes` and `promo_redemptions`, are reached only through SECURITY DEFINER functions owned by a no-login role, `pactlab_billing`, the same pattern as sign-in state.
+- **Paying for a pact** happens in the pact's own transaction (`app_billing_consume`). An unpaid pact is never created, and two requests can never spend the same credit.
+- **Rollout:** `BILLING_ENFORCEMENT` (default off) gates creation, so the engine ships dark on live.
+- **Webhooks:** verified with Stripe's signature over the raw body, and idempotent. A purchase credit is unique per Stripe event, and a period resets usage only when its start date changes.
+- **Promo codes** (Kumar, 2026-11-09) are created by operators in Admin:
+  - free pacts (optionally for some packs) or a discount (mirrored to a Stripe coupon and promotion code);
+  - a validity window, a maximum number of redemptions, once per organization;
+  - "skips sign-up approval" by default;
+  - checks are rate-limited per address.
+- **Provider adapters:** `StripeBillingProvider` and `FixtureBillingProvider`. The fixture signs events with Stripe's own scheme. Production without keys uses an unconfigured provider that refuses everything.
+- **Runbook:** `docs/runbooks/billing.md`, including the go-live checklist.

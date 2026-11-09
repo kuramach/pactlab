@@ -548,6 +548,8 @@ model Deal {
   /// The sale this buyer-led pact came from (another organization's seller-led pact, T-097). Reference only.
   linkedOrganizationId String?         @map("linked_organization_id") @db.Uuid
   linkedDealId         String?         @map("linked_deal_id") @db.Uuid
+  /// When the pact's live period ends (12 months; 6 for a sale); read-only after it (T-087).
+  liveUntil            DateTime?       @map("live_until") @db.Timestamptz(3)
   /// The two-sided close (T-107): when, and the signatory of each side.
   closedAt             DateTime?       @map("closed_at") @db.Timestamptz(3)
   closedByBuyer        String?         @map("closed_by_buyer") @db.Uuid
@@ -2684,4 +2686,110 @@ model OAuthRefreshToken {
   grant OAuthGrant @relation(fields: [grantId], references: [id], onDelete: Restrict)
 
   @@map("oauth_refresh_tokens")
+}
+
+/// The price book (T-087, ADR 0025): data, not code. Reached only through pactlab_billing functions.
+model BillingPlan {
+  key           String   @id
+  kind          String
+  interval      String?
+  amount        Decimal  @db.Decimal(12, 2)
+  currency      String   @db.Char(3)
+  pactsIncluded Int?     @map("pacts_included")
+  overageAmount Decimal? @map("overage_amount") @db.Decimal(12, 2)
+  grants        String
+  selfServe     Boolean  @map("self_serve")
+  stripePriceId String?  @map("stripe_price_id")
+  display       Json
+  active        Boolean  @default(true)
+  updatedAt     DateTime @default(now()) @map("updated_at") @db.Timestamptz(3)
+
+  @@map("billing_plans")
+}
+
+/// An organization's mirror of its Stripe customer and subscription (T-087).
+model BillingAccount {
+  organizationId   String    @id @map("organization_id") @db.Uuid
+  stripeCustomerId String?   @unique(map: "billing_accounts_customer_key") @map("stripe_customer_id")
+  planKey          String?   @map("plan_key")
+  subscriptionId   String?   @unique(map: "billing_accounts_subscription_key") @map("subscription_id")
+  status           String    @default("NONE")
+  periodStart      DateTime? @map("period_start") @db.Timestamptz(3)
+  periodEnd        DateTime? @map("period_end") @db.Timestamptz(3)
+  pactsUsed        Int       @default(0) @map("pacts_used")
+  pendingPromoId   String?   @map("pending_promo_id") @db.Uuid
+  updatedAt        DateTime  @default(now()) @map("updated_at") @db.Timestamptz(3)
+
+  @@map("billing_accounts")
+}
+
+/// A pact credit: bought, comped or from a promo code; optionally only for some packs (T-087).
+model PactCredit {
+  id             String    @id @default(uuid(7)) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  kind           String
+  source         String
+  stripeEventId  String?   @unique(map: "pact_credits_stripe_event_key") @map("stripe_event_id")
+  promoId        String?   @map("promo_id") @db.Uuid
+  compedBy       String?   @map("comped_by") @db.Uuid
+  packs          String[]  @default([])
+  grantedAt      DateTime  @default(now()) @map("granted_at") @db.Timestamptz(3)
+  consumedDealId String?   @map("consumed_deal_id") @db.Uuid
+  consumedAt     DateTime? @map("consumed_at") @db.Timestamptz(3)
+
+  @@map("pact_credits")
+}
+
+/// Stripe events handled, once each (T-087).
+model StripeEvent {
+  eventId    String   @id @map("event_id")
+  type       String
+  receivedAt DateTime @default(now()) @map("received_at") @db.Timestamptz(3)
+
+  @@map("stripe_events")
+}
+
+/// An admin-made promo code: a discount or free pacts (T-087).
+model PromoCode {
+  id                    String    @id @default(uuid(7)) @db.Uuid
+  code                  String    @unique(map: "promo_codes_code_key")
+  description           String
+  kind                  String
+  percentOff            Decimal?  @map("percent_off") @db.Decimal(5, 2)
+  amountOff             Decimal?  @map("amount_off") @db.Decimal(12, 2)
+  currency              String?   @db.Char(3)
+  duration              String?
+  durationMonths        Int?      @map("duration_months")
+  planKeys              String[]  @default([]) @map("plan_keys")
+  freePacts             Int?      @map("free_pacts")
+  packs                 String[]  @default([])
+  validFrom             DateTime  @default(now()) @map("valid_from") @db.Timestamptz(3)
+  validUntil            DateTime? @map("valid_until") @db.Timestamptz(3)
+  maxRedemptions        Int?      @map("max_redemptions")
+  skipsApproval         Boolean   @default(true) @map("skips_approval")
+  active                Boolean   @default(true)
+  stripePromotionCodeId String?   @map("stripe_promotion_code_id")
+  createdBy             String    @map("created_by") @db.Uuid
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@map("promo_codes")
+}
+
+model PromoRedemption {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  promoId        String   @map("promo_id") @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  redeemedAt     DateTime @default(now()) @map("redeemed_at") @db.Timestamptz(3)
+
+  @@unique([promoId, organizationId], map: "promo_redemptions_once_key")
+  @@map("promo_redemptions")
+}
+
+model PromoAttempt {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  ipHash    String   @map("ip_hash") @db.Char(64)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([ipHash, createdAt])
+  @@map("promo_attempts")
 }
