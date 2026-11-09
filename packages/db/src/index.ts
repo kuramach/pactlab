@@ -8,6 +8,7 @@ export * from './findings';
 export * from './fixtures';
 export * from './hash';
 export * from './login';
+export * from './reports';
 export * from './billing';
 export * from './oauth';
 export * from './memberships';

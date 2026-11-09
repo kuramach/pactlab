@@ -30,7 +30,7 @@ export class ValuationModule {
         { provide: VALUATION_REPOSITORY, useValue: deps.valuation },
         { provide: FINDINGS_REPOSITORY, useValue: deps.findings },
       ],
-      exports: [ValuationService],
+      exports: [ValuationService, PricingService],
     };
   }
 }

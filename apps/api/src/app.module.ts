@@ -47,6 +47,7 @@ import { SaleModule } from './sale/sale.module';
 import { RegulatoryModule } from './regulatory/regulatory.module';
 import { DealDeletionModule } from './deals/deletion/deal-deletion.module';
 import { InvitationsModule } from './invitations/invitations.module';
+import { ReportsModule } from './reports/reports.module';
 import { BillingModule } from './billing/billing.module';
 import { FixtureBillingProvider, type BillingProvider } from '@pactlab/connectors';
 import { McpModule } from './mcp/mcp.module';
@@ -165,6 +166,12 @@ export class AppModule {
       macroForecasts: deps.macroForecasts ?? new FixtureMacroForecastProvider(),
       autoBaseline: deps.foresightAutoBaseline ?? true,
     });
+    const documentsModule = DocumentsModule.register({
+      repository: new PrismaDocumentsRepository(deps.prisma),
+      objectStore: deps.documents?.objectStore ?? new UnavailableObjectStore(),
+      malwareScanner: deps.documents?.malwareScanner ?? new UnavailableMalwareScanner(),
+      gateway: deps.documents?.gateway ?? new NotConfiguredClaudeGateway(),
+    });
     const valuationModule = ValuationModule.register({ valuation, findings, pricing: { gateway: deps.documents?.gateway ?? new NotConfiguredClaudeGateway() } });
     // Pactlab's OAuth server and the MCP server (T-084), with Pactlab sign-in only.
     const oauthModule =
@@ -222,12 +229,9 @@ export class AppModule {
         FindingsModule.register(findings, deps.packs),
         valuationModule,
         ComparablesModule.register({ valuation, findings }),
-        DocumentsModule.register({
-          repository: new PrismaDocumentsRepository(deps.prisma),
-          objectStore: deps.documents?.objectStore ?? new UnavailableObjectStore(),
-          malwareScanner: deps.documents?.malwareScanner ?? new UnavailableMalwareScanner(),
-          gateway: deps.documents?.gateway ?? new NotConfiguredClaudeGateway(),
-        }),
+        documentsModule,
+        // Reports (T-110): the same service instances the app reads through.
+        ReportsModule.register({ store: deps.documents?.objectStore ?? new UnavailableObjectStore(), shared: [valuationModule, documentsModule] }),
         ...(tokens && deps.emailLogin
           ? [
               EmailLoginModule.register({

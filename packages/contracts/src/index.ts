@@ -12,6 +12,7 @@ export * from './foresight';
 export * from './venture';
 export * from './regulatory';
 export * from './listings';
+export * from './reports';
 export * from './oauth';
 export * from './billing';
 export * from './passkeys';
