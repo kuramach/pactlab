@@ -1,5 +1,5 @@
 import { Inject, Injectable, NotFoundException, ServiceUnavailableException, UnprocessableEntityException } from '@nestjs/common';
-import { appendAuditEvent, withTenant, type PrismaClient } from '@pactlab/db';
+import { appendAuditEvent, withTenant, type PrismaClient, reportVersions } from '@pactlab/db';
 import type { TenantContext } from '@pactlab/domain';
 import { DealAccess } from '../deal-access';
 import { PRISMA } from '../../tokens';
@@ -32,10 +32,12 @@ export class DealDeletionService {
     if (tenant.organizationRole === 'GUEST') throw new NotFoundException();
     await this.access.require(tenant, dealId, (role) => role === 'DEAL_LEAD', { action: 'deal.deleted', requestId });
 
-    const { deal, documents, uploads } = await withTenant(this.prisma, tenant, async (tx) => ({
+    const { deal, documents, uploads, reports } = await withTenant(this.prisma, tenant, async (tx) => ({
       deal: await tx.deal.findFirst({ where: { id: dealId }, select: { name: true, status: true } }),
       documents: await tx.document.findMany({ where: { dealId, status: 'AVAILABLE' }, select: { id: true, objectKey: true, retentionClass: true } }),
       uploads: await tx.sourceUpload.findMany({ where: { dealId, status: { not: 'PURGED' } }, select: { id: true, objectKey: true } }),
+      // Report PDFs on this pact (T-110) hold its data too.
+      reports: await tx.reportVersion.findMany({ where: { dealId, status: 'READY' }, select: { objectKey: true } }),
     }));
     if (!deal || deal.status === 'DELETED') throw new NotFoundException();
     // Typing the name guards against deleting the wrong deal.
@@ -47,6 +49,7 @@ export class DealDeletionService {
     try {
       for (const document of purge) await this.stores.documents.delete(document.objectKey);
       for (const upload of uploads) if (upload.objectKey) await this.stores.uploads.delete(upload.objectKey);
+      for (const report of reports) if (report.objectKey) await this.stores.documents.delete(report.objectKey);
     } catch {
       throw new ServiceUnavailableException({ code: 'STORAGE_UNAVAILABLE' });
     }
@@ -62,6 +65,7 @@ export class DealDeletionService {
         await tx.sourceUpload.updateMany({ where: { dealId, id: { in: uploads.map((upload) => upload.id) } }, data: { status: 'PURGED', objectKey: null, purgedAt: now } });
       }
       await tx.dealInvitation.updateMany({ where: { dealId, status: 'PENDING' }, data: { status: 'REVOKED', revokedAt: now } });
+      await reportVersions.purgeForDeal(tx, dealId);
       // The audit event is written while the lead still holds the deal.
       await appendAuditEvent(tx, {
         organizationId: tenant.organizationId,
@@ -76,6 +80,6 @@ export class DealDeletionService {
       await tx.deal.update({ where: { id: dealId }, data: { status: 'DELETED', deletedAt: now, deletedBy: tenant.userId } });
       await tx.dealMembership.updateMany({ where: { dealId }, data: { status: 'REVOKED' } });
     });
-    return { id: dealId, status: 'DELETED', filesPurged: purge.length + uploads.filter((upload) => upload.objectKey).length, keptOnLegalHold: kept };
+    return { id: dealId, status: 'DELETED', filesPurged: purge.length + uploads.filter((upload) => upload.objectKey).length + reports.filter((report) => report.objectKey).length, keptOnLegalHold: kept };
   }
 }

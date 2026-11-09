@@ -2793,3 +2793,23 @@ model PromoAttempt {
   @@index([ipHash, createdAt])
   @@map("promo_attempts")
 }
+
+/// A report version (T-110): an immutable PDF snapshot, executive (whole organization) or one pact.
+model ReportVersion {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  scope          String
+  dealId         String?  @map("deal_id") @db.Uuid
+  version        Int
+  status         String   @default("GENERATING")
+  generatedBy    String   @map("generated_by") @db.Uuid
+  generatedAt    DateTime @default(now()) @map("generated_at") @db.Timestamptz(3)
+  dataAsOf       DateTime @map("data_as_of") @db.Timestamptz(3)
+  captured       Json     @default("{}")
+  objectKey      String?  @map("object_key")
+  sha256         String?  @db.Char(64)
+  byteSize       Int?     @map("byte_size")
+
+  @@index([organizationId, scope, dealId, version(sort: Desc)], map: "report_versions_history_idx")
+  @@map("report_versions")
+}

@@ -49,6 +49,9 @@ function classify(error: unknown): ModelProviderError {
     case 'TimeoutError':
       return new ModelProviderError('UNAVAILABLE', name);
     case 'ValidationException':
+      // Bedrock reports an account without model access as a validation error
+      // ("Access to Bedrock models is not allowed for this account"): that is access, not a bad request.
+      return new ModelProviderError(/access|not allowed|not authori[sz]ed|use case/i.test(error instanceof Error ? error.message : '') ? 'ACCESS' : 'INVALID_REQUEST', name);
     case 'ResourceNotFoundException':
       return new ModelProviderError('INVALID_REQUEST', name);
     default:

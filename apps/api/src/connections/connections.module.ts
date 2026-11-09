@@ -6,5 +6,6 @@ import { ConnectionsService } from './connections.service';
 @Module({
   controllers: [ConnectionsController, GitHubAppController, SyntheticSourcesController],
   providers: [ConnectionsService, DealAccess],
+  exports: [ConnectionsService],
 })
 export class ConnectionsModule {}

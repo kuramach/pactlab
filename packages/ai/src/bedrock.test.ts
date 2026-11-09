@@ -53,6 +53,16 @@ describe('BedrockModelTransport', () => {
     });
   });
 
+  it('an account without Bedrock model access is ACCESS, not a bad request (live, 2026-11-09)', async () => {
+    const send: ConverseSender = async () => {
+      throw Object.assign(new Error('Error 002: Access to Bedrock models is not allowed for this account'), { name: 'ValidationException' });
+    };
+    const error = await new BedrockModelTransport({ send, sleep: async () => {} }).complete(REQUEST).catch((caught: unknown) => caught);
+    expect(error).toMatchObject({ kind: 'ACCESS', providerCode: 'ValidationException' });
+    const invalid = await new BedrockModelTransport({ send: async () => { throw Object.assign(new Error('max_tokens: must be at most 8192'), { name: 'ValidationException' }); }, sleep: async () => {} }).complete(REQUEST).catch((caught: unknown) => caught);
+    expect(invalid).toMatchObject({ kind: 'INVALID_REQUEST' });
+  });
+
   it('does not retry access or validation errors, and never carries the provider message', async () => {
     let calls = 0;
     const send: ConverseSender = async () => {

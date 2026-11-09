@@ -1,5 +1,7 @@
 import { DEAL_PHASE_LABELS, type CompanyType } from '@pactlab/domain';
-import { Badge, PageHeader } from '@pactlab/ui';
+import { Badge, Button, PageHeader } from '@pactlab/ui';
+import { FileText } from 'lucide-react';
+import { generateReport } from '../../reports/actions';
 import { notFound } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { dealsApi } from '../_lib/api';
@@ -74,7 +76,17 @@ export default async function DealLayout({ children, params }: { children: React
               deal.data.targetName
             )
           }
-          actions={members.kind === 'ok' ? <TeamButton dealId={dealId} members={members.data.items.filter((member) => member.status === 'ACTIVE')} /> : undefined}
+          actions={
+            <div className="flex flex-wrap items-center gap-2">
+              {/* The complete record of this pact as a versioned PDF (T-110). */}
+              <form action={generateReport.bind(null, 'PACT', dealId)}>
+                <Button type="submit" variant="outline" size="sm">
+                  <FileText aria-hidden className="h-4 w-4" /> Report
+                </Button>
+              </form>
+              {members.kind === 'ok' ? <TeamButton dealId={dealId} members={members.data.items.filter((member) => member.status === 'ACTIVE')} /> : null}
+            </div>
+          }
           meta={
             <>
               <Badge className="border-white/20 bg-white/10 text-white">{DEAL_TYPE_LABELS[deal.data.transactionType] ?? deal.data.transactionType}</Badge>
