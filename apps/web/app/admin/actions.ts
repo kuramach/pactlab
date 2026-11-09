@@ -31,6 +31,13 @@ export async function setOrganizationFlags(organizationId: string, formData: For
   back('organizations', result.kind === 'ok' ? 'ok-flags' : result.kind);
 }
 
+/** MCP for an organization (T-084): AI apps such as Claude may connect only once this is on. */
+export async function setOrganizationMcp(organizationId: string, enabled: boolean): Promise<void> {
+  if (!uuid.safeParse(organizationId).success) return back('organizations', 'invalid');
+  const result = await apiSend('PUT', `/v1/admin/organizations/${organizationId}/mcp`, { enabled });
+  back('organizations', result.kind === 'ok' ? 'ok-mcp' : result.kind);
+}
+
 export async function setMemberStatus(organizationId: string, userId: string, formData: FormData): Promise<void> {
   const parsed = memberStatusSchema.safeParse({ status: formData.get('status') });
   if (!parsed.success || !uuid.safeParse(organizationId).success || !uuid.safeParse(userId).success) return back('users', 'invalid');

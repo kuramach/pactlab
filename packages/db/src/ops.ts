@@ -187,6 +187,17 @@ export const operatorOps = {
     await call(sql, 'SELECT app_ops_set_flags($1::uuid, $2::uuid, $3, $4)::text AS done', [actor, organizationId, flags.pilotMode, flags.liveConnectors]);
   },
 
+  /** MCP for an organization (T-084): off until an operator turns it on. Audited (org.mcp_enabled / org.mcp_disabled). */
+  async setMcp(sql: SqlExecutor, actor: string, organizationId: string, enabled: boolean): Promise<void> {
+    await call(sql, 'SELECT app_ops_set_mcp($1::uuid, $2::uuid, $3)::text AS done', [actor, organizationId, enabled]);
+  },
+
+  /** Which organizations have MCP on. */
+  async mcpOrganizations(sql: SqlExecutor, actor: string): Promise<Map<string, boolean>> {
+    const rows = await call<{ organization_id: string; mcp_enabled: boolean }>(sql, 'SELECT organization_id::text, mcp_enabled FROM app_ops_mcp_organizations($1::uuid)', [actor]);
+    return new Map(rows.map((row) => [row.organization_id, row.mcp_enabled]));
+  },
+
   /** The flags of the caller's own organization; defaults when none were set. */
   async organizationFlags(sql: SqlExecutor, organizationId: string, userId: string): Promise<{ pilotMode: boolean; liveConnectors: boolean }> {
     const [row] = await call<{ pilot_mode: boolean; live_connectors: boolean }>(sql, 'SELECT * FROM app_organization_flags($1::uuid, $2::uuid)', [organizationId, userId]);

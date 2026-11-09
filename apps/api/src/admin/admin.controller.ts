@@ -68,6 +68,21 @@ export class AdminController {
     return this.admin.setFlags(tenant, params.organizationId, body);
   }
 
+  /** MCP per organization (T-084). */
+  @Put('organizations/:organizationId/mcp')
+  setMcp(
+    @Tenant() tenant: TenantContext,
+    @Param(new ZodValidationPipe(adminOrganizationParamsSchema)) params: { organizationId: string },
+    @Body(new ZodValidationPipe(z.strictObject({ enabled: z.boolean() }))) body: { enabled: boolean },
+  ) {
+    return this.admin.setMcp(tenant, params.organizationId, body.enabled);
+  }
+
+  @Get('mcp')
+  mcpOrganizations(@Tenant() tenant: TenantContext) {
+    return this.admin.mcpOrganizations(tenant);
+  }
+
   @Get('users')
   users(@Tenant() tenant: TenantContext, @Query(new ZodValidationPipe(usersQuerySchema)) query: { organizationId?: string; q?: string }) {
     return this.admin.users(tenant, query);

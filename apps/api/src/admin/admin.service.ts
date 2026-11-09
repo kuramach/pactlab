@@ -113,6 +113,17 @@ export class AdminService {
     });
   }
 
+  setMcp(tenant: TenantContext, organizationId: string, enabled: boolean) {
+    return this.asOperator(async () => {
+      await operatorOps.setMcp(this.sql, tenant.userId, organizationId, enabled);
+      return { mcpEnabled: enabled };
+    });
+  }
+
+  mcpOrganizations(tenant: TenantContext) {
+    return this.asOperator(async () => ({ items: [...(await operatorOps.mcpOrganizations(this.sql, tenant.userId))].map(([organizationId, mcpEnabled]) => ({ organizationId, mcpEnabled })) }));
+  }
+
   users(tenant: TenantContext, filter: { organizationId?: string; q?: string }) {
     return this.asOperator(async () => ({ items: await operatorOps.users(this.sql, tenant.userId, { organizationId: filter.organizationId ?? null, query: filter.q ?? null }) }));
   }

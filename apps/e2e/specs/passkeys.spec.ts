@@ -38,9 +38,9 @@ test.describe('passkey sign-in', () => {
     await expect(page).toHaveURL(/\/login/);
     // The browser offers the saved passkey on the email field (autofill) and may sign in on its
     // own; otherwise the button does. Either way, no email code.
+    // Autofill can finish before the button is even checked.
     const button = page.getByRole('button', { name: 'Sign in with a passkey' });
-    await expect(button).toBeVisible();
-    if (await button.isEnabled()) await button.click({ timeout: 5_000 }).catch(() => undefined);
+    await button.click({ timeout: 5_000 }).catch(() => undefined);
     await expect(page).not.toHaveURL(/\/login/);
 
     await page.goto('/settings#sign-in');

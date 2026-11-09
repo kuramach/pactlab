@@ -47,6 +47,10 @@ import { SaleModule } from './sale/sale.module';
 import { RegulatoryModule } from './regulatory/regulatory.module';
 import { DealDeletionModule } from './deals/deletion/deal-deletion.module';
 import { InvitationsModule } from './invitations/invitations.module';
+import { McpModule } from './mcp/mcp.module';
+import { McpAccessTokens } from './oauth/access-tokens';
+import { HttpsClientMetadataFetcher, type ClientMetadataFetcher } from './oauth/client-metadata';
+import { OAuthModule } from './oauth/oauth.module';
 
 export interface AppDependencies {
   prisma: PrismaClient;
@@ -97,6 +101,11 @@ export interface AppDependencies {
   macroForecasts?: MacroForecastProvider;
   /** Refresh Foresight forecasts in the background when the tab is opened. Default on. */
   foresightAutoBaseline?: boolean;
+  /**
+   * The MCP server and its OAuth (T-084): the issuer (the web origin, where the consent page and
+   * metadata live) and the MCP server's canonical URI. Omitted: neither is mounted.
+   */
+  mcp?: { issuer: string; resource: string; clientMetadata?: ClientMetadataFetcher };
   /** Pack and finding-rule registries. Omitted: the domain registries (tests inject a test-only rule). */
   packs?: PackRegistry;
 }
@@ -140,6 +149,25 @@ export class AppModule {
       emailSender: deps.emailLogin?.emailSender ?? new UnavailableEmailSender(),
       appOrigin: deps.signup?.loginUrl ? new URL(deps.signup.loginUrl).origin : 'http://localhost:3000',
     });
+    // Built once: the MCP server (T-084) shares these instances with the REST API.
+    const foresightModule = ForesightModule.register({
+      gateway: deps.documents?.gateway ?? new NotConfiguredClaudeGateway(),
+      aiEnabled: deps.aiStatus?.enabled ?? false,
+      speechToText: deps.voice?.speechToText ?? NO_SPEECH_TO_TEXT,
+      textToSpeech: deps.voice?.textToSpeech ?? NO_TEXT_TO_SPEECH,
+      macroForecasts: deps.macroForecasts ?? new FixtureMacroForecastProvider(),
+      autoBaseline: deps.foresightAutoBaseline ?? true,
+    });
+    const valuationModule = ValuationModule.register({ valuation, findings, pricing: { gateway: deps.documents?.gateway ?? new NotConfiguredClaudeGateway() } });
+    // Pactlab's OAuth server and the MCP server (T-084), with Pactlab sign-in only.
+    const oauthModule =
+      deps.emailLogin && deps.mcp
+        ? OAuthModule.register({
+            accessTokens: new McpAccessTokens(deps.emailLogin.tokenSecret, deps.mcp.issuer, deps.mcp.resource),
+            clientMetadata: deps.mcp.clientMetadata ?? new HttpsClientMetadataFetcher(),
+            hashSecret: deps.emailLogin.tokenSecret,
+          })
+        : null;
     return {
       module: AppModule,
       imports: [
@@ -158,14 +186,7 @@ export class AppModule {
           documents: deps.documents?.objectStore ?? new UnavailableObjectStore(),
         }),
         VentureModule,
-        ForesightModule.register({
-          gateway: deps.documents?.gateway ?? new NotConfiguredClaudeGateway(),
-          aiEnabled: deps.aiStatus?.enabled ?? false,
-          speechToText: deps.voice?.speechToText ?? NO_SPEECH_TO_TEXT,
-          textToSpeech: deps.voice?.textToSpeech ?? NO_TEXT_TO_SPEECH,
-          macroForecasts: deps.macroForecasts ?? new FixtureMacroForecastProvider(),
-          autoBaseline: deps.foresightAutoBaseline ?? true,
-        }),
+        foresightModule,
         AdminModule.register({
           emailSender: deps.emailLogin?.emailSender ?? null,
           loginUrl: deps.signup?.loginUrl ?? 'http://localhost:3000/login',
@@ -182,7 +203,7 @@ export class AppModule {
           importQueue: deps.uploads?.importQueue ?? null,
         }),
         FindingsModule.register(findings, deps.packs),
-        ValuationModule.register({ valuation, findings, pricing: { gateway: deps.documents?.gateway ?? new NotConfiguredClaudeGateway() } }),
+        valuationModule,
         ComparablesModule.register({ valuation, findings }),
         DocumentsModule.register({
           repository: new PrismaDocumentsRepository(deps.prisma),
@@ -234,6 +255,7 @@ export class AppModule {
               }),
             ]
           : []),
+        ...(oauthModule ? [oauthModule, McpModule.register({ oauth: oauthModule, valuation: valuationModule, foresight: foresightModule })] : []),
       ],
       controllers: [HealthController],
       providers: [{ provide: APP_GUARD, useClass: AuthGuard }, { provide: ReleaseInfo, useValue: deps.release ?? new ReleaseInfo(null) }],

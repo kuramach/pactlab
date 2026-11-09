@@ -16,6 +16,8 @@ export const PROTECTED_PATH_PREFIXES = [
   '/admin',
   '/preview',
   '/select-organization',
+  // The OAuth consent page for MCP clients (T-084): sign in, and pick an organization, first.
+  '/oauth',
 ] as const;
 
 export const SELECT_ORGANIZATION_PATH = '/select-organization';

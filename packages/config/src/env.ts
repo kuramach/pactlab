@@ -88,6 +88,8 @@ export const baseEnvSchema = z.object({
 export const apiEnvSchema = baseEnvSchema.extend({
   API_PORT: port.default(4000),
   APP_WEB_ORIGIN: z.url(),
+  /** Where `/v1` is reachable from outside (the MCP server's address, T-084). Unset: APP_WEB_ORIGIN (stage, live), or http://localhost:API_PORT locally. */
+  API_PUBLIC_ORIGIN: unsetIfBlank(z.url().optional()),
   /** Passkey relying party (T-108): the web host passkeys are bound to. Unset: APP_WEB_ORIGIN's host. */
   WEBAUTHN_RP_ID: unsetIfBlank(z.string().trim().regex(/^[a-z0-9.-]+$/).optional()),
   DATABASE_URL: postgresUrl,
