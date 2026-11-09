@@ -50,8 +50,10 @@ export class MeService {
           ? []
           : await tx.$queryRaw<{ organization_id: string; organization_name: string; deal_id: string; deal_name: string; role: string }[]>`
               SELECT organization_id::text, organization_name, deal_id::text, deal_name, role FROM app_guest_pacts(${user.id}::uuid)`;
+      // Platform operators (the Pactlab team) get the admin console in their menu; the API still checks on every admin call.
+      const [operator] = await tx.$queryRaw<{ ok: boolean }[]>`SELECT app_is_platform_operator(${user.id}::uuid) AS ok`;
       return {
-        user,
+        user: { ...user, platformOperator: operator?.ok === true },
         guestPacts: guestPacts.map((row) => ({ organizationId: row.organization_id, organizationName: row.organization_name, dealId: row.deal_id, dealName: row.deal_name, role: row.role })),
         organizations: memberships.map(({ role, organization }) => {
           const granted = permissionsForOrganizationRole(role as OrganizationRole);

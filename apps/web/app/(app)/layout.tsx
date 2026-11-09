@@ -12,7 +12,7 @@ import { PasskeyOffer } from './settings/passkeys-card';
 export default async function AppLayout({ children }: { children: ReactNode }) {
   const env = publicEnv();
   const session = await getSessionContext();
-  const sections = visibleSections(session.permissions, undefined, session.kind === 'signed-in' && session.guest);
+  const sections = visibleSections(session.permissions, undefined, session.kind === 'signed-in' && session.guest, session.kind === 'signed-in' && session.operator);
   const version = releaseLabel(await currentRelease());
   return (
     <AppShell

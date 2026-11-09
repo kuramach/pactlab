@@ -23,7 +23,8 @@ export interface MeGuestPactView {
 
 export interface MeResponse {
   /** `email` lets the app say who is signed in, e.g. on an invitation for another address. */
-  user: { id: string; displayName: string; email: string | null };
+  /** `platformOperator`: the Pactlab team, who see the admin console in their menu (the API still checks every admin call). */
+  user: { id: string; displayName: string; email: string | null; platformOperator: boolean };
   organizations: MeOrganizationView[];
   /** Pacts in other organizations this user joined as a guest; switch to one to open it. */
   guestPacts: MeGuestPactView[];

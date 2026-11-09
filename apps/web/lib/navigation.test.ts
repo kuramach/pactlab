@@ -23,6 +23,13 @@ describe('main menu', () => {
     expect(visibleSections(permissionsForOrganizationRole('MEMBER')).map((section) => section.label)).toEqual([null]);
   });
 
+  it('shows the admin console to platform operators only', () => {
+    const owner = permissionsForOrganizationRole('ORG_OWNER');
+    const items = (operator: boolean) => visibleSections(owner, undefined, false, operator).flatMap((section) => section.items.map((item) => item.href));
+    expect(items(false)).not.toContain('/admin');
+    expect(items(true)).toContain('/admin');
+  });
+
   it('marks the current entry, including pages inside a deal', () => {
     expect(isActive({ href: '/', match: 'exact' }, '/')).toBe(true);
     expect(isActive({ href: '/', match: 'exact' }, '/deals')).toBe(false);
