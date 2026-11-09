@@ -31,9 +31,8 @@ export function Topbar({ session, sections }: { session: SessionContext; section
           <PactlabLockup withTagline={false} />
         </Link>
       </div>
-      <div className="hidden text-sm text-muted-foreground lg:block">
-        {session.kind === 'signed-in' && session.organization ? session.organization.name : null}
-      </div>
+      {/* The organization lives in the sidebar (with Switch organization) and the account menu; the top bar stays for actions. */}
+      <div className="hidden lg:block" />
 
       {session.kind === 'signed-out' ? (
         <a href="/login" className={buttonVariants({ size: 'sm' })}>
