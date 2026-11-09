@@ -69,7 +69,7 @@ describe('GET /v1/me', () => {
     const response = await get('/v1/me', await token(a.subject));
     expect(response.status).toBe(200);
     expect(response.body).toEqual({
-      user: { id: a.userId, displayName: 'Alpha Lead', email: null },
+      user: { id: a.userId, displayName: 'Alpha Lead', email: null, platformOperator: false },
       // Auth0 sessions have no guest pacts yet (ADR 0014; Auth0 guests arrive with T-070).
       guestPacts: [],
       organizations: [
@@ -141,5 +141,11 @@ describe('GET /v1/me', () => {
     expect((await get('/v1/deals', bearer)).status).toBe(401);
     expect((await get(`/v1/deals/${a.dealId}`, bearer)).status).toBe(401);
     expect((await get('/v1/deals', await token(a.subject, { org_id: a.auth0OrganizationId }))).status).toBe(200);
+  });
+
+  it('tells the app when the caller is a platform operator (menu only; admin calls are checked again)', async () => {
+    await db.owner.query(`UPDATE users SET platform_operator = true WHERE id = $1`, [a.userId]);
+    expect(((await get('/v1/me', await token(a.subject))).body as { user: { platformOperator: boolean } }).user.platformOperator).toBe(true);
+    await db.owner.query(`UPDATE users SET platform_operator = false WHERE id = $1`, [a.userId]);
   });
 });

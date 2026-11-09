@@ -27,7 +27,7 @@ export interface MeGuestPact {
 }
 
 export interface MeResponse {
-  user: { id: string; displayName: string; email?: string | null };
+  user: { id: string; displayName: string; email?: string | null; platformOperator?: boolean };
   organizations: MeOrganization[];
   guestPacts: MeGuestPact[];
 }
@@ -64,6 +64,8 @@ export type SessionContext =
       organization: MeOrganization | null;
       /** On another organization's pacts by invitation, not a member (ADR 0014). */
       guest: boolean;
+      /** The Pactlab team: shows the admin console link. Visibility only; the API enforces it. */
+      operator: boolean;
       permissions: ReadonlySet<Permission>;
     };
 
@@ -110,6 +112,7 @@ export const getSessionContext = cache(async (): Promise<SessionContext> => {
     email: (me.kind === 'ok' ? me.data.user.email : null) ?? session?.user.email ?? null,
     organization,
     guest: guest !== null,
+    operator: me.kind === 'ok' && me.data.user.platformOperator === true,
     permissions: new Set(organization?.permissions ?? []),
   };
 });

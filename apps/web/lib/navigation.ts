@@ -1,6 +1,6 @@
 import type { Permission } from '@pactlab/domain';
 
-export type NavIcon = 'home' | 'deals' | 'start' | 'comparables' | 'audit' | 'controls' | 'settings';
+export type NavIcon = 'home' | 'deals' | 'start' | 'comparables' | 'audit' | 'controls' | 'settings' | 'admin';
 
 export interface NavItem {
   readonly href: string;
@@ -12,6 +12,8 @@ export interface NavItem {
   readonly match?: 'exact' | 'prefix';
   /** Hidden for guests on another organization's pacts (ADR 0014). */
   readonly membersOnly?: boolean;
+  /** Only for platform operators (the Pactlab team); the API checks every admin call regardless. */
+  readonly operatorOnly?: boolean;
 }
 
 export interface NavSection {
@@ -38,18 +40,23 @@ export const NAV_SECTIONS: readonly NavSection[] = [
       { href: '/settings/controls', label: 'Pilot controls', icon: 'controls', requires: 'ORG_ADMIN' },
     ],
   },
+  {
+    label: 'Pactlab',
+    items: [{ href: '/admin', label: 'Admin console', icon: 'admin', operatorOnly: true }],
+  },
 ];
 
 export function visibleSections(
   permissions: ReadonlySet<Permission>,
   sections: readonly NavSection[] = NAV_SECTIONS,
   guest = false,
+  operator = false,
 ): NavSection[] {
   return sections
     .map((section) => ({
       ...section,
       // Guests work inside the pacts they were invited to: no starting pacts, no organization library (ADR 0014).
-      items: section.items.filter((item) => (item.requires === undefined || permissions.has(item.requires)) && !(guest && item.membersOnly)),
+      items: section.items.filter((item) => (item.requires === undefined || permissions.has(item.requires)) && !(guest && item.membersOnly) && (operator || !item.operatorOnly)),
     }))
     .filter((section) => section.items.length > 0);
 }
