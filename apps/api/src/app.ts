@@ -26,9 +26,10 @@ export async function createApp(deps: AppDependencies, options: { webOrigin?: st
         done(null, body);
       },
     );
-  // E-signature webhooks are verified over their exact bytes (T-107): read them raw, as a buffer.
+  // E-signature (T-107) and Stripe (T-087) webhooks are verified over their exact bytes: read them raw, as a buffer.
+  const RAW_WEBHOOKS = new Set(['/v1/webhooks/signing/docusign', '/v1/webhooks/stripe']);
   adapter.getInstance().addHook('onRequest', async (request) => {
-    if (request.method === 'POST' && request.url.split('?')[0] === '/v1/webhooks/signing/docusign') request.headers['content-type'] = 'application/octet-stream';
+    if (request.method === 'POST' && RAW_WEBHOOKS.has(request.url.split('?')[0] ?? '')) request.headers['content-type'] = 'application/octet-stream';
   });
   // Document uploads (PDF and Word up to 10 MB, sent as base64 JSON) get a larger limit on that route only.
   adapter.getInstance().addHook('onRoute', (route) => {

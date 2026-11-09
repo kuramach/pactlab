@@ -10,6 +10,7 @@ import { isOpen, STATUS_LABELS, statusBadge } from './bug-reports/_lib/status';
 import { setDefaultPersona } from './persona-actions';
 import { connectDocuSign, disconnectDocuSign } from './docusign-actions';
 import { PasskeysCard } from './passkeys-card';
+import { BillingCard } from './billing-card';
 import { ConnectedAppsCard } from './connected-apps-card';
 import { oauthOrigins } from '../../../lib/oauth-metadata';
 import type { PersonaOption } from '../valuation/_lib/pricing';
@@ -172,7 +173,8 @@ async function AboutCard() {
 }
 
 /** Your profile, the active organization and the administration pages you can open. */
-export default async function SettingsPage() {
+export default async function SettingsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const billingOutcome = (await searchParams)['billing'];
   const session = await getSessionContext();
   const crumbs = [{ href: '/', label: 'Home' }, { label: 'Settings' }];
   if (session.kind !== 'signed-in') {
@@ -207,6 +209,8 @@ export default async function SettingsPage() {
       {organization?.authMethod === 'EMAIL_CODE' ? <PasskeysCard /> : null}
 
       {organization?.authMethod === 'EMAIL_CODE' ? <ConnectedAppsCard mcpAddress={oauthOrigins().resource} /> : null}
+
+      {organization ? <BillingCard outcome={typeof billingOutcome === 'string' ? billingOutcome : undefined} /> : null}
 
       <BugsSubmittedCard />
 

@@ -3,7 +3,9 @@ import { Badge, Card, CardContent, Button } from '@pactlab/ui';
 import Link from 'next/link';
 import { apiGet } from '../(app)/deals/_lib/api';
 import { ApiState } from '../(app)/deals/_lib/states';
-import { decideOrganization, setMemberStatus, setOrganizationFlags, setOrganizationStatus, setOrganizationMcp } from './actions';
+import { compPact, createPromoCode, deactivatePromoCode, decideOrganization, resyncBilling, setMemberStatus, setOrganizationFlags, setOrganizationStatus, setOrganizationMcp } from './actions';
+import type { AdminBillingAccountView, PromoCodeView } from '@pactlab/contracts';
+import { COMPANY_TYPES, COMPANY_TYPE_LABELS } from '@pactlab/domain';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,6 +16,7 @@ const TABS = [
   ['health', 'Usage & health'],
   ['audit', 'Audit log'],
   ['bugs', 'Bug inbox'],
+  ['promo', 'Promo codes'],
 ] as const;
 type Tab = (typeof TABS)[number][0];
 
@@ -24,6 +27,11 @@ const OUTCOMES: Record<string, string> = {
   'ok-flags': 'Flags saved — they apply on the next request, no deploy needed.',
   'ok-mcp': 'MCP switched. Apps already connected stop or start working on their next request.',
   'ok-member': 'Membership changed.',
+  'ok-promo': 'Promo code created.',
+  'ok-promo-off': 'Promo code deactivated; it can no longer be redeemed.',
+  'promo-taken': 'That code text is already used. Pick another.',
+  'ok-comp': 'One free pact added to that organization (audited).',
+  'ok-resync': 'Billing re-read from Stripe.',
   forbidden: 'That action is refused (operators cannot deactivate themselves).',
   invalid: 'That request was not valid.',
 };
@@ -59,6 +67,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
       {tab === 'users' ? <Users q={q} /> : null}
       {tab === 'health' ? <Health /> : null}
       {tab === 'audit' ? <Audit action={typeof search['action'] === 'string' ? search['action'] : ''} /> : null}
+      {tab === 'promo' ? <PromoCodes /> : null}
       {tab === 'bugs' ? <Bugs status={typeof search['status'] === 'string' ? search['status'] : ''} severity={typeof search['severity'] === 'string' ? search['severity'] : ''} /> : null}
     </>
   );
@@ -103,6 +112,9 @@ async function Organizations() {
   // MCP per organization (T-084), off until switched on here.
   const mcp = await apiGet<{ items: { organizationId: string; mcpEnabled: boolean }[] }>('/v1/admin/mcp');
   const mcpOn = new Set(mcp.kind === 'ok' ? mcp.data.items.filter((item) => item.mcpEnabled).map((item) => item.organizationId) : []);
+  // Billing per organization (T-087), from the Stripe mirror.
+  const billingRows = await apiGet<{ items: AdminBillingAccountView[] }>('/v1/admin/billing');
+  const billingOf = new Map(billingRows.kind === 'ok' ? billingRows.data.items.map((row) => [row.organizationId, row]) : []);
   return (
     <Card>
       <CardContent className="overflow-x-auto p-0">
@@ -126,6 +138,14 @@ async function Organizations() {
                     <Badge variant={mcpOn.has(org.id) ? 'calculation' : 'draft'}>MCP {mcpOn.has(org.id) ? 'on' : 'off'}</Badge>
                     <Button variant="ghost" size="sm" type="submit">{mcpOn.has(org.id) ? 'Turn off' : 'Turn on'}</Button>
                   </form>
+                  <div className="mt-2 flex flex-wrap items-center gap-2 text-xs" aria-label={`Billing for ${org.name}`}>
+                    <Badge variant={billingOf.get(org.id)?.status === 'ACTIVE' ? 'calculation' : billingOf.get(org.id)?.status === 'PAST_DUE' ? 'danger' : 'draft'}>
+                      {billingOf.get(org.id)?.planKey ?? 'Per pact'} · {(billingOf.get(org.id)?.status ?? 'NONE').toLowerCase()}
+                    </Badge>
+                    <span className="text-muted-foreground">{billingOf.get(org.id)?.openCredits ?? 0} prepaid</span>
+                    <form action={compPact.bind(null, org.id)}><Button variant="ghost" size="sm" type="submit">Comp a pact</Button></form>
+                    {billingOf.get(org.id)?.status !== 'NONE' && billingOf.get(org.id) ? <form action={resyncBilling.bind(null, org.id)}><Button variant="ghost" size="sm" type="submit">Resync</Button></form> : null}
+                  </div>
                 </td>
                 <td className={cell}>
                   {org.status !== 'PENDING_APPROVAL' ? (
@@ -296,3 +316,81 @@ async function Bugs({ status, severity }: { status: string; severity: string }) 
     </div>
   );
 }
+
+const field = 'rounded-md border border-border bg-background px-2 py-1 text-sm';
+const PLAN_OPTIONS = [['PACT', 'Pact'], ['TEAM_ANNUAL', 'Team (annual)'], ['TEAM_MONTHLY', 'Team (monthly)'], ['VENTURE_MONTHLY', 'Venture (monthly)'], ['VENTURE_ANNUAL', 'Venture (annual)'], ['VENTURE_ROUND', 'Venture round']] as const;
+
+/** Promo codes (T-087): free pacts (optionally for some packs) or a discount mirrored to Stripe. */
+async function PromoCodes() {
+  const result = await apiGet<{ items: PromoCodeView[] }>('/v1/admin/promo-codes');
+  if (result.kind !== 'ok') return <ApiState result={result} />;
+  return (
+    <div className="flex flex-col gap-4">
+      <Card>
+        <CardContent className="p-4">
+          <form action={createPromoCode} className="grid gap-3 text-sm sm:grid-cols-2" aria-label="Create a promo code">
+            <label className="flex flex-col gap-1 font-medium">Code<input name="code" required pattern="[A-Za-z0-9-]{4,40}" placeholder="MF-LAUNCH-2026" className={`${field} uppercase`} /></label>
+            <label className="flex flex-col gap-1 font-medium">Description (internal)<input name="description" required maxLength={200} placeholder="Multifamily launch, Q4 webinar" className={field} /></label>
+            <fieldset className="flex flex-col gap-2 rounded-md border border-border p-3">
+              <legend className="px-1 font-medium">Free pacts</legend>
+              <label className="flex items-center gap-2"><input type="radio" name="kind" value="FREE_PACTS" defaultChecked /> Give free pacts</label>
+              <label className="flex items-center gap-2">How many <input name="freePacts" type="number" min={1} max={100} defaultValue={1} className={`${field} w-20`} /></label>
+              <span className="text-xs text-muted-foreground">Only for these packs (none ticked: any pack)</span>
+              <div className="grid grid-cols-2 gap-1 text-xs">
+                {COMPANY_TYPES.filter((type) => type !== 'OTHER').map((type) => (
+                  <label key={type} className="flex items-center gap-1"><input type="checkbox" name="packs" value={type} /> {COMPANY_TYPE_LABELS[type]}</label>
+                ))}
+              </div>
+            </fieldset>
+            <fieldset className="flex flex-col gap-2 rounded-md border border-border p-3">
+              <legend className="px-1 font-medium">Discount</legend>
+              <label className="flex items-center gap-2"><input type="radio" name="kind" value="DISCOUNT" /> Give a discount at checkout</label>
+              <div className="flex flex-wrap gap-2">
+                <label className="flex items-center gap-1">% off <input name="percentOff" inputMode="decimal" className={`${field} w-20`} /></label>
+                <label className="flex items-center gap-1">or USD off <input name="amountOff" inputMode="decimal" className={`${field} w-24`} /></label>
+              </div>
+              <label className="flex items-center gap-2">For
+                <select name="duration" defaultValue="ONCE" className={field}><option value="ONCE">the first payment</option><option value="REPEATING">some months</option><option value="FOREVER">as long as they subscribe</option></select>
+                <input name="durationMonths" type="number" min={1} max={36} placeholder="months" className={`${field} w-20`} />
+              </label>
+              <span className="text-xs text-muted-foreground">Only on these plans (none ticked: any plan)</span>
+              <div className="grid grid-cols-2 gap-1 text-xs">
+                {PLAN_OPTIONS.map(([key, label]) => <label key={key} className="flex items-center gap-1"><input type="checkbox" name="planKeys" value={key} /> {label}</label>)}
+              </div>
+            </fieldset>
+            <label className="flex flex-col gap-1 font-medium">Valid from (optional)<input name="validFrom" type="date" className={field} /></label>
+            <label className="flex flex-col gap-1 font-medium">Valid until (optional)<input name="validUntil" type="date" className={field} /></label>
+            <label className="flex flex-col gap-1 font-medium">Most redemptions (optional)<input name="maxRedemptions" type="number" min={1} className={field} /></label>
+            <label className="flex items-center gap-2 self-end"><input type="checkbox" name="skipsApproval" defaultChecked /> New sign-ups with this code skip approval</label>
+            <div className="sm:col-span-2"><Button type="submit">Create promo code</Button></div>
+          </form>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardContent className="overflow-x-auto p-0">
+          <table className="w-full text-left text-sm" aria-label="Promo codes">
+            <thead className="text-xs uppercase text-muted-foreground"><tr><th className="px-3 py-2">Code</th><th className="px-3 py-2">Gives</th><th className="px-3 py-2">Valid</th><th className="px-3 py-2">Used</th><th className="px-3 py-2">Sign-up</th><th className="px-3 py-2"></th></tr></thead>
+            <tbody className="divide-y divide-border">
+              {result.data.items.length === 0 ? <tr><td colSpan={6} className="px-3 py-4 text-muted-foreground">No promo codes yet.</td></tr> : null}
+              {result.data.items.map((code) => (
+                <tr key={code.id}>
+                  <td className="px-3 py-2"><span className="font-mono font-semibold">{code.code}</span><span className="block text-xs text-muted-foreground">{code.description}</span></td>
+                  <td className="px-3 py-2">{code.summary}{code.kind === 'DISCOUNT' && !code.stripeLinked ? <span className="block text-xs text-red-700">not linked to Stripe</span> : null}</td>
+                  <td className="px-3 py-2 text-xs">{code.validFrom.slice(0, 10)} → {code.validUntil ? code.validUntil.slice(0, 10) : 'no end'}</td>
+                  <td className="px-3 py-2">{code.redemptions}{code.maxRedemptions ? ` / ${code.maxRedemptions}` : ''}</td>
+                  <td className="px-3 py-2 text-xs">{code.skipsApproval ? 'skips approval' : 'needs approval'}</td>
+                  <td className="px-3 py-2">
+                    {code.active ? (
+                      <form action={deactivatePromoCode.bind(null, code.id)}><Button variant="ghost" size="sm" type="submit">Deactivate</Button></form>
+                    ) : <Badge variant="draft">inactive</Badge>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+

@@ -19,6 +19,10 @@ export async function startPact(_previous: StartPactState, formData: FormData): 
   const parsed = pactFromForm(formData);
   if (!parsed.ok) return { error: parsed.message };
   const result = await dealsApi.startPact(parsed.command);
+  // Billing (T-087): nothing left to pay for a new pact; Settings → Billing has the ways to buy.
+  if (result.kind === 'invalid' && result.code === 'PAYMENT_REQUIRED') {
+    return { error: 'You have no pacts left. Buy a pact or subscribe in Settings → Billing, or apply a promo code there.' };
+  }
   if (result.kind !== 'ok') return { error: FAILURES[result.kind] ?? 'The Pact could not be started. Try again shortly.' };
   // Foresight's published and AI forecasts start in the background now, so the tab opens populated (T-094 B10).
   // Best effort: if this fails, opening Foresight starts them instead.

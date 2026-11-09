@@ -16,6 +16,8 @@ export const PROTECTED_PATH_PREFIXES = [
   '/admin',
   '/preview',
   '/select-organization',
+  // The local stand-in for Stripe Checkout (T-087).
+  '/billing',
   // The OAuth consent page for MCP clients (T-084): sign in, and pick an organization, first.
   '/oauth',
 ] as const;

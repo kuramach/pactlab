@@ -47,6 +47,8 @@ import { SaleModule } from './sale/sale.module';
 import { RegulatoryModule } from './regulatory/regulatory.module';
 import { DealDeletionModule } from './deals/deletion/deal-deletion.module';
 import { InvitationsModule } from './invitations/invitations.module';
+import { BillingModule } from './billing/billing.module';
+import { FixtureBillingProvider, type BillingProvider } from '@pactlab/connectors';
 import { McpModule } from './mcp/mcp.module';
 import { McpAccessTokens } from './oauth/access-tokens';
 import { HttpsClientMetadataFetcher, type ClientMetadataFetcher } from './oauth/client-metadata';
@@ -85,6 +87,11 @@ export interface AppDependencies {
   signing?: { fixture: boolean; docusign: { oauth: DocuSignOAuth; connectHmacKey: string; redirectUri: string } | null };
   /** Property data for teaser pages (batch 2): RentCast with a key; the fixture outside production; null hides the lookup. */
   property?: PropertyDataProvider | null;
+  /**
+   * Billing (T-087): the provider (Stripe with a key; otherwise the fixture outside production),
+   * whether pact creation is gated (BILLING_ENFORCEMENT, default off) and Stripe Tax.
+   */
+  billing?: { provider?: BillingProvider; enforce?: boolean; automaticTax?: boolean };
   /**
    * Self-serve sign-up (needs `emailLogin` for the hash secret and sender).
    * Defaults: approval required, no operator email.
@@ -168,10 +175,20 @@ export class AppModule {
             hashSecret: deps.emailLogin.tokenSecret,
           })
         : null;
+    // Billing (T-087): registered globally so pact creation and sign-up can use it.
+    const webOrigin = deps.signup?.loginUrl ? new URL(deps.signup.loginUrl).origin : 'http://localhost:3000';
+    const billingModule = BillingModule.register({
+      provider: deps.billing?.provider ?? new FixtureBillingProvider(randomBytes(24).toString('hex'), `${webOrigin}/billing/fixture-checkout`),
+      enforce: deps.billing?.enforce ?? false,
+      automaticTax: deps.billing?.automaticTax ?? false,
+      appOrigin: webOrigin,
+      hashSecret: deps.emailLogin?.tokenSecret ?? randomBytes(32).toString('hex'),
+    });
     return {
       module: AppModule,
       imports: [
         InfrastructureModule.register(deps, identityVerifier),
+        billingModule,
         DealsModule,
         MeModule,
         MetricsModule,

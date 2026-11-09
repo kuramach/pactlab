@@ -12,4 +12,10 @@ export const startSignupSchema = z.strictObject({
 });
 export type StartSignupBody = z.infer<typeof startSignupSchema>;
 
-export const verifySignupSchema = z.strictObject({ email, code: z.string().regex(/^\d{6}$/), invitationToken: z.string().regex(/^[A-Za-z0-9_-]{43}$/).optional() });
+export const verifySignupSchema = z.strictObject({
+  email,
+  code: z.string().regex(/^\d{6}$/),
+  invitationToken: z.string().regex(/^[A-Za-z0-9_-]{43}$/).optional(),
+  /** A promo code (T-087): may skip approval and grant free pacts. */
+  promoCode: z.string().trim().min(4).max(40).regex(/^[A-Za-z0-9-]+$/).optional(),
+});

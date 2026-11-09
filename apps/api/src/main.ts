@@ -1,7 +1,7 @@
 import { apiEnvSchema, applyDatabaseUrls, loadConfig, packPreviewEnabled } from '@pactlab/config';
 import { assertRuntimeRoleIsolation, createPrismaClient, S3ObjectStore } from '@pactlab/db';
 import { readFileSync } from 'node:fs';
-import { DocuSignOAuth, FixturePropertyProvider, LocalEncryptedSecretStore, parseSelfHostedHosts, RentCastPropertyProvider } from '@pactlab/connectors';
+import { DocuSignOAuth, FixturePropertyProvider, LocalEncryptedSecretStore, parseSelfHostedHosts, RentCastPropertyProvider, StripeBillingProvider, UnconfiguredBillingProvider } from '@pactlab/connectors';
 import { createLogger } from '@pactlab/observability';
 import { S3Client } from '@aws-sdk/client-s3';
 import { SESv2Client } from '@aws-sdk/client-sesv2';
@@ -95,6 +95,16 @@ const app = await createApp(
       loginUrl: new URL('/login', config.APP_WEB_ORIGIN).toString(),
     },
     // Property data for teaser pages (batch 2): RentCast with a key; synthetic facts outside production.
+    // Billing (T-087): Stripe with a key; the fixture checkout outside production; never the fixture in production.
+    billing: {
+      ...(config.STRIPE_SECRET_KEY && config.STRIPE_WEBHOOK_SECRET
+        ? { provider: new StripeBillingProvider(config.STRIPE_SECRET_KEY, config.STRIPE_WEBHOOK_SECRET) }
+        : config.APP_ENV === 'production'
+          ? { provider: new UnconfiguredBillingProvider() }
+          : {}),
+      enforce: config.BILLING_ENFORCEMENT,
+      automaticTax: config.STRIPE_AUTOMATIC_TAX,
+    },
     property: config.RENTCAST_API_KEY ? new RentCastPropertyProvider(config.RENTCAST_API_KEY) : config.APP_ENV === 'production' ? null : new FixturePropertyProvider(),
     // E-signature (T-107): organizations connect their own DocuSign to Pactlab's app registration;
     // the fixture provider stands in outside production.

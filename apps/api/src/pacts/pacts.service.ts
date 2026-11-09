@@ -16,11 +16,13 @@ import {
   createDealWithLead,
   dealParties,
   deals,
+  billing,
   withTenant,
   type AskingPriceRecord,
   type DealPartyRecord,
   type PrismaClient,
 } from '@pactlab/db';
+import { BillingService } from '../billing/billing.service';
 import {
   CONNECT_METHODS,
   deriveTransactionType,
@@ -59,6 +61,7 @@ export class PactsService {
     @Inject(PRISMA) private readonly prisma: PrismaClient,
     @Inject(DealAccess) private readonly access: DealAccess,
     @Inject(PACK_RELEASE) private readonly release: { readonly preview: boolean },
+    @Inject(BillingService) private readonly billingService: BillingService,
   ) {}
 
   /** Any active organization member may start a Pact; they become its DEAL_LEAD. */
@@ -117,6 +120,16 @@ export class PactsService {
             requestId,
           });
         }
+        // What pays for it (T-087): pilot, subscription allowance or a credit; in this transaction,
+        // so a pact that can't be paid for is never created. Not gated while enforcement is off.
+        const paidBy = await billing.consume(tx, {
+          organizationId: tenant.organizationId,
+          dealId: created.id,
+          kind: command.initiatedBy === 'SELLER' ? 'SELL_SIDE' : command.seller.companyType === 'VENTURE_RAISE' ? 'VENTURE_ROUND' : 'PACT',
+          companyType: command.seller.companyType ?? 'OTHER',
+          enforce: this.billingService.enforced,
+        });
+        if (!paidBy) throw new UnprocessableEntityException({ code: 'PAYMENT_REQUIRED' });
         await appendAuditEvent(tx, {
           organizationId: tenant.organizationId,
           dealId: created.id,
