@@ -12,8 +12,9 @@ ENV_NAME="${1:-live}"
 RESET="${2:-}"
 case "$ENV_NAME" in dev | qa | stage | live) ;; *) echo "Unknown environment '$ENV_NAME': use live, stage, dev or qa." >&2; exit 2 ;; esac
 case "$RESET" in '' | --reset) ;; *) echo "Unknown option '$RESET': the only option is --reset." >&2; exit 2 ;; esac
-PROFILE="pactlab-$(case "$ENV_NAME" in live) echo prod ;; qa) echo dev ;; *) echo "$ENV_NAME" ;; esac)"
-APP_URL="$(case "$ENV_NAME" in live) echo https://app.pactlab.ai ;; *) echo "https://app.$ENV_NAME.pactlab.ai" ;; esac)"
+# macOS's bash 3.2 cannot parse `case` inside $( ), so plain ifs.
+if [ "$ENV_NAME" = live ]; then PROFILE=pactlab-prod; elif [ "$ENV_NAME" = qa ]; then PROFILE=pactlab-dev; else PROFILE="pactlab-$ENV_NAME"; fi
+if [ "$ENV_NAME" = live ]; then APP_URL=https://app.pactlab.ai; else APP_URL="https://app.$ENV_NAME.pactlab.ai"; fi
 
 echo "1/3  AWS sign-in ($PROFILE)"
 if ! aws sts get-caller-identity --profile "$PROFILE" --query Account --output text >/dev/null 2>&1; then
