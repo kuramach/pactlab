@@ -28,6 +28,16 @@ Sign-in is by email code, delivered to the kumar@pactlab.ai inbox (plus-addressi
 
 ## Run
 
+One command checks your AWS sign-in and the latest deploy, then runs the task:
+
+```bash
+pnpm demo:live                         # live: adds whatever is missing
+scripts/demo-org.sh stage              # any environment
+scripts/demo-org.sh live --reset       # rebuild (asks you to type RESET on live)
+```
+
+The underlying commands:
+
 ```bash
 scripts/ops-task.sh stage src/ops/demo-org.ts          # adds whatever is missing
 scripts/ops-task.sh stage src/ops/demo-org.ts --reset  # deletes the demo pacts, then rebuilds them
