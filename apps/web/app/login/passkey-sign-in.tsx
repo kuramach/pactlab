@@ -5,6 +5,7 @@ import { browserSupportsWebAuthn, browserSupportsWebAuthnAutofill, startAuthenti
 import { Fingerprint } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { TRUST_FIELD_ID } from '../../lib/device-label';
 import { completePasskeySignIn, passkeySignInOptions } from './passkey-actions';
 
 /**
@@ -33,7 +34,8 @@ export function PasskeySignIn({ returnTo }: { returnTo: string }) {
       return;
     }
     setBusy(true);
-    const next = await completePasskeySignIn(started.challengeId, response, returnTo);
+    const trust = (document.getElementById(TRUST_FIELD_ID) as HTMLSelectElement | null)?.value;
+    const next = await completePasskeySignIn(started.challengeId, response, returnTo, trust);
     if (next) {
       router.replace(next);
       router.refresh();

@@ -9,6 +9,7 @@ import { currentRelease, releaseLabel } from '../../../lib/release';
 import { isOpen, STATUS_LABELS, statusBadge } from './bug-reports/_lib/status';
 import { setDefaultPersona } from './persona-actions';
 import { connectDocuSign, disconnectDocuSign } from './docusign-actions';
+import { DevicesCard } from './devices-card';
 import { PasskeysCard } from './passkeys-card';
 import { BillingCard } from './billing-card';
 import { ConnectedAppsCard } from './connected-apps-card';
@@ -207,6 +208,8 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
       </Card>
 
       {organization?.authMethod === 'EMAIL_CODE' ? <PasskeysCard /> : null}
+
+      {organization?.authMethod === 'EMAIL_CODE' ? <DevicesCard /> : null}
 
       {organization?.authMethod === 'EMAIL_CODE' ? <ConnectedAppsCard mcpAddress={oauthOrigins().resource} /> : null}
 

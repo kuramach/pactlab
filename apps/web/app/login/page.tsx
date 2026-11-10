@@ -6,6 +6,7 @@ import { auth0 } from '../../lib/auth0';
 import { publicEnv } from '../../lib/env';
 import { getSessionContext } from '../../lib/session';
 import { requestCode, submitCode } from './actions';
+import { TRUST_CHOICES, TRUST_FIELD_ID } from '../../lib/device-label';
 import { PasskeySignIn } from './passkey-sign-in';
 
 // Per-request: reads cookies and query state.
@@ -28,11 +29,13 @@ const inputClass =
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ returnTo?: string | string[]; step?: string; error?: string }>;
+  searchParams: Promise<{ returnTo?: string | string[]; step?: string; error?: string; reauth?: string; ended?: string }>;
 }) {
   const params = await searchParams;
   const returnTo = safeReturnTo(params.returnTo);
-  if ((await getSessionContext()).kind === 'signed-in') redirect(returnTo);
+  // A step-up (T-112) asks a signed-in person to sign in again before a sensitive action.
+  const reauth = params.reauth === '1';
+  if (!reauth && (await getSessionContext()).kind === 'signed-in') redirect(returnTo);
   const error = params.error ? ERRORS[params.error] : undefined;
   const codeStep = params.step === 'code';
   const auth0Enabled = auth0() !== null;
@@ -45,6 +48,16 @@ export default async function LoginPage({
           <CardDescription>Use the sign-in method your organization chose.</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-6">
+          {params.ended === '1' && !codeStep ? (
+            <p role="status" className="rounded-md border border-border bg-muted px-3 py-2 text-sm">
+              You were signed out on this device. Sign in again to continue.
+            </p>
+          ) : null}
+          {reauth && !codeStep ? (
+            <p role="status" className="rounded-md border border-border bg-muted px-3 py-2 text-sm">
+              For your security, sign in again to continue. This is needed for sensitive actions when your sign-in is more than 8 hours old.
+            </p>
+          ) : null}
           {error ? (
             <p role="alert" className="rounded-md border border-border bg-muted px-3 py-2 text-sm">
               {error}
@@ -84,8 +97,9 @@ export default async function LoginPage({
                 />
               </label>
               <input type="hidden" name="returnTo" value={returnTo} />
+              {reauth ? <input type="hidden" name="reauth" value="1" /> : null}
               <Button type="submit">Sign in</Button>
-              <a href={`/login?${new URLSearchParams({ returnTo })}`} className="text-center text-sm underline">
+              <a href={`/login?${new URLSearchParams({ returnTo, ...(reauth ? { reauth: '1' } : {}) })}`} className="text-center text-sm underline">
                 Use a different address or request a new code
               </a>
             </form>
@@ -106,14 +120,26 @@ export default async function LoginPage({
                   </div>
                 </>
               ) : null}
+              <label className="flex flex-col gap-1 text-sm font-medium">
+                Stay signed in on this device?
+                <select id={TRUST_FIELD_ID} name="trust" form="email-sign-in" defaultValue="8h" className={inputClass}>
+                  {TRUST_CHOICES.map((choice) => (
+                    <option key={choice.value} value={choice.value}>
+                      {choice.label}
+                    </option>
+                  ))}
+                </select>
+                <span className="text-xs font-normal text-muted-foreground">Only on a computer or phone you trust. Your organization may set a shorter limit.</span>
+              </label>
               <PasskeySignIn returnTo={returnTo} />
-              <form action={requestCode} className="flex flex-col gap-3">
+              <form id="email-sign-in" action={requestCode} className="flex flex-col gap-3">
                 <label className="flex flex-col gap-1 text-sm font-medium">
                   Email
                   {/* `webauthn` lets the browser suggest a saved passkey right here (T-108). */}
                   <input name="email" type="email" autoComplete="email webauthn" required className={inputClass} />
                 </label>
                 <input type="hidden" name="returnTo" value={returnTo} />
+              {reauth ? <input type="hidden" name="reauth" value="1" /> : null}
                 <Button type="submit">Email me a sign-in code</Button>
               </form>
             </>

@@ -444,6 +444,8 @@ model Organization {
   region              String                 @default("us-east-1")
   /// Buyer persona new pacts default to (T-105): QUALITY_COMPOUNDER | VALUE_INVESTOR | GRAVE_DANCER; null is Value Investor.
   defaultPersona      String?                @map("default_persona")
+  /// The longest trusted sign-in members may keep, in hours (T-112): 0 (off), 24, 168 or 720.
+  trustedSessionMaxHours Int                 @default(168) @map("trusted_session_max_hours")
   createdAt           DateTime               @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt           DateTime               @updatedAt @map("updated_at") @db.Timestamptz(3)
 
@@ -1412,11 +1414,19 @@ model AuthSession {
   createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
   expiresAt      DateTime  @map("expires_at") @db.Timestamptz(3)
   revokedAt      DateTime? @map("revoked_at") @db.Timestamptz(3)
+  /// When the person signed in; kept when the session moves between organizations (T-112).
+  signedInAt     DateTime  @default(now()) @map("signed_in_at") @db.Timestamptz(3)
+  /// The person trusted this device for a longer sign-in (1 day, 1 week or 30 days, within the organization's cap).
+  trusted        Boolean   @default(false)
+  lastSeenAt     DateTime  @default(now()) @map("last_seen_at") @db.Timestamptz(3)
+  /// A readable name such as "Chrome on macOS"; never the raw user agent or an address.
+  deviceLabel    String?   @map("device_label")
 
   user         User          @relation(fields: [userId], references: [id], onDelete: Restrict)
   organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Restrict)
 
   @@index([userId, createdAt])
+  @@index([userId, expiresAt])
   @@map("auth_sessions")
 }
 

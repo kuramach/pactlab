@@ -6,7 +6,7 @@ import { AllowUnscoped, Public, type Principal } from '../auth/auth.guard';
 import { CurrentPrincipal } from '../auth/principal.decorator';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { rateLimitAddress } from './client-address';
-import { passkeyParamsSchema, passkeyRegisterBodySchema, passkeySignInBodySchema } from './email-login.schemas';
+import { passkeyParamsSchema, passkeyRegisterBodySchema, passkeySignInBodySchema, type TrustChoice } from './email-login.schemas';
 import type { IssuedSession } from './email-login.service';
 import { PasskeysService } from './passkeys.service';
 
@@ -26,8 +26,8 @@ export class PasskeysController {
   @Public()
   @Post('auth/passkey/verify')
   @HttpCode(200)
-  signIn(@Body(new ZodValidationPipe(passkeySignInBodySchema)) body: { challengeId: string; response: unknown }): Promise<IssuedSession> {
-    return this.service.signIn(body.challengeId, body.response as AuthenticationResponseJSON);
+  signIn(@Body(new ZodValidationPipe(passkeySignInBodySchema)) body: { challengeId: string; response: unknown; trust: TrustChoice; device?: string }): Promise<IssuedSession> {
+    return this.service.signIn(body.challengeId, body.response as AuthenticationResponseJSON, body.trust, body.device);
   }
 
   // Passkeys belong to the person, not an organization: unscoped sessions may manage them too.

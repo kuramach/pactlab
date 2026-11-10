@@ -3,7 +3,7 @@ import { checkoutBodySchema, createPromoCodeSchema, promoCodeBodySchema, type Cr
 import { isUuid, type TenantContext } from '@pactlab/domain';
 import type { FastifyRequest } from 'fastify';
 import type { z } from 'zod';
-import { Public } from '../auth/auth.guard';
+import { Public, RecentSignIn } from '../auth/auth.guard';
 import { Tenant } from '../auth/tenant.decorator';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { rateLimitAddress } from '../email-login/client-address';
@@ -21,12 +21,14 @@ export class BillingController {
     return this.service.view(tenant);
   }
 
+  @RecentSignIn()
   @Post('checkout')
   @HttpCode(200)
   checkout(@Tenant() tenant: TenantContext, @Body(new ZodValidationPipe(checkoutBodySchema)) body: { plan: z.infer<typeof checkoutBodySchema>['plan'] }) {
     return this.service.checkout(tenant, body.plan, null);
   }
 
+  @RecentSignIn()
   @Post('portal')
   @HttpCode(200)
   portal(@Tenant() tenant: TenantContext) {
@@ -106,6 +108,7 @@ export class BillingAdminController {
     return this.service.listPromoCodes(tenant);
   }
 
+  @RecentSignIn()
   @Post('promo-codes')
   @HttpCode(201)
   createPromoCode(@Tenant() tenant: TenantContext, @Body(new ZodValidationPipe(createPromoCodeSchema)) body: CreatePromoCodeInput) {
