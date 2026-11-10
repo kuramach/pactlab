@@ -4,7 +4,7 @@ import { AllowUnscoped, Public, type Principal } from '../auth/auth.guard';
 import { CurrentPrincipal } from '../auth/principal.decorator';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { rateLimitAddress } from './client-address';
-import { selectOrganizationBodySchema, startBodySchema, verifyBodySchema } from './email-login.schemas';
+import { selectOrganizationBodySchema, startBodySchema, verifyBodySchema, type TrustChoice } from './email-login.schemas';
 import { EmailLoginService, type IssuedSession } from './email-login.service';
 
 /** Email one-time-code sign-in for organizations that do not use Auth0. */
@@ -28,8 +28,8 @@ export class EmailLoginController {
   @Public()
   @Post('email/verify')
   @HttpCode(200)
-  verify(@Body(new ZodValidationPipe(verifyBodySchema)) body: { email: string; code: string }): Promise<IssuedSession> {
-    return this.service.verify(body.email, body.code);
+  verify(@Body(new ZodValidationPipe(verifyBodySchema)) body: { email: string; code: string; trust: TrustChoice; device?: string }): Promise<IssuedSession> {
+    return this.service.verify(body.email, body.code, body.trust, body.device);
   }
 
   @AllowUnscoped()

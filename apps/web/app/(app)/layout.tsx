@@ -1,5 +1,7 @@
 import { AppShell } from '@pactlab/ui';
 import type { ReactNode } from 'react';
+import { redirect } from 'next/navigation';
+import { SESSION_ENDED_PATH } from '../../lib/auth-flow';
 import { publicEnv } from '../../lib/env';
 import { visibleSections } from '../../lib/navigation';
 import { currentRelease, releaseLabel } from '../../lib/release';
@@ -12,6 +14,8 @@ import { PasskeyOffer } from './settings/passkeys-card';
 export default async function AppLayout({ children }: { children: ReactNode }) {
   const env = publicEnv();
   const session = await getSessionContext();
+  // The cookie outlived its session (signed out from another device, idle, or a lower limit): clear it and sign in again.
+  if (session.kind === 'signed-out' && session.ended) redirect(SESSION_ENDED_PATH);
   const sections = visibleSections(session.permissions, undefined, session.kind === 'signed-in' && session.guest, session.kind === 'signed-in' && session.operator);
   const version = releaseLabel(await currentRelease());
   return (

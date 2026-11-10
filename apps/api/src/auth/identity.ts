@@ -10,6 +10,8 @@ export interface VerifiedIdentity {
   issuer: TokenIssuer;
   /** Server-side session id (Pactlab email-code tokens only). */
   sessionId?: string;
+  /** When the person signed in (Pactlab sessions only), for step-up checks (T-112). */
+  signedInAt?: Date;
 }
 
 /** Internal identity adapter: Auth0 or Pactlab email-code, replaceable without touching callers. */

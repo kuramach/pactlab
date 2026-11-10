@@ -16,6 +16,8 @@ import { LOGGER, PRISMA } from '../tokens';
 import { keyedHash } from './client-address';
 import { EMAIL_LOGIN, type EmailLoginDependencies, type IssuedSession } from './email-login.service';
 import { emails } from './emails';
+import type { TrustChoice } from './email-login.schemas';
+import { applyTrust } from './trust';
 
 /** Where passkeys are bound (ADR 0023): the web host, and the web origin the browser reports. */
 export interface WebAuthnRelyingParty {
@@ -55,7 +57,7 @@ export class PasskeysService {
   }
 
   /** A session token, or a uniform 401 whatever went wrong. */
-  async signIn(challengeId: string, response: AuthenticationResponseJSON): Promise<IssuedSession> {
+  async signIn(challengeId: string, response: AuthenticationResponseJSON, trust: TrustChoice = '8h', device?: string): Promise<IssuedSession> {
     const expected = await passkeys.takeChallenge(this.prisma, { challengeId, purpose: 'SIGN_IN', sessionId: null });
     const stored = expected ? await passkeys.lookup(this.prisma, response.id) : null;
     if (!expected || !stored) throw new UnauthorizedException();
@@ -76,8 +78,9 @@ export class PasskeysService {
     if (!verified.verified) throw new UnauthorizedException();
     const session = await passkeys.login(this.prisma, { credentialId: response.id, newCounter: verified.authenticationInfo.newCounter });
     if (!session) throw new UnauthorizedException();
-    const token = await this.deps.tokens.issue({ subject: session.subject, sessionId: session.sessionId, organizationId: session.organizationId, expiresAt: session.expiresAt });
-    return { token, expiresAt: session.expiresAt.toISOString(), organizationId: session.organizationId };
+    const expiresAt = await applyTrust(this.prisma, session, trust, device);
+    const token = await this.deps.tokens.issue({ subject: session.subject, sessionId: session.sessionId, organizationId: session.organizationId, expiresAt });
+    return { token, expiresAt: expiresAt.toISOString(), organizationId: session.organizationId };
   }
 
   // --- The signed-in user's passkeys --------------------------------------------------------

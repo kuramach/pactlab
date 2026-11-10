@@ -1,7 +1,7 @@
 import { Body, Controller, Get, HttpCode, Inject, Param, Post } from '@nestjs/common';
 import { dealParamsSchema } from '@pactlab/contracts';
 import type { TenantContext } from '@pactlab/domain';
-import { Public } from '../auth/auth.guard';
+import { Public, RecentSignIn } from '../auth/auth.guard';
 import { Tenant } from '../auth/tenant.decorator';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { RequestId } from '../deals/request-id.decorator';
@@ -18,6 +18,7 @@ export class DealInvitationsController {
     return this.invitations.list(tenant, params.dealId, requestId);
   }
 
+  @RecentSignIn()
   @Post()
   @HttpCode(201)
   create(

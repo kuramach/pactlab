@@ -1,5 +1,6 @@
 import { cookies, headers } from 'next/headers';
 import { NATIVE_SESSION_COOKIE, nativeSessionState } from './auth-flow';
+import { deviceLabel, type TrustChoice } from './device-label';
 import { publicEnv, serverEnv } from './env';
 
 /** Short-lived cookies remembering which address a code was sent to (kept out of URLs). */
@@ -52,6 +53,36 @@ export async function passkeyOfferPending(): Promise<boolean> {
 
 export async function forgetPasskeyOffer(): Promise<void> {
   (await cookies()).delete({ name: PASSKEY_OFFER_COOKIE, path: '/' });
+}
+
+/** The "stay signed in" choice between the email and code steps (T-112), like the pending address. */
+const PENDING_TRUST_COOKIE = 'pactlab_login_trust';
+
+export async function rememberPendingTrust(trust: string): Promise<void> {
+  (await cookies()).set(PENDING_TRUST_COOKIE, trust, { httpOnly: true, secure: secure(), sameSite: 'lax', path: '/login', maxAge: 10 * 60 });
+}
+
+export async function pendingTrust(): Promise<string | null> {
+  return (await cookies()).get(PENDING_TRUST_COOKIE)?.value ?? null;
+}
+
+export async function forgetPendingTrust(): Promise<void> {
+  (await cookies()).delete({ name: PENDING_TRUST_COOKIE, path: '/login' });
+}
+
+/** What the API needs to trust this device: the choice and a readable device name. */
+export async function trustFields(trust: TrustChoice): Promise<{ trust: TrustChoice; device?: string }> {
+  const device = deviceLabel((await headers()).get('user-agent'));
+  return { trust, ...(device ? { device } : {}) };
+}
+
+/**
+ * After signing in again on a browser that still had a session (a step-up for a sensitive
+ * action), end the old one so the device list shows this browser once.
+ */
+export async function retireSession(previousToken: string | null): Promise<void> {
+  if (!previousToken) return;
+  await authApi('/v1/auth/logout', undefined, previousToken).catch(() => undefined);
 }
 
 export async function clearNativeSession(): Promise<void> {

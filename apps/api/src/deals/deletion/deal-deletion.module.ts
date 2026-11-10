@@ -7,6 +7,7 @@ import { ZodValidationPipe } from '../../common/zod-validation.pipe';
 import { DealAccess } from '../deal-access';
 import { RequestId } from '../request-id.decorator';
 import { DealDeletionService, DELETION_STORES, type DeletionStores } from './deal-deletion.service';
+import { RecentSignIn } from '../../auth/auth.guard';
 
 const deleteDealSchema = z.strictObject({ confirmName: z.string().min(1).max(200) });
 
@@ -15,6 +16,7 @@ class DealDeletionController {
   constructor(@Inject(DealDeletionService) private readonly service: DealDeletionService) {}
 
   /** Delete the deal. The lead types its name to confirm; one-way. */
+  @RecentSignIn()
   @Delete()
   @HttpCode(200)
   remove(

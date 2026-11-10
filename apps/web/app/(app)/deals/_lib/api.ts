@@ -14,8 +14,10 @@ import type {
   UploadDetailView,
 } from '@pactlab/contracts';
 import type { EvidenceItemView, EvidenceLineage } from '@pactlab/domain';
+import { redirect } from 'next/navigation';
 import { organizationAccessToken } from '../../../../lib/auth0';
 import { publicEnv } from '../../../../lib/env';
+import { signInAgainPath } from '../../../../lib/step-up';
 
 export type ApiResult<T> =
   | { kind: 'ok'; data: T }
@@ -99,6 +101,8 @@ export async function apiSend<T>(
   if (response.ok) return { kind: 'ok', data: (await response.json()) as T };
   if (response.status === 422) {
     const code = ((await response.json().catch(() => null)) as { code?: unknown } | null)?.code;
+    // A sensitive action on a sign-in over 8 hours old (T-112): sign in again, then come back.
+    if (code === 'RECENT_SIGN_IN_REQUIRED') redirect(await signInAgainPath());
     return typeof code === 'string' && /^[A-Z][A-Z_]{2,40}$/.test(code) ? { kind: 'invalid', code } : { kind: 'invalid' };
   }
   if (response.status === 400) return { kind: 'invalid' };

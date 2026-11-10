@@ -79,7 +79,73 @@ export const authSessions = {
   async revoke(prisma: PrismaClient, sessionId: string): Promise<void> {
     await asApp(prisma, (tx) => tx.$executeRaw`SELECT app_auth_session_revoke(${sessionId}::uuid)`);
   },
+
+  /**
+   * Trust the device a session was just opened on (T-112): 24, 168 or 720 hours, clamped to
+   * the organization's cap. The new expiry, or null when refused (too late, already trusted).
+   */
+  async trust(prisma: PrismaClient, input: { sessionId: string; hours: TrustHours; deviceLabel: string | null }): Promise<Date | null> {
+    const [row] = await asApp(prisma, (tx) =>
+      tx.$queryRaw<{ expires_at: Date | null }[]>`
+        SELECT app_auth_session_trust(${input.sessionId}::uuid, ${input.hours}::int, ${input.deviceLabel}) AS expires_at`,
+    );
+    return row?.expires_at ? new Date(row.expires_at) : null;
+  },
+
+  /** Every request: the session is live (and a trusted one within its cap and idle window). When the person signed in, or null. */
+  async check(prisma: PrismaClient, input: { sessionId: string; subject: string; organizationId: string | null }): Promise<{ signedInAt: Date } | null> {
+    const [row] = await asApp(prisma, (tx) =>
+      tx.$queryRaw<{ signed_in_at: Date }[]>`
+        SELECT signed_in_at FROM app_auth_session_check(${input.sessionId}::uuid, ${input.subject}, ${input.organizationId}::uuid)`,
+    );
+    return row ? { signedInAt: new Date(row.signed_in_at) } : null;
+  },
+
+  /** The signed-in devices of the person behind this session, most recently used first. */
+  async list(prisma: PrismaClient, sessionId: string): Promise<SignedInDevice[]> {
+    const rows = await asApp(prisma, (tx) =>
+      tx.$queryRaw<{ id: string; device_label: string | null; trusted: boolean; signed_in_at: Date; last_seen_at: Date; expires_at: Date; current: boolean }[]>`
+        SELECT id::text, device_label, trusted, signed_in_at, last_seen_at, expires_at, current FROM app_auth_sessions_list(${sessionId}::uuid)`,
+    );
+    return rows.map((row) => ({
+      id: row.id,
+      deviceLabel: row.device_label,
+      trusted: row.trusted,
+      signedInAt: new Date(row.signed_in_at),
+      lastSeenAt: new Date(row.last_seen_at),
+      expiresAt: new Date(row.expires_at),
+      current: row.current,
+    }));
+  },
+
+  /** Sign out one of the person's own sessions. False when it is not theirs or already ended. */
+  async revokeOwn(prisma: PrismaClient, input: { sessionId: string; targetId: string }): Promise<boolean> {
+    const [row] = await asApp(prisma, (tx) =>
+      tx.$queryRaw<{ revoked: boolean }[]>`SELECT app_auth_session_revoke_own(${input.sessionId}::uuid, ${input.targetId}::uuid) AS revoked`,
+    );
+    return row?.revoked === true;
+  },
+
+  /** Sign out everywhere else. How many sessions ended. */
+  async revokeOthers(prisma: PrismaClient, sessionId: string): Promise<number> {
+    const [row] = await asApp(prisma, (tx) => tx.$queryRaw<{ n: number }[]>`SELECT app_auth_session_revoke_others(${sessionId}::uuid) AS n`);
+    return Number(row?.n ?? 0);
+  },
 };
+
+/** Trusted sign-in lengths, in hours (T-112). An untrusted session lasts 8 hours. */
+export const TRUST_HOURS = [24, 168, 720] as const;
+export type TrustHours = (typeof TRUST_HOURS)[number];
+
+export interface SignedInDevice {
+  id: string;
+  deviceLabel: string | null;
+  trusted: boolean;
+  signedInAt: Date;
+  lastSeenAt: Date;
+  expiresAt: Date;
+  current: boolean;
+}
 
 /** The signed-in user behind an email-code session (T-108). `signedInAt` survives a move between organizations. */
 export interface PasskeyAccount {

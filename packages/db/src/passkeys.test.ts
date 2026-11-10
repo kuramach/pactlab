@@ -84,8 +84,8 @@ describe('passkeys (database)', () => {
   it('adding needs a sign-in within 15 minutes, even after the session changed organization', async () => {
     const dan = await member('Dan');
     const session = await signIn(dan.email);
-    // As if signed in 20 minutes ago: rescope keeps the expiry, so the expiry is the clock.
-    await db.owner.query(`UPDATE auth_sessions SET expires_at = now() + interval '7 hours 40 minutes', created_at = now() WHERE id = $1`, [session]);
+    // As if signed in 20 minutes ago: the session row is new (as after a rescope), the sign-in time is not.
+    await db.owner.query(`UPDATE auth_sessions SET signed_in_at = now() - interval '20 minutes', created_at = now() WHERE id = $1`, [session]);
     expect(await passkeys.beginChallenge(db.prisma, { purpose: 'REGISTER', sessionId: session, challenge: 'late', ipHash: IP })).toBeNull();
     expect(await add(session)).toBeNull();
   });

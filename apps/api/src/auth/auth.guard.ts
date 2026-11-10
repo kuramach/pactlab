@@ -1,4 +1,4 @@
-import { Inject, Injectable, SetMetadata, UnauthorizedException, type CanActivate, type ExecutionContext } from '@nestjs/common';
+import { Inject, Injectable, SetMetadata, UnauthorizedException, UnprocessableEntityException, type CanActivate, type ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { resolvePrincipal, type PrismaClient, type TokenIssuer } from '@pactlab/db';
 import type { TenantContext } from '@pactlab/domain';
@@ -17,6 +17,17 @@ const UNSCOPED_ROUTE = 'pactlab:unscoped';
  */
 export const AllowUnscoped = () => SetMetadata(UNSCOPED_ROUTE, true);
 
+const RECENT_SIGN_IN = 'pactlab:recent-sign-in';
+/** How recent a sign-in sensitive actions need (T-112). */
+export const RECENT_SIGN_IN_HOURS = 8;
+/**
+ * Sensitive actions (inviting people, connecting DocuSign or an AI assistant, billing,
+ * deleting a pact) need a Pactlab sign-in under 8 hours old, however long the session
+ * on a trusted device runs. Otherwise 422 RECENT_SIGN_IN_REQUIRED, and the web asks to sign in again.
+ * Auth0 sessions follow the identity provider's own rules.
+ */
+export const RecentSignIn = () => SetMetadata(RECENT_SIGN_IN, true);
+
 /** A verified subject, before (or independent of) organization scoping. */
 export interface Principal {
   subject: string;
@@ -25,6 +36,8 @@ export interface Principal {
   issuer: TokenIssuer;
   /** Email-code session id, when the token names one. */
   sessionId?: string;
+  /** When the person signed in (Pactlab sessions only). */
+  signedInAt?: Date;
 }
 
 export type AuthenticatedRequest = FastifyRequest & { tenant?: TenantContext; principal?: Principal };
@@ -56,8 +69,12 @@ export class AuthGuard implements CanActivate {
     const identity = await this.verifier.verify(token);
     if (!identity) throw new UnauthorizedException();
 
-    const { subject, externalOrganizationId, issuer, sessionId } = identity;
-    const session = sessionId ? { sessionId } : {};
+    const { subject, externalOrganizationId, issuer, sessionId, signedInAt } = identity;
+    const session = { ...(sessionId ? { sessionId } : {}), ...(signedInAt ? { signedInAt } : {}) };
+    const needsRecent = this.reflector.getAllAndOverride<boolean>(RECENT_SIGN_IN, [context.getHandler(), context.getClass()]);
+    if (needsRecent && issuer === 'PACTLAB' && (!signedInAt || Date.now() - signedInAt.getTime() > RECENT_SIGN_IN_HOURS * 3_600_000)) {
+      throw new UnprocessableEntityException({ code: 'RECENT_SIGN_IN_REQUIRED' });
+    }
     if (externalOrganizationId === null) {
       const allowUnscoped = this.reflector.getAllAndOverride<boolean>(UNSCOPED_ROUTE, [
         context.getHandler(),

@@ -2,7 +2,8 @@
 
 import type { PasskeyOptionsView } from '@pactlab/contracts';
 import { safeReturnTo, SELECT_ORGANIZATION_PATH } from '../../lib/auth-flow';
-import { authApi, storeNativeSession, type IssuedSession } from '../../lib/native-session';
+import { trustChoice } from '../../lib/device-label';
+import { authApi, nativeSessionToken, retireSession, storeNativeSession, trustFields, type IssuedSession } from '../../lib/native-session';
 
 /**
  * Passkey sign-in (T-108). The browser runs the WebAuthn ceremony; these actions
@@ -15,11 +16,13 @@ export async function passkeySignInOptions(): Promise<PasskeyOptionsView | null>
 }
 
 /** Where to go next, or null when the passkey was not accepted (one message for every failure). */
-export async function completePasskeySignIn(challengeId: string, response: unknown, returnToInput: string): Promise<string | null> {
+export async function completePasskeySignIn(challengeId: string, response: unknown, returnToInput: string, trust?: string): Promise<string | null> {
   const returnTo = safeReturnTo(returnToInput);
-  const verified = await authApi('/v1/auth/passkey/verify', { challengeId, response });
+  const verified = await authApi('/v1/auth/passkey/verify', { challengeId, response, ...(await trustFields(trustChoice(trust))) });
   if (verified.status !== 200) return null;
   const session = verified.data as IssuedSession;
+  const previous = await nativeSessionToken();
   await storeNativeSession(session);
+  await retireSession(previous);
   return session.organizationId ? returnTo : `${SELECT_ORGANIZATION_PATH}?${new URLSearchParams({ returnTo })}`;
 }

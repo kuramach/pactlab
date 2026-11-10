@@ -54,7 +54,12 @@ export const getMe = cache(async (): Promise<MeResult> => {
 });
 
 export type SessionContext =
-  | { kind: 'signed-out'; permissions: ReadonlySet<Permission> }
+  | {
+      kind: 'signed-out';
+      permissions: ReadonlySet<Permission>;
+      /** The browser still holds a Pactlab session the API no longer accepts: signed out elsewhere, idle, or past the organization's limit (T-112). */
+      ended?: boolean;
+    }
   | {
       kind: 'signed-in';
       displayName: string;
@@ -92,6 +97,7 @@ export const getSessionContext = cache(async (): Promise<SessionContext> => {
   const nativeToken = session ? null : await nativeSessionToken();
   if (!session && !nativeToken) return { kind: 'signed-out', permissions: new Set() };
   const me = await getMe();
+  if (nativeToken && me.kind === 'signed-out') return { kind: 'signed-out', permissions: new Set(), ended: true };
   const nativeOrganization = nativeToken ? tokenOrganization(nativeToken) : null;
   const member =
     me.kind !== 'ok'

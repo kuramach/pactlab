@@ -141,7 +141,7 @@ describe('passkey sign-in', () => {
 
   it('adding needs a sign-in within 15 minutes', async () => {
     const token = await emailSignIn(ana.email);
-    await db.owner.query(`UPDATE auth_sessions SET expires_at = now() + interval '7 hours 30 minutes' WHERE user_id = $1 AND revoked_at IS NULL`, [ana.userId]);
+    await db.owner.query(`UPDATE auth_sessions SET signed_in_at = now() - interval '30 minutes' WHERE user_id = $1 AND revoked_at IS NULL`, [ana.userId]);
     const listed = await call('GET', '/v1/me/passkeys', undefined, token);
     expect(listed.body['canAdd']).toBe(false);
     const options = await call('POST', '/v1/me/passkeys/options', undefined, token);

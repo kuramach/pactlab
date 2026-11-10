@@ -26,3 +26,26 @@ export interface PasskeyOptionsView {
 }
 
 export const passkeyNameSchema = z.string().trim().min(1).max(60);
+
+/** One device where the person is signed in (T-112). */
+export interface SignedInDeviceView {
+  id: string;
+  /** e.g. "Chrome on macOS"; null for sign-ins from before T-112 or without one. */
+  deviceLabel: string | null;
+  trusted: boolean;
+  signedInAt: string;
+  lastSeenAt: string;
+  expiresAt: string;
+  /** The device making this request. */
+  current: boolean;
+}
+
+export interface SignedInDevicesView {
+  devices: SignedInDeviceView[];
+}
+
+/** The organization's cap on a trusted sign-in, in hours: 0 (off), 24, 168 or 720. */
+export interface SessionPolicyView {
+  maxTrustedHours: 0 | 24 | 168 | 720;
+  canEdit: boolean;
+}

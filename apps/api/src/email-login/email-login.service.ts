@@ -9,6 +9,8 @@ import { keyedHash, normalizeEmail as normalize } from './client-address';
 import type { EmailSender } from './email-sender';
 import { emails } from './emails';
 import type { WebAuthnRelyingParty } from './passkeys.service';
+import type { TrustChoice } from './email-login.schemas';
+import { applyTrust } from './trust';
 
 export const EMAIL_LOGIN = Symbol('EMAIL_LOGIN');
 
@@ -73,13 +75,14 @@ export class EmailLoginService {
       });
   }
 
-  async verify(email: string, code: string): Promise<IssuedSession> {
+  async verify(email: string, code: string, trust: TrustChoice = '8h', device?: string): Promise<IssuedSession> {
     const session = await emailLogin.verify(this.prisma, {
       email: normalize(email),
       codeHash: this.codeHash(email, code),
     });
     if (!session) throw new UnauthorizedException();
-    return this.issue(session.subject, session.sessionId, session.organizationId, session.expiresAt);
+    const expiresAt = await applyTrust(this.prisma, session, trust, device);
+    return this.issue(session.subject, session.sessionId, session.organizationId, expiresAt);
   }
 
   /** Move an email-code session into one of the caller's email-code organizations. */

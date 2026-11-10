@@ -25,6 +25,8 @@ export const PROTECTED_PATH_PREFIXES = [
 export const SELECT_ORGANIZATION_PATH = '/select-organization';
 /** Sign-in chooser: Auth0 / company SSO, or an emailed one-time code. */
 export const SIGN_IN_PATH = '/login';
+/** Clears a Pactlab session cookie the API no longer accepts, then shows the sign-in page (T-112). */
+export const SESSION_ENDED_PATH = '/login/ended';
 const LOGIN_PATH = '/auth/login';
 /** httpOnly cookie holding the API-signed token of an email-code session. */
 export const NATIVE_SESSION_COOKIE = 'pactlab_session';

@@ -2,7 +2,7 @@ import { Body, Controller, Delete, Get, Headers, HttpCode, Inject, Param, Post, 
 import { dealParamsSchema } from '@pactlab/contracts';
 import type { TenantContext } from '@pactlab/domain';
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import { Public } from '../auth/auth.guard';
+import { Public, RecentSignIn } from '../auth/auth.guard';
 import { Tenant } from '../auth/tenant.decorator';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { RequestId } from '../deals/request-id.decorator';
@@ -150,12 +150,14 @@ export class DocuSignConnectionController {
     return this.service.docusignStatus(tenant);
   }
 
+  @RecentSignIn()
   @Post('start')
   @HttpCode(200)
   start(@Tenant() tenant: TenantContext) {
     return this.service.docusignStart(tenant);
   }
 
+  @RecentSignIn()
   @Post('callback')
   @HttpCode(200)
   callback(@Tenant() tenant: TenantContext, @RequestId() requestId: string, @Body(new ZodValidationPipe(docusignCallbackSchema)) body: { code: string; state: string }) {
