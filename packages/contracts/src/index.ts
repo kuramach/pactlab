@@ -5,6 +5,7 @@ export * from './scans';
 export * from './pacts';
 export * from './imports';
 export * from './comparables';
+export * from './comparables-batch';
 export * from './balance-sheet';
 export * from './phases';
 export * from './admin';

@@ -1,7 +1,7 @@
 import type { ComparableView } from '@pactlab/contracts';
 import { COMPANY_TYPE_LABELS, COMPANY_TYPES } from '@pactlab/domain';
 import { Badge, Button, buttonVariants, Card, CardContent, CardDescription, CardHeader, CardTitle, EmptyState, Glossed, PageHeader, Stat } from '@pactlab/ui';
-import { Building2, Database, FlaskConical, Library, PenLine, Plug } from 'lucide-react';
+import { Building2, Database, FlaskConical, Library, PenLine, Plug, Upload } from 'lucide-react';
 import Link from 'next/link';
 import { ComparablesScatterChart } from '../_lib/charts';
 import { apiGet } from '../deals/_lib/api';
@@ -9,6 +9,7 @@ import { OutcomeBanner } from '../deals/_lib/outcome';
 import { ApiState } from '../deals/_lib/states';
 import { formatMoney } from '../metrics/_lib/format';
 import { addComparable, retireComparable } from './actions';
+import { BatchImport } from './batch-import';
 import { KIND_LABELS, ORIGIN_LABELS, formatMultiple, fractionToPercentLabel } from './_lib/view';
 
 // Per-user data: never prerender.
@@ -219,6 +220,23 @@ export default async function ComparablesPage({ searchParams }: { searchParams: 
                       ))}
                   </tbody>
                 </table>
+              </CardContent>
+            </Card>
+          ) : null}
+
+          {result.data.canWrite ? (
+            <Card>
+              <CardHeader className="flex flex-row items-start gap-3">
+                <Upload aria-hidden className="mt-0.5 h-5 w-5 text-indigo-ink" />
+                <div className="flex flex-col gap-1">
+                  <CardTitle>Add many</CardTitle>
+                  <CardDescription>
+                    Upload a CSV or paste rows from a spreadsheet. Every row is checked like a single entry, with its source, before anything is saved; then the ready rows import in one go.
+                  </CardDescription>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <BatchImport />
               </CardContent>
             </Card>
           ) : null}

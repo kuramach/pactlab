@@ -3,6 +3,7 @@ import {
   anchorInputSchema,
   anchorParamsSchema,
   benchmarkQuerySchema,
+  comparableBatchInputSchema,
   comparableInputSchema,
   comparableParamsSchema,
   dealParamsSchema,
@@ -11,6 +12,9 @@ import {
   type AnchorsView,
   type BenchmarkQuery,
   type BenchmarkView,
+  type ComparableBatchInput,
+  type ComparableBatchPreviewView,
+  type ComparableBatchResultView,
   type ComparableEntry,
   type ComparableView,
   type MultipleJudgementInput,
@@ -39,6 +43,28 @@ export class ComparablesController {
     @Body(new ZodValidationPipe(comparableInputSchema)) body: ComparableEntry,
   ): Promise<ComparableView> {
     return this.service.create(tenant, body, requestId);
+  }
+
+  /** Check a CSV or pasted batch; nothing is saved (T-111). */
+  @Post('comparables/batch/preview')
+  @HttpCode(200)
+  previewBatch(
+    @Tenant() tenant: TenantContext,
+    @RequestId() requestId: string,
+    @Body(new ZodValidationPipe(comparableBatchInputSchema)) body: ComparableBatchInput,
+  ): Promise<ComparableBatchPreviewView> {
+    return this.service.previewBatch(tenant, body, requestId);
+  }
+
+  /** Save a batch's valid rows in one transaction. */
+  @Post('comparables/batch')
+  @HttpCode(201)
+  importBatch(
+    @Tenant() tenant: TenantContext,
+    @RequestId() requestId: string,
+    @Body(new ZodValidationPipe(comparableBatchInputSchema)) body: ComparableBatchInput,
+  ): Promise<ComparableBatchResultView> {
+    return this.service.importBatch(tenant, body, requestId);
   }
 
   @Post('comparables/:comparableId/retire')
