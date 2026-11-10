@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 420" role="img" aria-label="A chat with an AI assistant answering from a Pactlab pact, with a citation to the source document">
+  <rect width="640" height="420" rx="24" fill="#f8faff"/>
+  <g font-family="Manrope, sans-serif" font-weight="700" font-size="13" fill="#081127">
+    <rect x="96" y="56" width="448" height="308" rx="18" fill="#fff" stroke="#e3e8f2" stroke-width="3"/>
+    <rect x="96" y="56" width="448" height="44" rx="18" fill="#081127"/>
+    <rect x="96" y="82" width="448" height="18" fill="#081127"/>
+    <circle cx="122" cy="78" r="6" fill="#6978ff"/>
+    <text x="138" y="83" fill="#fff">Assistant · Pactlab connected</text>
+    <rect x="300" y="120" width="220" height="44" rx="14" fill="#6978ff"/>
+    <text x="318" y="140" fill="#081127">Which risks are still open</text>
+    <text x="318" y="156" fill="#081127">on Project Harbor?</text>
+    <rect x="120" y="182" width="300" height="104" rx="14" fill="#f1f4ff" stroke="#e3e8f2"/>
+    <text x="138" y="206">3 open drags, priced at</text>
+    <text x="138" y="224">$1.2M–$2.1M in total.</text>
+    <text x="138" y="246" font-weight="600" fill="#4a58e8">Largest: customer concentration</text>
+    <rect x="138" y="258" width="150" height="20" rx="10" fill="#fff" stroke="#6978ff"/>
+    <text x="150" y="272" font-size="11" fill="#4a58e8">Cited: billing ledger p.4</text>
+    <rect x="120" y="304" width="400" height="40" rx="20" fill="#fff" stroke="#e3e8f2"/>
+    <text x="142" y="329" font-weight="600" fill="#8a93a8">Ask about your pacts…</text>
+    <path d="M488 312 l20 12 -20 12z" fill="#6978ff"/>
+    <g transform="translate(452 196)">
+      <path d="M36 0 L68 12 V40 C68 62 54 76 36 84 C18 76 4 62 4 40 V12 Z" fill="#081127"/>
+      <path d="M22 42 l10 10 18 -20" fill="none" stroke="#6978ff" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+    </g>
+  </g>
+</svg>

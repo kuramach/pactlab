@@ -239,7 +239,7 @@ export default async function IndustryPage({ params }: { params: Promise<{ slug:
         <p className="mt-8 text-slate-text">
           Every pack runs on the same core.{' '}
           <Link href="/product" className="font-semibold text-indigo-ink underline-offset-4 hover:underline">
-            See the six product modules →
+            See the product modules →
           </Link>
         </p>
       </Section>

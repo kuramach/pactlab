@@ -8,7 +8,7 @@ import { pageMetadata } from '../../lib/seo';
 
 export const metadata: Metadata = pageMetadata({
   title: 'Product',
-  description: 'Six modules, one decision loop: revenue, technology, delivery, documents, findings and valuation.',
+  description: 'Nine modules, one decision loop: revenue, technology, delivery, documents, findings, valuation, close, reports and your AI assistant.',
   path: '/product',
 });
 
@@ -17,7 +17,7 @@ export default function ProductPage() {
     <>
       <PageHero
         eyebrow="Product"
-        title="Six modules. One decision loop."
+        title="Nine modules. One decision loop."
         body="Each module answers a question a deal team has to answer before signing — and hands its answer to the next step with the evidence attached."
       />
       {MODULES.map((module, index) => (

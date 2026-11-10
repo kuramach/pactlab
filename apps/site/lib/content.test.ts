@@ -270,3 +270,24 @@ describe('pacts carousel (T-086)', () => {
     for (const slide of slides) expect(slide.short.length, slide.id).toBeLessThanOrEqual(14);
   });
 });
+
+describe('new features and pricing (2026-11-09)', () => {
+  it('presents close, reports and the AI assistant as product modules', () => {
+    expect(content.MODULES.map((module) => module.slug)).toEqual(['revenue', 'technology', 'delivery', 'documents', 'findings', 'valuation', 'close', 'reports', 'assistant']);
+    expect(content.CAROUSEL.map((slide) => slide.id)).toContain('assistant');
+    expect(existsSync(join(APP, '../public/illustrations/slide-assistant.svg'))).toBe(true);
+    expect(content.TRUST.items.map((item) => item.title)).toContain('Passkeys');
+  });
+
+  it('shows the launch price book from ADR 0025, with Firm and Enterprise on request', () => {
+    expect(content.PLANS.map((plan) => [plan.name, plan.price])).toEqual([
+      ['Pact', '$2,500'],
+      ['Team', '$1,500'],
+      ['Venture Raise', '$99'],
+      ['Firm and Enterprise', null],
+    ]);
+    expect(content.PLANS.find((plan) => plan.id === 'team')!.cadence).toContain('$18,000');
+    expect(content.NAV.map((item) => item.href)).toContain('/pricing');
+    expect(routeExists('/pricing')).toBe(true);
+  });
+});
