@@ -62,7 +62,8 @@ export interface ProposedView {
   version: number;
   agreedAt: string | null;
   canRespond?: boolean;
-  terms: { lever: string; amount: string; currency?: string; response?: string | null }[];
+  /** The other side's latest answer to each term, as the terms view returns it. */
+  terms: { lever: string; amount: string; currency?: string; response?: { decision: string; counterAmount?: string | null } | null }[];
 }
 export interface ClaimView {
   statement: string;

@@ -15,7 +15,7 @@ import { DisabledIdentityVerifier } from '../auth/identity';
 import { demoModelResponse } from '../demo-seed/seed';
 import { InMemoryObjectStore } from '../documents/testing';
 import { SignatureMalwareScanner } from '../documents/upload-policy';
-import { DEMO_ORG, pactName, runDemoOrg, type DemoDataSource } from './demo-org';
+import { DEMO_ORG, pactName, pactVariants, runDemoOrg, type DemoDataSource } from './demo-org';
 
 type Row = Record<string, unknown>;
 
@@ -43,7 +43,7 @@ describe('demo organization (batch 2)', () => {
   let first: string[] = [];
   const demoData = generatedDemoData();
   const rows = async (sql: string, params: unknown[] = []) => ((await db.owner.query(sql, params)) as { rows: Row[] }).rows;
-  const types = ['SOFTWARE_SAAS', 'MULTIFAMILY'] as const;
+  const types = ['SOFTWARE_SAAS', 'MULTIFAMILY', 'VENTURE_RAISE'] as const;
   const run = (reset = false) => runDemoOrg(app as never, db.owner as never, db.prisma, { types, reset, data: demoData.source });
 
   beforeAll(async () => {
@@ -65,7 +65,7 @@ describe('demo organization (batch 2)', () => {
       signing: { fixture: false, docusign: null },
     });
     first = await run();
-  }, 180_000);
+  }, 600_000);
 
   afterAll(async () => {
     await app?.close();
@@ -95,10 +95,47 @@ describe('demo organization (batch 2)', () => {
     expect(first.some((line) => line.includes('published teaser'))).toBe(true);
   });
 
+  it('fills every tab: screening, sources, finances, regulatory, claims, Sextant, the raise, post-close, bidders and reports', async () => {
+    expect(first.filter((line) => line.includes('FAILED'))).toEqual([]);
+    const deal = async (name: string) => ((await rows(`SELECT id, stage FROM deals WHERE organization_id = $1 AND name = $2`, [DEMO_ORG.id, name]))[0] ?? {}) as { id: string; stage: string };
+    const count = async (table: string, dealId: string, where = '') => ((await rows(`SELECT count(*)::int AS n FROM ${table} WHERE deal_id = $1 ${where}`, [dealId]))[0] as { n: number }).n;
+    for (const type of types) {
+      const { id, stage } = await deal(pactName(type));
+      expect(stage, type).not.toBe('SCREENING');
+      expect(await count('deal_claims', id), type).toBeGreaterThanOrEqual(3);
+      expect(await count('balance_sheet_items', id), type).toBe(4);
+      expect(await count('regulatory_entries', id), type).toBe(3);
+      expect(await count('deal_memberships', id, `AND role = 'ANALYST'`), type).toBe(1);
+      if (type !== 'VENTURE_RAISE') {
+        expect(await count('asking_prices', id), type).toBeGreaterThan(0);
+        expect(await count('multiple_judgements', id), type).toBe(1);
+      }
+    }
+    const saas = await deal(pactName('SOFTWARE_SAAS'));
+    expect(await count('connections', saas.id, `AND provider IN ('github', 'jira')`), 'GitHub and Jira').toBe(2);
+    expect(await count('negotiation_anchors', saas.id)).toBeGreaterThan(0);
+    expect(await count('negotiation_anchors', (await deal(pactName('MULTIFAMILY'))).id), 'property anchors').toBeGreaterThan(0);
+    expect((await rows(`SELECT 1 FROM evidence_items WHERE deal_id = $1 AND connection_id IS NOT NULL LIMIT 1`, [saas.id])).length, 'synced code and delivery evidence').toBe(1);
+    expect(await count('connections', (await deal(pactName('MULTIFAMILY'))).id, `AND provider IN ('github', 'jira')`), 'no code sources for property').toBe(0);
+    const venture = await deal(pactName('VENTURE_RAISE'));
+    expect(await count('venture_offers', venture.id)).toBe(3);
+    expect((await deal(pactName('VENTURE_RAISE', true))).id, 'a raise has no closed variant').toBeUndefined();
+    for (const type of ['SOFTWARE_SAAS', 'MULTIFAMILY'] as const) {
+      const closed = await deal(pactName(type, true));
+      expect(closed.stage, type).toBe('CLOSED');
+      expect(await count('post_close_items', closed.id), type).toBeGreaterThan(0);
+    }
+    const teaser = (await rows(`SELECT id FROM deals WHERE organization_id = $1 AND initiated_by = 'SELLER'`, [DEMO_ORG.id]))[0] as { id: string };
+    expect(await count('bids', teaser.id)).toBe(3);
+    expect(await count('bid_offers', teaser.id)).toBe(2);
+    expect(await count('deal_memberships', teaser.id, `AND role = 'BIDDER'`)).toBe(3);
+    expect(await rows(`SELECT scope, status FROM report_versions WHERE organization_id = $1 ORDER BY scope`, [DEMO_ORG.id])).toEqual([{ scope: 'EXECUTIVE', status: 'READY' }, { scope: 'PACT', status: 'READY' }]);
+  });
+
   it('adds nothing on a re-run', async () => {
     const before = await rows(`SELECT count(*)::int AS n FROM deals WHERE organization_id = $1`, [DEMO_ORG.id]);
     const again = await run();
-    expect(again.filter((line) => line.endsWith('already present'))).toHaveLength(types.length);
+    expect(again.filter((line) => line.endsWith('already present'))).toHaveLength(types.flatMap(pactVariants).length);
     expect(await rows(`SELECT count(*)::int AS n FROM deals WHERE organization_id = $1`, [DEMO_ORG.id])).toEqual(before);
   });
 
