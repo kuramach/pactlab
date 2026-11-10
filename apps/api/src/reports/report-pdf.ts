@@ -331,7 +331,7 @@ export async function pactReportPdf(model: PactReportModel, meta: ReportStamp): 
       w.facts([['Version', `v${proposed.version}${proposed.agreedAt ? ` · agreed ${proposed.agreedAt.slice(0, 10)}` : ' · under negotiation'}`]]);
       w.table(
         [{ label: 'Term', width: 0.45 }, { label: 'Amount', width: 0.3, align: 'right' }, { label: 'Response', width: 0.25 }],
-        proposed.terms.map((term) => [term.lever.replace(/_/g, ' ').toLowerCase(), formatMoney({ amount: term.amount, currency: term.currency ?? deal.baseCurrency }), (term.response ?? '—').toLowerCase()]),
+        proposed.terms.map((term) => [term.lever.replace(/_/g, ' ').toLowerCase(), formatMoney({ amount: term.amount, currency: term.currency ?? deal.baseCurrency }), term.response ? `${term.response.decision.toLowerCase()}${term.response.counterAmount ? ` at ${formatMoney({ amount: term.response.counterAmount, currency: term.currency ?? deal.baseCurrency })}` : ''}` : '—']),
       );
     }
   }

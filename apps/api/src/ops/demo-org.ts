@@ -8,7 +8,10 @@
  * through the real services from the public pactlab-demo-data repository at a pinned commit:
  * the data room, accepted findings, Downside / Base / Upside scenarios, a persona evaluation,
  * terms countered and agreed, both sides signed off, and a closing checklist with the funds
- * confirmed. Plus one seller-led Multifamily pact with a published teaser.
+ * confirmed — plus screening, the team, synthetic code and delivery sources, the balance sheet,
+ * regulatory terms, claims, Sextant's ask, anchors and judgement (demo-enrich.ts), a second,
+ * closed pact per pack for Post-Close, and one seller-led Multifamily pact with a published
+ * teaser and three synthetic bidders. Reports at the end.
  *
  * Synthetic only, and only ever this one organization. Model calls are scripted (no Bedrock).
  * Re-running adds only what is missing; `--reset` deletes the demo organization's pacts first.
@@ -25,6 +28,7 @@ import { COMPANY_TYPES, IMPORT_TARGET_DEFINITIONS, isReleasedCompanyType, newId,
 import { createLogger } from '@pactlab/observability';
 import pg from 'pg';
 import type { PrismaClient } from '@pactlab/db';
+import { D } from '@pactlab/calculations';
 import { createApp } from '../app';
 import { DisabledIdentityVerifier } from '../auth/identity';
 import { CloseService } from '../close/close.service';
@@ -39,6 +43,7 @@ import { ListingsService } from '../listings/listings.service';
 import { PactsService } from '../pacts/pacts.service';
 import { PricingService } from '../pricing/pricing.service';
 import { ValuationService } from '../valuation/valuation.service';
+import { bidProcess, claims, closeAndPostClose, connectSources, demoAskingPrice, enteredComparables, finances, raise, regulatory, reports, screen, sextant, team } from './demo-enrich';
 
 /** Fixed identities, so re-runs find what is there. */
 export const DEMO_ORG = {
@@ -48,6 +53,13 @@ export const DEMO_ORG = {
   buyer: { id: '01900000-0000-7000-8000-0000000de002', email: 'kumar+demo@pactlab.ai', name: 'Demo Buyer Lead' },
   seller: { id: '01900000-0000-7000-8000-0000000de003', email: 'kumar+demoseller@pactlab.ai', name: 'Demo Seller' },
   reviewer: { id: '01900000-0000-7000-8000-0000000de004', name: 'Demo Reviewer (synthetic)' },
+  analyst: { id: '01900000-0000-7000-8000-0000000de005', name: 'Demo Analyst (synthetic)' },
+  /** The teaser's bidders: guests on the seller-led pact only, each a firm of its own. */
+  bidders: [
+    { id: '01900000-0000-7000-8000-0000000de011', email: 'kumar+bidder-a@pactlab.ai', name: 'Bidder A (synthetic)', firm: 'Atlas Residential Partners (synthetic)' },
+    { id: '01900000-0000-7000-8000-0000000de012', email: 'kumar+bidder-b@pactlab.ai', name: 'Bidder B (synthetic)', firm: 'Northline Capital (synthetic)' },
+    { id: '01900000-0000-7000-8000-0000000de013', email: 'kumar+bidder-c@pactlab.ai', name: 'Bidder C (synthetic)', firm: 'Harbor Living Fund (synthetic)' },
+  ],
 } as const;
 
 /** The demo data at a pinned commit (https://github.com/kuramach/pactlab-demo-data). */
@@ -68,7 +80,9 @@ const LABELS: Readonly<Record<string, string>> = {
   PHARMA_BIOTECH: 'Pharma & Biotech',
   VENTURE_RAISE: 'Venture raise',
 };
-export const pactName = (type: CompanyType) => `${LABELS[type] ?? type} demo (synthetic)`;
+export const pactName = (type: CompanyType, closed = false) => `${LABELS[type] ?? type} demo${closed ? ', closed' : ''} (synthetic)`;
+/** A raise has no buyer terms or close, so it gets one pact; every other pack gets a second, closed one for Post-Close. */
+export const pactVariants = (type: CompanyType): readonly boolean[] => (type === 'VENTURE_RAISE' ? [false] : [false, true]);
 const SELLER_LED = 'Multifamily for sale demo (synthetic)';
 
 /** Scenario assumptions by valuation method: property by NOI and cap rate, a raise by pre-money, the rest by revenue multiple. */
@@ -165,14 +179,23 @@ interface People {
 }
 
 /** One complete buyer-led pact for a pack, from data room to funds confirmed. Returns a line for the report. */
-export async function buildPact(app: App, owner: OwnerSession, people: People, type: CompanyType, data: DemoDataSource): Promise<string> {
+export async function buildPact(app: App, owner: OwnerSession, people: People, type: CompanyType, data: DemoDataSource, options: { closed?: boolean } = {}): Promise<string> {
   const pacts = app.get(PactsService, { strict: false });
   const documents = app.get(DocumentsService, { strict: false });
   const findings = app.get(FindingsService, { strict: false });
   const valuation = app.get(ValuationService, { strict: false });
   const pricing = app.get(PricingService, { strict: false });
   const close = app.get(CloseService, { strict: false });
-  const name = pactName(type);
+  const name = pactName(type, options.closed === true);
+  const done: string[] = [];
+  // Each extra step reports what it did; one that fails says why and leaves the rest of the pact standing.
+  const step = async (label: string, run: () => Promise<string>) => {
+    try {
+      done.push(await run());
+    } catch (error) {
+      done.push(`${label} FAILED (${error instanceof Error ? error.message : 'unknown error'})`);
+    }
+  };
 
   const started = await pacts.start(
     people.buyer,
@@ -182,7 +205,7 @@ export async function buildPact(app: App, owner: OwnerSession, people: People, t
       initiatedBy: 'BUYER',
       buyer: { name: 'Demo Capital (synthetic)', ownership: 'PRIVATE', ticker: null, exchange: null, website: null, companyType: null },
       seller: { name: `${LABELS[type]} Target (synthetic)`, ownership: 'PRIVATE', ticker: null, exchange: null, website: null, companyType: type },
-      askingPrice: null,
+      askingPrice: demoAskingPrice(type),
       linkedSale: null,
       persona: 'VALUE_INVESTOR',
     },
@@ -194,6 +217,9 @@ export async function buildPact(app: App, owner: OwnerSession, people: People, t
   const buyer = scoped(people.buyer);
   const seller = scoped(people.seller);
   const reviewer = scoped(people.reviewer);
+  // Screening first: its verdict moves the pact out of SCREENING.
+  await step('screening', () => screen(app, buyer, dealId, type));
+  await step('team', () => team(owner, DEMO_ORG.id, dealId, DEMO_ORG.analyst));
 
   // The data room: one zip, unpacked and sorted by the intake; shared so the seller sees the documents too.
   const zip = await data.file(type, 'dataroom.zip');
@@ -213,10 +239,14 @@ export async function buildPact(app: App, owner: OwnerSession, people: People, t
     await documents.upload(buyer, dealId, { fileName: file, contentType: 'application/pdf', contentBase64: pdf.toString('base64'), retentionClass: 'DEAL_TERM', dataClass: file.startsWith('99-') ? 'FINANCIAL' : 'BUSINESS', aiExcluded: false, shared: !file.startsWith('99-') }, REQUEST_ID);
   }
 
+  await step('sources', () => connectSources(app, buyer, dealId, type));
+
   // Pack rules draft findings from the imported extracts; the lead submits them and a second person accepts.
   await findings.runPackRules(buyer, dealId, REQUEST_ID).catch(() => undefined);
-  const drafts = (await findings.list(buyer, dealId, { status: 'DRAFT' }, REQUEST_ID)).items.slice(0, 4);
+  // Up to five accepted; the next asks for more support and the one after is rejected, so the register shows every outcome.
+  const drafts = (await findings.list(buyer, dealId, { status: 'DRAFT' }, REQUEST_ID)).items.slice(0, 7);
   let accepted = 0;
+  let decided = 0;
   const pricedIds: string[] = [];
   for (const draft of drafts) {
     try {
@@ -228,6 +258,15 @@ export async function buildPact(app: App, owner: OwnerSession, people: People, t
         version = (priced as { version: number }).version;
       }
       const submitted = await findings.review(buyer, dealId, draft.id, { expectedVersion: version, decision: 'SUBMITTED', rationale: 'Evidence checked (synthetic demo).' }, REQUEST_ID);
+      decided += 1;
+      if (decided === 6) {
+        await findings.review(reviewer, dealId, draft.id, { expectedVersion: submitted.finding.version, decision: 'SUPPORT_REQUESTED', rationale: 'Please add the source schedule behind this figure (synthetic demo).' }, REQUEST_ID);
+        continue;
+      }
+      if (decided === 7) {
+        await findings.review(reviewer, dealId, draft.id, { expectedVersion: submitted.finding.version, decision: 'REJECTED', rationale: 'Explained by a one-off already in the price (synthetic demo).' }, REQUEST_ID);
+        continue;
+      }
       await findings.review(reviewer, dealId, draft.id, { expectedVersion: submitted.finding.version, decision: 'ACCEPTED', rationale: 'Confirmed against the data room (synthetic demo).' }, REQUEST_ID);
       accepted += 1;
       // Only priced risks move a price; value confirmations are shown without a link.
@@ -237,9 +276,17 @@ export async function buildPact(app: App, owner: OwnerSession, people: People, t
     }
   }
 
+  await step('claims', () => claims(app, buyer, dealId, pricedIds));
+  await step('finances', () => finances(app, buyer, dealId));
+  await step('regulatory', () => regulatory(app, buyer, dealId));
+
   // Scenarios tagged for the personas, then a persona evaluation and the active pricing.
   for (const scenario of scenarios(type, pricedIds)) await valuation.create(buyer, dealId, scenario, REQUEST_ID);
-  if (type === 'VENTURE_RAISE') return `${name}: data room, ${accepted} findings accepted, scenarios (a raise has no buyer terms)`;
+  if (type === 'VENTURE_RAISE') {
+    await step('raise', () => raise(app, buyer, dealId));
+    return `${name}: data room, ${accepted} findings accepted, scenarios (a raise has no buyer terms); ${done.join('; ')}`;
+  }
+  await step('sextant', () => sextant(app, buyer, dealId));
   await pricing.evaluate(buyer, dealId, { persona: 'VALUE_INVESTOR' }, REQUEST_ID);
 
   // Terms: proposed, the price countered by the seller, revised, then accepted in full.
@@ -248,7 +295,7 @@ export async function buildPact(app: App, owner: OwnerSession, people: People, t
   if (!v1) return `${name}: terms could not be drafted`;
   await pricing.propose(buyer, dealId, v1.id, REQUEST_ID);
   const price = v1.terms[0];
-  const counter = price ? (Math.round(Number(price.amount) * 1.04 * 100) / 100).toFixed(2) : null;
+  const counter: string | null = price ? new D(price.amount).times('1.04').toDecimalPlaces(2).toFixed(2) : null;
   await pricing.respond(
     seller,
     dealId,
@@ -276,11 +323,15 @@ export async function buildPact(app: App, owner: OwnerSession, people: People, t
     await close.tick(seller, dealId, funds.id, REQUEST_ID);
   }
   if (condition) await close.tick(seller, dealId, condition.id, REQUEST_ID);
-  return `${name}: data room, ${accepted} findings accepted, scenarios, persona pricing, terms countered and agreed, both signed, funds confirmed (ready to close)`;
+  if (options.closed) {
+    await step('close', () => closeAndPostClose(app, people, dealId));
+    return `${name}: data room, ${accepted} findings accepted, scenarios, persona pricing, terms agreed, both signed, funds confirmed; ${done.join('; ')}`;
+  }
+  return `${name}: data room, ${accepted} findings accepted, scenarios, persona pricing, terms countered and agreed, both signed, funds confirmed (ready to close); ${done.join('; ')}`;
 }
 
 /** One seller-led Multifamily pact with a published teaser and its property facts. */
-export async function buildTeaser(app: App, people: People): Promise<string> {
+export async function buildTeaser(app: App, people: People): Promise<{ line: string; dealId: string }> {
   const pacts = app.get(PactsService, { strict: false });
   const listings = app.get(ListingsService, { strict: false });
   const started = await pacts.start(
@@ -321,7 +372,7 @@ export async function buildTeaser(app: App, people: People): Promise<string> {
   const proposals = await listings.lookupProperty(lead, started.id, { address: '1200 Larkfield Commons Dr, Columbus, OH 43215', country: 'US' }, REQUEST_ID);
   await listings.saveProperty(lead, started.id, { address: proposals.formattedAddress, facts: proposals.facts }, REQUEST_ID);
   await listings.setStatus(lead, started.id, { status: 'PUBLISHED' }, REQUEST_ID);
-  return `${SELLER_LED}: published teaser with property facts`;
+  return { line: `${SELLER_LED}: published teaser with property facts`, dealId: started.id };
 }
 
 /** Creates the organization, then whatever pacts are missing (all of them after `reset`). Returns the report lines. */
@@ -344,30 +395,44 @@ export async function runDemoOrg(
     report.push(`reset: ${existing.rows.length} demo pacts deleted`);
   }
   const have = new Set(reset ? [] : existing.rows.map((row) => row.name));
+  // Entered comparables first, so every benchmark (and Sextant's anchors) has them.
+  const owning = await principal(DEMO_ORG.buyer.id);
+  if (owning) report.push(await enteredComparables(app, owning, types));
   for (const type of types) {
-    if (have.has(pactName(type))) {
-      report.push(`${pactName(type)}: already present`);
-      continue;
-    }
-    const [buyer, seller, reviewer] = await Promise.all([principal(DEMO_ORG.buyer.id), principal(DEMO_ORG.seller.id), principal(DEMO_ORG.reviewer.id)]);
-    if (!buyer || !reviewer) throw new Error('The demo people cannot be resolved.');
-    // Before the first pact the seller is on nothing yet; a guest context resolves once they are.
-    const sellerContext = seller ?? { organizationId: DEMO_ORG.id, userId: DEMO_ORG.seller.id, organizationRole: 'GUEST', dealIds: [] };
-    try {
-      report.push(await buildPact(app, owner, { buyer, seller: sellerContext as TenantContext, reviewer }, type, options.data));
-    } catch (error) {
-      report.push(`${pactName(type)}: FAILED (${error instanceof Error ? error.message : 'unknown error'})`);
+    for (const closed of pactVariants(type)) {
+      const name = pactName(type, closed);
+      if (have.has(name)) {
+        report.push(`${name}: already present`);
+        continue;
+      }
+      const [buyer, seller, reviewer] = await Promise.all([principal(DEMO_ORG.buyer.id), principal(DEMO_ORG.seller.id), principal(DEMO_ORG.reviewer.id)]);
+      if (!buyer || !reviewer) throw new Error('The demo people cannot be resolved.');
+      // Before the first pact the seller is on nothing yet; a guest context resolves once they are.
+      const sellerContext = seller ?? { organizationId: DEMO_ORG.id, userId: DEMO_ORG.seller.id, organizationRole: 'GUEST', dealIds: [] };
+      try {
+        report.push(await buildPact(app, owner, { buyer, seller: sellerContext as TenantContext, reviewer }, type, options.data, { closed }));
+      } catch (error) {
+        report.push(`${name}: FAILED (${error instanceof Error ? error.message : 'unknown error'})`);
+      }
     }
   }
   if (!have.has(SELLER_LED) && types.includes('MULTIFAMILY')) {
     const buyer = await principal(DEMO_ORG.buyer.id);
     if (buyer) {
       try {
-        report.push(await buildTeaser(app, { buyer, seller: buyer, reviewer: buyer }));
+        const teaser = await buildTeaser(app, { buyer, seller: buyer, reviewer: buyer });
+        report.push(teaser.line);
+        report.push(await bidProcess(app, owner, buyer, teaser.dealId, DEMO_ORG.bidders, (userId) => principal(userId)).catch((error: unknown) => `bid process FAILED (${error instanceof Error ? error.message : 'unknown error'})`));
       } catch (error) {
         report.push(`${SELLER_LED}: FAILED (${error instanceof Error ? error.message : 'unknown error'})`);
       }
     }
+  }
+  // Reports last, so they hold the finished pacts.
+  const lead = await principal(DEMO_ORG.buyer.id);
+  if (lead && report.some((line) => !line.endsWith('already present'))) {
+    const main = (await owner.query<{ id: string }>(`SELECT id FROM deals WHERE organization_id = $1 AND name = $2 AND status <> 'DELETED'`, [DEMO_ORG.id, pactName(types[0] ?? 'SOFTWARE_SAAS')])).rows[0];
+    report.push(await reports(app, lead, main?.id ?? null).catch((error: unknown) => `reports FAILED (${error instanceof Error ? error.message : 'unknown error'})`));
   }
   // Foresight prepares itself the first time each pact's tab is opened.
   return report;
