@@ -474,11 +474,11 @@ export const INDUSTRY_STORIES: Readonly<Record<string, IndustryStory>> = {
 export const WRITTEN_INDUSTRIES = INDUSTRIES.filter((industry) => industry.slug in INDUSTRY_STORIES);
 
 /**
- * The packs on sale (Kumar, 2026-11-01): Software & SaaS and Multifamily,
- * with the others released one at a time after testing. Same list as the
+ * The packs on sale (Kumar, 2026-11-01): Software & SaaS and Multifamily, then
+ * Venture Raise (2026-11-09), with the others released one at a time after testing. Same list as the
  * app's RELEASED_COMPANY_TYPES (packages/domain/src/packs/release.ts).
  */
-export const RELEASED_INDUSTRY_SLUGS: readonly string[] = ['software-saas', 'multifamily'];
+export const RELEASED_INDUSTRY_SLUGS: readonly string[] = ['software-saas', 'multifamily', 'venture-raise'];
 
 /** An environment's copy of the site (dev, qa) previews every written pack, for testing before release. */
 export const PACK_PREVIEW = process.env['NEXT_PUBLIC_PACK_PREVIEW'] === 'true';
