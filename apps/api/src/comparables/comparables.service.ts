@@ -20,11 +20,16 @@ import type {
   BenchmarkFilter,
   BenchmarkQuery,
   BenchmarkView,
+  ComparableBatchInput,
+  ComparableBatchPreviewView,
+  ComparableBatchResultView,
+  ComparableBatchRowView,
   ComparableEntry,
   ComparableView,
   MultipleJudgementInput,
   MultipleJudgementView,
 } from '@pactlab/contracts';
+import { COMPARABLE_BATCH_MAX_ROWS, comparableDuplicateKey, parseComparableBatch } from '@pactlab/contracts';
 import { NotConfiguredComparablesProvider, type ComparablesProvider } from '@pactlab/connectors';
 import {
   appendAuditEvent,
@@ -191,19 +196,100 @@ export class ComparablesService {
 
   async create(tenant: TenantContext, input: ComparableEntry, requestId: string): Promise<ComparableView> {
     await this.requireWriter(tenant, 'comparable.recorded', requestId);
-    return withTenant(this.prisma, tenant, async (tx) => {
-      const record = await comparables.record(tx, {
-        ...input,
-        origin: 'ENTERED',
-        provider: null,
-        providerVersion: null,
-        sourceDealId: null,
-        organizationId: tenant.organizationId,
-        recordedBy: tenant.userId,
-      });
-      await this.audit(tx, tenant, null, 'comparable.recorded', record.id, requestId);
-      return toView(record);
+    return withTenant(this.prisma, tenant, (tx) => this.recordEntered(tx, tenant, input, requestId));
+  }
+
+  private async recordEntered(tx: TransactionClient, tenant: TenantContext, input: ComparableEntry, requestId: string): Promise<ComparableView> {
+    const record = await comparables.record(tx, {
+      ...input,
+      origin: 'ENTERED',
+      provider: null,
+      providerVersion: null,
+      sourceDealId: null,
+      organizationId: tenant.organizationId,
+      recordedBy: tenant.userId,
     });
+    await this.audit(tx, tenant, null, 'comparable.recorded', record.id, requestId);
+    return toView(record);
+  }
+
+  /**
+   * Check a batch (T-111): every row against the single-entry schema, and
+   * against the comparables already on record for likely duplicates.
+   * Nothing is saved.
+   */
+  private async checkBatch(tx: TransactionClient, text: string): Promise<{ preview: ComparableBatchPreviewView; entries: Map<number, ComparableEntry> }> {
+    const parsed = parseComparableBatch(text);
+    if (parsed.rows.length === 0) throw new UnprocessableEntityException({ code: 'BATCH_EMPTY' });
+    if (parsed.rows.length > COMPARABLE_BATCH_MAX_ROWS) throw new UnprocessableEntityException({ code: 'BATCH_TOO_LARGE' });
+    const existing = new Set((await comparables.list(tx)).map(comparableDuplicateKey));
+    const seen = new Set<string>();
+    const entries = new Map<number, ComparableEntry>();
+    const rows = parsed.rows.map((row): ComparableBatchRowView => {
+      if (!row.entry) return { line: row.line, status: 'PROBLEM', cells: row.cells, problems: row.problems, summary: null, duplicateOf: null };
+      const entry = row.entry;
+      entries.set(row.line, entry);
+      const key = comparableDuplicateKey(entry);
+      const duplicateOf = existing.has(key) ? 'EXISTING' : seen.has(key) ? 'BATCH' : null;
+      seen.add(key);
+      return {
+        line: row.line,
+        status: duplicateOf ? 'DUPLICATE' : 'OK',
+        cells: row.cells,
+        problems: [],
+        summary: {
+          name: entry.name,
+          targetName: entry.targetName,
+          announcedOn: entry.announcedOn,
+          enterpriseValue: entry.enterpriseValue,
+          arr: entry.arr,
+          currency: entry.currency,
+          multiple: evToArrMultiple({ amount: entry.enterpriseValue, currency: entry.currency }, { amount: entry.arr, currency: entry.currency }) ?? '0.00',
+        },
+        duplicateOf,
+      };
+    });
+    const count = (status: ComparableBatchRowView['status']) => rows.filter((row) => row.status === status).length;
+    return {
+      preview: {
+        headers: parsed.headers,
+        unknownColumns: parsed.unknownColumns,
+        missingColumns: parsed.missingColumns,
+        rows,
+        counts: { total: rows.length, ok: count('OK'), problems: count('PROBLEM'), duplicates: count('DUPLICATE') },
+      },
+      entries,
+    };
+  }
+
+  async previewBatch(tenant: TenantContext, input: ComparableBatchInput, requestId: string): Promise<ComparableBatchPreviewView> {
+    await this.requireWriter(tenant, 'comparables.batch_previewed', requestId);
+    return withTenant(this.prisma, tenant, async (tx) => (await this.checkBatch(tx, input.text)).preview);
+  }
+
+  /**
+   * Import a batch: the OK rows, plus the duplicates the person chose to keep,
+   * in one transaction (all or nothing). Rows with problems are left out and
+   * returned so they can be fixed and uploaded again. Each comparable is
+   * audited as if entered alone; the batch event shares their request id, so
+   * the audit log counts what one import saved.
+   */
+  async importBatch(tenant: TenantContext, input: ComparableBatchInput, requestId: string): Promise<ComparableBatchResultView> {
+    await this.requireWriter(tenant, 'comparables.batch_imported', requestId);
+    const keep = new Set(input.keepDuplicates);
+    return withTenant(
+      this.prisma,
+      tenant,
+      async (tx) => {
+        const { preview, entries } = await this.checkBatch(tx, input.text);
+        const chosen = preview.rows.filter((row) => row.status === 'OK' || (row.status === 'DUPLICATE' && keep.has(row.line)));
+        if (chosen.length === 0) throw new UnprocessableEntityException({ code: 'BATCH_NOTHING_TO_IMPORT' });
+        for (const row of chosen) await this.recordEntered(tx, tenant, entries.get(row.line) as ComparableEntry, requestId);
+        await this.audit(tx, tenant, null, 'comparables.batch_imported', tenant.organizationId, requestId);
+        return { ...preview, imported: chosen.length };
+      },
+      { timeoutMs: 60_000 },
+    );
   }
 
   async retire(tenant: TenantContext, comparableId: string, requestId: string): Promise<ComparableView> {
