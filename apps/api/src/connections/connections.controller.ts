@@ -31,6 +31,7 @@ import {
   type SetModeCommand,
 } from './connections.schemas';
 import { ConnectionsService } from './connections.service';
+import { NoDemo } from '../auth/auth.guard';
 
 type ConnectionParams = { dealId: string; connectionId: string };
 
@@ -59,6 +60,7 @@ export class ConnectionsController {
   }
 
   /** Connect a repository live, via Pactlab's GitHub App or a seller token; returns the connection checks. */
+  @NoDemo()
   @Post('connections/github')
   @HttpCode(201)
   async connectGitHub(
@@ -71,6 +73,7 @@ export class ConnectionsController {
   }
 
   /** Connect Jira live: Cloud or an operator-approved self-hosted server, with a token or anonymously; returns the checks. */
+  @NoDemo()
   @Post('connections/jira')
   @HttpCode(201)
   async connectJira(

@@ -31,7 +31,7 @@ import {
 } from './deals.schemas';
 import { DealsService } from './deals.service';
 import { RequestId } from './request-id.decorator';
-import { RecentSignIn } from '../auth/auth.guard';
+import { NoDemo, RecentSignIn } from '../auth/auth.guard';
 
 @Controller('v1/deals')
 export class DealsController {
@@ -85,6 +85,7 @@ export class DealsController {
     return { items: await this.dealsService.members(tenant, params.dealId, requestId) };
   }
 
+  @NoDemo()
   @RecentSignIn()
   @Post(':dealId/members')
   @HttpCode(201)

@@ -253,7 +253,7 @@ export async function bidProcess(
   owner: OwnerQuery,
   lead: TenantContext,
   dealId: string,
-  bidders: readonly { readonly id: string; readonly email: string; readonly name: string; readonly firm: string }[],
+  bidders: readonly { readonly id: string; readonly email: string | null; readonly name: string; readonly firm: string }[],
   resolve: (userId: string) => Promise<TenantContext | null>,
 ): Promise<string> {
   const sale = app.get(SaleService, { strict: false });

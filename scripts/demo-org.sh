@@ -3,6 +3,7 @@
 #   scripts/demo-org.sh                 # live: adds whatever demo pacts are missing
 #   scripts/demo-org.sh stage           # stage (every pack)
 #   scripts/demo-org.sh live --reset    # deletes the demo pacts, then rebuilds them (asks first)
+#   scripts/demo-org.sh live pool       # the shared demo pool (T-113): end expired shares, rebuild, build missing slots
 # or `pnpm demo:live`. Checks your AWS sign-in and the latest deploy first, then runs
 # src/ops/demo-org.ts inside the environment through scripts/ops-task.sh (docs/runbooks/demo-org.md).
 set -euo pipefail
@@ -11,7 +12,7 @@ cd "$(dirname "$0")/.."
 ENV_NAME="${1:-live}"
 RESET="${2:-}"
 case "$ENV_NAME" in dev | qa | stage | live) ;; *) echo "Unknown environment '$ENV_NAME': use live, stage, dev or qa." >&2; exit 2 ;; esac
-case "$RESET" in '' | --reset) ;; *) echo "Unknown option '$RESET': the only option is --reset." >&2; exit 2 ;; esac
+case "$RESET" in '' | --reset | pool) ;; *) echo "Unknown option '$RESET': use --reset or pool." >&2; exit 2 ;; esac
 # macOS's bash 3.2 cannot parse `case` inside $( ), so plain ifs.
 if [ "$ENV_NAME" = live ]; then PROFILE=pactlab-prod; elif [ "$ENV_NAME" = qa ]; then PROFILE=pactlab-dev; else PROFILE="pactlab-$ENV_NAME"; fi
 if [ "$ENV_NAME" = live ]; then APP_URL=https://app.pactlab.ai; else APP_URL="https://app.$ENV_NAME.pactlab.ai"; fi
@@ -43,6 +44,10 @@ if [ "$RESET" = --reset ] && [ "$ENV_NAME" = live ]; then
   [ "$ANSWER" = RESET ] || { echo "     Cancelled."; exit 1; }
 fi
 
+if [ "$RESET" = pool ]; then
+  echo "3/3  Sweeping the shared demo pool in $ENV_NAME (a few minutes per demo it rebuilds)"
+  exec scripts/ops-task.sh "$ENV_NAME" src/ops/demo-pool.ts sweep
+fi
 echo "3/3  Building the demo organization in $ENV_NAME (a few minutes)"
 if scripts/ops-task.sh "$ENV_NAME" src/ops/demo-org.ts ${RESET:+"$RESET"}; then
   echo

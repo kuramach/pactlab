@@ -12,6 +12,7 @@ const trusted = { trust: trustSchema, device: deviceSchema };
 
 export const verifyBodySchema = z.strictObject({ email, code: z.string().regex(/^\d{6}$/), ...trusted });
 export const selectOrganizationBodySchema = z.strictObject({ organizationId: z.uuid() });
+export const demoLinkBodySchema = z.strictObject({ token: z.string().max(100) });
 
 /**
  * The browser's WebAuthn result, as @simplewebauthn/browser returns it (T-108). Checked

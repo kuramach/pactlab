@@ -16,3 +16,18 @@ export async function signInAgainPath(): Promise<string> {
   }
   return `${SIGN_IN_PATH}?${new URLSearchParams({ reauth: '1', returnTo })}`;
 }
+
+/** Back to the page an action came from, flagged so the app explains it is off in a shared demo (T-113). */
+export async function demoBlockedPath(): Promise<string> {
+  const referer = (await headers()).get('referer');
+  try {
+    const url = referer ? new URL(referer) : null;
+    if (url) {
+      url.searchParams.set('demo', 'blocked');
+      return safeReturnTo(`${url.pathname}${url.search}`);
+    }
+  } catch {
+    // Fall through to the pact list.
+  }
+  return '/deals?demo=blocked';
+}

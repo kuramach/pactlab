@@ -3,38 +3,18 @@ import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { defaultPromptRegistry, ScriptedModelTransport, TransportClaudeGateway } from '@pactlab/ai';
 import { FixturePropertyProvider } from '@pactlab/connectors';
 import { createSyntheticTenant, startTestDatabase, type SyntheticTenant, type TestDatabase } from '@pactlab/db/testing';
-import { packFor, type CompanyType } from '@pactlab/domain';
 import { createLogger } from '@pactlab/observability';
-import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { rmSync } from 'node:fs';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createApp } from '../app';
 import { DisabledIdentityVerifier } from '../auth/identity';
 import { demoModelResponse } from '../demo-seed/seed';
 import { InMemoryObjectStore } from '../documents/testing';
 import { SignatureMalwareScanner } from '../documents/upload-policy';
-import { DEMO_ORG, pactName, pactVariants, runDemoOrg, type DemoDataSource } from './demo-org';
+import { DEMO_ORG, pactName, pactVariants, runDemoOrg } from './demo-org';
+import { generatedDemoData } from './demo-data.testing';
 
 type Row = Record<string, unknown>;
-
-/** The public demo data, generated as the pack acceptance tests do (the deployed run reads the same files at a pinned commit). */
-function generatedDemoData(): { source: DemoDataSource; dir: string } {
-  const dir = mkdtempSync(join(tmpdir(), 'pactlab-demo-org-'));
-  const run = spawnSync('python3', [resolve(import.meta.dirname, '../../../../scripts/demo-data/generate.py'), dir], { encoding: 'utf8' });
-  if (run.status !== 0) throw new Error(`generate.py failed: ${run.stderr}`);
-  const room = spawnSync('python3', [resolve(import.meta.dirname, '../../../../scripts/demo-data/dataroom.py'), dir], { encoding: 'utf8' });
-  if (room.status !== 0) throw new Error(`dataroom.py failed: ${room.stderr}`);
-  const base = (type: CompanyType) => join(dir, packFor(type).slug, 'USD');
-  return {
-    dir,
-    source: {
-      file: async (type, path) => readFileSync(join(base(type), path)),
-      documents: async (type) => readdirSync(join(base(type), 'documents')),
-    },
-  };
-}
 
 describe('demo organization (batch 2)', () => {
   let db: TestDatabase;

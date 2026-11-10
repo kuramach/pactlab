@@ -1,7 +1,7 @@
 import { Body, Controller, Delete, Get, HttpCode, Inject, Param, Post, Put } from '@nestjs/common';
 import type { SessionPolicyView, SignedInDevicesView } from '@pactlab/contracts';
 import type { TenantContext } from '@pactlab/domain';
-import { AllowUnscoped, RecentSignIn, type Principal } from '../auth/auth.guard';
+import { AllowUnscoped, NoDemo, type Principal, RecentSignIn } from '../auth/auth.guard';
 import { CurrentPrincipal } from '../auth/principal.decorator';
 import { Tenant } from '../auth/tenant.decorator';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
@@ -41,6 +41,7 @@ export class SessionsController {
     return this.service.policy(tenant);
   }
 
+  @NoDemo()
   @RecentSignIn()
   @Put('organization/session-policy')
   setPolicy(

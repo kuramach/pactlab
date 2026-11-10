@@ -3,6 +3,8 @@ import { Badge, Card, CardContent, Button } from '@pactlab/ui';
 import Link from 'next/link';
 import { apiGet } from '../(app)/deals/_lib/api';
 import { ApiState } from '../(app)/deals/_lib/states';
+import { DemoShareForm } from './demo-share';
+import { endDemoShare, resetDemoSlot } from './demo-actions';
 import { compPact, createPromoCode, deactivatePromoCode, decideOrganization, resyncBilling, setMemberStatus, setOrganizationFlags, setOrganizationStatus, setOrganizationMcp } from './actions';
 import type { AdminBillingAccountView, PromoCodeView } from '@pactlab/contracts';
 import { COMPANY_TYPES, COMPANY_TYPE_LABELS } from '@pactlab/domain';
@@ -17,6 +19,7 @@ const TABS = [
   ['audit', 'Audit log'],
   ['bugs', 'Bug inbox'],
   ['promo', 'Promo codes'],
+  ['demos', 'Demos'],
 ] as const;
 type Tab = (typeof TABS)[number][0];
 
@@ -32,6 +35,9 @@ const OUTCOMES: Record<string, string> = {
   'promo-taken': 'That code text is already used. Pick another.',
   'ok-comp': 'One free pact added to that organization (audited).',
   'ok-resync': 'Billing re-read from Stripe.',
+  'ok-demo-ended': 'Share ended: its links and sessions stopped working. The demo is rebuilt within 15 minutes, then free again.',
+  'ok-demo-reset': 'Queued: the demo is rebuilt within 15 minutes.',
+  conflict: 'That demo is shared right now; end the share first.',
   forbidden: 'That action is refused (operators cannot deactivate themselves).',
   invalid: 'That request was not valid.',
 };
@@ -68,6 +74,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
       {tab === 'health' ? <Health /> : null}
       {tab === 'audit' ? <Audit action={typeof search['action'] === 'string' ? search['action'] : ''} /> : null}
       {tab === 'promo' ? <PromoCodes /> : null}
+      {tab === 'demos' ? <Demos /> : null}
       {tab === 'bugs' ? <Bugs status={typeof search['status'] === 'string' ? search['status'] : ''} severity={typeof search['severity'] === 'string' ? search['severity'] : ''} /> : null}
     </>
   );
@@ -394,3 +401,81 @@ async function PromoCodes() {
   );
 }
 
+
+interface DemoSlot {
+  organizationId: string;
+  slot: number;
+  organizationName: string;
+  status: 'AVAILABLE' | 'SHARED' | 'RESETTING';
+  resetAt: string | null;
+  lastError: string | null;
+  share: { id: string; sharedWith: string; startsAt: string; endsAt: string; lastUsedAt: string | null } | null;
+}
+const STATUS_LABELS: Record<DemoSlot['status'], string> = { AVAILABLE: 'Available', SHARED: 'Shared', RESETTING: 'Resetting (within 15 min)' };
+const when = (iso: string | null) => (iso ? new Date(iso).toISOString().replace('T', ' ').slice(0, 16) + ' UTC' : '—');
+
+/** Shared demos (T-113): five demo organizations lent out through magic links, rebuilt when a share ends. */
+async function Demos() {
+  const result = await apiGet<{ items: DemoSlot[] }>('/v1/admin/demos');
+  if (result.kind !== 'ok') return <ApiState result={result} />;
+  return (
+    <div className="flex flex-col gap-4">
+      <Card>
+        <CardContent className="flex flex-col gap-2 p-4">
+          <p className="text-sm text-muted-foreground">
+            Lend a full demo (synthetic pacts on every tab) for a set time. The visitor opens a link, with no sign-in. Outward actions are off: invitations, e-signature, billing and
+            outside connections. When the time is up, or you end it, the demo is rebuilt from the original data and returns to the pool.
+          </p>
+          <DemoShareForm />
+        </CardContent>
+      </Card>
+      <Card>
+        <CardContent className="overflow-x-auto p-0">
+          <table className="w-full text-left text-sm" aria-label="Demo pool">
+            <thead className="text-xs uppercase tracking-wide text-muted-foreground">
+              <tr>
+                <th className={cell}>Demo</th>
+                <th className={cell}>Status</th>
+                <th className={cell}>Shared with</th>
+                <th className={cell}>Ends</th>
+                <th className={cell}>Last used</th>
+                <th className={cell}>Last reset</th>
+                <th className={cell} />
+              </tr>
+            </thead>
+            <tbody>
+              {result.data.items.map((slot) => (
+                <tr key={slot.organizationId} className="border-t border-border">
+                  <td className={cell}>{slot.organizationName}</td>
+                  <td className={cell}>
+                    {STATUS_LABELS[slot.status]}
+                    {slot.lastError ? <div className="text-xs text-rose">Last reset failed: {slot.lastError.slice(0, 200)}</div> : null}
+                  </td>
+                  <td className={cell}>{slot.share?.sharedWith ?? '—'}</td>
+                  <td className={cell}>{when(slot.share?.endsAt ?? null)}</td>
+                  <td className={cell}>{when(slot.share?.lastUsedAt ?? null)}</td>
+                  <td className={cell}>{when(slot.resetAt)}</td>
+                  <td className={cell}>
+                    {slot.share ? (
+                      <form action={endDemoShare.bind(null, slot.share.id)}>
+                        <Button type="submit" size="sm" variant="outline">
+                          End now
+                        </Button>
+                      </form>
+                    ) : slot.status !== 'RESETTING' || slot.lastError ? (
+                      <form action={resetDemoSlot.bind(null, slot.organizationId)}>
+                        <Button type="submit" size="sm" variant="ghost">
+                          Reset now
+                        </Button>
+                      </form>
+                    ) : null}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

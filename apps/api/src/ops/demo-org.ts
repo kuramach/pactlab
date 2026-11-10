@@ -62,6 +62,18 @@ export const DEMO_ORG = {
   ],
 } as const;
 
+/** Who a demo organization is: its ids and people. `DEMO_ORG` is Kumar's own; the shared pool (T-113) has five more. */
+export interface DemoOrgSpec {
+  readonly id: string;
+  readonly name: string;
+  readonly slug: string;
+  readonly buyer: { readonly id: string; readonly email: string | null; readonly name: string };
+  readonly seller: { readonly id: string; readonly email: string | null; readonly name: string };
+  readonly reviewer: { readonly id: string; readonly name: string };
+  readonly analyst: { readonly id: string; readonly name: string };
+  readonly bidders: readonly { readonly id: string; readonly email: string | null; readonly name: string; readonly firm: string }[];
+}
+
 /** The demo data at a pinned commit (https://github.com/kuramach/pactlab-demo-data). */
 export const DEMO_DATA_COMMIT = '8d19312bf422d0a98379a5433d389d8b8afa37b1';
 const REQUEST_ID = 'ops-demo-org';
@@ -116,35 +128,35 @@ export interface OwnerSession {
 }
 
 /** The organization, its three people and their memberships, as the schema owner. Idempotent. */
-export async function ensureDemoOrganization(owner: OwnerSession): Promise<void> {
-  const other = await owner.query<{ id: string }>(`SELECT id FROM organizations WHERE slug = $1 AND id <> $2`, [DEMO_ORG.slug, DEMO_ORG.id]);
-  if (other.rows.length > 0) throw new Error(`Another organization already uses the slug ${DEMO_ORG.slug}; refusing to touch it.`);
+export async function ensureDemoOrganization(owner: OwnerSession, spec: DemoOrgSpec = DEMO_ORG): Promise<void> {
+  const other = await owner.query<{ id: string }>(`SELECT id FROM organizations WHERE slug = $1 AND id <> $2`, [spec.slug, spec.id]);
+  if (other.rows.length > 0) throw new Error(`Another organization already uses the slug ${spec.slug}; refusing to touch it.`);
   await owner.query(
     `INSERT INTO organizations (id, name, slug, auth_method, status, created_via, updated_at) VALUES ($1, $2, $3, 'EMAIL_CODE', 'ACTIVE', 'DEMO', now())
      ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, status = 'ACTIVE'`,
-    [DEMO_ORG.id, DEMO_ORG.name, DEMO_ORG.slug],
+    [spec.id, spec.name, spec.slug],
   );
-  for (const person of [DEMO_ORG.buyer, DEMO_ORG.seller]) {
+  for (const person of [spec.buyer, spec.seller]) {
     await owner.query(
       `INSERT INTO users (id, auth0_subject, display_name, email) VALUES ($1, $2, $3, $4)
        ON CONFLICT (id) DO UPDATE SET display_name = EXCLUDED.display_name, email = EXCLUDED.email`,
       [person.id, `pactlab|${person.id}`, person.name, person.email],
     );
   }
-  await owner.query(`INSERT INTO users (id, auth0_subject, display_name) VALUES ($1, $2, $3) ON CONFLICT (id) DO NOTHING`, [DEMO_ORG.reviewer.id, `pactlab|${DEMO_ORG.reviewer.id}`, DEMO_ORG.reviewer.name]);
+  await owner.query(`INSERT INTO users (id, auth0_subject, display_name) VALUES ($1, $2, $3) ON CONFLICT (id) DO NOTHING`, [spec.reviewer.id, `pactlab|${spec.reviewer.id}`, spec.reviewer.name]);
   await owner.query(
     `INSERT INTO organization_memberships (id, organization_id, user_id, role) VALUES ($1, $2, $3, 'ORG_OWNER'), ($4, $2, $5, 'MEMBER')
      ON CONFLICT DO NOTHING`,
-    [newId(), DEMO_ORG.id, DEMO_ORG.buyer.id, newId(), DEMO_ORG.reviewer.id],
+    [newId(), spec.id, spec.buyer.id, newId(), spec.reviewer.id],
   );
 }
 
 /** The seller (a guest) and the reviewer on a pact. */
-async function addPactPeople(owner: OwnerSession, dealId: string): Promise<void> {
+async function addPactPeople(owner: OwnerSession, spec: DemoOrgSpec, dealId: string): Promise<void> {
   await owner.query(
     `INSERT INTO deal_memberships (id, organization_id, deal_id, user_id, role) VALUES ($1, $2, $3, $4, 'TARGET_CONTRIBUTOR'), ($5, $2, $3, $6, 'REVIEWER')
      ON CONFLICT (organization_id, deal_id, user_id) DO NOTHING`,
-    [newId(), DEMO_ORG.id, dealId, DEMO_ORG.seller.id, newId(), DEMO_ORG.reviewer.id],
+    [newId(), spec.id, dealId, spec.seller.id, newId(), spec.reviewer.id],
   );
 }
 
@@ -179,7 +191,8 @@ interface People {
 }
 
 /** One complete buyer-led pact for a pack, from data room to funds confirmed. Returns a line for the report. */
-export async function buildPact(app: App, owner: OwnerSession, people: People, type: CompanyType, data: DemoDataSource, options: { closed?: boolean } = {}): Promise<string> {
+export async function buildPact(app: App, owner: OwnerSession, people: People, type: CompanyType, data: DemoDataSource, options: { closed?: boolean; spec?: DemoOrgSpec } = {}): Promise<string> {
+  const spec = options.spec ?? DEMO_ORG;
   const pacts = app.get(PactsService, { strict: false });
   const documents = app.get(DocumentsService, { strict: false });
   const findings = app.get(FindingsService, { strict: false });
@@ -212,14 +225,14 @@ export async function buildPact(app: App, owner: OwnerSession, people: People, t
     REQUEST_ID,
   );
   const dealId = started.id;
-  await addPactPeople(owner, dealId);
+  await addPactPeople(owner, spec, dealId);
   const scoped = (person: TenantContext): TenantContext => ({ ...person, dealIds: [...person.dealIds, dealId as never] });
   const buyer = scoped(people.buyer);
   const seller = scoped(people.seller);
   const reviewer = scoped(people.reviewer);
   // Screening first: its verdict moves the pact out of SCREENING.
   await step('screening', () => screen(app, buyer, dealId, type));
-  await step('team', () => team(owner, DEMO_ORG.id, dealId, DEMO_ORG.analyst));
+  await step('team', () => team(owner, spec.id, dealId, spec.analyst));
 
   // The data room: one zip, unpacked and sorted by the intake; shared so the seller sees the documents too.
   const zip = await data.file(type, 'dataroom.zip');
@@ -309,8 +322,8 @@ export async function buildPact(app: App, owner: OwnerSession, people: People, t
   await pricing.respond(seller, dealId, { responses: next.terms.map((term) => ({ ordinal: term.ordinal, decision: 'ACCEPT' as const, note: '' })) }, REQUEST_ID);
 
   // Both signatories sign off in Pactlab, and the closing checklist is worked to the end.
-  await close.nameSignatory(buyer, dealId, 'BUYER', { userId: DEMO_ORG.buyer.id }, REQUEST_ID);
-  await close.nameSignatory(seller, dealId, 'SELLER', { userId: DEMO_ORG.seller.id }, REQUEST_ID);
+  await close.nameSignatory(buyer, dealId, 'BUYER', { userId: spec.buyer.id }, REQUEST_ID);
+  await close.nameSignatory(seller, dealId, 'SELLER', { userId: spec.seller.id }, REQUEST_ID);
   await close.signOff(buyer, dealId, next.id, REQUEST_ID);
   await close.signOff(seller, dealId, next.id, REQUEST_ID);
   await close.addItem(seller, dealId, { kind: 'CONDITION', title: 'Third-party consents delivered (synthetic)', ownerSide: 'SELLER' }, REQUEST_ID);
@@ -380,23 +393,29 @@ export async function runDemoOrg(
   app: App,
   owner: OwnerSession,
   prisma: PrismaClient,
-  options: { types: readonly CompanyType[]; reset: boolean; data: DemoDataSource },
+  options: { types: readonly CompanyType[]; reset: boolean; data: DemoDataSource; spec?: DemoOrgSpec },
 ): Promise<string[]> {
   const { types, reset } = options;
+  const spec = options.spec ?? DEMO_ORG;
   const report: string[] = [];
-  await ensureDemoOrganization(owner);
-  const principal = (id: string) => resolvePrincipal(prisma, { subject: `pactlab|${id}`, externalOrganizationId: DEMO_ORG.id, issuer: 'PACTLAB' });
-  const existing = await owner.query<{ id: string; name: string }>(`SELECT id, name FROM deals WHERE organization_id = $1 AND status <> 'DELETED'`, [DEMO_ORG.id]);
+  await ensureDemoOrganization(owner, spec);
+  const principal = (id: string) => resolvePrincipal(prisma, { subject: `pactlab|${id}`, externalOrganizationId: spec.id, issuer: 'PACTLAB' });
+  const existing = await owner.query<{ id: string; name: string }>(`SELECT id, name FROM deals WHERE organization_id = $1 AND status <> 'DELETED'`, [spec.id]);
   if (reset && existing.rows.length > 0) {
-    const lead = await principal(DEMO_ORG.buyer.id);
+    const lead = await principal(spec.buyer.id);
     if (!lead) throw new Error('The demo buyer cannot be resolved.');
     const deletion = app.get(DealDeletionService, { strict: false });
     for (const deal of existing.rows) await deletion.delete({ ...lead, dealIds: [...lead.dealIds, deal.id as never] }, deal.id, deal.name, REQUEST_ID);
     report.push(`reset: ${existing.rows.length} demo pacts deleted`);
   }
+  if (reset) {
+    // What a visitor may change outside the pacts goes back too: entered comparables (retired, then re-entered below) and organization settings.
+    await owner.query(`UPDATE comparables SET status = 'RETIRED', retired_at = now(), retired_by = $2 WHERE organization_id = $1 AND origin = 'ENTERED' AND status = 'ACTIVE'`, [spec.id, spec.buyer.id]);
+    await owner.query(`UPDATE organizations SET default_persona = NULL, trusted_session_max_hours = 168, updated_at = now() WHERE id = $1`, [spec.id]);
+  }
   const have = new Set(reset ? [] : existing.rows.map((row) => row.name));
   // Entered comparables first, so every benchmark (and Sextant's anchors) has them.
-  const owning = await principal(DEMO_ORG.buyer.id);
+  const owning = await principal(spec.buyer.id);
   if (owning) report.push(await enteredComparables(app, owning, types));
   for (const type of types) {
     for (const closed of pactVariants(type)) {
@@ -405,44 +424,43 @@ export async function runDemoOrg(
         report.push(`${name}: already present`);
         continue;
       }
-      const [buyer, seller, reviewer] = await Promise.all([principal(DEMO_ORG.buyer.id), principal(DEMO_ORG.seller.id), principal(DEMO_ORG.reviewer.id)]);
+      const [buyer, seller, reviewer] = await Promise.all([principal(spec.buyer.id), principal(spec.seller.id), principal(spec.reviewer.id)]);
       if (!buyer || !reviewer) throw new Error('The demo people cannot be resolved.');
       // Before the first pact the seller is on nothing yet; a guest context resolves once they are.
-      const sellerContext = seller ?? { organizationId: DEMO_ORG.id, userId: DEMO_ORG.seller.id, organizationRole: 'GUEST', dealIds: [] };
+      const sellerContext = seller ?? { organizationId: spec.id, userId: spec.seller.id, organizationRole: 'GUEST', dealIds: [] };
       try {
-        report.push(await buildPact(app, owner, { buyer, seller: sellerContext as TenantContext, reviewer }, type, options.data, { closed }));
+        report.push(await buildPact(app, owner, { buyer, seller: sellerContext as TenantContext, reviewer }, type, options.data, { closed, spec }));
       } catch (error) {
         report.push(`${name}: FAILED (${error instanceof Error ? error.message : 'unknown error'})`);
       }
     }
   }
   if (!have.has(SELLER_LED) && types.includes('MULTIFAMILY')) {
-    const buyer = await principal(DEMO_ORG.buyer.id);
+    const buyer = await principal(spec.buyer.id);
     if (buyer) {
       try {
         const teaser = await buildTeaser(app, { buyer, seller: buyer, reviewer: buyer });
         report.push(teaser.line);
-        report.push(await bidProcess(app, owner, buyer, teaser.dealId, DEMO_ORG.bidders, (userId) => principal(userId)).catch((error: unknown) => `bid process FAILED (${error instanceof Error ? error.message : 'unknown error'})`));
+        report.push(await bidProcess(app, owner, buyer, teaser.dealId, spec.bidders, (userId) => principal(userId)).catch((error: unknown) => `bid process FAILED (${error instanceof Error ? error.message : 'unknown error'})`));
       } catch (error) {
         report.push(`${SELLER_LED}: FAILED (${error instanceof Error ? error.message : 'unknown error'})`);
       }
     }
   }
   // Reports last, so they hold the finished pacts.
-  const lead = await principal(DEMO_ORG.buyer.id);
+  const lead = await principal(spec.buyer.id);
   if (lead && report.some((line) => !line.endsWith('already present'))) {
-    const main = (await owner.query<{ id: string }>(`SELECT id FROM deals WHERE organization_id = $1 AND name = $2 AND status <> 'DELETED'`, [DEMO_ORG.id, pactName(types[0] ?? 'SOFTWARE_SAAS')])).rows[0];
+    const main = (await owner.query<{ id: string }>(`SELECT id FROM deals WHERE organization_id = $1 AND name = $2 AND status <> 'DELETED'`, [spec.id, pactName(types[0] ?? 'SOFTWARE_SAAS')])).rows[0];
     report.push(await reports(app, lead, main?.id ?? null).catch((error: unknown) => `reports FAILED (${error instanceof Error ? error.message : 'unknown error'})`));
   }
   // Foresight prepares itself the first time each pact's tab is opened.
   return report;
 }
 
-/** The run: environment checks, then the organization, then whatever pacts are missing. */
-async function main(): Promise<void> {
+/** What a deployed demo run needs: the app wired for demos, the owner session and the packs to build. Shared with demo-pool.ts. */
+export async function openDemoRuntime(): Promise<{ app: App; owner: pg.Client; prisma: PrismaClient; types: CompanyType[]; environment: string; close: () => Promise<void> }> {
   applyDatabaseUrls();
   const config = loadConfig(apiEnvSchema);
-  const reset = process.argv.includes('--reset');
   const ownerUrl = process.env['DATABASE_MIGRATION_URL'];
   if (!ownerUrl) throw new Error('DATABASE_MIGRATION_URL is required (the schema owner creates the demo organization).');
   const objectStore =
@@ -474,14 +492,30 @@ async function main(): Promise<void> {
     property: new FixturePropertyProvider(),
     signing: { fixture: false, docusign: null },
   });
+  return {
+    app,
+    owner,
+    prisma,
+    types,
+    environment: config.APP_ENV,
+    close: async () => {
+      await app.close();
+      await owner.end();
+    },
+  };
+}
+
+/** The run: environment checks, then the organization, then whatever pacts are missing. */
+async function main(): Promise<void> {
+  const reset = process.argv.includes('--reset');
+  const runtime = await openDemoRuntime();
   let report: string[];
   try {
-    report = await runDemoOrg(app, owner, prisma, { types, reset, data: githubDemoData });
+    report = await runDemoOrg(runtime.app, runtime.owner, runtime.prisma, { types: runtime.types, reset, data: githubDemoData });
   } finally {
-    await app.close();
-    await owner.end();
+    await runtime.close();
   }
-  process.stdout.write(`Demo organization "${DEMO_ORG.name}" (${config.APP_ENV}): sign in as ${DEMO_ORG.buyer.email} (buyer) or ${DEMO_ORG.seller.email} (seller).\n${report.map((line) => ` - ${line}`).join('\n')}\n`);
+  process.stdout.write(`Demo organization "${DEMO_ORG.name}" (${runtime.environment}): sign in as ${DEMO_ORG.buyer.email} (buyer) or ${DEMO_ORG.seller.email} (seller).\n${report.map((line) => ` - ${line}`).join('\n')}\n`);
 }
 
 if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).href) {

@@ -32,7 +32,7 @@ import {
   type UpdateProcessBody,
 } from './sale.schemas';
 import { SaleService } from './sale.service';
-import { RecentSignIn } from '../auth/auth.guard';
+import { NoDemo, RecentSignIn } from '../auth/auth.guard';
 
 type DealParams = { dealId: string };
 type BidParams = { dealId: string; bidId: string };
@@ -73,6 +73,7 @@ export class SaleController {
     return this.sale.addBid(tenant, params.dealId, body, requestId);
   }
 
+  @NoDemo()
   @RecentSignIn()
   @Post('bids/:bidId/invitations')
   invite(

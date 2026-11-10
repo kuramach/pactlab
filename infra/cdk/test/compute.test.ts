@@ -85,6 +85,10 @@ describe('dev: the running application (ADR 0019)', () => {
     expect(bedrock).not.toContain('nova');
   });
 
+  it('has no shared-demo sweep outside live', () => {
+    expect(JSON.stringify(template.findResources('AWS::Events::Rule'))).not.toContain('demo-pool.ts');
+  });
+
   it('starts each program with its own tsx, never through pnpm', () => {
     const containers = Object.values(template.findResources('AWS::ECS::TaskDefinition')).flatMap((definition) => (definition as { Properties: { ContainerDefinitions: { Name: string; Command?: string[]; WorkingDirectory?: string }[] } }).Properties.ContainerDefinitions);
     const server = containers.filter((container) => container.Name !== 'web');
@@ -158,6 +162,14 @@ describe('live (GitHub Environment live, CDK prod)', () => {
     // Kumar hears about every sign-up waiting for him.
     expect(JSON.stringify(template.findResources('AWS::ECS::TaskDefinition'))).toContain('"Name":"OPERATOR_EMAIL","Value":"kumar@pactlab.ai"');
     template.hasResourceProperties('AWS::SES::EmailIdentity', { MailFromAttributes: { MailFromDomain: 'mail.pactlab.ai', BehaviorOnMxFailure: 'USE_DEFAULT_VALUE' } });
+  });
+
+  it('sweeps the shared demo pool every 15 minutes on the seed task (T-113)', () => {
+    const rules = Object.values(template.findResources('AWS::Events::Rule')) as { Properties: { ScheduleExpression?: string; Targets?: { EcsParameters?: unknown; Input?: string }[] } }[];
+    const sweep = rules.find((rule) => JSON.stringify(rule).includes('demo-pool.ts'));
+    expect(sweep?.Properties.ScheduleExpression).toBe('rate(15 minutes)');
+    expect(JSON.stringify(sweep)).toMatch(/demo-pool\.ts[\\"]+,[\\"]+sweep/);
+    expect(JSON.stringify(sweep?.Properties.Targets?.[0]?.EcsParameters)).toContain('SeedTask');
   });
 
   it('keeps the full profile as a one-change scaled target', async () => {

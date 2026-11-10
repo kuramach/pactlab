@@ -1,7 +1,7 @@
 import { Body, Controller, Delete, Get, HttpCode, Inject, Param, Post, Req, Res } from '@nestjs/common';
 import type { AuthorizeCheckView, ConnectedAppView } from '@pactlab/contracts';
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import { AllowUnscoped, type Principal, Public, RecentSignIn } from '../auth/auth.guard';
+import { AllowUnscoped, NoDemo, type Principal, Public, RecentSignIn } from '../auth/auth.guard';
 import { CurrentPrincipal } from '../auth/principal.decorator';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { rateLimitAddress } from '../email-login/client-address';
@@ -61,6 +61,7 @@ export class OAuthController {
 
   /** Approve or decline: where to send the browser next. */
   @AllowUnscoped()
+  @NoDemo()
   @RecentSignIn()
   @Post('oauth/authorize')
   @HttpCode(200)

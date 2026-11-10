@@ -1,8 +1,9 @@
-import { ForbiddenException, Inject, Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, Inject, Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import type { BugReportDetailView, BugReportSummaryView, FileBugReportInput, MyBugReportView, TriageBugInput } from '@pactlab/contracts';
-import { OperatorRequiredError, operatorOps, prismaExecutor, type BugListRow, type MyBugRow, type PrismaClient, type SqlExecutor } from '@pactlab/db';
+import { demoShares, NoDemoSlotFreeError, OperatorRequiredError, operatorOps, prismaExecutor, type BugListRow, type DemoShareHours, type MyBugRow, type PrismaClient, type SqlExecutor } from '@pactlab/db';
 import { bugFingerprint, bugReference, scrubContext, type TenantContext } from '@pactlab/domain';
 import type { EmailSender } from '../email-login/email-sender';
+import { demoTokenHash, newDemoToken } from '../demo-links/demo-links';
 import { decide, listPending } from '../ops/organizations';
 import { PRISMA } from '../tokens';
 
@@ -75,6 +76,48 @@ export class AdminService {
       if (error instanceof OperatorRequiredError) throw new ForbiddenException();
       throw error;
     }
+  }
+
+  // --- Shared demos (T-113) ------------------------------------------------------------
+
+  demoSlots(tenant: TenantContext) {
+    return this.asOperator(async () => ({
+      items: (await demoShares.slots(this.sql, tenant.userId)).map((slot) => ({
+        ...slot,
+        resetAt: slot.resetAt?.toISOString() ?? null,
+        share: slot.share ? { ...slot.share, startsAt: slot.share.startsAt.toISOString(), endsAt: slot.share.endsAt.toISOString(), lastUsedAt: slot.share.lastUsedAt?.toISOString() ?? null } : null,
+      })),
+    }));
+  }
+
+  /** Lend a free demo: the two links are returned this once; only their hashes are kept. */
+  shareDemo(tenant: TenantContext, input: { sharedWith: string; hours: DemoShareHours }) {
+    return this.asOperator(async () => {
+      const buyer = newDemoToken();
+      const seller = newDemoToken();
+      try {
+        const share = await demoShares.share(this.sql, tenant.userId, { sharedWith: input.sharedWith, hours: input.hours, buyerTokenHash: demoTokenHash(buyer), sellerTokenHash: demoTokenHash(seller) });
+        const link = (token: string) => new URL(`/demo/${token}`, this.settings.loginUrl).toString();
+        return { ...share, endsAt: share.endsAt.toISOString(), buyerUrl: link(buyer), sellerUrl: link(seller) };
+      } catch (error) {
+        if (error instanceof NoDemoSlotFreeError) throw new ConflictException({ code: 'NO_SLOT_FREE' });
+        throw error;
+      }
+    });
+  }
+
+  endDemoShare(tenant: TenantContext, shareId: string) {
+    return this.asOperator(async () => {
+      if (!(await demoShares.end(this.sql, tenant.userId, shareId))) throw new NotFoundException();
+      return { ended: true };
+    });
+  }
+
+  resetDemoSlot(tenant: TenantContext, organizationId: string) {
+    return this.asOperator(async () => {
+      if (!(await demoShares.requestReset(this.sql, tenant.userId, organizationId))) throw new ConflictException({ code: 'DEMO_SHARED' });
+      return { queued: true };
+    });
   }
 
   async requireOperator(tenant: TenantContext): Promise<void> {

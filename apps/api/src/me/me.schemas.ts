@@ -28,4 +28,6 @@ export interface MeResponse {
   organizations: MeOrganizationView[];
   /** Pacts in other organizations this user joined as a guest; switch to one to open it. */
   guestPacts: MeGuestPactView[];
+  /** True when a shared-demo link opened this session (T-113): the app shows the demo banner. */
+  demo?: boolean;
 }

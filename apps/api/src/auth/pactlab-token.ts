@@ -59,7 +59,7 @@ export class PactlabTokens implements IdentityVerifier {
       // Live, and for a trusted device within the organization's cap and its idle window (T-112).
       const session = await authSessions.check(this.prisma, { sessionId, subject: payload.sub, organizationId });
       if (!session) return null;
-      return { subject: payload.sub, externalOrganizationId: organizationId, issuer: 'PACTLAB', sessionId, signedInAt: session.signedInAt };
+      return { subject: payload.sub, externalOrganizationId: organizationId, issuer: 'PACTLAB', sessionId, signedInAt: session.signedInAt, ...(session.demo ? { demo: true } : {}) };
     } catch {
       return null;
     }
