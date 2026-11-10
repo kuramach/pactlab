@@ -80,6 +80,16 @@ import {
   Users,
   Wallet,
   Warehouse,
+  Download,
+  FileStack,
+  Gift,
+  History,
+  MessagesSquare,
+  Plug,
+  ScanFace,
+  Signature,
+  Sparkles,
+  Tag,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -169,6 +179,16 @@ export const ICONS = {
   Users,
   Wallet,
   Warehouse,
+  Download,
+  FileStack,
+  Gift,
+  History,
+  MessagesSquare,
+  Plug,
+  ScanFace,
+  Signature,
+  Sparkles,
+  Tag,
 } as const satisfies Record<string, LucideIcon>;
 
 export type IconName = keyof typeof ICONS;

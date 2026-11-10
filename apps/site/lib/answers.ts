@@ -60,7 +60,7 @@ const ALL_FAQS: readonly FaqPage[] = [
     related: [
       { href: '/guides/saas-acquisition-due-diligence', label: 'Guide: how to run due diligence on a SaaS acquisition' },
       { href: '/guides/technical-due-diligence-with-ai', label: 'Guide: technical due diligence with AI' },
-      { href: '/product', label: 'The six product modules' },
+      { href: '/product', label: 'The product modules' },
     ],
   },
   {

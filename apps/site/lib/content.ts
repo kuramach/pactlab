@@ -184,6 +184,60 @@ export const MODULES: readonly ProductModule[] = [
     ],
     output: 'An approved, frozen valuation whose every adjustment traces to an accepted finding.',
   },
+  {
+    slug: 'close',
+    icon: 'Signature',
+    name: 'Two-sided close',
+    summary: 'Terms proposed, countered and agreed by both sides in one place, signed through your own DocuSign, with funds confirmed.',
+    question: 'Did both sides agree to the same thing?',
+    intro:
+      'The negotiation and the close happen in the pact, not across email threads. Either side proposes, the other answers, and the version both sides sign is the version the price came from.',
+    features: [
+      { icon: 'ArrowLeftRight', title: 'Propose and counter', body: 'Buyer or seller proposes a version; the other side accepts, rejects or counters each term, starting with the headline price.' },
+      { icon: 'Link2', title: 'Terms tied to risk', body: 'Each escrow, indemnity or price adjustment keeps its link to the finding that justified it.' },
+      { icon: 'UserCheck', title: 'Named signatories', body: 'Each side names who signs. Once they sign the current version, the name is fixed.' },
+      { icon: 'Signature', title: 'Your own DocuSign', body: 'Envelopes go out from your organization’s DocuSign account, carrying the term sheet Pactlab generated from the agreed version.' },
+      { icon: 'Banknote', title: 'Funds confirmed', body: 'The buyer records each payment; the seller reviews and confirms it, or disputes it.' },
+      { icon: 'History', title: 'Every version kept', body: 'Every proposal, counter and sign-off stays on record, so the history of the deal is never rewritten.' },
+    ],
+    output: 'An agreed version signed by both sides, with its term sheet’s fingerprint recorded and the closing checklist confirmed.',
+  },
+  {
+    slug: 'reports',
+    icon: 'FileStack',
+    name: 'Reports',
+    summary: 'An executive view across every deal, and the complete record of one pact as a PDF you can forward.',
+    question: 'What do I send the investment committee?',
+    intro:
+      'Reports turn what the deal team has already reviewed into a document for the people who were not in the room. Each report is a versioned snapshot: generate a new one and the old one stays exactly as it was.',
+    features: [
+      { icon: 'ChartPie', title: 'Executive report', body: 'Every pact your organization can see, by phase, with priced exposure and the largest open risks, totals traceable to the pacts below them.' },
+      { icon: 'FileText', title: 'Pact report', body: 'One pact end to end: evidence, findings with their priced impact, valuation and bridge, terms and the post-close register.' },
+      { icon: 'Snowflake', title: 'Versioned snapshots', body: 'Every report is numbered and never rewritten, stamped with when its data was taken and who generated it.' },
+      { icon: 'EyeOff', title: 'Your side’s view only', body: 'A report holds only what the person who generated it may see. A seller’s report never shows the buyer’s pricing.' },
+      { icon: 'FingerprintPattern', title: 'Audited', body: 'Every generation and every download is recorded in the audit trail.' },
+      { icon: 'Download', title: 'Ready to forward', body: 'A paginated PDF with every page marked with its version, its data date and who it is confidential to.' },
+    ],
+    output: 'A versioned PDF for the committee, the board or the lender, built from reviewed work and never edited after the fact.',
+  },
+  {
+    slug: 'assistant',
+    icon: 'MessagesSquare',
+    name: 'Pactlab in your AI assistant',
+    summary: 'Ask Claude or another MCP-ready assistant about your pacts, with answers drawn from Pactlab and cited to the evidence.',
+    question: 'Can I ask about the deal where I already work?',
+    intro:
+      'Pactlab has an MCP server, so Claude and other assistants that support MCP can read your pacts on your behalf. You sign in to Pactlab once, approve the connection, and the assistant sees exactly what you can see.',
+    features: [
+      { icon: 'Plug', title: 'Connect in a minute', body: 'Add Pactlab as a connector, sign in, approve. Disconnect any time from Settings.' },
+      { icon: 'ClipboardList', title: 'Findings, claims and valuation', body: 'List your deals, read findings and the claims register, and walk through the purchase-price bridge.' },
+      { icon: 'Calculator', title: 'What-if scenarios', body: 'Ask what the price looks like under different assumptions. The answer comes from the same calculations, and nothing is saved.' },
+      { icon: 'Quote', title: 'Cited answers', body: 'Search the evidence and get answers that point back to the source documents.' },
+      { icon: 'Lock', title: 'Your permissions, read-only', body: 'The assistant reads with your access and changes nothing. Confidential value data needs a separate grant.' },
+      { icon: 'FingerprintPattern', title: 'Every call audited', body: 'Each tool the assistant uses is recorded, by person, app and deal. Questions and answers are never logged.' },
+    ],
+    output: 'Answers about your pacts inside the assistant you already use, with Pactlab’s permissions and audit trail behind every one.',
+  },
 ];
 
 export const PRINCIPLES = {
@@ -207,6 +261,7 @@ export const TRUST = {
     { icon: 'Scissors', title: 'No source code retained', body: 'Repositories are scanned in short-lived workspaces that are destroyed afterwards.' },
     { icon: 'FingerprintPattern', title: 'Tamper-evident audit trail', body: 'Sensitive reads, decisions and exports are recorded in a hash-chained, append-only log.' },
     { icon: 'KeyRound', title: 'Your sign-in, your choice', body: 'Each organization signs in through its identity provider or with one-time email codes.' },
+    { icon: 'ScanFace', title: 'Passkeys', body: 'Sign in with Face ID, Touch ID, Windows Hello or a security key. Nothing to type, and nothing a phishing page can reuse.' },
     { icon: 'Users', title: 'People data protected', body: 'Aggregate by default; named and compensation data gated, audited and kept away from models.' },
   ],
 } as const satisfies { title: string; intro: string; items: readonly Feature[] };
@@ -808,6 +863,7 @@ export const NAV = [
   { href: '/how-it-works', label: 'How it works' },
   { href: '/case-studies', label: 'Case studies' },
   { href: '/trust', label: 'Trust' },
+  { href: '/pricing', label: 'Pricing' },
   { href: '/about', label: 'About' },
   { href: '/pilot', label: 'Pilot' },
 ] as const;
@@ -1095,6 +1151,20 @@ export const CAROUSEL: readonly Slide[] = [
     imageAlt: 'A shield with a lock in front of a cloud',
     link: { href: '/trust', label: 'How we protect deal data' },
   },
+  {
+    id: 'assistant',
+    group: 'platform',
+    short: 'Ask Claude',
+    eyebrow: 'Pactlab in your AI assistant',
+    title: 'Ask about your deal from Claude.',
+    body:
+      'Connect Pactlab to Claude or any assistant that supports MCP. Ask which risks are still open, what the bridge looks like, or what the price ' +
+      'would be at a different multiple, and get answers drawn from your pacts, cited to the evidence, with your permissions.',
+    points: ['Findings, claims and valuation on request', 'What-if pricing from the same calculations', 'Read-only, with every call audited'],
+    image: '/illustrations/slide-assistant.svg',
+    imageAlt: 'A chat with an AI assistant answering from a Pactlab pact, with a citation to the source document',
+    link: { href: '/product/assistant', label: 'Connect your assistant' },
+  },
 ];
 
 /**
@@ -1235,3 +1305,86 @@ export const FOUNDER = {
   ],
   signoff: 'The cheapest price is rarely the best deal. The right price for an excellent business is.',
 } as const;
+
+/* ------------------------------------------------------------------------ */
+/* Pricing (ADR 0025)                                                        */
+/* ------------------------------------------------------------------------ */
+
+export interface Plan {
+  readonly id: 'pact' | 'team' | 'venture-raise' | 'firm';
+  readonly icon: IconName;
+  readonly name: string;
+  readonly audience: string;
+  /** Display price; null means "talk to us". */
+  readonly price: string | null;
+  readonly cadence: string;
+  readonly alternatives: readonly string[];
+  readonly includes: readonly string[];
+  readonly highlighted?: boolean;
+}
+
+/** The launch price book (ADR 0025), in US dollars. Mirrors the app's billing plans. */
+export const PLANS: readonly Plan[] = [
+  {
+    id: 'pact',
+    icon: 'Target',
+    name: 'Pact',
+    audience: 'One acquisition, start to close',
+    price: '$2,500',
+    cadence: 'per pact, one-time',
+    alternatives: [],
+    includes: [
+      'Every module, from evidence to close',
+      'Live for 12 months, then read-only for good',
+      'Reports, Sextant valuation and two-sided close',
+      'Pactlab in your AI assistant',
+      'Unlimited users; counterparty guests free',
+    ],
+  },
+  {
+    id: 'team',
+    icon: 'Users',
+    name: 'Team',
+    audience: 'Buyers running deals every quarter',
+    price: '$1,500',
+    cadence: 'a month, billed yearly ($18,000)',
+    alternatives: ['$1,800 billed monthly'],
+    includes: ['10 pacts a year', 'Extra pacts $1,500 each', 'Executive report across every deal', 'Everything in Pact', 'Unlimited users; counterparty guests free'],
+    highlighted: true,
+  },
+  {
+    id: 'venture-raise',
+    icon: 'Rocket',
+    name: 'Venture Raise',
+    audience: 'Founders preparing a round',
+    price: '$99',
+    cadence: 'a month',
+    alternatives: ['$990 a year', '$500 per round'],
+    includes: ['The readiness screen is free', 'See what an investor will find, first', 'Cap table, SAFEs and investor views', 'Share a view with nothing confidential in it'],
+  },
+  {
+    id: 'firm',
+    icon: 'Landmark',
+    name: 'Firm and Enterprise',
+    audience: 'Funds, corporate development and advisors',
+    price: null,
+    cadence: 'talk to us',
+    alternatives: [],
+    includes: ['Higher pact volumes', 'Company single sign-on', 'Sell-side pacts for running a sale', 'Invoice billing and priority support', 'Confidential data in your AI assistant'],
+  },
+];
+
+export const PRICING = {
+  title: 'Priced per deal. Unlimited users.',
+  body:
+    'A buyer already spends tens of thousands on a quality-of-earnings report and far more on third-party diligence. Pactlab is priced per pact, ' +
+    'with a subscription for teams that buy often. Everyone on your team, and everyone you invite from the other side, is included.',
+  notes: [
+    { icon: 'Users', title: 'Unlimited users', body: 'No seat counting. Bring the whole deal team, your advisors and the reviewers.' },
+    { icon: 'Handshake', title: 'Guests are free', body: 'People you invite from the other side of the deal never need a plan.' },
+    { icon: 'Lock', title: 'Your record stays yours', body: 'When a pact’s live period ends it becomes read-only, never deleted.' },
+    { icon: 'Tag', title: 'Promo codes', body: 'Have a code from us? Enter it when you sign up for a discount or free pacts.' },
+    { icon: 'Gift', title: 'Pilots', body: 'Design partners run a live deal free while their pilot agreement runs.' },
+    { icon: 'Receipt', title: 'Currency and tax', body: 'Prices are in US dollars before tax. UK and EU businesses account for VAT under the reverse charge.' },
+  ],
+} as const satisfies { title: string; body: string; notes: readonly Feature[] };

@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { DESCRIPTOR, HOME, INDUSTRY_CORE, MODULES, PILOT, TAGLINE, TRUST } from './content';
+import { DESCRIPTOR, HOME, INDUSTRY_CORE, MODULES, PILOT, PLANS, PRICING, TAGLINE, TRUST } from './content';
 import { COMPARISONS, FAQS, GUIDES } from './answers';
 import { CASE_STUDIES } from './cases';
 import { INDUSTRY_STORIES, PUBLISHED_INDUSTRIES } from './industry-stories';
@@ -31,6 +31,7 @@ export const SITE_ROUTES: readonly string[] = [
   ...FAQS.map((page) => `/faq/${page.slug}`),
   ...COMPARISONS.map((comparison) => `/compare/${comparison.slug}`),
   '/trust',
+  '/pricing',
   '/pilot',
   '/about',
   '/about/story',
@@ -104,6 +105,21 @@ export const faqPageJsonLd = (faq: readonly { readonly q: string; readonly a: st
   mainEntity: faq.map((item) => ({ '@type': 'Question', name: item.q, acceptedAnswer: { '@type': 'Answer', text: item.a } })),
 });
 
+/** The pricing page's plans with a published price, as schema.org offers (USD, ADR 0025). */
+export const offerCatalogJsonLd = () => ({
+  '@context': 'https://schema.org',
+  '@type': 'OfferCatalog',
+  name: 'Pactlab plans',
+  url: absolute('/pricing'),
+  itemListElement: PLANS.filter((plan) => plan.price !== null).map((plan) => ({
+    '@type': 'Offer',
+    name: plan.name,
+    description: `${plan.audience}. ${plan.cadence}.`,
+    price: (plan.price ?? '').replace(/[$,]/g, ''),
+    priceCurrency: 'USD',
+  })),
+});
+
 /** JSON for a <script type="application/ld+json">, with "<" escaped so content can never close the tag. */
 export const jsonLdScript = (data: object) => JSON.stringify(data).replace(/</g, '\\u003c');
 
@@ -150,6 +166,7 @@ export function llmsText(): string {
     '',
     `- [How it works](${absolute('/how-it-works')}): from source evidence to deal terms, with a person deciding at every step that matters.`,
     `- [Trust](${absolute('/trust')}): ${TRUST.intro}`,
+    `- [Pricing](${absolute('/pricing')}): ${PRICING.title} ${PLANS.map((plan) => `${plan.name}: ${plan.price ? `${plan.price} ${plan.cadence}` : 'talk to us'}`).join('; ')}. Counterparty guests are free.`,
     `- [Pilot](${absolute('/pilot')}): ${PILOT.body}`,
     `- [About](${absolute('/about')}): why the company is called Pactlab, its story and its vision.`,
     '',
