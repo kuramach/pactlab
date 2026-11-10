@@ -17,7 +17,7 @@ import type { EvidenceItemView, EvidenceLineage } from '@pactlab/domain';
 import { redirect } from 'next/navigation';
 import { organizationAccessToken } from '../../../../lib/auth0';
 import { publicEnv } from '../../../../lib/env';
-import { signInAgainPath } from '../../../../lib/step-up';
+import { demoBlockedPath, signInAgainPath } from '../../../../lib/step-up';
 
 export type ApiResult<T> =
   | { kind: 'ok'; data: T }
@@ -103,6 +103,8 @@ export async function apiSend<T>(
     const code = ((await response.json().catch(() => null)) as { code?: unknown } | null)?.code;
     // A sensitive action on a sign-in over 8 hours old (T-112): sign in again, then come back.
     if (code === 'RECENT_SIGN_IN_REQUIRED') redirect(await signInAgainPath());
+    // An outward action in a shared demo (T-113): back to the page, which says why.
+    if (code === 'DEMO_NOT_AVAILABLE') redirect(await demoBlockedPath());
     return typeof code === 'string' && /^[A-Z][A-Z_]{2,40}$/.test(code) ? { kind: 'invalid', code } : { kind: 'invalid' };
   }
   if (response.status === 400) return { kind: 'invalid' };

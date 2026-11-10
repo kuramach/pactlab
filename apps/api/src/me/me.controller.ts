@@ -14,6 +14,6 @@ export class MeController {
   async get(@CurrentPrincipal() principal: Principal): Promise<MeResponse> {
     const me = await this.meService.resolve(principal.subject, principal.issuer);
     if (!me) throw new UnauthorizedException();
-    return me;
+    return principal.demo ? { ...me, demo: true } : me;
   }
 }

@@ -30,6 +30,8 @@ export interface MeResponse {
   user: { id: string; displayName: string; email?: string | null; platformOperator?: boolean };
   organizations: MeOrganization[];
   guestPacts: MeGuestPact[];
+  /** A shared-demo link opened this session (T-113). */
+  demo?: boolean;
 }
 
 export type MeResult =
@@ -62,6 +64,8 @@ export type SessionContext =
     }
   | {
       kind: 'signed-in';
+      /** A shared-demo link opened this session (T-113): show the demo banner. */
+      demo: boolean;
       displayName: string;
       /** The signed-in address, when the API knows it (email-code sign-in). */
       email: string | null;
@@ -119,6 +123,7 @@ export const getSessionContext = cache(async (): Promise<SessionContext> => {
     organization,
     guest: guest !== null,
     operator: me.kind === 'ok' && me.data.user.platformOperator === true,
+    demo: me.kind === 'ok' && me.data.demo === true,
     permissions: new Set(organization?.permissions ?? []),
   };
 });

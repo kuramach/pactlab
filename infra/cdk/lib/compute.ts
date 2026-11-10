@@ -4,6 +4,8 @@ import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as ecr from 'aws-cdk-lib/aws-ecr';
 import * as ecs from 'aws-cdk-lib/aws-ecs';
 import * as elbv2 from 'aws-cdk-lib/aws-elasticloadbalancingv2';
+import * as events from 'aws-cdk-lib/aws-events';
+import * as eventTargets from 'aws-cdk-lib/aws-events-targets';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import type * as kms from 'aws-cdk-lib/aws-kms';
 import * as logs from 'aws-cdk-lib/aws-logs';
@@ -314,6 +316,24 @@ export class PactlabCompute extends Construct {
     }
 
     const appSubnets = { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS };
+    // The shared demo pool (T-113): every 15 minutes on live, end shares whose time is up and
+    // rebuild their demos, on the seed task (owner credentials and the document bucket). Stage
+    // pauses when idle, so there it runs by hand (scripts/ops-task.sh stage src/ops/demo-pool.ts sweep).
+    if (config.name === 'prod') {
+      new events.Rule(this, 'DemoPoolSweep', {
+        description: 'Pactlab shared demos: end expired shares and rebuild their demos',
+        schedule: events.Schedule.rate(Duration.minutes(15)),
+        targets: [
+          new eventTargets.EcsTask({
+            cluster: this.cluster,
+            taskDefinition: seedTask,
+            subnetSelection: appSubnets,
+            securityGroups: [props.appSecurityGroup],
+            containerOverrides: [{ containerName: 'seed', command: ['./node_modules/.bin/tsx', 'src/ops/demo-pool.ts', 'sweep'] }],
+          }),
+        ],
+      });
+    }
     const serviceProps = { cluster: this.cluster, vpcSubnets: appSubnets, circuitBreaker: { enable: true, rollback: true }, minHealthyPercent: 100, maxHealthyPercent: 200 };
     const web = new ecs.FargateService(this, 'WebService', { ...serviceProps, taskDefinition: webTask, desiredCount: desired(service.web), securityGroups: [webSecurityGroup] });
     const api = new ecs.FargateService(this, 'ApiService', { ...serviceProps, taskDefinition: apiTask, desiredCount: desired(service.api), securityGroups: [props.appSecurityGroup] });

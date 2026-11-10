@@ -65,3 +65,17 @@ scripts/ops-task.sh live  src/ops/demo-org.ts          # the owner runs this
 - The script touches only the organization with the fixed demo id and slug `pactlab-demo`; it stops if another organization holds that slug.
 - `--reset` deletes only that organization's pacts, through the normal deletion service (audited, documents purged).
 - To remove it entirely, suspend the organization in the operator console.
+
+## Shared demos (T-113, ADR 0028)
+
+Five more demo organizations, "Pactlab Demo 1–5 (synthetic)", are for lending to prospects through links, with no sign-in.
+
+- **Share one:** Admin console → **Demos** → who it's for and how long (1 day, 3 days or 1 week) → **Share a demo**.
+  - **The links:** copy the buyer and seller links straight away; they're shown only once. If one is lost, end the share and share again.
+  - **Who gets which:** the buyer link opens the deal team's view; the seller link opens the target's.
+- **What a visitor can do:** everything inside the pacts. Invitations, e-signature, AI-assistant connections, live sources, billing and deleting pacts are off, and they're told why.
+- **End early:** **End now**. The links and sessions stop at once, and the demo is rebuilt within 15 minutes.
+- **Automatic reset:** on live, a scheduled task runs every 15 minutes (`src/ops/demo-pool.ts sweep` on the seed task). It ends shares whose time is up and rebuilds those demos from the original data.
+- **First time, stage, or by hand:** `scripts/demo-org.sh live pool` (or `stage`). The first run builds all five, a few minutes each.
+- **A failed rebuild:** the slot shows "Last reset failed" with the reason and is retried on every sweep. Fix the cause, then **Reset now**, or run the sweep by hand. The full log is in CloudWatch (`/pactlab/prod/app`, stream `seed/seed/<task id>`).
+- **Audit:** `demo.shared`, `demo.ended`, `demo.expired`, `demo.reset`, `login.demo_link`.

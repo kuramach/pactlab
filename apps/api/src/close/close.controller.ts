@@ -2,7 +2,7 @@ import { Body, Controller, Delete, Get, Headers, HttpCode, Inject, Param, Post, 
 import { dealParamsSchema } from '@pactlab/contracts';
 import type { TenantContext } from '@pactlab/domain';
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import { Public, RecentSignIn } from '../auth/auth.guard';
+import { NoDemo, Public, RecentSignIn } from '../auth/auth.guard';
 import { Tenant } from '../auth/tenant.decorator';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { RequestId } from '../deals/request-id.decorator';
@@ -60,6 +60,7 @@ export class CloseController {
     return this.service.decline(tenant, params.dealId, params.batchId, requestId);
   }
 
+  @NoDemo()
   @Post('terms/:batchId/esign')
   @HttpCode(201)
   esign(
@@ -150,6 +151,7 @@ export class DocuSignConnectionController {
     return this.service.docusignStatus(tenant);
   }
 
+  @NoDemo()
   @RecentSignIn()
   @Post('start')
   @HttpCode(200)
@@ -157,6 +159,7 @@ export class DocuSignConnectionController {
     return this.service.docusignStart(tenant);
   }
 
+  @NoDemo()
   @RecentSignIn()
   @Post('callback')
   @HttpCode(200)

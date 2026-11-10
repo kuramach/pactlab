@@ -1,6 +1,6 @@
 import { randomInt } from 'node:crypto';
 import { Inject, Injectable, UnauthorizedException } from '@nestjs/common';
-import { authSessions, emailLogin, type PrismaClient } from '@pactlab/db';
+import { authSessions, demoShares, emailLogin, type PrismaClient } from '@pactlab/db';
 import type { Logger } from '@pactlab/observability';
 import type { Principal } from '../auth/auth.guard';
 import type { PactlabTokens } from '../auth/pactlab-token';
@@ -11,6 +11,7 @@ import { emails } from './emails';
 import type { WebAuthnRelyingParty } from './passkeys.service';
 import type { TrustChoice } from './email-login.schemas';
 import { applyTrust } from './trust';
+import { DEMO_TOKEN_PATTERN, demoTokenHash } from '../demo-links/demo-links';
 
 export const EMAIL_LOGIN = Symbol('EMAIL_LOGIN');
 
@@ -83,6 +84,14 @@ export class EmailLoginService {
     if (!session) throw new UnauthorizedException();
     const expiresAt = await applyTrust(this.prisma, session, trust, device);
     return this.issue(session.subject, session.sessionId, session.organizationId, expiresAt);
+  }
+
+  /** A shared-demo link (T-113): a session for that demo's buyer or seller, or a uniform 401. */
+  async demoLink(token: string): Promise<IssuedSession> {
+    if (!DEMO_TOKEN_PATTERN.test(token)) throw new UnauthorizedException();
+    const session = await demoShares.login(this.prisma, demoTokenHash(token));
+    if (!session) throw new UnauthorizedException();
+    return this.issue(session.subject, session.sessionId, session.organizationId, session.expiresAt);
   }
 
   /** Move an email-code session into one of the caller's email-code organizations. */

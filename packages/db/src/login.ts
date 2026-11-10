@@ -93,12 +93,12 @@ export const authSessions = {
   },
 
   /** Every request: the session is live (and a trusted one within its cap and idle window). When the person signed in, or null. */
-  async check(prisma: PrismaClient, input: { sessionId: string; subject: string; organizationId: string | null }): Promise<{ signedInAt: Date } | null> {
+  async check(prisma: PrismaClient, input: { sessionId: string; subject: string; organizationId: string | null }): Promise<{ signedInAt: Date; demo: boolean } | null> {
     const [row] = await asApp(prisma, (tx) =>
-      tx.$queryRaw<{ signed_in_at: Date }[]>`
-        SELECT signed_in_at FROM app_auth_session_check(${input.sessionId}::uuid, ${input.subject}, ${input.organizationId}::uuid)`,
+      tx.$queryRaw<{ signed_in_at: Date; demo: boolean }[]>`
+        SELECT signed_in_at, demo FROM app_auth_session_check(${input.sessionId}::uuid, ${input.subject}, ${input.organizationId}::uuid)`,
     );
-    return row ? { signedInAt: new Date(row.signed_in_at) } : null;
+    return row ? { signedInAt: new Date(row.signed_in_at), demo: row.demo === true } : null;
   },
 
   /** The signed-in devices of the person behind this session, most recently used first. */

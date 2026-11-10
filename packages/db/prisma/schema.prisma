@@ -1421,6 +1421,8 @@ model AuthSession {
   lastSeenAt     DateTime  @default(now()) @map("last_seen_at") @db.Timestamptz(3)
   /// A readable name such as "Chrome on macOS"; never the raw user agent or an address.
   deviceLabel    String?   @map("device_label")
+  /// Set when a shared-demo link opened the session (T-113); it ends with the share.
+  demoShareId    String?   @map("demo_share_id") @db.Uuid
 
   user         User          @relation(fields: [userId], references: [id], onDelete: Restrict)
   organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Restrict)
@@ -2822,4 +2824,36 @@ model ReportVersion {
 
   @@index([organizationId, scope, dealId, version(sort: Desc)], map: "report_versions_history_idx")
   @@map("report_versions")
+}
+
+/// A demo organization lent out through magic links (T-113). Reached only through SECURITY DEFINER functions.
+model DemoSlot {
+  organizationId String    @id @map("organization_id") @db.Uuid
+  slot           Int       @unique
+  buyerUserId    String    @map("buyer_user_id") @db.Uuid
+  sellerUserId   String    @map("seller_user_id") @db.Uuid
+  /// AVAILABLE | SHARED | RESETTING
+  status         String    @default("RESETTING")
+  resetAt        DateTime? @map("reset_at") @db.Timestamptz(3)
+  lastError      String?   @map("last_error")
+  updatedAt      DateTime  @default(now()) @map("updated_at") @db.Timestamptz(3)
+
+  @@map("demo_slots")
+}
+
+/// One loan of a demo slot: who it is for, until when, and its two links as keyed hashes (T-113).
+model DemoShare {
+  id              String    @id @db.Uuid
+  organizationId  String    @map("organization_id") @db.Uuid
+  sharedWith      String    @map("shared_with")
+  createdBy       String?   @map("created_by") @db.Uuid
+  startsAt        DateTime  @default(now()) @map("starts_at") @db.Timestamptz(3)
+  endsAt          DateTime  @map("ends_at") @db.Timestamptz(3)
+  endedAt         DateTime? @map("ended_at") @db.Timestamptz(3)
+  endedBy         String?   @map("ended_by") @db.Uuid
+  buyerTokenHash  String    @unique @map("buyer_token_hash") @db.Char(64)
+  sellerTokenHash String    @unique @map("seller_token_hash") @db.Char(64)
+  lastUsedAt      DateTime? @map("last_used_at") @db.Timestamptz(3)
+
+  @@map("demo_shares")
 }

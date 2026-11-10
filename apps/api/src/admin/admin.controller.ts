@@ -23,6 +23,8 @@ import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { AdminService } from './admin.service';
 
 const slugParams = z.strictObject({ slug: z.string().regex(/^[a-z0-9-]{2,80}$/) });
+const shareDemoSchema = z.strictObject({ sharedWith: z.string().trim().min(1).max(200), hours: z.union([z.literal(24), z.literal(72), z.literal(168)]) });
+const demoShareParams = z.strictObject({ shareId: z.uuid() });
 
 /** Operator console (T-072). Every route answers 403 to anyone who is not a platform operator. */
 @Controller('v1/admin')
@@ -43,6 +45,30 @@ export class AdminController {
   @HttpCode(200)
   decide(@Tenant() tenant: TenantContext, @Param(new ZodValidationPipe(slugParams)) params: { slug: string }, @Body(new ZodValidationPipe(decideOrganizationSchema)) body: { decision: 'approve' | 'reject' }) {
     return this.admin.decide(tenant, params.slug, body.decision);
+  }
+
+  // Shared demos (T-113): the pool, lend one, end a share, rebuild a slot.
+  @Get('demos')
+  demoSlots(@Tenant() tenant: TenantContext) {
+    return this.admin.demoSlots(tenant);
+  }
+
+  @Post('demos')
+  @HttpCode(201)
+  shareDemo(@Tenant() tenant: TenantContext, @Body(new ZodValidationPipe(shareDemoSchema)) body: { sharedWith: string; hours: 24 | 72 | 168 }) {
+    return this.admin.shareDemo(tenant, body);
+  }
+
+  @Post('demos/shares/:shareId/end')
+  @HttpCode(200)
+  endDemoShare(@Tenant() tenant: TenantContext, @Param(new ZodValidationPipe(demoShareParams)) params: { shareId: string }) {
+    return this.admin.endDemoShare(tenant, params.shareId);
+  }
+
+  @Post('demos/slots/:organizationId/reset')
+  @HttpCode(200)
+  resetDemoSlot(@Tenant() tenant: TenantContext, @Param(new ZodValidationPipe(adminOrganizationParamsSchema)) params: { organizationId: string }) {
+    return this.admin.resetDemoSlot(tenant, params.organizationId);
   }
 
   @Get('organizations')

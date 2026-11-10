@@ -2,7 +2,7 @@ import { Body, Controller, Delete, Get, HttpCode, Inject, Param, Post, Req } fro
 import type { PasskeyOptionsView, PasskeysView } from '@pactlab/contracts';
 import type { AuthenticationResponseJSON, RegistrationResponseJSON } from '@simplewebauthn/server';
 import type { FastifyRequest } from 'fastify';
-import { AllowUnscoped, Public, type Principal } from '../auth/auth.guard';
+import { AllowUnscoped, NoDemo, type Principal, Public } from '../auth/auth.guard';
 import { CurrentPrincipal } from '../auth/principal.decorator';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { rateLimitAddress } from './client-address';
@@ -38,6 +38,7 @@ export class PasskeysController {
   }
 
   @AllowUnscoped()
+  @NoDemo()
   @Post('me/passkeys/options')
   @HttpCode(200)
   registrationOptions(@CurrentPrincipal() principal: Principal): Promise<PasskeyOptionsView> {
@@ -45,6 +46,7 @@ export class PasskeysController {
   }
 
   @AllowUnscoped()
+  @NoDemo()
   @Post('me/passkeys')
   @HttpCode(201)
   register(

@@ -12,6 +12,8 @@ export interface VerifiedIdentity {
   sessionId?: string;
   /** When the person signed in (Pactlab sessions only), for step-up checks (T-112). */
   signedInAt?: Date;
+  /** The session came from a shared-demo link (T-113): outward actions are refused. */
+  demo?: boolean;
 }
 
 /** Internal identity adapter: Auth0 or Pactlab email-code, replaceable without touching callers. */

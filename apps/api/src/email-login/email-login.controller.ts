@@ -4,7 +4,7 @@ import { AllowUnscoped, Public, type Principal } from '../auth/auth.guard';
 import { CurrentPrincipal } from '../auth/principal.decorator';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { rateLimitAddress } from './client-address';
-import { selectOrganizationBodySchema, startBodySchema, verifyBodySchema, type TrustChoice } from './email-login.schemas';
+import { demoLinkBodySchema, selectOrganizationBodySchema, startBodySchema, verifyBodySchema, type TrustChoice } from './email-login.schemas';
 import { EmailLoginService, type IssuedSession } from './email-login.service';
 
 /** Email one-time-code sign-in for organizations that do not use Auth0. */
@@ -30,6 +30,14 @@ export class EmailLoginController {
   @HttpCode(200)
   verify(@Body(new ZodValidationPipe(verifyBodySchema)) body: { email: string; code: string; trust: TrustChoice; device?: string }): Promise<IssuedSession> {
     return this.service.verify(body.email, body.code, body.trust, body.device);
+  }
+
+  /** A shared-demo link (T-113): no code, only a live share's token. A uniform 401 otherwise. */
+  @Public()
+  @Post('demo-link')
+  @HttpCode(200)
+  demoLink(@Body(new ZodValidationPipe(demoLinkBodySchema)) body: { token: string }): Promise<IssuedSession> {
+    return this.service.demoLink(body.token);
   }
 
   @AllowUnscoped()

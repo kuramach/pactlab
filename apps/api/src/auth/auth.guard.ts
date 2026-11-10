@@ -28,6 +28,14 @@ export const RECENT_SIGN_IN_HOURS = 8;
  */
 export const RecentSignIn = () => SetMetadata(RECENT_SIGN_IN, true);
 
+const NO_DEMO = 'pactlab:no-demo';
+/**
+ * Actions that reach outside Pactlab (sending invitations, DocuSign, connecting an AI
+ * assistant or a live source, billing, deleting a pact) are refused to shared-demo sessions
+ * (T-113) with 422 DEMO_NOT_AVAILABLE. Everything inside the pact stays open: it all resets.
+ */
+export const NoDemo = () => SetMetadata(NO_DEMO, true);
+
 /** A verified subject, before (or independent of) organization scoping. */
 export interface Principal {
   subject: string;
@@ -38,6 +46,8 @@ export interface Principal {
   sessionId?: string;
   /** When the person signed in (Pactlab sessions only). */
   signedInAt?: Date;
+  /** A shared-demo link opened the session (T-113). */
+  demo?: boolean;
 }
 
 export type AuthenticatedRequest = FastifyRequest & { tenant?: TenantContext; principal?: Principal };
@@ -69,8 +79,11 @@ export class AuthGuard implements CanActivate {
     const identity = await this.verifier.verify(token);
     if (!identity) throw new UnauthorizedException();
 
-    const { subject, externalOrganizationId, issuer, sessionId, signedInAt } = identity;
-    const session = { ...(sessionId ? { sessionId } : {}), ...(signedInAt ? { signedInAt } : {}) };
+    const { subject, externalOrganizationId, issuer, sessionId, signedInAt, demo } = identity;
+    const session = { ...(sessionId ? { sessionId } : {}), ...(signedInAt ? { signedInAt } : {}), ...(demo ? { demo } : {}) };
+    if (demo && this.reflector.getAllAndOverride<boolean>(NO_DEMO, [context.getHandler(), context.getClass()])) {
+      throw new UnprocessableEntityException({ code: 'DEMO_NOT_AVAILABLE' });
+    }
     const needsRecent = this.reflector.getAllAndOverride<boolean>(RECENT_SIGN_IN, [context.getHandler(), context.getClass()]);
     if (needsRecent && issuer === 'PACTLAB' && (!signedInAt || Date.now() - signedInAt.getTime() > RECENT_SIGN_IN_HOURS * 3_600_000)) {
       throw new UnprocessableEntityException({ code: 'RECENT_SIGN_IN_REQUIRED' });
