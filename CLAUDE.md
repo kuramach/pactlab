@@ -104,6 +104,17 @@ Never weaken these rules to pass a test or accelerate a demo.
 - Propagate stale state when evidence or accepted findings change.
 - Ask before changing settled architecture or adding a paid dependency.
 
+## Testing principles
+
+- **Prove it at the lowest level that can.** Unit, integration and API tests carry the coverage. Playwright E2E is reserved for critical user journeys — keep that set small (roughly 5-15), tagged `@smoke` / `@regression` / `@prod-safe`. A bug caught by an E2E test gets a reproducing test at the lower level that should have caught it.
+- **Locators are user-facing.** `getByRole` → `getByLabel` / `getByText` → `getByTestId`. Never designer CSS classes or XPath.
+- **Never wait for time.** Web-first assertions that auto-retry; `waitForTimeout`, `networkidle` readiness waits and non-retrying `isVisible()` checks are banned in specs.
+- **Tests are isolated or they are bugs.** Unique data per test (UUID-suffixed), seeded and torn down through the API, never shared mutable fixtures for writes, no order dependence. Authenticate once in a setup project and reuse `storageState` per role.
+- **CI never calls a live model.** AI providers stay behind the provider seam with an env-configurable endpoint; E2E uses the mock/fixture provider. Assert structure and outcomes — schema, allowed categories, persisted records checked via API/DB — never exact model prose. Model quality belongs to the separate eval suite, not to E2E.
+- **Flaky means quarantined.** A test that passes on retry is flaky: it leaves the merge gate the same day, keeps running non-blocking, and gets an owner and a fix-or-delete date (<= 10 working days). New or changed E2E tests are burned in (repeated runs) before they may gate.
+- **Tiers, not everything everywhere.** PRs run `@smoke`; main runs the full Chromium suite; staging runs the full mutating suite and gates promotion; production runs only `@prod-safe` read-path journeys against the synthetic tenant, after deploy. Run E2E against a production build, never `next dev`.
+- **Minutes are a budget.** Chromium-only below the nightly tier, traces/video only on failure or first retry, artifacts uploaded only on failure.
+
 ## Root commands
 
 ```bash
