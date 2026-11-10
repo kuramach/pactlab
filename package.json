@@ -18,6 +18,7 @@
     "test:e2e:full": "pnpm --filter @pactlab/e2e test:e2e:full",
     "test:live": "pnpm --filter @pactlab/connectors test:live",
     "seed": "turbo run seed",
+    "demo:live": "scripts/demo-org.sh live",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "local:up": "docker compose -f infra/local/docker-compose.yml up -d --wait",
