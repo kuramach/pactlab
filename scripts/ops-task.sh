@@ -17,7 +17,7 @@ export AWS_PROFILE="$PROFILE" AWS_REGION=us-east-2
 out() { aws cloudformation describe-stacks --stack-name "$STACK" --query "Stacks[0].Outputs[?OutputKey=='$1'].OutputValue" --output text; }
 # The demo organization writes documents, so it runs on the seed task (same tools image and owner credentials, plus the
 # document bucket); everything else on the migrate task, which has no AWS permissions beyond its secrets.
-KIND=migrate; [ "$SCRIPT" = src/ops/demo-org.ts ] && KIND=seed
+KIND=migrate; { [ "$SCRIPT" = src/ops/demo-org.ts ] || [ "$SCRIPT" = src/ops/demo-pool.ts ]; } && KIND=seed
 CLUSTER=$(out ClusterName); FAMILY=$(out "$([ $KIND = seed ] && echo Seed || echo Migrate)TaskDefinition"); SUBNETS=$(out AppSubnets); GROUP=$(out AppTaskSecurityGroupId)
 # The command as JSON: tsx, the script, then each argument as its own string.
 COMMAND=$(node -e 'console.log(JSON.stringify(["./node_modules/.bin/tsx", ...process.argv.slice(1)]))' "$SCRIPT" "$@")
