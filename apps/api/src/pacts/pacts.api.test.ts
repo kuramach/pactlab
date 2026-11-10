@@ -123,12 +123,12 @@ describe('Start a Pact through the API', () => {
       const lead = await token(a.subject, a);
       const start = async (companyType: string) =>
         live.inject({ method: 'POST', url: '/v1/pacts', headers: { authorization: `Bearer ${lead}` }, payload: { ...PACT, name: `Project ${companyType}`, seller: { ...PACT.seller, companyType } } });
-      for (const companyType of ['HOSPITALS', 'VENTURE_RAISE', 'OTHER']) {
+      for (const companyType of ['HOSPITALS', 'FINTECH', 'OTHER']) {
         const refused = await start(companyType);
         expect(refused.statusCode, companyType).toBe(422);
         expect(refused.json()).toMatchObject({ code: 'PACK_NOT_RELEASED' });
       }
-      for (const companyType of ['SOFTWARE_SAAS', 'MULTIFAMILY']) expect((await start(companyType)).statusCode, companyType).toBe(201);
+      for (const companyType of ['SOFTWARE_SAAS', 'MULTIFAMILY', 'VENTURE_RAISE']) expect((await start(companyType)).statusCode, companyType).toBe(201);
     } finally {
       await live.close();
     }

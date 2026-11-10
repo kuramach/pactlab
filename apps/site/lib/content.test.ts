@@ -172,8 +172,8 @@ describe('industry stories', () => {
     }
   });
 
-  it('publishes only the released packs: Software & SaaS and Multifamily (Kumar, 2026-11-01)', () => {
-    expect(PUBLISHED_INDUSTRIES.map((industry) => industry.slug)).toEqual(['software-saas', 'multifamily']);
+  it('publishes only the released packs: Software & SaaS, Multifamily and Venture Raise (Kumar, 2026-11-01 and 2026-11-09)', () => {
+    expect(PUBLISHED_INDUSTRIES.map((industry) => industry.slug)).toEqual(['software-saas', 'multifamily', 'venture-raise']);
     expect(isPublishedHref('/industries/hospitals')).toBe(false);
     expect(isPublishedHref('/industries/multifamily')).toBe(true);
     expect(isPublishedHref('/product')).toBe(true);
