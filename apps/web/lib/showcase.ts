@@ -99,6 +99,16 @@ export const SHOWCASE: Readonly<Record<string, ShowcaseEntry>> = {
     why: 'The price and each escrow or indemnity proposed, countered and agreed in one place, each term traceable to the finding behind it.',
     lookFor: ['The seller’s counter on the headline price', 'The revised version, accepted', 'Terms linked to findings'],
   },
+  '/ic': {
+    title: 'The committee decides, on the record',
+    why: 'The deal team submits a versioned pack; the investment committee approves, declines or sets conditions, and signing can wait for it. The seller never sees any of it.',
+    lookFor: ['The IC pack: what is asked, the largest risks, open blockers', 'The decision, who made it and why', 'Conditions the team works off before signing'],
+  },
+  '/loi': {
+    title: 'Intent agreed, exclusivity secured',
+    why: 'A letter of intent written from the agreed terms: the economics as non-binding intent, exclusivity and confidentiality binding, signed by both sides.',
+    lookFor: ['Non-binding and binding provisions side by side', 'The agreed price quoted exactly', 'Exclusivity days left after countersignature'],
+  },
   '/closing': {
     title: 'Both sides sign, funds are confirmed',
     why: 'Named signatories sign the agreed version, the closing checklist is worked by both sides, and the seller confirms the funds arrived.',
@@ -124,6 +134,8 @@ export const TOUR_PATHS: readonly string[] = [
   '/valuation',
   '/raise',
   '/terms',
+  '/loi',
+  '/ic',
   '/closing',
   '/post-close',
   '/bidders',

@@ -7,6 +7,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { SHOWCASE, TOUR_PATHS } from '../../../../lib/showcase';
 import { hideGuide } from '../../_lib/guide-actions';
+import { DEAL_SECTIONS } from './deal-tabs';
 
 const TOUR_KEY = 'pactlab_tour_step';
 const read = (key: string) => {
@@ -36,7 +37,8 @@ export function Showcase({ dealId, companyType, sellerLed }: { dealId: string; c
   const base = `/deals/${dealId}`;
   const section = pathname.startsWith(base) ? pathname.slice(base.length).replace(/\/$/, '') : '';
   const entry = SHOWCASE[section];
-  const steps = TOUR_PATHS.filter((path) => sectionApplies(path, { companyType, initiatedBy: sellerLed ? 'SELLER' : 'BUYER' }));
+  // Tabs this app has and this pact shows (copy can arrive before its tab does).
+  const steps = TOUR_PATHS.filter((path) => DEAL_SECTIONS.some((section) => section.path === path) && sectionApplies(path, { companyType, initiatedBy: sellerLed ? 'SELLER' : 'BUYER' }));
   const [touring, setTouring] = useState(false);
   useEffect(() => setTouring(read(TOUR_KEY) === dealId), [dealId]);
   const index = steps.indexOf(section);
