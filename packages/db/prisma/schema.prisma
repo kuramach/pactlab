@@ -552,6 +552,8 @@ model Deal {
   stage                String          @default("SCREENING")
   /// Overrides the organization's IC requirement for this pact; null follows it (T-118).
   icApprovalRequired   Boolean?        @map("ic_approval_required")
+  /// Signing the definitive terms waits for a countersigned letter of intent (T-119).
+  loiRequired          Boolean         @default(false) @map("loi_required")
   status               String          @default("ACTIVE")
   baseCurrency         String          @default("USD") @map("base_currency") @db.Char(3)
   createdBy            String          @map("created_by") @db.Uuid
@@ -2619,6 +2621,8 @@ model SignatureEnvelope {
   sentBy              String    @map("sent_by") @db.Uuid
   sentAt              DateTime  @default(now()) @map("sent_at") @db.Timestamptz(3)
   completedAt         DateTime? @map("completed_at") @db.Timestamptz(3)
+  /// Set when the envelope carries a letter of intent rather than the terms (T-119).
+  loiId               String?   @map("loi_id") @db.Uuid
 
   batch TermProposalBatch @relation(fields: [organizationId, dealId, batchId], references: [organizationId, dealId, id], onDelete: Restrict, map: "signature_envelopes_batch_fkey")
 
@@ -2916,4 +2920,54 @@ model IcCondition {
 
   @@unique([decisionId, ordinal], map: "ic_conditions_ordinal_key")
   @@map("ic_conditions")
+}
+
+/// A letter of intent (T-119): generated from an agreed terms version; DRAFT stays with the pact's own side.
+model LoiVersion {
+  id                String    @id @default(uuid(7)) @db.Uuid
+  organizationId    String    @map("organization_id") @db.Uuid
+  dealId            String    @map("deal_id") @db.Uuid
+  batchId           String    @map("batch_id") @db.Uuid
+  version           Int
+  /// DRAFT | SENT | COUNTERSIGNED | DECLINED | EXPIRED
+  status            String    @default("DRAFT")
+  fields            Json
+  snapshot          Json?
+  /// IN_APP | ESIGN
+  method            String?
+  objectKey         String?   @map("object_key")
+  sha256            String?   @db.Char(64)
+  createdBy         String    @map("created_by") @db.Uuid
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  sentBy            String?   @map("sent_by") @db.Uuid
+  sentAt            DateTime? @map("sent_at") @db.Timestamptz(3)
+  respondBy         DateTime? @map("respond_by") @db.Timestamptz(3)
+  countersignedAt   DateTime? @map("countersigned_at") @db.Timestamptz(3)
+  declinedAt        DateTime? @map("declined_at") @db.Timestamptz(3)
+  declinedBy        String?   @map("declined_by") @db.Uuid
+  exclusivityEndsAt DateTime? @map("exclusivity_ends_at") @db.Timestamptz(3)
+
+  signoffs LoiSignoff[]
+
+  @@unique([dealId, version], map: "loi_versions_version_key")
+  @@map("loi_versions")
+}
+
+/// A side's signature on a letter of intent (T-119), in the app or by e-signature. Insert-only.
+model LoiSignoff {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  dealId         String   @map("deal_id") @db.Uuid
+  loiId          String   @map("loi_id") @db.Uuid
+  /// BUYER | SELLER
+  side           String
+  userId         String   @map("user_id") @db.Uuid
+  method         String
+  envelopeId     String?  @map("envelope_id") @db.Uuid
+  signedAt       DateTime @default(now()) @map("signed_at") @db.Timestamptz(3)
+
+  loi LoiVersion @relation(fields: [loiId], references: [id], onDelete: Restrict, map: "loi_signoffs_loi_fkey")
+
+  @@unique([loiId, side], map: "loi_signoffs_side_key")
+  @@map("loi_signoffs")
 }

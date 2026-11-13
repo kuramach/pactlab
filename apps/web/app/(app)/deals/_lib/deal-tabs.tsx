@@ -57,6 +57,8 @@ export const DEAL_GROUPS: readonly DealGroup[] = [
       { path: '/valuation', label: 'Scenarios and bridge' },
       { path: '/foresight', label: 'Foresight' },
       { path: '/terms', label: 'Proposed terms' },
+      // The letter of intent from the agreed terms (T-119).
+      { path: '/loi', label: 'Letter of intent' },
     ],
   },
   {
