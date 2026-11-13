@@ -17,3 +17,4 @@ export * from './reports';
 export * from './oauth';
 export * from './billing';
 export * from './passkeys';
+export * from './ic';

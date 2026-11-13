@@ -22,6 +22,7 @@ const ROLE: Record<string, string> = {
   VIEWER: 'Viewer — read only',
   ANALYST: 'Analyst — work the diligence',
   REVIEWER: 'Reviewer — decide findings',
+  INVESTMENT_COMMITTEE: 'Investment committee — decide the deal',
 };
 const ERRORS: Record<string, string> = {
   'not-accepted': 'This invitation is for a different address than the one you are signed in with. Sign out below and continue as the invited address.',

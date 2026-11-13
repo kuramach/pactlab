@@ -59,6 +59,7 @@ const OUTCOMES: Record<string, string> = {
   'dispute-note': 'Say what is missing, in a few words.',
   conflict: 'That can’t be done right now: something changed, or a step before it is missing. Reload and try again.',
   forbidden: 'That belongs to the other side, or to the signatory.',
+  'error-IC_APPROVAL_REQUIRED': 'Your investment committee approves this pact before you sign. See Close → Investment committee.',
   'error-ESIGN_UNAVAILABLE': 'E-signature isn’t set up for your organization. Connect DocuSign in Settings, or sign off in Pactlab.',
   'error-ESIGN_RECONNECT': 'Your DocuSign connection has expired. An admin reconnects it in Settings.',
 };

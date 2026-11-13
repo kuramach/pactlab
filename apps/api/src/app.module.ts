@@ -48,6 +48,7 @@ import { RegulatoryModule } from './regulatory/regulatory.module';
 import { DealDeletionModule } from './deals/deletion/deal-deletion.module';
 import { InvitationsModule } from './invitations/invitations.module';
 import { ReportsModule } from './reports/reports.module';
+import { IcModule } from './ic/ic.module';
 import { BillingModule } from './billing/billing.module';
 import { FixtureBillingProvider, type BillingProvider } from '@pactlab/connectors';
 import { McpModule } from './mcp/mcp.module';
@@ -173,6 +174,8 @@ export class AppModule {
       gateway: deps.documents?.gateway ?? new NotConfiguredClaudeGateway(),
     });
     const valuationModule = ValuationModule.register({ valuation, findings, pricing: { gateway: deps.documents?.gateway ?? new NotConfiguredClaudeGateway() } });
+    // Reports (T-110), shared with the investment committee (T-118): an IC pack is a report.
+    const reportsModule = ReportsModule.register({ store: deps.documents?.objectStore ?? new UnavailableObjectStore(), shared: [valuationModule, documentsModule] });
     // Pactlab's OAuth server and the MCP server (T-084), with Pactlab sign-in only.
     const oauthModule =
       deps.emailLogin && deps.mcp
@@ -231,7 +234,8 @@ export class AppModule {
         ComparablesModule.register({ valuation, findings }),
         documentsModule,
         // Reports (T-110): the same service instances the app reads through.
-        ReportsModule.register({ store: deps.documents?.objectStore ?? new UnavailableObjectStore(), shared: [valuationModule, documentsModule] }),
+        reportsModule,
+        IcModule.register({ reports: reportsModule }),
         ...(tokens && deps.emailLogin
           ? [
               EmailLoginModule.register({

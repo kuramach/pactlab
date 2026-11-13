@@ -17,6 +17,7 @@ import { DealAccess } from '../deals/deal-access';
 import { DOCUMENT_OBJECT_STORE, type DocumentObjectStore } from '../documents/documents.repository';
 import { PhasesService } from '../phases/phases.service';
 import { termSide } from '../pricing/pricing.service';
+import { IC_STATE_LABELS, icStatus } from '../ic/ic-state';
 import { PRISMA } from '../tokens';
 import type { ClosingItemBody, DisputeBody, EsignBody, PaidBody, SignatoryBody } from './close.schemas';
 import { SIGN_ANCHORS, termSheetPdf } from './term-sheet';
@@ -146,6 +147,11 @@ export class CloseService {
       if (!buyer) missing.push('Name the buyer’s signatory.');
       if (!seller) missing.push('Name the seller’s signatory.');
       if (agreed && !agreed.declinedAt) for (const side of ['BUYER', 'SELLER'] as const) if (!agreed.signoffs.some((signoff) => signoff.side === side)) missing.push(`${side === 'BUYER' ? 'The buyer' : 'The seller'} signs off the agreed terms.`);
+      // The investment committee (T-118): the buyer's side waits for approval when the pact requires it. Never shown to the seller.
+      if (termSide(role) === 'BUYER') {
+        const ic = await icStatus(tx, tenant.organizationId, dealId);
+        if (!ic.satisfied) missing.push(`Investment committee approval (${IC_STATE_LABELS[ic.state]}).`);
+      }
       for (const item of items) if (!item.doneAt) missing.push(item.kind === 'FUNDS' ? `Funds: ${item.paidAt ? 'the seller confirms receipt' : 'the buyer records the payment'} (${item.title}).` : `${item.title} (${item.ownerSide === 'BUYER' ? 'buyer' : 'seller'}).`);
 
       return {
@@ -207,6 +213,12 @@ export class CloseService {
     return this.view(tenant, dealId, requestId);
   }
 
+  /** The buyer signs only once its investment committee has approved, when the pact requires it (T-118). */
+  private async requireIcApproval(tx: TransactionClient, tenant: TenantContext, dealId: string) {
+    const ic = await icStatus(tx, tenant.organizationId, dealId);
+    if (!ic.satisfied) throw new UnprocessableEntityException({ code: 'IC_APPROVAL_REQUIRED' });
+  }
+
   private async requireOpenAgreed(tx: TransactionClient, dealId: string, batchId: string) {
     const agreed = await this.agreedBatch(tx, dealId);
     if (!agreed || agreed.id !== batchId) throw new ConflictException('Only the latest agreed version is signed');
@@ -221,6 +233,7 @@ export class CloseService {
     await withTenant(this.prisma, tenant, async (tx) => {
       const agreed = await this.requireOpenAgreed(tx, dealId, batchId);
       if ((await this.signatory(tx, dealId, side))?.userId !== tenant.userId) throw new ForbiddenException('Only your side’s signatory signs off');
+      if (side === 'BUYER') await this.requireIcApproval(tx, tenant, dealId);
       if (agreed.envelopes[0]?.status === 'SENT') throw new ConflictException('Sent for e-signature: sign there');
       if (agreed.signoffs.some((signoff) => signoff.side === side)) throw new ConflictException('Already signed off');
       const row = await tx.termSignoff.create({ data: { id: newId(), organizationId: tenant.organizationId, dealId, batchId, side, userId: tenant.userId, method: 'IN_APP' } });
@@ -280,6 +293,7 @@ export class CloseService {
     await this.access.require(tenant, dealId, (r: DealRole) => termSide(r) === 'BUYER', { action: 'terms.esign_sent', requestId });
     await withTenant(this.prisma, tenant, async (tx) => {
       const agreed = await this.requireOpenAgreed(tx, dealId, batchId);
+      await this.requireIcApproval(tx, tenant, dealId);
       if (agreed.signoffs.length > 0 || agreed.envelopes[0]?.status === 'SENT') throw new ConflictException('Signing has started');
       const [buyer, seller] = [await this.signatory(tx, dealId, 'BUYER'), await this.signatory(tx, dealId, 'SELLER')];
       if (!buyer || !seller) throw new ConflictException('Name both signatories first');

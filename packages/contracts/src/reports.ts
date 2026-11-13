@@ -1,7 +1,7 @@
 /** Reports (T-110): one generated version, as the history lists it. */
 export interface ReportVersionView {
   id: string;
-  scope: 'EXECUTIVE' | 'PACT';
+  scope: 'EXECUTIVE' | 'PACT' | 'IC';
   dealId: string | null;
   dealName: string | null;
   version: number;

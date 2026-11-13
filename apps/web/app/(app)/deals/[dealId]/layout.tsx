@@ -100,7 +100,7 @@ export default async function DealLayout({ children, params }: { children: React
             </>
           }
         />
-        <DealTabs dealId={dealId} companyType={(seller?.companyType as CompanyType | null | undefined) ?? null} sellerLed={sellerLed} />
+        <DealTabs dealId={dealId} companyType={(seller?.companyType as CompanyType | null | undefined) ?? null} sellerLed={sellerLed} counterparty={viewer.role === 'TARGET_CONTRIBUTOR'} />
       </div>
       {/* The guided tour and "Why this matters" (2026-11-13); each person can hide it. */}
       {(await guideHidden()) ? null : <Showcase dealId={dealId} companyType={(seller?.companyType as CompanyType | null | undefined) ?? null} sellerLed={sellerLed} />}

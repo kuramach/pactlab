@@ -18,6 +18,8 @@ export const DEAL_ROLES = [
   'VIEWER',
   /** A bidding firm's person in a seller-led pact (T-097, ADR 0015). */
   'BIDDER',
+  /** The buyer organization's investment committee on this pact (T-118, ADR 0029): reads, and decides the IC pack. */
+  'INVESTMENT_COMMITTEE',
 ] as const;
 export type DealRole = (typeof DEAL_ROLES)[number];
 
@@ -51,6 +53,8 @@ const DEAL_ROLE_PERMISSIONS: Record<DealRole, readonly Permission[]> = {
   VIEWER: ['DEAL_READ', 'BUYER_ANALYSIS_READ'],
   // A bidder reads the seller's shared view and their own bid; nothing else.
   BIDDER: ['DEAL_READ'],
+  // The committee reads the buyer's analysis and decides; it changes nothing else (T-118).
+  INVESTMENT_COMMITTEE: ['DEAL_READ', 'EVIDENCE_READ', 'BUYER_ANALYSIS_READ'],
 };
 
 const ORGANIZATION_ROLE_PERMISSIONS: Record<TenantOrganizationRole, readonly Permission[]> = {

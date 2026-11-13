@@ -221,6 +221,8 @@ enum DealRole {
   TARGET_CONTRIBUTOR
   VIEWER
   BIDDER
+  /// The buyer organization's investment committee on this pact (T-118): reads, and decides the IC pack.
+  INVESTMENT_COMMITTEE
 
   @@map("deal_role")
 }
@@ -446,6 +448,10 @@ model Organization {
   defaultPersona      String?                @map("default_persona")
   /// The longest trusted sign-in members may keep, in hours (T-112): 0 (off), 24, 168 or 720.
   trustedSessionMaxHours Int                 @default(168) @map("trusted_session_max_hours")
+  /// Signing waits for investment committee approval on this organization's pacts (T-118); a pact may override.
+  icApprovalRequired  Boolean                @default(false) @map("ic_approval_required")
+  /// Conditions an IC sets are cleared by the IC, not only addressed by the deal team.
+  icClearsConditions  Boolean                @default(false) @map("ic_clears_conditions")
   createdAt           DateTime               @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt           DateTime               @updatedAt @map("updated_at") @db.Timestamptz(3)
 
@@ -526,6 +532,8 @@ model OrganizationMembership {
   role           OrganizationRole
   status         MembershipStatus @default(ACTIVE)
   createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  /// On the organization's investment committee (T-118): seated on a pact when its IC pack is submitted.
+  investmentCommittee Boolean      @default(false) @map("investment_committee")
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   user         User         @relation(fields: [userId], references: [id], onDelete: Restrict)
@@ -542,6 +550,8 @@ model Deal {
   targetName           String          @map("target_name")
   transactionType      TransactionType @map("transaction_type")
   stage                String          @default("SCREENING")
+  /// Overrides the organization's IC requirement for this pact; null follows it (T-118).
+  icApprovalRequired   Boolean?        @map("ic_approval_required")
   status               String          @default("ACTIVE")
   baseCurrency         String          @default("USD") @map("base_currency") @db.Char(3)
   createdBy            String          @map("created_by") @db.Uuid
@@ -2821,6 +2831,10 @@ model ReportVersion {
   objectKey      String?  @map("object_key")
   sha256         String?  @db.Char(64)
   byteSize       Int?     @map("byte_size")
+  /// Made by the pact's own side (set by the database on insert): only then does the rest of that side see it.
+  ownSide        Boolean  @default(false) @map("own_side")
+  /// Numbering series (set by the database): the own side shares one; anyone else numbers their own.
+  series         String   @default("00000000-0000-0000-0000-000000000000") @db.Uuid
 
   @@index([organizationId, scope, dealId, version(sort: Desc)], map: "report_versions_history_idx")
   @@map("report_versions")
@@ -2856,4 +2870,50 @@ model DemoShare {
   lastUsedAt      DateTime? @map("last_used_at") @db.Timestamptz(3)
 
   @@map("demo_shares")
+}
+
+/// An IC pack put to the committee (T-118): the report version it was, who submitted it, when.
+model IcSubmission {
+  id              String   @id @default(uuid(7)) @db.Uuid
+  organizationId  String   @map("organization_id") @db.Uuid
+  dealId          String   @map("deal_id") @db.Uuid
+  reportVersionId String   @unique @map("report_version_id") @db.Uuid
+  submittedBy     String   @map("submitted_by") @db.Uuid
+  submittedAt     DateTime @default(now()) @map("submitted_at") @db.Timestamptz(3)
+
+  @@index([organizationId, dealId, submittedAt(sort: Desc)], map: "ic_submissions_deal_idx")
+  @@map("ic_submissions")
+}
+
+/// The committee's one decision on a submission (T-118): APPROVE | APPROVE_WITH_CONDITIONS | DECLINE.
+model IcDecision {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  dealId         String   @map("deal_id") @db.Uuid
+  submissionId   String   @unique @map("submission_id") @db.Uuid
+  decision       String
+  note           String
+  decidedBy      String   @map("decided_by") @db.Uuid
+  decidedAt      DateTime @default(now()) @map("decided_at") @db.Timestamptz(3)
+
+  @@map("ic_decisions")
+}
+
+/// A condition on an approval (T-118): OPEN → ADDRESSED (deal team) → CLEARED (IC, when the organization asks for it).
+model IcCondition {
+  id             String    @id @default(uuid(7)) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  dealId         String    @map("deal_id") @db.Uuid
+  decisionId     String    @map("decision_id") @db.Uuid
+  ordinal        Int
+  text           String
+  status         String    @default("OPEN")
+  addressedBy    String?   @map("addressed_by") @db.Uuid
+  addressedAt    DateTime? @map("addressed_at") @db.Timestamptz(3)
+  addressedNote  String?   @map("addressed_note")
+  clearedBy      String?   @map("cleared_by") @db.Uuid
+  clearedAt      DateTime? @map("cleared_at") @db.Timestamptz(3)
+
+  @@unique([decisionId, ordinal], map: "ic_conditions_ordinal_key")
+  @@map("ic_conditions")
 }
