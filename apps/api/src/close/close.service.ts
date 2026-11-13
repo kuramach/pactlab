@@ -18,6 +18,7 @@ import { DOCUMENT_OBJECT_STORE, type DocumentObjectStore } from '../documents/do
 import { PhasesService } from '../phases/phases.service';
 import { termSide } from '../pricing/pricing.service';
 import { IC_STATE_LABELS, icStatus } from '../ic/ic-state';
+import { loiSatisfied } from './loi-gate';
 import { PRISMA } from '../tokens';
 import type { ClosingItemBody, DisputeBody, EsignBody, PaidBody, SignatoryBody } from './close.schemas';
 import { SIGN_ANCHORS, termSheetPdf } from './term-sheet';
@@ -91,18 +92,20 @@ export class CloseService {
     return appendAuditEvent(tx, { organizationId: tenant.organizationId, dealId, actorUserId: tenant.userId, action, targetType, targetId, outcome: 'SUCCEEDED', requestId });
   }
 
-  private async signatory(tx: TransactionClient, dealId: string, side: Side) {
+  /** The side's current named signatory (also used by the letter of intent, T-119). */
+  async signatory(tx: TransactionClient, dealId: string, side: Side) {
     return tx.pactSignatory.findFirst({ where: { dealId, side }, orderBy: [{ namedAt: 'desc' }, { id: 'desc' }] });
   }
 
   /** The latest agreed version, if it is the latest proposed one (a newer proposal reopens the round). */
-  private async agreedBatch(tx: TransactionClient, dealId: string) {
-    const latest = await tx.termProposalBatch.findFirst({ where: { dealId, proposedAt: { not: null } }, orderBy: { version: 'desc' }, include: { terms: { orderBy: { ordinal: 'asc' } }, signoffs: true, envelopes: { orderBy: { sentAt: 'desc' }, take: 1 } } });
+  /** The latest agreed version (the letter of intent quotes it, T-119). */
+  async agreedBatch(tx: TransactionClient, dealId: string) {
+    const latest = await tx.termProposalBatch.findFirst({ where: { dealId, proposedAt: { not: null } }, orderBy: { version: 'desc' }, include: { terms: { orderBy: { ordinal: 'asc' } }, signoffs: true, envelopes: { where: { loiId: null }, orderBy: { sentAt: 'desc' }, take: 1 } } });
     return latest?.agreedAt ? latest : null;
   }
 
   /** The provider this organization signs with: its own DocuSign when connected, else the fixture outside production. */
-  private async provider(tx: TransactionClient, tenant: TenantContext): Promise<{ provider: SigningProvider; name: 'FIXTURE' | 'DOCUSIGN' } | null> {
+  async provider(tx: TransactionClient, tenant: TenantContext): Promise<{ provider: SigningProvider; name: 'FIXTURE' | 'DOCUSIGN' } | null> {
     if (this.deps.docusign && this.deps.secrets) {
       const connection = await tx.organizationConnection.findFirst({ where: { organizationId: tenant.organizationId, provider: 'docusign', disconnectedAt: null } });
       if (connection) {
@@ -152,6 +155,8 @@ export class CloseService {
         const ic = await icStatus(tx, tenant.organizationId, dealId);
         if (!ic.satisfied) missing.push(`Investment committee approval (${IC_STATE_LABELS[ic.state]}).`);
       }
+      // A letter of intent, when the pact requires one (T-119): two-sided, so both sides see it.
+      if (!(await loiSatisfied(tx, dealId))) missing.push('A countersigned letter of intent.');
       for (const item of items) if (!item.doneAt) missing.push(item.kind === 'FUNDS' ? `Funds: ${item.paidAt ? 'the seller confirms receipt' : 'the buyer records the payment'} (${item.title}).` : `${item.title} (${item.ownerSide === 'BUYER' ? 'buyer' : 'seller'}).`);
 
       return {
@@ -234,6 +239,7 @@ export class CloseService {
       const agreed = await this.requireOpenAgreed(tx, dealId, batchId);
       if ((await this.signatory(tx, dealId, side))?.userId !== tenant.userId) throw new ForbiddenException('Only your side’s signatory signs off');
       if (side === 'BUYER') await this.requireIcApproval(tx, tenant, dealId);
+      if (!(await loiSatisfied(tx, dealId))) throw new UnprocessableEntityException({ code: 'LOI_REQUIRED' });
       if (agreed.envelopes[0]?.status === 'SENT') throw new ConflictException('Sent for e-signature: sign there');
       if (agreed.signoffs.some((signoff) => signoff.side === side)) throw new ConflictException('Already signed off');
       const row = await tx.termSignoff.create({ data: { id: newId(), organizationId: tenant.organizationId, dealId, batchId, side, userId: tenant.userId, method: 'IN_APP' } });
@@ -294,6 +300,7 @@ export class CloseService {
     await withTenant(this.prisma, tenant, async (tx) => {
       const agreed = await this.requireOpenAgreed(tx, dealId, batchId);
       await this.requireIcApproval(tx, tenant, dealId);
+      if (!(await loiSatisfied(tx, dealId))) throw new UnprocessableEntityException({ code: 'LOI_REQUIRED' });
       if (agreed.signoffs.length > 0 || agreed.envelopes[0]?.status === 'SENT') throw new ConflictException('Signing has started');
       const [buyer, seller] = [await this.signatory(tx, dealId, 'BUYER'), await this.signatory(tx, dealId, 'SELLER')];
       if (!buyer || !seller) throw new ConflictException('Name both signatories first');

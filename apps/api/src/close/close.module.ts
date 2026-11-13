@@ -4,6 +4,8 @@ import { DOCUMENT_OBJECT_STORE, type DocumentObjectStore } from '../documents/do
 import { PhasesModule } from '../phases/phases.module';
 import { CloseController, DocuSignConnectionController, SigningWebhookController } from './close.controller';
 import { CLOSE_DEPENDENCIES, CloseService, type CloseDependencies } from './close.service';
+import { LoiController } from './loi.controller';
+import { LoiService } from './loi.service';
 
 /** The two-sided close and e-signature (T-107, ADR 0022). */
 @Module({})
@@ -12,8 +14,8 @@ export class CloseModule {
     return {
       module: CloseModule,
       imports: [PhasesModule],
-      controllers: [CloseController, DocuSignConnectionController, SigningWebhookController],
-      providers: [CloseService, DealAccess, { provide: CLOSE_DEPENDENCIES, useValue: deps }, { provide: DOCUMENT_OBJECT_STORE, useValue: deps.documents }],
+      controllers: [CloseController, DocuSignConnectionController, SigningWebhookController, LoiController],
+      providers: [CloseService, LoiService, DealAccess, { provide: CLOSE_DEPENDENCIES, useValue: deps }, { provide: DOCUMENT_OBJECT_STORE, useValue: deps.documents }],
     };
   }
 }
