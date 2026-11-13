@@ -6,6 +6,7 @@ import { COMPARISONS, FAQS, GUIDES } from './answers';
 import { CASE_STUDIES } from './cases';
 import { BANNED_WORDS, MODULES } from './content';
 import { INDUSTRY_STORIES, PUBLISHED_INDUSTRIES } from './industry-stories';
+import { TRY_PACKS } from './try';
 import { AI_CRAWLERS, absolute, faqPageJsonLd, jsonLdScript, llmsText, organizationJsonLd, SITE_ROUTES, softwareApplicationJsonLd } from './seo';
 
 const APP = join(dirname(fileURLToPath(import.meta.url)), '../app');
@@ -23,6 +24,7 @@ function appRoutes(dir = APP): string[] {
     if (route === '/case-studies/[slug]') return CASE_STUDIES.map((study) => `/case-studies/${study.slug}`);
     if (route === '/faq/[slug]') return FAQS.map((page) => `/faq/${page.slug}`);
     if (route === '/compare/[slug]') return COMPARISONS.map((comparison) => `/compare/${comparison.slug}`);
+    if (route === '/try/[slug]') return TRY_PACKS.map((pack) => `/try/${pack.slug}`);
     return [route];
   });
 }

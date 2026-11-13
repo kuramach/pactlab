@@ -24,7 +24,7 @@ import { apiEnvSchema, applyDatabaseUrls, loadConfig } from '@pactlab/config';
 import { FixturePropertyProvider } from '@pactlab/connectors';
 import { createPrismaClient, resolvePrincipal, S3ObjectStore } from '@pactlab/db';
 import { uploadQuerySchema } from '@pactlab/contracts';
-import { COMPANY_TYPES, IMPORT_TARGET_DEFINITIONS, isReleasedCompanyType, newId, packFor, type CompanyType, type TenantContext } from '@pactlab/domain';
+import { COMPANY_TYPES, DEMO_DATA_COMMIT, demoDataUrl, IMPORT_TARGET_DEFINITIONS, isReleasedCompanyType, newId, packFor, type CompanyType, type TenantContext } from '@pactlab/domain';
 import { createLogger } from '@pactlab/observability';
 import pg from 'pg';
 import type { PrismaClient } from '@pactlab/db';
@@ -75,7 +75,7 @@ export interface DemoOrgSpec {
 }
 
 /** The demo data at a pinned commit (https://github.com/kuramach/pactlab-demo-data). */
-export const DEMO_DATA_COMMIT = '8d19312bf422d0a98379a5433d389d8b8afa37b1';
+export { DEMO_DATA_COMMIT } from '@pactlab/domain';
 const REQUEST_ID = 'ops-demo-org';
 const LABELS: Readonly<Record<string, string>> = {
   SOFTWARE_SAAS: 'Software & SaaS',
@@ -170,7 +170,7 @@ export interface DemoDataSource {
 /** The public demo data at the pinned commit, over HTTPS (raw files, and the contents API for listings). */
 export const githubDemoData: DemoDataSource = {
   async file(type, path) {
-    const url = `https://raw.githubusercontent.com/kuramach/pactlab-demo-data/${DEMO_DATA_COMMIT}/${packFor(type).slug}/USD/${path}`;
+    const url = demoDataUrl(type, path);
     const response = await fetch(url);
     if (!response.ok) throw new Error(`Demo data not found: ${path} (${response.status})`);
     return Buffer.from(await response.arrayBuffer());

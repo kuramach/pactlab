@@ -291,3 +291,17 @@ describe('new features and pricing (2026-11-09)', () => {
     expect(routeExists('/pricing')).toBe(true);
   });
 });
+
+describe('try it with synthetic data (2026-11-13)', async () => {
+  const { TRY_PACKS, trySteps } = await import('./try');
+  it('offers every published pack, with its data room and one extract per import target, at the pinned demo data', () => {
+    expect(TRY_PACKS.map((pack) => pack.slug)).toEqual(PUBLISHED_INDUSTRIES.map((industry) => industry.slug));
+    for (const pack of TRY_PACKS) {
+      expect(pack.dataRoomUrl).toMatch(new RegExp(`^https://raw\\.githubusercontent\\.com/kuramach/pactlab-demo-data/[0-9a-f]{40}/${pack.slug}/USD/dataroom\\.zip$`));
+      expect(pack.extracts.length, pack.slug).toBeGreaterThan(0);
+      expect(trySteps(pack).length).toBeGreaterThanOrEqual(6);
+      expect(routeExists(`/try/${pack.slug}`) || existsSync(join(APP, 'try', '[slug]', 'page.tsx'))).toBe(true);
+    }
+    expect(content.NAV.map((item) => item.href)).toContain('/try');
+  });
+});

@@ -864,6 +864,7 @@ export const NAV = [
   { href: '/case-studies', label: 'Case studies' },
   { href: '/trust', label: 'Trust' },
   { href: '/pricing', label: 'Pricing' },
+  { href: '/try', label: 'Try it' },
   { href: '/about', label: 'About' },
   { href: '/pilot', label: 'Pilot' },
 ] as const;
