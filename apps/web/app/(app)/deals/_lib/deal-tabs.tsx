@@ -63,6 +63,8 @@ export const DEAL_GROUPS: readonly DealGroup[] = [
     key: 'close',
     label: 'Close',
     sections: [
+      // The buyer's investment committee decides before signing (T-118); never the seller's.
+      { path: '/ic', label: 'Investment committee' },
       // Both sides sign the agreed terms and work the checklist here (T-107).
       { path: '/closing', label: 'Closing' },
       { path: '/post-close', label: 'Post-close' },
@@ -90,10 +92,13 @@ const visible = (sections: readonly DealSection[], companyType: CompanyType | nu
   sections.filter((section) => sectionApplies(section.path, { companyType, initiatedBy: sellerLed ? 'SELLER' : 'BUYER' }));
 
 /** Four tabs across the deal, and the open tab's sections beneath them; sub-pages keep their section highlighted. */
-export function DealTabs({ dealId, companyType = null, sellerLed = false }: { dealId: string; companyType?: CompanyType | null; sellerLed?: boolean }) {
+/** Sections only the pact's own side ever sees, not even as a tab name (T-118). */
+const OWN_SIDE_ONLY = new Set(['/ic']);
+
+export function DealTabs({ dealId, companyType = null, sellerLed = false, counterparty = false }: { dealId: string; companyType?: CompanyType | null; sellerLed?: boolean; counterparty?: boolean }) {
   const active = dealSection(dealId, usePathname());
   const group = dealGroup(active);
-  const sections = visible(group.sections, companyType, sellerLed);
+  const sections = visible(group.sections, companyType, sellerLed).filter((section) => !counterparty || !OWN_SIDE_ONLY.has(section.path));
   return (
     <div className="flex flex-col gap-3">
       <TabNav

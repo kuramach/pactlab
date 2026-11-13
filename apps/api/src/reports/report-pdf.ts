@@ -1,3 +1,4 @@
+import { D } from '@pactlab/calculations';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -236,10 +237,35 @@ class ReportWriter {
 const DIRECTION: Record<string, string> = { '-1': 'Risk', '0': 'Neutral', '1': 'Confirms value' };
 const STATUS: Record<string, string> = { DRAFT: 'Draft', IN_REVIEW: 'In review', ACCEPTED: 'Accepted', REJECTED: 'Rejected' };
 
-export async function pactReportPdf(model: PactReportModel, meta: ReportStamp): Promise<{ bytes: Uint8Array; sha256: string }> {
+/** The investment committee's record on a pact (T-118): buyer side only, so a seller's report never has it. */
+export interface CommitteeRecord {
+  submissions: { version: number; submittedAt: string; submittedByName: string | null; decision: { decision: string; note: string; decidedByName: string | null; decidedAt: string } | null; conditions: { text: string; status: string }[] }[];
+}
+
+const DECISIONS: Readonly<Record<string, string>> = { APPROVE: 'Approved', APPROVE_WITH_CONDITIONS: 'Approved with conditions', DECLINE: 'Declined' };
+
+export async function pactReportPdf(
+  model: PactReportModel,
+  meta: ReportStamp,
+  extra: { committee?: CommitteeRecord | null; icPack?: { blockers: string[] } } = {},
+): Promise<{ bytes: Uint8Array; sha256: string }> {
   const w = await ReportWriter.create(meta);
   w.cover();
   const { deal } = model;
+  if (extra.icPack) {
+    // The pack opens with what the committee is asked to decide, then the full pact record follows.
+    w.heading('For the investment committee');
+    const findings = model.findings ?? [];
+    const drags = findings.filter((finding) => finding.direction === -1 && finding.status !== 'REJECTED' && finding.pricedRisk);
+    // Ordered by the decimal high end; no floating point on money.
+    const largest = [...drags].sort((a, b) => new D(b.pricedRisk?.high ?? '0').cmp(a.pricedRisk?.high ?? '0')).slice(0, 3);
+    w.facts([
+      ['Decision asked', 'Approve, approve with conditions, or decline this pact on the terms below.'],
+      ['Findings', `${findings.filter((finding) => finding.status === 'ACCEPTED').length} accepted · ${findings.filter((finding) => finding.status === 'DRAFT' || finding.status === 'IN_REVIEW').length} in review`],
+      ['Largest priced risks', largest.map((finding) => `${finding.title} (${finding.pricedRisk ? range(finding.pricedRisk.low, finding.pricedRisk.high, finding.pricedRisk.currency) : ''})`).join('; ') || 'None'],
+    ]);
+    w.table([{ label: 'Open blocker', width: 1 }], extra.icPack.blockers.map((blocker) => [blocker]), 'No open blockers.');
+  }
   w.heading('Overview');
   w.facts([
     ['Pact', deal.name],
@@ -249,6 +275,19 @@ export async function pactReportPdf(model: PactReportModel, meta: ReportStamp): 
     ['Viewpoint', model.sideLabel],
     ['Base currency', deal.baseCurrency],
   ]);
+
+  if (extra.committee && extra.committee.submissions.length > 0) {
+    w.heading('Investment committee');
+    w.table(
+      [{ label: 'Pack', width: 0.1 }, { label: 'Submitted', width: 0.2 }, { label: 'Decision', width: 0.25 }, { label: 'Note and conditions', width: 0.45 }],
+      extra.committee.submissions.map((submission) => [
+        `v${submission.version}`,
+        `${submission.submittedAt.slice(0, 10)}${submission.submittedByName ? ` · ${submission.submittedByName}` : ''}`,
+        submission.decision ? `${DECISIONS[submission.decision.decision] ?? submission.decision.decision} · ${submission.decision.decidedAt.slice(0, 10)}${submission.decision.decidedByName ? ` · ${submission.decision.decidedByName}` : ''}` : 'Awaiting decision',
+        [submission.decision?.note, ...submission.conditions.map((condition) => `Condition (${condition.status.toLowerCase()}): ${condition.text}`)].filter(Boolean).join(' | ') || '—',
+      ]),
+    );
+  }
 
   if (model.evidence) {
     w.heading('Evidence');

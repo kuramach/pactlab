@@ -5,7 +5,8 @@ import type { TransactionClient } from './client';
  * organization's executive reports, and reports on pacts they are on. A version is immutable once
  * READY (database trigger); the only later change is PURGED when its pact is deleted.
  */
-export type ReportScope = 'EXECUTIVE' | 'PACT';
+/** IC: an investment-committee pack for one pact (T-118). */
+export type ReportScope = 'EXECUTIVE' | 'PACT' | 'IC';
 export type ReportStatus = 'GENERATING' | 'READY' | 'FAILED' | 'PURGED';
 
 export interface ReportVersionRecord {
@@ -42,13 +43,18 @@ async function withNames(tx: TransactionClient, rows: Row[]): Promise<ReportVers
   return rows.map((row) => toRecord(row, names));
 }
 
+const OWN_SIDE_SERIES = '00000000-0000-0000-0000-000000000000';
+
 export const reportVersions = {
   /** The next version for this scope, as GENERATING. Serialized per scope so numbers never collide. */
   async begin(tx: TransactionClient, input: { organizationId: string; scope: ReportScope; dealId: string | null; generatedBy: string; dataAsOf: Date }): Promise<ReportVersionRecord> {
-    const lockKey = `report:${input.organizationId}:${input.scope}:${input.dealId ?? '-'}`;
+    // The series the database will give this version (T-118): the pact's own side shares one; anyone else has their own.
+    const [own] = input.dealId ? await tx.$queryRaw<{ own: boolean }[]>`SELECT app_is_buyer_side(${input.dealId}::uuid) AS own` : [{ own: false }];
+    const series = own?.own ? OWN_SIDE_SERIES : input.generatedBy;
+    const lockKey = `report:${input.organizationId}:${input.scope}:${input.dealId ?? '-'}:${series}`;
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${lockKey}))`;
     const last = await tx.reportVersion.findFirst({
-      where: { organizationId: input.organizationId, scope: input.scope, dealId: input.dealId },
+      where: { organizationId: input.organizationId, scope: input.scope, dealId: input.dealId, series },
       orderBy: { version: 'desc' },
       select: { version: true },
     });

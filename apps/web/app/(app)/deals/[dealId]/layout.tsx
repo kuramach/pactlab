@@ -98,7 +98,7 @@ export default async function DealLayout({ children, params }: { children: React
             </>
           }
         />
-        <DealTabs dealId={dealId} companyType={(seller?.companyType as CompanyType | null | undefined) ?? null} sellerLed={sellerLed} />
+        <DealTabs dealId={dealId} companyType={(seller?.companyType as CompanyType | null | undefined) ?? null} sellerLed={sellerLed} counterparty={viewer.role === 'TARGET_CONTRIBUTOR'} />
       </div>
       {children}
     </div>

@@ -10,6 +10,7 @@ import { isOpen, STATUS_LABELS, statusBadge } from './bug-reports/_lib/status';
 import { setDefaultPersona } from './persona-actions';
 import { connectDocuSign, disconnectDocuSign } from './docusign-actions';
 import { DevicesCard } from './devices-card';
+import { IcCard } from './ic-card';
 import { PasskeysCard } from './passkeys-card';
 import { BillingCard } from './billing-card';
 import { ConnectedAppsCard } from './connected-apps-card';
@@ -218,6 +219,8 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
       <BugsSubmittedCard />
 
       {organization ? <DealStyleCard /> : null}
+
+      {organization && !session.guest ? <IcCard /> : null}
 
       {organization ? <DocuSignCard /> : null}
 
