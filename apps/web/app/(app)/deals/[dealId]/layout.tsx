@@ -5,7 +5,9 @@ import { generateReport } from '../../reports/actions';
 import { notFound } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { dealsApi } from '../_lib/api';
+import { guideHidden } from '../../_lib/guide-actions';
 import { DealTabs } from '../_lib/deal-tabs';
+import { Showcase } from '../_lib/showcase';
 import { isUuidParam } from '../_lib/filters';
 import { DEAL_TYPE_LABELS, partyLabel, STAGE_LABELS } from '../_lib/labels';
 import { ApiState } from '../_lib/states';
@@ -100,6 +102,8 @@ export default async function DealLayout({ children, params }: { children: React
         />
         <DealTabs dealId={dealId} companyType={(seller?.companyType as CompanyType | null | undefined) ?? null} sellerLed={sellerLed} />
       </div>
+      {/* The guided tour and "Why this matters" (2026-11-13); each person can hide it. */}
+      {(await guideHidden()) ? null : <Showcase dealId={dealId} companyType={(seller?.companyType as CompanyType | null | undefined) ?? null} sellerLed={sellerLed} />}
       {children}
     </div>
   );

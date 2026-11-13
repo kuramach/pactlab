@@ -11,6 +11,7 @@ import { setDefaultPersona } from './persona-actions';
 import { connectDocuSign, disconnectDocuSign } from './docusign-actions';
 import { DevicesCard } from './devices-card';
 import { PasskeysCard } from './passkeys-card';
+import { guideHidden, hideGuide, showGuide } from '../_lib/guide-actions';
 import { BillingCard } from './billing-card';
 import { ConnectedAppsCard } from './connected-apps-card';
 import { oauthOrigins } from '../../../lib/oauth-metadata';
@@ -207,6 +208,8 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
         </CardContent>
       </Card>
 
+      <GuideCard hidden={await guideHidden()} />
+
       {organization?.authMethod === 'EMAIL_CODE' ? <PasskeysCard /> : null}
 
       {organization?.authMethod === 'EMAIL_CODE' ? <DevicesCard /> : null}
@@ -295,5 +298,27 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+/** The guided tour and "Why this matters" callouts on each pact (2026-11-13): on unless hidden here. */
+function GuideCard({ hidden }: { hidden: boolean }) {
+  return (
+    <Card id="guide">
+      <CardHeader>
+        <CardTitle>Guided tour</CardTitle>
+        <CardDescription>
+          A short note at the top of each pact tab on what it shows and why it matters, and a step-by-step tour through a pact. Handy for demos and for new team members.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="flex items-center gap-3 text-sm">
+        <span>{hidden ? 'Hidden on this browser.' : 'Shown.'}</span>
+        <form action={hidden ? showGuide : hideGuide}>
+          <Button type="submit" size="sm" variant="outline">
+            {hidden ? 'Show the guide' : 'Hide the guide'}
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
   );
 }

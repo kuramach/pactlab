@@ -11,6 +11,8 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
   images: { unoptimized: true },
+  // Pack definitions and the demo-data location come from the domain package (TypeScript source).
+  transpilePackages: ['@pactlab/domain'],
   // The dev server would otherwise write AGENTS.md / CLAUDE.md into this app on every start.
   agentRules: false,
 };
