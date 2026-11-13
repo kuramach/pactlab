@@ -107,8 +107,16 @@ describe('shareable demo pool', () => {
   });
 
   it('a share gives buyer and seller links that sign in with no code, inside that slot only', async () => {
-    const shared = await call('POST', '/v1/admin/demos', operator, { sharedWith: 'Acme Capital (synthetic)', hours: 72 });
+    const shared = await call('POST', '/v1/admin/demos', operator, { sharedWith: 'Acme Capital (synthetic)', hours: 72, recipientEmail: 'jane@acme.example', recipientName: 'Jane', note: 'As promised.' });
     expect(shared.status).toBe(201);
+    // Pactlab emails both links with how to start; the same message comes back to paste.
+    expect(shared.body['emailed']).toBe('SENT');
+    const sent = mail.sent.at(-1)!;
+    expect(sent.to).toBe('jane@acme.example');
+    expect(sent.text).toContain((shared.body as { buyerUrl: string }).buyerUrl);
+    expect(sent.text).toContain((shared.body as { sellerUrl: string }).sellerUrl);
+    expect((shared.body['inviteText'] as { body: string }).body).toBe(sent.text);
+    mail.sent.length = 0;
     const { buyerUrl, sellerUrl, slot } = shared.body as { buyerUrl: string; sellerUrl: string; slot: number };
     expect(buyerUrl).toMatch(/\/demo\/[A-Za-z0-9_-]{43}$/);
     expect(slot).toBe(1);
