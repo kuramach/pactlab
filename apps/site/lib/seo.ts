@@ -128,9 +128,10 @@ export function llmsText(): string {
   const lines = [
     '# Pactlab',
     '',
-    `> ${DESCRIPTOR}. ${TAGLINE} ${HOME.body}`,
+    // The positioning first (T-120): who it is for and that it runs the whole deal.
+    `> ${HOME.body} ${TAGLINE}`,
     '',
-    'Pactlab serves acquirers and their advisors testing a deal before they sign it, and founders preparing a raise (Venture Raise) who want to see what an investor will find first. ' +
+    'Pactlab serves private equity firms, corporate development teams and their advisors running a deal from first look to close, and founders preparing a raise (Venture Raise) who want to see what an investor will find first. ' +
       'It runs one decision loop: source evidence, reviewable findings with citations, explicit assumptions, valuation scenarios, proposed deal terms. ' +
       'Calculations are deterministic and every finding is accepted or rejected by a named person.',
     '',
