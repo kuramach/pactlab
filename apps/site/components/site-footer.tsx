@@ -29,7 +29,7 @@ export function SiteFooter() {
       <div className="mx-auto grid max-w-6xl gap-10 px-6 py-14 md:grid-cols-[1.3fr_1fr_1fr_0.7fr]">
         <div className="flex flex-col gap-4">
           <Lockup tone="onDark" size="sm" withTagline />
-          <p className="max-w-xs text-sm">Diligence for mergers and acquisitions, built on AWS.</p>
+          <p className="max-w-xs text-sm">The deal platform for private equity and corporate development, built on AWS.</p>
         </div>
         {columns.map((column) => (
           <nav key={column.title} aria-label={column.title} className="flex flex-col gap-2 text-sm">

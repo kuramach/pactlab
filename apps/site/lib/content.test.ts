@@ -22,7 +22,19 @@ function routeExists(href: string): boolean {
 describe('brand voice', () => {
   it('uses the chosen tagline and descriptor', () => {
     expect(content.TAGLINE).toBe('AI rigor. Human judgment.');
-    expect(content.DESCRIPTOR).toBe('Diligence for mergers and acquisitions');
+    expect(content.DESCRIPTOR).toBe('The deal platform for private equity and corporate development');
+  });
+
+  it('says who it is for and that it runs the whole deal, first, wherever it is positioned (T-120)', () => {
+    for (const copy of [content.HOME.eyebrow, content.HERO.eyebrow, content.POSITIONING]) {
+      expect(copy.toLowerCase()).toContain('private equity');
+      expect(copy.toLowerCase()).toContain('corporate development');
+    }
+    for (const copy of [content.HOME.body, content.HERO.body]) {
+      expect(copy.startsWith(content.POSITIONING)).toBe(true);
+      for (const stage of ['diligence', 'valuation', 'terms', 'closing']) expect(copy).toContain(stage);
+    }
+    expect(JSON.stringify([content.HOME, content.HERO])).not.toMatch(/software and saas acquisitions/i);
   });
 
   it('never uses banned pitch-deck words', () => {
