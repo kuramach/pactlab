@@ -7,7 +7,7 @@ import { importPackExtract } from '../support/imports';
 const CASE = join(REPO, 'demo-data/cases/case-01-grocery');
 
 // T-091/T-092: Case 1's footprint and package go in through Sources; one cited entry; the screen and workbench show the planted defects.
-test('the regulatory screen reads Case 1 and records its drafts', async ({ page }) => {
+test('the regulatory screen reads Case 1 and records its drafts', { tag: '@regression' }, async ({ page }) => {
   test.setTimeout(180_000);
   const dealId = await startPact(page, 'Software & SaaS');
   await importPackExtract(page, dealId, 'Site footprint', join(CASE, 'sites.csv'), 4628);

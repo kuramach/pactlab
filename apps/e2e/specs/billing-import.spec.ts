@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { demoFile, startPact } from '../support/deals';
 
-test('a billing export uploads, maps, validates and imports; importing again changes nothing', async ({ page }) => {
+test('a billing export uploads, maps, validates and imports; importing again changes nothing', { tag: '@regression' }, async ({ page }) => {
   const dealId = await startPact(page, 'Software & SaaS');
   const file = demoFile('software-saas', 'USD', 'invoice-lines.csv');
 

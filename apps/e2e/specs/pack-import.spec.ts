@@ -3,7 +3,7 @@ import { demoFile, startPact } from '../support/deals';
 import { importPackExtract } from '../support/imports';
 
 // Regression for the pilot bug where every upload got the billing mapping screen.
-test('a fintech loan tape maps to loan fields, not billing ones', async ({ page }) => {
+test('a fintech loan tape maps to loan fields, not billing ones', { tag: '@regression' }, async ({ page }) => {
   const dealId = await startPact(page, 'Fintech');
   await page.getByRole('link', { name: 'Upload loan tape' }).click();
   await expect(page.getByRole('heading', { name: 'Upload loan tape' })).toBeVisible();
@@ -23,7 +23,7 @@ test('a fintech loan tape maps to loan fields, not billing ones', async ({ page 
   await expect(page.getByRole('status')).toContainText('Industry checks ran on them');
 });
 
-test('importing an extract runs the fintech checks: a cited draft, drafted once', async ({ page }) => {
+test('importing an extract runs the fintech checks: a cited draft, drafted once', { tag: '@smoke' }, async ({ page }) => {
   const dealId = await startPact(page, 'Fintech');
   await importPackExtract(page, dealId, 'AML alerts', demoFile('fintech', 'USD', 'aml-alerts.csv'), 80);
 

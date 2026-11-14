@@ -16,7 +16,7 @@ function loanTapeWorkbook(): Buffer {
   );
 }
 
-test('an Excel loan tape: pick the sheet, map, import', async ({ page }) => {
+test('an Excel loan tape: pick the sheet, map, import', { tag: '@regression' }, async ({ page }) => {
   const dealId = await startPact(page, 'Fintech');
   await page.getByRole('link', { name: 'Upload loan tape' }).click();
   await page.locator('input[type="file"]').setInputFiles({ name: 'loan-tape.xlsx', mimeType: XLSX_TYPE, buffer: loanTapeWorkbook() });
@@ -34,7 +34,7 @@ test('an Excel loan tape: pick the sheet, map, import', async ({ page }) => {
   await expect(page.getByText('Loan tape imported: 120 new records')).toBeVisible();
 });
 
-test('an old .xls workbook is refused with how to fix it', async ({ page }) => {
+test('an old .xls workbook is refused with how to fix it', { tag: '@regression' }, async ({ page }) => {
   await startPact(page, 'Fintech');
   await page.getByRole('link', { name: 'Upload loan tape' }).click();
   await page.locator('input[type="file"]').setInputFiles({ name: 'loan-tape.xls', mimeType: 'application/vnd.ms-excel', buffer: Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]) });
@@ -43,7 +43,7 @@ test('an old .xls workbook is refused with how to fix it', async ({ page }) => {
 });
 
 // @slow: about a minute. Runs in the promotion suite (e2e-full), not on every PR.
-test('a 20,000-line export imports in the background with visible progress', { tag: '@slow' }, async ({ page }) => {
+test('a 20,000-line export imports in the background with visible progress', { tag: ['@slow', '@regression'] }, async ({ page }) => {
   test.setTimeout(240_000);
   const dealId = await startPact(page, 'Software & SaaS');
   const header = 'line_id,invoice_id,customer_id,currency,amount,interval,period_start,period_end,invoice_status,created';
@@ -63,7 +63,7 @@ test('a 20,000-line export imports in the background with visible progress', { t
   await expect(page.getByText('Invoice lines imported: 20000 new records')).toBeVisible();
 });
 
-test('an Excel workbook in the data room: each sheet is a page', async ({ page }) => {
+test('an Excel workbook in the data room: each sheet is a page', { tag: '@regression' }, async ({ page }) => {
   const dealId = await startPact(page, 'Fintech');
   await page.goto(`/deals/${dealId}/documents`);
   await page.locator('input[type="file"]').setInputFiles({ name: 'loan-tape.xlsx', mimeType: XLSX_TYPE, buffer: loanTapeWorkbook() });

@@ -13,8 +13,13 @@ permissions:
   contents: read
 
 jobs:
+  # Two shards in parallel (T-113 part 3); each has its own database and servers. Their reports merge below.
   e2e-full:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
     services:
       postgres:
         image: postgres:18
@@ -55,13 +60,44 @@ jobs:
           SQL
       - run: pnpm --filter @pactlab/e2e exec playwright install --with-deps chromium
       - run: pnpm --filter @pactlab/e2e quarantine:check
-      # Everything but the quarantine: flaky tests are listed in the job summary.
-      - run: pnpm test:e2e:full
+      # Everything but the quarantine, this shard's half; flaky tests are listed in the job summary.
+      - run: pnpm --filter @pactlab/e2e exec playwright test --grep-invert @quarantine --shard ${{ matrix.shard }}/2 --reporter=blob,list,./support/flaky-reporter.ts
+      # The blob report is what the merge job reads: kept a day, every run.
+      - if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: blob-report-${{ matrix.shard }}
+          path: apps/e2e/blob-report/
+          retention-days: 1
       - if: failure()
         uses: actions/upload-artifact@v4
         with:
+          name: playwright-traces-${{ matrix.shard }}
+          path: apps/e2e/test-results/
+          retention-days: 7
+
+  # One report for the whole run; the HTML report is uploaded only when a shard failed.
+  merge-reports:
+    if: ${{ !cancelled() }}
+    needs: e2e-full
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/download-artifact@v4
+        with:
+          path: apps/e2e/all-blob-reports
+          pattern: blob-report-*
+          merge-multiple: true
+      - run: pnpm --filter @pactlab/e2e exec playwright merge-reports --reporter=html,list ./all-blob-reports
+      - if: ${{ needs.e2e-full.result == 'failure' }}
+        uses: actions/upload-artifact@v4
+        with:
           name: playwright-report-full
-          path: |
-            apps/e2e/playwright-report/
-            apps/e2e/test-results/
+          path: apps/e2e/playwright-report/
           retention-days: 7

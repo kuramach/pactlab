@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import { demoFile, startPact } from '../support/deals';
 import { importPackExtract } from '../support/imports';
 
-test('a hospital payer mix imports and drafts the payer-concentration finding', async ({ page }) => {
+test('a hospital payer mix imports and drafts the payer-concentration finding', { tag: '@regression' }, async ({ page }) => {
   const dealId = await startPact(page, 'Hospitals');
   await importPackExtract(page, dealId, 'Payer mix', demoFile('hospitals', 'USD', 'payer-mix.csv'), 60);
   await importPackExtract(page, dealId, 'Census', demoFile('hospitals', 'USD', 'census.csv'), 48);

@@ -12,7 +12,7 @@ const RESOURCE = `${API_ORIGIN}/v1/mcp`;
  * the app registers and sends the person to the consent page; approving returns a code
  * (with state and iss) that buys tokens; the person sees and disconnects it in Settings.
  */
-test('connect an MCP client: consent, tokens, then disconnect in Settings', async ({ page, context }) => {
+test('connect an MCP client: consent, tokens, then disconnect in Settings', { tag: '@regression' }, async ({ page, context }) => {
   const operator = spawnSync('pnpm', ['--silent', 'ops:operator', LEAD], { cwd: REPO, env: serverEnv(), encoding: 'utf8' });
   expect(operator.status, operator.stderr).toBe(0);
 

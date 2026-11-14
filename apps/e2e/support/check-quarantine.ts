@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
  * The quarantine register, checked (T-113 part 1). Every test tagged `@quarantine` is listed in
  * `quarantine.json` with an owner, a reason and a fix-or-delete date; no date is past or more than
  * 10 working days after the day it was quarantined; at most 8 at once; nothing listed is untagged.
+ * Also: every test is tagged @smoke or @regression.
  * Prints the number quarantined (CI uses it to skip the quarantine job when it is zero).
  */
 interface Entry {
@@ -38,6 +39,14 @@ for (const file of readdirSync(join(root, 'specs')).filter((name) => name.endsWi
   for (const match of source.matchAll(/test\(\s*(['"`])((?:(?!\1).)+)\1\s*,\s*\{[^}]*@quarantine[^}]*\}/g)) {
     if (!tagged.has(file)) tagged.set(file, new Set());
     tagged.get(file)?.add(match[2] ?? '');
+  }
+}
+
+// Every test sits in a tier (T-113 part 3): @smoke (the PR gate's critical journeys) or @regression.
+for (const file of readdirSync(join(root, 'specs')).filter((name) => name.endsWith('.spec.ts'))) {
+  const source = readFileSync(join(root, 'specs', file), 'utf8');
+  for (const match of source.matchAll(/^\s*test\(\s*(['"`])((?:(?!\1).)+)\1\s*,\s*(\{[^}]*\}\s*,\s*)?async/gm)) {
+    if (!/@smoke|@regression/.test(match[3] ?? '')) problems.push(`${file} › ${match[2]}: tag it { tag: '@smoke' } or { tag: '@regression' } (README, "Tiers").`);
   }
 }
 

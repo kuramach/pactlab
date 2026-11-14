@@ -4,7 +4,7 @@ import { LEAD, signIn } from '../support/login';
 test.describe('email-code sign-in', () => {
   test.use({ storageState: { cookies: [], origins: [] } });
 
-  test('a wrong code is refused with a clear message', async ({ page }) => {
+  test('a wrong code is refused with a clear message', { tag: '@smoke' }, async ({ page }) => {
     await page.goto('/login');
     await page.getByLabel('Email', { exact: true }).fill(LEAD);
     await page.getByRole('button', { name: 'Email me a sign-in code' }).click();
@@ -14,7 +14,7 @@ test.describe('email-code sign-in', () => {
     await expect(page).toHaveURL(/\/login/);
   });
 
-  test('the emailed code signs in, and signing out ends the session', async ({ page }) => {
+  test('the emailed code signs in, and signing out ends the session', { tag: '@smoke' }, async ({ page }) => {
     await signIn(page, LEAD);
     await page.goto('/deals');
     await expect(page.getByRole('heading', { name: 'My deals' })).toBeVisible();

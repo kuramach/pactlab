@@ -8,7 +8,7 @@ const makeOperator = (email: string) => {
   expect(result.status, result.stderr).toBe(0);
 };
 
-test('a bug reported from any page reaches the operator inbox; its status and reply flow back to the reporter', async ({ page }) => {
+test('a bug reported from any page reaches the operator inbox; its status and reply flow back to the reporter', { tag: '@regression' }, async ({ page }) => {
   await page.goto('/deals');
   await page.getByRole('button', { name: 'Report a bug' }).click();
   const dialog = page.getByRole('dialog', { name: 'Report a bug' });
@@ -57,7 +57,7 @@ test('a bug reported from any page reaches the operator inbox; its status and re
 test.describe('a non-operator', () => {
   test.use({ storageState: { cookies: [], origins: [] } });
 
-  test('cannot open the console', async ({ page }) => {
+  test('cannot open the console', { tag: '@regression' }, async ({ page }) => {
     await signIn(page, REVIEWER);
     await page.goto('/admin');
     await expect(page.getByText('Page not found')).toBeVisible();

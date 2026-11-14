@@ -29,11 +29,16 @@ promoting dev → qa → stage → production, nightly, or on demand — not on 
 
 ## Tiers and what they gate
 
-| Suite | Command | Runs | Gates |
+Every test carries a tier tag: `@smoke`, the critical journeys (sign-in by email code, tenant isolation, create and screen a pact, upload and read documents, a cited finding from an import, invite a counterparty, the committee decides), or `@regression` (everything else). `quarantine:check` fails a test without one. Long tests also carry `@slow`; flaky ones `@quarantine`.
+
+| Suite | Runs | What | Gates |
 |---|---|---|---|
-| Gating (fast) | `pnpm test:e2e` (`--grep-invert '@slow\|@quarantine'`) | every PR and push (`ci.yml`, job `e2e`) | merge |
-| Full | `pnpm test:e2e:full` (all but `@quarantine`) | nightly and on demand (`e2e-full.yml`) | promotion |
-| Quarantine | `pnpm --filter @pactlab/e2e test:e2e:quarantine` | every PR, non-blocking (`ci.yml`, job `e2e-quarantine`); skipped while empty | nothing |
+| PR | every pull request and branch push (`ci.yml`, job `e2e`) | `@smoke`, plus every test in a spec the change touches (the diff against main; a heuristic, never the only run) | merge |
+| Main | every push to main (`ci.yml`, job `e2e`) | the whole gating suite: all but `@slow` and `@quarantine` | the next deploy |
+| Full | nightly, on demand and before promotion (`e2e-full.yml`), in 2 shards with merged reports | all but `@quarantine` | promotion |
+| Quarantine | every PR, non-blocking (`ci.yml`, job `e2e-quarantine`); skipped while empty | `@quarantine` | nothing |
+
+Locally: `pnpm test:e2e` is the main suite; `pnpm --filter @pactlab/e2e exec playwright test --grep @smoke` is the PR smoke tier.
 
 - **In CI:** Chromium on Linux, one worker, two retries (only to tell flaky from broken), a trace on the first retry, screenshots and video on failure, and timezone and locale pinned to UTC and en-US. Reports and traces are uploaded only on failure.
 - **Flaky tests:** every pass on retry is listed in the job summary and must be quarantined or fixed that day. See [QUARANTINE.md](QUARANTINE.md).

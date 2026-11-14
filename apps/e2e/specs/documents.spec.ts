@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import { startPact } from '../support/deals';
 import { uploadDocument } from '../support/documents';
 
-test('a data-room document uploads, opens by page, and AI explains plainly that it is off', async ({ page }) => {
+test('a data-room document uploads, opens by page, and AI explains plainly that it is off', { tag: '@smoke' }, async ({ page }) => {
   const dealId = await startPact(page, 'Software & SaaS');
   await uploadDocument(page, dealId, 'customer-contract.txt', 'Master subscription agreement (synthetic).\n\nThe customer may terminate for convenience on 30 days notice.');
 

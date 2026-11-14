@@ -41,7 +41,7 @@ async function startSellerLed(page: Page, tag: string): Promise<string> {
 }
 
 // A seller markets a pact on a public page; a visitor requests access, confirms by email, is approved, joins as a bidder and signs the NDA.
-test('public deal page: publish, request access, confirm, approve, join', async ({ page, browser }) => {
+test('public deal page: publish, request access, confirm, approve, join', { tag: '@regression' }, async ({ page, browser }) => {
   const tag = randomUUID().slice(0, 8);
   const dealId = await startSellerLed(page, tag);
   await page.getByLabel(/Shared summary/).fill('Workflow software for logistics firms (synthetic). ARR 7.6m.');

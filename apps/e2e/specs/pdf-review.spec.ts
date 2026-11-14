@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import { startPact } from '../support/deals';
 import { syntheticPdf } from '../support/pdf';
 
-test('a PDF opens as its original page beside the review queue, with its extracted text one click away', async ({ page }) => {
+test('a PDF opens as its original page beside the review queue, with its extracted text one click away', { tag: '@regression' }, async ({ page }) => {
   const dealId = await startPact(page, 'Fintech');
   await page.goto(`/deals/${dealId}/documents`);
   const pdf = syntheticPdf([

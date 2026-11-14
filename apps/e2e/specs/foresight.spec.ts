@@ -5,7 +5,7 @@ import { startPact } from '../support/deals';
 const metric = (page: Page, label: string) => page.locator('section').filter({ has: page.getByText(label, { exact: true }) });
 
 // AI is off in browser tests and published forecasts come from fixture series (T-094 B10).
-test('Foresight opens with published forecasts, no Generate button, and says what AI would add', async ({ page }) => {
+test('Foresight opens with published forecasts, no Generate button, and says what AI would add', { tag: '@regression' }, async ({ page }) => {
   const dealId = await startPact(page, 'Multifamily');
   await page.goto(`/deals/${dealId}`);
   await page.getByRole('navigation', { name: 'Deal sections' }).getByRole('link', { name: 'Valuation' }).click();
@@ -22,7 +22,7 @@ test('Foresight opens with published forecasts, no Generate button, and says wha
   await expect(page.getByRole('button', { name: /Generate/ })).toHaveCount(0);
 });
 
-test('your own forecast is saved and changes only the value under yours', async ({ page }) => {
+test('your own forecast is saved and changes only the value under yours', { tag: '@regression' }, async ({ page }) => {
   const dealId = await startPact(page, 'Multifamily');
   // An asking price gives today's value to project from.
   await page.goto(`/deals/${dealId}/valuation`);
