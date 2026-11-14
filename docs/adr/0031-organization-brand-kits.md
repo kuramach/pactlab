@@ -34,6 +34,10 @@
 
 ## Consequences
 - The tab reads "<page> · <Org> · Pactlab" and the sidebar says "on Pactlab" under the firm's logo: the firm's look, with Pactlab still named.
-- **PR 2 (to follow):** the generating organization's kit is stamped into each report, IC pack and LOI version at generation (a later rebrand never changes an old document), and invitations and notifications sent for an organization carry its logo and accent.
+- **Documents (PR 2):** the generating organization's kit is read once at generation and the PDF stored, so a later rebrand never changes an old version; `captured.brand` records what was used (colors, font, logo digest).
+  - executive and pact reports and the IC pack: the logo on the cover (PNG or JPEG; an SVG-only kit prints the name as a wordmark), the primary color for headings and table heads where it reads on white, the readable accent for subtitles and rules, the kit's font (Manrope, Inter or Source Serif, all OFL, embedded and subset), the organization as PDF author, and "Powered by Pactlab" on every page;
+  - the LOI: the sending (buyer) organization's logo or wordmark, colors and font, "Powered by Pactlab" on every page. Unbranded letters keep the standard fonts, unchanged.
+- **Emails (PR 2):** pact invitations sent by a branded organization carry its logo (PNG or JPEG, from its public sign-in route; mail apps do not show SVG) or name, its accent on buttons (darkened until white reads on it), and "Sent with Pactlab for <Org>" above the Pactlab note.
+  - **Not branded:** an invitation that names the pact by its codename (a published listing): a logo would name the seller. Listing-interest emails, sign-in and sign-up codes, and operator emails stay Pactlab's.
 - **Website at sign-up:** pending sign-ups are held by database functions; rather than change them, an owner or admin of an unbranded organization is asked on Home (skippable, once per browser).
 - **Rollback:** revert per organization from Settings. The migration only adds a column and a table; dropping the feature means ignoring them.

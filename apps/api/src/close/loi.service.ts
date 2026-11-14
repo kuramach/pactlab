@@ -9,6 +9,7 @@ import { termSide } from '../pricing/pricing.service';
 import { PRISMA } from '../tokens';
 import { CLOSE_DEPENDENCIES, CloseService, type CloseDependencies } from './close.service';
 import { DEFAULT_LOI_FIELDS, loiContent, loiFieldsSchema, type LoiContent, type LoiFields } from './loi-content';
+import { documentBrand } from '../brand/document-brand';
 import { loiPdf } from './loi-pdf';
 import { SIGN_ANCHORS } from './term-sheet';
 
@@ -157,6 +158,8 @@ export class LoiService {
   /** Freeze the draft, render the PDF, and send it: signed in Pactlab, or by e-signature from the buyer's account. */
   async send(tenant: TenantContext, dealId: string, loiId: string, method: 'IN_APP' | 'ESIGN', requestId: string): Promise<LoiView> {
     await this.access.require(tenant, dealId, isLead, { action: 'loi.sent', requestId });
+    // The sending organization's brand, stamped into the letter as sent (T-123).
+    const brand = await documentBrand(this.prisma, this.documents, tenant);
     await withTenant(this.prisma, tenant, async (tx) => {
       const row = await tx.loiVersion.findFirst({ where: { id: loiId, dealId } });
       if (!row) throw new NotFoundException();
@@ -167,7 +170,7 @@ export class LoiService {
       if (content.unfilled.length > 0 || !buyer || !seller) throw new UnprocessableEntityException({ code: 'LOI_INCOMPLETE' });
       const people = new Map((await tx.user.findMany({ where: { id: { in: [buyer.userId, seller.userId] } }, select: { id: true, displayName: true, email: true } })).map((user) => [user.id, user]));
       const sentAt = new Date();
-      const pdf = await loiPdf(content, { version: row.version, issuedAt: sentAt.toISOString(), signatories: { buyer: people.get(buyer.userId)?.displayName ?? 'Buyer signatory', seller: people.get(seller.userId)?.displayName ?? 'Seller signatory' } });
+      const pdf = await loiPdf(content, { version: row.version, issuedAt: sentAt.toISOString(), signatories: { buyer: people.get(buyer.userId)?.displayName ?? 'Buyer signatory', seller: people.get(seller.userId)?.displayName ?? 'Seller signatory' }, brand });
       const objectKey = `${tenant.organizationId}/${dealId}/loi/${row.id}.pdf`;
       await this.documents.put(objectKey, pdf.bytes, { contentType: 'application/pdf', sha256: pdf.sha256 } as never);
       if (method === 'ESIGN') {

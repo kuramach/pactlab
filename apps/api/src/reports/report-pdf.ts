@@ -1,10 +1,10 @@
 import { D } from '@pactlab/calculations';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
-import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 import fontkit from '@pdf-lib/fontkit';
 import { PDFDocument, rgb, type PDFFont, type PDFImage, type PDFPage } from 'pdf-lib';
+import { brandFontFile, documentColors, POWERED_BY, type DocumentBrand } from '../brand/document-brand';
 import { phaseLabel, type ExecutiveReportModel, type Money, type PactReportModel } from './report-model';
 
 /**
@@ -21,10 +21,10 @@ export interface ReportStamp {
   generatedAt: Date;
   generatedByName: string;
   dataAsOf: Date;
+  /** The generating organization's kit (T-123), stamped at generation; absent or null: Pactlab's. */
+  brand?: DocumentBrand | null;
 }
 
-const require = createRequire(import.meta.url);
-const fontFile = (weight: 400 | 600 | 700) => readFileSync(require.resolve(`@fontsource/manrope/files/manrope-latin-${weight}-normal.woff`));
 const LOGO = resolve(import.meta.dirname, '../../assets/brand/pactlab-logo.png');
 
 const A4 = { width: 595.28, height: 841.89 };
@@ -55,30 +55,34 @@ class ReportWriter {
     private readonly fonts: { regular: PDFFont; semibold: PDFFont; bold: PDFFont },
     private readonly logo: PDFImage | null,
     private readonly meta: ReportStamp,
+    private readonly colors: { ink: ReturnType<typeof rgb>; accent: ReturnType<typeof rgb> },
   ) {}
 
   static async create(meta: ReportStamp): Promise<ReportWriter> {
     const pdf = await PDFDocument.create();
     pdf.registerFontkit(fontkit);
     pdf.setTitle(`${meta.title} — v${meta.version}`);
-    pdf.setAuthor('Pactlab');
+    const brand = meta.brand ?? null;
+    pdf.setAuthor(brand ? brand.name : 'Pactlab');
     pdf.setCreator('Pactlab');
     pdf.setCreationDate(meta.generatedAt);
     pdf.setModificationDate(meta.generatedAt);
     pdf.setProducer('Pactlab reports');
     const fonts = {
-      regular: await pdf.embedFont(fontFile(400), { subset: true }),
-      semibold: await pdf.embedFont(fontFile(600), { subset: true }),
-      bold: await pdf.embedFont(fontFile(700), { subset: true }),
+      regular: await pdf.embedFont(brandFontFile(brand?.font ?? 'MANROPE', 400), { subset: true }),
+      semibold: await pdf.embedFont(brandFontFile(brand?.font ?? 'MANROPE', 600), { subset: true }),
+      bold: await pdf.embedFont(brandFontFile(brand?.font ?? 'MANROPE', 700), { subset: true }),
     };
     const logo = await (async (): Promise<PDFImage | null> => {
       try {
+        // A branded organization's own logo; with only an SVG (or none) its name prints as a wordmark.
+        if (brand) return brand.logo ? await (brand.logo.type === 'image/png' ? pdf.embedPng(brand.logo.bytes) : pdf.embedJpg(brand.logo.bytes)) : null;
         return await pdf.embedPng(readFileSync(LOGO));
       } catch {
         return null;
       }
     })();
-    const writer = new ReportWriter(pdf, fonts, logo, meta);
+    const writer = new ReportWriter(pdf, fonts, logo, meta, documentColors(brand, { ink: NAVY, accent: INDIGO }));
     writer.newPage();
     return writer;
   }
@@ -129,12 +133,15 @@ class ReportWriter {
 
   cover(): void {
     if (this.logo) {
-      const scale = 120 / this.logo.width;
-      this.page.drawImage(this.logo, { x: MARGIN, y: this.y - this.logo.height * scale, width: 120, height: this.logo.height * scale });
+      // At most 120 wide and 48 tall, whatever the logo's shape.
+      const scale = Math.min(120 / this.logo.width, 48 / this.logo.height);
+      this.page.drawImage(this.logo, { x: MARGIN, y: this.y - this.logo.height * scale, width: this.logo.width * scale, height: this.logo.height * scale });
       this.y -= this.logo.height * scale + 28;
+    } else if (this.meta.brand) {
+      this.text(this.meta.brand.name, { size: 18, font: 'bold', color: this.colors.ink, after: 18 });
     }
-    this.text(this.meta.title, { size: 22, font: 'bold', color: NAVY, after: 6 });
-    this.text(this.meta.subtitle, { size: 12, color: INDIGO, after: 18 });
+    this.text(this.meta.title, { size: 22, font: 'bold', color: this.colors.ink, after: 6 });
+    this.text(this.meta.subtitle, { size: 12, color: this.colors.accent, after: 18 });
     this.facts([
       ['Organization', this.meta.organizationName],
       ['Report version', `v${this.meta.version}`],
@@ -162,8 +169,8 @@ class ReportWriter {
   heading(content: string): void {
     this.ensure(48);
     this.y -= 10;
-    this.text(content, { size: 14, font: 'bold', color: NAVY, after: 2 });
-    this.page.drawLine({ start: { x: MARGIN, y: this.y }, end: { x: A4.width - MARGIN, y: this.y }, thickness: 1.5, color: INDIGO });
+    this.text(content, { size: 14, font: 'bold', color: this.colors.ink, after: 2 });
+    this.page.drawLine({ start: { x: MARGIN, y: this.y }, end: { x: A4.width - MARGIN, y: this.y }, thickness: 1.5, color: this.colors.accent });
     this.y -= 10;
   }
 
@@ -188,7 +195,7 @@ class ReportWriter {
     const widths = columns.map((column) => column.width * total);
     const header = () => {
       this.ensure(22);
-      this.page.drawRectangle({ x: MARGIN, y: this.y - 16, width: total, height: 18, color: NAVY });
+      this.page.drawRectangle({ x: MARGIN, y: this.y - 16, width: total, height: 18, color: this.colors.ink });
       let x = MARGIN;
       for (const [index, column] of columns.entries()) {
         this.page.drawText(this.safe(column.label, this.fonts.semibold), { x: x + 4, y: this.y - 12, size: 8, font: this.fonts.semibold, color: rgb(1, 1, 1) });
@@ -227,6 +234,8 @@ class ReportWriter {
       const footer = `${this.meta.title} · v${this.meta.version} · Data as of ${stamp(this.meta.dataAsOf)} · Confidential: ${this.meta.organizationName} · Page ${index + 1} of ${this.pages.length}`;
       page.drawLine({ start: { x: MARGIN, y: MARGIN }, end: { x: A4.width - MARGIN, y: MARGIN }, thickness: 0.5, color: RULE });
       page.drawText(this.wrap(footer, this.fonts.regular, 7, A4.width - 2 * MARGIN)[0] ?? '', { x: MARGIN, y: MARGIN - 12, size: 7, font: this.fonts.regular, color: MUTED });
+      // A branded document still says where it was made (T-123), on its own line so it is never cut.
+      if (this.meta.brand) page.drawText(POWERED_BY, { x: MARGIN, y: MARGIN - 22, size: 7, font: this.fonts.semibold, color: MUTED });
     }
     // Deterministic bytes for the same content: no random document id.
     const bytes = await this.pdf.save({ useObjectStreams: true });

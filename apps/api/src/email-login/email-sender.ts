@@ -24,12 +24,21 @@ export interface EmailContent {
 }
 
 /** A message: plain text always, and HTML when it is branded. Bodies may carry one-time codes: never log them. */
+/** The sending organization's look (T-123): on emails sent for it, never on Pactlab's own (codes, sign-up). */
+export interface EmailBrand {
+  readonly name: string;
+  /** A public https PNG or JPEG; mail apps do not show SVG. Null prints the name. */
+  readonly logoUrl: string | null;
+  readonly accentColor: string | null;
+}
+
 export interface OutboundEmail {
   readonly to: string;
   readonly subject: string;
   readonly text: string;
   readonly html?: string;
   readonly content?: EmailContent;
+  readonly brand?: EmailBrand;
 }
 
 /** Delivery port for sign-in, sign-up and operator emails. */

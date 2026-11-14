@@ -1,4 +1,6 @@
 import 'reflect-metadata';
+import { crc32, deflateSync } from 'node:zlib';
+import { PDFDocument } from 'pdf-lib';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { defaultPromptRegistry, ScriptedModelTransport, TransportClaudeGateway } from '@pactlab/ai';
 import { seedSynthetic } from '@pactlab/db/seed';
@@ -27,6 +29,23 @@ class CapturingEmailSender implements EmailSender {
   }
 }
 
+function pngChunk(type: string, data: Buffer): Buffer {
+  const length = Buffer.alloc(4);
+  length.writeUInt32BE(data.length);
+  const body = Buffer.concat([Buffer.from(type, 'ascii'), data]);
+  const crc = Buffer.alloc(4);
+  crc.writeUInt32BE(crc32(body) >>> 0);
+  return Buffer.concat([length, body, crc]);
+}
+
+/** Images painted on the first page. */
+async function coverImages(bytes: Buffer): Promise<number> {
+  const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
+  const doc = await pdfjs.getDocument({ data: new Uint8Array(bytes) }).promise;
+  const operators = await (await doc.getPage(1)).getOperatorList();
+  return operators.fnArray.filter((fn) => fn === pdfjs.OPS.paintImageXObject).length;
+}
+
 async function pdfText(bytes: Buffer): Promise<string> {
   const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
   const doc = await pdfjs.getDocument({ data: new Uint8Array(bytes) }).promise;
@@ -41,6 +60,7 @@ describe('reports', () => {
   let app: NestFastifyApplication;
   const mail = new CapturingEmailSender();
   const sessions = new Map<string, string>();
+  const store = new InMemoryObjectStore();
 
   async function call(method: 'GET' | 'POST', url: string, payload?: Body, bearer?: string) {
     const response = await app.inject({ method, url, headers: bearer ? { authorization: `Bearer ${bearer}` } : {}, ...(payload ? { payload } : {}) });
@@ -74,7 +94,6 @@ describe('reports', () => {
     db = await startTestDatabase();
     await seedSynthetic(db.owner, db.prisma);
     const synthetic = { modelId: 'synthetic-fixture', effort: 'low' } as const;
-    const store = new InMemoryObjectStore();
     app = await createApp({
       prisma: db.prisma,
       identityVerifier: new DisabledIdentityVerifier(),
@@ -106,6 +125,50 @@ describe('reports', () => {
     for (const deal of deals) expect(text.replace(/\s+/g, ' ')).toContain(deal.name.slice(0, 20));
     expect(text).toMatch(/Page 1 of \d+/);
     expect(text).toContain('v1');
+    // On the Pactlab kit, a report says nothing about being powered by anything.
+    expect(text).not.toContain('Powered by Pactlab');
+  });
+
+  it('a branded organization’s report carries its brand, stamped: a rebrand never changes an earlier version (T-123)', async () => {
+    const token = await signIn('lead@charlie.example');
+    const [org] = (await db.owner.query<{ organization_id: string; name: string }>(
+      `SELECT m.organization_id, o.name FROM organization_memberships m JOIN users u ON u.id = m.user_id JOIN organizations o ON o.id = m.organization_id WHERE u.email = 'lead@charlie.example' LIMIT 1`,
+    )).rows as [{ organization_id: string; name: string }];
+    // A real 2×2 PNG, stored as the organization's logo.
+    const row = Buffer.from([0, 255, 0, 0, 0, 0, 255, 0]);
+    const png = Buffer.concat([
+      Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+      pngChunk('IHDR', Buffer.from([0, 0, 0, 2, 0, 0, 0, 2, 8, 2, 0, 0, 0])),
+      pngChunk('IDAT', deflateSync(Buffer.concat([row.subarray(0, 7), row.subarray(0, 7)]))),
+      pngChunk('IEND', Buffer.alloc(0)),
+    ]);
+    const logoKey = `${org.organization_id}/brand/logo-test.png`;
+    await store.put(logoKey, new Uint8Array(png));
+    await db.owner.query(
+      `INSERT INTO organization_brand_kits (organization_id, source, logo_object_key, logo_content_type, logo_width, logo_height, accent_color, primary_color, font, updated_at)
+       VALUES ($1, 'EDITED', $2, 'image/png', 2, 2, '#1a7f37', '#0b1f4d', 'SOURCE_SERIF', now())`,
+      [org.organization_id, logoKey],
+    );
+    const branded = await generate(token, { scope: 'EXECUTIVE' });
+    const bytes = await download(token, branded.id);
+    const text = await pdfText(bytes);
+    expect(text).toContain('Powered by Pactlab');
+    expect(await coverImages(bytes)).toBe(1);
+    const document = await PDFDocument.load(bytes);
+    expect(document.getAuthor()).toBe(org.name);
+    const history = (await call('GET', '/v1/reports?scope=EXECUTIVE', undefined, token)).body['items'] as { id: string; captured: { brand: { font: string; accentColor: string; logoSha256: string | null } } }[];
+    expect(history.find((item) => item.id === branded.id)?.captured.brand).toMatchObject({ font: 'SOURCE_SERIF', accentColor: '#1a7f37' });
+    expect(history.find((item) => item.id === branded.id)?.captured.brand.logoSha256).toMatch(/^[0-9a-f]{64}$/);
+
+    // Rebrand, then make a new version: the earlier one is byte-for-byte what it was.
+    await db.owner.query(`UPDATE organization_brand_kits SET accent_color = '#e11d48', font = 'INTER', logo_object_key = NULL, logo_content_type = NULL WHERE organization_id = $1`, [org.organization_id]);
+    const after = await generate(token, { scope: 'EXECUTIVE' });
+    expect(Buffer.compare(await download(token, branded.id), bytes)).toBe(0);
+    // No logo now: the organization's name prints as a wordmark on the cover.
+    const afterBytes = await download(token, after.id);
+    expect(await pdfText(afterBytes)).toContain(org.name);
+    expect(await coverImages(afterBytes)).toBe(0);
+    await db.owner.query(`DELETE FROM organization_brand_kits WHERE organization_id = $1`, [org.organization_id]);
   });
 
   it('a pact report reproduces findings, the bridge and the persona; a new version never changes the old one', async () => {

@@ -155,7 +155,10 @@ describe('letters of intent (T-119)', () => {
     expect((await call('lead', 'PUT', deal(`/loi/${id}/fields`), fields)).status).toBe(200);
     await call('lead', 'PUT', deal('/signatories/BUYER'), { userId: ids['lead']! });
     await call('target_contributor', 'PUT', deal('/signatories/SELLER'), { userId: ids['target_contributor']! });
+    // The buyer's organization has a brand of its own (T-123): the letter as sent carries it.
+    await db.owner.query(`INSERT INTO organization_brand_kits (organization_id, source, accent_color, font, updated_at) VALUES ($1, 'EDITED', '#1a7f37', 'INTER', now())`, [a.organizationId]);
     const sent = await call('lead', 'POST', deal(`/loi/${id}/send`), { method: 'IN_APP' });
+    await db.owner.query(`DELETE FROM organization_brand_kits WHERE organization_id = $1`, [a.organizationId]);
     expect(sent.status, sent.text).toBe(200);
     // Sent: immutable, and now the seller sees it.
     expect((await call('lead', 'PUT', deal(`/loi/${id}/fields`), fields)).body['code']).toBe('LOI_SENT');
@@ -166,11 +169,11 @@ describe('letters of intent (T-119)', () => {
     const done = await loi('target_contributor');
     expect(done.current?.status).toBe('COUNTERSIGNED');
     expect(done.exclusivity?.daysLeft).toBe(30);
-    // The PDF, for both sides: two labelled parts, the agreed price, the law, the notice; nothing confidential.
+    // The PDF, for both sides (the brand was removed after sending: the letter as sent keeps it): two labelled parts, the agreed price, the law, the notice; nothing confidential.
     const pdf = await call('target_contributor', 'GET', deal(`/loi/${id}/pdf`));
     expect(pdf.status).toBe(200);
     const text = await pdfText(pdf.raw);
-    for (const expected of ['Non-binding provisions', 'Binding provisions', 'USD 61,000,000.00', 'the State of Delaware', 'Not legal advice', 'agrees to be bound only by']) expect(text, expected).toContain(expected);
+    for (const expected of ['Non-binding provisions', 'Binding provisions', 'USD 61,000,000.00', 'the State of Delaware', 'Not legal advice', 'agrees to be bound only by', 'Powered by Pactlab']) expect(text, expected).toContain(expected);
     for (const secret of ['persona', 'Priced as', 'committee', 'confirmed value']) expect(text.toLowerCase(), secret).not.toContain(secret.toLowerCase());
   });
 
