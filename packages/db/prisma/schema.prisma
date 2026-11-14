@@ -3141,3 +3141,12 @@ model EmailSuppression {
 
   @@map("email_suppressions")
 }
+
+/// Which demo build a demo organization was made from (T-124); the sweep rebuilds stale ones.
+model DemoBuild {
+  organizationId String   @id @map("organization_id") @db.Uuid
+  version        String
+  builtAt        DateTime @default(now()) @map("built_at") @db.Timestamptz(3)
+
+  @@map("demo_builds")
+}

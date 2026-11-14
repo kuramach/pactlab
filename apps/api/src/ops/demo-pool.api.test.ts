@@ -163,6 +163,22 @@ describe('shareable demo pool', () => {
     expect((await call('GET', '/v1/admin/demos', operator)).body['items']).toEqual(expect.arrayContaining([expect.objectContaining({ slot: 2, status: 'AVAILABLE', share: null })]));
   });
 
+  it('after a release that changes the demos, the next sweep rebuilds idle slots; a shared one keeps its data (T-124)', { timeout: 600_000 }, async () => {
+    const current = (await rows<{ version: string }>(`SELECT version FROM demo_builds WHERE organization_id = $1`, [demoPoolSpec(4).id]))[0]?.version;
+    expect(current, 'a built slot records its demo build').toMatch(/^[0-9a-f]{16}$/);
+    // Slots 4 and 5 were built by an older release; slot 5 is shared out right now.
+    await db.owner.query(`UPDATE demo_builds SET version = 'older-release' WHERE organization_id = ANY($1::uuid[])`, [[demoPoolSpec(4).id, demoPoolSpec(5).id]]);
+    await db.owner.query(`UPDATE demo_slots SET status = 'SHARED' WHERE organization_id = $1`, [demoPoolSpec(5).id]);
+    const report = await sweep();
+    expect(report).toContain('slot 4: built from an older release; rebuilding');
+    expect(report).toContain('slot 4: rebuilt and available');
+    expect(report.join(' ')).not.toContain('slot 5');
+    expect((await rows<{ version: string }>(`SELECT version FROM demo_builds WHERE organization_id = $1`, [demoPoolSpec(4).id]))[0]?.version).toBe(current);
+    expect((await rows<{ version: string }>(`SELECT version FROM demo_builds WHERE organization_id = $1`, [demoPoolSpec(5).id]))[0]?.version).toBe('older-release');
+    await db.owner.query(`UPDATE demo_slots SET status = 'AVAILABLE' WHERE organization_id = $1`, [demoPoolSpec(5).id]);
+    await db.owner.query(`UPDATE demo_builds SET version = $2 WHERE organization_id = $1`, [demoPoolSpec(5).id, current]);
+  });
+
   it('a share whose time is up ends on the next sweep, and the pool fills up', { timeout: 600_000 }, async () => {
     await db.owner.query(`UPDATE demo_shares SET ends_at = now() - interval '1 minute' WHERE ended_at IS NULL`);
     const report = await sweep();

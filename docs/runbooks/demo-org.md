@@ -79,3 +79,19 @@ Five more demo organizations, "Pactlab Demo 1–5 (synthetic)", are for lending 
 - **First time, stage, or by hand:** `scripts/demo-org.sh live pool` (or `stage`). The first run builds all five, a few minutes each.
 - **A failed rebuild:** the slot shows "Last reset failed" with the reason and is retried on every sweep. Fix the cause, then **Reset now**, or run the sweep by hand. The full log is in CloudWatch (`/pactlab/prod/app`, stream `seed/seed/<task id>`).
 - **Audit:** `demo.shared`, `demo.ended`, `demo.expired`, `demo.reset`, `login.demo_link`.
+
+## Keeping the demos in step with the app (T-124)
+
+**What happens on its own:**
+- **Recorded builds:** every demo organization records the demo build it was made from (`demo_builds`). The build is a hash of the demo builders' source, the pinned synthetic data (`DEMO_DATA_COMMIT`), the pact section list and each pack's import types.
+- **After a live deploy:** step "6. Refresh the demos" runs the demo-pool sweep and puts its report in the job summary. The 15-minute schedule does the same anyway. The sweep rebuilds every **idle** slot and the **main demo organization** built by an older release; a slot that is **shared out** keeps its data until its share ends, then rebuilds. Only one sweep runs at a time.
+- **CI guards:**
+  - `demo-org.api.test.ts`: every section a demo pact shows has data, derived from `DEAL_SECTION_RULES` through `apps/api/src/ops/demo-coverage.ts`. A new section fails until it has demo data, or a reviewed exception with its reason;
+  - `demo-data.test.ts`: every pack's import types have a file in the synthetic data set;
+  - `apps/web/lib/showcase.test.ts`: every section has its guide copy;
+  - `apps/site/lib/try.test.ts`: every "Try it" step names a section the pack really shows.
+
+**When you add to a pact's structure:**
+1. **A new section:** give the demo builder a step that fills it (`demo-org.ts` / `demo-enrich.ts`), add its probe to `DEMO_SECTION_COVERAGE`, add its guide copy (`apps/web/lib/showcase.ts`), and a "Try it" step if it belongs in the walk-through.
+2. **A new import type or document type:** add the file to `scripts/demo-data`, publish it to `kuramach/pactlab-demo-data`, and bump `DEMO_DATA_COMMIT`.
+3. Deploy. The demos rebuild themselves; check the "Demos" section of the deploy's job summary.
