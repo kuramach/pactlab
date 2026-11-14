@@ -13,6 +13,7 @@ export const TERM_TITLES: Readonly<Record<string, string>> = {
   RETENTION: 'Retention holdback',
   EARNOUT: 'Earnout',
   SELLER_FINANCING: 'Seller note',
+  FINANCING_CONTINGENCY: 'Financing contingency',
 };
 
 export interface TermSheetInput {
@@ -21,7 +22,7 @@ export interface TermSheetInput {
   readonly sellerName: string;
   readonly version: number;
   readonly agreedAt: string;
-  readonly terms: readonly { readonly lever: string; readonly amount: string; readonly currency: string; readonly note: string }[];
+  readonly terms: readonly { readonly lever: string; readonly amount: string; readonly currency: string; readonly note: string; readonly dueOn?: string | null }[];
   readonly signatories: { readonly buyer: string; readonly seller: string };
 }
 
@@ -69,7 +70,7 @@ export async function termSheetPdf(input: TermSheetInput): Promise<{ bytes: Uint
   y -= 10;
   write('Terms', bold, 13);
   for (const term of input.terms) {
-    write(`${TERM_TITLES[term.lever] ?? term.lever}: ${money(term.amount, term.currency)}`, bold, 11);
+    write(`${TERM_TITLES[term.lever] ?? term.lever}: ${money(term.amount, term.currency)}${term.dueOn ? `, financing in place by ${term.dueOn}` : ''}`, bold, 11);
     if (term.note) write(term.note.slice(0, 300), regular, 10, 66);
   }
   y -= 16;

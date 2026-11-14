@@ -4,6 +4,7 @@ import { appendAuditEvent, withTenant, type PrismaClient, type TransactionClient
 import { newId, permissionsForDealRole, type DealRole, type TenantContext } from '@pactlab/domain';
 import { DealAccess } from '../deals/deal-access';
 import { ReportsService } from '../reports/reports.service';
+import { closingFinancing } from '../financing/financing-state';
 import { PRISMA } from '../tokens';
 import { IC_STATE_LABELS, icStatus } from './ic-state';
 import type { IcDecisionInput } from './ic.schemas';
@@ -101,15 +102,18 @@ export class IcService {
 
   /** What the committee should know is still open: carried into the pack's first page. */
   private async blockers(tx: TransactionClient, dealId: string): Promise<string[]> {
-    const [inReview, openConditions, agreed] = await Promise.all([
+    const [inReview, openConditions, agreed, financing] = await Promise.all([
       tx.finding.count({ where: { dealId, status: { in: ['DRAFT', 'IN_REVIEW'] } } }),
       tx.icCondition.findMany({ where: { dealId, status: 'OPEN' }, select: { text: true } }),
       tx.termProposalBatch.findFirst({ where: { dealId, agreedAt: { not: null } }, select: { id: true } }),
+      closingFinancing(tx, dealId, 'BUYER'),
     ]);
     return [
       ...(inReview > 0 ? [`${inReview} finding${inReview === 1 ? '' : 's'} still in review`] : []),
       ...(agreed ? [] : ['Terms not yet agreed with the seller']),
       ...openConditions.map((condition) => `Earlier IC condition still open: ${condition.text}`),
+      // How the deal is funded (T-117): the committee sees the same gaps that would hold up close.
+      ...(financing?.posture.blockers ?? []).map((blocker) => `Financing: ${blocker}`),
     ];
   }
 

@@ -34,6 +34,8 @@ export async function createApp(deps: AppDependencies, options: { webOrigin?: st
   // Document uploads (PDF and Word up to 10 MB, sent as base64 JSON) get a larger limit on that route only.
   adapter.getInstance().addHook('onRoute', (route) => {
     if (route.method === 'POST' && /^\/v1\/deals\/:dealId\/documents\/?$/.test(route.url)) route.bodyLimit = 15 * 1_048_576;
+    // Financing documents (T-117): PDF up to 10 MB, base64 in JSON.
+    if (route.method === 'POST' && route.url === '/v1/deals/:dealId/financing/documents') route.bodyLimit = 15 * 1_048_576;
     // Bug reports may carry a masked screenshot of the app view (≤ 1 MB, base64 in JSON).
     if (route.method === 'POST' && route.url === '/v1/bug-reports') route.bodyLimit = 2 * 1_048_576;
     // Public deal-page pictures (≤ 5 MB, base64 in JSON).

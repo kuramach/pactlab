@@ -37,6 +37,7 @@ interface CloseView {
     done: { by: string; at: string } | null;
   }[];
   esign: { provider: 'FIXTURE' | 'DOCUSIGN' | null };
+  financing: { headline: string; escrow: string | null; contingency: { amount: string; currency: string; dueOn: string | null; met: boolean } | null } | null;
   missing: string[];
   closed: { at: string; buyer: string; seller: string } | null;
 }
@@ -332,6 +333,29 @@ export default async function ClosingPage({ params, searchParams }: { params: Pr
           <Signing dealId={dealId} view={view} />
         </CardContent>
       </Card>
+      {view.financing ? (
+        // Buyer financing (T-117): the contingency and the earnest money, ahead of the funds transfer.
+        <Card>
+          <CardHeader className="flex flex-row flex-wrap items-center gap-2">
+            <CardTitle className="mr-auto">Financing</CardTitle>
+            <Link href={`/deals/${dealId}/financing`} className="text-sm underline underline-offset-4">
+              Open the financing plan
+            </Link>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-2 text-sm">
+            <p>
+              <Badge variant="neutral">{view.financing.headline}</Badge> <span className="text-xs text-muted-foreground">Buyer-provided</span>
+            </p>
+            {view.financing.contingency ? (
+              <p>
+                Financing contingency: {formatMoney({ amount: view.financing.contingency.amount, currency: view.financing.contingency.currency })}, in place by {view.financing.contingency.dueOn ?? 'the agreed date'} —{' '}
+                {view.financing.contingency.met ? <HumanBadge>Met</HumanBadge> : <Badge variant="draft">Open</Badge>}
+              </p>
+            ) : null}
+            {view.financing.escrow ? <p>{view.financing.escrow}</p> : null}
+          </CardContent>
+        </Card>
+      ) : null}
       <Card>
         <CardHeader>
           <CardTitle>Closing checklist</CardTitle>

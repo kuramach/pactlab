@@ -1,3 +1,4 @@
+import type { FinancingView } from '@pactlab/contracts';
 import { HttpException } from '@nestjs/common';
 import { DEAL_PHASE_LABELS, type DealPhase, type TenantContext } from '@pactlab/domain';
 
@@ -25,6 +26,8 @@ export interface ReportSources {
   postClose(tenant: TenantContext, dealId: string): Promise<{ items: PostCloseItemView[] }>;
   documents(tenant: TenantContext, dealId: string): Promise<{ items: DocumentView[] }>;
   connections(tenant: TenantContext, dealId: string): Promise<ConnectionView[]>;
+  /** Buyer financing (T-117), as the reader may see it: the seller gets the seller-visible layer only. */
+  financing(tenant: TenantContext, dealId: string): Promise<FinancingView>;
 }
 
 export interface DealView {
@@ -95,6 +98,7 @@ export interface PactReportModel {
   kind: 'PACT';
   deal: DealView;
   sideLabel: string;
+  financing: FinancingView['plans'] | null;
   evidence: { documents: DocumentView[]; sources: ConnectionView[] } | null;
   findings: FindingView[] | null;
   claims: ClaimView[] | null;
@@ -161,7 +165,7 @@ const activeRun = (items: readonly ValuationItemView[]) =>
 export async function pactReportModel(sources: ReportSources, tenant: TenantContext, dealId: string): Promise<PactReportModel | null> {
   const deal = await visible(() => sources.deal(tenant, dealId));
   if (!deal) return null;
-  const [documents, connections, findings, claims, valuation, pricing, terms, postClose] = await Promise.all([
+  const [documents, connections, findings, claims, valuation, pricing, terms, postClose, financing] = await Promise.all([
     visible(() => sources.documents(tenant, dealId)),
     visible(() => sources.connections(tenant, dealId)),
     visible(() => sources.findings(tenant, dealId)),
@@ -170,12 +174,14 @@ export async function pactReportModel(sources: ReportSources, tenant: TenantCont
     visible(() => sources.pricing(tenant, dealId)),
     visible(() => sources.terms(tenant, dealId)),
     deal.phase === 'POST' ? visible(() => sources.postClose(tenant, dealId)) : Promise.resolve(null),
+    visible(() => sources.financing(tenant, dealId)),
   ]);
   const persona = pricing?.persona.effective ? (pricing.persona.options.find((option) => option.persona === pricing.persona.effective)?.label ?? pricing.persona.effective) : null;
   const confirmed = valuation?.items.flatMap((item) => item.confirmedValue?.items.map((entry) => entry.label) ?? []) ?? null;
   return {
     kind: 'PACT',
     deal,
+    financing: financing?.plans.some((plan) => plan.tranches.length > 0 || plan.escrow) ? financing.plans : null,
     sideLabel: terms?.side === 'SELLER' ? 'Seller side' : terms?.side === 'BUYER' ? 'Buyer side' : deal.initiatedBy === 'SELLER' ? 'Seller side' : 'Buyer side',
     evidence: documents || connections ? { documents: documents?.items ?? [], sources: connections ?? [] } : null,
     findings: findings?.items ?? null,

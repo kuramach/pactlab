@@ -109,6 +109,11 @@ export const SHOWCASE: Readonly<Record<string, ShowcaseEntry>> = {
     why: 'A letter of intent written from the agreed terms: the economics as non-binding intent, exclusivity and confidentiality binding, signed by both sides.',
     lookFor: ['Non-binding and binding provisions side by side', 'The agreed price quoted exactly', 'Exclusivity days left after countersignature'],
   },
+  '/financing': {
+    title: 'How the buyer pays, before anyone signs',
+    why: 'Cash, an SBA loan, a lender’s commitment, earnest money with a title company: the seller sees how the deal is funded and how far each piece has got, so certainty of close is a fact, not a promise.',
+    lookFor: ['Each source of funds and where it stands', 'Coverage against the agreed price', 'Letters the buyer chose to share, and earnest money confirmed by the seller'],
+  },
   '/closing': {
     title: 'Both sides sign, funds are confirmed',
     why: 'Named signatories sign the agreed version, the closing checklist is worked by both sides, and the seller confirms the funds arrived.',
@@ -136,6 +141,7 @@ export const TOUR_PATHS: readonly string[] = [
   '/terms',
   '/loi',
   '/ic',
+  '/financing',
   '/closing',
   '/post-close',
   '/bidders',

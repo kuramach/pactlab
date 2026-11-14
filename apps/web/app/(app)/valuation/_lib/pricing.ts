@@ -2,7 +2,7 @@ import { formatDecimal } from '../../metrics/_lib/format';
 
 /** Buyer personas (T-105): the shapes the pricing API returns, and their labels. */
 export type Persona = 'QUALITY_COMPOUNDER' | 'VALUE_INVESTOR' | 'GRAVE_DANCER';
-export type TermLever = 'PURCHASE_PRICE' | 'PRICE_REDUCTION' | 'REMEDIATION_COST' | 'ESCROW' | 'INDEMNITY' | 'RETENTION' | 'EARNOUT' | 'SELLER_FINANCING';
+export type TermLever = 'PURCHASE_PRICE' | 'PRICE_REDUCTION' | 'REMEDIATION_COST' | 'ESCROW' | 'INDEMNITY' | 'RETENTION' | 'EARNOUT' | 'SELLER_FINANCING' | 'FINANCING_CONTINGENCY';
 export type ScenarioCase = 'DOWNSIDE' | 'BASE' | 'UPSIDE';
 
 interface Money {
@@ -71,7 +71,7 @@ export interface TermBatchView {
   declinedAt: string | null;
   /** Who proposed it (T-107); the other side answers. */
   initiatedBySide: 'BUYER' | 'SELLER';
-  terms: { ordinal: number; lever: TermLever; amount: string; currency: string; findingId: string | null; sellerNote: string; response: TermResponseView | null }[];
+  terms: { ordinal: number; lever: TermLever; amount: string; currency: string; findingId: string | null; sellerNote: string; dueOn?: string | null; response: TermResponseView | null }[];
 }
 
 export interface PricingView {
@@ -96,10 +96,10 @@ export interface SellerTermsView {
     declinedAt: string | null;
     canRespond: boolean;
     canAcceptCounters: boolean;
-    terms: { ordinal: number; lever: TermLever; amount: string; currency: string; sellerNote: string; response: TermResponseView | null }[];
+    terms: { ordinal: number; lever: TermLever; amount: string; currency: string; sellerNote: string; dueOn?: string | null; response: TermResponseView | null }[];
   } | null;
   /** The seller's own unproposed version (seller side only). */
-  draft: { id: string; version: number; currency: string; terms: { ordinal: number; lever: TermLever; amount: string; currency: string; note: string }[] } | null;
+  draft: { id: string; version: number; currency: string; terms: { ordinal: number; lever: TermLever; amount: string; currency: string; note: string; dueOn?: string | null }[] } | null;
 }
 
 export const DECISION_LABELS: Readonly<Record<TermDecision, string>> = { ACCEPT: 'Accepted', REJECT: 'Rejected', COUNTER: 'Countered' };
@@ -113,6 +113,8 @@ const MESSAGES: Readonly<Record<string, { section: Section; tone: 'ok' | 'proble
   'ok-drafted': { section: 'terms', tone: 'ok', text: 'Terms drafted from the active pricing. Add notes for the seller, then propose.' },
   'ok-counters': { section: 'terms', tone: 'ok', text: 'The seller’s counters are in the new draft. Check it, then propose it.' },
   'ok-notes': { section: 'terms', tone: 'ok', text: 'Seller notes saved.' },
+  'ok-contingency': { section: 'terms', tone: 'ok', text: 'Financing contingency added to the draft. The seller answers it like any term.' },
+  'contingency-invalid': { section: 'terms', tone: 'problem', text: 'Give the financed amount and the date the financing must be in place by.' },
   'ok-proposed': { section: 'terms', tone: 'ok', text: 'Terms proposed to the seller. They are frozen; draft a new version to change them.' },
   'adopt-first': { section: 'terms', tone: 'problem', text: 'Adopt a pricing evaluation before drafting terms.' },
   'terms-frozen': { section: 'terms', tone: 'problem', text: 'Those terms were already proposed or agreed and are frozen.' },
@@ -148,6 +150,7 @@ export const LEVER_LABELS: Readonly<Record<TermLever, string>> = {
   RETENTION: 'Retention holdback',
   EARNOUT: 'Earnout',
   SELLER_FINANCING: 'Seller note',
+  FINANCING_CONTINGENCY: 'Financing contingency',
 };
 
 export const CASE_LABELS: Readonly<Record<ScenarioCase, string>> = { DOWNSIDE: 'Downside', BASE: 'Base', UPSIDE: 'Upside' };

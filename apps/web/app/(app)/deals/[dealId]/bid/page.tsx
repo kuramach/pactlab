@@ -1,4 +1,5 @@
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from '@pactlab/ui';
+import Link from 'next/link';
 import { apiGet } from '../../_lib/api';
 import { OutcomeBanner } from '../../_lib/outcome';
 import { ApiState } from '../../_lib/states';
@@ -93,6 +94,10 @@ export default async function BidPage({ params, searchParams }: { params: Promis
         <Badge variant={bid.status === 'WON' ? 'reviewed' : bid.status === 'DECLINED' || bid.status === 'PASSED' ? 'neutral' : 'calculation'}>{STANDING[bid.status] ?? bid.status}</Badge>
         <span className="text-muted-foreground">Round {process.round}</span>
         {process.offerDeadline ? <span className="text-muted-foreground">Offers due {process.offerDeadline.slice(0, 16).replace('T', ' ')} UTC</span> : null}
+        {/* How you would fund your offer (T-117): yours alone; the seller sees it, no other bidder does. */}
+        <Link href={`/deals/${dealId}/financing`} className="ml-auto underline underline-offset-4">
+          Your financing
+        </Link>
       </div>
 
       {ndaPending ? (

@@ -248,7 +248,7 @@ describe('buyer personas API (T-105)', () => {
     const response = await call('target_contributor', 'GET', deal('/terms/proposed'));
     const proposed = response.body['proposed'] as Body;
     expect(Object.keys(proposed).sort()).toEqual(['agreedAt', 'canAcceptCounters', 'canRespond', 'currency', 'declinedAt', 'id', 'initiatedBySide', 'proposedAt', 'terms', 'version']);
-    for (const term of proposed['terms'] as Body[]) expect(Object.keys(term).sort()).toEqual(['amount', 'currency', 'lever', 'ordinal', 'response', 'sellerNote']);
+    for (const term of proposed['terms'] as Body[]) expect(Object.keys(term).sort()).toEqual(['amount', 'currency', 'dueOn', 'lever', 'ordinal', 'response', 'sellerNote']);
     const text = response.text.toLowerCase();
     for (const leak of ['persona', 'compounder', 'value investor', 'value_investor', 'grave', 'personas-1', 'materiality', 'weight', 'evaluation', ...Object.values(found)]) {
       expect(text, leak).not.toContain(leak.toLowerCase());

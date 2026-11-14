@@ -39,6 +39,8 @@ export const DEAL_SECTION_RULES: Readonly<Record<string, (context: SectionContex
   '/loi': (context) => context.initiatedBy === 'BUYER',
   // The buyer's investment committee (T-118): a buyer-led pact's own side.
   '/ic': (context) => context.initiatedBy === 'BUYER',
+  // How the buyer funds the deal (T-117): every pact; each bidder keeps their own on a seller-led one.
+  '/financing': everywhere,
   '/closing': (context) => context.initiatedBy === 'BUYER',
   '/post-close': everywhere,
 };

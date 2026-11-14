@@ -6,6 +6,8 @@ import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { RequestId } from '../deals/request-id.decorator';
 import {
   batchParamsSchema,
+  contingencyBodySchema,
+  type ContingencyBody,
   evaluateBodySchema,
   evaluationParamsSchema,
   personaBodySchema,
@@ -81,6 +83,12 @@ export class PricingController {
     @Body(new ZodValidationPipe(sellerNotesBodySchema)) body: SellerNotesBody,
   ) {
     return this.service.updateSellerNotes(tenant, params.dealId, params.batchId, body, requestId);
+  }
+
+  @Post('terms/:batchId/financing-contingency')
+  @HttpCode(201)
+  contingency(@Tenant() tenant: TenantContext, @RequestId() requestId: string, @Param(new ZodValidationPipe(batchParamsSchema)) params: BatchParams, @Body(new ZodValidationPipe(contingencyBodySchema)) body: ContingencyBody) {
+    return this.service.addFinancingContingency(tenant, params.dealId, params.batchId, body, requestId);
   }
 
   @Post('terms/:batchId/accept-counters')

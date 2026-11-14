@@ -19,6 +19,7 @@ import { PhasesService } from '../phases/phases.service';
 import { termSide } from '../pricing/pricing.service';
 import { IC_STATE_LABELS, icStatus } from '../ic/ic-state';
 import { loiSatisfied } from './loi-gate';
+import { closingFinancing } from '../financing/financing-state';
 import { PRISMA } from '../tokens';
 import type { ClosingItemBody, DisputeBody, EsignBody, PaidBody, SignatoryBody } from './close.schemas';
 import { SIGN_ANCHORS, termSheetPdf } from './term-sheet';
@@ -66,6 +67,12 @@ export interface CloseView {
     readonly done: { readonly by: string; readonly at: string } | null;
   }[];
   readonly esign: { readonly provider: 'FIXTURE' | 'DOCUSIGN' | null };
+  /** Buyer financing (T-117), as the reader may see it: the posture, the earnest deposit, and a contingency in the agreed terms. */
+  readonly financing: {
+    readonly headline: string;
+    readonly escrow: string | null;
+    readonly contingency: { readonly amount: string; readonly currency: string; readonly dueOn: string | null; readonly met: boolean } | null;
+  } | null;
   /** What still stands between the pact and its close; empty when it can close. */
   readonly missing: readonly string[];
   readonly closed: { readonly at: string; readonly buyer: string; readonly seller: string } | null;
@@ -157,6 +164,13 @@ export class CloseService {
       }
       // A letter of intent, when the pact requires one (T-119): two-sided, so both sides see it.
       if (!(await loiSatisfied(tx, dealId))) missing.push('A countersigned letter of intent.');
+      // Buyer financing (T-117): a financing contingency, gaps in the plan and the earnest deposit come before the funds.
+      const financing = await closingFinancing(tx, dealId, termSide(role) === 'SELLER' ? 'SELLER' : 'BUYER');
+      const contingency = agreed?.agreedAt && !agreed.declinedAt ? agreed.terms.find((term) => term.lever === 'FINANCING_CONTINGENCY') : undefined;
+      const contingencyMet = financing ? financing.posture.level === 'COMMITTED' || financing.posture.level === 'CLEARED' : false;
+      if (contingency && !contingencyMet) missing.push(`Financing contingency: the buyer’s financing in place by ${contingency.dueOn?.toISOString().slice(0, 10) ?? 'the agreed date'}.`);
+      for (const blocker of financing?.posture.blockers ?? []) missing.push(`Financing: ${blocker}`);
+      if (financing?.escrow?.status === 'DEPOSITED') missing.push(financing.escrow.confirmed ? 'Earnest money: record it applied against the price at close.' : 'Earnest money: the seller confirms the deposit.');
       for (const item of items) if (!item.doneAt) missing.push(item.kind === 'FUNDS' ? `Funds: ${item.paidAt ? 'the seller confirms receipt' : 'the buyer records the payment'} (${item.title}).` : `${item.title} (${item.ownerSide === 'BUYER' ? 'buyer' : 'seller'}).`);
 
       return {
@@ -198,6 +212,13 @@ export class CloseService {
           done: item.doneAt ? { by: name(item.doneBy), at: item.doneAt.toISOString() } : null,
         })),
         esign: { provider: signingProvider?.name ?? null },
+        financing: financing
+          ? {
+              headline: financing.posture.headline,
+              escrow: financing.posture.escrow,
+              contingency: contingency ? { amount: contingency.amount.toFixed(2), currency: contingency.currency, dueOn: contingency.dueOn?.toISOString().slice(0, 10) ?? null, met: contingencyMet } : null,
+            }
+          : null,
         missing: deal?.closedAt ? [] : missing,
         closed: deal?.closedAt ? { at: deal.closedAt.toISOString(), buyer: name(deal.closedByBuyer), seller: name(deal.closedBySeller) } : null,
       };
@@ -285,7 +306,7 @@ export class CloseService {
       sellerName: parties.find((party) => party.role === 'SELLER')?.name ?? 'Seller',
       version: agreed.version,
       agreedAt: (agreed.agreedAt as Date).toISOString(),
-      terms: agreed.terms.map((term) => ({ lever: term.lever, amount: term.amount.toFixed(2), currency: term.currency, note: term.sellerNote })),
+      terms: agreed.terms.map((term) => ({ lever: term.lever, amount: term.amount.toFixed(2), currency: term.currency, note: term.sellerNote, dueOn: term.dueOn?.toISOString().slice(0, 10) ?? null })),
       signatories: { buyer: (buyer && names.get(buyer.userId)) ?? 'Buyer signatory', seller: (seller && names.get(seller.userId)) ?? 'Seller signatory' },
     });
   }

@@ -41,6 +41,7 @@ import { FindingsService } from '../findings/findings.service';
 import { ImportsService } from '../imports/imports.service';
 import { ListingsService } from '../listings/listings.service';
 import { PactsService } from '../pacts/pacts.service';
+import { FinancingService } from '../financing/financing.service';
 import { PricingService } from '../pricing/pricing.service';
 import { ValuationService } from '../valuation/valuation.service';
 import { bidProcess, claims, closeAndPostClose, connectSources, demoAskingPrice, enteredComparables, finances, raise, regulatory, reports, screen, sextant, team } from './demo-enrich';
@@ -328,6 +329,7 @@ export async function buildPact(app: App, owner: OwnerSession, people: People, t
   await close.signOff(seller, dealId, next.id, REQUEST_ID);
   await close.addItem(seller, dealId, { kind: 'CONDITION', title: 'Third-party consents delivered (synthetic)', ownerSide: 'SELLER' }, REQUEST_ID);
   const agreedPrice = counter ?? price?.amount ?? '1.00';
+  await step('financing', () => demoFinancing(app, buyer, seller, dealId, agreedPrice));
   const withFunds = await close.addItem(buyer, dealId, { kind: 'FUNDS', title: 'Purchase price at completion', amount: agreedPrice, currency: 'USD' }, REQUEST_ID);
   const funds = withFunds.items.find((item) => item.kind === 'FUNDS');
   const condition = withFunds.items.find((item) => item.kind === 'CONDITION');
@@ -341,6 +343,45 @@ export async function buildPact(app: App, owner: OwnerSession, people: People, t
     return `${name}: data room, ${accepted} findings accepted, scenarios, persona pricing, terms agreed, both signed, funds confirmed; ${done.join('; ')}`;
   }
   return `${name}: data room, ${accepted} findings accepted, scenarios, persona pricing, terms countered and agreed, both signed, funds confirmed (ready to close); ${done.join('; ')}`;
+}
+
+/** A one-page synthetic PDF: what a lender letter looks like to the upload checks. */
+const demoPdf = (title: string) => Buffer.from(`%PDF-1.4\n% ${title} (synthetic demo)\n1 0 obj << >> endobj\ntrailer << >>\n%%EOF\n`).toString('base64');
+
+/**
+ * Buyer financing on a demo pact (T-117): equity and a committed loan covering the agreed price, the
+ * letters behind both shared with the seller, and earnest money deposited, confirmed and applied at close.
+ */
+async function demoFinancing(app: App, buyer: TenantContext, seller: TenantContext, dealId: string, agreedPrice: string): Promise<string> {
+  const financing = app.get(FinancingService, { strict: false });
+  const equity = new D(agreedPrice).times('0.3').toDecimalPlaces(2).toFixed(2);
+  const loan = new D(agreedPrice).minus(equity).toFixed(2);
+  await financing.updatePlan(buyer, dealId, { commitmentExpectedBy: null, buyerNote: 'Lender relationship manager: synthetic contact (buyer-only).' }, REQUEST_ID);
+  await financing.addTranche(buyer, dealId, { kind: 'CASH', amount: equity, currency: 'USD', status: 'PRE_QUALIFIED', label: 'Fund equity', buyerNote: 'Drawn from the fund’s committed capital (buyer-only).' }, REQUEST_ID);
+  const withLoan = await financing.addTranche(buyer, dealId, { kind: 'CONVENTIONAL_DEBT', amount: loan, currency: 'USD', status: 'COMMITMENT_ISSUED', label: 'Senior term loan', buyerNote: 'Synthetic Bank, 5-year term (buyer-only).' }, REQUEST_ID);
+  const tranches = withLoan.plans[0]?.tranches ?? [];
+  for (const [purpose, kind, fileName] of [
+    ['PROOF_OF_FUNDS', 'CASH', 'proof-of-funds.pdf'],
+    ['COMMITMENT_LETTER', 'CONVENTIONAL_DEBT', 'lender-commitment-letter.pdf'],
+  ] as const) {
+    const tranche = tranches.find((entry) => entry.kind === kind);
+    await financing.attach(buyer, dealId, { purpose, trancheId: tranche?.id ?? null, fileName, contentType: 'application/pdf', contentBase64: demoPdf(fileName) }, REQUEST_ID);
+  }
+  // A private statement the seller never sees, next to the two shared letters.
+  const attached = await financing.attach(buyer, dealId, { purpose: 'BUYER_FINANCIALS', trancheId: null, fileName: 'fund-financial-statements.pdf', contentType: 'application/pdf', contentBase64: demoPdf('fund statements') }, REQUEST_ID);
+  for (const document of attached.plans[0]?.documents ?? []) if (document.purpose !== 'BUYER_FINANCIALS') await financing.share(buyer, dealId, document.id, true, REQUEST_ID);
+  const earnest = new D(agreedPrice).times('0.02').toDecimalPlaces(0).toFixed(2);
+  await financing.setEscrow(buyer, dealId, { amount: earnest, currency: 'USD', holderKind: 'TITLE_COMPANY', holderName: 'Synthetic Title & Escrow Co.', depositDueOn: null, hardOn: null, refundConditions: 'Refundable if confirmatory diligence fails (synthetic).' }, REQUEST_ID);
+  const receipt = await financing.attach(buyer, dealId, { purpose: 'ESCROW_RECEIPT', trancheId: null, fileName: 'escrow-receipt.pdf', contentType: 'application/pdf', contentBase64: demoPdf('escrow receipt') }, REQUEST_ID);
+  const receiptId = receipt.plans[0]?.documents.find((document) => document.fileName === 'escrow-receipt.pdf')?.id ?? null;
+  if (receiptId) await financing.share(buyer, dealId, receiptId, true, REQUEST_ID);
+  const deposited = await financing.recordDeposit(buyer, dealId, { depositedOn: new Date().toISOString().slice(0, 10), reference: 'ESCROW-DEMO-001 (synthetic)', proofDocumentId: receiptId }, REQUEST_ID);
+  const planId = deposited.plans[0]?.id;
+  if (planId) {
+    await financing.confirmDeposit(seller, dealId, planId, REQUEST_ID);
+    await financing.disposition(seller, dealId, planId, 'APPLIED_AT_CLOSE', REQUEST_ID);
+  }
+  return 'financing: equity and a committed loan with shared letters, earnest money applied at close';
 }
 
 /** One seller-led Multifamily pact with a published teaser and its property facts. */

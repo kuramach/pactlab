@@ -62,7 +62,7 @@ export class LoiService {
       termsVersion: batch.version,
       agreedAt: batch.agreedAt.toISOString(),
       // Verbatim from the agreed version: the stored decimal, its currency and the seller's note.
-      terms: batch.terms.map((term) => ({ lever: term.lever, amount: term.amount.toFixed(2), currency: term.currency, note: term.sellerNote })),
+      terms: batch.terms.map((term) => ({ lever: term.lever, amount: term.amount.toFixed(2), currency: term.currency, note: term.sellerNote, dueOn: term.dueOn?.toISOString().slice(0, 10) ?? null })),
       fields,
     };
   }

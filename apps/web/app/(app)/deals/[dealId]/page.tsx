@@ -1,3 +1,4 @@
+import type { FinancingView } from '@pactlab/contracts';
 import { redirect } from 'next/navigation';
 import { COMPANY_TYPE_LABELS, DEAL_PHASE_LABELS, DEAL_STAGES } from '@pactlab/domain';
 import { moveStage } from './stage-actions';
@@ -25,6 +26,7 @@ import { BASIS_LABELS, describeGap, type ScenarioView } from '../../valuation/_l
 import type { Finding } from '@pactlab/domain';
 import type { AnchorsView, BenchmarkView } from '@pactlab/contracts';
 import { apiGet, dealsApi } from '../_lib/api';
+import { FinancingPosture } from '../_lib/financing';
 import { BENCHMARK_OUTCOMES, MultipleContext } from '../_lib/multiple-context';
 import { ANCHOR_OUTCOMES, NegotiationAnchors } from '../_lib/negotiation-anchors';
 import { OutcomeBanner } from '../_lib/outcome';
@@ -59,7 +61,7 @@ export default async function DealOverviewPage({
   const outcome = (await searchParams)['outcome'];
   // A bidder's pact is their bid (T-097).
   if ((await dealViewer(dealId)).role === 'BIDDER') redirect(`/deals/${dealId}/bid`);
-  const [plan, sources, parties, asking, scenarios, viewer, accepted, deal, documentList, documentFindings] = await Promise.all([
+  const [plan, sources, parties, asking, scenarios, viewer, accepted, deal, documentList, documentFindings, financing] = await Promise.all([
     dealsApi.sourcePlan(dealId),
     dealsApi.sources(dealId),
     dealsApi.parties(dealId),
@@ -70,6 +72,7 @@ export default async function DealOverviewPage({
     dealsApi.get(dealId),
     apiGet<{ items: { id: string }[] }>(`/v1/deals/${dealId}/documents`),
     apiGet<{ items: { status: string }[] }>(`/v1/deals/${dealId}/document-findings`),
+    apiGet<FinancingView>(`/v1/deals/${dealId}/financing`),
   ]);
   const scenarioItems = scenarios.kind === 'ok' ? scenarios.data.items : [];
   const pipeline = pipelineSteps(dealId, {
@@ -126,6 +129,25 @@ export default async function DealOverviewPage({
         </form>
       ) : null}
       <PipelineCard steps={pipeline} />
+      {/* Certainty of close (T-117): how the buyer funds the deal, as attested; the seller's first question. */}
+      {financing.kind === 'ok' && financing.data.side && financing.data.plans.some((entry) => entry.tranches.length > 0 || entry.escrow) ? (
+        <Card>
+          <CardContent className="flex flex-col gap-2 p-5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="font-semibold">{financing.data.plans.length > 1 ? 'Bidders’ financing' : 'Buyer financing'}</p>
+              <Link href={`/deals/${dealId}/financing`} className="text-sm underline underline-offset-4">
+                Open
+              </Link>
+            </div>
+            {financing.data.plans.map((entry) => (
+              <div key={entry.bidId ?? 'plan'} className="flex flex-wrap items-center gap-2">
+                {entry.firmName ? <span className="text-sm font-medium">{entry.firmName}:</span> : null}
+                <FinancingPosture posture={entry.posture} compact />
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      ) : null}
       {asking.kind === 'ok' ? (
         <Card className="border-indigo/30 bg-secondary/60">
           <CardContent className="flex flex-wrap items-center justify-between gap-4 p-5">
