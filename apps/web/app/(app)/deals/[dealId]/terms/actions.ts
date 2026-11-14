@@ -50,20 +50,23 @@ export async function acceptCounters(dealId: string, batchId: string): Promise<v
   back(dealId, result.kind === 'ok' ? 'ok-counters' : result.kind);
 }
 
-const LEVERS = ['PURCHASE_PRICE', 'PRICE_REDUCTION', 'REMEDIATION_COST', 'ESCROW', 'INDEMNITY', 'RETENTION', 'EARNOUT', 'SELLER_FINANCING'] as const;
+const LEVERS = ['PURCHASE_PRICE', 'PRICE_REDUCTION', 'REMEDIATION_COST', 'ESCROW', 'INDEMNITY', 'RETENTION', 'EARNOUT', 'SELLER_FINANCING', 'FINANCING_CONTINGENCY'] as const;
 
 /** The seller drafts their own version (T-107): the purchase price first, then any terms they ask for. */
 export async function draftOwnTerms(dealId: string, formData: FormData): Promise<void> {
   if (!uuid.safeParse(dealId).success) redirect('/deals');
   const currency = String(formData.get('currency') ?? 'USD');
-  const terms: { lever: string; amount: string; note: string }[] = [];
+  const terms: { lever: string; amount: string; note: string; dueOn?: string }[] = [];
   for (let row = 0; row < 6; row += 1) {
     const lever = String(formData.get(`lever-${row}`) ?? '');
     const raw = String(formData.get(`amount-${row}`) ?? '').trim();
     if (!raw) continue;
     const parsed = amount.safeParse(raw);
     if (!parsed.success || !(LEVERS as readonly string[]).includes(lever)) back(dealId, 'draft-invalid');
-    terms.push({ lever, amount: parsed.data, note: String(formData.get(`note-${row}`) ?? '').slice(0, 1000) });
+    // A financing contingency (T-117) carries the date the financing must be in place by; nothing else does.
+    const due = String(formData.get(`due-${row}`) ?? '');
+    if (lever === 'FINANCING_CONTINGENCY' && !/^\d{4}-\d{2}-\d{2}$/.test(due)) back(dealId, 'draft-invalid');
+    terms.push({ lever, amount: parsed.data, note: String(formData.get(`note-${row}`) ?? '').slice(0, 1000), ...(lever === 'FINANCING_CONTINGENCY' ? { dueOn: due } : {}) });
   }
   if (terms[0]?.lever !== 'PURCHASE_PRICE') back(dealId, 'draft-price-first');
   const result = await apiSend('POST', `/v1/deals/${dealId}/terms/drafts`, { currency, terms });

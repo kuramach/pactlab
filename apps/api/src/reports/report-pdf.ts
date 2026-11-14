@@ -384,6 +384,27 @@ export async function pactReportPdf(
     }
   }
 
+  // Buyer financing (T-117): what funds the deal, as the buyer attests it; the seller's report shows the seller-visible layer.
+  if (model.financing) {
+    w.heading('Buyer financing');
+    w.text('Buyer-provided: amounts and statuses are the buyer’s attestation. “Document-backed” means a letter or proof is attached and visible to this side.', { size: 8, color: MUTED, after: 6 });
+    for (const plan of model.financing) {
+      if (plan.tranches.length === 0 && !plan.escrow) continue;
+      w.facts([
+        ...(plan.firmName ? ([['Bidder', plan.firmName]] as [string, string][]) : []),
+        ['Posture', plan.posture.headline],
+        ['Coverage', plan.posture.coverage.against ? `${formatMoney({ amount: plan.posture.coverage.total, currency: plan.posture.coverage.currency })} of ${formatMoney({ amount: plan.posture.coverage.against.price, currency: plan.posture.coverage.currency })} (${plan.posture.coverage.against.agreed ? 'agreed' : 'proposed'} price)` : formatMoney({ amount: plan.posture.coverage.total, currency: plan.posture.coverage.currency })],
+        ...(plan.posture.escrow ? ([['Earnest money', plan.posture.escrow]] as [string, string][]) : []),
+        ...(plan.commitmentExpectedBy ? ([['Commitment expected by', plan.commitmentExpectedBy]] as [string, string][]) : []),
+      ]);
+      w.table(
+        [{ label: 'Source', width: 0.3 }, { label: 'Amount', width: 0.25, align: 'right' }, { label: 'Status', width: 0.25 }, { label: 'Backing', width: 0.2 }],
+        plan.tranches.map((tranche) => [tranche.kind.replace(/_/g, ' ').toLowerCase().replace('sba 7a', 'SBA 7(a)'), formatMoney({ amount: tranche.amount, currency: tranche.currency }), tranche.status.replace(/_/g, ' ').toLowerCase(), tranche.documented ? 'document-backed' : 'buyer-attested']),
+      );
+      for (const blocker of plan.posture.blockers) w.text(`Open: ${blocker}`, { size: 9, after: 2 });
+    }
+  }
+
   if (model.postClose) {
     w.heading('Post-close register');
     w.table(

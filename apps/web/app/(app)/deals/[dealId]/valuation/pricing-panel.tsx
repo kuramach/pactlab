@@ -16,7 +16,7 @@ import {
   type TermBatchView,
   type TermLever,
 } from '../../../valuation/_lib/pricing';
-import { acceptCounters, adoptEvaluation, draftBrief, draftTerms, evaluateAs, proposeTerms, saveSellerNotes, setPactPersona } from './pricing-actions';
+import { acceptCounters, addFinancingContingency, adoptEvaluation, draftBrief, draftTerms, evaluateAs, proposeTerms, saveSellerNotes, setPactPersona } from './pricing-actions';
 
 const inputClass = 'w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring';
 
@@ -183,6 +183,18 @@ function Terms({ dealId, view, writer, titles, outcome }: { dealId: string; view
         </div>
       ) : null}
 
+      {latest && !latest.proposedAt && writer && !latest.terms.some((term) => term.lever === 'FINANCING_CONTINGENCY') ? (
+        // Certainty of close, not price (T-117): never priced, never in the term mix; the seller answers it like any term.
+        <details className="rounded-lg border border-dashed border-border p-3 text-sm">
+          <summary className="cursor-pointer font-semibold">Add a financing contingency</summary>
+          <form action={addFinancingContingency.bind(null, dealId, latest.id)} className="mt-3 grid gap-2 sm:grid-cols-[10rem_10rem_1fr_auto]">
+            <input name="amount" inputMode="decimal" required placeholder={`Financed amount (${latest.currency})`} aria-label="Financed amount" className={inputClass} />
+            <input name="dueOn" type="date" required aria-label="Financing in place by" className={inputClass} />
+            <input name="note" maxLength={1000} placeholder="Note for the seller, e.g. subject to SBA approval" aria-label="Note for the seller" className={inputClass} />
+            <Button size="sm" variant="outline" type="submit">Add</Button>
+          </form>
+        </details>
+      ) : null}
       {latest && !latest.proposedAt ? (
         <form action={saveSellerNotes.bind(null, dealId, latest.id)} className="flex flex-col gap-3">
           <p className="text-sm text-muted-foreground">Draft v{latest.version}. The seller sees each term’s lever, amount and your note, and nothing about how it was priced.</p>
@@ -191,7 +203,10 @@ function Terms({ dealId, view, writer, titles, outcome }: { dealId: string; view
               {latest.terms.map((term) => (
                 <tr key={term.ordinal}>
                   <td className="w-48 py-2 pr-3 font-medium">{LEVER_LABELS[term.lever]}</td>
-                  <td className="w-40 py-2 pr-3">{formatMoney({ amount: term.amount, currency: term.currency })}</td>
+                  <td className="w-40 py-2 pr-3">
+                    {formatMoney({ amount: term.amount, currency: term.currency })}
+                    {term.dueOn ? <span className="block text-xs text-muted-foreground">in place by {term.dueOn}</span> : null}
+                  </td>
                   <td className="py-2">
                     <input name={`note-${term.ordinal}`} defaultValue={term.sellerNote} maxLength={1000} placeholder="Note for the seller (optional)" className={inputClass} disabled={!writer} />
                     {term.findingId ? <span className="mt-1 block text-xs text-muted-foreground">Carries: {titles.get(term.findingId) ?? 'accepted finding'} (buyer-only)</span> : null}

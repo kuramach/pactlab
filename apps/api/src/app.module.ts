@@ -47,6 +47,7 @@ import { SaleModule } from './sale/sale.module';
 import { RegulatoryModule } from './regulatory/regulatory.module';
 import { DealDeletionModule } from './deals/deletion/deal-deletion.module';
 import { InvitationsModule } from './invitations/invitations.module';
+import { FinancingModule } from './financing/financing.module';
 import { ReportsModule } from './reports/reports.module';
 import { BrandModule } from './brand/brand.module';
 import { HttpsWebFetcher, type WebFetcher } from './common/safe-fetch';
@@ -179,7 +180,9 @@ export class AppModule {
     });
     const valuationModule = ValuationModule.register({ valuation, findings, pricing: { gateway: deps.documents?.gateway ?? new NotConfiguredClaudeGateway() } });
     // Reports (T-110), shared with the investment committee (T-118): an IC pack is a report.
-    const reportsModule = ReportsModule.register({ store: deps.documents?.objectStore ?? new UnavailableObjectStore(), shared: [valuationModule, documentsModule] });
+    // Buyer financing (T-117): shared with reports, which show it as the reader may see it.
+    const financingModule = FinancingModule.register({ objectStore: deps.documents?.objectStore ?? new UnavailableObjectStore(), scanner: deps.documents?.malwareScanner ?? new UnavailableMalwareScanner() });
+    const reportsModule = ReportsModule.register({ store: deps.documents?.objectStore ?? new UnavailableObjectStore(), shared: [valuationModule, documentsModule, financingModule] });
     // Pactlab's OAuth server and the MCP server (T-084), with Pactlab sign-in only.
     const oauthModule =
       deps.emailLogin && deps.mcp
@@ -254,6 +257,7 @@ export class AppModule {
           : []),
         invitations,
         RegulatoryModule,
+        financingModule,
         SaleModule.register(
           invitations,
           {

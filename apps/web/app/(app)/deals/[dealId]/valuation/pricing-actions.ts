@@ -99,3 +99,13 @@ export async function setScenarioCase(dealId: string, scenarioId: string, formDa
   const result = await apiSend('POST', `/v1/deals/${dealId}/valuation/scenarios/${scenarioId}/case`, { scenarioCase: parsed.data });
   back(dealId, result.kind === 'ok' ? 'ok-case' : result.kind);
 }
+
+/** A financing contingency on the buyer's draft (T-117): the financed amount it covers and its date. */
+export async function addFinancingContingency(dealId: string, batchId: string, formData: FormData): Promise<void> {
+  ids(dealId, batchId);
+  const amount = String(formData.get('amount') ?? '').replace(/[,\s]/g, '');
+  const dueOn = String(formData.get('dueOn') ?? '');
+  if (!/^\d{1,18}(\.\d{1,2})?$/.test(amount) || !/^\d{4}-\d{2}-\d{2}$/.test(dueOn)) back(dealId, 'contingency-invalid');
+  const result = await apiSend('POST', `${pricing(dealId)}/terms/${batchId}/financing-contingency`, { amount, dueOn, note: String(formData.get('note') ?? '').slice(0, 1000) });
+  back(dealId, result.kind === 'ok' ? 'ok-contingency' : result.kind === 'conflict' ? 'terms-frozen' : result.kind === 'invalid' ? 'contingency-invalid' : result.kind);
+}
