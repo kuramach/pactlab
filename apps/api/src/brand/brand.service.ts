@@ -13,6 +13,9 @@ import { isLightLogo, sniffLogo } from './image';
 export const BRAND_STORE = Symbol('BRAND_STORE');
 export const BRAND_FETCHER = Symbol('BRAND_FETCHER');
 
+/** Organization-level files keep the stores' `<organization id>/<id>/…` shape: a fresh id per logo. */
+const brandObjectKey = (organizationId: string, kind: 'draft' | 'logo', type: string) =>
+  `${organizationId}/${newId()}/brand-${kind}.${type === 'image/svg+xml' ? 'svg' : type === 'image/png' ? 'png' : 'jpg'}`;
 const sha256 = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex');
 const isAdmin = (tenant: TenantContext) => tenant.organizationRole === 'ORG_OWNER' || tenant.organizationRole === 'ORG_ADMIN';
 type KitRow = NonNullable<Awaited<ReturnType<PrismaClient['organizationBrandKit']['findUnique']>>>;
@@ -126,7 +129,7 @@ export class BrandService {
       const draft = await extractBrand(this.fetcher, websiteUrl);
       let logo: StoredDraft['logo'] = null;
       if (draft.logo) {
-        const objectKey = `${tenant.organizationId}/brand/draft-${newId()}.${draft.logo.type === 'image/svg+xml' ? 'svg' : draft.logo.type === 'image/png' ? 'png' : 'jpg'}`;
+        const objectKey = brandObjectKey(tenant.organizationId, 'draft', draft.logo.type);
         await this.store.put(objectKey, new Uint8Array(draft.logo.bytes), { contentType: draft.logo.type, sha256: sha256(draft.logo.bytes) });
         logo = { objectKey, type: draft.logo.type, width: draft.logo.width, height: draft.logo.height, from: draft.logo.from, light: draft.logo.light };
       }
@@ -140,6 +143,15 @@ export class BrandService {
       );
     } catch (error) {
       this.logger.warn({ organizationId: tenant.organizationId, errorClass: error instanceof Error ? error.name : 'unknown' }, 'brand extraction failed');
+      // Say so where the admin looks, rather than leaving the old suggestions in place.
+      const failed: StoredDraft = { websiteUrl, logo: null, accentColor: null, primaryColor: null, font: 'MANROPE', notes: ['Reading the website did not finish. Fetch again, or upload a logo and pick colors.'], extractedAt: new Date().toISOString() };
+      await withTenant(this.prisma, tenant, (tx) =>
+        tx.organizationBrandKit.upsert({
+          where: { organizationId: tenant.organizationId },
+          create: { organizationId: tenant.organizationId, draft: failed as never, extractedAt: new Date() },
+          update: { draft: failed as never, extractedAt: new Date() },
+        }),
+      ).catch(() => undefined);
     }
   }
 
@@ -189,7 +201,7 @@ export class BrandService {
     if (bytes.length === 0 || bytes.length > LOGO_MAX) throw new UnprocessableEntityException({ code: 'BRAND_LOGO_TOO_LARGE' });
     const sniffed = sniffLogo(bytes);
     if (!sniffed) throw new UnprocessableEntityException({ code: 'BRAND_LOGO_TYPE' });
-    const objectKey = `${tenant.organizationId}/brand/logo-${newId()}.${sniffed.type === 'image/svg+xml' ? 'svg' : sniffed.type === 'image/png' ? 'png' : 'jpg'}`;
+    const objectKey = brandObjectKey(tenant.organizationId, 'logo', sniffed.type);
     await this.store.put(objectKey, new Uint8Array(bytes), { contentType: sniffed.type, sha256: sha256(bytes) });
     const data = { source: 'EDITED', logoObjectKey: objectKey, logoContentType: sniffed.type, logoWidth: sniffed.width, logoHeight: sniffed.height, logoLight: isLightLogo(bytes, sniffed.type), updatedBy: tenant.userId };
     await withTenant(this.prisma, tenant, (tx) => tx.organizationBrandKit.upsert({ where: { organizationId: tenant.organizationId }, create: { organizationId: tenant.organizationId, ...data }, update: { ...data, updatedAt: new Date() } }));

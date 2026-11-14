@@ -180,6 +180,7 @@ async function AboutCard() {
 export default async function SettingsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const billingOutcome = (await searchParams)['billing'];
   const brandOutcome = (await searchParams)['brand'];
+  const brandSince = (await searchParams)['since'];
   const session = await getSessionContext();
   const crumbs = [{ href: '/', label: 'Home' }, { label: 'Settings' }];
   if (session.kind !== 'signed-in') {
@@ -225,7 +226,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
 
       {organization ? <DealStyleCard /> : null}
 
-      {organization && !session.guest ? <BrandCard outcome={typeof brandOutcome === 'string' ? brandOutcome : undefined} /> : null}
+      {organization && !session.guest ? <BrandCard outcome={typeof brandOutcome === 'string' ? brandOutcome : undefined} since={typeof brandSince === 'string' ? brandSince : undefined} /> : null}
 
       {organization && !session.guest ? <IcCard /> : null}
 

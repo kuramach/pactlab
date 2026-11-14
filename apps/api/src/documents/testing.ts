@@ -1,13 +1,13 @@
-import { objectKeyBelongsTo } from '@pactlab/domain';
+import { isUuid, objectKeyBelongsTo } from '@pactlab/domain';
 import type { DocumentObjectStore } from './documents.repository';
 
-/** Object store double that enforces the tenant key prefix like the bucket policy does. */
+/** Object store double that enforces the tenant key shape like the real stores do: `<organization id>/<id>/…`. */
 export class InMemoryObjectStore implements DocumentObjectStore {
   readonly objects = new Map<string, Uint8Array>();
 
   async put(key: string, bytes: Uint8Array) {
     const [organizationId = '', dealId = ''] = key.split('/');
-    if (!objectKeyBelongsTo(key, organizationId, dealId) || key.split('/').length < 3) {
+    if (!isUuid(organizationId) || !isUuid(dealId) || !objectKeyBelongsTo(key, organizationId, dealId) || key.split('/').length < 3) {
       throw new Error('Object keys must be tenant-prefixed');
     }
     this.objects.set(key, bytes);

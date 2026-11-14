@@ -2,12 +2,13 @@ import type { BrandKitView } from '@pactlab/contracts';
 import { BRAND_FONT_LABELS, BRAND_FONTS, PACTLAB_BRAND } from '@pactlab/domain';
 import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle } from '@pactlab/ui';
 import { CopyButton } from '../_lib/copy-button';
+import { BrandFetchWait } from './brand-refresh';
 import { apiGet } from '../deals/_lib/api';
 import { serverEnv } from '../../../lib/env';
 import { applyBrandDraft, fetchBrandAgain, revertBrand, saveBrandKit, saveBrandWebsite, uploadBrandLogo } from './brand-actions';
 
 const OUTCOMES: Record<string, { tone: 'ok' | 'error'; text: string }> = {
-  fetching: { tone: 'ok', text: 'Reading your website. The suggestions appear here in a few seconds: refresh the page to see them.' },
+  fetched: { tone: 'ok', text: 'Here is what we found on your website. Check it below, then apply it or adjust anything.' },
   applied: { tone: 'ok', text: 'The suggestions are applied.' },
   saved: { tone: 'ok', text: 'Saved.' },
   reverted: { tone: 'ok', text: 'Back to the Pactlab look.' },
@@ -15,7 +16,8 @@ const OUTCOMES: Record<string, { tone: 'ok' | 'error'; text: string }> = {
   'logo-missing': { tone: 'error', text: 'Choose a logo file first.' },
   'logo-too-large': { tone: 'error', text: 'That logo is over 512 KB. Use a smaller PNG, JPEG or SVG.' },
   'logo-type': { tone: 'error', text: 'Use a PNG, JPEG or SVG logo.' },
-  error: { tone: 'error', text: 'That did not work. Try again.' },
+  'fetch-failed': { tone: 'error', text: 'We couldn’t read your website just now. That can happen when a site is slow or blocks automated visits. Try “Fetch again” in a minute, or upload your logo and pick your colors below.' },
+  error: { tone: 'error', text: 'Something went wrong on our side and nothing was changed. Please try again in a moment.' },
 };
 
 const SOURCE_LABELS: Record<BrandKitView['source'], string> = { DEFAULT: 'Pactlab look', EXTRACTED: 'From your website', EDITED: 'Set by an administrator' };
@@ -35,11 +37,15 @@ function Swatch({ color, label }: { color: string | null; label: string }) {
  * Settings → Brand (T-123): your logo, colors and font across Pactlab, drafted from your website
  * and reviewed by an owner or admin. Members see the current kit.
  */
-export async function BrandCard({ outcome }: { outcome?: string | undefined }) {
+export async function BrandCard({ outcome, since }: { outcome?: string | undefined; since?: string | undefined }) {
   const result = await apiGet<BrandKitView>('/v1/organization/brand');
   if (result.kind !== 'ok') return null;
   const kit = result.data;
-  const message = outcome ? OUTCOMES[outcome] : undefined;
+  // After "Save and fetch" or "Fetch again": wait for suggestions newer than the request, then say how it went.
+  const waiting = outcome === 'fetching' && Boolean(since) && !(kit.draft && kit.draft.extractedAt >= (since ?? ''));
+  const finished = outcome === 'fetching' && !waiting;
+  const failedFetch = finished && Boolean(kit.draft?.notes.some((note) => note.startsWith('Reading the website did not finish') || note.startsWith('The website could not be read') || note.startsWith('The website answered')));
+  const message = finished ? OUTCOMES[failedFetch ? 'fetch-failed' : 'fetched'] : outcome && outcome !== 'fetching' ? OUTCOMES[outcome] : undefined;
   const signInLink = `${serverEnv().APP_BASE_URL ?? ''}/login/${kit.slug}`;
   return (
     <Card id="brand">
@@ -53,6 +59,7 @@ export async function BrandCard({ outcome }: { outcome?: string | undefined }) {
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-6 text-sm">
+        {waiting ? <BrandFetchWait /> : null}
         {message ? (
           <p role={message.tone === 'error' ? 'alert' : 'status'} className="rounded-md border border-border bg-muted px-3 py-2">
             {message.text}
