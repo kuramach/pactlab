@@ -54,6 +54,8 @@ jobs:
           GRANT pactlab_app TO pactlab_api;
           SQL
       - run: pnpm --filter @pactlab/e2e exec playwright install --with-deps chromium
+      - run: pnpm --filter @pactlab/e2e quarantine:check
+      # Everything but the quarantine: flaky tests are listed in the job summary.
       - run: pnpm test:e2e:full
       - if: failure()
         uses: actions/upload-artifact@v4
