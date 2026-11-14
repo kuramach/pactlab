@@ -10,7 +10,9 @@ import { apiSend } from '../deals/_lib/api';
 /** Settings → Brand (T-123). Every change is checked again by the API (owners and admins only). */
 const done = (outcome?: string) => {
   revalidatePath('/', 'layout');
-  redirect(`/settings${outcome ? `?brand=${outcome}` : ''}#brand`);
+  // A fetch carries when it started, so the page knows which suggestions are new and when to stop waiting.
+  const since = outcome === 'fetching' ? `&since=${encodeURIComponent(new Date().toISOString())}` : '';
+  redirect(`/settings${outcome ? `?brand=${outcome}${since}` : ''}#brand`);
 };
 
 const hex = z

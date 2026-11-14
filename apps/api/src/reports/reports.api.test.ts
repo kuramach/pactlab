@@ -142,7 +142,7 @@ describe('reports', () => {
       pngChunk('IDAT', deflateSync(Buffer.concat([row.subarray(0, 7), row.subarray(0, 7)]))),
       pngChunk('IEND', Buffer.alloc(0)),
     ]);
-    const logoKey = `${org.organization_id}/brand/logo-test.png`;
+    const logoKey = `${org.organization_id}/${org.organization_id}/brand-logo.png`;
     await store.put(logoKey, new Uint8Array(png));
     await db.owner.query(
       `INSERT INTO organization_brand_kits (organization_id, source, logo_object_key, logo_content_type, logo_width, logo_height, accent_color, primary_color, font, updated_at)
