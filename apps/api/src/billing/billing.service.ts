@@ -293,6 +293,7 @@ export class BillingService {
         ...input,
         validFrom: input.validFrom ? new Date(input.validFrom) : null,
         validUntil: input.validUntil ? new Date(input.validUntil) : null,
+      // handled: rethrown, a taken code as a 422 the operator sees
       }).catch((error: unknown) => {
         if (error instanceof OperatorRequiredError) throw error;
         if (/promo_codes_code_key|unique/i.test(String((error as Error).message))) throw new UnprocessableEntityException({ code: 'PROMO_CODE_TAKEN' });

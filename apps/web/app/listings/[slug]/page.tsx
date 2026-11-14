@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic';
 
 const ERRORS: Record<string, string> = {
   details: 'Fill in your name, firm, a valid email address and why you are interested, and agree to the note below the form.',
-  unavailable: 'We could not send your request right now. Try again shortly.',
+  unavailable: 'We couldn’t send the confirmation email just now, so your request was not sent. Please try again in a few minutes.',
 };
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {

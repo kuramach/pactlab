@@ -2115,6 +2115,10 @@ model DealInvitation {
   acceptedAt     DateTime? @map("accepted_at") @db.Timestamptz(3)
   revokedAt      DateTime? @map("revoked_at") @db.Timestamptz(3)
   createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  /// SENT | FAILED (T-125): whether the invitation email went out; null before the send finished
+  emailStatus    String?   @map("email_status")
+  /// SUPPRESSED (the address bounced or complained before) | UNAVAILABLE (email could not be sent)
+  emailProblem   String?   @map("email_problem")
 
   deal Deal @relation(fields: [organizationId, dealId], references: [organizationId, id], onDelete: Restrict, map: "deal_invitations_deal_fkey")
 

@@ -67,6 +67,7 @@ export class EmailLoginService {
     // Not awaited: response time must not reveal whether a code was sent.
     void this.deps.emailSender
       .send(emails.signInCode(normalize(email), code, CODE_TTL_MINUTES))
+      // silent-ok: a sign-in code's reply must not differ by account (no enumeration); the page says what to do when no email arrives
       .catch((error: unknown) => {
         // Never log the code or the address.
         this.logger.error(

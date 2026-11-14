@@ -111,6 +111,7 @@ export class McpService {
     tool('get_deal_summary', 'One pact: its details and the screening verdict (GO / NO_GO) with reasons, if screened.', { dealId }, async (args) => {
       const deal = await this.deals.get(tenant, args.dealId);
       if (!deal) throw Object.assign(new Error('not found'), { getStatus: () => 404 });
+      // handled: a pact not screened yet reads as no verdict, which the tool's answer says
       const screening = await this.phases.screening(tenant, args.dealId, requestId).catch(() => null);
       return { deal, screening };
     }, (args) => args.dealId);

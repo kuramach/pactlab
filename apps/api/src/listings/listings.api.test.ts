@@ -27,7 +27,10 @@ type Body = Record<string, unknown>;
 class CapturingEmailSender implements EmailSender {
   readonly name = 'capture';
   readonly sent: OutboundEmail[] = [];
+  /** Set to make the next sends fail, as when email is down (T-125). */
+  failing = false;
   async send(message: OutboundEmail) {
+    if (this.failing) throw new Error('Email delivery failed (synthetic)');
     this.sent.push(message);
   }
 }
@@ -241,6 +244,17 @@ describe('public deal page (listing)', { timeout: 60_000 }, () => {
     expect(inbox).toEqual([expect.objectContaining({ name: 'Ari Buyer', firm: 'Synthetic Capital', email: 'ari.buyer@example.com', intent: 'FINANCIAL', status: 'NEW' })]);
     const audit = await db.owner.query<{ n: number }>(`SELECT count(*)::int AS n FROM audit_events WHERE deal_id = $1 AND action = 'listing.interest.received'`, [dealId]);
     expect(audit.rows[0]?.n).toBe(1);
+  });
+
+  it('when the confirmation email cannot be sent, the visitor is told, and trying again works (T-125)', async () => {
+    mail.failing = true;
+    const failed = await request('retry@example.com', {}, '203.0.113.9');
+    expect(failed.status).toBe(503);
+    expect(failed.body['code']).toBe('EMAIL_UNAVAILABLE');
+    // Nothing waits for an email that never left: the same address can ask again at once.
+    mail.failing = false;
+    expect(await request('retry@example.com', {}, '203.0.113.9')).toEqual({ status: 202, body: { status: 'CHECK_EMAIL' } });
+    expect(confirmToken('retry@example.com')).toHaveLength(43);
   });
 
   it('approving makes the firm a bidder and invites them under the codename, once', async () => {
