@@ -27,3 +27,4 @@ export * from './code-signals';
 export * from './invitations';
 export * from './listings';
 export * from './signing';
+export * from './brand';

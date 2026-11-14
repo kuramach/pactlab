@@ -19,3 +19,4 @@ export * from './billing';
 export * from './passkeys';
 export * from './ic';
 export * from './loi';
+export * from './brand';

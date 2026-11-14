@@ -59,12 +59,34 @@ export function NavLinks({
   );
 }
 
+/** A branded organization's mark (T-123): its logo, or its name, with "on Pactlab" beneath. */
+export interface ShellBrand {
+  name: string;
+  logoUrl: string | null;
+}
+
+export function OrgMark({ brand, tone }: { brand: ShellBrand; tone: 'light' | 'dark' }) {
+  const dark = tone === 'dark';
+  return (
+    <span className="flex min-w-0 flex-col gap-0.5">
+      {brand.logoUrl ? (
+        <span className={dark ? 'inline-flex w-fit rounded-lg bg-white px-2 py-1' : 'inline-flex w-fit'}>
+          <img src={brand.logoUrl} alt={brand.name} className="h-8 w-auto max-w-[10rem] object-contain" />
+        </span>
+      ) : (
+        <span className="truncate text-lg font-extrabold tracking-tight">{brand.name}</span>
+      )}
+      <span className={cn('text-[0.7rem] font-medium', dark ? 'text-white/55' : 'text-muted-foreground')}>on Pactlab</span>
+    </span>
+  );
+}
+
 /** Left sidebar: logo (always back to Home), main menu, active organization. */
-export function Sidebar({ sections, organizationName }: { sections: readonly NavSection[]; organizationName: string | null }) {
+export function Sidebar({ sections, organizationName, brand = null }: { sections: readonly NavSection[]; organizationName: string | null; brand?: ShellBrand | null }) {
   return (
     <div className="flex h-full flex-col">
-      <Link href="/" className="flex h-20 items-center border-b border-white/10 px-5" aria-label="Pactlab home">
-        <PactlabLockup tone="onDark" />
+      <Link href="/" className="flex h-20 items-center border-b border-white/10 px-5" aria-label={brand ? `${brand.name} home` : 'Pactlab home'}>
+        {brand ? <OrgMark brand={brand} tone="dark" /> : <PactlabLockup tone="onDark" />}
       </Link>
       <div className="flex-1 overflow-y-auto px-3 py-6">
         <NavLinks sections={sections} tone="dark" />

@@ -5,7 +5,7 @@ import type { NavSection } from '../../../lib/navigation';
 import type { SessionContext } from '../../../lib/session';
 import { signOut } from '../../_actions/sign-out';
 import { Dropdown } from './dropdown';
-import { NavLinks } from './sidebar';
+import { NavLinks, OrgMark, type ShellBrand } from './sidebar';
 
 const menuItem = 'flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm hover:bg-muted';
 
@@ -18,7 +18,7 @@ function initials(name: string): string {
  * Global actions, always top right: Start a Pact, Settings and the account
  * menu. On small screens the main menu folds into a button here.
  */
-export function Topbar({ session, sections }: { session: SessionContext; sections: readonly NavSection[] }) {
+export function Topbar({ session, sections, brand = null }: { session: SessionContext; sections: readonly NavSection[]; brand?: ShellBrand | null }) {
   return (
     <div className="flex h-16 items-center justify-between gap-3 px-4 sm:px-6 lg:px-10">
       <div className="flex items-center gap-3 lg:hidden">
@@ -27,8 +27,8 @@ export function Topbar({ session, sections }: { session: SessionContext; section
             <NavLinks sections={sections} />
           </div>
         </Dropdown>
-        <Link href="/" aria-label="Pactlab home">
-          <PactlabLockup withTagline={false} />
+        <Link href="/" aria-label={brand ? `${brand.name} home` : 'Pactlab home'}>
+          {brand ? <OrgMark brand={brand} tone="light" /> : <PactlabLockup withTagline={false} />}
         </Link>
       </div>
       {/* The organization lives in the sidebar (with Switch organization) and the account menu; the top bar stays for actions. */}

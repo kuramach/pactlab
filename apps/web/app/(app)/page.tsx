@@ -1,4 +1,5 @@
 import { Badge, buttonVariants, Card, CardContent, CardHeader, CardTitle, EmptyState, Glossed, IconTile, PageHeader, Section, Stat } from '@pactlab/ui';
+import { BrandPrompt } from './_lib/brand-prompt';
 import { Activity, ArrowRight, Briefcase, Building2, Compass, Plus, Scale, Search } from 'lucide-react';
 import Link from 'next/link';
 import { getSessionContext } from '../../lib/session';
@@ -74,6 +75,8 @@ export default async function HomePage() {
           </Link>
         }
       />
+
+      {session.guest ? null : <BrandPrompt />}
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Stat label="My deals" value={items.length} icon={<Briefcase />} accent="indigo" />
