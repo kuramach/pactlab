@@ -102,7 +102,10 @@ jobs:
           CREATE ROLE pactlab_api LOGIN PASSWORD 'pactlab_api_ci' NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS NOINHERIT;
           GRANT pactlab_app TO pactlab_api;
           SQL
+      # The quarantine register is sound: every quarantined test has an owner and a date not yet passed (T-113).
+      - run: pnpm --filter @pactlab/e2e quarantine:check
       - run: pnpm --filter @pactlab/e2e exec playwright install --with-deps chromium
+      # The gating suite: quarantined and @slow tests excluded. Flaky tests are listed in the job summary.
       - run: pnpm test:e2e
       - if: failure()
         uses: actions/upload-artifact@v4
@@ -112,3 +115,58 @@ jobs:
             apps/e2e/playwright-report/
             apps/e2e/test-results/
           retention-days: 7
+
+  # Quarantined tests keep running, outside the gate (T-113): never blocks a merge, and skips
+  # the build entirely while the quarantine is empty.
+  e2e-quarantine:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: pactlab_owner
+          POSTGRES_PASSWORD: pactlab_owner_ci
+          POSTGRES_DB: pactlab
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U pactlab_owner -d pactlab"
+          --health-interval 2s --health-timeout 3s --health-retries 30
+      redis:
+        image: redis:7.4-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 2s --health-timeout 3s --health-retries 30
+    env:
+      E2E_DATABASE_MIGRATION_URL: postgresql://pactlab_owner:pactlab_owner_ci@localhost:5432/pactlab
+      E2E_DATABASE_URL: postgresql://pactlab_api:pactlab_api_ci@localhost:5432/pactlab
+      E2E_REDIS_URL: redis://localhost:6379
+    steps:
+      - uses: actions/checkout@v4
+      - name: Anything quarantined?
+        id: quarantine
+        run: echo "count=$(node -e "console.log(require('./apps/e2e/quarantine.json').tests.length)")" >> "$GITHUB_OUTPUT"
+      - if: steps.quarantine.outputs.count != '0'
+        uses: pnpm/action-setup@v4
+      - if: steps.quarantine.outputs.count != '0'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - if: steps.quarantine.outputs.count != '0'
+        run: pnpm install --frozen-lockfile
+      - if: steps.quarantine.outputs.count != '0'
+        name: Provision runtime database roles (CI only)
+        run: |
+          psql "$E2E_DATABASE_MIGRATION_URL" -v ON_ERROR_STOP=1 <<'SQL'
+          CREATE ROLE pactlab_app NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS;
+          CREATE ROLE pactlab_api LOGIN PASSWORD 'pactlab_api_ci' NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS NOINHERIT;
+          GRANT pactlab_app TO pactlab_api;
+          SQL
+      - if: steps.quarantine.outputs.count != '0'
+        run: pnpm --filter @pactlab/e2e exec playwright install --with-deps chromium
+      - if: steps.quarantine.outputs.count != '0'
+        run: pnpm --filter @pactlab/e2e test:e2e:quarantine

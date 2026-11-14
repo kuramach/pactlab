@@ -4,10 +4,13 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test:e2e": "playwright test --grep-invert @slow",
+    "test:e2e": "playwright test --grep-invert '@slow|@quarantine'",
     "typecheck": "tsc -p tsconfig.json",
     "lint": "eslint .",
-    "test:e2e:full": "playwright test"
+    "test:e2e:full": "playwright test --grep-invert @quarantine",
+    "test:e2e:quarantine": "playwright test --grep @quarantine --pass-with-no-tests",
+    "quarantine:check": "tsx support/check-quarantine.ts",
+    "flaky:history": "tsx support/flaky-history.ts"
   },
   "devDependencies": {
     "@pactlab/config": "workspace:*",
