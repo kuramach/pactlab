@@ -12,17 +12,26 @@ const ci = Boolean(process.env['CI']);
 export default defineConfig({
   testDir: '.',
   testMatch: ['specs/**/*.spec.ts', 'support/*.setup.ts'],
+  // One worker: every spec writes to the one e2e database through the one API (T-113 part 2 isolates
+  // the data per test, which is what would let this go to 2).
   fullyParallel: false,
   workers: 1,
   forbidOnly: ci,
-  retries: ci ? 1 : 0,
+  // Retries only in CI, and only to tell a flaky test from a broken one: every pass on retry is
+  // reported (support/flaky-reporter.ts) and must be quarantined or fixed (QUARANTINE.md, T-113).
+  retries: ci ? 2 : 0,
   timeout: 60_000,
   expect: { timeout: 15_000 },
-  reporter: ci ? [['list'], ['html', { open: 'never' }]] : [['list']],
+  reporter: ci ? [['list'], ['html', { open: 'never' }], ['./support/flaky-reporter.ts']] : [['list'], ['./support/flaky-reporter.ts']],
   use: {
     baseURL: WEB_ORIGIN,
-    trace: 'retain-on-failure',
+    // Evidence only when it is needed: a trace on the first retry, a screenshot and video of a failure.
+    trace: 'on-first-retry',
     screenshot: 'only-on-failure',
+    video: 'retain-on-failure',
+    // Pinned, so a run never depends on the machine it runs on.
+    timezoneId: 'UTC',
+    locale: 'en-US',
   },
   projects: [
     { name: 'setup', testMatch: 'support/*.setup.ts' },

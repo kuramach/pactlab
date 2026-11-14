@@ -1,0 +1,4 @@
+{
+  "$comment": "Flaky tests out of the gating suite (T-113, CLAUDE.md 'Flaky means quarantined'). Tag the test { tag: '@quarantine' } and list it here with an owner and a fix-or-delete date at most 10 working days out. At most 8 at once. `pnpm --filter @pactlab/e2e quarantine:check` enforces this in CI.",
+  "tests": []
+}
