@@ -38,5 +38,11 @@ promoting dev → qa → stage → production, nightly, or on demand — not on 
 - **In CI:** Chromium on Linux, one worker, two retries (only to tell flaky from broken), a trace on the first retry, screenshots and video on failure, and timezone and locale pinned to UTC and en-US. Reports and traces are uploaded only on failure.
 - **Flaky tests:** every pass on retry is listed in the job summary and must be quarantined or fixed that day. See [QUARANTINE.md](QUARANTINE.md).
 
+## Writing a spec (enforced by lint)
+
+- **Locators a person would use:** `getByRole`, then `getByLabel` / `getByText`, then `getByTestId` as a last resort. No CSS classes, no XPath.
+- **Never wait for time:** use web-first assertions (`expect(locator).toBeVisible()`, `toHaveText`, `toHaveURL`). No `waitForTimeout`, no `networkidle`, and no non-retrying `isVisible()` / `isEnabled()` checks. When a page can be in one of two states, wait on `a.or(b)` first.
+- **Burn-in:** a new or fixed spec runs `pnpm --filter @pactlab/e2e test:e2e:burn-in specs/<file>` (20 repeats, no retries) and passes every time before it joins the gate.
+
 Every spec starts its own Pact through the wizard, so specs never share state.
 Add a spec for every bug a manual test finds before fixing it.
