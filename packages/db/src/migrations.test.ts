@@ -70,4 +70,29 @@ describe('migrations', () => {
     await expect(db.exec(`UPDATE report_versions SET version = 9 WHERE scope = 'EXECUTIVE'`)).rejects.toThrow(/is final/);
     await db.close();
   }, 120_000);
+
+  it('re-runs the IC migration over a database where a first attempt stopped part-way (live, 2026-11-14)', async () => {
+    const db = await PGlite.create();
+    const ic = migrations.indexOf('20261204000000_investment_committee');
+    for (const name of migrations.slice(0, ic)) await db.exec(sql(name));
+    // What the first live attempt left behind: its opening statements, applied one by one, no transaction.
+    await db.exec(`
+      ALTER TYPE "deal_role" ADD VALUE IF NOT EXISTS 'INVESTMENT_COMMITTEE';
+      ALTER TABLE "organization_memberships" ADD COLUMN "investment_committee" BOOLEAN NOT NULL DEFAULT false;
+      ALTER TABLE "organizations" ADD COLUMN "ic_approval_required" BOOLEAN NOT NULL DEFAULT false, ADD COLUMN "ic_clears_conditions" BOOLEAN NOT NULL DEFAULT false;
+      ALTER TABLE "deals" ADD COLUMN "ic_approval_required" BOOLEAN;
+      ALTER TABLE "report_versions" DROP CONSTRAINT "report_versions_scope";
+      ALTER TABLE "report_versions" ADD CONSTRAINT "report_versions_scope" CHECK (("scope" = 'EXECUTIVE' AND "deal_id" IS NULL) OR ("scope" IN ('PACT', 'IC') AND "deal_id" IS NOT NULL));
+      ALTER TABLE "report_versions" ADD COLUMN "own_side" BOOLEAN NOT NULL DEFAULT false;
+    `);
+    // The fixed file applies over that, and again over itself, and every later migration follows.
+    await db.exec(sql('20261204000000_investment_committee'));
+    await db.exec(sql('20261204000000_investment_committee'));
+    for (const name of migrations.slice(ic + 1)) await db.exec(sql(name));
+    const tables = await db.query<{ n: number }>(`SELECT count(*)::int AS n FROM pg_tables WHERE tablename IN ('ic_submissions', 'ic_decisions', 'ic_conditions')`);
+    expect(tables.rows[0]?.n).toBe(3);
+    const triggers = await db.query<{ n: number }>(`SELECT count(*)::int AS n FROM pg_trigger WHERE tgname IN ('report_versions_own_side', 'ic_submissions_immutable', 'ic_decisions_immutable', 'ic_conditions_forward')`);
+    expect(triggers.rows[0]?.n).toBe(4);
+    await db.close();
+  }, 120_000);
 });
