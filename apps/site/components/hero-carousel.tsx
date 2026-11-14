@@ -23,11 +23,14 @@ export function HeroCarousel({
   slides,
   cta,
   allPacts,
+  positioning,
 }: {
   slides: readonly Slide[];
   cta: { href: string; label: string } | null;
   /** Ends the pact buttons: the slider features a few pacts, this link reaches the rest. */
   allPacts?: { href: string; label: string };
+  /** Who it is for and what it does (T-120): fixed above the slides, so the first screen always says it. */
+  positioning?: { eyebrow: string; line: string };
 }) {
   const [index, setIndex] = useState(0);
   const [playing, setPlaying] = useState(true);
@@ -71,6 +74,12 @@ export function HeroCarousel({
     >
       <div aria-hidden className="pointer-events-none absolute -right-40 -top-40 h-[32rem] w-[32rem] rounded-full bg-indigo/20 blur-3xl" />
       <div className="relative mx-auto max-w-6xl px-6 pb-10 pt-14 md:pt-20">
+        {positioning ? (
+          <div className="mb-8 flex max-w-3xl flex-col gap-2 border-b border-white/10 pb-6">
+            <p className="text-xs font-bold uppercase tracking-widest text-indigo">{positioning.eyebrow}</p>
+            <p className="text-lg font-semibold leading-snug text-white/90 md:text-xl">{positioning.line}</p>
+          </div>
+        ) : null}
         <div aria-live={playing && !held ? 'off' : 'polite'}>
           {slides.map((slide, position) => {
             const active = position === index;

@@ -172,4 +172,63 @@ export const emails = {
       },
     };
   },
+
+  /**
+   * A shared demo (T-113), sent from the admin console: what Pactlab is, which link to open, what to
+   * try first, how long it stays open and whom to ask. No sign-up; the links are the access.
+   */
+  demoInvite(
+    to: string,
+    invite: { recipientName: string | null; sharerName: string; sharerEmail: string | null; note: string | null; buyerUrl: string; sellerUrl: string; endsAt: Date },
+  ): OutboundEmail {
+    const until = `${invite.endsAt.toISOString().slice(0, 16).replace('T', ' ')} UTC`;
+    const greeting = invite.recipientName ? `Hi ${invite.recipientName},` : 'Hello,';
+    const about =
+      'Pactlab is the deal platform for private equity and corporate development: diligence, valuation, terms and closing in one place, with every number traced to its source and every decision made by a person.';
+    const synthetic = 'This demo is a full copy of Pactlab filled with synthetic deals. Every company, person and figure is invented, so click anything and change what you like.';
+    const buyer = 'Start here: the deal team’s view — findings with their evidence, the valuation (Sextant), terms, the investment committee and closing.';
+    const seller = 'The same deals from the company being acquired: what the buyer shares with you, and what stays private to them.';
+    const tryFirst = [
+      'Open a pact and press “Take the tour” at the top: it walks you through the deal step by step.',
+      'Findings: open one and follow it back to the document, row or commit behind it.',
+      'Valuation → Scenarios and bridge: see how accepted risks move the price.',
+      'Proposed terms and Closing: the counter-offer, sign-off and funds confirmation.',
+      'Reports: download the pact report as a PDF.',
+    ];
+    const contact = invite.sharerEmail ? `Questions: reply to ${invite.sharerName} at ${invite.sharerEmail}.` : `Questions: reply to ${invite.sharerName}.`;
+    const footnote = `No sign-up needed. The links work until ${until}; then the demo resets to its original data. Sending emails, e-signature and billing are switched off in the demo. ${contact}`;
+    return {
+      to,
+      subject: `${invite.sharerName} shared a Pactlab demo with you`,
+      text: [
+        greeting,
+        '',
+        ...(invite.note ? [invite.note, ''] : []),
+        about,
+        synthetic,
+        '',
+        `Open as the buyer: ${invite.buyerUrl}`,
+        buyer,
+        '',
+        `Open as the seller: ${invite.sellerUrl}`,
+        seller,
+        '',
+        'In ten minutes, try:',
+        ...tryFirst.map((item, index) => `${index + 1}. ${item}`),
+        '',
+        footnote,
+      ].join('\n'),
+      content: {
+        heading: 'Your Pactlab demo is ready',
+        paragraphs: [greeting, ...(invite.note ? [invite.note] : []), about, synthetic],
+        links: [
+          { label: 'Open as the buyer', url: invite.buyerUrl, detail: buyer },
+          { label: 'Open as the seller', url: invite.sellerUrl, detail: seller },
+        ],
+        list: { heading: 'In ten minutes, try', items: tryFirst },
+        footnote,
+        reason: `You received this email because ${invite.sharerName} at Pactlab shared a demo with you.`,
+      },
+    };
+  },
 };

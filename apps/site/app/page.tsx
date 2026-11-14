@@ -5,7 +5,7 @@ import { IconTile, ModuleMark } from '../components/icon';
 import { Lockup } from '../components/lockup';
 import { siteConfig } from '../lib/config';
 import { isPublishedHref } from '../lib/industry-stories';
-import { CLOSING, FOUNDER, HOME, MODULES, NAME_STORY, PACT_CARDS, PILLAR, PRINCIPLES, STORY, TAGLINE, FEATURED_PACTS, heroSlides, MAX_FEATURED_PACTS, pactSlide } from '../lib/content';
+import { CLOSING, FEATURED_PACTS, FOUNDER, heroSlides, HOME, MAX_FEATURED_PACTS, MODULES, NAME_STORY, PACT_CARDS, pactSlide, PILLAR, POSITIONING, PRINCIPLES, STORY, TAGLINE } from '../lib/content';
 import { Demos } from './demos';
 import { jsonLdScript, pageMetadata, softwareApplicationJsonLd } from '../lib/seo';
 
@@ -42,7 +42,7 @@ export default function HomePage() {
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdScript(softwareApplicationJsonLd()) }} />
-      <HeroCarousel slides={SLIDES} allPacts={ALL_PACTS} cta={contactHref ? { href: contactHref, label: 'Request a pilot' } : null} />
+      <HeroCarousel slides={SLIDES} allPacts={ALL_PACTS} positioning={{ eyebrow: HOME.eyebrow, line: POSITIONING }} cta={contactHref ? { href: contactHref, label: 'Request a pilot' } : null} />
 
       {/* Value proposition */}
       <section aria-labelledby="value-title" className="bg-white">

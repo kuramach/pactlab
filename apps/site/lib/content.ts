@@ -9,7 +9,10 @@ import type { IconName } from './icons';
 export type { IconName };
 
 export const TAGLINE = 'AI rigor. Human judgment.';
-export const DESCRIPTOR = 'Diligence for mergers and acquisitions';
+/** Who it is for and what it is (T-120, Kumar 2026-11-11): audience, category and scope, everywhere the positioning appears. */
+export const DESCRIPTOR = 'The deal platform for private equity and corporate development';
+export const POSITIONING =
+  'The deal platform for private equity and corporate development: manage and execute acquisitions end to end, with diligence, valuation, terms and closing in one place.';
 export const STORY = 'A pact is a promise. A lab is where promises get tested.';
 
 export interface Feature {
@@ -20,10 +23,8 @@ export interface Feature {
 
 export const HOME = {
   title: TAGLINE,
-  eyebrow: DESCRIPTOR,
-  body:
-    'Pactlab reconciles the revenue, reads the code and delivery history, cites the contracts and prices what it finds. ' +
-    'Every number traces back to its source. Every conclusion is signed off by a person.',
+  eyebrow: 'Deal management and execution for private equity and corporate development',
+  body: `${POSITIONING} Every number traces back to its source. Every conclusion is signed off by a person.`,
 };
 
 /** The decision loop, end to end. Identical for every industry. */
@@ -864,6 +865,7 @@ export const NAV = [
   { href: '/case-studies', label: 'Case studies' },
   { href: '/trust', label: 'Trust' },
   { href: '/pricing', label: 'Pricing' },
+  { href: '/try', label: 'Try it' },
   { href: '/about', label: 'About' },
   { href: '/pilot', label: 'Pilot' },
 ] as const;
@@ -882,11 +884,9 @@ export const BANNED_WORDS = ['revolutionary', 'game-changing', 'game changing', 
 export const PILLAR = 'AI diligence. Human instinct.';
 
 export const HERO = {
-  eyebrow: 'Diligence for software and SaaS acquisitions',
+  eyebrow: 'Deal management and execution for private equity and corporate development',
   title: TAGLINE,
-  body:
-    'Pactlab reconciles the revenue, reads the code history and the contracts, and prices what it finds. ' +
-    'Every number traces back to its source. Every conclusion is signed off by a person.',
+  body: `${POSITIONING} Every number traces back to its source. Every conclusion is signed off by a person.`,
 };
 
 export const LOOP = {

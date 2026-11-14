@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { TRY_PACKS } from './try';
 import { DESCRIPTOR, HOME, INDUSTRY_CORE, MODULES, PILOT, PLANS, PRICING, TAGLINE, TRUST } from './content';
 import { COMPARISONS, FAQS, GUIDES } from './answers';
 import { CASE_STUDIES } from './cases';
@@ -32,6 +33,8 @@ export const SITE_ROUTES: readonly string[] = [
   ...COMPARISONS.map((comparison) => `/compare/${comparison.slug}`),
   '/trust',
   '/pricing',
+  '/try',
+  ...TRY_PACKS.map((pack) => `/try/${pack.slug}`),
   '/pilot',
   '/about',
   '/about/story',
@@ -128,9 +131,10 @@ export function llmsText(): string {
   const lines = [
     '# Pactlab',
     '',
-    `> ${DESCRIPTOR}. ${TAGLINE} ${HOME.body}`,
+    // The positioning first (T-120): who it is for and that it runs the whole deal.
+    `> ${HOME.body} ${TAGLINE}`,
     '',
-    'Pactlab serves acquirers and their advisors testing a deal before they sign it, and founders preparing a raise (Venture Raise) who want to see what an investor will find first. ' +
+    'Pactlab serves private equity firms, corporate development teams and their advisors running a deal from first look to close, and founders preparing a raise (Venture Raise) who want to see what an investor will find first. ' +
       'It runs one decision loop: source evidence, reviewable findings with citations, explicit assumptions, valuation scenarios, proposed deal terms. ' +
       'Calculations are deterministic and every finding is accepted or rejected by a named person.',
     '',
@@ -166,6 +170,7 @@ export function llmsText(): string {
     '',
     `- [How it works](${absolute('/how-it-works')}): from source evidence to deal terms, with a person deciding at every step that matters.`,
     `- [Trust](${absolute('/trust')}): ${TRUST.intro}`,
+    `- [Try it with synthetic data](${absolute('/try')}): pick a pact (${TRY_PACKS.map((pack) => pack.name).join(', ')}), download a synthetic data room and extracts, and follow the steps.`,
     `- [Pricing](${absolute('/pricing')}): ${PRICING.title} ${PLANS.map((plan) => `${plan.name}: ${plan.price ? `${plan.price} ${plan.cadence}` : 'talk to us'}`).join('; ')}. Counterparty guests are free.`,
     `- [Pilot](${absolute('/pilot')}): ${PILOT.body}`,
     `- [About](${absolute('/about')}): why the company is called Pactlab, its story and its vision.`,

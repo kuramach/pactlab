@@ -22,7 +22,19 @@ function routeExists(href: string): boolean {
 describe('brand voice', () => {
   it('uses the chosen tagline and descriptor', () => {
     expect(content.TAGLINE).toBe('AI rigor. Human judgment.');
-    expect(content.DESCRIPTOR).toBe('Diligence for mergers and acquisitions');
+    expect(content.DESCRIPTOR).toBe('The deal platform for private equity and corporate development');
+  });
+
+  it('says who it is for and that it runs the whole deal, first, wherever it is positioned (T-120)', () => {
+    for (const copy of [content.HOME.eyebrow, content.HERO.eyebrow, content.POSITIONING]) {
+      expect(copy.toLowerCase()).toContain('private equity');
+      expect(copy.toLowerCase()).toContain('corporate development');
+    }
+    for (const copy of [content.HOME.body, content.HERO.body]) {
+      expect(copy.startsWith(content.POSITIONING)).toBe(true);
+      for (const stage of ['diligence', 'valuation', 'terms', 'closing']) expect(copy).toContain(stage);
+    }
+    expect(JSON.stringify([content.HOME, content.HERO])).not.toMatch(/software and saas acquisitions/i);
   });
 
   it('never uses banned pitch-deck words', () => {
@@ -289,5 +301,19 @@ describe('new features and pricing (2026-11-09)', () => {
     expect(content.PLANS.find((plan) => plan.id === 'team')!.cadence).toContain('$18,000');
     expect(content.NAV.map((item) => item.href)).toContain('/pricing');
     expect(routeExists('/pricing')).toBe(true);
+  });
+});
+
+describe('try it with synthetic data (2026-11-13)', async () => {
+  const { TRY_PACKS, trySteps } = await import('./try');
+  it('offers every published pack, with its data room and one extract per import target, at the pinned demo data', () => {
+    expect(TRY_PACKS.map((pack) => pack.slug)).toEqual(PUBLISHED_INDUSTRIES.map((industry) => industry.slug));
+    for (const pack of TRY_PACKS) {
+      expect(pack.dataRoomUrl).toMatch(new RegExp(`^https://raw\\.githubusercontent\\.com/kuramach/pactlab-demo-data/[0-9a-f]{40}/${pack.slug}/USD/dataroom\\.zip$`));
+      expect(pack.extracts.length, pack.slug).toBeGreaterThan(0);
+      expect(trySteps(pack).length).toBeGreaterThanOrEqual(6);
+      expect(routeExists(`/try/${pack.slug}`) || existsSync(join(APP, 'try', '[slug]', 'page.tsx'))).toBe(true);
+    }
+    expect(content.NAV.map((item) => item.href)).toContain('/try');
   });
 });

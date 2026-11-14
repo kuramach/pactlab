@@ -1,9 +1,10 @@
 import { ConflictException, ForbiddenException, Inject, Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import type { BugReportDetailView, BugReportSummaryView, FileBugReportInput, MyBugReportView, TriageBugInput } from '@pactlab/contracts';
-import { demoShares, NoDemoSlotFreeError, OperatorRequiredError, operatorOps, prismaExecutor, type BugListRow, type DemoShareHours, type MyBugRow, type PrismaClient, type SqlExecutor } from '@pactlab/db';
+import { demoShares, NoDemoSlotFreeError, OperatorRequiredError, operatorOps, prismaExecutor, withTenant, type BugListRow, type DemoShareHours, type MyBugRow, type PrismaClient, type SqlExecutor } from '@pactlab/db';
 import { bugFingerprint, bugReference, scrubContext, type TenantContext } from '@pactlab/domain';
 import type { EmailSender } from '../email-login/email-sender';
 import { demoTokenHash, newDemoToken } from '../demo-links/demo-links';
+import { emails } from '../email-login/emails';
 import { decide, listPending } from '../ops/organizations';
 import { PRISMA } from '../tokens';
 
@@ -62,7 +63,7 @@ export class AdminService {
   private readonly sql: SqlExecutor;
 
   constructor(
-    @Inject(PRISMA) prisma: PrismaClient,
+    @Inject(PRISMA) private readonly prisma: PrismaClient,
     @Inject(ADMIN_SETTINGS) private readonly settings: AdminSettings,
   ) {
     this.sql = prismaExecutor(prisma);
@@ -91,14 +92,35 @@ export class AdminService {
   }
 
   /** Lend a free demo: the two links are returned this once; only their hashes are kept. */
-  shareDemo(tenant: TenantContext, input: { sharedWith: string; hours: DemoShareHours }) {
+  shareDemo(tenant: TenantContext, input: { sharedWith: string; hours: DemoShareHours; recipientEmail?: string | null; recipientName?: string | null; note?: string | null }) {
     return this.asOperator(async () => {
       const buyer = newDemoToken();
       const seller = newDemoToken();
       try {
         const share = await demoShares.share(this.sql, tenant.userId, { sharedWith: input.sharedWith, hours: input.hours, buyerTokenHash: demoTokenHash(buyer), sellerTokenHash: demoTokenHash(seller) });
         const link = (token: string) => new URL(`/demo/${token}`, this.settings.loginUrl).toString();
-        return { ...share, endsAt: share.endsAt.toISOString(), buyerUrl: link(buyer), sellerUrl: link(seller) };
+        const sharer = await withTenant(this.prisma, tenant, (tx) => tx.user.findUnique({ where: { id: tenant.userId }, select: { displayName: true, email: true } }));
+        const message = emails.demoInvite(input.recipientEmail ?? '', {
+          recipientName: input.recipientName ?? null,
+          sharerName: sharer?.displayName ?? 'The Pactlab team',
+          sharerEmail: sharer?.email ?? null,
+          note: input.note ?? null,
+          buyerUrl: link(buyer),
+          sellerUrl: link(seller),
+          endsAt: share.endsAt,
+        });
+        // Sent by Pactlab when an address is given; the same message comes back to paste into your own email either way.
+        let emailed: 'SENT' | 'NOT_REQUESTED' | 'NO_SENDER' | 'FAILED' = 'NOT_REQUESTED';
+        if (input.recipientEmail) {
+          if (!this.settings.emailSender) emailed = 'NO_SENDER';
+          else {
+            emailed = await this.settings.emailSender.send(message).then(
+              () => 'SENT' as const,
+              () => 'FAILED' as const,
+            );
+          }
+        }
+        return { ...share, endsAt: share.endsAt.toISOString(), buyerUrl: link(buyer), sellerUrl: link(seller), emailed, inviteText: { subject: message.subject, body: message.text } };
       } catch (error) {
         if (error instanceof NoDemoSlotFreeError) throw new ConflictException({ code: 'NO_SLOT_FREE' });
         throw error;

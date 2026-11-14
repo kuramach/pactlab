@@ -15,6 +15,12 @@ export interface EmailContent {
   readonly action?: { readonly label: string; readonly url: string };
   /** Small print under the body. */
   readonly footnote?: string;
+  /** Several links, each a button with a line saying what it opens (e.g. a demo's buyer and seller views). */
+  readonly links?: readonly { readonly label: string; readonly url: string; readonly detail: string }[];
+  /** A short list under its own heading (e.g. what to try first). */
+  readonly list?: { readonly heading: string; readonly items: readonly string[] };
+  /** Why the person received this email; defaults to an action on their own account. */
+  readonly reason?: string;
 }
 
 /** A message: plain text always, and HTML when it is branded. Bodies may carry one-time codes: never log them. */

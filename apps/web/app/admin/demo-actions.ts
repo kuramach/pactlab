@@ -7,18 +7,25 @@ import { apiPost } from '../(app)/deals/_lib/api';
 
 export type DemoShareState =
   | { kind: 'idle' }
-  | { kind: 'shared'; slot: number; endsAt: string; buyerUrl: string; sellerUrl: string; sharedWith: string }
+  | { kind: 'shared'; slot: number; endsAt: string; buyerUrl: string; sellerUrl: string; sharedWith: string; emailed: 'SENT' | 'NOT_REQUESTED' | 'NO_SENDER' | 'FAILED'; recipientEmail: string | null; inviteText: { subject: string; body: string } }
   | { kind: 'error'; message: string };
 
-const shareSchema = z.strictObject({ sharedWith: z.string().trim().min(1).max(200), hours: z.coerce.number().pipe(z.union([z.literal(24), z.literal(72), z.literal(168)])) });
+const shareSchema = z.strictObject({
+  sharedWith: z.string().trim().min(1).max(200),
+  hours: z.coerce.number().pipe(z.union([z.literal(24), z.literal(72), z.literal(168)])),
+  recipientEmail: z.string().trim().max(320),
+  recipientName: z.string().trim().max(120),
+  note: z.string().trim().max(1000),
+});
 
 /** Lend a free demo (T-113). The two links come back this once; Pactlab keeps only their hashes. */
 export async function shareDemo(_previous: DemoShareState, formData: FormData): Promise<DemoShareState> {
-  const parsed = shareSchema.safeParse({ sharedWith: formData.get('sharedWith'), hours: formData.get('hours') });
+  const parsed = shareSchema.safeParse({ sharedWith: formData.get('sharedWith'), hours: formData.get('hours'), recipientEmail: formData.get('recipientEmail') ?? '', recipientName: formData.get('recipientName') ?? '', note: formData.get('note') ?? '' });
   if (!parsed.success) return { kind: 'error', message: 'Say who the demo is for, and pick how long.' };
-  const result = await apiPost<{ slot: number; endsAt: string; buyerUrl: string; sellerUrl: string }>('/v1/admin/demos', parsed.data);
+  if (parsed.data.recipientEmail && !z.email().safeParse(parsed.data.recipientEmail).success) return { kind: 'error', message: 'That email address does not look right.' };
+  const result = await apiPost<{ slot: number; endsAt: string; buyerUrl: string; sellerUrl: string; emailed: 'SENT' | 'NOT_REQUESTED' | 'NO_SENDER' | 'FAILED'; inviteText: { subject: string; body: string } }>('/v1/admin/demos', parsed.data);
   revalidatePath('/admin');
-  if (result.kind === 'ok') return { kind: 'shared', ...result.data, sharedWith: parsed.data.sharedWith };
+  if (result.kind === 'ok') return { kind: 'shared', ...result.data, sharedWith: parsed.data.sharedWith, recipientEmail: parsed.data.recipientEmail || null };
   if (result.kind === 'conflict') return { kind: 'error', message: 'All five demos are out or being reset. End one, or wait for a reset (up to 15 minutes).' };
   return { kind: 'error', message: 'The demo could not be shared. Try again.' };
 }
