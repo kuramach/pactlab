@@ -167,11 +167,16 @@ export const apiEnvSchema = baseEnvSchema.extend({
   EMAIL_PROVIDER: unsetIfBlank(z.enum(['ses']).optional()),
   /** Sender for SES, e.g. `Pactlab <no-reply@pactlab.ai>`; must be a verified identity. */
   EMAIL_FROM: unsetIfBlank(nonEmpty.optional()),
+  /** SES configuration set every send names, so its bounce/complaint events reach this environment (T-109). */
+  EMAIL_CONFIGURATION_SET: unsetIfBlank(z.string().regex(/^[A-Za-z0-9_-]{1,64}$/).optional()),
+  /** The SNS topic those events arrive on; notifications from any other topic are refused. */
+  EMAIL_EVENTS_TOPIC_ARN: unsetIfBlank(z.string().regex(/^arn:aws[a-z-]*:sns:[a-z0-9-]+:\d{12}:[A-Za-z0-9_-]{1,256}$/).optional()),
 })
   .superRefine(allOrNone(['AUTH0_DOMAIN', 'AUTH0_AUDIENCE']))
   .superRefine(allOrNone(['LOCAL_SECRETS_DIR', 'LOCAL_SECRETS_KEY']))
   .superRefine(allOrNone(['GITHUB_APP_ID', 'GITHUB_APP_SLUG', 'GITHUB_APP_PRIVATE_KEY_PATH']))
   .superRefine(allOrNone(['DOCUSIGN_INTEGRATION_KEY', 'DOCUSIGN_CLIENT_SECRET', 'DOCUSIGN_AUTH_HOST', 'DOCUSIGN_CONNECT_HMAC_KEY']))
+  .superRefine(allOrNone(['EMAIL_CONFIGURATION_SET', 'EMAIL_EVENTS_TOPIC_ARN']))
   .superRefine((value, context) => {
     if (value.AI_PROVIDER === 'bedrock' && !value.AWS_REGION) {
       context.addIssue({ code: 'custom', path: ['AWS_REGION'], message: 'required when AI_PROVIDER is bedrock' });

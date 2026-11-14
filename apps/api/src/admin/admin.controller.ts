@@ -44,6 +44,11 @@ export class AdminController {
     return this.admin.overview(tenant);
   }
 
+  @Get('email-health')
+  emailHealth(@Tenant() tenant: TenantContext) {
+    return this.admin.emailHealth(tenant);
+  }
+
   @Get('approvals')
   pending(@Tenant() tenant: TenantContext) {
     return this.admin.pending(tenant);
