@@ -52,6 +52,11 @@ describe('loadConfig', () => {
     expect(() => loadConfig(workerEnvSchema, { APP_ENV: 'dev', DATABASE_URL: validApi.DATABASE_URL, REDIS_URL: 'redis://localhost:6379', DOCUMENT_STORE: 's3', DOCUMENT_BUCKET: 'evidence', DOCUMENT_KMS_KEY_ID: 'key' })).toThrow(/AWS_REGION/);
     expect(() => loadConfig(apiEnvSchema, { ...validApi, EMAIL_PROVIDER: 'ses', AWS_REGION: 'us-east-1' })).toThrow(/EMAIL_FROM/);
     expect(loadConfig(apiEnvSchema, { ...validApi, EMAIL_PROVIDER: 'ses', EMAIL_FROM: 'no-reply@pactlab.ai', AWS_REGION: 'us-east-1' }).EMAIL_PROVIDER).toBe('ses');
+    // SES delivery events (T-109): the configuration set and its topic come together, or not at all.
+    const events = { EMAIL_CONFIGURATION_SET: 'pactlab-dev-mail', EMAIL_EVENTS_TOPIC_ARN: 'arn:aws:sns:us-east-2:123456789012:pactlab-dev-MailEvents1A2B3C' };
+    expect(loadConfig(apiEnvSchema, { ...validApi, ...events }).EMAIL_CONFIGURATION_SET).toBe('pactlab-dev-mail');
+    expect(() => loadConfig(apiEnvSchema, { ...validApi, EMAIL_CONFIGURATION_SET: 'pactlab-dev-mail' })).toThrow(/EMAIL_EVENTS_TOPIC_ARN/);
+    expect(() => loadConfig(apiEnvSchema, { ...validApi, ...events, EMAIL_EVENTS_TOPIC_ARN: 'https://evil.example' })).toThrow(/EMAIL_EVENTS_TOPIC_ARN/);
   });
 
   it('allows the signature scanner in every environment until the managed scanner lands (T-103)', () => {

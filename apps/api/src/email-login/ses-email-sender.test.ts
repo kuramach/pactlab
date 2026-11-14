@@ -1,6 +1,6 @@
 import { SendEmailCommand, type SESv2Client } from '@aws-sdk/client-sesv2';
 import { describe, expect, it } from 'vitest';
-import { SesEmailSender } from './ses-email-sender';
+import { EmailSuppressedError, SesEmailSender } from './ses-email-sender';
 
 describe('SesEmailSender', () => {
   it('sends a plain-text message from the configured identity', async () => {
@@ -31,5 +31,23 @@ describe('SesEmailSender', () => {
     const failure = new SesEmailSender(client, 'no-reply@pactlab.ai').send({ to: 'lead@example.com', subject: 'Your code', text: 'Code 123456' });
     await expect(failure).rejects.toThrow('Email delivery failed (MessageRejected)');
     await expect(failure).rejects.not.toThrow(/lead@example|123456/);
+  });
+
+  it('names the environment’s configuration set on every send, so its events come back (T-109)', async () => {
+    const sent: SendEmailCommand[] = [];
+    const client = { send: async (command: SendEmailCommand) => void sent.push(command) } as unknown as SESv2Client;
+    await new SesEmailSender(client, 'no-reply@pactlab.ai', { configurationSetName: 'pactlab-dev' }).send({ to: 'success@simulator.amazonses.com', subject: 'Code', text: 'Code 123456' });
+    expect(sent[0]?.input.ConfigurationSetName).toBe('pactlab-dev');
+  });
+
+  it('refuses an address on the do-not-send list before calling SES, and sends anyway if the list cannot be read', async () => {
+    const sent: SendEmailCommand[] = [];
+    const client = { send: async (command: SendEmailCommand) => void sent.push(command) } as unknown as SESv2Client;
+    const blocked = new SesEmailSender(client, 'no-reply@pactlab.ai', { suppression: { check: async () => 'HARD_BOUNCE' } });
+    await expect(blocked.send({ to: 'bounce@simulator.amazonses.com', subject: 'Code', text: 'Code 123456' })).rejects.toBeInstanceOf(EmailSuppressedError);
+    expect(sent).toHaveLength(0);
+    const unreadable = new SesEmailSender(client, 'no-reply@pactlab.ai', { suppression: { check: async () => { throw new Error('database down'); } } });
+    await unreadable.send({ to: 'lead@example.com', subject: 'Code', text: 'Code 123456' });
+    expect(sent).toHaveLength(1);
   });
 });

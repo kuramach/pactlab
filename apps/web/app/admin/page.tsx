@@ -214,7 +214,11 @@ async function Users({ q }: { q: string }) {
 }
 
 async function Health() {
-  const [orgs, connections] = await Promise.all([apiGet<{ items: Org[] }>('/v1/admin/organizations'), apiGet<{ items: Connection[] }>('/v1/admin/connections')]);
+  const [orgs, connections, mail] = await Promise.all([
+    apiGet<{ items: Org[] }>('/v1/admin/organizations'),
+    apiGet<{ items: Connection[] }>('/v1/admin/connections'),
+    apiGet<{ days: number; counts: Record<'DELIVERY' | 'BOUNCE' | 'COMPLAINT' | 'REJECT' | 'RENDERING_FAILURE', number>; suppressed: number }>('/v1/admin/email-health'),
+  ]);
   if (orgs.kind !== 'ok') return <ApiState result={orgs} />;
   const tokens = orgs.data.items.reduce((sum, org) => ({ input: sum.input + org.aiTokens.input, output: sum.output + org.aiTokens.output }), { input: 0, output: 0 });
   return (
@@ -225,6 +229,13 @@ async function Health() {
         <div className="rounded-xl bg-mist p-3"><dt className="text-xs uppercase text-slate-text">AI output tokens</dt><dd className="text-xl font-bold">{number.format(tokens.output)}</dd></div>
       </dl>
       <p className="text-xs text-muted-foreground">Cost: tokens × the model’s Bedrock price for the region; the per-model rate card arrives with metering (T-007).</p>
+      {/* Email health (T-109): SES events from this environment's configuration set; counts only, no addresses. */}
+      {mail.kind === 'ok' ? (
+        <p className="text-sm" aria-label="Email health" data-numeric>
+          <span className="font-semibold">Email, last {mail.data.days} days:</span> {number.format(mail.data.counts.DELIVERY)} delivered · {number.format(mail.data.counts.BOUNCE)} bounced · {number.format(mail.data.counts.COMPLAINT)} complaints ·{' '}
+          {number.format(mail.data.counts.REJECT + mail.data.counts.RENDERING_FAILURE)} rejected or failed · {number.format(mail.data.suppressed)} addresses on the do-not-send list
+        </p>
+      ) : null}
       {connections.kind !== 'ok' ? (
         <ApiState result={connections} />
       ) : (

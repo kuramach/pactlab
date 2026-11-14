@@ -23,6 +23,7 @@
   "dependencies": {
     "@aws-sdk/client-s3": "3.1149.0",
     "@aws-sdk/client-sesv2": "3.1149.0",
+    "@aws-sdk/client-sns": "3.1149.0",
     "@aws-sdk/client-ssm": "3.1149.0",
     "@fontsource/inter": "^5.3.0",
     "@fontsource/manrope": "^5.3.0",
