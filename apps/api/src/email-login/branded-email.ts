@@ -1,4 +1,5 @@
-import type { EmailContent, EmailSender, OutboundEmail } from './email-sender';
+import { readableOnWhite } from '@pactlab/domain';
+import type { EmailBrand, EmailContent, EmailSender, OutboundEmail } from './email-sender';
 
 /**
  * Pactlab-branded HTML for every outgoing email: logo, the message (a large code or a
@@ -7,7 +8,7 @@ import type { EmailContent, EmailSender, OutboundEmail } from './email-sender';
  * escaped. The plain-text body is unchanged and always sent too.
  */
 const NAVY = '#081127';
-const INDIGO = '#6978ff';
+const PACTLAB_INDIGO = '#6978ff';
 const MUTED = '#5b6478';
 const PAGE = '#f7f9fc';
 const FONT = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
@@ -34,7 +35,15 @@ export function emailAssets(appOrigin: string): { logoUrl: string; siteUrl: stri
   return { logoUrl: `${site}/brand/pactlab-logo-email.png`, siteUrl: site };
 }
 
-export function renderEmailHtml(subject: string, content: EmailContent, assets: { logoUrl: string; siteUrl: string }): string {
+export function renderEmailHtml(subject: string, content: EmailContent, assets: { logoUrl: string; siteUrl: string }, brand?: EmailBrand): string {
+  // An organization's email (T-123): its logo or name on top, its accent on buttons (darkened until white reads on it).
+  const INDIGO = brand?.accentColor ? readableOnWhite(brand.accentColor).color : PACTLAB_INDIGO;
+  const brandLogo = brand?.logoUrl ? safeUrl(brand.logoUrl) : null;
+  const header = brand
+    ? brandLogo
+      ? `<img src="${brandLogo}" height="40" alt="${escapeHtml(brand.name)}" style="display:block;border:0;height:40px;width:auto;max-width:200px">`
+      : `<span style="font:800 22px/1.2 ${FONT};color:${NAVY}">${escapeHtml(brand.name)}</span>`
+    : `<a href="${escapeHtml(assets.siteUrl)}"><img src="${escapeHtml(assets.logoUrl)}" width="140" height="53" alt="Pactlab" style="display:block;border:0;height:auto"></a>`;
   const paragraph = (text: string) => `<p style="margin:0 0 16px;font:15px/1.6 ${FONT};color:${NAVY}">${escapeHtml(text)}</p>`;
   const action = content.action ? safeUrl(content.action.url) : null;
   return `<!doctype html>
@@ -44,7 +53,7 @@ export function renderEmailHtml(subject: string, content: EmailContent, assets: 
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${PAGE}">
 <tr><td align="center" style="padding:32px 16px">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px">
-<tr><td style="padding:0 0 20px"><a href="${escapeHtml(assets.siteUrl)}"><img src="${escapeHtml(assets.logoUrl)}" width="140" height="53" alt="Pactlab" style="display:block;border:0;height:auto"></a></td></tr>
+<tr><td style="padding:0 0 20px">${header}</td></tr>
 <tr><td style="background:#ffffff;border:1px solid #e3e7f0;border-radius:12px;padding:32px">
 <h1 style="margin:0 0 20px;font:700 22px/1.3 ${FONT};color:${NAVY}">${escapeHtml(content.heading)}</h1>
 ${content.paragraphs.map(paragraph).join('\n')}
@@ -62,7 +71,7 @@ ${content.list ? `<p style="margin:16px 0 8px;font:700 15px/1.4 ${FONT};color:${
 ${content.footnote ? `<p style="margin:16px 0 0;font:13px/1.5 ${FONT};color:${MUTED}">${escapeHtml(content.footnote)}</p>` : ''}
 </td></tr>
 <tr><td style="padding:24px 8px 0">
-<p style="margin:0 0 6px;font:700 14px/1.4 ${FONT};color:${NAVY}">${escapeHtml(EMAIL_BLURB.tagline)}</p>
+${brand ? `<p style="margin:0 0 8px;font:600 12px/1.4 ${FONT};color:${MUTED}">Sent with Pactlab for ${escapeHtml(brand.name)}</p>` : ''}<p style="margin:0 0 6px;font:700 14px/1.4 ${FONT};color:${NAVY}">${escapeHtml(EMAIL_BLURB.tagline)}</p>
 <p style="margin:0 0 12px;font:13px/1.6 ${FONT};color:${MUTED}">${escapeHtml(EMAIL_BLURB.text)} <a href="${escapeHtml(assets.siteUrl)}" style="color:${INDIGO}">Learn more</a></p>
 <p style="margin:0;font:12px/1.5 ${FONT};color:${MUTED}">${escapeHtml(content.reason ?? 'You received this email because of an action on your Pactlab account.')}</p>
 </td></tr>
@@ -86,6 +95,6 @@ export class BrandedEmailSender implements EmailSender {
 
   send(message: OutboundEmail): Promise<void> {
     if (!message.content || message.html) return this.inner.send(message);
-    return this.inner.send({ ...message, html: renderEmailHtml(message.subject, message.content, this.assets) });
+    return this.inner.send({ ...message, html: renderEmailHtml(message.subject, message.content, this.assets, message.brand) });
   }
 }

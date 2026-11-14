@@ -146,6 +146,17 @@ describe('pact invitations and guests', { timeout: 60_000 }, () => {
     expect((audit.rows as Body[]).map((row) => row['action'])).toEqual(['deal.invitation.created', 'deal.invitation_accepted']);
   });
 
+  it('an invitation from a branded organization carries its brand; one on Pactlab’s look does not (T-123)', async () => {
+    const lead = await signIn('lead@charlie.example');
+    expect((await call('POST', `/v1/deals/${charlie.deal}/invitations`, { email: 'plain@seller.example', side: 'SELLER', role: 'TARGET_CONTRIBUTOR' }, lead)).status).toBe(201);
+    expect((await lastMail('plain@seller.example')).brand).toBeUndefined();
+    await db.owner.query(`INSERT INTO organization_brand_kits (organization_id, source, accent_color, logo_object_key, logo_content_type, font, updated_at) VALUES ($1, 'EDITED', '#1a7f37', 'k', 'image/png', 'INTER', now())`, [charlie.organizationId]);
+    expect((await call('POST', `/v1/deals/${charlie.deal}/invitations`, { email: 'branded@seller.example', side: 'SELLER', role: 'TARGET_CONTRIBUTOR' }, lead)).status).toBe(201);
+    const slug = ((await db.owner.query<{ slug: string }>('SELECT slug FROM organizations WHERE id = $1', [charlie.organizationId])).rows[0] as { slug: string }).slug;
+    expect((await lastMail('branded@seller.example')).brand).toEqual({ name: 'Charlie Capital (synthetic)', accentColor: '#1a7f37', logoUrl: `https://app.pactlab.test/login/${slug}/logo` });
+    await db.owner.query('DELETE FROM organization_brand_kits WHERE organization_id = $1', [charlie.organizationId]);
+  });
+
   it('a colleague in the organization joins directly; a revoked invitation cannot be accepted', async () => {
     const lead = await signIn('lead@charlie.example');
     expect(await call('POST', `/v1/deals/${charlie.otherDeal}/invitations`, { email: 'colleague@charlie.example', side: 'BUYER', role: 'ANALYST' }, lead)).toEqual({ status: 201, body: { kind: 'ADDED' } });

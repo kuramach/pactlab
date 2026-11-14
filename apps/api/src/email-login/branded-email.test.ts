@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BrandedEmailSender, EMAIL_BLURB, emailAssets, renderEmailHtml } from './branded-email';
+import { emailBrand } from '../brand/email-brand';
 import type { EmailSender, OutboundEmail } from './email-sender';
 import { emails } from './emails';
 
@@ -94,5 +95,33 @@ describe('the shared-demo invitation (T-113)', () => {
     expect(html).toContain('because Kumar at Pactlab shared a demo with you');
     expect(html).toContain('&lt;today&gt;');
     expect(html).not.toContain('<today>');
+  });
+});
+
+describe('emails sent for an organization (T-123)', () => {
+  const invite = emails.dealInvitation('a@example.com', { inviterName: 'Ana', dealName: 'Project Kite', side: 'SELLER', role: 'TARGET_CONTRIBUTOR', link: 'https://app.dev.pactlab.ai/invite/abc', days: 14 });
+
+  it('carries the organization’s logo and accent, still says Pactlab sent it, and escapes its name', () => {
+    const html = renderEmailHtml(invite.subject, invite.content!, assets, { name: 'Acme <b>Capital</b>', logoUrl: 'https://app.dev.pactlab.ai/login/acme/logo', accentColor: '#ffd400' });
+    expect(html).toContain('src="https://app.dev.pactlab.ai/login/acme/logo"');
+    expect(html).not.toContain('alt="Pactlab"');
+    expect(html).toContain('Sent with Pactlab for Acme &lt;b&gt;Capital&lt;/b&gt;');
+    expect(html).toContain(EMAIL_BLURB.tagline);
+    // A yellow accent is darkened until white button text reads on it.
+    expect(html).not.toContain('background:#ffd400');
+    expect(html).not.toContain('background:#6978ff');
+  });
+
+  it('prints the name when there is no raster logo, and refuses a non-http logo', () => {
+    const html = renderEmailHtml(invite.subject, invite.content!, assets, { name: 'Acme Capital', logoUrl: 'javascript:alert(1)', accentColor: null });
+    expect(html).not.toContain('javascript:');
+    expect(html).toMatch(/font:800 22px[^>]*>Acme Capital</);
+    expect(html).toContain('background:#6978ff');
+  });
+
+  it('builds the brand from the kit: none on the Pactlab look, no SVG logo in mail', () => {
+    expect(emailBrand({ name: 'Acme', slug: 'acme' }, { source: 'DEFAULT', accentColor: '#112233', logoContentType: 'image/png' }, 'https://app.pactlab.ai')).toBeNull();
+    expect(emailBrand({ name: 'Acme', slug: 'acme' }, { source: 'EDITED', accentColor: null, logoContentType: 'image/svg+xml' }, 'https://app.pactlab.ai')?.logoUrl).toBeNull();
+    expect(emailBrand({ name: 'Acme', slug: 'acme' }, { source: 'EXTRACTED', accentColor: null, logoContentType: 'image/png' }, 'https://app.pactlab.ai')?.logoUrl).toBe('https://app.pactlab.ai/login/acme/logo');
   });
 });

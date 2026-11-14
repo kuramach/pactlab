@@ -13,6 +13,7 @@ import { PricingService } from '../pricing/pricing.service';
 import { LOGGER, PRISMA } from '../tokens';
 import { ValuationService } from '../valuation/valuation.service';
 import { executiveReportModel, pactReportModel, type ReportSources } from './report-model';
+import { capturedBrand, documentBrand } from '../brand/document-brand';
 import { executiveReportPdf, pactReportPdf, type CommitteeRecord } from './report-pdf';
 
 export const REPORT_STORE = Symbol('REPORT_STORE');
@@ -140,7 +141,10 @@ export class ReportsService {
   private async build(tenant: TenantContext, record: ReportVersionRecord, requestId: string, icBlockers: readonly string[]): Promise<void> {
     try {
       const organization = await withTenant(this.prisma, tenant, (tx) => tx.organization.findUnique({ where: { id: tenant.organizationId }, select: { name: true } }));
+      // The generating organization's brand, stamped into this version (T-123): a later rebrand never changes it.
+      const brand = await documentBrand(this.prisma, this.store, tenant);
       const stamp = {
+        brand,
         organizationName: organization?.name ?? 'Your organization',
         version: record.version,
         generatedAt: record.generatedAt,
@@ -158,11 +162,11 @@ export class ReportsService {
           { ...stamp, title: `${ic ? 'Investment committee pack' : 'Pact report'}: ${model.deal.name}`, subtitle: `${model.deal.targetName} · ${model.sideLabel}` },
           { committee: await this.committee(tenant, record.dealId), ...(ic ? { icPack: { blockers: [...icBlockers] } } : {}) },
         );
-        captured = { ...model.captured, ...(ic ? { icBlockers: [...icBlockers] } : {}) };
+        captured = { ...model.captured, ...(ic ? { icBlockers: [...icBlockers] } : {}), ...capturedBrand(brand) };
       } else {
         const model = await executiveReportModel(this.sources(requestId), tenant);
         pdf = await executiveReportPdf(model, { ...stamp, title: 'Executive report', subtitle: `All pacts · ${stamp.organizationName}` });
-        captured = model.captured;
+        captured = { ...model.captured, ...capturedBrand(brand) };
       }
       // Each version has its own key: an earlier version's bytes are never touched.
       const objectKey =
