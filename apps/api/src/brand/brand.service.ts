@@ -35,7 +35,8 @@ interface StoredDraft {
  */
 @Injectable()
 export class BrandService {
-  private readonly running = new Set<Promise<void>>();
+  /** Background extractions by organization (one at a time each). */
+  private readonly running = new Map<string, Promise<void>>();
 
   constructor(
     @Inject(PRISMA) private readonly prisma: PrismaClient,
@@ -55,13 +56,14 @@ export class BrandService {
       source: (kit?.source ?? 'DEFAULT') as BrandKitView['source'],
       hasLogo: Boolean(kit?.logoObjectKey),
       logoContentType: kit?.logoContentType ?? null,
+      version: kit?.updatedAt ? kit.updatedAt.getTime().toString(36) : '0',
       primaryColor: kit?.primaryColor ?? null,
       accentColor: accent,
       accentReadable: readable?.color ?? null,
       accentAdjusted: readable?.adjusted ?? false,
       font: (kit?.font ?? PACTLAB_BRAND.font) as BrandFont,
       draft: draft ? { websiteUrl: draft.websiteUrl, hasLogo: Boolean(draft.logo), logoFrom: draft.logo?.from ?? null, accentColor: draft.accentColor, primaryColor: draft.primaryColor, font: draft.font, notes: draft.notes, extractedAt: draft.extractedAt } : null,
-      extracting: this.running.size > 0,
+      extracting: this.running.has(tenant.organizationId),
       canEdit: isAdmin(tenant),
     };
   }
@@ -108,13 +110,14 @@ export class BrandService {
   }
 
   private extractInBackground(tenant: TenantContext, websiteUrl: string) {
-    const job = this.runExtraction(tenant, websiteUrl).finally(() => this.running.delete(job));
-    this.running.add(job);
+    if (this.running.has(tenant.organizationId)) return;
+    const job = this.runExtraction(tenant, websiteUrl).finally(() => this.running.delete(tenant.organizationId));
+    this.running.set(tenant.organizationId, job);
   }
 
   /** Tests: wait for background extractions. */
   async whenIdle(): Promise<void> {
-    while (this.running.size > 0) await Promise.allSettled([...this.running]);
+    while (this.running.size > 0) await Promise.allSettled([...this.running.values()]);
   }
 
   private async runExtraction(tenant: TenantContext, websiteUrl: string): Promise<void> {

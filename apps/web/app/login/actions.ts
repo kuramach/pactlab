@@ -23,7 +23,15 @@ import {
 const emailSchema = z.string().trim().toLowerCase().max(254).pipe(z.email());
 const codeSchema = z.string().trim().regex(/^\d{6}$/);
 
-const loginUrl = (params: Record<string, string>) => `${SIGN_IN_PATH}?${new URLSearchParams(params)}`;
+/** An organization's own sign-in page (T-123) stays its page through both steps. */
+const brandSlug = (formData: FormData) => {
+  const slug = formData.get('brand');
+  return typeof slug === 'string' && /^[a-z0-9-]{2,80}$/.test(slug) ? slug : null;
+};
+const loginUrl = (formData: FormData, params: Record<string, string>) => {
+  const slug = brandSlug(formData);
+  return `${slug ? `${SIGN_IN_PATH}/${slug}` : SIGN_IN_PATH}?${new URLSearchParams(params)}`;
+};
 /** A step-up sign-in (T-112) stays one through both steps. */
 const reauthOf = (formData: FormData): Record<string, string> => (formData.get('reauth') === '1' ? { reauth: '1' } : {});
 
@@ -34,23 +42,23 @@ const reauthOf = (formData: FormData): Record<string, string> => (formData.get('
 export async function requestCode(formData: FormData): Promise<void> {
   const returnTo = safeReturnTo(formData.get('returnTo'));
   const email = emailSchema.safeParse(formData.get('email'));
-  if (!email.success) redirect(loginUrl({ returnTo, ...reauthOf(formData), error: 'email' }));
+  if (!email.success) redirect(loginUrl(formData, { returnTo, ...reauthOf(formData), error: 'email' }));
   const started = await authApi('/v1/auth/email/start', { email: email.data });
-  if (started.status !== 202) redirect(loginUrl({ returnTo, ...reauthOf(formData), error: 'unavailable' }));
+  if (started.status !== 202) redirect(loginUrl(formData, { returnTo, ...reauthOf(formData), error: 'unavailable' }));
   await rememberPendingEmail(email.data);
   await rememberPendingTrust(trustChoice(formData.get('trust')));
-  redirect(loginUrl({ returnTo, ...reauthOf(formData), step: 'code' }));
+  redirect(loginUrl(formData, { returnTo, ...reauthOf(formData), step: 'code' }));
 }
 
 /** Exchange the code for a session cookie, then enter the app (or pick an organization). */
 export async function submitCode(formData: FormData): Promise<void> {
   const returnTo = safeReturnTo(formData.get('returnTo'));
   const email = await pendingEmail();
-  if (!email) redirect(loginUrl({ returnTo, ...reauthOf(formData), error: 'expired' }));
+  if (!email) redirect(loginUrl(formData, { returnTo, ...reauthOf(formData), error: 'expired' }));
   const code = codeSchema.safeParse(formData.get('code'));
-  if (!code.success) redirect(loginUrl({ returnTo, ...reauthOf(formData), step: 'code', error: 'code' }));
+  if (!code.success) redirect(loginUrl(formData, { returnTo, ...reauthOf(formData), step: 'code', error: 'code' }));
   const verified = await authApi('/v1/auth/email/verify', { email, code: code.data, ...(await trustFields(trustChoice(await pendingTrust()))) });
-  if (verified.status !== 200) redirect(loginUrl({ returnTo, ...reauthOf(formData), step: 'code', error: 'code' }));
+  if (verified.status !== 200) redirect(loginUrl(formData, { returnTo, ...reauthOf(formData), step: 'code', error: 'code' }));
   const session = verified.data as IssuedSession;
   const previous = await nativeSessionToken();
   await storeNativeSession(session);

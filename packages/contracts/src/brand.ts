@@ -20,6 +20,8 @@ export interface BrandKitView {
   source: BrandSourceView;
   hasLogo: boolean;
   logoContentType: string | null;
+  /** Changes whenever the kit does: a cache key for the logo. */
+  version: string;
   primaryColor: string | null;
   accentColor: string | null;
   /** The accent as used for text and buttons: adjusted to 4.5:1 on white when it fails. */

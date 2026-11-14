@@ -11,6 +11,7 @@ import { setDefaultPersona } from './persona-actions';
 import { connectDocuSign, disconnectDocuSign } from './docusign-actions';
 import { DevicesCard } from './devices-card';
 import { IcCard } from './ic-card';
+import { BrandCard } from './brand-card';
 import { PasskeysCard } from './passkeys-card';
 import { guideHidden, hideGuide, showGuide } from '../_lib/guide-actions';
 import { BillingCard } from './billing-card';
@@ -178,6 +179,7 @@ async function AboutCard() {
 /** Your profile, the active organization and the administration pages you can open. */
 export default async function SettingsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const billingOutcome = (await searchParams)['billing'];
+  const brandOutcome = (await searchParams)['brand'];
   const session = await getSessionContext();
   const crumbs = [{ href: '/', label: 'Home' }, { label: 'Settings' }];
   if (session.kind !== 'signed-in') {
@@ -222,6 +224,8 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
       <BugsSubmittedCard />
 
       {organization ? <DealStyleCard /> : null}
+
+      {organization && !session.guest ? <BrandCard outcome={typeof brandOutcome === 'string' ? brandOutcome : undefined} /> : null}
 
       {organization && !session.guest ? <IcCard /> : null}
 

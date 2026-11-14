@@ -70,3 +70,34 @@ export function nearestBrandFont(family: string | null | undefined): BrandFont {
   if (/(^|[^-])serif|georgia|times|garamond|merriweather|playfair|lora/.test(first) && !/sans/.test(first)) return 'SOURCE_SERIF';
   return 'MANROPE';
 }
+
+/**
+ * The accent as a fill under navy text (active menu items, primary buttons): lightened toward
+ * white, keeping its hue, until navy on it reaches 4.5:1.
+ */
+export function fillUnderNavy(hex: string): string {
+  if (!isHexColor(hex)) return PACTLAB_BRAND.accentColor;
+  let color = hex.toLowerCase();
+  let [r, g, b] = rgb(color);
+  for (let step = 0; step < 40 && contrast(color, PACTLAB_BRAND.primaryColor) < 4.5; step += 1) {
+    [r, g, b] = [r + (255 - r) * 0.08, g + (255 - g) * 0.08, b + (255 - b) * 0.08];
+    color = toHex([r, g, b]);
+  }
+  return color;
+}
+
+/**
+ * The app's theme variables for a kit: what `packages/ui/src/styles.css` defines, overridden.
+ * Null for the Pactlab kit, so nothing is overridden. Values are always `#rrggbb` (safe in CSS).
+ */
+export function brandThemeVariables(kit: { accentColor: string | null; font: BrandFont }): Record<string, string> | null {
+  const variables: Record<string, string> = {};
+  if (kit.accentColor && isHexColor(kit.accentColor)) {
+    const fill = fillUnderNavy(kit.accentColor);
+    const ink = readableOnWhite(kit.accentColor).color;
+    Object.assign(variables, { '--color-indigo': fill, '--color-primary': fill, '--color-primary-foreground': PACTLAB_BRAND.primaryColor, '--color-indigo-ink': ink, '--color-ring': ink });
+  }
+  if (kit.font === 'INTER') variables['--font-sans'] = 'var(--font-inter), ui-sans-serif, system-ui, sans-serif';
+  if (kit.font === 'SOURCE_SERIF') variables['--font-sans'] = 'var(--font-source-serif), ui-serif, Georgia, serif';
+  return Object.keys(variables).length > 0 ? variables : null;
+}
