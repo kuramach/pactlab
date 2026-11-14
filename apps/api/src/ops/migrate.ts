@@ -49,6 +49,29 @@ try {
 }
 
 const dbPackage = fileURLToPath(new URL('../../../../packages/db', import.meta.url));
+
+// A migration that failed is recorded as failed, and Prisma then refuses every later deploy (P3009).
+// Each migration file runs as one transaction, so a failed one left nothing behind. For the ones named
+// here, whose failure is understood and fixed in the file, the record is cleared so the fixed file runs:
+// 20261204000000_investment_committee failed on live (2026-11-14), its backfill stopped by the
+// report-version immutability trigger. Any other failed migration still stops the deploy for a person.
+const RETRY_AFTER_FIX = new Set(['20261204000000_investment_committee', '20261205000000_letters_of_intent', '20261206000000_brand_kits']);
+const history = new pg.Client({ connectionString: ownerUrl });
+await history.connect();
+let retry: string[] = [];
+try {
+  const table = await history.query(`SELECT to_regclass('public._prisma_migrations') IS NOT NULL AS present`);
+  if ((table.rows[0] as { present: boolean }).present) {
+    const rows = await history.query(`SELECT migration_name FROM _prisma_migrations WHERE finished_at IS NULL AND rolled_back_at IS NULL`);
+    retry = rows.rows.map((row: { migration_name: string }) => row.migration_name).filter((name) => RETRY_AFTER_FIX.has(name));
+  }
+} finally {
+  await history.end();
+}
 // Prisma's own binary, not `pnpm exec`: pnpm would check and reinstall dependencies first.
+for (const name of retry) {
+  process.stdout.write(`migrate: clearing the failed record of ${name} (rolled back; the file is fixed)\n`);
+  execFileSync('./node_modules/.bin/prisma', ['migrate', 'resolve', '--rolled-back', name], { cwd: dbPackage, stdio: 'inherit', env: process.env });
+}
 execFileSync('./node_modules/.bin/prisma', ['migrate', 'deploy'], { cwd: dbPackage, stdio: 'inherit', env: process.env });
 process.stdout.write('migrate: done\n');
