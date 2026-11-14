@@ -12,13 +12,15 @@ test('buy a pact through checkout; make a promo code in Admin', async ({ page })
   await page.goto('/settings#billing');
   const card = page.locator('#billing');
   await expect(card.getByRole('heading', { name: 'Billing' })).toBeVisible();
-  const before = await card.getByText(/Pacts left/).locator('xpath=following-sibling::dd[1]').textContent();
+  const left = card.getByTestId('pacts-left');
+  await expect(left).toBeVisible();
+  const before = await left.textContent();
   await card.getByRole('button', { name: 'Buy Pact' }).click();
   await expect(page).toHaveURL(/\/billing\/fixture-checkout\?session=cs_fixture_/);
   await page.getByRole('button', { name: 'Pay (test)' }).click();
   await expect(page).toHaveURL(/\/settings\?billing=returned/);
   await expect(card.getByText(/pact.*\(prepaid\)/)).toBeVisible();
-  expect(await card.getByText(/Pacts left/).locator('xpath=following-sibling::dd[1]').textContent()).not.toBe(before);
+  await expect(left).not.toHaveText(before ?? '');
 
   const operator = spawnSync('pnpm', ['--silent', 'ops:operator', LEAD], { cwd: REPO, env: serverEnv(), encoding: 'utf8' });
   expect(operator.status, operator.stderr).toBe(0);

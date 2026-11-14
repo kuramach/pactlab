@@ -26,7 +26,10 @@ test('connect an MCP client: consent, tokens, then disconnect in Settings', asyn
   // The operator turns MCP on for Charlie.
   await page.goto('/admin?tab=organizations');
   const mcp = page.getByRole('form', { name: 'MCP for Charlie Advisory (synthetic)' });
-  if (await mcp.getByRole('button', { name: 'Turn on' }).isVisible()) await mcp.getByRole('button', { name: 'Turn on' }).click();
+  // Off or already on: wait until the form shows which, then turn it on if needed.
+  const turnOn = mcp.getByRole('button', { name: 'Turn on' });
+  await expect(turnOn.or(mcp.getByText('MCP on'))).toBeVisible();
+  if ((await turnOn.count()) > 0) await turnOn.click();
   await expect(page.getByRole('form', { name: 'MCP for Charlie Advisory (synthetic)' }).getByText('MCP on')).toBeVisible();
 
   const registered = (await (await fetch(`${API_ORIGIN}/v1/oauth/register`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ client_name: 'E2E desktop app', redirect_uris: [REDIRECT] }) })).json()) as { client_id: string };
