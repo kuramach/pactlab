@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import { demoFile, startPact } from '../support/deals';
 import { importPackExtract } from '../support/imports';
 
-test('professional-services headcount imports as aggregates and drafts the attrition finding', async ({ page }) => {
+test('professional-services headcount imports as aggregates and drafts the attrition finding', { tag: '@regression' }, async ({ page }) => {
   const dealId = await startPact(page, 'Professional services');
   await importPackExtract(page, dealId, 'Headcount movements', demoFile('professional-services', 'USD', 'headcount-movements.csv'), 24);
   await expect(page.getByRole('status')).toContainText('Industry checks ran on them');

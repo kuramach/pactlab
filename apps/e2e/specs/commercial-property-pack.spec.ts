@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import { demoFile, startPact } from '../support/deals';
 import { importPackExtract } from '../support/imports';
 
-test('a commercial rent roll imports and drafts the below-market anchor as upside, not price', async ({ page }) => {
+test('a commercial rent roll imports and drafts the below-market anchor as upside, not price', { tag: '@regression' }, async ({ page }) => {
   const dealId = await startPact(page, 'Commercial property');
   await importPackExtract(page, dealId, 'Commercial rent roll', demoFile('commercial-property', 'USD', 'rent-roll.csv'), 11);
   await importPackExtract(page, dealId, 'CAM reconciliation', demoFile('commercial-property', 'USD', 'cam-reconciliation.csv'), 3);

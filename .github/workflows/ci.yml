@@ -89,6 +89,9 @@ jobs:
       E2E_REDIS_URL: redis://localhost:6379
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The PR tier diffs against main to add the specs a change touches.
+          fetch-depth: 0
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
@@ -105,8 +108,27 @@ jobs:
       # The quarantine register is sound: every quarantined test has an owner and a date not yet passed (T-113).
       - run: pnpm --filter @pactlab/e2e quarantine:check
       - run: pnpm --filter @pactlab/e2e exec playwright install --with-deps chromium
-      # The gating suite: quarantined and @slow tests excluded. Flaky tests are listed in the job summary.
-      - run: pnpm test:e2e
+      # Tiers (T-113, apps/e2e/README.md): main runs the whole gating suite; every other run runs the
+      # @smoke journeys plus any spec the change touches. Quarantined and @slow tests are never in either.
+      - name: Choose the tier
+        id: tier
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = push ] && [ "$GITHUB_REF" = refs/heads/main ]; then
+            echo "grep=" >> "$GITHUB_OUTPUT"
+            echo "Tier: full gating suite (main)" >> "$GITHUB_STEP_SUMMARY"
+          else
+            base="${BASE:-$(git merge-base HEAD origin/main)}"
+            changed=$(git diff --name-only "$base"...HEAD -- 'apps/e2e/specs/*.spec.ts' | sed -e 's#^apps/e2e/##' -e 's#\.#\\.#g' | paste -sd'|' -)
+            echo "grep=@smoke${changed:+|$changed}" >> "$GITHUB_OUTPUT"
+            echo "Tier: @smoke${changed:+ plus changed specs ($changed)}" >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Browser tests
+        env:
+          GREP: ${{ steps.tier.outputs.grep }}
+        run: |
+          if [ -z "$GREP" ]; then pnpm test:e2e; else pnpm --filter @pactlab/e2e exec playwright test --grep-invert '@slow|@quarantine' --grep "$GREP"; fi
       - if: failure()
         uses: actions/upload-artifact@v4
         with:

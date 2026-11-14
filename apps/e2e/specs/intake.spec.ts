@@ -8,7 +8,7 @@ import { startPact } from '../support/deals';
  * checklist and the request list. Classification itself is covered by the
  * API tests with a scripted model.
  */
-test('a zip of the data room is unpacked and every file inside gets its own row', async ({ page }) => {
+test('a zip of the data room is unpacked and every file inside gets its own row', { tag: '@regression' }, async ({ page }) => {
   const dealId = await startPact(page, 'Software & SaaS');
   await page.goto(`/deals/${dealId}/documents`);
   const archive = zipSync({
@@ -35,7 +35,7 @@ test('a zip of the data room is unpacked and every file inside gets its own row'
   await expect(library.getByText('Not sorted').first()).toBeVisible();
 });
 
-test('a synthetic data room is read, re-read without duplicates, and the checklist asks for what is missing', async ({ page }) => {
+test('a synthetic data room is read, re-read without duplicates, and the checklist asks for what is missing', { tag: '@smoke' }, async ({ page }) => {
   const dealId = await startPact(page, 'Software & SaaS');
   await page.goto(`/deals/${dealId}/documents`);
   await page.getByRole('button', { name: 'Connect' }).click();

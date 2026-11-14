@@ -8,7 +8,7 @@ import { LEAD } from '../support/login';
  * same signed events Stripe would, through the real webhook path. Then an operator makes a
  * promo code in Admin.
  */
-test('buy a pact through checkout; make a promo code in Admin', async ({ page }) => {
+test('buy a pact through checkout; make a promo code in Admin', { tag: '@regression' }, async ({ page }) => {
   await page.goto('/settings#billing');
   const card = page.locator('#billing');
   await expect(card.getByRole('heading', { name: 'Billing' })).toBeVisible();

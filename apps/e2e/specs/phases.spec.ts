@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import { startPact } from '../support/deals';
 
 // Pre-Diligence → Diligence → Post-Close (T-071): nothing is re-typed between phases.
-test('screen a pact, say go, test its red flags as claims, then close it', async ({ page }) => {
+test('screen a pact, say go, test its red flags as claims, then close it', { tag: '@smoke' }, async ({ page }) => {
   const dealId = await startPact(page, 'Software & SaaS');
   await page.goto(`/deals/${dealId}`);
   await expect(page.getByText('Pre-Diligence', { exact: true }).first()).toBeVisible();

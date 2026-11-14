@@ -9,7 +9,7 @@ import { REVIEWER, signIn } from '../support/login';
 test.describe('passkey sign-in', () => {
   test.use({ storageState: { cookies: [], origins: [] } });
 
-  test('add a passkey, sign in with it, remove it', async ({ page, context }) => {
+  test('add a passkey, sign in with it, remove it', { tag: '@regression' }, async ({ page, context }) => {
     const cdp = await context.newCDPSession(page);
     await cdp.send('WebAuthn.enable');
     await cdp.send('WebAuthn.addVirtualAuthenticator', {
