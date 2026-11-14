@@ -48,6 +48,8 @@ import { RegulatoryModule } from './regulatory/regulatory.module';
 import { DealDeletionModule } from './deals/deletion/deal-deletion.module';
 import { InvitationsModule } from './invitations/invitations.module';
 import { ReportsModule } from './reports/reports.module';
+import { BrandModule } from './brand/brand.module';
+import { HttpsWebFetcher, type WebFetcher } from './common/safe-fetch';
 import { IcModule } from './ic/ic.module';
 import { BillingModule } from './billing/billing.module';
 import { FixtureBillingProvider, type BillingProvider } from '@pactlab/connectors';
@@ -108,6 +110,8 @@ export interface AppDependencies {
   voice?: { speechToText: SpeechToText; textToSpeech: TextToSpeech };
   /** Published macro forecasts for Foresight (T-094 B10). Omitted: invented fixture series (tests). */
   macroForecasts?: MacroForecastProvider;
+  /** Fetches company websites for brand kits (T-123); tests inject a fixture server. */
+  webFetcher?: WebFetcher;
   /** Refresh Foresight forecasts in the background when the tab is opened. Default on. */
   foresightAutoBaseline?: boolean;
   /**
@@ -236,6 +240,7 @@ export class AppModule {
         // Reports (T-110): the same service instances the app reads through.
         reportsModule,
         IcModule.register({ reports: reportsModule }),
+        BrandModule.register({ store: deps.documents?.objectStore ?? new UnavailableObjectStore(), fetcher: deps.webFetcher ?? new HttpsWebFetcher() }),
         ...(tokens && deps.emailLogin
           ? [
               EmailLoginModule.register({

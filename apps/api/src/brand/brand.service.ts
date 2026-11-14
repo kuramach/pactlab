@@ -1,7 +1,7 @@
+import { createHash } from 'node:crypto';
 import { ForbiddenException, Inject, Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import type { BrandKitView, PublicBrandView } from '@pactlab/contracts';
-import { Prisma } from '@prisma/client';
-import { appendAuditEvent, asApp, withTenant, type PrismaClient } from '@pactlab/db';
+import { appendAuditEvent, publicBrand, withTenant, type PrismaClient } from '@pactlab/db';
 import { newId, PACTLAB_BRAND, readableOnWhite, type BrandFont, type TenantContext } from '@pactlab/domain';
 import type { Logger } from '@pactlab/observability';
 import type { WebFetcher } from '../common/safe-fetch';
@@ -13,6 +13,7 @@ import { sniffLogo } from './image';
 export const BRAND_STORE = Symbol('BRAND_STORE');
 export const BRAND_FETCHER = Symbol('BRAND_FETCHER');
 
+const sha256 = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex');
 const isAdmin = (tenant: TenantContext) => tenant.organizationRole === 'ORG_OWNER' || tenant.organizationRole === 'ORG_ADMIN';
 type KitRow = NonNullable<Awaited<ReturnType<PrismaClient['organizationBrandKit']['findUnique']>>>;
 
@@ -122,7 +123,7 @@ export class BrandService {
       let logo: StoredDraft['logo'] = null;
       if (draft.logo) {
         const objectKey = `${tenant.organizationId}/brand/draft-${newId()}.${draft.logo.type === 'image/svg+xml' ? 'svg' : draft.logo.type === 'image/png' ? 'png' : 'jpg'}`;
-        await this.store.put(objectKey, new Uint8Array(draft.logo.bytes), { contentType: draft.logo.type } as never);
+        await this.store.put(objectKey, new Uint8Array(draft.logo.bytes), { contentType: draft.logo.type, sha256: sha256(draft.logo.bytes) });
         logo = { objectKey, type: draft.logo.type, width: draft.logo.width, height: draft.logo.height, from: draft.logo.from };
       }
       const stored: StoredDraft = { websiteUrl, logo, accentColor: draft.accentColor, primaryColor: draft.primaryColor, font: draft.font, notes: [...draft.notes], extractedAt: new Date().toISOString() };
@@ -153,11 +154,12 @@ export class BrandService {
           ...(draft.accentColor ? { accentColor: draft.accentColor } : {}),
           ...(draft.primaryColor ? { primaryColor: draft.primaryColor } : {}),
           font: draft.font,
-          draft: Prisma.DbNull,
           updatedBy: tenant.userId,
           updatedAt: new Date(),
         },
       });
+      // The draft is used up; its logo object is now the kit's logo.
+      await tx.$executeRaw`UPDATE organization_brand_kits SET draft = NULL WHERE organization_id = ${tenant.organizationId}::uuid`;
     });
     await this.audit(tenant, 'brand.draft_applied', requestId);
     return this.get(tenant);
@@ -184,7 +186,7 @@ export class BrandService {
     const sniffed = sniffLogo(bytes);
     if (!sniffed) throw new UnprocessableEntityException({ code: 'BRAND_LOGO_TYPE' });
     const objectKey = `${tenant.organizationId}/brand/logo-${newId()}.${sniffed.type === 'image/svg+xml' ? 'svg' : sniffed.type === 'image/png' ? 'png' : 'jpg'}`;
-    await this.store.put(objectKey, new Uint8Array(bytes), { contentType: sniffed.type } as never);
+    await this.store.put(objectKey, new Uint8Array(bytes), { contentType: sniffed.type, sha256: sha256(bytes) });
     const data = { source: 'EDITED', logoObjectKey: objectKey, logoContentType: sniffed.type, logoWidth: sniffed.width, logoHeight: sniffed.height, updatedBy: tenant.userId };
     await withTenant(this.prisma, tenant, (tx) => tx.organizationBrandKit.upsert({ where: { organizationId: tenant.organizationId }, create: { organizationId: tenant.organizationId, ...data }, update: { ...data, updatedAt: new Date() } }));
     await this.audit(tenant, 'brand.logo_uploaded', requestId);
@@ -218,22 +220,17 @@ export class BrandService {
   async publicBrand(slug: string): Promise<PublicBrandView> {
     const row = await this.publicRow(slug);
     if (!row) throw new NotFoundException();
-    const readable = row.accent_color ? readableOnWhite(row.accent_color) : null;
-    return { name: row.name, accentColor: row.accent_color, accentReadable: readable?.color ?? null, primaryColor: row.primary_color, font: row.font as BrandFont, hasLogo: Boolean(row.logo_object_key) };
+    const readable = row.accentColor ? readableOnWhite(row.accentColor) : null;
+    return { name: row.name, accentColor: row.accentColor, accentReadable: readable?.color ?? null, primaryColor: row.primaryColor, font: row.font as BrandFont, hasLogo: Boolean(row.logoObjectKey) };
   }
 
   async publicLogo(slug: string): Promise<{ bytes: Uint8Array; contentType: string }> {
     const row = await this.publicRow(slug);
-    if (!row?.logo_object_key || !row.logo_content_type) throw new NotFoundException();
-    return { bytes: await this.store.get(row.logo_object_key), contentType: row.logo_content_type };
+    if (!row?.logoObjectKey || !row.logoContentType) throw new NotFoundException();
+    return { bytes: await this.store.get(row.logoObjectKey), contentType: row.logoContentType };
   }
 
-  private async publicRow(slug: string) {
-    if (!/^[a-z0-9-]{2,80}$/.test(slug)) return null;
-    const [row] = await asApp(this.prisma, (tx) =>
-      tx.$queryRaw<{ name: string; accent_color: string | null; primary_color: string | null; font: string; logo_object_key: string | null; logo_content_type: string | null }[]>`
-        SELECT name, accent_color, primary_color, font, logo_object_key, logo_content_type FROM app_public_brand(${slug})`,
-    );
-    return row ?? null;
+  private publicRow(slug: string) {
+    return /^[a-z0-9-]{2,80}$/.test(slug) ? publicBrand(this.prisma, slug) : Promise.resolve(null);
   }
 }

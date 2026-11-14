@@ -17,7 +17,7 @@ export function sniffLogo(bytes: Buffer): { type: LogoType; width: number | null
     }
     return { type: 'image/jpeg', width: null, height: null };
   }
-  const head = bytes.subarray(0, 2048).toString('utf8').replace(/^﻿/, '').trimStart();
+  const head = bytes.subarray(0, 2048).toString('utf8').replace(/^\uFEFF/, '').trimStart();
   if (/^(<\?xml[^>]*>\s*)?(<!--[\s\S]*?-->\s*)*(<!DOCTYPE svg[^>]*>\s*)?<svg[\s>]/i.test(head)) {
     const tag = /<svg[^>]*>/i.exec(head)?.[0] ?? '';
     const number = (name: string) => Number(new RegExp(`${name}="([0-9.]+)`).exec(tag)?.[1] ?? NaN);
