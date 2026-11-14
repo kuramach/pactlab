@@ -61,6 +61,22 @@ describe('dev: the running application (ADR 0019)', () => {
     expect(worker).not.toContain('s3:PutObject');
   });
 
+  it('publishes SES delivery events for this environment to its own topic, and lets the API send with them and subscribe (T-109)', () => {
+    template.hasResourceProperties('AWS::SES::ConfigurationSet', { Name: 'pactlab-dev-mail' });
+    template.hasResourceProperties('AWS::SES::ConfigurationSetEventDestination', {
+      EventDestination: Match.objectLike({ Enabled: true, MatchingEventTypes: Match.arrayEquals(['bounce', 'complaint', 'delivery', 'reject', 'renderingFailure']), SnsDestination: Match.anyValue() }),
+    });
+    template.resourceCountIs('AWS::SNS::Topic', 1);
+    // SES may publish to the topic, from this account only.
+    template.hasResourceProperties('AWS::SNS::TopicPolicy', { PolicyDocument: Match.objectLike({ Statement: Match.arrayWith([Match.objectLike({ Principal: { Service: 'ses.amazonaws.com' } })]) }) });
+    const api = statements(template, 'ApiTaskRole');
+    expect(JSON.stringify(api.find((statement) => statement.Sid === 'SendSignInEmail')?.Resource)).toMatch(/configuration-set\/",\{"Ref":"\w*MailConfigurationSet/);
+    expect(api.find((statement) => statement.Sid === 'MailEventsSubscribe')?.Action).toBe('sns:Subscribe');
+    const environment = JSON.stringify(template.findResources('AWS::ECS::TaskDefinition'));
+    expect(environment).toContain('EMAIL_CONFIGURATION_SET');
+    expect(environment).toContain('EMAIL_EVENTS_TOPIC_ARN');
+  });
+
   it('passes credentials as secrets, never as plain environment, and uses the bucket, SES and Bedrock', () => {
     const definitions = Object.values(template.findResources('AWS::ECS::TaskDefinition')) as { Properties: { ContainerDefinitions: { Name: string; Environment?: { Name: string; Value: unknown }[]; Secrets?: { Name: string }[] }[] } }[];
     const api = definitions.flatMap((definition) => definition.Properties.ContainerDefinitions).find((container) => container.Name === 'api');

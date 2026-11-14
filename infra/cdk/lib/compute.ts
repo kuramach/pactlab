@@ -13,6 +13,7 @@ import type * as rds from 'aws-cdk-lib/aws-rds';
 import type * as s3 from 'aws-cdk-lib/aws-s3';
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import * as ses from 'aws-cdk-lib/aws-ses';
+import * as sns from 'aws-cdk-lib/aws-sns';
 import { Construct } from 'constructs';
 import type { EnvironmentConfig, EnvironmentName, ServiceConfig, TaskSize } from '../config';
 
@@ -211,13 +212,30 @@ export class PactlabCompute extends Construct {
             mailFromDomain,
             mailFromBehaviorOnMxFailure: ses.MailFromBehaviorOnMxFailure.USE_DEFAULT_VALUE,
           });
+    // Delivery events (T-109, ADR 0032): every send names this environment's configuration set, whose
+    // bounce, complaint, delivery, reject and rendering-failure events go to this environment's topic.
+    // The API subscribes its own HTTPS endpoint at startup (so a confirmation never reaches an older
+    // release) and verifies every notification's SNS signature. SES account suppression stays the floor.
+    const mailEvents = new sns.Topic(this, 'MailEvents', { displayName: `Pactlab ${config.name} SES events`, enforceSSL: true });
+    const mailConfigurationSet = new ses.ConfigurationSet(this, 'MailConfigurationSet', { configurationSetName: `pactlab-${config.name}-mail` });
+    mailConfigurationSet.addEventDestination('MailEventsToSns', {
+      destination: ses.EventDestination.snsTopic(mailEvents),
+      events: [ses.EmailSendingEvent.BOUNCE, ses.EmailSendingEvent.COMPLAINT, ses.EmailSendingEvent.DELIVERY, ses.EmailSendingEvent.REJECT, ses.EmailSendingEvent.RENDERING_FAILURE],
+    });
+    apiEnvironment['EMAIL_CONFIGURATION_SET'] = mailConfigurationSet.configurationSetName;
+    apiEnvironment['EMAIL_EVENTS_TOPIC_ARN'] = mailEvents.topicArn;
     this.roles.api.addToPolicy(
       new iam.PolicyStatement({
         sid: 'SendSignInEmail',
         actions: ['ses:SendEmail'],
-        resources: [`arn:${stack.partition}:ses:${stack.region}:${stack.account}:identity/${service.email.identityDomain}`],
+        resources: [
+          `arn:${stack.partition}:ses:${stack.region}:${stack.account}:identity/${service.email.identityDomain}`,
+          // Naming a configuration set on a send needs permission on it too.
+          `arn:${stack.partition}:ses:${stack.region}:${stack.account}:configuration-set/${mailConfigurationSet.configurationSetName}`,
+        ],
       }),
     );
+    this.roles.api.addToPolicy(new iam.PolicyStatement({ sid: 'MailEventsSubscribe', actions: ['sns:Subscribe'], resources: [mailEvents.topicArn] }));
     for (const name of ['api', 'worker'] as const) {
       this.roles[name].addToPolicy(new iam.PolicyStatement({ sid: 'FeatureFlags', actions: ['ssm:GetParameter'], resources: [props.featureFlagsParameterArn] }));
     }

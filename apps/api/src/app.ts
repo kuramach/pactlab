@@ -26,8 +26,8 @@ export async function createApp(deps: AppDependencies, options: { webOrigin?: st
         done(null, body);
       },
     );
-  // E-signature (T-107) and Stripe (T-087) webhooks are verified over their exact bytes: read them raw, as a buffer.
-  const RAW_WEBHOOKS = new Set(['/v1/webhooks/signing/docusign', '/v1/webhooks/stripe']);
+  // E-signature (T-107), Stripe (T-087) and SES-via-SNS (T-109, sent as text/plain) webhooks are read raw, as a buffer.
+  const RAW_WEBHOOKS = new Set(['/v1/webhooks/signing/docusign', '/v1/webhooks/stripe', '/v1/email-events/sns']);
   adapter.getInstance().addHook('onRequest', async (request) => {
     if (request.method === 'POST' && RAW_WEBHOOKS.has(request.url.split('?')[0] ?? '')) request.headers['content-type'] = 'application/octet-stream';
   });

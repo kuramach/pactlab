@@ -2995,3 +2995,35 @@ model OrganizationBrandKit {
 
   @@map("organization_brand_kits")
 }
+
+/// One SES delivery event for one recipient (T-109): the address only as a keyed hash and its domain.
+model EmailEvent {
+  id              String   @id @db.Uuid
+  /// BOUNCE | COMPLAINT | DELIVERY | REJECT | RENDERING_FAILURE
+  eventType       String   @map("event_type")
+  recipientHash   String   @map("recipient_hash") @db.Char(64)
+  recipientDomain String   @map("recipient_domain")
+  sesMessageId    String   @map("ses_message_id")
+  snsMessageId    String   @map("sns_message_id")
+  bounceType      String?  @map("bounce_type")
+  bounceSubtype   String?  @map("bounce_subtype")
+  diagnostic      String?
+  occurredAt      DateTime @map("occurred_at") @db.Timestamptz(3)
+  receivedAt      DateTime @default(now()) @map("received_at") @db.Timestamptz(3)
+
+  @@unique([snsMessageId, recipientHash], map: "email_events_once_idx")
+  @@index([receivedAt], map: "email_events_received_idx")
+  @@map("email_events")
+}
+
+/// The in-app do-not-send list (T-109): a hard bounce or a complaint, by keyed hash of the address.
+model EmailSuppression {
+  recipientHash String   @id @map("recipient_hash") @db.Char(64)
+  /// HARD_BOUNCE | COMPLAINT
+  reason        String
+  firstAt       DateTime @default(now()) @map("first_at") @db.Timestamptz(3)
+  lastAt        DateTime @default(now()) @map("last_at") @db.Timestamptz(3)
+  events        Int      @default(1)
+
+  @@map("email_suppressions")
+}

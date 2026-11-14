@@ -49,6 +49,8 @@ import { DealDeletionModule } from './deals/deletion/deal-deletion.module';
 import { InvitationsModule } from './invitations/invitations.module';
 import { ReportsModule } from './reports/reports.module';
 import { BrandModule } from './brand/brand.module';
+import { EmailEventsModule } from './email-events/email-events.module';
+import type { SnsVerifier } from './email-events/sns';
 import { HttpsWebFetcher, type WebFetcher } from './common/safe-fetch';
 import { IcModule } from './ic/ic.module';
 import { BillingModule } from './billing/billing.module';
@@ -84,6 +86,8 @@ export interface AppDependencies {
    * never delivered.
    */
   emailLogin?: { tokenSecret: string; emailSender?: EmailSender; webauthn?: WebAuthnRelyingParty };
+  /** SES delivery events (T-109): the SNS topic's verifier; absent, the endpoint refuses every message. */
+  emailEvents?: { verifier: SnsVerifier | null };
   /**
    * E-signature (T-107). `docusign`: Pactlab's app registration, which organizations connect
    * their own DocuSign accounts to. `fixture`: the fixture provider, outside production only.
@@ -241,6 +245,7 @@ export class AppModule {
         reportsModule,
         IcModule.register({ reports: reportsModule }),
         BrandModule.register({ store: deps.documents?.objectStore ?? new UnavailableObjectStore(), fetcher: deps.webFetcher ?? new HttpsWebFetcher() }),
+        EmailEventsModule.register({ verifier: deps.emailEvents?.verifier ?? null, fetcher: deps.webFetcher ?? new HttpsWebFetcher(), hashSecret: deps.emailLogin?.tokenSecret ?? randomBytes(32).toString('hex') }),
         ...(tokens && deps.emailLogin
           ? [
               EmailLoginModule.register({

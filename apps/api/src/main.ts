@@ -14,6 +14,10 @@ import { FileSystemObjectStore } from './documents/storage-adapters';
 import { BullMqImportQueue } from './imports/bullmq-import-queue';
 import { LocalFileEmailSender } from './email-login/email-sender';
 import { SesEmailSender } from './email-login/ses-email-sender';
+import { HttpsWebFetcher } from './common/safe-fetch';
+import { DatabaseSuppressionList } from './email-events/email-events.service';
+import { SnsVerifier } from './email-events/sns';
+import { ensureEmailEventsSubscription } from './email-events/subscribe';
 import { BrandedEmailSender, emailAssets } from './email-login/branded-email';
 import { ReleaseInfo, ssmReleaseSource } from './health/release-info';
 import { SignatureMalwareScanner } from './documents/upload-policy';
@@ -25,6 +29,15 @@ applyDatabaseUrls();
 const config = loadConfig(apiEnvSchema);
 const logger = createLogger('api', { level: config.LOG_LEVEL });
 const prisma = createPrismaClient({ connectionString: config.DATABASE_URL });
+// SES delivery events (T-109): SNS signing certificates are fetched through the SSRF-safe fetcher.
+const webFetcher = new HttpsWebFetcher();
+const snsVerifier = config.EMAIL_EVENTS_TOPIC_ARN
+  ? new SnsVerifier(config.EMAIL_EVENTS_TOPIC_ARN, async (url) => {
+      const response = await webFetcher.get(url, { maxBytes: 16 * 1024, accept: 'application/x-pem-file' });
+      if (response.status !== 200) throw new Error(`certificate fetch answered ${response.status}`);
+      return response.body.toString('utf8');
+    })
+  : null;
 await assertRuntimeRoleIsolation(prisma);
 
 // Originals: the environment's bucket when deployed (task-role credentials,
@@ -126,11 +139,22 @@ const app = await createApp(
       // Deployed, /v1 shares the web origin; locally the API listens on its own port.
       resource: `${new URL(config.API_PUBLIC_ORIGIN ?? (config.APP_ENV === 'local' ? `http://localhost:${config.API_PORT}` : config.APP_WEB_ORIGIN)).origin}/v1/mcp`,
     },
+    emailEvents: { verifier: snsVerifier },
+    webFetcher,
     emailLogin: {
       tokenSecret: config.AUTH_TOKEN_SECRET,
       webauthn: relyingParty(config.APP_WEB_ORIGIN, config.WEBAUTHN_RP_ID),
       ...(config.EMAIL_PROVIDER === 'ses' && config.EMAIL_FROM
-        ? { emailSender: new BrandedEmailSender(new SesEmailSender(new SESv2Client({ region: config.AWS_REGION }), config.EMAIL_FROM), emailAssets(config.APP_WEB_ORIGIN)) }
+        ? {
+            emailSender: new BrandedEmailSender(
+              new SesEmailSender(new SESv2Client({ region: config.AWS_REGION }), config.EMAIL_FROM, {
+                ...(config.EMAIL_CONFIGURATION_SET ? { configurationSetName: config.EMAIL_CONFIGURATION_SET } : {}),
+                suppression: new DatabaseSuppressionList(prisma, config.AUTH_TOKEN_SECRET),
+                logger,
+              }),
+              emailAssets(config.APP_WEB_ORIGIN),
+            ),
+          }
         : config.APP_ENV === 'local' && config.LOCAL_MAIL_DIR
           ? { emailSender: new BrandedEmailSender(new LocalFileEmailSender(config.LOCAL_MAIL_DIR), emailAssets(config.APP_WEB_ORIGIN)) }
           : {}),
@@ -139,4 +163,8 @@ const app = await createApp(
   { webOrigin: config.APP_WEB_ORIGIN },
 );
 await app.listen({ port: config.API_PORT, host: '0.0.0.0' });
+// Once listening, so SNS's confirmation can reach this release (T-109). Deployed, /v1 shares the web origin.
+if (config.EMAIL_EVENTS_TOPIC_ARN && config.AWS_REGION && config.APP_ENV !== 'local') {
+  void ensureEmailEventsSubscription({ region: config.AWS_REGION, topicArn: config.EMAIL_EVENTS_TOPIC_ARN, endpoint: new URL('/v1/email-events/sns', config.APP_WEB_ORIGIN).toString(), logger });
+}
 logger.info({ port: config.API_PORT, env: config.APP_ENV, ai: ai.status.provider }, 'api listening');
