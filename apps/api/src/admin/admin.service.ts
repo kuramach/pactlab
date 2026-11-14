@@ -1,6 +1,6 @@
 import { ConflictException, ForbiddenException, Inject, Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import type { BugReportDetailView, BugReportSummaryView, FileBugReportInput, MyBugReportView, TriageBugInput } from '@pactlab/contracts';
-import { demoShares, NoDemoSlotFreeError, OperatorRequiredError, operatorOps, prismaExecutor, withTenant, type BugListRow, type DemoShareHours, type MyBugRow, type PrismaClient, type SqlExecutor } from '@pactlab/db';
+import { demoShares, emailEvents, NoDemoSlotFreeError, OperatorRequiredError, operatorOps, prismaExecutor, withTenant, type BugListRow, type DemoShareHours, type MyBugRow, type PrismaClient, type SqlExecutor } from '@pactlab/db';
 import { bugFingerprint, bugReference, scrubContext, type TenantContext } from '@pactlab/domain';
 import type { EmailSender } from '../email-login/email-sender';
 import { demoTokenHash, newDemoToken } from '../demo-links/demo-links';
@@ -153,6 +153,11 @@ export class AdminService {
 
   pending(tenant: TenantContext) {
     return this.asOperator(async () => ({ items: await listPending(this.sql, tenant.userId) }));
+  }
+
+  /** Email health (T-109): SES events by type over the last 7 days, and the do-not-send list's size. Counts only. */
+  emailHealth(tenant: TenantContext) {
+    return this.asOperator(async () => ({ days: 7, ...(await emailEvents.health(this.sql, tenant.userId, 7)) }));
   }
 
   decide(tenant: TenantContext, slug: string, decision: 'approve' | 'reject') {

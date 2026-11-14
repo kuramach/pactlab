@@ -26,6 +26,13 @@ ALTER TABLE "report_versions" DROP CONSTRAINT "report_versions_scope";
 ALTER TABLE "report_versions" ADD CONSTRAINT "report_versions_scope"
   CHECK (("scope" = 'EXECUTIVE' AND "deal_id" IS NULL) OR ("scope" IN ('PACT', 'IC') AND "deal_id" IS NOT NULL));
 ALTER TABLE "report_versions" ADD COLUMN "own_side" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "report_versions" ADD COLUMN "series" UUID NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000';
+-- The backfill below rewrites finished versions, which the immutability trigger refuses, and it runs
+-- as the table owner, whom FORCE ROW LEVEL SECURITY limits like anyone else (deployed databases do
+-- not migrate as a superuser). Both are lifted for this transaction only and restored right after.
+ALTER TABLE report_versions DISABLE TRIGGER report_versions_immutable;
+ALTER TABLE report_versions NO FORCE ROW LEVEL SECURITY;
+ALTER TABLE deal_memberships NO FORCE ROW LEVEL SECURITY;
 -- Versions so far: made by the pact's own side when the generator holds a non-counterparty role on it.
 UPDATE report_versions r SET own_side = true
  WHERE r.deal_id IS NOT NULL AND EXISTS (
@@ -35,8 +42,10 @@ UPDATE report_versions r SET own_side = true
 -- Version numbers run per series: the pact's own side shares one; anyone else (the seller's people,
 -- and executive reports, which stay with their author) numbers their own. So nobody can read
 -- another side's activity from a gap in the numbers, and numbers never collide.
-ALTER TABLE "report_versions" ADD COLUMN "series" UUID NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000';
 UPDATE report_versions SET series = CASE WHEN own_side THEN '00000000-0000-0000-0000-000000000000'::uuid ELSE generated_by END;
+ALTER TABLE report_versions FORCE ROW LEVEL SECURITY;
+ALTER TABLE deal_memberships FORCE ROW LEVEL SECURITY;
+ALTER TABLE report_versions ENABLE TRIGGER report_versions_immutable;
 DROP INDEX "report_versions_scope_version_key";
 CREATE UNIQUE INDEX "report_versions_scope_version_key" ON "report_versions"("organization_id", "scope", COALESCE("deal_id", '00000000-0000-0000-0000-000000000000'::uuid), "series", "version");
 
