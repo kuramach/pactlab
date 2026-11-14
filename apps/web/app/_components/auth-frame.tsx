@@ -7,6 +7,8 @@ import { themeCss, type ThemeVariables } from '../../lib/brand';
 export interface AuthBrand {
   name: string;
   logoUrl: string | null;
+  /** Drawn for a dark background: no white chip on the navy panel, a navy one on white. */
+  logoLight?: boolean;
   variables: ThemeVariables | null;
 }
 
@@ -15,7 +17,7 @@ function BrandMark({ brand, onDark }: { brand: AuthBrand; onDark: boolean }) {
   return (
     <span className="flex flex-col gap-1">
       {brand.logoUrl ? (
-        <span className={onDark ? 'inline-flex w-fit rounded-xl bg-white px-3 py-2' : 'inline-flex w-fit'}>
+        <span className={brand.logoLight ? (onDark ? 'inline-flex w-fit' : 'inline-flex w-fit rounded-xl bg-navy px-3 py-2') : onDark ? 'inline-flex w-fit rounded-xl bg-white px-3 py-2' : 'inline-flex w-fit'}>
           <img src={brand.logoUrl} alt={brand.name} className="h-10 w-auto max-w-[14rem] object-contain" />
         </span>
       ) : (

@@ -63,6 +63,8 @@ export function NavLinks({
 export interface ShellBrand {
   name: string;
   logoUrl: string | null;
+  /** Drawn for a dark background (T-123): no white pill on dark, a navy chip on light. */
+  logoLight?: boolean;
 }
 
 export function OrgMark({ brand, tone }: { brand: ShellBrand; tone: 'light' | 'dark' }) {
@@ -70,7 +72,7 @@ export function OrgMark({ brand, tone }: { brand: ShellBrand; tone: 'light' | 'd
   return (
     <span className="flex min-w-0 flex-col gap-0.5">
       {brand.logoUrl ? (
-        <span className={dark ? 'inline-flex w-fit rounded-lg bg-white px-2 py-1' : 'inline-flex w-fit'}>
+        <span className={brand.logoLight ? (dark ? 'inline-flex w-fit' : 'inline-flex w-fit rounded-lg bg-navy px-2 py-1') : dark ? 'inline-flex w-fit rounded-lg bg-white px-2 py-1' : 'inline-flex w-fit'}>
           <img src={brand.logoUrl} alt={brand.name} className="h-8 w-auto max-w-[10rem] object-contain" />
         </span>
       ) : (

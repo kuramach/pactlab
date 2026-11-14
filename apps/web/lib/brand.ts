@@ -19,12 +19,13 @@ export function themeCss(variables: ThemeVariables | null, selector = ':root'): 
 }
 
 /** The app's brand for the signed-in organization: null on the Pactlab kit. */
-export function appBrand(kit: BrandKitView | null): { name: string; logoUrl: string | null; variables: ThemeVariables | null } | null {
+export function appBrand(kit: BrandKitView | null): { name: string; logoUrl: string | null; logoLight: boolean; variables: ThemeVariables | null } | null {
   if (!kit || kit.source === 'DEFAULT') return null;
   return {
     name: kit.organizationName,
     // The version in the URL changes when the logo does, so a cached old logo is never shown.
     logoUrl: kit.hasLogo ? `/brand-logo?v=${encodeURIComponent(kit.version)}` : null,
+    logoLight: kit.logoLight,
     variables: brandThemeVariables({ accentColor: kit.accentColor, font: kit.font }),
   };
 }

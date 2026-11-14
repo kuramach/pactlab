@@ -74,4 +74,37 @@ describe('brand extraction from a company website (T-123)', () => {
       await expect(fetcher.get(new URL(target), { maxBytes: 100, accept: 'text/html' }), target).rejects.toMatchObject({ reason: 'BLOCKED_ADDRESS' });
     }
   });
+
+  it('finds a Next.js site’s logo in its navigation through the image optimizer, and knows a white logo needs a dark chip', async () => {
+    const white = Buffer.from('<svg width="731" height="165" viewBox="0 0 731 165" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M0 0h10v10H0z" fill="white"/><path d="M20 0h10v10H20z" fill="#FFFFFF"/></svg>');
+    const fetcher = new FixtureFetcher({
+      'https://www.matrice.example/': {
+        type: 'text/html',
+        body: `<html><head><link rel="stylesheet" href="/_next/static/css/a.css"><link rel="stylesheet" href="/_next/static/css/b.css"></head>
+          <body><div id="__next"><nav class="fixed"><a href="/"><img alt="Matrice" src="/_next/image?url=%2Fmatrice-logo.svg&amp;w=256&amp;q=75"></a>
+          <img alt="Menu" src="/hamburger.svg"></nav></div></body></html>`,
+      },
+      'https://www.matrice.example/matrice-logo.svg': { type: 'image/svg+xml', body: white },
+      'https://www.matrice.example/_next/static/css/a.css': { type: 'text/css', body: 'html { color: #111 }' },
+      'https://www.matrice.example/_next/static/css/b.css': { type: 'text/css', body: ':root { --brand-500: #7c3aed } body { font-family: Inter, sans-serif }' },
+    });
+    const draft = await extractBrand(fetcher, 'https://www.matrice.example/');
+    expect(draft.logo).toMatchObject({ type: 'image/svg+xml', width: 731, height: 165, light: true });
+    expect(fetcher.asked).toContain('https://www.matrice.example/matrice-logo.svg');
+    expect(fetcher.asked).not.toContain('https://www.matrice.example/hamburger.svg');
+    // The brand color sits in the second stylesheet.
+    expect(draft.accentColor).toBe('#7c3aed');
+    expect(draft.notes.join(' ')).toContain('dark chip');
+  });
+
+  it('takes the accent from a colored SVG logo when the site declares none', async () => {
+    const svg = Buffer.from('<svg viewBox="0 0 100 20" xmlns="http://www.w3.org/2000/svg"><path fill="#0f172a" d="M0 0h1v1z"/><path style="fill:#e11d48" d="M2 0h1v1z"/></svg>');
+    const fetcher = new FixtureFetcher({
+      'https://acme.example/': { type: 'text/html', body: '<html><head><link rel="icon" type="image/svg+xml" href="/icon.svg"></head><body></body></html>' },
+      'https://acme.example/icon.svg': { type: 'image/svg+xml', body: svg },
+    });
+    const draft = await extractBrand(fetcher, 'https://acme.example/');
+    expect(draft.logo).toMatchObject({ type: 'image/svg+xml', light: false, from: 'the site’s icon' });
+    expect(draft.accentColor).toBe('#e11d48');
+  });
 });

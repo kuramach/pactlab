@@ -2985,6 +2985,8 @@ model OrganizationBrandKit {
   logoContentType String?   @map("logo_content_type")
   logoWidth       Int?      @map("logo_width")
   logoHeight      Int?      @map("logo_height")
+  /// Drawn for a dark background (an all-white SVG): shown on a dark chip.
+  logoLight       Boolean   @default(false) @map("logo_light")
   primaryColor    String?   @map("primary_color")
   accentColor     String?   @map("accent_color")
   font            String    @default("MANROPE")
