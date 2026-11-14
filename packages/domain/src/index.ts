@@ -14,3 +14,4 @@ export * from './bugs';
 export * from './foresight';
 export * from './foresight-metrics';
 export * from './regulatory/registry';
+export * from './brand';

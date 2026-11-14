@@ -448,6 +448,8 @@ model Organization {
   defaultPersona      String?                @map("default_persona")
   /// The longest trusted sign-in members may keep, in hours (T-112): 0 (off), 24, 168 or 720.
   trustedSessionMaxHours Int                 @default(168) @map("trusted_session_max_hours")
+  /// The company website, where the brand kit is drafted from (T-123).
+  websiteUrl          String?                @map("website_url")
   /// Signing waits for investment committee approval on this organization's pacts (T-118); a pact may override.
   icApprovalRequired  Boolean                @default(false) @map("ic_approval_required")
   /// Conditions an IC sets are cleared by the IC, not only addressed by the deal team.
@@ -2970,4 +2972,26 @@ model LoiSignoff {
 
   @@unique([loiId, side], map: "loi_signoffs_side_key")
   @@map("loi_signoffs")
+}
+
+/// An organization's brand kit (T-123): logo, colors and font for the app, its documents and emails.
+model OrganizationBrandKit {
+  organizationId  String    @id @map("organization_id") @db.Uuid
+  /// DEFAULT | EXTRACTED | EDITED — an edit is never overwritten by extraction.
+  source          String    @default("DEFAULT")
+  logoObjectKey   String?   @map("logo_object_key")
+  logoContentType String?   @map("logo_content_type")
+  logoWidth       Int?      @map("logo_width")
+  logoHeight      Int?      @map("logo_height")
+  primaryColor    String?   @map("primary_color")
+  accentColor     String?   @map("accent_color")
+  font            String    @default("MANROPE")
+  /// The latest extraction, waiting for an admin to apply it.
+  draft           Json?
+  extraction      Json?
+  extractedAt     DateTime? @map("extracted_at") @db.Timestamptz(3)
+  updatedBy       String?   @map("updated_by") @db.Uuid
+  updatedAt       DateTime  @default(now()) @map("updated_at") @db.Timestamptz(3)
+
+  @@map("organization_brand_kits")
 }
