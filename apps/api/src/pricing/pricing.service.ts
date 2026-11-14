@@ -28,7 +28,7 @@ import { DealAccess } from '../deals/deal-access';
 import { FINDINGS_REPOSITORY, type FindingsRepository } from '../findings/findings.repository';
 import { PRISMA } from '../tokens';
 import { ValuationService } from '../valuation/valuation.service';
-import type { EvaluateBody, PersonaBody, SellerDraftBody, SellerNotesBody, TermResponsesBody } from './pricing.schemas';
+import type { ContingencyBody, EvaluateBody, PersonaBody, SellerDraftBody, SellerNotesBody, TermResponsesBody } from './pricing.schemas';
 
 export const PRICING_DEPENDENCIES = Symbol('PRICING_DEPENDENCIES');
 export interface PricingDependencies {
@@ -53,11 +53,15 @@ const other = (side: string) => (side === 'BUYER' ? 'SELLER' : 'BUYER');
 export type TermDecision = 'ACCEPT' | 'REJECT' | 'COUNTER';
 
 /** The seller's own unproposed version, visible only to the seller side (T-107). */
+/** Every lever a version of the terms may carry: the persona's levers, the headline price, and a financing contingency (T-117). */
+export type ProposedLever = TermLever | 'PURCHASE_PRICE' | 'FINANCING_CONTINGENCY';
+const dueOn = (value: Date | null) => (value ? value.toISOString().slice(0, 10) : null);
+
 export interface SellerDraftView {
   readonly id: string;
   readonly version: number;
   readonly currency: string;
-  readonly terms: readonly { readonly ordinal: number; readonly lever: TermLever; readonly amount: string; readonly currency: string; readonly note: string }[];
+  readonly terms: readonly { readonly ordinal: number; readonly lever: ProposedLever; readonly amount: string; readonly currency: string; readonly note: string; readonly dueOn: string | null }[];
 }
 export interface TermResponseView {
   readonly decision: TermDecision;
@@ -132,10 +136,12 @@ export interface SellerTermsView {
   readonly canAcceptCounters: boolean;
   readonly terms: readonly {
     readonly ordinal: number;
-    readonly lever: TermLever;
+    readonly lever: ProposedLever;
     readonly amount: string;
     readonly currency: string;
     readonly sellerNote: string;
+    /** A financing contingency's date (T-117); null for every other term. */
+    readonly dueOn: string | null;
     /** The seller side's latest answer to this term. */
     readonly response: { readonly decision: TermDecision; readonly counterAmount: string | null; readonly note: string; readonly respondedAt: string } | null;
   }[];
@@ -263,7 +269,7 @@ export class PricingService {
             agreedAt: batch.agreedAt?.toISOString() ?? null,
             declinedAt: batch.declinedAt?.toISOString() ?? null,
             initiatedBySide: batch.initiatedBySide as 'BUYER' | 'SELLER',
-            terms: batch.terms.map((term) => ({ ordinal: term.ordinal, lever: term.lever as TermLever, amount: term.amount.toFixed(2), currency: term.currency, findingId: term.findingId, sellerNote: term.sellerNote, response: responses.get(term.ordinal) ?? null })),
+            terms: batch.terms.map((term) => ({ ordinal: term.ordinal, lever: term.lever as ProposedLever, amount: term.amount.toFixed(2), currency: term.currency, findingId: term.findingId, sellerNote: term.sellerNote, dueOn: dueOn(term.dueOn), response: responses.get(term.ordinal) ?? null })),
           };
         }),
         // Proposed terms are sticky: true when the seller still sees terms from another evaluation.
@@ -412,6 +418,26 @@ export class PricingService {
     return this.view(tenant, dealId, requestId);
   }
 
+  /**
+   * The buyer adds a financing contingency to their draft (T-117): the financed amount it covers and
+   * the date the financing must be in place by. Certainty of close, not price: it never enters the
+   * evaluation or the term mix, and the seller answers it like any other term. One per version.
+   */
+  async addFinancingContingency(tenant: TenantContext, dealId: string, batchId: string, body: ContingencyBody, requestId: string) {
+    await this.access.require(tenant, dealId, canWrite, { action: 'terms.contingency_added', requestId });
+    await withTenant(this.prisma, tenant, async (tx) => {
+      const batch = await this.draft(tx, dealId, batchId);
+      if (batch.initiatedBySide !== 'BUYER') throw new NotFoundException();
+      const terms = await tx.termProposal.findMany({ where: { batchId }, select: { ordinal: true, lever: true } });
+      if (terms.some((term) => term.lever === 'FINANCING_CONTINGENCY')) throw new ConflictException('This version already has a financing contingency');
+      await tx.termProposal.create({
+        data: { id: newId(), organizationId: tenant.organizationId, dealId, batchId, ordinal: Math.max(-1, ...terms.map((term) => term.ordinal)) + 1, lever: 'FINANCING_CONTINGENCY', amount: body.amount, currency: batch.currency, findingId: null, sellerNote: body.note, dueOn: new Date(`${body.dueOn}T00:00:00Z`) },
+      });
+      await this.audit(tx, tenant, dealId, 'terms.contingency_added', 'term_proposal_batch', batchId, requestId);
+    });
+    return this.view(tenant, dealId, requestId);
+  }
+
   private async draft(tx: TransactionClient, dealId: string, batchId: string) {
     const batch = await tx.termProposalBatch.findFirst({ where: { id: batchId, dealId } });
     if (!batch) throw new NotFoundException();
@@ -454,7 +480,7 @@ export class PricingService {
         : null,
     ] as const);
     const draftView: SellerDraftView | null = draft
-      ? { id: draft.id, version: draft.version, currency: draft.currency, terms: draft.terms.map((term) => ({ ordinal: term.ordinal, lever: term.lever as TermLever, amount: term.amount.toFixed(2), currency: term.currency, note: term.sellerNote })) }
+      ? { id: draft.id, version: draft.version, currency: draft.currency, terms: draft.terms.map((term) => ({ ordinal: term.ordinal, lever: term.lever as ProposedLever, amount: term.amount.toFixed(2), currency: term.currency, note: term.sellerNote, dueOn: dueOn(term.dueOn) })) }
       : null;
     if (!batch?.proposedAt) return { side, proposed: null, draft: draftView };
     const responses = latestResponses(batch.responses);
@@ -475,10 +501,11 @@ export class PricingService {
           const response = responses.get(term.ordinal);
           return {
             ordinal: term.ordinal,
-            lever: term.lever as TermLever,
+            lever: term.lever as ProposedLever,
             amount: term.amount.toFixed(2),
             currency: term.currency,
             sellerNote: term.sellerNote,
+            dueOn: dueOn(term.dueOn),
             response: response ? { decision: response.decision, counterAmount: response.counterAmount, note: response.note, respondedAt: response.respondedAt } : null,
           };
         }),
@@ -560,6 +587,7 @@ export class PricingService {
             currency: term.currency,
             findingId: term.findingId,
             sellerNote: term.sellerNote,
+            dueOn: term.dueOn,
           };
         }),
       });
@@ -584,7 +612,7 @@ export class PricingService {
         data: { id: batchId, organizationId: tenant.organizationId, dealId, evaluationId: null, initiatedBySide: 'SELLER', version: (newest[0]?.version ?? 0) + 1, currency: body.currency, createdBy: tenant.userId },
       });
       await tx.termProposal.createMany({
-        data: body.terms.map((term, ordinal) => ({ id: newId(), organizationId: tenant.organizationId, dealId, batchId, ordinal, lever: term.lever, amount: term.amount, currency: body.currency, findingId: null, sellerNote: term.note })),
+        data: body.terms.map((term, ordinal) => ({ id: newId(), organizationId: tenant.organizationId, dealId, batchId, ordinal, lever: term.lever, amount: term.amount, currency: body.currency, findingId: null, sellerNote: term.note, dueOn: term.dueOn ? new Date(`${term.dueOn}T00:00:00Z`) : null })),
       });
       await this.audit(tx, tenant, dealId, 'terms.drafted', 'term_proposal_batch', batchId, requestId);
     });

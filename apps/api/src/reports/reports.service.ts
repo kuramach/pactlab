@@ -7,6 +7,7 @@ import { ConnectionsService } from '../connections/connections.service';
 import { DealsService } from '../deals/deals.service';
 import type { DocumentObjectStore } from '../documents/documents.repository';
 import { DocumentsService } from '../documents/documents.service';
+import { FinancingService } from '../financing/financing.service';
 import { FindingsService } from '../findings/findings.service';
 import { PhasesService } from '../phases/phases.service';
 import { PricingService } from '../pricing/pricing.service';
@@ -38,6 +39,7 @@ export class ReportsService {
     @Inject(PhasesService) private readonly phases: PhasesService,
     @Inject(DocumentsService) private readonly documents: DocumentsService,
     @Inject(ConnectionsService) private readonly connections: ConnectionsService,
+    @Inject(FinancingService) private readonly financing: FinancingService,
   ) {}
 
   private sources(requestId: string): ReportSources {
@@ -52,6 +54,7 @@ export class ReportsService {
       postClose: (tenant, dealId) => this.phases.postClose(tenant, dealId, requestId) as never,
       documents: (tenant, dealId) => this.documents.list(tenant, dealId, requestId) as never,
       connections: (tenant, dealId) => this.connections.list(tenant, dealId, requestId) as never,
+      financing: (tenant, dealId) => this.financing.view(tenant, dealId, requestId),
     };
   }
 

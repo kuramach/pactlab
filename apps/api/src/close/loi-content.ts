@@ -35,7 +35,7 @@ export interface LoiInput {
   readonly sellerName: string;
   readonly termsVersion: number;
   readonly agreedAt: string;
-  readonly terms: readonly { readonly lever: string; readonly amount: string; readonly currency: string; readonly note: string }[];
+  readonly terms: readonly { readonly lever: string; readonly amount: string; readonly currency: string; readonly note: string; readonly dueOn?: string | null }[];
   readonly fields: LoiFields;
 }
 
@@ -81,7 +81,7 @@ export function loiContent(input: LoiInput): LoiContent {
       },
       {
         heading: 'Structure and other terms',
-        lines: others.length > 0 ? others.map((term) => `${TERM_TITLES[term.lever] ?? term.lever}: ${loiMoney(term.amount, term.currency)}${term.note ? ` (${term.note})` : ''}`) : ['No other terms were agreed.'],
+        lines: others.length > 0 ? others.map((term) => `${TERM_TITLES[term.lever] ?? term.lever}: ${loiMoney(term.amount, term.currency)}${term.dueOn ? `, financing in place by ${term.dueOn}` : ''}${term.note ? ` (${term.note})` : ''}`) : ['No other terms were agreed.'],
       },
       { heading: 'Diligence', lines: [`The buyer expects to complete confirmatory diligence within ${fields.diligenceDays} days of countersignature.`] },
       { heading: 'Timeline', lines: [fields.targetSigningDate ? `The parties aim to sign a definitive agreement by ${fields.targetSigningDate}.` : 'The parties will agree a timetable for the definitive agreement.'] },

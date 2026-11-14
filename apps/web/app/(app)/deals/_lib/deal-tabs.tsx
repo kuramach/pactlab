@@ -67,6 +67,8 @@ export const DEAL_GROUPS: readonly DealGroup[] = [
     sections: [
       // The buyer's investment committee decides before signing (T-118); never the seller's.
       { path: '/ic', label: 'Investment committee' },
+      // How the buyer funds the deal, shown to the seller as attested (T-117).
+      { path: '/financing', label: 'Financing' },
       // Both sides sign the agreed terms and work the checklist here (T-107).
       { path: '/closing', label: 'Closing' },
       { path: '/post-close', label: 'Post-close' },

@@ -2467,12 +2467,14 @@ model TermProposal {
   dealId         String  @map("deal_id") @db.Uuid
   batchId        String  @map("batch_id") @db.Uuid
   ordinal        Int
-  /// PRICE_REDUCTION | REMEDIATION_COST | ESCROW | INDEMNITY | RETENTION | EARNOUT | SELLER_FINANCING
+  /// PURCHASE_PRICE | PRICE_REDUCTION | REMEDIATION_COST | ESCROW | INDEMNITY | RETENTION | EARNOUT | SELLER_FINANCING | FINANCING_CONTINGENCY
   lever          String
   amount         Decimal @db.Decimal(20, 2)
   currency       String  @db.Char(3)
   findingId      String? @map("finding_id") @db.Uuid
   sellerNote     String  @default("") @map("seller_note")
+  /// FINANCING_CONTINGENCY only (T-117): the date the financing must be in place by.
+  dueOn          DateTime? @map("due_on") @db.Date
 
   batch TermProposalBatch @relation(fields: [organizationId, dealId, batchId], references: [organizationId, dealId, id], onDelete: Cascade, map: "term_proposals_batch_fkey")
 
@@ -2994,4 +2996,114 @@ model OrganizationBrandKit {
   updatedAt       DateTime  @default(now()) @map("updated_at") @db.Timestamptz(3)
 
   @@map("organization_brand_kits")
+}
+
+/// A buyer's financing plan on a pact (T-117, ADR 0033): the own side of a buyer-led pact (no bid),
+/// or one bidder on a seller-led one. Buyer-attested; the seller sees structure, status and coverage.
+model FinancingPlan {
+  id                   String    @id @db.Uuid
+  organizationId       String    @map("organization_id") @db.Uuid
+  dealId               String    @map("deal_id") @db.Uuid
+  bidId                String?   @map("bid_id") @db.Uuid
+  commitmentExpectedBy DateTime? @map("commitment_expected_by") @db.Date
+  /// Buyer-only.
+  buyerNote            String    @default("") @map("buyer_note")
+  createdBy            String    @map("created_by") @db.Uuid
+  updatedBy            String    @map("updated_by") @db.Uuid
+  updatedAt            DateTime  @default(now()) @map("updated_at") @db.Timestamptz(3)
+
+  tranches  FinancingTranche[]
+  escrow    FinancingEscrow?
+  documents FinancingDocument[]
+
+  @@unique([organizationId, dealId, id], map: "financing_plans_org_deal_id_key")
+  @@map("financing_plans")
+}
+
+model FinancingTranche {
+  id             String   @id @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  dealId         String   @map("deal_id") @db.Uuid
+  planId         String   @map("plan_id") @db.Uuid
+  ordinal        Int
+  /// CASH | SBA_7A | CONVENTIONAL_DEBT | SELLER_NOTE | ROLLOVER_EQUITY | OTHER
+  kind           String
+  amount         Decimal  @db.Decimal(20, 2)
+  currency       String   @db.Char(3)
+  /// NOT_STARTED | EXPLORING | PRE_QUALIFIED | APPLICATION_SUBMITTED | COMMITMENT_ISSUED | CLEARED_TO_CLOSE
+  status         String   @default("NOT_STARTED")
+  label          String   @default("")
+  /// Buyer-only (e.g. the lender's name).
+  buyerNote      String   @default("") @map("buyer_note")
+  updatedBy      String   @map("updated_by") @db.Uuid
+  updatedAt      DateTime @default(now()) @map("updated_at") @db.Timestamptz(3)
+
+  plan      FinancingPlan       @relation(fields: [organizationId, dealId, planId], references: [organizationId, dealId, id], onDelete: Cascade, map: "financing_tranches_plan_fkey")
+  documents FinancingDocument[]
+
+  @@unique([planId, ordinal], map: "financing_tranches_ordinal_key")
+  @@map("financing_tranches")
+}
+
+/// Earnest money in escrow with a third party (T-117); recorded by the buyer, confirmed by the seller.
+model FinancingEscrow {
+  planId            String    @id @map("plan_id") @db.Uuid
+  organizationId    String    @map("organization_id") @db.Uuid
+  dealId            String    @map("deal_id") @db.Uuid
+  amount            Decimal   @db.Decimal(20, 2)
+  currency          String    @db.Char(3)
+  /// TITLE_COMPANY | ATTORNEY | BROKER | OTHER
+  holderKind        String    @map("holder_kind")
+  holderName        String    @map("holder_name")
+  depositDueOn      DateTime? @map("deposit_due_on") @db.Date
+  hardOn            DateTime? @map("hard_on") @db.Date
+  refundConditions  String    @default("") @map("refund_conditions")
+  /// NOT_COMMITTED | COMMITTED | DEPOSITED | APPLIED_AT_CLOSE | RELEASED_TO_SELLER | REFUNDED_TO_BUYER
+  status            String    @default("COMMITTED")
+  depositedOn       DateTime? @map("deposited_on") @db.Date
+  depositReference  String?   @map("deposit_reference")
+  proofDocumentId   String?   @map("proof_document_id") @db.Uuid
+  depositRecordedBy String?   @map("deposit_recorded_by") @db.Uuid
+  depositRecordedAt DateTime? @map("deposit_recorded_at") @db.Timestamptz(3)
+  confirmedBy       String?   @map("confirmed_by") @db.Uuid
+  confirmedAt       DateTime? @map("confirmed_at") @db.Timestamptz(3)
+  disputedAt        DateTime? @map("disputed_at") @db.Timestamptz(3)
+  disputeNote       String?   @map("dispute_note")
+  dispositionBy     String?   @map("disposition_by") @db.Uuid
+  dispositionAt     DateTime? @map("disposition_at") @db.Timestamptz(3)
+  updatedBy         String    @map("updated_by") @db.Uuid
+  updatedAt         DateTime  @default(now()) @map("updated_at") @db.Timestamptz(3)
+
+  plan  FinancingPlan      @relation(fields: [organizationId, dealId, planId], references: [organizationId, dealId, id], onDelete: Cascade, map: "financing_escrows_plan_fkey")
+  proof FinancingDocument? @relation("EscrowProof", fields: [proofDocumentId], references: [id], onDelete: SetNull, map: "financing_escrows_proof_fkey")
+
+  @@unique([organizationId, dealId, planId], map: "financing_escrows_org_deal_plan_key")
+  @@map("financing_escrows")
+}
+
+/// A financing document (T-117): buyer-only until shared, one by one, revocable.
+model FinancingDocument {
+  id             String    @id @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  dealId         String    @map("deal_id") @db.Uuid
+  planId         String    @map("plan_id") @db.Uuid
+  trancheId      String?   @map("tranche_id") @db.Uuid
+  /// PROOF_OF_FUNDS | PRE_QUALIFICATION | COMMITMENT_LETTER | SBA_PRE_QUALIFICATION | ESCROW_RECEIPT | BUYER_FINANCIALS | OTHER
+  purpose        String
+  fileName       String    @map("file_name")
+  contentType    String    @map("content_type")
+  byteSize       Int       @map("byte_size")
+  sha256         String    @db.Char(64)
+  objectKey      String    @map("object_key")
+  uploadedBy     String    @map("uploaded_by") @db.Uuid
+  uploadedAt     DateTime  @default(now()) @map("uploaded_at") @db.Timestamptz(3)
+  sharedAt       DateTime? @map("shared_at") @db.Timestamptz(3)
+  sharedBy       String?   @map("shared_by") @db.Uuid
+
+  plan        FinancingPlan     @relation(fields: [organizationId, dealId, planId], references: [organizationId, dealId, id], onDelete: Cascade, map: "financing_documents_plan_fkey")
+  tranche     FinancingTranche? @relation(fields: [trancheId], references: [id], onDelete: SetNull, map: "financing_documents_tranche_fkey")
+  escrowProof FinancingEscrow[] @relation("EscrowProof")
+
+  @@index([planId, uploadedAt], map: "financing_documents_plan_idx")
+  @@map("financing_documents")
 }

@@ -25,7 +25,7 @@ const OUTCOMES: Record<string, string> = {
 };
 
 const SIDE_NAMES = { BUYER: 'the buyer', SELLER: 'the seller' } as const;
-const DRAFT_LEVERS = ['PURCHASE_PRICE', 'ESCROW', 'INDEMNITY', 'EARNOUT', 'SELLER_FINANCING', 'PRICE_REDUCTION', 'REMEDIATION_COST', 'RETENTION'] as const;
+const DRAFT_LEVERS = ['PURCHASE_PRICE', 'ESCROW', 'INDEMNITY', 'EARNOUT', 'SELLER_FINANCING', 'PRICE_REDUCTION', 'REMEDIATION_COST', 'RETENTION', 'FINANCING_CONTINGENCY'] as const;
 
 /** The seller's own version (T-107): a draft to check and propose, or a form to write one. */
 function SellerVersion({ dealId, view, open }: { dealId: string; view: SellerTermsView; open: boolean }) {
@@ -76,6 +76,7 @@ function SellerVersion({ dealId, view, open }: { dealId: string; view: SellerTer
             {row === 0 ? <input type="hidden" name="lever-0" value="PURCHASE_PRICE" /> : null}
             <input name={`amount-${row}`} inputMode="decimal" required={row === 0} placeholder={row === 0 ? 'Purchase price' : 'Amount (optional)'} className={inputClass} aria-label={`Amount for term ${row + 1}`} />
             <input name={`note-${row}`} maxLength={1000} placeholder="Note for the buyer (optional)" className={inputClass} aria-label={`Note for term ${row + 1}`} />
+            {row > 0 ? <input name={`due-${row}`} type="date" className={`${inputClass} sm:col-start-2`} aria-label={`Financing in place by, for term ${row + 1} (a financing contingency only)`} /> : null}
           </div>
         ))}
         <div>
@@ -149,7 +150,10 @@ export default async function ProposedTermsPage({ params, searchParams }: { para
                 {proposed.terms.map((term) => (
                   <tr key={term.ordinal}>
                     <td className="py-3 pr-4 font-medium">{LEVER_LABELS[term.lever]}</td>
-                    <td className="py-3 pr-4">{formatMoney({ amount: term.amount, currency: term.currency })}</td>
+                    <td className="py-3 pr-4">
+                      {formatMoney({ amount: term.amount, currency: term.currency })}
+                      {term.dueOn ? <span className="block text-xs text-muted-foreground">financing in place by {term.dueOn}</span> : null}
+                    </td>
                     <td className="py-3 pr-4 text-muted-foreground">{term.sellerNote || '—'}</td>
                     <td className="py-3">
                       {term.response ? (
