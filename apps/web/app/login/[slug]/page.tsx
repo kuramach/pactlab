@@ -17,7 +17,7 @@ export default async function BrandedLoginPage({ params, searchParams }: { param
   return (
     <LoginScreen
       params={await searchParams}
-      brand={{ slug, name: brand.name, logoUrl: brand.hasLogo ? `/login/${slug}/logo` : null, variables: brandThemeVariables({ accentColor: brand.accentColor, font: brand.font }) }}
+      brand={{ slug, name: brand.name, logoUrl: brand.hasLogo ? `/login/${slug}/logo` : null, logoLight: brand.logoLight, variables: brandThemeVariables({ accentColor: brand.accentColor, font: brand.font }) }}
     />
   );
 }

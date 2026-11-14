@@ -9,6 +9,7 @@ export interface PublicBrandRow {
   font: string;
   logoObjectKey: string | null;
   logoContentType: string | null;
+  logoLight: boolean;
 }
 
 /**
@@ -17,7 +18,7 @@ export interface PublicBrandRow {
  */
 export async function publicBrand(prisma: PrismaClient, slug: string): Promise<PublicBrandRow | null> {
   const [row] = await asApp(prisma, (tx) =>
-    tx.$queryRaw<{ organization_id: string; name: string; accent_color: string | null; primary_color: string | null; font: string; logo_object_key: string | null; logo_content_type: string | null }[]>`
+    tx.$queryRaw<{ organization_id: string; name: string; accent_color: string | null; primary_color: string | null; font: string; logo_object_key: string | null; logo_content_type: string | null; logo_light: boolean | null }[]>`
       SELECT * FROM app_public_brand(${slug})`,
   );
   if (!row) return null;
@@ -29,5 +30,6 @@ export async function publicBrand(prisma: PrismaClient, slug: string): Promise<P
     font: row.font,
     logoObjectKey: row.logo_object_key,
     logoContentType: row.logo_content_type,
+    logoLight: row.logo_light === true,
   };
 }

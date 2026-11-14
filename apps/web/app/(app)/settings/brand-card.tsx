@@ -61,7 +61,9 @@ export async function BrandCard({ outcome }: { outcome?: string | undefined }) {
 
         <section aria-label="Current brand" className="flex flex-wrap items-center gap-6 rounded-lg border border-border p-4">
           {kit.hasLogo ? (
-            <img src={`/brand-logo?v=${encodeURIComponent(kit.version)}`} alt={`${kit.organizationName} logo`} className="h-10 w-auto max-w-[12rem] object-contain" />
+            <span className={kit.logoLight ? 'inline-flex rounded-lg bg-navy px-3 py-2' : 'inline-flex'}>
+              <img src={`/brand-logo?v=${encodeURIComponent(kit.version)}`} alt={`${kit.organizationName} logo`} className="h-10 w-auto max-w-[12rem] object-contain" />
+            </span>
           ) : (
             <span className="text-muted-foreground">No logo: the Pactlab logo is shown.</span>
           )}
@@ -94,7 +96,9 @@ export async function BrandCard({ outcome }: { outcome?: string | undefined }) {
                 <p className="font-semibold">Suggested from {kit.draft.websiteUrl}</p>
                 <div className="flex flex-wrap items-center gap-6">
                   {kit.draft.hasLogo ? (
-                    <img src={`/brand-logo?which=draft&v=${encodeURIComponent(kit.draft.extractedAt)}`} alt="Suggested logo" className="h-10 w-auto max-w-[12rem] object-contain" />
+                    <span className={kit.draft.logoLight ? 'inline-flex rounded-lg bg-navy px-3 py-2' : 'inline-flex'}>
+                      <img src={`/brand-logo?which=draft&v=${encodeURIComponent(kit.draft.extractedAt)}`} alt="Suggested logo" className="h-10 w-auto max-w-[12rem] object-contain" />
+                    </span>
                   ) : null}
                   <Swatch color={kit.draft.accentColor} label="Accent" />
                   <span>Font: {BRAND_FONT_LABELS[kit.draft.font]}</span>

@@ -137,7 +137,7 @@ describe('organization brand kits (T-123)', () => {
   it('shows the sign-in page only presentation fields, and no other organization the kit', async () => {
     const pub = await call(null, 'GET', `/v1/brand/${slugA}`);
     expect(pub.status).toBe(200);
-    expect(Object.keys(pub.body).sort()).toEqual(['accentColor', 'accentReadable', 'font', 'hasLogo', 'name', 'primaryColor']);
+    expect(Object.keys(pub.body).sort()).toEqual(['accentColor', 'accentReadable', 'font', 'hasLogo', 'logoLight', 'name', 'primaryColor']);
     expect((await call(null, 'GET', `/v1/brand/${slugA}/logo`)).status).toBe(200);
     expect((await call(null, 'GET', '/v1/brand/no-such-org')).status).toBe(404);
     expect((await call(null, 'GET', '/v1/brand/..%2Fadmin')).status).toBe(400);

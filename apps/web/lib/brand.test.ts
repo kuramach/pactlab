@@ -9,6 +9,7 @@ const kit = (over: Partial<BrandKitView>): BrandKitView => ({
   source: 'EDITED',
   hasLogo: true,
   logoContentType: 'image/png',
+  logoLight: false,
   version: 'k1',
   primaryColor: null,
   accentColor: '#0b5fff',

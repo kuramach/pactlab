@@ -1,11 +1,12 @@
 import { isHexColor, nearestBrandFont, type BrandFont } from '@pactlab/domain';
 import { SafeFetchError, type WebFetcher } from '../common/safe-fetch';
-import { pngPaletteColor, sniffLogo, type LogoType } from './image';
+import { isLightLogo, pngPaletteColor, sniffLogo, svgAccentColor, type LogoType } from './image';
 
 /** What the website suggests (T-123): a draft an admin reviews, never applied on its own. */
 export interface BrandDraft {
   readonly websiteUrl: string;
-  readonly logo: { readonly bytes: Buffer; readonly type: LogoType; readonly width: number | null; readonly height: number | null; readonly from: string } | null;
+  /** `light`: drawn for a dark background (an all-white SVG); the app shows it on a dark chip. */
+  readonly logo: { readonly bytes: Buffer; readonly type: LogoType; readonly width: number | null; readonly height: number | null; readonly from: string; readonly light: boolean } | null;
   readonly accentColor: string | null;
   readonly primaryColor: string | null;
   readonly font: BrandFont;
@@ -35,7 +36,26 @@ function normalizeColor(value: string | null): string | null {
   return max - min < 24 ? null : hex;
 }
 
-/** Logo candidates, best first: schema.org, a large icon, the Open Graph image, a header logo. */
+/** Image-optimizer URLs (Next.js, Vercel) carry the original in `url=`: fetch that, not the resized copy. */
+function unwrapOptimizer(url: URL): URL {
+  if (/^\/_(next|vercel)\/image\/?$/.test(url.pathname)) {
+    const original = url.searchParams.get('url');
+    if (original) {
+      try {
+        return new URL(original, url);
+      } catch {
+        return url;
+      }
+    }
+  }
+  return url;
+}
+
+/**
+ * Logo candidates, best first: schema.org; the logo in the site's header or navigation (or, for
+ * sites without either, the first images on the page) by name or by the company's name as alt
+ * text; the app icon; a large or SVG icon; the Open Graph image.
+ */
 function logoCandidates(html: string, base: URL): { url: URL; from: string }[] {
   const found: { url: string; from: string }[] = [];
   for (const block of html.match(/<script[^>]+application\/ld\+json[^>]*>([\s\S]*?)<\/script>/gi) ?? []) {
@@ -43,24 +63,36 @@ function logoCandidates(html: string, base: URL): { url: URL; from: string }[] {
     const value = logo?.[1] ?? logo?.[2];
     if (value) found.push({ url: value, from: 'the site’s organization data (schema.org)' });
   }
+  // The company's name as the site spells it in its address: "matrice" for www.matrice.ai.
+  const stem = base.hostname.replace(/^www\./, '').split('.')[0] ?? '';
+  const regions = [...(html.match(/<header\b[\s\S]*?<\/header>/gi) ?? []), ...(html.match(/<nav\b[\s\S]*?<\/nav>/gi) ?? [])];
+  const images = regions.length > 0 ? regions.flatMap((region) => tags(region, 'img')) : tags(html, 'img').slice(0, 20);
+  for (const tag of images) {
+    const src = attr(tag, 'src');
+    const alt = attr(tag, 'alt') ?? '';
+    const named = /logo/i.test(`${src ?? ''} ${alt} ${attr(tag, 'class') ?? ''} ${attr(tag, 'id') ?? ''}`) || (stem.length > 2 && alt.trim().toLowerCase().replace(/\s+/g, '') === stem.toLowerCase());
+    if (src && named) found.push({ url: src, from: regions.length > 0 ? 'the logo in the site’s header' : 'the logo at the top of the site' });
+  }
+  const icons: { url: string; from: string }[] = [];
   for (const tag of tags(html, 'link')) {
     const rel = (attr(tag, 'rel') ?? '').toLowerCase();
     const href = attr(tag, 'href');
     if (!href) continue;
-    if (rel.includes('apple-touch-icon')) found.push({ url: href, from: 'the site’s app icon' });
-    else if (rel.includes('icon') && Number(/(\d+)x\d+/.exec(attr(tag, 'sizes') ?? '')?.[1] ?? 0) >= 128) found.push({ url: href, from: 'the site’s large icon' });
+    if (rel.includes('apple-touch-icon')) icons.unshift({ url: href, from: 'the site’s app icon' });
+    else if (rel.includes('icon') && Number(/(\d+)x\d+/.exec(attr(tag, 'sizes') ?? '')?.[1] ?? 0) >= 128) icons.push({ url: href, from: 'the site’s large icon' });
+    else if (rel.includes('icon') && ((attr(tag, 'type') ?? '').includes('svg') || /\.svg(\?|$)/i.test(href))) icons.push({ url: href, from: 'the site’s icon' });
   }
+  found.push(...icons);
   for (const tag of tags(html, 'meta')) {
     if ((attr(tag, 'property') ?? '').toLowerCase() === 'og:image' && attr(tag, 'content')) found.push({ url: attr(tag, 'content') as string, from: 'the site’s sharing image' });
   }
-  const header = /<header\b[\s\S]*?<\/header>/i.exec(html)?.[0] ?? '';
-  for (const tag of tags(header, 'img')) {
-    const src = attr(tag, 'src');
-    if (src && /logo/i.test(`${src} ${attr(tag, 'alt') ?? ''} ${attr(tag, 'class') ?? ''}`)) found.push({ url: src, from: 'the logo in the site’s header' });
-  }
+  const seen = new Set<string>();
   return found.flatMap((candidate) => {
     try {
-      return [{ url: new URL(decode(candidate.url), base), from: candidate.from }];
+      const url = unwrapOptimizer(new URL(decode(candidate.url), base));
+      if (seen.has(url.href)) return [];
+      seen.add(url.href);
+      return [{ url, from: candidate.from }];
     } catch {
       return [];
     }
@@ -97,20 +129,20 @@ export async function extractBrand(fetcher: WebFetcher, websiteUrl: string): Pro
       const response = await fetcher.get(candidate.url, { maxBytes: LOGO_MAX, accept: 'image/png,image/jpeg,image/svg+xml' });
       const sniffed = response.status === 200 ? sniffLogo(response.body) : null;
       if (sniffed) {
-        logo = { bytes: response.body, ...sniffed, from: candidate.from };
+        logo = { bytes: response.body, ...sniffed, from: candidate.from, light: isLightLogo(response.body, sniffed.type) };
         break;
       }
     } catch {
       // Try the next candidate.
     }
   }
-  notes.push(logo ? `Logo taken from ${logo.from}.` : 'No usable logo found (PNG, JPEG or SVG under 512 KB). Upload one.');
+  notes.push(logo ? `Logo taken from ${logo.from}.${logo.light ? ' It is drawn for a dark background, so Pactlab shows it on a dark chip.' : ''}` : 'No usable logo found (PNG, JPEG or SVG under 512 KB). Upload one.');
 
   // Colors: the declared theme color, else a brand-named CSS variable, else the logo's palette.
   let accent = normalizeColor(tags(html, 'meta').find((tag) => (attr(tag, 'name') ?? '').toLowerCase() === 'theme-color')?.match(/content\s*=\s*["']?([^"'\s>]+)/i)?.[1] ?? null);
   let css = (html.match(/<style\b[^>]*>([\s\S]*?)<\/style>/gi) ?? []).join('\n');
-  const stylesheet = tags(html, 'link').find((tag) => (attr(tag, 'rel') ?? '').toLowerCase().includes('stylesheet') && attr(tag, 'href'));
-  if (stylesheet) {
+  // Bundled sites split their styles: the first few stylesheets, each within the size cap.
+  for (const stylesheet of tags(html, 'link').filter((tag) => (attr(tag, 'rel') ?? '').toLowerCase().includes('stylesheet') && attr(tag, 'href')).slice(0, 3)) {
     try {
       const response = await fetcher.get(new URL(decode(attr(stylesheet, 'href') as string), page.url), { maxBytes: CSS_MAX, accept: 'text/css' });
       if (response.status === 200) css += `\n${response.body.toString('utf8')}`;
@@ -120,6 +152,7 @@ export async function extractBrand(fetcher: WebFetcher, websiteUrl: string): Pro
   }
   accent ??= cssColor(css);
   if (!accent && logo?.type === 'image/png') accent = normalizeColor(pngPaletteColor(logo.bytes));
+  if (!accent && logo?.type === 'image/svg+xml') accent = normalizeColor(svgAccentColor(logo.bytes));
   notes.push(accent ? `Accent color ${accent} found.` : 'No brand color found. Pick one.');
 
   const family = /font-family\s*:\s*([^;}]+)/i.exec(css)?.[1]?.trim() ?? null;

@@ -51,3 +51,44 @@ export function pngPaletteColor(bytes: Buffer): string | null {
   }
   return null;
 }
+
+const NAMED: Readonly<Record<string, string>> = { white: '#ffffff', black: '#000000', currentcolor: '' };
+
+/** The colors an SVG paints with (fills, strokes, gradient stops, inline styles), as #rrggbb. */
+export function svgColors(bytes: Buffer): string[] {
+  const text = bytes.toString('utf8');
+  const colors: string[] = [];
+  for (const match of text.matchAll(/(?:fill|stroke|stop-color)\s*[:=]\s*["']?\s*(#[0-9a-f]{3,8}|[a-z]+)\b/gi)) {
+    const raw = (match[1] ?? '').toLowerCase();
+    if (raw === 'none' || raw === 'transparent' || raw.startsWith('url')) continue;
+    let hex = NAMED[raw] ?? (raw.startsWith('#') ? raw : '');
+    if (/^#[0-9a-f]{3}$/.test(hex)) hex = `#${hex[1]}${hex[1]}${hex[2]}${hex[2]}${hex[3]}${hex[3]}`;
+    if (/^#[0-9a-f]{8}$/.test(hex)) hex = hex.slice(0, 7);
+    if (/^#[0-9a-f]{6}$/.test(hex)) colors.push(hex);
+  }
+  return colors;
+}
+
+const channels = (hex: string) => [1, 3, 5].map((index) => Number.parseInt(hex.slice(index, index + 2), 16)) as [number, number, number];
+
+/**
+ * A logo drawn for a dark background: every color it paints with is near-white. Such a logo
+ * disappears on white, so the app shows it on a dark chip. SVG only; a raster logo is not decoded.
+ */
+export function isLightLogo(bytes: Buffer, type: LogoType): boolean {
+  if (type !== 'image/svg+xml') return false;
+  const colors = svgColors(bytes);
+  return colors.length > 0 && colors.every((hex) => Math.min(...channels(hex)) >= 225);
+}
+
+/** The most saturated color an SVG logo paints with: a brand-color guess when the site declares none. */
+export function svgAccentColor(bytes: Buffer): string | null {
+  let best: { hex: string; score: number } | null = null;
+  for (const hex of svgColors(bytes)) {
+    const [r, g, b] = channels(hex);
+    const max = Math.max(r, g, b);
+    const score = max === 0 ? 0 : (max - Math.min(r, g, b)) / max;
+    if (score > 0.35 && max > 40 && (!best || score > best.score)) best = { hex, score };
+  }
+  return best?.hex ?? null;
+}

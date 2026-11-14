@@ -6,6 +6,8 @@ export interface BrandDraftView {
   websiteUrl: string;
   hasLogo: boolean;
   logoFrom: string | null;
+  /** Drawn for a dark background: shown on a dark chip. */
+  logoLight: boolean;
   accentColor: string | null;
   primaryColor: string | null;
   font: BrandFontView;
@@ -20,6 +22,8 @@ export interface BrandKitView {
   source: BrandSourceView;
   hasLogo: boolean;
   logoContentType: string | null;
+  /** Drawn for a dark background (an all-white SVG): shown on a dark chip. */
+  logoLight: boolean;
   /** Changes whenever the kit does: a cache key for the logo. */
   version: string;
   primaryColor: string | null;
@@ -41,4 +45,5 @@ export interface PublicBrandView {
   primaryColor: string | null;
   font: BrandFontView;
   hasLogo: boolean;
+  logoLight: boolean;
 }

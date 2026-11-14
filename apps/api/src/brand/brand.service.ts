@@ -8,7 +8,7 @@ import type { WebFetcher } from '../common/safe-fetch';
 import type { DocumentObjectStore } from '../documents/documents.repository';
 import { LOGGER, PRISMA } from '../tokens';
 import { extractBrand, LOGO_MAX } from './extract';
-import { sniffLogo } from './image';
+import { isLightLogo, sniffLogo } from './image';
 
 export const BRAND_STORE = Symbol('BRAND_STORE');
 export const BRAND_FETCHER = Symbol('BRAND_FETCHER');
@@ -20,7 +20,7 @@ type KitRow = NonNullable<Awaited<ReturnType<PrismaClient['organizationBrandKit'
 /** The draft as stored: the logo already copied into Pactlab's store, never hotlinked. */
 interface StoredDraft {
   websiteUrl: string;
-  logo: { objectKey: string; type: string; width: number | null; height: number | null; from: string } | null;
+  logo: { objectKey: string; type: string; width: number | null; height: number | null; from: string; light?: boolean } | null;
   accentColor: string | null;
   primaryColor: string | null;
   font: BrandFont;
@@ -56,13 +56,14 @@ export class BrandService {
       source: (kit?.source ?? 'DEFAULT') as BrandKitView['source'],
       hasLogo: Boolean(kit?.logoObjectKey),
       logoContentType: kit?.logoContentType ?? null,
+      logoLight: kit?.logoLight ?? false,
       version: kit?.updatedAt ? kit.updatedAt.getTime().toString(36) : '0',
       primaryColor: kit?.primaryColor ?? null,
       accentColor: accent,
       accentReadable: readable?.color ?? null,
       accentAdjusted: readable?.adjusted ?? false,
       font: (kit?.font ?? PACTLAB_BRAND.font) as BrandFont,
-      draft: draft ? { websiteUrl: draft.websiteUrl, hasLogo: Boolean(draft.logo), logoFrom: draft.logo?.from ?? null, accentColor: draft.accentColor, primaryColor: draft.primaryColor, font: draft.font, notes: draft.notes, extractedAt: draft.extractedAt } : null,
+      draft: draft ? { websiteUrl: draft.websiteUrl, hasLogo: Boolean(draft.logo), logoFrom: draft.logo?.from ?? null, logoLight: draft.logo?.light ?? false, accentColor: draft.accentColor, primaryColor: draft.primaryColor, font: draft.font, notes: draft.notes, extractedAt: draft.extractedAt } : null,
       extracting: this.running.has(tenant.organizationId),
       canEdit: isAdmin(tenant),
     };
@@ -127,7 +128,7 @@ export class BrandService {
       if (draft.logo) {
         const objectKey = `${tenant.organizationId}/brand/draft-${newId()}.${draft.logo.type === 'image/svg+xml' ? 'svg' : draft.logo.type === 'image/png' ? 'png' : 'jpg'}`;
         await this.store.put(objectKey, new Uint8Array(draft.logo.bytes), { contentType: draft.logo.type, sha256: sha256(draft.logo.bytes) });
-        logo = { objectKey, type: draft.logo.type, width: draft.logo.width, height: draft.logo.height, from: draft.logo.from };
+        logo = { objectKey, type: draft.logo.type, width: draft.logo.width, height: draft.logo.height, from: draft.logo.from, light: draft.logo.light };
       }
       const stored: StoredDraft = { websiteUrl, logo, accentColor: draft.accentColor, primaryColor: draft.primaryColor, font: draft.font, notes: [...draft.notes], extractedAt: new Date().toISOString() };
       await withTenant(this.prisma, tenant, (tx) =>
@@ -153,7 +154,7 @@ export class BrandService {
         where: { organizationId: tenant.organizationId },
         data: {
           source: 'EXTRACTED',
-          ...(draft.logo ? { logoObjectKey: draft.logo.objectKey, logoContentType: draft.logo.type, logoWidth: draft.logo.width, logoHeight: draft.logo.height } : {}),
+          ...(draft.logo ? { logoObjectKey: draft.logo.objectKey, logoContentType: draft.logo.type, logoWidth: draft.logo.width, logoHeight: draft.logo.height, logoLight: draft.logo.light ?? false } : {}),
           ...(draft.accentColor ? { accentColor: draft.accentColor } : {}),
           ...(draft.primaryColor ? { primaryColor: draft.primaryColor } : {}),
           font: draft.font,
@@ -190,7 +191,7 @@ export class BrandService {
     if (!sniffed) throw new UnprocessableEntityException({ code: 'BRAND_LOGO_TYPE' });
     const objectKey = `${tenant.organizationId}/brand/logo-${newId()}.${sniffed.type === 'image/svg+xml' ? 'svg' : sniffed.type === 'image/png' ? 'png' : 'jpg'}`;
     await this.store.put(objectKey, new Uint8Array(bytes), { contentType: sniffed.type, sha256: sha256(bytes) });
-    const data = { source: 'EDITED', logoObjectKey: objectKey, logoContentType: sniffed.type, logoWidth: sniffed.width, logoHeight: sniffed.height, updatedBy: tenant.userId };
+    const data = { source: 'EDITED', logoObjectKey: objectKey, logoContentType: sniffed.type, logoWidth: sniffed.width, logoHeight: sniffed.height, logoLight: isLightLogo(bytes, sniffed.type), updatedBy: tenant.userId };
     await withTenant(this.prisma, tenant, (tx) => tx.organizationBrandKit.upsert({ where: { organizationId: tenant.organizationId }, create: { organizationId: tenant.organizationId, ...data }, update: { ...data, updatedAt: new Date() } }));
     await this.audit(tenant, 'brand.logo_uploaded', requestId);
     return this.get(tenant);
@@ -202,7 +203,7 @@ export class BrandService {
     await withTenant(this.prisma, tenant, (tx) =>
       tx.organizationBrandKit.updateMany({
         where: { organizationId: tenant.organizationId },
-        data: { source: 'DEFAULT', logoObjectKey: null, logoContentType: null, logoWidth: null, logoHeight: null, accentColor: null, primaryColor: null, font: 'MANROPE', updatedBy: tenant.userId, updatedAt: new Date() },
+        data: { source: 'DEFAULT', logoObjectKey: null, logoContentType: null, logoWidth: null, logoHeight: null, logoLight: false, accentColor: null, primaryColor: null, font: 'MANROPE', updatedBy: tenant.userId, updatedAt: new Date() },
       }),
     );
     await this.audit(tenant, 'brand.reverted', requestId);
@@ -224,7 +225,7 @@ export class BrandService {
     const row = await this.publicRow(slug);
     if (!row) throw new NotFoundException();
     const readable = row.accentColor ? readableOnWhite(row.accentColor) : null;
-    return { name: row.name, accentColor: row.accentColor, accentReadable: readable?.color ?? null, primaryColor: row.primaryColor, font: row.font as BrandFont, hasLogo: Boolean(row.logoObjectKey) };
+    return { name: row.name, accentColor: row.accentColor, accentReadable: readable?.color ?? null, primaryColor: row.primaryColor, font: row.font as BrandFont, hasLogo: Boolean(row.logoObjectKey), logoLight: row.logoLight };
   }
 
   async publicLogo(slug: string): Promise<{ bytes: Uint8Array; contentType: string }> {
