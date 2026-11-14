@@ -50,12 +50,21 @@ export function renderEmailHtml(subject: string, content: EmailContent, assets: 
 ${content.paragraphs.map(paragraph).join('\n')}
 ${content.code ? `<p style="margin:8px 0 24px;font:700 32px/1 ${FONT};letter-spacing:8px;color:${NAVY};background:#f0f2ff;border-radius:8px;padding:16px;text-align:center">${escapeHtml(content.code)}</p>` : ''}
 ${action && content.action ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:8px 0 24px"><tr><td style="background:${INDIGO};border-radius:8px"><a href="${action}" style="display:inline-block;padding:12px 22px;font:600 15px/1 ${FONT};color:#ffffff;text-decoration:none">${escapeHtml(content.action.label)}</a></td></tr></table><p style="margin:0 0 16px;font:13px/1.5 ${FONT};color:${MUTED}">Or paste this link into your browser: <a href="${action}" style="color:${INDIGO};word-break:break-all">${action}</a></p>` : ''}
+${(content.links ?? [])
+  .map((link) => ({ link, url: safeUrl(link.url) }))
+  .filter((entry) => entry.url)
+  .map(
+    ({ link, url }) =>
+      `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:8px 0 6px"><tr><td style="background:${INDIGO};border-radius:8px"><a href="${url}" style="display:inline-block;padding:12px 22px;font:600 15px/1 ${FONT};color:#ffffff;text-decoration:none">${escapeHtml(link.label)}</a></td></tr></table><p style="margin:0 0 18px;font:13px/1.5 ${FONT};color:${MUTED}">${escapeHtml(link.detail)}</p>`,
+  )
+  .join('\n')}
+${content.list ? `<p style="margin:16px 0 8px;font:700 15px/1.4 ${FONT};color:${NAVY}">${escapeHtml(content.list.heading)}</p><ol style="margin:0 0 16px;padding-left:20px;font:14px/1.6 ${FONT};color:${NAVY}">${content.list.items.map((item) => `<li style="margin:0 0 4px">${escapeHtml(item)}</li>`).join('')}</ol>` : ''}
 ${content.footnote ? `<p style="margin:16px 0 0;font:13px/1.5 ${FONT};color:${MUTED}">${escapeHtml(content.footnote)}</p>` : ''}
 </td></tr>
 <tr><td style="padding:24px 8px 0">
 <p style="margin:0 0 6px;font:700 14px/1.4 ${FONT};color:${NAVY}">${escapeHtml(EMAIL_BLURB.tagline)}</p>
 <p style="margin:0 0 12px;font:13px/1.6 ${FONT};color:${MUTED}">${escapeHtml(EMAIL_BLURB.text)} <a href="${escapeHtml(assets.siteUrl)}" style="color:${INDIGO}">Learn more</a></p>
-<p style="margin:0;font:12px/1.5 ${FONT};color:${MUTED}">You received this email because of an action on your Pactlab account.</p>
+<p style="margin:0;font:12px/1.5 ${FONT};color:${MUTED}">${escapeHtml(content.reason ?? 'You received this email because of an action on your Pactlab account.')}</p>
 </td></tr>
 </table>
 </td></tr>

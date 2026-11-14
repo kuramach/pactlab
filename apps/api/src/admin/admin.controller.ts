@@ -23,7 +23,15 @@ import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { AdminService } from './admin.service';
 
 const slugParams = z.strictObject({ slug: z.string().regex(/^[a-z0-9-]{2,80}$/) });
-const shareDemoSchema = z.strictObject({ sharedWith: z.string().trim().min(1).max(200), hours: z.union([z.literal(24), z.literal(72), z.literal(168)]) });
+const optional = (schema: z.ZodString) => z.preprocess((value) => (typeof value === 'string' && value.trim() === '' ? null : value), schema.nullable().default(null));
+const shareDemoSchema = z.strictObject({
+  sharedWith: z.string().trim().min(1).max(200),
+  hours: z.union([z.literal(24), z.literal(72), z.literal(168)]),
+  // Optional: Pactlab emails the links (T-113 follow-up). Without it, copy the invite text.
+  recipientEmail: z.preprocess((value) => (typeof value === 'string' && value.trim() === '' ? null : value), z.email().max(320).nullable().default(null)),
+  recipientName: optional(z.string().trim().max(120)),
+  note: optional(z.string().trim().max(1000)),
+});
 const demoShareParams = z.strictObject({ shareId: z.uuid() });
 
 /** Operator console (T-072). Every route answers 403 to anyone who is not a platform operator. */
@@ -55,7 +63,7 @@ export class AdminController {
 
   @Post('demos')
   @HttpCode(201)
-  shareDemo(@Tenant() tenant: TenantContext, @Body(new ZodValidationPipe(shareDemoSchema)) body: { sharedWith: string; hours: 24 | 72 | 168 }) {
+  shareDemo(@Tenant() tenant: TenantContext, @Body(new ZodValidationPipe(shareDemoSchema)) body: z.infer<typeof shareDemoSchema>) {
     return this.admin.shareDemo(tenant, body);
   }
 

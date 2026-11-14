@@ -66,3 +66,33 @@ describe('branded emails', () => {
     expect(sent[1]?.html).toBeUndefined();
   });
 });
+
+describe('the shared-demo invitation (T-113)', () => {
+  const invite = emails.demoInvite('jane@acme.example', {
+    recipientName: 'Jane',
+    sharerName: 'Kumar',
+    sharerEmail: 'kumar@pactlab.ai',
+    note: 'Great to meet you <today>.',
+    buyerUrl: 'https://app.pactlab.ai/demo/buyer-token',
+    sellerUrl: 'https://app.pactlab.ai/demo/seller-token',
+    endsAt: new Date('2026-11-20T12:00:00Z'),
+  });
+  const html = renderEmailHtml(invite.subject, invite.content!, { logoUrl: 'https://pactlab.ai/brand/pactlab-logo-email.png', siteUrl: 'https://pactlab.ai' });
+
+  it('says who sent it, what Pactlab is, which link to open, what to try, until when and whom to ask', () => {
+    expect(invite.subject).toBe('Kumar shared a Pactlab demo with you');
+    for (const part of ['Hi Jane,', 'deal platform for private equity and corporate development', 'synthetic', 'Open as the buyer: https://app.pactlab.ai/demo/buyer-token', 'Open as the seller: https://app.pactlab.ai/demo/seller-token', 'Take the tour', '2026-11-20 12:00 UTC', 'kumar@pactlab.ai', 'No sign-up needed']) {
+      expect(invite.text, part).toContain(part);
+    }
+  });
+
+  it('renders Pactlab-branded HTML with both buttons, the list, and why it was received; the note is escaped', () => {
+    expect(html).toContain('pactlab-logo-email.png');
+    expect(html).toContain('href="https://app.pactlab.ai/demo/buyer-token"');
+    expect(html).toContain('href="https://app.pactlab.ai/demo/seller-token"');
+    expect(html).toContain('In ten minutes, try');
+    expect(html).toContain('because Kumar at Pactlab shared a demo with you');
+    expect(html).toContain('&lt;today&gt;');
+    expect(html).not.toContain('<today>');
+  });
+});
