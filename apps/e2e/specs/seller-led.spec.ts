@@ -45,7 +45,7 @@ async function startSellerLed(page: Page): Promise<string> {
 }
 
 // T-097: the seller runs a bid process; a bidder joins from their own account, sees only their bid, asks, offers; the seller answers and awards.
-test('a seller-led pact: invite a bidder, answer their question, compare and award', async ({ page, browser }) => {
+test('a seller-led pact: invite a bidder, answer their question, compare and award', { tag: '@regression' }, async ({ page, browser }) => {
   const dealId = await startSellerLed(page);
   await expect(page.getByRole('link', { name: 'Bidders' })).toBeVisible();
 

@@ -3,7 +3,7 @@ import { startPact } from '../support/deals';
 import { REVIEWER, signIn } from '../support/login';
 
 /** T-118: the deal lead submits a pact to the investment committee; a committee member decides it. */
-test('submit a pact to the investment committee, and the committee approves it', async ({ page, browser }) => {
+test('submit a pact to the investment committee, and the committee approves it', { tag: '@smoke' }, async ({ page, browser }) => {
   // The organization's committee: the reviewer.
   await page.goto('/settings#investment-committee');
   const members = page.getByRole('list', { name: 'Committee members' });

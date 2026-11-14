@@ -25,7 +25,7 @@ async function inviteLink(address: string, after: number): Promise<string> {
 }
 
 // T-094 B12: the lead invites a seller by email; the seller creates their own account, accepts, and sees only that pact.
-test('a seller invited by email joins one pact as a guest, from their own account', async ({ page, browser }) => {
+test('a seller invited by email joins one pact as a guest, from their own account', { tag: '@smoke' }, async ({ page, browser }) => {
   const dealId = await startPact(page, 'Software & SaaS');
   const seller = `seller-${Date.now()}@gmail.com`;
   await page.goto(`/deals/${dealId}/team`);

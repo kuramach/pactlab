@@ -3,7 +3,7 @@ import { startPact } from '../support/deals';
 import { uploadDocument } from '../support/documents';
 
 // Regression for the pilot bug where a debt entry was silently not saved.
-test('a debt item quotes its page, rejects a bad amount without losing input, and is saved', async ({ page }) => {
+test('a debt item quotes its page, rejects a bad amount without losing input, and is saved', { tag: '@regression' }, async ({ page }) => {
   const dealId = await startPact(page, 'Software & SaaS');
   await uploadDocument(page, dealId, 'loan-agreement.txt', 'Loan agreement extract (synthetic).\nTerm loan outstanding: USD 120,000 at 30 September 2026.\nInterest: 7.5% fixed, maturing 2029.');
 
@@ -47,7 +47,7 @@ test('a debt item quotes its page, rejects a bad amount without losing input, an
   await expect(schedule.getByText('loan-agreement.txt, p. 1')).toBeVisible();
 });
 
-test('an uploaded balance sheet is read into lines that are recorded only when confirmed (T-094 B9)', async ({ page }) => {
+test('an uploaded balance sheet is read into lines that are recorded only when confirmed (T-094 B9)', { tag: '@regression' }, async ({ page }) => {
   const dealId = await startPact(page, 'Software & SaaS');
   await uploadDocument(
     page,

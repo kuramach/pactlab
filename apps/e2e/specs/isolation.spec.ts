@@ -10,7 +10,7 @@ const CHARLIE_DEAL = { id: '01900000-0000-7000-8000-00000000c003', name: 'Projec
 
 test.use({ storageState: { cookies: [], origins: [] } });
 
-test('a second organization cannot open another tenant’s deal', async ({ page, browser }) => {
+test('a second organization cannot open another tenant’s deal', { tag: '@smoke' }, async ({ page, browser }) => {
   // Control: Charlie's own lead sees the deal at this URL.
   const lead = await browser.newContext({ storageState: `${AUTH_DIR}/lead.json` });
   const leadPage = await lead.newPage();

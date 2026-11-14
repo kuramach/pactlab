@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import { startPact } from '../support/deals';
 
 /** T-111: paste rows from a spreadsheet, check them, import the ready ones, download the rest to fix. */
-test('batch-load comparables by pasting spreadsheet rows', async ({ page }) => {
+test('batch-load comparables by pasting spreadsheet rows', { tag: '@regression' }, async ({ page }) => {
   await startPact(page, 'Software & SaaS');
   const tag = Date.now().toString(36);
   const header = ['Kind', 'Name', 'Target', 'Acquirer', 'Date', 'Company type', 'EV', 'ARR', 'Currency', 'ARR growth %', 'Source'];

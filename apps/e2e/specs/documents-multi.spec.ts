@@ -3,7 +3,7 @@ import { startPact } from '../support/deals';
 
 const text = (name: string, body: string) => ({ name, mimeType: 'text/plain', buffer: Buffer.from(body) });
 
-test('several documents upload at once and every one is still listed after leaving the tab (T-094 B1, B2)', async ({ page }) => {
+test('several documents upload at once and every one is still listed after leaving the tab (T-094 B1, B2)', { tag: '@regression' }, async ({ page }) => {
   const dealId = await startPact(page, 'Software & SaaS');
   await page.goto(`/deals/${dealId}/documents`);
   await page.getByLabel('Choose documents').setInputFiles([
@@ -25,7 +25,7 @@ test('several documents upload at once and every one is still listed after leavi
   for (const name of ['01-kpi-pack.txt', '02-msa.txt', '03-balance-sheet.txt']) await expect(library.getByRole('link', { name: new RegExp(name) })).toBeVisible();
 });
 
-test('a file that cannot be uploaded says so on its own row, and the others still upload', async ({ page }) => {
+test('a file that cannot be uploaded says so on its own row, and the others still upload', { tag: '@regression' }, async ({ page }) => {
   const dealId = await startPact(page, 'Software & SaaS');
   await page.goto(`/deals/${dealId}/documents`);
   await page.getByLabel('Choose documents').setInputFiles([

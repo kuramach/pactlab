@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import { startPact } from '../support/deals';
 
 // @slow: syncs ScaleCo (3,000 engineers, tens of thousands of records). Runs in the promotion suite (e2e-full), not on every PR.
-test('the Engineering tab stays usable at 3,000 engineers', { tag: '@slow' }, async ({ page }) => {
+test('the Engineering tab stays usable at 3,000 engineers', { tag: ['@slow', '@regression'] }, async ({ page }) => {
   test.setTimeout(15 * 60_000);
   const dealId = await startPact(page, 'Software & SaaS');
   await page.goto(`/deals/${dealId}/sources/synthetic`);

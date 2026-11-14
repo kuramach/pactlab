@@ -5,7 +5,7 @@ import { REVIEWER, signIn } from '../support/login';
 test.describe('trusted devices', () => {
   test.use({ storageState: { cookies: [], origins: [] } });
 
-  test('a trusted sign-in is listed and can be signed out, elsewhere and here', async ({ page, browser }) => {
+  test('a trusted sign-in is listed and can be signed out, elsewhere and here', { tag: '@regression' }, async ({ page, browser }) => {
     // Another device: a second browser signed in the usual way.
     const elsewhere = await browser.newContext({ storageState: { cookies: [], origins: [] } });
     const other = await elsewhere.newPage();

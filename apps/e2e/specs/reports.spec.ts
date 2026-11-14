@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import { startPact } from '../support/deals';
 
 /** T-110: a pact's Report button makes a versioned PDF that appears in Reports, ready to download. */
-test('generate a pact report from the pact and download it from Reports', async ({ page }) => {
+test('generate a pact report from the pact and download it from Reports', { tag: '@regression' }, async ({ page }) => {
   const dealId = await startPact(page, 'Software & SaaS');
   await page.goto(`/deals/${dealId}`);
   await page.getByRole('button', { name: 'Report', exact: true }).click();

@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { demoFile, startPact } from '../support/deals';
 
-test('cancelling a wrong upload imports nothing and deletes the stored file', async ({ page }) => {
+test('cancelling a wrong upload imports nothing and deletes the stored file', { tag: '@regression' }, async ({ page }) => {
   const dealId = await startPact(page, 'Fintech');
   await page.getByRole('link', { name: 'Upload loan tape' }).click();
   await page.locator('input[type="file"]').setInputFiles(demoFile('fintech', 'USD', 'loan-tape.csv'));

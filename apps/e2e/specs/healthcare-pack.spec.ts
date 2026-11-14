@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import { demoFile, startPact } from '../support/deals';
 import { importPackExtract } from '../support/imports';
 
-test('a healthcare provider roster imports and drafts the expiring-credentials finding', async ({ page }) => {
+test('a healthcare provider roster imports and drafts the expiring-credentials finding', { tag: '@regression' }, async ({ page }) => {
   const dealId = await startPact(page, 'Healthcare & health tech');
   await importPackExtract(page, dealId, 'Claims summary', demoFile('healthcare', 'USD', 'claims-summary.csv'), 72);
   await importPackExtract(page, dealId, 'Provider roster', demoFile('healthcare', 'USD', 'provider-roster.csv'), 18);
