@@ -10,7 +10,8 @@
     "test:e2e:full": "playwright test --grep-invert @quarantine",
     "test:e2e:quarantine": "playwright test --grep @quarantine --pass-with-no-tests",
     "quarantine:check": "tsx support/check-quarantine.ts",
-    "flaky:history": "tsx support/flaky-history.ts"
+    "flaky:history": "tsx support/flaky-history.ts",
+    "test:e2e:burn-in": "playwright test --repeat-each 20 --retries 0"
   },
   "devDependencies": {
     "@pactlab/config": "workspace:*",

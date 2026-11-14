@@ -68,7 +68,7 @@ export async function BillingCard({ outcome }: { outcome?: string }) {
             {view.periodEnd ? <span className="text-xs text-muted-foreground">renews {view.periodEnd.slice(0, 10)}</span> : null}
           </dd>
           <dt className="text-muted-foreground">Pacts left</dt>
-          <dd>
+          <dd data-testid="pacts-left">
             {view.pilot
               ? 'Unlimited during your pilot'
               : [view.allowanceLeft !== null ? `${view.allowanceLeft} this period` : null, ...credits.map(([label, count]) => `${count} ${label}${count === 1 ? '' : 's'} (prepaid)`)].filter(Boolean).join(' · ') || 'None'}
