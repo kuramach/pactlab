@@ -51,10 +51,10 @@ try {
 const dbPackage = fileURLToPath(new URL('../../../../packages/db', import.meta.url));
 
 // A migration that failed is recorded as failed, and Prisma then refuses every later deploy (P3009).
-// Each migration file runs as one transaction, so a failed one left nothing behind. For the ones named
-// here, whose failure is understood and fixed in the file, the record is cleared so the fixed file runs:
-// 20261204000000_investment_committee failed on live (2026-11-14), its backfill stopped by the
-// report-version immutability trigger. Any other failed migration still stops the deploy for a person.
+// Prisma does not run a migration file as one transaction, so a failed one may have applied part of
+// itself (live, 2026-11-14). The ones named here are re-runnable (every statement safe to repeat, and
+// the file one explicit transaction); for them the record is cleared so the fixed file runs again.
+// Any other failed migration still stops the deploy, for a person to look at.
 const RETRY_AFTER_FIX = new Set(['20261204000000_investment_committee', '20261205000000_letters_of_intent', '20261206000000_brand_kits']);
 const history = new pg.Client({ connectionString: ownerUrl });
 await history.connect();

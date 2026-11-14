@@ -11,22 +11,26 @@
 -- and report_versions_scope from 20261201000000_reports. (The enum value stays; unused.)
 
 -- 1. The committee: a deal role, and an organization-wide list.
+-- Re-runnable (live, 2026-11-14): a first attempt stopped part-way, because Prisma does not run a
+-- migration file as one transaction. Every statement here is safe to repeat, and the file is one
+-- explicit transaction, so it applies completely or not at all.
+BEGIN;
 ALTER TYPE "deal_role" ADD VALUE IF NOT EXISTS 'INVESTMENT_COMMITTEE';
-ALTER TABLE "organization_memberships" ADD COLUMN "investment_committee" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "organization_memberships" ADD COLUMN IF NOT EXISTS "investment_committee" BOOLEAN NOT NULL DEFAULT false;
 
 -- 2. The gate: off unless the organization switches it on; a pact may override either way.
 ALTER TABLE "organizations"
-  ADD COLUMN "ic_approval_required" BOOLEAN NOT NULL DEFAULT false,
-  ADD COLUMN "ic_clears_conditions" BOOLEAN NOT NULL DEFAULT false;
-ALTER TABLE "deals" ADD COLUMN "ic_approval_required" BOOLEAN;
+  ADD COLUMN IF NOT EXISTS "ic_approval_required" BOOLEAN NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS "ic_clears_conditions" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "deals" ADD COLUMN IF NOT EXISTS "ic_approval_required" BOOLEAN;
 GRANT UPDATE ("ic_approval_required", "ic_clears_conditions", "updated_at") ON organizations TO pactlab_app;
 
 -- 3. IC packs are report versions of their own scope; each version records whose side made it.
-ALTER TABLE "report_versions" DROP CONSTRAINT "report_versions_scope";
+ALTER TABLE "report_versions" DROP CONSTRAINT IF EXISTS "report_versions_scope";
 ALTER TABLE "report_versions" ADD CONSTRAINT "report_versions_scope"
   CHECK (("scope" = 'EXECUTIVE' AND "deal_id" IS NULL) OR ("scope" IN ('PACT', 'IC') AND "deal_id" IS NOT NULL));
-ALTER TABLE "report_versions" ADD COLUMN "own_side" BOOLEAN NOT NULL DEFAULT false;
-ALTER TABLE "report_versions" ADD COLUMN "series" UUID NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000';
+ALTER TABLE "report_versions" ADD COLUMN IF NOT EXISTS "own_side" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "report_versions" ADD COLUMN IF NOT EXISTS "series" UUID NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000';
 -- The backfill below rewrites finished versions, which the immutability trigger refuses, and it runs
 -- as the table owner, whom FORCE ROW LEVEL SECURITY limits like anyone else (deployed databases do
 -- not migrate as a superuser). Both are lifted for this transaction only and restored right after.
@@ -46,22 +50,23 @@ UPDATE report_versions SET series = CASE WHEN own_side THEN '00000000-0000-0000-
 ALTER TABLE report_versions FORCE ROW LEVEL SECURITY;
 ALTER TABLE deal_memberships FORCE ROW LEVEL SECURITY;
 ALTER TABLE report_versions ENABLE TRIGGER report_versions_immutable;
-DROP INDEX "report_versions_scope_version_key";
+DROP INDEX IF EXISTS "report_versions_scope_version_key";
 CREATE UNIQUE INDEX "report_versions_scope_version_key" ON "report_versions"("organization_id", "scope", COALESCE("deal_id", '00000000-0000-0000-0000-000000000000'::uuid), "series", "version");
 
 -- Set on insert from the generator's own session, never by the caller.
-CREATE FUNCTION report_versions_own_side() RETURNS trigger LANGUAGE plpgsql AS $$
+CREATE OR REPLACE FUNCTION report_versions_own_side() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
   NEW.own_side := NEW.deal_id IS NOT NULL AND app_is_buyer_side(NEW.deal_id);
   NEW.series := CASE WHEN NEW.own_side THEN '00000000-0000-0000-0000-000000000000'::uuid ELSE NEW.generated_by END;
   RETURN NEW;
 END
 $$;
+DROP TRIGGER IF EXISTS report_versions_own_side ON report_versions;
 CREATE TRIGGER report_versions_own_side BEFORE INSERT ON report_versions FOR EACH ROW EXECUTE FUNCTION report_versions_own_side();
 
 -- The generator always; a pact report made by the own side, the rest of the own side. An executive
 -- report covers pacts others may not be on, so it stays with whoever generated it.
-DROP POLICY report_versions_tenant ON report_versions;
+DROP POLICY IF EXISTS report_versions_tenant ON report_versions;
 CREATE POLICY report_versions_tenant ON report_versions FOR ALL TO pactlab_app
   USING (
     organization_id = app_current_organization_id()
@@ -77,7 +82,7 @@ CREATE POLICY report_versions_tenant ON report_versions FOR ALL TO pactlab_app
   );
 
 -- 4. Submissions, decisions and conditions.
-CREATE TABLE "ic_submissions" (
+CREATE TABLE IF NOT EXISTS "ic_submissions" (
     "id" UUID NOT NULL,
     "organization_id" UUID NOT NULL,
     "deal_id" UUID NOT NULL,
@@ -90,9 +95,9 @@ CREATE TABLE "ic_submissions" (
     CONSTRAINT "ic_submissions_report_fkey" FOREIGN KEY ("report_version_id") REFERENCES "report_versions"("id") ON DELETE RESTRICT ON UPDATE CASCADE,
     CONSTRAINT "ic_submissions_submitted_by_fkey" FOREIGN KEY ("submitted_by") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE
 );
-CREATE INDEX "ic_submissions_deal_idx" ON "ic_submissions"("organization_id", "deal_id", "submitted_at" DESC);
+CREATE INDEX IF NOT EXISTS "ic_submissions_deal_idx" ON "ic_submissions"("organization_id", "deal_id", "submitted_at" DESC);
 
-CREATE TABLE "ic_decisions" (
+CREATE TABLE IF NOT EXISTS "ic_decisions" (
     "id" UUID NOT NULL,
     "organization_id" UUID NOT NULL,
     "deal_id" UUID NOT NULL,
@@ -110,7 +115,7 @@ CREATE TABLE "ic_decisions" (
     CONSTRAINT "ic_decisions_decided_by_fkey" FOREIGN KEY ("decided_by") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE
 );
 
-CREATE TABLE "ic_conditions" (
+CREATE TABLE IF NOT EXISTS "ic_conditions" (
     "id" UUID NOT NULL,
     "organization_id" UUID NOT NULL,
     "deal_id" UUID NOT NULL,
@@ -132,15 +137,17 @@ CREATE TABLE "ic_conditions" (
 );
 
 -- 5. The record is kept: submissions and decisions never change; a condition only moves forward.
-CREATE FUNCTION ic_record_immutable() RETURNS trigger LANGUAGE plpgsql AS $$
+CREATE OR REPLACE FUNCTION ic_record_immutable() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
   RAISE EXCEPTION 'investment committee records are append-only' USING ERRCODE = '42501';
 END
 $$;
+DROP TRIGGER IF EXISTS ic_submissions_immutable ON ic_submissions;
 CREATE TRIGGER ic_submissions_immutable BEFORE UPDATE OR DELETE ON ic_submissions FOR EACH ROW EXECUTE FUNCTION ic_record_immutable();
+DROP TRIGGER IF EXISTS ic_decisions_immutable ON ic_decisions;
 CREATE TRIGGER ic_decisions_immutable BEFORE UPDATE OR DELETE ON ic_decisions FOR EACH ROW EXECUTE FUNCTION ic_record_immutable();
 
-CREATE FUNCTION ic_conditions_forward() RETURNS trigger LANGUAGE plpgsql AS $$
+CREATE OR REPLACE FUNCTION ic_conditions_forward() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
   IF TG_OP = 'DELETE' THEN RAISE EXCEPTION 'investment committee records are append-only' USING ERRCODE = '42501'; END IF;
   IF NEW.id <> OLD.id OR NEW.decision_id <> OLD.decision_id OR NEW.text <> OLD.text OR NEW.ordinal <> OLD.ordinal
@@ -150,10 +157,11 @@ BEGIN
   RETURN NEW;
 END
 $$;
+DROP TRIGGER IF EXISTS ic_conditions_forward ON ic_conditions;
 CREATE TRIGGER ic_conditions_forward BEFORE UPDATE OR DELETE ON ic_conditions FOR EACH ROW EXECUTE FUNCTION ic_conditions_forward();
 
 -- 6. Buyer-side only, on the caller's pacts. Decisions only by a committee member, as themselves.
-CREATE FUNCTION app_is_ic_member(target_deal uuid) RETURNS boolean
+CREATE OR REPLACE FUNCTION app_is_ic_member(target_deal uuid) RETURNS boolean
   LANGUAGE sql STABLE PARALLEL SAFE
   AS $$
     SELECT EXISTS (
@@ -173,12 +181,16 @@ ALTER TABLE ic_conditions FORCE ROW LEVEL SECURITY;
 GRANT SELECT, INSERT ON ic_submissions, ic_decisions, ic_conditions TO pactlab_app;
 GRANT UPDATE ("status", "addressed_by", "addressed_at", "addressed_note", "cleared_by", "cleared_at") ON ic_conditions TO pactlab_app;
 
+DROP POLICY IF EXISTS ic_submissions_own_side ON ic_submissions;
 CREATE POLICY ic_submissions_own_side ON ic_submissions FOR ALL TO pactlab_app
   USING (organization_id = app_current_organization_id() AND deal_id = ANY (app_current_deal_ids()) AND app_is_buyer_side(deal_id))
   WITH CHECK (organization_id = app_current_organization_id() AND deal_id = ANY (app_current_deal_ids()) AND app_is_buyer_side(deal_id) AND submitted_by = app_current_user_id());
+DROP POLICY IF EXISTS ic_decisions_own_side ON ic_decisions;
 CREATE POLICY ic_decisions_own_side ON ic_decisions FOR ALL TO pactlab_app
   USING (organization_id = app_current_organization_id() AND deal_id = ANY (app_current_deal_ids()) AND app_is_buyer_side(deal_id))
   WITH CHECK (organization_id = app_current_organization_id() AND deal_id = ANY (app_current_deal_ids()) AND app_is_ic_member(deal_id) AND decided_by = app_current_user_id());
+DROP POLICY IF EXISTS ic_conditions_own_side ON ic_conditions;
 CREATE POLICY ic_conditions_own_side ON ic_conditions FOR ALL TO pactlab_app
   USING (organization_id = app_current_organization_id() AND deal_id = ANY (app_current_deal_ids()) AND app_is_buyer_side(deal_id))
   WITH CHECK (organization_id = app_current_organization_id() AND deal_id = ANY (app_current_deal_ids()) AND app_is_buyer_side(deal_id));
+COMMIT;
