@@ -246,6 +246,13 @@ jobs:
           aws ecs wait tasks-stopped --cluster "$CLUSTER" --tasks "$TASK"
           CODE=$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$TASK" --query 'tasks[0].containers[0].exitCode' --output text)
           echo "Migration exit code: $CODE"
+          # A failure says why, here: the task's own log (Prisma's output; migrate.ts never prints credentials).
+          if [ "$CODE" != "0" ]; then
+            echo "::group::Migration log"
+            aws logs get-log-events --log-group-name "/pactlab/$ENV_NAME/app" --log-stream-name "migrate/migrate/${TASK##*/}" \
+              --start-from-head --query 'events[].message' --output text | tr '\t' '\n' | tail -n 200 || echo "(log not readable)"
+            echo "::endgroup::"
+          fi
           test "$CODE" = "0"
 
       - name: 4. Move the services to the release
