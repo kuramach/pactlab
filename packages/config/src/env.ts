@@ -157,7 +157,10 @@ export const apiEnvSchema = baseEnvSchema.extend({
   /** Published macro forecasts for Foresight (T-094 B10): `imf` reads the IMF DataMapper API (public, no key); `fixture` uses invented series (tests, offline). */
   MACRO_FORECAST_SOURCE: unsetIfBlank(z.enum(['imf', 'fixture']).default('imf')),
   /** Model provider for document AI: `none` keeps AI off; `bedrock` calls Claude on Amazon Bedrock. */
-  AI_PROVIDER: unsetIfBlank(z.enum(['none', 'bedrock']).default('none')),
+  /** `fixture` (T-113): scripted responses, never a model. Local and test runs only; every request is logged to AI_FIXTURE_LOG. */
+  AI_PROVIDER: unsetIfBlank(z.enum(['none', 'bedrock', 'fixture']).default('none')),
+  /** Where the fixture provider appends one JSON line per request (alias, prompt id, synthetic: true). */
+  AI_FIXTURE_LOG: unsetIfBlank(nonEmpty.optional()),
   /** Bedrock Region; credentials come from the AWS SDK default chain (e.g. AWS_PROFILE after `aws sso login`). */
   AWS_REGION: unsetIfBlank(z.string().regex(/^[a-z]{2}(-gov)?-[a-z]+-\d$/, 'an AWS Region such as us-east-1').optional()),
   /** Optional model or inference-profile overrides per alias (e.g. `eu.anthropic.claude-sonnet-5-5`). */
@@ -184,6 +187,9 @@ export const apiEnvSchema = baseEnvSchema.extend({
   .superRefine(allOrNone(['DOCUSIGN_INTEGRATION_KEY', 'DOCUSIGN_CLIENT_SECRET', 'DOCUSIGN_AUTH_HOST', 'DOCUSIGN_CONNECT_HMAC_KEY']))
   .superRefine(allOrNone(['EMAIL_CONFIGURATION_SET', 'EMAIL_EVENTS_TOPIC_ARN']))
   .superRefine((value, context) => {
+    if (value.AI_PROVIDER === 'fixture' && value.APP_ENV !== 'local' && value.APP_ENV !== 'test') {
+      context.addIssue({ code: 'custom', path: ['AI_PROVIDER'], message: 'fixture is for local and test runs only' });
+    }
     if (value.AI_PROVIDER === 'bedrock' && !value.AWS_REGION) {
       context.addIssue({ code: 'custom', path: ['AWS_REGION'], message: 'required when AI_PROVIDER is bedrock' });
     }

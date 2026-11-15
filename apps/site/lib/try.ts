@@ -11,6 +11,8 @@ export interface TryStep {
   readonly icon: IconName;
   readonly title: string;
   readonly where: string;
+  /** The pact section the step happens on (a `DEAL_SECTION_RULES` path), checked by a test so the steps follow the app (T-124). */
+  readonly section?: string;
   readonly do: readonly string[];
   readonly see: string;
 }
@@ -66,6 +68,7 @@ export function trySteps(pack: TryPack): readonly TryStep[] {
       icon: 'FileText',
       title: 'Upload the data room',
       where: 'Diligence → Documents',
+      section: '/documents',
       do: ['Choose “Upload a data room” and pick the zip.', 'Answer any question Pactlab asks about a file it was unsure of.'],
       see: 'Each file read and filed as what it is: contracts, financial statements, extracts. Terms are drafted with exact page citations.',
     },
@@ -73,6 +76,7 @@ export function trySteps(pack: TryPack): readonly TryStep[] {
       icon: 'Layers',
       title: 'Import the extracts',
       where: 'Diligence → Sources',
+      section: '/sources',
       do: pack.extracts.map((extract) => `${extract.label}: import ${extract.fileName}`),
       see: 'Every row checked as it lands; the metrics rebuilt from the records rather than from the deck.',
     },
@@ -80,6 +84,7 @@ export function trySteps(pack: TryPack): readonly TryStep[] {
       icon: 'ClipboardList',
       title: 'Review the findings',
       where: 'Diligence → Findings',
+      section: '/findings',
       do: ['Run the checks, then open each draft finding and its evidence.', 'Price a risk, submit it, and have your colleague accept or reject it.'],
       see: 'The planted problems surface as findings, each linked to the rows and pages behind it, with seller statements marked verified or contradicted.',
     },
@@ -87,6 +92,7 @@ export function trySteps(pack: TryPack): readonly TryStep[] {
       icon: 'Calculator',
       title: raise ? 'Model the round' : 'Price it with Sextant',
       where: raise ? 'Valuation → Raise' : 'Valuation → Scenarios and bridge',
+      section: raise ? '/raise' : '/valuation',
       do: raise
         ? ['Set the round you are raising, and add the offers you received.', 'Compare them side by side.']
         : ['Add downside, base and upside scenarios; link the accepted risks.', 'Look at comparables, and judge the asking price.'],
@@ -96,6 +102,7 @@ export function trySteps(pack: TryPack): readonly TryStep[] {
       icon: 'Signature',
       title: raise ? 'Share the investor view' : 'Propose the terms',
       where: raise ? 'Valuation → Raise' : 'Valuation → Proposed terms',
+      section: raise ? '/raise' : '/terms',
       do: raise ? ['Open the investor view: it holds verified facts only.'] : ['Draft the terms from the evaluation and propose them.', 'Invite a colleague as the seller to counter, then agree.'],
       see: raise ? 'What an investor will see, with nothing confidential in it.' : 'Each term tied to the risk that justifies it, then signed by both sides on the Closing tab.',
     },

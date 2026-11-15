@@ -30,6 +30,7 @@ try {
   const plans = await billing.plans(prisma);
   let synced = 0;
   for (const row of rows) {
+    // handled: an operator run; a subscription it cannot read is reported in the run's output
     const snapshot = await provider.subscription(row.subscription_id).catch(() => null);
     if (!snapshot) continue;
     const planKey = plans.find((plan) => plan.stripePriceId === snapshot.priceId)?.key ?? null;

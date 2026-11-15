@@ -4,8 +4,8 @@ import { startPact } from '../support/deals';
 /** One key metric's block (batch 1): your draggable line over the published and AI lines. */
 const metric = (page: Page, label: string) => page.locator('section').filter({ has: page.getByText(label, { exact: true }) });
 
-// AI is off in browser tests and published forecasts come from fixture series (T-094 B10).
-test('Foresight opens with published forecasts, no Generate button, and says what AI would add', { tag: '@regression' }, async ({ page }) => {
+// AI runs on the fixture provider in browser tests (T-113); published forecasts come from fixture series (T-094 B10).
+test('Foresight opens with published forecasts and the AI baseline, with no Generate button', { tag: '@regression' }, async ({ page }) => {
   const dealId = await startPact(page, 'Multifamily');
   await page.goto(`/deals/${dealId}`);
   await page.getByRole('navigation', { name: 'Deal sections' }).getByRole('link', { name: 'Valuation' }).click();
@@ -17,8 +17,9 @@ test('Foresight opens with published forecasts, no Generate button, and says wha
   await expect(page.getByRole('link', { name: 'Synthetic macro forecast (fixture)' }).first()).toBeVisible({ timeout: 20_000 });
   await expect(metric(page, 'Inflation (consumer prices)')).toHaveCount(1);
   await expect(metric(page, 'Market rent growth')).toHaveCount(1);
-  // Each missing AI forecast says why (batch 2), never a silent empty row.
-  await expect(metric(page, 'Market rent growth').getByText('AI is off in this environment.')).toBeVisible();
+  // With AI on, no metric says AI is off or unreachable (the reasons themselves are unit-tested: forecasts.test.ts).
+  await expect(page.getByText('AI is off in this environment.')).toHaveCount(0);
+  await expect(page.getByText(/couldn’t be reached/)).toHaveCount(0);
   await expect(page.getByRole('button', { name: /Generate/ })).toHaveCount(0);
 });
 
@@ -31,9 +32,14 @@ test('your own forecast is saved and changes only the value under yours', { tag:
   await page.goto(`/deals/${dealId}/foresight`);
   await expect(page.getByRole('link', { name: 'Synthetic macro forecast (fixture)' }).first()).toBeVisible({ timeout: 20_000 });
 
+  // With AI on (the fixture provider), the AI forecasts arrive in the background: wait until the page has
+  // them all (it refreshes itself while preparing) before comparing, so nothing changes mid-test.
+  await expect(page.getByText(/Preparing the published and AI forecasts/)).toHaveCount(0, { timeout: 30_000 });
   const value = page.getByRole('table', { name: 'Value by forecast set' });
-  const reference = await value.getByRole('row', { name: /^Published \+ AI/ }).textContent();
-  expect(await value.getByRole('row', { name: /^Yours/ }).textContent()).toBe(reference?.replace('Published + AI', 'Yours'));
+  const published = value.getByRole('row', { name: /^Published/ });
+  await expect(published).toHaveCount(1);
+  const reference = await published.textContent();
+  expect(await value.getByRole('row', { name: /^Yours/ }).textContent()).toBe(reference?.replace(/^Published( \+ AI)?/, 'Yours'));
 
   // "Type numbers" swaps the draggable line for plain inputs; the values ride on the save form.
   const rent = metric(page, 'Market rent growth');

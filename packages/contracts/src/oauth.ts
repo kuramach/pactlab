@@ -1,6 +1,6 @@
 /** OAuth for the MCP server (T-084, ADR 0024): what the consent page and Settings show. */
 
-export type McpScope = 'mcp:read' | 'mcp:confidential';
+export type McpScope = 'mcp:read' | 'mcp:confidential' | 'mcp:propose';
 
 /** The consent page's answer for one authorization request. */
 export type AuthorizeCheckView =

@@ -36,6 +36,9 @@ export interface InvitationView {
   invitedByName: string | null;
   expiresAt: string;
   createdAt: string;
+  /** Whether the email went out (T-125); null while it is being sent, or for invitations made before this was recorded. */
+  emailStatus: 'SENT' | 'FAILED' | null;
+  emailProblem: 'SUPPRESSED' | 'UNAVAILABLE' | null;
 }
 
 export interface InvitationPreview {

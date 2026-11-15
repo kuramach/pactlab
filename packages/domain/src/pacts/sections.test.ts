@@ -26,3 +26,17 @@ describe('deal sections per pact (batch 2)', () => {
     expect(hasSubscriptionMetrics('HOTELS')).toBe(false);
   });
 });
+
+describe('tabs a pact will never fill are hidden (Kumar, 2026-11-14)', () => {
+  it('a venture raise shows no acquisition terms, letter, committee, financing, closing or post-close', () => {
+    for (const path of ['/terms', '/loi', '/ic', '/financing', '/closing', '/post-close']) {
+      expect(sectionApplies(path, { companyType: 'VENTURE_RAISE', initiatedBy: 'BUYER' }), path).toBe(false);
+      expect(sectionApplies(path, { companyType: 'SOFTWARE_SAAS', initiatedBy: 'BUYER' }), path).toBe(true);
+    }
+    expect(sectionApplies('/raise', { companyType: 'VENTURE_RAISE', initiatedBy: 'BUYER' })).toBe(true);
+  });
+
+  it('a seller-led sale keeps the diligence tabs: the seller can fill them later', () => {
+    for (const path of ['/documents', '/findings', '/finances', '/valuation', '/financing']) expect(sectionApplies(path, { companyType: 'MULTIFAMILY', initiatedBy: 'SELLER' }), path).toBe(true);
+  });
+});

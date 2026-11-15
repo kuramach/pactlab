@@ -4,7 +4,7 @@ import { FileText } from 'lucide-react';
 import { generateReport } from '../../reports/actions';
 import { notFound } from 'next/navigation';
 import type { ReactNode } from 'react';
-import { dealsApi } from '../_lib/api';
+import { apiGet, dealsApi } from '../_lib/api';
 import { guideHidden } from '../../_lib/guide-actions';
 import { DealTabs } from '../_lib/deal-tabs';
 import { Showcase } from '../_lib/showcase';
@@ -21,7 +21,16 @@ import { dealViewer } from '../_lib/viewer';
 export default async function DealLayout({ children, params }: { children: ReactNode; params: Promise<{ dealId: string }> }) {
   const { dealId } = await params;
   if (!isUuidParam(dealId)) notFound();
-  const [deal, parties, members, viewer] = await Promise.all([dealsApi.get(dealId), dealsApi.parties(dealId), dealsApi.members(dealId), dealViewer(dealId)]);
+  const [deal, parties, members, viewer, suggestions] = await Promise.all([
+    dealsApi.get(dealId),
+    dealsApi.parties(dealId),
+    dealsApi.members(dealId),
+    dealViewer(dealId),
+    // Connected apps' suggestions (T-084b): buyer side only; the API refuses anyone else.
+    apiGet<{ items: { status: string }[]; connectable: boolean }>(`/v1/deals/${dealId}/agent-proposals?status=PENDING`),
+  ]);
+  // The tab shows where suggestions can arrive (apps may connect) or some already have.
+  const pendingSuggestions = suggestions.kind === 'ok' && (suggestions.data.connectable || suggestions.data.items.length > 0) ? suggestions.data.items.length : null;
   if (deal.kind !== 'ok') {
     return (
       <div className="flex flex-col gap-6">
@@ -100,7 +109,7 @@ export default async function DealLayout({ children, params }: { children: React
             </>
           }
         />
-        <DealTabs dealId={dealId} companyType={(seller?.companyType as CompanyType | null | undefined) ?? null} sellerLed={sellerLed} counterparty={viewer.role === 'TARGET_CONTRIBUTOR'} />
+        <DealTabs dealId={dealId} companyType={(seller?.companyType as CompanyType | null | undefined) ?? null} sellerLed={sellerLed} counterparty={viewer.role === 'TARGET_CONTRIBUTOR'} pendingSuggestions={pendingSuggestions} />
       </div>
       {/* The guided tour and "Why this matters" (2026-11-13); each person can hide it. */}
       {(await guideHidden()) ? null : <Showcase dealId={dealId} companyType={(seller?.companyType as CompanyType | null | undefined) ?? null} sellerLed={sellerLed} />}

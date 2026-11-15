@@ -11,7 +11,7 @@ export function oauthOrigins() {
   return { issuer, api, resource: `${api}/v1/mcp` };
 }
 
-export const MCP_SCOPES = ['mcp:read', 'mcp:confidential'] as const;
+export const MCP_SCOPES = ['mcp:read', 'mcp:confidential', 'mcp:propose'] as const;
 
 /** RFC 9728 protected-resource metadata. `scopes_supported` is the minimum for basic use. */
 export function protectedResourceMetadata() {

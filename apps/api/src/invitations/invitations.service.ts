@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
+import { EmailSuppressedError } from '../email-login/ses-email-sender';
 import { emailBrand } from '../brand/email-brand';
 import { ConflictException, Inject, Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import { appendAuditEvent, invitationLinks, withTenant, type PrismaClient } from '@pactlab/db';
@@ -59,6 +60,8 @@ export class InvitationsService {
           invitedByName: names.get(row.invitedBy) ?? null,
           expiresAt: row.expiresAt.toISOString(),
           createdAt: row.createdAt.toISOString(),
+          emailStatus: (row.emailStatus as InvitationView['emailStatus']) ?? null,
+          emailProblem: (row.emailProblem as InvitationView['emailProblem']) ?? null,
         })),
       };
     });
@@ -68,7 +71,7 @@ export class InvitationsService {
    * `options.dealLabel` names the pact in the email instead of its own name, e.g. a public
    * page's codename for a buyer who has not yet signed the NDA.
    */
-  async create(tenant: TenantContext, dealId: string, body: CreateInvitationBody, requestId: string, options: { dealLabel?: string } = {}): Promise<{ kind: 'ADDED' | 'INVITED' }> {
+  async create(tenant: TenantContext, dealId: string, body: CreateInvitationBody, requestId: string, options: { dealLabel?: string } = {}): Promise<{ kind: 'ADDED' | 'INVITED'; emailed?: boolean; emailProblem?: 'SUPPRESSED' | 'UNAVAILABLE'; link?: string }> {
     this.requireMember(tenant);
     await this.access.require(tenant, dealId, 'DEAL_MEMBERS_MANAGE', { action: 'deal.invitation.created', requestId });
     const result = await withTenant(this.prisma, tenant, async (tx) => {
@@ -100,17 +103,25 @@ export class InvitationsService {
         tx.organizationBrandKit.findUnique({ where: { organizationId: tenant.organizationId }, select: { source: true, accentColor: true, logoContentType: true } }),
       ]);
       await appendAuditEvent(tx, { organizationId: tenant.organizationId, dealId, actorUserId: tenant.userId, action: 'deal.invitation.created', targetType: 'deal_invitation', targetId: invitation.id, outcome: 'SUCCEEDED', requestId });
-      return { kind: 'INVITED' as const, token, dealName: deal?.name ?? 'a pact', inviterName: inviter?.displayName ?? 'A colleague', organization, kit };
+      return { kind: 'INVITED' as const, invitationId: invitation.id, token, dealName: deal?.name ?? 'a pact', inviterName: inviter?.displayName ?? 'A colleague', organization, kit };
     });
     if (result.kind === 'INVITED') {
       const link = new URL(`/invite/${result.token}`, this.deps.appOrigin).toString();
       // The inviting organization's brand (T-123), except where the pact goes by a codename: a logo would name the seller.
       const brand = options.dealLabel ? null : emailBrand(result.organization, result.kit, this.deps.appOrigin);
       const message = emails.dealInvitation(body.email, { inviterName: result.inviterName, dealName: options.dealLabel ?? result.dealName, side: body.side, role: body.role, link, days: VALID_DAYS });
-      void this.deps.emailSender.send(brand ? { ...message, brand } : message).catch((error: unknown) => {
-        // Never log the link or the address.
-        this.logger.error({ requestId, errorClass: error instanceof Error ? error.name : 'unknown' }, 'invitation email delivery failed');
-      });
+      // handled: the outcome is stored on the invitation and returned, so the inviter sees it (T-125).
+      const problem = await this.deps.emailSender.send(brand ? { ...message, brand } : message).then(
+        () => null,
+        (error: unknown) => {
+          // Never log the link or the address.
+          this.logger.error({ requestId, errorClass: error instanceof Error ? error.name : 'unknown' }, 'invitation email delivery failed');
+          return error instanceof EmailSuppressedError ? ('SUPPRESSED' as const) : ('UNAVAILABLE' as const);
+        },
+      );
+      await withTenant(this.prisma, tenant, (tx) => tx.dealInvitation.update({ where: { id: result.invitationId }, data: { emailStatus: problem ? 'FAILED' : 'SENT', emailProblem: problem } }));
+      // The link goes back to the inviter only when the email did not: it works only for the invited address.
+      return problem ? { kind: result.kind, emailed: false, emailProblem: problem, link } : { kind: result.kind, emailed: true };
     }
     return { kind: result.kind };
   }

@@ -4,14 +4,19 @@
  * two magic links. Run every 15 minutes by a scheduled seed task, this sweep:
  *   1. creates any of the five slots that does not exist yet (to be built below);
  *   2. ends shares whose time is up (their sessions with them) and queues their slots;
- *   3. rebuilds every queued slot from the original demo data (`runDemoOrg --reset`), then
- *      makes it AVAILABLE again, or records the error and retries on the next sweep.
+ *   3. queues every idle slot built from an older demo build than this release's (T-124), so a
+ *      deploy that changes what a demo contains reaches the demos without anyone running anything;
+ *      a slot that is shared out keeps its data until its share ends;
+ *   4. rebuilds every queued slot from the original demo data (`runDemoOrg --reset`), then
+ *      makes it AVAILABLE again, or records the error and retries on the next sweep;
+ *   5. rebuilds the main demo organization (`pnpm demo:live`) the same way, when it exists and is stale.
  * Synthetic only; touches only the five pool organizations. Sends no email.
  */
 import 'reflect-metadata';
 import type { PrismaClient } from '@pactlab/db';
 import type { CompanyType } from '@pactlab/domain';
-import { ensureDemoOrganization, githubDemoData, openDemoRuntime, runDemoOrg, type DemoDataSource, type DemoOrgSpec, type OwnerSession } from './demo-org';
+import { demoBuildVersion } from './demo-coverage';
+import { DEMO_ORG, demoBuildOf, ensureDemoOrganization, githubDemoData, openDemoRuntime, runDemoOrg, type DemoDataSource, type DemoOrgSpec, type OwnerSession } from './demo-org';
 
 export const DEMO_POOL_SIZE = 5;
 
@@ -41,6 +46,17 @@ type App = Parameters<typeof runDemoOrg>[0];
 
 /** One sweep of the pool. Returns report lines. */
 export async function sweepDemoPool(app: App, owner: OwnerSession, prisma: PrismaClient, options: { types: readonly CompanyType[]; data: DemoDataSource }): Promise<string[]> {
+  // One sweep at a time: the 15-minute schedule and the one a deploy starts (T-124) never rebuild the same slot twice.
+  const [lock] = (await owner.query<{ locked: boolean }>(`SELECT pg_try_advisory_lock(hashtext('pactlab-demo-pool-sweep')) AS locked`)).rows;
+  if (!lock?.locked) return ['another sweep is running; it does this one’s work'];
+  try {
+    return await sweepUnderLock(app, owner, prisma, options);
+  } finally {
+    await owner.query(`SELECT pg_advisory_unlock(hashtext('pactlab-demo-pool-sweep'))`);
+  }
+}
+
+async function sweepUnderLock(app: App, owner: OwnerSession, prisma: PrismaClient, options: { types: readonly CompanyType[]; data: DemoDataSource }): Promise<string[]> {
   const report: string[] = [];
   // 1. Every slot exists; a new one starts RESETTING, so this sweep builds it.
   for (let slot = 1; slot <= DEMO_POOL_SIZE; slot += 1) {
@@ -65,7 +81,15 @@ export async function sweepDemoPool(app: App, owner: OwnerSession, prisma: Prism
     );
     report.push(`share for ${share.shared_with}: ended (time up)`);
   }
-  // 3. Rebuild every queued slot from the original demo data.
+  // 3. Idle slots from an older demo build are rebuilt now; shared ones wait for their share to end.
+  const current = demoBuildVersion(options.types);
+  const idle = await owner.query<{ organization_id: string; slot: number }>(`SELECT organization_id, slot FROM demo_slots WHERE status = 'AVAILABLE' ORDER BY slot`);
+  for (const row of idle.rows) {
+    if ((await demoBuildOf(owner, row.organization_id)) === current) continue;
+    await owner.query(`UPDATE demo_slots SET status = 'RESETTING', updated_at = now() WHERE organization_id = $1 AND status = 'AVAILABLE'`, [row.organization_id]);
+    report.push(`slot ${row.slot}: built from an older release; rebuilding`);
+  }
+  // 4. Rebuild every queued slot from the original demo data.
   const queued = await owner.query<{ organization_id: string; slot: number }>(`SELECT organization_id, slot FROM demo_slots WHERE status = 'RESETTING' ORDER BY slot`);
   for (const row of queued.rows) {
     const spec = demoPoolSpec(Number(row.slot));
@@ -81,6 +105,17 @@ export async function sweepDemoPool(app: App, owner: OwnerSession, prisma: Prism
       const message = error instanceof Error ? error.message : 'unknown error';
       await owner.query(`UPDATE demo_slots SET last_error = $2, updated_at = now() WHERE organization_id = $1`, [spec.id, message.slice(0, 2000)]);
       report.push(`slot ${row.slot}: FAILED (${message.slice(0, 300)}); retried on the next sweep`);
+    }
+  }
+  // 5. The main demo organization, when it exists and is stale (never created here: that is `pnpm demo:live`).
+  const main = await owner.query<{ id: string }>(`SELECT o.id FROM organizations o WHERE o.id = $1 AND EXISTS (SELECT 1 FROM deals d WHERE d.organization_id = o.id)`, [DEMO_ORG.id]);
+  if (main.rows.length > 0 && (await demoBuildOf(owner, DEMO_ORG.id)) !== current) {
+    try {
+      const lines = await runDemoOrg(app, owner, prisma, { types: options.types, reset: true, data: options.data, spec: DEMO_ORG });
+      const failed = lines.filter((line) => line.includes('FAILED'));
+      report.push(failed.length > 0 ? `demo organization: rebuilt with problems (${failed.join(' | ').slice(0, 300)}); retried on the next sweep` : 'demo organization: built from an older release; rebuilt');
+    } catch (error) {
+      report.push(`demo organization: FAILED (${(error instanceof Error ? error.message : 'unknown error').slice(0, 300)}); retried on the next sweep`);
     }
   }
   if (report.length === 0) report.push('nothing to do');

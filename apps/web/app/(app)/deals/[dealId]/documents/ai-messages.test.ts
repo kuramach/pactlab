@@ -11,5 +11,7 @@ describe('AI unavailable messages', () => {
     expect(AI_UNAVAILABLE['ai-delayed']).toMatch(/try again in a few minutes/);
     expect(aiOutcome('AI_UNAVAILABLE')).toBe('ai-failed');
     expect(aiOutcome(undefined)).toBe('ai-off');
+    // The AI-off sentence (moved down from the browser test when e2e turned AI on, T-113).
+    expect(AI_UNAVAILABLE['ai-off']).toMatch(/^AI is not switched on for this environment yet\./);
   });
 });

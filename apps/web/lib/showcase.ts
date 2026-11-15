@@ -39,6 +39,11 @@ export const SHOWCASE: Readonly<Record<string, ShowcaseEntry>> = {
     why: 'The deal team, reviewers and the seller’s contributors each see what their role allows. The seller never sees your pricing or your notes.',
     lookFor: ['Roles on the pact', 'The seller as a guest, limited to what you share', 'Invitations with an audit trail'],
   },
+  '/suggestions': {
+    title: 'Your AI assistant suggests; your team decides',
+    why: 'Connected apps such as Claude can suggest a term on a priced risk or a request for missing documents. Nothing changes until someone here approves it, and amounts always come from Pactlab.',
+    lookFor: ['Each suggestion with the app’s reasoning', 'The amount Pactlab would add, from the finding', 'Approve or reject, with a note the app can read'],
+  },
   '/documents': {
     title: 'The data room, read and filed for you',
     why: 'Drop in the data room as one zip. Pactlab reads each file, files it as what it is, and only asks a person when it is unsure: no hours of labelling.',

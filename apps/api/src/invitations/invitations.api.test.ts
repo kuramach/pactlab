@@ -8,6 +8,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createApp } from '../app';
 import { JwtIdentityVerifier } from '../auth/identity';
 import type { EmailSender, OutboundEmail } from '../email-login/email-sender';
+import { EmailSuppressedError } from '../email-login/ses-email-sender';
 
 const SECRET = 'test-secret-'.padEnd(48, 'x');
 type Body = Record<string, unknown>;
@@ -16,6 +17,8 @@ class CapturingEmailSender implements EmailSender {
   readonly name = 'capture';
   readonly sent: OutboundEmail[] = [];
   async send(message: OutboundEmail) {
+    // An address on the do-not-send list (T-109): refused before anything is sent.
+    if (message.to.startsWith('bounced')) throw new EmailSuppressedError('HARD_BOUNCE');
     this.sent.push(message);
   }
 }
@@ -87,7 +90,7 @@ describe('pact invitations and guests', { timeout: 60_000 }, () => {
   it('a seller invited by email signs up (personal address, no approval wait), accepts, and sees only that pact', async () => {
     const lead = await signIn('lead@charlie.example');
     const invited = await call('POST', `/v1/deals/${charlie.deal}/invitations`, { email: 'Seller.Founder@gmail.com', side: 'SELLER', role: 'TARGET_CONTRIBUTOR' }, lead);
-    expect(invited).toEqual({ status: 201, body: { kind: 'INVITED' } });
+    expect(invited).toEqual({ status: 201, body: { kind: 'INVITED', emailed: true } });
     const email = await lastMail('seller.founder@gmail.com');
     expect(email.text).toContain('https://app.pactlab.test/invite/');
     expect(email.text).toContain('You join this pact only');
@@ -155,6 +158,15 @@ describe('pact invitations and guests', { timeout: 60_000 }, () => {
     const slug = ((await db.owner.query<{ slug: string }>('SELECT slug FROM organizations WHERE id = $1', [charlie.organizationId])).rows[0] as { slug: string }).slug;
     expect((await lastMail('branded@seller.example')).brand).toEqual({ name: 'Charlie Capital (synthetic)', accentColor: '#1a7f37', logoUrl: `https://app.pactlab.test/login/${slug}/logo` });
     await db.owner.query('DELETE FROM organization_brand_kits WHERE organization_id = $1', [charlie.organizationId]);
+  });
+
+  it('an invitation whose email could not go out says so, and hands the inviter the link (T-125)', async () => {
+    const lead = await signIn('lead@charlie.example');
+    const invited = await call('POST', `/v1/deals/${charlie.deal}/invitations`, { email: 'bounced@seller.example', side: 'SELLER', role: 'TARGET_CONTRIBUTOR' }, lead);
+    expect(invited.body).toMatchObject({ kind: 'INVITED', emailed: false, emailProblem: 'SUPPRESSED', link: expect.stringContaining('https://app.pactlab.test/invite/') });
+    const list = (await call('GET', `/v1/deals/${charlie.deal}/invitations`, undefined, lead)).body as { items: { email: string; emailStatus: string | null; emailProblem: string | null }[] };
+    expect(list.items.find((item) => item.email === 'bounced@seller.example')).toMatchObject({ emailStatus: 'FAILED', emailProblem: 'SUPPRESSED' });
+    expect(list.items.find((item) => item.email === 'seller.founder@gmail.com')).toMatchObject({ emailStatus: 'SENT', emailProblem: null });
   });
 
   it('a colleague in the organization joins directly; a revoked invitation cannot be accepted', async () => {

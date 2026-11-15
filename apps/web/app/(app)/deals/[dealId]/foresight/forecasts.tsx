@@ -4,7 +4,7 @@ import { LineChart } from '../../../_lib/charts';
 import { formatMoney } from '../../../metrics/_lib/format';
 import { archiveMetric, defineMetric, forecastMetric, refreshForecasts, saveUserForecast } from './actions';
 import { ForecastLineEditor } from './forecast-line-editor';
-import { AutoRefresh } from './auto-refresh';
+import { Pending } from '../../../../_components/pending';
 
 const pct = (value: string) => `${value}%`;
 const cell = 'py-1.5 pr-3 font-mono text-xs tabular-nums';
@@ -13,8 +13,19 @@ const USED: Record<ForesightOutcomeView['basis'][number]['used'], string> = { AI
 function StatusLine({ forecasts }: { forecasts: ForesightForecastsView }) {
   if (forecasts.status === 'NONE' || forecasts.status === 'RUNNING') {
     return (
-      <p role="status" className="text-sm text-muted-foreground">
-        <AutoRefresh /> Preparing the published and AI forecasts in the background — this page updates by itself.
+      <Pending
+        label="Preparing the published and AI forecasts in the background — this page updates by itself."
+        slow="The forecasts are taking longer than usual. They keep going in the background: come back in a few minutes. Your own forecasts below work in the meantime."
+        everyMs={4_000}
+        slowAfterMs={120_000}
+      />
+    );
+  }
+  // T-125: a failed run says so and what happens next, never a page that looks merely stale.
+  if (forecasts.status === 'FAILED') {
+    return (
+      <p role="alert" className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+        The published and AI forecasts couldn’t be prepared this time. Pactlab tries again automatically in about 10 minutes; your own forecasts below work in the meantime.
       </p>
     );
   }
@@ -33,7 +44,7 @@ function StatusLine({ forecasts }: { forecasts: ForesightForecastsView }) {
 }
 
 /** Why a metric has no AI forecast, in words (batch 2): never a silent empty row. */
-function aiMissingReason(forecasts: ForesightForecastsView, aiEnabled: boolean): string {
+export function aiMissingReason(forecasts: ForesightForecastsView, aiEnabled: boolean): string {
   if (!aiEnabled) return 'AI is off in this environment.';
   if (forecasts.status === 'RUNNING' || forecasts.status === 'NONE') return 'Being prepared now.';
   const note = forecasts.notes.find((entry) => /\bAI\b/.test(entry));

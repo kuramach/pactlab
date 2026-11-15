@@ -462,6 +462,7 @@ export class ForesightService {
       notes.push('The forecasts could not be refreshed; they will be tried again later.');
     }
     const status = notes.length === 0 ? 'READY' : filled > 0 ? 'PARTIAL' : 'FAILED';
+    // handled: a run that cannot record its end stays RUNNING; the page stops waiting after 2 minutes and says so, and the run is retried after 10
     await withTenant(this.prisma, tenant, (tx) => tx.foresightBaseline.updateMany({ where: { dealId }, data: { status, notes, finishedAt: new Date() } })).catch(() => undefined);
   }
 

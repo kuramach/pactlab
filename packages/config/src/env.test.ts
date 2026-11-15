@@ -119,4 +119,9 @@ describe('webServerEnvSchema', () => {
       expect(String(error)).not.toContain(weak);
     }
   });
+
+  it('allows the fixture AI provider only in local and test runs (T-113)', () => {
+    expect(loadConfig(apiEnvSchema, { ...validApi, AI_PROVIDER: 'fixture', AI_FIXTURE_LOG: '/tmp/ai.jsonl' }).AI_PROVIDER).toBe('fixture');
+    expect(() => loadConfig(apiEnvSchema, { ...validApi, APP_ENV: 'production', AI_PROVIDER: 'fixture' })).toThrow(/AI_PROVIDER/);
+  });
 });

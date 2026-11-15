@@ -13,7 +13,7 @@ export interface McpAccessClaims {
 }
 
 export const ACCESS_TOKEN_SECONDS = 60 * 60;
-const SCOPES: ReadonlySet<string> = new Set(['mcp:read', 'mcp:confidential']);
+const SCOPES: ReadonlySet<string> = new Set(['mcp:read', 'mcp:confidential', 'mcp:propose']);
 
 /**
  * Access tokens for the MCP server: HS256 JWTs whose audience is the MCP server's canonical
