@@ -61,3 +61,21 @@ environments must not depend on a person.
 
 Local development keeps SSO sign-in by design. Work is tracked in T-096;
 the deployed parts land with T-070.
+
+### Implemented (2026-11-14, T-096 Parts 1–2)
+
+- `packages/ai/src/resilience.ts`: `CircuitBreaker` (5 transient failures in
+  60 s open it for 30 s, then one half-open probe) and
+  `ResilientModelTransport`. While open, calls fail with the provider error
+  kind `DELAYED`, which the API returns as `AI_DELAYED`.
+- Bedrock retries: up to 3, full jitter capped at 8 s, a 180 s total
+  deadline; access and validation errors fail fast.
+- Fallback: `BEDROCK_FALLBACK_<ALIAS>` names a Claude inference profile
+  (validated as Claude); it is tried once after a transient failure, and only
+  for prompts that list it in `fallbackEvaluatedOn` after their eval suite
+  passed on it. No prompt lists one yet. `ai_runs.resolvedModelId` records
+  the model that answered.
+- Boot check: in deployed environments the API makes one synthetic call on
+  the fast route and logs `healthy`/`unhealthy` with the error class only.
+- `infra/cdk/test/workload-identity.test.ts`: in every environment, no task has
+  `AWS_PROFILE` or static keys, and Bedrock actions and resources are scoped to Claude.

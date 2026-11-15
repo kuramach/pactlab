@@ -7,6 +7,8 @@ describe('AI unavailable messages', () => {
     expect(AI_UNAVAILABLE['ai-access']).toMatch(/expired sign-in, or model access switched off/);
     expect(AI_UNAVAILABLE['ai-access']).not.toMatch(/try again in a moment/);
     expect(aiOutcome('AI_THROTTLED')).toBe('ai-throttled');
+    expect(aiOutcome('AI_DELAYED')).toBe('ai-delayed');
+    expect(AI_UNAVAILABLE['ai-delayed']).toMatch(/try again in a few minutes/);
     expect(aiOutcome('AI_UNAVAILABLE')).toBe('ai-failed');
     expect(aiOutcome(undefined)).toBe('ai-off');
     // The AI-off sentence (moved down from the browser test when e2e turned AI on, T-113).

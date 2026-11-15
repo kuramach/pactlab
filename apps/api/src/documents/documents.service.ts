@@ -23,6 +23,8 @@ import {
   type CitableSource,
   type ClaudeGateway,
   type ResolvedCitation,
+  aiProblemCode,
+  type ModelProviderErrorKind,
 } from '@pactlab/ai';
 import {
   appendAuditEvent,
@@ -159,10 +161,11 @@ function documentView(document: DocumentRecord) {
 /**
  * A failed model call, with a stable reason code the screen can explain:
  * AI_ACCESS (sign-in expired or refused — an operator must sign in again),
- * AI_THROTTLED (rate-limited), otherwise AI_UNAVAILABLE. Never provider text.
+ * AI_THROTTLED (rate-limited), AI_DELAYED (circuit breaker open after
+ * repeated outages), otherwise AI_UNAVAILABLE. Never provider text.
  */
-function providerUnavailable(kind: string | null): ServiceUnavailableException {
-  const code = kind === 'ACCESS' ? 'AI_ACCESS' : kind === 'THROTTLED' ? 'AI_THROTTLED' : 'AI_UNAVAILABLE';
+function providerUnavailable(kind: ModelProviderErrorKind | null): ServiceUnavailableException {
+  const code = aiProblemCode(kind);
   return new ServiceUnavailableException({ code });
 }
 

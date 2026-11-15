@@ -4,7 +4,7 @@ import type { CitableSource } from './context';
 import { sha256Hex } from './hash';
 import { ModelProviderError, type ModelProviderErrorKind } from './bedrock';
 import { detectInjection } from './injection';
-import { DEFAULT_MODEL_ROUTES, resolveModel, type ModelAlias, type ModelRoute } from './models';
+import { DEFAULT_MODEL_ROUTES, isClaudeModelId, resolveModel, type ModelAlias, type ModelRoute } from './models';
 import type { PromptDefinition, PromptRegistry } from './prompts/registry';
 import type { ModelMessage, ModelTransport } from './transport';
 
@@ -179,14 +179,23 @@ export class TransportClaudeGateway implements ClaudeGateway {
     const sources = request.sources ?? [];
     const user = prompt.render({ sources, inputs: request.inputs });
     const messages: ModelMessage[] = [{ role: 'user', content: user }];
-    const call = (history: readonly ModelMessage[]) =>
-      this.options.transport.complete({
+    const fallbackModelId =
+      route.fallbackModelId && isClaudeModelId(route.fallbackModelId) && prompt.fallbackEvaluatedOn?.includes(route.fallbackModelId)
+        ? route.fallbackModelId
+        : undefined;
+    let answeredBy = route.modelId;
+    const call = async (history: readonly ModelMessage[]) => {
+      const response = await this.options.transport.complete({
         modelId: route.modelId,
         effort: route.effort,
         system: prompt.system,
         messages: history,
         maxOutputTokens: prompt.maxOutputTokens,
+        fallbackModelId,
       });
+      answeredBy = response.modelId ?? route.modelId;
+      return response;
+    };
 
     let status: AiRunStatus = 'SCHEMA_INVALID';
     let providerError: ModelProviderErrorKind | null = null;
@@ -238,7 +247,8 @@ export class TransportClaudeGateway implements ClaudeGateway {
       promptVersion: prompt.version,
       promptHash: hash,
       modelAlias: alias,
-      resolvedModelId: route.modelId,
+      // The model that answered: the fallback when the primary was unavailable.
+      resolvedModelId: answeredBy,
       inputHashes: [
         ...request.inputs.map((input) => input.text),
         ...sources.map((s) => s.text),

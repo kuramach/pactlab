@@ -54,8 +54,8 @@ const objectStore =
 const malwareScanner = config.APP_ENV === 'local' || config.MALWARE_SCANNER === 'signature' ? new SignatureMalwareScanner() : undefined;
 const localDocuments = objectStore && malwareScanner ? { objectStore, malwareScanner } : undefined;
 
-// Document AI: Claude on Bedrock when AI_PROVIDER=bedrock (SSO credentials from
-// the AWS default chain); otherwise every model call fails closed.
+// Document AI: Claude on Bedrock when AI_PROVIDER=bedrock (the task role when
+// deployed, SSO locally); otherwise every model call fails closed.
 const ai = await createAiGateway(config);
 
 // Provider credentials: an encrypted local store until Secrets Manager (T-007);
@@ -171,3 +171,11 @@ if (config.EMAIL_EVENTS_TOPIC_ARN && config.AWS_REGION && config.APP_ENV !== 'lo
   void ensureEmailEventsSubscription({ region: config.AWS_REGION, topicArn: config.EMAIL_EVENTS_TOPIC_ARN, endpoint: new URL('/v1/email-events/sns', config.APP_WEB_ORIGIN).toString(), logger });
 }
 logger.info({ port: config.API_PORT, env: config.APP_ENV, ai: ai.status.provider }, 'api listening');
+// Deployed: prove the task role reaches Bedrock, logged by error class only (T-096).
+if (!['local', 'test'].includes(config.APP_ENV)) {
+  void ai.check().then((health) => {
+    if (!health) return;
+    if (health.healthy) logger.info({ ai: 'healthy', modelId: health.modelId, latencyMs: health.latencyMs }, 'ai startup check');
+    else logger.warn({ ai: 'unhealthy', modelId: health.modelId, kind: health.kind, providerCode: health.providerCode }, 'ai startup check');
+  });
+}

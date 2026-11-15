@@ -5,6 +5,8 @@ import {
   negotiationBriefPrompt,
   type AiRunRecord,
   type ClaudeGateway,
+  aiProblemCode,
+  type ModelProviderErrorKind,
 } from '@pactlab/ai';
 import {
   adjustmentAmount,
@@ -158,8 +160,8 @@ function aiFailure(error: unknown): never {
   }
   throw error;
 }
-const providerUnavailable = (kind: string | null) =>
-  new ServiceUnavailableException({ code: kind === 'ACCESS' ? 'AI_ACCESS' : kind === 'THROTTLED' ? 'AI_THROTTLED' : 'AI_UNAVAILABLE' });
+const providerUnavailable = (kind: ModelProviderErrorKind | null) =>
+  new ServiceUnavailableException({ code: aiProblemCode(kind) });
 
 const leverTotals = (mix: TermMix) => {
   const totals = new Map<TermLever, InstanceType<typeof D>>();

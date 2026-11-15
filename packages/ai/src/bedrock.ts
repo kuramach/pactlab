@@ -2,12 +2,13 @@ import type { ConverseCommandInput, ConverseCommandOutput } from '@aws-sdk/clien
 import type { ModelRequest, ModelResponse, ModelTransport } from './transport';
 
 /** Why a provider call failed, without any request or response content. */
-export type ModelProviderErrorKind = 'ACCESS' | 'THROTTLED' | 'UNAVAILABLE' | 'INVALID_REQUEST' | 'EMPTY_RESPONSE' | 'UNKNOWN';
+export type ModelProviderErrorKind = 'ACCESS' | 'THROTTLED' | 'UNAVAILABLE' | 'DELAYED' | 'INVALID_REQUEST' | 'EMPTY_RESPONSE' | 'UNKNOWN';
 
 const HINTS: Record<ModelProviderErrorKind, string> = {
   ACCESS: 'Bedrock refused access: sign in (aws sso login) and enable the Claude models in the Bedrock console',
   THROTTLED: 'Bedrock is throttling requests; try again shortly',
   UNAVAILABLE: 'Bedrock is temporarily unavailable or timed out',
+  DELAYED: 'AI is delayed after repeated provider failures; calls resume shortly',
   INVALID_REQUEST: 'Bedrock rejected the request (model ID or parameters)',
   EMPTY_RESPONSE: 'Bedrock returned no text',
   UNKNOWN: 'The model call failed',
@@ -24,10 +25,20 @@ export class ModelProviderError extends Error {
   }
 }
 
+/** The API's stable reason code for a failed model call (never provider text). */
+export function aiProblemCode(kind: ModelProviderErrorKind | null): 'AI_ACCESS' | 'AI_THROTTLED' | 'AI_DELAYED' | 'AI_UNAVAILABLE' {
+  return kind === 'ACCESS' ? 'AI_ACCESS' : kind === 'THROTTLED' ? 'AI_THROTTLED' : kind === 'DELAYED' ? 'AI_DELAYED' : 'AI_UNAVAILABLE';
+}
+
 /** The one Bedrock Runtime call the transport makes; injected so tests never reach the network. */
 export type ConverseSender = (input: ConverseCommandInput, options: { abortSignal: AbortSignal }) => Promise<ConverseCommandOutput>;
 
 const RETRYABLE = new Set<ModelProviderErrorKind>(['THROTTLED', 'UNAVAILABLE']);
+
+/** Throttling and outages: worth a retry, a fallback model, and a count against the circuit breaker. */
+export function isTransient(error: unknown): boolean {
+  return error instanceof ModelProviderError && RETRYABLE.has(error.kind);
+}
 
 function classify(error: unknown): ModelProviderError {
   if (error instanceof ModelProviderError) return error;
@@ -63,12 +74,19 @@ function classify(error: unknown): ModelProviderError {
 
 export interface BedrockTransportOptions {
   readonly send: ConverseSender;
-  /** Per call, including retries. */
+  /** Per attempt. */
   readonly timeoutMs?: number;
+  /** All attempts and backoff together; no retry starts after it. */
+  readonly deadlineMs?: number;
   readonly maxRetries?: number;
-  /** Injected for tests; defaults to jittered exponential backoff. */
+  /** Injected for tests; defaults to exponential backoff with full jitter. */
   readonly sleep?: (ms: number) => Promise<void>;
+  readonly random?: () => number;
+  readonly now?: () => number;
 }
+
+const BACKOFF_BASE_MS = 500;
+const BACKOFF_CAP_MS = 8_000;
 
 /**
  * Claude on Amazon Bedrock through the Converse API. The model ID is the
@@ -80,13 +98,19 @@ export interface BedrockTransportOptions {
  */
 export class BedrockModelTransport implements ModelTransport {
   private readonly timeoutMs: number;
+  private readonly deadlineMs: number;
   private readonly maxRetries: number;
   private readonly sleep: (ms: number) => Promise<void>;
+  private readonly random: () => number;
+  private readonly now: () => number;
 
   constructor(private readonly options: BedrockTransportOptions) {
     this.timeoutMs = options.timeoutMs ?? 120_000;
-    this.maxRetries = options.maxRetries ?? 2;
+    this.deadlineMs = options.deadlineMs ?? 180_000;
+    this.maxRetries = options.maxRetries ?? 3;
     this.sleep = options.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
+    this.random = options.random ?? Math.random;
+    this.now = options.now ?? Date.now;
   }
 
   async complete(request: ModelRequest): Promise<ModelResponse> {
@@ -96,9 +120,10 @@ export class BedrockModelTransport implements ModelTransport {
       messages: request.messages.map((message) => ({ role: message.role, content: [{ text: message.content }] })),
       inferenceConfig: { maxTokens: request.maxOutputTokens },
     };
+    const deadline = this.now() + this.deadlineMs;
     for (let attempt = 0; ; attempt += 1) {
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+      const timer = setTimeout(() => controller.abort(), Math.max(1, Math.min(this.timeoutMs, deadline - this.now())));
       try {
         const output = await this.options.send(input, { abortSignal: controller.signal });
         // Adaptive thinking may add reasoning blocks; only text blocks are the answer.
@@ -106,11 +131,14 @@ export class BedrockModelTransport implements ModelTransport {
           .map((block) => ('text' in block && typeof block.text === 'string' ? block.text : ''))
           .join('');
         if (!text) throw new ModelProviderError('EMPTY_RESPONSE', null);
-        return { text, inputTokens: output.usage?.inputTokens ?? 0, outputTokens: output.usage?.outputTokens ?? 0 };
+        return { text, inputTokens: output.usage?.inputTokens ?? 0, outputTokens: output.usage?.outputTokens ?? 0, modelId: request.modelId };
       } catch (error) {
         const failure = classify(error);
         if (!RETRYABLE.has(failure.kind) || attempt >= this.maxRetries) throw failure;
-        await this.sleep(500 * 2 ** attempt + Math.floor(Math.random() * 250));
+        // Full jitter: a random wait up to the capped exponential step, so callers retrying together spread out.
+        const wait = Math.floor(this.random() * Math.min(BACKOFF_CAP_MS, BACKOFF_BASE_MS * 2 ** attempt));
+        if (this.now() + wait >= deadline) throw failure;
+        await this.sleep(wait);
       } finally {
         clearTimeout(timer);
       }

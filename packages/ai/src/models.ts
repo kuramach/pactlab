@@ -17,6 +17,17 @@ export interface ModelRoute {
   /** Amazon Bedrock model ID. */
   readonly modelId: string;
   readonly effort: ReasoningEffort;
+  /**
+   * Another Claude inference profile to try after a transient failure (T-096):
+   * a second model, or the same model's other cross-region profile. Used only
+   * for prompts that list it in `fallbackEvaluatedOn`. Never a non-Claude model.
+   */
+  readonly fallbackModelId?: string;
+}
+
+/** A fallback must be a Claude model on Bedrock. */
+export function isClaudeModelId(modelId: string): boolean {
+  return /^(?:[a-z]{2,6}\.)?anthropic\.claude-/.test(modelId);
 }
 
 /**
