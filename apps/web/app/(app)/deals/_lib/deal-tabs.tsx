@@ -33,6 +33,8 @@ export const DEAL_GROUPS: readonly DealGroup[] = [
       { path: '/listing', label: 'Public page' },
       { path: '/screening', label: 'Screening' },
       { path: '/team', label: 'Team' },
+      // Connected AI apps' suggestions, waiting for a person to decide (T-084b).
+      { path: '/suggestions', label: 'Suggestions' },
     ],
   },
   {
@@ -97,12 +99,28 @@ const visible = (sections: readonly DealSection[], companyType: CompanyType | nu
 
 /** Four tabs across the deal, and the open tab's sections beneath them; sub-pages keep their section highlighted. */
 /** Sections only the pact's own side ever sees, not even as a tab name (T-118). */
-const OWN_SIDE_ONLY = new Set(['/ic']);
+const OWN_SIDE_ONLY = new Set(['/ic', '/suggestions']);
 
-export function DealTabs({ dealId, companyType = null, sellerLed = false, counterparty = false }: { dealId: string; companyType?: CompanyType | null; sellerLed?: boolean; counterparty?: boolean }) {
+export function DealTabs({
+  dealId,
+  companyType = null,
+  sellerLed = false,
+  counterparty = false,
+  pendingSuggestions = null,
+}: {
+  dealId: string;
+  companyType?: CompanyType | null;
+  sellerLed?: boolean;
+  counterparty?: boolean;
+  /** Suggestions waiting; null hides the section (no app can connect, or not the caller's to decide). */
+  pendingSuggestions?: number | null;
+}) {
   const active = dealSection(dealId, usePathname());
   const group = dealGroup(active);
-  const sections = visible(group.sections, companyType, sellerLed).filter((section) => !counterparty || !OWN_SIDE_ONLY.has(section.path));
+  const sections = visible(group.sections, companyType, sellerLed)
+    .filter((section) => !counterparty || !OWN_SIDE_ONLY.has(section.path))
+    .filter((section) => section.path !== '/suggestions' || pendingSuggestions !== null || active === '/suggestions')
+    .map((section) => (section.path === '/suggestions' && pendingSuggestions ? { ...section, label: `Suggestions (${pendingSuggestions})` } : section));
   return (
     <div className="flex flex-col gap-3">
       <TabNav

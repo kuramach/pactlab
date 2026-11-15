@@ -185,6 +185,93 @@ export const QA_CASES: readonly QaCase[] = [
     expectStatus: 'ANSWERED',
     expectPages: [2],
   },
+  // More questions a deal team asks of a contract (T-113: the set grows toward real failure modes).
+  {
+    id: 'qa.payment-terms',
+    question: 'How and when is the customer invoiced?',
+    sources: CONTRACT_PAGES,
+    responses: [
+      qa(false, 'Annual subscription fees are invoiced annually in advance, payable net 30 days.', [
+        { statement: 'Fees are invoiced annually in advance and payable net 30 days.', citations: [cite(PAGE_IDS.p2, 'invoiced annually in advance and payable net thirty (30) days')] },
+      ]),
+    ],
+    expectStatus: 'ANSWERED',
+    expectPages: [2],
+  },
+  {
+    id: 'qa.exclusivity',
+    question: 'Is the customer restricted from buying competing products?',
+    sources: CONTRACT_PAGES,
+    responses: [
+      qa(false, 'Yes: during the term the customer may not procure a competing retail analytics platform.', [
+        { statement: 'During the term the customer may not procure a competing retail analytics platform.', citations: [cite(PAGE_IDS.p2, 'Customer shall not procure any competing retail analytics platform from a third party')] },
+      ]),
+    ],
+    expectStatus: 'ANSWERED',
+    expectPages: [2],
+  },
+  {
+    id: 'qa.governing-law',
+    question: 'Which law governs the agreement?',
+    sources: CONTRACT_PAGES,
+    responses: [
+      qa(false, 'New York law.', [{ statement: 'The agreement is governed by New York law.', citations: [cite(PAGE_IDS.p3, 'governed by the laws of the State of New York')] }]),
+    ],
+    expectStatus: 'ANSWERED',
+    expectPages: [3],
+  },
+  {
+    id: 'qa.assignment',
+    question: 'Can the vendor assign the contract to a buyer?',
+    sources: CONTRACT_PAGES,
+    responses: [
+      qa(false, 'Not without the customer’s prior written consent.', [
+        { statement: 'Neither party may assign the agreement without the other party’s prior written consent.', citations: [cite(PAGE_IDS.p3, 'Neither party may assign this Agreement without the prior written consent of the other party')] },
+      ]),
+    ],
+    expectStatus: 'ANSWERED',
+    expectPages: [3],
+  },
+  {
+    id: 'qa.initial-term',
+    question: 'When does the initial term end?',
+    sources: CONTRACT_PAGES,
+    responses: [
+      qa(false, 'February 28, 2028, after 36 months.', [{ statement: 'The initial term is 36 months and ends on February 28, 2028.', citations: [cite(PAGE_IDS.p1, 'ends on February 28, 2028')] }]),
+    ],
+    expectStatus: 'ANSWERED',
+    expectPages: [1],
+  },
+  {
+    id: 'qa.cap-carve-out',
+    question: 'Is anything excluded from the liability cap?',
+    sources: CONTRACT_PAGES,
+    responses: [
+      qa(false, 'Breaches of confidentiality are excluded from the cap.', [{ statement: 'Breaches of confidentiality are outside the liability cap.', citations: [cite(PAGE_IDS.p2, 'Except for breaches of confidentiality')] }]),
+    ],
+    expectStatus: 'ANSWERED',
+    expectPages: [2],
+  },
+  {
+    id: 'qa.coc-window',
+    question: 'How long after a change of control can the customer still terminate?',
+    sources: CONTRACT_PAGES,
+    responses: [
+      qa(false, 'Within six months after the change of control, on 30 days notice.', [
+        { statement: 'The termination notice must be delivered within six months after the Change of Control.', citations: [cite(PAGE_IDS.p3, "delivered within six (6) months after the Change of Control")] },
+      ]),
+    ],
+    expectStatus: 'ANSWERED',
+    expectPages: [3],
+  },
+  {
+    id: 'qa.unanswerable-pricing',
+    question: 'What is the annual subscription fee amount?',
+    sources: CONTRACT_PAGES,
+    responses: [qa(true, 'The amount is set in the Order Forms, which are not among the supplied pages.', [])],
+    expectStatus: 'UNANSWERABLE',
+    expectPages: [],
+  },
   {
     id: 'qa.unanswerable',
     question: 'What is the breach notification window in the data processing addendum?',

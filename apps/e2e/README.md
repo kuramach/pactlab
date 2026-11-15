@@ -36,12 +36,20 @@ Every test carries a tier tag: `@smoke`, the critical journeys (sign-in by email
 | PR | every pull request and branch push (`ci.yml`, job `e2e`) | `@smoke`, plus every test in a spec the change touches (the diff against main; a heuristic, never the only run) | merge |
 | Main | every push to main (`ci.yml`, job `e2e`) | the whole gating suite: all but `@slow` and `@quarantine` | the next deploy |
 | Full | nightly, on demand and before promotion (`e2e-full.yml`), in 2 shards with merged reports | all but `@quarantine` | promotion |
+| After deploy | every deploy (`deploy.yml`), against the environment just deployed (`test:e2e:remote`) | `@prod-safe` only: read-only, signed out, no email | a failure is a rollback decision |
 | Quarantine | every PR, non-blocking (`ci.yml`, job `e2e-quarantine`); skipped while empty | `@quarantine` | nothing |
 
 Locally: `pnpm test:e2e` is the main suite; `pnpm --filter @pactlab/e2e exec playwright test --grep @smoke` is the PR smoke tier.
 
 - **In CI:** Chromium on Linux, one worker, two retries (only to tell flaky from broken), a trace on the first retry, screenshots and video on failure, and timezone and locale pinned to UTC and en-US. Reports and traces are uploaded only on failure.
 - **Flaky tests:** every pass on retry is listed in the job summary and must be quarantined or fixed that day. See [QUARANTINE.md](QUARANTINE.md).
+
+## AI in browser tests (T-113)
+
+- **The API runs `AI_PROVIDER=fixture`:** scripted responses (the same ones `pnpm seed` and the API tests use), never a model. The config refuses `fixture` outside local and test runs.
+- **Every AI request is logged** to `.data/ai-requests.jsonl` (the time, the model id `synthetic-fixture`, a hash of the prompt; never content). After each run, `support/ai-proof.ts` fails the run if any request was not served by the fixture, and writes "live model calls: 0" to the job summary.
+- **Assert outcomes, never prose:** that a run reached the AI seam (the log grew), statuses, schema and categories, and records via the API. Wording about AI being off is unit-tested where it is produced.
+- **Model quality** belongs to the eval suite (`packages/ai/src/evals`, golden cases with code graders; `pnpm eval:live` against real models, by hand), not to these tests.
 
 ## Writing a spec (enforced by lint)
 

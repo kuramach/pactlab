@@ -58,6 +58,7 @@ import { BillingModule } from './billing/billing.module';
 import { FixtureBillingProvider, type BillingProvider } from '@pactlab/connectors';
 import { McpModule } from './mcp/mcp.module';
 import type { CostSource } from './admin/cost/cost-explorer';
+import { AgentProposalsModule } from './agent-proposals/agent-proposals.module';
 import { McpAccessTokens } from './oauth/access-tokens';
 import { HttpsClientMetadataFetcher, type ClientMetadataFetcher } from './oauth/client-metadata';
 import { OAuthModule } from './oauth/oauth.module';
@@ -190,6 +191,8 @@ export class AppModule {
     // Buyer financing (T-117): shared with reports, which show it as the reader may see it.
     const financingModule = FinancingModule.register({ objectStore: deps.documents?.objectStore ?? new UnavailableObjectStore(), scanner: deps.documents?.malwareScanner ?? new UnavailableMalwareScanner() });
     const reportsModule = ReportsModule.register({ store: deps.documents?.objectStore ?? new UnavailableObjectStore(), shared: [valuationModule, documentsModule, financingModule] });
+    // Suggestions from connected AI apps, decided in the app (T-084b).
+    const agentProposalsModule = AgentProposalsModule.register({ valuation: valuationModule, documents: documentsModule });
     // Pactlab's OAuth server and the MCP server (T-084), with Pactlab sign-in only.
     const oauthModule =
       deps.emailLogin && deps.mcp
@@ -233,6 +236,7 @@ export class AppModule {
           loginUrl: deps.signup?.loginUrl ?? 'http://localhost:3000/login',
           appVersion: deps.appVersion ?? process.env['npm_package_version'] ?? '0.0.0',
           environment: deps.environment ?? 'local',
+          linkSealSecret: deps.emailLogin?.tokenSecret ?? null,
         }, {
           source: deps.hostingCost?.source ?? null,
           // The pactlab:environment tag the stacks carry: APP_ENV, except production is "prod".
@@ -302,7 +306,8 @@ export class AppModule {
               }),
             ]
           : []),
-        ...(oauthModule ? [oauthModule, McpModule.register({ oauth: oauthModule, valuation: valuationModule, foresight: foresightModule })] : []),
+        agentProposalsModule,
+        ...(oauthModule ? [oauthModule, McpModule.register({ oauth: oauthModule, valuation: valuationModule, foresight: foresightModule, documents: documentsModule, agentProposals: agentProposalsModule })] : []),
       ],
       controllers: [HealthController],
       providers: [{ provide: APP_GUARD, useClass: AuthGuard }, { provide: ReleaseInfo, useValue: deps.release ?? new ReleaseInfo(null) }],

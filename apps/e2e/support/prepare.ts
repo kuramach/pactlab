@@ -2,7 +2,7 @@ import { spawnSync } from 'node:child_process';
 import { mkdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import pg from 'pg';
-import { ADMIN_URL, DATABASE_NAME, DEMO_DIR, MAIL_DIR, REPO, serverEnv, WORK } from './env';
+import { ADMIN_URL, AI_LOG, DATABASE_NAME, DEMO_DIR, MAIL_DIR, REPO, serverEnv, WORK } from './env';
 
 /**
  * Runs before the API starts (see playwright.config.ts): a fresh e2e
@@ -26,6 +26,8 @@ try {
 }
 
 for (const dir of [MAIL_DIR, join(WORK, 'documents'), join(WORK, 'auth'), DEMO_DIR]) rmSync(dir, { recursive: true, force: true });
+// Each run proves its own AI requests (T-113).
+rmSync(AI_LOG, { force: true });
 mkdirSync(MAIL_DIR, { recursive: true });
 
 run('pnpm', ['--filter', '@pactlab/db', 'generate']);

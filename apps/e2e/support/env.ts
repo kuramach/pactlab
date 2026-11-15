@@ -12,6 +12,8 @@ export const WORK = resolve(import.meta.dirname, '../.data');
 export const MAIL_DIR = join(WORK, 'mail');
 export const AUTH_DIR = join(WORK, 'auth');
 export const DEMO_DIR = join(WORK, 'demo-data');
+/** One JSON line per AI request the API makes during a run (T-113): the proof that no model was called. */
+export const AI_LOG = join(WORK, 'ai-requests.jsonl');
 
 export const API_PORT = Number(process.env['E2E_API_PORT'] ?? 4400);
 export const WEB_PORT = Number(process.env['E2E_WEB_PORT'] ?? 3400);
@@ -60,8 +62,10 @@ export function serverEnv(): Record<string, string> {
     AUTH_TOKEN_SECRET: tokenSecret(),
     LOCAL_MAIL_DIR: MAIL_DIR,
     DOCUMENT_STORE_DIR: join(WORK, 'documents'),
-    // AI stays off: browser tests never call a model.
-    AI_PROVIDER: 'none',
+    // AI is on, answered by the fixture provider (T-113): scripted responses, never a model, each request
+    // logged to AI_LOG so the run can prove it made no live model call.
+    AI_PROVIDER: 'fixture',
+    AI_FIXTURE_LOG: AI_LOG,
     // Published macro forecasts come from invented fixture series: browser tests never call out.
     MACRO_FORECAST_SOURCE: 'fixture',
     NEXT_PUBLIC_APP_ENV: 'local',

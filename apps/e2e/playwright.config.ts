@@ -17,6 +17,8 @@ export default defineConfig({
   fullyParallel: false,
   workers: 1,
   forbidOnly: ci,
+  // Proof that the run made no live model call (T-113): every AI request went to the fixture provider.
+  globalTeardown: './support/ai-proof.ts',
   // Retries only in CI, and only to tell a flaky test from a broken one: every pass on retry is
   // reported (support/flaky-reporter.ts) and must be quarantined or fixed (QUARANTINE.md, T-113).
   retries: ci ? 2 : 0,

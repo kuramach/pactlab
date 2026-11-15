@@ -6,7 +6,7 @@ import type { PrismaClient } from './client';
  * functions like sign-in. Codes and tokens arrive here already hashed; nothing raw is stored.
  */
 
-export type OAuthScope = 'mcp:read' | 'mcp:confidential';
+export type OAuthScope = 'mcp:read' | 'mcp:confidential' | 'mcp:propose';
 
 export interface OAuthTokenSubject {
   grantId: string;

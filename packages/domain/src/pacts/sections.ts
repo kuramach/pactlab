@@ -29,6 +29,8 @@ export const DEAL_SECTION_RULES: Readonly<Record<string, (context: SectionContex
   '/listing': (context) => context.initiatedBy === 'SELLER',
   '/screening': everywhere,
   '/team': everywhere,
+  // Connected AI apps' suggestions (T-084b): the pact's own side; shown where apps can connect.
+  '/suggestions': everywhere,
   '/documents': everywhere,
   '/findings': everywhere,
   '/sources': everywhere,

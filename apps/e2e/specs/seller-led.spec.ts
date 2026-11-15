@@ -1,4 +1,5 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { UPLOAD_FINISHED } from '../support/documents';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { expect, test, type Page } from '@playwright/test';
@@ -59,7 +60,7 @@ test('a seller-led pact: invite a bidder, answer their question, compare and awa
   await page.getByLabel('Choose documents').setInputFiles([{ name: 'Teaser.txt', mimeType: 'text/plain', buffer: Buffer.from('Teaser (synthetic). 14. Change of control: customers may terminate.') }]);
   await page.getByLabel('Share with bidders').check();
   await page.getByRole('button', { name: 'Upload', exact: true }).click();
-  await expect(page.getByRole('list', { name: 'Files to upload' }).getByText(/^Uploaded/)).toBeVisible();
+  await expect(page.getByRole('list', { name: 'Files to upload' }).getByText(UPLOAD_FINISHED)).toBeVisible();
   await page.goto(`/deals/${dealId}/bidders`);
 
   await page.getByLabel('Bidding firm').fill('Harbor Capital (synthetic)');

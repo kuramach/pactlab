@@ -3,7 +3,7 @@ import { Badge, Card, CardContent, Button } from '@pactlab/ui';
 import Link from 'next/link';
 import { apiGet } from '../(app)/deals/_lib/api';
 import { ApiState } from '../(app)/deals/_lib/states';
-import { DemoShareForm } from './demo-share';
+import { DemoLinks, DemoShareForm } from './demo-share';
 import { endDemoShare, resetDemoSlot } from './demo-actions';
 import { HostingCost } from './hosting-cost';
 import { compPact, createPromoCode, deactivatePromoCode, decideOrganization, resyncBilling, setMemberStatus, setOrganizationFlags, setOrganizationStatus, setOrganizationMcp } from './actions';
@@ -483,11 +483,14 @@ async function Demos() {
                   <td className={cell}>{when(slot.resetAt)}</td>
                   <td className={cell}>
                     {slot.share ? (
-                      <form action={endDemoShare.bind(null, slot.share.id)}>
-                        <Button type="submit" size="sm" variant="outline">
-                          End now
-                        </Button>
-                      </form>
+                      <div className="flex flex-col items-start gap-2">
+                        <DemoLinks shareId={slot.share.id} />
+                        <form action={endDemoShare.bind(null, slot.share.id)}>
+                          <Button type="submit" size="sm" variant="ghost">
+                            End now
+                          </Button>
+                        </form>
+                      </div>
                     ) : slot.status !== 'RESETTING' || slot.lastError ? (
                       <form action={resetDemoSlot.bind(null, slot.organizationId)}>
                         <Button type="submit" size="sm" variant="ghost">

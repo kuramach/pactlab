@@ -43,3 +43,23 @@ T-084 puts Pactlab inside the AI tools deal teams already use (Claude, Copilot a
 - **Signing key:** rotating `AUTH_TOKEN_SECRET` invalidates MCP access tokens along with sessions. Clients recover by refreshing; refresh tokens are hashes keyed by the same secret, so after a rotation clients must reconnect.
 - **Rollback:** the migration is expand-only. Turning the switch off for every organization, or removing the `mcp` dependency in `main.ts`, takes MCP offline. The stored rows are harmless.
 - **Follow-ups:** T-084b covers proposal tools (Part 2); T-084c covers client mode (Part 3).
+
+## Addendum (2026-11-14): suggestions from connected apps (T-084b)
+
+- **Scope `mcp:propose`:** with it, a connected app sees four more tools: `propose_term`, `draft_document_requests`, `list_my_proposals` and `export_counterparty_view`. Without it they are not registered at all.
+- **Suggest, never decide:** each write-shaped tool files a row in `agent_proposals` (PENDING). A buyer-side member with deal write access approves or rejects it on the pact's **Suggestions** page. Approval runs the app's own service as that member:
+  - TERM runs `PricingService.addFindingTerm`;
+  - DOCUMENT_REQUEST runs `DocumentsService.createRequest`.
+
+  The decision route accepts only a session token, so an MCP token gets 401 there, and no MCP tool approves anything.
+- **Money stays deterministic:** a term suggestion names only the finding and the lever. The amount is the finding's priced risk at its midpoint, from `adjustmentAmount`, and the app cannot send one.
+  - **Eligible findings:** only an accepted −1 finding with a priced risk.
+  - **No draft yet:** with no open buyer draft, approval fails as "Draft terms first".
+  - **Already drafted:** a finding already on the draft is refused, because a drafted line is never rewritten.
+- **Failures are visible:** when the target service refuses, the suggestion becomes FAILED with a plain reason, and it can be approved again or rejected.
+- **The counterparty view:** `export_counterparty_view` returns only what the other side may already see:
+  - on a Venture Raise, `VentureService.investorView`;
+  - otherwise the proposed terms and open document requests.
+- **Isolation:** RLS on `agent_proposals` is buyer side only, on the organization and the deal. Tests cover another organization and a target contributor.
+- **Audit:** `agent_proposal.created`, `.approved`, `.rejected` and `.failed`, plus `mcp.tool_called`.
+- **Still to come:** `submit_evidence` follows as T-084b PR 2, through an external-agent evidence source and the direction-map checks.

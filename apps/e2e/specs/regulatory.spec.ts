@@ -1,4 +1,5 @@
 import { join } from 'node:path';
+import { UPLOAD_FINISHED } from '../support/documents';
 import { expect, test } from '@playwright/test';
 import { startPact } from '../support/deals';
 import { REPO } from '../support/env';
@@ -16,7 +17,7 @@ test('the regulatory screen reads Case 1 and records its drafts', { tag: '@regre
   await page.goto(`/deals/${dealId}/documents`);
   await page.getByLabel('Choose documents').setInputFiles(join(CASE, 'merger-agreement.md'));
   await page.getByRole('button', { name: 'Upload', exact: true }).click();
-  await expect(page.getByRole('list', { name: 'Files to upload' }).getByText(/^Uploaded/)).toBeVisible();
+  await expect(page.getByRole('list', { name: 'Files to upload' }).getByText(UPLOAD_FINISHED)).toBeVisible();
 
   await page.goto(`/deals/${dealId}/regulatory`);
   await expect(page.getByRole('heading', { name: /Pre-screen: 78 of 100 overlapping local markets meet the 2023 Merger Guidelines presumption/ })).toBeVisible();
@@ -45,7 +46,7 @@ test('the regulatory screen reads Case 1 and records its drafts', { tag: '@regre
   await page.goto(`/deals/${dealId}/documents`);
   await page.getByLabel('Choose documents').setInputFiles(join(CASE, 'enforcement-climate-memo.md'));
   await page.getByRole('button', { name: 'Upload', exact: true }).click();
-  await expect(page.getByRole('list', { name: 'Files to upload' }).getByText(/^Uploaded/)).toBeVisible();
+  await expect(page.getByRole('list', { name: 'Files to upload' }).getByText(UPLOAD_FINISHED)).toBeVisible();
   await page.goto(`/deals/${dealId}/regulatory`);
   const posture = page.locator('details').filter({ has: page.locator('summary', { hasText: /^Posture signal$/ }) });
   await posture.locator('summary').click();
