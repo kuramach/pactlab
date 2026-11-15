@@ -270,6 +270,117 @@ describe('MCP server with Pactlab OAuth', () => {
     expect(cushions(json(await wide.callTool({ name: 'get_findings', arguments: { dealId: TROUBLED, limit: 100 } })))).toBeGreaterThan(0);
   });
 
+  it('suggestions (T-084b): only with mcp:propose; filed as PENDING; decided only by a person in the app', async () => {
+    const session = await signIn('lead@charlie.example');
+    const plain = await mcp((await connect(await registerClient(), session)).access_token);
+    expect((await plain.listTools()).tools.map((tool) => tool.name)).not.toContain('propose_term');
+    const proposeTokens = await connect(await registerClient(), session, 'mcp:read mcp:propose');
+    expect(proposeTokens.scope.split(' ').sort()).toEqual(['mcp:propose', 'mcp:read']);
+    const client = await mcp(proposeTokens.access_token);
+    const tools = (await client.listTools()).tools;
+    for (const name of ['propose_term', 'draft_document_requests', 'list_my_proposals', 'export_counterparty_view']) expect(tools.map((tool) => tool.name)).toContain(name);
+    expect(tools.find((tool) => tool.name === 'propose_term')?.annotations).toMatchObject({ readOnlyHint: false, destructiveHint: false });
+    // No tool decides a suggestion.
+    expect(tools.some((tool) => /approve|decide|accept/i.test(tool.name))).toBe(false);
+
+    const priced = (await db.owner.query(`SELECT id FROM findings WHERE deal_id = $1 AND status = 'ACCEPTED' AND direction = -1 AND priced_risk_type IS NOT NULL LIMIT 1`, [TROUBLED])).rows[0] as { id: string };
+    const unpriced = (await db.owner.query(`SELECT id FROM findings WHERE deal_id = $1 AND (status <> 'ACCEPTED' OR priced_risk_type IS NULL) LIMIT 1`, [TROUBLED])).rows[0] as { id: string };
+
+    // Only an accepted, priced risk can become a term, and the app hears why not.
+    const refused = await client.callTool({ name: 'propose_term', arguments: { dealId: TROUBLED, findingId: unpriced.id, lever: 'ESCROW', rationale: 'Synthetic.' } });
+    expect(refused.isError).toBe(true);
+    expect(JSON.stringify(refused.content)).toContain('accepted risk');
+
+    // The amount is never the client's: an amount argument is not part of the suggestion.
+    const filed = await client.callTool({ name: 'propose_term', arguments: { dealId: TROUBLED, findingId: priced.id, lever: 'INDEMNITY', rationale: 'Indemnity fits a known, bounded exposure (synthetic).', amount: '1' } });
+    expect(filed.isError, JSON.stringify(filed.content)).toBeFalsy();
+    const termId = json(filed)['id'] as string;
+    expect(json(filed)).toMatchObject({ status: 'PENDING' });
+    const stored = (await db.owner.query(`SELECT payload, client_id, status FROM agent_proposals WHERE id = $1`, [termId])).rows[0] as { payload: Body; status: string };
+    expect(stored.payload).toEqual({ findingId: priced.id, lever: 'INDEMNITY' });
+    // Filing changed nothing on the pact.
+    expect((await db.owner.query(`SELECT count(*)::int AS n FROM term_proposals WHERE deal_id = $1`, [TROUBLED])).rows[0]).toEqual({ n: 0 });
+
+    // The approver sees the engine's amount: the priced risk's midpoint (150,000–300,000).
+    const queue = await call('GET', `/v1/deals/${TROUBLED}/agent-proposals?status=PENDING`, undefined, session);
+    expect(queue.status).toBe(200);
+    expect((queue.body['items'] as Body[]).find((item) => item['id'] === termId)).toMatchObject({ kind: 'TERM', clientName: 'A connected app', detail: { lever: 'INDEMNITY', amount: { amount: '225000.00', currency: 'USD' } } });
+
+    // An MCP token cannot reach the decision.
+    expect((await call('POST', `/v1/deals/${TROUBLED}/agent-proposals/${termId}/decision`, { decision: 'APPROVE' }, proposeTokens.access_token)).status).toBe(401);
+
+    // Approval with no draft terms fails, with a friendly reason, and can be retried.
+    const failed = await call('POST', `/v1/deals/${TROUBLED}/agent-proposals/${termId}/decision`, { decision: 'APPROVE' }, session);
+    expect(failed.status).toBe(200);
+    expect(failed.body).toMatchObject({ status: 'FAILED', problem: expect.stringContaining('Draft terms') });
+
+    // Draft terms the app's way. That finding is now on the draft, so approving it fails with the reason.
+    const evaluation = await call('POST', `/v1/deals/${TROUBLED}/pricing/evaluations`, { persona: 'VALUE_INVESTOR' }, session);
+    expect(evaluation.status, JSON.stringify(evaluation.body)).toBe(201);
+    const evaluationId = (evaluation.body['evaluations'] as { id: string; persona: string }[]).find((entry) => entry.persona === 'VALUE_INVESTOR')!.id;
+    expect((await call('POST', `/v1/deals/${TROUBLED}/pricing/evaluations/${evaluationId}/adopt`, undefined, session)).status).toBe(201);
+    expect((await call('POST', `/v1/deals/${TROUBLED}/pricing/terms`, undefined, session)).status).toBe(201);
+    expect((await call('POST', `/v1/deals/${TROUBLED}/agent-proposals/${termId}/decision`, { decision: 'APPROVE' }, session)).body).toMatchObject({ status: 'FAILED', problem: expect.stringContaining('already on the draft terms') });
+
+    // A second accepted priced risk (150,000–300,000 USD), not yet on the terms: approval adds it at the engine's midpoint.
+    const later = newId();
+    await db.owner.query(`CREATE TEMP TABLE later_finding AS SELECT * FROM findings WHERE id = $1`, [priced.id]);
+    await db.owner.query(`UPDATE later_finding SET id = $1, fingerprint = $2, title = 'Synthetic later risk'`, [later, `synthetic-later-${later}`]);
+    await db.owner.query(`INSERT INTO findings SELECT * FROM later_finding`);
+    await db.owner.query(`DROP TABLE later_finding`);
+    const laterProposal = json(await client.callTool({ name: 'propose_term', arguments: { dealId: TROUBLED, findingId: later, lever: 'INDEMNITY', rationale: 'Bounded exposure (synthetic).' } }))['id'] as string;
+    const approved = await call('POST', `/v1/deals/${TROUBLED}/agent-proposals/${laterProposal}/decision`, { decision: 'APPROVE', note: 'Agreed (synthetic).' }, session);
+    expect(approved.body).toMatchObject({ status: 'APPROVED', problem: null, decisionNote: 'Agreed (synthetic).' });
+    expect((await db.owner.query(`SELECT lever, amount::text AS amount, currency FROM term_proposals WHERE deal_id = $1 AND finding_id = $2`, [TROUBLED, later])).rows).toEqual([{ lever: 'INDEMNITY', amount: '225000.00', currency: 'USD' }]);
+    // The first suggestion can still be rejected, with a note.
+    expect((await call('POST', `/v1/deals/${TROUBLED}/agent-proposals/${termId}/decision`, { decision: 'REJECT', note: 'Already covered (synthetic).' }, session)).body).toMatchObject({ status: 'REJECTED' });
+    // Decided once: a second decision is refused.
+    expect((await call('POST', `/v1/deals/${TROUBLED}/agent-proposals/${laterProposal}/decision`, { decision: 'REJECT' }, session)).status).toBe(422);
+
+    // A document request: the missing categories by default; the seller sees it only once approved.
+    const requestsBefore = (await db.owner.query(`SELECT count(*)::int AS n FROM document_requests WHERE deal_id = $1`, [TROUBLED])).rows[0] as { n: number };
+    const drafted = await client.callTool({ name: 'draft_document_requests', arguments: { dealId: TROUBLED, rationale: 'The checklist shows gaps (synthetic).' } });
+    expect(drafted.isError, JSON.stringify(drafted.content)).toBeFalsy();
+    const requestId = json(drafted)['id'] as string;
+    expect((await db.owner.query(`SELECT count(*)::int AS n FROM document_requests WHERE deal_id = $1`, [TROUBLED])).rows[0]).toEqual(requestsBefore);
+    const unknown = await client.callTool({ name: 'draft_document_requests', arguments: { dealId: TROUBLED, items: ['NOT_A_CATEGORY'], rationale: 'Synthetic.' } });
+    expect(unknown.isError).toBe(true);
+    expect(JSON.stringify(unknown.content)).toContain('NOT_A_CATEGORY');
+    expect((await call('POST', `/v1/deals/${TROUBLED}/agent-proposals/${requestId}/decision`, { decision: 'APPROVE' }, session)).body).toMatchObject({ status: 'APPROVED' });
+    expect((await db.owner.query(`SELECT count(*)::int AS n FROM document_requests WHERE deal_id = $1`, [TROUBLED])).rows[0]).toEqual({ n: requestsBefore.n + 1 });
+
+    // The app reads what became of its suggestions.
+    const mine = json(await client.callTool({ name: 'list_my_proposals', arguments: { dealId: TROUBLED } }))['items'] as Body[];
+    expect(mine.find((item) => item['id'] === laterProposal)).toMatchObject({ status: 'APPROVED', decisionNote: 'Agreed (synthetic).' });
+    expect(mine.find((item) => item['id'] === termId)).toMatchObject({ status: 'REJECTED', decisionNote: 'Already covered (synthetic).' });
+
+    // The counterparty view: what the seller sees, never buyer analysis.
+    const view = await client.callTool({ name: 'export_counterparty_view', arguments: { dealId: TROUBLED } });
+    expect(view.isError, JSON.stringify(view.content)).toBeFalsy();
+    expect(json(view)).toMatchObject({ audience: 'SELLER' });
+    const exported = JSON.stringify(json(view));
+    expect(exported).not.toMatch(/"findings"|valueConfirmation|confirmedValue|"evaluations"/);
+
+    const audited = (await db.owner.query(`SELECT action FROM audit_events WHERE deal_id = $1 AND action LIKE 'agent_proposal.%'`, [TROUBLED])).rows.map((row) => (row as { action: string }).action);
+    for (const action of ['agent_proposal.created', 'agent_proposal.failed', 'agent_proposal.approved', 'agent_proposal.rejected']) expect(audited).toContain(action);
+  });
+
+  it('suggestions (T-084b): another organization and a counterparty can neither file nor see them', async () => {
+    const elsewhere = await mcp((await connect(await registerClient(), await signIn('lead@elsewhere.example'), 'mcp:read mcp:propose')).access_token);
+    const priced = (await db.owner.query(`SELECT id FROM findings WHERE deal_id = $1 AND status = 'ACCEPTED' AND direction = -1 AND priced_risk_type IS NOT NULL LIMIT 1`, [TROUBLED])).rows[0] as { id: string };
+    for (const [name, args] of [
+      ['propose_term', { dealId: TROUBLED, findingId: priced.id, lever: 'ESCROW', rationale: 'Synthetic.' }],
+      ['draft_document_requests', { dealId: TROUBLED, rationale: 'Synthetic.' }],
+      ['list_my_proposals', { dealId: TROUBLED }],
+      ['export_counterparty_view', { dealId: TROUBLED }],
+    ] as const) {
+      expect((await elsewhere.callTool({ name, arguments: args })).isError, name).toBe(true);
+    }
+    const seller = await mcp((await connect(await registerClient(), await signIn('seller@charlie-target.example'), 'mcp:read mcp:propose')).access_token);
+    expect((await seller.callTool({ name: 'propose_term', arguments: { dealId: TROUBLED, findingId: priced.id, lever: 'ESCROW', rationale: 'Synthetic.' } })).isError).toBe(true);
+    expect((await call('GET', `/v1/deals/${TROUBLED}/agent-proposals`, undefined, await signIn('seller@charlie-target.example'))).status).toBe(403);
+  });
+
   it('switching MCP off gives 403; disconnecting in Settings ends access (401)', async () => {
     const session = await signIn('lead@charlie.example');
     const tokens = await connect(await registerClient(), session);

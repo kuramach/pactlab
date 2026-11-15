@@ -31,10 +31,11 @@ export class OAuthProtocolError extends Error {
   }
 }
 
-export const SUPPORTED_SCOPES: readonly OAuthScope[] = ['mcp:read', 'mcp:confidential'];
+export const SUPPORTED_SCOPES: readonly OAuthScope[] = ['mcp:read', 'mcp:confidential', 'mcp:propose'];
 const SCOPE_WORDS: Record<OAuthScope, string> = {
   'mcp:read': 'Read your pacts: findings, claims, valuation, Foresight and evidence, with citations. It cannot change anything.',
   'mcp:confidential': 'Also read confidential material your role already allows (confirmed-value ledger, founder-confidential findings).',
+  'mcp:propose': 'Suggest terms and document requests for you to approve in Pactlab. It can never approve, send or change anything itself.',
 };
 
 const pkce = z.string().regex(/^[A-Za-z0-9._~-]{43,128}$/);
