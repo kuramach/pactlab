@@ -43,7 +43,8 @@ const date = (value: unknown) => (value === null || value === undefined ? null :
 /**
  * The shareable demo pool (T-113): operator functions behind `app_ops_demo_*`
  * (operator checked in the database), and the demo-link sign-in behind
- * `app_demo_link_login` (pactlab_auth). Links are stored only as keyed hashes.
+ * `app_demo_link_login` (pactlab_auth). Sign-in matches only the links' hashes; a sealed copy
+ * (the API holds the key) lets an operator open a live share's links again.
  */
 export const demoShares = {
   async slots(sql: SqlExecutor, actor: string | null): Promise<DemoSlotRow[]> {
@@ -70,6 +71,18 @@ export const demoShares = {
     );
     if (!row) throw new NoDemoSlotFreeError();
     return { shareId: row.share_id, organizationId: row.organization_id, slot: Number(row.slot), endsAt: new Date(row.ends_at) };
+  },
+
+  /** Keep a new share's sealed links so an operator can open them again. */
+  async sealLinks(sql: SqlExecutor, actor: string | null, shareId: string, sealed: { buyer: string; seller: string }): Promise<boolean> {
+    const [row] = await call<{ kept: boolean }>(sql, 'SELECT app_ops_demo_seal_links($1::uuid, $2::uuid, $3, $4) AS kept', [actor, shareId, sealed.buyer, sealed.seller]);
+    return row?.kept === true;
+  },
+
+  /** A live share's sealed links (audited), or null when it has ended. Sealed values are null for shares made before they were kept. */
+  async links(sql: SqlExecutor, actor: string | null, shareId: string): Promise<{ sharedWith: string; endsAt: Date; buyer: string | null; seller: string | null } | null> {
+    const [row] = await call<{ shared_with: string; ends_at: string; buyer_link_sealed: string | null; seller_link_sealed: string | null }>(sql, 'SELECT * FROM app_ops_demo_links($1::uuid, $2::uuid)', [actor, shareId]);
+    return row ? { sharedWith: row.shared_with, endsAt: new Date(row.ends_at), buyer: row.buyer_link_sealed, seller: row.seller_link_sealed } : null;
   },
 
   async end(sql: SqlExecutor, actor: string | null, shareId: string): Promise<boolean> {

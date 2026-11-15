@@ -104,6 +104,7 @@ describe('shareable demo pool', () => {
     const token = await new SignJWT({ org_id: member.auth0OrganizationId }).setProtectedHeader({ alg: 'RS256', kid: 'test' }).setSubject(member.subject).setIssuer(ISSUER).setAudience(AUDIENCE).setIssuedAt().setExpirationTime('5m').sign(key);
     expect((await call('GET', '/v1/admin/demos', token)).status).toBe(403);
     expect((await call('POST', '/v1/admin/demos', token, { sharedWith: 'Sneaky', hours: 24 })).status).toBe(403);
+    expect((await call('GET', `/v1/admin/demos/shares/${'0'.repeat(8)}-0000-7000-8000-000000000000/links`, token)).status).toBe(403);
   });
 
   it('a share gives buyer and seller links that sign in with no code, inside that slot only', async () => {
@@ -117,7 +118,17 @@ describe('shareable demo pool', () => {
     expect(sent.text).toContain((shared.body as { sellerUrl: string }).sellerUrl);
     expect((shared.body['inviteText'] as { body: string }).body).toBe(sent.text);
     mail.sent.length = 0;
-    const { buyerUrl, sellerUrl, slot } = shared.body as { buyerUrl: string; sellerUrl: string; slot: number };
+    const { buyerUrl, sellerUrl, slot, shareId } = shared.body as { buyerUrl: string; sellerUrl: string; slot: number; shareId: string };
+    // The operator can open the same links again later, from the pool (audited); the database holds them only sealed.
+    expect(shared.body['linksKept']).toBe(true);
+    const again = await call('GET', `/v1/admin/demos/shares/${shareId}/links`, operator);
+    expect(again.status).toBe(200);
+    expect(again.body).toMatchObject({ available: true, sharedWith: 'Acme Capital (synthetic)', buyerUrl, sellerUrl });
+    expect((again.body['inviteText'] as { body: string }).body).toContain(buyerUrl);
+    const stored = (await rows<{ buyer_link_sealed: string }>(`SELECT buyer_link_sealed FROM demo_shares WHERE id = $1`, [shareId]))[0]!;
+    expect(stored.buyer_link_sealed).toMatch(/^v1\./);
+    expect(buyerUrl).not.toContain(stored.buyer_link_sealed);
+    expect(await rows(`SELECT 1 FROM audit_events WHERE action = 'demo.links_viewed' AND target_id = $1`, [shareId])).toHaveLength(1);
     expect(buyerUrl).toMatch(/\/demo\/[A-Za-z0-9_-]{43}$/);
     expect(slot).toBe(1);
     const buyer = await openLink(buyerUrl);
@@ -155,6 +166,8 @@ describe('shareable demo pool', () => {
     const visitor = await rows<{ id: string }>(`SELECT id FROM deal_claims WHERE organization_id = $1 AND statement LIKE 'A visitor%'`, [slot2.organizationId]);
     expect(visitor).toHaveLength(1);
     expect((await call('POST', `/v1/admin/demos/shares/${slot2.share!.id}/end`, operator)).status).toBe(200);
+    // An ended share's links are never shown again.
+    expect((await call('GET', `/v1/admin/demos/shares/${slot2.share!.id}/links`, operator)).status).toBe(404);
     const sessions = await rows(`SELECT 1 FROM auth_sessions WHERE demo_share_id = $1 AND revoked_at IS NULL`, [slot2.share!.id]);
     expect(sessions).toHaveLength(0);
     const report = await sweep();
@@ -187,6 +200,6 @@ describe('shareable demo pool', () => {
     for (let index = 0; index < DEMO_POOL_SIZE; index += 1) expect((await call('POST', '/v1/admin/demos', operator, { sharedWith: `Prospect ${index} (synthetic)`, hours: 24 })).status).toBe(201);
     expect(await call('POST', '/v1/admin/demos', operator, { sharedWith: 'One too many', hours: 24 })).toMatchObject({ status: 409, body: { code: 'CONFLICT' } });
     const audit = await rows<{ action: string }>(`SELECT DISTINCT action FROM audit_events WHERE action LIKE 'demo.%' OR action = 'login.demo_link' ORDER BY action`);
-    expect(audit.map((row) => row.action)).toEqual(['demo.ended', 'demo.expired', 'demo.shared', 'login.demo_link']);
+    expect(audit.map((row) => row.action)).toEqual(['demo.ended', 'demo.expired', 'demo.links_viewed', 'demo.shared', 'login.demo_link']);
   });
 });

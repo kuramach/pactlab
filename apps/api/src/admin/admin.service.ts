@@ -3,7 +3,7 @@ import type { BugReportDetailView, BugReportSummaryView, FileBugReportInput, MyB
 import { demoShares, emailEvents, NoDemoSlotFreeError, OperatorRequiredError, operatorOps, prismaExecutor, withTenant, type BugListRow, type DemoShareHours, type MyBugRow, type PrismaClient, type SqlExecutor } from '@pactlab/db';
 import { bugFingerprint, bugReference, scrubContext, type TenantContext } from '@pactlab/domain';
 import type { EmailSender } from '../email-login/email-sender';
-import { demoTokenHash, newDemoToken } from '../demo-links/demo-links';
+import { demoTokenHash, newDemoToken, openDemoToken, sealDemoToken } from '../demo-links/demo-links';
 import { emails } from '../email-login/emails';
 import { decide, listPending } from '../ops/organizations';
 import { PRISMA } from '../tokens';
@@ -14,6 +14,8 @@ export interface AdminSettings {
   readonly loginUrl: string;
   readonly appVersion: string;
   readonly environment: string;
+  /** The API's token secret, to seal shared-demo links so they can be opened again; null keeps them show-once. */
+  readonly linkSealSecret: string | null;
 }
 
 const summary = (row: BugListRow): BugReportSummaryView => ({
@@ -91,24 +93,49 @@ export class AdminService {
     }));
   }
 
-  /** Lend a free demo: the two links are returned this once; only their hashes are kept. */
+  /** A share's links and invite text, the same builder as at share time. */
+  private async demoInvite(tenant: TenantContext, input: { buyer: string; seller: string; endsAt: Date; recipientEmail?: string | null; recipientName?: string | null; note?: string | null }) {
+    const link = (token: string) => new URL(`/demo/${token}`, this.settings.loginUrl).toString();
+    const sharer = await withTenant(this.prisma, tenant, (tx) => tx.user.findUnique({ where: { id: tenant.userId }, select: { displayName: true, email: true } }));
+    const message = emails.demoInvite(input.recipientEmail ?? '', {
+      recipientName: input.recipientName ?? null,
+      sharerName: sharer?.displayName ?? 'The Pactlab team',
+      sharerEmail: sharer?.email ?? null,
+      note: input.note ?? null,
+      buyerUrl: link(input.buyer),
+      sellerUrl: link(input.seller),
+      endsAt: input.endsAt,
+    });
+    return { buyerUrl: link(input.buyer), sellerUrl: link(input.seller), message };
+  }
+
+  /**
+   * A live share's links again (audited as `demo.links_viewed`). `available: false` for a share
+   * made before links were kept, or where this environment cannot open them.
+   */
+  demoLinks(tenant: TenantContext, shareId: string) {
+    return this.asOperator(async () => {
+      const share = await demoShares.links(this.sql, tenant.userId, shareId);
+      if (!share) throw new NotFoundException();
+      const secret = this.settings.linkSealSecret;
+      const buyer = secret && share.buyer ? openDemoToken(secret, share.buyer) : null;
+      const seller = secret && share.seller ? openDemoToken(secret, share.seller) : null;
+      if (!buyer || !seller) return { available: false as const, sharedWith: share.sharedWith, endsAt: share.endsAt.toISOString() };
+      const { buyerUrl, sellerUrl, message } = await this.demoInvite(tenant, { buyer, seller, endsAt: share.endsAt });
+      return { available: true as const, sharedWith: share.sharedWith, endsAt: share.endsAt.toISOString(), buyerUrl, sellerUrl, inviteText: { subject: message.subject, body: message.text } };
+    });
+  }
+
+  /** Lend a free demo: the two links are returned now, and kept sealed so an operator can open them again. */
   shareDemo(tenant: TenantContext, input: { sharedWith: string; hours: DemoShareHours; recipientEmail?: string | null; recipientName?: string | null; note?: string | null }) {
     return this.asOperator(async () => {
       const buyer = newDemoToken();
       const seller = newDemoToken();
       try {
         const share = await demoShares.share(this.sql, tenant.userId, { sharedWith: input.sharedWith, hours: input.hours, buyerTokenHash: demoTokenHash(buyer), sellerTokenHash: demoTokenHash(seller) });
-        const link = (token: string) => new URL(`/demo/${token}`, this.settings.loginUrl).toString();
-        const sharer = await withTenant(this.prisma, tenant, (tx) => tx.user.findUnique({ where: { id: tenant.userId }, select: { displayName: true, email: true } }));
-        const message = emails.demoInvite(input.recipientEmail ?? '', {
-          recipientName: input.recipientName ?? null,
-          sharerName: sharer?.displayName ?? 'The Pactlab team',
-          sharerEmail: sharer?.email ?? null,
-          note: input.note ?? null,
-          buyerUrl: link(buyer),
-          sellerUrl: link(seller),
-          endsAt: share.endsAt,
-        });
+        const secret = this.settings.linkSealSecret;
+        const linksKept = secret ? await demoShares.sealLinks(this.sql, tenant.userId, share.shareId, { buyer: sealDemoToken(secret, buyer), seller: sealDemoToken(secret, seller) }) : false;
+        const { buyerUrl, sellerUrl, message } = await this.demoInvite(tenant, { buyer, seller, endsAt: share.endsAt, recipientEmail: input.recipientEmail ?? null, recipientName: input.recipientName ?? null, note: input.note ?? null });
         // Sent by Pactlab when an address is given; the same message comes back to paste into your own email either way.
         let emailed: 'SENT' | 'NOT_REQUESTED' | 'NO_SENDER' | 'FAILED' = 'NOT_REQUESTED';
         if (input.recipientEmail) {
@@ -120,7 +147,7 @@ export class AdminService {
             );
           }
         }
-        return { ...share, endsAt: share.endsAt.toISOString(), buyerUrl: link(buyer), sellerUrl: link(seller), emailed, inviteText: { subject: message.subject, body: message.text } };
+        return { ...share, endsAt: share.endsAt.toISOString(), buyerUrl, sellerUrl, emailed, linksKept, inviteText: { subject: message.subject, body: message.text } };
       } catch (error) {
         if (error instanceof NoDemoSlotFreeError) throw new ConflictException({ code: 'NO_SLOT_FREE' });
         throw error;

@@ -230,6 +230,7 @@ export class AppModule {
           loginUrl: deps.signup?.loginUrl ?? 'http://localhost:3000/login',
           appVersion: deps.appVersion ?? process.env['npm_package_version'] ?? '0.0.0',
           environment: deps.environment ?? 'local',
+          linkSealSecret: deps.emailLogin?.tokenSecret ?? null,
         }),
         EngineeringModule,
         AuditModule,

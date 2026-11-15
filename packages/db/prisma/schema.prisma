@@ -2869,17 +2869,20 @@ model DemoSlot {
 
 /// One loan of a demo slot: who it is for, until when, and its two links as keyed hashes (T-113).
 model DemoShare {
-  id              String    @id @db.Uuid
-  organizationId  String    @map("organization_id") @db.Uuid
-  sharedWith      String    @map("shared_with")
-  createdBy       String?   @map("created_by") @db.Uuid
-  startsAt        DateTime  @default(now()) @map("starts_at") @db.Timestamptz(3)
-  endsAt          DateTime  @map("ends_at") @db.Timestamptz(3)
-  endedAt         DateTime? @map("ended_at") @db.Timestamptz(3)
-  endedBy         String?   @map("ended_by") @db.Uuid
-  buyerTokenHash  String    @unique @map("buyer_token_hash") @db.Char(64)
-  sellerTokenHash String    @unique @map("seller_token_hash") @db.Char(64)
-  lastUsedAt      DateTime? @map("last_used_at") @db.Timestamptz(3)
+  id               String    @id @db.Uuid
+  organizationId   String    @map("organization_id") @db.Uuid
+  sharedWith       String    @map("shared_with")
+  createdBy        String?   @map("created_by") @db.Uuid
+  startsAt         DateTime  @default(now()) @map("starts_at") @db.Timestamptz(3)
+  endsAt           DateTime  @map("ends_at") @db.Timestamptz(3)
+  endedAt          DateTime? @map("ended_at") @db.Timestamptz(3)
+  endedBy          String?   @map("ended_by") @db.Uuid
+  buyerTokenHash   String    @unique @map("buyer_token_hash") @db.Char(64)
+  sellerTokenHash  String    @unique @map("seller_token_hash") @db.Char(64)
+  lastUsedAt       DateTime? @map("last_used_at") @db.Timestamptz(3)
+  /// The links sealed with the API's key, so an operator can open them again; null for older shares.
+  buyerLinkSealed  String?   @map("buyer_link_sealed")
+  sellerLinkSealed String?   @map("seller_link_sealed")
 
   @@map("demo_shares")
 }
