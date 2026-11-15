@@ -72,6 +72,12 @@ export class AdminController {
     return this.admin.shareDemo(tenant, body);
   }
 
+  /** A live share's links again, for the operator to copy (audited). */
+  @Get('demos/shares/:shareId/links')
+  demoLinks(@Tenant() tenant: TenantContext, @Param(new ZodValidationPipe(demoShareParams)) params: { shareId: string }) {
+    return this.admin.demoLinks(tenant, params.shareId);
+  }
+
   @Post('demos/shares/:shareId/end')
   @HttpCode(200)
   endDemoShare(@Tenant() tenant: TenantContext, @Param(new ZodValidationPipe(demoShareParams)) params: { shareId: string }) {

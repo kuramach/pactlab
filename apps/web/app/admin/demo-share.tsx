@@ -2,7 +2,7 @@
 
 import { Button } from '@pactlab/ui';
 import { useActionState, useState } from 'react';
-import { shareDemo, type DemoShareState } from './demo-actions';
+import { demoLinks, shareDemo, type DemoLinksState, type DemoShareState } from './demo-actions';
 
 const field = 'rounded-md border border-border bg-background px-2 py-1';
 
@@ -85,8 +85,8 @@ export function DemoShareForm() {
       {state.kind === 'shared' ? (
         <div role="status" className="flex flex-col gap-3 rounded-md border border-emerald-200 bg-emerald-50 p-3 text-emerald-950">
           <p>
-            Demo {state.slot} is shared with <span className="font-semibold">{state.sharedWith}</span> until {new Date(state.endsAt).toUTCString()}. Copy the links now: they are not shown
-            again.
+            Demo {state.slot} is shared with <span className="font-semibold">{state.sharedWith}</span> until {new Date(state.endsAt).toUTCString()}. You can open these links again from the
+            pool below while the share is live.
           </p>
           <p className="font-semibold">
             {state.emailed === 'SENT'
@@ -97,6 +97,32 @@ export function DemoShareForm() {
                   ? 'Email is not set up in this environment. Copy the invite text below into your own email.'
                   : 'Not emailed. Copy the invite text below into your own email, or the links on their own.'}
           </p>
+          <CopyLink label="Buyer link" url={state.buyerUrl} />
+          <CopyLink label="Seller link" url={state.sellerUrl} />
+          <CopyText label="Invite text (subject and message)" text={`${state.inviteText.subject}\n\n${state.inviteText.body}`} />
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/** A shared demo's links again, on request (audited); the same copy panel as at share time. */
+export function DemoLinks({ shareId }: { shareId: string }) {
+  const [state, action, pending] = useActionState<DemoLinksState, FormData>(demoLinks.bind(null, shareId), { kind: 'idle' });
+  return (
+    <div className="flex flex-col gap-2 text-sm">
+      <form action={action}>
+        <Button type="submit" size="sm" variant="outline" disabled={pending}>
+          {pending ? 'Opening…' : state.kind === 'links' ? 'Refresh links' : 'Links'}
+        </Button>
+      </form>
+      {state.kind === 'error' ? (
+        <p role="alert" className="max-w-sm rounded-md border border-border bg-muted px-3 py-2">
+          {state.message}
+        </p>
+      ) : null}
+      {state.kind === 'links' ? (
+        <div role="status" className="flex min-w-[20rem] flex-col gap-3 rounded-md border border-border bg-muted/40 p-3">
           <CopyLink label="Buyer link" url={state.buyerUrl} />
           <CopyLink label="Seller link" url={state.sellerUrl} />
           <CopyText label="Invite text (subject and message)" text={`${state.inviteText.subject}\n\n${state.inviteText.body}`} />

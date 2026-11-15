@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
-import { apiPost } from '../(app)/deals/_lib/api';
+import { apiGet, apiPost } from '../(app)/deals/_lib/api';
 
 export type DemoShareState =
   | { kind: 'idle' }
@@ -18,7 +18,7 @@ const shareSchema = z.strictObject({
   note: z.string().trim().max(1000),
 });
 
-/** Lend a free demo (T-113). The two links come back this once; Pactlab keeps only their hashes. */
+/** Lend a free demo (T-113). The links come back now; the pool can show them again while the share is live. */
 export async function shareDemo(_previous: DemoShareState, formData: FormData): Promise<DemoShareState> {
   const parsed = shareSchema.safeParse({ sharedWith: formData.get('sharedWith'), hours: formData.get('hours'), recipientEmail: formData.get('recipientEmail') ?? '', recipientName: formData.get('recipientName') ?? '', note: formData.get('note') ?? '' });
   if (!parsed.success) return { kind: 'error', message: 'Say who the demo is for, and pick how long.' };
@@ -44,4 +44,22 @@ export async function resetDemoSlot(organizationId: string): Promise<void> {
   const result = await apiPost(`/v1/admin/demos/slots/${organizationId}/reset`, {});
   revalidatePath('/admin');
   back(result.kind === 'ok' ? 'ok-demo-reset' : result.kind);
+}
+
+export type DemoLinksState =
+  | { kind: 'idle' }
+  | { kind: 'links'; sharedWith: string; endsAt: string; buyerUrl: string; sellerUrl: string; inviteText: { subject: string; body: string } }
+  | { kind: 'error'; message: string };
+
+/** A live share's links again (audited), for the operator to copy. */
+export async function demoLinks(shareId: string, _previous: DemoLinksState): Promise<DemoLinksState> {
+  if (!z.uuid().safeParse(shareId).success) return { kind: 'error', message: 'That share could not be found.' };
+  const result = await apiGet<{ available: true; sharedWith: string; endsAt: string; buyerUrl: string; sellerUrl: string; inviteText: { subject: string; body: string } } | { available: false }>(`/v1/admin/demos/shares/${shareId}/links`);
+  if (result.kind === 'ok') {
+    return result.data.available
+      ? { kind: 'links', sharedWith: result.data.sharedWith, endsAt: result.data.endsAt, buyerUrl: result.data.buyerUrl, sellerUrl: result.data.sellerUrl, inviteText: result.data.inviteText }
+      : { kind: 'error', message: 'This share was made before links could be shown again. End it and share a new demo to get links you can reopen.' };
+  }
+  if (result.kind === 'not-found') return { kind: 'error', message: 'This share has ended, so its links no longer work.' };
+  return { kind: 'error', message: 'The links could not be loaded. Try again.' };
 }
