@@ -9,6 +9,7 @@ import {
   type ModelProviderErrorKind,
 } from '@pactlab/ai';
 import {
+  adjustmentAmount,
   BUYER_PERSONAS,
   D,
   isBuyerPersona,
@@ -41,6 +42,9 @@ export interface PricingDependencies {
 const canRead = (role: DealRole) => permissionsForDealRole(role).has('BUYER_ANALYSIS_READ');
 const canWrite = (role: DealRole) => permissionsForDealRole(role).has('DEAL_WRITE') && permissionsForDealRole(role).has('BUYER_ANALYSIS_READ');
 /** Anyone on the pact, the seller's contributors included, reads terms once proposed. */
+/** The priced-risk levers a finding can carry onto the terms. */
+export const FINDING_TERM_LEVERS = ['PRICE_REDUCTION', 'REMEDIATION_COST', 'ESCROW', 'INDEMNITY'] as const;
+export type FindingTermLever = (typeof FINDING_TERM_LEVERS)[number];
 const canReadProposed = (role: DealRole) => permissionsForDealRole(role).has('DEAL_READ');
 /** Any of the seller's contributors acts for the seller (Kumar, 2026-11-06); each act is named. */
 const isSeller = (role: DealRole) => role === 'TARGET_CONTRIBUTOR';
@@ -438,6 +442,34 @@ export class PricingService {
       await this.audit(tx, tenant, dealId, 'terms.contingency_added', 'term_proposal_batch', batchId, requestId);
     });
     return this.view(tenant, dealId, requestId);
+  }
+
+  /**
+   * Put one accepted -1 finding on the buyer's open draft as a priced-risk lever (T-084b: an
+   * approved suggestion from a connected app). The amount is the finding's priced risk at its
+   * midpoint, from the engine — never from the caller. With no open buyer draft: NO_DRAFT_TERMS;
+   * a finding already on it: ALREADY_ON_TERMS (a drafted line is never rewritten).
+   */
+  async addFindingTerm(tenant: TenantContext, dealId: string, body: { findingId: string; lever: FindingTermLever }, requestId: string): Promise<{ batchId: string }> {
+    await this.access.require(tenant, dealId, canWrite, { action: 'terms.finding_term_added', requestId });
+    const finding = (await this.findings.get(tenant, dealId, body.findingId))?.finding;
+    if (!finding || finding.status !== 'ACCEPTED' || finding.direction !== -1 || !finding.pricedRisk) {
+      throw new UnprocessableEntityException({ code: 'NOT_A_PRICED_RISK' });
+    }
+    const priced = finding.pricedRisk;
+    return withTenant(this.prisma, tenant, async (tx) => {
+      const batch = await tx.termProposalBatch.findFirst({ where: { dealId, proposedAt: null, initiatedBySide: 'BUYER' }, orderBy: { version: 'desc' } });
+      if (!batch) throw new ConflictException({ code: 'NO_DRAFT_TERMS' });
+      if (batch.currency !== priced.currency) throw new UnprocessableEntityException({ code: 'CURRENCY_MISMATCH' });
+      const terms = await tx.termProposal.findMany({ where: { batchId: batch.id }, select: { ordinal: true, findingId: true } });
+      if (terms.some((term) => term.findingId === finding.id)) throw new ConflictException({ code: 'ALREADY_ON_TERMS' });
+      const amount = adjustmentAmount({ findingId: finding.id, findingVersion: finding.version, type: priced.type, currency: priced.currency, low: priced.low, high: priced.high, point: 'MID', basis: priced.basis });
+      await tx.termProposal.create({
+        data: { id: newId(), organizationId: tenant.organizationId, dealId, batchId: batch.id, ordinal: Math.max(-1, ...terms.map((term) => term.ordinal)) + 1, lever: body.lever, amount: amount.toFixed(2), currency: priced.currency, findingId: finding.id },
+      });
+      await this.audit(tx, tenant, dealId, 'terms.finding_term_added', 'term_proposal_batch', batch.id, requestId);
+      return { batchId: batch.id };
+    });
   }
 
   private async draft(tx: TransactionClient, dealId: string, batchId: string) {
