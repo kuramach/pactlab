@@ -276,6 +276,19 @@ jobs:
           curl --fail --silent --show-error --retry 10 --retry-delay 15 --retry-all-errors "$ORIGIN/health"
           curl --fail --silent --show-error --output /dev/null --retry 5 --retry-delay 10 --retry-all-errors "$ORIGIN/login"
 
+      # The read-only browser checks (@prod-safe, T-113 part 5) against what just went out. They sign
+      #    nobody in and write nothing. A failure leaves the run red: decide on a rollback (docs/runbooks/rollback.md).
+      - name: Browser checks after the deploy (@prod-safe)
+        run: |
+          pnpm --filter @pactlab/e2e exec playwright install --with-deps chromium
+          ORIGIN="${{ steps.release.outputs.origin }}"
+          if E2E_BASE_URL="$ORIGIN" E2E_API_URL="$ORIGIN" E2E_SITE_URL="${{ vars.SITE_URL }}" pnpm --filter @pactlab/e2e test:e2e:remote; then
+            echo "### After-deploy browser checks: passed" >> "$GITHUB_STEP_SUMMARY"
+          else
+            { echo "### After-deploy browser checks: FAILED"; echo; echo "The release is live and a read-only check failed. Decide on a rollback: docs/runbooks/rollback.md."; } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
       # 5. The environment's own site (<env>.pactlab.ai): Sign up / Sign in go to this app (app.<env>.pactlab.ai).
       #    Closed to search engines (robots.txt and noindex). Skipped until the environment sets SITE_DOMAIN.
       - name: 5. Publish the environment's site

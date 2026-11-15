@@ -142,6 +142,12 @@ export function demoModelResponse(request: ModelRequest): string {
     const opening = `Lead with the terms in the order shown, and keep every point tied to accepted evidence ${SYNTHETIC}.`;
     return JSON.stringify({ sections: [{ heading: 'How to open', body: opening, citedFindingIds: rows.slice(0, 3).map(([, id = '']) => id) }, ...sections] });
   }
+  // Foresight metric forecasts (T-094 B10): a flat synthetic path per metric asked, so AI-on runs fill every metric.
+  if (request.system.includes('five-year forecast for each economic or sector metric')) {
+    const prompt = request.messages[0]?.content ?? '';
+    const keys = [...prompt.matchAll(/^([a-z0-9_.]+): .+\(percent a year\)$/gm)].map((match) => match[1] ?? '');
+    return JSON.stringify({ metrics: keys.map((key) => ({ key, values: [2, 2, 2, 2, 2], rationale: `Synthetic demo forecast for ${key}: drivers on both sides, not a prediction.` })) });
+  }
   // Foresight baseline (T-073): a synthetic, balanced view for each question asked.
   if (request.system.includes('Answer every question you are given')) {
     const prompt = request.messages[0]?.content ?? '';
