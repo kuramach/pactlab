@@ -450,6 +450,7 @@ export class ImportsService {
       return found;
     });
     // Authorized above under RLS; only then is the worker's progress for this run read.
+    // handled: live progress is optional; the run's own status (and its errors) still show
     const live = run.status === 'QUEUED' || run.status === 'RUNNING' ? await this.queue?.progress({ organizationId: tenant.organizationId, dealId, syncRunId: run.id }).catch(() => null) : null;
     const done = run.status === 'SUCCEEDED' || run.status === 'FAILED';
     return {

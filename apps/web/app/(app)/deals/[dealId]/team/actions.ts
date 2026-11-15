@@ -1,9 +1,12 @@
 'use server';
 
 import { DEAL_ROLES } from '@pactlab/domain';
+import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import { apiPost, dealsApi } from '../../_lib/api';
+import { UNSENT_INVITE_COOKIE } from './unsent-invite';
+import { serverEnv } from '../../../../../lib/env';
 
 const input = z.strictObject({ dealId: z.uuid(), userId: z.uuid(), role: z.enum(DEAL_ROLES) });
 
@@ -26,7 +29,19 @@ export async function inviteByEmail(dealId: string, formData: FormData): Promise
   if (!z.uuid().safeParse(dealId).success) redirect('/deals');
   if (!parsed.success) redirect(`/deals/${dealId}/team?outcome=invalid-invite`);
   const [side, role] = parsed.data.sideRole.split(':');
-  const result = await apiPost<{ kind: 'ADDED' | 'INVITED' }>(`/v1/deals/${dealId}/invitations`, { email: parsed.data.email, side, role });
+  const result = await apiPost<{ kind: 'ADDED' | 'INVITED'; emailed?: boolean; emailProblem?: 'SUPPRESSED' | 'UNAVAILABLE'; link?: string }>(`/v1/deals/${dealId}/invitations`, { email: parsed.data.email, side, role });
+  // The email did not go out (T-125): hand the link to the inviter once, in a short-lived cookie for this
+  // page only, never in the address bar. It works only for the invited address.
+  if (result.kind === 'ok' && result.data.kind === 'INVITED' && result.data.emailed === false && result.data.link) {
+    (await cookies()).set(UNSENT_INVITE_COOKIE, JSON.stringify({ email: parsed.data.email, link: result.data.link, problem: result.data.emailProblem ?? 'UNAVAILABLE' }), {
+      httpOnly: true,
+      secure: serverEnv().APP_BASE_URL.startsWith('https://'),
+      sameSite: 'strict',
+      path: `/deals/${dealId}/team`,
+      maxAge: 600,
+    });
+    redirect(`/deals/${dealId}/team?outcome=invite-not-emailed`);
+  }
   const outcome = result.kind === 'ok' ? (result.data.kind === 'ADDED' ? 'ok-added' : 'ok-invited') : result.kind === 'conflict' ? 'already-invited' : 'code' in result && result.code ? `error-${result.code}` : result.kind;
   redirect(`/deals/${dealId}/team?outcome=${outcome}`);
 }

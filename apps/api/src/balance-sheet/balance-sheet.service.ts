@@ -216,6 +216,7 @@ export class BalanceSheetService {
         expectedVersion: input.expectedVersion,
         updatedBy: tenant.userId,
         reason: input.reason,
+      // handled: rethrown, a wrong category as a 422 the form shows
       }).catch((error: unknown) => {
         // A category from another kind fails the database CHECK.
         if (error instanceof Error && /check constraint/i.test(error.message)) throw new UnprocessableEntityException({ code: 'CATEGORY_KIND', message: 'That category does not belong to this kind of item' });

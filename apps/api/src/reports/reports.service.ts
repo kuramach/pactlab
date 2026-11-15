@@ -180,6 +180,7 @@ export class ReportsService {
       await withTenant(this.prisma, tenant, (tx) => reportVersions.ready(tx, record.id, { objectKey, sha256: pdf.sha256, byteSize: pdf.bytes.byteLength, captured }));
     } catch (error) {
       this.logger.error({ reportId: record.id, errorClass: error instanceof Error ? error.name : 'unknown' }, 'report generation failed');
+      // handled: a version that cannot be marked FAILED stays GENERATING; the Reports page stops waiting after 90 s and says what to do
       await withTenant(this.prisma, tenant, (tx) => reportVersions.failed(tx, record.id)).catch(() => undefined);
     }
   }

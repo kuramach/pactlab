@@ -256,6 +256,7 @@ export async function buildPact(app: App, owner: OwnerSession, people: People, t
   await step('sources', () => connectSources(app, buyer, dealId, type));
 
   // Pack rules draft findings from the imported extracts; the lead submits them and a second person accepts.
+  // silent-ok: demo build; drafts that do not run leave the register as the pack's checks found it
   await findings.runPackRules(buyer, dealId, REQUEST_ID).catch(() => undefined);
   // Up to five accepted; the next asks for more support and the one after is rejected, so the register shows every outcome.
   const drafts = (await findings.list(buyer, dealId, { status: 'DRAFT' }, REQUEST_ID)).items.slice(0, 7);
@@ -482,6 +483,7 @@ export async function runDemoOrg(
       try {
         const teaser = await buildTeaser(app, { buyer, seller: buyer, reviewer: buyer });
         report.push(teaser.line);
+        // handled: an operator run; the step's failure is in the run's report
         report.push(await bidProcess(app, owner, buyer, teaser.dealId, spec.bidders, (userId) => principal(userId)).catch((error: unknown) => `bid process FAILED (${error instanceof Error ? error.message : 'unknown error'})`));
       } catch (error) {
         report.push(`${SELLER_LED}: FAILED (${error instanceof Error ? error.message : 'unknown error'})`);
@@ -492,6 +494,7 @@ export async function runDemoOrg(
   const lead = await principal(spec.buyer.id);
   if (lead && report.some((line) => !line.endsWith('already present'))) {
     const main = (await owner.query<{ id: string }>(`SELECT id FROM deals WHERE organization_id = $1 AND name = $2 AND status <> 'DELETED'`, [spec.id, pactName(types[0] ?? 'SOFTWARE_SAAS')])).rows[0];
+    // handled: an operator run; the step's failure is in the run's report
     report.push(await reports(app, lead, main?.id ?? null).catch((error: unknown) => `reports FAILED (${error instanceof Error ? error.message : 'unknown error'})`));
   }
   // Foresight prepares itself the first time each pact's tab is opened.

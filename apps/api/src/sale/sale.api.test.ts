@@ -127,7 +127,8 @@ describe('seller-led sale API (T-097)', () => {
 
   it('invites a bidder by email; accepting records their bid on the membership', async () => {
     const invited = await call('seller', 'POST', `/bids/${bids['Atlas Corp Dev']}/invitations`, { email: 'Second.Person@Atlas.example' });
-    expect(invited.body).toEqual({ kind: 'INVITED' });
+    // No email in this test app: the inviter is told, and gets the link to send themselves (T-125).
+    expect(invited.body).toMatchObject({ kind: 'INVITED', emailed: false, emailProblem: 'UNAVAILABLE', link: expect.stringContaining('/invite/') });
     const row = (await db.owner.query(`SELECT side, role, bid_id FROM deal_invitations WHERE deal_id = $1`, [dealId])) as { rows: { side: string; role: string; bid_id: string }[] };
     expect(row.rows[0]).toEqual({ side: 'BIDDER', role: 'BIDDER', bid_id: bids['Atlas Corp Dev'] });
     // The general invite form never invites bidders.

@@ -151,6 +151,7 @@ export class BrandService {
           create: { organizationId: tenant.organizationId, draft: failed as never, extractedAt: new Date() },
           update: { draft: failed as never, extractedAt: new Date() },
         }),
+      // handled: if even this note cannot be saved, the page's wait state stops after 30 s and says so
       ).catch(() => undefined);
     }
   }

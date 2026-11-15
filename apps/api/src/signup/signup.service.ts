@@ -56,6 +56,7 @@ export class SignupService {
 
   /** Not awaited: response time must not reveal which email, if any, was sent. Never logs the body. */
   private deliver(message: OutboundEmail, kind: string): void {
+    // silent-ok: a sign-up code's reply must not differ by account (no enumeration); the page says what to do when no email arrives
     void this.deps.emailSender.send(message).catch((error: unknown) => {
       this.logger.error(
         { kind, sender: this.deps.emailSender.name, errorClass: error instanceof Error ? error.name : 'unknown' },

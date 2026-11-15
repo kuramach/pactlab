@@ -308,6 +308,7 @@ export class ListingsService {
       return found;
     });
     if (removed.objectKey) {
+      // silent-ok: removing a deleted picture's file, which nobody waits for; logged for operators
       await this.files.objectStore.delete(removed.objectKey).catch((error: unknown) => {
         this.logger.error({ requestId, errorClass: error instanceof Error ? error.name : 'unknown' }, 'listing image delete failed');
       });
@@ -452,7 +453,15 @@ export class ListingsService {
     });
     if (recorded) {
       const link = new URL(`/listings/confirm/${token}`, this.deps.appOrigin).toString();
-      this.send(emails.listingInterestConfirm(body.email, { codename: listing.codename, link, days: CONFIRM_DAYS }), 'listing-interest');
+      // handled (T-125): when the confirmation cannot be sent, the request is withdrawn and the visitor
+      // is told to try again, instead of waiting for an email that never comes.
+      try {
+        await this.deps.emailSender.send(emails.listingInterestConfirm(body.email, { codename: listing.codename, link, days: CONFIRM_DAYS }));
+      } catch (error) {
+        this.logger.error({ requestId: 'listing-interest', errorClass: error instanceof Error ? error.name : 'unknown' }, 'listing email delivery failed');
+        await publicListings.withdrawInterest(this.prisma, hashToken(token));
+        throw new ServiceUnavailableException({ code: 'EMAIL_UNAVAILABLE' });
+      }
     }
     return { status: 'CHECK_EMAIL' };
   }
@@ -464,6 +473,7 @@ export class ListingsService {
   }
 
   private send(message: Parameters<EmailSender['send']>[0], requestId: string) {
+    // silent-ok: the decline notice only; the decision is recorded and shown to the seller (the confirmation email is handled in requestInterest)
     void this.deps.emailSender.send(message).catch((error: unknown) => {
       // Never log the address or the link.
       this.logger.error({ requestId, errorClass: error instanceof Error ? error.name : 'unknown' }, 'listing email delivery failed');
