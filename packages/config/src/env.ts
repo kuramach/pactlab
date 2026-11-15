@@ -4,6 +4,8 @@ export const appEnvironments = ['local', 'test', 'dev', 'qa', 'stage', 'producti
 export type AppEnvironment = (typeof appEnvironments)[number];
 
 const nonEmpty = z.string().trim().min(1);
+/** A Claude model or inference profile on Bedrock: never another provider's model. */
+const claudeModelId = z.string().trim().regex(/^(?:[a-z]{2,6}\.)?anthropic\.claude-[a-z0-9.:-]+$/, 'a Claude model ID such as us.anthropic.claude-sonnet-5-5');
 
 const postgresUrl = nonEmpty.refine(
   (value) => value.startsWith('postgres://') || value.startsWith('postgresql://'),
@@ -162,6 +164,10 @@ export const apiEnvSchema = baseEnvSchema.extend({
   BEDROCK_MODEL_BALANCED: unsetIfBlank(nonEmpty.optional()),
   BEDROCK_MODEL_DEEP_REVIEW: unsetIfBlank(nonEmpty.optional()),
   BEDROCK_MODEL_FAST: unsetIfBlank(nonEmpty.optional()),
+  /** Optional fallback Claude inference profile per alias, tried once after a transient failure, only for prompts evaluated on it (T-096). */
+  BEDROCK_FALLBACK_BALANCED: unsetIfBlank(claudeModelId.optional()),
+  BEDROCK_FALLBACK_DEEP_REVIEW: unsetIfBlank(claudeModelId.optional()),
+  BEDROCK_FALLBACK_FAST: unsetIfBlank(claudeModelId.optional()),
   ...deployedStorageFields,
   /** `ses`: sign-in and invitation email through Amazon SES (task-role credentials). Unset: the local mail folder. */
   EMAIL_PROVIDER: unsetIfBlank(z.enum(['ses']).optional()),

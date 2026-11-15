@@ -90,6 +90,7 @@ const MESSAGES: Record<string, string> = {
   AI_OFF: 'AI is not switched on for this environment yet.',
   AI_ACCESS: 'AI is unavailable: the AWS sign-in for this environment has expired. An operator needs to sign in again.',
   AI_THROTTLED: 'AI is busy right now. Try again in a minute.',
+  AI_DELAYED: 'AI is paused for a few minutes after repeated provider outages. Try again shortly.',
   AI_UNAVAILABLE: 'The model call failed. Try again in a moment.',
   UNGROUNDED_ANSWER: 'The answer did not rest on this deal’s trends or assumptions, so it was not shown. Try asking about a specific trend.',
   NO_BASELINE: 'Generate the AI baseline first.',

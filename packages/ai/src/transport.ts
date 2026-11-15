@@ -11,12 +11,19 @@ export interface ModelRequest {
   readonly system: string;
   readonly messages: readonly ModelMessage[];
   readonly maxOutputTokens: number;
+  /**
+   * A second Claude model to try once after a transient failure (T-096). The
+   * gateway sets it only for prompts whose evals passed on that model.
+   */
+  readonly fallbackModelId?: string | undefined;
 }
 
 export interface ModelResponse {
   readonly text: string;
   readonly inputTokens: number;
   readonly outputTokens: number;
+  /** The model that answered, when the transport knows it (it may be the fallback). */
+  readonly modelId?: string;
 }
 
 /**

@@ -9,6 +9,8 @@ import {
   type ClaudeGateway,
   type SpeechToText,
   type TextToSpeech,
+  aiProblemCode,
+  type ModelProviderErrorKind,
 } from '@pactlab/ai';
 import { D, projectValue, type ProjectionTrend } from '@pactlab/calculations';
 import type {
@@ -74,8 +76,8 @@ function aiFailure(error: unknown): never {
   }
   throw error;
 }
-const providerUnavailable = (kind: string | null) =>
-  new ServiceUnavailableException({ code: kind === 'ACCESS' ? 'AI_ACCESS' : kind === 'THROTTLED' ? 'AI_THROTTLED' : 'AI_UNAVAILABLE' });
+const providerUnavailable = (kind: ModelProviderErrorKind | null) =>
+  new ServiceUnavailableException({ code: aiProblemCode(kind) });
 
 /**
  * Foresight (T-073; codename Nostradamus): the AI baseline of five-year trend

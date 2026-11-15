@@ -23,7 +23,7 @@ describe('BedrockModelTransport', () => {
       return reply([{ reasoningContent: { reasoningText: { text: 'thinking' } } }, { text: '{"a":' }, { text: '1}' }]);
     };
     const response = await new BedrockModelTransport({ send }).complete(REQUEST);
-    expect(response).toEqual({ text: '{"a":1}', inputTokens: 120, outputTokens: 40 });
+    expect(response).toEqual({ text: '{"a":1}', inputTokens: 120, outputTokens: 40, modelId: 'us.anthropic.claude-sonnet-5-5' });
     expect(sent[0]).toEqual({
       modelId: 'us.anthropic.claude-sonnet-5-5',
       system: [{ text: 'You extract contract terms.' }],
@@ -51,6 +51,34 @@ describe('BedrockModelTransport', () => {
       kind: 'UNAVAILABLE',
       providerCode: 'ServiceUnavailableException',
     });
+  });
+
+  it('backs off with full jitter under a cap, and starts no retry past the total deadline (T-096)', async () => {
+    const waits: number[] = [];
+    let at = 0;
+    const always: ConverseSender = async () => {
+      throw failure('ThrottlingException');
+    };
+    const transport = new BedrockModelTransport({ send: always, maxRetries: 6, random: () => 0.999, now: () => at, sleep: async (ms) => void (waits.push(ms), (at += ms)) });
+    await expect(transport.complete(REQUEST)).rejects.toMatchObject({ kind: 'THROTTLED' });
+    // Up to 500·2^n, capped at 8 s; random() near 1 gives the full step.
+    expect(waits).toEqual([499, 999, 1998, 3996, 7992, 7992]);
+
+    waits.length = 0;
+    at = 0;
+    const tight = new BedrockModelTransport({ send: always, maxRetries: 6, deadlineMs: 2_000, random: () => 0.999, now: () => at, sleep: async (ms) => void (waits.push(ms), (at += ms)) });
+    await expect(tight.complete(REQUEST)).rejects.toMatchObject({ kind: 'THROTTLED' });
+    expect(waits).toEqual([499, 999]);
+  });
+
+  it('fails fast on access and validation errors, with no retry', async () => {
+    let calls = 0;
+    const send: ConverseSender = async () => {
+      calls += 1;
+      throw failure('AccessDeniedException');
+    };
+    await expect(new BedrockModelTransport({ send, sleep: async () => {} }).complete(REQUEST)).rejects.toMatchObject({ kind: 'ACCESS' });
+    expect(calls).toBe(1);
   });
 
   it('an account without Bedrock model access is ACCESS, not a bad request (live, 2026-11-09)', async () => {

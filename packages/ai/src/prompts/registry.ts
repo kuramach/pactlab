@@ -22,6 +22,11 @@ export interface PromptDefinition<TSchema extends z.ZodType = z.ZodType> {
   readonly maxOutputTokens: number;
   readonly system: string;
   readonly outputSchema: TSchema;
+  /**
+   * Model IDs this prompt's eval suite has passed on, besides its route's
+   * primary. The gateway falls back only to a model listed here (T-096).
+   */
+  readonly fallbackEvaluatedOn?: readonly string[];
   render(context: PromptContext): string;
 }
 
