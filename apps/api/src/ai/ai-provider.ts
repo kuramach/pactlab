@@ -19,7 +19,7 @@ import type { ApiEnv } from '@pactlab/config';
 import { appendFileSync, mkdirSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { dirname } from 'node:path';
-import { ScriptedModelTransport, type ModelRequest, type ModelResponse, type ModelTransport } from '@pactlab/ai';
+import { ScriptedModelTransport, type ModelRequest, type ModelResponse } from '@pactlab/ai';
 import { demoModelResponse } from '../demo-seed/seed';
 
 /** What the app may say about its model provider: no credentials, no account details. */
