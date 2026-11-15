@@ -37,18 +37,12 @@ export const DEMO_SECTION_COVERAGE: Readonly<Record<string, SectionProbe>> = {
 };
 
 /**
- * Sections a group of demo pacts shows but leaves empty on purpose, keyed `<section>@<TYPE>/<BUYER|SELLER>`,
+ * Sections a group of demo pacts shows but leaves empty on purpose (a tab that could never have data is
+ * hidden by `DEAL_SECTION_RULES` instead; these are tabs that can fill up later, just not in the demo), keyed `<section>@<TYPE>/<BUYER|SELLER>`,
  * each with its reason. Kept short and reviewed: an entry here is a tab a prospect will see empty.
  */
-const RAISE = 'A raise is negotiated on its Raise tab (offers, round model, investor view), not through acquisition terms, letters, committees, financing or a close.';
 const TEASER = 'The seller-led demo shows the sale process (public page, bidders, offers, their financing); diligence content lives on the buyer-led demo pacts.';
 export const DEMO_COVERAGE_EXCEPTIONS: Readonly<Record<string, string>> = {
-  '/terms@VENTURE_RAISE/BUYER': RAISE,
-  '/loi@VENTURE_RAISE/BUYER': RAISE,
-  '/ic@VENTURE_RAISE/BUYER': RAISE,
-  '/financing@VENTURE_RAISE/BUYER': RAISE,
-  '/closing@VENTURE_RAISE/BUYER': RAISE,
-  '/post-close@VENTURE_RAISE/BUYER': RAISE,
   '/screening@MULTIFAMILY/SELLER': TEASER,
   '/documents@MULTIFAMILY/SELLER': TEASER,
   '/findings@MULTIFAMILY/SELLER': TEASER,
