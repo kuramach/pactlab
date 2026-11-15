@@ -166,6 +166,11 @@ export class PactlabCompute extends Construct {
           }
         : {}),
     };
+    // Hosting cost (admin console): live reads Cost Explorer through the payer account's read-only role
+    // (`cost-read-stack.ts`). Its ARN comes from deploy context, never from code.
+    const costRoleContext = config.name === 'prod' ? (this.node.tryGetContext('pactlab:prod:costExplorerRoleArn') as string | undefined) : undefined;
+    if (costRoleContext && !/^arn:aws[a-z-]*:iam::\d{12}:role\/PactlabCostRead$/.test(costRoleContext)) throw new Error(`pactlab:prod:costExplorerRoleArn must be the payer account's PactlabCostRead role, got ${costRoleContext}`);
+    const costRoleArn = costRoleContext || undefined;
     const apiEnvironment: Record<string, string> = {
       ...serverEnvironment,
       API_PORT: '4000',
@@ -175,6 +180,7 @@ export class PactlabCompute extends Construct {
       EMAIL_FROM: service.email.from,
       SIGNUP_REQUIRES_APPROVAL: String(service.signupRequiresApproval),
       ...(service.operatorEmail ? { OPERATOR_EMAIL: service.operatorEmail } : {}),
+      ...(costRoleArn ? { COST_EXPLORER_ROLE_ARN: costRoleArn } : {}),
     };
     const runtimePassword = ecs.Secret.fromSecretsManager(runtimeSecret, 'password');
     const ownerFields = { DB_OWNER_USER: ecs.Secret.fromSecretsManager(ownerSecret, 'username'), DB_OWNER_PASSWORD: ecs.Secret.fromSecretsManager(ownerSecret, 'password') };
@@ -198,6 +204,7 @@ export class PactlabCompute extends Construct {
     this.roles.api.addToPolicy(
       new iam.PolicyStatement({ sid: 'Bedrock', actions: ['bedrock:InvokeModel', 'bedrock:InvokeModelWithResponseStream', 'bedrock:Converse', 'bedrock:ConverseStream'], resources: bedrockArns }),
     );
+    if (costRoleArn) this.roles.api.addToPolicy(new iam.PolicyStatement({ sid: 'ReadHostingCost', actions: ['sts:AssumeRole'], resources: [costRoleArn] }));
     // Foresight voice (Transcribe streaming and Polly) has no resource-level scoping.
     this.roles.api.addToPolicy(new iam.PolicyStatement({ sid: 'Voice', actions: ['transcribe:StartStreamTranscription', 'polly:SynthesizeSpeech'], resources: ['*'] }));
     // An account holds a domain identity once: the owning environment creates it, others in the account send as it.

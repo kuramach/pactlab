@@ -5,6 +5,7 @@ import { apiGet } from '../(app)/deals/_lib/api';
 import { ApiState } from '../(app)/deals/_lib/states';
 import { DemoShareForm } from './demo-share';
 import { endDemoShare, resetDemoSlot } from './demo-actions';
+import { HostingCost } from './hosting-cost';
 import { compPact, createPromoCode, deactivatePromoCode, decideOrganization, resyncBilling, setMemberStatus, setOrganizationFlags, setOrganizationStatus, setOrganizationMcp } from './actions';
 import type { AdminBillingAccountView, PromoCodeView } from '@pactlab/contracts';
 import { COMPANY_TYPES, COMPANY_TYPE_LABELS } from '@pactlab/domain';
@@ -20,6 +21,7 @@ const TABS = [
   ['bugs', 'Bug inbox'],
   ['promo', 'Promo codes'],
   ['demos', 'Demos'],
+  ['cost', 'Hosting cost'],
 ] as const;
 type Tab = (typeof TABS)[number][0];
 
@@ -37,6 +39,11 @@ const OUTCOMES: Record<string, string> = {
   'ok-resync': 'Billing re-read from Stripe.',
   'ok-demo-ended': 'Share ended: its links and sessions stopped working. The demo is rebuilt within 15 minutes, then free again.',
   'ok-demo-reset': 'Queued: the demo is rebuilt within 15 minutes.',
+  'ok-cost-refreshed': 'Read again from Cost Explorer.',
+  'cost-refreshed-recently': 'Cost Explorer was read within the last hour (each read costs about a cent). Try again later.',
+  'ok-cost-rate': 'Rate saved. Estimates use it from its date.',
+  'ok-cost-rate-deleted': 'Rate deleted.',
+  'cost-rate-invalid': 'Give the price as a number (e.g. 3 or 0.023), a date, and a model ID for Bedrock rates.',
   conflict: 'That demo is shared right now; end the share first.',
   forbidden: 'That action is refused (operators cannot deactivate themselves).',
   invalid: 'That request was not valid.',
@@ -75,6 +82,14 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
       {tab === 'audit' ? <Audit action={typeof search['action'] === 'string' ? search['action'] : ''} /> : null}
       {tab === 'promo' ? <PromoCodes /> : null}
       {tab === 'demos' ? <Demos /> : null}
+      {tab === 'cost' ? (
+        <HostingCost
+          preset={typeof search['period'] === 'string' ? search['period'] : 'this-month'}
+          from={typeof search['from'] === 'string' ? search['from'] : ''}
+          to={typeof search['to'] === 'string' ? search['to'] : ''}
+          environment={typeof search['env'] === 'string' && /^[a-z0-9-]{1,100}$/.test(search['env']) ? search['env'] : ''}
+        />
+      ) : null}
       {tab === 'bugs' ? <Bugs status={typeof search['status'] === 'string' ? search['status'] : ''} severity={typeof search['severity'] === 'string' ? search['severity'] : ''} /> : null}
     </>
   );

@@ -8,6 +8,7 @@ import { SESv2Client } from '@aws-sdk/client-sesv2';
 import { PollyTextToSpeech, TranscribeSpeechToText } from '@pactlab/ai';
 import { createAiGateway } from './ai/ai-provider';
 import { createApp } from './app';
+import { AwsCostExplorerSource } from './admin/cost/cost-explorer';
 import { relyingParty } from './app.module';
 import { createAuth0Verifier, DisabledIdentityVerifier } from './auth/identity';
 import { FileSystemObjectStore } from './documents/storage-adapters';
@@ -94,6 +95,8 @@ const app = await createApp(
     ...(localDocuments ? { uploads: { ...localDocuments, importQueue: config.REDIS_URL ? new BullMqImportQueue(config.REDIS_URL) : null } } : {}),
     aiStatus: ai.status,
     environment: config.APP_ENV,
+    // Hosting cost: real spend from Cost Explorer in the payer account, where the role is configured (live).
+    ...(config.COST_EXPLORER_ROLE_ARN ? { hostingCost: { source: new AwsCostExplorerSource(config.COST_EXPLORER_ROLE_ARN) } } : {}),
     // Packs launch one at a time: unreleased ones are previewable in dev and qa only (or by PACK_PREVIEW).
     packPreview: packPreviewEnabled(config.APP_ENV, config.PACK_PREVIEW),
     macroForecasts: config.MACRO_FORECAST_SOURCE === 'fixture' ? new FixtureMacroForecastProvider() : new ImfMacroForecastProvider(),

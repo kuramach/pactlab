@@ -57,11 +57,14 @@ import { IcModule } from './ic/ic.module';
 import { BillingModule } from './billing/billing.module';
 import { FixtureBillingProvider, type BillingProvider } from '@pactlab/connectors';
 import { McpModule } from './mcp/mcp.module';
+import type { CostSource } from './admin/cost/cost-explorer';
 import { McpAccessTokens } from './oauth/access-tokens';
 import { HttpsClientMetadataFetcher, type ClientMetadataFetcher } from './oauth/client-metadata';
 import { OAuthModule } from './oauth/oauth.module';
 
 export interface AppDependencies {
+  /** Real AWS spend for the hosting-cost console: Cost Explorer in the payer account (live only). */
+  hostingCost?: { source?: CostSource | null; now?: () => Date };
   prisma: PrismaClient;
   identityVerifier: IdentityVerifier;
   logger: Logger;
@@ -230,6 +233,11 @@ export class AppModule {
           loginUrl: deps.signup?.loginUrl ?? 'http://localhost:3000/login',
           appVersion: deps.appVersion ?? process.env['npm_package_version'] ?? '0.0.0',
           environment: deps.environment ?? 'local',
+        }, {
+          source: deps.hostingCost?.source ?? null,
+          // The pactlab:environment tag the stacks carry: APP_ENV, except production is "prod".
+          environment: deps.environment === 'production' ? 'prod' : (deps.environment ?? 'local'),
+          ...(deps.hostingCost?.now ? { now: deps.hostingCost.now } : {}),
         }),
         EngineeringModule,
         AuditModule,
