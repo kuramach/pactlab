@@ -29,6 +29,7 @@ import { createConnectionSchema } from '../connections/connections.schemas';
 import { ConnectionsService } from '../connections/connections.service';
 import { uploadDocumentBodySchema } from '../documents/documents.schemas';
 import { DocumentsService } from '../documents/documents.service';
+import { FinancingService } from '../financing/financing.service';
 import type { createApp } from '../app';
 import { PhasesService } from '../phases/phases.service';
 import { RegulatoryService } from '../regulatory/regulatory.service';
@@ -293,7 +294,14 @@ export async function bidProcess(
   await sale.offer(second.person, dealId, { price: '14600000', currency: 'USD', structure: '80% cash, 20% seller note over 3 years (synthetic).', conditions: 'Lender appraisal at or above the price.', validUntil: daysFromNow(30) }, REQUEST_ID);
   await sale.pass(third.person, dealId, { reason: 'Outside our target region for this fund (synthetic).' }, REQUEST_ID);
   await sale.shortlist(seller, dealId, first.id, REQUEST_ID);
-  return `bid process: ${bids.length} bidders, 3 questions, 2 offers, 1 pass, 1 shortlisted`;
+  // How each bidder would fund their offer (T-117): the seller compares them on Financing; no bidder sees another's.
+  const financing = app.get(FinancingService, { strict: false });
+  await financing.addTranche(first.person, dealId, { kind: 'CASH', amount: '4560000.00', currency: 'USD', status: 'PRE_QUALIFIED', label: 'Fund equity', buyerNote: '' }, REQUEST_ID);
+  await financing.addTranche(first.person, dealId, { kind: 'CONVENTIONAL_DEBT', amount: '10640000.00', currency: 'USD', status: 'COMMITMENT_ISSUED', label: 'Agency loan', buyerNote: 'Synthetic lender (bidder-only).' }, REQUEST_ID);
+  await financing.addTranche(second.person, dealId, { kind: 'CASH', amount: '2920000.00', currency: 'USD', status: 'PRE_QUALIFIED', label: 'Equity', buyerNote: '' }, REQUEST_ID);
+  await financing.addTranche(second.person, dealId, { kind: 'SBA_7A', amount: '8760000.00', currency: 'USD', status: 'APPLICATION_SUBMITTED', label: 'Bank loan', buyerNote: '' }, REQUEST_ID);
+  await financing.addTranche(second.person, dealId, { kind: 'SELLER_NOTE', amount: '2920000.00', currency: 'USD', status: 'PRE_QUALIFIED', label: 'Seller note (asked for)', buyerNote: '' }, REQUEST_ID);
+  return `bid process: ${bids.length} bidders, 3 questions, 2 offers, 1 pass, 1 shortlisted, 2 financing plans`;
 }
 
 /**

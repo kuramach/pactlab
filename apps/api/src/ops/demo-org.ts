@@ -32,6 +32,10 @@ import { D } from '@pactlab/calculations';
 import { createApp } from '../app';
 import { DisabledIdentityVerifier } from '../auth/identity';
 import { CloseService } from '../close/close.service';
+import { DEFAULT_LOI_FIELDS } from '../close/loi-content';
+import { demoBuildVersion } from './demo-coverage';
+import { LoiService } from '../close/loi.service';
+import { IcService } from '../ic/ic.service';
 import { DealDeletionService } from '../deals/deletion/deal-deletion.service';
 import { demoModelResponse } from '../demo-seed/seed';
 import { DocumentsService } from '../documents/documents.service';
@@ -326,6 +330,9 @@ export async function buildPact(app: App, owner: OwnerSession, people: People, t
   // Both signatories sign off in Pactlab, and the closing checklist is worked to the end.
   await close.nameSignatory(buyer, dealId, 'BUYER', { userId: spec.buyer.id }, REQUEST_ID);
   await close.nameSignatory(seller, dealId, 'SELLER', { userId: spec.seller.id }, REQUEST_ID);
+  // Before signing: the letter of intent from the agreed terms, and the committee's decision (T-124 demo coverage).
+  await step('letter of intent', () => demoLetterOfIntent(app, buyer, seller, dealId));
+  await step('investment committee', () => demoCommittee(app, owner, spec, buyer, dealId));
   await close.signOff(buyer, dealId, next.id, REQUEST_ID);
   await close.signOff(seller, dealId, next.id, REQUEST_ID);
   await close.addItem(seller, dealId, { kind: 'CONDITION', title: 'Third-party consents delivered (synthetic)', ownerSide: 'SELLER' }, REQUEST_ID);
@@ -344,6 +351,40 @@ export async function buildPact(app: App, owner: OwnerSession, people: People, t
     return `${name}: data room, ${accepted} findings accepted, scenarios, persona pricing, terms agreed, both signed, funds confirmed; ${done.join('; ')}`;
   }
   return `${name}: data room, ${accepted} findings accepted, scenarios, persona pricing, terms countered and agreed, both signed, funds confirmed (ready to close); ${done.join('; ')}`;
+}
+
+/** The letter of intent (T-119): drafted from the agreed terms, sent in Pactlab, signed and countersigned. */
+async function demoLetterOfIntent(app: App, buyer: TenantContext, seller: TenantContext, dealId: string): Promise<string> {
+  const loi = app.get(LoiService, { strict: false });
+  const drafted = await loi.draft(buyer, dealId, REQUEST_ID);
+  const id = drafted.current?.id;
+  if (!id) return 'letter of intent: not drafted';
+  await loi.saveFields(buyer, dealId, id, { ...DEFAULT_LOI_FIELDS, governingLaw: 'the State of Delaware (synthetic)', targetSigningDate: null }, REQUEST_ID);
+  await loi.send(buyer, dealId, id, 'IN_APP', REQUEST_ID);
+  await loi.sign(buyer, dealId, id, REQUEST_ID);
+  await loi.sign(seller, dealId, id, REQUEST_ID);
+  return 'letter of intent countersigned, exclusivity running';
+}
+
+/** The demo's committee member: one per demo organization, its id derived from the organization's (no demo person ends in `c`). */
+const committeeId = (spec: DemoOrgSpec) => `${spec.id.slice(0, -1)}c`;
+
+/** The investment committee (T-118): a committee member is seated by the submission and approves with a condition. */
+async function demoCommittee(app: App, owner: OwnerSession, spec: DemoOrgSpec, buyer: TenantContext, dealId: string): Promise<string> {
+  const member = committeeId(spec);
+  await owner.query(`INSERT INTO users (id, auth0_subject, display_name) VALUES ($1, $2, 'Demo Committee Chair (synthetic)') ON CONFLICT (id) DO NOTHING`, [member, `pactlab|${member}`]);
+  await owner.query(
+    `INSERT INTO organization_memberships (id, organization_id, user_id, role, investment_committee) VALUES ($1, $2, $3, 'MEMBER', true)
+     ON CONFLICT (organization_id, user_id) DO UPDATE SET investment_committee = true, status = 'ACTIVE'`,
+    [newId(), spec.id, member],
+  );
+  const ic = app.get(IcService, { strict: false });
+  const submitted = await ic.submit(buyer, dealId, REQUEST_ID);
+  const submission = submitted.submissions[0];
+  if (!submission) return 'investment committee: not submitted';
+  const chair: TenantContext = { organizationId: spec.id as never, userId: member as never, organizationRole: 'MEMBER', dealIds: [dealId as never] };
+  await ic.decide(chair, dealId, submission.id, { decision: 'APPROVE_WITH_CONDITIONS', note: 'Approved at the agreed price (synthetic demo).', conditions: ['Confirm the key customer renewals before signing (synthetic).'] }, REQUEST_ID);
+  return 'investment committee: pack submitted, approved with a condition';
 }
 
 /** A one-page synthetic PDF: what a lender letter looks like to the upload checks. */
@@ -383,6 +424,16 @@ async function demoFinancing(app: App, buyer: TenantContext, seller: TenantConte
     await financing.disposition(seller, dealId, planId, 'APPLIED_AT_CLOSE', REQUEST_ID);
   }
   return 'financing: equity and a committed loan with shared letters, earnest money applied at close';
+}
+
+/** The demo build an organization was made from (T-124). */
+export async function recordDemoBuild(owner: OwnerSession, organizationId: string, version: string): Promise<void> {
+  await owner.query(`INSERT INTO demo_builds (organization_id, version, built_at) VALUES ($1, $2, now()) ON CONFLICT (organization_id) DO UPDATE SET version = EXCLUDED.version, built_at = now()`, [organizationId, version]);
+}
+
+export async function demoBuildOf(owner: OwnerSession, organizationId: string): Promise<string | null> {
+  const result = await owner.query<{ version: string }>(`SELECT version FROM demo_builds WHERE organization_id = $1`, [organizationId]);
+  return result.rows[0]?.version ?? null;
 }
 
 /** One seller-led Multifamily pact with a published teaser and its property facts. */
@@ -498,6 +549,8 @@ export async function runDemoOrg(
     report.push(await reports(app, lead, main?.id ?? null).catch((error: unknown) => `reports FAILED (${error instanceof Error ? error.message : 'unknown error'})`));
   }
   // Foresight prepares itself the first time each pact's tab is opened.
+  // A complete build from scratch records which demo build it is (T-124), so the sweep can tell when it is stale.
+  if ((reset || existing.rows.length === 0) && !report.some((line) => line.includes('FAILED'))) await recordDemoBuild(owner, spec.id, demoBuildVersion(types));
   return report;
 }
 
