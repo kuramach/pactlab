@@ -65,6 +65,7 @@ export class SnsVerifier {
     if (!key) {
       key = this.fetchCertificate(new URL(url)).then((pem) => (pem.includes('BEGIN CERTIFICATE') ? new X509Certificate(pem).publicKey : createPublicKey(pem)));
       // A failed fetch is not cached: the next message tries again.
+      // silent-ok: evicts a failed certificate fetch from the cache; the notification itself is refused (403) and SNS retries
       key.catch(() => this.certificates.delete(url));
       this.certificates.set(url, key);
     }

@@ -86,6 +86,12 @@ export const publicListings = {
     return row?.ok === true;
   },
 
+  /** Withdraw a request whose confirmation email could not be sent (T-125), so the visitor can try again. */
+  async withdrawInterest(prisma: PrismaClient, tokenHash: string): Promise<boolean> {
+    const [row] = await asApp(prisma, (tx) => tx.$queryRaw<{ ok: boolean }[]>`SELECT app_listing_interest_withdraw(${tokenHash}) AS ok`);
+    return row?.ok === true;
+  },
+
   /** A published page's pictures and video links, in order (never storage keys). */
   async media(prisma: PrismaClient, slug: string): Promise<PublicListingMediaRow[]> {
     const rows = await asApp(prisma, (tx) => tx.$queryRaw<Record<string, unknown>[]>`SELECT * FROM app_listing_media(${slug})`);

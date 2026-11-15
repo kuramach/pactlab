@@ -3,7 +3,10 @@ import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from '@pactla
 import { apiGet, dealsApi } from '../../_lib/api';
 import { OutcomeBanner } from '../../_lib/outcome';
 import { can, dealViewer } from '../../_lib/viewer';
+import { cookies } from 'next/headers';
+import { CopyButton } from '../../../_lib/copy-button';
 import { addMember, inviteByEmail, revokeInvitation } from './actions';
+import { UNSENT_INVITE_COOKIE } from './unsent-invite';
 
 interface InvitationView {
   id: string;
@@ -13,7 +16,14 @@ interface InvitationView {
   status: 'PENDING' | 'ACCEPTED' | 'REVOKED' | 'EXPIRED';
   invitedByName: string | null;
   expiresAt: string;
+  emailStatus: 'SENT' | 'FAILED' | null;
+  emailProblem: 'SUPPRESSED' | 'UNAVAILABLE' | null;
 }
+
+const EMAIL_PROBLEM: Record<'SUPPRESSED' | 'UNAVAILABLE', string> = {
+  SUPPRESSED: 'earlier emails to this address bounced or were marked as spam, so we don’t send to it',
+  UNAVAILABLE: 'email couldn’t be sent just now',
+};
 
 const SIDE_OF_ROLE: Partial<Record<string, string>> = { TARGET_CONTRIBUTOR: 'Seller side', ADVISER: 'Advisor' };
 
@@ -41,6 +51,7 @@ export default async function TeamPage({
 }) {
   const { dealId } = await params;
   const { outcome } = await searchParams;
+  const unsent = outcome === 'invite-not-emailed' ? parseUnsent((await cookies()).get(UNSENT_INVITE_COOKIE)?.value) : null;
   const [viewer, organization, invitations] = await Promise.all([
     dealViewer(dealId),
     dealsApi.organizationMembers(),
@@ -55,6 +66,18 @@ export default async function TeamPage({
         <h2 className="text-lg font-semibold tracking-tight">Team</h2>
         <p className="text-sm text-muted-foreground">Everyone on this deal and what their role lets them do.</p>
       </div>
+      {unsent ? (
+        // T-125: the invitation exists, but its email did not go out. Say why, and hand over the link.
+        <div role="alert" className="flex flex-col gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+          <p>
+            The invitation for <span className="font-medium">{unsent.email}</span> is ready, but we couldn’t email it: {EMAIL_PROBLEM[unsent.problem]}. Copy the link and send it to them yourself. It works only for {unsent.email}, for 14 days.
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <code className="break-all rounded bg-white px-2 py-1 text-xs">{unsent.link}</code>
+            <CopyButton text={unsent.link} label="Copy link" />
+          </div>
+        </div>
+      ) : null}
       <OutcomeBanner
         outcome={outcome}
         messages={{
@@ -137,6 +160,11 @@ export default async function TeamPage({
                       </span>
                       <span className="flex items-center gap-2">
                         <Badge variant={item.status === 'ACCEPTED' ? 'reviewed' : item.status === 'PENDING' ? 'draft' : 'neutral'}>{item.status.toLowerCase()}</Badge>
+                        {item.status === 'PENDING' && item.emailStatus === 'FAILED' ? (
+                          <span className="text-xs text-amber-900" title={item.emailProblem ? EMAIL_PROBLEM[item.emailProblem] : undefined}>
+                            Email not delivered. Withdraw and invite again, or send the link yourself.
+                          </span>
+                        ) : null}
                         {item.status === 'PENDING' ? (
                           <form action={revokeInvitation.bind(null, dealId, item.id)}>
                             <Button variant="link" size="sm" type="submit">
@@ -195,4 +223,15 @@ export default async function TeamPage({
       </div>
     </div>
   );
+}
+
+function parseUnsent(value: string | undefined): { email: string; link: string; problem: 'SUPPRESSED' | 'UNAVAILABLE' } | null {
+  if (!value) return null;
+  try {
+    const parsed = JSON.parse(value) as { email?: unknown; link?: unknown; problem?: unknown };
+    if (typeof parsed.email !== 'string' || typeof parsed.link !== 'string' || !/^https?:\/\/[^\s]+\/invite\/[A-Za-z0-9_-]{43}$/.test(parsed.link)) return null;
+    return { email: parsed.email, link: parsed.link, problem: parsed.problem === 'SUPPRESSED' ? 'SUPPRESSED' : 'UNAVAILABLE' };
+  } catch {
+    return null;
+  }
 }

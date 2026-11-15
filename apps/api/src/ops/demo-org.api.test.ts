@@ -11,7 +11,9 @@ import { DisabledIdentityVerifier } from '../auth/identity';
 import { demoModelResponse } from '../demo-seed/seed';
 import { InMemoryObjectStore } from '../documents/testing';
 import { SignatureMalwareScanner } from '../documents/upload-policy';
+import { DEMO_COVERAGE_EXCEPTIONS, DEMO_SECTION_COVERAGE } from './demo-coverage';
 import { DEMO_ORG, pactName, pactVariants, runDemoOrg } from './demo-org';
+import { DEAL_SECTION_RULES, sectionApplies, type CompanyType } from '@pactlab/domain';
 import { generatedDemoData } from './demo-data.testing';
 
 type Row = Record<string, unknown>;
@@ -109,7 +111,34 @@ describe('demo organization (batch 2)', () => {
     expect(await count('bids', teaser.id)).toBe(3);
     expect(await count('bid_offers', teaser.id)).toBe(2);
     expect(await count('deal_memberships', teaser.id, `AND role = 'BIDDER'`)).toBe(3);
-    expect(await rows(`SELECT scope, status FROM report_versions WHERE organization_id = $1 ORDER BY scope`, [DEMO_ORG.id])).toEqual([{ scope: 'EXECUTIVE', status: 'READY' }, { scope: 'PACT', status: 'READY' }]);
+    expect(await rows(`SELECT scope, status FROM report_versions WHERE organization_id = $1 AND scope <> 'IC' ORDER BY scope`, [DEMO_ORG.id])).toEqual([{ scope: 'EXECUTIVE', status: 'READY' }, { scope: 'PACT', status: 'READY' }]);
+    // Each buyer-led acquisition pact has its committee pack (T-124 demo coverage).
+    expect((await rows(`SELECT count(*)::int AS n FROM report_versions WHERE organization_id = $1 AND scope = 'IC'`, [DEMO_ORG.id]))[0]).toEqual({ n: 4 });
+  });
+
+  it('every section a demo pact shows has data, derived from the section rules, not a list kept by hand (T-124)', async () => {
+    // A new section must say where its demo data lives (or why it has none) before it ships.
+    expect(Object.keys(DEMO_SECTION_COVERAGE).sort()).toEqual(Object.keys(DEAL_SECTION_RULES).sort());
+    const pacts = (await rows(
+      `SELECT d.id, d.initiated_by, p.company_type FROM deals d LEFT JOIN deal_parties p ON p.deal_id = d.id AND p.role = 'SELLER' WHERE d.organization_id = $1`,
+      [DEMO_ORG.id],
+    )) as { id: string; initiated_by: 'BUYER' | 'SELLER'; company_type: CompanyType | null }[];
+    const groups = new Map<string, typeof pacts>();
+    for (const pact of pacts) groups.set(`${pact.company_type}/${pact.initiated_by}`, [...(groups.get(`${pact.company_type}/${pact.initiated_by}`) ?? []), pact]);
+    const empty: string[] = [];
+    for (const [group, members] of groups) {
+      const [companyType, initiatedBy] = group.split('/') as [CompanyType, 'BUYER' | 'SELLER'];
+      for (const [section, probe] of Object.entries(DEMO_SECTION_COVERAGE)) {
+        if ('exempt' in probe || !sectionApplies(section, { companyType, initiatedBy }) || DEMO_COVERAGE_EXCEPTIONS[`${section}@${group}`]) continue;
+        let found = 0;
+        for (const pact of members) {
+          const [row] = await rows(`SELECT count(*)::int AS n FROM ${probe.table} WHERE ${probe.column ?? 'deal_id'} = $1${probe.where ? ` AND ${probe.where}` : ''}`, [pact.id]);
+          found += (row as { n: number }).n;
+        }
+        if (found === 0) empty.push(`${section || '(summary)'} @ ${group}`);
+      }
+    }
+    expect(empty, 'Give these demo pacts data for the section, or add a reviewed DEMO_COVERAGE_EXCEPTIONS entry with the reason.').toEqual([]);
   });
 
   it('adds nothing on a re-run', async () => {

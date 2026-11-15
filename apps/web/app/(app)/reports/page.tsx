@@ -1,7 +1,7 @@
 import type { DealSummary, ReportVersionView } from '@pactlab/contracts';
 import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, EmptyState, PageHeader } from '@pactlab/ui';
 import { Download, FileText } from 'lucide-react';
-import { AutoRefresh } from '../deals/[dealId]/foresight/auto-refresh';
+import { Pending } from '../../_components/pending';
 import { apiGet } from '../deals/_lib/api';
 import { ApiState } from '../deals/_lib/states';
 import { OutcomeBanner } from '../deals/_lib/outcome';
@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic';
 
 const OUTCOMES: Record<string, string> = {
   'ok-generating': 'Generating your report. It appears below as Ready in a few seconds.',
-  failed: 'The report could not be started. Try again in a moment.',
+  failed: 'The report could not be started, and nothing was changed. Please try again in a moment.',
   'pick-pact': 'Choose a pact for the detailed report.',
 };
 const STATUS: Record<ReportVersionView['status'], { label: string; variant: 'calculation' | 'draft' | 'danger' | 'neutral' }> = {
@@ -37,7 +37,15 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
     <div className="flex max-w-6xl flex-col gap-6">
       <PageHeader title="Reports" description="Where every pact stands, or the complete record of one, as a PDF you can forward. Each report is a dated version; earlier versions never change." />
       <OutcomeBanner outcome={typeof search['outcome'] === 'string' ? search['outcome'] : undefined} messages={OUTCOMES} />
-      {items.some((item) => item.status === 'GENERATING') ? <AutoRefresh /> : null}
+      {items.some((item) => item.status === 'GENERATING') ? (
+        <Pending label="Generating your report… it appears below as Ready in a few seconds." slow="This report is taking longer than usual. It keeps going in the background: come back in a few minutes, or generate it again if it shows Failed." slowAfterMs={90_000} />
+      ) : null}
+      {/* T-125: a failed version says what happened and offers the way forward, not only a red badge. */}
+      {items[0]?.status === 'FAILED' ? (
+        <p role="alert" className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+          Your latest report could not be made. Nothing else changed. Generate it again below; if it fails again, use “Report a bug” so we can look at it.
+        </p>
+      ) : null}
 
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
@@ -118,6 +126,12 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
                         <a href={`/reports/${item.id}/pdf`} className="inline-flex items-center gap-1 text-sm font-medium text-indigo-ink underline" aria-label={`Download ${item.scope === 'EXECUTIVE' ? 'executive report' : 'pact report'} v${item.version}`}>
                           <Download aria-hidden className="h-4 w-4" /> PDF
                         </a>
+                      ) : item.status === 'FAILED' && (item.scope === 'EXECUTIVE' || item.scope === 'PACT') ? (
+                        <form action={generateReport.bind(null, item.scope, item.dealId)}>
+                          <Button type="submit" size="sm" variant="outline">
+                            Try again
+                          </Button>
+                        </form>
                       ) : null}
                     </td>
                   </tr>

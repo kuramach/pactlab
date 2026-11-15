@@ -357,6 +357,7 @@ export class ComparablesService {
   private async targetFacts(tenant: TenantContext, dealId: string): Promise<TargetFacts> {
     const none: TargetFacts = { arr: null, arrGrowth: null, nrr: null, grr: null, asOfMonth: null };
     return withTenant(this.prisma, tenant, async (tx) => {
+      // handled: no billing evidence yet; the comparables page shows the target's figures as missing
       const evidence = await loadMetricsEvidence(tx, dealId).catch(() => null);
       if (!evidence || evidence.lines.length === 0) return none;
       const asOfMonth = defaultAsOfMonth(evidence);

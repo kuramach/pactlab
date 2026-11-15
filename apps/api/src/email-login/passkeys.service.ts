@@ -172,6 +172,7 @@ export class PasskeysService {
   private notify(account: PasskeyAccount, change: 'added' | 'removed', name: string): void {
     if (!account.email) return;
     const settingsUrl = new URL('/settings#sign-in', this.rp.origin).toString();
+    // silent-ok: a notice about a change the person just made and already sees on screen
     void this.deps.emailSender.send(emails.passkeyChanged(account.email, change, name, settingsUrl)).catch((error: unknown) => {
       this.logger.error({ sender: this.deps.emailSender.name, errorClass: error instanceof Error ? error.name : 'unknown' }, 'passkey notice delivery failed');
     });

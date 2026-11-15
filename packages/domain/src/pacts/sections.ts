@@ -13,6 +13,13 @@ export interface SectionContext {
 }
 
 const everywhere = () => true;
+/**
+ * A tab a pact will never have data for is hidden; one it may have later stays (Kumar, 2026-11-14).
+ * A venture raise is negotiated on its Raise tab: it never has acquisition terms, a letter of intent,
+ * a buyer's committee or financing, a closing checklist or a post-close register.
+ */
+const notRaise = (context: SectionContext) => context.companyType !== 'VENTURE_RAISE';
+const buyerLedAcquisition = (context: SectionContext) => context.initiatedBy === 'BUYER' && notRaise(context);
 const usesSource = (kinds: readonly string[]) => (context: SectionContext) =>
   context.companyType === null || sourcesFor(context.companyType).sources.some((source) => kinds.includes(source.kind));
 
@@ -34,15 +41,15 @@ export const DEAL_SECTION_RULES: Readonly<Record<string, (context: SectionContex
   '/raise': (context) => context.companyType === 'VENTURE_RAISE',
   '/valuation': everywhere,
   '/foresight': everywhere,
-  '/terms': (context) => context.initiatedBy === 'BUYER',
+  '/terms': buyerLedAcquisition,
   // A letter of intent from the agreed terms (T-119): buyer-led pacts, both sides.
-  '/loi': (context) => context.initiatedBy === 'BUYER',
+  '/loi': buyerLedAcquisition,
   // The buyer's investment committee (T-118): a buyer-led pact's own side.
-  '/ic': (context) => context.initiatedBy === 'BUYER',
-  // How the buyer funds the deal (T-117): every pact; each bidder keeps their own on a seller-led one.
-  '/financing': everywhere,
-  '/closing': (context) => context.initiatedBy === 'BUYER',
-  '/post-close': everywhere,
+  '/ic': buyerLedAcquisition,
+  // How the buyer funds the deal (T-117): every acquisition; each bidder keeps their own on a seller-led one.
+  '/financing': notRaise,
+  '/closing': buyerLedAcquisition,
+  '/post-close': notRaise,
 };
 
 export function sectionApplies(path: string, context: SectionContext): boolean {
