@@ -4,15 +4,20 @@ import { appendAuditEvent, oauth, resolvePrincipal, withTenant, type PrismaClien
 import type { TenantContext } from '@pactlab/domain';
 import type { Logger } from '@pactlab/observability';
 import { z } from 'zod';
+import { AgentProposalsService } from '../agent-proposals/agent-proposals.service';
+import { AGENT_PROPOSAL_STATUSES } from '../agent-proposals/agent-proposals.schemas';
 import { DealsService } from '../deals/deals.service';
+import { DocumentsService } from '../documents/documents.service';
 import { EvidenceService } from '../evidence/evidence.service';
 import { FindingsService } from '../findings/findings.service';
 import { ForesightService } from '../foresight/foresight.service';
 import type { McpAccessClaims } from '../oauth/access-tokens';
 import { OAUTH, type OAuthDependencies } from '../oauth/oauth.service';
 import { PhasesService } from '../phases/phases.service';
+import { FINDING_TERM_LEVERS, PricingService } from '../pricing/pricing.service';
 import { LOGGER, PRISMA } from '../tokens';
 import { ValuationService } from '../valuation/valuation.service';
+import { VentureService } from '../venture/venture.service';
 
 /** Who is calling, once their token checks out. */
 export interface McpCaller {
@@ -23,6 +28,18 @@ export interface McpCaller {
 export type McpAuthResult = { kind: 'ok'; caller: McpCaller } | { kind: 'unauthorized' } | { kind: 'forbidden'; error: 'insufficient_scope' | 'mcp_disabled' };
 
 const dealId = z.uuid().describe('The pact (deal) id, from list_deals.');
+const READ_ONLY = { readOnlyHint: true, destructiveHint: false, openWorldHint: false } as const;
+// A suggestion writes only a pending proposal: nothing on the pact changes until a person approves it.
+const SUGGESTS = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false } as const;
+type ToolAnnotations = typeof READ_ONLY | typeof SUGGESTS;
+type RegisterTool = <A extends z.ZodRawShape>(
+  name: string,
+  description: string,
+  shape: A,
+  run: (args: z.infer<z.ZodObject<A>>) => Promise<unknown>,
+  dealOf?: (args: z.infer<z.ZodObject<A>>) => string,
+  annotations?: ToolAnnotations,
+) => void;
 const text = (value: unknown) => ({ content: [{ type: 'text' as const, text: JSON.stringify(value, null, 1) }] });
 
 /**
@@ -31,7 +48,9 @@ const text = (value: unknown) => ({ content: [{ type: 'text' as const, text: JSO
  * tenant is built from their MCP token exactly as the API builds it from a session, so every
  * permission and confidentiality rule applies unchanged. On top of that, without the
  * `mcp:confidential` scope the confirmed-value ledger and value-confirmation findings are
- * left out of every result. Every tool call is audited; arguments and results never are logged.
+ * left out of every result. With `mcp:propose` (T-084b) a client may also file suggestions —
+ * a term on a finding, a document request — that wait for a person to approve them in the app;
+ * no tool approves anything. Every tool call is audited; arguments and results never are logged.
  */
 @Injectable()
 export class McpService {
@@ -45,6 +64,10 @@ export class McpService {
     @Inject(ValuationService) private readonly valuation: ValuationService,
     @Inject(EvidenceService) private readonly evidence: EvidenceService,
     @Inject(ForesightService) private readonly foresight: ForesightService,
+    @Inject(AgentProposalsService) private readonly proposals: AgentProposalsService,
+    @Inject(PricingService) private readonly pricing: PricingService,
+    @Inject(DocumentsService) private readonly documents: DocumentsService,
+    @Inject(VentureService) private readonly venture: VentureService,
   ) {}
 
   get resource(): string {
@@ -86,10 +109,10 @@ export class McpService {
     const server = new McpServer({ name: 'pactlab', version: '1.0.0' }, { instructions: 'Pactlab deal diligence. Read-only: findings, claims, valuation, Foresight and evidence for the pacts you can see. Figures are projections under stated assumptions; cite the evidence returned.' });
     const { tenant } = caller;
     const confidential = caller.claims.scopes.includes('mcp:confidential');
-    const readOnly = { readOnlyHint: true, destructiveHint: false, openWorldHint: false } as const;
-    // Each tool: audit, then the service. A service refusal (403/404) becomes a tool error.
-    const tool = <A extends z.ZodRawShape>(name: string, description: string, shape: A, run: (args: z.infer<z.ZodObject<A>>) => Promise<unknown>, dealOf?: (args: z.infer<z.ZodObject<A>>) => string) => {
-      server.registerTool(name, { description, inputSchema: shape, annotations: readOnly }, (async (args: z.infer<z.ZodObject<A>>) => {
+    // Each tool: audit, then the service. A service refusal (403/404) becomes a tool error; a
+    // refused suggestion (422) says why, from the service's own message.
+    const tool: RegisterTool = (name, description, shape, run, dealOf, annotations = READ_ONLY) => {
+      server.registerTool(name, { description, inputSchema: shape, annotations }, (async (args: never) => {
         try {
           const result = await run(args);
           await this.audit(caller, name, dealOf ? dealOf(args) : null, requestId);
@@ -97,7 +120,12 @@ export class McpService {
         } catch (error) {
           const status = (error as { getStatus?: () => number }).getStatus?.();
           this.logger.warn({ tool: name, status: status ?? 'error', requestId }, 'mcp tool refused');
-          return { isError: true, content: [{ type: 'text' as const, text: status === 404 || status === 403 ? 'Not found, or not available to you.' : 'That could not be read right now.' }] };
+          const response = (error as { getResponse?: () => unknown }).getResponse?.();
+          const reason = status === 422 && typeof response === 'object' && response !== null && typeof (response as { message?: unknown }).message === 'string' ? (response as { message: string }).message : null;
+          return {
+            isError: true,
+            content: [{ type: 'text' as const, text: status === 404 || status === 403 ? 'Not found, or not available to you.' : reason ?? (annotations === SUGGESTS ? 'That suggestion could not be filed right now.' : 'That could not be read right now.') }],
+          };
         }
       }) as never);
     };
@@ -157,6 +185,8 @@ export class McpService {
 
     tool('get_foresight', 'Foresight: five-year forecasts and trend lines, and the projected value range under them — always with the assumptions behind it.', { dealId }, async (args) => this.foresight.view(tenant, args.dealId, requestId), (args) => args.dealId);
 
+    if (caller.claims.scopes.includes('mcp:propose')) this.proposalTools(caller, tool, requestId);
+
     const prompt = (name: string, title: string, description: string, ask: (dealId: string) => string) =>
       server.registerPrompt(name, { title, description, argsSchema: { dealId: z.string().describe('The pact id (from list_deals).') } }, ({ dealId: id }) => ({
         messages: [{ role: 'user', content: { type: 'text', text: ask(id) } }],
@@ -169,5 +199,74 @@ export class McpService {
       `For Venture Raise pact ${id}, list the risks (direction -1, get_findings) an investor's diligence will surface, in the order they would find them, each with its evidence and how to address it before the round.`);
 
     return server;
+  }
+
+  /**
+   * Suggestion tools (T-084b), only with `mcp:propose`. Each files a PENDING proposal through
+   * AgentProposalsService; a person approves it in the app, which runs the app's own service.
+   */
+  private proposalTools(caller: McpCaller, tool: RegisterTool, requestId: string): void {
+    const { tenant } = caller;
+    // A metadata-document client is named by its https URL: its host is what the approver reads.
+    const host = URL.canParse(caller.claims.clientId) ? new URL(caller.claims.clientId).host : null;
+    const origin = { clientId: caller.claims.clientId, clientName: host ?? 'A connected app' };
+    const rationale = z.string().trim().min(1).max(2000).describe('Why, for the person who will approve it: cite the findings or evidence you relied on.');
+
+    tool(
+      'propose_term',
+      'Suggest that an accepted risk (a direction -1 finding with a priced amount) go on the draft deal terms as a lever. The amount is Pactlab\'s own (the finding\'s priced risk); you cannot set it. A person approves it in Pactlab before anything changes.',
+      { dealId, findingId: z.uuid(), lever: z.enum(FINDING_TERM_LEVERS), rationale },
+      async (args) => this.proposals.file(tenant, args.dealId, { kind: 'TERM', payload: { findingId: args.findingId, lever: args.lever } }, args.rationale, origin, requestId),
+      (args) => args.dealId,
+      SUGGESTS,
+    );
+
+    tool(
+      'draft_document_requests',
+      'Suggest a request to the counterparty for missing documents. Leave items out to ask for every checklist category still missing and not yet requested. A person approves it in Pactlab before the counterparty sees it.',
+      { dealId, items: z.array(z.string().regex(/^[A-Z][A-Z0-9_]{1,59}$/)).min(1).max(50).optional(), note: z.string().trim().min(1).max(2000).optional(), rationale },
+      async (args) => {
+        const items = args.items ?? (await this.proposals.openGaps(tenant, args.dealId, requestId)).map((gap) => gap.id);
+        if (items.length === 0) return { filed: false, reason: 'Nothing on the checklist is missing or unrequested.' };
+        return this.proposals.file(tenant, args.dealId, { kind: 'DOCUMENT_REQUEST', payload: { items, ...(args.note ? { note: args.note } : {}) } }, args.rationale, origin, requestId);
+      },
+      (args) => args.dealId,
+      SUGGESTS,
+    );
+
+    tool(
+      'list_my_proposals',
+      'Your suggestions on a pact and what became of them: PENDING, APPROVED, REJECTED (with the person\'s note) or FAILED (with the reason).',
+      { dealId, status: z.enum(AGENT_PROPOSAL_STATUSES).optional() },
+      async (args) => ({
+        items: (await this.proposals.list(tenant, args.dealId, { status: args.status }, requestId)).items.map((item) => ({
+          id: item.id,
+          kind: item.kind,
+          status: item.status,
+          createdAt: item.createdAt,
+          decidedAt: item.decidedAt,
+          decisionNote: item.decisionNote,
+          problem: item.problem,
+        })),
+      }),
+      (args) => args.dealId,
+    );
+
+    tool(
+      'export_counterparty_view',
+      'What the other side may see of this pact, as Pactlab shares it: on a Venture Raise, the investor view for one offer; otherwise the proposed terms and the document requests. Never buyer analysis, findings or the confirmed-value ledger.',
+      { dealId, offerId: z.uuid().optional() },
+      async (args) => {
+        const investor = await this.venture.investorView(tenant, args.dealId, args.offerId, requestId).catch((error: unknown) => {
+          // handled: not a Venture Raise, so the seller-facing view below answers instead
+          if ((error as { getResponse?: () => { code?: string } }).getResponse?.()?.code === 'NOT_A_VENTURE_RAISE') return null;
+          throw error;
+        });
+        if (investor) return { audience: 'INVESTOR', view: investor };
+        const [terms, requests] = await Promise.all([this.pricing.proposedTerms(tenant, args.dealId, requestId), this.documents.listRequests(tenant, args.dealId, requestId)]);
+        return { audience: 'SELLER', proposedTerms: terms.proposed, documentRequests: requests.items.filter((request) => request.status === 'OPEN') };
+      },
+      (args) => args.dealId,
+    );
   }
 }

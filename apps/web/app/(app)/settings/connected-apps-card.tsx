@@ -33,6 +33,7 @@ export async function ConnectedAppsCard({ mcpAddress }: { mcpAddress: string }) 
                   <span className="flex items-center gap-2 font-medium">
                     {app.clientName}
                     {app.scopes.includes('mcp:confidential') ? <Badge variant="neutral">confidential</Badge> : null}
+                    {app.scopes.includes('mcp:propose') ? <Badge variant="neutral">suggests</Badge> : null}
                   </span>
                   <span className="text-xs text-muted-foreground">
                     {app.clientHost ? `${app.clientHost} · ` : ''}

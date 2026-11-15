@@ -6,5 +6,6 @@ import { VentureService } from './venture.service';
 @Module({
   controllers: [VentureController],
   providers: [VentureService, DealAccess],
+  exports: [VentureService],
 })
 export class VentureModule {}
