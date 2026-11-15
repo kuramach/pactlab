@@ -1317,6 +1317,8 @@ model AiRun {
   outputTokens     Int         @map("output_tokens")
   latencyMs        Int         @map("latency_ms")
   createdAt        DateTime    @map("created_at") @db.Timestamptz(3)
+  /// The person whose request made the run (hosting cost by person); from the tenant context. Null for older runs.
+  requestedBy      String?     @default(dbgenerated("app_current_user_id()")) @map("requested_by") @db.Uuid
 
   organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   deal         Deal              @relation(fields: [organizationId, dealId], references: [organizationId, id], onDelete: Restrict)
@@ -3186,4 +3188,52 @@ model DemoBuild {
   builtAt        DateTime @default(now()) @map("built_at") @db.Timestamptz(3)
 
   @@map("demo_builds")
+}
+
+/// AWS spend as Cost Explorer reports it (payer account): per period, environment tag and AWS product. Operator-only.
+model HostingCostLine {
+  id          String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  /// MONTHLY | DAILY
+  granularity String
+  periodStart DateTime @map("period_start") @db.Date
+  environment String
+  service     String
+  amount      Decimal  @db.Decimal(18, 6)
+  currency    String   @db.Char(3)
+  estimated   Boolean  @default(false)
+  fetchedAt   DateTime @default(now()) @map("fetched_at") @db.Timestamptz(3)
+
+  @@unique([granularity, periodStart, environment, service], map: "hosting_cost_lines_key")
+  @@map("hosting_cost_lines")
+}
+
+/// Each refresh from Cost Explorer (error class only). Operator-only.
+model HostingCostSync {
+  id          String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  requestedBy String?  @map("requested_by") @db.Uuid
+  startedAt   DateTime @default(now()) @map("started_at") @db.Timestamptz(3)
+  /// SUCCEEDED | FAILED
+  status      String
+  lines       Int      @default(0)
+  errorClass  String?  @map("error_class")
+
+  @@index([startedAt], map: "hosting_cost_syncs_started_idx")
+  @@map("hosting_cost_syncs")
+}
+
+/// Unit prices an operator enters from AWS's price pages, each from a date. Operator-only.
+model CostRate {
+  id            String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  /// BEDROCK_INPUT_PER_MTOK | BEDROCK_OUTPUT_PER_MTOK | S3_STORAGE_GB_MONTH
+  kind          String
+  key           String
+  unitPrice     Decimal  @map("unit_price") @db.Decimal(18, 8)
+  currency      String   @default("USD") @db.Char(3)
+  effectiveFrom DateTime @map("effective_from") @db.Date
+  sourceNote    String   @default("") @map("source_note")
+  createdBy     String?  @map("created_by") @db.Uuid
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@unique([kind, key, effectiveFrom], map: "cost_rates_key")
+  @@map("cost_rates")
 }

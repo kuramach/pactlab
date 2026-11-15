@@ -29,3 +29,4 @@ export * from './listings';
 export * from './signing';
 export * from './brand';
 export * from './email-events';
+export * from './hosting-cost';

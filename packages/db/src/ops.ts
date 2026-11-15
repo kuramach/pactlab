@@ -37,7 +37,8 @@ export class OperatorRequiredError extends Error {
 
 const rows = <T>(result: unknown) => (result as { rows: T[] }).rows;
 
-async function call<T>(sql: SqlExecutor, text: string, params: unknown[]): Promise<T[]> {
+/** Call an `app_ops_*` function; a refusal (42501) becomes OperatorRequiredError. */
+export async function callOps<T>(sql: SqlExecutor, text: string, params: unknown[]): Promise<T[]> {
   try {
     return rows<T>(await sql.query(text, params));
   } catch (error) {
@@ -141,18 +142,18 @@ const num = (value: unknown) => Number(value ?? 0);
 
 export const operatorOps = {
   async isOperator(sql: SqlExecutor, userId: string): Promise<boolean> {
-    const [row] = await call<{ ok: boolean }>(sql, 'SELECT app_is_platform_operator($1::uuid) AS ok', [userId]);
+    const [row] = await callOps<{ ok: boolean }>(sql, 'SELECT app_is_platform_operator($1::uuid) AS ok', [userId]);
     return row?.ok === true;
   },
 
   async pendingOrganizations(sql: SqlExecutor, actor: string | null): Promise<PendingOrganization[]> {
     return (
-      await call<{ slug: string; name: string; sso_requested: boolean; created_at: Date; owners: string }>(sql, 'SELECT * FROM app_ops_pending_organizations($1::uuid)', [actor])
+      await callOps<{ slug: string; name: string; sso_requested: boolean; created_at: Date; owners: string }>(sql, 'SELECT * FROM app_ops_pending_organizations($1::uuid)', [actor])
     ).map((row) => ({ slug: row.slug, name: row.name, ssoRequested: row.sso_requested, createdAt: new Date(row.created_at), owners: row.owners }));
   },
 
   async decideOrganization(sql: SqlExecutor, actor: string | null, slug: string, decision: 'approve' | 'reject') {
-    const [row] = await call<{ outcome: 'changed' | 'unchanged' | 'not-found'; organization_name: string | null; status: string | null; owner_emails: string[] }>(
+    const [row] = await callOps<{ outcome: 'changed' | 'unchanged' | 'not-found'; organization_name: string | null; status: string | null; owner_emails: string[] }>(
       sql,
       'SELECT * FROM app_ops_decide_organization($1::uuid, $2, $3)',
       [actor, slug, decision],
@@ -161,7 +162,7 @@ export const operatorOps = {
   },
 
   async organizations(sql: SqlExecutor, actor: string): Promise<OperatorOrganization[]> {
-    return (await call<Record<string, unknown>>(sql, 'SELECT * FROM app_ops_organizations($1::uuid)', [actor])).map((row) => ({
+    return (await callOps<Record<string, unknown>>(sql, 'SELECT * FROM app_ops_organizations($1::uuid)', [actor])).map((row) => ({
       id: String(row['id']),
       slug: String(row['slug']),
       name: String(row['name']),
@@ -178,34 +179,34 @@ export const operatorOps = {
   },
 
   async setOrganizationStatus(sql: SqlExecutor, actor: string, organizationId: string, status: 'ACTIVE' | 'SUSPENDED'): Promise<boolean> {
-    const [row] = await call<{ ok: boolean }>(sql, 'SELECT app_ops_set_organization_status($1::uuid, $2::uuid, $3) AS ok', [actor, organizationId, status]);
+    const [row] = await callOps<{ ok: boolean }>(sql, 'SELECT app_ops_set_organization_status($1::uuid, $2::uuid, $3) AS ok', [actor, organizationId, status]);
     return row?.ok === true;
   },
 
   async setFlags(sql: SqlExecutor, actor: string, organizationId: string, flags: { pilotMode: boolean; liveConnectors: boolean }): Promise<void> {
     // The function returns void; cast so drivers can read the row.
-    await call(sql, 'SELECT app_ops_set_flags($1::uuid, $2::uuid, $3, $4)::text AS done', [actor, organizationId, flags.pilotMode, flags.liveConnectors]);
+    await callOps(sql, 'SELECT app_ops_set_flags($1::uuid, $2::uuid, $3, $4)::text AS done', [actor, organizationId, flags.pilotMode, flags.liveConnectors]);
   },
 
   /** MCP for an organization (T-084): off until an operator turns it on. Audited (org.mcp_enabled / org.mcp_disabled). */
   async setMcp(sql: SqlExecutor, actor: string, organizationId: string, enabled: boolean): Promise<void> {
-    await call(sql, 'SELECT app_ops_set_mcp($1::uuid, $2::uuid, $3)::text AS done', [actor, organizationId, enabled]);
+    await callOps(sql, 'SELECT app_ops_set_mcp($1::uuid, $2::uuid, $3)::text AS done', [actor, organizationId, enabled]);
   },
 
   /** Which organizations have MCP on. */
   async mcpOrganizations(sql: SqlExecutor, actor: string): Promise<Map<string, boolean>> {
-    const rows = await call<{ organization_id: string; mcp_enabled: boolean }>(sql, 'SELECT organization_id::text, mcp_enabled FROM app_ops_mcp_organizations($1::uuid)', [actor]);
+    const rows = await callOps<{ organization_id: string; mcp_enabled: boolean }>(sql, 'SELECT organization_id::text, mcp_enabled FROM app_ops_mcp_organizations($1::uuid)', [actor]);
     return new Map(rows.map((row) => [row.organization_id, row.mcp_enabled]));
   },
 
   /** The flags of the caller's own organization; defaults when none were set. */
   async organizationFlags(sql: SqlExecutor, organizationId: string, userId: string): Promise<{ pilotMode: boolean; liveConnectors: boolean }> {
-    const [row] = await call<{ pilot_mode: boolean; live_connectors: boolean }>(sql, 'SELECT * FROM app_organization_flags($1::uuid, $2::uuid)', [organizationId, userId]);
+    const [row] = await callOps<{ pilot_mode: boolean; live_connectors: boolean }>(sql, 'SELECT * FROM app_organization_flags($1::uuid, $2::uuid)', [organizationId, userId]);
     return { pilotMode: row?.pilot_mode === true, liveConnectors: row ? row.live_connectors !== false : true };
   },
 
   async users(sql: SqlExecutor, actor: string, filter: { organizationId?: string | null; query?: string | null }): Promise<OperatorUser[]> {
-    return (await call<Record<string, unknown>>(sql, 'SELECT * FROM app_ops_users($1::uuid, $2::uuid, $3)', [actor, filter.organizationId ?? null, filter.query ?? null])).map((row) => ({
+    return (await callOps<Record<string, unknown>>(sql, 'SELECT * FROM app_ops_users($1::uuid, $2::uuid, $3)', [actor, filter.organizationId ?? null, filter.query ?? null])).map((row) => ({
       userId: String(row['user_id']),
       displayName: String(row['display_name']),
       email: (row['email'] as string | null) ?? null,
@@ -218,12 +219,12 @@ export const operatorOps = {
   },
 
   async setMemberStatus(sql: SqlExecutor, actor: string, organizationId: string, userId: string, status: 'ACTIVE' | 'SUSPENDED'): Promise<boolean> {
-    const [row] = await call<{ ok: boolean }>(sql, 'SELECT app_ops_set_member_status($1::uuid, $2::uuid, $3::uuid, $4) AS ok', [actor, organizationId, userId, status]);
+    const [row] = await callOps<{ ok: boolean }>(sql, 'SELECT app_ops_set_member_status($1::uuid, $2::uuid, $3::uuid, $4) AS ok', [actor, organizationId, userId, status]);
     return row?.ok === true;
   },
 
   async connections(sql: SqlExecutor, actor: string) {
-    return (await call<Record<string, unknown>>(sql, 'SELECT * FROM app_ops_connections($1::uuid)', [actor])).map((row) => ({
+    return (await callOps<Record<string, unknown>>(sql, 'SELECT * FROM app_ops_connections($1::uuid)', [actor])).map((row) => ({
       organizationName: String(row['organization_name']),
       provider: String(row['provider']),
       displayName: String(row['display_name']),
@@ -236,7 +237,7 @@ export const operatorOps = {
 
   async auditEvents(sql: SqlExecutor, actor: string, filter: { action?: string | null; since?: Date | null; limit?: number }) {
     return (
-      await call<Record<string, unknown>>(sql, 'SELECT * FROM app_ops_audit_events($1::uuid, $2, $3::timestamptz, $4::int)', [actor, filter.action ?? null, filter.since ?? null, filter.limit ?? 200])
+      await callOps<Record<string, unknown>>(sql, 'SELECT * FROM app_ops_audit_events($1::uuid, $2, $3::timestamptz, $4::int)', [actor, filter.action ?? null, filter.since ?? null, filter.limit ?? 200])
     ).map((row) => ({
       occurredAt: new Date(row['occurred_at'] as string),
       organizationName: String(row['organization_name']),
@@ -264,7 +265,7 @@ export const operatorOps = {
       screenshotType: string | null;
     },
   ): Promise<{ id: string; number: number; deduplicated: boolean }> {
-    const [row] = await call<{ id: string; number: number; deduplicated: boolean }>(
+    const [row] = await callOps<{ id: string; number: number; deduplicated: boolean }>(
       sql,
       'SELECT * FROM app_bug_file($1::uuid, $2::uuid, $3::uuid, $4, $5, $6, $7, $8, $9, $10::jsonb, $11::bytea, $12)',
       [
@@ -287,13 +288,13 @@ export const operatorOps = {
   },
 
   async bugs(sql: SqlExecutor, actor: string, mine: boolean): Promise<BugListRow[]> {
-    return (await call<Record<string, unknown>>(sql, 'SELECT * FROM app_bug_list($1::uuid, $2)', [actor, mine])).map(bugRow);
+    return (await callOps<Record<string, unknown>>(sql, 'SELECT * FROM app_bug_list($1::uuid, $2)', [actor, mine])).map(bugRow);
   },
 
   async bug(sql: SqlExecutor, actor: string, id: string): Promise<BugDetailRow | null> {
-    const [row] = await call<Record<string, unknown>>(sql, 'SELECT * FROM app_bug_get($1::uuid, $2::uuid)', [actor, id]);
+    const [row] = await callOps<Record<string, unknown>>(sql, 'SELECT * FROM app_bug_get($1::uuid, $2::uuid)', [actor, id]);
     if (!row) return null;
-    const [reply] = await call<{ note: string | null }>(sql, 'SELECT app_bug_reply_get($1::uuid, $2::uuid) AS note', [actor, id]);
+    const [reply] = await callOps<{ note: string | null }>(sql, 'SELECT app_bug_reply_get($1::uuid, $2::uuid) AS note', [actor, id]);
     return {
       ...bugRow(row),
       hasScreenshot: row['screenshot'] != null,
@@ -309,18 +310,18 @@ export const operatorOps = {
   },
 
   async triageBug(sql: SqlExecutor, actor: string, id: string, input: { status: string; severity: string; internalNotes: string | null; reporterNote: string | null }): Promise<boolean> {
-    const [row] = await call<{ ok: boolean }>(sql, 'SELECT app_bug_triage_v2($1::uuid, $2::uuid, $3, $4, $5, $6) AS ok', [actor, id, input.status, input.severity, input.internalNotes, input.reporterNote]);
+    const [row] = await callOps<{ ok: boolean }>(sql, 'SELECT app_bug_triage_v2($1::uuid, $2::uuid, $3, $4, $5, $6) AS ok', [actor, id, input.status, input.severity, input.internalNotes, input.reporterNote]);
     return row?.ok === true;
   },
 
   /** The caller's own reports (any signed-in user; scoped to them in SQL). */
   async myBugs(sql: SqlExecutor, actor: string): Promise<MyBugRow[]> {
-    return (await call<Record<string, unknown>>(sql, 'SELECT * FROM app_bug_mine_list($1::uuid)', [actor])).map(myBugRow);
+    return (await callOps<Record<string, unknown>>(sql, 'SELECT * FROM app_bug_mine_list($1::uuid)', [actor])).map(myBugRow);
   },
 
   /** One of the caller's own reports; null for anyone else's. */
   async myBug(sql: SqlExecutor, actor: string, id: string): Promise<MyBugDetailRow | null> {
-    const [row] = await call<Record<string, unknown>>(sql, 'SELECT * FROM app_bug_mine_get($1::uuid, $2::uuid)', [actor, id]);
+    const [row] = await callOps<Record<string, unknown>>(sql, 'SELECT * FROM app_bug_mine_get($1::uuid, $2::uuid)', [actor, id]);
     if (!row) return null;
     return {
       ...myBugRow(row),

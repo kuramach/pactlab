@@ -173,6 +173,8 @@ export const apiEnvSchema = baseEnvSchema.extend({
   /** SES configuration set every send names, so its bounce/complaint events reach this environment (T-109). */
   EMAIL_CONFIGURATION_SET: unsetIfBlank(z.string().regex(/^[A-Za-z0-9_-]{1,64}$/).optional()),
   /** The SNS topic those events arrive on; notifications from any other topic are refused. */
+  /** Hosting cost (admin console): the read-only Cost Explorer role in the payer account (live only). Unset: real spend is not read. */
+  COST_EXPLORER_ROLE_ARN: unsetIfBlank(z.string().regex(/^arn:aws[a-z-]*:iam::\d{12}:role\/[A-Za-z0-9+=,.@_/-]{1,128}$/).optional()),
   EMAIL_EVENTS_TOPIC_ARN: unsetIfBlank(z.string().regex(/^arn:aws[a-z-]*:sns:[a-z0-9-]+:\d{12}:[A-Za-z0-9_-]{1,256}$/).optional()),
 })
   .superRefine(allOrNone(['AUTH0_DOMAIN', 'AUTH0_AUDIENCE']))

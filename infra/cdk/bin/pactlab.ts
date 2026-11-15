@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { App } from 'aws-cdk-lib';
 import { ENVIRONMENT_NAMES, ENVIRONMENTS } from '../config';
 import { siteConfig } from '../config/site';
+import { PactlabCostReadStack } from '../lib/cost-read-stack';
 import { PactlabDeployAccessStack, PactlabEnvironmentDeployAccessStack } from '../lib/deploy-access-stack';
 import { PactlabRegistryStack } from '../lib/compute';
 import { PactlabNonliveBaseStack } from '../lib/nonlive-base-stack';
@@ -110,3 +111,11 @@ if (existsSync(siteContent)) {
 }
 
 app.synth();
+
+// Hosting cost: the read-only Cost Explorer role in the payer account, only when both accounts are named.
+const payerAccount = app.node.tryGetContext('pactlab:cost:payerAccount') as string | undefined;
+const liveAccount = app.node.tryGetContext('pactlab:cost:liveAccount') as string | undefined;
+if (payerAccount && liveAccount) {
+  assertTargetAccount('cost-read', payerAccount, process.env['CDK_DEFAULT_ACCOUNT']);
+  new PactlabCostReadStack(app, 'PactlabCostRead', { liveAccountId: liveAccount, env: { account: payerAccount, region: 'us-east-1' } });
+}

@@ -258,8 +258,8 @@ export class McpService {
       'What the other side may see of this pact, as Pactlab shares it: on a Venture Raise, the investor view for one offer; otherwise the proposed terms and the document requests. Never buyer analysis, findings or the confirmed-value ledger.',
       { dealId, offerId: z.uuid().optional() },
       async (args) => {
+        // handled: not a Venture Raise, so the seller-facing view below answers instead; anything else is the tool's error
         const investor = await this.venture.investorView(tenant, args.dealId, args.offerId, requestId).catch((error: unknown) => {
-          // handled: not a Venture Raise, so the seller-facing view below answers instead
           if ((error as { getResponse?: () => { code?: string } }).getResponse?.()?.code === 'NOT_A_VENTURE_RAISE') return null;
           throw error;
         });
