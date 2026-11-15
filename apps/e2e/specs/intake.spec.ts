@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test';
 import { startPact } from '../support/deals';
 
 /**
- * Document intake (T-098). AI is off in browser runs, so these walk the
+ * Document intake (T-098). AI runs on the fixture provider in browser runs (T-113); these walk the
  * parts that need no model: one zip in, a synthetic data room read, the
  * checklist and the request list. Classification itself is covered by the
  * API tests with a scripted model.
@@ -31,8 +31,8 @@ test('a zip of the data room is unpacked and every file inside gets its own row'
   const library = page.getByRole('navigation', { name: 'Documents' });
   await expect(library.getByRole('link', { name: /Mgmt accounts FY26\.txt/ })).toBeVisible();
   await expect(library.getByText('02 Finance', { exact: true })).toBeVisible();
-  // With AI off the files wait to be sorted, and say so.
-  await expect(library.getByText('Not sorted').first()).toBeVisible();
+  // Sorting itself is AI work (the fixture provider in these runs) and is proven in the API tests; here,
+  // only that every file landed in the library, under its folder.
 });
 
 test('a synthetic data room is read, re-read without duplicates, and the checklist asks for what is missing', { tag: '@smoke' }, async ({ page }) => {
@@ -52,7 +52,7 @@ test('a synthetic data room is read, re-read without duplicates, and the checkli
   await expect(page.getByText(/Last read .* — 0 new, 0 updated, 0 removed/)).toBeVisible();
   await expect(page.getByRole('navigation', { name: 'Documents' }).getByRole('link', { name: /BS 30-09-2026\.md/ })).toHaveCount(1);
 
-  // Nothing is sorted with AI off, so every expected input is still missing and the request lists them.
+  // The checklist lists what this pack needs, and offers the request for whatever is still missing.
   await expect(page.getByRole('heading', { name: /What this Software & SaaS pact needs/ })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Copy request for missing items' })).toBeVisible();
 });

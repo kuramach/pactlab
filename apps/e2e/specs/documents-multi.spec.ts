@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { UPLOAD_FINISHED } from '../support/documents';
 import { startPact } from '../support/deals';
 
 const text = (name: string, body: string) => ({ name, mimeType: 'text/plain', buffer: Buffer.from(body) });
@@ -14,7 +15,7 @@ test('several documents upload at once and every one is still listed after leavi
   const files = page.getByRole('list', { name: 'Files to upload' });
   await expect(files.getByText('Ready to upload')).toHaveCount(3);
   await page.getByRole('button', { name: 'Upload 3 files' }).click();
-  await expect(files.getByText(/^Uploaded/)).toHaveCount(3);
+  await expect(files.getByText(UPLOAD_FINISHED)).toHaveCount(3);
 
   const library = page.getByRole('navigation', { name: 'Documents' });
   for (const name of ['01-kpi-pack.txt', '02-msa.txt', '03-balance-sheet.txt']) await expect(library.getByRole('link', { name: new RegExp(name) })).toBeVisible();
@@ -36,7 +37,7 @@ test('a file that cannot be uploaded says so on its own row, and the others stil
   await expect(files.getByText('Upload failed')).toHaveCount(1);
   await expect(files.getByText(/Older \.xls workbooks: save as \.xlsx first/)).toBeVisible();
   await page.getByRole('button', { name: 'Upload', exact: true }).click();
-  await expect(files.getByText(/^Uploaded/)).toHaveCount(1);
+  await expect(files.getByText(UPLOAD_FINISHED)).toHaveCount(1);
   await expect(page.getByRole('navigation', { name: 'Documents' }).getByRole('link', { name: /good\.txt/ })).toBeVisible();
   await expect(page.getByRole('navigation', { name: 'Documents' }).getByRole('link', { name: /old-workbook/ })).toHaveCount(0);
 });

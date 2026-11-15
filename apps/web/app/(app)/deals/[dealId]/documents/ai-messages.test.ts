@@ -9,5 +9,7 @@ describe('AI unavailable messages', () => {
     expect(aiOutcome('AI_THROTTLED')).toBe('ai-throttled');
     expect(aiOutcome('AI_UNAVAILABLE')).toBe('ai-failed');
     expect(aiOutcome(undefined)).toBe('ai-off');
+    // The AI-off sentence (moved down from the browser test when e2e turned AI on, T-113).
+    expect(AI_UNAVAILABLE['ai-off']).toMatch(/^AI is not switched on for this environment yet\./);
   });
 });

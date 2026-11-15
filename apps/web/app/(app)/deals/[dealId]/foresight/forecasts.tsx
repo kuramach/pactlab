@@ -44,7 +44,7 @@ function StatusLine({ forecasts }: { forecasts: ForesightForecastsView }) {
 }
 
 /** Why a metric has no AI forecast, in words (batch 2): never a silent empty row. */
-function aiMissingReason(forecasts: ForesightForecastsView, aiEnabled: boolean): string {
+export function aiMissingReason(forecasts: ForesightForecastsView, aiEnabled: boolean): string {
   if (!aiEnabled) return 'AI is off in this environment.';
   if (forecasts.status === 'RUNNING' || forecasts.status === 'NONE') return 'Being prepared now.';
   const note = forecasts.notes.find((entry) => /\bAI\b/.test(entry));
