@@ -20,6 +20,8 @@ export const PROTECTED_PATH_PREFIXES = [
   '/billing',
   // The OAuth consent page for MCP clients (T-084): sign in, and pick an organization, first.
   '/oauth',
+  // Signing in a script with a device code (T-128).
+  '/device',
 ] as const;
 
 export const SELECT_ORGANIZATION_PATH = '/select-organization';

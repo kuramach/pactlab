@@ -1,3 +1,4 @@
+import { ApiAccess } from '../auth/auth.guard';
 import {
   Body,
   Controller,
@@ -86,6 +87,7 @@ export class DocumentsController {
     return this.sources.sync(tenant, params.dealId, params.sourceId, requestId);
   }
 
+  @ApiAccess()
   @Post('documents')
   async upload(
     @Tenant() tenant: TenantContext,
@@ -108,6 +110,7 @@ export class DocumentsController {
   }
 
   /** Requests to the seller for missing inputs; both sides of the pact read them. */
+  @ApiAccess()
   @Get('document-requests')
   async listRequests(
     @Tenant() tenant: TenantContext,
@@ -117,6 +120,7 @@ export class DocumentsController {
     return this.service.listRequests(tenant, params.dealId, requestId);
   }
 
+  @ApiAccess()
   @Post('document-requests')
   async createRequest(
     @Tenant() tenant: TenantContext,
@@ -147,6 +151,7 @@ export class DocumentsController {
     return this.service.intake(tenant, params.dealId, requestId);
   }
 
+  @ApiAccess()
   @Get('documents')
   async list(
     @Tenant() tenant: TenantContext,
@@ -157,6 +162,7 @@ export class DocumentsController {
     return this.service.list(tenant, params.dealId, query, requestId);
   }
 
+  @ApiAccess()
   @Get('documents/:documentId')
   async get(
     @Tenant() tenant: TenantContext,

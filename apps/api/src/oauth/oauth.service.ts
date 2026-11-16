@@ -1,19 +1,21 @@
-import { createHash, randomBytes } from 'node:crypto';
+import { createHash, randomBytes, randomInt } from 'node:crypto';
 import { Inject, Injectable } from '@nestjs/common';
-import type { AuthorizeCheckView, ConnectedAppView } from '@pactlab/contracts';
-import { oauth, type OAuthScope, type PrismaClient } from '@pactlab/db';
+import type { ApiAccessView, ApiGrantView, AuthorizeCheckView, ConnectedAppView, DeviceCheckView, Page } from '@pactlab/contracts';
+import { decodeCursor, oauth, toPage, type OAuthScope, type PrismaClient } from '@pactlab/db';
 import type { Logger } from '@pactlab/observability';
 import { z } from 'zod';
 import type { Principal } from '../auth/auth.guard';
 import { keyedHash } from '../email-login/client-address';
 import { LOGGER, PRISMA } from '../tokens';
-import { ACCESS_TOKEN_SECONDS, type McpAccessTokens } from './access-tokens';
+import { ACCESS_TOKEN_SECONDS, type ApiAccessTokens, type McpAccessTokens } from './access-tokens';
 import { ClientMetadataError, isAllowedRedirectUri, isClientMetadataUrl, type ClientMetadataFetcher } from './client-metadata';
 
 export const OAUTH = Symbol('OAUTH');
 
 export interface OAuthDependencies {
   readonly accessTokens: McpAccessTokens;
+  /** The REST API as a second protected resource (T-128). */
+  readonly apiTokens: ApiAccessTokens;
   readonly clientMetadata: ClientMetadataFetcher;
   /** Keys code and token hashes; the same secret that signs sessions. */
   readonly hashSecret: string;
@@ -32,11 +34,35 @@ export class OAuthProtocolError extends Error {
 }
 
 export const SUPPORTED_SCOPES: readonly OAuthScope[] = ['mcp:read', 'mcp:confidential', 'mcp:propose'];
+export const API_SCOPES: readonly OAuthScope[] = ['api:read', 'api:write'];
+export const DEVICE_CODE_GRANT = 'urn:ietf:params:oauth:grant-type:device_code';
+/** RFC 8628 §6.1: consonants only, so a code never spells a word, in two groups of four. */
+const USER_CODE_LETTERS = 'BCDFGHJKLMNPQRSTVWXZ';
+const DEVICE_SECONDS = 10 * 60;
+const POLL_SECONDS = 5;
+/** A script names itself when it is not a registered client (shown on the approval page as unverified). */
+const scriptClientId = z.string().regex(/^[a-z0-9][a-z0-9._-]{2,63}$/);
 const SCOPE_WORDS: Record<OAuthScope, string> = {
   'mcp:read': 'Read your pacts: findings, claims, valuation, Foresight and evidence, with citations. It cannot change anything.',
   'mcp:confidential': 'Also read confidential material your role already allows (confirmed-value ledger, founder-confidential findings).',
   'mcp:propose': 'Suggest terms and document requests for you to approve in Pactlab. It can never approve, send or change anything itself.',
+  'api:read': 'Read what you can see in Pactlab through the API: pacts, documents, findings, claims, valuation and reports. It cannot change anything.',
+  'api:write': 'Also make the changes your role allows through the API, such as uploading documents and drafting findings. Approvals and sign-offs stay in the app.',
 };
+
+type Resource = 'mcp' | 'api';
+
+/** Formats what a person typed (any case, spaces or dashes) as a user code, or null. */
+export function normalizeUserCode(input: string): string | null {
+  const letters = input.toUpperCase().replace(/[^A-Z]/g, '');
+  if (letters.length !== 8 || [...letters].some((letter) => !USER_CODE_LETTERS.includes(letter))) return null;
+  return `${letters.slice(0, 4)}-${letters.slice(4)}`;
+}
+
+function newUserCode(): string {
+  const letters = Array.from({ length: 8 }, () => USER_CODE_LETTERS[randomInt(USER_CODE_LETTERS.length)]).join('');
+  return `${letters.slice(0, 4)}-${letters.slice(4)}`;
+}
 
 const pkce = z.string().regex(/^[A-Za-z0-9._~-]{43,128}$/);
 export const authorizeParamsSchema = z.object({
@@ -80,23 +106,37 @@ export class OAuthService {
     return this.deps.accessTokens.resource;
   }
 
+  get apiResource(): string {
+    return this.deps.apiTokens.resource;
+  }
+
   get issuer(): string {
     return this.deps.accessTokens.issuer;
   }
 
-  private hash(kind: 'code' | 'refresh', value: string): string {
+  private hash(kind: 'code' | 'refresh' | 'device', value: string): string {
     return keyedHash(this.deps.hashSecret, `oauth-${kind}:${value}`);
   }
 
-  /** RFC 8707: the token is for this MCP server only. Scheme and host compare case-insensitively; no trailing slash. */
-  private isOurResource(value: string | undefined): boolean {
-    if (value === undefined) return false;
+  /** RFC 8707: which of our resources a token is for. Scheme and host compare case-insensitively; no trailing slash. */
+  private resourceOf(value: string | undefined): Resource | null {
+    if (value === undefined) return null;
     try {
       const url = new URL(value);
-      return `${url.origin}${url.pathname.replace(/\/$/, '')}` === this.resource && !url.search && !url.hash;
+      if (url.search || url.hash) return null;
+      const canonical = `${url.origin}${url.pathname.replace(/\/$/, '')}`;
+      return canonical === this.resource ? 'mcp' : canonical === this.apiResource ? 'api' : null;
     } catch {
-      return false;
+      return null;
     }
+  }
+
+  private resourceUri(resource: Resource): string {
+    return resource === 'mcp' ? this.resource : this.apiResource;
+  }
+
+  private async enabled(resource: Resource, organizationId: string): Promise<boolean> {
+    return resource === 'mcp' ? oauth.mcpEnabled(this.prisma, organizationId) : oauth.apiEnabled(this.prisma, organizationId);
   }
 
   // --- Registration (RFC 7591; deprecated in MCP, kept for clients without CIMD) -------------
@@ -109,8 +149,8 @@ export class OAuthService {
     if (metadata.token_endpoint_auth_method && metadata.token_endpoint_auth_method !== 'none') {
       throw new OAuthProtocolError('invalid_client_metadata', 'Only public clients (token_endpoint_auth_method "none") are supported.');
     }
-    if (metadata.grant_types?.some((grant) => grant !== 'authorization_code' && grant !== 'refresh_token')) {
-      throw new OAuthProtocolError('invalid_client_metadata', 'Only authorization_code and refresh_token grants are supported.');
+    if (metadata.grant_types?.some((grant) => grant !== 'authorization_code' && grant !== 'refresh_token' && grant !== DEVICE_CODE_GRANT)) {
+      throw new OAuthProtocolError('invalid_client_metadata', 'Only authorization_code, refresh_token and device_code grants are supported.');
     }
     const clientId = `pl_${randomBytes(18).toString('base64url')}`;
     const stored = await oauth.registerClient(this.prisma, { clientId, clientName: metadata.client_name, redirectUris: metadata.redirect_uris, ipHash: keyedHash(this.deps.hashSecret, `ip:${ip}`) });
@@ -167,28 +207,35 @@ export class OAuthService {
     const parsed = authorizeParamsSchema.safeParse(params);
     if (!parsed.success) return back('invalid_request', 'PKCE (S256), response_type=code and the redirect URI are required.');
     if (parsed.data.response_type !== 'code') return back('unsupported_response_type', 'Only response_type=code is supported.');
-    if (!this.isOurResource(parsed.data.resource)) return back('invalid_target', `resource must be ${this.resource}.`);
-    const scopes = this.scopes(parsed.data.scope);
-    if (!scopes) return back('invalid_scope', `Supported scopes: ${SUPPORTED_SCOPES.join(' ')}.`);
+    const resource = this.resourceOf(parsed.data.resource);
+    if (!resource) return back('invalid_target', `resource must be ${this.resource} or ${this.apiResource}.`);
+    const scopes = this.scopes(resource, parsed.data.scope);
+    if (!scopes) return back('invalid_scope', `Supported scopes: ${(resource === 'mcp' ? SUPPORTED_SCOPES : API_SCOPES).join(' ')}.`);
     if (principal.issuer !== 'PACTLAB' || !principal.sessionId) return { kind: 'error', message: 'Connecting apps is available for organizations that sign in with Pactlab (email code or passkey).' };
     if (!principal.externalOrganizationId) return { kind: 'choose-organization' };
-    if (!(await oauth.mcpEnabled(this.prisma, principal.externalOrganizationId))) {
-      return { kind: 'error', message: 'Connecting AI apps isn’t switched on for your organization yet. Ask Pactlab to turn it on.' };
-    }
+    if (!(await this.enabled(resource, principal.externalOrganizationId))) return { kind: 'error', message: this.switchedOff(resource) };
     return {
       kind: 'consent',
+      resource,
       client: { name: client.name, host: new URL(clientId.startsWith('https://') ? clientId : redirectUri).host, verified: client.kind === 'METADATA_DOCUMENT' },
       scopes: scopes.map((scope) => ({ scope, description: SCOPE_WORDS[scope] })),
       redirectHost: new URL(redirectUri).host,
     };
   }
 
-  private scopes(scope: string | undefined): OAuthScope[] | null {
-    if (!scope) return ['mcp:read'];
+  private switchedOff(resource: Resource): string {
+    return resource === 'mcp'
+      ? 'Connecting AI apps isn’t switched on for your organization yet. Ask Pactlab to turn it on.'
+      : 'API access is switched off for your organization. An organization owner or admin can turn it on in Settings.';
+  }
+
+  /** The scopes asked for, each resource's own only; read always comes with the rest. */
+  private scopes(resource: Resource, scope: string | undefined): OAuthScope[] | null {
+    const [read, supported] = resource === 'mcp' ? (['mcp:read', SUPPORTED_SCOPES] as const) : (['api:read', API_SCOPES] as const);
+    if (!scope) return [read];
     const requested = [...new Set(scope.split(' ').filter(Boolean))];
-    if (requested.some((entry) => !SUPPORTED_SCOPES.includes(entry as OAuthScope))) return null;
-    // Confidential material is read material: it always comes with read.
-    return [...new Set<OAuthScope>(['mcp:read', ...(requested as OAuthScope[])])];
+    if (requested.some((entry) => !supported.includes(entry as OAuthScope))) return null;
+    return [...new Set<OAuthScope>([read, ...(requested as OAuthScope[])])];
   }
 
   /** The person's decision: a redirect back to the client with a code (or access_denied). */
@@ -208,7 +255,7 @@ export class OAuthService {
       codeHash: this.hash('code', code),
       codeChallenge: request.code_challenge,
       redirectUri: request.redirect_uri,
-      resource: this.resource,
+      resource: this.resourceUri(checked.resource),
     });
     if (!grant) throw new OAuthProtocolError('access_denied', 'This authorization cannot proceed.', 422);
     return { redirectTo: this.redirect(request.redirect_uri, { code, state: request.state }) };
@@ -232,7 +279,7 @@ export class OAuthService {
         record.clientId !== clientId ||
         record.redirectUri !== value('redirect_uri') ||
         record.codeChallenge !== challenge ||
-        (resource !== undefined && !this.isOurResource(resource))
+        (resource !== undefined && this.resourceOf(resource) !== this.resourceOf(record.resource))
       ) {
         throw new OAuthProtocolError('invalid_grant', 'The code is invalid, expired, already used, or does not match this request.');
       }
@@ -242,19 +289,107 @@ export class OAuthService {
       const refresh = value('refresh_token');
       if (!refresh || !clientId) throw new OAuthProtocolError('invalid_request', 'refresh_token and client_id are required.');
       const resource = value('resource');
-      if (resource !== undefined && !this.isOurResource(resource)) throw new OAuthProtocolError('invalid_target', `resource must be ${this.resource}.`);
+      if (resource !== undefined && !this.resourceOf(resource)) throw new OAuthProtocolError('invalid_target', `resource must be ${this.resource} or ${this.apiResource}.`);
       const record = await oauth.useRefresh(this.prisma, this.hash('refresh', refresh));
       if (!record || record.clientId !== clientId) throw new OAuthProtocolError('invalid_grant', 'The refresh token is invalid, expired or already used.');
+      if (resource !== undefined && this.resourceOf(resource) !== this.resourceOf(record.resource)) throw new OAuthProtocolError('invalid_target', 'resource does not match this refresh token.');
       return this.tokensFor(record);
     }
-    throw new OAuthProtocolError('unsupported_grant_type', 'Supported: authorization_code, refresh_token.');
+    if (grantType === DEVICE_CODE_GRANT) return this.deviceToken(value('device_code'), clientId);
+    throw new OAuthProtocolError('unsupported_grant_type', `Supported: authorization_code, refresh_token, ${DEVICE_CODE_GRANT}.`);
   }
 
-  private async tokensFor(record: { grantId: string; subject: string; organizationId: string; clientId: string; scopes: OAuthScope[] }) {
-    const accessToken = await this.deps.accessTokens.issue({ subject: record.subject, organizationId: record.organizationId, grantId: record.grantId, clientId: record.clientId, scopes: record.scopes });
+  private async tokensFor(record: { grantId: string; subject: string; organizationId: string; clientId: string; scopes: OAuthScope[]; resource: string }) {
+    const resource = this.resourceOf(record.resource);
+    if (!resource) throw new OAuthProtocolError('invalid_grant', 'This grant is for a resource Pactlab no longer serves.');
+    const issuer = resource === 'mcp' ? this.deps.accessTokens : this.deps.apiTokens;
+    const accessToken = await issuer.issue({ subject: record.subject, organizationId: record.organizationId, grantId: record.grantId, clientId: record.clientId, scopes: record.scopes });
     const refreshToken = random();
-    await oauth.issueRefresh(this.prisma, { grantId: record.grantId, tokenHash: this.hash('refresh', refreshToken), scopes: record.scopes, resource: this.resource });
+    await oauth.issueRefresh(this.prisma, { grantId: record.grantId, tokenHash: this.hash('refresh', refreshToken), scopes: record.scopes, resource: this.resourceUri(resource) });
     return { access_token: accessToken, token_type: 'Bearer', expires_in: ACCESS_TOKEN_SECONDS, refresh_token: refreshToken, scope: record.scopes.join(' ') };
+  }
+
+  // --- Device authorization grant (RFC 8628), for scripts and terminals (T-128) -------------------
+
+  /** Step 1: the script asks for a code. API scopes only; `api:read` unless it asks for more. */
+  async deviceAuthorization(form: Record<string, unknown>, ip: string, verificationUri: string) {
+    const value = (key: string) => (typeof form[key] === 'string' ? (form[key] as string).trim() : undefined);
+    const clientId = value('client_id') ?? '';
+    const resource = value('resource');
+    if (resource !== undefined && this.resourceOf(resource) !== 'api') throw new OAuthProtocolError('invalid_target', `The device flow is for the API: resource must be ${this.apiResource}.`);
+    const scopes = this.scopes('api', value('scope'));
+    if (!scopes) throw new OAuthProtocolError('invalid_scope', `Supported scopes: ${API_SCOPES.join(' ')}.`);
+    const known = clientId && !scriptClientId.safeParse(clientId).success ? await this.client(clientId) : null;
+    if (!known && !scriptClientId.safeParse(clientId).success) {
+      throw new OAuthProtocolError('invalid_client', 'client_id must be a registered client, or a name for your script: 3 to 64 lowercase letters, digits, dots, dashes or underscores.', 401);
+    }
+    const clientName = known?.name ?? (value('client_name') || clientId).slice(0, 120);
+    const deviceCode = random();
+    let userCode = newUserCode();
+    let stored = false;
+    // A clash of user codes among the few pending ones is unlikely; a second draw settles it.
+    for (let attempt = 0; attempt < 2 && !stored; attempt += 1) {
+      if (attempt > 0) userCode = newUserCode();
+      if (await oauth.deviceLookup(this.prisma, userCode)) continue;
+      const ok = await oauth.deviceStart(this.prisma, { clientId, clientName, scopes, resource: this.apiResource, deviceCodeHash: this.hash('device', deviceCode), userCode, ipHash: keyedHash(this.deps.hashSecret, `ip:${ip}`) });
+      if (!ok) throw new OAuthProtocolError('slow_down', 'Too many sign-in codes from this address; try again later.', 429);
+      stored = true;
+    }
+    if (!stored) throw new OAuthProtocolError('temporarily_unavailable', 'Please try again.', 503);
+    return {
+      device_code: deviceCode,
+      user_code: userCode,
+      verification_uri: verificationUri,
+      verification_uri_complete: `${verificationUri}?code=${userCode}`,
+      expires_in: DEVICE_SECONDS,
+      interval: POLL_SECONDS,
+    };
+  }
+
+  /** Step 3: the script polls with its device code (RFC 8628 §3.4–3.5). */
+  private async deviceToken(deviceCode: string | undefined, clientId: string | undefined) {
+    if (!deviceCode || !clientId) throw new OAuthProtocolError('invalid_request', 'device_code and client_id are required.');
+    const polled = await oauth.devicePoll(this.prisma, this.hash('device', deviceCode));
+    switch (polled.outcome) {
+      case 'APPROVED':
+        if (polled.subject.clientId !== clientId) throw new OAuthProtocolError('invalid_grant', 'This device code was issued to another client.');
+        return this.tokensFor(polled.subject);
+      case 'PENDING':
+        throw new OAuthProtocolError('authorization_pending', 'Waiting for you to approve the code in Pactlab.');
+      case 'SLOW_DOWN':
+        throw new OAuthProtocolError('slow_down', `Poll at most every ${POLL_SECONDS} seconds.`);
+      case 'DENIED':
+        throw new OAuthProtocolError('access_denied', 'The request was declined.');
+      case 'EXPIRED':
+        throw new OAuthProtocolError('expired_token', 'The code expired; start again.');
+      default:
+        throw new OAuthProtocolError('invalid_grant', 'The device code is invalid or already used.');
+    }
+  }
+
+  /** Step 2, the approval page: what the code asks for, on the signed-in person's organization. */
+  async deviceCheck(principal: Principal, input: string): Promise<DeviceCheckView> {
+    if (principal.issuer !== 'PACTLAB' || !principal.sessionId) return { kind: 'error', message: 'Signing in scripts is available for organizations that sign in with Pactlab (email code or passkey).' };
+    if (!principal.externalOrganizationId) return { kind: 'choose-organization' };
+    const userCode = normalizeUserCode(input);
+    const pending = userCode ? await oauth.deviceLookup(this.prisma, userCode) : null;
+    if (!userCode || !pending) return { kind: 'error', message: 'That code isn’t valid or has expired. Check it, or start the sign-in again from your script.' };
+    if (!(await oauth.apiEnabled(this.prisma, principal.externalOrganizationId))) return { kind: 'error', message: this.switchedOff('api') };
+    return {
+      kind: 'consent',
+      userCode,
+      client: { name: pending.clientName, verified: isClientMetadataUrl(pending.clientId) },
+      scopes: pending.scopes.map((scope) => ({ scope, description: SCOPE_WORDS[scope] })),
+      expiresAt: pending.expiresAt.toISOString(),
+    };
+  }
+
+  async deviceDecide(principal: Principal, input: string, approve: boolean): Promise<{ outcome: 'approved' | 'declined' }> {
+    const checked = await this.deviceCheck(principal, input);
+    if (checked.kind !== 'consent' || !principal.sessionId) throw new OAuthProtocolError('DEVICE_CODE_INVALID', checked.kind === 'error' ? checked.message : 'Choose an organization first.', 422);
+    const grant = await oauth.deviceDecide(this.prisma, principal.sessionId, checked.userCode, approve);
+    if (approve && !grant) throw new OAuthProtocolError('DEVICE_CODE_INVALID', 'This code can no longer be approved. Start the sign-in again from your script.', 422);
+    return { outcome: approve ? 'approved' : 'declined' };
   }
 
   /** RFC 7009: always 200; a refresh token ends its grant, anything else is ignored. */
@@ -289,5 +424,37 @@ export class OAuthService {
     const removed = await oauth.revokeGrant(this.prisma, this.sessionOf(principal), grantId);
     if (!removed) throw new OAuthProtocolError('APP_NOT_FOUND', 'Not one of your connected apps.', 422);
     return this.connectedApps(principal);
+  }
+
+  // --- API access for organization admins (T-128) ------------------------------------------------
+
+  /** Whether API access is on, and every member's API grants, a page at a time. */
+  async apiAccess(principal: Principal, cursor: string | undefined, limit: number): Promise<ApiAccessView> {
+    const session = this.sessionOf(principal);
+    const organizationId = await oauth.adminOrganization(this.prisma, session);
+    if (!organizationId) throw new OAuthProtocolError('FORBIDDEN', 'Organization owners and admins only.', 403);
+    const after = decodeCursor(cursor);
+    const { rows, total } = await oauth.organizationApiGrants(this.prisma, session, after && typeof after.key === 'string' ? { createdAt: new Date(after.key), id: after.id } : null, limit + 1);
+    const grants: Page<ApiGrantView> = toPage(rows, { limit }, total, (row) => row.createdAt, (row) => ({
+      id: row.id,
+      personName: row.userName,
+      personEmail: row.userEmail,
+      clientName: row.clientName,
+      clientHost: row.clientId.startsWith('https://') ? new URL(row.clientId).host : null,
+      scopes: row.scopes,
+      createdAt: row.createdAt.toISOString(),
+      lastUsedAt: row.lastUsedAt?.toISOString() ?? null,
+    }));
+    return { enabled: await oauth.apiEnabled(this.prisma, organizationId), grants };
+  }
+
+  async setApiAccess(principal: Principal, enabled: boolean): Promise<{ enabled: boolean }> {
+    if (!(await oauth.setApiEnabled(this.prisma, this.sessionOf(principal), enabled))) throw new OAuthProtocolError('FORBIDDEN', 'Organization owners and admins only.', 403);
+    return { enabled };
+  }
+
+  async revokeMemberGrant(principal: Principal, grantId: string): Promise<{ revoked: true }> {
+    if (!(await oauth.adminRevoke(this.prisma, this.sessionOf(principal), grantId))) throw new OAuthProtocolError('APP_NOT_FOUND', 'Not an active grant in your organization.', 422);
+    return { revoked: true };
   }
 }

@@ -63,3 +63,17 @@ T-084 puts Pactlab inside the AI tools deal teams already use (Claude, Copilot a
 - **Isolation:** RLS on `agent_proposals` is buyer side only, on the organization and the deal. Tests cover another organization and a target contributor.
 - **Audit:** `agent_proposal.created`, `.approved`, `.rejected` and `.failed`, plus `mcp.tool_called`.
 - **Still to come:** `submit_evidence` follows as T-084b PR 2, through an external-agent evidence source and the direction-map checks.
+
+## Addendum (T-128, 2026-11-16): the REST API as a second protected resource
+
+Kumar asked for API access "secure and per login since we can track it by user". Rather than static personal tokens, the REST API joins the MCP server as a second resource of the same authorization server, so it inherits per-person grants, revocation, rotating refresh tokens and audit.
+
+- **Resource and tokens:** the API is `<origin>/v1`. `ApiAccessTokens` are HS256 JWTs with that audience and a key derived for this purpose alone (`pactlab:api-access-token:v1`). An API token is refused at `/v1/mcp`, an MCP token is refused on the API, and a session token is neither.
+- **Scopes:** `api:read` (the default; GET and HEAD) and `api:write` (anything else). Read always comes with write.
+- **Allowlist:** a route is open to API tokens only when marked `@ApiAccess()`; every other route answers 403 `NOT_AVAILABLE_TO_API`. Admin, billing, sign-in, OAuth, Connected apps, approvals and sign-offs stay app-only, and routes needing a recent sign-in refuse API tokens because there is no session.
+- **Same tenant as a session:** the guard resolves the tenant from the grant's person and organization with `resolvePrincipal`, so every role check, RLS policy and confidentiality rule applies unchanged.
+- **Scripts:** the device authorization grant (RFC 8628). `POST /v1/oauth/device_authorization` gives a device code (stored only as a hash) and an eight-letter consonant user code. The person approves it at `/device` while signed in (a recent sign-in, no demo sessions). The script polls the token endpoint (`authorization_pending`, `slow_down` within 5 seconds, `access_denied`, `expired_token`). Codes last 10 minutes and are limited to 30 an hour per address. A script that isn't a registered client names itself (`[a-z0-9._-]{3,64}`) and is shown as unverified.
+- **Apps:** the existing authorization code with PKCE, with `resource=<origin>/v1`.
+- **Organization switch:** `organization_flags.api_enabled` is on by default (MCP stays off by default). Organization owners and admins turn it off in Settings → API access, which takes effect at once (403 `API_DISABLED`), and they can list and remove any member's API grant. Changes are audited as `oauth.api_enabled`, `oauth.api_disabled` and `oauth.grant_revoked`.
+- **Usage:** `last_used_at` is updated at most once a minute (`app_oauth_grant_access`, a new function, so the running release keeps `app_oauth_grant_state`).
+- **Rollback:** the migration is expand-only. Dropping `oauth_device_codes` and the new functions, and restoring the scope check, undoes it.
