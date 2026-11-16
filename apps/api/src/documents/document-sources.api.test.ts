@@ -41,7 +41,16 @@ describe('document sources, requests and customer gaps (T-098)', () => {
   const tokens: Record<string, string> = {};
   const secrets = new MemorySecretStore();
   // A copy the tests change, to simulate a new version and a deletion at the source.
-  const rooms: Record<string, FixtureRoom> = { 'brightwave-saas': structuredClone(FIXTURE_ROOMS['brightwave-saas'] as FixtureRoom) };
+  const rooms: Record<string, FixtureRoom> = {
+    'brightwave-saas': structuredClone(FIXTURE_ROOMS['brightwave-saas'] as FixtureRoom),
+    // A room larger than one sync reads (T-126): 450 small text files.
+    'large-room': {
+      ...(structuredClone(FIXTURE_ROOMS['brightwave-saas']) as FixtureRoom),
+      id: 'large-room',
+      label: 'Large room (synthetic)',
+      files: Array.from({ length: 450 }, (_, n) => ({ folder: 'Bulk', name: `File ${String(n).padStart(3, '0')}.md`, text: `Synthetic bulk file ${n}, distinct content ${n * 7919}.`, version: 1 })),
+    } as FixtureRoom,
+  };
   const drive: Record<string, string> = {};
   let sourceId = '';
 
@@ -153,6 +162,20 @@ describe('document sources, requests and customer gaps (T-098)', () => {
       const intake = await call('lead', 'GET', '/intake');
       expect(intake.body['removedAtSource']).toEqual([expect.objectContaining({ fileName: 'Cert of Inc - Brightwave.md' })]);
     });
+
+    it('reads a large room across syncs, 200 files at a time, saying what is left, and marks nothing removed meanwhile (T-126)', async () => {
+      const connected = await call('lead', 'POST', '/document-sources', { provider: 'google-drive', mode: 'FIXTURE', displayName: 'Large room', folder: 'large-room' });
+      expect(connected.status).toBe(201);
+      const large = connected.body['id'] as string;
+      const first = await call('lead', 'POST', `/document-sources/${large}/sync`);
+      expect(first.body).toMatchObject({ waiting: 250, complete: true, summary: { NEW: 200, WAITING: 250, REMOVED: 0 } });
+      // Only what changed is listed back; waiting files are a count.
+      expect((first.body['files'] as SyncFile[]).every((file) => file.outcome === 'NEW')).toBe(true);
+      const second = await call('lead', 'POST', `/document-sources/${large}/sync`);
+      expect(second.body).toMatchObject({ waiting: 50, summary: { NEW: 200, UNCHANGED: 200, WAITING: 50, REMOVED: 0 } });
+      const third = await call('lead', 'POST', `/document-sources/${large}/sync`);
+      expect(third.body).toMatchObject({ waiting: 0, summary: { NEW: 50, UNCHANGED: 400, WAITING: 0, REMOVED: 0 } });
+    }, 120_000);
 
     it('reads a live Google Drive folder with a stored token that is never returned', async () => {
       const connected = await call('lead', 'POST', '/document-sources', {

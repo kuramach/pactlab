@@ -88,6 +88,7 @@ function normalize(value: string | null): string | null {
 /** Asking prices, newest version first. RLS keeps them on the buyer side. */
 export const askingPrices = {
   async history(tx: TransactionClient, dealId: string): Promise<AskingPriceRecord[]> {
+    // bounded: one pact's own records of this kind (tens: a checklist, versions, entries, its sources)
     const rows = await tx.askingPrice.findMany({ where: { dealId }, select, orderBy: { version: 'desc' } });
     return (rows as unknown as Row[]).map(toRecord);
   },
@@ -96,6 +97,7 @@ export const askingPrices = {
   async currentFor(tx: TransactionClient, dealIds: readonly string[]): Promise<Map<string, AskingPriceRecord>> {
     const current = new Map<string, AskingPriceRecord>();
     if (dealIds.length === 0) return current;
+    // bounded: the ids just above (one page, or the few people and records it names)
     const rows = (await tx.askingPrice.findMany({
       where: { dealId: { in: [...dealIds] } },
       select,

@@ -111,14 +111,19 @@ export class ReportsService {
    */
   private async committee(tenant: TenantContext, dealId: string): Promise<CommitteeRecord | null> {
     return withTenant(this.prisma, tenant, async (tx) => {
+      // bounded: one pact's own records of this kind (tens: a checklist, versions, entries, its sources)
       const submissions = await tx.icSubmission.findMany({ where: { dealId }, orderBy: { submittedAt: 'asc' } });
       if (submissions.length === 0) return null;
       const [decisions, conditions, versions] = await Promise.all([
+        // bounded: one pact's own records of this kind (tens: a checklist, versions, entries, its sources)
         tx.icDecision.findMany({ where: { dealId } }),
+        // bounded: one pact's own records of this kind (tens: a checklist, versions, entries, its sources)
         tx.icCondition.findMany({ where: { dealId }, orderBy: { ordinal: 'asc' } }),
+        // bounded: the ids just above (one page, or the few people and records it names)
         tx.reportVersion.findMany({ where: { id: { in: submissions.map((row) => row.reportVersionId) } }, select: { id: true, version: true } }),
       ]);
       const people = new Map(
+        // bounded: the ids just above (one page, or the few people and records it names)
         (await tx.user.findMany({ where: { id: { in: [...submissions.map((row) => row.submittedBy), ...decisions.map((row) => row.decidedBy)] } }, select: { id: true, displayName: true } })).map((user) => [user.id, user.displayName]),
       );
       return {

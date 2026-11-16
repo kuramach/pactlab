@@ -164,8 +164,10 @@ export class PhasesService {
   async claims(tenant: TenantContext, dealId: string, requestId: string): Promise<{ items: ClaimView[]; canEdit: boolean }> {
     const role = await this.access.require(tenant, dealId, canRead, { action: 'claims.viewed', requestId });
     return withTenant(this.prisma, tenant, async (tx) => {
+      // bounded: one pact's own records of this kind (tens: a checklist, versions, entries, its sources)
       const rows = await tx.dealClaim.findMany({ where: { dealId }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] });
       const findingIds = [...new Set(rows.flatMap((row) => row.findingIds))];
+      // bounded: the ids just above (one page, or the few people and records it names)
       const findings = findingIds.length > 0 ? await tx.finding.findMany({ where: { dealId, id: { in: findingIds } }, select: { id: true, title: true, status: true } }) : [];
       const byId = new Map(findings.map((finding) => [finding.id, finding]));
       const names = await this.names(tx, dealId);
@@ -241,6 +243,7 @@ export class PhasesService {
   async generatePostClose(tenant: TenantContext, dealId: string, requestId: string): Promise<{ created: number }> {
     await this.access.require(tenant, dealId, canWrite, { action: 'post_close.generated', requestId });
     return withTenant(this.prisma, tenant, async (tx) => {
+      // whole-set: the phase view is computed from every finding of the pact
       const findings = await tx.finding.findMany({
         where: { dealId },
         select: { id: true, title: true, status: true, direction: true, valueDriver: true, pricedRiskType: true },
@@ -263,6 +266,7 @@ export class PhasesService {
     const role = await this.access.require(tenant, dealId, canRead, { action: 'post_close.viewed', requestId });
     return withTenant(this.prisma, tenant, async (tx) => {
       const [rows, members] = await Promise.all([
+        // bounded: one pact's own records of this kind (tens: a checklist, versions, entries, its sources)
         tx.postCloseItem.findMany({ where: { dealId }, orderBy: [{ kind: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }] }),
         dealMemberships.list(tx, dealId),
       ]);

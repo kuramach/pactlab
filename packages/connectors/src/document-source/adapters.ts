@@ -38,7 +38,7 @@ export class FixtureDocumentSourceAdapter implements DocumentSourceAdapter {
   }
 
   async list(_scope: DocumentSourceScope, config: DocumentSourceConfig): Promise<SourceFile[]> {
-    return this.room(config).files.slice(0, MAX_SOURCE_FILES).map((file) => ({
+    return this.room(config).files.slice(0, MAX_SOURCE_FILES + 1).map((file) => ({
       externalId: `${config.folder}:${file.folder}/${file.name}`,
       folder: file.folder,
       name: file.name,
@@ -113,7 +113,7 @@ export class GoogleDriveDocumentSourceAdapter implements DocumentSourceAdapter {
     const token = await bearer(this.deps.secrets, scope);
     const files: SourceFile[] = [];
     const queue: { id: string; path: string }[] = [{ id: config.folder, path: '' }];
-    while (queue.length > 0 && files.length < MAX_SOURCE_FILES) {
+    while (queue.length > 0 && files.length <= MAX_SOURCE_FILES) {
       const folder = queue.shift() as { id: string; path: string };
       let pageToken: string | undefined;
       do {
@@ -143,9 +143,9 @@ export class GoogleDriveDocumentSourceAdapter implements DocumentSourceAdapter {
           });
         }
         pageToken = page.nextPageToken;
-      } while (pageToken && files.length < MAX_SOURCE_FILES);
+      } while (pageToken && files.length <= MAX_SOURCE_FILES);
     }
-    return files.slice(0, MAX_SOURCE_FILES);
+    return files.slice(0, MAX_SOURCE_FILES + 1);
   }
 
   async read(scope: DocumentSourceScope, _config: DocumentSourceConfig, file: SourceFile): Promise<Uint8Array> {
@@ -193,10 +193,10 @@ export class OneDriveDocumentSourceAdapter implements DocumentSourceAdapter {
     const { drive, item } = this.split(config);
     const files: SourceFile[] = [];
     const queue: { id: string; path: string }[] = [{ id: item, path: '' }];
-    while (queue.length > 0 && files.length < MAX_SOURCE_FILES) {
+    while (queue.length > 0 && files.length <= MAX_SOURCE_FILES) {
       const folder = queue.shift() as { id: string; path: string };
       let next: string | undefined = `${GRAPH}/drives/${drive}/items/${folder.id}/children?$select=id,name,size,cTag,file,folder&$top=200`;
-      while (next && files.length < MAX_SOURCE_FILES) {
+      while (next && files.length <= MAX_SOURCE_FILES) {
         const response = await this.deps.fetch(next, { headers: { authorization: `Bearer ${token}` } });
         if (!response.ok) throw failure(response.status);
         const page = (await response.json()) as { value?: GraphItem[]; '@odata.nextLink'?: string };
@@ -217,7 +217,7 @@ export class OneDriveDocumentSourceAdapter implements DocumentSourceAdapter {
         next = link && link.startsWith(`${GRAPH}/`) ? link : undefined;
       }
     }
-    return files.slice(0, MAX_SOURCE_FILES);
+    return files.slice(0, MAX_SOURCE_FILES + 1);
   }
 
   async read(scope: DocumentSourceScope, config: DocumentSourceConfig, file: SourceFile): Promise<Uint8Array> {

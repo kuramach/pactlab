@@ -184,6 +184,7 @@ async function recordVersion(
  */
 export const balanceSheetItems = {
   async list(tx: TransactionClient, dealId: string, filter: { includeWithdrawn?: boolean } = {}): Promise<BalanceSheetItemRecord[]> {
+    // bounded: one pact's own records of this kind (tens: a checklist, versions, entries, its sources)
     const rows = await tx.balanceSheetItem.findMany({
       where: { dealId, ...(filter.includeWithdrawn ? {} : { status: 'ACTIVE' }) },
       select,
@@ -198,6 +199,7 @@ export const balanceSheetItems = {
   },
 
   async history(tx: TransactionClient, dealId: string): Promise<BalanceSheetItemVersionRecord[]> {
+    // bounded: one pact's own records of this kind (tens: a checklist, versions, entries, its sources)
     const rows = await tx.balanceSheetItemVersion.findMany({
       where: { dealId },
       select: versionSelect,

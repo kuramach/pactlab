@@ -170,6 +170,7 @@ export class ComparablesService {
   /** Buy-side roles on any deal, or organization admins. Target contributors are not. */
   private async buyerRoles(tenant: TenantContext): Promise<DealRole[]> {
     const rows = await withTenant(this.prisma, tenant, (tx) =>
+      // bounded: one person's own memberships
       tx.dealMembership.findMany({ where: { userId: tenant.userId, status: 'ACTIVE' }, select: { role: true } }),
     );
     return rows.map((row) => row.role).filter((role) => !isCounterpartyRole(role));
@@ -627,6 +628,7 @@ export class ComparablesService {
   private async userNames(tenant: TenantContext, ids: readonly string[]): Promise<Map<string, string>> {
     if (ids.length === 0) return new Map();
     const rows = await withTenant(this.prisma, tenant, (tx) =>
+      // bounded: the ids just above (one page, or the few people and records it names)
       tx.user.findMany({ where: { id: { in: [...new Set(ids)] } }, select: { id: true, displayName: true } }),
     );
     return new Map(rows.map((row) => [row.id, row.displayName]));

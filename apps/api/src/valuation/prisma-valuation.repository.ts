@@ -188,6 +188,7 @@ export class PrismaValuationRepository implements ValuationRepository {
 
   async list(tenant: TenantContext, dealId: string): Promise<ScenarioRecord[]> {
     const rows = await withTenant(this.prisma, tenant, (tx) =>
+      // bounded: one pact's own records of this kind (tens: a checklist, versions, entries, its sources)
       tx.valuationScenario.findMany({
         where: { dealId },
         include: recordInclude,

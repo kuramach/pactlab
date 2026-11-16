@@ -136,6 +136,7 @@ export const comparables = {
 /** The deal lead's judgements of the asking price, newest first. Buyer side only. */
 export const multipleJudgements = {
   async history(tx: TransactionClient, dealId: string): Promise<MultipleJudgementRecord[]> {
+    // bounded: one pact's own records of this kind (tens: a checklist, versions, entries, its sources)
     const rows = await tx.multipleJudgement.findMany({ where: { dealId }, orderBy: [{ decidedAt: 'desc' }, { id: 'desc' }] });
     return (rows as unknown as JudgementRow[]).map(toJudgement);
   },
@@ -176,6 +177,7 @@ const anchorSelect = {
 /** Comparables the deal lead cites against the ask, oldest first. Buyer side only. */
 export const negotiationAnchors = {
   async active(tx: TransactionClient, dealId: string): Promise<NegotiationAnchorRecord[]> {
+    // bounded: one pact's own records of this kind (tens: a checklist, versions, entries, its sources)
     return tx.negotiationAnchor.findMany({
       where: { dealId, status: 'ACTIVE' },
       select: anchorSelect,

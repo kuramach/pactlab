@@ -11,6 +11,8 @@ import {
   DOCUMENT_SOURCE_LABELS,
   DocumentSourceError,
   documentSourceAdapter,
+  MAX_SOURCE_FILES,
+  MAX_SOURCE_READS,
   type DocumentSourceProvider,
   type SourceFile,
 } from '@pactlab/connectors';
@@ -40,7 +42,8 @@ const CONTENT_TYPES: Readonly<Record<string, AcceptedContentType>> = {
 };
 const contentTypeOf = (name: string) => CONTENT_TYPES[(name.split('.').pop() ?? '').toLowerCase()];
 
-export type SourceFileOutcome = 'NEW' | 'UPDATED' | 'UNCHANGED' | 'DUPLICATE' | 'REMOVED' | 'SKIPPED' | 'REJECTED';
+/** WAITING: new or changed, left for the next sync (at most MAX_SOURCE_READS are read per sync; T-126). */
+export type SourceFileOutcome = 'NEW' | 'UPDATED' | 'UNCHANGED' | 'DUPLICATE' | 'REMOVED' | 'SKIPPED' | 'REJECTED' | 'WAITING';
 
 export interface SourceSyncFile {
   readonly path: string;
@@ -93,6 +96,7 @@ export class DocumentSourcesService {
 
   async list(tenant: TenantContext, dealId: string, requestId: string) {
     await this.access.require(tenant, dealId, canManage, { action: 'document_source.list', requestId });
+    // bounded: one pact's own records of this kind (tens: a checklist, versions, entries, its sources)
     const rows = await withTenant(this.prisma, tenant, (tx) => tx.documentSource.findMany({ where: { dealId }, orderBy: { createdAt: 'asc' } }));
     return {
       items: rows.map((row) => ({
@@ -163,13 +167,18 @@ export class DocumentSourcesService {
       rooms: this.providers.fixtureRooms,
     });
 
-    let listed: SourceFile[];
+    let listing: SourceFile[];
     try {
-      listed = await adapter.list(scope, config);
+      listing = await adapter.list(scope, config);
     } catch (error) {
       sourceError(error);
     }
+    // A room larger than one listing is said so, and nothing is marked removed from a partial listing (T-126).
+    const complete = listing.length <= MAX_SOURCE_FILES;
+    const listed = listing.slice(0, MAX_SOURCE_FILES);
+    let reads = 0;
     const known = await withTenant(this.prisma, tenant, (tx) =>
+      // whole-set: a sync compares the source against every file it brought in
       tx.document.findMany({
         where: { dealId, sourceId, sourceState: 'CURRENT' },
         select: { id: true, sourceExternalId: true, sourceVersion: true, fileName: true, sourcePath: true },
@@ -193,6 +202,12 @@ export class DocumentSourcesService {
         files.push({ path, outcome: 'SKIPPED', reason: 'UNSUPPORTED_TYPE', documentId: null });
         continue;
       }
+      // At most MAX_SOURCE_READS files are read per sync; the next sync carries on, since unchanged files are skipped.
+      if (reads >= MAX_SOURCE_READS) {
+        files.push({ path, outcome: 'WAITING', reason: 'NEXT_SYNC', documentId: previous?.id ?? null });
+        continue;
+      }
+      reads += 1;
       let bytes: Uint8Array;
       try {
         bytes = await adapter.read(scope, config, file);
@@ -224,20 +239,23 @@ export class DocumentSourcesService {
         files.push({ path, outcome: 'REJECTED', reason: 'UNREADABLE_OR_INFECTED', documentId: null });
       }
     }
-    const removed = known.filter((document) => !seen.has(document.sourceExternalId ?? ''));
+    const removed = complete ? known.filter((document) => !seen.has(document.sourceExternalId ?? '')) : [];
     for (const document of removed) {
       files.push({ path: document.sourcePath ? `${document.sourcePath}/${document.fileName}` : document.fileName, outcome: 'REMOVED', reason: null, documentId: document.id });
     }
 
     const summary = Object.fromEntries(
-      (['NEW', 'UPDATED', 'UNCHANGED', 'DUPLICATE', 'REMOVED', 'SKIPPED', 'REJECTED'] as const).map((outcome) => [outcome, files.filter((file) => file.outcome === outcome).length]),
+      (['NEW', 'UPDATED', 'UNCHANGED', 'DUPLICATE', 'REMOVED', 'SKIPPED', 'REJECTED', 'WAITING'] as const).map((outcome) => [outcome, files.filter((file) => file.outcome === outcome).length]),
     );
+    // Said on the page: files still to read (sync again), or a room larger than one listing.
+    const progress = { complete, waiting: summary['WAITING'] ?? 0, listedLimit: MAX_SOURCE_FILES };
     await withTenant(this.prisma, tenant, async (tx) => {
       if (replaced.length > 0) await tx.document.updateMany({ where: { dealId, id: { in: replaced } }, data: { sourceState: 'REPLACED' } });
       if (removed.length > 0) await tx.document.updateMany({ where: { dealId, id: { in: removed.map((document) => document.id) } }, data: { sourceState: 'REMOVED' } });
-      await tx.documentSource.update({ where: { id: sourceId }, data: { lastSyncedAt: new Date(), lastSyncSummary: summary } });
+      await tx.documentSource.update({ where: { id: sourceId }, data: { lastSyncedAt: new Date(), lastSyncSummary: { ...summary, LISTING_COMPLETE: complete ? 1 : 0 } } });
       await appendAuditEvent(tx, this.audit(tenant, dealId, 'document_source.synced', sourceId, requestId));
     });
-    return { sourceId, summary, files };
+    // Unchanged and waiting files are counted in the summary, not listed: a large room would send thousands of rows.
+    return { sourceId, summary, files: files.filter((file) => file.outcome !== 'UNCHANGED' && file.outcome !== 'WAITING'), ...progress };
   }
 }

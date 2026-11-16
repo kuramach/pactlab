@@ -252,6 +252,7 @@ export const findings = {
       include: findingInclude,
     });
     if (!row) return null;
+    // bounded: the rows of one record (one finding, one term batch or one listing)
     const reviews = await tx.findingReview.findMany({
       where: { findingId, dealId },
       orderBy: [{ decidedAt: 'asc' }, { id: 'asc' }],

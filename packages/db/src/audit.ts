@@ -136,6 +136,7 @@ export const auditEvents = {
     const page = rows.slice(0, options.limit);
     const actorIds = [...new Set(page.map((row) => row.actorUserId).filter((id): id is string => id !== null))];
     const actors = actorIds.length
+      // bounded: the ids just above (one page, or the few people and records it names)
       ? await tx.user.findMany({ where: { id: { in: actorIds } }, select: { id: true, displayName: true } })
       : [];
     const names = new Map(actors.map((actor) => [actor.id, actor.displayName]));

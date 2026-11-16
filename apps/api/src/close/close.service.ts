@@ -138,17 +138,21 @@ export class CloseService {
         this.signatory(tx, dealId, 'BUYER'),
         this.signatory(tx, dealId, 'SELLER'),
         this.agreedBatch(tx, dealId),
+        // bounded: one pact's own records of this kind (tens: a checklist, versions, entries, its sources)
         tx.closingItem.findMany({ where: { dealId }, orderBy: { createdAt: 'asc' } }),
         tx.deal.findUnique({ where: { id: dealId }, select: { closedAt: true, closedByBuyer: true, closedBySeller: true } }),
+        // bounded: one pact's own records of this kind (tens: a checklist, versions, entries, its sources)
         tx.dealMembership.findMany({ where: { dealId, status: 'ACTIVE' }, select: { userId: true, role: true } }),
         this.provider(tx, tenant),
         tx.termProposalBatch.count({ where: { dealId, proposedAt: { not: null } } }),
       ]);
       const ids = [...new Set([...members.map((member) => member.userId), ...items.flatMap((item) => [item.doneBy, item.paidBy]), deal?.closedByBuyer, deal?.closedBySeller].filter((id): id is string => Boolean(id)))];
+      // bounded: the ids just above (one page, or the few people and records it names)
       const users = new Map((await tx.user.findMany({ where: { id: { in: ids } }, select: { id: true, displayName: true } })).map((user) => [user.id, user.displayName]));
       const name = (id: string | null | undefined) => (id ? (users.get(id) ?? 'a team member') : '');
       const envelope = agreed?.envelopes[0] ?? null;
       const signedBy = envelope && envelope.provider === 'FIXTURE' && this.deps.fixtureSigning ? this.deps.fixtureSigning.signedBy(envelope.providerEnvelopeId) : [];
+      // bounded: the ids just above (one page, or the few people and records it names)
       const emails = new Map((await tx.user.findMany({ where: { id: { in: [buyer?.userId, seller?.userId].filter((id): id is string => Boolean(id)) } }, select: { id: true, email: true } })).map((user) => [user.id, (user.email ?? '').toLowerCase()]));
 
       const missing: string[] = [];
@@ -295,10 +299,12 @@ export class CloseService {
   private async render(tx: TransactionClient, dealId: string, agreed: NonNullable<Awaited<ReturnType<CloseService['agreedBatch']>>>) {
     const [deal, parties, buyer, seller] = await Promise.all([
       tx.deal.findUnique({ where: { id: dealId }, select: { name: true } }),
+      // bounded: one pact's own records of this kind (tens: a checklist, versions, entries, its sources)
       tx.dealParty.findMany({ where: { dealId }, select: { role: true, name: true } }),
       this.signatory(tx, dealId, 'BUYER'),
       this.signatory(tx, dealId, 'SELLER'),
     ]);
+    // bounded: the ids just above (one page, or the few people and records it names)
     const names = new Map((await tx.user.findMany({ where: { id: { in: [buyer?.userId, seller?.userId].filter((id): id is string => Boolean(id)) } }, select: { id: true, displayName: true } })).map((user) => [user.id, user.displayName]));
     return termSheetPdf({
       dealName: deal?.name ?? 'Pact',
@@ -327,6 +333,7 @@ export class CloseService {
       if (!buyer || !seller) throw new ConflictException('Name both signatories first');
       const signing = await this.provider(tx, tenant);
       if (!signing) throw new ConflictException({ code: 'ESIGN_UNAVAILABLE' });
+      // bounded: the ids just above (one page, or the few people and records it names)
       const people = new Map((await tx.user.findMany({ where: { id: { in: [buyer.userId, seller.userId] } }, select: { id: true, displayName: true, email: true } })).map((user) => [user.id, user]));
       const [buyerUser, sellerUser] = [people.get(buyer.userId), people.get(seller.userId)];
       if (!buyerUser?.email || !sellerUser?.email) throw new ConflictException({ code: 'SIGNATORY_EMAIL_MISSING' });

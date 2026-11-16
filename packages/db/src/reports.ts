@@ -39,6 +39,7 @@ const toRecord = (row: Row, names: Map<string, string>): ReportVersionRecord => 
 
 async function withNames(tx: TransactionClient, rows: Row[]): Promise<ReportVersionRecord[]> {
   const ids = [...new Set(rows.map((row) => row.generatedBy))];
+  // bounded: the ids just above (one page, or the few people and records it names)
   const users = ids.length ? await tx.user.findMany({ where: { id: { in: ids } }, select: { id: true, displayName: true } }) : [];
   const names = new Map(users.map((user) => [user.id, user.displayName]));
   return rows.map((row) => toRecord(row, names));
@@ -95,6 +96,7 @@ export const reportVersions = {
 
   /** A deleted pact's report files: their keys, then mark them PURGED. */
   async purgeForDeal(tx: TransactionClient, dealId: string): Promise<string[]> {
+    // whole-set: purging a pact must find every stored report
     const rows = await tx.reportVersion.findMany({ where: { dealId, status: 'READY' }, select: { id: true, objectKey: true } });
     if (rows.length > 0) await tx.reportVersion.updateMany({ where: { id: { in: rows.map((row) => row.id) } }, data: { status: 'PURGED', objectKey: null } });
     return rows.flatMap((row) => (row.objectKey ? [row.objectKey] : []));

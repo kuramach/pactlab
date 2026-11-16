@@ -41,14 +41,21 @@ export class IcService {
       const [deal, organization, submissions, decisions, conditions, pactCommittee, orgCommittee] = await Promise.all([
         tx.deal.findUnique({ where: { id: dealId }, select: { icApprovalRequired: true } }),
         tx.organization.findUnique({ where: { id: tenant.organizationId }, select: { icApprovalRequired: true } }),
+        // bounded: one pact's own records of this kind (tens: a checklist, versions, entries, its sources)
         tx.icSubmission.findMany({ where: { dealId }, orderBy: { submittedAt: 'desc' } }),
+        // bounded: one pact's own records of this kind (tens: a checklist, versions, entries, its sources)
         tx.icDecision.findMany({ where: { dealId } }),
+        // bounded: one pact's own records of this kind (tens: a checklist, versions, entries, its sources)
         tx.icCondition.findMany({ where: { dealId }, orderBy: { ordinal: 'asc' } }),
+        // bounded: one pact's own records of this kind (tens: a checklist, versions, entries, its sources)
         tx.dealMembership.findMany({ where: { dealId, status: 'ACTIVE', role: COMMITTEE }, select: { userId: true } }),
+        // bounded: the organization's committee members, a handful by design
         tx.organizationMembership.findMany({ where: { organizationId: tenant.organizationId, status: 'ACTIVE', investmentCommittee: true }, select: { userId: true } }),
       ]);
+      // bounded: the ids just above (one page, or the few people and records it names)
       const versions = await tx.reportVersion.findMany({ where: { id: { in: submissions.map((row) => row.reportVersionId) } }, select: { id: true, version: true, status: true } });
       const ids = [...new Set([...submissions.map((row) => row.submittedBy), ...decisions.map((row) => row.decidedBy), ...conditions.flatMap((row) => [row.addressedBy, row.clearedBy]), ...pactCommittee.map((row) => row.userId), ...orgCommittee.map((row) => row.userId)].filter((id): id is string => Boolean(id)))];
+      // bounded: the ids just above (one page, or the few people and records it names)
       const names = new Map((await tx.user.findMany({ where: { id: { in: ids } }, select: { id: true, displayName: true } })).map((user) => [user.id, user.displayName]));
       const name = (id: string | null) => (id ? (names.get(id) ?? null) : null);
       const latest = submissions[0];
@@ -104,6 +111,7 @@ export class IcService {
   private async blockers(tx: TransactionClient, dealId: string): Promise<string[]> {
     const [inReview, openConditions, agreed, financing] = await Promise.all([
       tx.finding.count({ where: { dealId, status: { in: ['DRAFT', 'IN_REVIEW'] } } }),
+      // bounded: one pact's own records of this kind (tens: a checklist, versions, entries, its sources)
       tx.icCondition.findMany({ where: { dealId, status: 'OPEN' }, select: { text: true } }),
       tx.termProposalBatch.findFirst({ where: { dealId, agreedAt: { not: null } }, select: { id: true } }),
       closingFinancing(tx, dealId, 'BUYER'),
@@ -126,7 +134,9 @@ export class IcService {
     const blockers = await withTenant(this.prisma, tenant, async (tx) => {
       const latest = await tx.icSubmission.findFirst({ where: { dealId }, orderBy: { submittedAt: 'desc' } });
       if (latest && !(await tx.icDecision.findUnique({ where: { submissionId: latest.id } }))) throw new ConflictException({ code: 'IC_AWAITING_DECISION' });
+      // bounded: the organization's committee members, a handful by design
       const committee = await tx.organizationMembership.findMany({ where: { organizationId: tenant.organizationId, status: 'ACTIVE', investmentCommittee: true }, select: { userId: true } });
+      // bounded: one pact's own records of this kind (tens: a checklist, versions, entries, its sources)
       const members = await tx.dealMembership.findMany({ where: { dealId }, select: { userId: true } });
       const seated = new Set(members.map((row) => row.userId));
       for (const { userId } of committee) {

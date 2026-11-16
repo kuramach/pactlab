@@ -138,6 +138,7 @@ export class RegulatoryService {
       if (error instanceof TooMuchPackEvidenceError) throw new PayloadTooLargeException('Too much evidence for one regulatory run');
       throw error;
     }
+    // bounded: one pact's own records of this kind (tens: a checklist, versions, entries, its sources)
     const entries: Entry[] = (await tx.regulatoryEntry.findMany({ where: { dealId }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] })).map((row) => ({
       id: row.id,
       kind: row.kind,
@@ -145,6 +146,7 @@ export class RegulatoryService {
       citation: row.citation as unknown as DocumentCitation,
       createdAt: row.createdAt,
     }));
+    // bounded: one pact's own records of this kind (tens: a checklist, versions, entries, its sources)
     const scenarios = await tx.regulatoryScenario.findMany({ where: { dealId }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] });
     return { pack, evidence, entries, scenarios };
   }

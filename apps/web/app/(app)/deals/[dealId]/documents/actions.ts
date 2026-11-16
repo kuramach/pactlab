@@ -212,7 +212,7 @@ export async function askQuestion(dealId: string, _previous: AskState, formData:
 
 export interface SourceSyncFile {
   readonly path: string;
-  readonly outcome: 'NEW' | 'UPDATED' | 'UNCHANGED' | 'DUPLICATE' | 'REMOVED' | 'SKIPPED' | 'REJECTED';
+  readonly outcome: 'NEW' | 'UPDATED' | 'UNCHANGED' | 'DUPLICATE' | 'REMOVED' | 'SKIPPED' | 'REJECTED' | 'WAITING';
   readonly reason: string | null;
   readonly documentId: string | null;
 }
@@ -248,10 +248,10 @@ export async function connectSource(
 }
 
 /** Read new and changed files from a connected source. */
-export async function syncSource(dealId: string, sourceId: string): Promise<{ kind: 'ok'; files: SourceSyncFile[] } | { kind: 'error'; message: string }> {
+export async function syncSource(dealId: string, sourceId: string): Promise<{ kind: 'ok'; files: SourceSyncFile[]; waiting: number; complete: boolean; listedLimit: number } | { kind: 'error'; message: string }> {
   if (!uuid.safeParse(dealId).success || !uuid.safeParse(sourceId).success) return { kind: 'error', message: 'Unknown source.' };
-  const result = await apiSend<{ files: SourceSyncFile[] }>('POST', `/v1/deals/${dealId}/document-sources/${sourceId}/sync`, {});
-  if (result.kind === 'ok') return { kind: 'ok', files: result.data.files };
+  const result = await apiSend<{ files: SourceSyncFile[]; waiting: number; complete: boolean; listedLimit: number }>('POST', `/v1/deals/${dealId}/document-sources/${sourceId}/sync`, {});
+  if (result.kind === 'ok') return { kind: 'ok', files: result.data.files, waiting: result.data.waiting, complete: result.data.complete, listedLimit: result.data.listedLimit };
   return { kind: 'error', message: sourceProblem(result) };
 }
 

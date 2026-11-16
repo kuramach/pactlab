@@ -55,8 +55,13 @@ export class DocumentSourceError extends Error {
   }
 }
 
-/** Most files listed per sync; a larger room is read across syncs. */
-export const MAX_SOURCE_FILES = 500;
+/**
+ * Most files listed per sync (names and versions only, which is cheap). Adapters return one entry
+ * more when there are more, so a sync can tell a listing was cut short and say so (T-126).
+ */
+export const MAX_SOURCE_FILES = 20_000;
+/** Most new or changed files read per sync; the rest wait for the next sync, which carries on (T-126). */
+export const MAX_SOURCE_READS = 200;
 /** Largest file read from a source (the upload limit for PDF, Word and Excel). */
 export const MAX_SOURCE_FILE_BYTES = 10 * 1024 * 1024;
 
@@ -67,7 +72,7 @@ export interface DocumentSourceScope {
 export interface DocumentSourceAdapter {
   readonly provider: DocumentSourceProvider;
   readonly mode: ConnectionMode;
-  /** Every file under the folder, recursively, up to MAX_SOURCE_FILES. */
+  /** Every file under the folder, recursively, up to MAX_SOURCE_FILES + 1 (the extra one says there are more). */
   list(scope: DocumentSourceScope, config: DocumentSourceConfig): Promise<SourceFile[]>;
   read(scope: DocumentSourceScope, config: DocumentSourceConfig, file: SourceFile): Promise<Uint8Array>;
 }

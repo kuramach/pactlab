@@ -114,6 +114,7 @@ export class ListingsService {
     await this.access.require(tenant, dealId, canRun, { action: 'listing.viewed', requestId });
     const found = await withTenant(this.prisma, tenant, async (tx) => {
       const row = await tx.dealListing.findFirst({ where: { dealId } });
+      // bounded: the rows of one record (one finding, one term batch or one listing)
       return row ? { row, media: await tx.listingMedia.findMany({ where: { listingId: row.id }, orderBy: [{ position: 'asc' }, { id: 'asc' }] }) } : null;
     });
     return { listing: found ? listingView(found.row, found.media) : null };
@@ -199,6 +200,7 @@ export class ListingsService {
   }
 
   private mediaRows(tenant: TenantContext, listingId: string) {
+    // bounded: the rows of one record (one finding, one term batch or one listing)
     return withTenant(this.prisma, tenant, (tx) => tx.listingMedia.findMany({ where: { listingId }, orderBy: [{ position: 'asc' }, { id: 'asc' }] }));
   }
 
@@ -288,6 +290,7 @@ export class ListingsService {
   async orderMedia(tenant: TenantContext, dealId: string, ids: readonly string[], requestId: string): Promise<{ listing: ListingView }> {
     await this.access.require(tenant, dealId, canRun, { action: 'listing.media.ordered', requestId });
     await withTenant(this.prisma, tenant, async (tx) => {
+      // bounded: one pact's own records of this kind (tens: a checklist, versions, entries, its sources)
       const current = await tx.listingMedia.findMany({ where: { dealId }, select: { id: true } });
       const known = new Set(current.map((item) => item.id));
       if (ids.length !== known.size || new Set(ids).size !== ids.length || ids.some((id) => !known.has(id))) throw new UnprocessableEntityException({ code: 'ORDER_MISMATCH' });
