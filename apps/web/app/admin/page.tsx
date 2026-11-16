@@ -2,6 +2,8 @@ import type { BugReportSummaryView } from '@pactlab/contracts';
 import { Badge, Card, CardContent, Button } from '@pactlab/ui';
 import Link from 'next/link';
 import { apiGet } from '../(app)/deals/_lib/api';
+import { keepParams, pageApiQuery, Pager, pagerLinks, readPage } from '../_components/pager';
+import type { Page } from '@pactlab/contracts';
 import { ApiState } from '../(app)/deals/_lib/states';
 import { DemoLinks, DemoShareForm } from './demo-share';
 import { endDemoShare, resetDemoSlot } from './demo-actions';
@@ -55,7 +57,18 @@ interface User { userId: string; displayName: string; email: string | null; orga
 interface Connection { organizationName: string; provider: string; displayName: string; connectionStatus: string; lastRunStatus: string | null; lastRunAt: string | null; lastError: string | null }
 interface AuditRow { occurredAt: string; organizationName: string; actorName: string | null; action: string; targetType: string; targetId: string | null }
 
+type Search = Record<string, string | string[] | undefined>;
 const cell = 'px-3 py-2 align-top';
+/** The console's list query: the tab's filters plus the page position (T-126). */
+const listQuery = (search: Search, filters: Record<string, string | undefined>) => {
+  const query = new URLSearchParams(Object.entries(filters).filter((entry): entry is [string, string] => Boolean(entry[1])));
+  const position = pageApiQuery(readPage(search));
+  return [query.toString(), position].filter(Boolean).join('&');
+};
+/** The pager under a console table. */
+function ConsolePager({ label, page, search }: { label: string; page: Page<unknown>; search: Search }) {
+  return <Pager label={label} base="/admin" links={pagerLinks({ ...page, itemCount: page.items.length }, readPage(search), keepParams(search))} />;
+}
 const number = new Intl.NumberFormat('en-US');
 
 export default async function AdminPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
@@ -76,11 +89,11 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
       {outcome ? <p role="status" className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">{outcome}</p> : null}
       <p className="text-xs text-muted-foreground">Metadata only: counts, statuses and ids. Customer deal content is never shown here.</p>
       {tab === 'approvals' ? <Approvals /> : null}
-      {tab === 'organizations' ? <Organizations /> : null}
-      {tab === 'users' ? <Users q={q} /> : null}
-      {tab === 'health' ? <Health /> : null}
-      {tab === 'audit' ? <Audit action={typeof search['action'] === 'string' ? search['action'] : ''} /> : null}
-      {tab === 'promo' ? <PromoCodes /> : null}
+      {tab === 'organizations' ? <Organizations search={search} q={q} /> : null}
+      {tab === 'users' ? <Users q={q} search={search} /> : null}
+      {tab === 'health' ? <Health search={search} /> : null}
+      {tab === 'audit' ? <Audit action={typeof search['action'] === 'string' ? search['action'] : ''} search={search} /> : null}
+      {tab === 'promo' ? <PromoCodes search={search} /> : null}
       {tab === 'demos' ? <Demos /> : null}
       {tab === 'cost' ? (
         <HostingCost
@@ -90,7 +103,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
           environment={typeof search['env'] === 'string' && /^[a-z0-9-]{1,100}$/.test(search['env']) ? search['env'] : ''}
         />
       ) : null}
-      {tab === 'bugs' ? <Bugs status={typeof search['status'] === 'string' ? search['status'] : ''} severity={typeof search['severity'] === 'string' ? search['severity'] : ''} /> : null}
+      {tab === 'bugs' ? <Bugs status={typeof search['status'] === 'string' ? search['status'] : ''} severity={typeof search['severity'] === 'string' ? search['severity'] : ''} search={search} /> : null}
     </>
   );
 }
@@ -128,16 +141,22 @@ async function Approvals() {
   );
 }
 
-async function Organizations() {
-  const result = await apiGet<{ items: Org[] }>('/v1/admin/organizations');
+async function Organizations({ search, q }: { search: Search; q: string }) {
+  const result = await apiGet<Page<Org & { mcpEnabled: boolean }>>(`/v1/admin/organizations?${listQuery(search, { q })}`);
   if (result.kind !== 'ok') return <ApiState result={result} />;
   // MCP per organization (T-084), off until switched on here.
-  const mcp = await apiGet<{ items: { organizationId: string; mcpEnabled: boolean }[] }>('/v1/admin/mcp');
-  const mcpOn = new Set(mcp.kind === 'ok' ? mcp.data.items.filter((item) => item.mcpEnabled).map((item) => item.organizationId) : []);
-  // Billing per organization (T-087), from the Stripe mirror.
-  const billingRows = await apiGet<{ items: AdminBillingAccountView[] }>('/v1/admin/billing');
-  const billingOf = new Map(billingRows.kind === 'ok' ? billingRows.data.items.map((row) => [row.organizationId, row]) : []);
+  const mcpOn = new Set(result.data.items.filter((item) => item.mcpEnabled).map((item) => item.id));
+  // Billing for this page's organizations (T-087), from the Stripe mirror.
+  const ids = result.data.items.map((org) => org.id);
+  const billingRows = ids.length > 0 ? await apiGet<{ items: AdminBillingAccountView[] }>(`/v1/admin/billing?organizationIds=${ids.join(',')}`) : null;
+  const billingOf = new Map(billingRows?.kind === 'ok' ? billingRows.data.items.map((row) => [row.organizationId, row]) : []);
   return (
+    <div className="flex flex-col gap-3">
+    <form method="get" className="flex gap-2 text-sm">
+      <input type="hidden" name="tab" value="organizations" />
+      <input name="q" defaultValue={q} placeholder="Search by name or slug" className="w-72 rounded-md border border-border px-3 py-1.5" />
+      <Button variant="outline" size="sm" type="submit">Search</Button>
+    </form>
     <Card>
       <CardContent className="overflow-x-auto p-0">
         <table className="w-full text-left text-sm" aria-label="Organizations">
@@ -182,13 +201,15 @@ async function Organizations() {
             ))}
           </tbody>
         </table>
+        <ConsolePager label="Organization pages" page={result.data} search={search} />
       </CardContent>
     </Card>
+    </div>
   );
 }
 
-async function Users({ q }: { q: string }) {
-  const result = await apiGet<{ items: User[] }>(`/v1/admin/users${q ? `?q=${encodeURIComponent(q)}` : ''}`);
+async function Users({ q, search }: { q: string; search: Search }) {
+  const result = await apiGet<Page<User & { membershipId: string }>>(`/v1/admin/users?${listQuery(search, { q })}`);
   return (
     <div className="flex flex-col gap-3">
       <form method="get" className="flex gap-2 text-sm">
@@ -205,7 +226,7 @@ async function Users({ q }: { q: string }) {
               <thead className="text-xs uppercase text-muted-foreground"><tr><th className={cell}>Person</th><th className={cell}>Organization</th><th className={cell}>Role</th><th className={cell}>Status</th><th className={cell}></th></tr></thead>
               <tbody className="divide-y divide-border">
                 {result.data.items.map((user) => (
-                  <tr key={`${user.organizationId}-${user.userId}`}>
+                  <tr key={user.membershipId}>
                     <td className={cell}>{user.displayName}{user.platformOperator ? <Badge className="ml-2">operator</Badge> : null}<span className="block text-xs text-muted-foreground">{user.email ?? 'SSO user'}</span></td>
                     <td className={cell}>{user.organizationName}</td>
                     <td className={cell}>{user.role.toLowerCase().replaceAll('_', ' ')}</td>
@@ -221,6 +242,7 @@ async function Users({ q }: { q: string }) {
                 ))}
               </tbody>
             </table>
+            <ConsolePager label="User pages" page={result.data} search={search} />
           </CardContent>
         </Card>
       )}
@@ -228,22 +250,22 @@ async function Users({ q }: { q: string }) {
   );
 }
 
-async function Health() {
-  const [orgs, connections, mail] = await Promise.all([
-    apiGet<{ items: Org[] }>('/v1/admin/organizations'),
-    apiGet<{ items: Connection[] }>('/v1/admin/connections'),
+async function Health({ search }: { search: Search }) {
+  const [usage, connections, mail] = await Promise.all([
+    apiGet<{ organizations: number; aiTokens: { input: number; output: number } }>('/v1/admin/usage'),
+    apiGet<Page<Connection>>(`/v1/admin/connections?${listQuery(search, {})}`),
     apiGet<{ days: number; counts: Record<'DELIVERY' | 'BOUNCE' | 'COMPLAINT' | 'REJECT' | 'RENDERING_FAILURE', number>; suppressed: number }>('/v1/admin/email-health'),
   ]);
-  if (orgs.kind !== 'ok') return <ApiState result={orgs} />;
-  const tokens = orgs.data.items.reduce((sum, org) => ({ input: sum.input + org.aiTokens.input, output: sum.output + org.aiTokens.output }), { input: 0, output: 0 });
+  if (usage.kind !== 'ok') return <ApiState result={usage} />;
+  const tokens = usage.data.aiTokens;
   return (
     <div className="flex flex-col gap-4">
       <dl className="grid gap-3 sm:grid-cols-3" data-numeric>
-        <div className="rounded-xl bg-mist p-3"><dt className="text-xs uppercase text-slate-text">Organizations</dt><dd className="text-xl font-bold">{orgs.data.items.length}</dd></div>
+        <div className="rounded-xl bg-mist p-3"><dt className="text-xs uppercase text-slate-text">Organizations</dt><dd className="text-xl font-bold">{number.format(usage.data.organizations)}</dd></div>
         <div className="rounded-xl bg-mist p-3"><dt className="text-xs uppercase text-slate-text">AI input tokens</dt><dd className="text-xl font-bold">{number.format(tokens.input)}</dd></div>
         <div className="rounded-xl bg-mist p-3"><dt className="text-xs uppercase text-slate-text">AI output tokens</dt><dd className="text-xl font-bold">{number.format(tokens.output)}</dd></div>
       </dl>
-      <p className="text-xs text-muted-foreground">Cost: tokens × the model’s Bedrock price for the region; the per-model rate card arrives with metering (T-007).</p>
+      <p className="text-xs text-muted-foreground">Cost: see Hosting cost, which prices tokens with the per-model rates entered there.</p>
       {/* Email health (T-109): SES events from this environment's configuration set; counts only, no addresses. */}
       {mail.kind === 'ok' ? (
         <p className="text-sm" aria-label="Email health" data-numeric>
@@ -269,6 +291,7 @@ async function Health() {
                 ))}
               </tbody>
             </table>
+            <ConsolePager label="Connection pages" page={connections.data} search={search} />
           </CardContent>
         </Card>
       )}
@@ -276,8 +299,8 @@ async function Health() {
   );
 }
 
-async function Audit({ action }: { action: string }) {
-  const result = await apiGet<{ items: AuditRow[] }>(`/v1/admin/audit${action ? `?action=${encodeURIComponent(action)}` : ''}`);
+async function Audit({ action, search }: { action: string; search: Search }) {
+  const result = await apiGet<Page<AuditRow>>(`/v1/admin/audit?${listQuery(search, { action })}`);
   return (
     <div className="flex flex-col gap-3">
       <form method="get" className="flex gap-2 text-sm">
@@ -288,6 +311,7 @@ async function Audit({ action }: { action: string }) {
           <option value="member.">Members</option>
           <option value="bug.">Bugs</option>
           <option value="operator.">Operators</option>
+          <option value="demo.">Shared demos</option>
         </select>
         <Button variant="outline" size="sm" type="submit">Filter</Button>
       </form>
@@ -305,14 +329,16 @@ async function Audit({ action }: { action: string }) {
           ))}
         </ul>
       )}
+      {result.kind === 'ok' ? <ConsolePager label="Audit pages" page={result.data} search={search} /> : null}
     </div>
   );
 }
 
-async function Bugs({ status, severity }: { status: string; severity: string }) {
-  const result = await apiGet<{ items: BugReportSummaryView[] }>('/v1/admin/bugs');
+async function Bugs({ status, severity, search }: { status: string; severity: string; search: Search }) {
+  // Filtered and paged in the database (T-126).
+  const result = await apiGet<Page<BugReportSummaryView>>(`/v1/admin/bugs?${listQuery(search, { status, severity })}`);
   if (result.kind !== 'ok') return <ApiState result={result} />;
-  const items = result.data.items.filter((bug) => (!status || bug.status === status) && (!severity || bug.severity === severity));
+  const items = result.data.items;
   return (
     <div className="flex flex-col gap-3">
       <form method="get" className="flex gap-2 text-sm">
@@ -344,6 +370,7 @@ async function Bugs({ status, severity }: { status: string; severity: string }) 
               ))}
             </tbody>
           </table>
+          <ConsolePager label="Bug pages" page={result.data} search={search} />
         </CardContent>
       </Card>
     </div>
@@ -354,8 +381,8 @@ const field = 'rounded-md border border-border bg-background px-2 py-1 text-sm';
 const PLAN_OPTIONS = [['PACT', 'Pact'], ['TEAM_ANNUAL', 'Team (annual)'], ['TEAM_MONTHLY', 'Team (monthly)'], ['VENTURE_MONTHLY', 'Venture (monthly)'], ['VENTURE_ANNUAL', 'Venture (annual)'], ['VENTURE_ROUND', 'Venture round']] as const;
 
 /** Promo codes (T-087): free pacts (optionally for some packs) or a discount mirrored to Stripe. */
-async function PromoCodes() {
-  const result = await apiGet<{ items: PromoCodeView[] }>('/v1/admin/promo-codes');
+async function PromoCodes({ search }: { search: Search }) {
+  const result = await apiGet<Page<PromoCodeView>>(`/v1/admin/promo-codes?${listQuery(search, {})}`);
   if (result.kind !== 'ok') return <ApiState result={result} />;
   return (
     <div className="flex flex-col gap-4">
@@ -421,6 +448,7 @@ async function PromoCodes() {
               ))}
             </tbody>
           </table>
+          <ConsolePager label="Promo code pages" page={result.data} search={search} />
         </CardContent>
       </Card>
     </div>

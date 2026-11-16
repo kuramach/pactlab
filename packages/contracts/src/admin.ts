@@ -1,5 +1,6 @@
 import { BUG_SEVERITIES, BUG_STATUSES } from '@pactlab/domain';
 import { z } from 'zod';
+import { pageQuerySchema } from './pagination';
 
 /** Largest screenshot a report may carry (the app view, masked, PNG or JPEG). */
 export const MAX_BUG_SCREENSHOT_BYTES = 1_000_000;
@@ -59,8 +60,14 @@ export const organizationStatusSchema = z.strictObject({ status: z.enum(['ACTIVE
 export const organizationFlagsSchema = z.strictObject({ pilotMode: z.boolean(), liveConnectors: z.boolean() });
 export const memberStatusSchema = z.strictObject({ status: z.enum(['ACTIVE', 'SUSPENDED']) });
 export const decideOrganizationSchema = z.strictObject({ decision: z.enum(['approve', 'reject']) });
-export const usersQuerySchema = z.strictObject({ organizationId: z.uuid().optional(), q: z.string().trim().min(1).max(120).optional() });
-export const auditQuerySchema = z.strictObject({ action: z.string().trim().max(60).optional(), since: z.iso.date().optional() });
+// Console lists are paged (T-126): each query takes `cursor` and `limit` and answers with a `Page`.
+export const usersQuerySchema = pageQuerySchema.extend({ organizationId: z.uuid().optional(), q: z.string().trim().min(1).max(120).optional() }).strict();
+export const auditQuerySchema = pageQuerySchema.extend({ action: z.string().trim().max(60).optional() }).strict();
+export const organizationsQuerySchema = pageQuerySchema.extend({ q: z.string().trim().min(1).max(120).optional() }).strict();
+export const bugsQuerySchema = pageQuerySchema.extend({ status: z.string().regex(/^[A-Z_]{2,30}$/).optional(), severity: z.string().regex(/^[A-Z_]{2,30}$/).optional() }).strict();
+export const consolePageQuerySchema = pageQuerySchema.strict();
+/** Billing for the organizations on one console page. */
+export const billingAccountsQuerySchema = z.strictObject({ organizationIds: z.string().regex(/^[0-9a-f-]{36}(,[0-9a-f-]{36}){0,99}$/i).transform((value) => value.split(',')) });
 export const myBugParamsSchema = z.strictObject({ bugId: z.uuid() });
 export const adminBugParamsSchema = z.strictObject({ bugId: z.uuid() });
 export const adminOrganizationParamsSchema = z.strictObject({ organizationId: z.uuid() });

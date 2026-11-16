@@ -1,6 +1,7 @@
 import { asApp } from './auth-role';
 import type { PrismaClient, TransactionClient } from './client';
 import { OperatorRequiredError } from './ops';
+import { decodeCursor, encodeCursor, type PageRequest, type PageResult } from './pagination';
 
 /**
  * Billing and promo-code state (T-087, ADR 0025), behind pactlab_billing SECURITY DEFINER
@@ -184,10 +185,12 @@ export const billing = {
 
   // --- Operators ---------------------------------------------------------------------------------
 
-  async adminAccounts(prisma: PrismaClient, actor: string) {
+  /** Billing for some organizations only (a page of the console, at most 100). */
+  async adminAccountsFor(prisma: PrismaClient, actor: string, organizationIds: readonly string[]) {
+    if (organizationIds.length === 0) return [];
     const rows = await asOperator(() => asApp(prisma, (tx) =>
       tx.$queryRaw<{ organization_id: string; plan_key: string | null; status: BillingStatus; period_end: Date | null; pacts_used: number; open_credits: number; stripe_customer_id: string | null; subscription_id: string | null }[]>`
-        SELECT organization_id::text, plan_key, status, period_end, pacts_used, open_credits, stripe_customer_id, subscription_id FROM app_billing_admin_accounts(${actor}::uuid)`,
+        SELECT organization_id::text, plan_key, status, period_end, pacts_used, open_credits, stripe_customer_id, subscription_id FROM app_billing_admin_accounts_for(${actor}::uuid, ${[...organizationIds]}::uuid[])`,
     ));
     return rows.map((row) => ({
       organizationId: row.organization_id,
@@ -207,6 +210,29 @@ export const billing = {
     return row.id;
   },
 };
+
+const promoRow = (row: Record<string, unknown>): PromoCodeRow => ({
+  id: row['id'] as string,
+  code: row['code'] as string,
+  description: row['description'] as string,
+  kind: row['kind'] as PromoCodeInput['kind'],
+  percentOff: decimal(row['percent_off']),
+  amountOff: decimal(row['amount_off']),
+  currency: (row['currency'] as string | null) ?? null,
+  duration: (row['duration'] as PromoCodeInput['duration']) ?? null,
+  durationMonths: (row['duration_months'] as number | null) ?? null,
+  planKeys: (row['plan_keys'] as string[]) ?? [],
+  freePacts: (row['free_pacts'] as number | null) ?? null,
+  packs: (row['packs'] as string[]) ?? [],
+  validFrom: new Date(row['valid_from'] as string),
+  validUntil: date(row['valid_until']),
+  maxRedemptions: (row['max_redemptions'] as number | null) ?? null,
+  skipsApproval: row['skips_approval'] === true,
+  active: row['active'] === true,
+  redemptions: Number(row['redemptions'] ?? 0),
+  stripePromotionCodeId: (row['stripe_promotion_code_id'] as string | null) ?? null,
+  createdAt: new Date(row['created_at'] as string),
+});
 
 export const promoCodes = {
   async create(prisma: PrismaClient, actor: string, input: PromoCodeInput): Promise<string> {
@@ -229,34 +255,25 @@ export const promoCodes = {
     return row?.ok === true;
   },
 
-  async list(prisma: PrismaClient, actor: string): Promise<PromoCodeRow[]> {
+  /** Promo codes, newest first, a page at a time (T-126). */
+  async listPage(prisma: PrismaClient, actor: string, request: PageRequest): Promise<PageResult<PromoCodeRow>> {
+    const position = decodeCursor(request.cursor);
+    const afterAt = position && typeof position.key === 'string' ? new Date(position.key) : null;
+    const afterId = afterAt && position ? position.id : null;
     const rows = await asOperator(() => asApp(prisma, (tx) =>
       tx.$queryRaw<Record<string, unknown>[]>`
         SELECT id::text, code, description, kind, percent_off::text, amount_off::text, currency, duration, duration_months, plan_keys, free_pacts, packs,
-               valid_from, valid_until, max_redemptions, skips_approval, active, redemptions, stripe_promotion_code_id, created_at FROM app_promo_list(${actor}::uuid)`,
+               valid_from, valid_until, max_redemptions, skips_approval, active, redemptions, stripe_promotion_code_id, created_at, total
+          FROM app_promo_list_page(${actor}::uuid, ${afterAt}::timestamptz, ${afterId}::uuid, ${request.limit + 1}::int)`,
     ));
-    return rows.map((row) => ({
-      id: row['id'] as string,
-      code: row['code'] as string,
-      description: row['description'] as string,
-      kind: row['kind'] as PromoCodeInput['kind'],
-      percentOff: decimal(row['percent_off']),
-      amountOff: decimal(row['amount_off']),
-      currency: (row['currency'] as string | null) ?? null,
-      duration: (row['duration'] as PromoCodeInput['duration']) ?? null,
-      durationMonths: (row['duration_months'] as number | null) ?? null,
-      planKeys: (row['plan_keys'] as string[]) ?? [],
-      freePacts: (row['free_pacts'] as number | null) ?? null,
-      packs: (row['packs'] as string[]) ?? [],
-      validFrom: new Date(row['valid_from'] as string),
-      validUntil: date(row['valid_until']),
-      maxRedemptions: (row['max_redemptions'] as number | null) ?? null,
-      skipsApproval: row['skips_approval'] === true,
-      active: row['active'] === true,
-      redemptions: Number(row['redemptions'] ?? 0),
-      stripePromotionCodeId: (row['stripe_promotion_code_id'] as string | null) ?? null,
-      createdAt: new Date(row['created_at'] as string),
-    }));
+    const page = rows.slice(0, request.limit);
+    const last = page.at(-1);
+    return {
+      items: page.map(promoRow),
+      nextCursor: last && rows.length > request.limit ? encodeCursor(new Date(last['created_at'] as string), last['id'] as string) : null,
+      total: Number(rows[0]?.['total'] ?? 0),
+      limit: request.limit,
+    };
   },
 
   async check(prisma: PrismaClient, code: string, ipHash: string): Promise<PromoCheck> {
