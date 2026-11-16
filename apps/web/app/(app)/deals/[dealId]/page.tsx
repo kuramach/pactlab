@@ -70,14 +70,15 @@ export default async function DealOverviewPage({
     dealViewer(dealId),
     apiGet<{ items: Finding[] }>(`/v1/deals/${dealId}/findings?status=ACCEPTED`),
     dealsApi.get(dealId),
-    apiGet<{ items: { id: string }[] }>(`/v1/deals/${dealId}/documents`),
-    apiGet<{ items: { status: string }[] }>(`/v1/deals/${dealId}/document-findings`),
+    // Counts only: one row each, and the totals (T-126).
+    apiGet<{ total: number }>(`/v1/deals/${dealId}/documents?limit=1`),
+    apiGet<{ total: number }>(`/v1/deals/${dealId}/document-findings?status=DRAFT&limit=1`),
     apiGet<FinancingView>(`/v1/deals/${dealId}/financing`),
   ]);
   const scenarioItems = scenarios.kind === 'ok' ? scenarios.data.items : [];
   const pipeline = pipelineSteps(dealId, {
-    documents: documentList.kind === 'ok' ? documentList.data.items.length : 0,
-    drafts: documentFindings.kind === 'ok' ? documentFindings.data.items.filter((item) => item.status === 'DRAFT').length : 0,
+    documents: documentList.kind === 'ok' ? documentList.data.total : 0,
+    drafts: documentFindings.kind === 'ok' ? documentFindings.data.total : 0,
     accepted: accepted.kind === 'ok' ? accepted.data.items.length : 0,
     scenarios: scenarioItems.length,
     staleScenarios: scenarioItems.filter((view) => view.stale === true).length,

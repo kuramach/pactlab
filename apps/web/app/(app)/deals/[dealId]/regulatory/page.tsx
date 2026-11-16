@@ -96,10 +96,13 @@ const inputClass = 'rounded-md border border-border bg-background px-2 py-1 text
  */
 export default async function RegulatoryPage({ params, searchParams }: { params: Promise<{ dealId: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const { dealId } = await params;
-  const outcome = (await searchParams)['outcome'];
+  const search = await searchParams;
+  const outcome = search['outcome'];
+  // The cited-document picker: the newest 100, or the matches of a search when the pact has more (T-126).
+  const docQuery = typeof search['doc'] === 'string' ? search['doc'].trim().slice(0, 200) : '';
   const [result, documents] = await Promise.all([
     apiGet<RegulatoryView>(`/v1/deals/${dealId}/regulatory`),
-    apiGet<{ items: { id: string; fileName: string; pageCount: number }[] }>(`/v1/deals/${dealId}/documents`),
+    apiGet<{ items: { id: string; fileName: string; pageCount: number }[]; total: number }>(`/v1/deals/${dealId}/documents?limit=100&sort=uploaded&dir=desc${docQuery ? `&q=${encodeURIComponent(docQuery)}` : ''}`),
   ]);
   if (result.kind !== 'ok') return <ApiState result={result} />;
   const view = result.data;
@@ -108,6 +111,7 @@ export default async function RegulatoryPage({ params, searchParams }: { params:
   const pre = view.findings.filter((finding) => finding.phase === 'PRE');
   const diligence = view.findings.filter((finding) => finding.phase === 'DILIGENCE');
   const docs = documents.kind === 'ok' ? documents.data.items : [];
+  const docTotal = documents.kind === 'ok' ? documents.data.total : 0;
 
   return (
     <div className="flex max-w-7xl flex-col gap-6">
@@ -393,6 +397,15 @@ export default async function RegulatoryPage({ params, searchParams }: { params:
 
       <Section title="Add a cited entry">
         <p className="text-xs text-muted-foreground">Every entry cites the document page it comes from: pick the document, the page, and copy the passage exactly.</p>
+        {docTotal > docs.length || docQuery ? (
+          <form method="get" role="search" className="flex flex-wrap items-end gap-2 text-xs">
+            <input name="doc" defaultValue={docQuery} maxLength={200} placeholder="Find a document by name" aria-label="Find a document by name" className={inputClass} />
+            <Button type="submit" size="sm" variant="outline">
+              Search
+            </Button>
+            <span className="text-muted-foreground">{docQuery ? `${docTotal} matching` : `The pickers list the newest ${docs.length} of ${docTotal} documents`}</span>
+          </form>
+        ) : null}
         {(
           [
             ['TERMS', 'Agreement certainty terms', [['signedOn', 'Signed on (YYYY-MM-DD)'], ['outsideDate', 'Outside date (YYYY-MM-DD)'], ['effortsStandard', 'Efforts: REASONABLE_BEST_EFFORTS, HELL_OR_HIGH_WATER or COMMERCIALLY_REASONABLE'], ['divestitureCap', 'Divestiture cap (sites)'], ['currency', 'Currency'], ['fee', 'Termination fee'], ['feePayer', 'Fee payer: ACQUIRER or TARGET'], ['ebitdaMultiple', 'EBITDA multiple for divested sites (optional)']]],

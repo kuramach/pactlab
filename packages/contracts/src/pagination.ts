@@ -23,3 +23,13 @@ export interface Page<T> {
   /** The page size the API applied. */
   readonly limit: number;
 }
+
+/** Document types the library filters by (T-126), each with the content types it covers. */
+export const DOCUMENT_KINDS: Readonly<Record<string, readonly string[]>> = {
+  PDF: ['application/pdf'],
+  Word: ['application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+  Excel: ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
+  CSV: ['text/csv'],
+  Text: ['text/plain'],
+  Markdown: ['text/markdown'],
+};

@@ -1,8 +1,12 @@
 import type { AiRunRecord, ResolvedCitation } from '@pactlab/ai';
 import {
+  afterCursor,
   appendAuditEvent,
+  toPage as toResultPage,
   withTenant,
   type AuditEventInput,
+  type PageRequest,
+  type PageResult,
   type Prisma,
   type PrismaClient,
 } from '@pactlab/db';
@@ -154,7 +158,6 @@ function createAiRun(tx: Prisma.TransactionClient, run: AiRunRecord) {
   });
 }
 
-const findingOrder = [{ createdAt: 'asc' }, { id: 'asc' }] as const satisfies Prisma.DocumentFindingOrderByWithRelationInput[];
 
 /**
  * RLS-backed documents persistence. Every call runs as `pactlab_app` inside
@@ -221,12 +224,54 @@ export class PrismaDocumentsRepository implements DocumentsRepository {
     options: { sharedOnly: boolean },
   ): Promise<DocumentRecord[]> {
     const rows = await withTenant(this.prisma, tenant, (tx) =>
+      // whole-set: intake's checklist, document requests and rechecks judge every file of the pact; screens page through pageDocuments
       tx.document.findMany({
         where: { dealId, ...(options.sharedOnly ? { visibility: 'SHARED' } : {}) },
         orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
       }),
     );
     return rows.map(toDocument);
+  }
+
+  async pageDocuments(
+    tenant: TenantContext,
+    dealId: string,
+    filter: { sharedOnly: boolean; query?: string | undefined; contentTypes?: readonly string[] | undefined; sort: 'uploaded' | 'name' | 'pages'; dir: 'asc' | 'desc' },
+    request: PageRequest,
+  ): Promise<PageResult<DocumentRecord>> {
+    const field = filter.sort === 'name' ? 'fileName' : filter.sort === 'pages' ? 'pageCount' : 'createdAt';
+    const matching = {
+      dealId,
+      ...(filter.sharedOnly ? { visibility: 'SHARED' as const } : {}),
+      ...(filter.query ? { fileName: { contains: filter.query, mode: 'insensitive' as const } } : {}),
+      ...(filter.contentTypes ? { contentType: { in: [...filter.contentTypes] } } : {}),
+    };
+    const [rows, total] = await withTenant(this.prisma, tenant, (tx) =>
+      Promise.all([
+        tx.document.findMany({
+          where: { AND: [matching, afterCursor(field, request.cursor, { direction: filter.dir, asDate: field === 'createdAt' })] },
+          orderBy: [{ [field]: filter.dir }, { id: filter.dir }],
+          take: request.limit + 1,
+        }),
+        tx.document.count({ where: matching }),
+      ]),
+    );
+    return toResultPage(rows, request, total, (row) => (field === 'fileName' ? row.fileName : field === 'pageCount' ? row.pageCount : row.createdAt), toDocument);
+  }
+
+  async findingCounts(tenant: TenantContext, dealId: string, documentIds: readonly string[]): Promise<Map<string, { findings: number; pending: number }>> {
+    if (documentIds.length === 0) return new Map();
+    const grouped = await withTenant(this.prisma, tenant, (tx) =>
+      tx.documentFinding.groupBy({ by: ['documentId', 'status'], where: { dealId, documentId: { in: [...documentIds] } }, _count: { _all: true } }),
+    );
+    const counts = new Map<string, { findings: number; pending: number }>();
+    for (const row of grouped) {
+      const entry = counts.get(row.documentId) ?? { findings: 0, pending: 0 };
+      entry.findings += row._count._all;
+      if (row.status === 'DRAFT') entry.pending += row._count._all;
+      counts.set(row.documentId, entry);
+    }
+    return counts;
   }
 
   async getDocument(
@@ -355,30 +400,40 @@ export class PrismaDocumentsRepository implements DocumentsRepository {
   async listFindings(
     tenant: TenantContext,
     dealId: string,
-    filter: { status?: DocumentFindingStatus; documentId?: string },
-  ): Promise<DocumentFinding[]> {
+    filter: { status?: DocumentFindingStatus | undefined; decided?: boolean | undefined; documentId?: string | undefined },
+    request: PageRequest,
+  ): Promise<PageResult<DocumentFinding & { documentName: string }>> {
     return withTenant(this.prisma, tenant, async (tx) => {
-      const rows = await tx.documentFinding.findMany({
-        where: {
-          dealId,
-          ...(filter.status ? { status: filter.status } : {}),
-          ...(filter.documentId ? { documentId: filter.documentId } : {}),
-        },
-        orderBy: findingOrder,
-      });
+      const matching = {
+        dealId,
+        ...(filter.status ? { status: filter.status } : filter.decided === undefined ? {} : filter.decided ? { status: { not: 'DRAFT' as const } } : { status: 'DRAFT' as const }),
+        ...(filter.documentId ? { documentId: filter.documentId } : {}),
+      };
+      const [rows, total] = await Promise.all([
+        tx.documentFinding.findMany({
+          where: { AND: [matching, afterCursor('createdAt', request.cursor, { direction: 'asc', asDate: true })] },
+          include: { document: { select: { fileName: true } } },
+          orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+          take: request.limit + 1,
+        }),
+        tx.documentFinding.count({ where: matching }),
+      ]);
+      const page = toResultPage(rows, request, total, (row) => row.createdAt, (row) => row);
       // Each decided finding carries its latest decision's reason (who and when are on the finding).
-      const decided = rows.filter((row) => row.decidedAt !== null).map((row) => row.id);
+      const decided = page.items.filter((row) => row.decidedAt !== null).map((row) => row.id);
       const reviews = decided.length
-        ? await tx.documentFindingReview.findMany({
+        ? // bounded: the decided findings of one page
+          await tx.documentFindingReview.findMany({
             where: { dealId, findingId: { in: decided } },
             orderBy: [{ decidedAt: 'asc' }, { id: 'asc' }],
             select: { findingId: true, rationale: true },
           })
         : [];
       const latest = new Map(reviews.map((review) => [review.findingId, review.rationale]));
-      return rows.map((row) => ({ ...toFinding(row), decisionRationale: latest.get(row.id) ?? null }));
+      return { ...page, items: page.items.map((row) => ({ ...toFinding(row), decisionRationale: latest.get(row.id) ?? null, documentName: row.document.fileName })) };
     });
   }
+
 
   async getFinding(
     tenant: TenantContext,

@@ -6,7 +6,7 @@
   "apps/api/src/deals/deletion/deal-deletion.service.ts": 3,
   "apps/api/src/documents/document-sources.service.ts": 2,
   "apps/api/src/documents/documents.service.ts": 2,
-  "apps/api/src/documents/prisma-documents.repository.ts": 6,
+  "apps/api/src/documents/prisma-documents.repository.ts": 3,
   "apps/api/src/engineering/engineering.service.ts": 2,
   "apps/api/src/financing/financing-state.ts": 2,
   "apps/api/src/findings/findings.service.ts": 3,

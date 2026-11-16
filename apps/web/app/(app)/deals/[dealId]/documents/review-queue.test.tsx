@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import type { DocumentFindingItem } from '../../../documents/_lib/view';
-import { libraryRows, type LibraryRow } from './library';
+import { libraryHref, type LibraryRow } from './library';
 import { mergeQueue, queueCounts, ReviewQueue } from './review-queue';
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: () => undefined }) }));
@@ -71,11 +71,16 @@ describe('document library (T-094 B11)', () => {
     row(`${String(i + 1).padStart(2, '0')}-doc.${i % 3 === 0 ? 'xlsx' : 'pdf'}`, i % 3 === 0 ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' : 'application/pdf', `2026-10-${String(1 + i).padStart(2, '0')}T00:00:00Z`, 1 + (i % 7), i % 4),
   );
 
-  it('searches by name, filters by type and sorts by any column at 20+ documents', () => {
-    expect(libraryRows(rows, '07', 'ALL', 'name', false).map((r) => r.fileName)).toEqual(['07-doc.xlsx']);
-    expect(libraryRows(rows, '', 'Excel', 'name', false)).toHaveLength(8);
-    expect(libraryRows(rows, '', 'ALL', 'uploaded', true)[0]?.fileName).toBe('24-doc.pdf');
-    const byPages = libraryRows(rows, '', 'ALL', 'pages', true);
-    expect(byPages[0]?.pageCount).toBe(7);
+  it('search, type and order go to the database; a new one starts at page 1 and keeps the rest of the page (T-126)', () => {
+    expect(rows).toHaveLength(24);
+    const params = { documentId: 'doc-1', 'docs.cursor': 'c2', 'docs.trail': 'c1', 'queue.cursor': 'q2' };
+    const searched = new URLSearchParams(libraryHref(params, { q: '07' }));
+    expect(searched.get('q')).toBe('07');
+    expect(searched.has('docs.cursor')).toBe(false);
+    expect(searched.get('queue.cursor')).toBe('q2');
+    expect(searched.get('documentId')).toBe('doc-1');
+    const sorted = new URLSearchParams(libraryHref({ ...params, kind: 'Excel' }, { sort: 'pages', dir: 'desc' }));
+    expect([sorted.get('sort'), sorted.get('dir'), sorted.get('kind'), sorted.has('docs.cursor')]).toEqual(['pages', 'desc', 'Excel', false]);
+    expect(new URLSearchParams(libraryHref({ kind: 'Excel' }, { kind: undefined })).has('kind')).toBe(false);
   });
 });

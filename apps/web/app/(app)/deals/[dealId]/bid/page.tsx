@@ -1,5 +1,7 @@
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from '@pactlab/ui';
+import type { Page } from '@pactlab/contracts';
 import Link from 'next/link';
+import { keepParams, pageApiQuery, Pager, pagerLinks, readPage } from '../../../../_components/pager';
 import { apiGet } from '../../_lib/api';
 import { OutcomeBanner } from '../../_lib/outcome';
 import { ApiState } from '../../_lib/states';
@@ -76,13 +78,16 @@ interface SharedDocument {
  */
 export default async function BidPage({ params, searchParams }: { params: Promise<{ dealId: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const { dealId } = await params;
-  const outcome = (await searchParams)['outcome'];
+  const search = await searchParams;
+  const outcome = search['outcome'];
+  const docsAt = readPage(search, 'docs');
   const mine = await apiGet<MyBidView>(`/v1/deals/${dealId}/my-bid`);
   if (mine.kind !== 'ok') return <ApiState result={mine} />;
   const { pact, process, bid, offers, questions, published, comments, files } = mine.data;
   const ndaPending = Boolean(process.ndaText) && !bid.ndaAccepted;
   const live = process.status === 'OPEN' && ['INVITED', 'ACTIVE', 'OFFERED', 'SHORTLISTED'].includes(bid.status);
-  const documents = ndaPending ? null : await apiGet<{ items: SharedDocument[] }>(`/v1/deals/${dealId}/documents`);
+  // The shared data room, a page at a time (T-126).
+  const documents = ndaPending ? null : await apiGet<Page<SharedDocument>>(`/v1/deals/${dealId}/documents?${pageApiQuery(docsAt)}`);
   const latest = offers[offers.length - 1];
 
   return (
@@ -160,6 +165,7 @@ export default async function BidPage({ params, searchParams }: { params: Promis
                       </li>
                     ))}
                   </ul>
+                  <Pager label="Shared document pages" base={`/deals/${dealId}/bid`} links={pagerLinks({ ...documents.data, itemCount: documents.data.items.length }, docsAt, keepParams(search), 'docs')} />
                 </div>
               ) : null}
             </CardContent>

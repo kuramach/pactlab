@@ -1,3 +1,4 @@
+import { DOCUMENT_KINDS } from '@pactlab/contracts';
 import { createHash } from 'node:crypto';
 import {
   BadRequestException,
@@ -77,6 +78,7 @@ import type {
   AskQuestionBody,
   CategorizeDocumentBody,
   CreateDocumentRequestBody,
+  ListDocumentsQuery,
   ListDocumentFindingsQuery,
   ReviewDocumentFindingBody,
   UploadArchiveBody,
@@ -373,27 +375,48 @@ export class DocumentsService {
     return { bytes, contentType: document.contentType, fileName: document.fileName };
   }
 
-  async list(tenant: TenantContext, dealId: string, requestId: string) {
+  /** The library, a page at a time (T-126): search, type and order in the database, with each file's AI findings counted. */
+  async list(tenant: TenantContext, dealId: string, query: ListDocumentsQuery, requestId: string) {
     const role = await this.access.require(tenant, dealId, canReadDocuments, {
       action: 'document.list',
       requestId,
     });
     await this.ndaGate(tenant, dealId, role);
-    const items = await this.documents.listDocuments(tenant, dealId, {
-      sharedOnly: isCounterpartyRole(role),
-    });
-    // The seller sees what their file was filed as, never the AI's reasoning or questions to the buyer.
-    if (isCounterpartyRole(role)) {
+    const counterparty = isCounterpartyRole(role);
+    const page = await this.documents.pageDocuments(
+      tenant,
+      dealId,
+      { sharedOnly: counterparty, query: query.q, contentTypes: query.kind ? DOCUMENT_KINDS[query.kind] : undefined, sort: query.sort, dir: query.dir },
+      query,
+    );
+    // The seller sees what their file was filed as, never the AI's reasoning, questions to the buyer or the buyer's drafts.
+    if (counterparty) {
       return {
-        items: items.map((document) => ({
+        ...page,
+        items: page.items.map((document) => ({
           ...documentView(document),
           intake: { ...UNCLASSIFIED_INTAKE, state: document.intake.state === 'FILED' ? 'FILED' : 'UNCLASSIFIED', category: document.intake.state === 'FILED' ? document.intake.category : null },
           recategorizedFrom: null,
           recategorizedAt: null,
+          findings: 0,
+          pending: 0,
         })),
       };
     }
-    return { items: items.map(documentView) };
+    const counts = await this.documents.findingCounts(tenant, dealId, page.items.map((document) => document.id));
+    return { ...page, items: page.items.map((document) => ({ ...documentView(document), findings: counts.get(document.id)?.findings ?? 0, pending: counts.get(document.id)?.pending ?? 0 })) };
+  }
+
+  /** Every document the caller may see, for the complete record of a pact (the pact report); read a page at a time, never a screen. */
+  async all(tenant: TenantContext, dealId: string, requestId: string) {
+    const items: Awaited<ReturnType<DocumentsService['list']>>['items'][number][] = [];
+    let cursor: string | undefined;
+    do {
+      const page = await this.list(tenant, dealId, { sort: 'uploaded', dir: 'asc', limit: 100, ...(cursor ? { cursor } : {}) }, requestId);
+      items.push(...page.items);
+      cursor = page.nextCursor ?? undefined;
+    } while (cursor);
+    return { items };
   }
 
   async get(tenant: TenantContext, dealId: string, documentId: string, requestId: string) {
@@ -1011,7 +1034,7 @@ export class DocumentsService {
       action: 'document_finding.list',
       requestId,
     });
-    return { items: await this.documents.listFindings(tenant, dealId, query) };
+    return this.documents.listFindings(tenant, dealId, { status: query.status, decided: query.decided, documentId: query.documentId }, query);
   }
 
   async getFinding(tenant: TenantContext, dealId: string, findingId: string, requestId: string) {

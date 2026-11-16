@@ -1,5 +1,7 @@
 import { AiBadge, Button, Card, CardContent, CardHeader, CardTitle, EmptyState, Glossed } from '@pactlab/ui';
+import type { Page } from '@pactlab/contracts';
 import Link from 'next/link';
+import { keepParams, pageApiQuery, Pager, pagerLinks, readPage } from '../../../../_components/pager';
 import { apiGet, dealsApi } from '../../_lib/api';
 import { OutcomeBanner } from '../../_lib/outcome';
 import { ApiState } from '../../_lib/states';
@@ -8,7 +10,7 @@ import { extractDocument } from './actions';
 import { IntakePanel, type IntakeView } from './intake-panel';
 import { RequestsCard, type DocumentRequestView } from './requests-card';
 import { SourcesPanel, type SourcesView } from './sources-panel';
-import { DocumentLibrary } from './library';
+import { DocumentLibrary, libraryHref } from './library';
 import { ReviewQueue } from './review-queue';
 import { DocumentUploader } from './uploader';
 import { AI_UNAVAILABLE } from './ai-messages';
@@ -61,7 +63,13 @@ export default async function DocumentsPage({
   params: Promise<{ dealId: string }>;
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const view = parseDocumentsView({ ...(await searchParams), dealId: (await params).dealId });
+  const search = await searchParams;
+  const view = parseDocumentsView({ ...search, dealId: (await params).dealId });
+  // The library and the review queue page in the database (T-126), each with its own position in the URL.
+  const library = libraryQuery(search);
+  const docsAt = readPage(search, 'docs');
+  const queueAt = readPage(search, 'queue');
+  const decidedTab = search['queue'] === 'decided';
   if (!view.dealId) {
     return (
       <div className="flex max-w-6xl flex-col gap-6">
@@ -77,8 +85,8 @@ export default async function DocumentsPage({
   const outcome = typeof outcomeParam === 'string' ? outcomeParam : undefined;
   const drafted = outcome?.match(/^ok-drafted-(\d+)$/)?.[1];
   const [documents, findings, page, viewer, ai, intake, sources, requests, pact] = await Promise.all([
-    apiGet<{ items: DocumentListItem[] }>(`${deal(dealId)}/documents`),
-    apiGet<{ items: DocumentFindingItem[] }>(`${deal(dealId)}/document-findings`),
+    apiGet<Page<DocumentListItem & { findings: number; pending: number }>>(`${deal(dealId)}/documents?${[library.api, pageApiQuery(docsAt)].filter(Boolean).join('&')}`),
+    apiGet<Page<DocumentFindingItem & { documentName: string }>>(`${deal(dealId)}/document-findings?decided=${decidedTab}${docsQuery(pageApiQuery(queueAt))}`),
     view.documentId
       ? apiGet<DocumentPageView>(
           `${deal(dealId)}/documents/${encodeURIComponent(view.documentId)}/pages/${view.page}`,
@@ -91,6 +99,8 @@ export default async function DocumentsPage({
     apiGet<{ items: DocumentRequestView[] }>(`${deal(dealId)}/document-requests`),
     dealsApi.get(dealId),
   ]);
+  // The open document, wherever it sits in the library's pages.
+  const opened = view.documentId ? await apiGet<DocumentListItem>(`${deal(dealId)}/documents/${encodeURIComponent(view.documentId)}`) : null;
   const hasSeller = viewer.members.some((member) => member.role === 'TARGET_CONTRIBUTOR' && member.status === 'ACTIVE');
   const categoryLabels = intake.kind === 'ok' ? Object.fromEntries(intake.data.categories.map((category) => [category.id, category.label])) : {};
   const aiOn = ai.kind === 'ok' && ai.data.enabled;
@@ -103,14 +113,16 @@ export default async function DocumentsPage({
       .filter((c) => c.documentId === view.documentId && c.pageNumber === view.page)
       .map((c) => c.quote),
   );
-  const openDocument = documents.kind === 'ok' ? documents.data.items.find((doc) => doc.id === view.documentId) : undefined;
+  const openDocument = opened?.kind === 'ok' ? opened.data : undefined;
   const isPdf = openDocument?.contentType === 'application/pdf' && openDocument.status === 'AVAILABLE';
   // Every cited page in review order, to step through the queue's quotes beside the original.
   const citedPages = [...new Map(queue.flatMap((finding) => finding.citations.map((c) => [`${c.documentId}:${c.pageNumber}`, c] as const))).values()];
   const citedAt = citedPages.findIndex((c) => c.documentId === view.documentId && c.pageNumber === view.page);
   const previousCited = citedAt > 0 ? citedPages[citedAt - 1] : undefined;
   const nextCited = citedAt === -1 ? citedPages[0] : citedPages[citedAt + 1];
-  const documentName = (id: string) => (documents.kind === 'ok' ? (documents.data.items.find((doc) => doc.id === id)?.fileName ?? 'another document') : 'another document');
+  const names = new Map<string, string>(queue.flatMap((finding) => (finding.documentName ? [[finding.documentId, finding.documentName] as const] : [])));
+  if (openDocument) names.set(openDocument.id, openDocument.fileName);
+  const documentName = (id: string) => names.get(id) ?? 'another document';
 
   return (
     <div className="flex max-w-7xl flex-col gap-6">
@@ -200,24 +212,26 @@ export default async function DocumentsPage({
 
       {documents.kind !== 'ok' ? (
         <ApiState result={documents} />
-      ) : documents.data.items.length === 0 ? (
+      ) : documents.data.total === 0 && !library.filtered ? (
         <EmptyState
           title="No documents"
           description="Upload a contract or data-room file to this deal to start."
         />
       ) : (
-        <DocumentLibrary
-          dealId={dealId}
-          openId={view.documentId}
-          aiOn={aiOn}
-          writer={writer}
-          categoryLabels={categoryLabels}
-          rows={documents.data.items.map((doc) => ({
-            ...doc,
-            findings: queue.filter((finding) => finding.documentId === doc.id).length,
-            pending: queue.filter((finding) => finding.documentId === doc.id && finding.status === 'DRAFT').length,
-          }))}
-        />
+        <div className="flex flex-col gap-2">
+          <DocumentLibrary
+            dealId={dealId}
+            openId={view.documentId}
+            aiOn={aiOn}
+            writer={writer}
+            categoryLabels={categoryLabels}
+            rows={documents.data.items}
+            total={documents.data.total}
+            filters={library.filters}
+            params={keepParams(search)}
+          />
+          <Pager label="Document pages" base={`/deals/${dealId}/documents`} links={pagerLinks({ ...documents.data, itemCount: documents.data.items.length }, docsAt, keepParams(search), 'docs')} />
+        </div>
       )}
 
       <div className="grid gap-6 lg:grid-cols-2">
@@ -300,12 +314,27 @@ export default async function DocumentsPage({
         </Card>
 
         <Card>
-          <CardHeader>
+          <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2">
             <CardTitle>Review queue</CardTitle>
+            <nav aria-label="Review queue" className="flex gap-2 text-sm">
+              {([['drafts', 'To review'], ['decided', 'Decided']] as const).map(([key, label]) => (
+                <Link
+                  key={key}
+                  href={`/deals/${dealId}/documents?${libraryHref(keepParams(search), { queue: key === 'drafts' ? undefined : key, 'queue.cursor': undefined, 'queue.trail': undefined })}`}
+                  aria-current={(key === 'decided') === decidedTab ? 'page' : undefined}
+                  className={`rounded-full border px-3 py-1 ${(key === 'decided') === decidedTab ? 'border-indigo-ink bg-muted font-semibold' : 'border-border text-muted-foreground'}`}
+                >
+                  {label}
+                  {key === 'drafts' && !decidedTab && findings.kind === 'ok' ? ` (${findings.data.total})` : ''}
+                </Link>
+              ))}
+            </nav>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
             {findings.kind !== 'ok' ? (
               <ApiState result={findings} />
+            ) : queue.length === 0 && decidedTab ? (
+              <EmptyState title="Nothing decided yet" description="Accepted and rejected drafts appear here." />
             ) : queue.length === 0 ? (
               <EmptyState
                 title="Nothing to review"
@@ -314,6 +343,7 @@ export default async function DocumentsPage({
             ) : (
               <ReviewQueue dealId={dealId} findings={queue} reviewer={reviewer} reviewerName={viewer.name(viewer.userId)} openPage={view.documentId ? { documentId: view.documentId, pageNumber: view.page } : null} />
             )}
+            {findings.kind === 'ok' ? <Pager label="Review queue pages" base={`/deals/${dealId}/documents`} links={pagerLinks({ ...findings.data, itemCount: queue.length }, queueAt, keepParams(search), 'queue')} /> : null}
           </CardContent>
         </Card>
       </div>
@@ -361,3 +391,19 @@ function PagePager({ dealId, documentId, pageNumber, pageCount }: { dealId: stri
     </nav>
   );
 }
+
+type SearchParams = Record<string, string | string[] | undefined>;
+const DOC_SORTS = ['uploaded', 'name', 'pages'] as const;
+
+/** The library's search, type and order from the URL (T-126), and the API query for them. */
+function libraryQuery(search: SearchParams) {
+  const one = (key: string) => (typeof search[key] === 'string' ? (search[key] as string).trim().slice(0, 200) : '');
+  const q = one('q');
+  const kind = one('kind');
+  const sort = (DOC_SORTS as readonly string[]).includes(one('sort')) ? (one('sort') as (typeof DOC_SORTS)[number]) : 'uploaded';
+  const dir = one('dir') === 'desc' ? 'desc' : 'asc';
+  const api = new URLSearchParams({ sort, dir, ...(q ? { q } : {}), ...(kind ? { kind } : {}) }).toString();
+  return { api, filters: { q, kind: kind || 'ALL', sort, dir } as const, filtered: Boolean(q || kind) };
+}
+
+const docsQuery = (query: string) => (query ? `&${query}` : '');

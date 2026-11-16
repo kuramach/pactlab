@@ -1,3 +1,4 @@
+import { DOCUMENT_KINDS, pageQuerySchema } from '@pactlab/contracts';
 import { DATA_CLASSIFICATIONS } from '@pactlab/ai';
 import { DOCUMENT_SOURCE_PROVIDERS, documentSourceConfigSchema } from '@pactlab/connectors';
 import { z } from 'zod';
@@ -30,10 +31,25 @@ export const askQuestionBodySchema = z.strictObject({
 });
 export type AskQuestionBody = z.infer<typeof askQuestionBodySchema>;
 
-export const listFindingsQuerySchema = z.strictObject({
-  status: z.enum(DOCUMENT_FINDING_STATUSES).optional(),
-  documentId: z.uuid().optional(),
-});
+/** AI drafts on a pact, a page at a time (T-126); `decided` is every non-draft. */
+export const listFindingsQuerySchema = pageQuerySchema
+  .extend({
+    status: z.enum(DOCUMENT_FINDING_STATUSES).optional(),
+    decided: z.enum(['true', 'false']).transform((value) => value === 'true').optional(),
+    documentId: z.uuid().optional(),
+  })
+  .strict();
+
+/** The document library, a page at a time (T-126): search, type and order in the database. */
+export const listDocumentsQuerySchema = pageQuerySchema
+  .extend({
+    q: z.string().trim().min(1).max(200).optional(),
+    kind: z.string().refine((value) => value in DOCUMENT_KINDS, 'a document type').optional(),
+    sort: z.enum(['uploaded', 'name', 'pages']).default('uploaded'),
+    dir: z.enum(['asc', 'desc']).default('asc'),
+  })
+  .strict();
+export type ListDocumentsQuery = z.infer<typeof listDocumentsQuerySchema>;
 export type ListDocumentFindingsQuery = z.infer<typeof listFindingsQuerySchema>;
 
 export const findingParamsSchema = z.strictObject({ dealId: z.uuid(), findingId: z.uuid() });

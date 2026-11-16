@@ -565,7 +565,7 @@ export async function seedDemo(
     if (troubled) {
       const sheet = await balanceSheet.list(who.lead, troubled, REQUEST_ID);
       if (sheet.items.length === 0) {
-        const present = (await documents.list(who.lead, troubled, REQUEST_ID)).items.find((doc) => doc.fileName === TROUBLED_BALANCE_SHEET.fileName);
+        const present = (await documents.list(who.lead, troubled, { q: TROUBLED_BALANCE_SHEET.fileName, sort: 'uploaded', dir: 'asc', limit: 100 }, REQUEST_ID)).items.find((doc) => doc.fileName === TROUBLED_BALANCE_SHEET.fileName);
         const documentId =
           present?.id ??
           ((await documents.upload(
@@ -616,7 +616,8 @@ export async function seedDemo(
     for (const [name, contracts] of Object.entries(DEMO_CONTRACTS) as [DealName, readonly SyntheticContract[]][]) {
       const id = dealId(name);
       if (!id) continue;
-      const present = new Set((await documents.list(who.lead, id, REQUEST_ID)).items.map((doc) => doc.fileName));
+      // A demo pact holds a handful of contracts: one page covers them.
+      const present = new Set((await documents.list(who.lead, id, { sort: 'uploaded', dir: 'asc', limit: 100 }, REQUEST_ID)).items.map((doc) => doc.fileName));
       let uploaded = 0;
       for (const contract of contracts) {
         if (present.has(contract.fileName)) continue;
@@ -638,7 +639,7 @@ export async function seedDemo(
         if (contract.extraction) await documents.extract(who.lead, id, doc.id, REQUEST_ID);
       }
       if (name === 'Project Healthy' && uploaded > 0) {
-        const drafts = (await documents.listFindings(who.lead, id, { status: 'DRAFT' }, REQUEST_ID)).items;
+        const drafts = (await documents.listFindings(who.lead, id, { status: 'DRAFT', limit: 100 }, REQUEST_ID)).items;
         const changeOfControl = drafts.find((finding) => /change of control/i.test(finding.title + finding.summary));
         if (changeOfControl) {
           await documents.review(
