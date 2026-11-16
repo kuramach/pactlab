@@ -98,6 +98,7 @@ export async function resolvePrincipal(
     if (!membership) return resolveGuest(tx, user.id, claims);
 
     await tx.$executeRaw`SELECT set_config('app.organization_id', ${membership.organizationId}, true)`;
+    // whole-set: the tenant context needs every pact the person is on, to scope RLS
     const dealMemberships = await tx.dealMembership.findMany({
       where: { userId: user.id, status: 'ACTIVE' },
       select: { dealId: true },
@@ -129,6 +130,7 @@ async function resolveGuest(
   if (claims.issuer !== 'PACTLAB' || !isUuid(claims.externalOrganizationId)) return null;
   const organizationId = claims.externalOrganizationId;
   await tx.$executeRaw`SELECT set_config('app.organization_id', ${organizationId}, true)`;
+  // whole-set: the tenant context needs every pact the person is on, to scope RLS
   const dealMemberships = await tx.dealMembership.findMany({
     where: { userId, organizationId, status: 'ACTIVE' },
     select: { dealId: true },

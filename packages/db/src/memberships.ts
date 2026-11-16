@@ -23,6 +23,7 @@ export const dealMemberships = {
   },
 
   async list(tx: TransactionClient, dealId: string): Promise<DealMemberRecord[]> {
+    // bounded: one pact's team (its members and guests), tens of people; screens use it to name people across the pact
     const rows = await tx.dealMembership.findMany({
       where: { dealId },
       select: {

@@ -29,6 +29,7 @@ export class MeService {
       if (!user) return null;
 
       await tx.$executeRaw`SELECT set_config('app.user_id', ${user.id}, true)`;
+      // bounded: one person's own organizations
       const memberships = await tx.organizationMembership.findMany({
         where: {
           userId: user.id,

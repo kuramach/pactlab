@@ -55,6 +55,7 @@ export const contributorDirectory = {
   },
 
   async list(tx: TransactionClient, dealId: string): Promise<ContributorIdentityRecord[]> {
+    // whole-set: the engineering report needs every contributor's status and name; its screen pages the computed profiles
     const rows = await tx.contributorIdentity.findMany({
       where: { dealId },
       select: { contributorKey: true, system: true, identity: true, displayName: true, status: true, firstSeenAt: true, lastSeenAt: true },

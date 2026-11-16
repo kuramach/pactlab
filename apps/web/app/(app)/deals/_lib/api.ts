@@ -204,8 +204,9 @@ export const dealsApi = {
   askingPrice: (dealId: string) =>
     apiGet<{ current: AskingPriceView | null; history: AskingPriceView[] }>(`/v1/deals/${encodeURIComponent(dealId)}/asking-price`),
   members: (dealId: string) => apiGet<{ items: DealMember[] }>(`/v1/deals/${encodeURIComponent(dealId)}/members`),
-  organizationMembers: () =>
-    apiGet<{ items: { userId: string; displayName: string; role: string }[] }>('/v1/organization/members'),
+  /** The organization's members, a page at a time (T-126); `q` searches name or email. */
+  organizationMembers: (params: { q?: string; limit?: number } = {}) =>
+    apiGet<Page<{ userId: string; displayName: string; role: string }>>(`/v1/organization/members?${new URLSearchParams(Object.entries(params).flatMap(([key, value]) => (value ? [[key, String(value)]] : [])))}`),
   addMember: (dealId: string, userId: string, role: string) =>
     apiPost<DealMember>(`/v1/deals/${encodeURIComponent(dealId)}/members`, { userId, role }),
   githubApp: () => apiGet<{ configured: boolean; installUrl: string | null }>('/v1/github/app'),

@@ -47,7 +47,9 @@ export class InvitationsService {
     this.requireMember(tenant);
     await this.access.require(tenant, dealId, 'DEAL_MEMBERS_MANAGE', { action: 'deal.invitations.list', requestId });
     return withTenant(this.prisma, tenant, async (tx) => {
+      // bounded: one pact's invitations, about the size of its team
       const rows = await tx.dealInvitation.findMany({ where: { dealId }, orderBy: { createdAt: 'desc' } });
+      // bounded: the inviters of the invitations above
       const users = await tx.user.findMany({ where: { id: { in: [...new Set(rows.map((row) => row.invitedBy))] } }, select: { id: true, displayName: true } });
       const names = new Map(users.map((user) => [user.id, user.displayName]));
       return {

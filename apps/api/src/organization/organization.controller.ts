@@ -1,6 +1,8 @@
-import { Body, Controller, ForbiddenException, Get, Inject, NotFoundException, Put } from '@nestjs/common';
+import { Body, Controller, ForbiddenException, Get, Inject, NotFoundException, Put, Query } from '@nestjs/common';
+import { pageQuerySchema, type Page } from '@pactlab/contracts';
+import { z } from 'zod';
 import { BUYER_PERSONAS, isBuyerPersona, PERSONA_PROFILE, resolvePersona, type BuyerPersona } from '@pactlab/calculations';
-import { appendAuditEvent, withTenant, type PrismaClient } from '@pactlab/db';
+import { afterCursor, appendAuditEvent, toPage, withTenant, type PrismaClient } from '@pactlab/db';
 import { personaBodySchema } from '../pricing/pricing.schemas';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { RequestId } from '../deals/request-id.decorator';
@@ -19,22 +21,34 @@ export interface OrganizationMemberView {
  * Names and roles only — never email addresses. RLS limits rows to the
  * current organization.
  */
+const membersQuerySchema = pageQuerySchema.extend({ q: z.string().trim().min(1).max(120).optional() }).strict();
+
 @Controller('v1/organization')
 export class OrganizationController {
   constructor(@Inject(PRISMA) private readonly prisma: PrismaClient) {}
 
+  /** The organization's active members, oldest first, a page at a time (T-126); searched by name or email. */
   @Get('members')
-  async members(@Tenant() tenant: TenantContext): Promise<{ items: OrganizationMemberView[] }> {
+  async members(@Tenant() tenant: TenantContext, @Query(new ZodValidationPipe(membersQuerySchema)) query: z.infer<typeof membersQuerySchema>): Promise<Page<OrganizationMemberView>> {
     // Guests never see the organization's people (ADR 0014); RLS returns only themselves anyway.
     if (tenant.organizationRole === 'GUEST') throw new NotFoundException();
-    const rows = await withTenant(this.prisma, tenant, (tx) =>
-      tx.organizationMembership.findMany({
-        where: { organizationId: tenant.organizationId, status: 'ACTIVE' },
-        select: { userId: true, role: true, user: { select: { displayName: true } } },
-        orderBy: { createdAt: 'asc' },
-      }),
+    const matching = {
+      organizationId: tenant.organizationId,
+      status: 'ACTIVE' as const,
+      ...(query.q ? { user: { OR: [{ displayName: { contains: query.q, mode: 'insensitive' as const } }, { email: { contains: query.q, mode: 'insensitive' as const } }] } } : {}),
+    };
+    const [rows, total] = await withTenant(this.prisma, tenant, (tx) =>
+      Promise.all([
+        tx.organizationMembership.findMany({
+          where: { AND: [matching, afterCursor('createdAt', query.cursor, { direction: 'asc', asDate: true })] },
+          select: { id: true, createdAt: true, userId: true, role: true, user: { select: { displayName: true } } },
+          orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+          take: query.limit + 1,
+        }),
+        tx.organizationMembership.count({ where: matching }),
+      ]),
     );
-    return { items: rows.map((row) => ({ userId: row.userId, role: row.role, displayName: row.user.displayName })) };
+    return toPage(rows, query, total, (row) => row.createdAt, (row) => ({ userId: row.userId, role: row.role, displayName: row.user.displayName }));
   }
 
   /** The buyer persona new pacts price under (T-105). Members read it; guests never do. */

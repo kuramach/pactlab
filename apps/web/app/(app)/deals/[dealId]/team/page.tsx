@@ -47,14 +47,16 @@ export default async function TeamPage({
   searchParams,
 }: {
   params: Promise<{ dealId: string }>;
-  searchParams: Promise<{ outcome?: string }>;
+  searchParams: Promise<{ outcome?: string; person?: string }>;
 }) {
   const { dealId } = await params;
-  const { outcome } = await searchParams;
+  const { outcome, person } = await searchParams;
+  // The colleague picker searches the organization when it has more people than fit (T-126).
+  const personQuery = typeof person === 'string' ? person.trim().slice(0, 120) : '';
   const unsent = outcome === 'invite-not-emailed' ? parseUnsent((await cookies()).get(UNSENT_INVITE_COOKIE)?.value) : null;
   const [viewer, organization, invitations] = await Promise.all([
     dealViewer(dealId),
-    dealsApi.organizationMembers(),
+    dealsApi.organizationMembers({ limit: 100, ...(personQuery ? { q: personQuery } : {}) }),
     apiGet<{ items: InvitationView[] }>(`/v1/deals/${dealId}/invitations`),
   ]);
   const manager = can.manageMembers(viewer.role);
@@ -185,6 +187,20 @@ export default async function TeamPage({
             <CardTitle className="text-base">Add a colleague</CardTitle>
           </CardHeader>
           <CardContent className="text-sm">
+            {manager && organization.kind === 'ok' && (organization.data.total > candidates.length || personQuery) ? (
+              <form method="get" role="search" className="mb-3 flex flex-wrap items-end gap-2">
+                <label className="flex flex-col gap-1 font-medium">
+                  Find a colleague
+                  <input name="person" defaultValue={personQuery} maxLength={120} placeholder="Name or email" className="rounded-md border border-border bg-background px-3 py-2" />
+                </label>
+                <Button type="submit" variant="outline" size="sm">
+                  Search
+                </Button>
+                <span className="text-xs text-muted-foreground">
+                  {personQuery ? `${organization.data.total} matching` : `Showing the first ${candidates.length} of ${organization.data.total}`}
+                </span>
+              </form>
+            ) : null}
             {manager ? (
               <form action={addMember.bind(null, dealId)} className="flex flex-col gap-3">
                 <label className="flex flex-col gap-1 font-medium">
