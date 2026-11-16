@@ -1,5 +1,6 @@
 import { objectKeyBelongsTo } from '@pactlab/domain';
 import type { TransactionClient } from './client';
+import { afterCursor, toPage, type PageRequest, type PageResult } from './pagination';
 
 export interface DealRecord {
   id: string;
@@ -30,9 +31,48 @@ const dealSelect = {
 
 /** All repository functions take a tenant-scoped transaction from `withTenant`. */
 export const deals = {
-  async list(tx: TransactionClient): Promise<DealRecord[]> {
-    // A deleted deal is unreachable anyway (every membership is revoked); never list it.
-    return tx.deal.findMany({ where: { status: { not: 'DELETED' } }, select: dealSelect, orderBy: { createdAt: 'desc' } });
+  /**
+   * The caller's pacts, newest first, a page at a time (T-126), optionally searched by name or target
+   * and narrowed to stages. A deleted deal is unreachable anyway (every membership is revoked); never list it.
+   */
+  async page(tx: TransactionClient, filter: { query?: string | undefined; stages?: readonly string[] | undefined }, request: PageRequest): Promise<PageResult<DealRecord>> {
+    const query = filter.query?.trim();
+    const matching = {
+      status: { not: 'DELETED' as const },
+      ...(filter.stages ? { stage: { in: [...filter.stages] as never[] } } : {}),
+      ...(query ? { OR: [{ name: { contains: query, mode: 'insensitive' as const } }, { targetName: { contains: query, mode: 'insensitive' as const } }] } : {}),
+    };
+    const [rows, total] = await Promise.all([
+      tx.deal.findMany({ where: { AND: [matching, afterCursor('createdAt', request.cursor, { asDate: true })] }, select: dealSelect, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], take: request.limit + 1 }),
+      tx.deal.count({ where: matching }),
+    ]);
+    return toPage(rows, request, total, (row) => row.createdAt, (row) => row);
+  },
+
+  /** Every pact, newest first, read a page at a time: for whole-portfolio work (the executive report), never a screen. */
+  async all(tx: TransactionClient): Promise<DealRecord[]> {
+    const found: DealRecord[] = [];
+    let cursor: string | undefined;
+    do {
+      const page = await deals.page(tx, {}, { limit: 100, ...(cursor ? { cursor } : {}) });
+      found.push(...page.items);
+      cursor = page.nextCursor ?? undefined;
+    } while (cursor);
+    return found;
+  },
+
+  /** Counts for the home page: all pacts, active ones, and per stage. */
+  async summary(tx: TransactionClient): Promise<{ total: number; active: number; byStage: Record<string, number> }> {
+    const grouped = await tx.deal.groupBy({ by: ['stage', 'status'], where: { status: { not: 'DELETED' } }, _count: { _all: true } });
+    const byStage: Record<string, number> = {};
+    let total = 0;
+    let active = 0;
+    for (const row of grouped) {
+      total += row._count._all;
+      if (row.status === 'ACTIVE') active += row._count._all;
+      byStage[row.stage] = (byStage[row.stage] ?? 0) + row._count._all;
+    }
+    return { total, active, byStage };
   },
 
   async get(tx: TransactionClient, dealId: string): Promise<DealRecord | null> {
@@ -48,18 +88,6 @@ export const deals = {
     return updated.count === 0 ? null : deals.get(tx, dealId);
   },
 
-  /** Full-text search. RLS removes other tenants' rows before ranking. */
-  async search(tx: TransactionClient, query: string): Promise<DealRecord[]> {
-    const ids = await tx.$queryRaw<{ id: string }[]>`
-      SELECT id FROM deals
-       WHERE to_tsvector('simple'::regconfig, name || ' ' || target_name) @@ plainto_tsquery('simple', ${query})
-       ORDER BY ts_rank(to_tsvector('simple'::regconfig, name || ' ' || target_name), plainto_tsquery('simple', ${query})) DESC, id
-       LIMIT 50`;
-    if (ids.length === 0) return [];
-    const rows = await tx.deal.findMany({ where: { id: { in: ids.map((row) => row.id) }, status: { not: 'DELETED' } }, select: dealSelect });
-    const order = new Map(ids.map((row, index) => [row.id, index]));
-    return rows.sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
-  },
 };
 
 export const storedFiles = {

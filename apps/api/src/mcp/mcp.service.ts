@@ -3,6 +3,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { appendAuditEvent, oauth, resolvePrincipal, withTenant, type PrismaClient } from '@pactlab/db';
 import type { TenantContext } from '@pactlab/domain';
 import type { Logger } from '@pactlab/observability';
+import { PAGE_CURSOR_PATTERN, PAGE_LIMIT_DEFAULT, PAGE_LIMIT_MAX } from '@pactlab/contracts';
 import { z } from 'zod';
 import { AgentProposalsService } from '../agent-proposals/agent-proposals.service';
 import { AGENT_PROPOSAL_STATUSES } from '../agent-proposals/agent-proposals.schemas';
@@ -132,9 +133,15 @@ export class McpService {
     const withoutCushions = <T extends { direction?: number | null; valueConfirmation?: unknown }>(items: readonly T[]) =>
       confidential ? items : items.filter((item) => !(item.direction === 1 && item.valueConfirmation));
 
-    tool('list_deals', 'The pacts you can see: name, stage, target and dates. Optionally filter by a search term.', { query: z.string().max(100).optional() }, async ({ query }) => ({
-      deals: (await this.deals.list(tenant, query)).map((deal) => ({ ...deal })),
-    }));
+    tool(
+      'list_deals',
+      'The pacts you can see, newest first: name, stage, target and dates. Optionally filter by a search term. Paged: pass nextCursor back as cursor for more.',
+      { query: z.string().max(100).optional(), cursor: z.string().regex(PAGE_CURSOR_PATTERN).optional(), limit: z.number().int().min(1).max(PAGE_LIMIT_MAX).default(PAGE_LIMIT_DEFAULT) },
+      async ({ query, cursor, limit }) => {
+        const page = await this.deals.list(tenant, { ...(query ? { q: query } : {}), ...(cursor ? { cursor } : {}), limit });
+        return { deals: page.items, nextCursor: page.nextCursor, total: page.total };
+      },
+    );
 
     tool('get_deal_summary', 'One pact: its details and the screening verdict (GO / NO_GO) with reasons, if screened.', { dealId }, async (args) => {
       const deal = await this.deals.get(tenant, args.dealId);

@@ -1,3 +1,4 @@
+import type { z } from 'zod';
 import { Body, Controller, Get, HttpCode, Inject, Param, Post, Query, Res } from '@nestjs/common';
 import type { TenantContext } from '@pactlab/domain';
 import type { FastifyReply } from 'fastify';
@@ -19,7 +20,7 @@ export class ReportsController {
   }
 
   @Get()
-  history(@Tenant() tenant: TenantContext, @Query(new ZodValidationPipe(reportHistoryQuerySchema)) query: { scope?: 'EXECUTIVE' | 'PACT'; dealId?: string }) {
+  history(@Tenant() tenant: TenantContext, @Query(new ZodValidationPipe(reportHistoryQuerySchema)) query: z.infer<typeof reportHistoryQuerySchema>) {
     return this.service.history(tenant, query);
   }
 

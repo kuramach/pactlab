@@ -29,6 +29,11 @@ export function phaseOf(stage: string): DealPhase {
   return PHASE_OF_STAGE[stage as DealStage] ?? 'DILIGENCE';
 }
 
+/** The stages of a phase (for filtering in the database). */
+export function stagesOf(phase: DealPhase): DealStage[] {
+  return (Object.keys(PHASE_OF_STAGE) as DealStage[]).filter((stage) => PHASE_OF_STAGE[stage] === phase);
+}
+
 export const isDealStage = (value: string): value is DealStage => (DEAL_STAGES as readonly string[]).includes(value);
 
 /** Screening ends in a verdict: GO promotes to Diligence, NO_GO archives, NEEDS_MORE stays in Pre. */

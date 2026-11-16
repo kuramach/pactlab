@@ -50,16 +50,16 @@ export default async function HomePage() {
       </div>
     );
   }
-  const deals = await dealsApi.list();
+  // Counts come from every pact; the chart from the newest page.
+  const [deals, summary] = await Promise.all([dealsApi.list({ limit: 50 }), dealsApi.summary()]);
   const items = deals.kind === 'ok' ? deals.data.items : [];
+  const counts = summary.kind === 'ok' ? summary.data : { total: items.length, active: 0, byStage: {} as Record<string, number> };
   const firstName = session.displayName.replace(/\(.*?\)/g, '').trim().split(/\s+/)[0] ?? '';
   // One chart, one currency: the first priced deal's.
   const currency = items.find((deal) => deal.askingPrice)?.askingPrice?.currency ?? 'USD';
   const priced = items.filter((deal) => deal.askingPrice?.currency === currency).slice(0, 8);
   const sextant = await Promise.all(priced.map(sextantValue));
-  const stages = Object.entries(
-    items.reduce<Record<string, number>>((counts, deal) => ({ ...counts, [deal.stage]: (counts[deal.stage] ?? 0) + 1 }), {}),
-  );
+  const stages = Object.entries(counts.byStage);
 
   return (
     <div className="flex flex-col gap-8">
@@ -79,9 +79,9 @@ export default async function HomePage() {
       {session.guest ? null : <BrandPrompt />}
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Stat label="My deals" value={items.length} icon={<Briefcase />} accent="indigo" />
-        <Stat label="Active" value={items.filter((deal) => deal.status === 'ACTIVE').length} icon={<Activity />} accent="teal" />
-        <Stat label="In diligence" value={items.filter((deal) => deal.stage === 'DILIGENCE').length} icon={<Search />} accent="amber" />
+        <Stat label="My deals" value={counts.total} icon={<Briefcase />} accent="indigo" />
+        <Stat label="Active" value={counts.active} icon={<Activity />} accent="teal" />
+        <Stat label="In diligence" value={counts.byStage['DILIGENCE'] ?? 0} icon={<Search />} accent="amber" />
         <Stat
           label="Asking prices tested"
           value={priced.length}

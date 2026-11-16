@@ -1,5 +1,6 @@
 import { DEAL_PHASES, OWNERSHIPS, PARTY_ROLES, TRANSACTION_TYPES } from '@pactlab/domain';
 import { z } from 'zod';
+import { pageQuerySchema } from './pagination';
 import { isoCurrencySchema, uuidSchema } from './common';
 
 export const transactionTypeSchema = z.enum(TRANSACTION_TYPES);
@@ -39,14 +40,28 @@ export const dealSummarySchema = z.object({
 });
 export type DealSummary = z.infer<typeof dealSummarySchema>;
 
-export const listDealsQuerySchema = z.strictObject({
-  q: z.string().trim().min(1).max(200).optional(),
-});
+/** My deals, a page at a time (T-126): searched by name or target, narrowed by phase in the database. */
+export const listDealsQuerySchema = pageQuerySchema
+  .extend({
+    q: z.string().trim().min(1).max(200).optional(),
+    phase: z.enum(['PRE', 'DILIGENCE', 'POST']).optional(),
+  })
+  .strict();
 export type ListDealsQuery = z.infer<typeof listDealsQuerySchema>;
 
 export const listDealsResponseSchema = z.object({
   items: z.array(dealSummarySchema),
+  nextCursor: z.string().nullable(),
+  total: z.number().int(),
+  limit: z.number().int(),
 });
+
+/** Counts for the home page across every pact. */
+export interface DealsSummaryView {
+  total: number;
+  active: number;
+  byStage: Record<string, number>;
+}
 export type ListDealsResponse = z.infer<typeof listDealsResponseSchema>;
 
 export const dealParamsSchema = z.strictObject({ dealId: uuidSchema });

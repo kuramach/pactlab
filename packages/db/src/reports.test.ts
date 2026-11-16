@@ -40,9 +40,9 @@ describe('report versions (database)', () => {
   });
 
   it('another organization sees none of them', async () => {
-    const history = await withTenant(db.prisma, b.context, (tx) => reportVersions.history(tx, {}));
+    const history = (await withTenant(db.prisma, b.context, (tx) => reportVersions.history(tx, {}, { limit: 50 }))).items;
     expect(history.every((row) => row.organizationId === b.organizationId)).toBe(true);
-    const mine = await withTenant(db.prisma, a.context, (tx) => reportVersions.history(tx, {}));
+    const mine = (await withTenant(db.prisma, a.context, (tx) => reportVersions.history(tx, {}, { limit: 50 }))).items;
     expect(await withTenant(db.prisma, b.context, (tx) => reportVersions.get(tx, mine[0]!.id))).toBeNull();
   });
 });

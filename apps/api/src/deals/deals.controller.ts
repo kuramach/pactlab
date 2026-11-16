@@ -15,6 +15,7 @@ import {
   listDealsQuerySchema,
   type DealSummary,
   type ListDealsQuery,
+  type DealsSummaryView,
   type ListDealsResponse,
 } from '@pactlab/contracts';
 import type { TenantContext } from '@pactlab/domain';
@@ -42,7 +43,13 @@ export class DealsController {
     @Tenant() tenant: TenantContext,
     @Query(new ZodValidationPipe(listDealsQuerySchema)) query: ListDealsQuery,
   ): Promise<ListDealsResponse> {
-    return { items: await this.dealsService.list(tenant, query.q) };
+    return this.dealsService.list(tenant, query);
+  }
+
+  /** Counts across every pact, for the home page (the list itself is paged). */
+  @Get('summary')
+  summary(@Tenant() tenant: TenantContext): Promise<DealsSummaryView> {
+    return this.dealsService.summary(tenant);
   }
 
   @Post()

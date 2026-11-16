@@ -59,9 +59,9 @@ describe.runIf(runtimeUrl && ownerUrl)('RLS against PostgreSQL', () => {
 
   it('allows own deals and denies the other tenant by list, id and search', async () => {
     const result = await withTenant(prisma, a.context, async (tx) => ({
-      list: await deals.list(tx),
+      list: await deals.all(tx),
       other: await deals.get(tx, b.dealId),
-      search: await deals.search(tx, b.dealName),
+      search: (await deals.page(tx, { query: b.dealName }, { limit: 50 })).items,
     }));
     expect(result.list.map((deal) => deal.organizationId)).toEqual([a.organizationId]);
     expect(result.other).toBeNull();

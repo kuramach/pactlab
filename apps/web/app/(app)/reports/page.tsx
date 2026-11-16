@@ -1,6 +1,7 @@
-import type { DealSummary, ReportVersionView } from '@pactlab/contracts';
+import type { DealSummary, Page, ReportVersionView } from '@pactlab/contracts';
 import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, EmptyState, PageHeader } from '@pactlab/ui';
 import { Download, FileText } from 'lucide-react';
+import { keepParams, pageApiQuery, Pager, pagerLinks, readPage } from '../../_components/pager';
 import { Pending } from '../../_components/pending';
 import { apiGet } from '../deals/_lib/api';
 import { ApiState } from '../deals/_lib/states';
@@ -29,7 +30,13 @@ const at = (iso: string) => `${iso.slice(0, 10)} ${iso.slice(11, 16)} UTC`;
 export default async function ReportsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const search = await searchParams;
   const dealId = typeof search['dealId'] === 'string' ? search['dealId'] : '';
-  const [history, deals] = await Promise.all([apiGet<{ items: ReportVersionView[] }>('/v1/reports'), apiGet<{ items: DealSummary[] }>('/v1/deals')]);
+  // History and the pact picker are paged (T-126); the picker searches by name when there are more pacts than fit.
+  const position = readPage(search);
+  const pactQuery = typeof search['pact'] === 'string' ? search['pact'].trim().slice(0, 200) : '';
+  const [history, deals] = await Promise.all([
+    apiGet<Page<ReportVersionView>>(`/v1/reports?${pageApiQuery(position)}`),
+    apiGet<Page<DealSummary>>(`/v1/deals?limit=100${pactQuery ? `&q=${encodeURIComponent(pactQuery)}` : ''}`),
+  ]);
   if (history.kind !== 'ok') return <ApiState result={history} />;
   const items = history.data.items;
   const pacts = deals.kind === 'ok' ? deals.data.items : [];
@@ -66,7 +73,22 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
             <CardTitle className="text-base">Pact report</CardTitle>
             <CardDescription>The full record of one pact: evidence, findings, claims, valuation, terms and post-close — exactly what your side can see.</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="flex flex-col gap-3">
+            {/* More pacts than fit in one list: find one by name (the newest 100 show otherwise). */}
+            {deals.kind === 'ok' && (deals.data.total > deals.data.items.length || pactQuery) ? (
+              <form method="get" role="search" className="flex flex-wrap items-end gap-2 text-sm">
+                <label className="flex flex-col gap-1 font-medium">
+                  Find a pact
+                  <input name="pact" defaultValue={pactQuery} maxLength={200} placeholder="Name or target" className="rounded-md border border-border bg-background px-3 py-2" />
+                </label>
+                <Button type="submit" variant="outline" size="sm">
+                  Search
+                </Button>
+                <span className="text-xs text-muted-foreground">
+                  {pactQuery ? `${deals.data.total} matching` : `Showing the newest ${deals.data.items.length} of ${deals.data.total}`}
+                </span>
+              </form>
+            ) : null}
             <form action={generatePactReport} className="flex flex-wrap items-end gap-2">
               <label className="flex flex-col gap-1 text-sm font-medium">
                 Pact
@@ -139,6 +161,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
               </tbody>
             </table>
           )}
+          <Pager label="Report pages" base="/reports" links={pagerLinks({ ...history.data, itemCount: items.length }, position, keepParams(search))} />
         </CardContent>
       </Card>
     </div>
