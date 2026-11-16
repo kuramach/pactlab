@@ -27,8 +27,7 @@ import type {
   ComparableEntry,
   ComparableView,
   MultipleJudgementInput,
-  MultipleJudgementView,
-} from '@pactlab/contracts';
+  MultipleJudgementView, Page} from '@pactlab/contracts';
 import { COMPARABLE_BATCH_MAX_ROWS, comparableDuplicateKey, parseComparableBatch } from '@pactlab/contracts';
 import { NotConfiguredComparablesProvider, type ComparablesProvider } from '@pactlab/connectors';
 import {
@@ -187,12 +186,24 @@ export class ComparablesService {
     await this.denied(tenant, action, requestId);
   }
 
-  async list(tenant: TenantContext, requestId: string): Promise<{ items: ComparableView[]; canWrite: boolean; provider: 'NOT_CONFIGURED' | 'CONFIGURED' }> {
+  /**
+   * The comparables in use: the table a page at a time, most recently recorded first (T-126); the
+   * counts by origin and the scatter chart describe the whole pool, in a few fields each.
+   */
+  async list(
+    tenant: TenantContext,
+    request: { cursor?: string | undefined; limit: number },
+    requestId: string,
+  ): Promise<Page<ComparableView> & { canWrite: boolean; provider: 'NOT_CONFIGURED' | 'CONFIGURED'; countsByOrigin: Record<string, number>; chart: { name: string; multiple: string; origin: ComparableView['origin']; growth: string; arr: ComparableView['arr'] }[] }> {
     await this.requireReader(tenant, 'comparables.list', requestId);
-    const items = await withTenant(this.prisma, tenant, (tx) => comparables.list(tx));
+    const [page, pool] = await withTenant(this.prisma, tenant, async (tx) => [await comparables.page(tx, request), await comparables.list(tx)] as const);
     const canWrite = isOrgAdmin(tenant) || (await this.buyerRoles(tenant)).includes('DEAL_LEAD');
     const provider = (await this.provider.search({ companyType: 'SOFTWARE_SAAS', since: null, limit: 0 })).status === 'OK' ? 'CONFIGURED' : 'NOT_CONFIGURED';
-    return { items: items.map(toView), canWrite, provider };
+    const views = pool.map(toView);
+    const countsByOrigin: Record<string, number> = {};
+    for (const view of views) countsByOrigin[view.origin] = (countsByOrigin[view.origin] ?? 0) + 1;
+    const chart = views.flatMap((view) => (view.arrGrowth !== null ? [{ name: view.name, multiple: view.multiple, origin: view.origin, growth: view.arrGrowth, arr: view.arr }] : []));
+    return { ...page, items: page.items.map(toView), canWrite, provider, countsByOrigin, chart };
   }
 
   async create(tenant: TenantContext, input: ComparableEntry, requestId: string): Promise<ComparableView> {

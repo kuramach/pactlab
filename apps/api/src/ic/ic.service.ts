@@ -1,6 +1,6 @@
 import { ConflictException, ForbiddenException, Inject, Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import type { IcSettingsView, IcSubmissionView, IcView } from '@pactlab/contracts';
-import { appendAuditEvent, withTenant, type PrismaClient, type TransactionClient } from '@pactlab/db';
+import { appendAuditEvent, withTenant, type PrismaClient, type TransactionClient, afterCursor, toPage} from '@pactlab/db';
 import { newId, permissionsForDealRole, type DealRole, type TenantContext } from '@pactlab/domain';
 import { DealAccess } from '../deals/deal-access';
 import { ReportsService } from '../reports/reports.service';
@@ -212,17 +212,30 @@ export class IcService {
 
   // --- Organization settings: the committee list and the default requirement ---------------
 
-  async settings(tenant: TenantContext): Promise<IcSettingsView> {
+  async settings(tenant: TenantContext, query: { q?: string | undefined; cursor?: string | undefined; limit: number } = { limit: 50 }): Promise<IcSettingsView> {
     if (tenant.organizationRole === 'GUEST') throw new NotFoundException();
     return withTenant(this.prisma, tenant, async (tx) => {
-      const [organization, members] = await Promise.all([
+      const select = { id: true, createdAt: true, userId: true, role: true, investmentCommittee: true, user: { select: { displayName: true } } } as const;
+      // The rest of the organization, to add someone: paged and searched in the database (T-126).
+      const others = {
+        organizationId: tenant.organizationId,
+        status: 'ACTIVE' as const,
+        investmentCommittee: false,
+        ...(query.q ? { user: { OR: [{ displayName: { contains: query.q, mode: 'insensitive' as const } }, { email: { contains: query.q, mode: 'insensitive' as const } }] } } : {}),
+      };
+      const [organization, committee, rows, total] = await Promise.all([
         tx.organization.findUnique({ where: { id: tenant.organizationId }, select: { icApprovalRequired: true, icClearsConditions: true } }),
-        tx.organizationMembership.findMany({ where: { organizationId: tenant.organizationId, status: 'ACTIVE' }, select: { userId: true, role: true, investmentCommittee: true, user: { select: { displayName: true } } }, orderBy: { createdAt: 'asc' } }),
+        // bounded: the organization's committee members, a handful by design
+        tx.organizationMembership.findMany({ where: { organizationId: tenant.organizationId, status: 'ACTIVE', investmentCommittee: true }, select, orderBy: { createdAt: 'asc' } }),
+        tx.organizationMembership.findMany({ where: { AND: [others, afterCursor('createdAt', query.cursor, { direction: 'asc', asDate: true })] }, select, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }], take: query.limit + 1 }),
+        tx.organizationMembership.count({ where: others }),
       ]);
+      const person = (row: (typeof rows)[number]) => ({ userId: row.userId, name: row.user.displayName, role: row.role, investmentCommittee: row.investmentCommittee });
       return {
         required: organization?.icApprovalRequired ?? false,
         clearsConditions: organization?.icClearsConditions ?? false,
-        members: members.map((row) => ({ userId: row.userId, name: row.user.displayName, role: row.role, investmentCommittee: row.investmentCommittee })),
+        committee: committee.map((row) => ({ ...person(row), investmentCommittee: true as const })),
+        people: toPage(rows, query, total, (row) => row.createdAt, person),
         canEdit: isOrgAdmin(tenant),
       };
     });

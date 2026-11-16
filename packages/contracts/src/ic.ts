@@ -1,3 +1,4 @@
+import type { Page } from './pagination';
 /** The investment committee on a pact (T-118, ADR 0029). Buyer side only. */
 export type IcStateView = 'NONE' | 'SUBMITTED' | 'APPROVED' | 'CONDITIONS_OPEN' | 'DECLINED';
 
@@ -41,6 +42,9 @@ export interface IcView {
 export interface IcSettingsView {
   required: boolean;
   clearsConditions: boolean;
-  members: { userId: string; name: string; role: string; investmentCommittee: boolean }[];
+  /** The committee itself (a handful by design). */
+  committee: { userId: string; name: string; role: string; investmentCommittee: true }[];
+  /** The organization's other members, to add one: a page at a time, searchable (T-126). */
+  people: Page<{ userId: string; name: string; role: string; investmentCommittee: boolean }>;
   canEdit: boolean;
 }
