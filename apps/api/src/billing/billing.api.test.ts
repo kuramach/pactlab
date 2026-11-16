@@ -196,7 +196,7 @@ describe('billing and promo codes', () => {
     const cy = await organization('Cy');
     expect((await call('POST', `/v1/admin/organizations/${cy.organizationId}/billing/comp`, { kind: 'PACT' }, opsToken)).status).toBe(201);
     expect((await startPact(await signIn(cy.email))).status).toBe(201);
-    expect(((await call('GET', '/v1/admin/billing', undefined, opsToken)).body['items'] as unknown[]).length).toBeGreaterThan(0);
-    expect((await call('GET', '/v1/admin/billing', undefined, await signIn(cy.email))).status).toBe(403);
+    expect(((await call('GET', `/v1/admin/billing?organizationIds=${cy.organizationId}`, undefined, opsToken)).body['items'] as unknown[]).length).toBeGreaterThan(0);
+    expect((await call('GET', `/v1/admin/billing?organizationIds=${cy.organizationId}`, undefined, await signIn(cy.email))).status).toBe(403);
   });
 });

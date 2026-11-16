@@ -34,9 +34,9 @@ describe.runIf(runtimeUrl && ownerUrl)('operator functions against PostgreSQL', 
 
   it('lets an operator read across organizations, and refuses everyone else', async () => {
     const sql = prismaExecutor(prisma);
-    const orgs = await operatorOps.organizations(sql, operator.userId);
+    const orgs = (await operatorOps.organizationsPage(sql, operator.userId, {}, { limit: 100 })).items;
     expect(orgs.map((org) => org.id)).toEqual(expect.arrayContaining([operator.organizationId, customer.organizationId]));
-    await expect(operatorOps.organizations(sql, customer.userId)).rejects.toBeInstanceOf(OperatorRequiredError);
+    await expect(operatorOps.organizationsPage(sql, customer.userId, {}, { limit: 100 })).rejects.toBeInstanceOf(OperatorRequiredError);
     // With no actor, only the schema owner's own session may act (the ops CLI); the runtime role may not.
     await expect(operatorOps.pendingOrganizations(sql, null)).rejects.toBeInstanceOf(OperatorRequiredError);
     expect(Array.isArray(await operatorOps.pendingOrganizations(owner, null))).toBe(true);
@@ -48,7 +48,7 @@ describe.runIf(runtimeUrl && ownerUrl)('operator functions against PostgreSQL', 
     const first = await operatorOps.fileBug(sql, input);
     const again = await operatorOps.fileBug(sql, input);
     expect(again).toMatchObject({ id: first.id, deduplicated: true });
-    expect((await operatorOps.bugs(sql, customer.userId, true)).map((bug) => bug.id)).toContain(first.id);
+    expect((await operatorOps.bugsPage(sql, customer.userId, { mine: true }, { limit: 100 })).items.map((bug) => bug.id)).toContain(first.id);
     await expect(operatorOps.bug(sql, customer.userId, first.id)).rejects.toBeInstanceOf(OperatorRequiredError);
     expect(await operatorOps.triageBug(sql, operator.userId, first.id, { status: 'TRIAGED', severity: 'LOW', internalNotes: null, reporterNote: null })).toBe(true);
     // The runtime role still cannot read the table directly.

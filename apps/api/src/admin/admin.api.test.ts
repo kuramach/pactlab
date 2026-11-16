@@ -131,6 +131,45 @@ describe('operator console and bug reports (T-072)', { timeout: 30_000 }, () => 
     expect(await audit('member.deactivated')).toBe(1);
   });
 
+  it('pages users past the old 200 cap: every member reachable once, in order, with the total (T-126)', async () => {
+    const big = await createSyntheticTenant(db.owner, 'Big Customer (synthetic)');
+    // 249 more members: 250 in all, more than the 200 the console used to show.
+    await db.owner.query(
+      `INSERT INTO users (id, auth0_subject, display_name, email)
+       SELECT uuidv7(), 'pactlab|bulk-' || n, 'Member ' || lpad(n::text, 3, '0'), 'member' || n || '@big.example' FROM generate_series(1, 249) AS n`,
+    );
+    await db.owner.query(
+      `INSERT INTO organization_memberships (id, organization_id, user_id, role)
+       SELECT uuidv7(), $1, u.id, 'MEMBER' FROM users u WHERE u.email LIKE 'member%@big.example'`,
+      [big.organizationId],
+    );
+    const seen: string[] = [];
+    let cursor: string | null = null;
+    let pages = 0;
+    do {
+      const page = (await call('operator', 'GET', `/v1/admin/users?organizationId=${big.organizationId}&limit=100${cursor ? `&cursor=${cursor}` : ''}`)).body as { items: { userId: string; displayName: string }[]; nextCursor: string | null; total: number; limit: number };
+      expect(page.total).toBe(250);
+      expect(page.limit).toBe(100);
+      seen.push(...page.items.map((item) => item.userId));
+      cursor = page.nextCursor;
+      pages += 1;
+    } while (cursor && pages < 10);
+    expect(pages).toBe(3);
+    expect(seen).toHaveLength(250);
+    expect(new Set(seen).size).toBe(250);
+    // Search narrows in the database, across every page.
+    const search = (await call('operator', 'GET', '/v1/admin/users?q=member249%40big')).body as { items: Body[]; total: number };
+    expect(search.total).toBe(1);
+    // Organizations page too, newest first; a bad cursor starts over rather than failing.
+    const orgs = (await call('operator', 'GET', '/v1/admin/organizations?limit=1')).body as { items: Body[]; nextCursor: string; total: number };
+    expect(orgs.items[0]).toMatchObject({ id: big.organizationId, members: 250, mcpEnabled: false });
+    expect(orgs.total).toBeGreaterThanOrEqual(3);
+    const second = (await call('operator', 'GET', `/v1/admin/organizations?limit=1&cursor=${orgs.nextCursor}`)).body as { items: Body[] };
+    expect(second.items[0]?.['id']).not.toBe(big.organizationId);
+    expect((await call('operator', 'GET', '/v1/admin/organizations?cursor=garbage_')).status).toBe(200);
+    expect((await call('operator', 'GET', '/v1/admin/users?limit=101')).status).toBe(400);
+  });
+
   it('a user report with a screenshot reaches the inbox; triage shows in the reporter’s list; secrets never stored', async () => {
     const filed = await call('customer', 'POST', '/v1/bug-reports', {
       trigger: 'USER_REPORT',
@@ -152,6 +191,8 @@ describe('operator console and bug reports (T-072)', { timeout: 30_000 }, () => 
 
     expect((await call('customer', 'GET', `/v1/admin/bugs/${id}`)).status).toBe(403);
     const inbox = (await call('operator', 'GET', '/v1/admin/bugs')).body['items'] as Body[];
+    // Filtered in the database (T-126).
+    expect(((await call('operator', 'GET', '/v1/admin/bugs?status=CLOSED')).body['items'] as Body[]).every((bug) => bug['status'] === 'CLOSED')).toBe(true);
     expect(inbox.find((bug) => bug['id'] === id)).toMatchObject({ trigger: 'USER_REPORT', severity: 'HIGH', status: 'NEW', hasScreenshot: true });
     const detail = (await call('operator', 'GET', `/v1/admin/bugs/${id}`)).body;
     expect(detail).toMatchObject({ dealId: customer.dealId, context: expect.objectContaining({ userAgent: 'Synthetic browser', environment: 'test' }) });

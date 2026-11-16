@@ -1,6 +1,6 @@
 import { ForbiddenException, Inject, Injectable, NotFoundException, ServiceUnavailableException, UnprocessableEntityException } from '@nestjs/common';
 import { BillingSignatureError, FixtureBillingProvider, type BillingEvent, type BillingProvider } from '@pactlab/connectors';
-import type { AdminBillingAccountView, BillingPlanKey, BillingPlanView, BillingView, CreatePromoCodeInput, PromoCheckView, PromoCodeView } from '@pactlab/contracts';
+import type { AdminBillingAccountView, BillingPlanKey, BillingPlanView, BillingView, CreatePromoCodeInput, Page, PromoCheckView, PromoCodeView } from '@pactlab/contracts';
 import { appendAuditEvent, billing, OperatorRequiredError, promoCodes, withTenant, type BillingPlanRow, type PactCreditKind, type PrismaClient, type PromoCodeRow } from '@pactlab/db';
 import { COMPANY_TYPE_LABELS, type CompanyType, type TenantContext } from '@pactlab/domain';
 import type { Logger } from '@pactlab/observability';
@@ -250,9 +250,10 @@ export class BillingService {
     }
   }
 
-  async adminAccounts(tenant: TenantContext): Promise<{ items: AdminBillingAccountView[] }> {
+  /** Billing for the organizations on one console page (at most 100; T-126). */
+  async adminAccounts(tenant: TenantContext, organizationIds: readonly string[]): Promise<{ items: AdminBillingAccountView[] }> {
     return this.asOperator(async () => ({
-      items: (await billing.adminAccounts(this.prisma, tenant.userId)).map((row) => ({ ...row, periodEnd: row.periodEnd?.toISOString() ?? null })),
+      items: (await billing.adminAccountsFor(this.prisma, tenant.userId, organizationIds)).map((row) => ({ ...row, periodEnd: row.periodEnd?.toISOString() ?? null })),
     }));
   }
 
@@ -263,7 +264,7 @@ export class BillingService {
   /** Re-mirror an organization's subscription from Stripe (operators; the nightly job does every one). */
   async resync(tenant: TenantContext, organizationId: string): Promise<{ resynced: boolean }> {
     return this.asOperator(async () => {
-      const account = (await billing.adminAccounts(this.prisma, tenant.userId)).find((row) => row.organizationId === organizationId);
+      const [account] = await billing.adminAccountsFor(this.prisma, tenant.userId, [organizationId]);
       if (!account) throw new NotFoundException();
       const resynced = account.subscriptionId ? await this.syncSubscription(account.subscriptionId, await billing.plans(this.prisma), organizationId, null) : false;
       return { resynced };
@@ -282,12 +283,16 @@ export class BillingService {
     };
   }
 
-  async listPromoCodes(tenant: TenantContext): Promise<{ items: PromoCodeView[] }> {
-    return this.asOperator(async () => ({ items: (await promoCodes.list(this.prisma, tenant.userId)).map((row) => this.codeView(row)) }));
+  /** Promo codes, newest first, a page at a time (T-126). */
+  async listPromoCodes(tenant: TenantContext, request: { cursor?: string | undefined; limit: number } = { limit: 50 }): Promise<Page<PromoCodeView>> {
+    return this.asOperator(async () => {
+      const page = await promoCodes.listPage(this.prisma, tenant.userId, request);
+      return { ...page, items: page.items.map((row) => this.codeView(row)) };
+    });
   }
 
   /** Create a code; a discount is mirrored to Stripe as a coupon and promotion code. */
-  async createPromoCode(tenant: TenantContext, input: CreatePromoCodeInput): Promise<{ items: PromoCodeView[] }> {
+  async createPromoCode(tenant: TenantContext, input: CreatePromoCodeInput): Promise<Page<PromoCodeView>> {
     return this.asOperator(async () => {
       const id = await promoCodes.create(this.prisma, tenant.userId, {
         ...input,
@@ -317,7 +322,7 @@ export class BillingService {
     });
   }
 
-  async deactivatePromoCode(tenant: TenantContext, id: string): Promise<{ items: PromoCodeView[] }> {
+  async deactivatePromoCode(tenant: TenantContext, id: string): Promise<Page<PromoCodeView>> {
     return this.asOperator(async () => {
       await promoCodes.deactivate(this.prisma, tenant.userId, id);
       return this.listPromoCodes(tenant);

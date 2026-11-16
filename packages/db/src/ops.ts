@@ -1,5 +1,6 @@
 import type { PrismaClient } from './client';
 import { APP_DB_ROLE } from './tenant';
+import { decodeCursor, encodeCursor, type PageRequest, type PageResult } from './pagination';
 
 /**
  * Operator-only access across organizations (T-072): thin typed wrappers over
@@ -36,6 +37,31 @@ export class OperatorRequiredError extends Error {
 }
 
 const rows = <T>(result: unknown) => (result as { rows: T[] }).rows;
+
+/**
+ * A page from an `app_ops_*_page` function, asked for `limit + 1` rows (see `ask`): rows carry `total`;
+ * the cursor is the last shown row's (key, id), present only when another row follows.
+ */
+function opsPage<T>(found: Record<string, unknown>[], request: PageRequest, keyOf: (row: Record<string, unknown>) => string | Date, idOf: (row: Record<string, unknown>) => string, map: (row: Record<string, unknown>) => T): PageResult<T> {
+  const page = found.slice(0, request.limit);
+  const last = page.at(-1);
+  return {
+    items: page.map(map),
+    nextCursor: last && found.length > request.limit ? encodeCursor(keyOf(last), idOf(last)) : null,
+    total: Number(found[0]?.['total'] ?? 0),
+    limit: request.limit,
+  };
+}
+
+/** Rows to ask a page function for: one more than the page, to know whether another follows. */
+const ask = (request: PageRequest) => request.limit + 1;
+
+/** The (key, id) a page continues after, as the function's parameters; a cursor of another kind starts over. */
+function after(request: PageRequest, kind: 'text' | 'time'): [string | Date | null, string | null] {
+  const position = decodeCursor(request.cursor);
+  if (!position || typeof position.key !== 'string') return [null, null];
+  return [kind === 'time' ? new Date(position.key) : position.key, position.id];
+}
 
 /** Call an `app_ops_*` function; a refusal (42501) becomes OperatorRequiredError. */
 export async function callOps<T>(sql: SqlExecutor, text: string, params: unknown[]): Promise<T[]> {
@@ -161,8 +187,11 @@ export const operatorOps = {
     return { outcome: row?.outcome ?? 'not-found', name: row?.organization_name ?? null, status: row?.status ?? null, ownerEmails: row?.owner_emails ?? [] };
   },
 
-  async organizations(sql: SqlExecutor, actor: string): Promise<OperatorOrganization[]> {
-    return (await callOps<Record<string, unknown>>(sql, 'SELECT * FROM app_ops_organizations($1::uuid)', [actor])).map((row) => ({
+  /** Organizations, newest first, a page at a time (T-126); counts are computed for the page only. */
+  async organizationsPage(sql: SqlExecutor, actor: string, filter: { query?: string | null }, request: PageRequest): Promise<PageResult<OperatorOrganization & { mcpEnabled: boolean }>> {
+    const [afterAt, afterId] = after(request, 'time');
+    const found = await callOps<Record<string, unknown>>(sql, 'SELECT * FROM app_ops_organizations_page($1::uuid, $2, $3::timestamptz, $4::uuid, $5::int)', [actor, filter.query ?? null, afterAt, afterId, ask(request)]);
+    return opsPage(found, request, (row) => new Date(row['created_at'] as string), (row) => String(row['id']), (row) => ({ ...((row) => ({
       id: String(row['id']),
       slug: String(row['slug']),
       name: String(row['name']),
@@ -175,7 +204,7 @@ export const operatorOps = {
       deals: { pre: num(row['deals_pre']), diligence: num(row['deals_diligence']), post: num(row['deals_post']) },
       aiTokens: { input: num(row['ai_input_tokens']), output: num(row['ai_output_tokens']) },
       flags: { pilotMode: row['pilot_mode'] === true, liveConnectors: row['live_connectors'] !== false },
-    }));
+    }))(row), mcpEnabled: row['mcp_enabled'] === true }));
   },
 
   async setOrganizationStatus(sql: SqlExecutor, actor: string, organizationId: string, status: 'ACTIVE' | 'SUSPENDED'): Promise<boolean> {
@@ -193,20 +222,24 @@ export const operatorOps = {
     await callOps(sql, 'SELECT app_ops_set_mcp($1::uuid, $2::uuid, $3)::text AS done', [actor, organizationId, enabled]);
   },
 
-  /** Which organizations have MCP on. */
-  async mcpOrganizations(sql: SqlExecutor, actor: string): Promise<Map<string, boolean>> {
-    const rows = await callOps<{ organization_id: string; mcp_enabled: boolean }>(sql, 'SELECT organization_id::text, mcp_enabled FROM app_ops_mcp_organizations($1::uuid)', [actor]);
-    return new Map(rows.map((row) => [row.organization_id, row.mcp_enabled]));
-  },
-
   /** The flags of the caller's own organization; defaults when none were set. */
   async organizationFlags(sql: SqlExecutor, organizationId: string, userId: string): Promise<{ pilotMode: boolean; liveConnectors: boolean }> {
     const [row] = await callOps<{ pilot_mode: boolean; live_connectors: boolean }>(sql, 'SELECT * FROM app_organization_flags($1::uuid, $2::uuid)', [organizationId, userId]);
     return { pilotMode: row?.pilot_mode === true, liveConnectors: row ? row.live_connectors !== false : true };
   },
 
-  async users(sql: SqlExecutor, actor: string, filter: { organizationId?: string | null; query?: string | null }): Promise<OperatorUser[]> {
-    return (await callOps<Record<string, unknown>>(sql, 'SELECT * FROM app_ops_users($1::uuid, $2::uuid, $3)', [actor, filter.organizationId ?? null, filter.query ?? null])).map((row) => ({
+  /** Platform usage totals (Usage & health). */
+  async usageTotals(sql: SqlExecutor, actor: string): Promise<{ organizations: number; aiTokens: { input: number; output: number } }> {
+    const [row] = await callOps<Record<string, unknown>>(sql, 'SELECT * FROM app_ops_usage_totals($1::uuid)', [actor]);
+    return { organizations: num(row?.['organizations']), aiTokens: { input: num(row?.['ai_input_tokens']), output: num(row?.['ai_output_tokens']) } };
+  },
+
+  /** Users (one row per membership), by organization then name, a page at a time (T-126). */
+  async usersPage(sql: SqlExecutor, actor: string, filter: { organizationId?: string | null; query?: string | null }, request: PageRequest): Promise<PageResult<OperatorUser & { membershipId: string }>> {
+    const [afterKey, afterId] = after(request, 'text');
+    const found = await callOps<Record<string, unknown>>(sql, 'SELECT * FROM app_ops_users_page($1::uuid, $2::uuid, $3, $4, $5::uuid, $6::int)', [actor, filter.organizationId ?? null, filter.query ?? null, afterKey, afterId, ask(request)]);
+    return opsPage(found, request, (row) => String(row['sort_key']), (row) => String(row['membership_id']), (row) => ({
+      membershipId: String(row['membership_id']),
       userId: String(row['user_id']),
       displayName: String(row['display_name']),
       email: (row['email'] as string | null) ?? null,
@@ -223,8 +256,11 @@ export const operatorOps = {
     return row?.ok === true;
   },
 
-  async connections(sql: SqlExecutor, actor: string) {
-    return (await callOps<Record<string, unknown>>(sql, 'SELECT * FROM app_ops_connections($1::uuid)', [actor])).map((row) => ({
+  /** Connections, by organization, provider and name, with their last run, a page at a time (T-126). */
+  async connectionsPage(sql: SqlExecutor, actor: string, request: PageRequest) {
+    const [afterKey, afterId] = after(request, 'text');
+    const found = await callOps<Record<string, unknown>>(sql, 'SELECT * FROM app_ops_connections_page($1::uuid, $2, $3::uuid, $4::int)', [actor, afterKey, afterId, ask(request)]);
+    return opsPage(found, request, (row) => String(row['sort_key']), (row) => String(row['id']), (row) => ({
       organizationName: String(row['organization_name']),
       provider: String(row['provider']),
       displayName: String(row['display_name']),
@@ -235,10 +271,11 @@ export const operatorOps = {
     }));
   },
 
-  async auditEvents(sql: SqlExecutor, actor: string, filter: { action?: string | null; since?: Date | null; limit?: number }) {
-    return (
-      await callOps<Record<string, unknown>>(sql, 'SELECT * FROM app_ops_audit_events($1::uuid, $2, $3::timestamptz, $4::int)', [actor, filter.action ?? null, filter.since ?? null, filter.limit ?? 200])
-    ).map((row) => ({
+  /** Platform audit events, newest first, a page at a time (T-126). */
+  async auditEventsPage(sql: SqlExecutor, actor: string, filter: { action?: string | null }, request: PageRequest) {
+    const [afterAt, afterId] = after(request, 'time');
+    const found = await callOps<Record<string, unknown>>(sql, 'SELECT * FROM app_ops_audit_events_page($1::uuid, $2, $3::timestamptz, $4::uuid, $5::int)', [actor, filter.action ?? null, afterAt, afterId, ask(request)]);
+    return opsPage(found, request, (row) => new Date(row['occurred_at'] as string), (row) => String(row['id']), (row) => ({
       occurredAt: new Date(row['occurred_at'] as string),
       organizationName: String(row['organization_name']),
       actorName: (row['actor_name'] as string | null) ?? null,
@@ -287,8 +324,11 @@ export const operatorOps = {
     return { id: row.id, number: Number(row.number), deduplicated: row.deduplicated };
   },
 
-  async bugs(sql: SqlExecutor, actor: string, mine: boolean): Promise<BugListRow[]> {
-    return (await callOps<Record<string, unknown>>(sql, 'SELECT * FROM app_bug_list($1::uuid, $2)', [actor, mine])).map(bugRow);
+  /** Bug reports, most recently seen first, filtered in the database, a page at a time (T-126). */
+  async bugsPage(sql: SqlExecutor, actor: string, filter: { mine: boolean; status?: string | null; severity?: string | null }, request: PageRequest): Promise<PageResult<BugListRow>> {
+    const [afterAt, afterId] = after(request, 'time');
+    const found = await callOps<Record<string, unknown>>(sql, 'SELECT * FROM app_bug_list_page($1::uuid, $2, $3, $4, $5::timestamptz, $6::uuid, $7::int)', [actor, filter.mine, filter.status ?? null, filter.severity ?? null, afterAt, afterId, ask(request)]);
+    return opsPage(found, request, (row) => new Date(row['last_seen_at'] as string), (row) => String(row['id']), bugRow);
   },
 
   async bug(sql: SqlExecutor, actor: string, id: string): Promise<BugDetailRow | null> {

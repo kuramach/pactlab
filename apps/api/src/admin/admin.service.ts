@@ -195,8 +195,12 @@ export class AdminService {
     });
   }
 
-  organizations(tenant: TenantContext) {
-    return this.asOperator(async () => ({ items: await operatorOps.organizations(this.sql, tenant.userId) }));
+  /** Organizations, newest first, a page at a time (T-126). */
+  organizations(tenant: TenantContext, query: { q?: string | undefined; cursor?: string | undefined; limit: number }) {
+    return this.asOperator(async () => {
+      const page = await operatorOps.organizationsPage(this.sql, tenant.userId, { query: query.q ?? null }, query);
+      return { ...page, items: page.items.map((org) => ({ ...org, createdAt: org.createdAt.toISOString() })) };
+    });
   }
 
   setOrganizationStatus(tenant: TenantContext, organizationId: string, status: 'ACTIVE' | 'SUSPENDED') {
@@ -217,26 +221,32 @@ export class AdminService {
     });
   }
 
-  mcpOrganizations(tenant: TenantContext) {
-    return this.asOperator(async () => ({ items: [...(await operatorOps.mcpOrganizations(this.sql, tenant.userId))].map(([organizationId, mcpEnabled]) => ({ organizationId, mcpEnabled })) }));
+  /** Platform totals for Usage & health. */
+  usage(tenant: TenantContext) {
+    return this.asOperator(() => operatorOps.usageTotals(this.sql, tenant.userId));
   }
 
-  users(tenant: TenantContext, filter: { organizationId?: string; q?: string }) {
-    return this.asOperator(async () => ({ items: await operatorOps.users(this.sql, tenant.userId, { organizationId: filter.organizationId ?? null, query: filter.q ?? null }) }));
+  /** Users (one row per membership), a page at a time (T-126). */
+  users(tenant: TenantContext, query: { organizationId?: string | undefined; q?: string | undefined; cursor?: string | undefined; limit: number }) {
+    return this.asOperator(() => operatorOps.usersPage(this.sql, tenant.userId, { organizationId: query.organizationId ?? null, query: query.q ?? null }, query));
   }
 
   setMemberStatus(tenant: TenantContext, organizationId: string, userId: string, status: 'ACTIVE' | 'SUSPENDED') {
     return this.asOperator(async () => ({ changed: await operatorOps.setMemberStatus(this.sql, tenant.userId, organizationId, userId, status) }));
   }
 
-  connections(tenant: TenantContext) {
-    return this.asOperator(async () => ({ items: await operatorOps.connections(this.sql, tenant.userId) }));
+  connections(tenant: TenantContext, query: { cursor?: string | undefined; limit: number }) {
+    return this.asOperator(async () => {
+      const page = await operatorOps.connectionsPage(this.sql, tenant.userId, query);
+      return { ...page, items: page.items.map((row) => ({ ...row, lastRunAt: row.lastRunAt?.toISOString() ?? null })) };
+    });
   }
 
-  audit(tenant: TenantContext, filter: { action?: string; since?: string }) {
-    return this.asOperator(async () => ({
-      items: await operatorOps.auditEvents(this.sql, tenant.userId, { action: filter.action ?? null, since: filter.since ? new Date(`${filter.since}T00:00:00Z`) : null }),
-    }));
+  audit(tenant: TenantContext, query: { action?: string | undefined; cursor?: string | undefined; limit: number }) {
+    return this.asOperator(async () => {
+      const page = await operatorOps.auditEventsPage(this.sql, tenant.userId, { action: query.action ?? null }, query);
+      return { ...page, items: page.items.map((row) => ({ ...row, occurredAt: row.occurredAt.toISOString() })) };
+    });
   }
 
   /** The caller's own organization's flags (any member). */
@@ -325,8 +335,12 @@ export class AdminService {
     return { bytes: row.screenshot, contentType: row.screenshotType };
   }
 
-  bugs(tenant: TenantContext) {
-    return this.asOperator(async () => ({ items: (await operatorOps.bugs(this.sql, tenant.userId, false)).map(summary) }));
+  /** The bug inbox, most recently seen first, filtered and paged in the database (T-126). */
+  bugs(tenant: TenantContext, query: { status?: string | undefined; severity?: string | undefined; cursor?: string | undefined; limit: number }) {
+    return this.asOperator(async () => {
+      const page = await operatorOps.bugsPage(this.sql, tenant.userId, { mine: false, status: query.status ?? null, severity: query.severity ?? null }, query);
+      return { ...page, items: page.items.map(summary) };
+    });
   }
 
   bug(tenant: TenantContext, bugId: string): Promise<BugReportDetailView> {

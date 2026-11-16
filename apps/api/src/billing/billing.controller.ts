@@ -1,5 +1,5 @@
-import { BadRequestException, Body, Controller, Get, Headers, HttpCode, Inject, NotFoundException, Param, Post, Req } from '@nestjs/common';
-import { checkoutBodySchema, createPromoCodeSchema, promoCodeBodySchema, type CreatePromoCodeInput } from '@pactlab/contracts';
+import { BadRequestException, Body, Controller, Get, Headers, HttpCode, Inject, NotFoundException, Param, Post, Query, Req } from '@nestjs/common';
+import { billingAccountsQuerySchema, checkoutBodySchema, consolePageQuerySchema, createPromoCodeSchema, promoCodeBodySchema, type CreatePromoCodeInput } from '@pactlab/contracts';
 import { isUuid, type TenantContext } from '@pactlab/domain';
 import type { FastifyRequest } from 'fastify';
 import type { z } from 'zod';
@@ -90,8 +90,8 @@ export class BillingAdminController {
   constructor(@Inject(BillingService) private readonly service: BillingService) {}
 
   @Get('billing')
-  accounts(@Tenant() tenant: TenantContext) {
-    return this.service.adminAccounts(tenant);
+  accounts(@Tenant() tenant: TenantContext, @Query(new ZodValidationPipe(billingAccountsQuerySchema)) query: z.output<typeof billingAccountsQuerySchema>) {
+    return this.service.adminAccounts(tenant, query.organizationIds);
   }
 
   @Post('organizations/:organizationId/billing/comp')
@@ -107,8 +107,8 @@ export class BillingAdminController {
   }
 
   @Get('promo-codes')
-  promoCodes(@Tenant() tenant: TenantContext) {
-    return this.service.listPromoCodes(tenant);
+  promoCodes(@Tenant() tenant: TenantContext, @Query(new ZodValidationPipe(consolePageQuerySchema)) query: z.infer<typeof consolePageQuerySchema>) {
+    return this.service.listPromoCodes(tenant, query);
   }
 
   @NoDemo()

@@ -115,7 +115,7 @@ describe('billing (database)', () => {
     expect(await promoCodes.redeem(db.prisma, 'mf-launch', fay.organizationId, fay.userId)).toBe('USED_UP');
 
     await promoCodes.create(db.prisma, operator, { code: 'PARTNER50', description: 'Design partners', kind: 'DISCOUNT', percentOff: '50', amountOff: null, currency: null, duration: 'REPEATING', durationMonths: 12, planKeys: ['TEAM_ANNUAL'], freePacts: null, packs: [], validFrom: null, validUntil: null, maxRedemptions: null, skipsApproval: true });
-    const list = await promoCodes.list(db.prisma, operator);
+    const list = (await promoCodes.listPage(db.prisma, operator, { limit: 100 })).items;
     const partner = list.find((code) => code.code === 'PARTNER50')!;
     await promoCodes.setStripe(db.prisma, operator, partner.id, 'promo_test_123');
     expect(await promoCodes.redeem(db.prisma, 'PARTNER50', fay.organizationId, fay.userId)).toBe('REDEEMED');

@@ -5,6 +5,9 @@ import {
   adminMemberParamsSchema,
   adminOrganizationParamsSchema,
   auditQuerySchema,
+  bugsQuerySchema,
+  consolePageQuerySchema,
+  organizationsQuerySchema,
   decideOrganizationSchema,
   fileBugReportSchema,
   memberStatusSchema,
@@ -91,8 +94,8 @@ export class AdminController {
   }
 
   @Get('organizations')
-  organizations(@Tenant() tenant: TenantContext) {
-    return this.admin.organizations(tenant);
+  organizations(@Tenant() tenant: TenantContext, @Query(new ZodValidationPipe(organizationsQuerySchema)) query: z.infer<typeof organizationsQuerySchema>) {
+    return this.admin.organizations(tenant, query);
   }
 
   @Put('organizations/:organizationId/status')
@@ -123,13 +126,8 @@ export class AdminController {
     return this.admin.setMcp(tenant, params.organizationId, body.enabled);
   }
 
-  @Get('mcp')
-  mcpOrganizations(@Tenant() tenant: TenantContext) {
-    return this.admin.mcpOrganizations(tenant);
-  }
-
   @Get('users')
-  users(@Tenant() tenant: TenantContext, @Query(new ZodValidationPipe(usersQuerySchema)) query: { organizationId?: string; q?: string }) {
+  users(@Tenant() tenant: TenantContext, @Query(new ZodValidationPipe(usersQuerySchema)) query: z.infer<typeof usersQuerySchema>) {
     return this.admin.users(tenant, query);
   }
 
@@ -142,19 +140,24 @@ export class AdminController {
     return this.admin.setMemberStatus(tenant, params.organizationId, params.userId, body.status);
   }
 
+  @Get('usage')
+  usage(@Tenant() tenant: TenantContext) {
+    return this.admin.usage(tenant);
+  }
+
   @Get('connections')
-  connections(@Tenant() tenant: TenantContext) {
-    return this.admin.connections(tenant);
+  connections(@Tenant() tenant: TenantContext, @Query(new ZodValidationPipe(consolePageQuerySchema)) query: z.infer<typeof consolePageQuerySchema>) {
+    return this.admin.connections(tenant, query);
   }
 
   @Get('audit')
-  audit(@Tenant() tenant: TenantContext, @Query(new ZodValidationPipe(auditQuerySchema)) query: { action?: string; since?: string }) {
+  audit(@Tenant() tenant: TenantContext, @Query(new ZodValidationPipe(auditQuerySchema)) query: z.infer<typeof auditQuerySchema>) {
     return this.admin.audit(tenant, query);
   }
 
   @Get('bugs')
-  bugs(@Tenant() tenant: TenantContext) {
-    return this.admin.bugs(tenant);
+  bugs(@Tenant() tenant: TenantContext, @Query(new ZodValidationPipe(bugsQuerySchema)) query: z.infer<typeof bugsQuerySchema>) {
+    return this.admin.bugs(tenant, query);
   }
 
   @Get('bugs/:bugId')
