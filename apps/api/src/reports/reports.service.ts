@@ -1,5 +1,5 @@
 import { Inject, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
-import type { ReportVersionView } from '@pactlab/contracts';
+import type { Page, ReportVersionView } from '@pactlab/contracts';
 import { appendAuditEvent, reportVersions, withTenant, type PrismaClient, type ReportScope, type ReportVersionRecord } from '@pactlab/db';
 import type { TenantContext } from '@pactlab/domain';
 import type { Logger } from '@pactlab/observability';
@@ -45,7 +45,7 @@ export class ReportsService {
   private sources(requestId: string): ReportSources {
     return {
       deal: (tenant, dealId) => this.deals.get(tenant, dealId) as never,
-      deals: (tenant) => this.deals.list(tenant) as never,
+      deals: (tenant) => this.deals.all(tenant) as never,
       findings: (tenant, dealId) => this.findings.list(tenant, dealId, {} as never, requestId) as never,
       valuation: (tenant, dealId) => this.valuation.list(tenant, dealId, requestId) as never,
       pricing: (tenant, dealId) => this.pricing.view(tenant, dealId, requestId) as never,
@@ -185,13 +185,15 @@ export class ReportsService {
     }
   }
 
-  async history(tenant: TenantContext, filter: { scope?: ReportScope; dealId?: string }): Promise<{ items: ReportVersionView[] }> {
-    const records = await withTenant(this.prisma, tenant, (tx) => reportVersions.history(tx, filter));
-    const dealIds = [...new Set(records.flatMap((record) => (record.dealId ? [record.dealId] : [])))];
+  /** Report versions, newest first, a page at a time (T-126). */
+  async history(tenant: TenantContext, query: { scope?: ReportScope | undefined; dealId?: string | undefined; cursor?: string | undefined; limit: number }): Promise<Page<ReportVersionView>> {
+    const page = await withTenant(this.prisma, tenant, (tx) => reportVersions.history(tx, { scope: query.scope, dealId: query.dealId }, query));
+    const dealIds = [...new Set(page.items.flatMap((record) => (record.dealId ? [record.dealId] : [])))];
     const names = new Map(
+      // bounded: the pacts of one page of reports
       (await withTenant(this.prisma, tenant, (tx) => tx.deal.findMany({ where: { id: { in: dealIds } }, select: { id: true, name: true } }))).map((deal) => [deal.id, deal.name]),
     );
-    return { items: records.map((record) => this.view(record, record.dealId ? (names.get(record.dealId) ?? null) : null)) };
+    return { ...page, items: page.items.map((record) => this.view(record, record.dealId ? (names.get(record.dealId) ?? null) : null)) };
   }
 
   /** The stored PDF of a READY version, audited. 404 for anything the caller cannot see. */

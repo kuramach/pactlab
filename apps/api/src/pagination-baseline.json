@@ -3,7 +3,6 @@
   "apps/api/src/close/close.service.ts": 7,
   "apps/api/src/close/loi.service.ts": 5,
   "apps/api/src/comparables/comparables.service.ts": 2,
-  "apps/api/src/deals/deals.service.ts": 1,
   "apps/api/src/deals/deletion/deal-deletion.service.ts": 3,
   "apps/api/src/documents/document-sources.service.ts": 2,
   "apps/api/src/documents/documents.service.ts": 2,
@@ -20,7 +19,7 @@
   "apps/api/src/phases/phases.service.ts": 4,
   "apps/api/src/pricing/pricing.service.ts": 3,
   "apps/api/src/regulatory/regulatory.service.ts": 2,
-  "apps/api/src/reports/reports.service.ts": 6,
+  "apps/api/src/reports/reports.service.ts": 5,
   "apps/api/src/sale/sale.service.ts": 15,
   "apps/api/src/valuation/prisma-valuation.repository.ts": 1,
   "apps/api/src/venture/venture.service.ts": 7,
@@ -34,6 +33,5 @@
   "packages/db/src/pacts.ts": 2,
   "packages/db/src/people.ts": 2,
   "packages/db/src/reports.ts": 2,
-  "packages/db/src/repositories.ts": 2,
   "packages/db/src/tenant.ts": 2
 }

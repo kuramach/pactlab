@@ -1,4 +1,5 @@
 import type { TransactionClient } from './client';
+import { afterCursor, toPage, type PageRequest, type PageResult } from './pagination';
 
 /**
  * Report versions (T-110). Called inside `withTenant`, so RLS decides what a caller sees: their
@@ -74,13 +75,15 @@ export const reportVersions = {
     await tx.reportVersion.update({ where: { id }, data: { status: 'FAILED' } });
   },
 
-  async history(tx: TransactionClient, filter: { scope?: ReportScope; dealId?: string }): Promise<ReportVersionRecord[]> {
-    const rows = await tx.reportVersion.findMany({
-      where: { ...(filter.scope ? { scope: filter.scope } : {}), ...(filter.dealId ? { dealId: filter.dealId } : {}) },
-      orderBy: [{ generatedAt: 'desc' }],
-      take: 200,
-    });
-    return withNames(tx, rows);
+  /** Report versions, newest first, a page at a time (T-126). */
+  async history(tx: TransactionClient, filter: { scope?: ReportScope | undefined; dealId?: string | undefined }, request: PageRequest): Promise<PageResult<ReportVersionRecord>> {
+    const matching = { ...(filter.scope ? { scope: filter.scope } : {}), ...(filter.dealId ? { dealId: filter.dealId } : {}) };
+    const [rows, total] = await Promise.all([
+      tx.reportVersion.findMany({ where: { AND: [matching, afterCursor('generatedAt', request.cursor, { asDate: true })] }, orderBy: [{ generatedAt: 'desc' }, { id: 'desc' }], take: request.limit + 1 }),
+      tx.reportVersion.count({ where: matching }),
+    ]);
+    const page = toPage(rows, request, total, (row) => row.generatedAt, (row) => row);
+    return { ...page, items: await withNames(tx, page.items) };
   },
 
   async get(tx: TransactionClient, id: string): Promise<ReportVersionRecord | null> {

@@ -3,6 +3,8 @@ import type {
   ImportTargetView,
   BillingSystemView,
   DealPartiesResponse,
+  DealsSummaryView,
+  Page,
   DealSummary,
   ImportMappingBody,
   ImportPreviewView,
@@ -249,8 +251,11 @@ export const dealsApi = {
   parties: (dealId: string) => apiGet<DealPartiesResponse>(`/v1/deals/${encodeURIComponent(dealId)}/parties`),
   sourcePlan: (dealId: string) => apiGet<SourcePlanResponse>(`/v1/deals/${encodeURIComponent(dealId)}/source-plan`),
   sources: (dealId: string) => apiGet<{ items: DealSource[] }>(`/v1/deals/${encodeURIComponent(dealId)}/connections`),
-  /** Every pact the caller is on; `q` searches pact names and targets (batch 2). */
-  list: (q?: string) => apiGet<{ items: DealListItem[] }>(q ? `/v1/deals?${new URLSearchParams({ q })}` : '/v1/deals'),
+  /** The caller's pacts, a page at a time (T-126); `q` searches names and targets, `phase` narrows, in the database. */
+  list: (params: { q?: string; phase?: string; cursor?: string; limit?: number } = {}) =>
+    apiGet<Page<DealListItem>>(`/v1/deals?${new URLSearchParams(Object.entries(params).flatMap(([key, value]) => (value ? [[key, String(value)]] : [])))}`),
+  /** Counts across every pact (the home page). */
+  summary: () => apiGet<DealsSummaryView>('/v1/deals/summary'),
   get: (dealId: string) => apiGet<DealListItem>(`/v1/deals/${encodeURIComponent(dealId)}`),
   evidence: (dealId: string, query: string) =>
     apiGet<EvidencePage>(

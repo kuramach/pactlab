@@ -241,7 +241,7 @@ export async function seedDemo(
       report.push(`${holder.label}: synthetic users missing — run the database seed first`);
       continue;
     }
-    const dealRows = await withTenant(prisma, who.lead, (tx) => deals.list(tx));
+    const dealRows = await withTenant(prisma, who.lead, (tx) => deals.all(tx));
     const dealId = (name: DealName) => dealRows.find((deal) => deal.name === name)?.id;
 
     // --- Findings: one accepted with a priced risk, one waiting for review ---

@@ -1,5 +1,5 @@
 import { ConflictException, Inject, Injectable, NotFoundException, Optional, ForbiddenException } from '@nestjs/common';
-import type { DealSummary } from '@pactlab/contracts';
+import type { DealSummary, Page } from '@pactlab/contracts';
 import {
   appendAuditEvent,
   askingPrices,
@@ -11,8 +11,9 @@ import {
   type DealMemberRecord,
   type DealRecord,
   type PrismaClient,
+  type TransactionClient,
 } from '@pactlab/db';
-import { phaseOf, type TenantContext } from '@pactlab/domain';
+import { phaseOf, stagesOf, type DealPhase, type TenantContext } from '@pactlab/domain';
 import { PRISMA } from '../tokens';
 import { PhasesService } from '../phases/phases.service';
 import { DealAccess } from './deal-access';
@@ -40,24 +41,41 @@ export class DealsService {
     @Optional() @Inject(PhasesService) private readonly phases: PhasesService | null,
   ) {}
 
-  async list(tenant: TenantContext, query?: string): Promise<DealSummary[]> {
+  /** Summaries for some deal rows: parties, the buyer-side asking price, and the caller's role. */
+  private async summaries(tx: TransactionClient, tenant: TenantContext, rows: readonly DealRecord[]): Promise<DealSummary[]> {
+    const parties = await dealParties.forDeals(tx, rows.map((row) => row.id));
+    // RLS returns asking prices only on the buyer side.
+    const asking = await askingPrices.currentFor(tx, rows.map((row) => row.id));
+    // bounded: the deals of one page
+    const mine = await tx.dealMembership.findMany({ where: { userId: tenant.userId, status: 'ACTIVE', dealId: { in: rows.map((row) => row.id) } }, select: { dealId: true, role: true } });
+    const roles = new Map(mine.map((membership) => [membership.dealId, membership.role]));
+    return rows.map((row) => ({
+      ...toSummary(row),
+      myRole: roles.get(row.id) ?? null,
+      parties: (parties.get(row.id) ?? []).map(({ role, name, ownership, ticker }) => ({ role, name, ownership, ticker })),
+      askingPrice: (() => {
+        const price = asking.get(row.id);
+        return price ? { amount: price.amount, currency: price.currency, basis: price.basis } : null;
+      })(),
+    }));
+  }
+
+  /** The caller's pacts, newest first, a page at a time (T-126); searched by name or target, narrowed by phase. */
+  async list(tenant: TenantContext, query: { q?: string | undefined; phase?: DealPhase | undefined; cursor?: string | undefined; limit: number }): Promise<Page<DealSummary>> {
     return withTenant(this.prisma, tenant, async (tx) => {
-      const rows = await (query ? deals.search(tx, query) : deals.list(tx));
-      const parties = await dealParties.forDeals(tx, rows.map((row) => row.id));
-      // RLS returns asking prices only on the buyer side.
-      const asking = await askingPrices.currentFor(tx, rows.map((row) => row.id));
-      const mine = await tx.dealMembership.findMany({ where: { userId: tenant.userId, status: 'ACTIVE', dealId: { in: rows.map((row) => row.id) } }, select: { dealId: true, role: true } });
-      const roles = new Map(mine.map((membership) => [membership.dealId, membership.role]));
-      return rows.map((row) => ({
-        ...toSummary(row),
-        myRole: roles.get(row.id) ?? null,
-        parties: (parties.get(row.id) ?? []).map(({ role, name, ownership, ticker }) => ({ role, name, ownership, ticker })),
-        askingPrice: (() => {
-          const price = asking.get(row.id);
-          return price ? { amount: price.amount, currency: price.currency, basis: price.basis } : null;
-        })(),
-      }));
+      const page = await deals.page(tx, { query: query.q, stages: query.phase ? stagesOf(query.phase) : undefined }, query);
+      return { ...page, items: await this.summaries(tx, tenant, page.items) };
     });
+  }
+
+  /** Every pact, for whole-portfolio work (the executive report); read a page at a time, never a screen. */
+  async all(tenant: TenantContext): Promise<DealSummary[]> {
+    return withTenant(this.prisma, tenant, async (tx) => this.summaries(tx, tenant, await deals.all(tx)));
+  }
+
+  /** Counts for the home page, across every pact (not one page). */
+  async summary(tenant: TenantContext): Promise<{ total: number; active: number; byStage: Record<string, number> }> {
+    return withTenant(this.prisma, tenant, (tx) => deals.summary(tx));
   }
 
   async get(tenant: TenantContext, dealId: string): Promise<DealSummary | null> {

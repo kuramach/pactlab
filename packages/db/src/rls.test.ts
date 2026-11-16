@@ -94,13 +94,46 @@ describe('PostgreSQL row-level security', () => {
   describe('deals', () => {
     it('lists, reads and searches own deals (allow)', async () => {
       const result = await withTenant(db.prisma, a.context, async (tx) => ({
-        list: await deals.list(tx),
+        list: await deals.all(tx),
         one: await deals.get(tx, a.dealId),
-        search: await deals.search(tx, 'Alpha'),
+        search: (await deals.page(tx, { query: 'Alpha' }, { limit: 50 })).items,
       }));
       expect(result.list.map((deal) => deal.id)).toEqual([a.dealId]);
       expect(result.one?.organizationId).toBe(a.organizationId);
       expect(result.search.map((deal) => deal.id)).toEqual([a.dealId]);
+    });
+
+    it('pages through many pacts newest first, each once, with search and stage filters in the database (T-126)', async () => {
+      const c = await createSyntheticTenant(db.owner, 'Charlie pager');
+      const ids: string[] = [c.dealId];
+      for (let n = 0; n < 120; n += 1) {
+        const id = newId();
+        ids.push(id);
+        await db.owner.query(
+          `INSERT INTO deals (id, organization_id, name, target_name, transaction_type, created_by, updated_at, created_at, stage)
+           VALUES ($1, $2, $3, 'Target', 'PRIVATE_ACQUIRER', $4, now(), now() - make_interval(mins => $5), $6)`,
+          [id, c.organizationId, `Pact ${String(n).padStart(3, '0')}${n === 77 ? ' Needle' : ''}`, c.userId, n, n % 2 === 0 ? 'DILIGENCE' : 'SCREENING'],
+        );
+      }
+      const context = { ...c.context, dealIds: ids as never };
+      const seen: string[] = [];
+      let cursor: string | undefined;
+      let pages = 0;
+      do {
+        const page = await withTenant(db.prisma, context, (tx) => deals.page(tx, {}, { limit: 50, ...(cursor ? { cursor } : {}) }));
+        expect(page.total).toBe(121);
+        seen.push(...page.items.map((deal) => deal.id));
+        cursor = page.nextCursor ?? undefined;
+        pages += 1;
+      } while (cursor && pages < 10);
+      expect(pages).toBe(3);
+      expect(new Set(seen).size).toBe(121);
+      const needle = await withTenant(db.prisma, context, (tx) => deals.page(tx, { query: 'needle' }, { limit: 50 }));
+      expect(needle.items.map((deal) => deal.name)).toEqual(['Pact 077 Needle']);
+      const diligence = await withTenant(db.prisma, context, (tx) => deals.page(tx, { stages: ['DILIGENCE'] }, { limit: 50 }));
+      expect(diligence.total).toBe(60);
+      expect(await withTenant(db.prisma, context, (tx) => deals.summary(tx))).toMatchObject({ total: 121, byStage: { DILIGENCE: 60 } });
+      expect((await withTenant(db.prisma, context, (tx) => deals.all(tx))).length).toBe(121);
     });
 
     it("cannot read another tenant's deal by id (deny)", async () => {
@@ -108,7 +141,7 @@ describe('PostgreSQL row-level security', () => {
     });
 
     it("cannot find another tenant's deal through search (deny)", async () => {
-      await expect(withTenant(db.prisma, a.context, (tx) => deals.search(tx, 'Bravo'))).resolves.toEqual([]);
+      await expect(withTenant(db.prisma, a.context, async (tx) => (await deals.page(tx, { query: 'Bravo' }, { limit: 50 })).items)).resolves.toEqual([]);
     });
 
     it("cannot read another tenant's deal by claiming its id in the deal list (deny)", async () => {

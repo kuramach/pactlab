@@ -2,6 +2,7 @@ import { DEAL_PHASE_LABELS, DEAL_PHASES, type DealPhase } from '@pactlab/domain'
 import { Badge, Button, buttonVariants, Card, EmptyState, IconTile, PageHeader } from '@pactlab/ui';
 import { ArrowRight, Building2, Plus } from 'lucide-react';
 import Link from 'next/link';
+import { keepParams, Pager, pagerLinks, readPage } from '../../_components/pager';
 import { DeleteDealButton } from './delete-deal-button';
 import { dealsApi, type DealListItem } from './_lib/api';
 import { DEAL_TYPE_LABELS, partyLabel, STAGE_LABELS } from './_lib/labels';
@@ -38,7 +39,8 @@ export default async function DealsPage({ searchParams }: { searchParams: Promis
   const phase = typeof phaseParam === 'string' && (DEAL_PHASES as readonly string[]).includes(phaseParam) ? (phaseParam as DealPhase) : null;
   // Search by pact name or target (batch 2); kept in the address so it can be bookmarked.
   const query = typeof params['q'] === 'string' ? params['q'].trim().slice(0, 200) : '';
-  const listed = await dealsApi.list(query || undefined);
+  const position = readPage(params);
+  const listed = await dealsApi.list({ ...(query ? { q: query } : {}), ...(phase ? { phase } : {}), ...(position.cursor ? { cursor: position.cursor } : {}) });
   const href = (next: { phase?: DealPhase | null; q?: string }) => {
     const search = new URLSearchParams();
     const nextPhase = next.phase === undefined ? phase : next.phase;
@@ -47,8 +49,8 @@ export default async function DealsPage({ searchParams }: { searchParams: Promis
     if (nextQuery) search.set('q', nextQuery);
     return search.size ? `/deals?${search}` : '/deals';
   };
-  // The phase filter is a view over the list (the phase is derived from each deal's stage).
-  const result = listed.kind === 'ok' && phase ? { ...listed, data: { items: listed.data.items.filter((deal) => deal.phase === phase) } } : listed;
+  // The phase filter and search run in the database, across every page (T-126).
+  const result = listed;
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
@@ -165,6 +167,7 @@ export default async function DealsPage({ searchParams }: { searchParams: Promis
               ))}
             </tbody>
           </table>
+          <Pager label="Deal pages" base="/deals" links={pagerLinks({ ...result.data, itemCount: result.data.items.length }, position, keepParams(params))} />
         </Card>
       )}
     </div>
