@@ -21,7 +21,7 @@ import 'reflect-metadata';
 import { S3Client } from '@aws-sdk/client-s3';
 import { defaultPromptRegistry, ScriptedModelTransport, TransportClaudeGateway } from '@pactlab/ai';
 import { apiEnvSchema, applyDatabaseUrls, loadConfig } from '@pactlab/config';
-import { FixturePropertyProvider } from '@pactlab/connectors';
+import { FixturePropertyProvider, hasKafkaSnapshot, kafkaSnapshot } from '@pactlab/connectors';
 import { createPrismaClient, resolvePrincipal, S3ObjectStore } from '@pactlab/db';
 import { uploadQuerySchema } from '@pactlab/contracts';
 import { COMPANY_TYPES, DEMO_DATA_COMMIT, demoDataUrl, IMPORT_TARGET_DEFINITIONS, isReleasedCompanyType, newId, packFor, type CompanyType, type TenantContext } from '@pactlab/domain';
@@ -48,7 +48,7 @@ import { PactsService } from '../pacts/pacts.service';
 import { FinancingService } from '../financing/financing.service';
 import { PricingService } from '../pricing/pricing.service';
 import { ValuationService } from '../valuation/valuation.service';
-import { bidProcess, claims, closeAndPostClose, connectSources, demoAskingPrice, enteredComparables, finances, raise, regulatory, reports, screen, sextant, team } from './demo-enrich';
+import { bidProcess, claims, closeAndPostClose, connectKafkaSources, connectSources, demoAskingPrice, enteredComparables, finances, raise, regulatory, reports, screen, sextant, team } from './demo-enrich';
 
 /** Fixed identities, so re-runs find what is there. */
 export const DEMO_ORG = {
@@ -101,6 +101,8 @@ export const pactName = (type: CompanyType, closed = false) => `${LABELS[type] ?
 /** A raise has no buyer terms or close, so it gets one pact; every other pack gets a second, closed one for Post-Close. */
 export const pactVariants = (type: CompanyType): readonly boolean[] => (type === 'VENTURE_RAISE' ? [false] : [false, true]);
 const SELLER_LED = 'Multifamily for sale demo (synthetic)';
+/** T-127: engineering diligence on a real open-source codebase. Not synthetic, not live: recorded once. */
+export const KAFKA_PACT = 'Apache Kafka engineering demo (real public data)';
 
 /** Scenario assumptions by valuation method: property by NOI and cap rate, a raise by pre-money, the rest by revenue multiple. */
 function scenarios(type: CompanyType, pricedFindingIds: readonly string[]) {
@@ -193,6 +195,33 @@ interface People {
   readonly buyer: TenantContext;
   readonly seller: TenantContext;
   readonly reviewer: TenantContext;
+}
+
+/**
+ * The Kafka demo (T-127): a software pact whose code and delivery sources are the real apache/kafka
+ * repository and KAFKA project, recorded once. It shows a real integration end to end (commits,
+ * pull requests, reviews, CI, Jira issues and the links between them) with no live call.
+ */
+export async function buildKafkaPact(app: App, owner: OwnerSession, lead: TenantContext, spec: DemoOrgSpec = DEMO_ORG): Promise<string> {
+  const pacts = app.get(PactsService, { strict: false });
+  const recordedOn = kafkaSnapshot().recordedAt.slice(0, 10);
+  const started = await pacts.start(
+    lead,
+    {
+      name: KAFKA_PACT,
+      baseCurrency: 'USD',
+      initiatedBy: 'BUYER',
+      buyer: { name: 'Demo Capital (synthetic)', ownership: 'PRIVATE', ticker: null, exchange: null, website: null, companyType: null },
+      seller: { name: `Apache Kafka (open source; real activity recorded ${recordedOn})`, ownership: 'PRIVATE', ticker: null, exchange: null, website: null, companyType: 'SOFTWARE_SAAS' },
+      askingPrice: null,
+      linkedSale: null,
+      persona: 'VALUE_INVESTOR',
+    },
+    REQUEST_ID,
+  );
+  await addPactPeople(owner, spec, started.id);
+  const buyer = { ...lead, dealIds: [...lead.dealIds, started.id as never] };
+  return `${KAFKA_PACT}: ${await connectKafkaSources(app, buyer, started.id, recordedOn)}`;
 }
 
 /** One complete buyer-led pact for a pack, from data room to funds confirmed. Returns a line for the report. */
@@ -538,6 +567,17 @@ export async function runDemoOrg(
         report.push(await bidProcess(app, owner, buyer, teaser.dealId, spec.bidders, (userId) => principal(userId)).catch((error: unknown) => `bid process FAILED (${error instanceof Error ? error.message : 'unknown error'})`));
       } catch (error) {
         report.push(`${SELLER_LED}: FAILED (${error instanceof Error ? error.message : 'unknown error'})`);
+      }
+    }
+  }
+  // The real-integration demo (T-127): only where the snapshot ships, for the software pack.
+  if (!have.has(KAFKA_PACT) && types.includes('SOFTWARE_SAAS') && hasKafkaSnapshot()) {
+    const buyer = await principal(spec.buyer.id);
+    if (buyer) {
+      try {
+        report.push(await buildKafkaPact(app, owner, buyer, spec));
+      } catch (error) {
+        report.push(`${KAFKA_PACT}: FAILED (${error instanceof Error ? error.message : 'unknown error'})`);
       }
     }
   }

@@ -8,6 +8,7 @@ export * from './imports';
 export * from './jira';
 export * from './testing';
 export * from './stripe';
+export * from './kafka-snapshot';
 export * from './market/comparables-provider';
 export * from './valuation-direction';
 export * from './people';

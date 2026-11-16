@@ -57,7 +57,8 @@ export default async function SyntheticSourcesPage({
             <CardTitle>Pick a company’s systems</CardTitle>
             <CardDescription>
               HealthyCo is a balanced team; TroubledCo has a sole maintainer, ghost commits and a coordinating lead; SparseCo is too small for individual
-              profiles.
+              profiles. apache/kafka with issues.apache.org is different: real public activity from the Apache Kafka project, recorded once with people
+              pseudonymised, and replayed here with no live call.
             </CardDescription>
           </CardHeader>
           <CardContent>

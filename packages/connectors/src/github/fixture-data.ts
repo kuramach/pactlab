@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import type { CommitMetadata, ContributorIdentity } from '@pactlab/domain';
+import { KAFKA_SNAPSHOT_REPOSITORY, hasKafkaSnapshot, kafkaSnapshot } from '../kafka-snapshot';
 import { SCALECO_REPOSITORY, scalecoRepository } from './scale-fixture';
 import type { CheckSummary, PullRequestMetadata, ReviewSummary } from './types';
 
@@ -219,7 +220,7 @@ const sparseCommits = plannedCommits(
   { project: null, issues: 0, every: 1 },
 );
 
-export const GITHUB_FIXTURES: Readonly<Record<string, GitHubFixtureRepository>> = {
+const fixtures: Record<string, GitHubFixtureRepository> = {
   // Every pull request reviewed by a peer, every check green.
   'healthyco/platform': {
     repository: 'healthyco/platform',
@@ -282,3 +283,16 @@ export const GITHUB_FIXTURES: Readonly<Record<string, GitHubFixtureRepository>> 
     return scalecoRepository();
   },
 };
+
+// Real apache/kafka activity, recorded once with pseudonymous people (T-127); read the first time it is used.
+if (hasKafkaSnapshot()) {
+  Object.defineProperty(fixtures, KAFKA_SNAPSHOT_REPOSITORY, {
+    enumerable: true,
+    get: (): GitHubFixtureRepository => {
+      const { source, github } = kafkaSnapshot();
+      return { repository: source.repository, defaultBranch: source.defaultBranch, grantedPermissions: ['metadata:read', 'contents:read', 'pull_requests:read', 'checks:read'], ...github };
+    },
+  });
+}
+
+export const GITHUB_FIXTURES: Readonly<Record<string, GitHubFixtureRepository>> = fixtures;

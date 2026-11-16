@@ -14,7 +14,7 @@ import { InMemoryObjectStore } from '../documents/testing';
 import { SignatureMalwareScanner } from '../documents/upload-policy';
 import type { EmailSender, OutboundEmail } from '../email-login/email-sender';
 import { generatedDemoData } from './demo-data.testing';
-import { pactName } from './demo-org';
+import { KAFKA_PACT, pactName } from './demo-org';
 import { DEMO_POOL_SIZE, demoPoolSpec, sweepDemoPool } from './demo-pool';
 
 const ISSUER = 'https://pactlab-test.example/';
@@ -95,7 +95,7 @@ describe('shareable demo pool', () => {
     expect(pool.map((slot) => [slot.slot, slot.status, slot.share])).toEqual(Array.from({ length: DEMO_POOL_SIZE }, (_, index) => [index + 1, 'AVAILABLE', null]));
     for (let slot = 1; slot <= DEMO_POOL_SIZE; slot += 1) {
       const deals = await rows(`SELECT name FROM deals WHERE organization_id = $1 AND status <> 'DELETED'`, [demoPoolSpec(slot).id]);
-      expect(deals.map((deal) => deal['name']).sort(), `slot ${slot}`).toEqual([pactName('SOFTWARE_SAAS', true), pactName('SOFTWARE_SAAS')].sort());
+      expect(deals.map((deal) => deal['name']).sort(), `slot ${slot}`).toEqual([pactName('SOFTWARE_SAAS', true), pactName('SOFTWARE_SAAS'), KAFKA_PACT].sort());
     }
   });
 

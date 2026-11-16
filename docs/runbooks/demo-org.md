@@ -34,6 +34,11 @@ Every tab of every demo pact has synthetic data (2026-11-09).
   - **Post-Close** (closed pacts): the register generated, with owners, dates and one item done.
   - **Foresight:** prepares itself the first time the tab is opened.
 - **Seller-led Multifamily teaser:** a published anonymous listing with property facts, and three bidder firms. All three accepted the NDA and asked questions (one answered to all, one privately); two made offers, one passed, and one is shortlisted.
+- **Apache Kafka engineering demo (real public data)** (T-127, with the Software pack): engineering diligence on a real open-source codebase.
+  - **Its sources:** apache/kafka and the KAFKA project on Apache Jira, from the snapshot in `fixtures/recorded/kafka/snapshot.json`. That is 500 commits, 200 pull requests with reviews and CI, and the KAFKA issues they cite.
+  - **Recorded once:** the people are pseudonymised (`kafka-dev-…`, `kafka-jira-…`; no names, emails or handles), and the record date is in the sources' names.
+  - **Never refreshed:** neither the demo nor its refresh calls GitHub or Jira.
+  - **Re-recording** is a deliberate, reviewed change. Set `GITHUB_TOKEN` (read-only, public repositories), then run `pnpm --filter @pactlab/api exec tsx ../../packages/connectors/scripts/record-kafka-snapshot.ts`.
 - **Organization-wide:** entered comparables for every pack, and an executive report plus a pact report in Reports.
 
 ## Run
