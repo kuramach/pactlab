@@ -64,9 +64,11 @@ export class SaleService {
   /** Threads on shared documents and the files attached to bids, for the bids the caller may see (RLS). */
   private async threads(tx: TransactionClient, dealId: string, bidIds: readonly string[]) {
     const [comments, files] = await Promise.all([
+      // bounded: the rows of the bids, comments and people listed just above
       tx.bidComment.findMany({ where: { dealId, bidId: { in: [...bidIds] } }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] }),
       tx.bidFile.findMany({ where: { dealId, bidId: { in: [...bidIds] } }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] }),
     ]);
+    // bounded: the rows of the bids, comments and people listed just above
     const documents = await tx.document.findMany({ where: { dealId, id: { in: [...new Set(comments.map((comment) => comment.documentId))] } }, select: { id: true, fileName: true } });
     const people = await tx.user.findMany({ where: { id: { in: [...new Set([...comments.map((comment) => comment.authorId), ...files.map((file) => file.uploadedBy)])] } }, select: { id: true, displayName: true } });
     const name = new Map(people.map((person) => [person.id, person.displayName]));
@@ -231,13 +233,16 @@ export class SaleService {
     return withTenant(this.prisma, tenant, async (tx) => {
       const process = await this.process(tx, dealId);
       const [bids, offers, questions, published, members, seller] = await Promise.all([
+        // bounded: one sale process (its invited bidders, offers, questions and answers: tens), compared side by side on the bid board
         tx.bid.findMany({ where: { dealId }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] }),
         tx.bidOffer.findMany({ where: { dealId }, orderBy: [{ version: 'asc' }] }),
         tx.bidQuestion.findMany({ where: { dealId }, orderBy: [{ askedAt: 'asc' }, { id: 'asc' }] }),
+        // bounded: one sale process (its invited bidders, offers, questions and answers: tens), compared side by side on the bid board
         tx.bidAnswerPublished.findMany({ where: { dealId }, orderBy: { publishedAt: 'asc' } }),
         tx.dealMembership.findMany({ where: { dealId, role: 'BIDDER' }, select: { bidId: true, status: true, user: { select: { displayName: true } } } }),
         tx.dealParty.findFirst({ where: { dealId, role: 'SELLER' }, select: { companyType: true } }),
       ]);
+      // bounded: one sale process (its invited bidders, offers, questions and answers: tens), compared side by side on the bid board
       const pending = await tx.dealInvitation.findMany({ where: { dealId, role: 'BIDDER', status: 'PENDING', expiresAt: { gt: new Date() } }, select: { bidId: true, email: true } });
       const firm = new Map(bids.map((bid) => [bid.id, bid.firmName]));
       const threadsOf = await this.threads(tx, dealId, bids.map((bid) => bid.id));
@@ -367,6 +372,7 @@ export class SaleService {
     return withTenant(this.prisma, tenant, async (tx) => {
       const process = await this.process(tx, dealId);
       if (process.status !== 'OPEN') throw new ConflictException({ code: 'PROCESS_CLOSED' });
+      // bounded: one sale process (its invited bidders, offers, questions and answers: tens), compared side by side on the bid board
       const bids = await tx.bid.findMany({ where: { dealId, status: { in: [...LIVE] } } });
       const goingOn = bids.filter((bid) => bid.status === 'SHORTLISTED');
       if (goingOn.length === 0) throw new UnprocessableEntityException({ code: 'NOBODY_SHORTLISTED' });
@@ -407,6 +413,7 @@ export class SaleService {
       if (bid.status !== 'OFFERED' && bid.status !== 'SHORTLISTED') throw new UnprocessableEntityException({ code: 'NO_OFFER' });
       const offered = await tx.bidOffer.count({ where: { dealId, bidId } });
       if (offered === 0) throw new UnprocessableEntityException({ code: 'NO_OFFER' });
+      // bounded: one sale process (its invited bidders, offers, questions and answers: tens), compared side by side on the bid board
       const others = (await tx.bid.findMany({ where: { dealId, id: { not: bidId }, status: { in: [...LIVE] } }, select: { id: true } })).map((other) => other.id);
       const now = new Date();
       await tx.bid.update({ where: { id: bidId }, data: { status: 'WON', decidedAt: now } });
@@ -483,6 +490,7 @@ export class SaleService {
           : null;
       const open = bid.ndaAcceptedAt !== null || !process.ndaText;
       const [offers, questions, published] = await Promise.all([
+        // bounded: one bidder's own offers and questions
         tx.bidOffer.findMany({ where: { dealId, bidId: bid.id }, orderBy: { version: 'asc' } }),
         tx.bidQuestion.findMany({ where: { dealId, bidId: bid.id }, orderBy: { askedAt: 'asc' } }),
         open ? tx.bidAnswerPublished.findMany({ where: { dealId }, orderBy: { publishedAt: 'asc' } }) : Promise.resolve([]),

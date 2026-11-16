@@ -25,7 +25,7 @@ import { formatMoney } from '../../metrics/_lib/format';
 import { BASIS_LABELS, describeGap, type ScenarioView } from '../../valuation/_lib/view';
 import type { Finding } from '@pactlab/domain';
 import type { AnchorsView, BenchmarkView } from '@pactlab/contracts';
-import { apiGet, dealsApi } from '../_lib/api';
+import { apiGet, apiGetAll, dealsApi } from '../_lib/api';
 import { FinancingPosture } from '../_lib/financing';
 import { BENCHMARK_OUTCOMES, MultipleContext } from '../_lib/multiple-context';
 import { ANCHOR_OUTCOMES, NegotiationAnchors } from '../_lib/negotiation-anchors';
@@ -68,7 +68,8 @@ export default async function DealOverviewPage({
     dealsApi.askingPrice(dealId),
     apiGet<{ items: ScenarioView[] }>(`/v1/deals/${dealId}/valuation/scenarios`),
     dealViewer(dealId),
-    apiGet<{ items: Finding[] }>(`/v1/deals/${dealId}/findings?status=ACCEPTED`),
+    // Accepted findings are each reviewed by a person, so the set stays small: read every page (T-126).
+    apiGetAll<Finding>(`/v1/deals/${dealId}/findings?status=ACCEPTED`),
     dealsApi.get(dealId),
     // Counts only: one row each, and the totals (T-126).
     apiGet<{ total: number }>(`/v1/deals/${dealId}/documents?limit=1`),

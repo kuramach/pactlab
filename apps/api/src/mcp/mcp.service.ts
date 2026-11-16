@@ -130,8 +130,6 @@ export class McpService {
         }
       }) as never);
     };
-    const withoutCushions = <T extends { direction?: number | null; valueConfirmation?: unknown }>(items: readonly T[]) =>
-      confidential ? items : items.filter((item) => !(item.direction === 1 && item.valueConfirmation));
 
     tool(
       'list_deals',
@@ -153,12 +151,18 @@ export class McpService {
 
     tool(
       'get_findings',
-      'Findings on a pact with their evidence and rationale. direction: -1 risk (lowers value), 0 neutral, +1 confirms value. Filter by status (DRAFT, SUBMITTED, ACCEPTED, …) and domain.',
-      { dealId, status: z.string().max(40).optional(), domain: z.string().max(40).optional(), direction: z.union([z.literal(-1), z.literal(0), z.literal(1)]).optional(), limit: z.number().int().min(1).max(100).default(50) },
+      'Findings on a pact with their evidence and rationale, oldest first. direction: -1 risk (lowers value), 0 neutral, +1 confirms value. Filter by status (DRAFT, SUBMITTED, ACCEPTED, …), domain and direction. Paged: pass nextCursor back as cursor for more.',
+      { dealId, status: z.string().max(40).optional(), domain: z.string().max(40).optional(), direction: z.union([z.literal(-1), z.literal(0), z.literal(1)]).optional(), cursor: z.string().regex(PAGE_CURSOR_PATTERN).optional(), limit: z.number().int().min(1).max(PAGE_LIMIT_MAX).default(PAGE_LIMIT_DEFAULT) },
       async (args) => {
-        const listed = await this.findings.list(tenant, args.dealId, { ...(args.status ? { status: args.status } : {}), ...(args.domain ? { domain: args.domain } : {}) } as never, requestId);
-        const items = withoutCushions(listed.items as { direction?: number | null; valueConfirmation?: unknown }[]).filter((item) => args.direction === undefined || item.direction === args.direction);
-        return { total: items.length, items: items.slice(0, args.limit) };
+        // Every filter, the confidential one included, runs in the database, so each page is whole.
+        const page = await this.findings.list(
+          tenant,
+          args.dealId,
+          { ...(args.status ? { status: args.status } : {}), ...(args.domain ? { domain: args.domain } : {}), ...(args.direction !== undefined ? { direction: args.direction } : {}), ...(args.cursor ? { cursor: args.cursor } : {}), limit: args.limit } as never,
+          requestId,
+          { excludeValueConfirmations: !confidential },
+        );
+        return { total: page.total, nextCursor: page.nextCursor, items: page.items };
       },
       (args) => args.dealId,
     );
@@ -245,9 +249,13 @@ export class McpService {
     tool(
       'list_my_proposals',
       'Your suggestions on a pact and what became of them: PENDING, APPROVED, REJECTED (with the person\'s note) or FAILED (with the reason).',
-      { dealId, status: z.enum(AGENT_PROPOSAL_STATUSES).optional() },
-      async (args) => ({
-        items: (await this.proposals.list(tenant, args.dealId, { status: args.status }, requestId)).items.map((item) => ({
+      { dealId, status: z.enum(AGENT_PROPOSAL_STATUSES).optional(), cursor: z.string().regex(PAGE_CURSOR_PATTERN).optional(), limit: z.number().int().min(1).max(PAGE_LIMIT_MAX).default(PAGE_LIMIT_DEFAULT) },
+      async (args) => {
+        const page = await this.proposals.list(tenant, args.dealId, { status: args.status, cursor: args.cursor, limit: args.limit }, requestId);
+        return {
+        nextCursor: page.nextCursor,
+        total: page.total,
+        items: page.items.map((item) => ({
           id: item.id,
           kind: item.kind,
           status: item.status,
@@ -256,7 +264,8 @@ export class McpService {
           decisionNote: item.decisionNote,
           problem: item.problem,
         })),
-      }),
+        };
+      },
       (args) => args.dealId,
     );
 

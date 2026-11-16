@@ -7,6 +7,7 @@ import {
   type ImportProgressView,
   mappingBodySchema,
   uploadParamsSchema,
+  pageQuerySchema,
   uploadQuerySchema,
   type BillingSystemView,
   type ImportMappingBody,
@@ -15,6 +16,8 @@ import {
   type ImportTargetView,
   type SourceUploadView,
   type UploadDetailView,
+  type Page,
+  type PageQuery,
   type UploadQuery,
 } from '@pactlab/contracts';
 import type { TenantContext } from '@pactlab/domain';
@@ -76,8 +79,9 @@ export class ImportsController {
     @Tenant() tenant: TenantContext,
     @RequestId() requestId: string,
     @Param(new ZodValidationPipe(dealParamsSchema)) params: { dealId: string },
-  ): Promise<{ items: SourceUploadView[] }> {
-    return { items: await this.imports.list(tenant, params.dealId, requestId) };
+    @Query(new ZodValidationPipe(pageQuerySchema)) query: PageQuery,
+  ): Promise<Page<SourceUploadView>> {
+    return this.imports.list(tenant, params.dealId, query, requestId);
   }
 
   @Get('deals/:dealId/uploads/:uploadId')

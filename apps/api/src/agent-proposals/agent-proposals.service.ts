@@ -1,7 +1,8 @@
 import { HttpException, Inject, Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import { adjustmentAmount } from '@pactlab/calculations';
-import { appendAuditEvent, oauth, withTenant, type PrismaClient, type TransactionClient } from '@pactlab/db';
-import { newId, permissionsForDealRole, type DealRole, type TenantContext } from '@pactlab/domain';
+import { afterCursor, appendAuditEvent, oauth, toPage, withTenant, type PrismaClient, type TransactionClient } from '@pactlab/db';
+import { newId, permissionsForDealRole, type DealRole, type Finding, type TenantContext } from '@pactlab/domain';
+import type { Page } from '@pactlab/contracts';
 import type { Logger } from '@pactlab/observability';
 import { DealAccess } from '../deals/deal-access';
 import { DocumentsService } from '../documents/documents.service';
@@ -18,6 +19,8 @@ import {
   type DocumentRequestPayload,
   type TermProposalPayload,
 } from './agent-proposals.schemas';
+
+type AgentProposalRow = NonNullable<Awaited<ReturnType<PrismaClient['agentProposal']['findFirst']>>>;
 
 /** Proposing, reading and deciding are buyer-side deal work: write access and buyer analysis. */
 const canPropose = (role: DealRole) => permissionsForDealRole(role).has('DEAL_WRITE') && permissionsForDealRole(role).has('BUYER_ANALYSIS_READ');
@@ -141,39 +144,54 @@ export class AgentProposalsService {
    * whether apps can connect at all (MCP is on for the organization), so the screen can hide
    * the section where none will ever arrive.
    */
-  async list(tenant: TenantContext, dealId: string, filter: { status?: AgentProposalStatus | undefined }, requestId: string): Promise<{ items: AgentProposalView[]; connectable: boolean }> {
+  async list(
+    tenant: TenantContext,
+    dealId: string,
+    filter: { status?: AgentProposalStatus | undefined; cursor?: string | undefined; limit?: number | undefined },
+    requestId: string,
+  ): Promise<Page<AgentProposalView> & { connectable: boolean }> {
     await this.access.require(tenant, dealId, canPropose, { action: 'agent_proposal.list', requestId });
-    const rows = await withTenant(this.prisma, tenant, (tx) =>
-      tx.agentProposal.findMany({ where: { dealId, ...(filter.status ? { status: filter.status } : {}) }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], take: 200 }),
+    const request = { limit: filter.limit ?? 50, ...(filter.cursor ? { cursor: filter.cursor } : {}) };
+    const matching = { dealId, ...(filter.status ? { status: filter.status } : {}) };
+    // Newest first, a page at a time (T-126).
+    const [rows, total] = await withTenant(this.prisma, tenant, (tx) =>
+      Promise.all([
+        tx.agentProposal.findMany({ where: { AND: [matching, afterCursor('createdAt', request.cursor, { asDate: true })] }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], take: request.limit + 1 }),
+        tx.agentProposal.count({ where: matching }),
+      ]),
     );
+    const page = toPage(rows, request, total, (row) => row.createdAt, (row) => row);
+    return { ...page, items: await this.views(tenant, dealId, page.items, requestId), connectable: await oauth.mcpEnabled(this.prisma, tenant.organizationId) };
+  }
+
+  /** Views of some suggestions (one page, or one just decided): the findings they name in one lookup. */
+  private async views(tenant: TenantContext, dealId: string, rows: readonly AgentProposalRow[], requestId: string): Promise<AgentProposalView[]> {
     const labels = rows.some((row) => row.kind === 'DOCUMENT_REQUEST')
       ? new Map((await this.documents.intake(tenant, dealId, requestId)).checklist.map((item) => [item.id as string, item.label]))
       : new Map<string, string>();
-    const items: AgentProposalView[] = [];
-    for (const row of rows) {
-      items.push({
-        id: row.id,
-        kind: row.kind as AgentProposalKind,
-        status: row.status as AgentProposalStatus,
-        rationale: row.rationale,
-        clientName: row.clientName || row.clientId,
-        createdAt: row.createdAt.toISOString(),
-        decidedAt: row.decidedAt?.toISOString() ?? null,
-        decisionNote: row.decisionNote,
-        problem: row.problem,
-        detail: await this.detail(tenant, dealId, row.kind, row.payload, labels, requestId),
-      });
-    }
-    return { items, connectable: await oauth.mcpEnabled(this.prisma, tenant.organizationId) };
+    const findingIds = [...new Set(rows.flatMap((row) => (row.kind === 'TERM' ? [termProposalPayloadSchema.safeParse(row.payload)] : []).flatMap((parsed) => (parsed.success ? [parsed.data.findingId] : []))))];
+    const found = findingIds.length > 0 ? (await this.findings.list(tenant, dealId, { ids: findingIds, limit: 100 }, requestId)).items : [];
+    const findings = new Map(found.map((finding) => [finding.id, finding]));
+    return rows.map((row) => ({
+      id: row.id,
+      kind: row.kind as AgentProposalKind,
+      status: row.status as AgentProposalStatus,
+      rationale: row.rationale,
+      clientName: row.clientName || row.clientId,
+      createdAt: row.createdAt.toISOString(),
+      decidedAt: row.decidedAt?.toISOString() ?? null,
+      decisionNote: row.decisionNote,
+      problem: row.problem,
+      detail: this.detail(row.kind, row.payload, labels, findings),
+    }));
   }
 
-  private async detail(tenant: TenantContext, dealId: string, kind: string, payload: unknown, labels: Map<string, string>, requestId: string): Promise<AgentProposalView['detail']> {
+  private detail(kind: string, payload: unknown, labels: Map<string, string>, findings: ReadonlyMap<string, Finding>): AgentProposalView['detail'] {
     if (kind === 'TERM') {
       const parsed = termProposalPayloadSchema.safeParse(payload);
       if (!parsed.success) return null;
-      // handled: a finding that is gone shows as such, without an amount
-      const found = await this.findings.get(tenant, dealId, parsed.data.findingId, requestId).catch(() => null);
-      const finding = found?.finding;
+      // A finding that is gone, or that this person can no longer see, shows as such, without an amount.
+      const finding = findings.get(parsed.data.findingId);
       const priced = finding && finding.status === 'ACCEPTED' && finding.direction === -1 ? finding.pricedRisk : null;
       return {
         kind: 'TERM',
@@ -223,8 +241,9 @@ export class AgentProposalsService {
         await this.audit(tx, tenant, dealId, outcome.status === 'APPROVED' ? 'agent_proposal.approved' : 'agent_proposal.failed', row.id, requestId, outcome.status === 'APPROVED' ? 'SUCCEEDED' : 'FAILED');
       });
     }
-    const { items } = await this.list(tenant, dealId, {}, requestId);
-    const view = items.find((item) => item.id === row.id);
+    const updated = await withTenant(this.prisma, tenant, (tx) => tx.agentProposal.findFirst({ where: { id: row.id, dealId } }));
+    if (!updated) throw new NotFoundException();
+    const [view] = await this.views(tenant, dealId, [updated], requestId);
     if (!view) throw new NotFoundException();
     return view;
   }

@@ -247,7 +247,7 @@ export async function seedDemo(
     // --- Findings: one accepted with a priced risk, one waiting for review ---
     const troubled = dealId('Project Troubled');
     if (troubled) {
-      const { items } = await findingsService.list(who.lead, troubled, {}, REQUEST_ID);
+      const { items } = await findingsService.all(who.lead, troubled, REQUEST_ID);
       const fresh = [];
       for (const finding of items) {
         const detail = await findingsService.get(who.lead, troubled, finding.id, REQUEST_ID);
@@ -294,7 +294,7 @@ export async function seedDemo(
     // --- Healthy: the engineering-continuity cushion, confirmed by a second person (value confirmed, not price paid) ---
     const healthyDeal = dealId('Project Healthy');
     if (healthyDeal) {
-      const drafts = (await findingsService.list(who.lead, healthyDeal, { status: 'DRAFT' }, REQUEST_ID)).items.filter(
+      const drafts = (await findingsService.list(who.lead, healthyDeal, { status: 'DRAFT', limit: 100 }, REQUEST_ID)).items.filter(
         (finding) => finding.direction === 1 && finding.valueConfirmation,
       );
       for (const finding of drafts) {
@@ -418,7 +418,7 @@ export async function seedDemo(
     }
 
     const accepted = troubled
-      ? (await findingsService.list(who.lead, troubled, { status: 'ACCEPTED' }, REQUEST_ID)).items.filter((finding) => finding.pricedRisk)
+      ? (await findingsService.list(who.lead, troubled, { status: 'ACCEPTED', limit: 100 }, REQUEST_ID)).items.filter((finding) => finding.pricedRisk)
       : [];
     await scenario(
       'Project Troubled',
@@ -684,7 +684,7 @@ export async function seedDemo(
         const after = await phases.createClaim(who.lead, troubled, { statement: 'Annual recurring revenue is USD 4.2M', source: `CIM p.3 ${SYNTHETIC}` }, REQUEST_ID);
         await phases.createClaim(who.lead, troubled, { statement: 'No customer is more than 10% of revenue', source: `Management call ${SYNTHETIC}` }, REQUEST_ID);
         const arr = after.items.find((claim) => claim.statement.startsWith('Annual recurring revenue'));
-        const { items: findings } = await findingsService.list(who.lead, troubled, {}, REQUEST_ID);
+        const { items: findings } = await findingsService.all(who.lead, troubled, REQUEST_ID);
         if (arr) {
           await phases.updateClaim(
             who.lead,

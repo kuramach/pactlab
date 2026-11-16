@@ -20,7 +20,7 @@ export class AgentProposalsController {
     @Tenant() tenant: TenantContext,
     @RequestId() requestId: string,
     @Param(new ZodValidationPipe(dealParamsSchema)) params: { dealId: string },
-    @Query(new ZodValidationPipe(listProposalsQuerySchema)) query: { status?: AgentProposalStatus },
+    @Query(new ZodValidationPipe(listProposalsQuerySchema)) query: { status?: AgentProposalStatus; cursor?: string; limit: number },
   ) {
     return this.service.list(tenant, params.dealId, query, requestId);
   }

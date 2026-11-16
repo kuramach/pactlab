@@ -1,5 +1,7 @@
 import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, EmptyState } from '@pactlab/ui';
+import type { Page } from '@pactlab/contracts';
 import Link from 'next/link';
+import { keepParams, pageApiQuery, Pager, pagerLinks, readPage } from '../../../../_components/pager';
 import { notFound } from 'next/navigation';
 import { formatMoney } from '../../../metrics/_lib/format';
 import { apiGet } from '../../_lib/api';
@@ -24,8 +26,11 @@ const OUTCOMES: Record<string, string> = {
 export default async function SuggestionsPage({ params, searchParams }: { params: Promise<{ dealId: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const { dealId } = await params;
   if (!isUuidParam(dealId)) notFound();
-  const outcome = (await searchParams)['outcome'];
-  const result = await apiGet<{ items: SuggestionView[]; connectable: boolean }>(`/v1/deals/${dealId}/agent-proposals`);
+  const search = await searchParams;
+  const outcome = search['outcome'];
+  // Newest first, a page at a time (T-126).
+  const position = readPage(search);
+  const result = await apiGet<Page<SuggestionView> & { connectable: boolean }>(`/v1/deals/${dealId}/agent-proposals?${pageApiQuery(position)}`);
   if (result.kind !== 'ok') return <ApiState result={result} />;
   const open = result.data.items.filter((item) => item.status === 'PENDING' || item.status === 'FAILED');
   const decided = result.data.items.filter((item) => item.status !== 'PENDING' && item.status !== 'FAILED');
@@ -76,6 +81,7 @@ export default async function SuggestionsPage({ params, searchParams }: { params
           </ul>
         </section>
       ) : null}
+      <Pager label="Suggestion pages" base={`/deals/${dealId}/suggestions`} links={pagerLinks({ ...result.data, itemCount: result.data.items.length }, position, keepParams(search))} />
     </div>
   );
 }

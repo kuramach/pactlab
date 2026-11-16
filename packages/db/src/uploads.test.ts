@@ -56,15 +56,15 @@ describe('source uploads persistence and RLS', () => {
     const buyerOnly = await upload(a.context, 'BUYER_ONLY');
     const shared = await upload(contributor, 'SHARED');
     await expect(upload(contributor, 'BUYER_ONLY')).rejects.toThrow();
-    const seen = await inTenant(contributor, (tx) => sourceUploads.list(tx, a.dealId));
+    const seen = await inTenant(contributor, async (tx) => (await sourceUploads.page(tx, a.dealId, { limit: 100 })).items);
     expect(seen.map((row) => row.id)).toEqual([shared.id]);
-    const all = await inTenant(a.context, (tx) => sourceUploads.list(tx, a.dealId));
+    const all = await inTenant(a.context, async (tx) => (await sourceUploads.page(tx, a.dealId, { limit: 100 })).items);
     expect(all.map((row) => row.id).sort()).toEqual([buyerOnly.id, shared.id].sort());
   });
 
   it('hides uploads from other tenants and refuses cross-tenant inserts', async () => {
     await upload(a.context, 'BUYER_ONLY');
-    expect(await inTenant(b.context, (tx) => sourceUploads.list(tx, a.dealId))).toEqual([]);
+    expect(await inTenant(b.context, async (tx) => (await sourceUploads.page(tx, a.dealId, { limit: 100 })).items)).toEqual([]);
     await expect(upload(b.context, 'BUYER_ONLY', a)).rejects.toThrow();
   });
 

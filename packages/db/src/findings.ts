@@ -9,13 +9,29 @@ import type {
   ValueConfirmation,
 } from '@pactlab/domain';
 import type { Prisma, TransactionClient } from './client';
+import { afterCursor, toPage, type PageRequest, type PageResult } from './pagination';
 import { DbNull } from './generated/prisma/internal/prismaNamespace';
 
 export interface FindingRowFilter {
-  readonly status?: FindingStatus;
-  readonly domain?: Finding['domain'];
+  readonly status?: FindingStatus | undefined;
+  readonly domain?: Finding['domain'] | undefined;
   /** Only findings brought in from document review (fingerprint `document:`). */
-  readonly source?: 'document-review';
+  readonly source?: 'document-review' | undefined;
+}
+
+/** What a page of findings can be narrowed by, in the database (T-126). */
+export interface FindingPageFilter extends FindingRowFilter {
+  /** Title contains (case-insensitive). */
+  readonly query?: string | undefined;
+  readonly direction?: -1 | 0 | 1 | undefined;
+  /** Risks (-1) still without a priced range, not rejected. */
+  readonly pricingNeeded?: boolean | undefined;
+  /** Leave out value confirmations (cushions): for callers without the confidential scope. */
+  readonly excludeValueConfirmations?: boolean | undefined;
+  /** Only these findings (a lookup by id; at most 100). */
+  readonly ids?: readonly string[] | undefined;
+  /** Leave out rejected findings. */
+  readonly excludeRejected?: boolean | undefined;
 }
 
 const findingInclude = {
@@ -160,7 +176,9 @@ const sameLinks = (a: readonly FindingEvidenceLink[], b: readonly FindingEvidenc
 
 /** All functions take a tenant-scoped transaction from `withTenant`; RLS does the scoping. */
 export const findings = {
+  /** Every finding matching, for calculations over the whole set (valuation, pricing, the pact report); screens use `page`. */
   async list(tx: TransactionClient, dealId: string, filter: FindingRowFilter): Promise<Finding[]> {
+    // whole-set: valuation, pricing and the pact report compute over every matching finding; screens page through findings.page
     const rows = await tx.finding.findMany({
       where: {
         dealId,
@@ -172,6 +190,56 @@ export const findings = {
       orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
     });
     return rows.map(toFinding);
+  },
+
+  /** Counts across every matching finding (the charts on a paged list): by severity, by status, and risks needing a price. */
+  async summary(tx: TransactionClient, dealId: string, filter: FindingRowFilter): Promise<{ total: number; bySeverity: Record<string, number>; byStatus: Record<string, number>; pricingNeeded: number }> {
+    const matching = {
+      dealId,
+      ...(filter.status ? { status: filter.status } : {}),
+      ...(filter.domain ? { domain: filter.domain } : {}),
+      ...(filter.source === 'document-review' ? { fingerprint: { startsWith: 'document:' } } : {}),
+    };
+    const [grouped, pricingNeeded] = await Promise.all([
+      tx.finding.groupBy({ by: ['severity', 'status'], where: matching, _count: { _all: true } }),
+      tx.finding.count({ where: { ...matching, AND: [{ direction: -1, pricedRiskType: null, status: { not: 'REJECTED' } }] } }),
+    ]);
+    const bySeverity: Record<string, number> = {};
+    const byStatus: Record<string, number> = {};
+    let total = 0;
+    for (const row of grouped) {
+      total += row._count._all;
+      bySeverity[row.severity] = (bySeverity[row.severity] ?? 0) + row._count._all;
+      byStatus[row.status] = (byStatus[row.status] ?? 0) + row._count._all;
+    }
+    return { total, bySeverity, byStatus, pricingNeeded };
+  },
+
+  /** Findings, oldest first, a page at a time (T-126), every filter in the database. */
+  async page(tx: TransactionClient, dealId: string, filter: FindingPageFilter, request: PageRequest): Promise<PageResult<Finding>> {
+    const matching = {
+      dealId,
+      ...(filter.status ? { status: filter.status } : filter.excludeRejected ? { status: { not: 'REJECTED' as const } } : {}),
+      ...(filter.domain ? { domain: filter.domain } : {}),
+      ...(filter.source === 'document-review' ? { fingerprint: { startsWith: 'document:' } } : {}),
+      ...(filter.query ? { title: { contains: filter.query, mode: 'insensitive' as const } } : {}),
+      ...(filter.direction !== undefined ? { direction: filter.direction } : {}),
+      ...(filter.ids ? { id: { in: [...filter.ids] } } : {}),
+      AND: [
+        ...(filter.pricingNeeded ? [{ direction: -1, pricedRiskType: null, status: { not: 'REJECTED' as const } }] : []),
+        ...(filter.excludeValueConfirmations ? [{ NOT: { direction: 1, valueDriver: { not: null } } }] : []),
+      ],
+    };
+    const [rows, total] = await Promise.all([
+      tx.finding.findMany({
+        where: { AND: [matching, afterCursor('createdAt', request.cursor, { direction: 'asc', asDate: true })] },
+        include: findingInclude,
+        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+        take: request.limit + 1,
+      }),
+      tx.finding.count({ where: matching }),
+    ]);
+    return toPage(rows, request, total, (row) => row.createdAt, toFinding);
   },
 
   async get(

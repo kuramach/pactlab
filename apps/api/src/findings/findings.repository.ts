@@ -1,4 +1,4 @@
-import type { AuditEventInput } from '@pactlab/db';
+import type { AuditEventInput, FindingPageFilter, PageRequest, PageResult } from '@pactlab/db';
 import type { Finding, FindingReview, FindingStatus, TenantContext } from '@pactlab/domain';
 
 export const FINDINGS_REPOSITORY = Symbol('FINDINGS_REPOSITORY');
@@ -20,7 +20,12 @@ export interface FindingWithReviews {
  * and write the supplied audit event in the same transaction as the change.
  */
 export interface FindingsRepository {
+  /** Every matching finding, for calculations (valuation, pricing, the pact report); screens use `page`. */
   list(tenant: TenantContext, dealId: string, filter: FindingFilter): Promise<Finding[]>;
+  /** Counts across every matching finding, for charts on a paged list. */
+  summary(tenant: TenantContext, dealId: string, filter: FindingFilter & { source?: 'document-review' | undefined }): Promise<{ total: number; bySeverity: Record<string, number>; byStatus: Record<string, number>; pricingNeeded: number }>;
+  /** A page of findings, oldest first, filtered in the database (T-126). */
+  page(tenant: TenantContext, dealId: string, filter: FindingPageFilter, request: PageRequest): Promise<PageResult<Finding>>;
   get(tenant: TenantContext, dealId: string, findingId: string): Promise<FindingWithReviews | null>;
   findByFingerprint(
     tenant: TenantContext,

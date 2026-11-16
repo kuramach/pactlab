@@ -236,7 +236,7 @@ describe('public deal page (listing)', { timeout: 60_000 }, () => {
     expect(mailTo('ari.buyer@example.com')).toHaveLength(1);
     expect(mailTo('bot@example.com')).toHaveLength(0);
 
-    expect((await call('GET', `/v1/deals/${dealId}/listing/interests`, undefined, lead)).body).toEqual({ items: [] });
+    expect((await call('GET', `/v1/deals/${dealId}/listing/interests`, undefined, lead)).body).toMatchObject({ items: [], total: 0 });
     const token = confirmToken('ari.buyer@example.com');
     expect(await call('POST', '/v1/public/listing-interest/confirm', { token })).toEqual({ status: 200, body: { slug } });
     expect((await call('POST', '/v1/public/listing-interest/confirm', { token })).status).toBe(404);

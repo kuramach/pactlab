@@ -46,7 +46,7 @@ export class ReportsService {
     return {
       deal: (tenant, dealId) => this.deals.get(tenant, dealId) as never,
       deals: (tenant) => this.deals.all(tenant) as never,
-      findings: (tenant, dealId) => this.findings.list(tenant, dealId, {} as never, requestId) as never,
+      findings: (tenant, dealId) => this.findings.all(tenant, dealId, requestId) as never,
       valuation: (tenant, dealId) => this.valuation.list(tenant, dealId, requestId) as never,
       pricing: (tenant, dealId) => this.pricing.view(tenant, dealId, requestId) as never,
       terms: (tenant, dealId) => this.pricing.proposedTerms(tenant, dealId, requestId) as never,

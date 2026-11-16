@@ -27,10 +27,10 @@ export default async function DealLayout({ children, params }: { children: React
     dealsApi.members(dealId),
     dealViewer(dealId),
     // Connected apps' suggestions (T-084b): buyer side only; the API refuses anyone else.
-    apiGet<{ items: { status: string }[]; connectable: boolean }>(`/v1/deals/${dealId}/agent-proposals?status=PENDING`),
+    apiGet<{ total: number; connectable: boolean }>(`/v1/deals/${dealId}/agent-proposals?status=PENDING&limit=1`),
   ]);
   // The tab shows where suggestions can arrive (apps may connect) or some already have.
-  const pendingSuggestions = suggestions.kind === 'ok' && (suggestions.data.connectable || suggestions.data.items.length > 0) ? suggestions.data.items.length : null;
+  const pendingSuggestions = suggestions.kind === 'ok' && (suggestions.data.connectable || suggestions.data.total > 0) ? suggestions.data.total : null;
   if (deal.kind !== 'ok') {
     return (
       <div className="flex flex-col gap-6">

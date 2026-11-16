@@ -1,3 +1,4 @@
+import { afterCursor, toPage, type PageRequest, type PageResult } from './pagination';
 import type { EvidenceVisibility, ImportTarget } from '@pactlab/domain';
 import type { Prisma, TransactionClient } from './client';
 import { connections, type ConnectionRecord } from './evidence';
@@ -95,8 +96,13 @@ export const sourceUploads = {
     return (await tx.sourceUpload.findFirst({ where: { id: uploadId, dealId }, select: uploadSelect })) as SourceUploadRecord | null;
   },
 
-  async list(tx: TransactionClient, dealId: string): Promise<SourceUploadRecord[]> {
-    return (await tx.sourceUpload.findMany({ where: { dealId }, select: uploadSelect, orderBy: { createdAt: 'desc' }, take: 50 })) as SourceUploadRecord[];
+  /** A pact's uploads, newest first, a page at a time (T-126). */
+  async page(tx: TransactionClient, dealId: string, request: PageRequest): Promise<PageResult<SourceUploadRecord>> {
+    const [rows, total] = await Promise.all([
+      tx.sourceUpload.findMany({ where: { AND: [{ dealId }, afterCursor('createdAt', request.cursor, { asDate: true })] }, select: { ...uploadSelect, id: true, createdAt: true }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], take: request.limit + 1 }),
+      tx.sourceUpload.count({ where: { dealId } }),
+    ]);
+    return toPage(rows, request, total, (row) => row.createdAt, (row) => row as SourceUploadRecord);
   },
 
   async markImported(

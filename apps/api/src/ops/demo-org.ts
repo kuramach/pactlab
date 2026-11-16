@@ -263,7 +263,7 @@ export async function buildPact(app: App, owner: OwnerSession, people: People, t
   // silent-ok: demo build; drafts that do not run leave the register as the pack's checks found it
   await findings.runPackRules(buyer, dealId, REQUEST_ID).catch(() => undefined);
   // Up to five accepted; the next asks for more support and the one after is rejected, so the register shows every outcome.
-  const drafts = (await findings.list(buyer, dealId, { status: 'DRAFT' }, REQUEST_ID)).items.slice(0, 7);
+  const drafts = (await findings.list(buyer, dealId, { status: 'DRAFT', limit: 7 }, REQUEST_ID)).items;
   let accepted = 0;
   let decided = 0;
   const pricedIds: string[] = [];
