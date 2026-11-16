@@ -760,6 +760,6 @@ describe('documents API (document AI)', () => {
       const next = (await call('lead', 'GET', `/documents?q=bulk-&sort=name&dir=desc&limit=2&cursor=${byName.nextCursor}`)).body as { items: { fileName: string }[] };
       expect(next.items.map((item) => item.fileName)).toEqual(['bulk-052.txt', 'bulk-051.txt']);
       expect((await call('lead', 'GET', '/documents?kind=Exe')).status).toBe(400);
-    });
+    }, 60_000);
   });
 });

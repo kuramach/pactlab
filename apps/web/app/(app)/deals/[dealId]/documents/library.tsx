@@ -3,6 +3,7 @@
 import { Badge, Button } from '@pactlab/ui';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { libraryHref } from './library-href';
 import { DOCUMENT_KINDS } from '@pactlab/contracts';
 import { useState } from 'react';
 import { citationHref, type DocumentListItem } from '../../../documents/_lib/view';
@@ -35,23 +36,6 @@ export function categoryCell(row: Pick<LibraryRow, 'intake'>, labels: Readonly<R
   const label = (intake.category && labels[intake.category]) ?? intake.category ?? 'Filed';
   const who = intake.source === 'PERSON' ? 'Filed by a person' : `Filed by AI${intake.confidence !== null ? ` (${Math.round(intake.confidence * 100)}% sure)` : ''}`;
   return { label: intake.counterpartyName ? `${label} · ${intake.counterpartyName}` : label, tone: 'reviewed', title: [who, intake.reason].filter(Boolean).join(' — ') };
-}
-
-/**
- * The documents URL with some parameters changed (undefined removes one). Search, type and order run
- * in the database (T-126); changing one starts the library again at its first page.
- */
-export function libraryHref(params: Readonly<Record<string, string>>, overrides: Record<string, string | undefined>): string {
-  const query = new URLSearchParams(params);
-  for (const [key, value] of Object.entries(overrides)) {
-    if (value === undefined) query.delete(key);
-    else query.set(key, value);
-  }
-  if (['q', 'kind', 'sort', 'dir'].some((key) => key in overrides)) {
-    query.delete('docs.cursor');
-    query.delete('docs.trail');
-  }
-  return query.toString();
 }
 
 /** Every type the library can filter by, from the shared contract. */
