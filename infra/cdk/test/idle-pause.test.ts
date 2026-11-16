@@ -29,6 +29,10 @@ describe('only production runs all the time (ADR 0019)', () => {
     template.hasResourceProperties('AWS::Events::Rule', { ScheduleExpression: 'rate(1 day)', Targets: [Match.objectLike({ Input: JSON.stringify({ step: 'keepStopped' }) })] });
     template.resourceCountIs('AWS::StepFunctions::StateMachine', 1);
     template.hasResourceProperties('AWS::StepFunctions::StateMachine', { StateMachineName: 'pactlab-dev-wake' });
+    // A failed wake is caught and paused again.
+    const machine = JSON.stringify(template.findResources('AWS::StepFunctions::StateMachine'));
+    expect(machine).toContain('abortWake');
+    expect(machine).toContain('States.ALL');
     template.hasResourceProperties('AWS::SSM::Parameter', { Name: '/pactlab/dev/power', Value: 'awake' });
     template.hasResourceProperties('AWS::Lambda::Function', { Environment: { Variables: Match.objectLike({ IDLE_MINUTES: '60' }) } });
   });
@@ -147,6 +151,26 @@ describe('pause and wake steps', () => {
     expect(await steps['targetsHealthy']?.()).toEqual({ healthy: true });
     await steps['finishWake']?.();
     expect(fake.calls).toEqual(['power=waking', 'db start', 'web=1', 'api=1', 'worker=1', `route ${NEVER}`, 'power=awake']);
+  });
+
+  it('a failed wake goes back to paused: wake page, services to zero, database stopped', async () => {
+    const fake = fakeAws({ power: 'waking', db: 'available' });
+    expect(await makeSteps(fake.aws, ENV)['abortWake']?.()).toEqual({ paused: true });
+    expect(fake.calls).toEqual([`route ${EVERYTHING}`, 'web=0', 'api=0', 'worker=0', 'db stop', 'power=paused']);
+    // The database never started (no capacity): stopping it is refused, and that's fine.
+    const neverStarted = fakeAws({ power: 'waking', db: 'stopped' });
+    expect(await makeSteps(neverStarted.aws, ENV)['abortWake']?.()).toEqual({ paused: true });
+    expect(neverStarted.state.power).toBe('paused');
+  });
+
+  it('recovers an environment stuck waking past the wake machine’s timeout, never one mid-wake', async () => {
+    const midWake = fakeAws({ power: 'waking', db: 'starting', changedAt: Date.now() - 5 * 60_000 });
+    expect(await makeSteps(midWake.aws, ENV)['checkIdle']?.()).toEqual({ paused: false, reason: 'waking' });
+    expect(midWake.calls).toEqual([]);
+    const stuck = fakeAws({ power: 'waking', db: 'available', changedAt: Date.now() - 11 * 24 * 60 * 60_000 });
+    expect(await makeSteps(stuck.aws, ENV)['checkIdle']?.()).toEqual({ paused: true, reason: 'stuck waking' });
+    expect(stuck.calls).toContain('db stop');
+    expect(stuck.state.power).toBe('paused');
   });
 
   it('stops a paused database that AWS restarted, and leaves an awake one alone', async () => {

@@ -137,6 +137,8 @@ It returns `awake`, `paused` or `waking`. The Step Functions console shows each 
 
 AWS restarts a stopped database after 7 days. A daily run stops it again while the environment is still paused.
 
+**A failed wake goes back to paused.** If any wake step fails (for example AWS has no database capacity in the zone, as for qa on 2026-11-05), the wake machine puts the environment back to paused: wake page on, services at zero, database stopped. Press Wake again later. A wake that dies without failing (the 30-minute timeout) leaves it `waking`; the idle check pauses anything still `waking` after 45 minutes.
+
 ## Shared non-live base (dev and qa)
 
 dev and qa share one network (with a NAT instance), one load balancer and one Redis, in `PactlabNonliveBase` in the dev account (ADR 0019). Each still has its own database, secrets, buckets, services and pause. Deploys of dev or qa deploy the base first; that's a no-op when it hasn't changed.

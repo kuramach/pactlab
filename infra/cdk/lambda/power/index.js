@@ -9,6 +9,8 @@
  */
 const NEVER = '/__pactlab-paused/*';
 const EVERYTHING = '/*';
+/** Longer than the wake machine's 30-minute timeout: a wake still "waking" after this has died. */
+const STUCK_WAKING_MS = 45 * 60_000;
 
 /** The steps, with their AWS calls injected so they can be tested without AWS. */
 function makeSteps(aws, env) {
@@ -32,6 +34,9 @@ function makeSteps(aws, env) {
     async checkIdle() {
       const idleMs = Number(env.IDLE_MINUTES) * 60_000;
       const { value, changedAt } = await aws.getPowerState(env.POWER_PARAMETER);
+      // A wake that died without saying so (timed out, or failed before its catch) would leave the
+      // environment "waking" forever: neither paused nor pausable, with its database running.
+      if (value === 'waking' && Date.now() - changedAt > STUCK_WAKING_MS) return { ...(await steps.abortWake()), reason: 'stuck waking' };
       if (value !== 'awake') return { paused: false, reason: value };
       if (Date.now() - changedAt < idleMs) return { paused: false, reason: 'recently awake' };
       if ((await aws.apiRequests(idleMs)) > 0) return { paused: false, reason: 'in use' };
@@ -52,6 +57,18 @@ function makeSteps(aws, env) {
       if ((await aws.databaseStatus(env.DB_INSTANCE)) !== 'available') return { stopped: false };
       await aws.stopDatabase(env.DB_INSTANCE).catch(ignore('InvalidDBInstanceStateFault'));
       return { stopped: true };
+    },
+    /**
+     * A wake failed (AWS had no database capacity, say: qa, 2026-11-05): back to paused, as if
+     * it never started, so the wake page offers the button again and the daily check keeps the
+     * database stopped. Whatever the wake had already started is stopped again.
+     */
+    async abortWake() {
+      await routeTo(EVERYTHING);
+      for (const service of services) await aws.setDesiredCount(env.CLUSTER, service.name, 0);
+      await aws.stopDatabase(env.DB_INSTANCE).catch(ignore('InvalidDBInstanceStateFault'));
+      await aws.putPower(env.POWER_PARAMETER, 'paused');
+      return { paused: true };
     },
     async startWake() {
       await aws.putPower(env.POWER_PARAMETER, 'waking');

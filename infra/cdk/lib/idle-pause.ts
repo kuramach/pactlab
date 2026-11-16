@@ -127,15 +127,22 @@ export class IdlePause extends Construct {
       .next(targetsHealthy)
       .next(new sfn.Choice(this, 'Serving').when(sfn.Condition.booleanEquals('$.result.healthy', true), finish).otherwise(waitForTargets));
     const databaseReady = step('databaseReady', 'DatabaseReady');
+    const wake = new sfn.Parallel(this, 'Wake').branch(
+      step('startWake', 'StartWake')
+        .next(waitForDatabase)
+        .next(databaseReady)
+        .next(new sfn.Choice(this, 'DatabaseUp').when(sfn.Condition.booleanEquals('$.result.ready', true), servicesUp).otherwise(waitForDatabase)),
+    );
+    // Any failed step puts the environment back to paused, so it never sticks at "waking" with its
+    // database running (qa, 2026-11-05: no database capacity in the zone). A timeout can't be caught;
+    // the idle check recovers that one.
+    wake.addCatch(step('abortWake', 'AbortWake').next(new sfn.Fail(this, 'WakeFailed', { error: 'WakeFailed', cause: 'The wake failed; the environment is paused again.' })), {
+      resultPath: '$.error',
+    });
     this.wakeMachine = new sfn.StateMachine(this, 'WakeMachine', {
       stateMachineName: wakeMachineName(env),
       timeout: Duration.minutes(30),
-      definitionBody: sfn.DefinitionBody.fromChainable(
-        step('startWake', 'StartWake')
-          .next(waitForDatabase)
-          .next(databaseReady)
-          .next(new sfn.Choice(this, 'DatabaseUp').when(sfn.Condition.booleanEquals('$.result.ready', true), servicesUp).otherwise(waitForDatabase)),
-      ),
+      definitionBody: sfn.DefinitionBody.fromChainable(wake),
     });
 
     // By name, not by reference: the wake machine depends (through the steps and the rule) on this page.
