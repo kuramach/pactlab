@@ -52,7 +52,7 @@ export class ReportsService {
       terms: (tenant, dealId) => this.pricing.proposedTerms(tenant, dealId, requestId) as never,
       claims: (tenant, dealId) => this.phases.claims(tenant, dealId, requestId) as never,
       postClose: (tenant, dealId) => this.phases.postClose(tenant, dealId, requestId) as never,
-      documents: (tenant, dealId) => this.documents.list(tenant, dealId, requestId) as never,
+      documents: (tenant, dealId) => this.documents.all(tenant, dealId, requestId) as never,
       connections: (tenant, dealId) => this.connections.list(tenant, dealId, requestId) as never,
       financing: (tenant, dealId) => this.financing.view(tenant, dealId, requestId),
     };

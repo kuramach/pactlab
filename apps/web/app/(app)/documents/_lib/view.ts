@@ -12,6 +12,8 @@ export interface DocumentsView {
 export interface DocumentFindingItem {
   id: string;
   documentId: string;
+  /** The document's file name (T-126: the library is paged, so the queue names its documents itself). */
+  documentName?: string;
   title: string;
   summary: string;
   severity: 'INFO' | 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';

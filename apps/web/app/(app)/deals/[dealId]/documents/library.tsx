@@ -3,7 +3,8 @@
 import { Badge, Button } from '@pactlab/ui';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useMemo, useState } from 'react';
+import { DOCUMENT_KINDS } from '@pactlab/contracts';
+import { useState } from 'react';
 import { citationHref, type DocumentListItem } from '../../../documents/_lib/view';
 import { classifyOne, extractOne } from './actions';
 
@@ -13,7 +14,7 @@ export interface LibraryRow extends DocumentListItem {
   readonly pending: number;
 }
 
-type SortKey = 'name' | 'uploaded' | 'pages' | 'findings';
+type SortKey = 'name' | 'uploaded' | 'pages';
 
 const KIND: Readonly<Record<string, string>> = {
   'application/pdf': 'PDF',
@@ -36,19 +37,25 @@ export function categoryCell(row: Pick<LibraryRow, 'intake'>, labels: Readonly<R
   return { label: intake.counterpartyName ? `${label} · ${intake.counterpartyName}` : label, tone: 'reviewed', title: [who, intake.reason].filter(Boolean).join(' — ') };
 }
 
-/** Rows matching the search and type filter, in the chosen order. */
-export function libraryRows(rows: readonly LibraryRow[], query: string, kind: string, sort: SortKey, descending: boolean): LibraryRow[] {
-  const needle = query.trim().toLowerCase();
-  const filtered = rows.filter((row) => (!needle || row.fileName.toLowerCase().includes(needle)) && (kind === 'ALL' || kindOf(row.contentType) === kind));
-  const value = (row: LibraryRow): string | number =>
-    sort === 'name' ? row.fileName.toLowerCase() : sort === 'uploaded' ? row.createdAt : sort === 'pages' ? row.pageCount : row.findings;
-  return [...filtered].sort((a, b) => {
-    const left = value(a);
-    const right = value(b);
-    const order = left < right ? -1 : left > right ? 1 : a.fileName.localeCompare(b.fileName);
-    return descending ? -order : order;
-  });
+/**
+ * The documents URL with some parameters changed (undefined removes one). Search, type and order run
+ * in the database (T-126); changing one starts the library again at its first page.
+ */
+export function libraryHref(params: Readonly<Record<string, string>>, overrides: Record<string, string | undefined>): string {
+  const query = new URLSearchParams(params);
+  for (const [key, value] of Object.entries(overrides)) {
+    if (value === undefined) query.delete(key);
+    else query.set(key, value);
+  }
+  if (['q', 'kind', 'sort', 'dir'].some((key) => key in overrides)) {
+    query.delete('docs.cursor');
+    query.delete('docs.trail');
+  }
+  return query.toString();
 }
+
+/** Every type the library can filter by, from the shared contract. */
+export const LIBRARY_KINDS = Object.keys(DOCUMENT_KINDS);
 
 function aiState(row: LibraryRow, aiOn: boolean): { label: string; tone: 'neutral' | 'reviewed' | 'draft' } {
   if (row.status === 'PURGED') return { label: 'Purged', tone: 'neutral' };
@@ -58,10 +65,10 @@ function aiState(row: LibraryRow, aiOn: boolean): { label: string; tone: 'neutra
 }
 
 /**
- * The deal's document library (T-094 B11): every document with its type,
- * pages, upload date, AI state and finding count; search, filter by type,
- * sort by any column; select several to re-run AI extraction. Clicking a
- * name opens it in the page pane. Reads cleanly at 20+ documents.
+ * The deal's document library (T-094 B11): each document with its type,
+ * pages, upload date, AI state and finding count; search, filter by type and
+ * sort, all in the database a page at a time (T-126); select several on the
+ * page to re-run AI extraction. Clicking a name opens it in the page pane.
  */
 export function DocumentLibrary({
   dealId,
@@ -70,41 +77,45 @@ export function DocumentLibrary({
   aiOn,
   writer,
   categoryLabels = {},
+  total,
+  filters,
+  params,
 }: {
   dealId: string;
+  /** This page of the library, already searched, filtered and ordered by the API. */
   rows: readonly LibraryRow[];
   openId?: string;
   aiOn: boolean;
   writer: boolean;
   /** Category id → label for this pact (from intake). */
   categoryLabels?: Readonly<Record<string, string>>;
+  /** Documents matching the search and type, across every page. */
+  total: number;
+  filters: { readonly q: string; readonly kind: string; readonly sort: SortKey; readonly dir: 'asc' | 'desc' };
+  /** The page's other URL parameters, kept on every link. */
+  params: Readonly<Record<string, string>>;
 }) {
   const router = useRouter();
-  const [query, setQuery] = useState('');
-  const [kind, setKind] = useState('ALL');
-  const [sort, setSort] = useState<SortKey>('uploaded');
-  const [descending, setDescending] = useState(false);
+  const [query, setQuery] = useState(filters.q);
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   const [running, setRunning] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
-  const kinds = useMemo(() => [...new Set(rows.map((row) => kindOf(row.contentType)))].sort(), [rows]);
-  const shown = libraryRows(rows, query, kind, sort, descending);
+  const shown = rows;
+  const go = (overrides: Record<string, string | undefined>) => router.push(`/deals/${dealId}/documents?${libraryHref(params, overrides)}`);
+  const descending = filters.dir === 'desc';
 
-  const sortBy = (key: SortKey) => {
-    if (sort === key) setDescending((value) => !value);
-    else {
-      setSort(key);
-      setDescending(key !== 'name');
-    }
+  const header = (key: SortKey, label: string) => {
+    // A new column starts newest or largest first (names A to Z); the same column flips.
+    const next = filters.sort === key ? (descending ? 'asc' : 'desc') : key === 'name' ? 'asc' : 'desc';
+    return (
+      <th scope="col" aria-sort={filters.sort === key ? (descending ? 'descending' : 'ascending') : 'none'} className="px-2 py-2 font-medium">
+        <Link href={`/deals/${dealId}/documents?${libraryHref(params, { sort: key, dir: next })}`} className="hover:underline">
+          {label}
+          {filters.sort === key ? (descending ? ' ↓' : ' ↑') : ''}
+        </Link>
+      </th>
+    );
   };
-  const header = (key: SortKey, label: string) => (
-    <th scope="col" aria-sort={sort === key ? (descending ? 'descending' : 'ascending') : 'none'} className="px-2 py-2 font-medium">
-      <button type="button" onClick={() => sortBy(key)} className="hover:underline">
-        {label}
-        {sort === key ? (descending ? ' ↓' : ' ↑') : ''}
-      </button>
-    </th>
-  );
 
   const rerun = async () => {
     const ids = shown.filter((row) => selected.has(row.id) && !row.aiExcluded && row.status === 'AVAILABLE').map((row) => row.id);
@@ -146,24 +157,33 @@ export function DocumentLibrary({
   return (
     <nav aria-label="Documents" className="flex flex-col gap-3 text-sm">
       <div className="flex flex-wrap items-center gap-2">
-        <input
-          type="search"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search documents"
-          aria-label="Search documents"
-          className="w-56 rounded-md border border-border bg-background px-3 py-1.5"
-        />
-        <select value={kind} onChange={(event) => setKind(event.target.value)} aria-label="Filter by type" className="rounded-md border border-border bg-background px-2 py-1.5">
+        <form
+          role="search"
+          onSubmit={(event) => {
+            event.preventDefault();
+            go({ q: query.trim() || undefined });
+          }}
+        >
+          <input
+            type="search"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search documents (Enter)"
+            aria-label="Search documents"
+            className="w-56 rounded-md border border-border bg-background px-3 py-1.5"
+          />
+        </form>
+        <select value={filters.kind} onChange={(event) => go({ kind: event.target.value === 'ALL' ? undefined : event.target.value })} aria-label="Filter by type" className="rounded-md border border-border bg-background px-2 py-1.5">
           <option value="ALL">All types</option>
-          {kinds.map((entry) => (
+          {LIBRARY_KINDS.map((entry) => (
             <option key={entry} value={entry}>
               {entry}
             </option>
           ))}
         </select>
         <span className="text-muted-foreground">
-          {shown.length} of {rows.length} document{rows.length === 1 ? '' : 's'}
+          {total} document{total === 1 ? '' : 's'}
+          {filters.q || filters.kind !== 'ALL' ? ' matching' : ''}
         </span>
         {writer && aiOn && selected.size > 0 ? (
           <>
@@ -205,7 +225,7 @@ export function DocumentLibrary({
               <th scope="col" className="px-2 py-2 font-medium">
                 AI
               </th>
-              {header('findings', 'Findings')}
+              <th scope="col" className="px-2 py-2 font-medium">Findings</th>
             </tr>
           </thead>
           <tbody>

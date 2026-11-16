@@ -25,6 +25,7 @@ import {
   documentRequestParamsSchema,
   documentParamsSchema,
   findingParamsSchema,
+  listDocumentsQuerySchema,
   listFindingsQuerySchema,
   pageParamsSchema,
   reviewFindingBodySchema,
@@ -36,6 +37,7 @@ import {
   type ConnectDocumentSourceBody,
   type CreateDocumentRequestBody,
   type ListDocumentFindingsQuery,
+  type ListDocumentsQuery,
   type ReviewDocumentFindingBody,
   type UploadArchiveBody,
   type UploadDocumentBody,
@@ -150,8 +152,9 @@ export class DocumentsController {
     @Tenant() tenant: TenantContext,
     @RequestId() requestId: string,
     @Param(new ZodValidationPipe(dealParamsSchema)) params: DealParams,
+    @Query(new ZodValidationPipe(listDocumentsQuerySchema)) query: ListDocumentsQuery,
   ) {
-    return this.service.list(tenant, params.dealId, requestId);
+    return this.service.list(tenant, params.dealId, query, requestId);
   }
 
   @Get('documents/:documentId')

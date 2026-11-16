@@ -731,4 +731,35 @@ describe('documents API (document AI)', () => {
       );
     });
   });
+
+  describe('the library, paged (T-126)', () => {
+    it('pages a large library each file once, and searches, filters and sorts in the database', async () => {
+      const before = (await call('lead', 'GET', '/documents?limit=1')).body as { total: number };
+      for (let n = 0; n < 55; n += 1) {
+        const name = `bulk-${String(n).padStart(3, '0')}${n === 42 ? '-needle' : ''}.${n % 5 === 0 ? 'md' : 'txt'}`;
+        expect((await upload('lead', name, `Synthetic bulk document ${n}.`, n % 5 === 0 ? { contentType: 'text/markdown' } : {})).status).toBe(201);
+      }
+      const total = before.total + 55;
+      const seen: string[] = [];
+      let cursor: string | null = null;
+      let pages = 0;
+      do {
+        const page = (await call('lead', 'GET', `/documents?limit=25${cursor ? `&cursor=${cursor}` : ''}`)).body as { items: { id: string; findings: number }[]; nextCursor: string | null; total: number };
+        expect(page.total).toBe(total);
+        expect(page.items.every((item) => typeof item.findings === 'number')).toBe(true);
+        seen.push(...page.items.map((item) => item.id));
+        cursor = page.nextCursor;
+        pages += 1;
+      } while (cursor && pages < 20);
+      expect(new Set(seen).size).toBe(total);
+      const needle = (await call('lead', 'GET', '/documents?q=NEEDLE')).body as { items: { fileName: string }[]; total: number };
+      expect(needle).toMatchObject({ total: 1, items: [{ fileName: 'bulk-042-needle.txt' }] });
+      expect(((await call('lead', 'GET', '/documents?kind=Markdown&q=bulk-')).body as { total: number }).total).toBe(11);
+      const byName = (await call('lead', 'GET', '/documents?q=bulk-&sort=name&dir=desc&limit=2')).body as { items: { fileName: string }[]; nextCursor: string };
+      expect(byName.items.map((item) => item.fileName)).toEqual(['bulk-054.txt', 'bulk-053.txt']);
+      const next = (await call('lead', 'GET', `/documents?q=bulk-&sort=name&dir=desc&limit=2&cursor=${byName.nextCursor}`)).body as { items: { fileName: string }[] };
+      expect(next.items.map((item) => item.fileName)).toEqual(['bulk-052.txt', 'bulk-051.txt']);
+      expect((await call('lead', 'GET', '/documents?kind=Exe')).status).toBe(400);
+    });
+  });
 });

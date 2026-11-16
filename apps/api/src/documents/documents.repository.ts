@@ -1,3 +1,4 @@
+import type { PageRequest, PageResult } from '@pactlab/db';
 import type { AiRunRecord } from '@pactlab/ai';
 import type { AuditEventInput } from '@pactlab/db';
 import type { TenantContext } from '@pactlab/domain';
@@ -32,11 +33,21 @@ export interface DocumentsRepository {
     dealId: string,
     sha256: string,
   ): Promise<DocumentRecord | null>;
+  /** Every document of a pact, for calculations over the whole set (intake checklist, requests); never a screen. */
   listDocuments(
     tenant: TenantContext,
     dealId: string,
     options: { sharedOnly: boolean },
   ): Promise<DocumentRecord[]>;
+  /** The library, a page at a time (T-126). */
+  pageDocuments(
+    tenant: TenantContext,
+    dealId: string,
+    filter: { sharedOnly: boolean; query?: string | undefined; contentTypes?: readonly string[] | undefined; sort: 'uploaded' | 'name' | 'pages'; dir: 'asc' | 'desc' },
+    request: PageRequest,
+  ): Promise<PageResult<DocumentRecord>>;
+  /** Drafts and decided AI findings per document, for some documents (one page). */
+  findingCounts(tenant: TenantContext, dealId: string, documentIds: readonly string[]): Promise<Map<string, { findings: number; pending: number }>>;
   getDocument(
     tenant: TenantContext,
     dealId: string,
@@ -74,11 +85,13 @@ export interface DocumentsRepository {
     findings: readonly DocumentFinding[],
     audit: AuditEventInput,
   ): Promise<void>;
+  /** AI drafts on a pact, oldest first, a page at a time (T-126), each with its document's name. */
   listFindings(
     tenant: TenantContext,
     dealId: string,
-    filter: { status?: DocumentFindingStatus; documentId?: string },
-  ): Promise<DocumentFinding[]>;
+    filter: { status?: DocumentFindingStatus | undefined; decided?: boolean | undefined; documentId?: string | undefined },
+    request: PageRequest,
+  ): Promise<PageResult<DocumentFinding & { documentName: string }>>;
   getFinding(
     tenant: TenantContext,
     dealId: string,
