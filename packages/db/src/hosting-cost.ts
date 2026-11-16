@@ -1,4 +1,5 @@
 import { callOps, type SqlExecutor } from './ops';
+import { decodeCursor, encodeCursor, type PageRequest, type PageResult } from './pagination';
 
 /** A Cost Explorer line: spend for one period, environment tag and AWS product. Amounts are decimal strings. */
 export interface HostingCostLine {
@@ -25,32 +26,21 @@ export interface CostRate {
   readonly createdAt: string;
 }
 
-export interface AiUsageRow {
-  readonly day: string;
-  readonly modelId: string;
-  readonly organizationId: string;
-  readonly organizationName: string;
-  readonly authMethod: string;
-  readonly dealId: string;
-  readonly dealName: string;
-  readonly userId: string | null;
-  readonly userEmail: string | null;
+export const METERED_DIMENSIONS = ['organization', 'pact', 'person', 'auth', 'model'] as const;
+export type MeteredDimension = (typeof METERED_DIMENSIONS)[number];
+
+/** One row of a metered breakdown, priced and summed in the database. Amounts are decimal strings. */
+export interface MeteredRow {
+  readonly key: string;
+  readonly label: string;
+  readonly detail: string | null;
   readonly runs: number;
   readonly inputTokens: number;
   readonly outputTokens: number;
-}
-
-export interface StorageUsageRow {
-  readonly organizationId: string;
-  readonly organizationName: string;
-  readonly authMethod: string;
-  readonly dealId: string;
-  readonly dealName: string;
-  readonly userId: string | null;
-  readonly userEmail: string | null;
-  readonly documents: number;
-  /** Bytes held × days held, as a decimal string. */
-  readonly byteDays: string;
+  readonly gbMonths: string;
+  readonly ai: string;
+  readonly storage: string;
+  readonly total: string;
 }
 
 const day = (value: unknown) => (value instanceof Date ? value.toISOString().slice(0, 10) : String(value).slice(0, 10));
@@ -127,34 +117,43 @@ export const hostingCost = {
     return row?.deleted === true;
   },
 
-  async aiUsage(sql: SqlExecutor, actor: string | null, from: string, to: string): Promise<AiUsageRow[]> {
-    return (await callOps<Record<string, unknown>>(sql, 'SELECT * FROM app_ops_cost_ai_usage($1::uuid, $2::date, $3::date)', [actor, from, to])).map((row) => ({
-      day: day(row['day']),
-      modelId: String(row['model_id']),
-      organizationId: String(row['organization_id']),
-      organizationName: String(row['organization_name']),
-      authMethod: String(row['auth_method']),
-      dealId: String(row['deal_id']),
-      dealName: String(row['deal_name']),
-      userId: nullable(row['user_id']),
-      userEmail: nullable(row['user_email']),
-      runs: Number(row['runs']),
-      inputTokens: Number(row['input_tokens']),
-      outputTokens: Number(row['output_tokens']),
-    }));
+  /** One breakdown of the metered estimate, most expensive first, a page at a time (T-126). */
+  async meteredPage(sql: SqlExecutor, actor: string | null, period: { from: string; to: string }, dimension: MeteredDimension, request: PageRequest): Promise<PageResult<MeteredRow>> {
+    const position = decodeCursor(request.cursor, { textId: true });
+    const afterTotal = position && typeof position.key === 'string' && /^-?\d+(\.\d+)?$/.test(position.key) ? position.key : null;
+    const found = await callOps<Record<string, unknown>>(sql, 'SELECT * FROM app_ops_cost_metered_page($1::uuid, $2::date, $3::date, $4, $5::numeric, $6, $7::int)', [
+      actor,
+      period.from,
+      period.to,
+      dimension,
+      afterTotal,
+      afterTotal ? position?.id ?? null : null,
+      request.limit + 1,
+    ]);
+    const page = found.slice(0, request.limit);
+    const last = page.at(-1);
+    return {
+      items: page.map((row) => ({
+        key: String(row['key']),
+        label: String(row['label'] ?? row['key']),
+        detail: nullable(row['detail']),
+        runs: Number(row['runs']),
+        inputTokens: Number(row['input_tokens']),
+        outputTokens: Number(row['output_tokens']),
+        gbMonths: decimal(row['gb_months']),
+        ai: decimal(row['ai']),
+        storage: decimal(row['storage']),
+        total: decimal(row['total']),
+      })),
+      nextCursor: last && found.length > request.limit ? encodeCursor(decimal(last['total']), String(last['key'])) : null,
+      total: Number(found[0]?.['total_rows'] ?? 0),
+      limit: request.limit,
+    };
   },
 
-  async storageUsage(sql: SqlExecutor, actor: string | null, from: string, to: string): Promise<StorageUsageRow[]> {
-    return (await callOps<Record<string, unknown>>(sql, 'SELECT * FROM app_ops_cost_storage_usage($1::uuid, $2::date, $3::date)', [actor, from, to])).map((row) => ({
-      organizationId: String(row['organization_id']),
-      organizationName: String(row['organization_name']),
-      authMethod: String(row['auth_method']),
-      dealId: String(row['deal_id']),
-      dealName: String(row['deal_name']),
-      userId: nullable(row['user_id']),
-      userEmail: nullable(row['user_email']),
-      documents: Number(row['documents']),
-      byteDays: decimal(row['byte_days']),
-    }));
+  /** The metered totals and the rates still missing, summed in the database. */
+  async meteredTotals(sql: SqlExecutor, actor: string | null, period: { from: string; to: string }): Promise<{ ai: string; storage: string; missingRates: string[] }> {
+    const [row] = await callOps<Record<string, unknown>>(sql, 'SELECT * FROM app_ops_cost_metered_totals($1::uuid, $2::date, $3::date)', [actor, period.from, period.to]);
+    return { ai: decimal(row?.['ai']), storage: decimal(row?.['storage']), missingRates: Array.isArray(row?.['missing_rates']) ? (row['missing_rates'] as string[]) : [] };
   },
 };

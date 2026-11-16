@@ -1,11 +1,11 @@
 import { ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { D } from '@pactlab/calculations';
-import { hostingCost, OperatorRequiredError, prismaExecutor, type CostGranularity, type CostRateKind, type PrismaClient, type SqlExecutor } from '@pactlab/db';
+import { hostingCost, OperatorRequiredError, prismaExecutor, type CostGranularity, type CostRateKind, type MeteredDimension, type PrismaClient, type SqlExecutor } from '@pactlab/db';
 import type { TenantContext } from '@pactlab/domain';
 import type { Logger } from '@pactlab/observability';
 import { LOGGER, PRISMA } from '../../tokens';
 import type { CostSource } from './cost-explorer';
-import { actualSpend, meteredCost, unallocated } from './cost-view';
+import { actualSpend, unallocated } from './cost-view';
 
 export const HOSTING_COST_SETTINGS = Symbol('HOSTING_COST_SETTINGS');
 export interface HostingCostSettings {
@@ -21,6 +21,7 @@ const STALE_MS = 24 * 3_600_000;
 const REFRESH_EVERY_MS = 3_600_000;
 const DAILY_DAYS = 92;
 const iso = (date: Date) => date.toISOString().slice(0, 10);
+const money = (value: string) => new D(value).toDecimalPlaces(2).toFixed(2);
 const monthStart = (date: Date, offset = 0) => new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + offset, 1));
 
 /**
@@ -115,13 +116,10 @@ export class HostingCostService {
       const linesFrom = granularity === 'MONTHLY' ? `${query.from.slice(0, 7)}-01` : query.from;
       const all = await hostingCost.lines(this.sql, tenant.userId, granularity, linesFrom, query.to);
       const lines = query.environment ? all.filter((line) => line.environment === query.environment) : all;
-      const [ai, storage, rates] = await Promise.all([
-        hostingCost.aiUsage(this.sql, tenant.userId, query.from, query.to),
-        hostingCost.storageUsage(this.sql, tenant.userId, query.from, query.to),
-        hostingCost.rates(this.sql, tenant.userId),
-      ]);
+      // Priced and summed in the database (T-126); each breakdown is its own paged request (`metered`).
+      const [totals, rates] = await Promise.all([hostingCost.meteredTotals(this.sql, tenant.userId, query), hostingCost.rates(this.sql, tenant.userId)]);
       const actual = actualSpend(lines);
-      const metered = meteredCost({ ai, storage, rates, periodEnd: iso(new Date(new Date(`${query.to}T00:00:00Z`).getTime() - DAY)) });
+      const metered = { ai: money(totals.ai), storage: money(totals.storage), total: money(new D(totals.ai).plus(totals.storage).toString()), missingRates: totals.missingRates };
       const here = all.filter((line) => line.environment === this.settings.environment);
       const hereTotal = here.reduce((sum, line) => sum.plus(line.amount), new D(0)).toFixed(2);
       const bedrockHere = actualSpend(here).bedrock.reduce((sum, line) => sum.plus(line.amount), new D(0)).toFixed(2);
@@ -144,6 +142,14 @@ export class HostingCostService {
         bedrockCheck: here.length > 0 ? { actual: bedrockHere, metered: metered.ai } : null,
         rates,
       };
+    });
+  }
+
+  /** One breakdown of the metered estimate (organization, pact, person, sign-in method, model), most expensive first, a page at a time (T-126). */
+  metered(tenant: TenantContext, query: { from: string; to: string; dimension: MeteredDimension; cursor?: string | undefined; limit: number }) {
+    return this.asOperator(async () => {
+      const page = await hostingCost.meteredPage(this.sql, tenant.userId, query, query.dimension, query);
+      return { ...page, items: page.items.map((row) => ({ ...row, ai: money(row.ai), storage: money(row.storage), total: money(row.total), gbMonths: new D(row.gbMonths).toDecimalPlaces(4).toString() })) };
     });
   }
 

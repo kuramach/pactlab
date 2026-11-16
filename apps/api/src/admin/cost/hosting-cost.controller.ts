@@ -1,5 +1,6 @@
 import { Body, Controller, Delete, Get, HttpCode, Inject, Param, Post, Query } from '@nestjs/common';
-import { COST_RATE_KINDS } from '@pactlab/db';
+import { pageQuerySchema } from '@pactlab/contracts';
+import { COST_RATE_KINDS, METERED_DIMENSIONS } from '@pactlab/db';
 import type { TenantContext } from '@pactlab/domain';
 import { z } from 'zod';
 import { Tenant } from '../../auth/tenant.decorator';
@@ -11,6 +12,11 @@ const viewQuery = z
   .strictObject({ from: day, to: day, environment: z.string().regex(/^[a-z0-9-]{1,100}$/).optional() })
   .refine((query) => query.from < query.to, 'from before to')
   .refine((query) => Date.parse(query.to) - Date.parse(query.from) <= 400 * 86_400_000, 'at most about 13 months');
+const meteredParams = z.strictObject({ dimension: z.enum(METERED_DIMENSIONS) });
+const meteredQuery = pageQuerySchema
+  .extend({ from: day, to: day })
+  .strict()
+  .refine((query) => query.from < query.to, 'from before to');
 const rateBody = z.strictObject({
   kind: z.enum(COST_RATE_KINDS),
   key: z.string().trim().min(1).max(200),
@@ -28,6 +34,12 @@ export class HostingCostController {
   @Get()
   view(@Tenant() tenant: TenantContext, @Query(new ZodValidationPipe(viewQuery)) query: z.infer<typeof viewQuery>) {
     return this.cost.view(tenant, query);
+  }
+
+  /** One breakdown of the metered estimate, most expensive first, a page at a time (T-126). */
+  @Get('metered/:dimension')
+  metered(@Tenant() tenant: TenantContext, @Param(new ZodValidationPipe(meteredParams)) params: z.infer<typeof meteredParams>, @Query(new ZodValidationPipe(meteredQuery)) query: z.infer<typeof meteredQuery>) {
+    return this.cost.metered(tenant, { ...query, dimension: params.dimension });
   }
 
   @Post('refresh')

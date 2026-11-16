@@ -101,6 +101,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
           from={typeof search['from'] === 'string' ? search['from'] : ''}
           to={typeof search['to'] === 'string' ? search['to'] : ''}
           environment={typeof search['env'] === 'string' && /^[a-z0-9-]{1,100}$/.test(search['env']) ? search['env'] : ''}
+          search={search}
         />
       ) : null}
       {tab === 'bugs' ? <Bugs status={typeof search['status'] === 'string' ? search['status'] : ''} severity={typeof search['severity'] === 'string' ? search['severity'] : ''} search={search} /> : null}
