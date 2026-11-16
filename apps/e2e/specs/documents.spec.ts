@@ -18,7 +18,7 @@ test('a data-room document uploads, opens by page, and AI extraction runs on the
   await uploadDocument(page, dealId, 'customer-contract.txt', 'Master subscription agreement (synthetic).\n\nThe customer may terminate for convenience on 30 days notice.');
 
   await page.getByRole('navigation', { name: 'Documents' }).getByRole('link', { name: /customer-contract\.txt/ }).click();
-  await expect(page.getByRole('navigation', { name: 'Pages' }).first().getByText('Page 1 of 1')).toBeVisible();
+  await expect(page.getByRole('navigation', { name: 'Pages', exact: true }).first().getByText('Page 1 of 1')).toBeVisible();
   await expect(page.getByText('may terminate for convenience')).toBeVisible();
 
   // Outcome, not prose: the run reached the model seam (the fixture), and no failure or "AI off" shows.
