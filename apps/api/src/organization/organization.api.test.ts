@@ -47,6 +47,29 @@ describe('organization members API', () => {
     await db?.stop();
   });
 
+  it('pages a large organization’s members, each once, and searches across all of them (T-126)', async () => {
+    const big = await createSyntheticTenant(db.owner, 'Thousand Co (synthetic)');
+    await db.owner.query(
+      `INSERT INTO users (id, auth0_subject, display_name, email)
+       SELECT uuidv7(), 'pactlab|member-' || n, 'Colleague ' || lpad(n::text, 4, '0'), 'colleague' || n || '@thousand.example' FROM generate_series(1, 149) AS n`,
+    );
+    await db.owner.query(
+      `INSERT INTO organization_memberships (id, organization_id, user_id, role, created_at)
+       SELECT uuidv7(), $1, u.id, 'MEMBER', now() + make_interval(secs => row_number() OVER (ORDER BY u.email)) FROM users u WHERE u.email LIKE 'colleague%@thousand.example'`,
+      [big.organizationId],
+    );
+    const headers = { authorization: `Bearer ${await token(big)}` };
+    const first = (await app.inject({ method: 'GET', url: '/v1/organization/members?limit=100', headers })).json() as { items: { userId: string }[]; nextCursor: string; total: number };
+    expect(first.total).toBe(150);
+    expect(first.items).toHaveLength(100);
+    const second = (await app.inject({ method: 'GET', url: `/v1/organization/members?limit=100&cursor=${first.nextCursor}`, headers })).json() as { items: { userId: string }[]; nextCursor: string | null };
+    expect(second.items).toHaveLength(50);
+    expect(second.nextCursor).toBeNull();
+    expect(new Set([...first.items, ...second.items].map((item) => item.userId)).size).toBe(150);
+    const search = (await app.inject({ method: 'GET', url: '/v1/organization/members?q=Colleague%200149', headers })).json() as { items: { displayName: string }[]; total: number };
+    expect(search).toMatchObject({ total: 1, items: [{ displayName: 'Colleague 0149' }] });
+  });
+
   it('lists only the caller’s organization, with names and roles and no emails', async () => {
     const response = await app.inject({ method: 'GET', url: '/v1/organization/members', headers: { authorization: `Bearer ${await token(a)}` } });
     expect(response.statusCode).toBe(200);
