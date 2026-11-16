@@ -1874,6 +1874,8 @@ model OrganizationFlags {
   liveConnectors Boolean  @default(true) @map("live_connectors")
   /// The MCP server for this organization (T-084), off until an operator turns it on.
   mcpEnabled     Boolean  @default(false) @map("mcp_enabled")
+  /// API access for members (T-128), on unless an organization admin turns it off.
+  apiEnabled     Boolean  @default(true) @map("api_enabled")
   updatedBy      String?  @map("updated_by") @db.Uuid
   updatedAt      DateTime @default(now()) @map("updated_at") @db.Timestamptz(3)
 
@@ -2716,9 +2718,34 @@ model OAuthGrant {
   organization  Organization        @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   codes         OAuthCode[]
   refreshTokens OAuthRefreshToken[]
+  deviceCodes   OAuthDeviceCode[]
 
   @@index([userId])
   @@map("oauth_grants")
+}
+
+/// Device authorization (RFC 8628, T-128): a script's pending sign-in, approved by the person
+/// in the app. Ten minutes; the device code is stored only as a hash.
+model OAuthDeviceCode {
+  id             String    @id @default(uuid(7)) @db.Uuid
+  deviceCodeHash String    @unique(map: "oauth_device_codes_hash_key") @map("device_code_hash") @db.Char(64)
+  userCode       String    @map("user_code")
+  clientId       String    @map("client_id")
+  clientName     String    @map("client_name")
+  scopes         String[]
+  resource       String
+  status         String    @default("PENDING")
+  grantId        String?   @map("grant_id") @db.Uuid
+  ipHash         String    @map("ip_hash") @db.Char(64)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  expiresAt      DateTime  @map("expires_at") @db.Timestamptz(3)
+  lastPolledAt   DateTime? @map("last_polled_at") @db.Timestamptz(3)
+
+  grant OAuthGrant? @relation(fields: [grantId], references: [id], onDelete: Restrict)
+
+  @@index([userCode], map: "oauth_device_codes_user_code_idx")
+  @@index([ipHash, createdAt], map: "oauth_device_codes_ip_idx")
+  @@map("oauth_device_codes")
 }
 
 /// A single-use, 60-second authorization code, stored hashed (T-084).

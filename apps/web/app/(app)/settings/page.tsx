@@ -16,6 +16,7 @@ import { PasskeysCard } from './passkeys-card';
 import { guideHidden, hideGuide, showGuide } from '../_lib/guide-actions';
 import { BillingCard } from './billing-card';
 import { ConnectedAppsCard } from './connected-apps-card';
+import { ApiAccessCard } from './api-access-card';
 import { oauthOrigins } from '../../../lib/oauth-metadata';
 import type { PersonaOption } from '../valuation/_lib/pricing';
 import { PersonaCard } from '../valuation/_lib/persona-card';
@@ -219,6 +220,8 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
       {organization?.authMethod === 'EMAIL_CODE' ? <DevicesCard /> : null}
 
       {organization?.authMethod === 'EMAIL_CODE' ? <ConnectedAppsCard mcpAddress={oauthOrigins().resource} /> : null}
+
+      {organization?.authMethod === 'EMAIL_CODE' && admin ? <ApiAccessCard search={await searchParams} /> : null}
 
       {organization ? <BillingCard outcome={typeof billingOutcome === 'string' ? billingOutcome : undefined} /> : null}
 

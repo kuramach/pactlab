@@ -17,10 +17,13 @@ const CODES: Record<number, string> = {
  * upper-case code — never a message.
  */
 const CODED = new Set([413, 415, 422, 503]);
+/** A 403 to an API token says why (T-128): none of these reveals anything about a pact. */
+const API_FORBIDDEN = new Set(['NOT_AVAILABLE_TO_API', 'INSUFFICIENT_SCOPE', 'API_DISABLED']);
 function ruleCode(exception: unknown, status: number): string | null {
-  if (!CODED.has(status) || !(exception instanceof HttpException)) return null;
+  if (!(CODED.has(status) || status === 403) || !(exception instanceof HttpException)) return null;
   const response = exception.getResponse();
   const code = typeof response === 'object' && response !== null ? (response as { code?: unknown }).code : null;
+  if (status === 403) return typeof code === 'string' && API_FORBIDDEN.has(code) ? code : null;
   return typeof code === 'string' && /^[A-Z][A-Z_]{2,40}$/.test(code) ? code : null;
 }
 

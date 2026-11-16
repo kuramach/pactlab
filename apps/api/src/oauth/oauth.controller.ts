@@ -1,11 +1,11 @@
-import { Body, Controller, Delete, Get, HttpCode, Inject, Param, Post, Req, Res } from '@nestjs/common';
-import type { AuthorizeCheckView, ConnectedAppView } from '@pactlab/contracts';
+import { Body, Controller, Delete, Get, HttpCode, Inject, Param, Post, Put, Query, Req, Res } from '@nestjs/common';
+import { pageQuerySchema, type ApiAccessView, type AuthorizeCheckView, type ConnectedAppView, type DeviceCheckView, type PageQuery } from '@pactlab/contracts';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { AllowUnscoped, NoDemo, type Principal, Public, RecentSignIn } from '../auth/auth.guard';
 import { CurrentPrincipal } from '../auth/principal.decorator';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { rateLimitAddress } from '../email-login/client-address';
-import { checkSchema, decisionSchema, grantParamsSchema } from './oauth.schemas';
+import { apiAccessSchema, checkSchema, decisionSchema, deviceCheckSchema, deviceDecisionSchema, grantParamsSchema } from './oauth.schemas';
 import { OAuthProtocolError, OAuthService } from './oauth.service';
 
 
@@ -21,7 +21,7 @@ async function protocol<T>(reply: FastifyReply, run: () => Promise<T>): Promise<
   }
 }
 
-/** Pactlab's OAuth authorization server for the MCP server (T-084, ADR 0024). */
+/** Pactlab's OAuth authorization server for the MCP server (T-084) and the REST API (T-128), ADR 0024. */
 @Controller('v1')
 export class OAuthController {
   constructor(@Inject(OAuthService) private readonly service: OAuthService) {}
@@ -79,5 +79,49 @@ export class OAuthController {
   @Delete('me/connected-apps/:grantId')
   disconnect(@CurrentPrincipal() principal: Principal, @Param(new ZodValidationPipe(grantParamsSchema)) params: { grantId: string }, @Res({ passthrough: true }) reply: FastifyReply) {
     return protocol(reply, () => this.service.disconnect(principal, params.grantId));
+  }
+
+  /** RFC 8628 §3.1: a script asks for a code to show its person. Form-encoded (JSON accepted). */
+  @Public()
+  @Post('oauth/device_authorization')
+  @HttpCode(200)
+  deviceAuthorization(@Body() body: unknown, @Req() request: FastifyRequest, @Res({ passthrough: true }) reply: FastifyReply) {
+    return protocol(reply, () => this.service.deviceAuthorization((body ?? {}) as Record<string, unknown>, rateLimitAddress(request), `${this.service.issuer}/device`));
+  }
+
+  /** The device approval page asks what the code is for (as the signed-in person). */
+  @AllowUnscoped()
+  @Post('oauth/device/check')
+  @HttpCode(200)
+  deviceCheck(@CurrentPrincipal() principal: Principal, @Body(new ZodValidationPipe(deviceCheckSchema)) body: { userCode: string }): Promise<DeviceCheckView> {
+    return this.service.deviceCheck(principal, body.userCode);
+  }
+
+  @AllowUnscoped()
+  @NoDemo()
+  @RecentSignIn()
+  @Post('oauth/device/decide')
+  @HttpCode(200)
+  deviceDecide(@CurrentPrincipal() principal: Principal, @Body(new ZodValidationPipe(deviceDecisionSchema)) body: { userCode: string; approve: boolean }, @Res({ passthrough: true }) reply: FastifyReply) {
+    return protocol(reply, () => this.service.deviceDecide(principal, body.userCode, body.approve));
+  }
+
+  /** Settings → API access (organization owners and admins): the switch and every member's grants. */
+  @Get('organization/api-access')
+  apiAccess(@CurrentPrincipal() principal: Principal, @Query(new ZodValidationPipe(pageQuerySchema)) query: PageQuery, @Res({ passthrough: true }) reply: FastifyReply): Promise<ApiAccessView | { error: string; error_description: string }> {
+    return protocol(reply, () => this.service.apiAccess(principal, query.cursor, query.limit));
+  }
+
+  @NoDemo()
+  @RecentSignIn()
+  @Put('organization/api-access')
+  setApiAccess(@CurrentPrincipal() principal: Principal, @Body(new ZodValidationPipe(apiAccessSchema)) body: { enabled: boolean }, @Res({ passthrough: true }) reply: FastifyReply) {
+    return protocol(reply, () => this.service.setApiAccess(principal, body.enabled));
+  }
+
+  @NoDemo()
+  @Delete('organization/api-access/grants/:grantId')
+  revokeMemberGrant(@CurrentPrincipal() principal: Principal, @Param(new ZodValidationPipe(grantParamsSchema)) params: { grantId: string }, @Res({ passthrough: true }) reply: FastifyReply) {
+    return protocol(reply, () => this.service.revokeMemberGrant(principal, params.grantId));
   }
 }

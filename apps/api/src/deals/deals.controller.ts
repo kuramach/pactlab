@@ -32,12 +32,13 @@ import {
 } from './deals.schemas';
 import { DealsService } from './deals.service';
 import { RequestId } from './request-id.decorator';
-import { NoDemo, RecentSignIn } from '../auth/auth.guard';
+import { ApiAccess, NoDemo, RecentSignIn } from '../auth/auth.guard';
 
 @Controller('v1/deals')
 export class DealsController {
   constructor(@Inject(DealsService) private readonly dealsService: DealsService) {}
 
+  @ApiAccess()
   @Get()
   async list(
     @Tenant() tenant: TenantContext,
@@ -47,6 +48,7 @@ export class DealsController {
   }
 
   /** Counts across every pact, for the home page (the list itself is paged). */
+  @ApiAccess()
   @Get('summary')
   summary(@Tenant() tenant: TenantContext): Promise<DealsSummaryView> {
     return this.dealsService.summary(tenant);
@@ -62,6 +64,7 @@ export class DealsController {
     return this.dealsService.create(tenant, body, requestId);
   }
 
+  @ApiAccess()
   @Get(':dealId')
   async get(
     @Tenant() tenant: TenantContext,

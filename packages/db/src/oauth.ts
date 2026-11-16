@@ -2,11 +2,14 @@ import { asApp } from './auth-role';
 import type { PrismaClient } from './client';
 
 /**
- * OAuth state for the MCP server (T-084, ADR 0024), behind pactlab_auth SECURITY DEFINER
- * functions like sign-in. Codes and tokens arrive here already hashed; nothing raw is stored.
+ * OAuth state for the MCP server (T-084, ADR 0024) and the REST API (T-128), behind
+ * pactlab_auth SECURITY DEFINER functions like sign-in. Codes and tokens arrive here already
+ * hashed; nothing raw is stored.
  */
 
-export type OAuthScope = 'mcp:read' | 'mcp:confidential' | 'mcp:propose';
+export type McpOAuthScope = 'mcp:read' | 'mcp:confidential' | 'mcp:propose';
+export type ApiOAuthScope = 'api:read' | 'api:write';
+export type OAuthScope = McpOAuthScope | ApiOAuthScope;
 
 export interface OAuthTokenSubject {
   grantId: string;
@@ -27,6 +30,17 @@ export interface ConnectedApp {
   id: string;
   organizationId: string;
   organizationName: string;
+  clientId: string;
+  clientName: string;
+  scopes: OAuthScope[];
+  createdAt: Date;
+  lastUsedAt: Date | null;
+}
+
+export interface OrganizationApiGrant {
+  id: string;
+  userName: string;
+  userEmail: string | null;
   clientId: string;
   clientName: string;
   scopes: OAuthScope[];
@@ -97,6 +111,108 @@ export const oauth = {
       tx.$queryRaw<SubjectRow[]>`SELECT grant_id::text, user_id::text, subject, organization_id::text, client_id, scopes, resource FROM app_oauth_use_refresh(${tokenHash})`,
     );
     return row ? subjectOf(row) : null;
+  },
+
+  /** For every API or MCP request: the grant is usable, and which resources are switched on. */
+  async grantAccess(prisma: PrismaClient, grantId: string, subject: string): Promise<{ active: boolean; mcpEnabled: boolean; apiEnabled: boolean }> {
+    const [row] = await asApp(prisma, (tx) =>
+      tx.$queryRaw<{ active: boolean; mcp_enabled: boolean; api_enabled: boolean }[]>`SELECT active, mcp_enabled, api_enabled FROM app_oauth_grant_access(${grantId}::uuid, ${subject})`,
+    );
+    return { active: row?.active === true, mcpEnabled: row?.mcp_enabled === true, apiEnabled: row?.api_enabled === true };
+  },
+
+  async apiEnabled(prisma: PrismaClient, organizationId: string): Promise<boolean> {
+    const [row] = await asApp(prisma, (tx) => tx.$queryRaw<{ enabled: boolean }[]>`SELECT app_oauth_api_enabled(${organizationId}::uuid) AS enabled`);
+    return row?.enabled === true;
+  },
+
+  // --- Device authorization (RFC 8628) ---------------------------------------------------------
+
+  /** False when the address asked for too many codes this hour. */
+  async deviceStart(
+    prisma: PrismaClient,
+    input: { clientId: string; clientName: string; scopes: OAuthScope[]; resource: string; deviceCodeHash: string; userCode: string; ipHash: string },
+  ): Promise<boolean> {
+    const [row] = await asApp(prisma, (tx) =>
+      tx.$queryRaw<{ ok: boolean }[]>`
+        SELECT app_oauth_device_start(${input.clientId}, ${input.clientName}, ${input.scopes}::text[], ${input.resource}, ${input.deviceCodeHash}, ${input.userCode}, ${input.ipHash}) AS ok`,
+    );
+    return row?.ok === true;
+  },
+
+  /** A pending, unexpired code's request; null otherwise. */
+  async deviceLookup(prisma: PrismaClient, userCode: string): Promise<{ clientId: string; clientName: string; scopes: OAuthScope[]; resource: string; expiresAt: Date } | null> {
+    const [row] = await asApp(prisma, (tx) =>
+      tx.$queryRaw<{ client_id: string; client_name: string; scopes: string[]; resource: string; expires_at: Date }[]>`
+        SELECT client_id, client_name, scopes, resource, expires_at FROM app_oauth_device_lookup(${userCode})`,
+    );
+    return row ? { clientId: row.client_id, clientName: row.client_name, scopes: row.scopes as OAuthScope[], resource: row.resource, expiresAt: new Date(row.expires_at) } : null;
+  },
+
+  /** The grant id when approved; null when declined or not allowed. */
+  async deviceDecide(prisma: PrismaClient, sessionId: string, userCode: string, approve: boolean): Promise<string | null> {
+    const [row] = await asApp(prisma, (tx) => tx.$queryRaw<{ id: string | null }[]>`SELECT app_oauth_device_decide(${sessionId}::uuid, ${userCode}, ${approve})::text AS id`);
+    return row?.id ?? null;
+  },
+
+  async devicePoll(
+    prisma: PrismaClient,
+    deviceCodeHash: string,
+  ): Promise<{ outcome: 'PENDING' | 'SLOW_DOWN' | 'DENIED' | 'EXPIRED' | 'UNKNOWN' } | { outcome: 'APPROVED'; subject: OAuthTokenSubject }> {
+    const [row] = await asApp(prisma, (tx) =>
+      tx.$queryRaw<(Partial<SubjectRow> & { outcome: string })[]>`
+        SELECT outcome, grant_id::text, user_id::text, subject, organization_id::text, client_id, scopes, resource FROM app_oauth_device_poll(${deviceCodeHash})`,
+    );
+    if (row?.outcome === 'APPROVED' && row.grant_id) return { outcome: 'APPROVED', subject: subjectOf(row as SubjectRow) };
+    // APPROVED without a row: the grant was revoked between approval and the poll.
+    const outcome = row?.outcome;
+    return { outcome: outcome === 'PENDING' || outcome === 'SLOW_DOWN' || outcome === 'DENIED' || outcome === 'EXPIRED' ? outcome : 'UNKNOWN' };
+  },
+
+  // --- Organization admins: API access ---------------------------------------------------------
+
+  /** False when the session is not an organization owner or admin. */
+  async setApiEnabled(prisma: PrismaClient, sessionId: string, enabled: boolean): Promise<boolean> {
+    const [row] = await asApp(prisma, (tx) => tx.$queryRaw<{ ok: boolean }[]>`SELECT app_oauth_set_api_enabled(${sessionId}::uuid, ${enabled}) AS ok`);
+    return row?.ok === true;
+  },
+
+  /** The organization the session administers, or null. */
+  async adminOrganization(prisma: PrismaClient, sessionId: string): Promise<string | null> {
+    const [row] = await asApp(prisma, (tx) => tx.$queryRaw<{ id: string | null }[]>`SELECT app_oauth_admin_org(${sessionId}::uuid)::text AS id`);
+    return row?.id ?? null;
+  },
+
+  /** A page of the organization's API grants, newest first (`limit` + 1 rows ask whether more follow). */
+  async organizationApiGrants(
+    prisma: PrismaClient,
+    sessionId: string,
+    after: { createdAt: Date; id: string } | null,
+    limit: number,
+  ): Promise<{ rows: OrganizationApiGrant[]; total: number }> {
+    const rows = await asApp(prisma, (tx) =>
+      tx.$queryRaw<{ id: string; user_name: string; user_email: string | null; client_id: string; client_name: string; scopes: string[]; created_at: Date; last_used_at: Date | null; total: bigint }[]>`
+        SELECT id::text, user_name, user_email, client_id, client_name, scopes, created_at, last_used_at, total
+          FROM app_oauth_org_api_grants(${sessionId}::uuid, ${after?.createdAt ?? null}::timestamptz, ${after?.id ?? null}::uuid, ${limit})`,
+    );
+    return {
+      total: Number(rows[0]?.total ?? 0),
+      rows: rows.map((row) => ({
+        id: row.id,
+        userName: row.user_name,
+        userEmail: row.user_email,
+        clientId: row.client_id,
+        clientName: row.client_name,
+        scopes: row.scopes as OAuthScope[],
+        createdAt: new Date(row.created_at),
+        lastUsedAt: row.last_used_at ? new Date(row.last_used_at) : null,
+      })),
+    };
+  },
+
+  async adminRevoke(prisma: PrismaClient, sessionId: string, grantId: string): Promise<boolean> {
+    const [row] = await asApp(prisma, (tx) => tx.$queryRaw<{ ok: boolean }[]>`SELECT app_oauth_admin_revoke(${sessionId}::uuid, ${grantId}::uuid) AS ok`);
+    return row?.ok === true;
   },
 
   async grantState(prisma: PrismaClient, grantId: string, subject: string): Promise<{ active: boolean; mcpEnabled: boolean }> {

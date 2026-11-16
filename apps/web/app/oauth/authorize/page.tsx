@@ -48,7 +48,7 @@ export default async function AuthorizePage({ searchParams }: { searchParams: Pr
           <>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <ShieldCheck className="h-5 w-5 text-indigo-ink" aria-hidden /> Connect {view.client.name} to Pactlab?
+                <ShieldCheck className="h-5 w-5 text-indigo-ink" aria-hidden /> {view.resource === 'api' ? `Let ${view.client.name} use the Pactlab API?` : `Connect ${view.client.name} to Pactlab?`}
               </CardTitle>
               <CardDescription>
                 {view.client.name} ({view.client.host}){view.client.verified ? null : ', a self-registered app,'} wants to use Pactlab for{' '}
@@ -74,8 +74,11 @@ export default async function AuthorizePage({ searchParams }: { searchParams: Pr
                   ))}
                 </ul>
                 <p className="text-muted-foreground">
-                  It sees only the pacts you can see, with your role’s limits. It can’t change anything; every request is in your organization’s audit log. Disconnect it any
-                  time in Settings → Connected apps.
+                  It sees only the pacts you can see, with your role’s limits.{' '}
+                  {view.scopes.some((entry) => entry.scope === 'api:write')
+                    ? 'It acts as you: every change is in your organization’s audit log under your name. Approvals and sign-offs stay in the app.'
+                    : 'It can’t change anything; every request is in your organization’s audit log.'}{' '}
+                  Disconnect it any time in Settings → Connected apps.
                 </p>
               </div>
               <p className="text-xs text-muted-foreground">After you approve, you go back to {view.redirectHost}.</p>

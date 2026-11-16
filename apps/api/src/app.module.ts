@@ -39,7 +39,7 @@ import { MetricsModule } from './metrics/metrics.module';
 import { PactsModule } from './pacts/pacts.module';
 import { PrismaValuationRepository } from './valuation/prisma-valuation.repository';
 import { ValuationModule } from './valuation/valuation.module';
-import { IDENTITY_VERIFIER, LOGGER, PACK_RELEASE, PRISMA } from './tokens';
+import { API_TOKENS, IDENTITY_VERIFIER, LOGGER, PACK_RELEASE, PRISMA } from './tokens';
 import { PROVIDER_DEPENDENCIES, providerDependencies, type ProviderSettings } from './connections/provider-dependencies';
 import type { PackRegistry } from './findings/pack-rules';
 import { FixtureMacroForecastProvider, type MacroForecastProvider } from '@pactlab/connectors';
@@ -59,7 +59,7 @@ import { FixtureBillingProvider, type BillingProvider } from '@pactlab/connector
 import { McpModule } from './mcp/mcp.module';
 import type { CostSource } from './admin/cost/cost-explorer';
 import { AgentProposalsModule } from './agent-proposals/agent-proposals.module';
-import { McpAccessTokens } from './oauth/access-tokens';
+import { ApiAccessTokens, McpAccessTokens } from './oauth/access-tokens';
 import { HttpsClientMetadataFetcher, type ClientMetadataFetcher } from './oauth/client-metadata';
 import { OAuthModule } from './oauth/oauth.module';
 
@@ -140,17 +140,18 @@ export function relyingParty(origin: string, rpId?: string): WebAuthnRelyingPart
 @Global()
 @Module({})
 class InfrastructureModule {
-  static register(deps: AppDependencies, identityVerifier: IdentityVerifier): DynamicModule {
+  static register(deps: AppDependencies, identityVerifier: IdentityVerifier, apiTokens: ApiAccessTokens | null): DynamicModule {
     return {
       module: InfrastructureModule,
       providers: [
+        { provide: API_TOKENS, useValue: apiTokens },
         { provide: PRISMA, useValue: deps.prisma },
         { provide: IDENTITY_VERIFIER, useValue: identityVerifier },
         { provide: LOGGER, useValue: deps.logger },
         { provide: PACK_RELEASE, useValue: { preview: deps.packPreview ?? true } },
         { provide: PROVIDER_DEPENDENCIES, useValue: providerDependencies(deps.providers) },
       ],
-      exports: [PRISMA, IDENTITY_VERIFIER, LOGGER, PACK_RELEASE, PROVIDER_DEPENDENCIES],
+      exports: [PRISMA, IDENTITY_VERIFIER, API_TOKENS, LOGGER, PACK_RELEASE, PROVIDER_DEPENDENCIES],
     };
   }
 }
@@ -193,11 +194,14 @@ export class AppModule {
     const reportsModule = ReportsModule.register({ store: deps.documents?.objectStore ?? new UnavailableObjectStore(), shared: [valuationModule, documentsModule, financingModule] });
     // Suggestions from connected AI apps, decided in the app (T-084b).
     const agentProposalsModule = AgentProposalsModule.register({ valuation: valuationModule, documents: documentsModule });
-    // Pactlab's OAuth server and the MCP server (T-084), with Pactlab sign-in only.
+    // Pactlab's OAuth server for the MCP server (T-084) and the REST API (T-128), with Pactlab sign-in only.
+    // The API is the MCP server's parent path: `<origin>/v1`.
+    const apiTokens = deps.emailLogin && deps.mcp ? new ApiAccessTokens(deps.emailLogin.tokenSecret, deps.mcp.issuer, deps.mcp.resource.replace(/\/mcp$/, '')) : null;
     const oauthModule =
-      deps.emailLogin && deps.mcp
+      deps.emailLogin && deps.mcp && apiTokens
         ? OAuthModule.register({
             accessTokens: new McpAccessTokens(deps.emailLogin.tokenSecret, deps.mcp.issuer, deps.mcp.resource),
+            apiTokens,
             clientMetadata: deps.mcp.clientMetadata ?? new HttpsClientMetadataFetcher(),
             hashSecret: deps.emailLogin.tokenSecret,
           })
@@ -214,7 +218,7 @@ export class AppModule {
     return {
       module: AppModule,
       imports: [
-        InfrastructureModule.register(deps, identityVerifier),
+        InfrastructureModule.register(deps, identityVerifier, apiTokens),
         billingModule,
         DealsModule,
         MeModule,

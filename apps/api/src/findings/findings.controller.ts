@@ -1,3 +1,4 @@
+import { ApiAccess } from '../auth/auth.guard';
 import { Body, Controller, Get, HttpCode, Inject, Param, Patch, Post, Query } from '@nestjs/common';
 import { dealParamsSchema } from '@pactlab/contracts';
 import type { TenantContext } from '@pactlab/domain';
@@ -23,6 +24,7 @@ type FindingParams = { dealId: string; findingId: string };
 export class FindingsController {
   constructor(@Inject(FindingsService) private readonly service: FindingsService) {}
 
+  @ApiAccess()
   @Get()
   async list(
     @Tenant() tenant: TenantContext,
@@ -34,6 +36,7 @@ export class FindingsController {
   }
 
   /** Counts across every matching finding, for the charts above the paged list (T-126). */
+  @ApiAccess()
   @Get('summary')
   async summary(
     @Tenant() tenant: TenantContext,
@@ -76,6 +79,7 @@ export class FindingsController {
     return this.service.runPackRules(tenant, params.dealId, requestId);
   }
 
+  @ApiAccess()
   @Post()
   async create(
     @Tenant() tenant: TenantContext,
@@ -86,6 +90,7 @@ export class FindingsController {
     return this.service.create(tenant, params.dealId, body, requestId);
   }
 
+  @ApiAccess()
   @Get(':findingId')
   async get(
     @Tenant() tenant: TenantContext,
