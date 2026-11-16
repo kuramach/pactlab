@@ -6,11 +6,14 @@ import { REVIEWER, signIn } from '../support/login';
 test('submit a pact to the investment committee, and the committee approves it', { tag: '@smoke' }, async ({ page, browser }) => {
   // The organization's committee: the reviewer.
   await page.goto('/settings#investment-committee');
-  const members = page.getByRole('list', { name: 'Committee members' });
-  const reviewer = members.getByRole('listitem').filter({ hasText: /reviewer/i }).first();
-  const add = reviewer.getByRole('button', { name: 'Add to committee' });
-  if (await add.count()) await add.click();
-  await expect(reviewer.getByRole('button', { name: 'Remove from committee' })).toBeVisible();
+  // The committee is listed in full; anyone else is found through the searchable people list (T-126).
+  const onCommittee = page.getByRole('list', { name: 'Committee members' }).getByRole('listitem').filter({ hasText: /reviewer/i }).getByRole('button', { name: 'Remove from committee' });
+  if (!(await onCommittee.count())) {
+    await page.getByLabel('Add someone').fill('reviewer');
+    await page.getByRole('search').getByRole('button', { name: 'Search' }).click();
+    await page.getByRole('list', { name: 'People in your organization' }).getByRole('listitem').filter({ hasText: /reviewer/i }).first().getByRole('button', { name: 'Add to committee' }).click();
+  }
+  await expect(onCommittee.first()).toBeVisible();
 
   const dealId = await startPact(page, 'Software & SaaS');
   await page.goto(`/deals/${dealId}/ic`);

@@ -1,7 +1,8 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import type { DocumentFindingItem } from '../../../documents/_lib/view';
-import { libraryHref, type LibraryRow } from './library';
+import { type LibraryRow } from './library';
+import { libraryHref } from './library-href';
 import { mergeQueue, queueCounts, ReviewQueue } from './review-queue';
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: () => undefined }) }));
