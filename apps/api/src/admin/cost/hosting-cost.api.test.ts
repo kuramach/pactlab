@@ -134,15 +134,19 @@ describe('hosting cost', () => {
       expect((await call('POST', '/v1/admin/cost/rates', operator, { kind, key: MODEL, unitPrice, effectiveFrom: '2026-01-01', sourceNote: 'AWS Bedrock pricing page (synthetic)' })).status).toBe(201);
     }
     const view = (await call('GET', '/v1/admin/cost?from=2026-11-01&to=2026-12-01', operator)).body as {
-      metered: { ai: string; total: string; missingRates: string[]; byOrganization: Body[]; byPact: Body[]; byPerson: Body[] };
+      metered: { ai: string; total: string; missingRates: string[] };
       shared: Body;
       bedrockCheck: Body;
     };
     // 1M input × $3 + 0.2M output × $15 = $6.
     expect(view.metered).toMatchObject({ ai: '6.00', total: '6.00', missingRates: [] });
-    expect(view.metered.byOrganization[0]).toMatchObject({ key: customer.organizationId, total: '6.00', runs: 1 });
-    expect(view.metered.byPact[0]).toMatchObject({ key: customer.dealId, total: '6.00' });
-    expect(view.metered.byPerson[0]).toMatchObject({ key: customer.userId, total: '6.00' });
+    // Each breakdown is priced, summed and paged in the database (T-126).
+    const breakdown = async (dimension: string, extra = '') => (await call('GET', `/v1/admin/cost/metered/${dimension}?from=2026-11-01&to=2026-12-01${extra}`, operator)).body as { items: Body[]; total: number; nextCursor: string | null };
+    expect((await breakdown('organization')).items[0]).toMatchObject({ key: customer.organizationId, total: '6.00', runs: 1, detail: 'Company SSO' });
+    expect((await breakdown('pact')).items[0]).toMatchObject({ key: customer.dealId, total: '6.00' });
+    expect((await breakdown('person')).items[0]).toMatchObject({ key: customer.userId, total: '6.00' });
+    expect((await breakdown('model')).items[0]).toMatchObject({ key: MODEL, ai: '6.00', inputTokens: 1_000_000, outputTokens: 200_000 });
+    expect((await call('GET', '/v1/admin/cost/metered/everything?from=2026-11-01&to=2026-12-01', operator)).status).toBe(400);
     // Live's billed spend in the period, less what is metered, is the shared line; Bedrock is checked against the meter.
     expect(view.shared).toEqual({ environment: 'prod', actual: '2.00', metered: '6.00', unallocated: '-4.00' });
     expect(view.bedrockCheck).toEqual({ actual: '0.75', metered: '6.00' });
@@ -158,5 +162,36 @@ describe('hosting cost', () => {
     expect((await call('DELETE', `/v1/admin/cost/rates/${input.id}`, operator)).status).toBe(200);
     expect((await call('DELETE', `/v1/admin/cost/rates/${input.id}`, operator)).status).toBe(404);
     expect((await call('POST', '/v1/admin/cost/rates', operator, { kind: 'BEDROCK_INPUT_PER_MTOK', key: MODEL, unitPrice: '-1', effectiveFrom: '2026-01-01' })).status).toBe(400);
+  });
+
+  it('breakdowns page most expensive first, each row once, priced at the rate in force on the day (T-126)', async () => {
+    // Two more organizations' runs: a smaller one, and one before a price change on 10 November.
+    const second = await createSyntheticTenant(db.owner, 'Second (synthetic)');
+    const third = await createSyntheticTenant(db.owner, 'Third (synthetic)');
+    const run = (tenant: SyntheticTenant, input: number, at: string) =>
+      withTenant(db.prisma, tenant.context, (tx) =>
+        tx.aiRun.create({
+          data: { id: newId(), organizationId: tenant.organizationId, dealId: tenant.dealId, taskType: 'document.question', promptId: 'p', promptVersion: '1', promptHash: 'h', modelAlias: 'balanced', resolvedModelId: MODEL, inputHashes: [], outputHash: null, status: 'SUCCEEDED', repairAttempted: false, injectionSignals: 0, inputTokens: input, outputTokens: 0, latencyMs: 1, createdAt: new Date(at) },
+        }),
+      );
+    await run(second, 1_000_000, '2026-11-05T10:00:00Z');
+    await run(third, 1_000_000, '2026-11-11T10:00:00Z');
+    await call('POST', '/v1/admin/cost/rates', operator, { kind: 'BEDROCK_INPUT_PER_MTOK', key: MODEL, unitPrice: '2.5', effectiveFrom: '2026-01-01' });
+    await call('POST', '/v1/admin/cost/rates', operator, { kind: 'BEDROCK_INPUT_PER_MTOK', key: MODEL, unitPrice: '1', effectiveFrom: '2026-11-10' });
+    const totals: string[] = [];
+    const seen: string[] = [];
+    let cursor: string | null = null;
+    let pages = 0;
+    do {
+      const page = (await call('GET', `/v1/admin/cost/metered/organization?from=2026-11-01&to=2026-12-01&limit=1${cursor ? `&cursor=${cursor}` : ''}`, operator)).body as { items: { key: string; total: string }[]; nextCursor: string | null; total: number };
+      expect(page.total).toBe(3);
+      seen.push(...page.items.map((item) => item.key));
+      totals.push(...page.items.map((item) => item.total));
+      cursor = page.nextCursor;
+      pages += 1;
+    } while (cursor && pages < 10);
+    // The first organization's run was on the 12th (after the change): 1M x $1 + 0.2M x $15 = $4.
+    expect(seen).toEqual([customer.organizationId, second.organizationId, third.organizationId]);
+    expect(totals).toEqual(['4.00', '2.50', '1.00']);
   });
 });

@@ -24,15 +24,18 @@ export function encodeCursor(key: Key | Date, id: string): string {
   return Buffer.from(JSON.stringify([value, id]), 'utf8').toString('base64url');
 }
 
-/** The `[key, id]` a cursor names, or null when it is not one of ours (the page then starts over). */
-export function decodeCursor(cursor: string | undefined): { key: Key; id: string } | null {
+/**
+ * The `[key, id]` a cursor names, or null when it is not one of ours (the page then starts over).
+ * The id is a row's UUID, or with `textId` a short text key (an aggregate's group, such as a model ID).
+ */
+export function decodeCursor(cursor: string | undefined, options: { textId?: boolean } = {}): { key: Key; id: string } | null {
   if (!cursor) return null;
   try {
     const value = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8')) as unknown;
     if (!Array.isArray(value) || value.length !== 2 || typeof value[1] !== 'string') return null;
     const [key, id] = value as [unknown, string];
     if (key !== null && typeof key !== 'string' && typeof key !== 'number') return null;
-    if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
+    if (options.textId ? !/^[\x20-\x7e]{1,200}$/.test(id) : !/^[0-9a-f-]{36}$/i.test(id)) return null;
     return { key: key as Key, id };
   } catch {
     return null;

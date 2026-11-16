@@ -1,17 +1,20 @@
+import type { Page } from '@pactlab/contracts';
 import { Badge, Button, Card, CardContent } from '@pactlab/ui';
+import { Suspense } from 'react';
+import { keepParams, pageApiQuery, Pager, pagerLinks, readPage } from '../_components/pager';
 import { apiGet } from '../(app)/deals/_lib/api';
 import { ApiState } from '../(app)/deals/_lib/states';
 import { deleteCostRate, refreshHostingCost, setCostRate } from './cost-actions';
 
 interface Row { key: string; label: string; amount: string }
-interface MeteredRow { key: string; label: string; detail?: string; ai: string; storage: string; total: string; runs: number; inputTokens: number; outputTokens: number; gbMonths: string }
+interface MeteredRow { key: string; label: string; detail?: string | null; ai: string; storage: string; total: string; runs: number; inputTokens: number; outputTokens: number; gbMonths: string }
 interface Rate { id: string; kind: 'BEDROCK_INPUT_PER_MTOK' | 'BEDROCK_OUTPUT_PER_MTOK' | 'S3_STORAGE_GB_MONTH'; key: string; unitPrice: string; currency: string; effectiveFrom: string; sourceNote: string }
 interface CostView {
   period: { from: string; to: string; granularity: 'DAILY' | 'MONTHLY'; environment: string | null };
   source: { configured: boolean; environment: string; refreshing: boolean; lastAttemptAt: string | null; lastStatus: string | null; lastError: string | null; lastSuccessAt: string | null };
   environments: string[];
   actual: { total: string; currency: string; environments: string[]; byMonth: { month: string; total: string; byEnvironment: Record<string, string>; estimated: boolean }[]; byEnvironment: Row[]; byService: Row[] };
-  metered: { total: string; ai: string; storage: string; byOrganization: MeteredRow[]; byAuthMethod: MeteredRow[]; byPact: MeteredRow[]; byPerson: MeteredRow[]; byModel: MeteredRow[]; missingRates: string[] };
+  metered: { total: string; ai: string; storage: string; missingRates: string[] };
   shared: { environment: string; actual: string; metered: string; unallocated: string } | null;
   bedrockCheck: { actual: string; metered: string } | null;
   rates: Rate[];
@@ -89,7 +92,7 @@ function MeteredTable({ label, rows, show }: { label: string; rows: MeteredRow[]
         </tr>
       </thead>
       <tbody>
-        {rows.slice(0, 100).map((row) => (
+        {rows.map((row) => (
           <tr key={row.key} className="border-t border-border">
             <td className={cell}>
               {row.label}
@@ -107,6 +110,30 @@ function MeteredTable({ label, rows, show }: { label: string; rows: MeteredRow[]
         ))}
       </tbody>
     </table>
+  );
+}
+
+/**
+ * One metered breakdown, priced and summed in the database, most expensive first, with its own
+ * pager (T-126). Each section loads on its own (Suspense), after the summary above it.
+ */
+function MeteredSection(props: { dimension: 'organization' | 'pact' | 'person' | 'auth' | 'model'; label: string; show: 'all' | 'ai'; period: { from: string; to: string }; search: Record<string, string | string[] | undefined> }) {
+  return (
+    <Suspense fallback={<p className="px-4 py-3 text-sm text-muted-foreground">Loading {props.label.toLowerCase()} costs…</p>}>
+      <MeteredRows {...props} />
+    </Suspense>
+  );
+}
+
+async function MeteredRows({ dimension, label, show, period, search }: { dimension: string; label: string; show: 'all' | 'ai'; period: { from: string; to: string }; search: Record<string, string | string[] | undefined> }) {
+  const position = readPage(search, dimension);
+  const result = await apiGet<Page<MeteredRow>>(`/v1/admin/cost/metered/${dimension}?from=${period.from}&to=${period.to}${position.cursor ? `&${pageApiQuery(position)}` : ''}`);
+  if (result.kind !== 'ok') return <ApiState result={result} />;
+  return (
+    <>
+      <MeteredTable label={label} rows={result.data.items} show={show} />
+      <Pager label={`${label} pages`} base="/admin" links={pagerLinks({ ...result.data, itemCount: result.data.items.length }, position, keepParams(search), dimension)} />
+    </>
   );
 }
 
@@ -129,7 +156,7 @@ function Section({ title, note, children }: { title: string; note?: string; chil
  * environment's own records meter (AI and storage, priced with the rates below, estimates), and the
  * shared rest, never spread.
  */
-export async function HostingCost({ preset: asked, from, to, environment }: { preset: string; from: string; to: string; environment: string }) {
+export async function HostingCost({ preset: asked, from, to, environment, search }: { preset: string; from: string; to: string; environment: string; search: Record<string, string | string[] | undefined> }) {
   const preset = PERIODS.some(([key]) => key === asked) ? asked : 'this-month';
   const period = periodOf(preset, from, to);
   const query = `&period=${preset}${preset === 'custom' ? `&from=${period.from}&to=${period.to}` : ''}${environment ? `&env=${environment}` : ''}`;
@@ -275,19 +302,19 @@ export async function HostingCost({ preset: asked, from, to, environment }: { pr
       </div>
 
       <Section title="By organization" note={`Metered estimates from ${envLabel(view.source.environment)}: AI tokens × the model’s rate, documents held × the storage rate.`}>
-        <MeteredTable label="Organization" rows={view.metered.byOrganization} show="all" />
+        <MeteredSection dimension="organization" label="Organization" show="all" period={period} search={search} />
       </Section>
       <Section title="By sign-in method" note="Company SSO organizations against email-code organizations.">
-        <MeteredTable label="Sign-in method" rows={view.metered.byAuthMethod} show="all" />
+        <MeteredSection dimension="auth" label="Sign-in method" show="all" period={period} search={search} />
       </Section>
       <Section title="By pact">
-        <MeteredTable label="Pact" rows={view.metered.byPact} show="all" />
+        <MeteredSection dimension="pact" label="Pact" show="all" period={period} search={search} />
       </Section>
       <Section title="By person" note="Who asked for the AI run or uploaded the document. Runs before 2026-11-15 have no person.">
-        <MeteredTable label="Person (email)" rows={view.metered.byPerson} show="all" />
+        <MeteredSection dimension="person" label="Person (email)" show="all" period={period} search={search} />
       </Section>
       <Section title="By model">
-        <MeteredTable label="Model" rows={view.metered.byModel} show="ai" />
+        <MeteredSection dimension="model" label="Model" show="ai" period={period} search={search} />
       </Section>
 
       <Section title="Rates" note="Unit prices from AWS's price pages, each from a date; the same date corrects a rate. Estimates use the rate in force on the day.">
@@ -336,9 +363,11 @@ export async function HostingCost({ preset: asked, from, to, environment }: { pr
             Model ID (not for storage)
             <input name="key" list="cost-models" maxLength={200} placeholder="us.anthropic.claude-sonnet-5-5" className={`${field} w-72 font-mono text-xs`} />
             <datalist id="cost-models">
-              {view.metered.byModel.map((row) => (
-                <option key={row.key} value={row.key} />
-              ))}
+              {[...new Set([...view.metered.missingRates.filter((entry) => entry.startsWith('BEDROCK')).map((entry) => entry.split(' ')[1] ?? ''), ...view.rates.filter((rate) => rate.kind !== 'S3_STORAGE_GB_MONTH').map((rate) => rate.key)])]
+                .filter(Boolean)
+                .map((key) => (
+                  <option key={key} value={key} />
+                ))}
             </datalist>
           </label>
           <label className="flex flex-col gap-1 font-medium">
