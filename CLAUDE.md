@@ -101,6 +101,12 @@ Never weaken these rules to pass a test or accelerate a demo.
 - Store money as decimal/numeric with explicit currency and scale.
 - Make jobs idempotent and replay-safe.
 - Share and version OpenAPI/Zod contracts.
+- **Lists are paginated (T-126).**
+  - **API:** every endpoint that returns a list of rows that can grow takes `?cursor=&limit=` (`pageQuerySchema`, default 50, max 100) and returns `Page<T>` (`{ items, nextCursor, total, limit }`) from `packages/contracts`.
+  - **Database:** pages are keyset (`packages/db/src/pagination.ts`), never offset, and never a silent `LIMIT` with no way to reach the rest.
+  - **Web:** the screen uses the shared `Pager` (`apps/web/app/_components/pager.tsx`), with the position in the URL. Large lists get server-side search and sort.
+  - **MCP:** tools pass `cursor` through.
+  - **Enforced by `apps/api/src/paginated-lists.test.ts`:** a `findMany` without `take` needs `// bounded: <why>` just above it, and the old unpaged reads in `pagination-baseline.json` may only go down. Raw SQL and `app_ops_*` list functions follow the same rule.
 - Propagate stale state when evidence or accepted findings change.
 - Ask before changing settled architecture or adding a paid dependency.
 

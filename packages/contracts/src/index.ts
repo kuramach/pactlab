@@ -21,3 +21,4 @@ export * from './ic';
 export * from './loi';
 export * from './brand';
 export * from './financing';
+export * from './pagination';
