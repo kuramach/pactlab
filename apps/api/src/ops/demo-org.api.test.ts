@@ -12,7 +12,7 @@ import { demoModelResponse } from '../demo-seed/seed';
 import { InMemoryObjectStore } from '../documents/testing';
 import { SignatureMalwareScanner } from '../documents/upload-policy';
 import { DEMO_COVERAGE_EXCEPTIONS, DEMO_SECTION_COVERAGE } from './demo-coverage';
-import { DEMO_ORG, pactName, pactVariants, runDemoOrg } from './demo-org';
+import { DEMO_ORG, KAFKA_PACT, pactName, pactVariants, runDemoOrg } from './demo-org';
 import { DEAL_SECTION_RULES, sectionApplies, type CompanyType } from '@pactlab/domain';
 import { generatedDemoData } from './demo-data.testing';
 
@@ -139,6 +139,25 @@ describe('demo organization (batch 2)', () => {
       }
     }
     expect(empty, 'Give these demo pacts data for the section, or add a reviewed DEMO_COVERAGE_EXCEPTIONS entry with the reason.').toEqual([]);
+  });
+
+  it('the Kafka demo (T-127): real apache/kafka and KAFKA activity from the recorded snapshot, linked both ways, no live call', async () => {
+    const [kafka] = await rows(`SELECT id FROM deals WHERE organization_id = $1 AND name = $2`, [DEMO_ORG.id, KAFKA_PACT]);
+    expect(kafka, KAFKA_PACT).toBeDefined();
+    const dealId = kafka!['id'] as string;
+    // Fixture mode only: the snapshot is replayed; nothing in the pact can reach GitHub or Jira.
+    const connections = await rows(`SELECT provider, mode, display_name FROM connections WHERE deal_id = $1 ORDER BY provider`, [dealId]);
+    expect(connections.map((row) => [row['provider'], row['mode']])).toEqual([['github', 'FIXTURE'], ['jira', 'FIXTURE']]);
+    expect(connections.every((row) => /real public data, recorded \d{4}-\d{2}-\d{2}/.test(String(row['display_name'])))).toBe(true);
+    const types = await rows(`SELECT evidence_type, count(*)::int AS n FROM evidence_items WHERE deal_id = $1 GROUP BY evidence_type`, [dealId]);
+    const count = (type: string) => (types.find((row) => row['evidence_type'] === type)?.['n'] as number | undefined) ?? 0;
+    expect(count('code.pull_request'), 'pull requests').toBeGreaterThan(0);
+    expect(count('code.contributor_activity'), 'contributor activity').toBeGreaterThan(0);
+    expect(count('delivery.issue'), 'KAFKA issues').toBeGreaterThan(0);
+    // Code → issue links: KAFKA keys in commits and pull requests resolve to recorded issues.
+    expect(count('code.issue_link'), 'KAFKA links').toBeGreaterThan(0);
+    // People are pseudonymous: nothing synced carries an email address.
+    expect(await rows(`SELECT 1 FROM evidence_items WHERE deal_id = $1 AND canonical::text ~ '[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+\\.[A-Za-z]{2,}' LIMIT 1`, [dealId])).toEqual([]);
   });
 
   it('adds nothing on a re-run', async () => {

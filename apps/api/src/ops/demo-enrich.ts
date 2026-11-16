@@ -26,6 +26,7 @@ import { BalanceSheetService } from '../balance-sheet/balance-sheet.service';
 import { CloseService } from '../close/close.service';
 import { ComparablesService } from '../comparables/comparables.service';
 import { createConnectionSchema } from '../connections/connections.schemas';
+import { KAFKA_SNAPSHOT_PROJECT, KAFKA_SNAPSHOT_REPOSITORY, KAFKA_SNAPSHOT_SITE } from '@pactlab/connectors';
 import { ConnectionsService } from '../connections/connections.service';
 import { uploadDocumentBodySchema } from '../documents/documents.schemas';
 import { DocumentsService } from '../documents/documents.service';
@@ -132,6 +133,24 @@ export async function connectSources(app: App, buyer: TenantContext, dealId: str
     done.push(payload.provider === 'github' ? 'GitHub' : 'Jira');
   }
   return done.length > 0 ? `${done.join(' and ')} synced` : 'no code or delivery sources for this pack';
+}
+
+/**
+ * The Kafka demo's sources (T-127): the real apache/kafka repository and KAFKA project, replayed from
+ * the snapshot recorded once (fixture mode: no call to GitHub or Jira, now or ever), then synced.
+ */
+export async function connectKafkaSources(app: App, buyer: TenantContext, dealId: string, recordedOn: string): Promise<string> {
+  const connections = app.get(ConnectionsService, { strict: false });
+  const label = `real public data, recorded ${recordedOn}`;
+  const wanted = [
+    { provider: 'github', displayName: `apache/kafka (${label})`, mode: 'FIXTURE', config: { repository: KAFKA_SNAPSHOT_REPOSITORY } },
+    { provider: 'jira', displayName: `Apache Jira KAFKA (${label})`, mode: 'FIXTURE', config: { site: KAFKA_SNAPSHOT_SITE, basePath: '/jira', projectKeys: [KAFKA_SNAPSHOT_PROJECT] } },
+  ];
+  for (const payload of wanted) {
+    const created = (await connections.create(buyer, dealId, createConnectionSchema.parse(payload), REQUEST_ID)) as { id: string };
+    await connections.requestSync(buyer, dealId, created.id, `demo-${newId()}`, REQUEST_ID);
+  }
+  return 'apache/kafka and Apache Jira KAFKA synced from the recorded snapshot';
 }
 
 /** Finances: cash, debt and debt-like items, each cited to a synthetic balance-sheet page. */

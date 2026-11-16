@@ -230,7 +230,8 @@ export class ConnectionsService {
     if ((command.mode === 'LIVE') !== (command.credentialRef !== undefined))
       throw new ConflictException();
     if (command.mode === 'LIVE') await this.requireLiveConnectors(tenant);
-    if (command.provider === 'jira') this.requireAllowedJiraSite(command.config.site);
+    // The allowlist bounds where a live connection may reach; a fixture replays recorded data and reaches nothing (T-127).
+    if (command.provider === 'jira' && command.mode === 'LIVE') this.requireAllowedJiraSite(command.config.site);
     // Synthetic repositories and Jira sites are for local and test environments only.
     if (command.mode === 'FIXTURE' && command.provider !== 'csv' && !this.providers.allowFixtureConnections)
       throw new ForbiddenException('Synthetic test connections are not available in this environment');

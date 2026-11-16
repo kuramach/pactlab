@@ -5,9 +5,14 @@ import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import { apiPost, dealsApi } from '../../../_lib/api';
 
+/** The Kafka demo pair (T-127): real public data, recorded once and replayed; never synthetic, never live. */
+const KAFKA_REPOSITORY = 'apache/kafka';
+const KAFKA_SITE = 'issues.apache.org';
+const RECORDED = 'real public data, recorded once';
+
 const form = z.strictObject({
   repository: z.string().regex(/^[a-z0-9-]+\/[a-z0-9-]+$/).optional(),
-  jiraSite: z.string().regex(/^[a-z0-9-]+\.atlassian\.net$/).optional(),
+  jiraSite: z.union([z.string().regex(/^[a-z0-9-]+\.atlassian\.net$/), z.literal(KAFKA_SITE)]).optional(),
   projectKeys: z.string().regex(/^[A-Z0-9,]+$/).optional(),
 });
 
@@ -29,9 +34,16 @@ export async function connectSynthetic(dealId: string, formData: FormData): Prom
   const site = parsed.data.jiraSite;
   const keys = parsed.data.projectKeys;
   const connections = [
-    ...(repository ? [{ provider: 'github', displayName: `${repository} (synthetic)`, mode: 'FIXTURE', config: { repository } }] : []),
+    ...(repository ? [{ provider: 'github', displayName: `${repository} (${repository === KAFKA_REPOSITORY ? RECORDED : 'synthetic'})`, mode: 'FIXTURE', config: { repository } }] : []),
     ...(site
-      ? [{ provider: 'jira', displayName: `${site} (synthetic)`, mode: 'FIXTURE', config: { site, projectKeys: (keys ?? '').split(',').filter(Boolean) } }]
+      ? [
+          {
+            provider: 'jira',
+            displayName: site === KAFKA_SITE ? `Apache Jira (${RECORDED})` : `${site} (synthetic)`,
+            mode: 'FIXTURE',
+            config: { site, ...(site === KAFKA_SITE ? { basePath: '/jira' } : {}), projectKeys: (keys ?? '').split(',').filter(Boolean) },
+          },
+        ]
       : []),
   ];
   for (const body of connections) {

@@ -1,4 +1,5 @@
 import { FIXTURE_NAMES } from '../github/fixture-data';
+import { KAFKA_SNAPSHOT_PROJECT, KAFKA_SNAPSHOT_SITE, hasKafkaSnapshot, kafkaSnapshot } from '../kafka-snapshot';
 import { SCALECO_SITE, scalecoSite } from './scale-fixture';
 import type { JiraIssue, JiraPerson, JiraSprint } from './types';
 
@@ -201,7 +202,7 @@ const sparse = generate(
   { unestimatedEvery: 3, lastSprintOpenEnded: true, people: { assignees: ['sc-dev-01', 'sc-dev-02'], reporters: ['sc-dev-01'], coordinatorComments: 0 } },
 );
 
-export const JIRA_FIXTURES: Readonly<Record<string, JiraFixtureSite>> = {
+const fixtures: Record<string, JiraFixtureSite> = {
   'healthyco.atlassian.net': { site: 'healthyco.atlassian.net', readableProjects: ['HC'], ...healthy },
   'troubledco.atlassian.net': { site: 'troubledco.atlassian.net', readableProjects: ['TC'], ...troubled },
   'sparseco.atlassian.net': { site: 'sparseco.atlassian.net', readableProjects: ['SP'], ...sparse },
@@ -211,3 +212,13 @@ export const JIRA_FIXTURES: Readonly<Record<string, JiraFixtureSite>> = {
     return scalecoSite();
   },
 };
+
+// Real KAFKA issues the recorded code cites, with pseudonymous people (T-127); read the first time it is used.
+if (hasKafkaSnapshot()) {
+  Object.defineProperty(fixtures, KAFKA_SNAPSHOT_SITE, {
+    enumerable: true,
+    get: () => ({ site: KAFKA_SNAPSHOT_SITE, readableProjects: [KAFKA_SNAPSHOT_PROJECT], ...kafkaSnapshot().jira }),
+  });
+}
+
+export const JIRA_FIXTURES: Readonly<Record<string, JiraFixtureSite>> = fixtures;
