@@ -7,6 +7,14 @@ never create accounts, bootstrap, deploy or dispatch the workflow.
 Today only **dev** has a running application. qa, stage and prod keep the
 data-layer stack until slice 2 (T-070) adds their service blocks.
 
+## Your AWS accounts from the terminal: `scripts/aws.sh`
+
+Sign in once to the management account; everything else needs no per-account password.
+- **Terminal:** `scripts/aws.sh login`, then `whoami`, `status` (paused or awake) and `cost` (spend by account and by environment). `eval "$(scripts/aws.sh use stage)"` points your shell at one account.
+- **Browser:** `scripts/aws.sh console <mgmt|dev|qa|stage|live> [billing|cost|support|cases|ecs|rds|logs]`. Sign in to the management console once; other accounts open through AWS's switch-role page, labelled red for live, orange for stage and green for dev and qa.
+- **Support:** `scripts/aws.sh support <env>` opens a new case in that account; `cases <env>` lists them. Every account is on Basic support (free) until there are customers, so these are account and billing cases, opened in the console. Bills for every account are on mgmt.
+- **New machine:** `scripts/aws.sh profiles` prints the `~/.aws/config` profiles to add.
+
 ## What dev runs
 
 | Piece | What | Size |
