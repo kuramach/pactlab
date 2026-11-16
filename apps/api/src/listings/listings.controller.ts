@@ -1,4 +1,5 @@
-import { Body, Controller, Delete, Get, HttpCode, Inject, Param, Post, Put, Req, Res } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Inject, Param, Post, Put, Query, Req, Res } from '@nestjs/common';
+import { pageQuerySchema, type PageQuery } from '@pactlab/contracts';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import {
   addListingImageSchema,
@@ -106,8 +107,8 @@ export class ListingsController {
   }
 
   @Get('interests')
-  interests(@Tenant() tenant: TenantContext, @RequestId() requestId: string, @Param(new ZodValidationPipe(listingParamsSchema)) params: DealParams) {
-    return this.listings.interests(tenant, params.dealId, requestId);
+  interests(@Tenant() tenant: TenantContext, @RequestId() requestId: string, @Param(new ZodValidationPipe(listingParamsSchema)) params: DealParams, @Query(new ZodValidationPipe(pageQuerySchema)) query: PageQuery) {
+    return this.listings.interests(tenant, params.dealId, query, requestId);
   }
 
   @Post('interests/:interestId/approve')

@@ -1,3 +1,4 @@
+import { pageQuerySchema } from '@pactlab/contracts';
 import {
   FINDING_CONFIDENCES,
   FINDING_DOMAINS,
@@ -92,12 +93,24 @@ export const reviewFindingSchema = z.strictObject({
 });
 export type ReviewFindingBody = z.infer<typeof reviewFindingSchema>;
 
-export const listFindingsQuerySchema = z.strictObject({
-  status: z.enum(FINDING_STATUSES).optional(),
-  domain: z.enum(FINDING_DOMAINS).optional(),
-  /** `document-review`: findings brought in from the Documents review queue. */
-  source: z.enum(['document-review']).optional(),
-});
+/** Findings on a pact, a page at a time (T-126); every filter runs in the database. */
+export const listFindingsQuerySchema = pageQuerySchema
+  .extend({
+    status: z.enum(FINDING_STATUSES).optional(),
+    domain: z.enum(FINDING_DOMAINS).optional(),
+    /** `document-review`: findings brought in from the Documents review queue. */
+    source: z.enum(['document-review']).optional(),
+    /** Title contains. */
+    q: z.string().trim().min(1).max(200).optional(),
+    direction: z.enum(['-1', '0', '1']).transform((value) => Number(value) as -1 | 0 | 1).optional(),
+    /** `needed`: risks still without a priced range. */
+    pricing: z.enum(['needed']).optional(),
+    /** Leave out rejected findings (pickers). */
+    open: z.enum(['true']).optional(),
+    /** A lookup of some findings by id, comma-separated (at most 100). */
+    ids: z.string().regex(/^[0-9a-f-]{36}(,[0-9a-f-]{36}){0,99}$/i).transform((value) => value.split(',')).optional(),
+  })
+  .strict();
 export type ListFindingsQuery = z.infer<typeof listFindingsQuerySchema>;
 
 export const findingParamsSchema = z.strictObject({ dealId: z.uuid(), findingId: z.uuid() });

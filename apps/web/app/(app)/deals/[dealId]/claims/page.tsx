@@ -1,4 +1,4 @@
-import type { ClaimView } from '@pactlab/contracts';
+import type { ClaimView, Page } from '@pactlab/contracts';
 import type { Finding } from '@pactlab/domain';
 import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, EmptyState } from '@pactlab/ui';
 import Link from 'next/link';
@@ -31,13 +31,19 @@ const STATUS_LOOK = CLAIM_VERDICT;
 export default async function ClaimsPage({ params, searchParams }: { params: Promise<{ dealId: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const { dealId } = await params;
   if (!isUuidParam(dealId)) notFound();
-  const outcome = (await searchParams)['outcome'];
+  const search = await searchParams;
+  const outcome = search['outcome'];
+  // Findings to link, from the database a page at a time (T-126): the first 100 open ones, or the matches of a search.
+  const findingQuery = typeof search['finding'] === 'string' ? search['finding'].trim().slice(0, 200) : '';
   const [claims, findings] = await Promise.all([
     apiGet<{ items: ClaimView[]; canEdit: boolean }>(`/v1/deals/${dealId}/claims`),
-    apiGet<{ items: Finding[] }>(`/v1/deals/${dealId}/findings`),
+    apiGet<Page<Finding>>(`/v1/deals/${dealId}/findings?open=true&limit=100${findingQuery ? `&q=${encodeURIComponent(findingQuery)}` : ''}`),
   ]);
   if (claims.kind !== 'ok') return <ApiState result={claims} />;
-  const linkable = findings.kind === 'ok' ? findings.data.items.filter((finding) => finding.status !== 'REJECTED') : [];
+  const linkable = findings.kind === 'ok' ? findings.data.items : [];
+  const linkableTotal = findings.kind === 'ok' ? findings.data.total : 0;
+  // A claim always lists the findings it is already linked to, so saving it never drops a link that is not on this page.
+  const optionsFor = (claim: ClaimView) => [...claim.findings, ...linkable.filter((finding) => !claim.findings.some((linked) => linked.id === finding.id))];
   const counts = Object.fromEntries((['UNVERIFIED', 'VERIFIED', 'CONTRADICTED'] as const).map((status) => [status, claims.data.items.filter((claim) => claim.status === status).length]));
 
   return (
@@ -50,6 +56,17 @@ export default async function ClaimsPage({ params, searchParams }: { params: Pro
         </p>
       </div>
       <OutcomeBanner outcome={typeof outcome === 'string' ? outcome : undefined} messages={OUTCOMES} />
+      {linkableTotal > linkable.length || findingQuery ? (
+        <form method="get" role="search" className="flex flex-wrap items-end gap-2 text-sm">
+          <label className="flex flex-col gap-1 font-medium">
+            Find a finding to link
+            <input name="finding" defaultValue={findingQuery} maxLength={200} placeholder="Words in its title" className={inputClass} />
+          </label>
+          <Button type="submit" size="sm" variant="outline">
+            Search
+          </Button>
+        </form>
+      ) : null}
 
       {claims.data.canEdit ? (
         <Card>
@@ -120,10 +137,15 @@ export default async function ClaimsPage({ params, searchParams }: { params: Pro
                           What the evidence shows
                           <input name="rationale" defaultValue={claim.rationale ?? ''} maxLength={2000} className={inputClass} />
                         </label>
-                        {linkable.length > 0 ? (
+                        {optionsFor(claim).length > 0 ? (
                           <fieldset className="flex flex-col gap-1 sm:col-span-2">
                             <legend className="mb-1 font-medium">Findings it produced</legend>
-                            {linkable.map((finding) => (
+                            {linkableTotal > linkable.length || findingQuery ? (
+                              <span className="text-xs text-muted-foreground">
+                                {findingQuery ? `${linkableTotal} open findings match “${findingQuery}”.` : `Showing the first ${linkable.length} of ${linkableTotal} open findings.`} Search above the list of claims to find another.
+                              </span>
+                            ) : null}
+                            {optionsFor(claim).map((finding) => (
                               <label key={finding.id} className="flex items-center gap-2">
                                 <input type="checkbox" name="findingIds" value={finding.id} defaultChecked={claim.findings.some((linked) => linked.id === finding.id)} />
                                 {finding.title}

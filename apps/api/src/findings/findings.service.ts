@@ -136,12 +136,39 @@ export class FindingsService {
     return found;
   }
 
-  async list(tenant: TenantContext, dealId: string, query: ListFindingsQuery, requestId: string) {
+  async list(tenant: TenantContext, dealId: string, query: ListFindingsQuery, requestId: string, options: { excludeValueConfirmations?: boolean } = {}) {
     await this.access.require(tenant, dealId, canReadFindings, {
       action: 'finding.list',
       requestId,
     });
-    return { items: await this.findings.list(tenant, dealId, query) };
+    return this.findings.page(
+      tenant,
+      dealId,
+      {
+        status: query.status,
+        domain: query.domain,
+        source: query.source,
+        query: query.q,
+        direction: query.direction,
+        pricingNeeded: query.pricing === 'needed',
+        excludeRejected: query.open === 'true',
+        ids: query.ids,
+        excludeValueConfirmations: options.excludeValueConfirmations,
+      },
+      query,
+    );
+  }
+
+  /** Counts across every matching finding (severity, status, risks needing a price), for the charts above a paged list. */
+  async summary(tenant: TenantContext, dealId: string, query: Pick<ListFindingsQuery, 'status' | 'domain' | 'source'>, requestId: string) {
+    await this.access.require(tenant, dealId, canReadFindings, { action: 'finding.list', requestId });
+    return this.findings.summary(tenant, dealId, { ...(query.status ? { status: query.status } : {}), ...(query.domain ? { domain: query.domain } : {}), ...(query.source ? { source: query.source } : {}) });
+  }
+
+  /** Every finding, for the complete record of a pact (the pact report); never a screen. */
+  async all(tenant: TenantContext, dealId: string, requestId: string) {
+    await this.access.require(tenant, dealId, canReadFindings, { action: 'finding.list', requestId });
+    return { items: await this.findings.list(tenant, dealId, {}) };
   }
 
   async get(tenant: TenantContext, dealId: string, findingId: string, requestId: string) {

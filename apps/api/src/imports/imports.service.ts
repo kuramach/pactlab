@@ -23,6 +23,7 @@ import {
   type SourceUploadView,
   type UploadDetailView,
   type UploadQuery,
+  type Page,
 } from '@pactlab/contracts';
 import {
   appendAuditEvent,
@@ -274,9 +275,11 @@ export class ImportsService {
     return this.detail(row, await this.stored(row));
   }
 
-  async list(tenant: TenantContext, dealId: string, requestId: string): Promise<SourceUploadView[]> {
+  /** A pact's uploads, newest first, a page at a time (T-126). */
+  async list(tenant: TenantContext, dealId: string, request: { cursor?: string | undefined; limit: number }, requestId: string): Promise<Page<SourceUploadView>> {
     await this.access.require(tenant, dealId, canRead, { action: 'source_upload.list', requestId });
-    return (await withTenant(this.prisma, tenant, (tx) => sourceUploads.list(tx, dealId))).map(toView);
+    const page = await withTenant(this.prisma, tenant, (tx) => sourceUploads.page(tx, dealId, request));
+    return { ...page, items: page.items.map(toView) };
   }
 
   /** Dry run: what the mapping would import. Writes nothing. */

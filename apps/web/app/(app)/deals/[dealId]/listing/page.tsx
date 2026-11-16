@@ -1,7 +1,8 @@
-import type { ListingInterestView, ListingMediaView, ListingPropertyFact, ListingView } from '@pactlab/contracts';
+import type { ListingInterestView, ListingMediaView, ListingPropertyFact, ListingView, Page } from '@pactlab/contracts';
 import { Badge, Button, buttonVariants, Card, CardContent, CardDescription, CardHeader, CardTitle } from '@pactlab/ui';
 import { ArrowDown, ArrowUp, Eye, ExternalLink, Trash2 } from 'lucide-react';
 import Link from 'next/link';
+import { keepParams, pageApiQuery, Pager, pagerLinks, readPage } from '../../../../_components/pager';
 import { CopyButton } from '../../../_lib/copy-button';
 import { serverEnv } from '../../../../../lib/env';
 import { embedUrl, Teaser } from '../../../../listings/_lib/teaser';
@@ -237,7 +238,7 @@ function PropertyCard({ dealId, listing, lookupAddress, lookupCountry, lookup }:
   );
 }
 
-export default async function ListingTab({ params, searchParams }: { params: Promise<{ dealId: string }>; searchParams: Promise<{ outcome?: string; address?: string; country?: string }> }) {
+export default async function ListingTab({ params, searchParams }: { params: Promise<{ dealId: string }>; searchParams: Promise<Record<string, string | string[] | undefined> & { outcome?: string; address?: string; country?: string }> }) {
   const { dealId } = await params;
   const query = await searchParams;
   const outcome = OUTCOMES[query.outcome ?? ''];
@@ -248,7 +249,7 @@ export default async function ListingTab({ params, searchParams }: { params: Pro
     lookupAddress.length >= 5
       ? await apiSend<{ available: boolean; formattedAddress: string | null; facts: ListingPropertyFact[] }>('POST', `/v1/deals/${dealId}/listing/property-lookup`, { address: lookupAddress, country: lookupCountry })
       : null;
-  const [result, interests] = await Promise.all([apiGet<{ listing: ListingView | null }>(`/v1/deals/${dealId}/listing`), apiGet<{ items: ListingInterestView[] }>(`/v1/deals/${dealId}/listing/interests`)]);
+  const [result, interests] = await Promise.all([apiGet<{ listing: ListingView | null }>(`/v1/deals/${dealId}/listing`), apiGet<Page<ListingInterestView>>(`/v1/deals/${dealId}/listing/interests?${pageApiQuery(readPage(query, 'requests'))}`)]);
   if (result.kind !== 'ok') return <ApiState result={result} />;
   const listing = result.data.listing;
   const link = listing ? new URL(`/listings/${listing.slug}`, serverEnv().APP_BASE_URL ?? 'http://localhost:3000').toString() : null;
@@ -403,7 +404,16 @@ export default async function ListingTab({ params, searchParams }: { params: Pro
           <CardHeader>
             <CardTitle className="text-base">Access requests</CardTitle>
           </CardHeader>
-          <CardContent>{interests.kind === 'ok' ? <Requests dealId={dealId} items={interests.data.items} /> : <ApiState result={interests} />}</CardContent>
+          <CardContent>
+            {interests.kind === 'ok' ? (
+              <>
+                <Requests dealId={dealId} items={interests.data.items} />
+                <Pager label="Request pages" base={`/deals/${dealId}/listing`} links={pagerLinks({ ...interests.data, itemCount: interests.data.items.length }, readPage(query, 'requests'), keepParams(query), 'requests')} />
+              </>
+            ) : (
+              <ApiState result={interests} />
+            )}
+          </CardContent>
         </Card>
       ) : null}
     </div>

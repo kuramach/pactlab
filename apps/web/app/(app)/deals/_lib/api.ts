@@ -56,6 +56,25 @@ export interface EvidencePage {
   types: string[];
 }
 
+/**
+ * Every page of a paged list (T-126), for a set a screen needs whole and that people keep small:
+ * accepted findings (each one reviewed by a person), for a valuation picker. Never for a list a
+ * person scrolls; those use the Pager. Stops at 50 pages and says so, rather than cutting silently.
+ */
+export async function apiGetAll<T>(path: string): Promise<ApiResult<{ items: T[]; complete: boolean }>> {
+  const items: T[] = [];
+  let cursor: string | null = null;
+  for (let page = 0; page < 50; page += 1) {
+    const separator = path.includes('?') ? '&' : '?';
+    const result: ApiResult<Page<T>> = await apiGet<Page<T>>(`${path}${separator}limit=100${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`);
+    if (result.kind !== 'ok') return result;
+    items.push(...result.data.items);
+    cursor = result.data.nextCursor;
+    if (!cursor) return { kind: 'ok', data: { items, complete: true } };
+  }
+  return { kind: 'ok', data: { items, complete: false } };
+}
+
 /** Server-side API call. The browser never holds the token or calls the API directly. */
 export async function apiGet<T>(path: string): Promise<ApiResult<T>> {
   const token = await organizationAccessToken();
@@ -223,7 +242,7 @@ export const dealsApi = {
     ),
   startPact: (command: StartPactCommand) => apiPost<DealSummary>('/v1/pacts', command),
   billingSystems: () => apiGet<{ items: BillingSystemView[] }>('/v1/billing-import/systems'),
-  uploads: (dealId: string) => apiGet<{ items: SourceUploadView[] }>(`/v1/deals/${encodeURIComponent(dealId)}/uploads`),
+  uploads: (dealId: string, cursor?: string) => apiGet<Page<SourceUploadView>>(`/v1/deals/${encodeURIComponent(dealId)}/uploads${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`),
   upload: (dealId: string, uploadId: string) =>
     apiGet<UploadDetailView>(`/v1/deals/${encodeURIComponent(dealId)}/uploads/${encodeURIComponent(uploadId)}`),
   /** CSV import targets the deal's pack offers (billing first), with template headers. */

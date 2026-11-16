@@ -1,8 +1,8 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { BadRequestException, ConflictException, Inject, Injectable, Logger, NotFoundException, PayloadTooLargeException, ServiceUnavailableException, UnprocessableEntityException, UnsupportedMediaTypeException } from '@nestjs/common';
 import { PropertyDataError, type PropertyDataProvider } from '@pactlab/connectors';
-import { LISTING_MEDIA_LIMITS, type AddListingImageBody, type AddListingVideoBody, type DeclineListingInterestBody, type ListingInterestBody, type ListingInterestView, type ListingMediaView, type ListingPropertyFact, type ListingStatusBody, type ListingView, type PropertyLookupBody, type PublicListingView, type SaveListingBody, type SavePropertyBody } from '@pactlab/contracts';
-import { appendAuditEvent, publicListings, withTenant, type Prisma, type PrismaClient } from '@pactlab/db';
+import { LISTING_MEDIA_LIMITS, type Page, type AddListingImageBody, type AddListingVideoBody, type DeclineListingInterestBody, type ListingInterestBody, type ListingInterestView, type ListingMediaView, type ListingPropertyFact, type ListingStatusBody, type ListingView, type PropertyLookupBody, type PublicListingView, type SaveListingBody, type SavePropertyBody } from '@pactlab/contracts';
+import { appendAuditEvent, publicListings, withTenant, type Prisma, type PrismaClient, afterCursor, toPage, type PageRequest} from '@pactlab/db';
 import { isCounterpartyRole, newId, permissionsForDealRole, tenantObjectKey, type DealRole, type TenantContext } from '@pactlab/domain';
 import { DealAccess } from '../deals/deal-access';
 import type { EmailSender } from '../email-login/email-sender';
@@ -335,10 +335,17 @@ export class ListingsService {
   }
 
   /** Confirmed requests, newest first. Unconfirmed ones never reach the seller. */
-  async interests(tenant: TenantContext, dealId: string, requestId: string): Promise<{ items: ListingInterestView[] }> {
+  /** Requests for access from the public page, newest first, a page at a time (T-126): anyone can ask. */
+  async interests(tenant: TenantContext, dealId: string, request: PageRequest, requestId: string): Promise<Page<ListingInterestView>> {
     await this.access.require(tenant, dealId, canRun, { action: 'listing.interests_viewed', requestId });
-    const rows = await withTenant(this.prisma, tenant, (tx) => tx.listingInterest.findMany({ where: { dealId, status: { not: 'PENDING_EMAIL' } }, orderBy: { createdAt: 'desc' } }));
-    return { items: rows.map(interestView) };
+    const matching = { dealId, status: { not: 'PENDING_EMAIL' as const } };
+    const [rows, total] = await withTenant(this.prisma, tenant, (tx) =>
+      Promise.all([
+        tx.listingInterest.findMany({ where: { AND: [matching, afterCursor('createdAt', request.cursor, { asDate: true })] }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], take: request.limit + 1 }),
+        tx.listingInterest.count({ where: matching }),
+      ]),
+    );
+    return toPage(rows, request, total, (row) => row.createdAt, interestView);
   }
 
   /**

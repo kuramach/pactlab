@@ -4,8 +4,7 @@ import {
   findings,
   withTenant,
   type AuditEventInput,
-  type PrismaClient,
-} from '@pactlab/db';
+  type PrismaClient, type FindingPageFilter, type PageRequest, type PageResult } from '@pactlab/db';
 import type { Finding, FindingReview, TenantContext } from '@pactlab/domain';
 import type { FindingFilter, FindingsRepository, FindingWithReviews } from './findings.repository';
 
@@ -19,6 +18,14 @@ export class PrismaFindingsRepository implements FindingsRepository {
 
   list(tenant: TenantContext, dealId: string, filter: FindingFilter): Promise<Finding[]> {
     return withTenant(this.prisma, tenant, (tx) => findings.list(tx, dealId, filter));
+  }
+
+  summary(tenant: TenantContext, dealId: string, filter: FindingFilter & { source?: 'document-review' | undefined }) {
+    return withTenant(this.prisma, tenant, (tx) => findings.summary(tx, dealId, filter));
+  }
+
+  page(tenant: TenantContext, dealId: string, filter: FindingPageFilter, request: PageRequest): Promise<PageResult<Finding>> {
+    return withTenant(this.prisma, tenant, (tx) => findings.page(tx, dealId, filter, request));
   }
 
   get(tenant: TenantContext, dealId: string, findingId: string): Promise<FindingWithReviews | null> {

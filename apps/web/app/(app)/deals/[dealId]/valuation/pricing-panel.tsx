@@ -283,15 +283,14 @@ function Brief({ dealId, view, writer, titles, outcome, aiEnabled }: { dealId: s
  * versioned terms, see the seller's answers, and draft the brief. Buyer-only.
  */
 export async function PricingPanel({ dealId, viewer, outcome }: { dealId: string; viewer: DealViewer; outcome: string | undefined }) {
-  const [result, accepted, ai] = await Promise.all([
-    apiGet<PricingView>(`/v1/deals/${encodeURIComponent(dealId)}/pricing`),
-    apiGet<{ items: { id: string; title: string }[] }>(`/v1/deals/${encodeURIComponent(dealId)}/findings?status=ACCEPTED`),
-    apiGet<{ enabled: boolean }>('/v1/ai/status'),
-  ]);
+  const [result, ai] = await Promise.all([apiGet<PricingView>(`/v1/deals/${encodeURIComponent(dealId)}/pricing`), apiGet<{ enabled: boolean }>('/v1/ai/status')]);
   if (result.kind !== 'ok') return null;
   const view = result.data;
+  // The titles of just the findings these terms carry: a lookup by id (T-126).
+  const carried = [...new Set(JSON.stringify(view).match(/"findingId":"[0-9a-f-]{36}"/g)?.map((entry) => entry.slice(13, -1)) ?? [])].slice(0, 100);
+  const accepted = carried.length > 0 ? await apiGet<{ items: { id: string; title: string }[] }>(`/v1/deals/${encodeURIComponent(dealId)}/findings?ids=${carried.join(',')}&limit=100`) : null;
   const writer = can.draft(viewer.role);
-  const titles = new Map((accepted.kind === 'ok' ? accepted.data.items : []).map((finding) => [finding.id, finding.title]));
+  const titles = new Map((accepted?.kind === 'ok' ? accepted.data.items : []).map((finding) => [finding.id, finding.title]));
   const label = (persona: string) => view.persona.options.find((option) => option.persona === persona)?.label ?? persona;
   const active = view.evaluations.find((evaluation) => evaluation.id === view.active?.evaluationId);
 

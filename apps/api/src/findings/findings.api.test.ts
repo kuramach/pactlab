@@ -414,4 +414,32 @@ describe('findings API', () => {
       '11 commits attributed to unmatched or departed identities',
     ]);
   });
+
+  it('pages findings each once, with search, counts and an id lookup in the database (T-126)', async () => {
+    const before = (await as('lead', 'GET', '/summary')).body as { total: number };
+    for (let n = 0; n < 60; n += 1) {
+      const created = await as('analyst', 'POST', '', draftBody({ title: `Bulk finding ${String(n).padStart(3, '0')}${n === 33 ? ' haystack-needle' : ''}`, severity: n % 2 === 0 ? 'LOW' : 'MEDIUM' }));
+      expect(created.status, JSON.stringify(created.body)).toBe(201);
+    }
+    const total = before.total + 60;
+    const seen: string[] = [];
+    let cursor: string | null = null;
+    let pages = 0;
+    do {
+      const page = (await as('lead', 'GET', `?limit=25${cursor ? `&cursor=${cursor}` : ''}`)).body as { items: { id: string }[]; nextCursor: string | null; total: number };
+      expect(page.total).toBe(total);
+      seen.push(...page.items.map((item) => item.id));
+      cursor = page.nextCursor;
+      pages += 1;
+    } while (cursor && pages < 20);
+    expect(new Set(seen).size).toBe(total);
+    const summary = (await as('lead', 'GET', '/summary')).body as { total: number; bySeverity: Record<string, number> };
+    expect(summary.total).toBe(total);
+    expect(summary.bySeverity['LOW']).toBeGreaterThanOrEqual(30);
+    const needle = (await as('lead', 'GET', '?q=haystack-needle')).body as { items: { id: string; title: string }[]; total: number };
+    expect(needle.total).toBe(1);
+    const lookup = (await as('lead', 'GET', `?ids=${needle.items[0]!.id},${seen[0]}`)).body as { items: unknown[] };
+    expect(lookup.items).toHaveLength(2);
+    expect((await as('lead', 'GET', '?limit=101')).status).toBe(400);
+  });
 });

@@ -21,7 +21,9 @@ import {
   Wrench,
 } from 'lucide-react';
 import { BarChart, CHART_COLORS, DonutChart } from '../../../_lib/charts';
+import type { Page } from '@pactlab/contracts';
 import Link from 'next/link';
+import { keepParams, pageApiQuery, Pager, pagerLinks, readPage } from '../../../../_components/pager';
 import { apiGet, dealsApi } from '../../_lib/api';
 import { ApiState } from '../../_lib/states';
 import { FindingEvidenceChip } from '../../_lib/finding-evidence';
@@ -91,18 +93,22 @@ export default async function FindingsPage({
   const query = findingsQuery(filters);
   // Records opened from this list come back to it with the same filters.
   const here = `/deals/${dealId ?? ''}/findings${query ? `?${query}` : ''}`;
-  const [fetched, fromDocuments, plan, claimsResult] = dealId
+  // The list is paged and every filter runs in the database (T-126); the charts read counts across all of it.
+  const position = readPage(search);
+  const listQuery = [query, filters.pricing === 'needed' ? 'pricing=needed' : '', pageApiQuery(position)].filter(Boolean).join('&');
+  const [fetched, fromDocuments, plan, claimsResult, summary] = dealId
     ? await Promise.all([
-        apiGet<{ items: Finding[] }>(`/v1/deals/${encodeURIComponent(dealId)}/findings${query ? `?${query}` : ''}`),
+        apiGet<Page<Finding>>(`/v1/deals/${encodeURIComponent(dealId)}/findings?${listQuery}`),
         apiGet<{ pending: number }>(`/v1/deals/${encodeURIComponent(dealId)}/findings/from-documents`),
         dealsApi.sourcePlan(dealId),
         apiGet<{ items: ClaimView[] }>(`/v1/deals/${encodeURIComponent(dealId)}/claims`),
+        apiGet<{ total: number; bySeverity: Record<string, number>; byStatus: Record<string, number>; pricingNeeded: number }>(`/v1/deals/${encodeURIComponent(dealId)}/findings/summary${query ? `?${query}` : ''}`),
       ])
-    : [null, null, null, null];
+    : [null, null, null, null, null];
   const claims = claimsResult?.kind === 'ok' ? claimsResult.data.items : [];
-  // "Needs pricing" is a view over the list (direction and price are on every finding).
-  const result = fetched?.kind === 'ok' && filters.pricing === 'needed' ? { ...fetched, data: { items: fetched.data.items.filter(needsPricing) } } : fetched;
-  const unpriced = fetched?.kind === 'ok' ? fetched.data.items.filter(needsPricing).length : 0;
+  const result = fetched;
+  const counts = summary?.kind === 'ok' ? summary.data : null;
+  const unpriced = counts?.pricingNeeded ?? 0;
   const pendingFromDocuments = fromDocuments?.kind === 'ok' ? fromDocuments.data.pending : 0;
   const broughtIn = typeof search['broughtIn'] === 'string' ? Number(search['broughtIn']) || 0 : null;
   // Industry checks: the seller's pack rules (T-057/T-058). Shown only when the pack has any.
@@ -252,11 +258,11 @@ export default async function FindingsPage({
                   <CardContent>
                     <DonutChart
                       label="Findings by severity"
-                      centerLabel={String(result.data.items.length)}
+                      centerLabel={String(counts?.total ?? result.data.total)}
                       slices={(['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'INFO'] as const)
                         .map((severity) => ({
                           name: severity.charAt(0) + severity.slice(1).toLowerCase(),
-                          value: result.data.items.filter((item) => item.severity === severity).length,
+                          value: counts?.bySeverity[severity] ?? 0,
                           color: SEVERITY_COLORS[severity],
                         }))
                         .filter((slice) => slice.value > 0)}
@@ -280,7 +286,7 @@ export default async function FindingsPage({
                         {
                           name: 'Findings',
                           values: (['DRAFT', 'IN_REVIEW', 'ACCEPTED', 'REJECTED'] as const).map(
-                            (status) => result.data.items.filter((item) => item.status === status).length,
+                            (status) => counts?.byStatus[status] ?? 0,
                           ),
                         },
                       ]}
@@ -375,6 +381,7 @@ export default async function FindingsPage({
                 </CardContent>
               </Card>
               ))}
+              <Pager label="Finding pages" base={`/deals/${dealId ?? ''}/findings`} links={pagerLinks({ ...result.data, itemCount: result.data.items.length }, position, keepParams(search))} />
             </>
           )}
         </>

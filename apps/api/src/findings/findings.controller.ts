@@ -33,6 +33,17 @@ export class FindingsController {
     return this.service.list(tenant, params.dealId, query, requestId);
   }
 
+  /** Counts across every matching finding, for the charts above the paged list (T-126). */
+  @Get('summary')
+  async summary(
+    @Tenant() tenant: TenantContext,
+    @RequestId() requestId: string,
+    @Param(new ZodValidationPipe(dealParamsSchema)) params: { dealId: string },
+    @Query(new ZodValidationPipe(listFindingsQuerySchema)) query: ListFindingsQuery,
+  ) {
+    return this.service.summary(tenant, params.dealId, query, requestId);
+  }
+
   /** Accepted document-review findings not yet in the register. */
   @Get('from-documents')
   async pendingFromDocuments(

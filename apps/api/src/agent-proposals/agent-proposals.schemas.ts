@@ -1,3 +1,4 @@
+import { pageQuerySchema } from '@pactlab/contracts';
 import { z } from 'zod';
 import { FINDING_TERM_LEVERS } from '../pricing/pricing.service';
 import { createDocumentRequestBodySchema } from '../documents/documents.schemas';
@@ -21,7 +22,8 @@ export const AGENT_PROPOSAL_STATUSES = ['PENDING', 'APPROVED', 'REJECTED', 'FAIL
 export type AgentProposalStatus = (typeof AGENT_PROPOSAL_STATUSES)[number];
 
 export const proposalParamsSchema = z.strictObject({ dealId: z.uuid(), proposalId: z.uuid() });
-export const listProposalsQuerySchema = z.strictObject({ status: z.enum(AGENT_PROPOSAL_STATUSES).optional() });
+/** Suggestions, newest first, a page at a time (T-126). */
+export const listProposalsQuerySchema = pageQuerySchema.extend({ status: z.enum(AGENT_PROPOSAL_STATUSES).optional() }).strict();
 export const decideProposalBodySchema = z.strictObject({
   decision: z.enum(['APPROVE', 'REJECT']),
   note: z.string().trim().min(1).max(2000).optional(),

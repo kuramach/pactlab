@@ -5,7 +5,7 @@ import { describeSet, formatMultiple } from '../../../comparables/_lib/view';
 import { formatPricedRisk } from '../../../findings/_lib/view';
 import { formatMoney } from '../../../metrics/_lib/format';
 import type { ScenarioValues } from '../../../valuation/_lib/form';
-import { apiGet, dealsApi } from '../../_lib/api';
+import { apiGet, apiGetAll, dealsApi } from '../../_lib/api';
 import { saveScenario } from './actions';
 import { ScenarioForm } from './scenario-form';
 
@@ -19,7 +19,8 @@ export async function ScenarioEditor({
 }) {
   const [deal, accepted, benchmark, sheet, plan] = await Promise.all([
     dealsApi.get(dealId),
-    apiGet<{ items: Finding[] }>(`/v1/deals/${dealId}/findings?status=ACCEPTED`),
+    // Accepted findings are each reviewed by a person, so the set stays small: read every page (T-126).
+    apiGetAll<Finding>(`/v1/deals/${dealId}/findings?status=ACCEPTED`),
     apiGet<BenchmarkView>(`/v1/deals/${dealId}/benchmark`),
     apiGet<BalanceSheetView>(`/v1/deals/${dealId}/balance-sheet-items`),
     dealsApi.sourcePlan(dealId),
