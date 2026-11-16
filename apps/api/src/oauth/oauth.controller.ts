@@ -106,6 +106,12 @@ export class OAuthController {
     return protocol(reply, () => this.service.deviceDecide(principal, body.userCode, body.approve));
   }
 
+  /** The Developers pages: whether the API and MCP are on here (T-128). */
+  @Get('me/developer-access')
+  developerAccess(@CurrentPrincipal() principal: Principal) {
+    return this.service.developerAccess(principal);
+  }
+
   /** Settings → API access (organization owners and admins): the switch and every member's grants. */
   @Get('organization/api-access')
   apiAccess(@CurrentPrincipal() principal: Principal, @Query(new ZodValidationPipe(pageQuerySchema)) query: PageQuery, @Res({ passthrough: true }) reply: FastifyReply): Promise<ApiAccessView | { error: string; error_description: string }> {

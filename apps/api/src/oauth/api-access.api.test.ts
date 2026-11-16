@@ -249,10 +249,39 @@ describe('API access with Pactlab OAuth', () => {
     expect((await form('/v1/oauth/device_authorization', { client_id: 'while-off' })).status).toBe(200);
     expect((await call('PUT', '/v1/organization/api-access', { enabled: true }, admin)).status).toBe(200);
     expect((await call('GET', '/v1/deals', undefined, tokens.access_token)).status).toBe(200);
+    // The Developers pages show members whether each is on.
+    expect((await call('GET', '/v1/me/developer-access', undefined, member)).body).toEqual({ apiEnabled: true, mcpEnabled: true, pactlabSignIn: true });
 
     expect((await call('DELETE', `/v1/organization/api-access/grants/${grant?.id}`, undefined, admin)).status).toBe(200);
     expect((await call('GET', '/v1/deals', undefined, tokens.access_token)).status).toBe(401);
     const audited = await db.owner.query<{ action: string }>(`SELECT action FROM audit_events WHERE organization_id = $1 AND action IN ('oauth.api_disabled', 'oauth.api_enabled', 'oauth.grant_revoked')`, [CHARLIE]);
     expect(new Set(audited.rows.map((row) => row.action))).toEqual(new Set(['oauth.api_disabled', 'oauth.api_enabled', 'oauth.grant_revoked']));
+  });
+
+  it('the reference: /v1/openapi.json is public OpenAPI 3.1 generated from exactly the routes open to API tokens', async () => {
+    const response = await call('GET', '/v1/openapi.json');
+    expect(response.status).toBe(200);
+    const spec = response.body as { openapi: string; servers: { url: string }[]; paths: Record<string, Record<string, { summary: string; security: unknown; parameters: { name: string; in: string }[]; responses: Record<string, { content: Record<string, { schema: unknown }> }> }>> };
+    expect(spec.openapi).toBe('3.1.0');
+    expect(spec.servers[0]?.url).toBe('https://app.pactlab.test');
+    const operations = Object.entries(spec.paths).flatMap(([path, methods]) => Object.entries(methods).map(([method, operation]) => ({ path, method, operation })));
+    // Each documented operation names its scope and summary; paths use {param} with matching path parameters.
+    for (const { path, operation } of operations) {
+      expect(operation.summary, path).toBeTruthy();
+      expect(operation.security, path).toBeTruthy();
+      for (const name of [...path.matchAll(/\{([^}]+)\}/g)].map((match) => match[1])) expect(operation.parameters.some((parameter) => parameter.name === name && parameter.in === 'path'), `${path} ${name}`).toBe(true);
+    }
+    expect(spec.paths['/v1/deals']?.['get']?.responses['200']?.content['application/json']?.schema).toEqual({ $ref: '#/components/schemas/Page' });
+    expect(spec.paths['/v1/deals/{dealId}/findings']?.['post']).toBeTruthy();
+    // Never documented, because never open: admin, OAuth, settings and approvals.
+    for (const path of Object.keys(spec.paths)) expect(path).not.toMatch(/admin|oauth|connected-apps|api-access|reviews|members/);
+
+    // Every documented operation answers an API token with something other than NOT_AVAILABLE_TO_API.
+    const tokens = await deviceSignIn(await signIn('lead@charlie.example'), undefined, 'reference-script');
+    for (const { path, method } of operations.filter((entry) => entry.method === 'get')) {
+      const url = path.replace('{dealId}', TROUBLED).replace(/\{[^}]+\}/g, '01900000-0000-7000-8000-000000000000');
+      const answered = await call(method.toUpperCase() as 'GET', url, undefined, tokens.access_token);
+      expect(answered.body?.['code'], url).not.toBe('NOT_AVAILABLE_TO_API');
+    }
   });
 });

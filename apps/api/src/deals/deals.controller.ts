@@ -38,7 +38,7 @@ import { ApiAccess, NoDemo, RecentSignIn } from '../auth/auth.guard';
 export class DealsController {
   constructor(@Inject(DealsService) private readonly dealsService: DealsService) {}
 
-  @ApiAccess()
+  @ApiAccess({ tag: 'Pacts', summary: 'List your pacts', description: 'The pacts you can see, newest first; search with q.' })
   @Get()
   async list(
     @Tenant() tenant: TenantContext,
@@ -48,7 +48,7 @@ export class DealsController {
   }
 
   /** Counts across every pact, for the home page (the list itself is paged). */
-  @ApiAccess()
+  @ApiAccess({ tag: 'Pacts', summary: 'Totals across your pacts', description: 'Counts and values by phase across every pact you can see.' })
   @Get('summary')
   summary(@Tenant() tenant: TenantContext): Promise<DealsSummaryView> {
     return this.dealsService.summary(tenant);
@@ -64,7 +64,7 @@ export class DealsController {
     return this.dealsService.create(tenant, body, requestId);
   }
 
-  @ApiAccess()
+  @ApiAccess({ tag: 'Pacts', summary: 'Get a pact', description: 'One pact: its phase, target, asking price and your role on it.' })
   @Get(':dealId')
   async get(
     @Tenant() tenant: TenantContext,

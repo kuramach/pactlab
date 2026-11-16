@@ -87,7 +87,7 @@ export class DocumentsController {
     return this.sources.sync(tenant, params.dealId, params.sourceId, requestId);
   }
 
-  @ApiAccess()
+  @ApiAccess({ tag: 'Documents', summary: 'Upload a document', description: 'Upload a file (base64) to the pact. It is malware-scanned before anything reads it.' })
   @Post('documents')
   async upload(
     @Tenant() tenant: TenantContext,
@@ -110,7 +110,7 @@ export class DocumentsController {
   }
 
   /** Requests to the seller for missing inputs; both sides of the pact read them. */
-  @ApiAccess()
+  @ApiAccess({ tag: 'Documents', summary: 'List document requests', description: 'What has been asked of the other side, and whether it arrived.' })
   @Get('document-requests')
   async listRequests(
     @Tenant() tenant: TenantContext,
@@ -120,7 +120,7 @@ export class DocumentsController {
     return this.service.listRequests(tenant, params.dealId, requestId);
   }
 
-  @ApiAccess()
+  @ApiAccess({ tag: 'Documents', summary: 'Request a document', description: 'Ask the other side for a document, as you.' })
   @Post('document-requests')
   async createRequest(
     @Tenant() tenant: TenantContext,
@@ -151,7 +151,7 @@ export class DocumentsController {
     return this.service.intake(tenant, params.dealId, requestId);
   }
 
-  @ApiAccess()
+  @ApiAccess({ tag: 'Documents', summary: 'List documents', description: 'The pact’s document library, with search, kind filter and sort.' })
   @Get('documents')
   async list(
     @Tenant() tenant: TenantContext,
@@ -162,7 +162,7 @@ export class DocumentsController {
     return this.service.list(tenant, params.dealId, query, requestId);
   }
 
-  @ApiAccess()
+  @ApiAccess({ tag: 'Documents', summary: 'Get a document', description: 'One document’s details, classification and review status (not its content).' })
   @Get('documents/:documentId')
   async get(
     @Tenant() tenant: TenantContext,

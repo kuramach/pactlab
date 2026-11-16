@@ -42,9 +42,17 @@ const API_ROUTE = 'pactlab:api';
  * Open a route to OAuth API access tokens (T-128): GET and HEAD need `api:read`, anything else
  * `api:write`. This is the API's allowlist: every other route refuses API tokens with 403
  * NOT_AVAILABLE_TO_API (approvals, sign-offs, admin, billing, sign-in and OAuth stay app-only).
+ * The same metadata generates the API reference, so an open route is always a documented one.
  */
-export const ApiAccess = () => SetMetadata(API_ROUTE, true);
-export const isApiRoute = (reflector: Reflector, handler: object): boolean => reflector.get<boolean>(API_ROUTE, handler as never) === true;
+export const ApiAccess = (doc: ApiRouteDoc) => SetMetadata(API_ROUTE, doc);
+/** How an API route appears in the generated reference (`/v1/openapi.json`, T-128). */
+export interface ApiRouteDoc {
+  readonly tag: string;
+  readonly summary: string;
+  readonly description: string;
+}
+/** The route's API documentation, when it is open to API tokens. */
+export const apiRouteDoc = (handler: object): ApiRouteDoc | undefined => Reflect.getMetadata(API_ROUTE, handler) as ApiRouteDoc | undefined;
 
 /** A verified subject, before (or independent of) organization scoping. */
 export interface Principal {
@@ -129,7 +137,7 @@ export class AuthGuard implements CanActivate {
   private async apiCaller(context: ExecutionContext, request: AuthenticatedRequest, token: string): Promise<boolean> {
     const claims = this.apiTokens ? await this.apiTokens.verify(token) : null;
     if (!claims) throw new UnauthorizedException();
-    if (!this.reflector.getAllAndOverride<boolean>(API_ROUTE, [context.getHandler(), context.getClass()])) {
+    if (!this.reflector.getAllAndOverride<ApiRouteDoc | undefined>(API_ROUTE, [context.getHandler(), context.getClass()])) {
       throw new ForbiddenException({ code: 'NOT_AVAILABLE_TO_API', message: 'This action is only available in the Pactlab app.' });
     }
     const write = request.method !== 'GET' && request.method !== 'HEAD';

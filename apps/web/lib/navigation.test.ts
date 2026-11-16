@@ -7,8 +7,8 @@ const labels = (permissions: Parameters<typeof visibleSections>[0]) =>
 
 describe('main menu', () => {
   it('always offers Home and My deals', () => {
-    expect(labels(new Set())).toEqual(['Home', 'My deals', 'Start a Pact', 'Comparables', 'Reports']);
-    expect(labels(permissionsForDealRole('TARGET_CONTRIBUTOR'))).toEqual(['Home', 'My deals', 'Start a Pact', 'Comparables', 'Reports']);
+    expect(labels(new Set())).toEqual(['Home', 'My deals', 'Start a Pact', 'Comparables', 'Reports', 'API', 'Use with Claude']);
+    expect(labels(permissionsForDealRole('TARGET_CONTRIBUTOR'))).toEqual(['Home', 'My deals', 'Start a Pact', 'Comparables', 'Reports', 'API', 'Use with Claude']);
   });
 
   it('shows organization pages to administrators only', () => {
@@ -20,8 +20,16 @@ describe('main menu', () => {
       'Reports',
       'Audit log',
       'Pilot controls',
+      'API',
+      'Use with Claude',
     ]);
-    expect(visibleSections(permissionsForOrganizationRole('MEMBER')).map((section) => section.label)).toEqual([null]);
+    expect(visibleSections(permissionsForOrganizationRole('MEMBER')).map((section) => section.label)).toEqual([null, 'Developers']);
+  });
+
+  it('offers the Developers pages to members, not to guests on another organization’s pacts (T-128)', () => {
+    const member = permissionsForOrganizationRole('MEMBER');
+    expect(visibleSections(member).find((section) => section.label === 'Developers')?.items.map((item) => item.href)).toEqual(['/developers/api', '/developers/mcp']);
+    expect(visibleSections(member, undefined, true).some((section) => section.label === 'Developers')).toBe(false);
   });
 
   it('shows the admin console to platform operators only', () => {

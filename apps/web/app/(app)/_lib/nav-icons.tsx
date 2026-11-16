@@ -1,4 +1,4 @@
-import { Briefcase, FileText, Home, Plus, Scale, ScrollText, Settings, ShieldCheck, Wrench, type LucideIcon } from 'lucide-react';
+import { Bot, Briefcase, Code, FileText, Home, Plus, Scale, ScrollText, Settings, ShieldCheck, Wrench, type LucideIcon } from 'lucide-react';
 import type { NavIcon } from '../../../lib/navigation';
 
 export const NAV_ICONS: Readonly<Record<NavIcon, LucideIcon>> = {
@@ -11,4 +11,6 @@ export const NAV_ICONS: Readonly<Record<NavIcon, LucideIcon>> = {
   controls: ShieldCheck,
   settings: Settings,
   admin: Wrench,
+  api: Code,
+  claude: Bot,
 };

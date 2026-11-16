@@ -77,3 +77,7 @@ Kumar asked for API access "secure and per login since we can track it by user".
 - **Organization switch:** `organization_flags.api_enabled` is on by default (MCP stays off by default). Organization owners and admins turn it off in Settings → API access, which takes effect at once (403 `API_DISABLED`), and they can list and remove any member's API grant. Changes are audited as `oauth.api_enabled`, `oauth.api_disabled` and `oauth.grant_revoked`.
 - **Usage:** `last_used_at` is updated at most once a minute (`app_oauth_grant_access`, a new function, so the running release keeps `app_oauth_grant_state`).
 - **Rollback:** the migration is expand-only. Dropping `oauth_device_codes` and the new functions, and restoring the scope check, undoes it.
+- **Reference (T-128 PR 2):**
+  - **Source:** `GET /v1/openapi.json` (public, OpenAPI 3.1) is generated at runtime from Nest's route metadata: each `@ApiAccess({ tag, summary, description })` route, with the very `ZodValidationPipe` schemas that validate it (`z.toJSONSchema`, no extra dependency).
+  - **Pagination:** a query shaped like `pageQuerySchema` is documented as returning a `Page`.
+  - **No drift:** being open to API tokens and being documented are the same fact.
