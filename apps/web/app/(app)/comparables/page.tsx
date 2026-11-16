@@ -1,8 +1,9 @@
-import type { ComparableView } from '@pactlab/contracts';
+import type { ComparableView, Page } from '@pactlab/contracts';
 import { COMPANY_TYPE_LABELS, COMPANY_TYPES } from '@pactlab/domain';
 import { Badge, Button, buttonVariants, Card, CardContent, CardDescription, CardHeader, CardTitle, EmptyState, Glossed, PageHeader, Stat } from '@pactlab/ui';
 import { Building2, Database, FlaskConical, Library, PenLine, Plug, Upload } from 'lucide-react';
 import Link from 'next/link';
+import { keepParams, pageApiQuery, Pager, pagerLinks, readPage } from '../../_components/pager';
 import { ComparablesScatterChart } from '../_lib/charts';
 import { apiGet } from '../deals/_lib/api';
 import { OutcomeBanner } from '../deals/_lib/outcome';
@@ -68,8 +69,13 @@ function SourceCell({ comparable }: { comparable: ComparableView }) {
  * labelled synthetic set for demos. Every benchmark is built from these.
  */
 export default async function ComparablesPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
-  const outcome = (await searchParams)['outcome'];
-  const result = await apiGet<{ items: ComparableView[]; canWrite: boolean; provider: 'NOT_CONFIGURED' | 'CONFIGURED' }>('/v1/comparables');
+  const search = await searchParams;
+  const outcome = search['outcome'];
+  // The table pages (T-126); the counts and the chart describe the whole pool.
+  const position = readPage(search);
+  const result = await apiGet<
+    Page<ComparableView> & { canWrite: boolean; provider: 'NOT_CONFIGURED' | 'CONFIGURED'; countsByOrigin: Record<string, number>; chart: { name: string; multiple: string; origin: ComparableView['origin']; growth: string; arr: ComparableView['arr'] }[] }
+  >(`/v1/comparables?${pageApiQuery(position)}`);
 
   return (
     <div className="flex flex-col gap-6">
@@ -99,7 +105,7 @@ export default async function ComparablesPage({ searchParams }: { searchParams: 
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {(Object.keys(ORIGIN_LABELS) as ComparableView['origin'][]).map((origin) => {
               const Icon = ORIGIN_ICONS[origin];
-              const count = result.data.items.filter((item) => item.origin === origin).length;
+              const count = result.data.countsByOrigin[origin] ?? 0;
               return (
                 <Stat
                   key={origin}
@@ -121,7 +127,7 @@ export default async function ComparablesPage({ searchParams }: { searchParams: 
             })}
           </div>
 
-          {result.data.items.length === 0 ? (
+          {result.data.total === 0 ? (
             <EmptyState title="No comparables yet" description="Add precedent transactions or public peers with their source, or add an approved deal from its overview." />
           ) : (
             <Card>
@@ -134,16 +140,7 @@ export default async function ComparablesPage({ searchParams }: { searchParams: 
               <CardContent>
                 <ComparablesScatterChart
                   label="Comparables by ARR growth and EV to ARR multiple"
-                  points={result.data.items
-                    .filter((item) => item.arrGrowth !== null)
-                    .map((item) => ({
-                      name: item.name,
-                      multiple: item.multiple,
-                      origin: item.origin,
-                      originLabel: ORIGIN_LABELS[item.origin],
-                      growth: item.arrGrowth as string,
-                      arr: item.arr,
-                    }))}
+                  points={result.data.chart.map((point) => ({ ...point, originLabel: ORIGIN_LABELS[point.origin] }))}
                 />
               </CardContent>
             </Card>
@@ -154,7 +151,7 @@ export default async function ComparablesPage({ searchParams }: { searchParams: 
               <CardHeader className="flex flex-row flex-wrap items-center gap-3">
                 <Database aria-hidden className="h-5 w-5 text-indigo-ink" />
                 <CardTitle className="mr-auto">All active comparables</CardTitle>
-                <span className="text-sm text-muted-foreground">{result.data.items.length} in use</span>
+                <span className="text-sm text-muted-foreground">{result.data.total} in use · most recently recorded first</span>
               </CardHeader>
               <CardContent className="overflow-x-auto">
                 <table className="w-full min-w-[56rem] text-left text-sm">
@@ -178,8 +175,7 @@ export default async function ComparablesPage({ searchParams }: { searchParams: 
                     </tr>
                   </thead>
                   <tbody>
-                    {[...result.data.items]
-                      .sort((a, b) => (b.announcedOn ?? '').localeCompare(a.announcedOn ?? ''))
+                    {result.data.items
                       .map((item) => (
                         <tr key={item.id} className="border-t border-navy/5 align-top">
                           <td className="py-2">
@@ -220,6 +216,7 @@ export default async function ComparablesPage({ searchParams }: { searchParams: 
                       ))}
                   </tbody>
                 </table>
+                <Pager label="Comparable pages" base="/comparables" links={pagerLinks({ ...result.data, itemCount: result.data.items.length }, position, keepParams(search))} />
               </CardContent>
             </Card>
           ) : null}

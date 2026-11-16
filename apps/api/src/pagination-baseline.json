@@ -1,6 +1,1 @@
-{
-  "apps/api/src/balance-sheet/balance-sheet.service.ts": 1,
-  "apps/api/src/ic/ic.service.ts": 1,
-  "apps/api/src/venture/venture.service.ts": 1,
-  "packages/db/src/comparables.ts": 1
-}
+{}

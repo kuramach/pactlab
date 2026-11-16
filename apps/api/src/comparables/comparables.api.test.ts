@@ -144,8 +144,10 @@ describe('comparables and the multiple benchmark through the API', () => {
 
     // Retiring a comparable changes the set: the judgement is flagged for a fresh look.
     const listed = (await call('lead', 'GET', '/v1/comparables')).body['items'] as Body[];
-    expect((await call('lead', 'POST', `/v1/comparables/${listed[0]!['id'] as string}/retire`)).status).toBe(200);
-    expect((await call('lead', 'POST', `/v1/comparables/${listed[0]!['id'] as string}/retire`)).status).toBe(409);
+    // The oldest recorded (the table lists newest first, T-126).
+    const oldest = listed.at(-1)!['id'] as string;
+    expect((await call('lead', 'POST', `/v1/comparables/${oldest}/retire`)).status).toBe(200);
+    expect((await call('lead', 'POST', `/v1/comparables/${oldest}/retire`)).status).toBe(409);
     expect((await call('lead', 'GET', `/v1/deals/${dealId}/benchmark`)).body).toMatchObject({ count: 4, judgement: { current: false } });
     expect(((await call('analyst', 'GET', `/v1/deals/${dealId}/multiple-judgements`)).body['items'] as Body[]).length).toBe(1);
     expect(await audits('multiple_judgement.recorded')).toBe(1);
@@ -171,7 +173,13 @@ describe('comparables and the multiple benchmark through the API', () => {
   it('prices cited public deals as counter-offers, lead only, never the firm\'s own deals', async () => {
     const created = await call('lead', 'POST', '/v1/comparables', comparable(3, { name: 'Public 3', sourceUrl: 'https://example.com/release', acquirerName: 'Acquirer Co' }));
     const publicId = created.body['id'] as string;
-    const all = (await call('lead', 'GET', '/v1/comparables')).body['items'] as Body[];
+    // The table is paged (T-126): read every page.
+    const all: Body[] = [];
+    for (let cursor: string | null = null, page = 0; page === 0 || (cursor && page < 20); page += 1) {
+      const listed = (await call('lead', 'GET', `/v1/comparables?limit=100${cursor ? `&cursor=${cursor}` : ''}`)).body as { items: Body[]; nextCursor: string | null };
+      all.push(...listed.items);
+      cursor = listed.nextCursor;
+    }
     const ownId = all.find((c) => c['origin'] === 'OWN_DEAL')!['id'] as string;
     const retiredId = (await db.owner.query(`SELECT id FROM comparables WHERE status = 'RETIRED' LIMIT 1`) as { rows: { id: string }[] }).rows[0]!.id;
     const anchors = `/v1/deals/${dealId}/anchors`;

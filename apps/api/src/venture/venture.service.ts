@@ -173,6 +173,7 @@ export class VentureService {
     const types = await tx.evidenceItem.findMany({ where: { dealId }, distinct: ['evidenceType'], select: { evidenceType: true } });
     const present = new Set(types.map((row) => row.evidenceType));
     const importTargets = Object.values(IMPORT_TARGET_DEFINITIONS).filter((definition) => present.has(definition.evidenceType)).map((definition) => definition.target);
+    // whole-set: the readiness checklist tests every file name in the data room against its patterns; it is never listed
     const documents = await tx.document.findMany({ where: { dealId, status: 'AVAILABLE' }, select: { fileName: true }, orderBy: { fileName: 'asc' } });
     // bounded: one pact's own records of this kind (tens: a checklist, versions, entries, its sources)
     const connections = await tx.connection.findMany({ where: { dealId, status: 'ACTIVE' }, select: { provider: true } });

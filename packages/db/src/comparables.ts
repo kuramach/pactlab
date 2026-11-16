@@ -1,5 +1,6 @@
 import type { CompanyType } from '@pactlab/domain';
 import type { TransactionClient } from './client';
+import { afterCursor, toPage, type PageRequest, type PageResult } from './pagination';
 
 export type ComparableKindValue = 'PRECEDENT_TRANSACTION' | 'PUBLIC_PEER' | 'OWN_DEAL';
 export type ComparableOriginValue = 'OWN_DEAL' | 'ENTERED' | 'PROVIDER' | 'SYNTHETIC';
@@ -92,7 +93,19 @@ function toJudgement({ organizationId: _org, ...row }: JudgementRow): MultipleJu
 
 /** Comparables, oldest first within the organization. RLS keeps them on the buy side. */
 export const comparables = {
+  /** The organization's comparables in use, most recently recorded first, a page at a time (T-126). */
+  async page(tx: TransactionClient, request: PageRequest): Promise<PageResult<ComparableRecord>> {
+    const matching = { status: 'ACTIVE' as const };
+    const [rows, total] = await Promise.all([
+      tx.comparable.findMany({ where: { AND: [matching, afterCursor('recordedAt', request.cursor, { asDate: true })] }, orderBy: [{ recordedAt: 'desc' }, { id: 'desc' }], take: request.limit + 1 }),
+      tx.comparable.count({ where: matching }),
+    ]);
+    return toPage(rows, request, total, (row) => row.recordedAt, (row) => toComparable(row as unknown as ComparableRow));
+  },
+
+  /** The whole pool, for the multiples benchmark, de-duplication on import and the scatter chart; the table pages through `page`. */
   async list(tx: TransactionClient, filter: { includeRetired?: boolean } = {}): Promise<ComparableRecord[]> {
+    // whole-set: the multiples benchmark and import de-duplication compute over the whole pool; the screen's table pages
     const rows = await tx.comparable.findMany({
       where: filter.includeRetired ? {} : { status: 'ACTIVE' },
       orderBy: [{ recordedAt: 'asc' }, { id: 'asc' }],

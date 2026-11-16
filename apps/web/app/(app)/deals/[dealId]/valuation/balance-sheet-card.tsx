@@ -147,6 +147,15 @@ export function BalanceSheetCard({ dealId, view, currency }: { dealId: string; v
           ) : (
             <>
             <BalanceSheetReader dealId={dealId} documents={view.documents} currency={currency} />
+            {view.documentsTotal > view.documents.length ? (
+              <p className="text-xs text-muted-foreground">
+                The reader lists the files filed as balance sheets and the first {view.documents.length - view.documents.filter((document) => document.category === 'BALANCE_SHEET').length} others by name, of {view.documentsTotal}. To read another, file it as a balance sheet in{' '}
+                <Link href={`/deals/${dealId}/documents`} className="underline">
+                  Documents
+                </Link>
+                .
+              </p>
+            ) : null}
             <details className="rounded-2xl border border-dashed border-navy/20 p-4">
               <summary className="cursor-pointer text-sm font-bold text-indigo-ink">Add an item by hand</summary>
               <BalanceSheetItemForm

@@ -228,7 +228,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
 
       {organization && !session.guest ? <BrandCard outcome={typeof brandOutcome === 'string' ? brandOutcome : undefined} since={typeof brandSince === 'string' ? brandSince : undefined} /> : null}
 
-      {organization && !session.guest ? <IcCard /> : null}
+      {organization && !session.guest ? <IcCard search={await searchParams} /> : null}
 
       {organization ? <DocuSignCard /> : null}
 

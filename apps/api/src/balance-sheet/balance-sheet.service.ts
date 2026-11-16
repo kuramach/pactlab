@@ -105,17 +105,19 @@ export class BalanceSheetService {
   async list(tenant: TenantContext, dealId: string, requestId: string): Promise<BalanceSheetView> {
     const role = await this.access.require(tenant, dealId, canRead, { action: 'balance_sheet.list', requestId });
     return withTenant(this.prisma, tenant, async (tx) => {
-      const [items, history, documents] = await Promise.all([
+      const eligible = { dealId, status: 'AVAILABLE' as const, dataClass: { notIn: [...PROHIBITED_CLASSIFICATIONS] } };
+      const documentSelect = { id: true, fileName: true, pageCount: true, category: true } as const;
+      // The reader's files (T-126): every file filed as a balance sheet, then the first 100 others by name; the total is said.
+      const [items, history, filed, others, documentsTotal] = await Promise.all([
         balanceSheetItems.list(tx, dealId),
         balanceSheetItems.history(tx, dealId),
-        tx.document.findMany({
-          where: { dealId, status: 'AVAILABLE', dataClass: { notIn: [...PROHIBITED_CLASSIFICATIONS] } },
-          select: { id: true, fileName: true, pageCount: true, category: true },
-          orderBy: { fileName: 'asc' },
-        }),
+        // bounded: the files intake filed as balance sheets, a few per pact
+        tx.document.findMany({ where: { ...eligible, category: 'BALANCE_SHEET' }, select: documentSelect, orderBy: { fileName: 'asc' } }),
+        tx.document.findMany({ where: { ...eligible, OR: [{ category: null }, { category: { not: 'BALANCE_SHEET' } }] }, select: documentSelect, orderBy: [{ fileName: 'asc' }, { id: 'asc' }], take: 100 }),
+        tx.document.count({ where: eligible }),
       ]);
       // Files intake has filed as balance sheets (T-098) come first, so the reader opens on one.
-      documents.sort((a, b) => Number(b.category === 'BALANCE_SHEET') - Number(a.category === 'BALANCE_SHEET'));
+      const documents = [...filed, ...others];
       // bounded: the ids just above (one page, or the few people and records it names)
       const pages = await tx.documentPage.findMany({
         where: { dealId, OR: items.map((item) => ({ documentId: item.citation.documentId, pageNumber: item.citation.pageNumber })) },
@@ -166,6 +168,7 @@ export class BalanceSheetService {
         totals: currencies.size === 1 ? { currency: [...currencies][0] as string, cash: total('CASH'), debt: total('DEBT'), debtLike: total('DEBT_LIKE') } : null,
         canEdit: canWrite(role),
         documents,
+        documentsTotal,
       };
     });
   }

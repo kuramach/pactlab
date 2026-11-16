@@ -1,5 +1,6 @@
-import { Body, Controller, Get, HttpCode, Inject, Param, Post, Put } from '@nestjs/common';
-import { dealParamsSchema, type IcSettingsView, type IcView } from '@pactlab/contracts';
+import { Body, Controller, Get, HttpCode, Inject, Param, Post, Put, Query } from '@nestjs/common';
+import { dealParamsSchema, pageQuerySchema, type IcSettingsView, type IcView } from '@pactlab/contracts';
+import { z } from 'zod';
 import type { TenantContext } from '@pactlab/domain';
 import { Tenant } from '../auth/tenant.decorator';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
@@ -63,13 +64,15 @@ export class IcController {
 }
 
 /** The organization's investment committee and its default requirement (T-118). Owners and admins edit. */
+const icPeopleQuerySchema = pageQuerySchema.extend({ q: z.string().trim().min(1).max(120).optional() }).strict();
+
 @Controller('v1/organization/ic')
 export class OrganizationIcController {
   constructor(@Inject(IcService) private readonly service: IcService) {}
 
   @Get()
-  settings(@Tenant() tenant: TenantContext): Promise<IcSettingsView> {
-    return this.service.settings(tenant);
+  settings(@Tenant() tenant: TenantContext, @Query(new ZodValidationPipe(icPeopleQuerySchema)) query: z.infer<typeof icPeopleQuerySchema>): Promise<IcSettingsView> {
+    return this.service.settings(tenant, query);
   }
 
   @Put()

@@ -119,7 +119,10 @@ export interface BalanceSheetView {
   totals: { currency: string; cash: string; debt: string; debtLike: string } | null;
   canEdit: boolean;
   /** Documents that may be cited: not purged, and not people data. Files intake filed as balance sheets come first (T-098). */
+  /** The reader's files: those filed as balance sheets, then the first 100 others by name (T-126). */
   documents: { id: string; fileName: string; pageCount: number; category: string | null }[];
+  /** Eligible files on the pact in all, so the reader can say when it shows only some. */
+  documentsTotal: number;
 }
 
 /** Read an uploaded balance sheet for proposals (T-094 B9). */

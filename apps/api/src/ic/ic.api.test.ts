@@ -121,6 +121,12 @@ describe('investment committee (T-118)', () => {
     await icMember('ic');
     expect((await call('analyst', 'PUT', '/v1/organization/ic/members/' + ids['ic'], { member: true })).status).toBe(403);
     expect((await call('lead', 'PUT', '/v1/organization/ic/members/' + ids['ic'], { member: true })).status, 'the synthetic lead is an org owner').toBe(200);
+    // Settings list the committee in full and the rest of the organization a page at a time (T-126).
+    const settings = (await call('lead', 'GET', '/v1/organization/ic?limit=1')).body as { committee: { userId: string }[]; people: { items: unknown[]; total: number; nextCursor: string | null } };
+    expect(settings.committee.map((member) => member.userId)).toContain(ids['ic']);
+    expect(settings.people.items).toHaveLength(1);
+    expect(settings.people.total).toBeGreaterThan(1);
+    expect(settings.people.nextCursor).not.toBeNull();
     expect((await call('analyst', 'POST', deal('/ic/submissions'))).status).toBe(403);
     const submitted = await call('lead', 'POST', deal('/ic/submissions'));
     expect(submitted.status, submitted.text).toBe(201);

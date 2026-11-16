@@ -1,5 +1,7 @@
 import { Body, Controller, Get, HttpCode, Inject, Param, Post, Query } from '@nestjs/common';
 import {
+  pageQuerySchema,
+  type PageQuery,
   anchorInputSchema,
   anchorParamsSchema,
   benchmarkQuerySchema,
@@ -31,8 +33,8 @@ export class ComparablesController {
   constructor(@Inject(ComparablesService) private readonly service: ComparablesService) {}
 
   @Get('comparables')
-  list(@Tenant() tenant: TenantContext, @RequestId() requestId: string) {
-    return this.service.list(tenant, requestId);
+  list(@Tenant() tenant: TenantContext, @RequestId() requestId: string, @Query(new ZodValidationPipe(pageQuerySchema)) query: PageQuery) {
+    return this.service.list(tenant, query, requestId);
   }
 
   @Post('comparables')
