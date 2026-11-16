@@ -1,6 +1,6 @@
 import type { Permission } from '@pactlab/domain';
 
-export type NavIcon = 'home' | 'deals' | 'start' | 'comparables' | 'reports' | 'audit' | 'controls' | 'settings' | 'admin';
+export type NavIcon = 'home' | 'deals' | 'start' | 'comparables' | 'reports' | 'audit' | 'controls' | 'settings' | 'admin' | 'api' | 'claude';
 
 export interface NavItem {
   readonly href: string;
@@ -40,6 +40,14 @@ export const NAV_SECTIONS: readonly NavSection[] = [
     items: [
       { href: '/audit', label: 'Audit log', icon: 'audit', requires: 'AUDIT_READ' },
       { href: '/settings/controls', label: 'Pilot controls', icon: 'controls', requires: 'ORG_ADMIN' },
+    ],
+  },
+  {
+    // Your own scripts and AI apps, as you (T-128): the API and the MCP server for Claude.
+    label: 'Developers',
+    items: [
+      { href: '/developers/api', label: 'API', icon: 'api', membersOnly: true },
+      { href: '/developers/mcp', label: 'Use with Claude', icon: 'claude', membersOnly: true },
     ],
   },
   {

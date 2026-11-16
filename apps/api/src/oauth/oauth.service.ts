@@ -426,6 +426,15 @@ export class OAuthService {
     return this.connectedApps(principal);
   }
 
+  /** The Developers pages (T-128): whether the API and the MCP server are on for the person's organization. */
+  async developerAccess(principal: Principal): Promise<{ apiEnabled: boolean; mcpEnabled: boolean; pactlabSignIn: boolean }> {
+    const organizationId = principal.externalOrganizationId;
+    const pactlabSignIn = principal.issuer === 'PACTLAB' && Boolean(principal.sessionId);
+    if (!organizationId) return { apiEnabled: false, mcpEnabled: false, pactlabSignIn };
+    const [apiEnabled, mcpEnabled] = await Promise.all([oauth.apiEnabled(this.prisma, organizationId), oauth.mcpEnabled(this.prisma, organizationId)]);
+    return { apiEnabled, mcpEnabled, pactlabSignIn };
+  }
+
   // --- API access for organization admins (T-128) ------------------------------------------------
 
   /** Whether API access is on, and every member's API grants, a page at a time. */

@@ -3,7 +3,8 @@ import type { z } from 'zod';
 
 /** Validate request input with the shared contract schemas. */
 export class ZodValidationPipe<TSchema extends z.ZodType> implements PipeTransform<unknown, z.infer<TSchema>> {
-  constructor(private readonly schema: TSchema) {}
+  /** Public so the API reference (T-128) is generated from the very schemas that validate. */
+  constructor(readonly schema: TSchema) {}
 
   transform(value: unknown): z.infer<TSchema> {
     const result = this.schema.safeParse(value ?? {});

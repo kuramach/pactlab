@@ -24,7 +24,7 @@ type FindingParams = { dealId: string; findingId: string };
 export class FindingsController {
   constructor(@Inject(FindingsService) private readonly service: FindingsService) {}
 
-  @ApiAccess()
+  @ApiAccess({ tag: 'Findings', summary: 'List findings', description: 'The pact’s findings register, filtered and paged. Confidential findings appear only when your role may see them.' })
   @Get()
   async list(
     @Tenant() tenant: TenantContext,
@@ -36,7 +36,7 @@ export class FindingsController {
   }
 
   /** Counts across every matching finding, for the charts above the paged list (T-126). */
-  @ApiAccess()
+  @ApiAccess({ tag: 'Findings', summary: 'Finding counts', description: 'Counts by severity, domain and status across every finding matching the same filters.' })
   @Get('summary')
   async summary(
     @Tenant() tenant: TenantContext,
@@ -79,7 +79,7 @@ export class FindingsController {
     return this.service.runPackRules(tenant, params.dealId, requestId);
   }
 
-  @ApiAccess()
+  @ApiAccess({ tag: 'Findings', summary: 'Create a draft finding', description: 'A new DRAFT finding, as you. It still needs review and approval in the app before it counts.' })
   @Post()
   async create(
     @Tenant() tenant: TenantContext,
@@ -90,7 +90,7 @@ export class FindingsController {
     return this.service.create(tenant, params.dealId, body, requestId);
   }
 
-  @ApiAccess()
+  @ApiAccess({ tag: 'Findings', summary: 'Get a finding', description: 'One finding with its evidence links, priced risk and review history.' })
   @Get(':findingId')
   async get(
     @Tenant() tenant: TenantContext,

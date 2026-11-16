@@ -1,3 +1,4 @@
+import { ApiAccess } from '../auth/auth.guard';
 import { Controller, Get, HttpCode, Inject, Param, Post, Query } from '@nestjs/common';
 import { dealParamsSchema } from '@pactlab/contracts';
 import type { TenantContext } from '@pactlab/domain';
@@ -17,6 +18,7 @@ type EvidenceParams = { dealId: string; evidenceId: string };
 export class EvidenceController {
   constructor(@Inject(EvidenceService) private readonly service: EvidenceService) {}
 
+  @ApiAccess({ tag: 'Evidence', summary: 'List evidence', description: 'Normalized evidence on the pact, with its source.' })
   @Get()
   async list(
     @Tenant() tenant: TenantContext,
@@ -27,6 +29,7 @@ export class EvidenceController {
     return this.service.list(tenant, params.dealId, query, requestId);
   }
 
+  @ApiAccess({ tag: 'Evidence', summary: 'Get evidence', description: 'One piece of evidence and its citation.' })
   @Get(':evidenceId')
   async get(
     @Tenant() tenant: TenantContext,
@@ -36,6 +39,7 @@ export class EvidenceController {
     return this.service.get(tenant, params.dealId, params.evidenceId, requestId);
   }
 
+  @ApiAccess({ tag: 'Evidence', summary: 'Evidence lineage', description: 'What this evidence supports: findings, assumptions, scenarios and terms.' })
   @Get(':evidenceId/lineage')
   async lineage(
     @Tenant() tenant: TenantContext,

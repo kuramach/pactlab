@@ -1,3 +1,4 @@
+import { ApiAccess } from '../auth/auth.guard';
 import { Body, Controller, Get, HttpCode, Inject, Param, Post, Put, Res } from '@nestjs/common';
 import { dealParamsSchema } from '@pactlab/contracts';
 import type { TenantContext } from '@pactlab/domain';
@@ -28,6 +29,7 @@ type SubmissionParams = ScenarioParams & { submissionId: string };
 export class ValuationController {
   constructor(@Inject(ValuationService) private readonly service: ValuationService) {}
 
+  @ApiAccess({ tag: 'Valuation', summary: 'List valuation scenarios', description: 'The pact’s valuation scenarios (buyer side only).' })
   @Get()
   async list(
     @Tenant() tenant: TenantContext,
@@ -47,6 +49,7 @@ export class ValuationController {
     return this.service.create(tenant, params.dealId, body, requestId);
   }
 
+  @ApiAccess({ tag: 'Valuation', summary: 'Get a valuation scenario', description: 'One scenario with its assumptions and deterministic results.' })
   @Get(':scenarioId')
   async get(
     @Tenant() tenant: TenantContext,

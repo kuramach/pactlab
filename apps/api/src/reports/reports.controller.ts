@@ -1,3 +1,4 @@
+import { ApiAccess } from '../auth/auth.guard';
 import type { z } from 'zod';
 import { Body, Controller, Get, HttpCode, Inject, Param, Post, Query, Res } from '@nestjs/common';
 import type { TenantContext } from '@pactlab/domain';
@@ -19,6 +20,7 @@ export class ReportsController {
     return this.service.generate(tenant, body.scope, body.dealId ?? null, requestId);
   }
 
+  @ApiAccess({ tag: 'Reports', summary: 'Report history', description: 'Every report version you generated, newest first. Download PDFs in the app.' })
   @Get()
   history(@Tenant() tenant: TenantContext, @Query(new ZodValidationPipe(reportHistoryQuerySchema)) query: z.infer<typeof reportHistoryQuerySchema>) {
     return this.service.history(tenant, query);
