@@ -843,6 +843,7 @@ export class DocumentsService {
       this.packOf(tenant, dealId),
       this.documents.listDocuments(tenant, dealId, { sharedOnly: false }),
       withTenant(this.prisma, tenant, (tx) =>
+        // bounded: one pact's own records of this kind (tens: a checklist, versions, entries, its sources)
         tx.connection.findMany({ where: { dealId, status: 'ACTIVE' }, select: { provider: true } }),
       ),
     ]);
@@ -916,6 +917,7 @@ export class DocumentsService {
   async listRequests(tenant: TenantContext, dealId: string, requestId: string) {
     await this.access.require(tenant, dealId, canReadDocuments, { action: 'document_request.list', requestId });
     const [requests, documents] = await Promise.all([
+      // bounded: one pact's own records of this kind (tens: a checklist, versions, entries, its sources)
       withTenant(this.prisma, tenant, (tx) => tx.documentRequest.findMany({ where: { dealId }, orderBy: { createdAt: 'desc' } })),
       this.documents.listDocuments(tenant, dealId, { sharedOnly: false }),
     ]);

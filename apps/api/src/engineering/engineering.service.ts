@@ -136,12 +136,14 @@ export class EngineeringService {
       const asOfMonth = months[months.length - 1] ?? new Date().toISOString().slice(0, 7);
       const report = engineeringReport({ ...activity, statuses: this.statuses(directory), asOfMonth });
       const access = await this.gate(tx, dealId);
+      // bounded: one pact's own records of this kind (tens: a checklist, versions, entries, its sources)
       const sources = await tx.connection.findMany({
         where: { dealId, provider: { in: ['github', 'jira'] } },
         select: { id: true, provider: true, displayName: true, mode: true },
         orderBy: { createdAt: 'asc' },
       });
       const completeness = await this.completeness(tx, dealId, sources, activity);
+      // bounded: one pact's own records of this kind (tens: a checklist, versions, entries, its sources)
       const keyPersonFindings = await tx.finding.findMany({
         where: { dealId, domain: 'KEY_PERSON' },
         select: { id: true, title: true, status: true, direction: true },

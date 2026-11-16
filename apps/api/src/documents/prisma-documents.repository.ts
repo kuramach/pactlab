@@ -292,6 +292,7 @@ export class PrismaDocumentsRepository implements DocumentsRepository {
   ): Promise<DocumentPageRecord[]> {
     if (documentIds.length === 0) return [];
     const rows = await withTenant(this.prisma, tenant, (tx) =>
+      // whole-set: the pages of the documents an answer reads
       tx.documentPage.findMany({
         where: { dealId, documentId: { in: [...documentIds] } },
         orderBy: [{ documentId: 'asc' }, { pageNumber: 'asc' }],
@@ -443,6 +444,7 @@ export class PrismaDocumentsRepository implements DocumentsRepository {
     return withTenant(this.prisma, tenant, async (tx) => {
       const row = await tx.documentFinding.findFirst({ where: { id: findingId, dealId } });
       if (!row) return null;
+      // bounded: the rows of one record (one finding, one term batch or one listing)
       const reviews = await tx.documentFindingReview.findMany({
         where: { findingId, dealId },
         orderBy: [{ decidedAt: 'asc' }, { id: 'asc' }],
@@ -457,6 +459,7 @@ export class PrismaDocumentsRepository implements DocumentsRepository {
     documentId: string,
   ): Promise<Set<string>> {
     const rows = await withTenant(this.prisma, tenant, (tx) =>
+      // bounded: one pact's own records of this kind (tens: a checklist, versions, entries, its sources)
       tx.documentFinding.findMany({ where: { dealId, documentId }, select: { fingerprint: true } }),
     );
     return new Set(rows.map((row) => row.fingerprint));

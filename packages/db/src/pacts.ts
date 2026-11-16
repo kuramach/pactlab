@@ -37,6 +37,7 @@ const ROLE_ORDER: Record<PartyRole, number> = { BUYER: 0, SELLER: 1 };
 /** The buying and selling entities of a deal. RLS scopes reads; writes need the buyer side. */
 export const dealParties = {
   async list(tx: TransactionClient, dealId: string): Promise<DealPartyRecord[]> {
+    // bounded: one pact's own records of this kind (tens: a checklist, versions, entries, its sources)
     const rows = await tx.dealParty.findMany({ where: { dealId }, select: partySelect });
     return rows.sort((a, b) => ROLE_ORDER[a.role] - ROLE_ORDER[b.role]);
   },
@@ -45,6 +46,7 @@ export const dealParties = {
   async forDeals(tx: TransactionClient, dealIds: readonly string[]): Promise<Map<string, DealPartyRecord[]>> {
     const byDeal = new Map<string, DealPartyRecord[]>();
     if (dealIds.length === 0) return byDeal;
+    // bounded: the ids just above (one page, or the few people and records it names)
     const rows = await tx.dealParty.findMany({
       where: { dealId: { in: [...dealIds] } },
       select: { ...partySelect, dealId: true },

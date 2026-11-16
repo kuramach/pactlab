@@ -26,6 +26,7 @@ export interface ConnectionRecord {
 
 export const connections = {
   async list(tx: TransactionClient, dealId: string): Promise<ConnectionRecord[]> {
+    // bounded: one pact's own records of this kind (tens: a checklist, versions, entries, its sources)
     return tx.connection.findMany({ where: { dealId }, orderBy: { createdAt: 'asc' } });
   },
 
@@ -233,6 +234,7 @@ export const evidence = {
   },
 
   async types(tx: TransactionClient, dealId: string): Promise<string[]> {
+    // bounded: the distinct evidence types, a fixed catalog
     const rows = await tx.evidenceItem.findMany({
       where: { dealId },
       distinct: ['evidenceType'],

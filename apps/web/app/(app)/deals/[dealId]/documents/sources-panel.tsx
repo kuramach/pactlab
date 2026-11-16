@@ -31,6 +31,7 @@ const OUTCOME: Record<SourceSyncFile['outcome'], string> = {
   REMOVED: 'Removed at the source',
   SKIPPED: 'Not a file Pactlab reads',
   REJECTED: 'Refused',
+  WAITING: 'Waiting for the next sync',
 };
 
 const PROVIDERS = [
@@ -55,6 +56,7 @@ export function SourcesPanel({ dealId, sources, aiOn }: { dealId: string; source
   const [syncing, setSyncing] = useState<string | null>(null);
   const [rows, setRows] = useState<Row[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [progress, setProgress] = useState<string | null>(null);
   const [adding, setAdding] = useState(sources.items.length === 0);
 
   const sync = async (sourceId: string) => {
@@ -67,7 +69,16 @@ export function SourcesPanel({ dealId, sources, aiOn }: { dealId: string; source
       setSyncing(null);
       return;
     }
-    const changed = result.files.filter((file) => file.outcome !== 'UNCHANGED');
+    // Large rooms are read across syncs (T-126): say what is left, never stop silently.
+    setProgress(
+      [
+        result.waiting > 0 ? `${result.waiting} more file${result.waiting === 1 ? '' : 's'} to read — sync again to continue (up to 200 are read each time).` : null,
+        result.complete ? null : `This room has more than ${result.listedLimit.toLocaleString('en-US')} files; only the first ${result.listedLimit.toLocaleString('en-US')} are listed, and nothing is marked removed until a sync can list it all.`,
+      ]
+        .filter(Boolean)
+        .join(' ') || null,
+    );
+    const changed = result.files.filter((file) => file.outcome !== 'UNCHANGED' && file.outcome !== 'WAITING');
     setRows(changed.map((file) => ({ path: file.path, outcome: file.outcome })));
     router.refresh();
     if (aiOn) {
@@ -94,7 +105,7 @@ export function SourcesPanel({ dealId, sources, aiOn }: { dealId: string; source
                 </span>
                 <span className="text-xs text-muted-foreground">
                   {source.lastSyncedAt
-                    ? `Last read ${source.lastSyncedAt.slice(0, 16).replace('T', ' ')} UTC${source.lastSyncSummary ? ` — ${source.lastSyncSummary['NEW'] ?? 0} new, ${source.lastSyncSummary['UPDATED'] ?? 0} updated, ${source.lastSyncSummary['REMOVED'] ?? 0} removed` : ''}`
+                    ? `Last read ${source.lastSyncedAt.slice(0, 16).replace('T', ' ')} UTC${source.lastSyncSummary ? ` — ${source.lastSyncSummary['NEW'] ?? 0} new, ${source.lastSyncSummary['UPDATED'] ?? 0} updated, ${source.lastSyncSummary['REMOVED'] ?? 0} removed${(source.lastSyncSummary['WAITING'] ?? 0) > 0 ? `, ${source.lastSyncSummary['WAITING']} still to read (sync again)` : ''}${source.lastSyncSummary['LISTING_COMPLETE'] === 0 ? ' — larger than one listing' : ''}` : ''}`
                     : 'Not read yet'}
                 </span>
               </span>
@@ -107,6 +118,11 @@ export function SourcesPanel({ dealId, sources, aiOn }: { dealId: string; source
       ) : null}
 
       {error ? <p className="text-xs text-red-700">{error}</p> : null}
+      {progress ? (
+        <p role="status" className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+          {progress}
+        </p>
+      ) : null}
 
       {rows.length > 0 ? (
         <ul className="flex flex-col divide-y divide-border rounded-md border border-border" aria-label="What the sync found" aria-live="polite">

@@ -34,9 +34,12 @@ export class DealDeletionService {
 
     const { deal, documents, uploads, reports } = await withTenant(this.prisma, tenant, async (tx) => ({
       deal: await tx.deal.findFirst({ where: { id: dealId }, select: { name: true, status: true } }),
+      // whole-set: deleting a pact must find every file it holds
       documents: await tx.document.findMany({ where: { dealId, status: 'AVAILABLE' }, select: { id: true, objectKey: true, retentionClass: true } }),
+      // whole-set: deleting a pact must find every file it holds
       uploads: await tx.sourceUpload.findMany({ where: { dealId, status: { not: 'PURGED' } }, select: { id: true, objectKey: true } }),
       // Report PDFs on this pact (T-110) hold its data too.
+      // whole-set: deleting a pact must find every file it holds
       reports: await tx.reportVersion.findMany({ where: { dealId, status: 'READY' }, select: { objectKey: true } }),
     }));
     if (!deal || deal.status === 'DELETED') throw new NotFoundException();

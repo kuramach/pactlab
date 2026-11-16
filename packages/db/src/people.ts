@@ -68,6 +68,7 @@ export const contributorDirectory = {
 /** The per-deal names gate. Append-only; the newest decision applies. */
 export const peopleAccess = {
   async history(tx: TransactionClient, dealId: string): Promise<PeopleAccessRecord[]> {
+    // bounded: one pact's own records of this kind (tens: a checklist, versions, entries, its sources)
     return tx.peopleAccess.findMany({
       where: { dealId },
       select: { id: true, enabled: true, basis: true, decidedBy: true, decidedAt: true },

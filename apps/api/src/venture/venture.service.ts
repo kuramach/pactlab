@@ -101,6 +101,7 @@ export class VentureService {
     const role = await this.access.require(tenant, dealId, canRead, { action: 'venture.offers_viewed', requestId });
     return withTenant(this.prisma, tenant, async (tx) => {
       await this.requireVenturePact(tx, dealId);
+      // bounded: one pact's own records of this kind (tens: a checklist, versions, entries, its sources)
       const rows = await tx.ventureOffer.findMany({ where: { dealId }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] });
       return { items: rows.map(offerView), canEdit: canWrite(role) };
     });
@@ -160,6 +161,7 @@ export class VentureService {
     await this.access.require(tenant, dealId, canRead, { action: 'venture.readiness_viewed', requestId });
     return withTenant(this.prisma, tenant, async (tx) => {
       await this.requireVenturePact(tx, dealId);
+      // bounded: one pact's own records of this kind (tens: a checklist, versions, entries, its sources)
       const offers = await tx.ventureOffer.findMany({ where: { dealId, status: { in: [...ACTIVE] } }, select: { counterpartyType: true } });
       const counterparty = requested ?? strictestCounterparty(offers.map((offer) => offer.counterpartyType as CounterpartyType));
       return readinessOf(counterparty, await this.held(tx, dealId));
@@ -167,10 +169,12 @@ export class VentureService {
   }
 
   private async held(tx: TransactionClient, dealId: string) {
+    // bounded: the distinct evidence types, a fixed catalog
     const types = await tx.evidenceItem.findMany({ where: { dealId }, distinct: ['evidenceType'], select: { evidenceType: true } });
     const present = new Set(types.map((row) => row.evidenceType));
     const importTargets = Object.values(IMPORT_TARGET_DEFINITIONS).filter((definition) => present.has(definition.evidenceType)).map((definition) => definition.target);
     const documents = await tx.document.findMany({ where: { dealId, status: 'AVAILABLE' }, select: { fileName: true }, orderBy: { fileName: 'asc' } });
+    // bounded: one pact's own records of this kind (tens: a checklist, versions, entries, its sources)
     const connections = await tx.connection.findMany({ where: { dealId, status: 'ACTIVE' }, select: { provider: true } });
     return { importTargets, documentNames: documents.map((document) => document.fileName), connectionProviders: [...new Set(connections.map((connection) => connection.provider))] };
   }
@@ -215,6 +219,7 @@ export class VentureService {
     return withTenant(this.prisma, tenant, async (tx) => {
       await this.requireVenturePact(tx, dealId);
       const settings = await tx.ventureRaiseSettings.findFirst({ where: { dealId } });
+      // bounded: one pact's own records of this kind (tens: a checklist, versions, entries, its sources)
       const offers = await tx.ventureOffer.findMany({ where: { dealId, status: { not: 'DECLINED' } }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] });
       // Without a cap table there is nothing to convert: each offer says so instead of failing the page.
       const rows = capTableOf(await loadPackEvidence(tx, dealId, [CAP_TABLE]));
@@ -260,6 +265,7 @@ export class VentureService {
       const settings = await tx.ventureRaiseSettings.findFirst({ where: { dealId } });
       const offer = offerId ? await tx.ventureOffer.findFirst({ where: { id: offerId, dealId } }) : null;
       if (offerId && !offer) throw new NotFoundException();
+      // bounded: one pact's own records of this kind (tens: a checklist, versions, entries, its sources)
       const claims = await tx.dealClaim.findMany({ where: { dealId, status: 'VERIFIED' }, select: { statement: true, evidenceItemIds: true }, orderBy: { createdAt: 'asc' } });
       const evidence = await loadPackEvidence(tx, dealId, ['billing.invoice_line', CAP_TABLE]);
       const billed = billedMrr(evidence);

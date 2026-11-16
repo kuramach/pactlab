@@ -90,6 +90,7 @@ export class BalanceSheetService {
       });
       if (!document) throw new NotFoundException();
       const [pages, items] = await Promise.all([
+        // whole-set: reading one document means every page of it
         tx.documentPage.findMany({ where: { dealId, documentId }, select: { pageNumber: true, text: true }, orderBy: { pageNumber: 'asc' } }),
         balanceSheetItems.list(tx, dealId),
       ]);
@@ -115,10 +116,12 @@ export class BalanceSheetService {
       ]);
       // Files intake has filed as balance sheets (T-098) come first, so the reader opens on one.
       documents.sort((a, b) => Number(b.category === 'BALANCE_SHEET') - Number(a.category === 'BALANCE_SHEET'));
+      // bounded: the ids just above (one page, or the few people and records it names)
       const pages = await tx.documentPage.findMany({
         where: { dealId, OR: items.map((item) => ({ documentId: item.citation.documentId, pageNumber: item.citation.pageNumber })) },
         select: { documentId: true, pageNumber: true, text: true, document: { select: { fileName: true } } },
       });
+      // bounded: the ids just above (one page, or the few people and records it names)
       const users = await tx.user.findMany({
         where: { id: { in: [...new Set([...items.map((item) => item.updatedBy), ...history.map((entry) => entry.changedBy)])] } },
         select: { id: true, displayName: true },

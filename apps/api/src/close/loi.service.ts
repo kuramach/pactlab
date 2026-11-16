@@ -41,6 +41,7 @@ export class LoiService {
 
   /** A sent letter past its answer date, not countersigned, has expired. */
   private async expire(tx: TransactionClient, tenant: TenantContext, dealId: string, requestId: string) {
+    // bounded: one pact's own records of this kind (tens: a checklist, versions, entries, its sources)
     const stale = await tx.loiVersion.findMany({ where: { dealId, status: 'SENT', respondBy: { lt: new Date() } }, select: { id: true } });
     for (const row of stale) {
       await tx.loiVersion.update({ where: { id: row.id }, data: { status: 'EXPIRED' } });
@@ -51,6 +52,7 @@ export class LoiService {
   private async inputs(tx: TransactionClient, dealId: string, batchId: string, fields: LoiFields) {
     const [deal, parties, batch] = await Promise.all([
       tx.deal.findUnique({ where: { id: dealId }, select: { name: true } }),
+      // bounded: one pact's own records of this kind (tens: a checklist, versions, entries, its sources)
       tx.dealParty.findMany({ where: { dealId }, select: { role: true, name: true } }),
       tx.termProposalBatch.findFirst({ where: { id: batchId, dealId }, include: { terms: { orderBy: { ordinal: 'asc' } } } }),
     ]);
@@ -69,6 +71,7 @@ export class LoiService {
 
   private async names(tx: TransactionClient, ids: readonly (string | null | undefined)[]) {
     const wanted = [...new Set(ids.filter((id): id is string => Boolean(id)))];
+    // bounded: the ids just above (one page, or the few people and records it names)
     return new Map((await tx.user.findMany({ where: { id: { in: wanted } }, select: { id: true, displayName: true } })).map((user) => [user.id, user.displayName]));
   }
 
@@ -79,6 +82,7 @@ export class LoiService {
       await this.expire(tx, tenant, dealId, requestId);
       const [deal, versions, agreed, buyer, seller] = await Promise.all([
         tx.deal.findUnique({ where: { id: dealId }, select: { loiRequired: true } }),
+        // bounded: one pact's own records of this kind (tens: a checklist, versions, entries, its sources)
         tx.loiVersion.findMany({ where: { dealId }, orderBy: { version: 'desc' }, include: { signoffs: true } }),
         this.close.agreedBatch(tx, dealId),
         this.close.signatory(tx, dealId, 'BUYER'),
@@ -168,6 +172,7 @@ export class LoiService {
       const content = loiContent(await this.inputs(tx, dealId, row.batchId, fields));
       const [buyer, seller] = [await this.close.signatory(tx, dealId, 'BUYER'), await this.close.signatory(tx, dealId, 'SELLER')];
       if (content.unfilled.length > 0 || !buyer || !seller) throw new UnprocessableEntityException({ code: 'LOI_INCOMPLETE' });
+      // bounded: the ids just above (one page, or the few people and records it names)
       const people = new Map((await tx.user.findMany({ where: { id: { in: [buyer.userId, seller.userId] } }, select: { id: true, displayName: true, email: true } })).map((user) => [user.id, user]));
       const sentAt = new Date();
       const pdf = await loiPdf(content, { version: row.version, issuedAt: sentAt.toISOString(), signatories: { buyer: people.get(buyer.userId)?.displayName ?? 'Buyer signatory', seller: people.get(seller.userId)?.displayName ?? 'Seller signatory' }, brand });

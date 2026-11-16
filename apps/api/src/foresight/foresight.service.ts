@@ -213,9 +213,11 @@ export class ForesightService {
       const start = await this.startValue(tx, dealId);
       const lines: ForesightLineView[] = [];
       if (set) {
+        // bounded: one pact's own records of this kind (tens: a checklist, versions, entries, its sources)
         const trends = await tx.foresightTrend.findMany({ where: { dealId, trendSetId: set.id }, orderBy: { ordinal: 'asc' } });
         const baseline = this.baselineLine(set, trends);
         lines.push({ ...baseline, projection: this.project(baseline, start) });
+        // bounded: one pact's own records of this kind (tens: a checklist, versions, entries, its sources)
         const scenarios = await tx.foresightScenario.findMany({ where: { dealId, trendSetId: set.id }, orderBy: { createdAt: 'asc' } });
         for (const scenario of scenarios) {
           const line = this.scenarioLine(baseline, scenario);
@@ -224,6 +226,7 @@ export class ForesightService {
       }
       // One posture record (T-091): the cited enforcement-climate entries behind the government-posture trend. Buyer-side by RLS.
       const posture = postureView(
+        // bounded: one pact's own records of this kind (tens: a checklist, versions, entries, its sources)
         (await tx.regulatoryEntry.findMany({ where: { dealId, kind: 'POSTURE' }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] })).map((row) => ({
           id: row.id,
           payload: row.payload,
@@ -236,9 +239,11 @@ export class ForesightService {
       const deal = await tx.deal.findFirst({ where: { id: dealId }, select: { baseCurrency: true } });
       const [baselineRow, rows] = await Promise.all([
         tx.foresightBaseline.findFirst({ where: { dealId } }),
+        // bounded: one pact's own records of this kind (tens: a checklist, versions, entries, its sources)
         tx.foresightForecast.findMany({ where: { dealId }, orderBy: [{ metricKey: 'asc' }, { version: 'desc' }] }),
       ]);
       const authors = [...new Set(rows.map((row) => row.createdBy).filter((id): id is string => id !== null))];
+      // bounded: the ids just above (one page, or the few people and records it names)
       const users = authors.length ? await tx.user.findMany({ where: { id: { in: authors } }, select: { id: true, displayName: true } }) : [];
       const forecasts = forecastsView({
         pack,
@@ -521,6 +526,7 @@ export class ForesightService {
 
   /** The deal team's own metrics on this pact, oldest first, archived ones left out. */
   private async customMetrics(tx: TransactionClient, dealId: string): Promise<CustomForesightMetric[]> {
+    // bounded: one pact's own records of this kind (tens: a checklist, versions, entries, its sources)
     const rows = await tx.foresightCustomMetric.findMany({ where: { dealId, archivedAt: null }, orderBy: { createdAt: 'asc' } });
     return rows.map((row) => ({ key: row.metricKey, label: row.label, definition: row.definition, neutral: row.neutral.toFixed(), effect: row.effect as CustomForesightMetric['effect'] }));
   }
@@ -529,6 +535,7 @@ export class ForesightService {
   async defineMetric(tenant: TenantContext, dealId: string, input: ForesightCustomMetricInput, requestId: string): Promise<ForesightView> {
     await this.access.require(tenant, dealId, canWrite, { action: 'foresight.metric_defined', requestId });
     await withTenant(this.prisma, tenant, async (tx) => {
+      // bounded: one pact's own records of this kind (tens: a checklist, versions, entries, its sources)
       const taken = new Set((await tx.foresightCustomMetric.findMany({ where: { dealId }, select: { metricKey: true } })).map((row) => row.metricKey));
       const base = customMetricKey(input.label);
       let metricKey = base;
@@ -621,6 +628,7 @@ export class ForesightService {
   }
 
   private async validateOverrides(tx: TransactionClient, dealId: string, trendSetId: string, input: ForesightScenarioInput) {
+    // bounded: one pact's own records of this kind (tens: a checklist, versions, entries, its sources)
     const keys = new Set((await tx.foresightTrend.findMany({ where: { dealId, trendSetId }, select: { key: true } })).map((trend) => trend.key));
     if (Object.keys(input.overrides).some((key) => !keys.has(key))) throw new UnprocessableEntityException({ code: 'UNKNOWN_TREND' });
     if (new Set(input.customTrends.map((trend) => trend.key)).size !== input.customTrends.length) throw new UnprocessableEntityException({ code: 'DUPLICATE_TREND' });

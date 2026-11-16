@@ -27,6 +27,7 @@ async function priceFor(tx: TransactionClient, dealId: string, bidId: string | n
 
 type PlanRow = NonNullable<Awaited<ReturnType<typeof loadRows>>>[number];
 function loadRows(tx: TransactionClient, dealId: string, where: { bidId?: string | null } = {}) {
+  // bounded: one plan per buyer (one pact, or each bidder of one sale)
   return tx.financingPlan.findMany({
     where: { dealId, ...(where.bidId !== undefined ? { bidId: where.bidId } : {}) },
     include: { tranches: { orderBy: { ordinal: 'asc' } }, escrow: true, documents: { orderBy: { uploadedAt: 'asc' } } },
@@ -110,6 +111,7 @@ export async function financingPlans(tx: TransactionClient, dealId: string, read
     return [await toView(tx, row ?? null, reader, { dealId, bidId: target, firmName: firm?.firmName ?? null })];
   }
   // A seller-led pact, read by the seller: one plan per bid, including bids with none yet.
+  // bounded: one pact's own records of this kind (tens: a checklist, versions, entries, its sources)
   const [rows, bids] = await Promise.all([loadRows(tx, dealId), tx.bid.findMany({ where: { dealId }, orderBy: { createdAt: 'asc' }, select: { id: true, firmName: true, status: true } })]);
   return Promise.all(bids.filter((bid) => bid.status !== 'DECLINED').map((bid) => toView(tx, rows.find((row) => row.bidId === bid.id) ?? null, 'SELLER', { dealId, bidId: bid.id, firmName: bid.firmName })));
 }

@@ -434,6 +434,7 @@ export class PricingService {
     await withTenant(this.prisma, tenant, async (tx) => {
       const batch = await this.draft(tx, dealId, batchId);
       if (batch.initiatedBySide !== 'BUYER') throw new NotFoundException();
+      // bounded: the rows of one record (one finding, one term batch or one listing)
       const terms = await tx.termProposal.findMany({ where: { batchId }, select: { ordinal: true, lever: true } });
       if (terms.some((term) => term.lever === 'FINANCING_CONTINGENCY')) throw new ConflictException('This version already has a financing contingency');
       await tx.termProposal.create({
@@ -461,6 +462,7 @@ export class PricingService {
       const batch = await tx.termProposalBatch.findFirst({ where: { dealId, proposedAt: null, initiatedBySide: 'BUYER' }, orderBy: { version: 'desc' } });
       if (!batch) throw new ConflictException({ code: 'NO_DRAFT_TERMS' });
       if (batch.currency !== priced.currency) throw new UnprocessableEntityException({ code: 'CURRENCY_MISMATCH' });
+      // bounded: the rows of one record (one finding, one term batch or one listing)
       const terms = await tx.termProposal.findMany({ where: { batchId: batch.id }, select: { ordinal: true, findingId: true } });
       if (terms.some((term) => term.findingId === finding.id)) throw new ConflictException({ code: 'ALREADY_ON_TERMS' });
       const amount = adjustmentAmount({ findingId: finding.id, findingVersion: finding.version, type: priced.type, currency: priced.currency, low: priced.low, high: priced.high, point: 'MID', basis: priced.basis });
@@ -578,6 +580,7 @@ export class PricingService {
         })),
       });
       await this.audit(tx, tenant, dealId, 'terms.responded', 'term_proposal_batch', batch.id, requestId);
+      // bounded: the rows of one record (one finding, one term batch or one listing)
       const all = await tx.termResponse.findMany({ where: { batchId: batch.id } });
       const latest = latestResponses(all);
       if (batch.terms.every((term) => latest.get(term.ordinal)?.decision === 'ACCEPT')) {

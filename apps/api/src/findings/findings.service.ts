@@ -273,6 +273,7 @@ export class FindingsService {
     // A reviewer who accepted the claim may bring it in, as may anyone who drafts findings.
     await this.access.require(tenant, dealId, (role) => canDraftFindings(role) || canReviewFindings(role), { action: 'finding.from_document_review', requestId });
     const accepted = await withTenant(this.prisma, tenant, (tx) =>
+      // whole-set: the calculation reads every accepted finding of the pact
       tx.documentFinding.findMany({
         where: { dealId, status: 'ACCEPTED' },
         orderBy: { createdAt: 'asc' },
@@ -317,6 +318,7 @@ export class FindingsService {
   async pendingFromDocumentReview(tenant: TenantContext, dealId: string, requestId: string): Promise<{ pending: number }> {
     await this.access.require(tenant, dealId, canReadFindings, { action: 'finding.list', requestId });
     return withTenant(this.prisma, tenant, async (tx) => {
+      // whole-set: the calculation reads every accepted finding of the pact
       const accepted = await tx.documentFinding.findMany({ where: { dealId, status: 'ACCEPTED' }, select: { id: true } });
       if (accepted.length === 0) return { pending: 0 };
       const present = await tx.finding.count({ where: { dealId, fingerprint: { in: accepted.map((row) => documentReviewFingerprint(row.id)) } } });
@@ -346,6 +348,7 @@ export class FindingsService {
       // Pages only for rules that read documents, only from readable classes (never HR, pay or performance).
       const readsDocuments = pack.findingRules.some((id) => findingRule(id, this.packs.rules).readsDocuments);
       const pageRows = readsDocuments
+        // whole-set: pack rules read every eligible page of the pact
         ? await tx.documentPage.findMany({
             where: { dealId, text: { not: null }, document: { status: 'AVAILABLE', dataClass: { in: [...RULE_READABLE_CLASSES] } } },
             select: { documentId: true, pageNumber: true, text: true, document: { select: { fileName: true, dataClass: true } } },
