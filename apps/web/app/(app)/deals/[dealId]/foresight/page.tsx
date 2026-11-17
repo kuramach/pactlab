@@ -29,6 +29,7 @@ const OUTCOMES: Record<string, string> = {
   'error-AI_DECLINED': 'The AI could not forecast this metric. Set your own line instead.',
   'ok-metric-archived': 'Metric removed from this pact.',
   'ok-scenario': 'Scenario saved and projected.',
+  'error-NO_APPROVED_MODEL': 'Your organization is limited to chosen AI models, and none of them covers Foresight. Ask Pactlab to add one.',
   'error-AI_OFF': 'AI is not switched on for this environment yet, so no baseline can be generated. Scenarios need a baseline.',
   'error-AI_ACCESS': 'AI is unavailable: the AWS sign-in for this environment has expired. An operator needs to sign in again.',
   'error-AI_UNAVAILABLE': 'The model call failed. Try again in a moment.',

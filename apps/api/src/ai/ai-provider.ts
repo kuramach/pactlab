@@ -20,6 +20,8 @@ import { appendFileSync, mkdirSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { dirname } from 'node:path';
 import { ScriptedModelTransport, type ModelRequest, type ModelResponse } from '@pactlab/ai';
+import type { PrismaClient } from '@pactlab/db';
+import { ModelRouteResolver, modelEvaluator, type ModelEvaluator } from './model-routes';
 import { demoModelResponse } from '../demo-seed/seed';
 
 /** What the app may say about its model provider: no credentials, no account details. */
@@ -120,23 +122,51 @@ export class LoggedFixtureTransport implements ModelTransport {
  * scripts (tests); anything else fails closed with NOT_CONFIGURED, after the
  * data policy check. The bedrock path also returns a boot health check.
  */
-export async function createAiGateway(env: ApiEnv): Promise<{ gateway: ClaudeGateway; status: AiStatusView; check: () => Promise<AiHealth | null> }> {
+/** The admin console's model management (T-131): who resolves routes, how a model is evaluated, which providers can serve. */
+export interface AiModelsRuntime {
+  readonly resolver: ModelRouteResolver;
+  readonly evaluate: ModelEvaluator;
+  readonly providers: readonly ('bedrock' | 'openai' | 'google' | 'fixture')[];
+}
+
+export async function createAiGateway(
+  env: ApiEnv,
+  prisma?: PrismaClient,
+): Promise<{ gateway: ClaudeGateway; status: AiStatusView; check: () => Promise<AiHealth | null>; models: AiModelsRuntime | null }> {
   // Local and test runs only (the config refuses it anywhere else): AI on, with no model behind it.
   if (env.AI_PROVIDER === 'fixture') {
+    const resolver = prisma ? new ModelRouteResolver(prisma, FIXTURE_ROUTES) : null;
+    if (resolver) await resolver.adopt('fixture');
     return {
-      gateway: new TransportClaudeGateway({ transport: new LoggedFixtureTransport(env.AI_FIXTURE_LOG ?? null), registry: defaultPromptRegistry(), routes: FIXTURE_ROUTES }),
+      gateway: new TransportClaudeGateway({
+        transport: new LoggedFixtureTransport(env.AI_FIXTURE_LOG ?? null),
+        registry: defaultPromptRegistry(),
+        routes: FIXTURE_ROUTES,
+        ...(resolver ? { routeFor: (organizationId: string, alias: ModelAlias) => resolver.routeFor(organizationId, alias) } : {}),
+      }),
       status: describeRoutes('synthetic', null, FIXTURE_ROUTES),
       check: async () => null,
+      models: resolver ? { resolver, evaluate: modelEvaluator(null, FIXTURE_ROUTES), providers: ['fixture'] } : null,
     };
   }
-  if (env.AI_PROVIDER !== 'bedrock' || !env.AWS_REGION) return { gateway: new NotConfiguredClaudeGateway(), status: AI_OFF, check: async () => null };
+  if (env.AI_PROVIDER !== 'bedrock' || !env.AWS_REGION) return { gateway: new NotConfiguredClaudeGateway(), status: AI_OFF, check: async () => null, models: null };
   const routes = routesFrom(env);
   const bedrock = new BedrockModelTransport({ send: await bedrockConverseSender(env.AWS_REGION) });
   const transport = new ResilientModelTransport({ transport: bedrock, breaker: new CircuitBreaker() });
+  // The catalog (T-131): the deployment's configured models are adopted into an empty catalog, so nothing changes on deploy.
+  const resolver = prisma ? new ModelRouteResolver(prisma, routes) : null;
+  if (resolver) await resolver.adopt('bedrock');
   return {
-    gateway: new TransportClaudeGateway({ transport, registry: defaultPromptRegistry(), routes }),
+    gateway: new TransportClaudeGateway({
+      transport,
+      registry: defaultPromptRegistry(),
+      routes,
+      ...(resolver ? { routeFor: (organizationId: string, alias: ModelAlias) => resolver.routeFor(organizationId, alias) } : {}),
+    }),
     status: describeRoutes('bedrock', env.AWS_REGION, routes),
     // The bare transport: a boot check must not count against the breaker.
     check: () => checkAiHealth(bedrock, routes),
+    // Evaluations go through the bare transport too: a model under test must not trip the breaker for live traffic.
+    models: resolver ? { resolver, evaluate: modelEvaluator(bedrock, routes), providers: ['bedrock'] } : null,
   };
 }

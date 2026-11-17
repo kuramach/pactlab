@@ -13,9 +13,14 @@ export const DEFAULT_MODEL_ALIAS: ModelAlias = 'balanced';
 
 export type ReasoningEffort = 'low' | 'medium' | 'high';
 
+/** Where a model runs (T-131). Bedrock is the default; other clouds per ADR 0029. */
+export type ModelProvider = 'bedrock' | 'openai' | 'google' | 'fixture';
+
 export interface ModelRoute {
-  /** Amazon Bedrock model ID. */
+  /** The provider's model ID (an Amazon Bedrock model or inference profile unless `provider` says otherwise). */
   readonly modelId: string;
+  /** Where the model runs; Bedrock when absent. */
+  readonly provider?: ModelProvider;
   readonly effort: ReasoningEffort;
   /**
    * Another Claude inference profile to try after a transient failure (T-096):

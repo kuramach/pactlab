@@ -6,7 +6,7 @@ import type { PrismaClient } from '@pactlab/db';
 import type { Logger } from '@pactlab/observability';
 import { AuditModule } from './audit/audit.module';
 import { AuthGuard } from './auth/auth.guard';
-import { AI_OFF, type AiStatusView } from './ai/ai-provider';
+import { AI_OFF, type AiStatusView, type AiModelsRuntime } from './ai/ai-provider';
 import { AiModule } from './ai/ai.module';
 import { BalanceSheetModule } from './balance-sheet/balance-sheet.module';
 import { PhasesModule } from './phases/phases.module';
@@ -78,6 +78,8 @@ export interface AppDependencies {
   documents?: Partial<Omit<DocumentsModuleDependencies, 'repository'>>;
   /** What `GET /v1/ai/status` reports; describes `documents.gateway`. Omitted: AI off. */
   aiStatus?: AiStatusView;
+  /** AI models in the admin console (T-131): the route resolver and evaluator; null where AI is off. */
+  aiModels?: AiModelsRuntime | null;
   /**
    * Live provider access: credential store, Pactlab's GitHub App, HTTP client.
    * Omitted: no stored credentials and no App, so live connections fail closed.
@@ -246,7 +248,7 @@ export class AppModule {
           // The pactlab:environment tag the stacks carry: APP_ENV, except production is "prod".
           environment: deps.environment === 'production' ? 'prod' : (deps.environment ?? 'local'),
           ...(deps.hostingCost?.now ? { now: deps.hostingCost.now } : {}),
-        }),
+        }, deps.aiModels ?? null),
         EngineeringModule,
         AuditModule,
         OrganizationModule,

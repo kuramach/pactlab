@@ -155,6 +155,7 @@ export default async function DocumentsPage({
           'ai-throttled': AI_UNAVAILABLE['ai-throttled'],
           'ai-delayed': AI_UNAVAILABLE['ai-delayed'],
           'ai-failed': AI_UNAVAILABLE['ai-failed'],
+          'ai-not-approved': AI_UNAVAILABLE['ai-not-approved'],
           'ok-drafted': `AI extraction finished: ${drafted ?? 0} new cited draft(s) in the review queue.` }}
       />
 

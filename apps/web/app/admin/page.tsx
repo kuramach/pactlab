@@ -7,6 +7,7 @@ import type { Page } from '@pactlab/contracts';
 import { ApiState } from '../(app)/deals/_lib/states';
 import { DemoLinks, DemoShareForm } from './demo-share';
 import { endDemoShare, resetDemoSlot } from './demo-actions';
+import { AiModels } from './ai-models';
 import { HostingCost } from './hosting-cost';
 import { compPact, createPromoCode, deactivatePromoCode, decideOrganization, resyncBilling, setMemberStatus, setOrganizationFlags, setOrganizationStatus, setOrganizationMcp } from './actions';
 import type { AdminBillingAccountView, PromoCodeView } from '@pactlab/contracts';
@@ -24,6 +25,7 @@ const TABS = [
   ['promo', 'Promo codes'],
   ['demos', 'Demos'],
   ['cost', 'Hosting cost'],
+  ['models', 'AI models'],
 ] as const;
 type Tab = (typeof TABS)[number][0];
 
@@ -49,6 +51,18 @@ const OUTCOMES: Record<string, string> = {
   conflict: 'That demo is shared right now; end the share first.',
   forbidden: 'That action is refused (operators cannot deactivate themselves).',
   invalid: 'That request was not valid.',
+  'ok-ai-added': 'Model added. Run its evaluation; it can serve only once it passes.',
+  'ok-ai-evaluating': 'Evaluation started. It takes a few minutes; refresh to see the result.',
+  'ok-ai-retired': 'Model retired. Organizations that used it fall back to their other models or the defaults.',
+  'ok-ai-route': 'Platform default saved. It applies within a minute.',
+  'ok-ai-org': 'Saved for this organization. It applies within a minute.',
+  'ai-model-exists': 'That model is already in the catalog.',
+  'ai-provider-not-available': 'This environment cannot call that provider yet.',
+  'ai-not-evaluated': 'Only evaluated models can be chosen.',
+  'ai-route-not-allowed': 'A role’s model must be one of the organization’s allowed models.',
+  'ai-model-in-use': 'That model is a platform default. Choose another default first.',
+  'ai-evaluation-not-started': 'An evaluation is already running for that model.',
+  'ai-ai-off': 'AI is off in this environment.',
 };
 
 interface Pending { slug: string; name: string; ssoRequested: boolean; createdAt: string; owners: string }
@@ -102,6 +116,12 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
           to={typeof search['to'] === 'string' ? search['to'] : ''}
           environment={typeof search['env'] === 'string' && /^[a-z0-9-]{1,100}$/.test(search['env']) ? search['env'] : ''}
           search={search}
+        />
+      ) : null}
+      {tab === 'models' ? (
+        <AiModels
+          organizationId={typeof search['aiorg'] === 'string' && /^[0-9a-f-]{36}$/i.test(search['aiorg']) ? search['aiorg'] : ''}
+          organizationQuery={typeof search['aiq'] === 'string' ? search['aiq'].trim().slice(0, 120) : ''}
         />
       ) : null}
       {tab === 'bugs' ? <Bugs status={typeof search['status'] === 'string' ? search['status'] : ''} severity={typeof search['severity'] === 'string' ? search['severity'] : ''} search={search} /> : null}

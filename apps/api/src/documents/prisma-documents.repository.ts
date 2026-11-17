@@ -145,6 +145,7 @@ function createAiRun(tx: Prisma.TransactionClient, run: AiRunRecord) {
       promptHash: run.promptHash,
       modelAlias: run.modelAlias,
       resolvedModelId: run.resolvedModelId,
+      resolvedProvider: run.resolvedProvider,
       inputHashes: [...run.inputHashes],
       outputHash: run.outputHash,
       status: run.status,

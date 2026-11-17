@@ -500,6 +500,8 @@ model Organization {
   bugReports               BugReport[]
 
   oauthGrants OAuthGrant[]
+  aiModels    OrganizationAiModel[]
+  aiRoutes    OrganizationAiRoute[]
 
   @@map("organizations")
 }
@@ -1308,6 +1310,8 @@ model AiRun {
   promptHash       String      @map("prompt_hash")
   modelAlias       String      @map("model_alias")
   resolvedModelId  String      @map("resolved_model_id")
+  /// Which provider answered (T-131): bedrock, openai, google or fixture.
+  resolvedProvider String      @default("bedrock") @map("resolved_provider")
   inputHashes      String[]    @map("input_hashes")
   outputHash       String?     @map("output_hash")
   status           AiRunStatus
@@ -3263,4 +3267,66 @@ model CostRate {
 
   @@unique([kind, key, effectiveFrom], map: "cost_rates_key")
   @@map("cost_rates")
+}
+
+/// AI models managed in the admin console (T-131): only EVALUATED models serve.
+model AiModel {
+  id              String    @id @default(uuid(7)) @db.Uuid
+  provider        String
+  providerModelId String    @map("provider_model_id")
+  label           String
+  status          String    @default("ADDED")
+  evaluation      Json?
+  evaluatingSince DateTime? @map("evaluating_since") @db.Timestamptz(3)
+  createdBy       String?   @map("created_by") @db.Uuid
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime  @default(now()) @map("updated_at") @db.Timestamptz(3)
+
+  platformRoutes     AiPlatformRoute[]
+  organizationModels OrganizationAiModel[]
+  organizationRoutes OrganizationAiRoute[]
+
+  @@unique([provider, providerModelId], map: "ai_models_provider_model_key")
+  @@map("ai_models")
+}
+
+/// The platform default model per alias (fast, balanced, deep_review).
+model AiPlatformRoute {
+  alias     String   @id
+  modelId   String   @map("model_id") @db.Uuid
+  updatedBy String?  @map("updated_by") @db.Uuid
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(3)
+
+  model AiModel @relation(fields: [modelId], references: [id], onDelete: Restrict, map: "ai_platform_routes_model_fkey")
+
+  @@map("ai_platform_routes")
+}
+
+/// An organization's allow-list of models (empty: the platform defaults).
+model OrganizationAiModel {
+  organizationId String   @map("organization_id") @db.Uuid
+  modelId        String   @map("model_id") @db.Uuid
+  createdBy      String?  @map("created_by") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, map: "organization_ai_models_org_fkey")
+  model        AiModel      @relation(fields: [modelId], references: [id], onDelete: Restrict, map: "organization_ai_models_model_fkey")
+
+  @@id([organizationId, modelId])
+  @@map("organization_ai_models")
+}
+
+/// An organization's own model per alias.
+model OrganizationAiRoute {
+  organizationId String   @map("organization_id") @db.Uuid
+  alias          String
+  modelId        String   @map("model_id") @db.Uuid
+  updatedBy      String?  @map("updated_by") @db.Uuid
+  updatedAt      DateTime @default(now()) @map("updated_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, map: "organization_ai_routes_org_fkey")
+  model        AiModel      @relation(fields: [modelId], references: [id], onDelete: Restrict, map: "organization_ai_routes_model_fkey")
+
+  @@id([organizationId, alias])
+  @@map("organization_ai_routes")
 }
