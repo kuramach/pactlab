@@ -3331,7 +3331,7 @@ model OrganizationAiRoute {
   @@map("organization_ai_routes")
 }
 
-/// Data terms of an AI provider outside AWS (T-131, ADR 0029): its models serve only when both are true.
+/// Data terms of an AI provider outside AWS (T-131, ADR 0034): its models serve only when both are true.
 model AiProviderTerms {
   provider      String   @id
   dpaInPlace    Boolean  @map("dpa_in_place")

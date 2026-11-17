@@ -143,7 +143,7 @@ describe('AI models in the admin console', { timeout: 60_000 }, () => {
     expect(transport.requests[0]).toMatchObject({ modelId: 'synthetic-fixture', provider: 'fixture' });
   });
 
-  it('another cloud (ADR 0029): no evaluation and no serving until its data terms are on record; withdrawn terms stop it at once', async () => {
+  it('another cloud (ADR 0034): no evaluation and no serving until its data terms are on record; withdrawn terms stop it at once', async () => {
     const added = await call('operator', 'POST', '/v1/admin/ai-models', { provider: 'openai', providerModelId: 'gpt-synthetic', label: 'GPT (synthetic)' });
     const id = added.body['id'] as string;
     // No terms: not even synthetic test material is sent.

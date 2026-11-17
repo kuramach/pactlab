@@ -54,9 +54,9 @@ export class AiModelsService {
       const models = await aiModels.list(this.sql, tenant.userId);
       const terms = await aiModels.providerTerms(this.sql, tenant.userId);
       return {
-        // Data terms of providers outside AWS (ADR 0029): their models serve only when both are recorded.
+        // Data terms of providers outside AWS (ADR 0034): their models serve only when both are recorded.
         terms: terms.map((entry) => ({ ...entry, recordedAt: entry.recordedAt.toISOString(), cleared: entry.dpaInPlace && entry.zeroRetention })),
-        // Which providers this deployment can call; others arrive with their transports (ADR 0029).
+        // Which providers this deployment can call; others arrive with their transports (ADR 0034).
         providers: this.runtime?.providers ?? [],
         aiOn: this.runtime !== null,
         models: models.map((model) => ({
@@ -142,7 +142,7 @@ export class AiModelsService {
   }
 
   /**
-   * Record a provider's data terms (ADR 0029): a data-processing agreement in place and zero
+   * Record a provider's data terms (ADR 0034): a data-processing agreement in place and zero
    * retention or training on our requests. With both, its models may be evaluated and serve;
    * withdrawing either stops them at once. Audited.
    */

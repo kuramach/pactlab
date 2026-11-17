@@ -13,7 +13,7 @@ export const DEFAULT_MODEL_ALIAS: ModelAlias = 'balanced';
 
 export type ReasoningEffort = 'low' | 'medium' | 'high';
 
-/** Where a model runs (T-131). Bedrock is the default; other clouds per ADR 0029. */
+/** Where a model runs (T-131). Bedrock is the default; other clouds per ADR 0034. */
 export type ModelProvider = 'bedrock' | 'openai' | 'google' | 'fixture';
 
 export interface ModelRoute {

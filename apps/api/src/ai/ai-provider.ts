@@ -156,7 +156,7 @@ export async function createAiGateway(
   if (env.AI_PROVIDER !== 'bedrock' || !env.AWS_REGION) return { gateway: new NotConfiguredClaudeGateway(), status: AI_OFF, check: async () => null, models: null };
   const routes = routesFrom(env);
   const bedrock = new BedrockModelTransport({ send: await bedrockConverseSender(env.AWS_REGION) });
-  // Other clouds (T-131, ADR 0029), each connected only when its key is set. Every provider has its
+  // Other clouds (T-131, ADR 0034), each connected only when its key is set. Every provider has its
   // own retries and breaker, so one provider's outage never pauses another.
   const bare: Partial<Record<ModelProvider, ModelTransport>> = {
     bedrock,

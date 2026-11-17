@@ -53,7 +53,7 @@ export async function setOrganizationModels(organizationId: string, formData: Fo
   back(result.kind === 'ok' ? 'ok-ai-org' : code(result), organizationId);
 }
 
-/** A provider outside AWS (ADR 0029): its data terms. Both ticked lets its models be evaluated and serve. */
+/** A provider outside AWS (ADR 0034): its data terms. Both ticked lets its models be evaluated and serve. */
 export async function setProviderTerms(provider: 'openai' | 'google', formData: FormData): Promise<void> {
   if (provider !== 'openai' && provider !== 'google') return back('invalid');
   const text = (name: string) => {

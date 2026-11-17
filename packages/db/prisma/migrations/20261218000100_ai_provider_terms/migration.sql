@@ -1,4 +1,4 @@
--- Other clouds (T-131 PR 2, ADR 0029): a provider outside AWS serves only after an operator records
+-- Other clouds (T-131 PR 2, ADR 0034): a provider outside AWS serves only after an operator records
 -- its data terms: a data-processing agreement in place and no retention or training on our
 -- requests. Until then its models can be neither evaluated nor served. Bedrock (inside our AWS
 -- accounts) and the test fixture need no record. Expand-only; re-runnable. Rollback: drop the

@@ -59,7 +59,7 @@ export class AiModelsController {
     return this.service.setPlatformRoute(tenant, params.alias, body.modelId);
   }
 
-  /** A provider outside AWS: its data terms, which gate its models (ADR 0029). */
+  /** A provider outside AWS: its data terms, which gate its models (ADR 0034). */
   @Put('providers/:provider/terms')
   setProviderTerms(
     @Tenant() tenant: TenantContext,
