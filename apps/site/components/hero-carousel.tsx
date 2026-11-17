@@ -4,6 +4,7 @@ import { ChevronLeft, ChevronRight, Pause, Play } from 'lucide-react';
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import type { Slide } from '../lib/content';
+import { HeroVideo } from './hero-video';
 import { Icon } from './icon';
 
 const INTERVAL_MS = 6000;
@@ -72,6 +73,8 @@ export function HeroCarousel({
         if (event.key === 'ArrowLeft') go(index - 1);
       }}
     >
+      {/* T-130: the ambient montage behind the hero; the copy and controls above are unchanged. */}
+      <HeroVideo />
       <div aria-hidden className="pointer-events-none absolute -right-40 -top-40 h-[32rem] w-[32rem] rounded-full bg-indigo/20 blur-3xl" />
       <div className="relative mx-auto max-w-6xl px-6 pb-10 pt-14 md:pt-20">
         {positioning ? (
