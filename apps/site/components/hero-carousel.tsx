@@ -78,7 +78,7 @@ export function HeroCarousel({
       <div aria-hidden className="pointer-events-none absolute -right-40 -top-40 h-[32rem] w-[32rem] rounded-full bg-indigo/20 blur-3xl" />
       <div className="relative mx-auto max-w-6xl px-6 pb-10 pt-14 md:pt-20">
         {positioning ? (
-          <div className="mb-8 flex max-w-3xl flex-col gap-2 border-b border-white/10 pb-6">
+          <div className="mb-8 flex max-w-3xl flex-col gap-2 border-b border-white/10 pb-6 [text-shadow:0_1px_14px_rgba(8,17,39,0.75)]">
             <p className="text-xs font-bold uppercase tracking-widest text-indigo">{positioning.eyebrow}</p>
             <p className="text-lg font-semibold leading-snug text-white/90 md:text-xl">{positioning.line}</p>
           </div>
@@ -96,7 +96,8 @@ export function HeroCarousel({
                 inert={!active}
                 className={`grid items-center gap-12 md:grid-cols-[1.15fr_1fr] ${active ? (moved ? 'animate-[fade_600ms_ease-out]' : '') : 'hidden'}`}
               >
-                <div className="flex flex-col gap-6">
+                {/* T-130: a soft navy shadow keeps the copy crisp over bright moments in the footage (copy column only, not the card). */}
+                <div className="flex flex-col gap-6 [text-shadow:0_1px_14px_rgba(8,17,39,0.75)]">
                   {slide.group === 'pact' ? (
                     <p className="flex items-center gap-3 text-sm font-bold uppercase tracking-widest text-indigo">
                       <span className="inline-flex items-center gap-1.5 rounded-full bg-indigo px-3 py-1 text-xs text-navy">

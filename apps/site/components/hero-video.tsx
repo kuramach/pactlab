@@ -50,9 +50,13 @@ export function HeroVideo() {
           data-testid="hero-video"
         />
       ) : null}
-      {/* Brand navy (#081127) over the footage: darkest behind the copy on the left, so white text keeps AA contrast on the brightest scene. */}
-      <div className="absolute inset-0 bg-gradient-to-r from-navy/95 via-navy/85 to-navy/70" />
-      <div className="absolute inset-0 bg-gradient-to-t from-navy via-transparent to-navy/40" />
+      {/*
+        Brand navy (#081127) only where the copy sits, so the footage shows (Kumar, 2026-11-17: "make it more visible").
+        Phones: the copy spans the width, so an even veil. Wider screens: dark behind the left text column,
+        fading to almost clear on the right. A soft fade at the bottom keeps the slide controls readable.
+      */}
+      <div className="absolute inset-0 bg-navy/60 md:bg-transparent md:bg-gradient-to-r md:from-navy/80 md:via-navy/45 md:to-navy/5" />
+      <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-navy/80 to-transparent" />
     </div>
   );
 }
