@@ -1,7 +1,7 @@
 import { callOps, type SqlExecutor } from './ops';
 
 /**
- * AI models managed in the admin console (T-130): typed wrappers over the `app_ai_*` and
+ * AI models managed in the admin console (T-131): typed wrappers over the `app_ai_*` and
  * `app_ops_ai_*` SECURITY DEFINER functions. Operators change the catalog; the API reads the
  * resolved routes for each organization.
  */

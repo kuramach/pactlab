@@ -15,7 +15,7 @@ const AUDIENCE = 'https://api.pactlab.test';
 type Body = Record<string, unknown>;
 type Model = { id: string; providerModelId: string; status: string; platformAliases: string[]; evaluation: Body | null; evaluatingSince: string | null };
 
-/** T-130: AI models managed in the operator console: catalog, evaluation gate, routes per organization. */
+/** T-131: AI models managed in the operator console: catalog, evaluation gate, routes per organization. */
 describe('AI models in the admin console', { timeout: 60_000 }, () => {
   let db: TestDatabase;
   let app: NestFastifyApplication;

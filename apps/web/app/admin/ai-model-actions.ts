@@ -5,7 +5,7 @@ import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import { apiPost, apiSend } from '../(app)/deals/_lib/api';
 
-/** AI models in the operator console (T-130). The API checks every action again and audits it. */
+/** AI models in the operator console (T-131). The API checks every action again and audits it. */
 const uuid = z.uuid();
 const ALIASES = ['fast', 'balanced', 'deep_review'] as const;
 const back = (outcome: string, organizationId?: string): never =>

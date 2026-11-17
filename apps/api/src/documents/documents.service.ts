@@ -136,7 +136,7 @@ function uploadError(error: UploadRejectedError | ExtractionError): never {
 function gatewayError(error: unknown): never {
   if (error instanceof GatewayPolicyError) {
     if (error.code === 'PROHIBITED_DATA') throw new UnprocessableEntityException();
-    // The organization's allow-list covers no model for this task (T-130).
+    // The organization's allow-list covers no model for this task (T-131).
     if (error.code === 'NO_APPROVED_MODEL') throw new ServiceUnavailableException({ code: 'NO_APPROVED_MODEL' });
     throw new ServiceUnavailableException();
   }

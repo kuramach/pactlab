@@ -64,7 +64,7 @@ function Evaluation({ model }: { model: Model }) {
 }
 
 /**
- * AI models (T-130): which models pacts may use, managed here instead of in code. A model is added,
+ * AI models (T-131): which models pacts may use, managed here instead of in code. A model is added,
  * evaluated against the synthetic golden set and injection probes, and only then can serve, as a
  * platform default per role or for chosen organizations. Every change is audited.
  */

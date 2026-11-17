@@ -1,4 +1,4 @@
-# AI models: adding, evaluating and assigning them (T-130)
+# AI models: adding, evaluating and assigning them (T-131)
 
 Which models pacts use is managed in the admin console (**Admin → AI models**), not in code. Code asks for a role (*fast*, *balanced* or *deep review*); the console decides which model serves it.
 
@@ -28,4 +28,4 @@ Which models pacts use is managed in the admin console (**Admin → AI models**)
 Each evaluation records the prompt hashes it ran against. When prompts change, run **Evaluate again** on models in use.
 
 ## Other clouds (OpenAI, Google)
-These come with ADR 0029 (T-130 PR 2): provider connections, credentials in Secrets Manager, and data-terms records. Until then, the console offers only the providers this environment can call.
+These come with ADR 0029 (T-131 PR 2): provider connections, credentials in Secrets Manager, and data-terms records. Until then, the console offers only the providers this environment can call.

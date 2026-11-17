@@ -20,7 +20,7 @@ export const organizationModelsSchema = z.strictObject({
   routes: z.strictObject({ fast: z.uuid().optional(), balanced: z.uuid().optional(), deep_review: z.uuid().optional() }),
 });
 
-/** AI models in the operator console (T-130). Every route answers 403 to anyone not a platform operator. */
+/** AI models in the operator console (T-131). Every route answers 403 to anyone not a platform operator. */
 @Controller('v1/admin/ai-models')
 export class AiModelsController {
   constructor(@Inject(AiModelsService) private readonly service: AiModelsService) {}
