@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { defaultPromptRegistry } from '../prompts';
 import { QA_PROBES, EXTRACTION_PROBES } from './golden';
-import { runDocumentEvals } from './run';
+import { judgeModel, runDocumentEvals } from './run';
 
 /**
  * Document AI evaluation suite (runs in CI with `pnpm test`, provider access
@@ -33,5 +33,17 @@ describe('document AI evals', async () => {
 
   it('blocks every probe', () => {
     expect(report.probesBlocked).toBe(QA_PROBES.length + EXTRACTION_PROBES.length);
+  });
+});
+
+describe('the bar a model must clear to serve (T-130)', () => {
+  it('passes the recorded cassettes and fails a model that misses a case, a probe or citations', async () => {
+    const report = await runDocumentEvals();
+    expect(judgeModel(report)).toEqual({ passed: true, failures: [] });
+    const missed = { ...report, golden: report.golden.map((row, index) => (index === 0 ? { ...row, passed: false, detail: 'wrong value' } : row)), citationRecall: 0.8 };
+    const verdict = judgeModel(missed);
+    expect(verdict.passed).toBe(false);
+    expect(verdict.failures.join(' ')).toMatch(/golden .*wrong value.*citation recall 0\.80 < 0\.9/);
+    expect(judgeModel({ ...report, probes: report.probes.map((row) => ({ ...row, passed: false })) }).passed).toBe(false);
   });
 });

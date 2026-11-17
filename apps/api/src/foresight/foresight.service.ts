@@ -72,6 +72,8 @@ const ASSUMPTION_NAMES = ['startValue', 'baseGrowth', 'baseMargin', 'rateToMulti
 function aiFailure(error: unknown): never {
   if (error instanceof GatewayPolicyError) {
     if (error.code === 'PROHIBITED_DATA') throw new UnprocessableEntityException();
+    // The organization's allow-list covers no model for this task (T-130).
+    if (error.code === 'NO_APPROVED_MODEL') throw new ServiceUnavailableException({ code: 'NO_APPROVED_MODEL' });
     throw new ServiceUnavailableException({ code: 'AI_OFF' });
   }
   throw error;
@@ -110,6 +112,7 @@ export class ForesightService {
         promptHash: run.promptHash,
         modelAlias: run.modelAlias,
         resolvedModelId: run.resolvedModelId,
+        resolvedProvider: run.resolvedProvider,
         inputHashes: [...run.inputHashes],
         outputHash: run.outputHash,
         status: run.status,

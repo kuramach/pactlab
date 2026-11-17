@@ -4,7 +4,7 @@ import type { CitableSource } from './context';
 import { sha256Hex } from './hash';
 import { ModelProviderError, type ModelProviderErrorKind } from './bedrock';
 import { detectInjection } from './injection';
-import { DEFAULT_MODEL_ROUTES, isClaudeModelId, resolveModel, type ModelAlias, type ModelRoute } from './models';
+import { DEFAULT_MODEL_ROUTES, isClaudeModelId, resolveModel, type ModelAlias, type ModelRoute, type ModelProvider } from './models';
 import type { PromptDefinition, PromptRegistry } from './prompts/registry';
 import type { ModelMessage, ModelTransport } from './transport';
 
@@ -62,6 +62,8 @@ export interface AiRunRecord {
   readonly promptHash: string;
   readonly modelAlias: ModelAlias;
   readonly resolvedModelId: string;
+  /** Where the answering model runs (T-130). */
+  readonly resolvedProvider: ModelProvider;
   readonly inputHashes: readonly string[];
   readonly outputHash: string | null;
   readonly status: AiRunStatus;
@@ -94,12 +96,13 @@ export interface ClaudeGateway {
   ): Promise<GatewayResponse<z.infer<TSchema>>>;
 }
 
-export type GatewayPolicyCode = 'PROHIBITED_DATA' | 'NOT_CONFIGURED' | 'PROMPT_NOT_REGISTERED';
+export type GatewayPolicyCode = 'PROHIBITED_DATA' | 'NOT_CONFIGURED' | 'PROMPT_NOT_REGISTERED' | 'NO_APPROVED_MODEL';
 
 const POLICY_MESSAGES: Record<GatewayPolicyCode, string> = {
   PROHIBITED_DATA: 'Request contains data classes that may not be sent to a model',
   NOT_CONFIGURED: 'AI gateway is not configured',
   PROMPT_NOT_REGISTERED: 'Prompt version is not registered',
+  NO_APPROVED_MODEL: 'No approved model for this organization',
 };
 
 export class GatewayPolicyError extends Error {
@@ -146,6 +149,11 @@ export interface ClaudeGatewayOptions {
   readonly transport: ModelTransport;
   readonly registry: PromptRegistry;
   readonly routes?: Partial<Record<ModelAlias, ModelRoute>>;
+  /**
+   * The route for one organization's call (T-130): its allowed, evaluated model for the alias;
+   * null to use `routes`; 'BLOCKED' when its allow-list covers no model (the call is refused).
+   */
+  readonly routeFor?: (organizationId: string, alias: ModelAlias) => Promise<ModelRoute | null | 'BLOCKED'>;
   /** Persists the run record (spec `ai_runs`). */
   readonly onRun?: (run: AiRunRecord) => Promise<void> | void;
   readonly newId?: () => string;
@@ -175,7 +183,10 @@ export class TransportClaudeGateway implements ClaudeGateway {
     const now = this.options.now ?? (() => new Date());
     const started = now();
     const alias = request.modelAlias ?? prompt.defaultAlias;
-    const route = resolveModel(alias, this.routes);
+    const chosen = this.options.routeFor ? await this.options.routeFor(request.organizationId, alias) : null;
+    if (chosen === 'BLOCKED') throw new GatewayPolicyError('NO_APPROVED_MODEL');
+    const route = chosen ?? resolveModel(alias, this.routes);
+    const provider = route.provider ?? 'bedrock';
     const sources = request.sources ?? [];
     const user = prompt.render({ sources, inputs: request.inputs });
     const messages: ModelMessage[] = [{ role: 'user', content: user }];
@@ -187,6 +198,7 @@ export class TransportClaudeGateway implements ClaudeGateway {
     const call = async (history: readonly ModelMessage[]) => {
       const response = await this.options.transport.complete({
         modelId: route.modelId,
+        provider,
         effort: route.effort,
         system: prompt.system,
         messages: history,
@@ -249,6 +261,7 @@ export class TransportClaudeGateway implements ClaudeGateway {
       modelAlias: alias,
       // The model that answered: the fallback when the primary was unavailable.
       resolvedModelId: answeredBy,
+      resolvedProvider: provider,
       inputHashes: [
         ...request.inputs.map((input) => input.text),
         ...sources.map((s) => s.text),

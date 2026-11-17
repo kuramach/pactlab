@@ -56,7 +56,7 @@ const localDocuments = objectStore && malwareScanner ? { objectStore, malwareSca
 
 // Document AI: Claude on Bedrock when AI_PROVIDER=bedrock (the task role when
 // deployed, SSO locally); otherwise every model call fails closed.
-const ai = await createAiGateway(config);
+const ai = await createAiGateway(config, prisma);
 
 // Provider credentials: an encrypted local store until Secrets Manager (T-007);
 // elsewhere live connections that need a stored token fail closed.
@@ -94,6 +94,7 @@ const app = await createApp(
     // Large imports run on the worker when Redis is configured (the worker shares the store).
     ...(localDocuments ? { uploads: { ...localDocuments, importQueue: config.REDIS_URL ? new BullMqImportQueue(config.REDIS_URL) : null } } : {}),
     aiStatus: ai.status,
+    aiModels: ai.models,
     environment: config.APP_ENV,
     // Hosting cost: real spend from Cost Explorer in the payer account, where the role is configured (live).
     ...(config.COST_EXPLORER_ROLE_ARN ? { hostingCost: { source: new AwsCostExplorerSource(config.COST_EXPLORER_ROLE_ARN) } } : {}),
