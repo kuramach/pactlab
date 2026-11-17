@@ -125,6 +125,13 @@ export function peopleApiQuery(filters: PeopleFilters): string {
 }
 
 /** The page URL for the same filters on another page (the table lives at #details). */
+/** The drill-down behind a chart point (T-129): a month's pull requests, or its resolved Jira issues. */
+export function activityHref(dealId: string, kind: 'code' | 'delivery', month: string, extra: Record<string, string | undefined> = {}): string {
+  const params = new URLSearchParams({ kind, month });
+  for (const [key, value] of Object.entries(extra)) if (value) params.set(key, value);
+  return `/deals/${dealId}/engineering/activity?${params.toString()}`;
+}
+
 export function peoplePageHref(dealId: string, filters: PeopleFilters, page: number): string {
   const params = new URLSearchParams();
   if (filters.q) params.set('q', filters.q);

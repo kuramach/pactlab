@@ -2,7 +2,7 @@ import { D, ratio } from '../metrics/decimal';
 import { addMonths } from '../metrics/months';
 
 /** Bumped whenever a rule, threshold or output shape changes. */
-export const ENGINEERING_VERSION = 'engineering-2';
+export const ENGINEERING_VERSION = 'engineering-3';
 
 /** Below this many contributors, no individual profile is shown (aggregates only). */
 export const MIN_PROFILE_COHORT = 5;
@@ -320,15 +320,29 @@ export function engineeringReport(input: EngineeringInput): EngineeringReport {
     return { ...profile, label: `Contributor ${String(index + 1).padStart(2, '0')}`, summary: summarize(profile) };
   });
 
-  const keepList: KeepCandidate[] = profiles
-    .filter((profile) => profile.status !== 'DEPARTED' && (profile.tags.includes('CRITICAL_OWNER') || profile.tags.includes('COORDINATOR')))
-    .map((profile) => ({
+  // Ordered by how much the business depends on each person (T-129), never by performance: sole
+  // maintainers first, by the commits in the areas only they maintain (the code that stalls without
+  // them); then coordinators, by the delivery coordination they carry. The measure is in the reason.
+  const soleCommits = (profile: ContributorProfile) => sum(profile.areasSolelyOwned.map((area) => areaTotal.get(area) ?? 0));
+  const keepers = profiles.filter((profile) => profile.status !== 'DEPARTED' && (profile.tags.includes('CRITICAL_OWNER') || profile.tags.includes('COORDINATOR')));
+  const owners = keepers
+    .filter((profile) => profile.tags.includes('CRITICAL_OWNER'))
+    .sort((a, b) => soleCommits(b) - soleCommits(a) || b.areasSolelyOwned.length - a.areasSolelyOwned.length || a.contributorKey.localeCompare(b.contributorKey));
+  const coordinators = keepers
+    .filter((profile) => !profile.tags.includes('CRITICAL_OWNER'))
+    .sort((a, b) => b.issuesCreated + b.comments - (a.issuesCreated + a.comments) || a.contributorKey.localeCompare(b.contributorKey));
+  const keepList: KeepCandidate[] = [
+    ...owners.map((profile) => ({
       contributorKey: profile.contributorKey,
       label: profile.label,
-      reason: profile.tags.includes('CRITICAL_OWNER')
-        ? `Only regular maintainer of ${profile.areasSolelyOwned.join(', ')} — a loss here stalls that code.`
-        : `Coordinates delivery: ${plural(profile.issuesCreated, 'issue')} created and ${plural(profile.comments, 'comment')} in 12 months, with few commits.`,
-    }));
+      reason: `Only regular maintainer of ${profile.areasSolelyOwned.join(', ')} (${plural(soleCommits(profile), 'commit')} in 12 months) — a loss here stalls that code.`,
+    })),
+    ...coordinators.map((profile) => ({
+      contributorKey: profile.contributorKey,
+      label: profile.label,
+      reason: `Coordinates delivery: ${plural(profile.issuesCreated, 'issue')} created and ${plural(profile.comments, 'comment')} in 12 months, with few commits.`,
+    })),
+  ];
 
   const points: ContributorPoint[] = profiles.map((profile) => ({
     contributorKey: profile.contributorKey,

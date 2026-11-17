@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { Tenant } from '../auth/tenant.decorator';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { RequestId } from '../deals/request-id.decorator';
+import { activityQuery, type ActivityQuery } from './engineering-activity';
 import { EngineeringService } from './engineering.service';
 
 export const contributorParams = z.strictObject({ dealId: z.uuid(), contributorKey: z.string().regex(/^[0-9a-f]{16}$/) });
@@ -36,6 +37,17 @@ export class EngineeringController {
     @Query(new ZodValidationPipe(peopleQuery)) query: z.infer<typeof peopleQuery>,
   ) {
     return this.service.people(tenant, params.dealId, query, requestId);
+  }
+
+  /** Behind a chart point: a month's pull requests or resolved Jira issues, paged, linked both ways (T-129). */
+  @Get('engineering/activity')
+  activity(
+    @Tenant() tenant: TenantContext,
+    @RequestId() requestId: string,
+    @Param(new ZodValidationPipe(dealParamsSchema)) params: { dealId: string },
+    @Query(new ZodValidationPipe(activityQuery)) query: ActivityQuery,
+  ) {
+    return this.service.activity(tenant, params.dealId, query, requestId);
   }
 
   @Get('engineering/contributors/:contributorKey')

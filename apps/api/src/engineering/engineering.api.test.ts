@@ -83,7 +83,7 @@ describe('Engineering tab through the API', () => {
   it('shows team health, a compact point per person, and pseudonymous profiles that combine code and Jira', async () => {
     const view = await call('analyst', 'GET', '/engineering');
     expect(view.status).toBe(200);
-    expect(view.body).toMatchObject({ version: 'engineering-2', suppressed: false, contributors: 8, people: { enabled: false }, canManageNames: false, completeness: { complete: true, notes: [] } });
+    expect(view.body).toMatchObject({ version: 'engineering-3', suppressed: false, contributors: 8, people: { enabled: false }, canManageNames: false, completeness: { complete: true, notes: [] } });
     expect(view.body).not.toHaveProperty('profiles');
     expect((view.body['points'] as Body[]).length).toBe(8);
     expect(view.body['keepCount']).toBe((view.body['keepList'] as Body[]).length);
@@ -172,5 +172,43 @@ describe('Engineering tab through the API', () => {
       (await target.inject({ method: 'GET', url: '/v1/synthetic-sources', headers: { authorization: `Bearer ${tokens['lead']}` } })).json() as Body;
     expect(await options(locked)).toEqual({ allowed: false, repositories: [], jiraSites: [] });
     expect(await options(app)).toMatchObject({ allowed: true, repositories: expect.arrayContaining(['healthyco/platform', 'troubledco/core']) });
+  });
+
+  it('drills into a month (T-129): resolved Jira issues with the code that cites them, and pull requests with who committed', async () => {
+    const overview = (await call('lead', 'GET', '/engineering')).body as { months: { month: string; issuesResolved: number; commits: number }[] };
+    const busy = [...overview.months].reverse().find((entry) => entry.issuesResolved > 0);
+    expect(busy).toBeDefined();
+    const delivery = await call('lead', 'GET', `/engineering/activity?kind=delivery&month=${busy!.month}&limit=2`);
+    expect(delivery.status).toBe(200);
+    const page = delivery.body['page'] as { items: { key: string; resolvedAt: string; url: string | null; code: { kind: string; url: string | null }[] }[]; nextCursor: string | null; total: number };
+    expect(page.total).toBe(busy!.issuesResolved);
+    expect(page.items.every((item) => item.key.startsWith('HC-') && item.resolvedAt.startsWith(busy!.month))).toBe(true);
+    // Synthetic hosts do not exist: no link out.
+    expect(page.items.every((item) => item.url === null && item.code.every((link) => link.url === null))).toBe(true);
+    // Every issue of the month, each once, across pages.
+    const seen = new Set(page.items.map((item) => item.key));
+    let cursor = page.nextCursor;
+    while (cursor) {
+      const next = (await call('lead', 'GET', `/engineering/activity?kind=delivery&month=${busy!.month}&limit=2&cursor=${cursor}`)).body['page'] as typeof page;
+      for (const item of next.items) {
+        expect(seen.has(item.key)).toBe(false);
+        seen.add(item.key);
+      }
+      cursor = next.nextCursor;
+    }
+    expect(seen.size).toBe(page.total);
+    const bugs = (await call('lead', 'GET', `/engineering/activity?kind=delivery&month=${busy!.month}&type=Bug`)).body['page'] as typeof page;
+    expect(bugs.total).toBeLessThanOrEqual(page.total);
+
+    const active = [...overview.months].reverse().find((entry) => entry.commits > 0)!;
+    const code = (await call('lead', 'GET', `/engineering/activity?kind=code&month=${active.month}`)).body as { committers: { label: string; commits: number }[]; committerCount: number; health: { commits: number } };
+    expect(code.health.commits).toBe(active.commits);
+    expect(code.committers.reduce((total, entry) => total + entry.commits, 0)).toBe(active.commits);
+    expect(code.committers.every((entry) => /^Contributor \d+$/.test(entry.label))).toBe(true);
+
+    // Buyer analysis only; another organization sees nothing.
+    expect((await call('target_contributor', 'GET', `/engineering/activity?kind=delivery&month=${busy!.month}`)).status).toBe(403);
+    expect((await call('other', 'GET', `/engineering/activity?kind=delivery&month=${busy!.month}`)).status).toBe(404);
+    expect((await call('lead', 'GET', '/engineering/activity?kind=delivery&month=2026-13')).status).toBe(400);
   });
 });
