@@ -24,6 +24,8 @@ interface Model {
     basis?: string;
   } | null;
   evaluatingSince: string | null;
+  /** A prompt changed since its evaluation: it still serves; evaluate it again. */
+  reevaluationDue: boolean;
   organizations: number;
   platformAliases: Alias[];
 }
@@ -126,6 +128,12 @@ export async function AiModels({ organizationId, organizationQuery }: { organiza
                   </td>
                   <td className="px-3 py-2 align-top">
                     <Badge variant={STATUS[model.status].variant}>{STATUS[model.status].label}</Badge>
+                    {model.reevaluationDue ? (
+                      <span className="mt-1 block">
+                        <Badge variant="draft">Re-evaluation due</Badge>
+                        <span className="block text-xs text-muted-foreground">Prompts changed since its evaluation.</span>
+                      </span>
+                    ) : null}
                   </td>
                   <td className="px-3 py-2 align-top">
                     <Evaluation model={model} />

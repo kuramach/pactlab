@@ -12,7 +12,7 @@ const CACHE_MS = 60_000;
  */
 export class ModelRouteResolver {
   private readonly sql: SqlExecutor;
-  private readonly cache = new Map<string, { at: number; routes: Map<ModelAlias, ModelRoute | 'BLOCKED'> }>();
+  private readonly cache = new Map<string, { at: number; routes: Map<ModelAlias, { route: ModelRoute; label: string } | 'BLOCKED'> }>();
 
   constructor(
     prisma: PrismaClient,
@@ -32,12 +32,18 @@ export class ModelRouteResolver {
   }
 
   async routeFor(organizationId: string, alias: ModelAlias): Promise<ModelRoute | null | 'BLOCKED'> {
+    const chosen = await this.describe(organizationId, alias);
+    return chosen === 'BLOCKED' || chosen === null ? chosen : chosen.route;
+  }
+
+  /** The route with the catalog's name for the model (what users see); null: the configured route serves. */
+  async describe(organizationId: string, alias: ModelAlias): Promise<{ route: ModelRoute; label: string } | null | 'BLOCKED'> {
     let entry = this.cache.get(organizationId);
     if (!entry || this.now() - entry.at > CACHE_MS) {
-      const routes = new Map<ModelAlias, ModelRoute | 'BLOCKED'>();
+      const routes = new Map<ModelAlias, { route: ModelRoute; label: string } | 'BLOCKED'>();
       for (const row of await aiModels.routesFor(this.sql, organizationId)) {
         if (row.blocked) routes.set(row.alias, 'BLOCKED');
-        else if (row.providerModelId && row.provider) routes.set(row.alias, this.route(row.alias, row.provider, row.providerModelId));
+        else if (row.providerModelId && row.provider) routes.set(row.alias, { route: this.route(row.alias, row.provider, row.providerModelId), label: row.label ?? row.providerModelId });
       }
       entry = { at: this.now(), routes };
       this.cache.set(organizationId, entry);
