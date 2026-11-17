@@ -82,7 +82,18 @@ describe('engineeringReport', () => {
       expect(Object.keys(profile)).not.toEqual(expect.arrayContaining(['rank']));
     }
     // Keep the critical owner and the coordinator; the departed contributor is not a retention target.
-    expect(keepList.map((entry) => entry.contributorKey).sort()).toEqual(['dev-a', 'lead']);
+    // Sole maintainers first (by the code that depends on them), then coordinators (T-129).
+    expect(keepList.map((entry) => entry.contributorKey)).toEqual(['dev-a', 'lead']);
+    expect(keepList[0]?.reason).toBe('Only regular maintainer of billing (22 commits in 12 months) — a loss here stalls that code.');
+  });
+
+  it('orders the keep list by dependency: the most code only they maintain first (T-129)', () => {
+    // Two sole maintainers: dev-a holds billing (22 commits); dev-x holds a larger area alone.
+    const bigger = Array.from({ length: 6 }, (_, index) => ({ contributorKey: 'dev-x', month: `2026-0${index + 4}`, commits: 8, additions: 10, deletions: 2, areas: { search: 8 } }));
+    const { keepList } = engineeringReport({ code: [...CODE, ...bigger], delivery: DELIVERY, statuses, asOfMonth: '2026-09' });
+    expect(keepList.map((entry) => entry.contributorKey).slice(0, 2)).toEqual(['dev-x', 'dev-a']);
+    // Coordinators come after every sole maintainer.
+    expect(keepList.slice(2).every((entry) => entry.reason.startsWith('Coordinates delivery'))).toBe(true);
   });
 
   it('withholds individual profiles for teams under five', () => {
@@ -127,13 +138,15 @@ describe('engineering at scale (T-055)', () => {
   }
   const MONTHS = ['2025-10', '2025-11', '2025-12', '2026-01', '2026-02', '2026-03', '2026-04', '2026-05', '2026-06', '2026-07', '2026-08', '2026-09'];
 
-  it('gives the same report as engineering-1 on the fixtures and on random teams (except the version)', () => {
+  it('gives the same report as engineering-1 on the fixtures and on random teams (except the version and the keep-list order)', () => {
     const same = (input: Parameters<typeof engineeringReport>[0]) => {
-      const { version, points, ...next } = engineeringReport(input);
-      const { version: before, ...reference } = referenceReport(input);
-      expect(version).toBe('engineering-2');
+      const { version, points, keepList, ...next } = engineeringReport(input);
+      const { version: before, keepList: referenceKeep, ...reference } = referenceReport(input);
+      expect(version).toBe('engineering-3');
       expect(before).toBe('engineering-1');
       expect(next).toEqual(reference);
+      // engineering-3 (T-129) orders the same people by dependency and states the measure.
+      expect(keepList.map((entry) => entry.contributorKey).sort()).toEqual(referenceKeep.map((entry) => entry.contributorKey).sort());
       expect(points.map((point) => point.contributorKey)).toEqual(next.profiles.map((profile) => profile.contributorKey));
     };
     same({ code: CODE, delivery: DELIVERY, statuses, asOfMonth: '2026-09' });

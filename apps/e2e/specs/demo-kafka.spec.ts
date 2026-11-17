@@ -13,6 +13,10 @@ test('the recorded apache/kafka and KAFKA data load into a pact as real, labelle
     await page.goto(`/deals/${dealId}/engineering`);
     await expect(page.getByText('Code activity')).toBeVisible({ timeout: 2_000 });
   }).toPass({ timeout: 90_000, intervals: [3_000] });
+  // T-129: the Delivery chart drills into a month's real KAFKA issues, linked out to Apache Jira.
+  await page.getByRole('navigation', { name: /Issues and story points resolved per month: open one/ }).getByRole('link').last().click();
+  await expect(page.getByRole('heading', { name: /Jira issues resolved/ })).toBeVisible();
+  await expect(page.getByRole('table', { name: 'Issues resolved this month' }).getByRole('link', { name: /KAFKA-\d+/ }).first()).toHaveAttribute('href', /^https:\/\/issues\.apache\.org\/jira\/browse\/KAFKA-\d+$/);
   await page.goto(`/deals/${dealId}/sources`);
   await expect(page.getByText('apache/kafka (real public data, recorded once)')).toBeVisible();
   await expect(page.getByText('Apache Jira (real public data, recorded once)')).toBeVisible();

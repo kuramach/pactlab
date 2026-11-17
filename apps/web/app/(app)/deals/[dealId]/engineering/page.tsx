@@ -18,6 +18,7 @@ import {
   parsePeopleView,
   peopleApiQuery,
   peopleMapPoints,
+  activityHref,
   peoplePageHref,
   PEOPLE_PAGE_SIZE,
   percentLabel,
@@ -135,10 +136,11 @@ export default async function EngineeringPage({
             <Card>
               <CardHeader>
                 <CardTitle>Code activity</CardTitle>
-                <CardDescription>Commits and active committers per month.</CardDescription>
+                <CardDescription>Commits and active committers per month. Click a month for its pull requests and who committed.</CardDescription>
               </CardHeader>
               <CardContent>
                 <LineChart
+                  links={view.months.map((entry) => (entry.commits > 0 ? activityHref(dealId, 'code', entry.month) : null))}
                   label="Commits and active committers per month"
                   categories={view.months.map((entry) => month(entry.month))}
                   series={[
@@ -153,11 +155,12 @@ export default async function EngineeringPage({
               <CardHeader>
                 <CardTitle>Delivery</CardTitle>
                 <CardDescription>
-                  Jira issues and story points resolved per month. Latest reopen rate: {percentLabel([...view.months].reverse().find((entry) => entry.reopenRate)?.reopenRate ?? null)}.
+                  Jira issues and story points resolved per month. Latest reopen rate: {percentLabel([...view.months].reverse().find((entry) => entry.reopenRate)?.reopenRate ?? null)}. Click a month for its issues.
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <BarChart
+                  links={view.months.map((entry) => (entry.issuesResolved > 0 ? activityHref(dealId, 'delivery', entry.month) : null))}
                   label="Issues and story points resolved per month"
                   categories={view.months.map((entry) => month(entry.month))}
                   series={[
@@ -175,11 +178,12 @@ export default async function EngineeringPage({
               <CardTitle>Areas of the code</CardTitle>
               <CardDescription>
                 Commits per top-level area and how many people each depends on (bus factor)
-                {areasChart.other ? ` — the ${areasChart.shown.length} busiest of ${view.areas.length} areas, the rest as Other` : ''}.
+                {areasChart.other ? ` — the ${areasChart.shown.length} busiest of ${view.areas.length} areas, the rest as Other` : ''}.{view.suppressed ? '' : ' Click an area for the people who work in it.'}
               </CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col gap-3">
               <BarChart
+                links={view.suppressed ? undefined : [...areasChart.shown.map((area) => peoplePageHref(dealId, { q: '', tag: null, area: area.area, keep: false, page: 1 }, 1)), ...(areasChart.other ? [null] : [])]}
                 label="Commits and bus factor per area"
                 categories={areaCategories}
                 series={[
@@ -217,7 +221,8 @@ export default async function EngineeringPage({
                   <div className="flex min-w-0 flex-1 flex-col gap-1">
                     <CardTitle>Key people to keep</CardTitle>
                     <CardDescription>
-                      People the business depends on — candidates for retention and reward after the merger.
+                      People the business depends on — candidates for retention and reward after the merger. Sole maintainers come first, ordered by how much code
+                      only they maintain; then coordinators, by how much delivery they coordinate.
                       {view.keyPersonFindings.length > 0 ? ' Retention escrows are priced on the key-person findings.' : ''}
                     </CardDescription>
                   </div>

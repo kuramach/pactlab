@@ -71,6 +71,45 @@ function Frame({ label, height, chartRef }: { label: string; height: number; cha
   return <div ref={chartRef} role="img" aria-label={label} style={{ height }} className="w-full" />;
 }
 
+/**
+ * Drill-down (T-129): clicking anywhere over a category (a bar, or a month on a line) opens its
+ * link. The same links are listed under the chart, so a keyboard or screen reader reaches them too.
+ */
+function drillTo(links: readonly (string | null)[] | undefined, horizontal = false) {
+  if (!links || !links.some(Boolean)) return undefined;
+  return (chart: ECharts) => {
+    const surface = chart.getZr();
+    const at = (event: { offsetX: number; offsetY: number }) => {
+      const point = [event.offsetX, event.offsetY];
+      if (!chart.containPixel('grid', point)) return null;
+      const [x, y] = chart.convertFromPixel({ seriesIndex: 0 }, point) as [number, number];
+      const index = Math.round(horizontal ? y : x);
+      return links[index] ?? null;
+    };
+    surface.on('click', (event) => {
+      const href = at(event);
+      if (href) window.location.assign(href);
+    });
+    surface.on('mousemove', (event) => surface.setCursorStyle(at(event) ? 'pointer' : 'default'));
+  };
+}
+
+function DrillLinks({ label, categories, links }: { label: string; categories: readonly string[]; links?: readonly (string | null)[] }) {
+  if (!links || !links.some(Boolean)) return null;
+  return (
+    <nav aria-label={`${label}: open one`} className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs">
+      {categories.map((category, index) => {
+        const href = links[index];
+        return href ? (
+          <a key={`${category}-${index}`} href={href} className="font-semibold text-indigo-ink hover:underline">
+            {category}
+          </a>
+        ) : null;
+      })}
+    </nav>
+  );
+}
+
 const axisCommon = {
   axisLine: { lineStyle: { color: '#e3e8f2' } },
   axisTick: { show: false },
@@ -87,6 +126,7 @@ export function BarChart({
   currency = 'USD',
   height = 280,
   horizontal = false,
+  links,
 }: {
   label: string;
   categories: readonly string[];
@@ -96,6 +136,8 @@ export function BarChart({
   currency?: string;
   height?: number;
   horizontal?: boolean;
+  /** One per category: where clicking it goes (null: not drillable). */
+  links?: readonly (string | null)[];
 }) {
   const ref = useChart(() => {
     const fmt = formatter(format, currency);
@@ -118,8 +160,13 @@ export function BarChart({
         itemStyle: { borderRadius: horizontal ? [0, 6, 6, 0] : [6, 6, 0, 0], ...(entry.color ? { color: entry.color } : {}) },
       })),
     };
-  }, [JSON.stringify({ categories, series, format, currency, horizontal })]);
-  return <Frame label={label} height={height} chartRef={ref} />;
+  }, [JSON.stringify({ categories, series, format, currency, horizontal, links })], drillTo(links, horizontal));
+  return (
+    <>
+      <Frame label={label} height={height} chartRef={ref} />
+      <DrillLinks label={label} categories={categories} links={links} />
+    </>
+  );
 }
 
 /** Donut with the total in the middle. */
@@ -191,6 +238,7 @@ export function LineChart({
   format = 'money',
   currency = 'USD',
   height = 280,
+  links,
 }: {
   label: string;
   categories: readonly string[];
@@ -198,6 +246,8 @@ export function LineChart({
   format?: ValueFormat;
   currency?: string;
   height?: number;
+  /** One per category: where clicking it goes (null: not drillable). */
+  links?: readonly (string | null)[];
 }) {
   const ref = useChart(() => {
     const fmt = formatter(format, currency);
@@ -221,8 +271,13 @@ export function LineChart({
         };
       }),
     };
-  }, [JSON.stringify({ categories, series, format, currency })]);
-  return <Frame label={label} height={height} chartRef={ref} />;
+  }, [JSON.stringify({ categories, series, format, currency, links })], drillTo(links));
+  return (
+    <>
+      <Frame label={label} height={height} chartRef={ref} />
+      <DrillLinks label={label} categories={categories} links={links} />
+    </>
+  );
 }
 
 /**

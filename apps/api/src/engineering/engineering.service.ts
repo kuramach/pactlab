@@ -18,6 +18,7 @@ import {
 import { permissionsForDealRole, type DealRole, type TenantContext } from '@pactlab/domain';
 import { DealAccess } from '../deals/deal-access';
 import { PRISMA } from '../tokens';
+import { codeActivity, deliveryActivity, type ActivityQuery } from './engineering-activity';
 
 const canRead = (role: DealRole) => permissionsForDealRole(role).has('BUYER_ANALYSIS_READ');
 const isLead = (role: DealRole) => role === 'DEAL_LEAD';
@@ -277,6 +278,45 @@ export class EngineeringService {
       series: months.map((month) => ({ month, commits: mine.code.get(month) ?? 0, issuesResolved: mine.resolved.get(month) ?? 0, issuesCreated: mine.created.get(month) ?? 0 })),
       areas: report.areas.filter((area) => profile.areasActive.includes(area.area)),
     };
+  }
+
+  /**
+   * Behind a point on the Engineering charts (T-129): a month's pull requests (with who committed
+   * that month, by pseudonymous label, unless the team is too small to show people), or a month's
+   * resolved Jira issues, each linked to the code that cites it. Paged.
+   */
+  async activity(tenant: TenantContext, dealId: string, query: ActivityQuery, requestId: string) {
+    await this.access.require(tenant, dealId, canRead, { action: 'engineering.viewed', requestId });
+    const { report, access, directory, activity } = await this.compute(tenant, dealId);
+    const names = access.enabled ? this.names(directory) : new Map<string, string>();
+    const labels = new Map(report.profiles.map((profile) => [profile.contributorKey, names.get(profile.contributorKey) ?? profile.label]));
+    const page = await withTenant(this.prisma, tenant, async (tx) => {
+      // bounded: one pact's own records of this kind (tens: a checklist, versions, entries, its sources)
+      const sources = await tx.connection.findMany({ where: { dealId, provider: { in: ['github', 'jira'] } }, select: { id: true, provider: true, mode: true, config: true } });
+      const byId = new Map(sources.map((source) => [source.id, source]));
+      return query.kind === 'delivery' ? deliveryActivity(tx, dealId, query, byId) : codeActivity(tx, dealId, query, byId, (key) => (report.suppressed ? null : (labels.get(key) ?? null)));
+    });
+    // Who committed in the month: aggregates per pseudonymous person, never below the cohort minimum.
+    let committers: { contributorKey: string; label: string; commits: number; areas: string[] }[] | null = null;
+    let committerCount = 0;
+    if (query.kind === 'code' && !report.suppressed) {
+      const byKey = new Map<string, { commits: number; areas: Map<string, number> }>();
+      for (const row of activity.code) {
+        if (row.month !== query.month) continue;
+        const entry = byKey.get(row.contributorKey) ?? { commits: 0, areas: new Map<string, number>() };
+        entry.commits += row.commits;
+        for (const [area, count] of Object.entries(row.areas)) entry.areas.set(area, (entry.areas.get(area) ?? 0) + count);
+        byKey.set(row.contributorKey, entry);
+      }
+      committerCount = byKey.size;
+      committers = [...byKey.entries()]
+        .sort((a, b) => b[1].commits - a[1].commits || a[0].localeCompare(b[0]))
+        .slice(0, KEEP_PREVIEW)
+        .map(([key, entry]) => ({ contributorKey: key, label: labels.get(key) ?? 'Contributor', commits: entry.commits, areas: [...entry.areas.entries()].sort((a, b) => b[1] - a[1]).map(([area]) => area) }));
+    }
+    await this.auditNames(tenant, dealId, requestId, access.enabled ? (committers?.length ?? 0) : 0);
+    const health = report.months.find((entry) => entry.month === query.month) ?? null;
+    return { kind: query.kind, month: query.month, health, page, committers, committerCount, suppressed: report.suppressed, people: access };
   }
 
   /** Only a deal lead opens or closes the names gate, with the basis on record. */
