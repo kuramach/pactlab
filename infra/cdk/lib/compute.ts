@@ -1,4 +1,4 @@
-import { CfnOutput, Duration, RemovalPolicy, Stack, type StackProps } from 'aws-cdk-lib';
+import { CfnOutput, Duration, RemovalPolicy, Stack, type StackProps, SecretValue } from 'aws-cdk-lib';
 import * as acm from 'aws-cdk-lib/aws-certificatemanager';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as ecr from 'aws-cdk-lib/aws-ecr';
@@ -123,6 +123,19 @@ export class PactlabCompute extends Construct {
       generateSecretString: { excludePunctuation: true, passwordLength: 64 },
       removalPolicy: statefulRemoval,
     });
+
+    // Other clouds' API keys (T-130, ADR 0029): created holding the placeholder `unset` (provider off). Kumar sets a real key
+    // with scripts/ai-key.sh; CloudFormation never puts the placeholder back, because the template's value does not change.
+    const aiKey = (id: string, provider: string) =>
+      new secretsmanager.Secret(this, id, {
+        secretName: `pactlab/${config.name}/ai/${provider}`,
+        description: `Pactlab ${config.name}: ${provider} API key for AI models (unset: provider off)`,
+        encryptionKey: dataKey,
+        secretStringValue: SecretValue.unsafePlainText('unset'),
+        removalPolicy: statefulRemoval,
+      });
+    const openaiKey = aiKey('AiOpenAiKey', 'openai');
+    const googleKey = aiKey('AiGoogleKey', 'google');
 
     // --- Images by commit SHA: the slim server image (api, worker), its "-tools" variant (migrate, seed) and the web image.
     const repositories = {
@@ -266,7 +279,12 @@ export class PactlabCompute extends Construct {
       image: serviceImage('api'),
       ...run('apps/api', 'src/main.ts'),
       environment: apiEnvironment,
-      secrets: { DB_PASSWORD: runtimePassword, AUTH_TOKEN_SECRET: ecs.Secret.fromSecretsManager(tokenSecret) },
+      secrets: {
+        DB_PASSWORD: runtimePassword,
+        AUTH_TOKEN_SECRET: ecs.Secret.fromSecretsManager(tokenSecret),
+        OPENAI_API_KEY: ecs.Secret.fromSecretsManager(openaiKey),
+        GOOGLE_API_KEY: ecs.Secret.fromSecretsManager(googleKey),
+      },
       portMappings: [{ containerPort: 4000 }],
       logging: logging('api'),
     });
@@ -436,6 +454,8 @@ export class PactlabCompute extends Construct {
       ToolsImageTag: toolsTag,
       WorkerServiceName: worker.serviceName,
       WorkerTaskFamily: workerTask.family,
+      // scripts/ai-key.sh restarts the API after setting a provider key (secrets are read at task start).
+      ApiServiceName: api.serviceName,
     };
     // Stack-level outputs with fixed names, read by the deploy workflow.
     for (const [name, value] of Object.entries(outputs)) new CfnOutput(stack, name, { value });

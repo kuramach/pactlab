@@ -56,12 +56,13 @@ const OUTCOMES: Record<string, string> = {
   'ok-ai-retired': 'Model retired. Organizations that used it fall back to their other models or the defaults.',
   'ok-ai-route': 'Platform default saved. It applies within a minute.',
   'ok-ai-org': 'Saved for this organization. It applies within a minute.',
+  'ok-ai-terms': 'Data terms saved (audited). With both ticked, that provider’s models can be evaluated and serve.',
   'ai-model-exists': 'That model is already in the catalog.',
   'ai-provider-not-available': 'This environment cannot call that provider yet.',
   'ai-not-evaluated': 'Only evaluated models can be chosen.',
   'ai-route-not-allowed': 'A role’s model must be one of the organization’s allowed models.',
   'ai-model-in-use': 'That model is a platform default. Choose another default first.',
-  'ai-evaluation-not-started': 'An evaluation is already running for that model.',
+  'ai-evaluation-not-started': 'The evaluation did not start: one is already running, or the provider’s data terms are not recorded yet.',
   'ai-ai-off': 'AI is off in this environment.',
 };
 

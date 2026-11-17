@@ -27,5 +27,16 @@ Which models pacts use is managed in the admin console (**Admin → AI models**)
 ## Re-evaluating
 Each evaluation records the prompt hashes it ran against. When prompts change, run **Evaluate again** on models in use.
 
-## Other clouds (OpenAI, Google)
-These come with ADR 0029 (T-130 PR 2): provider connections, credentials in Secrets Manager, and data-terms records. Until then, the console offers only the providers this environment can call.
+## Other clouds: OpenAI and Google (ADR 0034)
+1. **Create the account and an API key** with the provider. Agree its data-processing terms, with zero retention (no storing or training on our requests). Use an enterprise or paid tier that offers this.
+2. **Set the key** (you are asked for it hidden; nothing is printed or saved):
+   ```
+   scripts/aws.sh login
+   scripts/ai-key.sh live openai      # or: stage google, dev openai, …
+   ```
+   It saves the key in Secrets Manager (`pactlab/<env>/ai/<provider>`) and restarts the API. The provider then shows **Key set** in Admin → AI models.
+3. **Record the data terms:** Admin → AI models → *Other clouds: data terms* → tick both boxes, add the region and the agreement reference → Save. Without both ticks, its models can be neither evaluated nor served.
+4. **Add a model** (e.g. an OpenAI or Gemini model ID from the provider's model list), **run its evaluation**, then assign it as for Claude above.
+5. **To turn a provider off:**
+   - untick its terms, which stops its models at once; or
+   - run `scripts/ai-key.sh live openai off`, which sets the key back to `unset`.

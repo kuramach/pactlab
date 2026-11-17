@@ -85,7 +85,7 @@ describe('dev: the running application (ADR 0019)', () => {
     // Dev: new organizations are active at once, so sign-up can be tested end to end.
     expect(environment['SIGNUP_REQUIRES_APPROVAL']).toBe('false');
     expect(Object.keys(environment).some((name) => /PASSWORD|SECRET/.test(name))).toBe(false);
-    expect(api?.Secrets?.map((secret) => secret.Name).sort()).toEqual(['AUTH_TOKEN_SECRET', 'DB_PASSWORD']);
+    expect(api?.Secrets?.map((secret) => secret.Name).sort()).toEqual(['AUTH_TOKEN_SECRET', 'DB_PASSWORD', 'GOOGLE_API_KEY', 'OPENAI_API_KEY']);
     const migrate = definitions.flatMap((definition) => definition.Properties.ContainerDefinitions).find((container) => container.Name === 'migrate');
     expect(migrate?.Secrets?.map((secret) => secret.Name).sort()).toEqual(['DB_OWNER_PASSWORD', 'DB_OWNER_USER', 'DB_PASSWORD']);
   });

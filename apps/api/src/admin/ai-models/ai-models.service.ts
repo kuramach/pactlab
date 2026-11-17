@@ -43,7 +43,10 @@ export class AiModelsService {
   catalog(tenant: TenantContext) {
     return this.asOperator(async () => {
       const models = await aiModels.list(this.sql, tenant.userId);
+      const terms = await aiModels.providerTerms(this.sql, tenant.userId);
       return {
+        // Data terms of providers outside AWS (ADR 0029): their models serve only when both are recorded.
+        terms: terms.map((entry) => ({ ...entry, recordedAt: entry.recordedAt.toISOString(), cleared: entry.dpaInPlace && entry.zeroRetention })),
         // Which providers this deployment can call; others arrive with their transports (ADR 0029).
         providers: this.runtime?.providers ?? [],
         aiOn: this.runtime !== null,
@@ -120,6 +123,19 @@ export class AiModelsService {
       if (!(await aiModels.setPlatformRoute(this.sql, tenant.userId, alias, modelId))) throw new UnprocessableEntityException({ code: 'NOT_EVALUATED' });
       this.changed();
       return { alias, modelId };
+    });
+  }
+
+  /**
+   * Record a provider's data terms (ADR 0029): a data-processing agreement in place and zero
+   * retention or training on our requests. With both, its models may be evaluated and serve;
+   * withdrawing either stops them at once. Audited.
+   */
+  setProviderTerms(tenant: TenantContext, terms: { provider: 'openai' | 'google'; dpaInPlace: boolean; zeroRetention: boolean; region: string | null; notes: string | null }) {
+    return this.asOperator(async () => {
+      await aiModels.setProviderTerms(this.sql, tenant.userId, terms);
+      this.changed();
+      return { cleared: terms.dpaInPlace && terms.zeroRetention };
     });
   }
 

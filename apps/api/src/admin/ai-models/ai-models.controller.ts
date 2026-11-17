@@ -11,6 +11,13 @@ export const addModelSchema = z.strictObject({
   providerModelId: z.string().trim().regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]{1,199}$/),
   label: z.string().trim().min(1).max(80),
 });
+const providerParams = z.strictObject({ provider: z.enum(['openai', 'google']) });
+export const providerTermsSchema = z.strictObject({
+  dpaInPlace: z.boolean(),
+  zeroRetention: z.boolean(),
+  region: z.string().trim().max(80).nullable().default(null),
+  notes: z.string().trim().max(1000).nullable().default(null),
+});
 const modelParams = z.strictObject({ modelId: z.uuid() });
 const aliasParams = z.strictObject({ alias });
 const organizationParams = z.strictObject({ organizationId: z.uuid() });
@@ -50,6 +57,16 @@ export class AiModelsController {
   @Put('routes/:alias')
   setPlatformRoute(@Tenant() tenant: TenantContext, @Param(new ZodValidationPipe(aliasParams)) params: { alias: z.infer<typeof alias> }, @Body(new ZodValidationPipe(routeBody)) body: { modelId: string }) {
     return this.service.setPlatformRoute(tenant, params.alias, body.modelId);
+  }
+
+  /** A provider outside AWS: its data terms, which gate its models (ADR 0029). */
+  @Put('providers/:provider/terms')
+  setProviderTerms(
+    @Tenant() tenant: TenantContext,
+    @Param(new ZodValidationPipe(providerParams)) params: { provider: 'openai' | 'google' },
+    @Body(new ZodValidationPipe(providerTermsSchema)) body: z.infer<typeof providerTermsSchema>,
+  ) {
+    return this.service.setProviderTerms(tenant, { provider: params.provider, ...body });
   }
 
   @Get('organizations/:organizationId')

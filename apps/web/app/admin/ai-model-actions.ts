@@ -52,3 +52,19 @@ export async function setOrganizationModels(organizationId: string, formData: Fo
   const result = await apiSend('PUT', `/v1/admin/ai-models/organizations/${organizationId}`, { allowed, routes });
   back(result.kind === 'ok' ? 'ok-ai-org' : code(result), organizationId);
 }
+
+/** A provider outside AWS (ADR 0029): its data terms. Both ticked lets its models be evaluated and serve. */
+export async function setProviderTerms(provider: 'openai' | 'google', formData: FormData): Promise<void> {
+  if (provider !== 'openai' && provider !== 'google') return back('invalid');
+  const text = (name: string) => {
+    const value = String(formData.get(name) ?? '').trim();
+    return value === '' ? null : value.slice(0, name === 'notes' ? 1000 : 80);
+  };
+  const result = await apiSend('PUT', `/v1/admin/ai-models/providers/${provider}/terms`, {
+    dpaInPlace: formData.get('dpaInPlace') === 'on',
+    zeroRetention: formData.get('zeroRetention') === 'on',
+    region: text('region'),
+    notes: text('notes'),
+  });
+  back(result.kind === 'ok' ? 'ok-ai-terms' : code(result));
+}

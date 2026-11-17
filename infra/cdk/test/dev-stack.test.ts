@@ -12,7 +12,8 @@ describe('dev on the shared non-live base', () => {
     template.hasResourceProperties('AWS::RDS::DBInstance', { Engine: 'postgres', StorageEncrypted: true, PubliclyAccessible: false, EnableIAMDatabaseAuthentication: true });
     template.hasResourceProperties('AWS::RDS::DBParameterGroup', { Parameters: Match.objectLike({ 'rds.force_ssl': '1', timezone: 'UTC' }) });
     // The RDS owner secret, plus the app's runtime login and token key.
-    template.resourceCountIs('AWS::SecretsManager::Secret', 3);
+    // Owner, runtime and token, plus the OpenAI and Google API keys (T-130), created as `unset`.
+    template.resourceCountIs('AWS::SecretsManager::Secret', 5);
   });
 
   it('creates no network, load balancer or Redis of its own: the base has them, with a NAT instance and no NAT gateway', () => {

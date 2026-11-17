@@ -27,7 +27,7 @@ Every result must remain traceable to source evidence and a reviewer decision. D
 | Data | PostgreSQL + RLS |
 | ORM | Prisma |
 | Jobs | BullMQ + Redis |
-| AI | Claude via AWS Bedrock |
+| AI | Claude via AWS Bedrock by default; other evaluated frontier models per organization through the same gateway (ADR 0034) |
 | Infrastructure | AWS CDK TypeScript |
 | Identity | Auth0 |
 | Monorepo | pnpm + Turborepo |

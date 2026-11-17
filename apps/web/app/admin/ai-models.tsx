@@ -2,7 +2,7 @@ import type { Page } from '@pactlab/contracts';
 import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle } from '@pactlab/ui';
 import { apiGet } from '../(app)/deals/_lib/api';
 import { ApiState } from '../(app)/deals/_lib/states';
-import { addModel, evaluateModel, retireModel, setOrganizationModels, setPlatformRoute } from './ai-model-actions';
+import { addModel, evaluateModel, retireModel, setOrganizationModels, setPlatformRoute, setProviderTerms } from './ai-model-actions';
 
 type Alias = 'fast' | 'balanced' | 'deep_review';
 interface Model {
@@ -27,7 +27,18 @@ interface Model {
   organizations: number;
   platformAliases: Alias[];
 }
+interface Terms {
+  provider: 'openai' | 'google';
+  dpaInPlace: boolean;
+  zeroRetention: boolean;
+  region: string | null;
+  notes: string | null;
+  recordedAt: string;
+  recordedByName: string | null;
+  cleared: boolean;
+}
 interface Catalog {
+  terms: Terms[];
   providers: string[];
   aiOn: boolean;
   models: Model[];
@@ -71,7 +82,7 @@ function Evaluation({ model }: { model: Model }) {
 export async function AiModels({ organizationId, organizationQuery }: { organizationId: string; organizationQuery: string }) {
   const result = await apiGet<Catalog>('/v1/admin/ai-models');
   if (result.kind !== 'ok') return <ApiState result={result} />;
-  const { models, providers, aiOn } = result.data;
+  const { models, providers, aiOn, terms } = result.data;
   const evaluated = models.filter((model) => model.status === 'EVALUATED');
   const platform = (alias: Alias) => models.find((model) => model.platformAliases.includes(alias));
   const organizations = organizationQuery ? await apiGet<Page<{ id: string; name: string; slug: string }>>(`/v1/admin/organizations?q=${encodeURIComponent(organizationQuery)}&limit=20`) : null;
@@ -169,8 +180,55 @@ export async function AiModels({ organizationId, organizationQuery }: { organiza
             <Button type="submit" size="sm">
               Add model
             </Button>
-            <span className="text-xs text-muted-foreground">Other clouds (OpenAI, Google) appear here once their connections are set up.</span>
+            <span className="text-xs text-muted-foreground">OpenAI and Google appear here once their key is set (scripts/ai-key.sh).</span>
           </form>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Other clouds: data terms</CardTitle>
+          <CardDescription>
+            OpenAI and Google run outside our AWS accounts. Their models can be evaluated and serve only with a data-processing agreement in place and zero retention (no
+            storing or training on our requests) on record. Untick either and their models stop at once. Deal content still never includes people data.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-3 md:grid-cols-2">
+          {(['openai', 'google'] as const).map((provider) => {
+            const current = terms.find((entry) => entry.provider === provider);
+            return (
+              <form key={provider} action={setProviderTerms.bind(null, provider)} className="flex flex-col gap-2 rounded-lg border border-border p-3 text-sm" aria-label={`${PROVIDERS[provider]} data terms`}>
+                <span className="flex flex-wrap items-center gap-2 font-semibold">
+                  {PROVIDERS[provider]}
+                  <Badge variant={providers.includes(provider) ? 'calculation' : 'neutral'}>{providers.includes(provider) ? 'Key set' : 'No key'}</Badge>
+                  <Badge variant={current?.cleared ? 'calculation' : 'draft'}>{current?.cleared ? 'Cleared to serve' : 'Not cleared'}</Badge>
+                </span>
+                <label className="flex items-center gap-2">
+                  <input type="checkbox" name="dpaInPlace" defaultChecked={current?.dpaInPlace ?? false} /> Data-processing agreement in place
+                </label>
+                <label className="flex items-center gap-2">
+                  <input type="checkbox" name="zeroRetention" defaultChecked={current?.zeroRetention ?? false} /> Zero retention: no storing or training on our requests
+                </label>
+                <label className="flex flex-col gap-1 font-medium">
+                  Region
+                  <input name="region" defaultValue={current?.region ?? ''} maxLength={80} placeholder="e.g. US" className={field} />
+                </label>
+                <label className="flex flex-col gap-1 font-medium">
+                  Notes (agreement reference, date)
+                  <input name="notes" defaultValue={current?.notes ?? ''} maxLength={1000} className={field} />
+                </label>
+                {current ? (
+                  <span className="text-xs text-muted-foreground">
+                    Recorded {current.recordedAt.slice(0, 10)}
+                    {current.recordedByName ? ` by ${current.recordedByName}` : ''}
+                  </span>
+                ) : null}
+                <Button type="submit" size="sm" variant="outline" className="self-start">
+                  Save terms
+                </Button>
+              </form>
+            );
+          })}
         </CardContent>
       </Card>
 

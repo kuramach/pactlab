@@ -49,7 +49,8 @@ describe('AI models in the admin console', { timeout: 60_000 }, () => {
     await db.owner.query(`UPDATE users SET platform_operator = true WHERE id = $1`, [operator.userId]);
     // The fixture provider: the configured models are adopted, evaluations replay the recorded cassettes.
     const ai = await createAiGateway({ AI_PROVIDER: 'fixture' } as ApiEnv, db.prisma);
-    models = ai.models as AiModelsRuntime;
+    // As if OpenAI's key were set: the console offers it, and the terms gate decides whether it may run.
+    models = { ...(ai.models as AiModelsRuntime), providers: ['fixture', 'openai'] };
     const pair = await generateKeyPair('RS256');
     key = pair.privateKey;
     const jwk = { ...(await exportJWK(pair.publicKey)), kid: 'test', alg: 'RS256' };
@@ -88,7 +89,7 @@ describe('AI models in the admin console', { timeout: 60_000 }, () => {
     const id = added.body['id'] as string;
     expect((await call('operator', 'POST', '/v1/admin/ai-models', { provider: 'fixture', providerModelId: 'synthetic-next', label: 'Again' })).body).toMatchObject({ code: 'MODEL_EXISTS' });
     // Providers this deployment cannot call are refused (they arrive with their transports).
-    expect((await call('operator', 'POST', '/v1/admin/ai-models', { provider: 'openai', providerModelId: 'gpt-next', label: 'GPT' })).body).toMatchObject({ code: 'PROVIDER_NOT_AVAILABLE' });
+    expect((await call('operator', 'POST', '/v1/admin/ai-models', { provider: 'google', providerModelId: 'gemini-next', label: 'Gemini' })).body).toMatchObject({ code: 'PROVIDER_NOT_AVAILABLE' });
 
     // Not evaluated: it can be neither a platform route nor on an allow-list.
     expect((await call('operator', 'PUT', '/v1/admin/ai-models/routes/balanced', { modelId: id })).body).toMatchObject({ code: 'NOT_EVALUATED' });
@@ -132,5 +133,30 @@ describe('AI models in the admin console', { timeout: 60_000 }, () => {
     const response = await gateway.invoke(documentQaPrompt, { ...request, organizationId: other.organizationId });
     expect(response.run).toMatchObject({ resolvedModelId: 'synthetic-fixture', resolvedProvider: 'fixture' });
     expect(transport.requests[0]).toMatchObject({ modelId: 'synthetic-fixture', provider: 'fixture' });
+  });
+
+  it('another cloud (ADR 0029): no evaluation and no serving until its data terms are on record; withdrawn terms stop it at once', async () => {
+    const added = await call('operator', 'POST', '/v1/admin/ai-models', { provider: 'openai', providerModelId: 'gpt-synthetic', label: 'GPT (synthetic)' });
+    const id = added.body['id'] as string;
+    // No terms: not even synthetic test material is sent.
+    expect((await call('operator', 'POST', `/v1/admin/ai-models/${id}/evaluation`)).body).toMatchObject({ code: 'EVALUATION_NOT_STARTED' });
+    // A data-processing agreement alone is not enough.
+    expect((await call('operator', 'PUT', '/v1/admin/ai-models/providers/openai/terms', { dpaInPlace: true, zeroRetention: false })).body).toEqual({ cleared: false });
+    expect((await call('operator', 'POST', `/v1/admin/ai-models/${id}/evaluation`)).body).toMatchObject({ code: 'EVALUATION_NOT_STARTED' });
+    expect((await call('restricted', 'PUT', '/v1/admin/ai-models/providers/openai/terms', { dpaInPlace: true, zeroRetention: true })).status).toBe(403);
+
+    expect((await call('operator', 'PUT', '/v1/admin/ai-models/providers/openai/terms', { dpaInPlace: true, zeroRetention: true, region: 'US', notes: 'Synthetic test terms' })).body).toEqual({ cleared: true });
+    expect((await call('operator', 'POST', `/v1/admin/ai-models/${id}/evaluation`)).status).toBe(202);
+    expect((await evaluated(id)).status).toBe('EVALUATED');
+    expect((await call('operator', 'PUT', `/v1/admin/ai-models/organizations/${other.organizationId}`, { allowed: [], routes: { balanced: id } })).status).toBe(200);
+    expect(await models.resolver.routeFor(other.organizationId, 'balanced')).toMatchObject({ modelId: 'gpt-synthetic', provider: 'openai' });
+    const terms = (await call('operator', 'GET', '/v1/admin/ai-models')).body['terms'] as Body[];
+    expect(terms).toEqual([expect.objectContaining({ provider: 'openai', cleared: true, region: 'US' })]);
+
+    // Terms withdrawn: the organization falls back to the platform default within the request.
+    await call('operator', 'PUT', '/v1/admin/ai-models/providers/openai/terms', { dpaInPlace: true, zeroRetention: false });
+    expect(await models.resolver.routeFor(other.organizationId, 'balanced')).toMatchObject({ modelId: 'synthetic-fixture' });
+    const audited = await db.owner.query<{ action: string }>(`SELECT DISTINCT action FROM audit_events WHERE action LIKE 'operator.ai_provider.%'`);
+    expect(new Set(audited.rows.map((row) => row.action))).toEqual(new Set(['operator.ai_provider.cleared', 'operator.ai_provider.not_cleared']));
   });
 });
