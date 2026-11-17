@@ -3,7 +3,7 @@ import type { ReasoningEffort } from './models';
 import type { ModelRequest, ModelResponse, ModelTransport } from './transport';
 
 /**
- * OpenAI and Google model transports (T-130, ADR 0029): the same `ModelTransport` as Bedrock, over
+ * OpenAI and Google model transports (T-131, ADR 0029): the same `ModelTransport` as Bedrock, over
  * each provider's REST API, so the gateway, schema validation, citations, retries and the circuit
  * breaker work unchanged. Request and response shapes follow the providers' published references:
  * OpenAI's Responses API (`POST /v1/responses`, as typed by the official `openai` SDK) and Google's

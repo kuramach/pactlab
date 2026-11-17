@@ -7,7 +7,7 @@ export interface ModelMessage {
 
 export interface ModelRequest {
   readonly modelId: string;
-  /** Where the model runs (T-130); Bedrock when absent. A routing transport picks the provider by it. */
+  /** Where the model runs (T-131); Bedrock when absent. A routing transport picks the provider by it. */
   readonly provider?: ModelProvider | undefined;
   readonly effort: ReasoningEffort;
   readonly system: string;

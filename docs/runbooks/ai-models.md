@@ -1,4 +1,4 @@
-# AI models: adding, evaluating and assigning them (T-130)
+# AI models: adding, evaluating and assigning them (T-131)
 
 Which models pacts use is managed in the admin console (**Admin → AI models**), not in code. Code asks for a role (*fast*, *balanced* or *deep review*); the console decides which model serves it.
 

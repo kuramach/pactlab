@@ -36,7 +36,7 @@ describe('document AI evals', async () => {
   });
 });
 
-describe('the bar a model must clear to serve (T-130)', () => {
+describe('the bar a model must clear to serve (T-131)', () => {
   it('passes the recorded cassettes and fails a model that misses a case, a probe or citations', async () => {
     const report = await runDocumentEvals();
     expect(judgeModel(report)).toEqual({ passed: true, failures: [] });

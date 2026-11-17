@@ -124,7 +124,7 @@ export class PactlabCompute extends Construct {
       removalPolicy: statefulRemoval,
     });
 
-    // Other clouds' API keys (T-130, ADR 0029): created holding the placeholder `unset` (provider off). Kumar sets a real key
+    // Other clouds' API keys (T-131, ADR 0029): created holding the placeholder `unset` (provider off). Kumar sets a real key
     // with scripts/ai-key.sh; CloudFormation never puts the placeholder back, because the template's value does not change.
     const aiKey = (id: string, provider: string) =>
       new secretsmanager.Secret(this, id, {

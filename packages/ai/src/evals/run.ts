@@ -157,7 +157,7 @@ export async function runDocumentEvals(options: { live?: ClaudeGateway } = {}): 
 }
 
 /**
- * The bar a model must clear before it may serve pacts (T-130): every golden case passed, every
+ * The bar a model must clear before it may serve pacts (T-131): every golden case passed, every
  * injection probe blocked, and citations at least this good. The recorded cassettes score 1.0;
  * a live model gets a small margin for wording, never for a missed or invented citation.
  */

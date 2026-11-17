@@ -8,7 +8,7 @@ const makeOperator = (email: string) => {
   expect(result.status, result.stderr).toBe(0);
 };
 
-// T-130: an operator adds a model, it passes evaluation (fixture provider: the recorded cassettes), and is assigned to one organization.
+// T-131: an operator adds a model, it passes evaluation (fixture provider: the recorded cassettes), and is assigned to one organization.
 test('an operator adds a model, evaluates it, and assigns it to one organization', { tag: '@regression' }, async ({ page }) => {
   makeOperator('lead@charlie.example');
   const suffix = randomUUID().slice(0, 8);

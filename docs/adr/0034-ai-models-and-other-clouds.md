@@ -1,4 +1,4 @@
-# ADR 0034: AI models managed in the console; other frontier models behind the same gateway (T-130)
+# ADR 0034: AI models managed in the console; other frontier models behind the same gateway (T-131)
 
 **Status:** accepted (2026-11-17). Amends the settled stack row "AI: Claude via AWS Bedrock".
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Set an AI provider's API key for an environment (T-130, ADR 0029), then restart the API so it uses it.
+# Set an AI provider's API key for an environment (T-131, ADR 0029), then restart the API so it uses it.
 #   scripts/ai-key.sh live openai      # asks for the key (typed hidden); nothing is printed or saved locally
 #   scripts/ai-key.sh stage google
 #   scripts/ai-key.sh live openai off  # turns the provider off again (the key becomes `unset`)

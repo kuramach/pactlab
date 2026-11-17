@@ -78,7 +78,7 @@ export interface AppDependencies {
   documents?: Partial<Omit<DocumentsModuleDependencies, 'repository'>>;
   /** What `GET /v1/ai/status` reports; describes `documents.gateway`. Omitted: AI off. */
   aiStatus?: AiStatusView;
-  /** AI models in the admin console (T-130): the route resolver and evaluator; null where AI is off. */
+  /** AI models in the admin console (T-131): the route resolver and evaluator; null where AI is off. */
   aiModels?: AiModelsRuntime | null;
   /**
    * Live provider access: credential store, Pactlab's GitHub App, HTTP client.

@@ -126,7 +126,7 @@ export class LoggedFixtureTransport implements ModelTransport {
  * scripts (tests); anything else fails closed with NOT_CONFIGURED, after the
  * data policy check. The bedrock path also returns a boot health check.
  */
-/** The admin console's model management (T-130): who resolves routes, how a model is evaluated, which providers can serve. */
+/** The admin console's model management (T-131): who resolves routes, how a model is evaluated, which providers can serve. */
 export interface AiModelsRuntime {
   readonly resolver: ModelRouteResolver;
   readonly evaluate: ModelEvaluator;
@@ -156,7 +156,7 @@ export async function createAiGateway(
   if (env.AI_PROVIDER !== 'bedrock' || !env.AWS_REGION) return { gateway: new NotConfiguredClaudeGateway(), status: AI_OFF, check: async () => null, models: null };
   const routes = routesFrom(env);
   const bedrock = new BedrockModelTransport({ send: await bedrockConverseSender(env.AWS_REGION) });
-  // Other clouds (T-130, ADR 0029), each connected only when its key is set. Every provider has its
+  // Other clouds (T-131, ADR 0029), each connected only when its key is set. Every provider has its
   // own retries and breaker, so one provider's outage never pauses another.
   const bare: Partial<Record<ModelProvider, ModelTransport>> = {
     bedrock,
@@ -166,7 +166,7 @@ export async function createAiGateway(
   const transport = new ProviderRouterTransport(
     Object.fromEntries(Object.entries(bare).map(([provider, inner]) => [provider, new ResilientModelTransport({ transport: inner as ModelTransport, breaker: new CircuitBreaker() })])),
   );
-  // The catalog (T-130): the deployment's configured models are adopted into an empty catalog, so nothing changes on deploy.
+  // The catalog (T-131): the deployment's configured models are adopted into an empty catalog, so nothing changes on deploy.
   const resolver = prisma ? new ModelRouteResolver(prisma, routes) : null;
   if (resolver) await resolver.adopt('bedrock');
   return {

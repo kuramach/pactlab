@@ -8,7 +8,7 @@ export const AI_STATUS = Symbol('AI_STATUS');
 export const AI_ROUTES = Symbol('AI_ROUTES');
 
 /**
- * Whether document AI is on, and which models it uses for the caller's organization (T-130: the
+ * Whether document AI is on, and which models it uses for the caller's organization (T-131: the
  * admin console's choice for it, or the defaults). A role its allow-list does not cover is left
  * out. Signed-in users only; no secrets.
  */

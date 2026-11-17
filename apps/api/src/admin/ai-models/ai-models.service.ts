@@ -18,7 +18,7 @@ export function staleOn(evaluated: Record<string, string> | undefined): boolean 
 }
 
 /**
- * AI models in the operator console (T-130): the catalog, the evaluation gate, the platform
+ * AI models in the operator console (T-131): the catalog, the evaluation gate, the platform
  * routes and each organization's allow-list. Every action is checked and audited by the
  * `app_ops_ai_*` functions; every change clears the route cache so it applies within the request.
  */

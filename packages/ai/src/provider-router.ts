@@ -3,7 +3,7 @@ import type { ModelProvider } from './models';
 import type { ModelRequest, ModelResponse, ModelTransport } from './transport';
 
 /**
- * Sends each call to its provider's transport (T-130): Bedrock unless the route names another.
+ * Sends each call to its provider's transport (T-131): Bedrock unless the route names another.
  * Each provider keeps its own retries and circuit breaker, so one provider's outage never pauses
  * another. A provider this deployment has no connection for refuses with ACCESS.
  */

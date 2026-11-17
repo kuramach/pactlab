@@ -1,4 +1,4 @@
--- AI models managed in the admin console (T-130): a catalog of models across providers, an
+-- AI models managed in the admin console (T-131): a catalog of models across providers, an
 -- evaluation gate (only EVALUATED models serve), platform default routes per alias, and a
 -- per-organization allow-list with its own routes. Expand-only; re-runnable. Rollback: drop the
 -- four tables and the functions, and ai_runs.resolved_provider; the API then serves the routes
@@ -56,7 +56,7 @@ CREATE TABLE IF NOT EXISTS "organization_ai_routes" (
     CONSTRAINT "organization_ai_routes_model_fkey" FOREIGN KEY ("model_id") REFERENCES "ai_models"("id") ON DELETE RESTRICT
 );
 
--- Which provider answered (the model id alone no longer says): bedrock for every run before T-130.
+-- Which provider answered (the model id alone no longer says): bedrock for every run before T-131.
 ALTER TABLE ai_runs ADD COLUMN IF NOT EXISTS "resolved_provider" TEXT NOT NULL DEFAULT 'bedrock';
 
 ALTER TABLE ai_models ENABLE ROW LEVEL SECURITY;
@@ -125,7 +125,7 @@ BEGIN
       CONTINUE;
     END IF;
     INSERT INTO ai_models (id, provider, provider_model_id, label, status, evaluation)
-    VALUES (uuidv7(), v_route->>'provider', v_route->>'modelId', v_route->>'label', 'EVALUATED', jsonb_build_object('basis', 'Serving before T-130 (adopted from the deployment)', 'adoptedAt', now()))
+    VALUES (uuidv7(), v_route->>'provider', v_route->>'modelId', v_route->>'label', 'EVALUATED', jsonb_build_object('basis', 'Serving before T-131 (adopted from the deployment)', 'adoptedAt', now()))
     ON CONFLICT (provider, provider_model_id) DO NOTHING;
     SELECT m.id INTO v_model FROM ai_models m WHERE m.provider = v_route->>'provider' AND m.provider_model_id = v_route->>'modelId';
     INSERT INTO ai_platform_routes (alias, model_id) VALUES (v_route->>'alias', v_model) ON CONFLICT (alias) DO NOTHING;

@@ -62,7 +62,7 @@ export interface AiRunRecord {
   readonly promptHash: string;
   readonly modelAlias: ModelAlias;
   readonly resolvedModelId: string;
-  /** Where the answering model runs (T-130). */
+  /** Where the answering model runs (T-131). */
   readonly resolvedProvider: ModelProvider;
   readonly inputHashes: readonly string[];
   readonly outputHash: string | null;
@@ -150,7 +150,7 @@ export interface ClaudeGatewayOptions {
   readonly registry: PromptRegistry;
   readonly routes?: Partial<Record<ModelAlias, ModelRoute>>;
   /**
-   * The route for one organization's call (T-130): its allowed, evaluated model for the alias;
+   * The route for one organization's call (T-131): its allowed, evaluated model for the alias;
    * null to use `routes`; 'BLOCKED' when its allow-list covers no model (the call is refused).
    */
   readonly routeFor?: (organizationId: string, alias: ModelAlias) => Promise<ModelRoute | null | 'BLOCKED'>;

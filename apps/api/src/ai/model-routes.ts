@@ -5,7 +5,7 @@ import { aiModels, prismaExecutor, type AiEvaluation, type PrismaClient, type Sq
 const CACHE_MS = 60_000;
 
 /**
- * Which model serves each alias for each organization (T-130), from the admin console's catalog:
+ * Which model serves each alias for each organization (T-131), from the admin console's catalog:
  * the organization's route, else the platform route, only EVALUATED models, only allowed ones.
  * Cached a minute per organization; the console invalidates it on every change. Where the
  * catalog has nothing for an alias, the deployment's configured route serves (AI never goes dark).

@@ -7,7 +7,7 @@ import { AI_MODELS, AiModelsService } from './ai-models/ai-models.service';
 import { HostingCostController } from './cost/hosting-cost.controller';
 import { HOSTING_COST_SETTINGS, HostingCostService, type HostingCostSettings } from './cost/hosting-cost.service';
 
-/** Operator console, bug reports and organization flags (T-072), hosting cost, and AI models (T-130). */
+/** Operator console, bug reports and organization flags (T-072), hosting cost, and AI models (T-131). */
 @Module({})
 export class AdminModule {
   static register(settings: AdminSettings, cost: HostingCostSettings, models: AiModelsRuntime | null = null): DynamicModule {

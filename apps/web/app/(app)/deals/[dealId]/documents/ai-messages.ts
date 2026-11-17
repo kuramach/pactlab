@@ -6,7 +6,7 @@ export function aiOutcome(code: string | undefined): 'ai-access' | 'ai-throttled
 
 /** Plain-language reasons AI is unavailable; shared with the page's outcome banner. */
 export const AI_UNAVAILABLE: Readonly<Record<'ai-access' | 'ai-throttled' | 'ai-delayed' | 'ai-failed' | 'ai-off' | 'ai-not-approved', string>> = {
-  // T-130: the organization is limited to chosen AI models, and none of them covers this task.
+  // T-131: the organization is limited to chosen AI models, and none of them covers this task.
   'ai-not-approved': 'AI is not available for this task: your organization is limited to chosen AI models, and none of them covers it. Ask Pactlab to add one. Nothing was drafted.',
   'ai-access':
     'AI is unavailable: Claude access was refused for this environment (an expired sign-in, or model access switched off for the account). An operator needs to restore it. Uploads still work; run AI on these files again once it’s back.',
