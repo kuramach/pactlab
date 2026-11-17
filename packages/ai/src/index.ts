@@ -11,3 +11,5 @@ export * from './resilience';
 export * from './transport';
 export * from './grounding';
 export * from './voice';
+export * from './http-providers';
+export * from './provider-router';

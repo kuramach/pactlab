@@ -1,4 +1,8 @@
 import {
+  GoogleModelTransport,
+  OpenAIModelTransport,
+  ProviderRouterTransport,
+  type ModelProvider,
   BedrockModelTransport,
   CircuitBreaker,
   ModelProviderError,
@@ -126,7 +130,7 @@ export class LoggedFixtureTransport implements ModelTransport {
 export interface AiModelsRuntime {
   readonly resolver: ModelRouteResolver;
   readonly evaluate: ModelEvaluator;
-  readonly providers: readonly ('bedrock' | 'openai' | 'google' | 'fixture')[];
+  readonly providers: readonly ModelProvider[];
 }
 
 export async function createAiGateway(
@@ -152,7 +156,16 @@ export async function createAiGateway(
   if (env.AI_PROVIDER !== 'bedrock' || !env.AWS_REGION) return { gateway: new NotConfiguredClaudeGateway(), status: AI_OFF, check: async () => null, models: null };
   const routes = routesFrom(env);
   const bedrock = new BedrockModelTransport({ send: await bedrockConverseSender(env.AWS_REGION) });
-  const transport = new ResilientModelTransport({ transport: bedrock, breaker: new CircuitBreaker() });
+  // Other clouds (T-131, ADR 0034), each connected only when its key is set. Every provider has its
+  // own retries and breaker, so one provider's outage never pauses another.
+  const bare: Partial<Record<ModelProvider, ModelTransport>> = {
+    bedrock,
+    ...(env.OPENAI_API_KEY ? { openai: new OpenAIModelTransport({ apiKey: async () => env.OPENAI_API_KEY as string }) } : {}),
+    ...(env.GOOGLE_API_KEY ? { google: new GoogleModelTransport({ apiKey: async () => env.GOOGLE_API_KEY as string }) } : {}),
+  };
+  const transport = new ProviderRouterTransport(
+    Object.fromEntries(Object.entries(bare).map(([provider, inner]) => [provider, new ResilientModelTransport({ transport: inner as ModelTransport, breaker: new CircuitBreaker() })])),
+  );
   // The catalog (T-131): the deployment's configured models are adopted into an empty catalog, so nothing changes on deploy.
   const resolver = prisma ? new ModelRouteResolver(prisma, routes) : null;
   if (resolver) await resolver.adopt('bedrock');
@@ -167,6 +180,6 @@ export async function createAiGateway(
     // The bare transport: a boot check must not count against the breaker.
     check: () => checkAiHealth(bedrock, routes),
     // Evaluations go through the bare transport too: a model under test must not trip the breaker for live traffic.
-    models: resolver ? { resolver, evaluate: modelEvaluator(bedrock, routes), providers: ['bedrock'] } : null,
+    models: resolver ? { resolver, evaluate: modelEvaluator(new ProviderRouterTransport(bare), routes), providers: transport.providers } : null,
   };
 }

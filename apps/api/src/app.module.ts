@@ -252,7 +252,7 @@ export class AppModule {
         EngineeringModule,
         AuditModule,
         OrganizationModule,
-        AiModule.register(deps.aiStatus ?? AI_OFF),
+        AiModule.register(deps.aiStatus ?? AI_OFF, deps.aiModels ?? null),
         ImportsModule.register({
           objectStore: deps.uploads?.objectStore ?? new UnavailableUploadStore(),
           malwareScanner: deps.uploads?.malwareScanner ?? new UnavailableMalwareScanner(),

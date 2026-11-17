@@ -171,6 +171,12 @@ export const apiEnvSchema = baseEnvSchema.extend({
   BEDROCK_FALLBACK_BALANCED: unsetIfBlank(claudeModelId.optional()),
   BEDROCK_FALLBACK_DEEP_REVIEW: unsetIfBlank(claudeModelId.optional()),
   BEDROCK_FALLBACK_FAST: unsetIfBlank(claudeModelId.optional()),
+  /**
+   * Other clouds (T-131, ADR 0034): the OpenAI and Google API keys, injected from Secrets Manager.
+   * Unset, or the placeholder `unset` the stack creates, means that provider is not connected.
+   */
+  OPENAI_API_KEY: unsetIfBlank(z.string().min(1).optional()).transform((value) => (value === 'unset' ? undefined : value)),
+  GOOGLE_API_KEY: unsetIfBlank(z.string().min(1).optional()).transform((value) => (value === 'unset' ? undefined : value)),
   ...deployedStorageFields,
   /** `ses`: sign-in and invitation email through Amazon SES (task-role credentials). Unset: the local mail folder. */
   EMAIL_PROVIDER: unsetIfBlank(z.enum(['ses']).optional()),

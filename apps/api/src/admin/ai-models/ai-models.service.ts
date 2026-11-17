@@ -2,11 +2,20 @@ import { ForbiddenException, Inject, Injectable, NotFoundException, ServiceUnava
 import { aiModels, OperatorRequiredError, prismaExecutor, type AiAlias, type AiProvider, type PrismaClient, type SqlExecutor } from '@pactlab/db';
 import type { TenantContext } from '@pactlab/domain';
 import type { Logger } from '@pactlab/observability';
+import { defaultPromptRegistry } from '@pactlab/ai';
 import { evaluationRecord } from '../../ai/model-routes';
 import type { AiModelsRuntime } from '../../ai/ai-provider';
 import { LOGGER, PRISMA } from '../../tokens';
 
 export const AI_MODELS = Symbol('AI_MODELS');
+
+/** True when any prompt in use has changed (or is new) since an evaluation that recorded its prompt hashes. */
+export function staleOn(evaluated: Record<string, string> | undefined): boolean {
+  if (!evaluated) return false;
+  return defaultPromptRegistry()
+    .list()
+    .some((prompt) => evaluated[`${prompt.id}@${prompt.version}`] !== prompt.hash);
+}
 
 /**
  * AI models in the operator console (T-131): the catalog, the evaluation gate, the platform
@@ -43,11 +52,20 @@ export class AiModelsService {
   catalog(tenant: TenantContext) {
     return this.asOperator(async () => {
       const models = await aiModels.list(this.sql, tenant.userId);
+      const terms = await aiModels.providerTerms(this.sql, tenant.userId);
       return {
-        // Which providers this deployment can call; others arrive with their transports (ADR 0029).
+        // Data terms of providers outside AWS (ADR 0034): their models serve only when both are recorded.
+        terms: terms.map((entry) => ({ ...entry, recordedAt: entry.recordedAt.toISOString(), cleared: entry.dpaInPlace && entry.zeroRetention })),
+        // Which providers this deployment can call; others arrive with their transports (ADR 0034).
         providers: this.runtime?.providers ?? [],
         aiOn: this.runtime !== null,
-        models: models.map((model) => ({ ...model, evaluatingSince: model.evaluatingSince?.toISOString() ?? null, createdAt: model.createdAt.toISOString() })),
+        models: models.map((model) => ({
+          ...model,
+          evaluatingSince: model.evaluatingSince?.toISOString() ?? null,
+          createdAt: model.createdAt.toISOString(),
+          // A prompt changed since the model was evaluated: it keeps serving, and the console asks for a fresh evaluation.
+          reevaluationDue: model.status === 'EVALUATED' && staleOn(model.evaluation?.promptHashes),
+        })),
       };
     });
   }
@@ -120,6 +138,19 @@ export class AiModelsService {
       if (!(await aiModels.setPlatformRoute(this.sql, tenant.userId, alias, modelId))) throw new UnprocessableEntityException({ code: 'NOT_EVALUATED' });
       this.changed();
       return { alias, modelId };
+    });
+  }
+
+  /**
+   * Record a provider's data terms (ADR 0034): a data-processing agreement in place and zero
+   * retention or training on our requests. With both, its models may be evaluated and serve;
+   * withdrawing either stops them at once. Audited.
+   */
+  setProviderTerms(tenant: TenantContext, terms: { provider: 'openai' | 'google'; dpaInPlace: boolean; zeroRetention: boolean; region: string | null; notes: string | null }) {
+    return this.asOperator(async () => {
+      await aiModels.setProviderTerms(this.sql, tenant.userId, terms);
+      this.changed();
+      return { cleared: terms.dpaInPlace && terms.zeroRetention };
     });
   }
 

@@ -3330,3 +3330,16 @@ model OrganizationAiRoute {
   @@id([organizationId, alias])
   @@map("organization_ai_routes")
 }
+
+/// Data terms of an AI provider outside AWS (T-131, ADR 0034): its models serve only when both are true.
+model AiProviderTerms {
+  provider      String   @id
+  dpaInPlace    Boolean  @map("dpa_in_place")
+  zeroRetention Boolean  @map("zero_retention")
+  region        String?
+  notes         String?
+  recordedBy    String?  @map("recorded_by") @db.Uuid
+  recordedAt    DateTime @default(now()) @map("recorded_at") @db.Timestamptz(3)
+
+  @@map("ai_provider_terms")
+}

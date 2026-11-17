@@ -32,6 +32,17 @@ export interface AiEvaluation {
   basis?: string;
 }
 
+/** A provider outside AWS: its models serve only with a data-processing agreement and zero retention on record. */
+export interface ProviderTerms {
+  provider: 'openai' | 'google';
+  dpaInPlace: boolean;
+  zeroRetention: boolean;
+  region: string | null;
+  notes: string | null;
+  recordedAt: Date;
+  recordedByName: string | null;
+}
+
 export interface AiModelRow {
   id: string;
   provider: AiProvider;
@@ -99,6 +110,24 @@ export const aiModels = {
   async setPlatformRoute(sql: SqlExecutor, actor: string, alias: AiAlias, modelId: string): Promise<boolean> {
     const [row] = await callOps<{ ok: boolean }>(sql, 'SELECT app_ops_ai_platform_route_set($1::uuid, $2, $3::uuid) AS ok', [actor, alias, modelId]);
     return row?.ok === true;
+  },
+
+  // bounded: one row per provider outside AWS (two today)
+  async providerTerms(sql: SqlExecutor, actor: string): Promise<ProviderTerms[]> {
+    const rows = await callOps<Record<string, unknown>>(sql, 'SELECT * FROM app_ops_ai_provider_terms($1::uuid)', [actor]);
+    return rows.map((row) => ({
+      provider: row['provider'] as 'openai' | 'google',
+      dpaInPlace: row['dpa_in_place'] === true,
+      zeroRetention: row['zero_retention'] === true,
+      region: (row['region'] as string | null) ?? null,
+      notes: (row['notes'] as string | null) ?? null,
+      recordedAt: new Date(row['recorded_at'] as string),
+      recordedByName: (row['recorded_by_name'] as string | null) ?? null,
+    }));
+  },
+
+  async setProviderTerms(sql: SqlExecutor, actor: string, terms: { provider: 'openai' | 'google'; dpaInPlace: boolean; zeroRetention: boolean; region: string | null; notes: string | null }): Promise<void> {
+    await callOps(sql, 'SELECT app_ops_ai_provider_terms_set($1::uuid, $2, $3, $4, $5, $6)::text AS done', [actor, terms.provider, terms.dpaInPlace, terms.zeroRetention, terms.region, terms.notes]);
   },
 
   async organizationModels(sql: SqlExecutor, actor: string, organizationId: string): Promise<{ allowed: string[]; routes: Partial<Record<AiAlias, string>> }> {
