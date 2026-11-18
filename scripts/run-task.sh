@@ -20,6 +20,9 @@ cd "$REPO_ROOT"
 ACTIVE="tasks/active/${TASK_ID}.md"
 READY="tasks/ready/${TASK_ID}.md"
 
+# --- start from the latest main, so the worktree and the claim are current ---
+git pull -q --ff-only origin main || echo "warn: could not fast-forward main (local changes?)"
+
 # --- claim (no-op if the scheduler already claimed it) ---
 if [[ -f "$READY" ]]; then
   git mv "$READY" "$ACTIVE"
@@ -53,7 +56,9 @@ TASK_ENGINE="${TASK_ENGINE:-claude}"
 case "$TASK_ENGINE" in claude|codex) ;; *) echo "warn: unknown Engine: '$TASK_ENGINE', using claude" | tee -a "$LOG"; TASK_ENGINE=claude ;; esac
 next_tier() { case "$1" in light) echo standard ;; standard) echo deep ;; *) echo "" ;; esac; }
 
-CHECKS="$(grep -E '^Checks:' "$ACTIVE" | head -1 | sed 's/^Checks:[[:space:]]*//')"
+# No Checks: line must not kill the run (set -e + pipefail used to exit here silently, right after the worktree).
+CHECKS="$(grep -E '^Checks:' "$ACTIVE" | head -1 | sed 's/^Checks:[[:space:]]*//' || true)"
+CHECKS="${CHECKS:-pnpm lint && pnpm typecheck && pnpm test}"
 CTX="$(mktemp)"; OUT="$(mktemp)"
 trap 'rm -f "$CTX" "$OUT"' EXIT
 
@@ -86,7 +91,14 @@ $(cat "$CTX")"
   else
     echo "=== launching claude for $TASK_ID (tier $tier, model $model) ===" | tee -a "$LOG"
     # shellcheck disable=SC2086
-    (cd "$WT" && claude -p "$prompt" --model "$model" ${CLAUDE_FLAGS:-} 2>&1 | tee "$OUT" | tee -a "$LOG") \
+    # stream-json shows progress as it happens (plain -p prints nothing until the very end, which looks
+    # like a hang); the full stream goes to the log, one line per step to the terminal, the final text to $OUT.
+    (cd "$WT" && claude -p "$prompt" --model "$model" --output-format stream-json --verbose ${CLAUDE_FLAGS:-} 2>&1 \
+      | tee -a "${LOG%.log}.stream.log" \
+      | jq -Rrj --unbuffered --arg id "$TASK_ID" '
+          (fromjson? // empty) | if .type == "assistant" then (.message.content[]? | if .type == "tool_use" then "[\($id)] \(.name) \((.input.description // .input.file_path // .input.command // "") | tostring | .[0:100])\n" else empty end)
+          elif .type == "result" then "\(.result // "")\n" else empty end' 2>/dev/null \
+      | tee "$OUT" | tee -a "$LOG") \
       || echo "warn: claude exited non-zero" | tee -a "$LOG"
   fi
   STARVED="$(grep -m1 -E '^CONTEXT-STARVED:' "$OUT" || true)"
