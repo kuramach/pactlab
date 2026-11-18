@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { ImfMacroForecastProvider } from '../market/macro-forecasts';
 
-// Live check of the IMF DataMapper API (T-094 B10); runs only with INTEGRATION_LIVE=1 (`pnpm test:live`), nightly in the integration-live workflow, never in the PR gate.
-describe.skipIf(process.env['INTEGRATION_LIVE'] !== '1')('IMF DataMapper (live)', () => {
+// Live check of the IMF DataMapper API (T-094 B10); runs only with INTEGRATION_LIVE=1, never in the PR gate.
+// The IMF answers GitHub's hosted runners with 403 text/html (datacenter addresses, T-137), so it is skipped
+// there and runs nightly from Kumar's Mac instead (scripts/imf-nightly.sh).
+const onHostedRunner = process.env['GITHUB_ACTIONS'] === 'true';
+describe.skipIf(process.env['INTEGRATION_LIVE'] !== '1' || onHostedRunner)('IMF DataMapper (live)', () => {
   it('returns five years of inflation and GDP forecasts for the US, the euro area and the UK', async () => {
     const provider = new ImfMacroForecastProvider();
     const years = [2027, 2028, 2029, 2030, 2031];

@@ -30,4 +30,9 @@ Symptom: nightly `integration-live` fails only in `src/live/imf.live.test.ts` wi
 
 Diagnosis (2026-11-18, runs 44340554942 and 44412175970): `www.imf.org/external/datamapper/api/v2/...` answers `403 text/html` to GitHub-hosted runner IPs while the same call succeeds from a workstation (`pnpm test:live`, 12/12). This is IMF edge access policy against datacenter addresses, not an adapter bug, rate limit, or credential problem (the IMF API takes no credential). Retries and longer timeouts do not help. The IMF test has been red since it was added (first red run 2026-10-29).
 
-Needed outside the repo: run the IMF check from a non-datacenter egress (self-hosted runner or the Mac), or get the runner egress allow-listed by the IMF. Until then the IMF check is advisory; treat a `403 text/html` probe as this known block and any other probe result as new drift.
+Resolved (Kumar, 2026-11-18): the IMF check runs nightly from Kumar's Mac, not from GitHub.
+- **Setup:** `scripts/imf-nightly-install.sh` installs a launchd job that runs at 02:30, or when the Mac next wakes.
+- **What it runs:** `scripts/imf-nightly.sh` takes the latest main in its own worktree (`../pactlab-nightly`) and runs only the IMF live test.
+- **Results:** the log is `~/Library/Logs/pactlab/imf-nightly.log`, and a failure posts a macOS notification.
+- **On GitHub:** the IMF test is skipped (`GITHUB_ACTIONS`), so `integration-live` there covers only the Kafka pair.
+- **Reading a failure on the Mac:** a `403 text/html` probe is the known block; any other probe result is new drift.
