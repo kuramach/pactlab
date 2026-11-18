@@ -279,6 +279,32 @@ export const SOURCES = {
   ],
 } as const satisfies { title: string; body: string; items: readonly Feature[] };
 
+/**
+ * Best-of-breed model routing (T-133, the T-132 capability): copy pinned by Kumar (2026-11-17), verbatim.
+ * No benchmark figures, accuracy or speed claims: the claim is the routing, not a score.
+ */
+export const MODEL_ROUTING = {
+  eyebrow: 'Best-of-breed AI',
+  title: 'The right model for every document. You never have to choose.',
+  body:
+    'A data room is agreements, leases, financial statements, scans and charts — and no single AI model is best at all of them. ' +
+    'Pactlab routes each job to the frontier model that does it best: one for deep agreement review, another for consistency checks, ' +
+    'another for high-volume extraction, another for documents that arrive as images. You don’t pick models, write prompts, or triage ' +
+    'documents. Pactlab does — and every finding still arrives with its citation, ready for your review.',
+  providers: 'Frontier models from Anthropic, OpenAI and Google — routed per job, swapped as the frontier moves.',
+  items: [
+    { icon: 'FileSearch', title: 'Deep review', body: 'Frontier reasoning models read agreements end to end, so findings rest on the whole document, not a summary.' },
+    { icon: 'ListChecks', title: 'Consistency checks', body: 'A dedicated pass checks defined terms, cross-references and party names across every agreement.' },
+    { icon: 'Layers', title: 'Extraction at scale', body: 'High-volume models pull the fields from leases and financials, including scans and tables, without the flagship price.' },
+  ],
+  howItWorks: {
+    title: 'No model shopping',
+    body:
+      'Most platforms make you choose an AI model and live with its weaknesses. Pactlab routes each kind of work — review, consistency checks, ' +
+      'extraction, image documents — to the model that does it best, and re-routes as better models arrive. Your workflow never changes.',
+  },
+} as const satisfies { eyebrow: string; title: string; body: string; providers: string; items: readonly Feature[]; howItWorks: { title: string; body: string } };
+
 export const PILOT = {
   title: 'Pilots with acquirers of software companies',
   body: 'We are working with a small number of design partners on live deals. If you buy or invest in companies in any of these sectors, talk to us.',

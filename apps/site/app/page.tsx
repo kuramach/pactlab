@@ -5,8 +5,9 @@ import { IconTile, ModuleMark } from '../components/icon';
 import { Lockup } from '../components/lockup';
 import { siteConfig } from '../lib/config';
 import { isPublishedHref } from '../lib/industry-stories';
-import { CLOSING, FEATURED_PACTS, FOUNDER, heroSlides, HOME, MAX_FEATURED_PACTS, MODULES, NAME_STORY, PACT_CARDS, pactSlide, PILLAR, POSITIONING, PRINCIPLES, STORY, TAGLINE } from '../lib/content';
+import { CLOSING, FEATURED_PACTS, FOUNDER, heroSlides, HOME, MAX_FEATURED_PACTS, MODEL_ROUTING, MODULES, NAME_STORY, PACT_CARDS, pactSlide, PILLAR, POSITIONING, PRINCIPLES, STORY, TAGLINE } from '../lib/content';
 import { Demos } from './demos';
+import { FeatureGrid } from '../components/features';
 import { jsonLdScript, pageMetadata, softwareApplicationJsonLd } from '../lib/seo';
 
 const { contactHref, signUpUrl } = siteConfig();
@@ -126,6 +127,23 @@ export default function HomePage() {
                 <span className="mt-auto text-sm font-bold text-indigo-ink">Explore →</span>
               </Link>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Best-of-breed model routing (T-133) */}
+      <section aria-labelledby="routing-title" className="bg-white">
+        <div className="mx-auto max-w-6xl px-6 py-20">
+          <div className="max-w-3xl">
+            <p className="text-sm font-bold uppercase tracking-widest text-indigo-ink">{MODEL_ROUTING.eyebrow}</p>
+            <h2 id="routing-title" className="mt-3 text-3xl font-extrabold tracking-tight sm:text-4xl">
+              {MODEL_ROUTING.title}
+            </h2>
+            <p className="mt-4 text-lg leading-relaxed text-slate-text">{MODEL_ROUTING.body}</p>
+            <p className="mt-3 text-sm text-slate-text">{MODEL_ROUTING.providers}</p>
+          </div>
+          <div className="mt-10">
+            <FeatureGrid features={MODEL_ROUTING.items} />
           </div>
         </div>
       </section>

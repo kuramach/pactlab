@@ -48,7 +48,8 @@ export function Section({
   title: string;
   body?: string;
   tone?: 'white' | 'mist' | 'cloud' | 'navy';
-  children: ReactNode;
+  /** Optional: a short block may be a heading and a paragraph only. */
+  children?: ReactNode;
 }) {
   const background = { white: 'bg-white', mist: 'bg-mist', cloud: 'bg-cloud', navy: 'bg-navy text-white' }[tone];
   return (
@@ -58,7 +59,7 @@ export function Section({
         {body ? (
           <p className={`mt-3 max-w-2xl text-lg leading-relaxed ${tone === 'navy' ? 'text-white/80' : 'text-slate-text'}`}>{body}</p>
         ) : null}
-        <div className="mt-10">{children}</div>
+        {children ? <div className="mt-10">{children}</div> : null}
       </div>
     </section>
   );

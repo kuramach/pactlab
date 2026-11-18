@@ -3,7 +3,7 @@ import { CtaBand } from '../../components/cta';
 import { FeatureGrid } from '../../components/features';
 import { Flow } from '../../components/flow';
 import { PageHero, Section } from '../../components/page-hero';
-import { PILOT, PRINCIPLES, SOURCES } from '../../lib/content';
+import { MODEL_ROUTING, PILOT, PRINCIPLES, SOURCES } from '../../lib/content';
 import { pageMetadata } from '../../lib/seo';
 
 export const metadata: Metadata = pageMetadata({ title: 'How it works', description: 'From source evidence to deal terms, with a person deciding at every step that matters.', path: '/how-it-works' });
@@ -29,6 +29,8 @@ export default function HowItWorksPage() {
       <Section title="2. Follow the loop" body="Six steps, the same for every deal and every industry." tone="mist">
         <Flow />
       </Section>
+      {/* T-133: best-of-breed model routing, in one short block. */}
+      <Section title={MODEL_ROUTING.howItWorks.title} body={MODEL_ROUTING.howItWorks.body} />
       <Section title="3. Decide with the evidence in front of you" body={PRINCIPLES.body} tone="navy">
         <FeatureGrid features={PRINCIPLES.items} columns={2} tone="dark" />
       </Section>
