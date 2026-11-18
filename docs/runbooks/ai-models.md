@@ -40,3 +40,13 @@ Each evaluation records the prompt hashes it ran against. When prompts change, r
 5. **To turn a provider off:**
    - untick its terms, which stops its models at once; or
    - run `scripts/ai-key.sh live openai off`, which sets the key back to `unset`.
+
+## While Bedrock is unavailable: Claude through the Anthropic API (T-132)
+1. **Create the key:** an Anthropic API key on the organization's account. Ask Anthropic for zero data retention where available.
+2. **Set it:** `scripts/aws.sh login`, then `scripts/ai-key.sh live anthropic`. This stores the key and restarts the API.
+3. **Record the terms:** Admin → AI models → *Other clouds: data terms* → Anthropic.
+4. **Make Anthropic the environment's default:**
+   - set `bedrock: { …, provider: 'anthropic' }` in `infra/cdk/config/prod.ts` and deploy;
+   - Claude Sonnet, Opus and Haiku (`claude-sonnet-5-5`, `claude-opus-5-5`, `claude-haiku-5-5`) become the catalog's defaults;
+   - to use other IDs, set `ANTHROPIC_MODEL_*`.
+5. **When Bedrock is back:** remove `provider` (or set it to `bedrock`) and deploy.

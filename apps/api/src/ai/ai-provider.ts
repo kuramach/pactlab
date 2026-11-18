@@ -1,4 +1,6 @@
 import {
+  AnthropicModelTransport,
+  DEFAULT_ANTHROPIC_ROUTES,
   GoogleModelTransport,
   OpenAIModelTransport,
   ProviderRouterTransport,
@@ -31,7 +33,7 @@ import { demoModelResponse } from '../demo-seed/seed';
 /** What the app may say about its model provider: no credentials, no account details. */
 export interface AiStatusView {
   enabled: boolean;
-  provider: 'none' | 'bedrock' | 'synthetic';
+  provider: 'none' | 'bedrock' | 'anthropic' | 'synthetic';
   region: string | null;
   routes: { alias: ModelAlias; modelId: string; label: string }[];
 }
@@ -55,6 +57,12 @@ export function routesFrom(env: RouteEnv): Record<ModelAlias, ModelRoute> {
     deep_review: route(DEFAULT_MODEL_ROUTES.deep_review, env.BEDROCK_MODEL_DEEP_REVIEW, env.BEDROCK_FALLBACK_DEEP_REVIEW),
     fast: route(DEFAULT_MODEL_ROUTES.fast, env.BEDROCK_MODEL_FAST, env.BEDROCK_FALLBACK_FAST),
   };
+}
+
+/** Claude through the direct Anthropic API (T-132), per alias, with the deployment's overrides. */
+export function anthropicRoutesFrom(env: Pick<ApiEnv, 'ANTHROPIC_MODEL_BALANCED' | 'ANTHROPIC_MODEL_DEEP_REVIEW' | 'ANTHROPIC_MODEL_FAST'>): Record<ModelAlias, ModelRoute> {
+  const pick = (alias: ModelAlias, modelId: string | undefined) => ({ ...DEFAULT_ANTHROPIC_ROUTES[alias], ...(modelId ? { modelId } : {}) });
+  return { balanced: pick('balanced', env.ANTHROPIC_MODEL_BALANCED), deep_review: pick('deep_review', env.ANTHROPIC_MODEL_DEEP_REVIEW), fast: pick('fast', env.ANTHROPIC_MODEL_FAST) };
 }
 
 export function describeRoutes(provider: AiStatusView['provider'], region: string | null, routes: Record<ModelAlias, ModelRoute>): AiStatusView {
@@ -153,13 +161,17 @@ export async function createAiGateway(
       models: resolver ? { resolver, evaluate: modelEvaluator(null, FIXTURE_ROUTES), providers: ['fixture'] } : null,
     };
   }
-  if (env.AI_PROVIDER !== 'bedrock' || !env.AWS_REGION) return { gateway: new NotConfiguredClaudeGateway(), status: AI_OFF, check: async () => null, models: null };
-  const routes = routesFrom(env);
-  const bedrock = new BedrockModelTransport({ send: await bedrockConverseSender(env.AWS_REGION) });
-  // Other clouds (T-131, ADR 0034), each connected only when its key is set. Every provider has its
+  // The deployment's default provider: Claude on Bedrock, or Claude through the direct Anthropic API
+  // (T-132, while Bedrock is unavailable). Without what it needs (a Region, a key), AI is off, never broken.
+  const primary = env.AI_PROVIDER === 'bedrock' && env.AWS_REGION ? 'bedrock' : env.AI_PROVIDER === 'anthropic' && env.ANTHROPIC_API_KEY ? 'anthropic' : null;
+  if (!primary) return { gateway: new NotConfiguredClaudeGateway(), status: AI_OFF, check: async () => null, models: null };
+  const routes = primary === 'bedrock' ? routesFrom(env) : anthropicRoutesFrom(env);
+  const bedrock = primary === 'bedrock' && env.AWS_REGION ? new BedrockModelTransport({ send: await bedrockConverseSender(env.AWS_REGION) }) : null;
+  // Other lanes (T-131, T-132, ADR 0034), each connected only when its key is set. Every provider has its
   // own retries and breaker, so one provider's outage never pauses another.
   const bare: Partial<Record<ModelProvider, ModelTransport>> = {
-    bedrock,
+    ...(bedrock ? { bedrock } : {}),
+    ...(env.ANTHROPIC_API_KEY ? { anthropic: new AnthropicModelTransport({ apiKey: async () => env.ANTHROPIC_API_KEY as string }) } : {}),
     ...(env.OPENAI_API_KEY ? { openai: new OpenAIModelTransport({ apiKey: async () => env.OPENAI_API_KEY as string }) } : {}),
     ...(env.GOOGLE_API_KEY ? { google: new GoogleModelTransport({ apiKey: async () => env.GOOGLE_API_KEY as string }) } : {}),
   };
@@ -168,7 +180,7 @@ export async function createAiGateway(
   );
   // The catalog (T-131): the deployment's configured models are adopted into an empty catalog, so nothing changes on deploy.
   const resolver = prisma ? new ModelRouteResolver(prisma, routes) : null;
-  if (resolver) await resolver.adopt('bedrock');
+  if (resolver) await resolver.adopt(primary);
   return {
     gateway: new TransportClaudeGateway({
       transport,
@@ -176,9 +188,9 @@ export async function createAiGateway(
       routes,
       ...(resolver ? { routeFor: (organizationId: string, alias: ModelAlias) => resolver.routeFor(organizationId, alias) } : {}),
     }),
-    status: describeRoutes('bedrock', env.AWS_REGION, routes),
+    status: describeRoutes(primary, primary === 'bedrock' ? (env.AWS_REGION ?? null) : null, routes),
     // The bare transport: a boot check must not count against the breaker.
-    check: () => checkAiHealth(bedrock, routes),
+    check: () => checkAiHealth(bare[primary] as ModelTransport, routes),
     // Evaluations go through the bare transport too: a model under test must not trip the breaker for live traffic.
     models: resolver ? { resolver, evaluate: modelEvaluator(new ProviderRouterTransport(bare), routes), providers: transport.providers } : null,
   };

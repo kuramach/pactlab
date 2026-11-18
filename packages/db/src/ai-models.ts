@@ -5,7 +5,7 @@ import { callOps, type SqlExecutor } from './ops';
  * `app_ops_ai_*` SECURITY DEFINER functions. Operators change the catalog; the API reads the
  * resolved routes for each organization.
  */
-export type AiProvider = 'bedrock' | 'openai' | 'google' | 'fixture';
+export type AiProvider = 'bedrock' | 'anthropic' | 'openai' | 'google' | 'fixture';
 export type AiAlias = 'fast' | 'balanced' | 'deep_review';
 export const AI_ALIASES: readonly AiAlias[] = ['fast', 'balanced', 'deep_review'];
 
@@ -34,7 +34,7 @@ export interface AiEvaluation {
 
 /** A provider outside AWS: its models serve only with a data-processing agreement and zero retention on record. */
 export interface ProviderTerms {
-  provider: 'openai' | 'google';
+  provider: 'anthropic' | 'openai' | 'google';
   dpaInPlace: boolean;
   zeroRetention: boolean;
   region: string | null;
@@ -116,7 +116,7 @@ export const aiModels = {
   async providerTerms(sql: SqlExecutor, actor: string): Promise<ProviderTerms[]> {
     const rows = await callOps<Record<string, unknown>>(sql, 'SELECT * FROM app_ops_ai_provider_terms($1::uuid)', [actor]);
     return rows.map((row) => ({
-      provider: row['provider'] as 'openai' | 'google',
+      provider: row['provider'] as 'anthropic' | 'openai' | 'google',
       dpaInPlace: row['dpa_in_place'] === true,
       zeroRetention: row['zero_retention'] === true,
       region: (row['region'] as string | null) ?? null,
@@ -126,7 +126,7 @@ export const aiModels = {
     }));
   },
 
-  async setProviderTerms(sql: SqlExecutor, actor: string, terms: { provider: 'openai' | 'google'; dpaInPlace: boolean; zeroRetention: boolean; region: string | null; notes: string | null }): Promise<void> {
+  async setProviderTerms(sql: SqlExecutor, actor: string, terms: { provider: 'anthropic' | 'openai' | 'google'; dpaInPlace: boolean; zeroRetention: boolean; region: string | null; notes: string | null }): Promise<void> {
     await callOps(sql, 'SELECT app_ops_ai_provider_terms_set($1::uuid, $2, $3, $4, $5, $6)::text AS done', [actor, terms.provider, terms.dpaInPlace, terms.zeroRetention, terms.region, terms.notes]);
   },
 

@@ -3,11 +3,12 @@ import type { ReasoningEffort } from './models';
 import type { ModelRequest, ModelResponse, ModelTransport } from './transport';
 
 /**
- * OpenAI and Google model transports (T-131, ADR 0034): the same `ModelTransport` as Bedrock, over
- * each provider's REST API, so the gateway, schema validation, citations, retries and the circuit
- * breaker work unchanged. Request and response shapes follow the providers' published references:
- * OpenAI's Responses API (`POST /v1/responses`, as typed by the official `openai` SDK) and Google's
- * Gemini API (`POST /v1beta/models/{model}:generateContent`). Keys come from Secrets Manager; they
+ * Anthropic, OpenAI and Google model transports (T-131, T-132, ADR 0034): the same `ModelTransport`
+ * as Bedrock, over each provider's REST API, so the gateway, schema validation, citations, retries
+ * and the circuit breaker work unchanged. Request and response shapes follow the providers'
+ * published references: Anthropic's Messages API (`POST /v1/messages`, as typed by the official
+ * `@anthropic-ai/sdk`), OpenAI's Responses API (`POST /v1/responses`, as typed by the official
+ * `openai` SDK) and Google's Gemini API (`POST /v1beta/models/{model}:generateContent`). Keys come from Secrets Manager; they
  * are sent in a header and never logged. Prompts and outputs are never logged either.
  */
 export type HttpFetch = (url: string, init: { method: string; headers: Record<string, string>; body: string; signal: AbortSignal }) => Promise<{ status: number; json(): Promise<unknown> }>;
@@ -23,7 +24,8 @@ interface HttpOptions {
 /** HTTP status → the gateway's error kinds (retries and the breaker act on THROTTLED and UNAVAILABLE). */
 export function kindOf(status: number): ModelProviderErrorKind {
   if (status === 401 || status === 403) return 'ACCESS';
-  if (status === 429) return 'THROTTLED';
+  // 529 is Anthropic's "overloaded": as transient as a throttle.
+  if (status === 429 || status === 529) return 'THROTTLED';
   if (status >= 500) return 'UNAVAILABLE';
   if (status >= 400) return 'INVALID_REQUEST';
   return 'UNKNOWN';
@@ -43,6 +45,36 @@ async function post(options: HttpOptions, url: string, headers: Record<string, s
     throw new ModelProviderError('UNAVAILABLE', error instanceof Error ? error.name : null);
   } finally {
     clearTimeout(timer);
+  }
+}
+
+/** The Messages API version the official SDK sends (`anthropic-version`). */
+export const ANTHROPIC_VERSION = '2026-10-21';
+
+/**
+ * Claude through Anthropic's Messages API (T-132): the interim Claude lane while Bedrock is blocked,
+ * and a lane of its own afterwards. The same request as the Bedrock transport (system, turns, max
+ * tokens), so a model behaves the same through either.
+ */
+export class AnthropicModelTransport implements ModelTransport {
+  constructor(private readonly options: HttpOptions) {}
+
+  async complete(request: ModelRequest): Promise<ModelResponse> {
+    const key = await this.options.apiKey();
+    const body = await post(this.options, `${this.options.baseUrl ?? 'https://api.anthropic.com'}/v1/messages`, { 'x-api-key': key, 'anthropic-version': ANTHROPIC_VERSION }, {
+      model: request.modelId,
+      max_tokens: request.maxOutputTokens,
+      ...(request.system ? { system: request.system } : {}),
+      messages: request.messages.map((message) => ({ role: message.role, content: message.content })),
+    });
+    const response = body as { content?: { type?: string; text?: string }[]; stop_reason?: string | null; usage?: { input_tokens?: number; output_tokens?: number } };
+    // Thinking blocks may precede the answer; only text blocks are it.
+    const text = (response.content ?? [])
+      .filter((block) => block.type === 'text' && typeof block.text === 'string')
+      .map((block) => block.text)
+      .join('');
+    if (!text) throw new ModelProviderError('EMPTY_RESPONSE', response.stop_reason ?? null);
+    return { text, inputTokens: response.usage?.input_tokens ?? 0, outputTokens: response.usage?.output_tokens ?? 0, modelId: request.modelId };
   }
 }
 

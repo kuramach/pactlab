@@ -7,11 +7,11 @@ import { AiModelsService } from './ai-models.service';
 
 const alias = z.enum(['fast', 'balanced', 'deep_review']);
 export const addModelSchema = z.strictObject({
-  provider: z.enum(['bedrock', 'openai', 'google', 'fixture']),
+  provider: z.enum(['bedrock', 'anthropic', 'openai', 'google', 'fixture']),
   providerModelId: z.string().trim().regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]{1,199}$/),
   label: z.string().trim().min(1).max(80),
 });
-const providerParams = z.strictObject({ provider: z.enum(['openai', 'google']) });
+const providerParams = z.strictObject({ provider: z.enum(['anthropic', 'openai', 'google']) });
 export const providerTermsSchema = z.strictObject({
   dpaInPlace: z.boolean(),
   zeroRetention: z.boolean(),
@@ -63,7 +63,7 @@ export class AiModelsController {
   @Put('providers/:provider/terms')
   setProviderTerms(
     @Tenant() tenant: TenantContext,
-    @Param(new ZodValidationPipe(providerParams)) params: { provider: 'openai' | 'google' },
+    @Param(new ZodValidationPipe(providerParams)) params: { provider: 'anthropic' | 'openai' | 'google' },
     @Body(new ZodValidationPipe(providerTermsSchema)) body: z.infer<typeof providerTermsSchema>,
   ) {
     return this.service.setProviderTerms(tenant, { provider: params.provider, ...body });

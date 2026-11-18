@@ -33,3 +33,13 @@
 - **Rules unchanged:** citations are mandatory, humans decide, no people, HR or compensation data reaches any model, and outputs are untrusted until citations resolve.
 - **Prompts:** prompts are tuned and evaluated per model. A prompt change marks evaluated models for re-evaluation (prompt hashes on record). The T-096 fallback stays Bedrock-to-Bedrock, and only to models a prompt was evaluated on.
 - **Rollback:** both migrations are expand-only. Removing the catalog tables returns every call to the configured routes; setting a key back to `unset` turns a provider off.
+
+## Addendum (T-132 PR 1, 2026-11-17): Claude through the direct Anthropic API
+- **Why:** Bedrock is blocked org-wide (Error 002, escalated 2026-11-16), so Claude needs a second path.
+- **The transport:** `AnthropicModelTransport` uses the Messages API, with shapes from the official `@anthropic-ai/sdk` types. It sends the same request as the Bedrock transport, so a model behaves the same through either.
+- **A deployment's default provider is now config:** `AI_PROVIDER=bedrock` or `anthropic`, set per environment by `bedrock.provider` in `infra/cdk/config/*.ts`.
+  - **Models:** with `anthropic`, the configured routes are the Messages API model IDs (`DEFAULT_ANTHROPIC_ROUTES`, overridable by `ANTHROPIC_MODEL_*`), adopted into the catalog at boot as provider `anthropic`.
+  - **No key:** AI is off, not broken.
+  - **Switching back** to Bedrock is that one value.
+- **Key:** `pactlab/<env>/ai/anthropic` in Secrets Manager, set by `scripts/ai-key.sh <env> anthropic`.
+- **Data terms:** console-added Anthropic models are a provider outside AWS, so they need the terms record like OpenAI and Google. A deployment's *default* provider is chosen in reviewed deploy config, and its terms are recorded alongside in the console.

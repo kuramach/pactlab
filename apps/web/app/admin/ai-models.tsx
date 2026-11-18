@@ -30,7 +30,7 @@ interface Model {
   platformAliases: Alias[];
 }
 interface Terms {
-  provider: 'openai' | 'google';
+  provider: 'anthropic' | 'openai' | 'google';
   dpaInPlace: boolean;
   zeroRetention: boolean;
   region: string | null;
@@ -51,7 +51,7 @@ const ROLES: { alias: Alias; label: string; help: string }[] = [
   { alias: 'balanced', label: 'Balanced', help: 'extraction, questions, most work' },
   { alias: 'deep_review', label: 'Deep review', help: 'contracts, valuation and Foresight' },
 ];
-const PROVIDERS: Record<string, string> = { bedrock: 'Claude on AWS Bedrock', openai: 'OpenAI', google: 'Google', fixture: 'Synthetic (tests)' };
+const PROVIDERS: Record<string, string> = { bedrock: 'Claude on AWS Bedrock', anthropic: 'Claude via the Anthropic API', openai: 'OpenAI', google: 'Google', fixture: 'Synthetic (tests)' };
 const STATUS: Record<Model['status'], { label: string; variant: 'calculation' | 'draft' | 'neutral' }> = {
   EVALUATED: { label: 'Evaluated: can serve', variant: 'calculation' },
   ADDED: { label: 'Not evaluated', variant: 'draft' },
@@ -202,7 +202,7 @@ export async function AiModels({ organizationId, organizationQuery }: { organiza
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3 md:grid-cols-2">
-          {(['openai', 'google'] as const).map((provider) => {
+          {(['anthropic', 'openai', 'google'] as const).map((provider) => {
             const current = terms.find((entry) => entry.provider === provider);
             return (
               <form key={provider} action={setProviderTerms.bind(null, provider)} className="flex flex-col gap-2 rounded-lg border border-border p-3 text-sm" aria-label={`${PROVIDERS[provider]} data terms`}>
