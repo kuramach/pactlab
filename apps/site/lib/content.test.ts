@@ -317,3 +317,21 @@ describe('try it with synthetic data (2026-11-13)', async () => {
     expect(content.NAV.map((item) => item.href)).toContain('/try');
   });
 });
+
+describe('best-of-breed model routing (T-133)', () => {
+  it('uses Kumar’s pinned copy, verbatim', () => {
+    expect(content.MODEL_ROUTING.eyebrow).toBe('Best-of-breed AI');
+    expect(content.MODEL_ROUTING.title).toBe('The right model for every document. You never have to choose.');
+    expect(content.MODEL_ROUTING.providers).toBe('Frontier models from Anthropic, OpenAI and Google — routed per job, swapped as the frontier moves.');
+    expect(content.MODEL_ROUTING.items.map((item) => item.title)).toEqual(['Deep review', 'Consistency checks', 'Extraction at scale']);
+    expect(content.MODEL_ROUTING.howItWorks.title).toBe('No model shopping');
+    expect(content.MODEL_ROUTING.body).toContain('You don’t pick models, write prompts, or triage documents. Pactlab does — and every finding still arrives with its citation, ready for your review.');
+  });
+
+  it('makes no benchmark, accuracy or speed claims, and no customer names', () => {
+    const text = JSON.stringify(content.MODEL_ROUTING);
+    expect(text).not.toMatch(/\d/);
+    expect(text).not.toMatch(/accura|faster|benchmark|percent|customer/i);
+    for (const word of content.BANNED_WORDS) expect(text.toLowerCase()).not.toContain(word);
+  });
+});
