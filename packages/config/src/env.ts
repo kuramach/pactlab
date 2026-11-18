@@ -158,7 +158,7 @@ export const apiEnvSchema = baseEnvSchema.extend({
   MACRO_FORECAST_SOURCE: unsetIfBlank(z.enum(['imf', 'fixture']).default('imf')),
   /** Model provider for document AI: `none` keeps AI off; `bedrock` calls Claude on Amazon Bedrock. */
   /** `fixture` (T-113): scripted responses, never a model. Local and test runs only; every request is logged to AI_FIXTURE_LOG. */
-  AI_PROVIDER: unsetIfBlank(z.enum(['none', 'bedrock', 'fixture']).default('none')),
+  AI_PROVIDER: unsetIfBlank(z.enum(['none', 'bedrock', 'anthropic', 'fixture']).default('none')),
   /** Where the fixture provider appends one JSON line per request (alias, prompt id, synthetic: true). */
   AI_FIXTURE_LOG: unsetIfBlank(nonEmpty.optional()),
   /** Bedrock Region; credentials come from the AWS SDK default chain (e.g. AWS_PROFILE after `aws sso login`). */
@@ -175,6 +175,15 @@ export const apiEnvSchema = baseEnvSchema.extend({
    * Other clouds (T-131, ADR 0034): the OpenAI and Google API keys, injected from Secrets Manager.
    * Unset, or the placeholder `unset` the stack creates, means that provider is not connected.
    */
+  /**
+   * Claude through the direct Anthropic API (T-132): the deployment's default lane with
+   * AI_PROVIDER=anthropic (while Bedrock is blocked), or an extra lane beside Bedrock. `unset` = off.
+   */
+  ANTHROPIC_API_KEY: unsetIfBlank(z.string().min(1).optional()).transform((value) => (value === 'unset' ? undefined : value)),
+  /** Optional Anthropic model per alias with AI_PROVIDER=anthropic (e.g. `claude-sonnet-4-6`); defaults to the current Claude models. */
+  ANTHROPIC_MODEL_BALANCED: unsetIfBlank(nonEmpty.optional()),
+  ANTHROPIC_MODEL_DEEP_REVIEW: unsetIfBlank(nonEmpty.optional()),
+  ANTHROPIC_MODEL_FAST: unsetIfBlank(nonEmpty.optional()),
   OPENAI_API_KEY: unsetIfBlank(z.string().min(1).optional()).transform((value) => (value === 'unset' ? undefined : value)),
   GOOGLE_API_KEY: unsetIfBlank(z.string().min(1).optional()).transform((value) => (value === 'unset' ? undefined : value)),
   ...deployedStorageFields,

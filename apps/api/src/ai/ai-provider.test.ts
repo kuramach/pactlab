@@ -63,6 +63,19 @@ describe('createAiGateway', () => {
     });
   });
 
+  it('Claude through the direct Anthropic API (T-132): off without its key, the current Claude models with one, overridable', async () => {
+    expect((await createAiGateway(env({ AI_PROVIDER: 'anthropic' }))).status).toEqual({ enabled: false, provider: 'none', region: null, routes: [] });
+    const { status, models } = await createAiGateway(env({ AI_PROVIDER: 'anthropic', ANTHROPIC_API_KEY: 'sk-ant-test', ANTHROPIC_MODEL_FAST: 'claude-haiku-4-5' }));
+    expect(status).toMatchObject({ enabled: true, provider: 'anthropic', region: null });
+    expect(status.routes).toEqual([
+      { alias: 'balanced', modelId: 'claude-sonnet-5-5', label: 'Claude Sonnet 5.5' },
+      { alias: 'deep_review', modelId: 'claude-opus-5-5', label: 'Claude Opus 5.5' },
+      { alias: 'fast', modelId: 'claude-haiku-4-5', label: 'Claude Haiku 4.5' },
+    ]);
+    // No database here, so no catalog runtime; with one, the catalog adopts these as provider 'anthropic'.
+    expect(models).toBeNull();
+  });
+
   it('takes an evaluated fallback per alias from the environment, Claude models only (T-096)', () => {
     const routes = routesFrom(env({ AI_PROVIDER: 'bedrock', AWS_REGION: 'us-east-1', BEDROCK_FALLBACK_BALANCED: 'us.anthropic.claude-opus-5-5' }));
     expect(routes.balanced).toMatchObject({ modelId: 'us.anthropic.claude-sonnet-5-5', fallbackModelId: 'us.anthropic.claude-opus-5-5' });

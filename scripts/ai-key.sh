@@ -2,14 +2,15 @@
 # Set an AI provider's API key for an environment (T-131, ADR 0034), then restart the API so it uses it.
 #   scripts/ai-key.sh live openai      # asks for the key (typed hidden); nothing is printed or saved locally
 #   scripts/ai-key.sh stage google
+#   scripts/ai-key.sh live anthropic   # Claude through the direct Anthropic API (T-132)
 #   scripts/ai-key.sh live openai off  # turns the provider off again (the key becomes `unset`)
 # The key only connects the provider: its models still serve only after you record its data terms and a
 # model passes evaluation in Admin → AI models. Uses your AWS sign-in (scripts/aws.sh login).
 set -euo pipefail
 ENV_NAME="${1:?environment: dev, qa, stage or live}"
-PROVIDER="${2:?provider: openai or google}"
+PROVIDER="${2:?provider: anthropic, openai or google}"
 MODE="${3:-}"
-case "$PROVIDER" in openai | google) ;; *) echo "Unknown provider '$PROVIDER': use openai or google." >&2; exit 2 ;; esac
+case "$PROVIDER" in anthropic | openai | google) ;; *) echo "Unknown provider '$PROVIDER': use anthropic, openai or google." >&2; exit 2 ;; esac
 case "$ENV_NAME" in live | prod) CDK_ENV=prod; PROFILE=pactlab-prod ;; stage) CDK_ENV=stage; PROFILE=pactlab-stage ;; dev | qa) CDK_ENV="$ENV_NAME"; PROFILE=pactlab-dev ;; *) echo "Unknown environment '$ENV_NAME'." >&2; exit 2 ;; esac
 export AWS_PROFILE="$PROFILE" AWS_REGION=us-east-2 AWS_PAGER=""
 STACK="Pactlab$(echo "${CDK_ENV:0:1}" | tr a-z A-Z)${CDK_ENV:1}"

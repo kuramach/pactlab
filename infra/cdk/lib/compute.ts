@@ -134,6 +134,7 @@ export class PactlabCompute extends Construct {
         secretStringValue: SecretValue.unsafePlainText('unset'),
         removalPolicy: statefulRemoval,
       });
+    const anthropicKey = aiKey('AiAnthropicKey', 'anthropic');
     const openaiKey = aiKey('AiOpenAiKey', 'openai');
     const googleKey = aiKey('AiGoogleKey', 'google');
 
@@ -170,7 +171,7 @@ export class PactlabCompute extends Construct {
       DOCUMENT_BUCKET: evidenceBucket.bucketName,
       DOCUMENT_KMS_KEY_ID: dataKey.keyArn,
       MALWARE_SCANNER: service.malwareScanner,
-      AI_PROVIDER: 'bedrock',
+      AI_PROVIDER: service.bedrock.provider ?? 'bedrock',
       ...(service.bedrock.modelOverrides
         ? {
             BEDROCK_MODEL_BALANCED: service.bedrock.modelOverrides.balanced,
@@ -284,6 +285,7 @@ export class PactlabCompute extends Construct {
         AUTH_TOKEN_SECRET: ecs.Secret.fromSecretsManager(tokenSecret),
         OPENAI_API_KEY: ecs.Secret.fromSecretsManager(openaiKey),
         GOOGLE_API_KEY: ecs.Secret.fromSecretsManager(googleKey),
+        ANTHROPIC_API_KEY: ecs.Secret.fromSecretsManager(anthropicKey),
       },
       portMappings: [{ containerPort: 4000 }],
       logging: logging('api'),

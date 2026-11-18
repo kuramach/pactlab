@@ -146,7 +146,7 @@ export class AiModelsService {
    * retention or training on our requests. With both, its models may be evaluated and serve;
    * withdrawing either stops them at once. Audited.
    */
-  setProviderTerms(tenant: TenantContext, terms: { provider: 'openai' | 'google'; dpaInPlace: boolean; zeroRetention: boolean; region: string | null; notes: string | null }) {
+  setProviderTerms(tenant: TenantContext, terms: { provider: 'anthropic' | 'openai' | 'google'; dpaInPlace: boolean; zeroRetention: boolean; region: string | null; notes: string | null }) {
     return this.asOperator(async () => {
       await aiModels.setProviderTerms(this.sql, tenant.userId, terms);
       this.changed();

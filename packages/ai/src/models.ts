@@ -14,7 +14,7 @@ export const DEFAULT_MODEL_ALIAS: ModelAlias = 'balanced';
 export type ReasoningEffort = 'low' | 'medium' | 'high';
 
 /** Where a model runs (T-131). Bedrock is the default; other clouds per ADR 0034. */
-export type ModelProvider = 'bedrock' | 'openai' | 'google' | 'fixture';
+export type ModelProvider = 'bedrock' | 'anthropic' | 'openai' | 'google' | 'fixture';
 
 export interface ModelRoute {
   /** The provider's model ID (an Amazon Bedrock model or inference profile unless `provider` says otherwise). */
@@ -46,6 +46,17 @@ export const DEFAULT_MODEL_ROUTES: Readonly<Record<ModelAlias, ModelRoute>> = {
   balanced: { modelId: 'us.anthropic.claude-sonnet-5-5', effort: 'medium' },
   deep_review: { modelId: 'us.anthropic.claude-opus-5-5', effort: 'high' },
   fast: { modelId: 'us.anthropic.claude-haiku-5-5', effort: 'low' },
+};
+
+/**
+ * The same aliases on Claude through the direct Anthropic API (T-132): the model IDs the Messages API
+ * takes (as listed by the official `@anthropic-ai/sdk`). Used when a deployment's default provider is
+ * `anthropic`; deployments may override per alias.
+ */
+export const DEFAULT_ANTHROPIC_ROUTES: Readonly<Record<ModelAlias, ModelRoute>> = {
+  balanced: { modelId: 'claude-sonnet-5-5', provider: 'anthropic', effort: 'medium' },
+  deep_review: { modelId: 'claude-opus-5-5', provider: 'anthropic', effort: 'high' },
+  fast: { modelId: 'claude-haiku-5-5', provider: 'anthropic', effort: 'low' },
 };
 
 /** Display names for model IDs and inference profiles, for the UI. */

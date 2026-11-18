@@ -110,6 +110,12 @@ export interface ServiceConfig {
      * routes. An interim stand-in only, while Claude access is pending (ADR 0019).
      */
     readonly modelOverrides?: { readonly balanced: string; readonly deep_review: string; readonly fast: string };
+    /**
+     * The deployment's default Claude lane (T-132): `bedrock`, or `anthropic` (the direct Anthropic
+     * API, its key in Secrets Manager via scripts/ai-key.sh) while Bedrock is unavailable. Absent: bedrock.
+     * Switching back is this one value.
+     */
+    readonly provider?: 'bedrock' | 'anthropic';
   };
   /**
    * `fast` (dev, qa): health checks every 10 seconds, healthy after 2, old

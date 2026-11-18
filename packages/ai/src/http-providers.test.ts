@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ModelProviderError } from './bedrock';
-import { GoogleModelTransport, kindOf, OpenAIModelTransport, type HttpFetch } from './http-providers';
+import { ANTHROPIC_VERSION, AnthropicModelTransport, GoogleModelTransport, kindOf, OpenAIModelTransport, type HttpFetch } from './http-providers';
 import { ProviderRouterTransport } from './provider-router';
 import type { ModelRequest } from './transport';
 
@@ -25,6 +25,37 @@ function fake(status: number, body: unknown) {
   };
   return { calls, fetch };
 }
+
+describe('Anthropic transport (Messages API)', () => {
+  it('sends the key and version headers, system, the turns and max tokens; reads only text blocks and usage', async () => {
+    const http = fake(200, {
+      type: 'message',
+      role: 'assistant',
+      content: [{ type: 'thinking', thinking: '…', signature: 's' }, { type: 'text', text: '{"a":' }, { type: 'text', text: '1}' }],
+      stop_reason: 'end_turn',
+      usage: { input_tokens: 90, output_tokens: 12 },
+    });
+    const transport = new AnthropicModelTransport({ apiKey: async () => 'sk-ant-test', fetch: http.fetch });
+    expect(await transport.complete({ ...REQUEST, provider: 'anthropic', modelId: 'claude-sonnet-5-5' })).toEqual({ text: '{"a":1}', inputTokens: 90, outputTokens: 12, modelId: 'claude-sonnet-5-5' });
+    expect(http.calls[0]?.url).toBe('https://api.anthropic.com/v1/messages');
+    expect(http.calls[0]?.headers).toMatchObject({ 'x-api-key': 'sk-ant-test', 'anthropic-version': ANTHROPIC_VERSION });
+    expect(http.calls[0]?.body).toEqual({
+      model: 'claude-sonnet-5-5',
+      max_tokens: 2048,
+      system: 'Answer in JSON.',
+      messages: [
+        { role: 'user', content: 'Q' },
+        { role: 'assistant', content: 'A' },
+        { role: 'user', content: 'Fix it.' },
+      ],
+    });
+  });
+
+  it('overloaded (529) is transient; a refusal with no text is an empty response with its stop reason', async () => {
+    await expect(new AnthropicModelTransport({ apiKey: async () => 'k', fetch: fake(529, {}).fetch }).complete(REQUEST)).rejects.toMatchObject({ kind: 'THROTTLED', providerCode: 'HTTP_529' });
+    await expect(new AnthropicModelTransport({ apiKey: async () => 'k', fetch: fake(200, { content: [], stop_reason: 'refusal' }).fetch }).complete(REQUEST)).rejects.toMatchObject({ kind: 'EMPTY_RESPONSE', providerCode: 'refusal' });
+  });
+});
 
 describe('OpenAI transport (Responses API)', () => {
   it('sends system as instructions, the turns as input, the effort and store:false; reads output_text parts and usage', async () => {
