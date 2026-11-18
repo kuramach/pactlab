@@ -134,6 +134,7 @@ PUSHED=false
 
 finish() { # finish <state> — move task file, commit, push
   local state="$1" id="$2"
+  mkdir -p "tasks/$state"
   git mv "tasks/active/$id.md" "tasks/$state/$id.md"
   if [[ -f "tasks/active/$id.log" ]]; then git add -f -q "tasks/active/$id.log" 2>/dev/null || true; git mv "tasks/active/$id.log" "tasks/$state/$id.log" || true; fi
   git commit -qm "chore: $id → $state"
@@ -174,6 +175,8 @@ if $AUTO_MERGE; then
     [[ -z "$f" ]] && continue
     ok=false
     for t in $TOUCHES; do [[ "$f" == "$t"* ]] && ok=true; done
+    # The task's own file (notes, diagnosis, outcome) is always in scope.
+    [[ "$f" == tasks/*/"$TASK_ID".md ]] && ok=true
     $ok || { OUT_OF_SCOPE=true; echo "out of scope: $f" | tee -a "$LOG"; }
   done < <(git diff --name-only "origin/main...$BRANCH" 2>/dev/null || git diff --name-only "main...$BRANCH")
 
