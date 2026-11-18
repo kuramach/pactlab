@@ -34,6 +34,7 @@ fi
 
 LOG="$REPO_ROOT/tasks/active/${TASK_ID}.log"
 : > "$LOG"
+: > "${LOG%.log}.stream.log"
 
 BRANCH="agent/$TASK_ID"
 WT="$REPO_ROOT/../pactlab-wt-$TASK_ID"
@@ -116,7 +117,20 @@ $(cat "$CTX")"
   [[ -z "$STARVED" ]] || CHECKS_OK=false
 }
 
+# A usage or spend limit is not the task's fault: hand the task back to ready and stop (exit 75), so
+# the loop can stop too instead of marking every remaining task blocked.
+usage_limited() { grep -qE '"api_error_status":429|hit your (monthly spend|usage|session) limit' "${LOG%.log}.stream.log" 2>/dev/null; }
+release_on_limit() {
+  usage_limited || return 0
+  local when; when="$(grep -oE 'resets [^"]*' "${LOG%.log}.stream.log" | tail -1)"
+  echo "### $TASK_ID: Claude usage limit reached${when:+ ($when)}; returned to ready" | tee -a "$LOG"
+  git worktree remove --force "$WT" 2>/dev/null || true
+  git mv "$ACTIVE" "$READY" && git commit -qm "chore: $TASK_ID → ready (usage limit, not started)" && { git push -q origin HEAD || true; }
+  exit 75
+}
+
 run_attempt "$TIER"
+release_on_limit
 # Guardrail: tiering never silently starves a task. One retry, one tier up,
 # when checks fail or the agent reports CONTEXT-STARVED.
 if ! $CHECKS_OK && [[ -n "$(next_tier "$TIER")" ]]; then
@@ -124,6 +138,7 @@ if ! $CHECKS_OK && [[ -n "$(next_tier "$TIER")" ]]; then
   echo "### context retry: $TIER -> $UP (${STARVED:-checks failed})" | tee -a "$LOG"
   TIER="$UP"
   run_attempt "$TIER"
+  release_on_limit
 fi
 
 # --- backstop commit + push ---

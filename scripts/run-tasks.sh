@@ -9,6 +9,9 @@
 #   ./scripts/run-tasks.sh --auto-merge T-134 T-135     # merge each once its CI is green
 #   STOP_ON_BLOCK=1 ./scripts/run-tasks.sh ...          # stop at the first blocked task
 #
+# On a Claude usage or spend limit the task goes back to tasks/ready and the loop stops (nothing is
+# marked blocked); re-run the same command after the limit resets.
+#
 # Agents run with CLAUDE_FLAGS (default: --dangerously-skip-permissions, so they never wait for a prompt).
 # Progress: one line per agent step on screen; full logs in tasks/<state>/<T-ID>.log.
 #
@@ -55,6 +58,10 @@ for id in "${TASKS[@]}"; do
   state="$(ls tasks/*/"$id".md 2>/dev/null | head -1 | cut -d/ -f2)"
   pr="$(gh pr list --head "agent/$id" --state all --json url -q '.[0].url' 2>/dev/null)"
   RESULTS+=("$id  ${state:-?}  ${mins}m  ${pr:-no PR}")
+  if [[ $code -eq 75 ]]; then
+    echo "stopping: Claude usage limit reached; re-run these tasks after it resets"
+    break
+  fi
   if [[ $code -ne 0 && -n "${STOP_ON_BLOCK:-}" ]]; then echo "stopping: $id did not finish"; break; fi
   git pull -q --ff-only origin main || true
 done
