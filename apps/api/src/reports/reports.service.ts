@@ -11,6 +11,7 @@ import { FinancingService } from '../financing/financing.service';
 import { FindingsService } from '../findings/findings.service';
 import { PhasesService } from '../phases/phases.service';
 import { PricingService } from '../pricing/pricing.service';
+import { QoeService } from '../qoe/qoe.service';
 import { LOGGER, PRISMA } from '../tokens';
 import { ValuationService } from '../valuation/valuation.service';
 import { executiveReportModel, pactReportModel, type ReportSources } from './report-model';
@@ -40,6 +41,7 @@ export class ReportsService {
     @Inject(DocumentsService) private readonly documents: DocumentsService,
     @Inject(ConnectionsService) private readonly connections: ConnectionsService,
     @Inject(FinancingService) private readonly financing: FinancingService,
+    @Inject(QoeService) private readonly qoe: QoeService,
   ) {}
 
   private sources(requestId: string): ReportSources {
@@ -55,6 +57,7 @@ export class ReportsService {
       documents: (tenant, dealId) => this.documents.all(tenant, dealId, requestId) as never,
       connections: (tenant, dealId) => this.connections.list(tenant, dealId, requestId) as never,
       financing: (tenant, dealId) => this.financing.view(tenant, dealId, requestId),
+      qoe: (tenant, dealId) => this.qoe.view(tenant, dealId, requestId),
     };
   }
 

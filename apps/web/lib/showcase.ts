@@ -69,6 +69,11 @@ export const SHOWCASE: Readonly<Record<string, ShowcaseEntry>> = {
     why: 'Balance-sheet items cited to the page they came from, feeding the bridge from enterprise value to the price you actually pay.',
     lookFor: ['Cash, a term loan and debt-like items', 'Each item cited to its source page', 'Loan terms on the debt'],
   },
+  '/qoe': {
+    title: 'Quality of earnings, cited line by line',
+    why: 'Reported EBITDA normalized into adjusted EBITDA, the seller’s add-backs verified or not, and a working-capital peg with its derivation. Platform-prepared analysis for you and your advisors, not a QoE opinion.',
+    lookFor: ['Unverified add-backs kept out until a reviewer includes one', 'Claimed and counted figures side by side', 'The peg, ready to add to your draft terms'],
+  },
   '/engineering': {
     title: 'The codebase and team, read from the repository',
     why: 'Commit history and delivery data show who really built the product and whether the team can ship the plan. Source code is never kept.',

@@ -50,7 +50,7 @@ export async function acceptCounters(dealId: string, batchId: string): Promise<v
   back(dealId, result.kind === 'ok' ? 'ok-counters' : result.kind);
 }
 
-const LEVERS = ['PURCHASE_PRICE', 'PRICE_REDUCTION', 'REMEDIATION_COST', 'ESCROW', 'INDEMNITY', 'RETENTION', 'EARNOUT', 'SELLER_FINANCING', 'FINANCING_CONTINGENCY'] as const;
+const LEVERS = ['PURCHASE_PRICE', 'PRICE_REDUCTION', 'REMEDIATION_COST', 'ESCROW', 'INDEMNITY', 'RETENTION', 'EARNOUT', 'SELLER_FINANCING', 'FINANCING_CONTINGENCY', 'WORKING_CAPITAL_PEG'] as const;
 
 /** The seller drafts their own version (T-107): the purchase price first, then any terms they ask for. */
 export async function draftOwnTerms(dealId: string, formData: FormData): Promise<void> {

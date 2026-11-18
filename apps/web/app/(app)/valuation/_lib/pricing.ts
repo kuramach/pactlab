@@ -2,7 +2,7 @@ import { formatDecimal } from '../../metrics/_lib/format';
 
 /** Buyer personas (T-105): the shapes the pricing API returns, and their labels. */
 export type Persona = 'QUALITY_COMPOUNDER' | 'VALUE_INVESTOR' | 'GRAVE_DANCER';
-export type TermLever = 'PURCHASE_PRICE' | 'PRICE_REDUCTION' | 'REMEDIATION_COST' | 'ESCROW' | 'INDEMNITY' | 'RETENTION' | 'EARNOUT' | 'SELLER_FINANCING' | 'FINANCING_CONTINGENCY';
+export type TermLever = 'PURCHASE_PRICE' | 'PRICE_REDUCTION' | 'REMEDIATION_COST' | 'ESCROW' | 'INDEMNITY' | 'RETENTION' | 'EARNOUT' | 'SELLER_FINANCING' | 'FINANCING_CONTINGENCY' | 'WORKING_CAPITAL_PEG';
 export type ScenarioCase = 'DOWNSIDE' | 'BASE' | 'UPSIDE';
 
 interface Money {
@@ -151,6 +151,7 @@ export const LEVER_LABELS: Readonly<Record<TermLever, string>> = {
   EARNOUT: 'Earnout',
   SELLER_FINANCING: 'Seller note',
   FINANCING_CONTINGENCY: 'Financing contingency',
+  WORKING_CAPITAL_PEG: 'Working-capital peg',
 };
 
 export const CASE_LABELS: Readonly<Record<ScenarioCase, string>> = { DOWNSIDE: 'Downside', BASE: 'Base', UPSIDE: 'Upside' };

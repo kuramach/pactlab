@@ -46,6 +46,8 @@ export const DEAL_GROUPS: readonly DealGroup[] = [
       { path: '/sources', label: 'Sources' },
       { path: '/evidence', label: 'Evidence' },
       { path: '/finances', label: 'Finances' },
+      // The QoE work product (T-135): schedule, add-back register, working-capital peg.
+      { path: '/qoe', label: 'Quality of earnings' },
       { path: '/engineering', label: 'Engineering' },
       { path: '/regulatory', label: 'Regulatory' },
       { path: '/claims', label: 'Seller statements' },
@@ -99,7 +101,7 @@ const visible = (sections: readonly DealSection[], companyType: CompanyType | nu
 
 /** Four tabs across the deal, and the open tab's sections beneath them; sub-pages keep their section highlighted. */
 /** Sections only the pact's own side ever sees, not even as a tab name (T-118). */
-const OWN_SIDE_ONLY = new Set(['/ic', '/suggestions']);
+const OWN_SIDE_ONLY = new Set(['/ic', '/suggestions', '/qoe']);
 
 export function DealTabs({
   dealId,

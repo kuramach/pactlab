@@ -30,7 +30,7 @@ export const termResponsesBodySchema = z.strictObject({
 });
 export type TermResponsesBody = z.infer<typeof termResponsesBodySchema>;
 
-const TERM_LEVERS = ['PURCHASE_PRICE', 'PRICE_REDUCTION', 'REMEDIATION_COST', 'ESCROW', 'INDEMNITY', 'RETENTION', 'EARNOUT', 'SELLER_FINANCING', 'FINANCING_CONTINGENCY'] as const;
+const TERM_LEVERS = ['PURCHASE_PRICE', 'PRICE_REDUCTION', 'REMEDIATION_COST', 'ESCROW', 'INDEMNITY', 'RETENTION', 'EARNOUT', 'SELLER_FINANCING', 'FINANCING_CONTINGENCY', 'WORKING_CAPITAL_PEG'] as const;
 
 /** A version the seller drafts (T-107): the purchase price first, then any terms they ask for. */
 export const sellerDraftBodySchema = z.strictObject({

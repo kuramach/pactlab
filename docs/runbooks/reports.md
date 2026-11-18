@@ -5,6 +5,7 @@
 - **Two kinds:**
   - **Executive report:** every pact you can see, by phase. It shows asking and priced value, open risks and what needs you next, and totals that add up from those rows.
   - **Pact report:** the complete record of one pact (evidence, findings, claims, valuation, terms and post-close), from your side's view only.
+    - **Quality of earnings (T-135, ADR 0035):** when the buyer side has recorded QoE figures, the report carries the adjusted-EBITDA schedule, the add-back register (claimed and counted apart, with each status) and the working-capital peg and its derivation, labelled platform-prepared analysis. Seller-side reports never include it.
 - **Versions:** each generation is a new version (v1, v2, …). Earlier versions never change, and every page shows its version and "data as of" time.
 
 ## Support

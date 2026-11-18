@@ -49,6 +49,7 @@ import { DealDeletionModule } from './deals/deletion/deal-deletion.module';
 import { InvitationsModule } from './invitations/invitations.module';
 import { FinancingModule } from './financing/financing.module';
 import { ReportsModule } from './reports/reports.module';
+import { QoeModule } from './qoe/qoe.module';
 import { BrandModule } from './brand/brand.module';
 import { EmailEventsModule } from './email-events/email-events.module';
 import type { SnsVerifier } from './email-events/sns';
@@ -193,7 +194,9 @@ export class AppModule {
     // Reports (T-110), shared with the investment committee (T-118): an IC pack is a report.
     // Buyer financing (T-117): shared with reports, which show it as the reader may see it.
     const financingModule = FinancingModule.register({ objectStore: deps.documents?.objectStore ?? new UnavailableObjectStore(), scanner: deps.documents?.malwareScanner ?? new UnavailableMalwareScanner() });
-    const reportsModule = ReportsModule.register({ store: deps.documents?.objectStore ?? new UnavailableObjectStore(), shared: [valuationModule, documentsModule, financingModule] });
+    // Quality of earnings (T-135): its peg goes onto the draft terms; reports carry its section.
+    const qoeModule = QoeModule.register({ valuation: valuationModule });
+    const reportsModule = ReportsModule.register({ store: deps.documents?.objectStore ?? new UnavailableObjectStore(), shared: [valuationModule, documentsModule, financingModule, qoeModule] });
     // Suggestions from connected AI apps, decided in the app (T-084b).
     const agentProposalsModule = AgentProposalsModule.register({ valuation: valuationModule, documents: documentsModule });
     // Pactlab's OAuth server for the MCP server (T-084) and the REST API (T-128), with Pactlab sign-in only.
@@ -263,6 +266,7 @@ export class AppModule {
         ComparablesModule.register({ valuation, findings }),
         documentsModule,
         // Reports (T-110): the same service instances the app reads through.
+        qoeModule,
         reportsModule,
         IcModule.register({ reports: reportsModule }),
         BrandModule.register({ store: deps.documents?.objectStore ?? new UnavailableObjectStore(), fetcher: deps.webFetcher ?? new HttpsWebFetcher() }),

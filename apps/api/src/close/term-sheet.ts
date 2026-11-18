@@ -14,6 +14,7 @@ export const TERM_TITLES: Readonly<Record<string, string>> = {
   EARNOUT: 'Earnout',
   SELLER_FINANCING: 'Seller note',
   FINANCING_CONTINGENCY: 'Financing contingency',
+  WORKING_CAPITAL_PEG: 'Working-capital peg (target net working capital)',
 };
 
 export interface TermSheetInput {

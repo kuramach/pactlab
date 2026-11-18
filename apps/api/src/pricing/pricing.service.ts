@@ -59,8 +59,8 @@ const other = (side: string) => (side === 'BUYER' ? 'SELLER' : 'BUYER');
 export type TermDecision = 'ACCEPT' | 'REJECT' | 'COUNTER';
 
 /** The seller's own unproposed version, visible only to the seller side (T-107). */
-/** Every lever a version of the terms may carry: the persona's levers, the headline price, and a financing contingency (T-117). */
-export type ProposedLever = TermLever | 'PURCHASE_PRICE' | 'FINANCING_CONTINGENCY';
+/** Every lever a version of the terms may carry: the persona's levers, the headline price, a financing contingency (T-117) and a working-capital peg (T-135). */
+export type ProposedLever = TermLever | 'PURCHASE_PRICE' | 'FINANCING_CONTINGENCY' | 'WORKING_CAPITAL_PEG';
 const dueOn = (value: Date | null) => (value ? value.toISOString().slice(0, 10) : null);
 
 export interface SellerDraftView {
@@ -445,6 +445,30 @@ export class PricingService {
       await this.audit(tx, tenant, dealId, 'terms.contingency_added', 'term_proposal_batch', batchId, requestId);
     });
     return this.view(tenant, dealId, requestId);
+  }
+
+  /**
+   * The working-capital peg (T-135) on the buyer's open draft: the target net working capital
+   * the closing true-up is measured against. The amount and its derivation come from the QoE
+   * engine, never from the caller's form. A deal term, not price: it never enters the
+   * evaluation, the term mix or the bridge, and the seller answers it like any other term.
+   * One per version; with no open buyer draft: NO_DRAFT_TERMS.
+   */
+  async addWorkingCapitalPeg(tenant: TenantContext, dealId: string, peg: { amount: string; currency: string; derivation: string }, requestId: string): Promise<{ batchId: string }> {
+    await this.access.require(tenant, dealId, canWrite, { action: 'terms.working_capital_peg_added', requestId });
+    return withTenant(this.prisma, tenant, async (tx) => {
+      const batch = await tx.termProposalBatch.findFirst({ where: { dealId, proposedAt: null, initiatedBySide: 'BUYER' }, orderBy: { version: 'desc' } });
+      if (!batch) throw new ConflictException({ code: 'NO_DRAFT_TERMS' });
+      if (batch.currency !== peg.currency) throw new UnprocessableEntityException({ code: 'CURRENCY_MISMATCH' });
+      // bounded: the rows of one record (one finding, one term batch or one listing)
+      const terms = await tx.termProposal.findMany({ where: { batchId: batch.id }, select: { ordinal: true, lever: true } });
+      if (terms.some((term) => term.lever === 'WORKING_CAPITAL_PEG')) throw new ConflictException({ code: 'ALREADY_ON_TERMS' });
+      await tx.termProposal.create({
+        data: { id: newId(), organizationId: tenant.organizationId, dealId, batchId: batch.id, ordinal: Math.max(-1, ...terms.map((term) => term.ordinal)) + 1, lever: 'WORKING_CAPITAL_PEG', amount: peg.amount, currency: batch.currency, findingId: null, sellerNote: peg.derivation.slice(0, 1000) },
+      });
+      await this.audit(tx, tenant, dealId, 'terms.working_capital_peg_added', 'term_proposal_batch', batch.id, requestId);
+      return { batchId: batch.id };
+    });
   }
 
   /**

@@ -1,6 +1,7 @@
 import type { FinancingView } from '@pactlab/contracts';
 import { HttpException } from '@nestjs/common';
 import { DEAL_PHASE_LABELS, type DealPhase, type TenantContext } from '@pactlab/domain';
+import type { QoeView } from '../qoe/qoe.service';
 
 /**
  * The report read models (T-110). Every section is built from the same application services the
@@ -28,6 +29,8 @@ export interface ReportSources {
   connections(tenant: TenantContext, dealId: string): Promise<ConnectionView[]>;
   /** Buyer financing (T-117), as the reader may see it: the seller gets the seller-visible layer only. */
   financing(tenant: TenantContext, dealId: string): Promise<FinancingView>;
+  /** Quality of earnings (T-135): buyer-side analysis, so a seller's report is refused it and leaves it out. */
+  qoe(tenant: TenantContext, dealId: string): Promise<QoeView>;
 }
 
 export interface DealView {
@@ -105,7 +108,9 @@ export interface PactReportModel {
   valuation: { scenarios: ValuationItemView[]; persona: string | null; confirmedValue: string[] | null } | null;
   terms: { side: string | null; proposed: ProposedView | null } | null;
   postClose: PostCloseItemView[] | null;
-  captured: { valuationRunIds: string[]; findingsCount: number };
+  /** Null when the reader may not see it or nothing has been recorded. */
+  qoe: QoeView | null;
+  captured: { valuationRunIds: string[]; findingsCount: number; qoeEngineVersion?: string };
 }
 
 export interface ExecutivePactBlock {
@@ -176,6 +181,8 @@ export async function pactReportModel(sources: ReportSources, tenant: TenantCont
     deal.phase === 'POST' ? visible(() => sources.postClose(tenant, dealId)) : Promise.resolve(null),
     visible(() => sources.financing(tenant, dealId)),
   ]);
+  const qoe = await visible(() => sources.qoe(tenant, dealId));
+  const qoeRecorded = qoe && (qoe.schedule.length > 0 || qoe.workingCapital.periods.length > 0) ? qoe : null;
   const persona = pricing?.persona.effective ? (pricing.persona.options.find((option) => option.persona === pricing.persona.effective)?.label ?? pricing.persona.effective) : null;
   const confirmed = valuation?.items.flatMap((item) => item.confirmedValue?.items.map((entry) => entry.label) ?? []) ?? null;
   return {
@@ -189,9 +196,11 @@ export async function pactReportModel(sources: ReportSources, tenant: TenantCont
     valuation: valuation ? { scenarios: valuation.items, persona, confirmedValue: confirmed && confirmed.length ? [...new Set(confirmed)] : null } : null,
     terms,
     postClose: postClose?.items.length ? postClose.items : null,
+    qoe: qoeRecorded,
     captured: {
       valuationRunIds: (valuation?.items ?? []).flatMap((item) => (item.latestRun ? [item.latestRun.id] : [])),
       findingsCount: findings?.items.length ?? 0,
+      ...(qoeRecorded ? { qoeEngineVersion: qoeRecorded.engineVersion } : {}),
     },
   };
 }
