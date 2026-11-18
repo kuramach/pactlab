@@ -118,6 +118,29 @@ function citationIdFor(request: ModelRequest, quote: string): string | null {
   return null;
 }
 
+/** Each "Section N" a page refers to that no page numbers ("N. HEADING"): the fixture's consistency findings. */
+function brokenReferences(request: ModelRequest) {
+  const prompt = request.messages[0]?.content ?? '';
+  const numbered = new Set([...prompt.matchAll(/^(\d+)\. [A-Z]/gm)].map((match) => match[1]));
+  const seen = new Set<string>();
+  const findings = [];
+  for (const match of prompt.matchAll(/[^.\n]*\bSection (\d+)\b[^.\n]*\./g)) {
+    const section = match[1] ?? '';
+    const sentence = match[0].trim();
+    const citationId = citationIdFor(request, sentence);
+    if (numbered.has(section) || seen.has(section) || !citationId) continue;
+    seen.add(section);
+    findings.push({
+      kind: 'BROKEN_CROSS_REFERENCE',
+      title: `Section ${section} is referenced but does not exist`,
+      explanation: `Synthetic check: no page given numbers a Section ${section}. The pages may be incomplete.`,
+      severity: 'LOW',
+      citations: [{ citationId, quote: sentence }],
+    });
+  }
+  return findings.slice(0, 30);
+}
+
 /**
  * Scripted model responses for the demo contracts: the extraction a model
  * would propose, cited to the exact text. Runs are recorded under the model
@@ -166,6 +189,8 @@ export function demoModelResponse(request: ModelRequest): string {
       }),
     });
   }
+  // Consistency checks (T-132): a synthetic, deterministic check for references to sections the pages never number.
+  if (request.system.includes('check a commercial agreement for drafting consistency')) return JSON.stringify({ findings: brokenReferences(request) });
   const all = Object.values(DEMO_CONTRACTS).flat();
   const contract = all.find((entry) => entry.extraction && citationIdFor(request, entry.extraction.parties[0]?.quote ?? '\u0000'));
   const extraction = contract?.extraction;

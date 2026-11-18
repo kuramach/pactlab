@@ -411,6 +411,8 @@ enum DocumentFindingKind {
   PARTY
   DATE
   CLAUSE
+  /// A drafting problem from the consistency checks (T-132).
+  CONSISTENCY
 
   @@map("document_finding_kind")
 }

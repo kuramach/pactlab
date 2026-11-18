@@ -19,6 +19,7 @@ import {
   CLASSIFY_MAX_PAGES,
   classifyDocument,
   extractContractTerms,
+  scrubContract,
   GatewayPolicyError,
   PROHIBITED_CLASSIFICATIONS,
   type CitableSource,
@@ -172,6 +173,9 @@ function providerUnavailable(kind: ModelProviderErrorKind | null): ServiceUnavai
   const code = aiProblemCode(kind);
   return new ServiceUnavailableException({ code });
 }
+
+/** Categories whose documents get the consistency checks after extraction (T-132); unclassified ones too. */
+const AGREEMENT_CATEGORIES = new Set(['CUSTOMER_CONTRACT', 'SUPPLIER_CONTRACT', 'LOAN_AGREEMENT', 'LEASE']);
 
 @Injectable()
 export class DocumentsService {
@@ -1019,13 +1023,54 @@ export class DocumentsService {
         ),
       );
     }
+    const consistency = AGREEMENT_CATEGORIES.has(document.intake.category ?? '') || document.intake.category === null
+      ? await this.checkConsistency(tenant, dealId, documentId, sources, known, requestId)
+      : null;
     return {
       aiRunId: run.id,
       status: run.status,
       drafted: drafts.length,
       duplicates: items.length - drafts.length,
       rejected: rejected.map((item) => ({ title: item.title, reasons: item.reasons })),
+      consistency,
     };
+  }
+
+  /**
+   * Consistency checks on an agreement (T-132, job type `contract_scrub`), after extraction: drafting
+   * problems become DRAFT findings with their citations, for a person to accept. A failed provider
+   * call here is reported, never fatal: the extraction already stands.
+   */
+  private async checkConsistency(
+    tenant: TenantContext,
+    dealId: string,
+    documentId: string,
+    sources: Parameters<typeof scrubContract>[1]['sources'],
+    known: Set<string>,
+    requestId: string,
+  ) {
+    let outcome;
+    try {
+      outcome = await scrubContract(this.gateway, { organizationId: tenant.organizationId, dealId, sources });
+    } catch (error) {
+      // Refused before any call (e.g. no approved model for this job): nothing ran, nothing to record.
+      if (error instanceof GatewayPolicyError) return { aiRunId: null, status: 'NOT_RUN' as const, drafted: 0, rejected: [] };
+      throw error;
+    }
+    const { run, items, rejected } = outcome;
+    await this.documents.recordAiRun(tenant, run, this.audit(tenant, dealId, 'document.consistency.completed', { type: 'ai_run', id: run.id }, requestId));
+    const now = new Date();
+    const drafts = items
+      .map((item) => draftFromExtraction({ organizationId: tenant.organizationId, dealId, documentId, createdBy: tenant.userId, run, item, now }))
+      .filter((draft) => {
+        if (known.has(draft.fingerprint)) return false;
+        known.add(draft.fingerprint);
+        return true;
+      });
+    if (drafts.length > 0) {
+      await this.documents.insertFindings(tenant, drafts, this.audit(tenant, dealId, 'document_finding.drafted', { type: 'document', id: documentId }, requestId));
+    }
+    return { aiRunId: run.id, status: run.status, drafted: drafts.length, rejected: rejected.map((item) => ({ title: item.title, reasons: item.reasons })) };
   }
 
   async listFindings(

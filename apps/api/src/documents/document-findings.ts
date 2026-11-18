@@ -55,7 +55,7 @@ export function draftFromExtraction(input: {
     dealId: input.dealId,
     documentId: input.documentId,
     aiRunId: run.id,
-    origin: 'AI_CONTRACT_EXTRACTION',
+    origin: item.kind === 'CONSISTENCY' ? 'AI_CONTRACT_SCRUB' : 'AI_CONTRACT_EXTRACTION',
     kind: item.kind,
     subtype: item.subtype,
     domain: 'LEGAL',
