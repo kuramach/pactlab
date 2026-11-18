@@ -5,6 +5,7 @@ import { sha256Hex } from './hash';
 import { ModelProviderError, type ModelProviderErrorKind } from './bedrock';
 import { detectInjection } from './injection';
 import { DEFAULT_MODEL_ROUTES, isClaudeModelId, resolveModel, type ModelAlias, type ModelRoute, type ModelProvider } from './models';
+import type { JobType } from './jobs';
 import type { PromptDefinition, PromptRegistry } from './prompts/registry';
 import type { ModelMessage, ModelTransport } from './transport';
 
@@ -64,6 +65,12 @@ export interface AiRunRecord {
   readonly resolvedModelId: string;
   /** Where the answering model runs (T-131). */
   readonly resolvedProvider: ModelProvider;
+  /** The job this was (T-132): what its cost and lane are reported under. */
+  readonly jobType: JobType;
+  /** When a later lane answered: the model that was meant to (T-132; never silent). */
+  readonly fallbackFrom: string | null;
+  /** Why the earlier lane was passed over: the provider error kind. */
+  readonly fallbackReason: string | null;
   readonly inputHashes: readonly string[];
   readonly outputHash: string | null;
   readonly status: AiRunStatus;
@@ -154,6 +161,11 @@ export interface ClaudeGatewayOptions {
    * null to use `routes`; 'BLOCKED' when its allow-list covers no model (the call is refused).
    */
   readonly routeFor?: (organizationId: string, alias: ModelAlias) => Promise<ModelRoute | null | 'BLOCKED'>;
+  /**
+   * Best-of-breed routing (T-132): the ordered lanes a job may run on for this organization and pact
+   * (the first that answers serves). Takes precedence over `routeFor`. 'BLOCKED': none is allowed.
+   */
+  readonly lanesFor?: (request: { organizationId: string; dealId: string; jobType: JobType; alias: ModelAlias }) => Promise<readonly ModelRoute[] | 'BLOCKED'>;
   /** Persists the run record (spec `ai_runs`). */
   readonly onRun?: (run: AiRunRecord) => Promise<void> | void;
   readonly newId?: () => string;
@@ -183,30 +195,58 @@ export class TransportClaudeGateway implements ClaudeGateway {
     const now = this.options.now ?? (() => new Date());
     const started = now();
     const alias = request.modelAlias ?? prompt.defaultAlias;
-    const chosen = this.options.routeFor ? await this.options.routeFor(request.organizationId, alias) : null;
-    if (chosen === 'BLOCKED') throw new GatewayPolicyError('NO_APPROVED_MODEL');
-    const route = chosen ?? resolveModel(alias, this.routes);
-    const provider = route.provider ?? 'bedrock';
+    // The lanes this job may run on, best first (T-132); without a lane resolver, the one route of T-131.
+    let lanes: readonly ModelRoute[];
+    if (this.options.lanesFor) {
+      const resolved = await this.options.lanesFor({ organizationId: request.organizationId, dealId: request.dealId, jobType: prompt.jobType, alias });
+      if (resolved === 'BLOCKED' || resolved.length === 0) throw new GatewayPolicyError('NO_APPROVED_MODEL');
+      lanes = resolved;
+    } else {
+      const chosen = this.options.routeFor ? await this.options.routeFor(request.organizationId, alias) : null;
+      if (chosen === 'BLOCKED') throw new GatewayPolicyError('NO_APPROVED_MODEL');
+      lanes = [chosen ?? resolveModel(alias, this.routes)];
+    }
+    let lane = 0;
+    let route = lanes[0] as ModelRoute;
+    let provider: ModelProvider = route.provider ?? 'bedrock';
+    let fallbackFrom: string | null = null;
+    let fallbackReason: string | null = null;
     const sources = request.sources ?? [];
     const user = prompt.render({ sources, inputs: request.inputs });
     const messages: ModelMessage[] = [{ role: 'user', content: user }];
-    const fallbackModelId =
-      route.fallbackModelId && isClaudeModelId(route.fallbackModelId) && prompt.fallbackEvaluatedOn?.includes(route.fallbackModelId)
-        ? route.fallbackModelId
-        : undefined;
+    const fallbackOf = (current: ModelRoute) =>
+      current.fallbackModelId && isClaudeModelId(current.fallbackModelId) && prompt.fallbackEvaluatedOn?.includes(current.fallbackModelId) ? current.fallbackModelId : undefined;
     let answeredBy = route.modelId;
+    let answered = false;
+    // One lane at a time: a lane that is unreachable (access) or down after its own retries passes the job
+    // to the next, and the run says so. Once a lane has answered, the repair attempt stays on it.
     const call = async (history: readonly ModelMessage[]) => {
-      const response = await this.options.transport.complete({
-        modelId: route.modelId,
-        provider,
-        effort: route.effort,
-        system: prompt.system,
-        messages: history,
-        maxOutputTokens: prompt.maxOutputTokens,
-        fallbackModelId,
-      });
-      answeredBy = response.modelId ?? route.modelId;
-      return response;
+      for (;;) {
+        try {
+          const response = await this.options.transport.complete({
+            modelId: route.modelId,
+            provider,
+            effort: route.effort,
+            system: prompt.system,
+            messages: history,
+            maxOutputTokens: prompt.maxOutputTokens,
+            fallbackModelId: fallbackOf(route),
+          });
+          answeredBy = response.modelId ?? route.modelId;
+          answered = true;
+          return response;
+        } catch (error) {
+          const kind = error instanceof ModelProviderError ? error.kind : null;
+          const passOn = kind === 'ACCESS' || kind === 'THROTTLED' || kind === 'UNAVAILABLE' || kind === 'DELAYED';
+          if (!passOn || answered || lane + 1 >= lanes.length) throw error;
+          fallbackFrom ??= route.modelId;
+          fallbackReason ??= kind;
+          lane += 1;
+          route = lanes[lane] as ModelRoute;
+          provider = route.provider ?? 'bedrock';
+          answeredBy = route.modelId;
+        }
+      }
     };
 
     let status: AiRunStatus = 'SCHEMA_INVALID';
@@ -262,6 +302,9 @@ export class TransportClaudeGateway implements ClaudeGateway {
       // The model that answered: the fallback when the primary was unavailable.
       resolvedModelId: answeredBy,
       resolvedProvider: provider,
+      jobType: prompt.jobType,
+      fallbackFrom,
+      fallbackReason,
       inputHashes: [
         ...request.inputs.map((input) => input.text),
         ...sources.map((s) => s.text),

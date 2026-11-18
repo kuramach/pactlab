@@ -36,6 +36,7 @@ export const documentClassificationPrompt = {
   taskType: 'document.classification',
   // Filing decides where numbers come from, so accuracy beats speed.
   defaultAlias: 'balanced',
+  jobType: 'classification',
   maxOutputTokens: 1200,
   system: [
     'You sort files received for a company acquisition or investment. For one file you say what kind of file it is, choosing one category from the list you are given.',

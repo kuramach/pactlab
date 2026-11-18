@@ -7,7 +7,9 @@ import { apiPost, apiSend } from '../(app)/deals/_lib/api';
 
 /** AI models in the operator console (T-131). The API checks every action again and audits it. */
 const uuid = z.uuid();
-const ALIASES = ['fast', 'balanced', 'deep_review'] as const;
+/** The three roles, and the job types of best-of-breed routing (T-132). */
+const ALIASES = ['fast', 'balanced', 'deep_review', 'contract_scrub', 'extraction', 'classification', 'document_qa', 'vision'] as const;
+const ROLE_ALIASES = ['fast', 'balanced', 'deep_review'];
 const back = (outcome: string, organizationId?: string): never =>
   redirect(`/admin?tab=models&outcome=${outcome}${organizationId ? `&aiorg=${organizationId}` : ''}`);
 const code = (result: { kind: string; data?: unknown }) => {
@@ -36,7 +38,13 @@ export async function retireModel(modelId: string): Promise<void> {
 
 export async function setPlatformRoute(alias: string, formData: FormData): Promise<void> {
   const modelId = String(formData.get('modelId') ?? '');
-  if (!ALIASES.includes(alias as (typeof ALIASES)[number]) || !uuid.safeParse(modelId).success) return back('invalid');
+  if (!ALIASES.includes(alias as (typeof ALIASES)[number])) return back('invalid');
+  // A job type set back to its registry chain (T-132); the three roles always keep a model.
+  if (modelId === '' && !ROLE_ALIASES.includes(alias)) {
+    const cleared = await apiSend('DELETE', `/v1/admin/ai-models/routes/${alias}`, {});
+    return back(cleared.kind === 'ok' ? 'ok-ai-route' : code(cleared));
+  }
+  if (!uuid.safeParse(modelId).success) return back('invalid');
   const result = await apiSend('PUT', `/v1/admin/ai-models/routes/${alias}`, { modelId });
   back(result.kind === 'ok' ? 'ok-ai-route' : code(result));
 }

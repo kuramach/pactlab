@@ -9,8 +9,11 @@ export type AiProvider = 'bedrock' | 'anthropic' | 'openai' | 'google' | 'fixtur
 export type AiAlias = 'fast' | 'balanced' | 'deep_review';
 export const AI_ALIASES: readonly AiAlias[] = ['fast', 'balanced', 'deep_review'];
 
+/** The routes the console may set: the three aliases, and the job types of best-of-breed routing (T-132). */
+export type AiRouteKey = AiAlias | 'contract_scrub' | 'extraction' | 'classification' | 'document_qa' | 'vision';
+
 export interface ResolvedAiRoute {
-  alias: AiAlias;
+  alias: AiRouteKey;
   provider: AiProvider | null;
   providerModelId: string | null;
   label: string | null;
@@ -53,14 +56,26 @@ export interface AiModelRow {
   evaluatingSince: Date | null;
   createdAt: Date;
   organizations: number;
-  platformAliases: AiAlias[];
+  platformAliases: AiRouteKey[];
 }
 
 export const aiModels = {
   /** The routes an organization's calls resolve to; aliases with no row use the code default. */
   async routesFor(sql: SqlExecutor, organizationId: string): Promise<ResolvedAiRoute[]> {
-    const rows = await callOps<{ alias: AiAlias; provider: AiProvider | null; provider_model_id: string | null; label: string | null; blocked: boolean }>(sql, 'SELECT * FROM app_ai_routes_for($1::uuid)', [organizationId]);
+    const rows = await callOps<{ alias: AiRouteKey; provider: AiProvider | null; provider_model_id: string | null; label: string | null; blocked: boolean }>(sql, 'SELECT * FROM app_ai_routes_for($1::uuid)', [organizationId]);
     return rows.map((row) => ({ alias: row.alias, provider: row.provider, providerModelId: row.provider_model_id, label: row.label, blocked: row.blocked === true }));
+  },
+
+  /** Whether a specific model may serve this organization (EVALUATED, terms recorded, allowed): the lane chain asks (T-132). */
+  async modelUsable(sql: SqlExecutor, organizationId: string, provider: AiProvider, providerModelId: string): Promise<boolean> {
+    const [row] = await callOps<{ ok: boolean }>(sql, 'SELECT app_ai_model_usable($1::uuid, $2, $3) AS ok', [organizationId, provider, providerModelId]);
+    return row?.ok === true;
+  },
+
+  /** A pact's metered AI spend so far, in USD (tokens x the rates on record), for the cost ceiling (T-132). */
+  async dealSpend(sql: SqlExecutor, organizationId: string, dealId: string): Promise<number> {
+    const [row] = await callOps<{ usd: string | number | null }>(sql, 'SELECT app_ai_deal_spend($1::uuid, $2::uuid) AS usd', [organizationId, dealId]);
+    return Number(row?.usd ?? 0);
   },
 
   /** At boot: the deployment's configured models into an empty catalog (EVALUATED; platform routes where none). */
@@ -82,7 +97,7 @@ export const aiModels = {
       evaluatingSince: row['evaluating_since'] ? new Date(row['evaluating_since'] as string) : null,
       createdAt: new Date(row['created_at'] as string),
       organizations: Number(row['organizations'] ?? 0),
-      platformAliases: (row['platform_aliases'] as AiAlias[] | null) ?? [],
+      platformAliases: (row['platform_aliases'] as AiRouteKey[] | null) ?? [],
     }));
   },
 
@@ -107,7 +122,7 @@ export const aiModels = {
   },
 
   /** False when the model is not EVALUATED. */
-  async setPlatformRoute(sql: SqlExecutor, actor: string, alias: AiAlias, modelId: string): Promise<boolean> {
+  async setPlatformRoute(sql: SqlExecutor, actor: string, alias: AiRouteKey, modelId: string): Promise<boolean> {
     const [row] = await callOps<{ ok: boolean }>(sql, 'SELECT app_ops_ai_platform_route_set($1::uuid, $2, $3::uuid) AS ok', [actor, alias, modelId]);
     return row?.ok === true;
   },
@@ -130,12 +145,18 @@ export const aiModels = {
     await callOps(sql, 'SELECT app_ops_ai_provider_terms_set($1::uuid, $2, $3, $4, $5, $6)::text AS done', [actor, terms.provider, terms.dpaInPlace, terms.zeroRetention, terms.region, terms.notes]);
   },
 
-  async organizationModels(sql: SqlExecutor, actor: string, organizationId: string): Promise<{ allowed: string[]; routes: Partial<Record<AiAlias, string>> }> {
+  /** A job type's platform route removed: the job follows its lane chain (T-132). False for the three aliases. */
+  async clearPlatformRoute(sql: SqlExecutor, actor: string, key: AiRouteKey): Promise<boolean> {
+    const [row] = await callOps<{ ok: boolean }>(sql, 'SELECT app_ops_ai_platform_route_clear($1::uuid, $2) AS ok', [actor, key]);
+    return row?.ok === true;
+  },
+
+  async organizationModels(sql: SqlExecutor, actor: string, organizationId: string): Promise<{ allowed: string[]; routes: Partial<Record<AiRouteKey, string>> }> {
     // bounded: one organization's allow-list and its three routes
-    const rows = await callOps<{ kind: 'ALLOWED' | 'ROUTE'; alias: AiAlias | null; model_id: string }>(sql, 'SELECT kind, alias, model_id::text FROM app_ops_ai_org_models($1::uuid, $2::uuid)', [actor, organizationId]);
+    const rows = await callOps<{ kind: 'ALLOWED' | 'ROUTE'; alias: AiRouteKey | null; model_id: string }>(sql, 'SELECT kind, alias, model_id::text FROM app_ops_ai_org_models($1::uuid, $2::uuid)', [actor, organizationId]);
     return {
       allowed: rows.filter((row) => row.kind === 'ALLOWED').map((row) => row.model_id),
-      routes: Object.fromEntries(rows.filter((row) => row.kind === 'ROUTE' && row.alias).map((row) => [row.alias, row.model_id])) as Partial<Record<AiAlias, string>>,
+      routes: Object.fromEntries(rows.filter((row) => row.kind === 'ROUTE' && row.alias).map((row) => [row.alias, row.model_id])) as Partial<Record<AiRouteKey, string>>,
     };
   },
 
@@ -143,7 +164,7 @@ export const aiModels = {
     sql: SqlExecutor,
     actor: string,
     organizationId: string,
-    input: { allowed: readonly string[]; routes: Partial<Record<AiAlias, string>> },
+    input: { allowed: readonly string[]; routes: Partial<Record<AiRouteKey, string>> },
   ): Promise<'SAVED' | 'NOT_FOUND' | 'NOT_EVALUATED' | 'BAD_ALIAS' | 'ROUTE_NOT_ALLOWED'> {
     const [row] = await callOps<{ outcome: 'SAVED' | 'NOT_FOUND' | 'NOT_EVALUATED' | 'BAD_ALIAS' | 'ROUTE_NOT_ALLOWED' }>(
       sql,

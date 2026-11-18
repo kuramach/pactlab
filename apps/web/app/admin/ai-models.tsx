@@ -4,7 +4,7 @@ import { apiGet } from '../(app)/deals/_lib/api';
 import { ApiState } from '../(app)/deals/_lib/states';
 import { addModel, evaluateModel, retireModel, setOrganizationModels, setPlatformRoute, setProviderTerms } from './ai-model-actions';
 
-type Alias = 'fast' | 'balanced' | 'deep_review';
+type Alias = 'fast' | 'balanced' | 'deep_review' | 'contract_scrub' | 'extraction' | 'classification' | 'document_qa' | 'vision';
 interface Model {
   id: string;
   provider: string;
@@ -51,6 +51,23 @@ const ROLES: { alias: Alias; label: string; help: string }[] = [
   { alias: 'balanced', label: 'Balanced', help: 'extraction, questions, most work' },
   { alias: 'deep_review', label: 'Deep review', help: 'contracts, valuation and Foresight' },
 ];
+/**
+ * Best-of-breed routing (T-132): a model per job type. Unset, the job follows its registry chain (e.g.
+ * extraction: Gemini Pro when connected and evaluated, else the Balanced Claude model).
+ */
+const JOBS: { alias: Alias; label: string; help: string }[] = [
+  { alias: 'deep_review', label: 'Deep review (job)', help: 'agreement findings judgment' },
+  { alias: 'contract_scrub', label: 'Consistency checks', help: 'defined terms, cross-references, party names' },
+  { alias: 'extraction', label: 'Extraction', help: 'contract fields, financial lines' },
+  { alias: 'classification', label: 'Classification', help: 'document types and triage' },
+  { alias: 'document_qa', label: 'Questions and drafting', help: 'document Q&A, Foresight, briefs' },
+  { alias: 'vision', label: 'Image documents', help: 'scans, charts, image tables' },
+];
+const LABELS = new Map([...JOBS, ...[
+  { alias: 'fast' as Alias, label: 'Fast' },
+  { alias: 'balanced' as Alias, label: 'Balanced' },
+  { alias: 'deep_review' as Alias, label: 'Deep review' },
+]].map((entry) => [entry.alias, entry.label]));
 const PROVIDERS: Record<string, string> = { bedrock: 'Claude on AWS Bedrock', anthropic: 'Claude via the Anthropic API', openai: 'OpenAI', google: 'Google', fixture: 'Synthetic (tests)' };
 const STATUS: Record<Model['status'], { label: string; variant: 'calculation' | 'draft' | 'neutral' }> = {
   EVALUATED: { label: 'Evaluated: can serve', variant: 'calculation' },
@@ -139,7 +156,7 @@ export async function AiModels({ organizationId, organizationQuery }: { organiza
                     <Evaluation model={model} />
                   </td>
                   <td className="px-3 py-2 align-top text-xs">
-                    {model.platformAliases.length ? `Default for ${model.platformAliases.map((alias) => ROLES.find((role) => role.alias === alias)?.label).join(', ')}` : '—'}
+                    {model.platformAliases.length ? `Default for ${model.platformAliases.map((alias) => LABELS.get(alias) ?? alias).join(', ')}` : '—'}
                     {model.organizations ? <span className="block text-muted-foreground">{model.organizations} organization{model.organizations === 1 ? '' : 's'}</span> : null}
                   </td>
                   <td className="px-3 py-2 align-top">
@@ -263,6 +280,25 @@ export async function AiModels({ organizationId, organizationQuery }: { organiza
               </Button>
             </form>
           ))}
+          <p className="text-sm font-semibold md:col-span-3">By job type (best-of-breed routing)</p>
+          {JOBS.map((job) => (
+            <form key={`job-${job.alias}`} action={setPlatformRoute.bind(null, job.alias)} className="flex flex-col gap-1 text-sm" aria-label={`Default for ${job.label}`}>
+              <label className="flex flex-col gap-1 font-medium">
+                {job.label} <span className="text-xs font-normal text-muted-foreground">{job.help}</span>
+                <select name="modelId" defaultValue={platform(job.alias)?.id ?? ''} className={field}>
+                  <option value="">Registry chain (default)</option>
+                  {evaluated.map((model) => (
+                    <option key={model.id} value={model.id}>
+                      {model.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <Button type="submit" size="sm" variant="outline" className="self-start">
+                Save
+              </Button>
+            </form>
+          ))}
         </CardContent>
       </Card>
 
@@ -309,7 +345,7 @@ export async function AiModels({ organizationId, organizationQuery }: { organiza
                 ))}
               </fieldset>
               <div className="grid gap-3 md:grid-cols-3">
-                {ROLES.map((role) => (
+                {[...ROLES, ...JOBS.filter((job) => job.alias !== 'deep_review')].map((role) => (
                   <label key={role.alias} className="flex flex-col gap-1 font-medium">
                     {role.label}
                     <select name={`route-${role.alias}`} defaultValue={chosen.data.routes[role.alias] ?? ''} className={field}>

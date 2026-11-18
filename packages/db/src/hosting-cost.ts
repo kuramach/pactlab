@@ -26,7 +26,8 @@ export interface CostRate {
   readonly createdAt: string;
 }
 
-export const METERED_DIMENSIONS = ['organization', 'pact', 'person', 'auth', 'model'] as const;
+/** `job` and `pact_job` (T-132): AI spend per job type, and per pact and job type. */
+export const METERED_DIMENSIONS = ['organization', 'pact', 'person', 'auth', 'model', 'job', 'pact_job'] as const;
 export type MeteredDimension = (typeof METERED_DIMENSIONS)[number];
 
 /** One row of a metered breakdown, priced and summed in the database. Amounts are decimal strings. */

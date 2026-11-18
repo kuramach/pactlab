@@ -59,6 +59,22 @@ export function routesFrom(env: RouteEnv): Record<ModelAlias, ModelRoute> {
   };
 }
 
+/** What best-of-breed routing reads from the deployment (T-132): connected providers, per-job overrides, the cost ceiling. */
+function routing(env: ApiEnv, providers: readonly ModelProvider[]) {
+  return {
+    providers,
+    jobOverrides: {
+      deep_review: env.MODEL_JOB_DEEP_REVIEW,
+      contract_scrub: env.MODEL_JOB_CONTRACT_SCRUB,
+      extraction: env.MODEL_JOB_EXTRACTION,
+      classification: env.MODEL_JOB_CLASSIFICATION,
+      document_qa: env.MODEL_JOB_DOCUMENT_QA,
+      vision: env.MODEL_JOB_VISION,
+    },
+    ceilingUsd: env.AI_DEAL_COST_CEILING_USD ?? null,
+  };
+}
+
 /** Claude through the direct Anthropic API (T-132), per alias, with the deployment's overrides. */
 export function anthropicRoutesFrom(env: Pick<ApiEnv, 'ANTHROPIC_MODEL_BALANCED' | 'ANTHROPIC_MODEL_DEEP_REVIEW' | 'ANTHROPIC_MODEL_FAST'>): Record<ModelAlias, ModelRoute> {
   const pick = (alias: ModelAlias, modelId: string | undefined) => ({ ...DEFAULT_ANTHROPIC_ROUTES[alias], ...(modelId ? { modelId } : {}) });
@@ -147,14 +163,14 @@ export async function createAiGateway(
 ): Promise<{ gateway: ClaudeGateway; status: AiStatusView; check: () => Promise<AiHealth | null>; models: AiModelsRuntime | null }> {
   // Local and test runs only (the config refuses it anywhere else): AI on, with no model behind it.
   if (env.AI_PROVIDER === 'fixture') {
-    const resolver = prisma ? new ModelRouteResolver(prisma, FIXTURE_ROUTES) : null;
+    const resolver = prisma ? new ModelRouteResolver(prisma, FIXTURE_ROUTES, Date.now, routing(env, ['fixture'])) : null;
     if (resolver) await resolver.adopt('fixture');
     return {
       gateway: new TransportClaudeGateway({
         transport: new LoggedFixtureTransport(env.AI_FIXTURE_LOG ?? null),
         registry: defaultPromptRegistry(),
         routes: FIXTURE_ROUTES,
-        ...(resolver ? { routeFor: (organizationId: string, alias: ModelAlias) => resolver.routeFor(organizationId, alias) } : {}),
+        ...(resolver ? { lanesFor: (request: Parameters<ModelRouteResolver['lanesFor']>[0]) => resolver.lanesFor(request) } : {}),
       }),
       status: describeRoutes('synthetic', null, FIXTURE_ROUTES),
       check: async () => null,
@@ -179,14 +195,15 @@ export async function createAiGateway(
     Object.fromEntries(Object.entries(bare).map(([provider, inner]) => [provider, new ResilientModelTransport({ transport: inner as ModelTransport, breaker: new CircuitBreaker() })])),
   );
   // The catalog (T-131): the deployment's configured models are adopted into an empty catalog, so nothing changes on deploy.
-  const resolver = prisma ? new ModelRouteResolver(prisma, routes) : null;
+  const resolver = prisma ? new ModelRouteResolver(prisma, routes, Date.now, routing(env, transport.providers)) : null;
   if (resolver) await resolver.adopt(primary);
   return {
     gateway: new TransportClaudeGateway({
       transport,
       registry: defaultPromptRegistry(),
       routes,
-      ...(resolver ? { routeFor: (organizationId: string, alias: ModelAlias) => resolver.routeFor(organizationId, alias) } : {}),
+      // Best-of-breed routing (T-132): each job's lanes, best first, with fallback along the chain.
+      ...(resolver ? { lanesFor: (request: Parameters<ModelRouteResolver['lanesFor']>[0]) => resolver.lanesFor(request) } : {}),
     }),
     status: describeRoutes(primary, primary === 'bedrock' ? (env.AWS_REGION ?? null) : null, routes),
     // The bare transport: a boot check must not count against the breaker.

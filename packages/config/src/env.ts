@@ -5,6 +5,8 @@ export type AppEnvironment = (typeof appEnvironments)[number];
 
 const nonEmpty = z.string().trim().min(1);
 /** A Claude model or inference profile on Bedrock: never another provider's model. */
+/** `provider:modelId`, e.g. `anthropic:claude-opus-5-5` or `openai:gpt-5.5` (T-132). */
+const jobOverride = z.string().regex(/^(bedrock|anthropic|openai|google):[A-Za-z0-9][A-Za-z0-9._:/-]{1,199}$/, 'provider:modelId, e.g. anthropic:claude-opus-5-5');
 const claudeModelId = z.string().trim().regex(/^(?:[a-z]{2,6}\.)?anthropic\.claude-[a-z0-9.:-]+$/, 'a Claude model ID such as us.anthropic.claude-sonnet-5-5');
 
 const postgresUrl = nonEmpty.refine(
@@ -184,6 +186,18 @@ export const apiEnvSchema = baseEnvSchema.extend({
   ANTHROPIC_MODEL_BALANCED: unsetIfBlank(nonEmpty.optional()),
   ANTHROPIC_MODEL_DEEP_REVIEW: unsetIfBlank(nonEmpty.optional()),
   ANTHROPIC_MODEL_FAST: unsetIfBlank(nonEmpty.optional()),
+  /**
+   * Best-of-breed routing (T-132): a model per job type, `provider:modelId` (e.g. `anthropic:claude-opus-5-5`),
+   * ahead of the registry's default chain. The console's routes come first; unset keeps the registry.
+   */
+  MODEL_JOB_DEEP_REVIEW: unsetIfBlank(jobOverride.optional()),
+  MODEL_JOB_CONTRACT_SCRUB: unsetIfBlank(jobOverride.optional()),
+  MODEL_JOB_EXTRACTION: unsetIfBlank(jobOverride.optional()),
+  MODEL_JOB_CLASSIFICATION: unsetIfBlank(jobOverride.optional()),
+  MODEL_JOB_DOCUMENT_QA: unsetIfBlank(jobOverride.optional()),
+  MODEL_JOB_VISION: unsetIfBlank(jobOverride.optional()),
+  /** Per-pact AI spend (USD) above which jobs take their economy lanes first (T-132). Unset: no ceiling. */
+  AI_DEAL_COST_CEILING_USD: unsetIfBlank(z.coerce.number().positive().max(100_000).optional()),
   OPENAI_API_KEY: unsetIfBlank(z.string().min(1).optional()).transform((value) => (value === 'unset' ? undefined : value)),
   GOOGLE_API_KEY: unsetIfBlank(z.string().min(1).optional()).transform((value) => (value === 'unset' ? undefined : value)),
   ...deployedStorageFields,

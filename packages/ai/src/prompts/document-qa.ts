@@ -28,6 +28,7 @@ export const documentQaPrompt = {
   version: '1',
   taskType: 'document.question',
   defaultAlias: 'balanced',
+  jobType: 'document_qa',
   maxOutputTokens: 4000,
   system: [
     'You answer diligence questions about documents in a software M&A data room.',

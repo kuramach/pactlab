@@ -70,6 +70,7 @@ export const contractExtractionPrompt = {
   version: '1',
   taskType: 'contract.extraction',
   defaultAlias: 'balanced',
+  jobType: 'extraction',
   maxOutputTokens: 6000,
   system: [
     'You extract parties, key dates and key clauses from a commercial contract for an acquirer’s diligence team.',

@@ -1312,6 +1312,11 @@ model AiRun {
   resolvedModelId  String      @map("resolved_model_id")
   /// Which provider answered (T-131): bedrock, openai, google or fixture.
   resolvedProvider String      @default("bedrock") @map("resolved_provider")
+  /// The job this run was (T-132): what its cost and lane are reported under.
+  jobType          String?     @map("job_type")
+  /// When a later lane answered: the model that was meant to, and why it was passed over (T-132).
+  fallbackFrom     String?     @map("fallback_from")
+  fallbackReason   String?     @map("fallback_reason")
   inputHashes      String[]    @map("input_hashes")
   outputHash       String?     @map("output_hash")
   status           AiRunStatus
