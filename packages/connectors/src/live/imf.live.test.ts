@@ -9,7 +9,14 @@ describe.skipIf(process.env['INTEGRATION_LIVE'] !== '1')('IMF DataMapper (live)'
     for (const indicator of ['PCPIPCH', 'NGDP_RPCH']) {
       for (const area of ['USA', 'EURO', 'GBR']) {
         const result = await provider.forecast(indicator, area, years);
-        expect(result.status, `${indicator}/${area}: ${result.status === 'UNAVAILABLE' ? result.reason : ''}`).toBe('OK');
+        let probe = '';
+        if (result.status === 'UNAVAILABLE') {
+          // Diagnostic only: status line and content type, never the body.
+          probe = await fetch(`https://www.imf.org/external/datamapper/api/v2/${indicator}/${area}?periods=${years.join(',')}`, { redirect: 'manual', headers: { accept: 'application/json' } })
+            .then((r) => ` [probe ${r.status} ${r.headers.get('content-type') ?? ''} ${r.headers.get('location') ?? ''}]`)
+            .catch((e: unknown) => ` [probe threw ${e instanceof Error ? `${e.name}: ${e.message}` : 'unknown'}]`);
+        }
+        expect(result.status, `${indicator}/${area}: ${result.status === 'UNAVAILABLE' ? result.reason : ''}${probe}`).toBe('OK');
         if (result.status === 'OK') {
           expect(Object.keys(result.series.values)).toHaveLength(5);
           expect(result.series.sourceName).toMatch(/^IMF World Economic Outlook/);
