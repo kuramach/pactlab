@@ -1,5 +1,5 @@
 import { ForbiddenException, Inject, Injectable, NotFoundException, ServiceUnavailableException, UnprocessableEntityException } from '@nestjs/common';
-import { aiModels, OperatorRequiredError, prismaExecutor, type AiAlias, type AiProvider, type PrismaClient, type SqlExecutor } from '@pactlab/db';
+import { aiModels, OperatorRequiredError, prismaExecutor, type AiProvider, type AiRouteKey, type PrismaClient, type SqlExecutor } from '@pactlab/db';
 import type { TenantContext } from '@pactlab/domain';
 import type { Logger } from '@pactlab/observability';
 import { defaultPromptRegistry } from '@pactlab/ai';
@@ -133,7 +133,7 @@ export class AiModelsService {
     });
   }
 
-  setPlatformRoute(tenant: TenantContext, alias: AiAlias, modelId: string) {
+  setPlatformRoute(tenant: TenantContext, alias: AiRouteKey, modelId: string) {
     return this.asOperator(async () => {
       if (!(await aiModels.setPlatformRoute(this.sql, tenant.userId, alias, modelId))) throw new UnprocessableEntityException({ code: 'NOT_EVALUATED' });
       this.changed();
@@ -154,11 +154,19 @@ export class AiModelsService {
     });
   }
 
+  clearPlatformRoute(tenant: TenantContext, key: AiRouteKey) {
+    return this.asOperator(async () => {
+      if (!(await aiModels.clearPlatformRoute(this.sql, tenant.userId, key))) throw new UnprocessableEntityException({ code: 'ROUTE_REQUIRED' });
+      this.changed();
+      return { alias: key, modelId: null };
+    });
+  }
+
   organizationModels(tenant: TenantContext, organizationId: string) {
     return this.asOperator(() => aiModels.organizationModels(this.sql, tenant.userId, organizationId));
   }
 
-  setOrganizationModels(tenant: TenantContext, organizationId: string, input: { allowed: string[]; routes: Partial<Record<AiAlias, string>> }) {
+  setOrganizationModels(tenant: TenantContext, organizationId: string, input: { allowed: string[]; routes: Partial<Record<AiRouteKey, string>> }) {
     return this.asOperator(async () => {
       const outcome = await aiModels.setOrganizationModels(this.sql, tenant.userId, organizationId, input);
       if (outcome === 'NOT_FOUND') throw new NotFoundException();

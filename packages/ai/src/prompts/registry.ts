@@ -1,3 +1,4 @@
+import type { JobType } from '../jobs';
 import { z } from 'zod';
 import type { CitableSource } from '../context';
 import type { GatewayInput } from '../gateway';
@@ -19,6 +20,8 @@ export interface PromptDefinition<TSchema extends z.ZodType = z.ZodType> {
   readonly version: string;
   readonly taskType: string;
   readonly defaultAlias: ModelAlias;
+  /** Which job this prompt is (T-132): its lane chain comes from JOB_MODEL_MAP. */
+  readonly jobType: JobType;
   readonly maxOutputTokens: number;
   readonly system: string;
   readonly outputSchema: TSchema;

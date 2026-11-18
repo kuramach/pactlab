@@ -51,6 +51,7 @@ export const negotiationBriefPrompt = {
   version: '1',
   taskType: 'negotiation.brief',
   defaultAlias: 'balanced',
+  jobType: 'document_qa',
   maxOutputTokens: 3000,
   system: [BRIEF_RULES, schemaBlock(negotiationBriefSchema)].join('\n\n'),
   outputSchema: negotiationBriefSchema,

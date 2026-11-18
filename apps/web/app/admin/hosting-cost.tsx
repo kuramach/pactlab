@@ -117,7 +117,7 @@ function MeteredTable({ label, rows, show }: { label: string; rows: MeteredRow[]
  * One metered breakdown, priced and summed in the database, most expensive first, with its own
  * pager (T-126). Each section loads on its own (Suspense), after the summary above it.
  */
-function MeteredSection(props: { dimension: 'organization' | 'pact' | 'person' | 'auth' | 'model'; label: string; show: 'all' | 'ai'; period: { from: string; to: string }; search: Record<string, string | string[] | undefined> }) {
+function MeteredSection(props: { dimension: 'organization' | 'pact' | 'person' | 'auth' | 'model' | 'job' | 'pact_job'; label: string; show: 'all' | 'ai'; period: { from: string; to: string }; search: Record<string, string | string[] | undefined> }) {
   return (
     <Suspense fallback={<p className="px-4 py-3 text-sm text-muted-foreground">Loading {props.label.toLowerCase()} costs…</p>}>
       <MeteredRows {...props} />
@@ -315,6 +315,12 @@ export async function HostingCost({ preset: asked, from, to, environment, search
       </Section>
       <Section title="By model">
         <MeteredSection dimension="model" label="Model" show="ai" period={period} search={search} />
+      </Section>
+      <Section title="By job type" note="Best-of-breed routing (T-132): what each kind of AI work costs, whichever model served it.">
+        <MeteredSection dimension="job" label="Job type" show="ai" period={period} search={search} />
+      </Section>
+      <Section title="By pact and job type" note="Each pact’s AI spend, split by job type.">
+        <MeteredSection dimension="pact_job" label="Pact · job type" show="ai" period={period} search={search} />
       </Section>
 
       <Section title="Rates" note="Unit prices from AWS's price pages, each from a date; the same date corrects a rate. Estimates use the rate in force on the day.">

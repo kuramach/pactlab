@@ -50,3 +50,13 @@ Each evaluation records the prompt hashes it ran against. When prompts change, r
    - Claude Sonnet, Opus and Haiku (`claude-sonnet-5-5`, `claude-opus-5-5`, `claude-haiku-5-5`) become the catalog's defaults;
    - to use other IDs, set `ANTHROPIC_MODEL_*`.
 5. **When Bedrock is back:** remove `provider` (or set it to `bedrock`) and deploy.
+
+## Best-of-breed routing by job type (T-132)
+- **Where the routes are:** Admin → AI models → *Platform defaults* now has a row per **job type**: consistency checks, extraction, classification, questions and drafting, image documents, and deep review.
+  - **Registry chain (default):** the job follows `JOB_MODEL_MAP`. For example, extraction runs on Gemini Pro when Google is connected, its terms are recorded and the model is evaluated; otherwise it runs on the Balanced Claude model.
+  - **A model chosen:** that model goes first, and the chain stays as the fallback.
+- **Per organization:** the same rows appear in the organization's settings.
+- **Per deployment, without the console:** `MODEL_JOB_<JOB>=provider:modelId`, e.g. `MODEL_JOB_CONTRACT_SCRUB=openai:gpt-5.5`.
+- **When a lane fails:** the run records which model it fell back from, and why (`ai_runs.fallback_from`, `fallback_reason`).
+- **Cost:** Hosting cost → *By job type* and *By pact and job type*. Enter each model's rates under *Rates* (keyed by model ID) for the estimates.
+- **Cost ceiling:** `AI_DEAL_COST_CEILING_USD`. Once a pact's estimated AI spend reaches it, economy lanes go first.

@@ -1,11 +1,13 @@
-import { Body, Controller, Get, HttpCode, Inject, Param, Post, Put } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Inject, Param, Post, Put } from '@nestjs/common';
 import type { TenantContext } from '@pactlab/domain';
 import { z } from 'zod';
 import { Tenant } from '../../auth/tenant.decorator';
 import { ZodValidationPipe } from '../../common/zod-validation.pipe';
 import { AiModelsService } from './ai-models.service';
 
-const alias = z.enum(['fast', 'balanced', 'deep_review']);
+/** The three roles, and the job types of best-of-breed routing (T-132). */
+const ROUTE_KEYS = ['fast', 'balanced', 'deep_review', 'contract_scrub', 'extraction', 'classification', 'document_qa', 'vision'] as const;
+const alias = z.enum(ROUTE_KEYS);
 export const addModelSchema = z.strictObject({
   provider: z.enum(['bedrock', 'anthropic', 'openai', 'google', 'fixture']),
   providerModelId: z.string().trim().regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]{1,199}$/),
@@ -24,7 +26,7 @@ const organizationParams = z.strictObject({ organizationId: z.uuid() });
 const routeBody = z.strictObject({ modelId: z.uuid() });
 export const organizationModelsSchema = z.strictObject({
   allowed: z.array(z.uuid()).max(50),
-  routes: z.strictObject({ fast: z.uuid().optional(), balanced: z.uuid().optional(), deep_review: z.uuid().optional() }),
+  routes: z.strictObject(Object.fromEntries(ROUTE_KEYS.map((key) => [key, z.uuid().optional()])) as Record<(typeof ROUTE_KEYS)[number], z.ZodOptional<z.ZodUUID>>),
 });
 
 /** AI models in the operator console (T-131). Every route answers 403 to anyone not a platform operator. */
@@ -67,6 +69,12 @@ export class AiModelsController {
     @Body(new ZodValidationPipe(providerTermsSchema)) body: z.infer<typeof providerTermsSchema>,
   ) {
     return this.service.setProviderTerms(tenant, { provider: params.provider, ...body });
+  }
+
+  /** A job type's platform route removed: the job follows its lane chain (T-132). Refused for the three roles. */
+  @Delete('routes/:alias')
+  clearPlatformRoute(@Tenant() tenant: TenantContext, @Param(new ZodValidationPipe(aliasParams)) params: { alias: z.infer<typeof alias> }) {
+    return this.service.clearPlatformRoute(tenant, params.alias);
   }
 
   @Get('organizations/:organizationId')

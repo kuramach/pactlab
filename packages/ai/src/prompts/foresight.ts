@@ -36,6 +36,7 @@ export const foresightTrendsPrompt = {
   version: '1',
   taskType: 'foresight.trends',
   defaultAlias: 'balanced',
+  jobType: 'document_qa',
   maxOutputTokens: 3000,
   system: [FORESIGHT_RULES, 'Answer every question you are given, using its key; answer nothing else.', schemaBlock(foresightTrendsSchema)].join('\n\n'),
   outputSchema: foresightTrendsSchema,
@@ -59,6 +60,7 @@ export const foresightQaPrompt = {
   version: '1',
   taskType: 'foresight.question',
   defaultAlias: 'balanced',
+  jobType: 'document_qa',
   maxOutputTokens: 1500,
   system: [
     FORESIGHT_RULES,
@@ -99,6 +101,7 @@ export const foresightForecastPrompt = {
   version: '1',
   taskType: 'foresight.forecast',
   defaultAlias: 'balanced',
+  jobType: 'extraction',
   maxOutputTokens: 2500,
   system: [
     'You give a five-year forecast for each economic or sector metric you are asked about: one value per year, in percent a year, with a short rationale naming the main drivers.',

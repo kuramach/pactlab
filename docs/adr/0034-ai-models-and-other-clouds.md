@@ -43,3 +43,23 @@
   - **Switching back** to Bedrock is that one value.
 - **Key:** `pactlab/<env>/ai/anthropic` in Secrets Manager, set by `scripts/ai-key.sh <env> anthropic`.
 - **Data terms:** console-added Anthropic models are a provider outside AWS, so they need the terms record like OpenAI and Google. A deployment's *default* provider is chosen in reviewed deploy config, and its terms are recorded alongside in the console.
+
+## Addendum (T-132 PR 2, 2026-11-17): best-of-breed routing per job type
+- **The registry:** `JOB_MODEL_MAP` (`packages/ai/src/jobs.ts`) maps each job type to an ordered lane chain:
+  - **Job types:** deep review, contract scrub, extraction, classification, document Q&A, vision.
+  - **Prompts:** every prompt declares its job type. A contract test fails on an unmapped prompt, and on a chain without a Claude lane.
+- **A lane is one of two kinds:**
+  - **Claude:** the deployment's Claude route for an alias, on Bedrock or the Anthropic API.
+  - **A specific model at another provider:** it serves only when that provider is connected, its terms are recorded, the model is EVALUATED in the catalog, and the organization's allow-list includes it.
+- **Resolution order:**
+  1. the console route for the job type (organization, then platform);
+  2. `MODEL_JOB_<JOB>`;
+  3. the registry chain.
+- **Claude-only deployments:** they resolve every job to the Claude alias its prompts already ran on, so nothing changes there.
+- **Fallback:** the gateway walks the lanes. A lane that is unreachable or down after its own retries passes the job on; an invalid request never does. The run records `job_type`, `fallback_from` and `fallback_reason`. With no lane left, the caller gets the provider error; nothing is dropped silently.
+- **Cost:**
+  - Hosting cost meters AI spend per job type, and per pact and job type.
+  - `AI_DEAL_COST_CEILING_USD` puts economy lanes first once a pact's metered spend reaches it; there is no ceiling by default.
+- **Defaults are config, not doctrine.**
+  - **Lane IDs:** the non-Claude model IDs are as the providers' official SDKs list them (`gpt-5.5`, `gemini-3.1-pro-preview`, `gemini-3.8-flash`).
+  - **What can override them:** a console route, an env override or an evaluation, never a rebuild.
