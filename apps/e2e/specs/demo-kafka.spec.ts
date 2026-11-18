@@ -18,6 +18,7 @@ test('the recorded apache/kafka and KAFKA data load into a pact as real, labelle
   await expect(page.getByRole('heading', { name: /Jira issues resolved/ })).toBeVisible();
   await expect(page.getByRole('table', { name: 'Issues resolved this month' }).getByRole('link', { name: /KAFKA-\d+/ }).first()).toHaveAttribute('href', /^https:\/\/issues\.apache\.org\/jira\/browse\/KAFKA-\d+$/);
   await page.goto(`/deals/${dealId}/sources`);
-  await expect(page.getByText('apache/kafka (real public data, recorded once)')).toBeVisible();
-  await expect(page.getByText('Apache Jira (real public data, recorded once)')).toBeVisible();
+  // The source's card heading (its sync run lists the same name, so plain text matches twice).
+  await expect(page.getByRole('heading', { name: 'apache/kafka (real public data, recorded once)' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Apache Jira (real public data, recorded once)' })).toBeVisible();
 });
