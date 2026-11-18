@@ -762,4 +762,65 @@ describe('documents API (document AI)', () => {
       expect((await call('lead', 'GET', '/documents?kind=Exe')).status).toBe(400);
     }, 60_000);
   });
+
+  describe('consistency checks on agreements (T-132)', () => {
+    const PLANTED = [
+      'RESELLER AGREEMENT\nThis Reseller Agreement is made between TroubledCo Systems, Inc. ("Supplier") and Harbor Distribution LLC ("Reseller").\n3. TERM. This Agreement has an initial term of two (2) years.',
+      '5. TERMINATION. Either party may terminate as provided in Section 9.\n6. TERM OF COMMITMENT. The initial term of this Agreement is three (3) years.',
+    ].join('\f');
+    const scrubbing = (request: ModelRequest) => request.system.includes('drafting consistency');
+
+    it('drafts drafting problems as DRAFT findings with exact citations after extraction; a person accepts them', async () => {
+      const planted = await upload('lead', 'Harbor reseller agreement.txt', PLANTED);
+      respond = (request) =>
+        scrubbing(request)
+          ? {
+              findings: [
+                {
+                  kind: 'INTERNAL_CONTRADICTION',
+                  title: 'Initial term is two years in Section 3 and three years in Section 6',
+                  explanation: 'Different initial terms for the same agreement.',
+                  severity: 'HIGH',
+                  citations: [
+                    { citationId: citationIdFor(request, 'initial term of two (2) years'), quote: 'This Agreement has an initial term of two (2) years.' },
+                    { citationId: citationIdFor(request, 'three (3) years'), quote: 'The initial term of this Agreement is three (3) years.' },
+                  ],
+                },
+                // Invented: the quote is not in the file, so it is never drafted.
+                { kind: 'BROKEN_CROSS_REFERENCE', title: 'Exhibit C is missing', explanation: 'Invented.', severity: 'LOW', citations: [{ citationId: citationIdFor(request, 'Section 9'), quote: 'as set out in Exhibit C' }] },
+              ],
+            }
+          : { parties: [], dates: [], clauses: [] };
+      const extracted = await call('lead', 'POST', `/documents/${planted.body['id'] as string}/extractions`);
+      expect(extracted.status).toBe(201);
+      expect(extracted.body['consistency']).toMatchObject({ status: 'SUCCEEDED', drafted: 1, rejected: [{ title: 'Exhibit C is missing' }] });
+      const run = (await db.owner.query(`SELECT job_type AS "jobType", task_type AS "taskType" FROM ai_runs WHERE id = $1`, [(extracted.body['consistency'] as Body)['aiRunId']])) as { rows: Body[] };
+      expect(run.rows[0]).toEqual({ jobType: 'contract_scrub', taskType: 'contract.consistency' });
+      const rows = (await db.owner.query(`SELECT id, kind, subtype, status, origin, citations FROM document_findings WHERE document_id = $1`, [planted.body['id']])) as { rows: { id: string; kind: string; subtype: string; status: string; origin: string; citations: Citation[] }[] };
+      expect(rows.rows).toHaveLength(1);
+      expect(rows.rows[0]).toMatchObject({ kind: 'CONSISTENCY', subtype: 'INTERNAL_CONTRADICTION', status: 'DRAFT', origin: 'AI_CONTRACT_SCRUB' });
+      expect(rows.rows[0]?.citations.map((c) => c.pageNumber)).toEqual([1, 2]);
+      const audited = (await db.owner.query(`SELECT count(*)::int AS n FROM audit_events WHERE action = 'document.consistency.completed' AND target_id = $1`, [(extracted.body['consistency'] as Body)['aiRunId']])) as { rows: { n: number }[] };
+      expect(audited.rows[0]?.n).toBe(1);
+      // Re-running drafts nothing twice.
+      expect(((await call('lead', 'POST', `/documents/${planted.body['id'] as string}/extractions`)).body['consistency'] as Body)['drafted']).toBe(0);
+      const accepted = await call('reviewer', 'POST', `/document-findings/${rows.rows[0]?.id ?? ''}/reviews`, { decision: 'ACCEPT', rationale: 'Sections 3 and 6 disagree.', expectedVersion: 1 });
+      expect(accepted.status).toBe(201);
+      expect(accepted.body['finding']).toMatchObject({ status: 'ACCEPTED', kind: 'CONSISTENCY' });
+    });
+
+    it('a consistent agreement gets no consistency findings, and a failed check never undoes the extraction', async () => {
+      const clean = await upload('lead', 'Atlas services agreement.txt', 'SERVICES AGREEMENT\nProvider shall perform the Services under Section 1.\n1. SERVICES. Implementation and support.');
+      respond = (request) => (scrubbing(request) ? { findings: [] } : { parties: [], dates: [], clauses: [] });
+      const done = await call('lead', 'POST', `/documents/${clean.body['id'] as string}/extractions`);
+      expect(done.body['consistency']).toMatchObject({ status: 'SUCCEEDED', drafted: 0 });
+      respond = (request) => {
+        if (scrubbing(request)) throw new Error('synthetic provider outage');
+        return { parties: [], dates: [], clauses: [] };
+      };
+      const degraded = await call('lead', 'POST', `/documents/${clean.body['id'] as string}/extractions`);
+      expect(degraded.status).toBe(201);
+      expect(degraded.body).toMatchObject({ status: 'SUCCEEDED', consistency: { status: 'PROVIDER_ERROR', drafted: 0 } });
+    });
+  });
 });

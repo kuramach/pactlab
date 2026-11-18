@@ -3,7 +3,7 @@ import type { CitableSource } from './context';
 import type { ModelProviderErrorKind } from './bedrock';
 import type { AiRunRecord, ClaudeGateway, GatewayInput } from './gateway';
 import type { ModelAlias } from './models';
-import { contractExtractionPrompt, documentQaPrompt, type ContractExtraction } from './prompts';
+import { contractExtractionPrompt, contractScrubPrompt, documentQaPrompt, type ContractExtraction } from './prompts';
 
 interface Scope {
   readonly organizationId: string;
@@ -75,7 +75,8 @@ export async function askDocuments(
   };
 }
 
-export type ExtractedKind = 'PARTY' | 'DATE' | 'CLAUSE';
+/** CONSISTENCY: a drafting problem from the consistency checks (T-132). */
+export type ExtractedKind = 'PARTY' | 'DATE' | 'CLAUSE' | 'CONSISTENCY';
 
 /** A typed extraction item that may become a draft finding. */
 export interface ExtractedItem {
@@ -139,6 +140,44 @@ export async function extractContractTerms(
       citations: c.citations,
     })),
   ];
+  const { grounded, rejected } = groundItems(candidates, new SourceIndex(request.sources));
+  return {
+    run: response.run,
+    providerError: null,
+    items: grounded.map(({ item, citations }) => ({ ...item, citations })),
+    rejected: rejected.map(({ item, reasons }) => ({ title: item.title, reasons })),
+  };
+}
+
+/**
+ * Consistency checks on an agreement (T-132): defined terms, cross-references, party names and
+ * contradictions. As with extraction, an item with any unresolved citation is dropped and reported.
+ */
+export async function scrubContract(
+  gateway: ClaudeGateway,
+  request: Scope & { readonly sources: readonly CitableSource[] },
+): Promise<{
+  run: AiRunRecord;
+  items: ExtractedItem[];
+  rejected: { title: string; reasons: readonly CitationFailure[] }[];
+  providerError: ModelProviderErrorKind | null;
+}> {
+  const response = await gateway.invoke(contractScrubPrompt, {
+    organizationId: request.organizationId,
+    dealId: request.dealId,
+    modelAlias: request.modelAlias,
+    inputs: [],
+    sources: request.sources,
+  });
+  if (!response.output) return { run: response.run, items: [], rejected: [], providerError: response.providerError };
+  const candidates = response.output.findings.map((f) => ({
+    kind: 'CONSISTENCY' as const,
+    subtype: f.kind,
+    title: f.title,
+    summary: f.explanation,
+    severity: f.severity,
+    citations: f.citations,
+  }));
   const { grounded, rejected } = groundItems(candidates, new SourceIndex(request.sources));
   return {
     run: response.run,

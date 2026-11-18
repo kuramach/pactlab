@@ -112,8 +112,9 @@ export interface DocumentFinding {
   readonly dealId: string;
   readonly documentId: string;
   readonly aiRunId: string;
-  readonly origin: 'AI_CONTRACT_EXTRACTION';
-  readonly kind: 'PARTY' | 'DATE' | 'CLAUSE';
+  /** AI_CONTRACT_SCRUB: the consistency checks on an agreement (T-132). */
+  readonly origin: 'AI_CONTRACT_EXTRACTION' | 'AI_CONTRACT_SCRUB';
+  readonly kind: 'PARTY' | 'DATE' | 'CLAUSE' | 'CONSISTENCY';
   readonly subtype: string;
   readonly domain: 'LEGAL';
   readonly title: string;

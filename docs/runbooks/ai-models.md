@@ -60,3 +60,9 @@ Each evaluation records the prompt hashes it ran against. When prompts change, r
 - **When a lane fails:** the run records which model it fell back from, and why (`ai_runs.fallback_from`, `fallback_reason`).
 - **Cost:** Hosting cost → *By job type* and *By pact and job type*. Enter each model's rates under *Rates* (keyed by model ID) for the estimates.
 - **Cost ceiling:** `AI_DEAL_COST_CEILING_USD`. Once a pact's estimated AI spend reaches it, economy lanes go first.
+
+## Consistency checks (T-132 PR 3)
+- **When they run:** after **Extract** on an agreement (a customer or supplier contract, loan agreement or lease, or an unclassified file), on job type `contract_scrub`.
+- **What they find:** defined terms, cross-references, party names and contradictions. Each problem lands as a **draft** finding (kind `CONSISTENCY`) with exact quotes, in the review queue.
+- **How to route them:** set *Consistency checks* under Admin → AI models. Unset, they run on GPT-5.5 when OpenAI is connected and evaluated, and otherwise on the Deep review Claude model.
+- **When the check fails** (provider down): the extraction still stands, and the response reports `consistency.status: PROVIDER_ERROR`.
