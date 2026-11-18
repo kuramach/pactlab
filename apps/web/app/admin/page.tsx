@@ -10,6 +10,7 @@ import { endDemoShare, resetDemoSlot } from './demo-actions';
 import { AiModels } from './ai-models';
 import { HostingCost } from './hosting-cost';
 import { compPact, createPromoCode, deactivatePromoCode, decideOrganization, resyncBilling, setMemberStatus, setOrganizationFlags, setOrganizationStatus, setOrganizationMcp } from './actions';
+import { SourceStatusTable, type SourceStatus } from './source-status';
 import type { AdminBillingAccountView, PromoCodeView } from '@pactlab/contracts';
 import { COMPANY_TYPES, COMPANY_TYPE_LABELS } from '@pactlab/domain';
 
@@ -41,6 +42,7 @@ const OUTCOMES: Record<string, string> = {
   'promo-taken': 'That code text is already used. Pick another.',
   'ok-comp': 'One free pact added to that organization (audited).',
   'ok-resync': 'Billing re-read from Stripe.',
+  'ok-sources': 'Checked from this environment just now.',
   'ok-demo-ended': 'Share ended: its links and sessions stopped working. The demo is rebuilt within 15 minutes, then free again.',
   'ok-demo-reset': 'Queued: the demo is rebuilt within 15 minutes.',
   'ok-cost-refreshed': 'Read again from Cost Explorer.',
@@ -273,10 +275,11 @@ async function Users({ q, search }: { q: string; search: Search }) {
 }
 
 async function Health({ search }: { search: Search }) {
-  const [usage, connections, mail] = await Promise.all([
+  const [usage, connections, mail, sources] = await Promise.all([
     apiGet<{ organizations: number; aiTokens: { input: number; output: number } }>('/v1/admin/usage'),
     apiGet<Page<Connection>>(`/v1/admin/connections?${listQuery(search, {})}`),
     apiGet<{ days: number; counts: Record<'DELIVERY' | 'BOUNCE' | 'COMPLAINT' | 'REJECT' | 'RENDERING_FAILURE', number>; suppressed: number }>('/v1/admin/email-health'),
+    apiGet<{ items: SourceStatus[] }>('/v1/admin/source-status'),
   ]);
   if (usage.kind !== 'ok') return <ApiState result={usage} />;
   const tokens = usage.data.aiTokens;
@@ -295,6 +298,7 @@ async function Health({ search }: { search: Search }) {
           {number.format(mail.data.counts.REJECT + mail.data.counts.RENDERING_FAILURE)} rejected or failed · {number.format(mail.data.suppressed)} addresses on the do-not-send list
         </p>
       ) : null}
+      {sources.kind === 'ok' ? <SourceStatusTable items={sources.data.items} /> : <ApiState result={sources} />}
       {connections.kind !== 'ok' ? (
         <ApiState result={connections} />
       ) : (

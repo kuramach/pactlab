@@ -158,6 +158,8 @@ export const apiEnvSchema = baseEnvSchema.extend({
   PACK_PREVIEW: unsetIfBlank(z.enum(['true', 'false']).optional()),
   /** Published macro forecasts for Foresight (T-094 B10): `imf` reads the IMF DataMapper API (public, no key); `fixture` uses invented series (tests, offline). */
   MACRO_FORECAST_SOURCE: unsetIfBlank(z.enum(['imf', 'fixture']).default('imf')),
+  /** How often live checks it can reach the IMF (T-137 follow-up): hours, 1 to 48. */
+  SOURCE_CHECK_INTERVAL_HOURS: unsetIfBlank(z.coerce.number().int().min(1).max(48).default(6)),
   /** Model provider for document AI: `none` keeps AI off; `bedrock` calls Claude on Amazon Bedrock. */
   /** `fixture` (T-113): scripted responses, never a model. Local and test runs only; every request is logged to AI_FIXTURE_LOG. */
   AI_PROVIDER: unsetIfBlank(z.enum(['none', 'bedrock', 'anthropic', 'fixture']).default('none')),

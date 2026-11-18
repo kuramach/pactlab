@@ -143,6 +143,23 @@ export const emails = {
     };
   },
 
+  /** A public data source live uses stopped (or started again) answering live (T-137 follow-up). */
+  operatorSourceAlert(to: string, alert: { source: string; environment: string; ok: boolean; detail: string | null }): OutboundEmail {
+    const lines = alert.ok
+      ? [`${alert.source} is reachable from ${alert.environment} again.`, 'Foresight uses the published forecasts again.']
+      : [
+          `${alert.source} is not reachable from ${alert.environment}${alert.detail ? ` (${alert.detail})` : ''}.`,
+          'Foresight is using AI forecasts only until it is back; pacts show a note saying so.',
+          'Admin → Health shows the status and has Check now. Runbook: docs/runbooks/connector-outage.md.',
+        ];
+    return {
+      to,
+      subject: alert.ok ? `Pactlab ${alert.environment}: ${alert.source} is back` : `Pactlab ${alert.environment}: ${alert.source} unreachable`,
+      text: lines.join('\n'),
+      content: { heading: alert.ok ? `${alert.source} is back` : `${alert.source} unreachable`, paragraphs: lines },
+    };
+  },
+
   organizationApproved(to: string, organizationName: string, loginUrl: string): OutboundEmail {
     return {
       to,

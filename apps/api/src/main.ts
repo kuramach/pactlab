@@ -101,6 +101,8 @@ const app = await createApp(
     // Packs launch one at a time: unreleased ones are previewable in dev and qa only (or by PACK_PREVIEW).
     packPreview: packPreviewEnabled(config.APP_ENV, config.PACK_PREVIEW),
     macroForecasts: config.MACRO_FORECAST_SOURCE === 'fixture' ? new FixtureMacroForecastProvider() : new ImfMacroForecastProvider(),
+    // Live checks the public data it uses, from its own network (T-137 follow-up): Admin → Health, operator email on a change.
+    ...(config.MACRO_FORECAST_SOURCE === 'imf' ? { sourceChecks: { intervalHours: config.SOURCE_CHECK_INTERVAL_HOURS, operatorEmail: config.OPERATOR_EMAIL ?? null } } : {}),
     // Foresight voice uses Amazon Transcribe and Polly with the same AWS sign-in as Bedrock.
     ...(config.AI_PROVIDER === 'bedrock' && config.AWS_REGION
       ? { voice: { speechToText: new TranscribeSpeechToText(config.AWS_REGION), textToSpeech: new PollyTextToSpeech(config.AWS_REGION) } }

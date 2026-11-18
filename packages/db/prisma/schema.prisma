@@ -3398,3 +3398,16 @@ model AiProviderTerms {
 
   @@map("ai_provider_terms")
 }
+
+/// Whether live can reach a public data source it depends on (T-137 follow-up), as last checked. Platform-level.
+model ExternalSourceStatus {
+  source       String    @id
+  status       String?
+  checkedAt    DateTime? @map("checked_at") @db.Timestamptz(6)
+  claimedAt    DateTime? @map("claimed_at") @db.Timestamptz(6)
+  lastOkAt     DateTime? @map("last_ok_at") @db.Timestamptz(6)
+  failingSince DateTime? @map("failing_since") @db.Timestamptz(6)
+  detail       String?
+
+  @@map("external_source_status")
+}
