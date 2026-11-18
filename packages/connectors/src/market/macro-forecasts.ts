@@ -22,7 +22,10 @@ export interface MacroForecastSeries {
   readonly asOf: string | null;
 }
 
-export type MacroForecastResult = { readonly status: 'OK'; readonly series: MacroForecastSeries } | { readonly status: 'UNAVAILABLE'; readonly reason: 'NOT_FOUND' | 'PROVIDER_ERROR' | 'MALFORMED' };
+export type MacroForecastResult =
+  | { readonly status: 'OK'; readonly series: MacroForecastSeries }
+  /** detail: what came back, for operators (e.g. `403 text/html`, `TimeoutError`); never the body. */
+  | { readonly status: 'UNAVAILABLE'; readonly reason: 'NOT_FOUND' | 'PROVIDER_ERROR' | 'MALFORMED'; readonly detail?: string };
 
 export interface MacroForecastProvider {
   readonly name: string;
@@ -45,10 +48,13 @@ export class ImfMacroForecastProvider implements MacroForecastProvider {
     let body: unknown;
     try {
       const response = await this.fetchImpl(url, { headers: { accept: 'application/json' }, redirect: 'error', signal: AbortSignal.timeout(this.timeoutMs) });
-      if (!response.ok) return { status: 'UNAVAILABLE', reason: response.status === 404 ? 'NOT_FOUND' : 'PROVIDER_ERROR' };
+      if (!response.ok) {
+        const type = (response.headers.get('content-type') ?? '').split(';')[0]?.trim().slice(0, 60) ?? '';
+        return { status: 'UNAVAILABLE', reason: response.status === 404 ? 'NOT_FOUND' : 'PROVIDER_ERROR', detail: `${response.status}${type ? ` ${type}` : ''}` };
+      }
       body = await response.json();
-    } catch {
-      return { status: 'UNAVAILABLE', reason: 'PROVIDER_ERROR' };
+    } catch (error) {
+      return { status: 'UNAVAILABLE', reason: 'PROVIDER_ERROR', detail: error instanceof Error ? error.name : 'unknown error' };
     }
     const root = body as { indicators?: Record<string, { source?: unknown; 'last-modified'?: unknown }>; values?: Record<string, Record<string, Record<string, unknown>>> };
     const series = root.values?.[indicator]?.[area];

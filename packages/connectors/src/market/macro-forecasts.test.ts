@@ -32,9 +32,18 @@ describe('macro forecasts (T-094 B10)', () => {
 
   it('reports unavailable rather than guessing: unknown area, provider error, network failure, bad codes', async () => {
     expect(await new ImfMacroForecastProvider(respond(200, imfBody)).forecast('PCPIPCH', 'GBR', [2027])).toEqual({ status: 'UNAVAILABLE', reason: 'NOT_FOUND' });
-    expect(await new ImfMacroForecastProvider(respond(503, {})).forecast('PCPIPCH', 'USA', [2027])).toEqual({ status: 'UNAVAILABLE', reason: 'PROVIDER_ERROR' });
-    expect(await new ImfMacroForecastProvider(() => Promise.reject(new Error('offline'))).forecast('PCPIPCH', 'USA', [2027])).toEqual({ status: 'UNAVAILABLE', reason: 'PROVIDER_ERROR' });
+    expect(await new ImfMacroForecastProvider(respond(503, {})).forecast('PCPIPCH', 'USA', [2027])).toEqual({ status: 'UNAVAILABLE', reason: 'PROVIDER_ERROR', detail: '503 application/json' });
+    expect(await new ImfMacroForecastProvider(() => Promise.reject(new Error('offline'))).forecast('PCPIPCH', 'USA', [2027])).toEqual({ status: 'UNAVAILABLE', reason: 'PROVIDER_ERROR', detail: 'Error' });
     expect(await new ImfMacroForecastProvider(respond(200, imfBody)).forecast('PCPIPCH/../x', 'USA', [2027])).toEqual({ status: 'UNAVAILABLE', reason: 'NOT_FOUND' });
+  });
+
+  it('says what came back when the IMF refuses (status and content type, never the body): what operators see (T-137)', async () => {
+    const blocked = () => Promise.resolve(new Response('<html>Access denied</html>', { status: 403, headers: { 'content-type': 'text/html; charset=utf-8' } }));
+    expect(await new ImfMacroForecastProvider(blocked).forecast('NGDP_RPCH', 'USA', [2027])).toEqual({ status: 'UNAVAILABLE', reason: 'PROVIDER_ERROR', detail: '403 text/html' });
+    const notFound = await new ImfMacroForecastProvider(() => Promise.resolve(new Response(null, { status: 404 }))).forecast('NGDP_RPCH', 'USA', [2027]);
+    expect(notFound).toEqual({ status: 'UNAVAILABLE', reason: 'NOT_FOUND', detail: '404' });
+    const timedOut = await new ImfMacroForecastProvider(() => Promise.reject(new DOMException('timed out', 'TimeoutError'))).forecast('NGDP_RPCH', 'USA', [2027]);
+    expect(timedOut).toEqual({ status: 'UNAVAILABLE', reason: 'PROVIDER_ERROR', detail: 'TimeoutError' });
   });
 
   it('fixture series are deterministic and labelled synthetic', async () => {

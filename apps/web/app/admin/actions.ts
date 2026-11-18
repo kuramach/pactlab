@@ -105,3 +105,10 @@ export async function resyncBilling(organizationId: string): Promise<void> {
   const result = await apiSend('POST', `/v1/admin/organizations/${organizationId}/billing/resync`, {});
   back('organizations', result.kind === 'ok' ? 'ok-resync' : result.kind);
 }
+
+/** Admin → Health: check the public data sources from live now (T-137 follow-up). */
+export async function checkSourcesNow(): Promise<void> {
+  const result = await apiPost('/v1/admin/source-status/check', {});
+  revalidatePath('/admin');
+  back('health', result.kind === 'ok' ? 'ok-sources' : result.kind);
+}

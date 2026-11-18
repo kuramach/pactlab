@@ -14,6 +14,7 @@ import { CloseModule } from './close/close.module';
 import { FixturePropertyProvider, FixtureSigningProvider, type DocuSignOAuth, type PropertyDataProvider } from '@pactlab/connectors';
 import { VentureModule } from './venture/venture.module';
 import { AdminModule } from './admin/admin.module';
+import { SourceHealthModule } from './sources/source-health.module';
 import { ForesightModule } from './foresight/foresight.module';
 import { EngineeringModule } from './engineering/engineering.module';
 import { ComparablesModule } from './comparables/comparables.module';
@@ -122,6 +123,8 @@ export interface AppDependencies {
   voice?: { speechToText: SpeechToText; textToSpeech: TextToSpeech };
   /** Published macro forecasts for Foresight (T-094 B10). Omitted: invented fixture series (tests). */
   macroForecasts?: MacroForecastProvider;
+  /** Live checks the public data it uses (T-137 follow-up); off unless set (tests, fixture data). */
+  sourceChecks?: { intervalHours: number; operatorEmail: string | null };
   /** Fetches company websites for brand kits (T-123); tests inject a fixture server. */
   webFetcher?: WebFetcher;
   /** Refresh Foresight forecasts in the background when the tab is opened. Default on. */
@@ -240,6 +243,14 @@ export class AppModule {
         }),
         VentureModule,
         foresightModule,
+        SourceHealthModule.register({
+          macroForecasts: deps.macroForecasts ?? new FixtureMacroForecastProvider(),
+          emailSender: deps.emailLogin?.emailSender ?? null,
+          operatorEmail: deps.sourceChecks?.operatorEmail ?? null,
+          environment: deps.environment ?? 'local',
+          scheduled: deps.sourceChecks !== undefined,
+          intervalHours: deps.sourceChecks?.intervalHours ?? 6,
+        }),
         AdminModule.register({
           emailSender: deps.emailLogin?.emailSender ?? null,
           loginUrl: deps.signup?.loginUrl ?? 'http://localhost:3000/login',
