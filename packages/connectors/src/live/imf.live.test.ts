@@ -3,7 +3,7 @@ import { ImfMacroForecastProvider } from '../market/macro-forecasts';
 
 // Live check of the IMF DataMapper API (T-094 B10); runs only with INTEGRATION_LIVE=1, never in the PR gate.
 // The IMF answers GitHub's hosted runners with 403 text/html (datacenter addresses, T-137), so it is skipped
-// there and runs nightly from Kumar's Mac instead (scripts/imf-nightly.sh).
+// there. Live checks the IMF itself, from its own network (Admin → Health, operator alert email).
 const onHostedRunner = process.env['GITHUB_ACTIONS'] === 'true';
 describe.skipIf(process.env['INTEGRATION_LIVE'] !== '1' || onHostedRunner)('IMF DataMapper (live)', () => {
   it('returns five years of inflation and GDP forecasts for the US, the euro area and the UK', async () => {

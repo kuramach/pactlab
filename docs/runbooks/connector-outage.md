@@ -30,9 +30,9 @@ Symptom: nightly `integration-live` fails only in `src/live/imf.live.test.ts` wi
 
 Diagnosis (2026-11-18, runs 44340554942 and 44412175970): `www.imf.org/external/datamapper/api/v2/...` answers `403 text/html` to GitHub-hosted runner IPs while the same call succeeds from a workstation (`pnpm test:live`, 12/12). This is IMF edge access policy against datacenter addresses, not an adapter bug, rate limit, or credential problem (the IMF API takes no credential). Retries and longer timeouts do not help. The IMF test has been red since it was added (first red run 2026-10-29).
 
-Resolved (Kumar, 2026-11-18): the IMF check runs nightly from Kumar's Mac, not from GitHub.
-- **Setup:** `scripts/imf-nightly-install.sh` installs a launchd job that runs at 02:30, or when the Mac next wakes.
-- **What it runs:** `scripts/imf-nightly.sh` takes the latest main in its own worktree (`../pactlab-nightly`) and runs only the IMF live test.
-- **Results:** the log is `~/Library/Logs/pactlab/imf-nightly.log`, and a failure posts a macOS notification.
-- **On GitHub:** the IMF test is skipped (`GITHUB_ACTIONS`), so `integration-live` there covers only the Kafka pair.
-- **Reading a failure on the Mac:** a `403 text/html` probe is the known block; any other probe result is new drift.
+Resolved (Kumar, 2026-11-18): live checks the IMF itself, not GitHub and not a workstation, because live is what uses the data.
+- **How:** the API calls the IMF every 6 hours (`SOURCE_CHECK_INTERVAL_HOURS`) with the same connector and network Foresight uses.
+- **Where to look:** Admin → Health → *Public data sources* shows the result, with **Check now** for an immediate check.
+- **Alerts:** `OPERATOR_EMAIL` is emailed when the source starts failing and when it recovers.
+- **On GitHub:** the IMF live test is skipped (`GITHUB_ACTIONS`), so `integration-live` there covers only the Kafka pair.
+- **Reading a failure:** `403 text/html` means the IMF blocks live's egress too. Then the fix is to import the World Economic Outlook dataset rather than call the API.
