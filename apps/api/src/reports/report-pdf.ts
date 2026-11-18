@@ -371,6 +371,61 @@ export async function pactReportPdf(
     }
   }
 
+  // Quality of earnings (T-135): buyer-side, platform-prepared; said (claimed) and observed (verified) never merged.
+  if (model.qoe) {
+    const qoe = model.qoe;
+    const cur = (amount: string | null) => (amount === null ? '—' : formatMoney({ amount, currency: qoe.currency }));
+    const cite = (citation: { documentId: string; pageNumber: number; quote: string }) => {
+      const name = qoe.entries.find((entry) => entry.citation.documentId === citation.documentId)?.citation.documentName ?? 'document';
+      return `${name} p.${citation.pageNumber}: “${citation.quote}”`;
+    };
+    w.heading('Quality of earnings (platform-prepared analysis)');
+    w.text(qoe.disclaimer, { size: 8, color: MUTED, after: 6 });
+    w.text(`Every figure cites the page it is stated on. Arithmetic: ${qoe.engineVersion}, decimal and deterministic. Unverified add-backs stay out of adjusted EBITDA unless a reviewer explicitly included them.`, { size: 8, color: MUTED, after: 8 });
+    for (const period of qoe.schedule) {
+      w.text(`Adjusted EBITDA schedule · ${period.period}`, { size: 11, font: 'semibold', after: 2 });
+      w.table(
+        [{ label: 'Line', width: 0.34 }, { label: 'Amount', width: 0.2, align: 'right' }, { label: 'Source', width: 0.46 }],
+        [
+          ...(period.reported ? [['Reported EBITDA', cur(period.reported.amount), cite(period.reported.citation)]] : []),
+          ...period.adjustments.map((line) => [`Adjustment: ${line.label} (${line.category.replace(/_/g, ' ').toLowerCase()})`, cur(line.amount), cite(line.citation)]),
+          ...period.addBacks.map((line) => [`Add-back: ${line.label} [${line.status.replace(/_/g, ' ').toLowerCase()}] — ${line.treatment}`, cur(line.counted), cite(line.citation)]),
+          ['Adjusted EBITDA (as analysed)', cur(period.adjustedEbitda), 'Reported + adjustments + counted add-backs'],
+          ['Seller-adjusted EBITDA (as claimed)', cur(period.sellerAdjustedEbitda), 'Reported + every add-back at the seller’s claimed amount; shown apart, never merged'],
+        ],
+      );
+      for (const flag of period.flags) w.text(`Flag: ${flag}`, { size: 9, after: 2 });
+    }
+    w.text('Add-back register', { size: 11, font: 'semibold', after: 2 });
+    w.table(
+      [{ label: 'Add-back', width: 0.24 }, { label: 'Claimed (said)', width: 0.14, align: 'right' }, { label: 'Status', width: 0.13 }, { label: 'Counted (observed)', width: 0.14, align: 'right' }, { label: 'Seller rationale · evidence', width: 0.35 }],
+      qoe.register.map((line) => [
+        `${line.label} (${line.period}, ${line.recurrence === 'ONE_OFF' ? 'one-off' : 'recurring'})`,
+        cur(line.claimed),
+        line.status.replace(/_/g, ' ').toLowerCase(),
+        line.counts ? cur(line.counted) : `excluded`,
+        [line.sellerRationale ? `Seller: ${line.sellerRationale}` : null, `Claim: ${cite(line.citation)}`, line.verificationCitation ? `Verified against: ${cite(line.verificationCitation)}` : null, line.decisionReason ? `Reviewer ${line.inclusion === 'INCLUDE' ? 'included' : 'excluded'} it: ${line.decisionReason}` : null].filter(Boolean).join(' · '),
+      ]),
+      'No add-backs claimed.',
+    );
+    const wc = qoe.workingCapital;
+    if (wc.periods.length > 0) {
+      w.text('Working capital', { size: 11, font: 'semibold', after: 2 });
+      w.table(
+        [{ label: 'Balance-sheet date', width: 0.25 }, { label: 'Current assets', width: 0.25, align: 'right' }, { label: 'Current liabilities', width: 0.25, align: 'right' }, { label: 'Net working capital', width: 0.25, align: 'right' }],
+        wc.periods.map((period) => [period.periodEnd, cur(period.currentAssets), cur(period.currentLiabilities), cur(period.netWorkingCapital)]),
+      );
+      w.facts([
+        ['Average', cur(wc.average)],
+        ['Seasonal range', wc.low && wc.high ? `${cur(wc.low.amount)} (${wc.low.periodEnd}) to ${cur(wc.high.amount)} (${wc.high.periodEnd})` : '—'],
+        ['Main drivers', wc.drivers.slice(0, 3).map((driver) => `${driver.label}: swings ${cur(driver.range)}`).join('; ') || '—'],
+        ['Proposed peg', wc.peg ? cur(wc.peg.amount) : (wc.pegUnavailable ?? '—')],
+        ...(wc.peg ? ([['Derivation', wc.peg.derivation]] as [string, string][]) : []),
+      ]);
+      w.text('The peg reaches the deal only as a proposed term (a working-capital true-up); it never moves the purchase-price bridge.', { size: 8, color: MUTED, after: 8 });
+    }
+  }
+
   if (model.terms) {
     w.heading('Terms');
     const proposed = model.terms.proposed;

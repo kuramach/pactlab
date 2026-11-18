@@ -36,6 +36,8 @@ export const DEAL_SECTION_RULES: Readonly<Record<string, (context: SectionContex
   '/sources': everywhere,
   '/evidence': everywhere,
   '/finances': everywhere,
+  // Quality of earnings (T-135): the pact's own-side analysis of an acquisition's earnings and working capital.
+  '/qoe': notRaise,
   // Code and delivery analysis: only packs that collect code or delivery data.
   '/engineering': usesSource(['CODE', 'DELIVERY']),
   '/regulatory': everywhere,

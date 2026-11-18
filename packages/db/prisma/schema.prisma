@@ -2329,6 +2329,54 @@ model RegulatoryEntry {
   @@map("regulatory_entries")
 }
 
+/// T-135: one cited input of the quality-of-earnings work product — reported EBITDA, a
+/// normalization adjustment, a seller-claimed add-back, or a working-capital line. Append-only:
+/// a change is the next `version` of the same `entry_key`; the latest counts. Buyer-side.
+model QoeEntry {
+  id                   String    @id @db.Uuid
+  organizationId       String    @map("organization_id") @db.Uuid
+  dealId               String    @map("deal_id") @db.Uuid
+  entryKey             String    @map("entry_key") @db.Uuid
+  version              Int
+  /// REPORTED_EBITDA | ADJUSTMENT | ADD_BACK | WORKING_CAPITAL
+  kind                 String
+  /// The earnings period (e.g. "FY2025"); null for working-capital lines.
+  period               String?
+  /// The balance-sheet date of a working-capital line.
+  periodEnd            DateTime? @map("period_end") @db.Date
+  /// Adjustment category (QOE_ADJUSTMENT_CATEGORIES) or working-capital component.
+  category             String?
+  label                String
+  /// Reported EBITDA, the adjustment (signed: + raises EBITDA), the seller's claimed add-back, or the line's balance.
+  amount               Decimal   @db.Decimal(24, 4)
+  currency             String    @db.Char(3)
+  /// { documentId, pageNumber, quote, quoteHash, charStart, charEnd }: where the figure is stated.
+  citation             Json
+  /// Why the adjustment is made; for an add-back, the seller's stated rationale.
+  rationale            String?
+  /// ADD_BACK only: VERIFIED | PARTIALLY_VERIFIED | UNVERIFIED.
+  verificationStatus   String?   @map("verification_status")
+  verifiedAmount       Decimal?  @map("verified_amount") @db.Decimal(24, 4)
+  /// The evidence a verification rests on (required unless UNVERIFIED).
+  verificationCitation Json?     @map("verification_citation")
+  /// ADD_BACK only: RECURRING | ONE_OFF.
+  recurrence           String?
+  /// ADD_BACK only: a reviewer's explicit INCLUDE or EXCLUDE, with its reason.
+  inclusion            String?
+  decisionReason       String?   @map("decision_reason")
+  withdrawn            Boolean   @default(false)
+  /// Why this version exists ("Recorded", a correction, a decision).
+  reason               String
+  /// The draft finding this entry became (its route to valuation).
+  findingId            String?   @map("finding_id") @db.Uuid
+  createdBy            String    @map("created_by") @db.Uuid
+  createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@unique([organizationId, dealId, entryKey, version], map: "qoe_entries_entry_version_key")
+  @@index([organizationId, dealId, kind, createdAt], map: "qoe_entries_org_deal_idx")
+  @@map("qoe_entries")
+}
+
 /// T-091 Part 2: an analyst-built candidate remedy package (explicit site list), append-only, buyer-side.
 model RegulatoryScenario {
   id                  String   @id @db.Uuid
@@ -2516,7 +2564,7 @@ model TermProposal {
   dealId         String    @map("deal_id") @db.Uuid
   batchId        String    @map("batch_id") @db.Uuid
   ordinal        Int
-  /// PURCHASE_PRICE | PRICE_REDUCTION | REMEDIATION_COST | ESCROW | INDEMNITY | RETENTION | EARNOUT | SELLER_FINANCING | FINANCING_CONTINGENCY
+  /// PURCHASE_PRICE | PRICE_REDUCTION | REMEDIATION_COST | ESCROW | INDEMNITY | RETENTION | EARNOUT | SELLER_FINANCING | FINANCING_CONTINGENCY | WORKING_CAPITAL_PEG
   lever          String
   amount         Decimal   @db.Decimal(20, 2)
   currency       String    @db.Char(3)

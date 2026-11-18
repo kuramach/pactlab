@@ -25,7 +25,7 @@ const OUTCOMES: Record<string, string> = {
 };
 
 const SIDE_NAMES = { BUYER: 'the buyer', SELLER: 'the seller' } as const;
-const DRAFT_LEVERS = ['PURCHASE_PRICE', 'ESCROW', 'INDEMNITY', 'EARNOUT', 'SELLER_FINANCING', 'PRICE_REDUCTION', 'REMEDIATION_COST', 'RETENTION', 'FINANCING_CONTINGENCY'] as const;
+const DRAFT_LEVERS = ['PURCHASE_PRICE', 'ESCROW', 'INDEMNITY', 'EARNOUT', 'SELLER_FINANCING', 'PRICE_REDUCTION', 'REMEDIATION_COST', 'RETENTION', 'FINANCING_CONTINGENCY', 'WORKING_CAPITAL_PEG'] as const;
 
 /** The seller's own version (T-107): a draft to check and propose, or a form to write one. */
 function SellerVersion({ dealId, view, open }: { dealId: string; view: SellerTermsView; open: boolean }) {

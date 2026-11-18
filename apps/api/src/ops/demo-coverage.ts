@@ -23,6 +23,8 @@ export const DEMO_SECTION_COVERAGE: Readonly<Record<string, SectionProbe>> = {
   '/sources': { table: 'sync_runs' },
   '/evidence': { table: 'evidence_items' },
   '/finances': { table: 'balance_sheet_items' },
+  // Follow-up: seed cited QoE entries once the pinned demo-data repository carries an income statement and monthly balance sheets to quote.
+  '/qoe': { exempt: 'Quality of earnings (T-135) is new; the demo pacts have no cited income statement or monthly balance sheets to quote yet, so the tab shows how to start.' },
   '/engineering': { table: 'connections', where: `provider IN ('github', 'jira')` },
   '/regulatory': { table: 'regulatory_entries' },
   '/claims': { table: 'deal_claims' },
