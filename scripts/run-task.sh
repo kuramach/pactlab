@@ -40,7 +40,18 @@ BRANCH="agent/$TASK_ID"
 WT="$REPO_ROOT/../pactlab-wt-$TASK_ID"
 git worktree remove --force "$WT" 2>/dev/null || true
 git branch -D "$BRANCH" 2>/dev/null || true
-git worktree add -B "$BRANCH" "$WT" HEAD >>"$LOG" 2>&1
+# A run cut off by a usage limit pushed its unfinished work (WIP commit): carry on from it, on top of main.
+git fetch -q origin "$BRANCH" 2>/dev/null || true
+if git log -1 --format=%s "origin/$BRANCH" 2>/dev/null | grep -q '^WIP (usage limit)'; then
+  git worktree add -B "$BRANCH" "$WT" "origin/$BRANCH" >>"$LOG" 2>&1
+  (cd "$WT" && git merge -q --no-edit origin/main >>"$LOG" 2>&1) || echo "warn: could not merge main into the resumed work" | tee -a "$LOG"
+  echo "resuming $TASK_ID from its unfinished work on origin/$BRANCH" | tee -a "$LOG"
+  RESUMING=true
+else
+  git worktree add -B "$BRANCH" "$WT" HEAD >>"$LOG" 2>&1
+fi
+
+RESUMING="${RESUMING:-false}"
 
 # --- context tier: CONTEXT_TIER env > task's Context: > standard ---
 TIER="${CONTEXT_TIER:-$(grep -E '^Context:' "$ACTIVE" | head -1 | sed 's/^Context:[[:space:]]*//' || true)}"
@@ -69,6 +80,7 @@ run_attempt() { # run_attempt <tier> — build context, run the agent, install, 
   prompt="You are an engineer on the Pactlab repo, working in this worktree: $WT (branch $BRANCH).
 CLAUDE.md at the repo root is loaded; follow it exactly, including the Autonomous multi-agent operation section.
 Your task file is $ACTIVE — implement ONLY that task, touching ONLY its Touches: paths.
+$($RESUMING && echo "An earlier run of this task was cut off by a usage limit; its unfinished work is already in this worktree (the last commit, WIP). Review it with git log and git diff origin/main, keep what is sound, and finish the task.")
 Your context tier is $tier: the context below is what you start with. Open other docs only when the task needs them.
 If missing context blocks you, print a line starting CONTEXT-STARVED: naming what you needed, then stop.
 When finished: run the task's Checks:, commit your work on this branch, and push the branch to origin. Do NOT merge or touch main.
@@ -124,8 +136,12 @@ release_on_limit() {
   usage_limited || return 0
   local when; when="$(grep -oE 'resets [^"]*' "${LOG%.log}.stream.log" | tail -1)"
   echo "### $TASK_ID: Claude usage limit reached${when:+ ($when)}; returned to ready" | tee -a "$LOG"
+  # Keep what the agent did so far: commit it to the task branch and push, so the next run resumes from it.
+  if (cd "$WT" && git add -A && git commit -qm "WIP (usage limit): $TASK_ID unfinished, resumed on the next run" && git push -q origin "$BRANCH") >>"$LOG" 2>&1; then
+    echo "### unfinished work saved on origin/$BRANCH" | tee -a "$LOG"
+  fi
   git worktree remove --force "$WT" 2>/dev/null || true
-  git mv "$ACTIVE" "$READY" && git commit -qm "chore: $TASK_ID → ready (usage limit, not started)" && { git push -q origin HEAD || true; }
+  git mv "$ACTIVE" "$READY" && git commit -qm "chore: $TASK_ID → ready (usage limit; unfinished work on $BRANCH)" && { git push -q origin HEAD || true; }
   exit 75
 }
 
