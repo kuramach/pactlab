@@ -1,6 +1,8 @@
 import type { Page } from '@pactlab/contracts';
 import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle } from '@pactlab/ui';
 import { apiGet } from '../(app)/deals/_lib/api';
+import { RoutingFlow } from '../_components/ai-routing/routing-flow';
+import type { ModelChoice, RoutingView } from '../_components/ai-routing/routing-graph';
 import { ApiState } from '../(app)/deals/_lib/states';
 import { addModel, evaluateModel, retireModel, setOrganizationModels, setPlatformRoute, setProviderTerms } from './ai-model-actions';
 
@@ -100,10 +102,10 @@ function Evaluation({ model }: { model: Model }) {
  */
 export async function AiModels({ organizationId, organizationQuery }: { organizationId: string; organizationQuery: string }) {
   const result = await apiGet<Catalog>('/v1/admin/ai-models');
+  const routing = await apiGet<{ enabled: boolean; choices: ModelChoice[]; routing: RoutingView | null }>('/v1/admin/ai-models/routing');
   if (result.kind !== 'ok') return <ApiState result={result} />;
   const { models, providers, aiOn, terms } = result.data;
   const evaluated = models.filter((model) => model.status === 'EVALUATED');
-  const platform = (alias: Alias) => models.find((model) => model.platformAliases.includes(alias));
   const organizations = organizationQuery ? await apiGet<Page<{ id: string; name: string; slug: string }>>(`/v1/admin/organizations?q=${encodeURIComponent(organizationQuery)}&limit=20`) : null;
   const chosen = organizationId ? await apiGet<{ allowed: string[]; routes: Partial<Record<Alias, string>> }>(`/v1/admin/ai-models/organizations/${organizationId}`) : null;
 
@@ -259,46 +261,20 @@ export async function AiModels({ organizationId, organizationQuery }: { organiza
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Platform defaults</CardTitle>
-          <CardDescription>The model each role uses for every organization without its own choice. Evaluated models only; applies within a minute.</CardDescription>
+          <CardTitle className="text-base">Platform defaults: how AI work is routed</CardTitle>
+          <CardDescription>
+            Every organization without its own choice uses these. Material flows left to right; click a job or a Claude role to choose its model. Evaluated models only; applies within
+            a minute. Organizations’ owners and admins can choose their own in Settings → AI models, from the models allowed for them.
+          </CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-3 md:grid-cols-3">
-          {ROLES.map((role) => (
-            <form key={role.alias} action={setPlatformRoute.bind(null, role.alias)} className="flex flex-col gap-1 text-sm" aria-label={`Default for ${role.label}`}>
-              <label className="flex flex-col gap-1 font-medium">
-                {role.label} <span className="text-xs font-normal text-muted-foreground">{role.help}</span>
-                <select name="modelId" defaultValue={platform(role.alias)?.id ?? ''} className={field}>
-                  {evaluated.map((model) => (
-                    <option key={model.id} value={model.id}>
-                      {model.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <Button type="submit" size="sm" variant="outline" className="self-start">
-                Save
-              </Button>
-            </form>
-          ))}
-          <p className="text-sm font-semibold md:col-span-3">By job type (best-of-breed routing)</p>
-          {JOBS.map((job) => (
-            <form key={`job-${job.alias}`} action={setPlatformRoute.bind(null, job.alias)} className="flex flex-col gap-1 text-sm" aria-label={`Default for ${job.label}`}>
-              <label className="flex flex-col gap-1 font-medium">
-                {job.label} <span className="text-xs font-normal text-muted-foreground">{job.help}</span>
-                <select name="modelId" defaultValue={platform(job.alias)?.id ?? ''} className={field}>
-                  <option value="">Registry chain (default)</option>
-                  {evaluated.map((model) => (
-                    <option key={model.id} value={model.id}>
-                      {model.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <Button type="submit" size="sm" variant="outline" className="self-start">
-                Save
-              </Button>
-            </form>
-          ))}
+        <CardContent>
+          {routing.kind === 'ok' && routing.data.routing ? (
+            <RoutingFlow view={routing.data.routing} choices={routing.data.choices} editable save={setPlatformRoute} rolesClearable={false} />
+          ) : routing.kind === 'ok' ? (
+            <p className="text-sm text-muted-foreground">AI is off in this environment, so there is nothing to route.</p>
+          ) : (
+            <ApiState result={routing} />
+          )}
         </CardContent>
       </Card>
 

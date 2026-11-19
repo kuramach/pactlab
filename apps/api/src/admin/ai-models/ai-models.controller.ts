@@ -77,6 +77,12 @@ export class AiModelsController {
     return this.service.clearPlatformRoute(tenant, params.alias);
   }
 
+  /** The platform routing diagram: every job's lanes, where each choice comes from, and the evaluated models. */
+  @Get('routing')
+  routing(@Tenant() tenant: TenantContext) {
+    return this.service.routing(tenant);
+  }
+
   @Get('organizations/:organizationId')
   organizationModels(@Tenant() tenant: TenantContext, @Param(new ZodValidationPipe(organizationParams)) params: { organizationId: string }) {
     return this.service.organizationModels(tenant, params.organizationId);

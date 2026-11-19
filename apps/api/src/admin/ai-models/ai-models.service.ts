@@ -49,6 +49,18 @@ export class AiModelsService {
     this.runtime?.resolver.invalidate();
   }
 
+  /** The platform routing diagram (Admin → AI models): every job's lanes with no organization's choices. */
+  routing(tenant: TenantContext) {
+    return this.asOperator(async () => {
+      const models = await aiModels.list(this.sql, tenant.userId);
+      return {
+        enabled: this.runtime !== null,
+        choices: models.filter((model) => model.status === 'EVALUATED').map((model) => ({ id: model.id, provider: model.provider, providerModelId: model.providerModelId, label: model.label })),
+        routing: this.runtime ? await this.runtime.resolver.describeJobs(null) : null,
+      };
+    });
+  }
+
   catalog(tenant: TenantContext) {
     return this.asOperator(async () => {
       const models = await aiModels.list(this.sql, tenant.userId);
