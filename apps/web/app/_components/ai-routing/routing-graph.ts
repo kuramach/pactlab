@@ -55,18 +55,35 @@ export function sourceText(source: JobSource, scope: RoutingView['scope']): stri
   return SOURCE_TEXT[source];
 }
 
+/** What flows along an arrow, or what a box holds: each has its own color, so the diagram reads at a glance. */
+export type Flow = 'text' | 'image' | 'video' | 'question' | 'draft' | 'review' | 'answer';
+
+export const FLOW_COLORS: Record<Flow, { color: string; label: string }> = {
+  text: { color: '#4f46e5', label: 'Text pages' },
+  image: { color: '#d97706', label: 'Images and scans' },
+  video: { color: '#9333ea', label: 'Video (not yet)' },
+  question: { color: '#0d9488', label: 'Questions' },
+  draft: { color: '#ea580c', label: 'AI drafts' },
+  review: { color: '#16a34a', label: 'Human review' },
+  answer: { color: '#0891b2', label: 'Cited answers' },
+};
+
 export type GraphNode =
-  | { id: string; kind: 'input' | 'output'; title: string; note?: string; muted?: boolean; position: { x: number; y: number } }
-  | { id: JobType; kind: 'job'; title: string; help: string; source: string; lanes: RoutingLane[]; position: { x: number; y: number } };
+  | { id: string; kind: 'input' | 'output'; flow: Flow; title: string; note?: string; muted?: boolean; position: { x: number; y: number } }
+  | { id: JobType; kind: 'job'; flow: Flow; title: string; help: string; source: string; lanes: RoutingLane[]; position: { x: number; y: number } };
 
 export interface GraphEdge {
   id: string;
   source: string;
   target: string;
   label: string;
+  flow: Flow;
   /** Not built yet (video): drawn dashed. */
   planned?: boolean;
 }
+
+/** The kind of material each job mostly works on (its box's accent). */
+const JOB_FLOW: Record<JobType, Flow> = { classification: 'text', vision: 'image', extraction: 'text', contract_scrub: 'draft', deep_review: 'draft', document_qa: 'question' };
 
 /** Inputs on the left, the jobs in the middle, what people receive on the right. */
 const POSITIONS: Record<string, { x: number; y: number }> = {
@@ -88,37 +105,37 @@ export function buildRoutingGraph(view: RoutingView): { nodes: GraphNode[]; edge
   const byJob = new Map(view.jobs.map((job) => [job.jobType, job]));
   const job = (jobType: JobType): GraphNode => {
     const found = byJob.get(jobType);
-    return { id: jobType, kind: 'job', ...JOB_TITLES[jobType], source: found ? sourceText(found.source, view.scope) : 'registry chain', lanes: found?.lanes ?? [], position: POSITIONS[jobType] as { x: number; y: number } };
+    return { id: jobType, kind: 'job', flow: JOB_FLOW[jobType], ...JOB_TITLES[jobType], source: found ? sourceText(found.source, view.scope) : 'registry chain', lanes: found?.lanes ?? [], position: POSITIONS[jobType] as { x: number; y: number } };
   };
   const nodes: GraphNode[] = [
-    { id: 'upload', kind: 'input', title: 'Uploaded documents', note: 'PDF, Word, spreadsheets, scans', position: POSITIONS['upload'] as { x: number; y: number } },
-    { id: 'video', kind: 'input', title: 'Video', note: 'not yet: keyframes go to image documents', muted: true, position: POSITIONS['video'] as { x: number; y: number } },
-    { id: 'question', kind: 'input', title: 'A question, Foresight or a brief', position: POSITIONS['question'] as { x: number; y: number } },
+    { id: 'upload', kind: 'input', flow: 'text', title: 'Uploaded documents', note: 'PDF, Word, spreadsheets, scans', position: POSITIONS['upload'] as { x: number; y: number } },
+    { id: 'video', kind: 'input', flow: 'video', title: 'Video', note: 'not yet: keyframes go to image documents', muted: true, position: POSITIONS['video'] as { x: number; y: number } },
+    { id: 'question', kind: 'input', flow: 'question', title: 'A question, Foresight or a brief', position: POSITIONS['question'] as { x: number; y: number } },
     job('classification'),
     job('vision'),
     job('extraction'),
     job('contract_scrub'),
     job('deep_review'),
     job('document_qa'),
-    { id: 'findings', kind: 'output', title: 'Draft findings', note: 'every one cited to a page', position: POSITIONS['findings'] as { x: number; y: number } },
-    { id: 'review', kind: 'output', title: 'A person reviews', note: 'accepts or rejects; AI never decides', position: POSITIONS['review'] as { x: number; y: number } },
-    { id: 'answer', kind: 'output', title: 'Cited answer', position: POSITIONS['answer'] as { x: number; y: number } },
+    { id: 'findings', kind: 'output', flow: 'draft', title: 'Draft findings', note: 'every one cited to a page', position: POSITIONS['findings'] as { x: number; y: number } },
+    { id: 'review', kind: 'output', flow: 'review', title: 'A person reviews', note: 'accepts or rejects; AI never decides', position: POSITIONS['review'] as { x: number; y: number } },
+    { id: 'answer', kind: 'output', flow: 'answer', title: 'Cited answer', position: POSITIONS['answer'] as { x: number; y: number } },
   ];
   const edges: GraphEdge[] = [
-    { id: 'upload-classification', source: 'upload', target: 'classification', label: 'text pages' },
-    { id: 'upload-vision', source: 'upload', target: 'vision', label: 'images and scans' },
-    { id: 'video-vision', source: 'video', target: 'vision', label: 'keyframes', planned: true },
-    { id: 'classification-extraction', source: 'classification', target: 'extraction', label: 'filed documents' },
-    { id: 'vision-extraction', source: 'vision', target: 'extraction', label: 'text from images' },
-    { id: 'extraction-contract_scrub', source: 'extraction', target: 'contract_scrub', label: 'agreements' },
-    { id: 'extraction-deep_review', source: 'extraction', target: 'deep_review', label: 'clauses' },
-    { id: 'extraction-findings', source: 'extraction', target: 'findings', label: 'fields' },
-    { id: 'contract_scrub-findings', source: 'contract_scrub', target: 'findings', label: 'drafting problems' },
-    { id: 'deep_review-findings', source: 'deep_review', target: 'findings', label: 'judgments' },
-    { id: 'findings-review', source: 'findings', target: 'review', label: 'review queue' },
-    { id: 'question-document_qa', source: 'question', target: 'document_qa', label: 'question' },
-    { id: 'classification-document_qa', source: 'classification', target: 'document_qa', label: 'document pages' },
-    { id: 'document_qa-answer', source: 'document_qa', target: 'answer', label: 'answer with citations' },
+    { id: 'upload-classification', source: 'upload', target: 'classification', label: 'text pages', flow: 'text' },
+    { id: 'upload-vision', source: 'upload', target: 'vision', label: 'images and scans', flow: 'image' },
+    { id: 'video-vision', source: 'video', target: 'vision', label: 'keyframes', flow: 'video', planned: true },
+    { id: 'classification-extraction', source: 'classification', target: 'extraction', label: 'filed documents', flow: 'text' },
+    { id: 'vision-extraction', source: 'vision', target: 'extraction', label: 'text from images', flow: 'image' },
+    { id: 'extraction-contract_scrub', source: 'extraction', target: 'contract_scrub', label: 'agreements', flow: 'text' },
+    { id: 'extraction-deep_review', source: 'extraction', target: 'deep_review', label: 'clauses', flow: 'text' },
+    { id: 'extraction-findings', source: 'extraction', target: 'findings', label: 'fields', flow: 'draft' },
+    { id: 'contract_scrub-findings', source: 'contract_scrub', target: 'findings', label: 'drafting problems', flow: 'draft' },
+    { id: 'deep_review-findings', source: 'deep_review', target: 'findings', label: 'judgments', flow: 'draft' },
+    { id: 'findings-review', source: 'findings', target: 'review', label: 'review queue', flow: 'review' },
+    { id: 'question-document_qa', source: 'question', target: 'document_qa', label: 'question', flow: 'question' },
+    { id: 'classification-document_qa', source: 'classification', target: 'document_qa', label: 'document pages', flow: 'text' },
+    { id: 'document_qa-answer', source: 'document_qa', target: 'answer', label: 'answer with citations', flow: 'answer' },
   ];
   return { nodes, edges };
 }

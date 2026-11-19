@@ -1,13 +1,37 @@
 'use client';
 
-import { Background, Controls, Handle, MarkerType, Position, ReactFlow, type Edge, type Node, type NodeProps } from '@xyflow/react';
+import { Background, Controls, Handle, MarkerType, Position, ReactFlow, useNodesState, type Edge, type Node, type NodeProps } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { Badge, Button } from '@pactlab/ui';
-import { useMemo, useState } from 'react';
-import { buildRoutingGraph, JOB_TITLES, ROLE_TITLES, sourceText, type GraphNode, type JobType, type ModelChoice, type RoleAlias, type RoutingLane, type RoutingView } from './routing-graph';
+import { Button } from '@pactlab/ui';
+import { useEffect, useMemo, type ChangeEvent } from 'react';
+import { buildRoutingGraph, FLOW_COLORS, ROLE_TITLES, type Flow, type GraphNode, type ModelChoice, type RoutingLane, type RoutingView } from './routing-graph';
 
-type FlowData = { node: GraphNode };
 type SaveAction = (key: string, formData: FormData) => void | Promise<void>;
+type Picker = { choices: readonly ModelChoice[]; editable: boolean; save: SaveAction; defaultLabel: string; current: string };
+type FlowData = { node: GraphNode; picker: Picker | null };
+
+const submitOnChange = (event: ChangeEvent<HTMLSelectElement>) => event.currentTarget.form?.requestSubmit();
+
+/** The model picker inside a box: changing it saves at once (the server re-checks the choice). */
+function ModelPicker({ id, picker, clearable }: { id: string; picker: Picker; clearable: boolean }) {
+  if (!picker.editable) return null;
+  return (
+    // nodrag/nopan: using the control never drags the box or pans the diagram.
+    <form action={picker.save.bind(null, id)} className="nodrag nopan mt-1.5">
+      <label className="flex flex-col gap-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-text">
+        Model
+        <select name="modelId" defaultValue={picker.current} onChange={submitOnChange} className="rounded-md border bg-background px-1.5 py-1 text-xs font-normal normal-case tracking-normal text-foreground">
+          {clearable ? <option value="">{picker.defaultLabel}</option> : null}
+          {picker.choices.map((choice) => (
+            <option key={choice.id} value={choice.id}>
+              {choice.label}
+            </option>
+          ))}
+        </select>
+      </label>
+    </form>
+  );
+}
 
 function Lanes({ lanes }: { lanes: readonly RoutingLane[] }) {
   return (
@@ -16,7 +40,7 @@ function Lanes({ lanes }: { lanes: readonly RoutingLane[] }) {
         <li key={`${lane.provider}-${lane.modelId}`} className={lane.available ? '' : 'text-muted-foreground line-through decoration-1'} title={lane.reason ?? undefined}>
           {index === 0 ? '▶ ' : '↳ '}
           {lane.label}
-          {lane.available ? null : <span className="no-underline"> · {lane.reason}</span>}
+          {lane.available ? null : <span> · {lane.reason}</span>}
         </li>
       ))}
     </ol>
@@ -24,108 +48,112 @@ function Lanes({ lanes }: { lanes: readonly RoutingLane[] }) {
 }
 
 function FlowNode({ data }: NodeProps<Node<FlowData>>) {
-  const node = data.node;
-  const job = node.kind === 'job';
+  const { node, picker } = data;
+  const color = FLOW_COLORS[node.flow].color;
   return (
-    <div className={`w-[230px] rounded-xl border bg-background p-2.5 text-left shadow-sm ${job ? 'cursor-pointer border-indigo-ink/40 hover:border-indigo-ink' : node.muted ? 'border-dashed opacity-70' : 'bg-mist'}`}>
-      <Handle type="target" position={Position.Left} className="!bg-indigo-ink" />
-      <p className="text-sm font-semibold leading-tight">{node.title}</p>
+    <div className={`w-[240px] rounded-xl border-2 bg-background p-2.5 text-left shadow-sm ${node.kind === 'input' && node.muted ? 'border-dashed opacity-75' : ''}`} style={{ borderColor: color }}>
+      <Handle type="target" position={Position.Left} style={{ background: color }} />
+      <p className="flex items-center gap-1.5 text-sm font-semibold leading-tight">
+        <span aria-hidden className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: color }} />
+        {node.title}
+      </p>
       {node.kind === 'job' ? (
         <>
           <p className="mb-1 text-[11px] text-muted-foreground">{node.help}</p>
           <Lanes lanes={node.lanes} />
           <p className="mt-1 text-[10px] uppercase tracking-wide text-slate-text">{node.source}</p>
+          {picker ? <ModelPicker id={node.id} picker={picker} clearable /> : null}
         </>
       ) : node.note ? (
         <p className="text-[11px] text-muted-foreground">{node.note}</p>
       ) : null}
-      <Handle type="source" position={Position.Right} className="!bg-indigo-ink" />
+      <Handle type="source" position={Position.Right} style={{ background: color }} />
     </div>
   );
 }
 
 const nodeTypes = { step: FlowNode };
 
+/** The catalog id of a lane's model, when it is one of the choices (what the picker shows as chosen). */
+const choiceFor = (choices: readonly ModelChoice[], lane: RoutingLane | null | undefined) => (lane ? (choices.find((c) => c.provider === lane.provider && c.providerModelId === lane.modelId)?.id ?? '') : '');
+
 /**
- * The routing diagram: material flows left to right through the AI jobs; click a job (or a Claude
- * role below) to choose its model. Only models this scope may use are offered; the server re-checks.
+ * The routing diagram: material flows left to right through the AI jobs, colored by kind. Boxes can be
+ * dragged to follow the lines; each job box (and each Claude role below) has its model picker.
  */
 export function RoutingFlow({ view, choices, editable, save, rolesClearable }: { view: RoutingView; choices: readonly ModelChoice[]; editable: boolean; save: SaveAction; rolesClearable: boolean }) {
-  const [selected, setSelected] = useState<string | null>(null);
   const graph = useMemo(() => buildRoutingGraph(view), [view]);
-  const nodes: Node<FlowData>[] = graph.nodes.map((node) => ({ id: node.id, type: 'step', position: node.position, data: { node }, draggable: false, connectable: false }));
-  const edges: Edge[] = graph.edges.map((edge) => ({
-    id: edge.id,
-    source: edge.source,
-    target: edge.target,
-    label: edge.label,
-    markerEnd: { type: MarkerType.ArrowClosed },
-    animated: !edge.planned,
-    style: edge.planned ? { strokeDasharray: '6 4', opacity: 0.6 } : undefined,
-    labelStyle: { fontSize: 11 },
-  }));
-  const job = view.jobs.find((entry) => entry.jobType === selected);
-  const role = view.roles.find((entry) => `role-${entry.alias}` === selected);
+  const defaultLabel = view.scope === 'ORGANIZATION' ? 'Pactlab default' : 'Registry chain (default)';
+  const initial = useMemo<Node<FlowData>[]>(
+    () =>
+      graph.nodes.map((node) => {
+        const job = node.kind === 'job' ? view.jobs.find((entry) => entry.jobType === node.id) : undefined;
+        // Only a console choice shows as selected; a registry chain or env choice shows the default.
+        const current = job && (job.source === 'ORGANIZATION' || (job.source === 'PLATFORM' && view.scope === 'PLATFORM')) ? choiceFor(choices, job.lanes[0]) : '';
+        return { id: node.id, type: 'step', position: node.position, data: { node, picker: node.kind === 'job' ? { choices, editable, save, defaultLabel, current } : null } };
+      }),
+    [graph, view, choices, editable, save, defaultLabel],
+  );
+  const [nodes, setNodes, onNodesChange] = useNodesState(initial);
+  // After a save the page data refreshes: take the new models, keep where the boxes were dragged.
+  useEffect(() => {
+    setNodes((previous) => initial.map((node) => ({ ...node, position: previous.find((p) => p.id === node.id)?.position ?? node.position })));
+  }, [initial, setNodes]);
+  const edges: Edge[] = graph.edges.map((edge) => {
+    const color = FLOW_COLORS[edge.flow].color;
+    return {
+      id: edge.id,
+      source: edge.source,
+      target: edge.target,
+      label: edge.label,
+      animated: !edge.planned,
+      markerEnd: { type: MarkerType.ArrowClosed, color },
+      style: { stroke: color, strokeWidth: 2, ...(edge.planned ? { strokeDasharray: '6 4', opacity: 0.6 } : {}) },
+      labelStyle: { fontSize: 11, fill: color, fontWeight: 600 },
+    };
+  });
+  const usedFlows = Object.keys(FLOW_COLORS) as Flow[];
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="h-[620px] w-full overflow-hidden rounded-xl border" aria-label="AI routing diagram">
-        <ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} fitView nodesDraggable={false} nodesConnectable={false} onNodeClick={(_, node) => setSelected(node.data.node.kind === 'job' ? node.id : null)} proOptions={{ hideAttribution: true }}>
+      <div className="flex flex-wrap items-center gap-3 text-xs" aria-label="Legend">
+        {usedFlows.map((flow) => (
+          <span key={flow} className="flex items-center gap-1.5">
+            <span aria-hidden className="inline-block h-2.5 w-5 rounded-full" style={{ background: FLOW_COLORS[flow].color }} />
+            {FLOW_COLORS[flow].label}
+          </span>
+        ))}
+        <Button type="button" size="sm" variant="ghost" className="ml-auto" onClick={() => setNodes(initial)}>
+          Reset layout
+        </Button>
+      </div>
+
+      <div className="h-[680px] w-full overflow-hidden rounded-xl border" aria-label="AI routing diagram">
+        <ReactFlow nodes={nodes} edges={edges} onNodesChange={onNodesChange} nodeTypes={nodeTypes} fitView nodesConnectable={false} proOptions={{ hideAttribution: true }}>
           <Background gap={24} />
           <Controls showInteractive={false} />
         </ReactFlow>
       </div>
 
-      <div className="flex flex-wrap items-stretch gap-2" aria-label="Claude behind the lanes">
-        <span className="self-center text-xs font-semibold uppercase tracking-wide text-slate-text">Claude behind every chain</span>
-        {view.roles.map((entry) => (
-          <Button key={entry.alias} type="button" variant="outline" size="sm" onClick={() => setSelected(`role-${entry.alias}`)}>
-            <span className="font-semibold">{ROLE_TITLES[entry.alias]}</span> <span className="text-muted-foreground">{entry.lane?.label ?? 'not on the allow-list'}</span>
-          </Button>
-        ))}
-      </div>
-
-      {job || role ? (
-        <aside className="rounded-xl border p-3" aria-label="Choose a model">
-          <div className="flex items-start justify-between gap-2">
-            <div>
-              <p className="font-semibold">{job ? JOB_TITLES[job.jobType as JobType].title : ROLE_TITLES[(role?.alias ?? 'balanced') as RoleAlias]}</p>
-              <p className="text-xs text-muted-foreground">
-                Now: {job ? sourceText(job.source, view.scope) : role ? sourceText(role.source, view.scope) : ''}. {job ? 'The first model that can serve answers; the rest are fallbacks.' : 'The Claude model the chains fall back to.'}
-              </p>
+      <div className="flex flex-col gap-2" aria-label="Claude behind every chain">
+        <p className="text-xs font-semibold uppercase tracking-wide text-slate-text">Claude behind every chain</p>
+        <div className="grid gap-2 sm:grid-cols-3">
+          {view.roles.map((entry) => (
+            <div key={entry.alias} className="rounded-xl border p-2.5 text-sm">
+              <p className="font-semibold">{ROLE_TITLES[entry.alias]}</p>
+              <p className="text-xs text-muted-foreground">{entry.lane?.label ?? 'not on the allow-list'}</p>
+              <ModelPicker
+                id={entry.alias}
+                picker={{ choices, editable, save, defaultLabel: view.scope === 'ORGANIZATION' ? 'Pactlab default' : 'Configured default', current: entry.source === 'ORGANIZATION' || (view.scope === 'PLATFORM' && entry.source === 'PLATFORM') ? choiceFor(choices, entry.lane) : '' }}
+                clearable={rolesClearable}
+              />
             </div>
-            <Button type="button" size="sm" variant="ghost" onClick={() => setSelected(null)}>
-              Close
-            </Button>
-          </div>
-          {job ? <div className="my-2"><Lanes lanes={job.lanes} /></div> : null}
-          {editable ? (
-            <form action={save.bind(null, job ? job.jobType : (role?.alias ?? ''))} className="mt-2 flex flex-wrap items-end gap-2">
-              <label className="flex flex-col gap-1 text-sm font-medium">
-                Model
-                <select name="modelId" defaultValue="" className="rounded-md border bg-background px-2 py-1.5 text-sm">
-                  {job || rolesClearable ? <option value="">{view.scope === 'ORGANIZATION' ? 'Pactlab default' : 'Registry chain (default)'}</option> : null}
-                  {choices.map((choice) => (
-                    <option key={choice.id} value={choice.id}>
-                      {choice.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <Button type="submit" size="sm">
-                Save
-              </Button>
-            </form>
-          ) : (
-            <p className="mt-2 text-xs text-muted-foreground">Only your organization’s owners and administrators can change this.</p>
-          )}
-          {choices.length === 0 && editable ? <p className="mt-1 text-xs text-muted-foreground">No other model is approved yet; ask Pactlab to evaluate one.</p> : null}
-        </aside>
-      ) : (
-        <p className="text-xs text-muted-foreground">
-          Click a job, or a Claude role, to see its models{editable ? ' and choose one' : ''}. <Badge variant="neutral">greyed</Badge> models cannot serve now; the reason is beside them.
-        </p>
-      )}
+          ))}
+        </div>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Drag boxes to follow the lines. Struck-through models cannot serve now; hover for why.{editable ? ' Changing a model saves it at once; it applies within a minute.' : ' Only your organization’s owners and administrators can change models.'}
+      </p>
     </div>
   );
 }
