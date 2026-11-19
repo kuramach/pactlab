@@ -151,6 +151,37 @@ export const aiModels = {
     return row?.ok === true;
   },
 
+  /** Which route keys the platform has set (the routing diagram's "platform default" marks). */
+  async platformRouteKeys(sql: SqlExecutor): Promise<Set<string>> {
+    // bounded: one row per route key (eight)
+    const rows = await callOps<{ alias: string }>(sql, 'SELECT alias FROM app_ai_platform_route_keys()', []);
+    return new Set(rows.map((row) => row.alias));
+  },
+
+  /** Which route keys an organization has set itself (the routing diagram's "this organization" marks). */
+  async organizationRouteKeys(sql: SqlExecutor, organizationId: string): Promise<Set<string>> {
+    // bounded: one row per route key (eight)
+    const rows = await callOps<{ alias: string }>(sql, 'SELECT alias FROM app_ai_org_route_keys($1::uuid)', [organizationId]);
+    return new Set(rows.map((row) => row.alias));
+  },
+
+  /**
+   * An organization's own admin sets (modelId) or clears (null) one route (Settings → AI models). The
+   * database re-checks the actor is an active owner or admin of it, and the model is EVALUATED, its
+   * terms recorded and on the organization's allow-list when it has one. Never touches the allow-list.
+   */
+  async setOrganizationRoute(sql: SqlExecutor, actor: string, organizationId: string, key: AiRouteKey, modelId: string | null): Promise<'SAVED' | 'CLEARED' | 'NOT_ADMIN' | 'NOT_ALLOWED' | 'BAD_KEY'> {
+    const [row] = await callOps<{ outcome: 'SAVED' | 'CLEARED' | 'NOT_ADMIN' | 'NOT_ALLOWED' | 'BAD_KEY' }>(sql, 'SELECT app_ai_org_route_set($1::uuid, $2::uuid, $3, $4::uuid) AS outcome', [actor, organizationId, key, modelId]);
+    return row?.outcome ?? 'NOT_ADMIN';
+  },
+
+  /** The models an organization may choose from: EVALUATED, terms recorded, and on its allow-list when it has one. */
+  async organizationChoices(sql: SqlExecutor, organizationId: string): Promise<{ id: string; provider: AiProvider; providerModelId: string; label: string }[]> {
+    // bounded: the evaluated catalog (a handful of models)
+    const rows = await callOps<{ id: string; provider: AiProvider; provider_model_id: string; label: string }>(sql, 'SELECT * FROM app_ai_org_choices($1::uuid)', [organizationId]);
+    return rows.map((row) => ({ id: row.id, provider: row.provider, providerModelId: row.provider_model_id, label: row.label }));
+  },
+
   async organizationModels(sql: SqlExecutor, actor: string, organizationId: string): Promise<{ allowed: string[]; routes: Partial<Record<AiRouteKey, string>> }> {
     // bounded: one organization's allow-list and its three routes
     const rows = await callOps<{ kind: 'ALLOWED' | 'ROUTE'; alias: AiRouteKey | null; model_id: string }>(sql, 'SELECT kind, alias, model_id::text FROM app_ops_ai_org_models($1::uuid, $2::uuid)', [actor, organizationId]);

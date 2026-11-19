@@ -276,7 +276,10 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
             {[
               ...(audit ? [{ href: '/audit', title: 'Audit log', body: 'Every sensitive read, change, approval and denial.' }] : []),
               ...(admin
-                ? [{ href: '/settings/controls', title: 'Pilot controls', body: 'Controls, audit export and rollback paths for the pilot.' }]
+                ? [
+                    { href: '/settings/ai-models', title: 'AI models', body: 'How your AI work is routed, job by job, and which approved model each job uses.' },
+                    { href: '/settings/controls', title: 'Pilot controls', body: 'Controls, audit export and rollback paths for the pilot.' },
+                  ]
                 : []),
             ].map((item) => (
               <Link key={item.href} href={item.href} className="group flex items-center justify-between gap-3 px-6 py-4 hover:bg-muted">

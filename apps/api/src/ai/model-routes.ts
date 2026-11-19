@@ -1,8 +1,29 @@
-import { defaultPromptRegistry, JOB_MODEL_MAP, modelLabel, parseJobOverride, TransportClaudeGateway, type JobType, type ModelAlias, type ModelProvider, type ModelRoute, type ModelTransport } from '@pactlab/ai';
+import { defaultPromptRegistry, JOB_MODEL_MAP, JOB_TYPES, modelLabel as readableModel, parseJobOverride, TransportClaudeGateway, type JobType, type ModelAlias, type ModelProvider, type ModelRoute, type ModelTransport } from '@pactlab/ai';
 import { judgeModel, runDocumentEvals, type EvalReport } from '@pactlab/ai/evals';
 import { aiModels, prismaExecutor, type AiEvaluation, type AiRouteKey, type PrismaClient, type SqlExecutor } from '@pactlab/db';
 
 const CACHE_MS = 60_000;
+/** The routing view's platform scope: an id no organization has, so only platform routes apply. */
+const PLATFORM_SCOPE = '00000000-0000-0000-0000-000000000000';
+const PROVIDER_NAMES: Partial<Record<ModelProvider, string>> = { bedrock: 'AWS Bedrock', anthropic: 'Anthropic', openai: 'OpenAI', google: 'Google' };
+
+/** Where a choice comes from: this organization, the platform default, or the deployment's own config. */
+export type RouteSource = 'ORGANIZATION' | 'PLATFORM' | 'DEPLOYMENT';
+/** A job's first lane: chosen in the console (organization or platform), by env (`MODEL_JOB_*`), or the registry chain. */
+export type JobSource = 'ORGANIZATION' | 'PLATFORM' | 'DEPLOYMENT' | 'REGISTRY';
+export interface RoutingLane {
+  readonly provider: ModelProvider;
+  readonly modelId: string;
+  readonly label: string;
+  /** False: the lane is skipped today (reason says why). */
+  readonly available: boolean;
+  readonly reason: string | null;
+}
+export interface RoutingView {
+  readonly scope: 'PLATFORM' | 'ORGANIZATION';
+  readonly roles: readonly { alias: ModelAlias; source: RouteSource; lane: RoutingLane | null }[];
+  readonly jobs: readonly { jobType: JobType; label: string; source: JobSource; lanes: readonly RoutingLane[] }[];
+}
 
 /**
  * Which model serves each alias for each organization (T-131), from the admin console's catalog:
@@ -31,7 +52,7 @@ export class ModelRouteResolver {
   async adopt(provider: ModelProvider): Promise<number> {
     return aiModels.adoptRoutes(
       this.sql,
-      (Object.keys(this.configured) as ModelAlias[]).map((alias) => ({ alias, provider, modelId: this.configured[alias].modelId, label: modelLabel(this.configured[alias].modelId) })),
+      (Object.keys(this.configured) as ModelAlias[]).map((alias) => ({ alias, provider, modelId: this.configured[alias].modelId, label: readableModel(this.configured[alias].modelId) })),
     );
   }
 
@@ -93,6 +114,67 @@ export class ModelRouteResolver {
       return [...lanes.filter((lane) => lane.tier === 'economy'), ...lanes.filter((lane) => lane.tier === 'flagship')].map((lane) => lane.route);
     }
     return lanes.map((lane) => lane.route);
+  }
+
+  /**
+   * The routing diagram (Admin → AI models, Settings → AI models): every job's lanes as they would
+   * resolve now, including the ones that cannot serve and why, and where the first choice comes from.
+   * Platform scope (no organization): no allow-list and no organization routes.
+   */
+  async describeJobs(organizationId: string | null): Promise<RoutingView> {
+    const org = organizationId ?? PLATFORM_SCOPE;
+    const [orgRoutes, platformRoutes, approved] = await Promise.all([
+      organizationId ? aiModels.organizationRouteKeys(this.sql, organizationId) : Promise.resolve(new Set<string>()),
+      aiModels.platformRouteKeys(this.sql),
+      aiModels.organizationChoices(this.sql, PLATFORM_SCOPE),
+    ]);
+    // The catalog's names for models (what operators named them), else a readable form of the id.
+    const names = new Map(approved.map((model) => [`${model.provider}|${model.providerModelId}`, model.label]));
+    const modelLabel = (modelId: string, provider: ModelProvider = 'bedrock') => names.get(`${provider}|${modelId}`) ?? readableModel(modelId);
+    const sourceOf = (key: AiRouteKey): RouteSource => (orgRoutes.has(key) ? 'ORGANIZATION' : platformRoutes.has(key) ? 'PLATFORM' : 'DEPLOYMENT');
+    const lane = (route: ModelRoute, label: string, available: boolean, reason: string | null): RoutingLane => ({ provider: route.provider ?? 'bedrock', modelId: route.modelId, label, available, reason });
+    const roles = await Promise.all(
+      (['fast', 'balanced', 'deep_review'] as const).map(async (alias) => {
+        const chosen = await this.describe(org, alias);
+        if (chosen === 'BLOCKED') return { alias, source: sourceOf(alias), lane: null };
+        const route = chosen?.route ?? this.configured[alias];
+        return { alias, source: sourceOf(alias), lane: lane(route, chosen?.label ?? modelLabel(route.modelId, route.provider ?? 'bedrock'), true, null) };
+      }),
+    );
+    const roleLane = new Map(roles.map((role) => [role.alias, role.lane]));
+    const jobs = await Promise.all(
+      JOB_TYPES.map(async (jobType) => {
+        const lanes: RoutingLane[] = [];
+        const push = (next: RoutingLane) => {
+          if (!lanes.some((l) => l.modelId === next.modelId && l.provider === next.provider)) lanes.push(next);
+        };
+        const own = await this.describe(org, jobType);
+        let source: JobSource = 'REGISTRY';
+        if (own && own !== 'BLOCKED') {
+          push(lane(own.route, own.label, true, null));
+          source = orgRoutes.has(jobType) ? 'ORGANIZATION' : 'PLATFORM';
+        }
+        const override = parseJobOverride(this.routing.jobOverrides?.[jobType]);
+        if (override) {
+          const connected = this.routing.providers.includes(override.provider);
+          push({ provider: override.provider, modelId: override.modelId, label: modelLabel(override.modelId, override.provider), available: connected, reason: connected ? null : `${override.provider} not connected` });
+          if (source === 'REGISTRY' && connected) source = 'DEPLOYMENT';
+        }
+        for (const step of JOB_MODEL_MAP[jobType].lanes) {
+          if (step.kind === 'claude') {
+            const role = roleLane.get(step.alias);
+            push(role ?? { provider: 'bedrock', modelId: this.configured[step.alias].modelId, label: modelLabel(this.configured[step.alias].modelId), available: false, reason: 'not on this organization’s allow-list' });
+          } else if (!this.routing.providers.includes(step.provider)) {
+            push({ provider: step.provider, modelId: step.modelId, label: modelLabel(step.modelId, step.provider), available: false, reason: `${PROVIDER_NAMES[step.provider] ?? step.provider} not connected` });
+          } else {
+            const usable = await this.modelUsable(org, step.provider, step.modelId);
+            push({ provider: step.provider, modelId: step.modelId, label: modelLabel(step.modelId, step.provider), available: usable, reason: usable ? null : 'not evaluated, terms not recorded, or not allowed' });
+          }
+        }
+        return { jobType, label: JOB_MODEL_MAP[jobType].label, source, lanes };
+      }),
+    );
+    return { scope: organizationId ? 'ORGANIZATION' : 'PLATFORM', roles, jobs };
   }
 
   private async modelUsable(organizationId: string, provider: ModelProvider, modelId: string): Promise<boolean> {
