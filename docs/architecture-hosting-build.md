@@ -97,7 +97,7 @@ flowchart TB
     CF --> SITE["Marketing site<br/>private S3 bucket"]
     U --> ALB["Application Load Balancer"]
 
-    subgraph AWS["AWS — Prod account 339764561153 · us-east-2"]
+    subgraph AWS["AWS — Prod (live) account · us-east-2"]
         ALB --> WEB["Web service<br/>ECS Fargate"]
         ALB --> API["API service<br/>ECS Fargate"]
         API --> Q[("ElastiCache Redis<br/>BullMQ job queue")]
@@ -200,12 +200,14 @@ it a configuration change.
 
 One AWS Organization (**PactLab-Team**), four accounts:
 
-| Account | ID | Holds |
-|---|---|---|
-| Management | 042954450979 | Org root, billing |
-| Dev | 379959319207 | dev + qa environments |
-| Stage | 438535681690 | stage environment |
-| Prod (live) | 339764561153 | live environment only |
+| Account | Holds |
+|---|---|
+| Management | Org root, billing |
+| Dev | dev + qa environments |
+| Stage | stage environment |
+| Prod (live) | live environment only |
+
+(Account IDs are deliberately not recorded here — the repository is public.)
 
 All infrastructure is CDK (TypeScript) under `infra/cdk/`. An organization
 guardrail (SCP, ADR 0003 amendment) allows CloudFormation **only in
