@@ -18,6 +18,24 @@ Every step is a versioned record a human can inspect. AI produces cited
 evidence and findings; deterministic code does all arithmetic; humans approve
 anything that leaves the platform (terms, letters, signatures).
 
+```mermaid
+flowchart TD
+    A["Evidence arrives<br/>uploads · GitHub · Jira · CSV"] --> B["Document intake<br/>classify · extract · vision pass"]
+    B --> C["Normalized evidence<br/>every statement cited to its source"]
+    C --> D["Findings<br/>each mapped to a direction"]
+    D -->|"−1 · drag"| E["Term proposals<br/>price reduction · remediation · escrow · indemnity<br/><i>seller-facing</i>"]
+    D -->|"+1 · cushion"| F["Confirmed-value ledger<br/>'value confirmed, not price paid'<br/><i>buyer-confidential — never reaches the seller</i>"]
+    D -->|"0 · neutral"| G["Informational finding<br/>with explicit rationale"]
+    E --> H["Valuation bridge — Sextant<br/>persona translates findings into price &amp; terms"]
+    F --> H
+    G --> H
+    H --> I["Valuation scenarios"]
+    I --> J["Investment committee<br/>approve · decline · approve with conditions"]
+    J --> K["Letter of intent<br/>generated from agreed terms"]
+    K --> L["Signing<br/>BoldSign embedded signing"]
+    L --> M["Close<br/>signed artifacts kept as evidence"]
+```
+
 Industry coverage ships as **packs** (evidence adapters + findings logic per
 deal type — software, healthcare, industrials, multifamily, venture raise,
 multifamily syndication, and others). The valuation engine's internal name is
@@ -70,6 +88,40 @@ pnpm monorepo with Turborepo. TypeScript throughout.
 | `packages/ui` | Shared UI components |
 
 ## 3. Application architecture
+
+System architecture, as deployed live:
+
+```mermaid
+flowchart TB
+    U["Users<br/>buyers · sellers · guests"] --> CF["CloudFront"]
+    CF --> SITE["Marketing site<br/>private S3 bucket"]
+    U --> ALB["Application Load Balancer"]
+
+    subgraph AWS["AWS — Prod account 339764561153 · us-east-2"]
+        ALB --> WEB["Web service<br/>ECS Fargate"]
+        ALB --> API["API service<br/>ECS Fargate"]
+        API --> Q[("ElastiCache Redis<br/>BullMQ job queue")]
+        Q --> WRK["Worker service<br/>ECS Fargate"]
+        API --> DB[("RDS Postgres<br/>row-level security per org")]
+        WRK --> DB
+        API --> EV["S3 — evidence store<br/>source files byte-for-byte"]
+        WRK --> EV
+        API --> AUD["S3 — audit archive<br/>Object Lock COMPLIANCE"]
+        API -.-> SEC["Secrets Manager<br/>injected at runtime"]
+        WRK -.-> SEC
+    end
+
+    API --> AUTH["Auth0<br/>passwordless + MFA · per-org SSO"]
+    WRK --> GW["AI provider gateway<br/>JOB_MODEL_MAP routing"]
+    GW --> BED["AWS Bedrock<br/>us-east-1"]
+    GW --> ANT["Anthropic direct"]
+    GW --> GEM["Google Gemini"]
+    GW --> OAI["OpenAI"]
+    WRK --> CON["GitHub · Jira<br/>read-only evidence adapters"]
+    API --> STR["Stripe<br/>billing"]
+    API --> SIGN["BoldSign<br/>e-signature"]
+    API --> SES["Amazon SES<br/>sign-in &amp; notification email"]
+```
 
 Three runtime services, all stateless containers:
 
