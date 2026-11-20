@@ -137,6 +137,20 @@ export class PactlabCompute extends Construct {
     const anthropicKey = aiKey('AiAnthropicKey', 'anthropic');
     const openaiKey = aiKey('AiOpenAiKey', 'openai');
     const googleKey = aiKey('AiGoogleKey', 'google');
+    // Pactlab signing (T-136, ADR 0036): the BoldSign API key, the webhook's signing secret and, until the
+    // production go, the test recipients envelopes may go to. Created `unset` (BoldSign off; no webhook;
+    // no recipients); scripts/signing-key.sh sets them, so personal addresses never enter the repository.
+    const signingSecret = (id: string, name: string, description: string) =>
+      new secretsmanager.Secret(this, id, {
+        secretName: `pactlab/${config.name}/signing/${name}`,
+        description: `Pactlab ${config.name}: ${description} (unset: off)`,
+        encryptionKey: dataKey,
+        secretStringValue: SecretValue.unsafePlainText('unset'),
+        removalPolicy: statefulRemoval,
+      });
+    const boldsignKey = signingSecret('SigningBoldSignKey', 'boldsign-api-key', 'BoldSign API key for Pactlab signing');
+    const boldsignWebhookSecret = signingSecret('SigningBoldSignWebhookSecret', 'boldsign-webhook-secret', 'BoldSign webhook signing secret');
+    const signingTestRecipients = signingSecret('SigningTestRecipients', 'test-recipients', 'the only recipients envelopes may go to before the production go');
 
     // --- Images by commit SHA: the slim server image (api, worker), its "-tools" variant (migrate, seed) and the web image.
     const repositories = {
@@ -193,6 +207,7 @@ export class PactlabCompute extends Construct {
       EMAIL_PROVIDER: 'ses',
       EMAIL_FROM: service.email.from,
       SIGNUP_REQUIRES_APPROVAL: String(service.signupRequiresApproval),
+      SIGNING_PROVIDER: service.signing.providers.join(','),
       ...(service.operatorEmail ? { OPERATOR_EMAIL: service.operatorEmail } : {}),
       ...(costRoleArn ? { COST_EXPLORER_ROLE_ARN: costRoleArn } : {}),
     };
@@ -286,6 +301,9 @@ export class PactlabCompute extends Construct {
         OPENAI_API_KEY: ecs.Secret.fromSecretsManager(openaiKey),
         GOOGLE_API_KEY: ecs.Secret.fromSecretsManager(googleKey),
         ANTHROPIC_API_KEY: ecs.Secret.fromSecretsManager(anthropicKey),
+        BOLDSIGN_API_KEY: ecs.Secret.fromSecretsManager(boldsignKey),
+        BOLDSIGN_WEBHOOK_SECRET: ecs.Secret.fromSecretsManager(boldsignWebhookSecret),
+        SIGNING_TEST_RECIPIENTS: ecs.Secret.fromSecretsManager(signingTestRecipients),
       },
       portMappings: [{ containerPort: 4000 }],
       logging: logging('api'),
@@ -456,7 +474,7 @@ export class PactlabCompute extends Construct {
       ToolsImageTag: toolsTag,
       WorkerServiceName: worker.serviceName,
       WorkerTaskFamily: workerTask.family,
-      // scripts/ai-key.sh restarts the API after setting a provider key (secrets are read at task start).
+      // scripts/ai-key.sh and scripts/signing-key.sh restart the API after setting a key (secrets are read at task start).
       ApiServiceName: api.serviceName,
     };
     // Stack-level outputs with fixed names, read by the deploy workflow.

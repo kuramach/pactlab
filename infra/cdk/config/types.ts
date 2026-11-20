@@ -123,6 +123,12 @@ export interface ServiceConfig {
    * `careful` (default; stage, live): AWS's slower defaults.
    */
   readonly rollout?: 'fast' | 'careful';
+  /**
+   * Signing (T-136, ADR 0036): the adapters Pactlab signing may use (`SIGNING_PROVIDER`), in order of
+   * preference. `boldsign` needs its key in Secrets Manager (scripts/signing-key.sh); until it is set,
+   * the next listed adapter serves. `fixture` is never listed for live.
+   */
+  readonly signing: { readonly providers: readonly ('boldsign' | 'fixture')[] };
   /** Turn on pilot sign-up approval (`SIGNUP_REQUIRES_APPROVAL`). */
   readonly signupRequiresApproval: boolean;
   /** Who is emailed when an organization signs up and waits for approval (`OPERATOR_EMAIL`). */

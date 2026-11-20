@@ -40,6 +40,8 @@ export const devConfig: EnvironmentConfig = {
       inferenceProfiles: ['us.anthropic.claude-*'],
       modelOverrides: { balanced: 'us.anthropic.claude-sonnet-4-6', deep_review: 'us.anthropic.claude-opus-4-6-v1', fast: 'us.anthropic.claude-haiku-4-5-20251001-v1:0' },
     },
+    // Pactlab signing (T-136): BoldSign once its sandbox key is set (scripts/signing-key.sh), test signing until then.
+    signing: { providers: ['boldsign', 'fixture'] },
     // Dev and qa: new organizations are active at once, so sign-up can be tested end to end.
     signupRequiresApproval: false,
     // Quick releases here; stage and live keep AWS's slower, more cautious checks.

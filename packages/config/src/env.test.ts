@@ -44,6 +44,22 @@ describe('loadConfig', () => {
     expect(() => loadConfig(apiEnvSchema, { ...validApi, AI_PROVIDER: 'openai' })).toThrow(/AI_PROVIDER/);
   });
 
+  it('reads the signing adapters, BoldSign and its test recipients, and keeps the fixture out of production (T-136)', () => {
+    const base = loadConfig(apiEnvSchema, validApi);
+    expect(base.SIGNING_PROVIDER).toBeUndefined();
+    expect(base.BOLDSIGN_API_BASE_URL).toBe('https://api.boldsign.com');
+    expect(base.BOLDSIGN_PRODUCTION_SENDING).toBe(false);
+    const on = loadConfig(apiEnvSchema, { ...validApi, SIGNING_PROVIDER: 'boldsign, fixture', BOLDSIGN_API_KEY: 'bs-key', SIGNING_TEST_RECIPIENTS: 'kumar@example.test, @pactlab.test' });
+    expect(on).toMatchObject({ SIGNING_PROVIDER: ['boldsign', 'fixture'], BOLDSIGN_API_KEY: 'bs-key', SIGNING_TEST_RECIPIENTS: ['kumar@example.test', '@pactlab.test'] });
+    // The stack's placeholder means "not set yet".
+    expect(loadConfig(apiEnvSchema, { ...validApi, SIGNING_PROVIDER: 'boldsign', BOLDSIGN_API_KEY: 'unset', BOLDSIGN_WEBHOOK_SECRET: 'unset', SIGNING_TEST_RECIPIENTS: 'unset' })).toMatchObject({ BOLDSIGN_API_KEY: undefined, BOLDSIGN_WEBHOOK_SECRET: undefined, SIGNING_TEST_RECIPIENTS: undefined });
+    expect(() => loadConfig(apiEnvSchema, { ...validApi, SIGNING_PROVIDER: 'boldsign', BOLDSIGN_API_KEY: 'bs-key' })).toThrow(/SIGNING_TEST_RECIPIENTS/);
+    expect(loadConfig(apiEnvSchema, { ...validApi, SIGNING_PROVIDER: 'boldsign', BOLDSIGN_API_KEY: 'bs-key', BOLDSIGN_PRODUCTION_SENDING: 'true' }).SIGNING_TEST_RECIPIENTS).toBeUndefined();
+    expect(() => loadConfig(apiEnvSchema, { ...validApi, APP_ENV: 'production', SIGNING_PROVIDER: 'fixture' })).toThrow(/SIGNING_PROVIDER/);
+    expect(() => loadConfig(apiEnvSchema, { ...validApi, SIGNING_PROVIDER: 'docusign' })).toThrow(/SIGNING_PROVIDER/);
+    expect(() => loadConfig(apiEnvSchema, { ...validApi, BOLDSIGN_API_BASE_URL: 'http://api.boldsign.com' })).toThrow(/BOLDSIGN_API_BASE_URL/);
+  });
+
   it('needs the bucket, key and Region for the S3 store, and a sender for SES', () => {
     const s3 = { ...validApi, APP_ENV: 'dev', DOCUMENT_STORE: 's3', DOCUMENT_BUCKET: 'evidence', DOCUMENT_KMS_KEY_ID: 'key', AWS_REGION: 'us-east-1' };
     expect(loadConfig(apiEnvSchema, s3)).toMatchObject({ DOCUMENT_STORE: 's3', DOCUMENT_BUCKET: 'evidence' });

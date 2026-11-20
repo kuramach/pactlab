@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import type { FetchLike } from '../http/cassette';
-import { SigningProviderError, type EnvelopeRequest, type EnvelopeStatus, type SigningEvent, type SigningProvider } from './types';
+import { SigningProviderError, type EnvelopeRequest, type EnvelopeState, type EnvelopeStatus, type SignedArtifacts, type SigningEvent, type SigningProvider, type SigningWebhook } from './types';
 
 /**
  * DocuSign (T-107, ADR 0022), from DocuSign's developer documentation:
@@ -14,6 +14,10 @@ import { SigningProviderError, type EnvelopeRequest, type EnvelopeStatus, type S
  *   HMAC-SHA256 of the raw body; events such as `envelope-completed`.
  * The customer connects their own account; Pactlab holds only its app's
  * integration key (a registration, not a sending account).
+ *
+ * On the signing seam (T-136, ADR 0036) it is the "Your DocuSign" adapter: signers sign from
+ * DocuSign's own email (embedded signing is DocuSign's ISV path, deferred), and the signed record is
+ * `GET …/envelopes/{envelopeId}/documents/combined` and `…/documents/certificate`.
  */
 
 /** Pactlab's app registration, per environment. */
@@ -87,7 +91,7 @@ export class DocuSignOAuth {
   }
 }
 
-const STATUS: Readonly<Record<string, EnvelopeStatus>> = { sent: 'SENT', delivered: 'SENT', completed: 'COMPLETED', declined: 'DECLINED', voided: 'VOIDED' };
+const STATUS: Readonly<Record<string, EnvelopeStatus>> = { sent: 'SENT', delivered: 'DELIVERED', signed: 'DELIVERED', completed: 'COMPLETED', declined: 'DECLINED', voided: 'VOIDED' };
 
 /** Sends from one organization's connected account, with a valid access token. */
 export class DocuSignSigningProvider implements SigningProvider {
@@ -136,11 +140,26 @@ export class DocuSignSigningProvider implements SigningProvider {
     return { envelopeId: json.envelopeId };
   }
 
-  async status(envelopeId: string): Promise<EnvelopeStatus> {
+  async status(envelopeId: string): Promise<EnvelopeState> {
     const response = await this.fetchImpl(this.url(`/envelopes/${encodeURIComponent(envelopeId)}`), { headers: { authorization: `Bearer ${await this.accessToken()}` } });
     if (!response.ok) throw new SigningProviderError('DocuSign envelope status failed', response.status === 401 ? 'AUTH' : 'UNAVAILABLE');
-    const json = (await response.json()) as { status?: string };
-    return STATUS[json.status ?? ''] ?? 'SENT';
+    const json = (await response.json()) as { status?: string; voidedReason?: string };
+    const status = STATUS[json.status ?? ''] ?? 'SENT';
+    return { status, reason: status === 'VOIDED' && json.voidedReason ? json.voidedReason.slice(0, 500) : null };
+  }
+
+  /** DocuSign's embedded signing is its ISV path, deferred: signers sign from DocuSign's email. */
+  async embeddedSigningUrl(): Promise<string | null> {
+    return null;
+  }
+
+  async artifacts(envelopeId: string): Promise<SignedArtifacts> {
+    const bytes = async (documentId: 'combined' | 'certificate') => {
+      const response = await this.fetchImpl(this.url(`/envelopes/${encodeURIComponent(envelopeId)}/documents/${documentId}`), { headers: { authorization: `Bearer ${await this.accessToken()}`, accept: 'application/pdf' } });
+      if (!response.ok) throw new SigningProviderError('DocuSign document download failed', response.status === 401 ? 'AUTH' : 'UNAVAILABLE');
+      return new Uint8Array(await response.arrayBuffer());
+    };
+    return { document: await bytes('combined'), certificate: await bytes('certificate') };
   }
 }
 
@@ -157,7 +176,7 @@ export function verifyDocuSignConnect(secret: string, rawBody: Uint8Array, heade
     });
 }
 
-const EVENTS: Readonly<Record<string, EnvelopeStatus>> = { 'envelope-completed': 'COMPLETED', 'envelope-declined': 'DECLINED', 'envelope-voided': 'VOIDED' };
+const EVENTS: Readonly<Record<string, EnvelopeStatus>> = { 'envelope-delivered': 'DELIVERED', 'envelope-completed': 'COMPLETED', 'envelope-declined': 'DECLINED', 'envelope-voided': 'VOIDED' };
 
 /** A Connect (JSON SIM) message reduced to an envelope outcome; null for events Pactlab does not record. */
 export function parseDocuSignConnect(rawBody: Uint8Array): SigningEvent | null {
@@ -169,5 +188,24 @@ export function parseDocuSignConnect(rawBody: Uint8Array): SigningEvent | null {
   }
   const status = typeof json.event === 'string' ? EVENTS[json.event] : undefined;
   const envelopeId = json.data?.envelopeId;
-  return status && typeof envelopeId === 'string' && /^[0-9a-f-]{36}$/i.test(envelopeId) ? { envelopeId, status } : null;
+  // Connect messages carry no event id; each envelope event happens once, so the event names it.
+  return status && typeof envelopeId === 'string' && /^[0-9a-f-]{36}$/i.test(envelopeId) ? { eventId: `${String(json.event)}:${envelopeId}`, envelopeId, status, reason: null } : null;
+}
+
+export class DocuSignWebhook implements SigningWebhook {
+  readonly provider = 'DOCUSIGN' as const;
+
+  constructor(private readonly hmacKey: string) {}
+
+  isPing(): boolean {
+    return false;
+  }
+
+  verify(rawBody: Uint8Array, headers: Readonly<Record<string, string | string[] | undefined>>): boolean {
+    return verifyDocuSignConnect(this.hmacKey, rawBody, headers);
+  }
+
+  parse(rawBody: Uint8Array): SigningEvent | null {
+    return parseDocuSignConnect(rawBody);
+  }
 }

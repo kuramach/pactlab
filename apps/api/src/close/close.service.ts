@@ -1,44 +1,26 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { ConflictException, ForbiddenException, Inject, Injectable, NotFoundException, Optional, ServiceUnavailableException, UnprocessableEntityException } from '@nestjs/common';
-import {
-  DocuSignSigningProvider,
-  parseDocuSignConnect,
-  SigningProviderError,
-  verifyDocuSignConnect,
-  type DocuSignOAuth,
-  type DocuSignTokens,
-  type FixtureSigningProvider,
-  type SecretStore,
-  type SigningProvider,
-} from '@pactlab/connectors';
-import { appendAuditEvent, signingOutcomes, withTenant, type PrismaClient, type TransactionClient } from '@pactlab/db';
-import { newId, permissionsForDealRole, type DealRole, type TenantContext } from '@pactlab/domain';
+import { SIGNING_PROVIDERS, SigningProviderError, type DocuSignTokens, type SigningProviderName } from '@pactlab/connectors';
+import { appendAuditEvent, withTenant, type PrismaClient, type TransactionClient } from '@pactlab/db';
+import { newId, permissionsForDealRole, type DealRole, type EnvelopeStatus, type TenantContext } from '@pactlab/domain';
 import { DealAccess } from '../deals/deal-access';
 import { DOCUMENT_OBJECT_STORE, type DocumentObjectStore } from '../documents/documents.repository';
 import { PhasesService } from '../phases/phases.service';
 import { termSide } from '../pricing/pricing.service';
 import { IC_STATE_LABELS, icStatus } from '../ic/ic-state';
+import { SigningService } from '../signing/signing.service';
 import { loiSatisfied } from './loi-gate';
 import { closingFinancing } from '../financing/financing-state';
 import { PRISMA } from '../tokens';
 import type { ClosingItemBody, DisputeBody, EsignBody, PaidBody, SignatoryBody } from './close.schemas';
+import { CLOSE_DEPENDENCIES, type CloseDependencies } from './close.dependencies';
 import { SIGN_ANCHORS, termSheetPdf } from './term-sheet';
 
-export const CLOSE_DEPENDENCIES = Symbol('CLOSE_DEPENDENCIES');
-
-/** E-signature for this deployment (T-107, ADR 0022). */
-export interface CloseDependencies {
-  /** Outside production only: the fixture signing provider. */
-  readonly fixtureSigning: FixtureSigningProvider | null;
-  /** Pactlab's DocuSign app registration; customers connect their own accounts to it. */
-  readonly docusign: { readonly oauth: DocuSignOAuth; readonly connectHmacKey: string; readonly redirectUri: string } | null;
-  /** Where each organization's DocuSign tokens live. */
-  readonly secrets: SecretStore | null;
-  /** Signs the OAuth `state`, binding the callback to the admin who started it. */
-  readonly stateSecret: string;
-}
+export { CLOSE_DEPENDENCIES, type CloseDependencies } from './close.dependencies';
 
 type Side = 'BUYER' | 'SELLER';
+/** An envelope still out for signature (sent, or opened by a signer). */
+const envelopeOpen = (envelope: { status: string } | undefined) => envelope?.status === 'SENT' || envelope?.status === 'DELIVERED';
 const canRead = (role: DealRole) => permissionsForDealRole(role).has('DEAL_READ');
 const actor = (role: DealRole) => termSide(role) !== null;
 const isLead = (role: DealRole) => role === 'DEAL_LEAD';
@@ -53,7 +35,7 @@ export interface CloseView {
     readonly agreedAt: string;
     readonly declinedAt: string | null;
     readonly signoffs: readonly { readonly side: Side; readonly name: string; readonly method: 'IN_APP' | 'ESIGN'; readonly signedAt: string }[];
-    readonly envelope: { readonly provider: 'FIXTURE' | 'DOCUSIGN'; readonly status: string; readonly sentAt: string; readonly signedBy: readonly Side[] } | null;
+    readonly envelope: { readonly id: string; readonly provider: SigningProviderName; readonly providerLabel: string; readonly status: EnvelopeStatus; readonly reason: string | null; readonly sentAt: string; readonly signedBy: readonly Side[] } | null;
   } | null;
   readonly items: readonly {
     readonly id: string;
@@ -66,7 +48,8 @@ export interface CloseView {
     readonly dispute: { readonly note: string; readonly at: string } | null;
     readonly done: { readonly by: string; readonly at: string } | null;
   }[];
-  readonly esign: { readonly provider: 'FIXTURE' | 'DOCUSIGN' | null };
+  /** What new envelopes go out with (the organization's setting, or its stated fallback). */
+  readonly esign: { readonly provider: SigningProviderName | null; readonly label: string | null; readonly note: string | null };
   /** Buyer financing (T-117), as the reader may see it: the posture, the earnest deposit, and a contingency in the agreed terms. */
   readonly financing: {
     readonly headline: string;
@@ -92,6 +75,7 @@ export class CloseService {
     @Inject(DealAccess) private readonly access: DealAccess,
     @Inject(CLOSE_DEPENDENCIES) private readonly deps: CloseDependencies,
     @Inject(DOCUMENT_OBJECT_STORE) private readonly documents: DocumentObjectStore,
+    @Inject(SigningService) private readonly signing: SigningService,
     @Optional() @Inject(PhasesService) private readonly phases: PhasesService | null,
   ) {}
 
@@ -111,28 +95,10 @@ export class CloseService {
     return latest?.agreedAt ? latest : null;
   }
 
-  /** The provider this organization signs with: its own DocuSign when connected, else the fixture outside production. */
-  async provider(tx: TransactionClient, tenant: TenantContext): Promise<{ provider: SigningProvider; name: 'FIXTURE' | 'DOCUSIGN' } | null> {
-    if (this.deps.docusign && this.deps.secrets) {
-      const connection = await tx.organizationConnection.findFirst({ where: { organizationId: tenant.organizationId, provider: 'docusign', disconnectedAt: null } });
-      if (connection) {
-        const docusign = this.deps.docusign;
-        const secrets = this.deps.secrets;
-        const accessToken = async () => {
-          const tokens = JSON.parse(await secrets.get(connection.credentialRef)) as DocuSignTokens;
-          if (tokens.expiresAt - Date.now() > 60_000) return tokens.accessToken;
-          const refreshed = await docusign.oauth.refresh(tokens.refreshToken);
-          await secrets.put(connection.credentialRef, JSON.stringify(refreshed));
-          return refreshed.accessToken;
-        };
-        return { provider: new DocuSignSigningProvider({ accountId: connection.accountId, accountName: connection.accountName, baseUri: connection.baseUri }, accessToken), name: 'DOCUSIGN' };
-      }
-    }
-    return this.deps.fixtureSigning ? { provider: this.deps.fixtureSigning, name: 'FIXTURE' } : null;
-  }
-
   async view(tenant: TenantContext, dealId: string, requestId: string): Promise<CloseView> {
     const role = await this.access.require(tenant, dealId, canRead, { action: 'close.viewed', requestId });
+    // The polling fallback: open envelopes converge even when a webhook was missed (T-136).
+    await this.signing.reconcile(tenant, dealId);
     return withTenant(this.prisma, tenant, async (tx) => {
       const [buyer, seller, agreed, items, deal, members, signingProvider, proposedAny] = await Promise.all([
         this.signatory(tx, dealId, 'BUYER'),
@@ -143,7 +109,7 @@ export class CloseService {
         tx.deal.findUnique({ where: { id: dealId }, select: { closedAt: true, closedByBuyer: true, closedBySeller: true } }),
         // bounded: one pact's own records of this kind (tens: a checklist, versions, entries, its sources)
         tx.dealMembership.findMany({ where: { dealId, status: 'ACTIVE' }, select: { userId: true, role: true } }),
-        this.provider(tx, tenant),
+        this.signing.forNewEnvelope(tx, tenant.organizationId),
         tx.termProposalBatch.count({ where: { dealId, proposedAt: { not: null } } }),
       ]);
       const ids = [...new Set([...members.map((member) => member.userId), ...items.flatMap((item) => [item.doneBy, item.paidBy]), deal?.closedByBuyer, deal?.closedBySeller].filter((id): id is string => Boolean(id)))];
@@ -196,8 +162,11 @@ export class CloseService {
               signoffs: agreed.signoffs.map((signoff) => ({ side: signoff.side as Side, name: name(signoff.userId), method: signoff.method as 'IN_APP' | 'ESIGN', signedAt: signoff.signedAt.toISOString() })),
               envelope: envelope
                 ? {
-                    provider: envelope.provider as 'FIXTURE' | 'DOCUSIGN',
-                    status: envelope.status,
+                    id: envelope.id,
+                    provider: envelope.provider as SigningProviderName,
+                    providerLabel: SIGNING_PROVIDERS[envelope.provider as SigningProviderName]?.label ?? envelope.provider,
+                    status: envelope.status as EnvelopeStatus,
+                    reason: envelope.statusReason,
                     sentAt: envelope.sentAt.toISOString(),
                     signedBy: (['BUYER', 'SELLER'] as const).filter((side) => signedBy.includes(emails.get(side === 'BUYER' ? envelope.buyerSignatory : envelope.sellerSignatory) ?? '-')),
                   }
@@ -215,7 +184,7 @@ export class CloseService {
           dispute: item.disputedAt && !item.paidAt ? { note: item.disputeNote ?? '', at: item.disputedAt.toISOString() } : null,
           done: item.doneAt ? { by: name(item.doneBy), at: item.doneAt.toISOString() } : null,
         })),
-        esign: { provider: signingProvider?.name ?? null },
+        esign: { provider: signingProvider.chosen?.name ?? null, label: signingProvider.chosen ? SIGNING_PROVIDERS[signingProvider.chosen.name].label : null, note: signingProvider.note },
         financing: financing
           ? {
               headline: financing.posture.headline,
@@ -265,7 +234,7 @@ export class CloseService {
       if ((await this.signatory(tx, dealId, side))?.userId !== tenant.userId) throw new ForbiddenException('Only your side’s signatory signs off');
       if (side === 'BUYER') await this.requireIcApproval(tx, tenant, dealId);
       if (!(await loiSatisfied(tx, dealId))) throw new UnprocessableEntityException({ code: 'LOI_REQUIRED' });
-      if (agreed.envelopes[0]?.status === 'SENT') throw new ConflictException('Sent for e-signature: sign there');
+      if (envelopeOpen(agreed.envelopes[0])) throw new ConflictException('Sent for e-signature: sign there');
       if (agreed.signoffs.some((signoff) => signoff.side === side)) throw new ConflictException('Already signed off');
       const row = await tx.termSignoff.create({ data: { id: newId(), organizationId: tenant.organizationId, dealId, batchId, side, userId: tenant.userId, method: 'IN_APP' } });
       await this.audit(tx, tenant, dealId, 'terms.signed_off', 'term_signoff', row.id, requestId);
@@ -279,7 +248,7 @@ export class CloseService {
     await withTenant(this.prisma, tenant, async (tx) => {
       const agreed = await this.requireOpenAgreed(tx, dealId, batchId);
       if ((await this.signatory(tx, dealId, termSide(role) as Side))?.userId !== tenant.userId) throw new ForbiddenException('Only a signatory declines');
-      if (agreed.signoffs.length > 0 || agreed.envelopes[0]?.status === 'SENT') throw new ConflictException('Signing has started');
+      if (agreed.signoffs.length > 0 || envelopeOpen(agreed.envelopes[0])) throw new ConflictException('Signing has started');
       await tx.termProposalBatch.update({ where: { id: batchId }, data: { declinedAt: new Date(), declinedBy: tenant.userId } });
       await this.audit(tx, tenant, dealId, 'terms.declined', 'term_proposal_batch', batchId, requestId);
     });
@@ -318,9 +287,9 @@ export class CloseService {
   }
 
   /**
-   * Send the agreed version for e-signature from the buyer organization's own
-   * account (DocuSign when connected; the fixture outside production): the
-   * term sheet, and the final agreement if one is attached.
+   * Send the agreed version for e-signature through the signing seam (T-136): the provider is the
+   * buyer organization's setting (Pactlab signing, or its own DocuSign); the term sheet, and the
+   * final agreement if one is attached.
    */
   async sendForSignature(tenant: TenantContext, dealId: string, batchId: string, body: EsignBody, requestId: string) {
     await this.access.require(tenant, dealId, (r: DealRole) => termSide(r) === 'BUYER', { action: 'terms.esign_sent', requestId });
@@ -328,11 +297,9 @@ export class CloseService {
       const agreed = await this.requireOpenAgreed(tx, dealId, batchId);
       await this.requireIcApproval(tx, tenant, dealId);
       if (!(await loiSatisfied(tx, dealId))) throw new UnprocessableEntityException({ code: 'LOI_REQUIRED' });
-      if (agreed.signoffs.length > 0 || agreed.envelopes[0]?.status === 'SENT') throw new ConflictException('Signing has started');
+      if (agreed.signoffs.length > 0 || envelopeOpen(agreed.envelopes[0])) throw new ConflictException('Signing has started');
       const [buyer, seller] = [await this.signatory(tx, dealId, 'BUYER'), await this.signatory(tx, dealId, 'SELLER')];
       if (!buyer || !seller) throw new ConflictException('Name both signatories first');
-      const signing = await this.provider(tx, tenant);
-      if (!signing) throw new ConflictException({ code: 'ESIGN_UNAVAILABLE' });
       // bounded: the ids just above (one page, or the few people and records it names)
       const people = new Map((await tx.user.findMany({ where: { id: { in: [buyer.userId, seller.userId] } }, select: { id: true, displayName: true, email: true } })).map((user) => [user.id, user]));
       const [buyerUser, sellerUser] = [people.get(buyer.userId), people.get(seller.userId)];
@@ -344,23 +311,27 @@ export class CloseService {
         if (!document) throw new UnprocessableEntityException('Attach a PDF both sides can see');
         documents.push({ name: document.fileName, fileExtension: 'pdf', bytes: await this.documents.get(document.objectKey) });
       }
-      let envelopeId: string;
-      try {
-        ({ envelopeId } = await signing.provider.createEnvelope({
-          emailSubject: `Sign the agreed terms (v${agreed.version})`,
-          documents,
-          signers: [
-            { email: buyerUser.email, name: buyerUser.displayName, anchor: SIGN_ANCHORS.BUYER },
-            { email: sellerUser.email, name: sellerUser.displayName, anchor: SIGN_ANCHORS.SELLER },
-          ],
-        }));
-      } catch (error) {
-        if (error instanceof SigningProviderError) throw new ServiceUnavailableException({ code: error.kind === 'AUTH' ? 'ESIGN_RECONNECT' : 'ESIGN_UNAVAILABLE' });
-        throw error;
-      }
-      const row = await tx.signatureEnvelope.create({
-        data: { id: newId(), organizationId: tenant.organizationId, dealId, batchId, provider: signing.name, providerEnvelopeId: envelopeId, termSheetSha256: sheet.sha256, agreementDocumentId: body.agreementDocumentId, buyerSignatory: buyer.userId, sellerSignatory: seller.userId, sentBy: tenant.userId },
-      });
+      const row = await this.signing.send(
+        tx,
+        tenant,
+        {
+          dealId,
+          batchId,
+          loiId: null,
+          documentSha256: sheet.sha256,
+          agreementDocumentId: body.agreementDocumentId,
+          buyerSignatory: buyer.userId,
+          sellerSignatory: seller.userId,
+          request: {
+            emailSubject: `Sign the agreed terms (v${agreed.version})`,
+            documents,
+            signers: [
+              { email: buyerUser.email, name: buyerUser.displayName, anchor: SIGN_ANCHORS.BUYER },
+              { email: sellerUser.email, name: sellerUser.displayName, anchor: SIGN_ANCHORS.SELLER },
+            ],
+          },
+        },
+      );
       await this.audit(tx, tenant, dealId, 'terms.esign_sent', 'signature_envelope', row.id, requestId);
     });
     return this.view(tenant, dealId, requestId);
@@ -374,21 +345,18 @@ export class CloseService {
     const envelope = await withTenant(this.prisma, tenant, async (tx) => {
       const agreed = await this.requireOpenAgreed(tx, dealId, batchId);
       const sent = agreed.envelopes[0];
-      if (!sent || sent.provider !== 'FIXTURE' || sent.status !== 'SENT') throw new ConflictException('No open fixture envelope');
+      if (!sent || sent.provider !== 'FIXTURE' || !envelopeOpen(sent)) throw new ConflictException('No open fixture envelope');
       if ((termSide(role) === 'BUYER' ? sent.buyerSignatory : sent.sellerSignatory) !== tenant.userId) throw new ForbiddenException('Only the named signatory signs');
       const me = await tx.user.findUnique({ where: { id: tenant.userId }, select: { email: true } });
       return { id: sent.providerEnvelopeId, email: me?.email ?? '' };
     });
-    if (fixture.sign(envelope.id, envelope.email) === 'COMPLETED') await signingOutcomes.record(this.prisma, 'FIXTURE', envelope.id, 'COMPLETED');
+    await this.signing.fixtureSettled(envelope.id, fixture.sign(envelope.id, envelope.email), null);
     return this.view(tenant, dealId, requestId);
   }
 
-  /** DocuSign Connect: a signed (HMAC) envelope event, recorded once. No session; the body is the proof. */
-  async docusignEvent(rawBody: Uint8Array, headers: Readonly<Record<string, string | string[] | undefined>>): Promise<{ recorded: boolean }> {
-    if (!this.deps.docusign || !verifyDocuSignConnect(this.deps.docusign.connectHmacKey, rawBody, headers)) throw new ForbiddenException();
-    const event = parseDocuSignConnect(rawBody);
-    if (!event || event.status === 'SENT') return { recorded: false };
-    return { recorded: (await signingOutcomes.record(this.prisma, 'DOCUSIGN', event.envelopeId, event.status)) !== null };
+  /** DocuSign Connect: a signed (HMAC) envelope event, recorded once, through the signing seam. */
+  docusignEvent(rawBody: Uint8Array, headers: Readonly<Record<string, string | string[] | undefined>>): Promise<{ recorded: boolean }> {
+    return this.signing.webhook('DOCUSIGN', rawBody, headers);
   }
 
   // --- The closing checklist ---------------------------------------------------

@@ -42,6 +42,8 @@ export const stageConfig: EnvironmentConfig = {
       inferenceProfiles: ['us.anthropic.claude-*'],
       modelOverrides: { balanced: 'us.anthropic.claude-sonnet-4-6', deep_review: 'us.anthropic.claude-opus-4-6-v1', fast: 'us.anthropic.claude-haiku-4-5-20251001-v1:0' },
     },
+    // Pactlab signing (T-136): BoldSign once its sandbox key is set (scripts/signing-key.sh), test signing until then.
+    signing: { providers: ['boldsign', 'fixture'] },
     // Like live: a new organization waits for approval.
     signupRequiresApproval: true,
     // Emailed on every sign-up waiting for approval, so nobody waits unnoticed (Kumar, 2026-11-05).

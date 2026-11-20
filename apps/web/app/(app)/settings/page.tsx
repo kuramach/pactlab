@@ -9,6 +9,7 @@ import { currentRelease, releaseLabel } from '../../../lib/release';
 import { isOpen, STATUS_LABELS, statusBadge } from './bug-reports/_lib/status';
 import { setDefaultPersona } from './persona-actions';
 import { connectDocuSign, disconnectDocuSign } from './docusign-actions';
+import { SigningCard } from './signing-card';
 import { DevicesCard } from './devices-card';
 import { IcCard } from './ic-card';
 import { BrandCard } from './brand-card';
@@ -180,6 +181,7 @@ async function AboutCard() {
 /** Your profile, the active organization and the administration pages you can open. */
 export default async function SettingsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const billingOutcome = (await searchParams)['billing'];
+  const signingOutcome = (await searchParams)['signing'];
   const brandOutcome = (await searchParams)['brand'];
   const brandSince = (await searchParams)['since'];
   const session = await getSessionContext();
@@ -232,6 +234,8 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
       {organization && !session.guest ? <BrandCard outcome={typeof brandOutcome === 'string' ? brandOutcome : undefined} since={typeof brandSince === 'string' ? brandSince : undefined} /> : null}
 
       {organization && !session.guest ? <IcCard search={await searchParams} /> : null}
+
+      {organization && !session.guest ? <SigningCard outcome={typeof signingOutcome === 'string' ? signingOutcome : undefined} /> : null}
 
       {organization ? <DocuSignCard /> : null}
 

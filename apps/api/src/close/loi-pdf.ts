@@ -102,7 +102,8 @@ export async function loiPdf(
     if (y < 120) newPage();
     write(`For the ${side}: ${name}`, bold, 11);
     // Printed in white where the signature goes, for the e-signature provider to find.
-    page.drawText(anchor, { x: 50, y, size: 8, font: regular, color: rgb(1, 1, 1) });
+    // Large enough that a tag-based provider sizes a usable signature field from it (T-136).
+    page.drawText(anchor, { x: 50, y, size: 14, font: regular, color: rgb(1, 1, 1) });
     page.drawLine({ start: { x: 50, y: y - 4 }, end: { x: 300, y: y - 4 }, thickness: 0.5, color: rgb(0.5, 0.5, 0.5) });
     y -= 40;
   }
