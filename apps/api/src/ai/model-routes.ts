@@ -1,5 +1,5 @@
 import { defaultPromptRegistry, JOB_MODEL_MAP, JOB_TYPES, modelLabel as readableModel, parseJobOverride, TransportClaudeGateway, type JobType, type ModelAlias, type ModelProvider, type ModelRoute, type ModelTransport } from '@pactlab/ai';
-import { judgeModel, runDocumentEvals, type EvalReport } from '@pactlab/ai/evals';
+import { checkModelHealth } from '@pactlab/ai/evals';
 import { aiModels, prismaExecutor, type AiEvaluation, type AiRouteKey, type PrismaClient, type SqlExecutor } from '@pactlab/db';
 
 const CACHE_MS = 60_000;
@@ -36,8 +36,6 @@ export class ModelRouteResolver {
   private readonly cache = new Map<string, { at: number; routes: Map<AiRouteKey, { route: ModelRoute; label: string } | 'BLOCKED'> }>();
   private readonly usable = new Map<string, { at: number; ok: boolean }>();
   private readonly spend = new Map<string, { at: number; usd: number }>();
-  /** Configured models this deploy introduced, waiting for their evaluation (`rollOut`). */
-  private pending: { id: string; provider: string; providerModelId: string; label: string }[] = [];
 
   constructor(
     prisma: PrismaClient,
@@ -52,39 +50,16 @@ export class ModelRouteResolver {
 
   /** Bring the deployment's configured models into an empty catalog (EVALUATED: they serve today). */
   /**
-   * At boot: sync the deployment's configured model per role into the catalog. An empty catalog adopts
-   * them as serving (as before); otherwise a model new to this deploy is added and waits for `rollOut`,
-   * and one already evaluated is switched in where the platform route still follows the deployment.
+   * At boot: the deployment's configured model per role goes live (2026-11-20: configured frontier models
+   * are trusted; the console's check is a health check, not a gate). Each is in the catalog as serving, and
+   * becomes the platform default for its role unless an operator chose that role in the console.
    */
-  async adopt(provider: ModelProvider): Promise<number> {
-    this.pending = await aiModels.syncDeployment(
+  async adopt(provider: ModelProvider): Promise<void> {
+    await aiModels.syncDeployment(
       this.sql,
       (Object.keys(this.configured) as ModelAlias[]).map((alias) => ({ alias, provider, modelId: this.configured[alias].modelId, label: readableModel(this.configured[alias].modelId) })),
     );
     this.invalidate();
-    return this.pending.length;
-  }
-
-  /**
-   * After boot, in the background: evaluate each configured model this deploy introduced (the same gate as
-   * the console's Run evaluation; synthetic material only), one at a time. A pass switches it in for its
-   * roles where they follow the deployment; a fail leaves the current model serving and is reported.
-   */
-  async rollOut(evaluate: ModelEvaluator, report: (outcome: { label: string; passed: boolean; switched: readonly ModelAlias[]; detail: string | null }) => void): Promise<void> {
-    for (const model of this.pending) {
-      if (!(await aiModels.startDeploymentEvaluation(this.sql, model.id))) continue;
-      let evaluation: AiEvaluation;
-      try {
-        evaluation = evaluationRecord(await evaluate({ provider: model.provider as ModelProvider, providerModelId: model.providerModelId }));
-      } catch (error) {
-        evaluation = { passed: false, goldenPassed: 0, goldenTotal: 0, probesBlocked: 0, probesTotal: 0, citationRecall: 0, citationPrecision: 0, promptHashes: {}, ranAt: new Date().toISOString(), failures: [`The evaluation could not reach the model (${error instanceof Error ? error.name : 'unknown error'}).`] };
-      }
-      const aliases = (Object.keys(this.configured) as ModelAlias[]).filter((alias) => this.configured[alias].modelId === model.providerModelId);
-      const switched = (await aiModels.recordDeploymentEvaluation(this.sql, model.id, evaluation, aliases)) as ModelAlias[];
-      this.invalidate();
-      report({ label: model.label, passed: evaluation.passed, switched, detail: evaluation.passed ? null : (evaluation.failures?.[0] ?? null) });
-    }
-    this.pending = [];
   }
 
   async routeFor(organizationId: string, alias: ModelAlias): Promise<ModelRoute | null | 'BLOCKED'> {
@@ -246,36 +221,39 @@ export class ModelRouteResolver {
   }
 }
 
-/** Runs the evaluation suite against one model; null where AI is off. */
-export type ModelEvaluator = (model: { provider: ModelProvider; providerModelId: string }) => Promise<EvalReport>;
+/** The health check for one model (2026-11-20): can we call it, does it return a valid cited answer. */
+export type ModelEvaluator = (model: { provider: ModelProvider; providerModelId: string }) => Promise<AiEvaluation>;
 
-/**
- * The evaluator for this deployment: live, the synthetic golden set and injection probes sent to
- * that model through the deployment's transport (no deal data, ever); with the fixture provider,
- * the recorded cassettes (tests and local runs make no model call).
- */
+/** The health check for this deployment: one synthetic question to the model; fixture deployments always pass. */
 export function modelEvaluator(transport: ModelTransport | null, configured: Readonly<Record<ModelAlias, ModelRoute>>): ModelEvaluator {
-  if (!transport) return () => runDocumentEvals();
-  return (model) => {
-    const routes = Object.fromEntries((Object.keys(configured) as ModelAlias[]).map((alias) => [alias, { modelId: model.providerModelId, provider: model.provider, effort: configured[alias].effort }])) as Record<ModelAlias, ModelRoute>;
-    return runDocumentEvals({ live: new TransportClaudeGateway({ transport, registry: defaultPromptRegistry(), routes }) });
+  return async (model) => {
+    const health = transport
+      ? await checkModelHealth(
+          new TransportClaudeGateway({
+            transport,
+            registry: defaultPromptRegistry(),
+            routes: Object.fromEntries((Object.keys(configured) as ModelAlias[]).map((alias) => [alias, { modelId: model.providerModelId, provider: model.provider, effort: configured[alias].effort }])) as Record<ModelAlias, ModelRoute>,
+          }),
+        )
+      : { passed: true, latencyMs: 0, failures: [] };
+    return healthRecord(health);
   };
 }
 
-/** What is stored with the model: the scores, the verdict and the prompt hashes it ran against. */
-export function evaluationRecord(report: EvalReport): AiEvaluation {
-  const verdict = judgeModel(report);
-  const registry = defaultPromptRegistry();
+/** What is stored with the model: the health check's verdict, how long it took, and why it failed. */
+export function healthRecord(health: { passed: boolean; latencyMs: number; failures: readonly string[] }): AiEvaluation {
   return {
-    passed: verdict.passed,
-    goldenPassed: report.golden.filter((row) => row.passed).length,
-    goldenTotal: report.golden.length,
-    probesBlocked: report.probesBlocked,
-    probesTotal: report.probes.length,
-    citationRecall: report.citationRecall,
-    citationPrecision: report.citationPrecision,
-    promptHashes: Object.fromEntries(registry.list().map((prompt) => [`${prompt.id}@${prompt.version}`, prompt.hash])),
+    kind: 'health',
+    passed: health.passed,
+    latencyMs: health.latencyMs,
+    goldenPassed: health.passed ? 1 : 0,
+    goldenTotal: 1,
+    probesBlocked: 0,
+    probesTotal: 0,
+    citationRecall: health.passed ? 1 : 0,
+    citationPrecision: health.passed ? 1 : 0,
+    promptHashes: {},
     ranAt: new Date().toISOString(),
-    ...(verdict.failures.length > 0 ? { failures: verdict.failures.slice(0, 20) } : {}),
+    ...(health.failures.length > 0 ? { failures: [...health.failures] } : {}),
   };
 }

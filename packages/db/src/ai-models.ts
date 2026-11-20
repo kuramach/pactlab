@@ -33,6 +33,9 @@ export interface AiEvaluation {
   ranAt: string;
   failures?: string[];
   basis?: string;
+  /** 'health': the quick health check (2026-11-20); absent on older full evaluations. */
+  kind?: 'health';
+  latencyMs?: number;
 }
 
 /** A provider outside AWS: its models serve only with a data-processing agreement and zero retention on record. */

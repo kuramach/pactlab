@@ -143,23 +143,6 @@ export const emails = {
     };
   },
 
-  /** A model a deploy configured passed or failed its automatic evaluation (live's own models, 2026-11-20). */
-  operatorModelAlert(to: string, alert: { model: string; environment: string; passed: boolean; switched: readonly string[]; detail: string | null }): OutboundEmail {
-    const roles = alert.switched.map((role) => role.replace('_', ' ')).join(', ');
-    const lines = alert.passed
-      ? [`${alert.model} passed its evaluation on ${alert.environment}.`, roles ? `It is now the platform default for: ${roles}.` : 'No role follows the deployment, so the platform defaults were left as operators set them.']
-      : [
-          `${alert.model} failed its evaluation on ${alert.environment}${alert.detail ? `: ${alert.detail}` : ''}.`,
-          'It is not serving; the current models keep serving. See Admin → AI models to evaluate it again.',
-        ];
-    return {
-      to,
-      subject: alert.passed ? `Pactlab ${alert.environment}: ${alert.model} is live` : `Pactlab ${alert.environment}: ${alert.model} failed evaluation`,
-      text: lines.join('\n'),
-      content: { heading: alert.passed ? `${alert.model} is live` : `${alert.model} failed evaluation`, paragraphs: lines },
-    };
-  },
-
   /** A public data source live uses stopped (or started again) answering live (T-137 follow-up). */
   operatorSourceAlert(to: string, alert: { source: string; environment: string; ok: boolean; detail: string | null }): OutboundEmail {
     const lines = alert.ok

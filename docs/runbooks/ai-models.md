@@ -67,13 +67,11 @@ Each evaluation records the prompt hashes it ran against. When prompts change, r
 - **How to route them:** set *Consistency checks* under Admin → AI models. Unset, they run on GPT-5.5 when OpenAI is connected and evaluated, and otherwise on the Deep review Claude model.
 - **When the check fails** (provider down): the extraction still stands, and the response reports `consistency.status: PROVIDER_ERROR`.
 
-## A deploy's models go live on their own (2026-11-20)
-- **Set the models:** set each role's model in `infra/cdk/config/<env>.ts` (`bedrock.modelOverrides`) or in code defaults, and deploy.
-- **On boot, the API:**
-  1. adds each configured model new to the catalog (*Not evaluated*);
-  2. evaluates it in the background, with the same synthetic golden set and probes as **Run evaluation**;
-  3. when it passes, makes it the platform default for its role, as long as an operator hasn't set that role in the console;
-  4. emails `OPERATOR_EMAIL` either way (*… is live* or *… failed evaluation*). The audit log shows `operator.system.*` entries.
-- **Operator choices win:** a route set in the console (or the diagram) never follows the deployment again. To hand a role back to the deployment, set it to the configured model.
-- **A failed evaluation** (console or automatic) takes the model out of service at once (*Failed: not serving*). Its role falls back to the deployment's configured model.
+## Configured models go live on deploy; a health check, not a gate (2026-11-20)
+- **Configured models serve at once on deploy.** Each role's model in `infra/cdk/config/<env>.ts` (`bedrock.modelOverrides`), or in the code defaults, becomes the platform default for its role when the release starts, unless an operator chose that role in the console. The console's choice always wins.
+- **Run health check** (Admin → AI models) sends one synthetic question. The model passes when it answers with a valid, cited answer. It takes seconds and costs almost nothing.
+  - **Passed:** *Healthy*, with the time it took.
+  - **Failed:** *Not serving*, with the reason (e.g. it couldn't be called). The model stops serving, and its role falls back to the configured model.
+- **A model added by hand** (another provider or family) serves once its health check passes. Pick it per job in the routing diagram.
+- **Why there's no evaluation gate:** the full golden-set evaluation compared live answers with recorded ones almost exactly, so well-tested frontier models "failed" on harmless differences. What protects pact work runs on every call: citations verified word for word, AI output stays a draft until a person accepts it, and no people data reaches a model. The full golden set still runs in CI against recorded answers, and on demand with `pnpm eval:live`.
 - **Bedrock Claude IDs use dashes:** `us.anthropic.claude-opus-5-5`, not `5.5`. The console refuses the dotted form.
