@@ -55,6 +55,7 @@ ASKING_MULTIPLE = {
     'software-saas': D('8'), 'fintech': D('4'), 'healthcare': D('1.5'), 'telecom-media': D('3'),
     'professional-services': D('1.2'), 'pharma-biotech': D('4'), 'ecommerce-dtc': D('1.5'), 'hotels': D('3.5'),
     'multifamily': D('12'), 'commercial-property': D('11'), 'hospitals': D('1'), 'small-clinics': D('1.3'),
+    'multifamily-syndication': D('12'),
 }
 
 class Dataset:
@@ -394,6 +395,7 @@ PACK_IMPORTS = {
     'small-clinics': {'patient-volume': 'Patient volume', 'equipment-schedule': 'Equipment schedule', 'coding-summary': 'Coding summary'},
     'hospitals': {'census': 'Census', 'payer-mix': 'Payer mix'},
     'venture-raise': {'cap-table': 'Cap table', 'monthly-financials': 'Monthly financials'},
+    'multifamily-syndication': {'rent-roll': 'Rent roll', 't12': 'T-12 operating statement', 'delinquency': 'Delinquency report', 'unit-inspections': 'Unit inspections', 'track-record': 'Sponsor track record'},
 }
 
 # What Pactlab's "What kind of company is it?" shows (COMPANY_TYPE_LABELS in
@@ -403,7 +405,7 @@ COMPANY_TYPE_LABELS = {
     'telecom-media': 'Telecom & media', 'professional-services': 'Professional services', 'pharma-biotech': 'Pharma & biotech',
     'ecommerce-dtc': 'E-commerce & DTC', 'multifamily': 'Multifamily', 'commercial-property': 'Commercial property',
     'hotels': 'Hotels & hospitality', 'small-clinics': 'Small clinics', 'hospitals': 'Hospitals',
-    'venture-raise': 'Venture Raise',
+    'venture-raise': 'Venture Raise', 'multifamily-syndication': 'Multifamily syndication',
 }
 # The Documents tab's data-class options.
 DATA_CLASS_LABELS = {'Business': 'business information', 'Financial': 'financial information'}
@@ -413,7 +415,7 @@ PACK_TITLES = {
     'telecom-media': 'Telecom and media', 'professional-services': 'IT and professional services', 'pharma-biotech': 'Pharma and biotech',
     'ecommerce-dtc': 'E-commerce and DTC', 'multifamily': 'Multifamily', 'commercial-property': 'Commercial property',
     'hotels': 'Hotels and hospitality', 'small-clinics': 'Small clinics', 'hospitals': 'Hospitals',
-    'venture-raise': 'Venture Raise',
+    'venture-raise': 'Venture Raise', 'multifamily-syndication': 'Multifamily syndication',
 }
 
 def ramp(rng, base, growth, months=MONTHS, start=None, end=None, noise=D('0')):
@@ -722,14 +724,15 @@ Marketvale seller terms — summary as accepted by {ds.company} (synthetic)
         ('Acquisition cost rising on paid social', '`ad-spend.csv` — paid-social spend rises every month while new customers fall.'),
     ]
 
-def multifamily(ds):
-    ds.kind, ds.kind_label = 'rent', 'unit rent charge'
-    ds.summary = f'{ds.company} owns Larkfield Commons, a 96-unit garden-style apartment community in three buildings (A, B, C).'
+def property_units(ds, buildings, per_building, arrears_building):
+    """The units of a garden-style community: rent roll, inspections and delinquency. Shared by the
+    Multifamily pack and the Multifamily syndication pack (T-106); the random draws are in a fixed
+    order, so each pack's data is reproduced byte for byte."""
     rng = ds.rng
     rows, inspect, delinq = [], [], []
     ltl_sum, mkt_sum, repair = D(0), D(0), D(0)
-    for b in 'ABC':
-        for n in range(1, 33):
+    for b in buildings:
+        for n in range(1, per_building + 1):
             unit = f'{b}{n:02d}'
             typ, sqft, mkt = rng.choice([('1BR', 690, 1450), ('2BR', 960, 1780), ('3BR', 1180, 2150)])
             in_place = ds.amt(mkt * (1 - rng.randint(3, 11) / 100))
@@ -740,7 +743,7 @@ def multifamily(ds):
             if not vacant:
                 ds.customer(f'{ds.prefix}-unit-{unit}', f'Unit {unit} resident (synthetic)', flat(in_place, MONTHS[0]))
                 ltl_sum += market - in_place; mkt_sum += market
-            bal = ds.amt(rng.choice([0, 0, 0, 0, 0, 1450, 2900])) if b == 'C' and not vacant else (ds.amt(1450) if rng.random() < 0.03 and not vacant else D(0))
+            bal = ds.amt(rng.choice([0, 0, 0, 0, 0, 1450, 2900])) if b == arrears_building and not vacant else (ds.amt(1450) if rng.random() < 0.03 and not vacant else D(0))
             rows.append([unit, b, typ, sqft, 'vacant' if vacant else 'occupied', '' if vacant else f'{start}-01', '' if vacant else lease_end, '0.00' if vacant else f'{in_place:.2f}', f'{market:.2f}', f'{bal:.2f}'])
             if bal > 0: delinq.append([unit, b, f'{bal:.2f}', 30 if bal < ds.amt(2000) else 60])
             cond = rng.choices(['good', 'fair', 'poor'], [5, 3, 2 if b != 'A' else 1])[0]
@@ -750,14 +753,22 @@ def multifamily(ds):
     ds.ext('rent-roll', ['unit', 'building', 'type', 'sqft', 'status', 'lease_start', 'lease_end', 'in_place_rent', 'market_rent', 'balance_due'], rows, 'Rent roll at 30 September 2026')
     ds.ext('delinquency', ['unit', 'building', 'balance_due', 'days_past_due'], delinq, 'Delinquent balances at 30 September 2026')
     ds.ext('unit-inspections', ['unit', 'building', 'condition', 'estimated_repair_cost'], inspect, 'Unit-condition inspections with repair estimates')
-    gpr = ds.billed_arr()
+    return rows, delinq, ltl_sum, mkt_sum, repair
+
+def property_t12(ds):
     t12 = []
-    opex_total = D(0)
     for mo in LAST12:
         rent = sum(m2.get(mo, D(0)) for _, _, m2 in ds.customers)
-        other = ds.amt(4200); opex = q(rent * D('0.43')); opex_total += opex
+        other = ds.amt(4200); opex = q(rent * D('0.43'))
         t12.append([mo, f'{rent:.2f}', f'{other:.2f}', f'{opex:.2f}', f'{(rent + other - opex):.2f}'])
-    noi = sum(D(r[4]) for r in t12)
+    ds.ext('t12', ['month', 'rental_income', 'other_income', 'operating_expenses', 'net_operating_income'], t12, 'Trailing-twelve-month operating statement (T-12)')
+    return t12, sum(D(r[4]) for r in t12)
+
+def multifamily(ds):
+    ds.kind, ds.kind_label = 'rent', 'unit rent charge'
+    ds.summary = f'{ds.company} owns Larkfield Commons, a 96-unit garden-style apartment community in three buildings (A, B, C).'
+    rows, delinq, ltl_sum, mkt_sum, repair = property_units(ds, 'ABC', 32, 'C')
+    t12, noi = property_t12(ds)
     om_noi = whole(noi * D('1.11'))
     budget = ds.amt(1500) * 96
     c_share = D(sum(1 for d in delinq if d[1] == 'C')) / max(len(delinq), 1)
@@ -1024,12 +1035,175 @@ Board: two founder directors and one investor director.
         'Holders in the cap table are pseudonymous references (F-1, E-02, I-3); no names.',
     ]
 
+def waterfall(price, loan, rate, equity, hold, noi1, growth, cap, selling, pref, tiers, acq, am, disp):
+    """The investor waterfall, as Pactlab recomputes it (packages/calculations syndication/waterfall.ts,
+    syndication-waterfall-1): annual periods, interest-only debt, fees first, a European waterfall with
+    IRR hurdles. Kept here so the README can state what the PPM gets wrong; the acceptance test checks
+    the app agrees. Returns (irr %, equity multiple, average cash-on-cash %), each to 2 dp."""
+    from decimal import localcontext, ROUND_HALF_EVEN
+    with localcontext() as ctx:
+        ctx.prec = 40
+        one, zero = D(1), D(0)
+        reserves = equity - (price - loan) - price * acq
+        hurdles = [pref] + [h for h, _ in tiers if h is not None]
+        bal = [equity for _ in hurdles]
+        def dist(cash):
+            rest, lp, gp = cash, zero, zero
+            to_pref = min(rest, max(zero, bal[0])); lp += to_pref; rest -= to_pref
+            for i, (h, g) in enumerate(tiers):
+                if rest <= 0: break
+                share = one - g
+                piece = rest if h is None else min(rest, max(zero, bal[i + 1] - lp) / share)
+                lp += piece * share; gp += piece * g; rest -= piece
+            for k in range(len(bal)): bal[k] -= lp
+            return lp, gp
+        flows, op_lp = [-equity], zero
+        debt, fee = loan * rate, equity * am
+        for y in range(1, hold + 1):
+            bal[:] = [b * (one + r) for b, r in zip(bal, hurdles)]
+            cash = noi1 * (one + growth) ** (y - 1) - debt - fee
+            lp = zero
+            if cash > 0: lp, _ = dist(cash)
+            else: reserves += cash
+            op_lp += lp; flows.append(lp)
+        sale = noi1 * (one + growth) ** hold / cap
+        net = max(zero, sale - sale * selling - sale * disp - loan + reserves)
+        lp, _ = dist(net)
+        flows[-1] += lp
+        npv = lambda r: sum(f / (one + r) ** t for t, f in enumerate(flows))
+        lo, hi = D('-0.99'), D(10)
+        n_lo = npv(lo)
+        for _ in range(200):
+            mid = (lo + hi) / 2
+            v = npv(mid)
+            if v == 0 or hi - lo < D('1e-12'): lo = hi = mid; break
+            if (v > 0) == (n_lo > 0): lo, n_lo = mid, v
+            else: hi = mid
+        irr = (lo + hi) / 2
+        two = lambda x: x.quantize(D('0.01'), ROUND_HALF_EVEN)
+        distributed = sum(flows[1:])
+        return two(irr * 100), two(distributed / equity), two(op_lp / hold / equity * 100)
+
+def syndication(ds):
+    """Sponsor-side (T-106): Ashgrove Residential buys Briarwood Commons and raises the equity from accredited investors."""
+    ds.kind, ds.kind_label = 'rent', 'unit rent charge'
+    ds.summary = (f'{ds.company} is a multifamily sponsor buying Briarwood Commons, a 204-unit garden-style community in six buildings (A–F), '
+                  'and raising the equity from accredited investors under Rule 506(c). The seller is Briarwood Commons Owner LLC (synthetic).')
+    rows, delinq, ltl_sum, mkt_sum, repair = property_units(ds, 'ABCDEF', 34, 'C')
+    t12, noi = property_t12(ds)
+    c = ds.cur
+    hundred_k = lambda x: (D(x) / 100000).quantize(D('1'), ROUND_HALF_UP) * 100000
+    price = hundred_k(noi / D('0.06'))
+    loan = hundred_k(price * D('0.65'))
+    equity = hundred_k(price - loan + price * D('0.02') + price * D('0.015'))
+    tiers = [(D('0.15'), D('0.30')), (None, D('0.40'))]
+    irr, multiple, coc = waterfall(price, loan, D('0.05'), equity, 5, noi, D('0.03'), D('0.06'), D('0.02'), D('0.08'), tiers, D('0.02'), D('0.02'), D('0.01'))
+    stated_irr = (irr + D('4.6')).quantize(D('0.1'), ROUND_HALF_UP)
+    occupied = sum(1 for r in rows if r[4] == 'occupied')
+    occupancy = (D(occupied) / len(rows) * 100).quantize(D('0.1'), ROUND_HALF_UP)
+    om_noi = whole(noi * D('1.11'))
+    budget = ds.amt(1500) * 204
+    c_share = D(sum(1 for d in delinq if d[1] == 'C')) / max(len(delinq), 1)
+    ds.offering = dict(price=price, loan=loan, equity=equity, irr=irr, stated_irr=stated_irr, multiple=multiple, coc=coc, occupancy=occupancy)
+    ds.ext('track-record', ['deal', 'units', 'acquired_on', 'exited_on', 'status', 'projected_irr_pct', 'actual_irr_pct', 'projected_multiple', 'actual_multiple'], [
+        ['Cedar Hollow Apartments (synthetic)', 148, '2017-03-15', '2022-06-30', 'realized', '16.0', '21.0', '1.80', '2.05'],
+        ['Maple Run Townhomes (synthetic)', 96, '2018-05-01', '2023-09-15', 'realized', '15.0', '17.6', '1.75', '1.92'],
+        ['Harlow Court (synthetic)', 120, '2019-02-01', '2024-04-30', 'realized', '15.5', '15.2', '1.80', '1.78'],
+        ['Stonebridge Flats (synthetic)', 176, '2019-08-01', '2024-11-30', 'realized', '17.0', '', '1.90', ''],
+        ['Willow Park (synthetic)', 210, '2022-04-01', '', 'held', '16.5', '', '1.85', ''],
+    ], "Sponsor's track record: prior deals, projected and actual")
+    ds.doc('01-offering-memorandum', f"""
+Briarwood Commons — seller's offering memorandum (synthetic)
+
+204 units in six buildings. Stabilized net operating income: {money(c, om_noi)}.
+---page---
+Capital plan: {money(c, budget)} ({money(c, ds.amt(1500))} per door) covers all deferred maintenance.
+Rents are shown at pro-forma market levels.
+""", "Seller's offering memorandum with stated NOI and capital plan")
+    ds.doc('02-private-placement-memorandum', f"""
+Briarwood Investors LLC — confidential private placement memorandum (synthetic)
+
+Offering of membership interests under Rule 506(c) of Regulation D. Accredited investors only.
+Sponsor and manager: {ds.company}. Property: Briarwood Commons, 204 units.
+---page---
+The offering
+
+Purchase price: {money(c, price)}. Senior loan: {money(c, loan)}, interest-only at 5% a year.
+Equity raised from investors: {money(c, equity)}. Planned hold: 5 years.
+Occupancy at acquisition: {occupancy}%.
+NOI growth assumption: 3% per year. Exit cap rate assumption: 6%.
+---page---
+Summary of fees paid to the Manager
+
+Acquisition fee: 2% of the purchase price, paid at closing.
+Asset management fee: 2% of equity raised, paid each year.
+Disposition fee: 1% of the sale price, paid at sale.
+No other fees are paid to the Manager or its affiliates.
+---page---
+Distributions
+
+Preferred return: 8% per year to the investors, cumulative.
+Thereafter, 70% to the investors and 30% to the Manager until the investors reach a 15% IRR.
+Thereafter, 60% to the investors and 40% to the Manager.
+---page---
+Projected returns (not a guarantee)
+
+Projected investor IRR: {stated_irr}%.
+Projected equity multiple: {multiple}x.
+Projected average cash-on-cash return: {coc}%.
+""", 'Private placement memorandum: the offering, fee summary, distributions and projected returns')
+    ds.doc('03-operating-agreement', f"""
+Operating agreement of Briarwood Investors LLC (synthetic)
+
+Manager: {ds.company}. Investor Members: the accredited investors admitted under the offering.
+---page---
+Article 7. Compensation of the Manager
+
+7.1 Acquisition fee: 2% of the purchase price of the Property, paid at closing.
+7.2 Asset management fee: 2% of the capital contributed by the Investor Members, each year.
+7.3 Disposition fee: 1% of the gross sale price of the Property.
+7.4 Loan guarantee fee: 1% of the original loan amount, paid at closing.
+---page---
+Article 8. Distributions
+
+8.1 Preferred return: 8% per year, compounding annually, until the Investor Members have received their capital and the preferred return.
+8.2 Thereafter, 70% to the Investor Members and 30% to the Manager until the Investor Members reach a 15% IRR.
+8.3 Thereafter, 60% to the Investor Members and 40% to the Manager.
+""", 'Operating agreement: fees, preferred return and promote')
+    ds.doc('04-investor-deck', f"""
+{ds.company} — Briarwood Commons investor presentation (synthetic)
+
+A 204-unit garden-style community, bought below replacement cost.
+---page---
+Our track record
+
+Cedar Hollow Apartments delivered a 21.4% investor IRR.
+Maple Run Townhomes delivered a 17.9% investor IRR.
+Stonebridge Flats delivered a 19.2% investor IRR.
+""", "Sponsor's investor deck with its track record")
+    ds.findings = [
+        ('Offering memorandum NOI above the T-12', f"the seller's memorandum states {money(c, om_noi)}; `t12.csv` sums to {money(c, noi)}."),
+        ('Deferred maintenance above the capital plan', f'`unit-inspections.csv` estimates {money(c, repair)} of repairs against a {money(c, budget)} capital plan.'),
+        ('Delinquency concentrated in Building C', f'{pct(c_share)} of delinquent units in `delinquency.csv` are in Building C.'),
+        ('Loss-to-lease (upside, not price)', f'occupied units are {pct(ltl_sum / mkt_sum)} below market rent in `rent-roll.csv`.'),
+        ('Stated investor IRR inconsistent with the recomputed waterfall', f'planted defect (a), on the **Syndication** tab: the PPM states {stated_irr}%; the waterfall recomputed from the operating agreement on the base case gives {irr}% (`documents/02-private-placement-memorandum.pdf` page 5).'),
+        ('Track-record claim with no actuals behind it: Stonebridge Flats', 'planted defect (b), on the **Syndication** tab: the deck claims 19.2%; `track-record.csv` has no actual return for it (`documents/04-investor-deck.pdf` page 2).'),
+        ('Fee in the operating agreement missing from the PPM: loan guarantee fee', 'planted defect (c), on the **Syndication** tab: 1% of the loan in `documents/03-operating-agreement.pdf` page 2; the PPM fee summary (page 3) omits it.'),
+    ]
+    ds.notes = [
+        'Sponsor-side pack: you are the sponsor. The property side is the Multifamily pack, unchanged; the offering side reads the PPM, operating agreement and deck on the **Syndication** tab: **Read with AI** on each, confirm what it proposes, then **Run offering checks**.',
+        f'Offering terms for the **Syndication** tab: purchase price `{price:.0f}`, loan `{loan:.0f}` at `5`%, equity raised `{equity:.0f}`, hold `5` years, selling costs `2`%, Rule 506(c); paths (NOI growth / exit cap %): downside `1` / `6.5`, base `3` / `6`, upside `4.5` / `5.5`. Leave year-1 NOI empty to use the T-12.',
+        f'The waterfall recomputed on the base case: investor IRR {irr}%, equity multiple {multiple}x, average cash-on-cash {coc}%. The multiple and cash-on-cash the PPM states agree; the IRR does not.',
+        'Planted defect (d), a property finding the sponsor does not publish to investors, arrives with the investor view (T-106 PR 2).',
+        'Diligence support only: not legal advice, no accreditation determination, no securities-offering or broker-dealer function.',
+    ]
+
 PACKS = [
     ('software-saas', 'Brightwave Software', software), ('fintech', 'Tallyport Payments', fintech), ('healthcare', 'Riverside Care Partners', healthcare),
     ('telecom-media', 'Northlake Fibre', telecom), ('professional-services', 'Sablestone Consulting', services), ('pharma-biotech', 'Calvera Pharmaceuticals', pharma),
     ('ecommerce-dtc', 'Ridgeline Outfitters', ecommerce), ('hotels', 'Harbourview Hotel Holdings', hotels), ('multifamily', 'Larkfield Residential', multifamily),
     ('commercial-property', 'Quayside Estates', commercial), ('hospitals', 'St. Brennan Health', hospitals), ('small-clinics', 'Clearbrook Clinics', clinics),
-    ('venture-raise', 'Loopwise', venture),
+    ('venture-raise', 'Loopwise', venture), ('multifamily-syndication', 'Ashgrove Residential', syndication),
 ]
 
 if __name__ == '__main__':

@@ -59,6 +59,14 @@ export const REGULATORY_PROFILES: Readonly<Record<PackId, RegulatoryProfile>> = 
       { name: 'Centers for Medicare & Medicaid Services', scope: 'Change of ownership for provider agreements', theoryOfHarm: 'Continuity of participation and billing' },
     ),
   },
+  // The property side as Multifamily; the raise adds the exempt-offering rules the investors rely on.
+  MULTIFAMILY_SYNDICATION: {
+    depth: 'FULL',
+    authorities: extra(
+      { name: 'Local land-use and housing authorities', scope: 'Zoning, rent regulation and affordability covenants', theoryOfHarm: 'Covenant compliance and tenant protections' },
+      { name: 'Securities regulators', scope: 'Exempt-offering rules for the raise (Regulation D 506(b) or 506(c))', theoryOfHarm: 'Investor eligibility and disclosure' },
+    ),
+  },
   // A seed round has no merger review: the light screen keeps the checklist and the covenant tracker only.
   VENTURE_RAISE: { depth: 'LIGHT', authorities: [{ name: 'Securities regulators', scope: 'Exempt-offering rules for the round', theoryOfHarm: 'Investor eligibility and disclosure' }] },
 };

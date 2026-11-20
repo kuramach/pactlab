@@ -34,7 +34,15 @@ export const DOCUMENT_CATEGORIES = [
   'PEOPLE_RECORD',
   'OTHER',
 ] as const;
-export type DocumentCategory = (typeof DOCUMENT_CATEGORIES)[number];
+/**
+ * Categories a pack adds on top of the common ones (`PackDefinition.documentCategories`).
+ * A multifamily syndication (T-106) reads its offering documents: the PPM, the operating
+ * agreement and the investor deck, whose terms and claims are extracted for the sponsor to confirm.
+ */
+export const OFFERING_CATEGORIES = ['OFFERING_PPM', 'OPERATING_AGREEMENT', 'INVESTOR_DECK'] as const;
+export type OfferingCategory = (typeof OFFERING_CATEGORIES)[number];
+
+export type DocumentCategory = (typeof DOCUMENT_CATEGORIES)[number] | OfferingCategory;
 
 /** A file's category: a document category or one of the import targets. */
 export type IntakeCategory = DocumentCategory | ImportTarget;
@@ -130,6 +138,28 @@ const DOCUMENT_DEFINITIONS: Readonly<Record<DocumentCategory, CategoryDefinition
     route: { kind: 'FILE' },
     people: false,
   },
+  // Offering documents (T-106): kept and listed here; their terms are read on the Syndication page.
+  OFFERING_PPM: {
+    id: 'OFFERING_PPM',
+    label: 'Private placement memorandum',
+    description: 'A private placement memorandum (PPM) or offering memorandum for a real-estate syndication: the offering, fees, distributions and projected returns.',
+    route: { kind: 'FILE' },
+    people: false,
+  },
+  OPERATING_AGREEMENT: {
+    id: 'OPERATING_AGREEMENT',
+    label: 'Operating agreement',
+    description: 'The operating agreement (LLC or LP agreement) of the investing entity: capital, fees, preferred return, promote and distribution waterfall.',
+    route: { kind: 'FILE' },
+    people: false,
+  },
+  INVESTOR_DECK: {
+    id: 'INVESTOR_DECK',
+    label: 'Investor deck',
+    description: 'The sponsor\'s investor presentation: the deal, projected returns and the sponsor\'s track record.',
+    route: { kind: 'FILE' },
+    people: false,
+  },
 };
 
 const IMPORT_DESCRIPTIONS: Partial<Record<ImportTarget, string>> = {
@@ -164,6 +194,7 @@ export function categoryDefinition(id: IntakeCategory): CategoryDefinition {
 export function categoriesForPack(pack: PackDefinition): readonly CategoryDefinition[] {
   return [
     ...pack.importTargets.map(importDefinition),
+    ...(pack.documentCategories ?? []).map((id) => DOCUMENT_DEFINITIONS[id]),
     ...DOCUMENT_CATEGORIES.map((id) => DOCUMENT_DEFINITIONS[id]),
   ];
 }

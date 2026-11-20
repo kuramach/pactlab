@@ -43,6 +43,8 @@ export const DEAL_SECTION_RULES: Readonly<Record<string, (context: SectionContex
   '/regulatory': everywhere,
   '/claims': everywhere,
   '/raise': (context) => context.companyType === 'VENTURE_RAISE',
+  // The offering a sponsor raises equity on (T-106): terms, claims, track record and the waterfall check.
+  '/syndication': (context) => context.companyType === 'MULTIFAMILY_SYNDICATION',
   '/valuation': everywhere,
   '/foresight': everywhere,
   '/terms': buyerLedAcquisition,

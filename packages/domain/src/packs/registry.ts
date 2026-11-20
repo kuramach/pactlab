@@ -1,4 +1,5 @@
 import type { ImportTarget } from '../imports/targets';
+import type { OfferingCategory } from '../intake/categories';
 import type { ExpectedInput } from '../intake/checklist';
 import { COMPANY_TYPES, COMPANY_TYPE_LABELS, type CompanyType } from '../pacts/types';
 
@@ -39,6 +40,8 @@ export interface PackDefinition {
   readonly built: boolean;
   /** What intake expects to receive (T-098); absent → derived by `expectedInputs`. */
   readonly expectedInputs?: readonly ExpectedInput[];
+  /** Document categories only this pack offers at intake (e.g. a syndication's PPM), on top of the common ones. */
+  readonly documentCategories?: readonly OfferingCategory[];
 }
 
 /** What every pack starts with: the software core, which transfers as it is. */
@@ -57,6 +60,14 @@ const pack = (id: PackId, slug: string, cluster: PackCluster, built = false): Pa
   ...CORE,
   built,
 });
+
+const MULTIFAMILY: PackDefinition = {
+  ...pack('MULTIFAMILY', 'multifamily', 'real-estate', true),
+  importTargets: ['BILLING_INVOICE_LINE', 'MULTIFAMILY_RENT_ROLL', 'MULTIFAMILY_T12', 'MULTIFAMILY_DELINQUENCY', 'MULTIFAMILY_INSPECTION'],
+  metricCalculator: 'multifamily-metrics',
+  findingRules: ['multifamily-om-noi', 'multifamily-deferred-maintenance', 'multifamily-delinquency-concentration', 'multifamily-loss-to-lease'],
+  valuationMethods: ['NOI_CAP_RATE', 'DCF'],
+};
 
 export const PACKS: Readonly<Record<PackId, PackDefinition>> = {
   SOFTWARE_SAAS: {
@@ -102,13 +113,7 @@ export const PACKS: Readonly<Record<PackId, PackDefinition>> = {
     // Valuation methods unchanged; unit economics arrive as scenario inputs and channel risk as findings.
     valuationMethods: ['DCF', 'ARR_MULTIPLE'],
   },
-  MULTIFAMILY: {
-    ...pack('MULTIFAMILY', 'multifamily', 'real-estate', true),
-    importTargets: ['BILLING_INVOICE_LINE', 'MULTIFAMILY_RENT_ROLL', 'MULTIFAMILY_T12', 'MULTIFAMILY_DELINQUENCY', 'MULTIFAMILY_INSPECTION'],
-    metricCalculator: 'multifamily-metrics',
-    findingRules: ['multifamily-om-noi', 'multifamily-deferred-maintenance', 'multifamily-delinquency-concentration', 'multifamily-loss-to-lease'],
-    valuationMethods: ['NOI_CAP_RATE', 'DCF'],
-  },
+  MULTIFAMILY,
   COMMERCIAL_PROPERTY: {
     ...pack('COMMERCIAL_PROPERTY', 'commercial-property', 'real-estate', true),
     importTargets: ['BILLING_INVOICE_LINE', 'CRE_RENT_ROLL', 'CRE_CAM_RECONCILIATION'],
@@ -153,6 +158,18 @@ export const PACKS: Readonly<Record<PackId, PackDefinition>> = {
     ],
     // The round is the price: the founder's ask, adjusted by what the evidence forces.
     valuationMethods: ['ROUND_PRE_MONEY', 'ARR_MULTIPLE'],
+  },
+  // Sponsor-side (T-106): the Multifamily pack by reference — its targets, calculator, rules and
+  // methods flow through unchanged — plus the offering: the sponsor's track record and the PPM,
+  // operating agreement and investor deck the offering checks read.
+  MULTIFAMILY_SYNDICATION: {
+    ...MULTIFAMILY,
+    id: 'MULTIFAMILY_SYNDICATION',
+    slug: 'multifamily-syndication',
+    label: COMPANY_TYPE_LABELS.MULTIFAMILY_SYNDICATION,
+    importTargets: [...MULTIFAMILY.importTargets, 'SYNDICATION_TRACK_RECORD'],
+    findingRules: [...MULTIFAMILY.findingRules, 'syndication-track-record-thin'],
+    documentCategories: ['OFFERING_PPM', 'OPERATING_AGREEMENT', 'INVESTOR_DECK'],
   },
 };
 
