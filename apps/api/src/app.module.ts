@@ -11,7 +11,7 @@ import { AiModule } from './ai/ai.module';
 import { BalanceSheetModule } from './balance-sheet/balance-sheet.module';
 import { PhasesModule } from './phases/phases.module';
 import { CloseModule } from './close/close.module';
-import { FixturePropertyProvider, FixtureSigningProvider, type DocuSignOAuth, type PropertyDataProvider } from '@pactlab/connectors';
+import { FixturePropertyProvider, FixtureSigningProvider, type DocuSignOAuth, type PropertyDataProvider, type SigningProvider, type SigningWebhook } from '@pactlab/connectors';
 import { VentureModule } from './venture/venture.module';
 import { AdminModule } from './admin/admin.module';
 import { SourceHealthModule } from './sources/source-health.module';
@@ -101,7 +101,18 @@ export interface AppDependencies {
    * E-signature (T-107). `docusign`: Pactlab's app registration, which organizations connect
    * their own DocuSign accounts to. `fixture`: the fixture provider, outside production only.
    */
-  signing?: { fixture: boolean; docusign: { oauth: DocuSignOAuth; connectHmacKey: string; redirectUri: string } | null };
+  signing?: {
+    fixture: boolean;
+    docusign: { oauth: DocuSignOAuth; connectHmacKey: string; redirectUri: string } | null;
+    /** Pactlab's BoldSign account (T-136): the adapter and, once registered, its webhook. */
+    boldsign?: { provider: SigningProvider; webhook: SigningWebhook | null } | null;
+    /** What Pactlab signing sends with. Default: BoldSign when configured, else the fixture when on. */
+    pactlab?: 'BOLDSIGN' | 'FIXTURE' | null;
+    /** Until the production go: the only recipients envelopes may go to (addresses or `@domain`s). */
+    testRecipients?: readonly string[] | null;
+    /** How often the polling fallback asks about an open envelope (default one minute). */
+    pollIntervalMs?: number;
+  };
   /** Property data for teaser pages (batch 2): RentCast with a key; the fixture outside production; null hides the lookup. */
   property?: PropertyDataProvider | null;
   /**
@@ -237,6 +248,11 @@ export class AppModule {
         CloseModule.register({
           fixtureSigning: deps.signing?.fixture === false ? null : new FixtureSigningProvider(),
           docusign: deps.signing?.docusign ?? null,
+          boldsign: deps.signing?.boldsign ?? null,
+          pactlabSigning: deps.signing?.pactlab !== undefined ? deps.signing.pactlab : deps.signing?.boldsign ? 'BOLDSIGN' : deps.signing?.fixture === false ? null : 'FIXTURE',
+          testRecipients: deps.signing?.testRecipients ?? null,
+          appOrigin: webOrigin,
+          pollIntervalMs: deps.signing?.pollIntervalMs ?? 60_000,
           secrets: deps.providers?.secrets ?? null,
           stateSecret: deps.emailLogin?.tokenSecret ?? 'signing-state-unconfigured',
           documents: deps.documents?.objectStore ?? new UnavailableObjectStore(),

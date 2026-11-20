@@ -1,6 +1,8 @@
 # DocuSign e-signature (T-107, ADR 0022)
 
-Customers sign from **their own** DocuSign accounts. Pactlab only registers an app, its integration key, that their accounts connect to. Pactlab never sends envelopes from an account of its own.
+Customers sign from **their own** DocuSign accounts. Pactlab only registers an app, its integration key, that their accounts connect to. Pactlab never sends from a DocuSign account of its own.
+
+Since T-136 (ADR 0036), DocuSign is the second adapter on the signing seam. Pactlab signing (BoldSign, `signing.md`) is the default. An organization uses its DocuSign only once it is connected **and** an owner or admin chooses **Your DocuSign** in Settings → Signing. If that account is disconnected, new envelopes fall back to Pactlab signing, and the page says so.
 
 ## 1. Register Pactlab's app (once per DocuSign environment)
 
@@ -15,7 +17,7 @@ Customers sign from **their own** DocuSign accounts. Pactlab only registers an a
 5. **Connect** (Settings → Connect → Add configuration):
    - **Target URL:** `https://<api-origin>/v1/webhooks/signing/docusign`
    - **Format:** JSON (SIM).
-   - **Events:** Envelope Completed, Declined and Voided.
+   - **Events:** Envelope Delivered, Completed, Declined and Voided.
    - **HMAC:** enable it and copy the key.
 6. **Production:** apps start in DocuSign's developer environment (`account-d.docusign.com`). Before customers on production DocuSign accounts can connect, the app goes through DocuSign's **go-live review**. After that, set `DOCUSIGN_AUTH_HOST=account.docusign.com`.
 

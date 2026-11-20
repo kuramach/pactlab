@@ -9,18 +9,42 @@ async function asApp<T>(prisma: PrismaClient, fn: (tx: TransactionClient) => Pro
   });
 }
 
+type Provider = 'FIXTURE' | 'DOCUSIGN' | 'BOLDSIGN';
+type Observed = 'SENT' | 'DELIVERED' | 'COMPLETED' | 'DECLINED' | 'EXPIRED' | 'VOIDED';
+
 /**
- * E-signature outcomes (T-107). The provider's webhook carries no user session,
- * so the outcome is recorded through a SECURITY DEFINER function: it settles a
- * SENT envelope once and, on completion, records both sides' sign-offs.
- * Returns the envelope's pact, or null when unknown or already settled.
+ * E-signature outcomes (T-107, T-136). A provider's webhook carries no user session, so what it
+ * reports is recorded through SECURITY DEFINER functions, idempotently.
  */
 export const signingOutcomes = {
-  async record(prisma: PrismaClient, provider: 'FIXTURE' | 'DOCUSIGN', envelopeId: string, status: 'COMPLETED' | 'DECLINED' | 'VOIDED') {
+  /** T-107's recorder, kept for the release still running; new code records through `observe`. */
+  async record(prisma: PrismaClient, provider: Provider, envelopeId: string, status: 'COMPLETED' | 'DECLINED' | 'VOIDED') {
     const [row] = await asApp(prisma, (tx) =>
       tx.$queryRaw<{ organization_id: string; deal_id: string; batch_id: string; status: string }[]>`
         SELECT organization_id::text, deal_id::text, batch_id::text, status FROM app_signing_record(${provider}, ${envelopeId}, ${status})`,
     );
     return row ? { organizationId: row.organization_id, dealId: row.deal_id, batchId: row.batch_id, status: row.status } : null;
+  },
+
+  /**
+   * One provider observation (T-136): `eventId` names it, so a second delivery changes nothing; the
+   * status only moves forward. Returns the envelope when this call changed it, else null.
+   */
+  async observe(prisma: PrismaClient, input: { provider: Provider; envelopeId: string; status: Observed; reason: string | null; eventId: string; source: 'WEBHOOK' | 'POLL' }) {
+    const [row] = await asApp(prisma, (tx) =>
+      tx.$queryRaw<{ envelope_row_id: string; organization_id: string; deal_id: string; batch_id: string; loi_id: string | null; status: string }[]>`
+        SELECT envelope_row_id::text, organization_id::text, deal_id::text, batch_id::text, loi_id::text, status
+          FROM app_signing_event(${input.provider}, ${input.envelopeId}, ${input.status}, ${input.reason}, ${input.eventId}, ${input.source})`,
+    );
+    return row ? { envelopeRowId: row.envelope_row_id, organizationId: row.organization_id, dealId: row.deal_id, batchId: row.batch_id, loiId: row.loi_id, status: row.status as Observed } : null;
+  },
+
+  /** A completed envelope's signed file or certificate, already stored under `objectKey`; true when recorded now. */
+  async artifact(prisma: PrismaClient, input: { envelopeRowId: string; kind: 'SIGNED_DOCUMENT' | 'CERTIFICATE'; objectKey: string; sha256: string; sizeBytes: number }) {
+    const [row] = await asApp(prisma, (tx) =>
+      tx.$queryRaw<{ recorded: boolean }[]>`
+        SELECT app_signing_artifact(${input.envelopeRowId}::uuid, ${input.kind}, ${input.objectKey}, ${input.sha256}, ${input.sizeBytes}::int) AS recorded`,
+    );
+    return row?.recorded === true;
   },
 };

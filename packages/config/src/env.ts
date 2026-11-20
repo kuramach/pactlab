@@ -142,6 +142,39 @@ export const apiEnvSchema = baseEnvSchema.extend({
   /** The Connect HMAC key that signs DocuSign's envelope events to this deployment. */
   DOCUSIGN_CONNECT_HMAC_KEY: unsetIfBlank(nonEmpty.optional()),
   /**
+   * Signing (T-136, ADR 0036): the adapters this deployment may send new envelopes with, the first
+   * being its default — `fixture` (test signing, never in production) and/or `boldsign` (Pactlab
+   * signing). Unset: `fixture` outside production, none in production. An organization's own
+   * DocuSign is offered on top whenever the DOCUSIGN_* registration is configured.
+   */
+  SIGNING_PROVIDER: unsetIfBlank(
+    z
+      .string()
+      .regex(/^\s*(fixture|boldsign)(\s*,\s*(fixture|boldsign))*\s*$/, 'comma-separated: fixture, boldsign')
+      .transform((value) => [...new Set(value.split(',').map((entry) => entry.trim() as 'fixture' | 'boldsign'))])
+      .optional(),
+  ),
+  /** Pactlab's BoldSign API key (BoldSign: Settings > API Keys), from Secrets Manager. Unset or `unset`: BoldSign off. */
+  BOLDSIGN_API_KEY: unsetIfBlank(z.string().min(1).optional()).transform((value) => (value === 'unset' ? undefined : value)),
+  /** BoldSign's API origin for the account's region. */
+  BOLDSIGN_API_BASE_URL: unsetIfBlank(z.url({ protocol: /^https$/ }).default('https://api.boldsign.com')),
+  /** The signing secret of the webhook registered for this deployment's public endpoint. Unset: polling carries status. */
+  BOLDSIGN_WEBHOOK_SECRET: unsetIfBlank(z.string().min(1).optional()).transform((value) => (value === 'unset' ? undefined : value)),
+  /**
+   * Until the production go, envelopes go only to these test recipients: addresses or `@domain`s,
+   * comma-separated. Required whenever BoldSign is on and BOLDSIGN_PRODUCTION_SENDING is not `true`.
+   */
+  SIGNING_TEST_RECIPIENTS: z.preprocess(
+    (value) => (value === '' || value === 'unset' ? undefined : value),
+    z
+      .string()
+      .regex(/^\s*(@?[^\s,@]+(@[^\s,@]+)?)(\s*,\s*@?[^\s,@]+(@[^\s,@]+)?)*\s*$/, 'comma-separated addresses or @domains')
+      .transform((value) => value.split(',').map((entry) => entry.trim().toLowerCase()).filter(Boolean))
+      .optional(),
+  ),
+  /** The production go (a later, separate decision): BoldSign may send to any counterparty. */
+  BOLDSIGN_PRODUCTION_SENDING: z.enum(['true', 'false']).default('false').transform((value) => value === 'true'),
+  /**
    * Self-hosted Jira servers this deployment may reach, comma-separated host
    * names (e.g. `issues.apache.org`). Atlassian Cloud sites are always allowed;
    * a self-hosted host is reachable only when listed here (T-082).
@@ -225,6 +258,12 @@ export const apiEnvSchema = baseEnvSchema.extend({
     }
     if (value.AI_PROVIDER === 'bedrock' && !value.AWS_REGION) {
       context.addIssue({ code: 'custom', path: ['AWS_REGION'], message: 'required when AI_PROVIDER is bedrock' });
+    }
+    if (value.SIGNING_PROVIDER?.includes('fixture') && value.APP_ENV === 'production') {
+      context.addIssue({ code: 'custom', path: ['SIGNING_PROVIDER'], message: 'fixture signing is never used in production' });
+    }
+    if (value.SIGNING_PROVIDER?.includes('boldsign') && value.BOLDSIGN_API_KEY && !value.BOLDSIGN_PRODUCTION_SENDING && !value.SIGNING_TEST_RECIPIENTS?.length) {
+      context.addIssue({ code: 'custom', path: ['SIGNING_TEST_RECIPIENTS'], message: 'required until BOLDSIGN_PRODUCTION_SENDING is true: envelopes go to test recipients only' });
     }
     if (value.EMAIL_PROVIDER === 'ses') {
       for (const key of ['EMAIL_FROM', 'AWS_REGION'] as const) {

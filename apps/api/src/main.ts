@@ -1,7 +1,7 @@
 import { apiEnvSchema, applyDatabaseUrls, loadConfig, packPreviewEnabled } from '@pactlab/config';
 import { assertRuntimeRoleIsolation, createPrismaClient, S3ObjectStore } from '@pactlab/db';
 import { readFileSync } from 'node:fs';
-import { DocuSignOAuth, FixturePropertyProvider, LocalEncryptedSecretStore, parseSelfHostedHosts, RentCastPropertyProvider, StripeBillingProvider, UnconfiguredBillingProvider } from '@pactlab/connectors';
+import { BoldSignSigningProvider, BoldSignWebhook, DocuSignOAuth, FixturePropertyProvider, LocalEncryptedSecretStore, parseSelfHostedHosts, RentCastPropertyProvider, StripeBillingProvider, UnconfiguredBillingProvider } from '@pactlab/connectors';
 import { createLogger } from '@pactlab/observability';
 import { S3Client } from '@aws-sdk/client-s3';
 import { SESv2Client } from '@aws-sdk/client-sesv2';
@@ -79,6 +79,8 @@ const providers = {
       : null,
 };
 
+// Pactlab signing's adapters here (T-136): unset, the fixture outside production and none in production.
+const signingAdapters = config.SIGNING_PROVIDER ?? (config.APP_ENV === 'production' ? [] : ['fixture']);
 const app = await createApp(
   {
     prisma,
@@ -125,10 +127,22 @@ const app = await createApp(
       automaticTax: config.STRIPE_AUTOMATIC_TAX,
     },
     property: config.RENTCAST_API_KEY ? new RentCastPropertyProvider(config.RENTCAST_API_KEY) : config.APP_ENV === 'production' ? null : new FixturePropertyProvider(),
-    // E-signature (T-107): organizations connect their own DocuSign to Pactlab's app registration;
-    // the fixture provider stands in outside production.
+    // E-signature (T-107) on the signing seam (T-136): SIGNING_PROVIDER lists the adapters Pactlab
+    // signing may use here, the first being the default (unset: the fixture outside production).
+    // Organizations may instead send from their own DocuSign, connected to Pactlab's registration.
     signing: {
-      fixture: config.APP_ENV !== 'production',
+      fixture: signingAdapters.includes('fixture'),
+      // The first listed adapter that can serve: BoldSign once its key is set, else the next one listed.
+      pactlab: signingAdapters.map((adapter) => (adapter === 'boldsign' ? (config.BOLDSIGN_API_KEY ? 'BOLDSIGN' : null) : 'FIXTURE')).find((adapter) => adapter !== null) ?? null,
+      boldsign:
+        signingAdapters.includes('boldsign') && config.BOLDSIGN_API_KEY
+          ? {
+              provider: new BoldSignSigningProvider({ apiKey: config.BOLDSIGN_API_KEY, baseUrl: config.BOLDSIGN_API_BASE_URL }),
+              // Until a public endpoint is registered with BoldSign, the polling fallback carries status.
+              webhook: config.BOLDSIGN_WEBHOOK_SECRET ? new BoldSignWebhook(config.BOLDSIGN_WEBHOOK_SECRET) : null,
+            }
+          : null,
+      testRecipients: config.BOLDSIGN_PRODUCTION_SENDING ? null : (config.SIGNING_TEST_RECIPIENTS ?? null),
       docusign:
         config.DOCUSIGN_INTEGRATION_KEY && config.DOCUSIGN_CLIENT_SECRET && config.DOCUSIGN_AUTH_HOST && config.DOCUSIGN_CONNECT_HMAC_KEY
           ? {

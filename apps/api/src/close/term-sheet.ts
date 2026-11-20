@@ -1,8 +1,9 @@
 import { createHash } from 'node:crypto';
+import { signHereMarker } from '@pactlab/connectors';
 import { PDFDocument, rgb, StandardFonts, type PDFFont, type PDFPage } from 'pdf-lib';
 
-/** Where each signatory signs; DocuSign places its sign-here tab on these strings (T-107). */
-export const SIGN_ANCHORS = { BUYER: '/pl-buyer-sign/', SELLER: '/pl-seller-sign/' } as const;
+/** Where each signatory signs: the seam's marker for signer 1 (buyer) and 2 (seller), which every signing adapter places a signature on (T-136). */
+export const SIGN_ANCHORS = { BUYER: signHereMarker(1), SELLER: signHereMarker(2) } as const;
 
 export const TERM_TITLES: Readonly<Record<string, string>> = {
   PURCHASE_PRICE: 'Purchase price',
@@ -83,7 +84,8 @@ export async function termSheetPdf(input: TermSheetInput): Promise<{ bytes: Uint
   ] as const) {
     write(`For the ${side.toLowerCase()}: ${name}`, bold, 11);
     // The anchor is printed in white where the signature goes, for the e-signature provider to find.
-    page.drawText(anchor, { x: 50, y, size: 8, font: regular, color: rgb(1, 1, 1) });
+    // Large enough that a tag-based provider sizes a usable signature field from it (T-136).
+    page.drawText(anchor, { x: 50, y, size: 14, font: regular, color: rgb(1, 1, 1) });
     page.drawLine({ start: { x: 50, y: y - 4 }, end: { x: 300, y: y - 4 }, thickness: 0.5, color: rgb(0.5, 0.5, 0.5) });
     y -= 40;
   }

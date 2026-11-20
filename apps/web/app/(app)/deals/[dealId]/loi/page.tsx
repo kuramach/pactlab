@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { apiGet } from '../../_lib/api';
 import { OutcomeBanner } from '../../_lib/outcome';
 import { ApiState } from '../../_lib/states';
+import { SigningPanel } from '../../_lib/signing-panel';
 import { declineLoi, draftLoi, fixtureSignLoi, saveLoiFields, sendLoi, setLoiRequired, signLoi } from './actions';
 
 export const dynamic = 'force-dynamic';
@@ -27,7 +28,9 @@ const OUTCOMES: Record<string, string> = {
   'error-LOI_INCOMPLETE': 'Fill the governing law and name both signatories (Closing) before sending.',
   'error-LOI_BUYER_SIGNS_FIRST': 'The buyer signs first; you countersign after.',
   'error-LOI_DRAFT_OPEN': 'A draft is already open.',
-  'error-ESIGN_UNAVAILABLE': 'E-signature isn’t set up for your organization. Send it to sign in Pactlab, or connect DocuSign in Settings.',
+  'error-ESIGN_UNAVAILABLE': 'E-signature isn’t available for your organization right now. Send it to sign in Pactlab, or check Settings → Signing.',
+  'error-ESIGN_TEST_RECIPIENTS_ONLY': 'This environment sends envelopes to test recipients only, and a signatory’s address isn’t one. Nothing was sent; send it to sign in Pactlab instead.',
+  'ok-esign-returned': 'Back from signing. The status below updates as soon as the provider confirms it.',
   'error-DEMO_NOT_AVAILABLE': 'E-signature is off in a shared demo; sign in Pactlab instead.',
   invalid: 'Check the values and try again.',
   forbidden: 'That is for the deal lead or the named signatory.',
@@ -181,6 +184,7 @@ export default async function LoiPage({ params, searchParams }: { params: Promis
             </div>
             <p className="text-sm font-semibold">{current.content.signatureNote}</p>
             <p className="text-xs text-muted-foreground">{current.content.notice}</p>
+            <SigningPanel dealId={dealId} subject="LOI" />
             <div className="flex flex-wrap items-center gap-3 text-sm">
               {current.canSend ? (
                 <>

@@ -1,13 +1,14 @@
-import { ConflictException, ForbiddenException, Inject, Injectable, NotFoundException, ServiceUnavailableException, UnprocessableEntityException } from '@nestjs/common';
-import { SigningProviderError } from '@pactlab/connectors';
+import { ConflictException, ForbiddenException, Inject, Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import type { LoiView } from '@pactlab/contracts';
-import { appendAuditEvent, signingOutcomes, withTenant, type PrismaClient, type TransactionClient } from '@pactlab/db';
+import { appendAuditEvent, withTenant, type PrismaClient, type TransactionClient } from '@pactlab/db';
 import { newId, permissionsForDealRole, type DealRole, type TenantContext } from '@pactlab/domain';
 import { DealAccess } from '../deals/deal-access';
 import { DOCUMENT_OBJECT_STORE, type DocumentObjectStore } from '../documents/documents.repository';
 import { termSide } from '../pricing/pricing.service';
+import { SigningService } from '../signing/signing.service';
 import { PRISMA } from '../tokens';
-import { CLOSE_DEPENDENCIES, CloseService, type CloseDependencies } from './close.service';
+import { CLOSE_DEPENDENCIES, type CloseDependencies } from './close.dependencies';
+import { CloseService } from './close.service';
 import { DEFAULT_LOI_FIELDS, loiContent, loiFieldsSchema, type LoiContent, type LoiFields } from './loi-content';
 import { documentBrand } from '../brand/document-brand';
 import { loiPdf } from './loi-pdf';
@@ -33,6 +34,7 @@ export class LoiService {
     @Inject(CloseService) private readonly close: CloseService,
     @Inject(DOCUMENT_OBJECT_STORE) private readonly documents: DocumentObjectStore,
     @Inject(CLOSE_DEPENDENCIES) private readonly deps: CloseDependencies,
+    @Inject(SigningService) private readonly signing: SigningService,
   ) {}
 
   private audit(tx: TransactionClient, tenant: TenantContext, dealId: string, action: string, targetId: string, requestId: string) {
@@ -78,6 +80,8 @@ export class LoiService {
   async view(tenant: TenantContext, dealId: string, requestId: string): Promise<LoiView> {
     const role = await this.access.require(tenant, dealId, canRead, { action: 'loi.viewed', requestId });
     const side = termSide(role);
+    // The polling fallback (T-136): an envelope settled at the provider settles the letter here too.
+    await this.signing.reconcile(tenant, dealId);
     return withTenant(this.prisma, tenant, async (tx) => {
       await this.expire(tx, tenant, dealId, requestId);
       const [deal, versions, agreed, buyer, seller] = await Promise.all([
@@ -179,27 +183,30 @@ export class LoiService {
       const objectKey = `${tenant.organizationId}/${dealId}/loi/${row.id}.pdf`;
       await this.documents.put(objectKey, pdf.bytes, { contentType: 'application/pdf', sha256: pdf.sha256 } as never);
       if (method === 'ESIGN') {
-        const signing = await this.close.provider(tx, tenant);
-        if (!signing) throw new UnprocessableEntityException({ code: 'ESIGN_UNAVAILABLE' });
         const [buyerUser, sellerUser] = [people.get(buyer.userId), people.get(seller.userId)];
         if (!buyerUser?.email || !sellerUser?.email) throw new UnprocessableEntityException({ code: 'SIGNATORY_EMAIL_MISSING' });
-        let envelopeId: string;
-        try {
-          ({ envelopeId } = await signing.provider.createEnvelope({
-            emailSubject: `Sign the letter of intent (v${row.version})`,
-            documents: [{ name: `Letter of intent v${row.version}`, fileExtension: 'pdf', bytes: pdf.bytes }],
-            signers: [
-              { email: buyerUser.email, name: buyerUser.displayName, anchor: SIGN_ANCHORS.BUYER },
-              { email: sellerUser.email, name: sellerUser.displayName, anchor: SIGN_ANCHORS.SELLER },
-            ],
-          }));
-        } catch (error) {
-          if (error instanceof SigningProviderError) throw new ServiceUnavailableException({ code: error.kind === 'AUTH' ? 'ESIGN_RECONNECT' : 'ESIGN_UNAVAILABLE' });
-          throw error;
-        }
-        await tx.signatureEnvelope.create({
-          data: { id: newId(), organizationId: tenant.organizationId, dealId, batchId: row.batchId, loiId: row.id, provider: signing.name, providerEnvelopeId: envelopeId, termSheetSha256: pdf.sha256, buyerSignatory: buyer.userId, sellerSignatory: seller.userId, sentBy: tenant.userId },
-        });
+        // Through the signing seam (T-136): the organization's provider; it expires with the letter's answer date.
+        await this.signing.send(
+          tx,
+          tenant,
+          {
+            dealId,
+            batchId: row.batchId,
+            loiId: row.id,
+            documentSha256: pdf.sha256,
+            buyerSignatory: buyer.userId,
+            sellerSignatory: seller.userId,
+            request: {
+              emailSubject: `Sign the letter of intent (v${row.version})`,
+              documents: [{ name: `Letter of intent v${row.version}.pdf`, fileExtension: 'pdf', bytes: pdf.bytes }],
+              signers: [
+                { email: buyerUser.email, name: buyerUser.displayName, anchor: SIGN_ANCHORS.BUYER },
+                { email: sellerUser.email, name: sellerUser.displayName, anchor: SIGN_ANCHORS.SELLER },
+              ],
+              expiresInDays: fields.responseDays,
+            },
+          },
+        );
       }
       await tx.loiVersion.update({
         where: { id: row.id },
@@ -254,13 +261,13 @@ export class LoiService {
     const fixture = this.deps.fixtureSigning;
     if (!fixture) throw new NotFoundException();
     const envelope = await withTenant(this.prisma, tenant, async (tx) => {
-      const sent = await tx.signatureEnvelope.findFirst({ where: { loiId, dealId, status: 'SENT', provider: 'FIXTURE' } });
+      const sent = await tx.signatureEnvelope.findFirst({ where: { loiId, dealId, status: { in: ['SENT', 'DELIVERED'] }, provider: 'FIXTURE' } });
       if (!sent) throw new ConflictException('No open fixture envelope');
       if ((termSide(role) === 'BUYER' ? sent.buyerSignatory : sent.sellerSignatory) !== tenant.userId) throw new ForbiddenException('Only the named signatory signs');
       const me = await tx.user.findUnique({ where: { id: tenant.userId }, select: { email: true } });
       return { id: sent.providerEnvelopeId, email: me?.email ?? '' };
     });
-    if (fixture.sign(envelope.id, envelope.email) === 'COMPLETED') await signingOutcomes.record(this.prisma, 'FIXTURE', envelope.id, 'COMPLETED');
+    await this.signing.fixtureSettled(envelope.id, fixture.sign(envelope.id, envelope.email), null);
     return this.view(tenant, dealId, requestId);
   }
 

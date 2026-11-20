@@ -63,6 +63,8 @@ export const prodConfig: EnvironmentConfig = {
       inferenceProfiles: ['us.anthropic.claude-*'],
       modelOverrides: { balanced: 'us.anthropic.claude-sonnet-4-6', deep_review: 'us.anthropic.claude-opus-4-6-v1', fast: 'us.anthropic.claude-haiku-4-5-20251001-v1:0' },
     },
+    // Pactlab signing (T-136): BoldSign's SANDBOX account until the production go; envelopes go to test recipients only.
+    signing: { providers: ['boldsign'] },
     // A new organization waits for an operator's approval.
     signupRequiresApproval: true,
     // Emailed on every sign-up waiting for approval, so nobody waits unnoticed (Kumar, 2026-11-05).

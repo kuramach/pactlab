@@ -85,7 +85,12 @@ describe('dev: the running application (ADR 0019)', () => {
     // Dev: new organizations are active at once, so sign-up can be tested end to end.
     expect(environment['SIGNUP_REQUIRES_APPROVAL']).toBe('false');
     expect(Object.keys(environment).some((name) => /PASSWORD|SECRET/.test(name))).toBe(false);
-    expect(api?.Secrets?.map((secret) => secret.Name).sort()).toEqual(['ANTHROPIC_API_KEY', 'AUTH_TOKEN_SECRET', 'DB_PASSWORD', 'GOOGLE_API_KEY', 'OPENAI_API_KEY']);
+    expect(api?.Secrets?.map((secret) => secret.Name).sort()).toEqual(['ANTHROPIC_API_KEY', 'AUTH_TOKEN_SECRET', 'BOLDSIGN_API_KEY', 'BOLDSIGN_WEBHOOK_SECRET', 'DB_PASSWORD', 'GOOGLE_API_KEY', 'OPENAI_API_KEY', 'SIGNING_TEST_RECIPIENTS']);
+    // Pactlab signing (T-136): BoldSign preferred once its key is set, test signing until then; its secrets start `unset`.
+    expect(environment['SIGNING_PROVIDER']).toBe('boldsign,fixture');
+    for (const name of ['boldsign-api-key', 'boldsign-webhook-secret', 'test-recipients']) {
+      template.hasResourceProperties('AWS::SecretsManager::Secret', { Name: `pactlab/dev/signing/${name}`, SecretString: 'unset' });
+    }
     const migrate = definitions.flatMap((definition) => definition.Properties.ContainerDefinitions).find((container) => container.Name === 'migrate');
     expect(migrate?.Secrets?.map((secret) => secret.Name).sort()).toEqual(['DB_OWNER_PASSWORD', 'DB_OWNER_USER', 'DB_PASSWORD']);
   });

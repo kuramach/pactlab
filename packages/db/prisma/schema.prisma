@@ -456,6 +456,8 @@ model Organization {
   icApprovalRequired     Boolean                @default(false) @map("ic_approval_required")
   /// Conditions an IC sets are cleared by the IC, not only addressed by the deal team.
   icClearsConditions     Boolean                @default(false) @map("ic_clears_conditions")
+  /// Which provider new envelopes go out with (T-136): PACTLAB (Pactlab signing) or DOCUSIGN (its own connected DocuSign).
+  signingProvider        String                 @default("PACTLAB") @map("signing_provider")
   createdAt              DateTime               @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt              DateTime               @updatedAt @map("updated_at") @db.Timestamptz(3)
 
@@ -2710,10 +2712,10 @@ model SignatureEnvelope {
   organizationId      String    @map("organization_id") @db.Uuid
   dealId              String    @map("deal_id") @db.Uuid
   batchId             String    @map("batch_id") @db.Uuid
-  /// FIXTURE | DOCUSIGN
+  /// FIXTURE | DOCUSIGN | BOLDSIGN: the provider it was sent with, which it finishes on.
   provider            String
   providerEnvelopeId  String    @map("provider_envelope_id")
-  /// SENT | COMPLETED | DECLINED | VOIDED
+  /// SENT | DELIVERED | COMPLETED | DECLINED | EXPIRED | VOIDED
   status              String    @default("SENT")
   termSheetSha256     String    @map("term_sheet_sha256") @db.Char(64)
   agreementDocumentId String?   @map("agreement_document_id") @db.Uuid
@@ -2724,12 +2726,58 @@ model SignatureEnvelope {
   completedAt         DateTime? @map("completed_at") @db.Timestamptz(3)
   /// Set when the envelope carries a letter of intent rather than the terms (T-119).
   loiId               String?   @map("loi_id") @db.Uuid
+  /// The provider's reason for a decline, expiry or void, where it gives one (T-136).
+  statusReason        String?   @map("status_reason")
+  statusChangedAt     DateTime? @map("status_changed_at") @db.Timestamptz(3)
+  /// When the polling fallback last asked the provider.
+  checkedAt           DateTime? @map("checked_at") @db.Timestamptz(3)
 
-  batch TermProposalBatch @relation(fields: [organizationId, dealId, batchId], references: [organizationId, dealId, id], onDelete: Restrict, map: "signature_envelopes_batch_fkey")
+  batch     TermProposalBatch      @relation(fields: [organizationId, dealId, batchId], references: [organizationId, dealId, id], onDelete: Restrict, map: "signature_envelopes_batch_fkey")
+  events    SigningEnvelopeEvent[]
+  artifacts SigningArtifact[]
 
   @@unique([provider, providerEnvelopeId], map: "signature_envelopes_provider_key")
   @@index([batchId, sentAt], map: "signature_envelopes_batch_idx")
   @@map("signature_envelopes")
+}
+
+/// An envelope's timeline (T-136): one row per provider observation; the webhook deduplication key.
+model SigningEnvelopeEvent {
+  id              String   @id @default(uuid(7)) @db.Uuid
+  organizationId  String   @map("organization_id") @db.Uuid
+  dealId          String   @map("deal_id") @db.Uuid
+  envelopeId      String   @map("envelope_id") @db.Uuid
+  /// SENT | DELIVERED | COMPLETED | DECLINED | EXPIRED | VOIDED
+  status          String
+  reason          String?
+  /// APP | WEBHOOK | POLL
+  source          String
+  providerEventId String   @map("provider_event_id")
+  receivedAt      DateTime @default(now()) @map("received_at") @db.Timestamptz(3)
+
+  envelope SignatureEnvelope @relation(fields: [envelopeId], references: [id], onDelete: Restrict, map: "signing_envelope_events_envelope_fkey")
+
+  @@unique([envelopeId, providerEventId], map: "signing_envelope_events_dedup_key")
+  @@map("signing_envelope_events")
+}
+
+/// A completed envelope's signed PDF or certificate of completion, stored byte-for-byte (T-136).
+model SigningArtifact {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  dealId         String   @map("deal_id") @db.Uuid
+  envelopeId     String   @map("envelope_id") @db.Uuid
+  /// SIGNED_DOCUMENT | CERTIFICATE
+  kind           String
+  objectKey      String   @map("object_key")
+  sha256         String   @db.Char(64)
+  sizeBytes      Int      @map("size_bytes")
+  storedAt       DateTime @default(now()) @map("stored_at") @db.Timestamptz(3)
+
+  envelope SignatureEnvelope @relation(fields: [envelopeId], references: [id], onDelete: Restrict, map: "signing_artifacts_envelope_fkey")
+
+  @@unique([envelopeId, kind], map: "signing_artifacts_kind_key")
+  @@map("signing_artifacts")
 }
 
 /// An organization's own provider account (T-107: DocuSign). The token lives in the secret store.

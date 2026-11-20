@@ -1,5 +1,6 @@
 import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, EmptyState, HumanBadge } from '@pactlab/ui';
 import Link from 'next/link';
+import { SigningPanel } from '../../_lib/signing-panel';
 import { apiGet } from '../../_lib/api';
 import { OutcomeBanner } from '../../_lib/outcome';
 import { ApiState } from '../../_lib/states';
@@ -23,7 +24,7 @@ interface CloseView {
     agreedAt: string;
     declinedAt: string | null;
     signoffs: { side: Side; name: string; method: 'IN_APP' | 'ESIGN'; signedAt: string }[];
-    envelope: { provider: 'FIXTURE' | 'DOCUSIGN'; status: string; sentAt: string; signedBy: Side[] } | null;
+    envelope: { id: string; provider: 'FIXTURE' | 'DOCUSIGN' | 'BOLDSIGN'; providerLabel: string; status: string; reason: string | null; sentAt: string; signedBy: Side[] } | null;
   } | null;
   items: {
     id: string;
@@ -36,7 +37,7 @@ interface CloseView {
     dispute: { note: string; at: string } | null;
     done: { by: string; at: string } | null;
   }[];
-  esign: { provider: 'FIXTURE' | 'DOCUSIGN' | null };
+  esign: { provider: 'FIXTURE' | 'DOCUSIGN' | 'BOLDSIGN' | null; label: string | null; note: string | null };
   financing: { headline: string; escrow: string | null; contingency: { amount: string; currency: string; dueOn: string | null; met: boolean } | null } | null;
   missing: string[];
   closed: { at: string; buyer: string; seller: string } | null;
@@ -48,8 +49,9 @@ const OUTCOMES: Record<string, string> = {
   'ok-signatory': 'Signatory named.',
   'ok-signed': 'Signed off.',
   'ok-declined': 'Declined. Agree a new version on Proposed terms.',
-  'ok-sent': 'Sent for e-signature. Each signatory signs from the email, or here in a test environment.',
+  'ok-sent': 'Sent for e-signature. Each signatory signs here (Pactlab signing), or from DocuSign’s email when sent with your DocuSign.',
   'ok-esigned': 'Signed.',
+  'ok-esign-returned': 'Back from signing. The status below updates as soon as the provider confirms it.',
   'ok-item': 'Added to the checklist.',
   'ok-ticked': 'Ticked.',
   'ok-paid': 'Payment recorded. The seller confirms receipt.',
@@ -62,7 +64,8 @@ const OUTCOMES: Record<string, string> = {
   forbidden: 'That belongs to the other side, or to the signatory.',
   'error-LOI_REQUIRED': 'This pact needs a countersigned letter of intent before the definitive terms are signed. See Valuation → Letter of intent.',
   'error-IC_APPROVAL_REQUIRED': 'Your investment committee approves this pact before you sign. See Close → Investment committee.',
-  'error-ESIGN_UNAVAILABLE': 'E-signature isn’t set up for your organization. Connect DocuSign in Settings, or sign off in Pactlab.',
+  'error-ESIGN_UNAVAILABLE': 'E-signature isn’t available right now. Try again shortly, check Settings → Signing, or sign off in Pactlab.',
+  'error-ESIGN_TEST_RECIPIENTS_ONLY': 'This environment sends envelopes to test recipients only, and a signatory’s address isn’t one. Sign off in Pactlab instead.',
   'error-ESIGN_RECONNECT': 'Your DocuSign connection has expired. An admin reconnects it in Settings.',
 };
 
@@ -113,7 +116,7 @@ function Signing({ dealId, view }: { dealId: string; view: CloseView }) {
   }
   const me = view.me.side;
   const iAmSignatory = me !== null && view.signatories[me] !== null && agreed.signoffs.every((signoff) => signoff.side !== me);
-  const sent = agreed.envelope?.status === 'SENT';
+  const sent = agreed.envelope?.status === 'SENT' || agreed.envelope?.status === 'DELIVERED';
   const started = agreed.signoffs.length > 0 || sent;
   return (
     <div className="flex flex-col gap-3 text-sm">
@@ -142,7 +145,7 @@ function Signing({ dealId, view }: { dealId: string; view: CloseView }) {
       {sent ? (
         <div className="flex flex-col gap-2 rounded-lg border border-border p-3">
           <span>
-            Out for e-signature ({agreed.envelope?.provider === 'DOCUSIGN' ? 'DocuSign' : 'test e-signature'}) since {agreed.envelope?.sentAt.slice(0, 10)}.
+            Out for e-signature ({agreed.envelope?.providerLabel}) since {agreed.envelope?.sentAt.slice(0, 10)}.
             {agreed.envelope?.signedBy.length ? ` Signed so far: ${agreed.envelope.signedBy.map((side) => SIDE[side]).join(', ')}.` : ''}
           </span>
           {agreed.envelope?.provider === 'FIXTURE' && iAmSignatory && me && !agreed.envelope.signedBy.includes(me) ? (
@@ -162,7 +165,7 @@ function Signing({ dealId, view }: { dealId: string; view: CloseView }) {
                 Final agreement to attach (optional, a shared PDF’s id)
                 <input name="agreementDocumentId" placeholder="Document id" className={inputClass} />
               </label>
-              <Button type="submit">Send for e-signature{view.esign.provider === 'DOCUSIGN' ? ' (DocuSign)' : ''}</Button>
+              <Button type="submit">Send for e-signature ({view.esign.label})</Button>
             </form>
           ) : null}
           {iAmSignatory ? (
@@ -321,7 +324,8 @@ export default async function ClosingPage({ params, searchParams }: { params: Pr
         <CardHeader className="flex flex-row flex-wrap items-start gap-2">
           <div className="mr-auto flex flex-col gap-1.5">
             <CardTitle>Sign the agreed terms</CardTitle>
-            <CardDescription>Both signatories sign the term sheet: by e-signature from the buyer’s own DocuSign, or in Pactlab.</CardDescription>
+            <CardDescription>Both signatories sign the term sheet: by e-signature (Pactlab signing, or the buyer’s own DocuSign, as set in Settings → Signing), or in Pactlab.</CardDescription>
+            {view.esign.note ? <p className="text-sm text-amber-900">{view.esign.note}</p> : null}
           </div>
           {view.esign.provider === 'FIXTURE' ? (
             <Badge variant="neutral" title="This environment uses a test e-signature">
@@ -329,8 +333,9 @@ export default async function ClosingPage({ params, searchParams }: { params: Pr
             </Badge>
           ) : null}
         </CardHeader>
-        <CardContent>
+        <CardContent className="flex flex-col gap-4">
           <Signing dealId={dealId} view={view} />
+          <SigningPanel dealId={dealId} subject="TERMS" />
         </CardContent>
       </Card>
       {view.financing ? (
