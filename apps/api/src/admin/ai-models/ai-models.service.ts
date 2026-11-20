@@ -85,6 +85,8 @@ export class AiModelsService {
   add(tenant: TenantContext, input: { provider: AiProvider; providerModelId: string; label: string }) {
     return this.asOperator(async () => {
       if (!this.runtime?.providers.includes(input.provider)) throw new UnprocessableEntityException({ code: 'PROVIDER_NOT_AVAILABLE' });
+      // Claude's Bedrock IDs write versions with dashes (claude-opus-5-5); `claude-opus-5.5` is a typo that would only fail evaluation.
+      if (input.provider === 'bedrock' && /anthropic\.claude-[a-z]+-\d+\.\d/.test(input.providerModelId)) throw new UnprocessableEntityException({ code: 'BEDROCK_ID_FORMAT' });
       try {
         return { id: await aiModels.add(this.sql, tenant.userId, input) };
       } catch (error) {

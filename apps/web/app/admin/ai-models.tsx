@@ -146,7 +146,12 @@ export async function AiModels({ organizationId, organizationQuery }: { organiza
                     </span>
                   </td>
                   <td className="px-3 py-2 align-top">
-                    <Badge variant={STATUS[model.status].variant}>{STATUS[model.status].label}</Badge>
+                    {/* A failed evaluation leaves the model not serving (2026-11-20): say so, never "Not evaluated". */}
+                    {model.status === 'ADDED' && model.evaluation?.passed === false ? (
+                      <Badge variant="danger">Failed: not serving</Badge>
+                    ) : (
+                      <Badge variant={STATUS[model.status].variant}>{STATUS[model.status].label}</Badge>
+                    )}
                     {model.reevaluationDue ? (
                       <span className="mt-1 block">
                         <Badge variant="draft">Re-evaluation due</Badge>
