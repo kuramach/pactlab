@@ -40,7 +40,7 @@ export const stageConfig: EnvironmentConfig = {
     bedrock: {
       foundationModels: ['anthropic.claude-*'],
       inferenceProfiles: ['us.anthropic.claude-*'],
-      modelOverrides: { balanced: 'us.anthropic.claude-sonnet-4-6', deep_review: 'us.anthropic.claude-opus-4-6-v1', fast: 'us.anthropic.claude-haiku-4-5-20251001-v1:0' },
+      modelOverrides: { balanced: 'us.anthropic.claude-sonnet-5-5', deep_review: 'us.anthropic.claude-opus-5-5', fast: 'us.anthropic.claude-haiku-5-5' },
     },
     // Pactlab signing (T-136): BoldSign once its sandbox key is set (scripts/signing-key.sh), test signing until then.
     signing: { providers: ['boldsign', 'fixture'] },
