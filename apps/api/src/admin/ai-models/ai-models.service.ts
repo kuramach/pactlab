@@ -3,7 +3,6 @@ import { aiModels, OperatorRequiredError, prismaExecutor, type AiProvider, type 
 import type { TenantContext } from '@pactlab/domain';
 import type { Logger } from '@pactlab/observability';
 import { defaultPromptRegistry } from '@pactlab/ai';
-import { evaluationRecord } from '../../ai/model-routes';
 import type { AiModelsRuntime } from '../../ai/ai-provider';
 import { LOGGER, PRISMA } from '../../tokens';
 
@@ -76,7 +75,8 @@ export class AiModelsService {
           evaluatingSince: model.evaluatingSince?.toISOString() ?? null,
           createdAt: model.createdAt.toISOString(),
           // A prompt changed since the model was evaluated: it keeps serving, and the console asks for a fresh evaluation.
-          reevaluationDue: model.status === 'EVALUATED' && staleOn(model.evaluation?.promptHashes),
+          // A health check doesn't depend on prompt versions; only older full evaluations can fall due.
+          reevaluationDue: model.status === 'EVALUATED' && model.evaluation?.kind !== 'health' && staleOn(model.evaluation?.promptHashes),
         })),
       };
     });
@@ -112,7 +112,7 @@ export class AiModelsService {
       const run = async () => {
         try {
           const report = await runtime.evaluate({ provider: model.provider, providerModelId: model.providerModelId });
-          await aiModels.recordEvaluation(this.sql, tenant.userId, modelId, evaluationRecord(report));
+          await aiModels.recordEvaluation(this.sql, tenant.userId, modelId, report);
         } catch (error) {
           this.logger.warn({ modelId, errorName: error instanceof Error ? error.name : 'unknown' }, 'model evaluation failed to run');
           await aiModels.recordEvaluation(this.sql, tenant.userId, modelId, {

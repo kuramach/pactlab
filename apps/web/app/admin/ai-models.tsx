@@ -24,6 +24,9 @@ interface Model {
     ranAt?: string;
     failures?: string[];
     basis?: string;
+    /** 'health': the quick health check (2026-11-20). */
+    kind?: 'health';
+    latencyMs?: number;
   } | null;
   evaluatingSince: string | null;
   /** A prompt changed since its evaluation: it still serves; evaluate it again. */
@@ -80,10 +83,21 @@ const pct = (value: number | undefined) => (value === undefined ? '—' : `${Mat
 const field = 'rounded-md border border-border bg-background px-2 py-1.5 text-sm';
 
 function Evaluation({ model }: { model: Model }) {
-  if (model.evaluatingSince) return <span className="text-xs text-muted-foreground">Evaluating since {model.evaluatingSince.slice(11, 16)} UTC… refresh in a few minutes.</span>;
+  if (model.evaluatingSince) return <span className="text-xs text-muted-foreground">Checking since {model.evaluatingSince.slice(11, 16)} UTC… refresh in a moment.</span>;
   const result = model.evaluation;
   if (!result) return <span className="text-xs text-muted-foreground">Not run yet</span>;
   if (result.basis) return <span className="text-xs text-muted-foreground">{result.basis}</span>;
+  if (result.kind === 'health') {
+    return (
+      <span className="flex flex-col gap-0.5 text-xs">
+        <span>
+          <Badge variant={result.passed ? 'calculation' : 'danger'}>{result.passed ? 'Healthy' : 'Not working'}</Badge>{' '}
+          {result.passed ? `answered with a valid cited answer in ${((result.latencyMs ?? 0) / 1000).toFixed(1)} s` : (result.failures?.[0] ?? 'the check failed')}
+        </span>
+        <span className="text-muted-foreground">Checked {result.ranAt?.slice(0, 16).replace('T', ' ')} UTC</span>
+      </span>
+    );
+  }
   return (
     <span className="flex flex-col gap-0.5 text-xs">
       <span>
@@ -121,8 +135,8 @@ export async function AiModels({ organizationId, organizationQuery }: { organiza
         <CardHeader>
           <CardTitle className="text-base">Models</CardTitle>
           <CardDescription>
-            A model serves pacts only once it has passed the evaluation: every golden case, every injection probe blocked, and citations at least 90% right. Only synthetic test
-            material is sent; never deal data.
+            The models configured for this environment serve as soon as it is deployed. A model added here serves once its health check passes: one synthetic question, which it
+            must answer with a valid, cited answer. Only synthetic material is sent; never deal data.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4 overflow-x-auto p-0">
@@ -148,7 +162,7 @@ export async function AiModels({ organizationId, organizationQuery }: { organiza
                   <td className="px-3 py-2 align-top">
                     {/* A failed evaluation leaves the model not serving (2026-11-20): say so, never "Not evaluated". */}
                     {model.status === 'ADDED' && model.evaluation?.passed === false ? (
-                      <Badge variant="danger">Failed: not serving</Badge>
+                      <Badge variant="danger">Not serving</Badge>
                     ) : (
                       <Badge variant={STATUS[model.status].variant}>{STATUS[model.status].label}</Badge>
                     )}
@@ -172,7 +186,7 @@ export async function AiModels({ organizationId, organizationQuery }: { organiza
                         {aiOn && !model.evaluatingSince ? (
                           <form action={evaluateModel.bind(null, model.id)}>
                             <Button type="submit" size="sm" variant="outline">
-                              {model.evaluation && !model.evaluation.basis ? 'Evaluate again' : 'Run evaluation'}
+                              {model.evaluation && !model.evaluation.basis ? 'Check again' : 'Run health check'}
                             </Button>
                           </form>
                         ) : null}

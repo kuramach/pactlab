@@ -177,3 +177,5 @@ export function judgeModel(report: EvalReport): { passed: boolean; failures: str
   ];
   return { passed: failures.length === 0, failures };
 }
+
+export { checkModelHealth, type ModelHealth } from './health';

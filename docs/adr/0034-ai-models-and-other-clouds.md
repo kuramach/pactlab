@@ -73,3 +73,12 @@
   - At boot the API syncs the configured models and evaluates new ones in the background, with the same gate. A pass switches them in only for roles that follow the deployment.
   - A failed evaluation, from any source, sets the model to ADDED, so it no longer resolves and the role falls back to the configured model.
   - System actions are audited under the operators' organization as `operator.system.*`.
+
+## Addendum (2026-11-20, later): a health check replaces the evaluation gate
+- **Kumar:** "Do we even need all this evaluation steps?"
+- **Why:** the gate compared live answers with recorded ones almost exactly, so Claude Opus and Sonnet 5.5 "failed" on harmless differences (repeat citations, citing the parties page).
+- **Now:**
+  - A deployment's configured models serve at once on deploy, and switch the roles an operator hasn't set.
+  - The console's check is a seconds-long health check: one synthetic question, which must come back as a valid, cited answer. A failure takes the model out of service.
+- **Unchanged:** the runtime protections (verified citations, drafts until a person accepts, the people-data block).
+- **Still available:** the golden set runs in CI on recordings and on demand with `pnpm eval:live`.
