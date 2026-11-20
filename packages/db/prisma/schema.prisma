@@ -3395,10 +3395,12 @@ model AiModel {
 
 /// The platform default model per alias (fast, balanced, deep_review).
 model AiPlatformRoute {
-  alias     String   @id
-  modelId   String   @map("model_id") @db.Uuid
-  updatedBy String?  @map("updated_by") @db.Uuid
-  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(3)
+  alias             String   @id
+  modelId           String   @map("model_id") @db.Uuid
+  updatedBy         String?  @map("updated_by") @db.Uuid
+  updatedAt         DateTime @default(now()) @map("updated_at") @db.Timestamptz(3)
+  /// Set by the deployment (adoption or sync), so a deploy's configured model may switch it; false once an operator sets it.
+  followsDeployment Boolean  @default(false) @map("follows_deployment")
 
   model AiModel @relation(fields: [modelId], references: [id], onDelete: Restrict, map: "ai_platform_routes_model_fkey")
 

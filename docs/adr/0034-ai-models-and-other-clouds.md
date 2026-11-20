@@ -63,3 +63,13 @@
 - **Defaults are config, not doctrine.**
   - **Lane IDs:** the non-Claude model IDs are as the providers' official SDKs list them (`gpt-5.5`, `gemini-3.1-pro-preview`, `gemini-3.8-flash`).
   - **What can override them:** a console route, an env override or an evaluation, never a rebuild.
+
+## Addendum (2026-11-20): the deployment's models roll out through the evaluation gate
+- **The problem:**
+  - Boot adoption filled only an empty catalog, so changing a deployment's configured models had no effect once routes existed.
+  - A failed evaluation never took a model out of service.
+- **The change:**
+  - Routes now record `follows_deployment` (true when set by the deployment, false once an operator sets them).
+  - At boot the API syncs the configured models and evaluates new ones in the background, with the same gate. A pass switches them in only for roles that follow the deployment.
+  - A failed evaluation, from any source, sets the model to ADDED, so it no longer resolves and the role falls back to the configured model.
+  - System actions are audited under the operators' organization as `operator.system.*`.

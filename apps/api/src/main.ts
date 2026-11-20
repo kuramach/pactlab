@@ -20,6 +20,7 @@ import { DatabaseSuppressionList } from './email-events/email-events.service';
 import { SnsVerifier } from './email-events/sns';
 import { ensureEmailEventsSubscription } from './email-events/subscribe';
 import { BrandedEmailSender, emailAssets } from './email-login/branded-email';
+import { emails } from './email-login/emails';
 import { ReleaseInfo, ssmReleaseSource } from './health/release-info';
 import { SignatureMalwareScanner } from './documents/upload-policy';
 import { FixtureMacroForecastProvider, ImfMacroForecastProvider } from '@pactlab/connectors';
@@ -81,6 +82,20 @@ const providers = {
 
 // Pactlab signing's adapters here (T-136): unset, the fixture outside production and none in production.
 const signingAdapters = config.SIGNING_PROVIDER ?? (config.APP_ENV === 'production' ? [] : ['fixture']);
+// Email: Amazon SES when deployed (EMAIL_PROVIDER=ses), a local mail folder on a laptop, else none.
+const emailSender =
+  config.EMAIL_PROVIDER === 'ses' && config.EMAIL_FROM
+    ? new BrandedEmailSender(
+        new SesEmailSender(new SESv2Client({ region: config.AWS_REGION }), config.EMAIL_FROM, {
+          ...(config.EMAIL_CONFIGURATION_SET ? { configurationSetName: config.EMAIL_CONFIGURATION_SET } : {}),
+          suppression: new DatabaseSuppressionList(prisma, config.AUTH_TOKEN_SECRET),
+          logger,
+        }),
+        emailAssets(config.APP_WEB_ORIGIN),
+      )
+    : config.APP_ENV === 'local' && config.LOCAL_MAIL_DIR
+      ? new BrandedEmailSender(new LocalFileEmailSender(config.LOCAL_MAIL_DIR), emailAssets(config.APP_WEB_ORIGIN))
+      : null;
 const app = await createApp(
   {
     prisma,
@@ -164,20 +179,7 @@ const app = await createApp(
     emailLogin: {
       tokenSecret: config.AUTH_TOKEN_SECRET,
       webauthn: relyingParty(config.APP_WEB_ORIGIN, config.WEBAUTHN_RP_ID),
-      ...(config.EMAIL_PROVIDER === 'ses' && config.EMAIL_FROM
-        ? {
-            emailSender: new BrandedEmailSender(
-              new SesEmailSender(new SESv2Client({ region: config.AWS_REGION }), config.EMAIL_FROM, {
-                ...(config.EMAIL_CONFIGURATION_SET ? { configurationSetName: config.EMAIL_CONFIGURATION_SET } : {}),
-                suppression: new DatabaseSuppressionList(prisma, config.AUTH_TOKEN_SECRET),
-                logger,
-              }),
-              emailAssets(config.APP_WEB_ORIGIN),
-            ),
-          }
-        : config.APP_ENV === 'local' && config.LOCAL_MAIL_DIR
-          ? { emailSender: new BrandedEmailSender(new LocalFileEmailSender(config.LOCAL_MAIL_DIR), emailAssets(config.APP_WEB_ORIGIN)) }
-          : {}),
+      ...(emailSender ? { emailSender } : {}),
     },
   },
   { webOrigin: config.APP_WEB_ORIGIN },
@@ -188,6 +190,22 @@ if (config.EMAIL_EVENTS_TOPIC_ARN && config.AWS_REGION && config.APP_ENV !== 'lo
   void ensureEmailEventsSubscription({ region: config.AWS_REGION, topicArn: config.EMAIL_EVENTS_TOPIC_ARN, endpoint: new URL('/v1/email-events/sns', config.APP_WEB_ORIGIN).toString(), logger });
 }
 logger.info({ port: config.API_PORT, env: config.APP_ENV, ai: ai.status.provider }, 'api listening');
+// A deploy's new configured models: evaluated in the background, switched in when they pass (2026-11-20).
+if (ai.models) {
+  const models = ai.models;
+  void models.resolver
+    .rollOut(models.evaluate, (outcome) => {
+      logger.info({ model: outcome.label, passed: outcome.passed, switched: outcome.switched }, 'configured model evaluated');
+      if (emailSender && config.OPERATOR_EMAIL) {
+        // handled: the outcome is in Admin → AI models either way; a failed alert email is logged.
+        void emailSender
+          .send(emails.operatorModelAlert(config.OPERATOR_EMAIL, { model: outcome.label, environment: config.APP_ENV, passed: outcome.passed, switched: outcome.switched, detail: outcome.detail }))
+          .catch((error: unknown) => logger.error({ kind: 'operator-model-alert', errorClass: error instanceof Error ? error.name : 'unknown' }, 'model alert email failed'));
+      }
+    })
+    // handled: a model not evaluated stays "Not evaluated" in Admin → AI models, where an operator runs it; logged here.
+    .catch((error: unknown) => logger.warn({ errorClass: error instanceof Error ? error.name : 'unknown' }, 'configured model rollout could not run'));
+}
 // Deployed: prove the task role reaches Bedrock, logged by error class only (T-096).
 if (!['local', 'test'].includes(config.APP_ENV)) {
   void ai.check().then((health) => {

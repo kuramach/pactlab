@@ -66,3 +66,14 @@ Each evaluation records the prompt hashes it ran against. When prompts change, r
 - **What they find:** defined terms, cross-references, party names and contradictions. Each problem lands as a **draft** finding (kind `CONSISTENCY`) with exact quotes, in the review queue.
 - **How to route them:** set *Consistency checks* under Admin → AI models. Unset, they run on GPT-5.5 when OpenAI is connected and evaluated, and otherwise on the Deep review Claude model.
 - **When the check fails** (provider down): the extraction still stands, and the response reports `consistency.status: PROVIDER_ERROR`.
+
+## A deploy's models go live on their own (2026-11-20)
+- **Set the models:** set each role's model in `infra/cdk/config/<env>.ts` (`bedrock.modelOverrides`) or in code defaults, and deploy.
+- **On boot, the API:**
+  1. adds each configured model new to the catalog (*Not evaluated*);
+  2. evaluates it in the background, with the same synthetic golden set and probes as **Run evaluation**;
+  3. when it passes, makes it the platform default for its role, as long as an operator hasn't set that role in the console;
+  4. emails `OPERATOR_EMAIL` either way (*… is live* or *… failed evaluation*). The audit log shows `operator.system.*` entries.
+- **Operator choices win:** a route set in the console (or the diagram) never follows the deployment again. To hand a role back to the deployment, set it to the configured model.
+- **A failed evaluation** (console or automatic) takes the model out of service at once (*Failed: not serving*). Its role falls back to the deployment's configured model.
+- **Bedrock Claude IDs use dashes:** `us.anthropic.claude-opus-5-5`, not `5.5`. The console refuses the dotted form.

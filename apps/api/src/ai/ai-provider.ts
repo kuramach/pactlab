@@ -157,6 +157,9 @@ export interface AiModelsRuntime {
   readonly providers: readonly ModelProvider[];
 }
 
+/** One configured model's automatic evaluation after a deploy: what operators are told. */
+export type RolloutOutcome = Parameters<Parameters<ModelRouteResolver['rollOut']>[1]>[0];
+
 export async function createAiGateway(
   env: ApiEnv,
   prisma?: PrismaClient,
@@ -194,7 +197,8 @@ export async function createAiGateway(
   const transport = new ProviderRouterTransport(
     Object.fromEntries(Object.entries(bare).map(([provider, inner]) => [provider, new ResilientModelTransport({ transport: inner as ModelTransport, breaker: new CircuitBreaker() })])),
   );
-  // The catalog (T-131): the deployment's configured models are adopted into an empty catalog, so nothing changes on deploy.
+  // The catalog (T-131): the deployment's configured models are synced at boot. New ones are evaluated in the
+  // background after boot (`rollOut`, started by main once listening) and switched in when they pass.
   const resolver = prisma ? new ModelRouteResolver(prisma, routes, Date.now, routing(env, transport.providers)) : null;
   if (resolver) await resolver.adopt(primary);
   return {

@@ -60,6 +60,7 @@ const OUTCOMES: Record<string, string> = {
   'ok-ai-org': 'Saved for this organization. It applies within a minute.',
   'ok-ai-terms': 'Data terms saved (audited). With both ticked, that provider’s models can be evaluated and serve.',
   'ai-model-exists': 'That model is already in the catalog.',
+  'ai-bedrock-id-format': 'Claude model IDs on Bedrock write versions with dashes, e.g. us.anthropic.claude-opus-5-5 (not 5.5).',
   'ai-provider-not-available': 'This environment cannot call that provider yet.',
   'ai-not-evaluated': 'Only evaluated models can be chosen.',
   'ai-route-not-allowed': 'A role’s model must be one of the organization’s allowed models.',

@@ -36,6 +36,8 @@ export class ModelRouteResolver {
   private readonly cache = new Map<string, { at: number; routes: Map<AiRouteKey, { route: ModelRoute; label: string } | 'BLOCKED'> }>();
   private readonly usable = new Map<string, { at: number; ok: boolean }>();
   private readonly spend = new Map<string, { at: number; usd: number }>();
+  /** Configured models this deploy introduced, waiting for their evaluation (`rollOut`). */
+  private pending: { id: string; provider: string; providerModelId: string; label: string }[] = [];
 
   constructor(
     prisma: PrismaClient,
@@ -49,11 +51,40 @@ export class ModelRouteResolver {
   }
 
   /** Bring the deployment's configured models into an empty catalog (EVALUATED: they serve today). */
+  /**
+   * At boot: sync the deployment's configured model per role into the catalog. An empty catalog adopts
+   * them as serving (as before); otherwise a model new to this deploy is added and waits for `rollOut`,
+   * and one already evaluated is switched in where the platform route still follows the deployment.
+   */
   async adopt(provider: ModelProvider): Promise<number> {
-    return aiModels.adoptRoutes(
+    this.pending = await aiModels.syncDeployment(
       this.sql,
       (Object.keys(this.configured) as ModelAlias[]).map((alias) => ({ alias, provider, modelId: this.configured[alias].modelId, label: readableModel(this.configured[alias].modelId) })),
     );
+    this.invalidate();
+    return this.pending.length;
+  }
+
+  /**
+   * After boot, in the background: evaluate each configured model this deploy introduced (the same gate as
+   * the console's Run evaluation; synthetic material only), one at a time. A pass switches it in for its
+   * roles where they follow the deployment; a fail leaves the current model serving and is reported.
+   */
+  async rollOut(evaluate: ModelEvaluator, report: (outcome: { label: string; passed: boolean; switched: readonly ModelAlias[]; detail: string | null }) => void): Promise<void> {
+    for (const model of this.pending) {
+      if (!(await aiModels.startDeploymentEvaluation(this.sql, model.id))) continue;
+      let evaluation: AiEvaluation;
+      try {
+        evaluation = evaluationRecord(await evaluate({ provider: model.provider as ModelProvider, providerModelId: model.providerModelId }));
+      } catch (error) {
+        evaluation = { passed: false, goldenPassed: 0, goldenTotal: 0, probesBlocked: 0, probesTotal: 0, citationRecall: 0, citationPrecision: 0, promptHashes: {}, ranAt: new Date().toISOString(), failures: [`The evaluation could not reach the model (${error instanceof Error ? error.name : 'unknown error'}).`] };
+      }
+      const aliases = (Object.keys(this.configured) as ModelAlias[]).filter((alias) => this.configured[alias].modelId === model.providerModelId);
+      const switched = (await aiModels.recordDeploymentEvaluation(this.sql, model.id, evaluation, aliases)) as ModelAlias[];
+      this.invalidate();
+      report({ label: model.label, passed: evaluation.passed, switched, detail: evaluation.passed ? null : (evaluation.failures?.[0] ?? null) });
+    }
+    this.pending = [];
   }
 
   async routeFor(organizationId: string, alias: ModelAlias): Promise<ModelRoute | null | 'BLOCKED'> {

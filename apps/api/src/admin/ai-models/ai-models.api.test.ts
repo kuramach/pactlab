@@ -52,7 +52,7 @@ describe('AI models in the admin console', { timeout: 60_000 }, () => {
     // The fixture provider: the configured models are adopted, evaluations replay the recorded cassettes.
     ai = await createAiGateway({ AI_PROVIDER: 'fixture' } as ApiEnv, db.prisma);
     // As if OpenAI's key were set: the console offers it, and the terms gate decides whether it may run.
-    models = { ...(ai.models as AiModelsRuntime), providers: ['fixture', 'openai'] };
+    models = { ...(ai.models as AiModelsRuntime), providers: ['fixture', 'openai', 'bedrock'] };
     const pair = await generateKeyPair('RS256');
     key = pair.privateKey;
     const jwk = { ...(await exportJWK(pair.publicKey)), kid: 'test', alg: 'RS256' };
@@ -93,6 +93,8 @@ describe('AI models in the admin console', { timeout: 60_000 }, () => {
     expect((await call('operator', 'POST', '/v1/admin/ai-models', { provider: 'fixture', providerModelId: 'synthetic-next', label: 'Again' })).body).toMatchObject({ code: 'MODEL_EXISTS' });
     // Providers this deployment cannot call are refused (they arrive with their transports).
     expect((await call('operator', 'POST', '/v1/admin/ai-models', { provider: 'google', providerModelId: 'gemini-next', label: 'Gemini' })).body).toMatchObject({ code: 'PROVIDER_NOT_AVAILABLE' });
+    // A Claude Bedrock ID with a dotted version (claude-opus-5.5) is a typo: refused before it can only fail evaluation.
+    expect((await call('operator', 'POST', '/v1/admin/ai-models', { provider: 'bedrock', providerModelId: 'us.anthropic.claude-opus-5.5', label: 'Claude Opus 5.5' })).body).toMatchObject({ code: 'BEDROCK_ID_FORMAT' });
 
     // Not evaluated: it can be neither a platform route nor on an allow-list.
     expect((await call('operator', 'PUT', '/v1/admin/ai-models/routes/balanced', { modelId: id })).body).toMatchObject({ code: 'NOT_EVALUATED' });
