@@ -105,6 +105,13 @@ Each evaluation records the prompt hashes it ran against. When prompts change, r
 - **The monthly refresh:** a scheduled job researches the scorecard's sources, updates the doc and `scorecard.ts`, and opens a PR. Merging the PR applies the new scores.
 
 ## Monthly scorecard refresh
-- **The procedure:** `docs/agent/scorecard-refresh.md`. It re-pulls the scorecard's sources, updates `docs/model-scorecard.md` and `packages/ai/src/scorecard.ts`, changes a default chain only when a job's verdict changed, and opens one PR.
-- **Schedule:** a monthly Claude routine (claude.ai) on the 1st, with the one-line prompt: *"In the kuramach/pactlab repo, follow docs/agent/scorecard-refresh.md and open the PR."*
-- **Nothing changes on live** until the PR is merged and deployed.
+- **What runs:** the GitHub Actions workflow `scorecard-refresh` (`.github/workflows/scorecard-refresh.yml`), on the 1st of each month at 09:17 Chicago. You can also start it from **Actions → scorecard-refresh → Run workflow**.
+- **What it does:** Claude Code runs headless on **Claude Opus 5.5 on Pactlab's own Bedrock**, follows `docs/agent/scorecard-refresh.md` and opens one PR. Nothing is deployed.
+- **Sign-in:** GitHub OIDC with the role `pactlab-github-prod-scorecard` (live account). The role is trusted only from the GitHub Environment `scorecard` and can only call Claude on Bedrock.
+- **One-time setup:**
+  1. Run `scripts/deploy-access.sh live` to create the role.
+  2. Create the GitHub Environment `scorecard`, with no reviewers.
+  3. Set the repository variable `SCORECARD_ROLE_ARN` to the role ARN the stack outputs (`ScorecardRefreshRoleArn`).
+- **The run log** is attached to each run as the `scorecard-run` artifact, kept 30 days.
+- **CI doesn't start on its own:** GitHub doesn't run CI for PRs opened by the workflow token. To run the checks, use **Update branch** on the PR (or push to it).
+- **Sources the run can't reach** (Bedrock agents fetch pages; they can't run open-ended web searches) are named in the PR. To add a new board, add it to the doc's Sources line first.
