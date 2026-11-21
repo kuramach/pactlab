@@ -133,153 +133,6 @@ export async function AiModels({ organizationId, organizationQuery }: { organiza
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Models</CardTitle>
-          <CardDescription>
-            The models configured for this environment serve as soon as it is deployed. A model added here serves once its health check passes: one synthetic question, which it
-            must answer with a valid, cited answer. Only synthetic material is sent; never deal data.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4 overflow-x-auto p-0">
-          <table className="w-full text-left text-sm" aria-label="AI models">
-            <thead className="text-xs uppercase text-muted-foreground">
-              <tr>
-                <th className="px-3 py-2">Model</th>
-                <th className="px-3 py-2">Status</th>
-                <th className="px-3 py-2">Evaluation</th>
-                <th className="px-3 py-2">Used</th>
-                <th className="px-3 py-2"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {models.map((model) => (
-                <tr key={model.id}>
-                  <td className="px-3 py-2 align-top">
-                    <span className="font-semibold">{model.label}</span>
-                    <span className="block font-mono text-xs text-muted-foreground">
-                      {PROVIDERS[model.provider] ?? model.provider} · {model.providerModelId}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2 align-top">
-                    {/* A failed evaluation leaves the model not serving (2026-11-20): say so, never "Not evaluated". */}
-                    {model.status === 'ADDED' && model.evaluation?.passed === false ? (
-                      <Badge variant="danger">Not serving</Badge>
-                    ) : (
-                      <Badge variant={STATUS[model.status].variant}>{STATUS[model.status].label}</Badge>
-                    )}
-                    {model.reevaluationDue ? (
-                      <span className="mt-1 block">
-                        <Badge variant="draft">Re-evaluation due</Badge>
-                        <span className="block text-xs text-muted-foreground">Prompts changed since its evaluation.</span>
-                      </span>
-                    ) : null}
-                  </td>
-                  <td className="px-3 py-2 align-top">
-                    <Evaluation model={model} />
-                  </td>
-                  <td className="px-3 py-2 align-top text-xs">
-                    {model.platformAliases.length ? `Default for ${model.platformAliases.map((alias) => LABELS.get(alias) ?? alias).join(', ')}` : '—'}
-                    {model.organizations ? <span className="block text-muted-foreground">{model.organizations} organization{model.organizations === 1 ? '' : 's'}</span> : null}
-                  </td>
-                  <td className="px-3 py-2 align-top">
-                    {model.status !== 'RETIRED' ? (
-                      <span className="flex flex-wrap gap-1">
-                        {aiOn && !model.evaluatingSince ? (
-                          <form action={evaluateModel.bind(null, model.id)}>
-                            <Button type="submit" size="sm" variant="outline">
-                              {model.evaluation && !model.evaluation.basis ? 'Check again' : 'Run health check'}
-                            </Button>
-                          </form>
-                        ) : null}
-                        {model.platformAliases.length === 0 ? (
-                          <form action={retireModel.bind(null, model.id)}>
-                            <Button type="submit" size="sm" variant="ghost">
-                              Retire
-                            </Button>
-                          </form>
-                        ) : null}
-                      </span>
-                    ) : null}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <form action={addModel} className="flex flex-wrap items-end gap-2 border-t border-border px-3 py-3 text-sm" aria-label="Add a model">
-            <label className="flex flex-col gap-1 font-medium">
-              Provider
-              <select name="provider" className={field} required>
-                {providers.map((provider) => (
-                  <option key={provider} value={provider}>
-                    {PROVIDERS[provider] ?? provider}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="flex flex-col gap-1 font-medium">
-              Model ID
-              <input name="providerModelId" required maxLength={200} placeholder="us.anthropic.claude-opus-5-5" className={`${field} w-72 font-mono`} />
-            </label>
-            <label className="flex flex-col gap-1 font-medium">
-              Name
-              <input name="label" required maxLength={80} placeholder="Claude Opus 5.5" className={`${field} w-48`} />
-            </label>
-            <Button type="submit" size="sm">
-              Add model
-            </Button>
-            <span className="text-xs text-muted-foreground">OpenAI and Google appear here once their key is set (scripts/ai-key.sh).</span>
-          </form>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Other clouds: data terms</CardTitle>
-          <CardDescription>
-            OpenAI and Google run outside our AWS accounts. Their models can be evaluated and serve only with a data-processing agreement in place and zero retention (no
-            storing or training on our requests) on record. Untick either and their models stop at once. Deal content still never includes people data.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-3 md:grid-cols-2">
-          {(['anthropic', 'openai', 'google'] as const).map((provider) => {
-            const current = terms.find((entry) => entry.provider === provider);
-            return (
-              <form key={provider} action={setProviderTerms.bind(null, provider)} className="flex flex-col gap-2 rounded-lg border border-border p-3 text-sm" aria-label={`${PROVIDERS[provider]} data terms`}>
-                <span className="flex flex-wrap items-center gap-2 font-semibold">
-                  {PROVIDERS[provider]}
-                  <Badge variant={providers.includes(provider) ? 'calculation' : 'neutral'}>{providers.includes(provider) ? 'Key set' : 'No key'}</Badge>
-                  <Badge variant={current?.cleared ? 'calculation' : 'draft'}>{current?.cleared ? 'Cleared to serve' : 'Not cleared'}</Badge>
-                </span>
-                <label className="flex items-center gap-2">
-                  <input type="checkbox" name="dpaInPlace" defaultChecked={current?.dpaInPlace ?? false} /> Data-processing agreement in place
-                </label>
-                <label className="flex items-center gap-2">
-                  <input type="checkbox" name="zeroRetention" defaultChecked={current?.zeroRetention ?? false} /> Zero retention: no storing or training on our requests
-                </label>
-                <label className="flex flex-col gap-1 font-medium">
-                  Region
-                  <input name="region" defaultValue={current?.region ?? ''} maxLength={80} placeholder="e.g. US" className={field} />
-                </label>
-                <label className="flex flex-col gap-1 font-medium">
-                  Notes (agreement reference, date)
-                  <input name="notes" defaultValue={current?.notes ?? ''} maxLength={1000} className={field} />
-                </label>
-                {current ? (
-                  <span className="text-xs text-muted-foreground">
-                    Recorded {current.recordedAt.slice(0, 10)}
-                    {current.recordedByName ? ` by ${current.recordedByName}` : ''}
-                  </span>
-                ) : null}
-                <Button type="submit" size="sm" variant="outline" className="self-start">
-                  Save terms
-                </Button>
-              </form>
-            );
-          })}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
           <CardTitle className="text-base">Platform defaults: how AI work is routed</CardTitle>
           <CardDescription>
             Every organization without its own choice uses these. Material flows left to right; click a job or a Claude role to choose its model. Evaluated models only; applies within
@@ -296,6 +149,159 @@ export async function AiModels({ organizationId, organizationQuery }: { organiza
           )}
         </CardContent>
       </Card>
+
+      {/* The catalog is for adding a model or running a health check; the diagram above is where models are chosen. */}
+      <details className="group rounded-xl border">
+        <summary className="cursor-pointer px-4 py-3 text-sm font-semibold">Model catalog and data terms (advanced)</summary>
+        <div className="flex flex-col gap-4 p-4 pt-0">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Models</CardTitle>
+              <CardDescription>
+                The models configured for this environment serve as soon as it is deployed. A model added here serves once its health check passes: one synthetic question, which it
+                must answer with a valid, cited answer. Only synthetic material is sent; never deal data.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-4 overflow-x-auto p-0">
+              <table className="w-full text-left text-sm" aria-label="AI models">
+                <thead className="text-xs uppercase text-muted-foreground">
+                  <tr>
+                    <th className="px-3 py-2">Model</th>
+                    <th className="px-3 py-2">Status</th>
+                    <th className="px-3 py-2">Evaluation</th>
+                    <th className="px-3 py-2">Used</th>
+                    <th className="px-3 py-2"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {models.map((model) => (
+                    <tr key={model.id}>
+                      <td className="px-3 py-2 align-top">
+                        <span className="font-semibold">{model.label}</span>
+                        <span className="block font-mono text-xs text-muted-foreground">
+                          {PROVIDERS[model.provider] ?? model.provider} · {model.providerModelId}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2 align-top">
+                        {/* A failed evaluation leaves the model not serving (2026-11-20): say so, never "Not evaluated". */}
+                        {model.status === 'ADDED' && model.evaluation?.passed === false ? (
+                          <Badge variant="danger">Not serving</Badge>
+                        ) : (
+                          <Badge variant={STATUS[model.status].variant}>{STATUS[model.status].label}</Badge>
+                        )}
+                        {model.reevaluationDue ? (
+                          <span className="mt-1 block">
+                            <Badge variant="draft">Re-evaluation due</Badge>
+                            <span className="block text-xs text-muted-foreground">Prompts changed since its evaluation.</span>
+                          </span>
+                        ) : null}
+                      </td>
+                      <td className="px-3 py-2 align-top">
+                        <Evaluation model={model} />
+                      </td>
+                      <td className="px-3 py-2 align-top text-xs">
+                        {model.platformAliases.length ? `Default for ${model.platformAliases.map((alias) => LABELS.get(alias) ?? alias).join(', ')}` : '—'}
+                        {model.organizations ? <span className="block text-muted-foreground">{model.organizations} organization{model.organizations === 1 ? '' : 's'}</span> : null}
+                      </td>
+                      <td className="px-3 py-2 align-top">
+                        {model.status !== 'RETIRED' ? (
+                          <span className="flex flex-wrap gap-1">
+                            {aiOn && !model.evaluatingSince ? (
+                              <form action={evaluateModel.bind(null, model.id)}>
+                                <Button type="submit" size="sm" variant="outline">
+                                  {model.evaluation && !model.evaluation.basis ? 'Check again' : 'Run health check'}
+                                </Button>
+                              </form>
+                            ) : null}
+                            {model.platformAliases.length === 0 ? (
+                              <form action={retireModel.bind(null, model.id)}>
+                                <Button type="submit" size="sm" variant="ghost">
+                                  Retire
+                                </Button>
+                              </form>
+                            ) : null}
+                          </span>
+                        ) : null}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <form action={addModel} className="flex flex-wrap items-end gap-2 border-t border-border px-3 py-3 text-sm" aria-label="Add a model">
+                <label className="flex flex-col gap-1 font-medium">
+                  Provider
+                  <select name="provider" className={field} required>
+                    {providers.map((provider) => (
+                      <option key={provider} value={provider}>
+                        {PROVIDERS[provider] ?? provider}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="flex flex-col gap-1 font-medium">
+                  Model ID
+                  <input name="providerModelId" required maxLength={200} placeholder="us.anthropic.claude-opus-5-5" className={`${field} w-72 font-mono`} />
+                </label>
+                <label className="flex flex-col gap-1 font-medium">
+                  Name
+                  <input name="label" required maxLength={80} placeholder="Claude Opus 5.5" className={`${field} w-48`} />
+                </label>
+                <Button type="submit" size="sm">
+                  Add model
+                </Button>
+                <span className="text-xs text-muted-foreground">OpenAI and Google appear here once their key is set (scripts/ai-key.sh).</span>
+              </form>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Other clouds: data terms</CardTitle>
+              <CardDescription>
+                OpenAI and Google run outside our AWS accounts. Their models can be evaluated and serve only with a data-processing agreement in place and zero retention (no
+                storing or training on our requests) on record. Untick either and their models stop at once. Deal content still never includes people data.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-3 md:grid-cols-2">
+              {(['anthropic', 'openai', 'google'] as const).map((provider) => {
+                const current = terms.find((entry) => entry.provider === provider);
+                return (
+                  <form key={provider} action={setProviderTerms.bind(null, provider)} className="flex flex-col gap-2 rounded-lg border border-border p-3 text-sm" aria-label={`${PROVIDERS[provider]} data terms`}>
+                    <span className="flex flex-wrap items-center gap-2 font-semibold">
+                      {PROVIDERS[provider]}
+                      <Badge variant={providers.includes(provider) ? 'calculation' : 'neutral'}>{providers.includes(provider) ? 'Key set' : 'No key'}</Badge>
+                      <Badge variant={current?.cleared ? 'calculation' : 'draft'}>{current?.cleared ? 'Cleared to serve' : 'Not cleared'}</Badge>
+                    </span>
+                    <label className="flex items-center gap-2">
+                      <input type="checkbox" name="dpaInPlace" defaultChecked={current?.dpaInPlace ?? false} /> Data-processing agreement in place
+                    </label>
+                    <label className="flex items-center gap-2">
+                      <input type="checkbox" name="zeroRetention" defaultChecked={current?.zeroRetention ?? false} /> Zero retention: no storing or training on our requests
+                    </label>
+                    <label className="flex flex-col gap-1 font-medium">
+                      Region
+                      <input name="region" defaultValue={current?.region ?? ''} maxLength={80} placeholder="e.g. US" className={field} />
+                    </label>
+                    <label className="flex flex-col gap-1 font-medium">
+                      Notes (agreement reference, date)
+                      <input name="notes" defaultValue={current?.notes ?? ''} maxLength={1000} className={field} />
+                    </label>
+                    {current ? (
+                      <span className="text-xs text-muted-foreground">
+                        Recorded {current.recordedAt.slice(0, 10)}
+                        {current.recordedByName ? ` by ${current.recordedByName}` : ''}
+                      </span>
+                    ) : null}
+                    <Button type="submit" size="sm" variant="outline" className="self-start">
+                      Save terms
+                    </Button>
+                  </form>
+                );
+              })}
+            </CardContent>
+          </Card>
+        </div>
+      </details>
 
       <Card>
         <CardHeader>
