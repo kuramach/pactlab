@@ -103,3 +103,8 @@ Each evaluation records the prompt hashes it ran against. When prompts change, r
   - consistency checks go GPT-5.5, then Gemini 3.1 Pro, then Claude.
 - **Live's API role** may call any Bedrock model in its region, and list them. It has no manage or provision actions.
 - **The monthly refresh:** a scheduled job researches the scorecard's sources, updates the doc and `scorecard.ts`, and opens a PR. Merging the PR applies the new scores.
+
+## Monthly scorecard refresh
+- **The procedure:** `docs/agent/scorecard-refresh.md`. It re-pulls the scorecard's sources, updates `docs/model-scorecard.md` and `packages/ai/src/scorecard.ts`, changes a default chain only when a job's verdict changed, and opens one PR.
+- **Schedule:** a monthly Claude routine (claude.ai) on the 1st, with the one-line prompt: *"In the kuramach/pactlab repo, follow docs/agent/scorecard-refresh.md and open the PR."*
+- **Nothing changes on live** until the PR is merged and deployed.
