@@ -210,6 +210,22 @@ describe('live (GitHub Environment live, CDK prod)', () => {
     });
     expect(JSON.stringify(access.findResources('AWS::IAM::Policy'))).toContain('repository/pactlab-prod-server');
   });
+
+  it('the monthly scorecard refresh gets its own role: the scorecard environment only, Claude on Bedrock only', async () => {
+    const { PactlabEnvironmentDeployAccessStack } = await import('../lib/deploy-access-stack');
+    const access = Template.fromStack(new PactlabEnvironmentDeployAccessStack(new App(), 'PactlabProdDeployAccess', { environment: 'prod', githubEnvironment: 'live', githubSubjectPrefix: 'repo:owner/repo', appStackName: 'PactlabProd', scorecardRefresh: true }));
+    access.hasResourceProperties('AWS::IAM::Role', {
+      RoleName: 'pactlab-github-prod-scorecard',
+      AssumeRolePolicyDocument: Match.objectLike({ Statement: [Match.objectLike({ Condition: { StringEquals: Match.objectLike({ 'token.actions.githubusercontent.com:sub': 'repo:owner/repo:environment:scorecard' }) } })] }),
+    });
+    const policies = Object.values(access.findResources('AWS::IAM::Policy')) as { Properties: { Roles: unknown[]; PolicyDocument: { Statement: { Action: string | string[]; Resource: unknown }[] } } }[];
+    const scorecard = policies.find((policy) => JSON.stringify(policy.Properties.Roles).includes('ScorecardRefreshRole'));
+    const statements = scorecard?.Properties.PolicyDocument.Statement ?? [];
+    expect(statements).toHaveLength(1);
+    expect([statements[0]?.Action].flat().every((action) => /^bedrock:(InvokeModel|InvokeModelWithResponseStream|Converse|ConverseStream)$/.test(action as string))).toBe(true);
+    expect(JSON.stringify(statements[0]?.Resource)).toContain('anthropic.claude-*');
+    expect(JSON.stringify(statements[0]?.Resource)).not.toMatch(/"\*"/);
+  });
 });
 
 describe('stage, for customer testing', () => {

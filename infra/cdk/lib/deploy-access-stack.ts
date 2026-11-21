@@ -74,9 +74,14 @@ export class PactlabEnvironmentDeployAccessStack extends Stack {
       readonly existingOidcProviderArn?: string;
       /** The GitHub Environment that may assume the role, when it is named differently (live → `prod`). */
       readonly githubEnvironment?: string;
+      /**
+       * The monthly model-scorecard refresh (docs/agent/scorecard-refresh.md): a separate role the GitHub
+       * Environment `scorecard` may assume, allowed only to call Claude on this account's Bedrock. Live only.
+       */
+      readonly scorecardRefresh?: boolean;
     },
   ) {
-    const { environment, githubSubjectPrefix, appStackName, existingOidcProviderArn, githubEnvironment = environment, ...stackProps } = props;
+    const { environment, githubSubjectPrefix, appStackName, existingOidcProviderArn, githubEnvironment = environment, scorecardRefresh = false, ...stackProps } = props;
     super(scope, id, stackProps);
     Tags.of(this).add('pactlab:component', 'deploy-access');
     Tags.of(this).add('pactlab:environment', environment);
@@ -98,6 +103,27 @@ export class PactlabEnvironmentDeployAccessStack extends Stack {
     });
     const account = this.account;
     const arn = (service: string, resource: string, region = this.region) => `arn:${this.partition}:${service}:${region}:${account}:${resource}`;
+
+    // The monthly scorecard refresh: its own role, trusted only from the `scorecard` GitHub Environment, and able
+    // only to call Claude on Bedrock (the agent's model). It cannot deploy, read data or touch any other resource.
+    if (scorecardRefresh) {
+      const scorecard = new iam.Role(this, 'ScorecardRefreshRole', {
+        roleName: `pactlab-github-${environment}-scorecard`,
+        description: 'GitHub Actions: the monthly model-scorecard refresh (Claude on Bedrock only)',
+        maxSessionDuration: Duration.hours(1),
+        assumedBy: new iam.OpenIdConnectPrincipal(provider, {
+          StringEquals: { 'token.actions.githubusercontent.com:aud': 'sts.amazonaws.com', 'token.actions.githubusercontent.com:sub': `${githubSubjectPrefix}:environment:scorecard` },
+        }),
+      });
+      scorecard.addToPolicy(
+        new iam.PolicyStatement({
+          sid: 'ClaudeOnBedrock',
+          actions: ['bedrock:InvokeModel', 'bedrock:InvokeModelWithResponseStream', 'bedrock:Converse', 'bedrock:ConverseStream'],
+          resources: [`arn:${this.partition}:bedrock:*::foundation-model/anthropic.claude-*`, `arn:${this.partition}:bedrock:${this.region}:${this.account}:inference-profile/us.anthropic.claude-*`],
+        }),
+      );
+      new CfnOutput(this, 'ScorecardRefreshRoleArn', { value: scorecard.roleArn });
+    }
 
     this.role.addToPolicy(new iam.PolicyStatement({ sid: 'CdkBootstrapRoles', actions: ['sts:AssumeRole'], resources: [`arn:${this.partition}:iam::${account}:role/cdk-hnb659fds-*-${account}-${this.region}`] }));
     this.role.addToPolicy(new iam.PolicyStatement({ sid: 'EcrLogin', actions: ['ecr:GetAuthorizationToken'], resources: ['*'] }));

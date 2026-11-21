@@ -1,6 +1,6 @@
 # Monthly model scorecard refresh
 
-Run on the 1st of each month (a scheduled Claude routine; see the runbook), or on demand. Output: one PR. A person merges it; nothing changes on live until then.
+Run on the 1st of each month by the GitHub Actions workflow `scorecard-refresh` (Claude Code on Bedrock; see `docs/runbooks/ai-models.md`), or on demand. Output: one PR. A person merges it; nothing changes on live until then.
 
 ## Steps
 1. **Read** `docs/model-scorecard.md`: its method (per-job boards, cost per task, hard gates) and its **Sources** line.
