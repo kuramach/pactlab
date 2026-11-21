@@ -233,6 +233,8 @@ export class PactlabCompute extends Construct {
     this.roles.api.addToPolicy(
       new iam.PolicyStatement({ sid: 'Bedrock', actions: ['bedrock:InvokeModel', 'bedrock:InvokeModelWithResponseStream', 'bedrock:Converse', 'bedrock:ConverseStream'], resources: bedrockArns }),
     );
+    // Admin → AI models → Add from Bedrock reads the account's model list (read only; no manage or provision actions).
+    this.roles.api.addToPolicy(new iam.PolicyStatement({ sid: 'BedrockList', actions: ['bedrock:ListFoundationModels', 'bedrock:ListInferenceProfiles'], resources: ['*'] }));
     if (costRoleArn) this.roles.api.addToPolicy(new iam.PolicyStatement({ sid: 'ReadHostingCost', actions: ['sts:AssumeRole'], resources: [costRoleArn] }));
     // Foresight voice (Transcribe streaming and Polly) has no resource-level scoping.
     this.roles.api.addToPolicy(new iam.PolicyStatement({ sid: 'Voice', actions: ['transcribe:StartStreamTranscription', 'polly:SynthesizeSpeech'], resources: ['*'] }));

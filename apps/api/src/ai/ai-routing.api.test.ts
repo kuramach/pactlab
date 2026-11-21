@@ -73,7 +73,8 @@ describe('AI routing diagram', { timeout: 60_000 }, () => {
     const platform = await call('operator', 'GET', '/v1/admin/ai-models/routing');
     expect(platform.status).toBe(200);
     expect((platform.body['routing'] as { jobs: Job[] }).jobs.map((j) => j.jobType).sort()).toEqual(['classification', 'contract_scrub', 'deep_review', 'document_qa', 'extraction', 'vision']);
-    expect(job(platform.body, 'extraction')).toMatchObject({ source: 'REGISTRY', lanes: [{ provider: 'google', modelId: GEMINI, label: 'Gemini 3.1 Pro', available: true }, { provider: 'fixture', available: true }] });
+    // Extraction routes on cost first (the scorecard: Haiku, here the fixture's fast role), then the Gemini volume lane.
+    expect(job(platform.body, 'extraction')).toMatchObject({ source: 'REGISTRY', lanes: [{ provider: 'fixture', available: true }, { provider: 'google', modelId: GEMINI, label: 'Gemini 3.1 Pro', available: true }] });
     // OpenAI is not connected in this deployment: its lane shows, greyed, with the reason.
     expect(job(platform.body, 'contract_scrub').lanes[0]).toMatchObject({ provider: 'openai', available: false, reason: 'OpenAI not connected' });
     expect((platform.body['choices'] as { id: string }[]).map((c) => c.id)).toEqual(expect.arrayContaining([geminiId, fixtureId]));

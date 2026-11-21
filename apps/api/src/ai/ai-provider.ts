@@ -19,8 +19,7 @@ import {
   TransportClaudeGateway,
   type ClaudeGateway,
   type ModelAlias,
-  type ModelRoute,
-} from '@pactlab/ai';
+  type ModelRoute, AwsBedrockCatalog, type BedrockCatalog } from '@pactlab/ai';
 import type { ApiEnv } from '@pactlab/config';
 import { appendFileSync, mkdirSync } from 'node:fs';
 import { createHash } from 'node:crypto';
@@ -155,6 +154,8 @@ export interface AiModelsRuntime {
   readonly resolver: ModelRouteResolver;
   readonly evaluate: ModelEvaluator;
   readonly providers: readonly ModelProvider[];
+  /** Bedrock's models for this account and region (Admin → AI models → Add from Bedrock); null without Bedrock. */
+  readonly bedrock?: BedrockCatalog | null;
 }
 
 
@@ -211,6 +212,6 @@ export async function createAiGateway(
     // The bare transport: a boot check must not count against the breaker.
     check: () => checkAiHealth(bare[primary] as ModelTransport, routes),
     // Evaluations go through the bare transport too: a model under test must not trip the breaker for live traffic.
-    models: resolver ? { resolver, evaluate: modelEvaluator(new ProviderRouterTransport(bare), routes), providers: transport.providers } : null,
+    models: resolver ? { resolver, evaluate: modelEvaluator(new ProviderRouterTransport(bare), routes), providers: transport.providers, bedrock: bedrock && env.AWS_REGION ? new AwsBedrockCatalog(env.AWS_REGION) : null } : null,
   };
 }

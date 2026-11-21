@@ -2,7 +2,7 @@ import { ForbiddenException, Inject, Injectable, NotFoundException, ServiceUnava
 import { aiModels, OperatorRequiredError, prismaExecutor, type AiProvider, type AiRouteKey, type PrismaClient, type SqlExecutor } from '@pactlab/db';
 import type { TenantContext } from '@pactlab/domain';
 import type { Logger } from '@pactlab/observability';
-import { defaultPromptRegistry } from '@pactlab/ai';
+import { defaultPromptRegistry, matchesPick, SCORECARD, SCORECARD_AS_OF, SCORECARD_SOURCE, type BedrockCatalogEntry } from '@pactlab/ai';
 import type { AiModelsRuntime } from '../../ai/ai-provider';
 import { LOGGER, PRISMA } from '../../tokens';
 
@@ -79,6 +79,57 @@ export class AiModelsService {
           reevaluationDue: model.status === 'EVALUATED' && model.evaluation?.kind !== 'health' && staleOn(model.evaluation?.promptHashes),
         })),
       };
+    });
+  }
+
+  /**
+   * Add from Bedrock, led by the model scorecard (docs/model-scorecard.md): per job, the scorecard's picks
+   * with their board score and cost per task, each marked in use, available on this account's Bedrock, or
+   * not on Bedrock; then every other model Bedrock lists, minus those already in the catalog.
+   */
+  bedrockModels(tenant: TenantContext) {
+    return this.asOperator(async () => {
+      const catalogModels = (await aiModels.list(this.sql, tenant.userId)).filter((m) => m.status !== 'RETIRED');
+      const inCatalog = new Set(catalogModels.filter((m) => m.provider === 'bedrock').map((m) => m.providerModelId));
+      const catalog = this.runtime?.bedrock ?? null;
+      let listed: BedrockCatalogEntry[] = [];
+      if (catalog) {
+        try {
+          listed = await catalog.list();
+        } catch (error) {
+          this.logger.warn({ errorName: error instanceof Error ? error.name : 'unknown' }, 'bedrock model list failed');
+          throw new ServiceUnavailableException({ code: 'BEDROCK_LIST_FAILED' });
+        }
+      }
+      const picked = new Set<string>();
+      const scorecard = SCORECARD.map((entry) => ({
+        ...entry,
+        picks: entry.picks.map((pick) => {
+          const inUse = catalogModels.find((m) => matchesPick(pick, { modelId: m.providerModelId, name: m.label }));
+          const onBedrock = listed.find((model) => matchesPick(pick, model));
+          if (onBedrock) picked.add(onBedrock.modelId);
+          return { ...pick, inUse: inUse ? { id: inUse.id, ready: inUse.status === 'EVALUATED' } : null, bedrockModelId: inUse ? null : (onBedrock?.modelId ?? null) };
+        }),
+      }));
+      return {
+        connected: catalog !== null,
+        scorecard: { asOf: SCORECARD_AS_OF, source: SCORECARD_SOURCE, jobs: scorecard },
+        items: listed.filter((model) => !inCatalog.has(model.modelId) && !picked.has(model.modelId)),
+      };
+    });
+  }
+
+  /** Use a Bedrock model: it joins the catalog and its health check starts (seconds); once it passes, pick it in the diagram. */
+  useBedrockModel(tenant: TenantContext, modelId: string) {
+    return this.asOperator(async () => {
+      const catalog = this.runtime?.bedrock ?? null;
+      const model = catalog ? (await catalog.list()).find((entry) => entry.modelId === modelId) : undefined;
+      // Only a model Bedrock lists for this account: no free-typed IDs.
+      if (!model) throw new UnprocessableEntityException({ code: 'NOT_ON_BEDROCK' });
+      const existing = (await aiModels.list(this.sql, tenant.userId)).find((m) => m.provider === 'bedrock' && m.providerModelId === modelId);
+      const id = existing && existing.status !== 'RETIRED' ? existing.id : (await this.add(tenant, { provider: 'bedrock', providerModelId: modelId, label: `${model.name}` })).id;
+      await this.evaluate(tenant, id);
+      return { id };
     });
   }
 

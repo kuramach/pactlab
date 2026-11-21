@@ -49,9 +49,13 @@ describe('dev: the running application (ADR 0019)', () => {
   it('gives each task only what it uses: scoped Bedrock and SES for the API, nothing for web', () => {
     const api = statements(template, 'ApiTaskRole');
     const bedrock = api.find((statement) => statement.Sid === 'Bedrock');
-    expect(JSON.stringify(bedrock?.Resource)).toContain('foundation-model/anthropic.claude-*');
-    expect(JSON.stringify(bedrock?.Resource)).toContain('inference-profile/us.anthropic.claude-*');
+    // Any Bedrock model may be chosen (2026-11-20), but only in this account's region, and only to call it.
+    expect(JSON.stringify(bedrock?.Resource)).toContain('foundation-model/*');
+    expect(JSON.stringify(bedrock?.Resource)).toContain(':inference-profile/*');
     expect(JSON.stringify(bedrock?.Resource)).not.toMatch(/"\*"/);
+    expect(bedrock?.Action).toEqual(['bedrock:InvokeModel', 'bedrock:InvokeModelWithResponseStream', 'bedrock:Converse', 'bedrock:ConverseStream']);
+    // Reading the model list (Add from Bedrock): list actions only, never manage or provision.
+    expect(api.find((statement) => statement.Sid === 'BedrockList')?.Action).toEqual(['bedrock:ListFoundationModels', 'bedrock:ListInferenceProfiles']);
     expect(JSON.stringify(api.find((statement) => statement.Sid === 'SendSignInEmail')?.Resource)).toContain('identity/pactlab.ai');
     expect(statements(template, 'WebTaskRole')).toEqual([]);
     expect(statements(template, 'MigrateTaskRole')).toEqual([]);
@@ -101,9 +105,8 @@ describe('dev: the running application (ADR 0019)', () => {
     const environment = Object.fromEntries((api?.Environment ?? []).map((item) => [item.Name, item.Value]));
     expect(environment).toMatchObject({ BEDROCK_MODEL_BALANCED: 'us.anthropic.claude-sonnet-5-5', BEDROCK_MODEL_DEEP_REVIEW: 'us.anthropic.claude-opus-5-5', BEDROCK_MODEL_FAST: 'us.anthropic.claude-haiku-5-5' });
     const bedrock = JSON.stringify(statements(template, 'ApiTaskRole').find((statement) => statement.Sid === 'Bedrock')?.Resource);
-    expect(bedrock).toContain('inference-profile/us.anthropic.claude-*');
-    expect(bedrock).toContain('foundation-model/anthropic.claude-*');
-    expect(bedrock).not.toContain('nova');
+    expect(bedrock).toContain(':inference-profile/*');
+    expect(bedrock).toContain('foundation-model/*');
   });
 
   it('has no shared-demo sweep outside live', () => {

@@ -1,4 +1,6 @@
 export * from './bedrock';
+export * from './bedrock-catalog';
+export * from './scorecard';
 export * from './vision';
 export * from './citations';
 export * from './classify';
