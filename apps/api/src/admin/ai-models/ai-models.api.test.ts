@@ -1,6 +1,6 @@
 import 'reflect-metadata';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
-import { defaultPromptRegistry, documentQaPrompt, FixtureBedrockCatalog, ScriptedModelTransport, TransportClaudeGateway } from '@pactlab/ai';
+import { defaultPromptRegistry, documentQaPrompt, FixtureBedrockCatalog, SCORECARD_AS_OF, ScriptedModelTransport, TransportClaudeGateway } from '@pactlab/ai';
 import type { ApiEnv } from '@pactlab/config';
 import { createSyntheticTenant, startTestDatabase, type SyntheticTenant, type TestDatabase } from '@pactlab/db/testing';
 import { createLogger } from '@pactlab/observability';
@@ -184,7 +184,7 @@ describe('AI models in the admin console', { timeout: 60_000 }, () => {
     expect((await call('other', 'GET', '/v1/admin/ai-models/bedrock')).status).toBe(403);
     const listed = (await call('operator', 'GET', '/v1/admin/ai-models/bedrock')).body as { connected: boolean; scorecard: { asOf: string; jobs: { job: string; picks: { name: string; costPerTask: string | null; bedrockModelId: string | null; inUse: unknown }[] }[] }; items: { modelId: string }[] };
     expect(listed.connected).toBe(true);
-    expect(listed.scorecard.asOf).toBe('2026-11-20');
+    expect(listed.scorecard.asOf).toBe(SCORECARD_AS_OF);
     const extraction = listed.scorecard.jobs.find((job) => job.job === 'extraction')!;
     expect(extraction.picks[0]).toMatchObject({ name: 'Claude Haiku 5.5', costPerTask: '$0.20', bedrockModelId: 'us.anthropic.claude-haiku-5-5', inUse: null });
     // Not on this account's Bedrock: shown, with nothing to use.
