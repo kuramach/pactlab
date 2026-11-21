@@ -36,8 +36,9 @@ export const devConfig: EnvironmentConfig = {
     // enabled for this account (2026-11-02; neither the Claude 5 family nor Opus 4.7/4.8 are). Until it does,
     // the newest Claude models it can call. Remove `modelOverrides` once the defaults answer `pnpm ai:check`.
     bedrock: {
-      foundationModels: ['anthropic.claude-*'],
-      inferenceProfiles: ['us.anthropic.claude-*'],
+      // Any Bedrock model may be chosen in Admin → AI models (Kumar, 2026-11-20: "All Bedrock models"); data stays in the account.
+      foundationModels: ['*'],
+      inferenceProfiles: ['*'],
       modelOverrides: { balanced: 'us.anthropic.claude-sonnet-5-5', deep_review: 'us.anthropic.claude-opus-5-5', fast: 'us.anthropic.claude-haiku-5-5' },
     },
     // Pactlab signing (T-136): BoldSign once its sandbox key is set (scripts/signing-key.sh), test signing until then.

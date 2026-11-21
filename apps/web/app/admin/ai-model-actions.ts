@@ -24,6 +24,14 @@ export async function addModel(formData: FormData): Promise<void> {
   back(result.kind === 'ok' ? 'ok-ai-added' : code(result));
 }
 
+/** Add from Bedrock: use this model (it joins the catalog and its health check starts). */
+export async function useBedrockModel(modelId: string): Promise<void> {
+  if (!/^[A-Za-z0-9][A-Za-z0-9._:/-]{1,199}$/.test(modelId)) return back('invalid');
+  const result = await apiPost('/v1/admin/ai-models/bedrock', { modelId });
+  revalidatePath('/admin');
+  back(result.kind === 'ok' ? 'ok-ai-evaluating' : code(result));
+}
+
 export async function evaluateModel(modelId: string): Promise<void> {
   if (!uuid.safeParse(modelId).success) return back('invalid');
   const result = await apiPost(`/v1/admin/ai-models/${modelId}/evaluation`, {});

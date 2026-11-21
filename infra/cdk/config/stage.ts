@@ -38,8 +38,9 @@ export const stageConfig: EnvironmentConfig = {
     // Claude model access is per AWS account: stage needs its own Anthropic access, like dev's. Until AWS
     // enables the app's 5.5 defaults there, the same models as dev and qa.
     bedrock: {
-      foundationModels: ['anthropic.claude-*'],
-      inferenceProfiles: ['us.anthropic.claude-*'],
+      // Any Bedrock model may be chosen in Admin → AI models (Kumar, 2026-11-20: "All Bedrock models"); data stays in the account.
+      foundationModels: ['*'],
+      inferenceProfiles: ['*'],
       modelOverrides: { balanced: 'us.anthropic.claude-sonnet-5-5', deep_review: 'us.anthropic.claude-opus-5-5', fast: 'us.anthropic.claude-haiku-5-5' },
     },
     // Pactlab signing (T-136): BoldSign once its sandbox key is set (scripts/signing-key.sh), test signing until then.

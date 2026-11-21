@@ -23,19 +23,27 @@ describe.each(ENVIRONMENT_NAMES.filter((name) => ENVIRONMENTS[name].service))('%
     }
   });
 
-  it('the Bedrock statement names its actions and Claude resources: no bedrock:*, no Resource *', () => {
+  it('Bedrock: invoke any model in the account region (Kumar, 2026-11-20), list models; never bedrock:*, manage or provision', () => {
     const statements = Object.values(template.findResources('AWS::IAM::Policy')).flatMap(
       (policy) => (policy as { Properties: { PolicyDocument: { Statement: Statement[] } } }).Properties.PolicyDocument.Statement,
     );
     const bedrock = statements.filter((statement) => [statement.Action].flat().some((action) => action.startsWith('bedrock:')));
     expect(bedrock.length).toBeGreaterThan(0);
+    const invoke = /^bedrock:(InvokeModel|InvokeModelWithResponseStream|Converse|ConverseStream)$/;
+    const list = /^bedrock:(ListFoundationModels|ListInferenceProfiles)$/;
     for (const statement of bedrock) {
-      expect([statement.Action].flat()).not.toContain('bedrock:*');
-      expect([statement.Action].flat().every((action) => /^bedrock:(InvokeModel|InvokeModelWithResponseStream|Converse|ConverseStream)$/.test(action))).toBe(true);
+      const actions = [statement.Action].flat();
+      expect(actions).not.toContain('bedrock:*');
+      expect(actions.every((action) => invoke.test(action) || list.test(action))).toBe(true);
       const resources = [statement.Resource].flat();
-      expect(resources).not.toContain('*');
-      expect(JSON.stringify(resources)).toMatch(/anthropic\.claude-/);
-      expect(JSON.stringify(resources)).not.toMatch(/foundation-model\/\*"|inference-profile\/\*"/);
+      if (actions.every((action) => list.test(action))) {
+        // Listing models cannot be scoped to a resource in IAM; it reads metadata only.
+        expect(resources).toEqual(['*']);
+      } else {
+        expect(actions.every((action) => invoke.test(action))).toBe(true);
+        expect(resources).not.toContain('*');
+        expect(JSON.stringify(resources)).toMatch(/foundation-model\/\*/);
+      }
     }
   });
 });

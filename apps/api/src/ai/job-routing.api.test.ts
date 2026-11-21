@@ -73,7 +73,8 @@ describe('job-type routing', { timeout: 60_000 }, () => {
       await new Promise((resolve) => setTimeout(resolve, 50));
     }
     connected.invalidate();
-    expect(ids(await connected.lanesFor(ask(org, 'extraction')))).toEqual([`google:${GEMINI}`, 'fixture:synthetic-fixture']);
+    // Extraction starts on the cost lane (scorecard: Haiku 5.5; the fixture here), then Gemini as the volume lane.
+    expect(ids(await connected.lanesFor(ask(org, 'extraction')))).toEqual(['fixture:synthetic-fixture', `google:${GEMINI}`]);
     // Not connected in this deployment (no key): skipped even though evaluated.
     expect(ids(await resolver({ providers: ['fixture'] }).lanesFor(ask(org, 'extraction')))).toEqual(['fixture:synthetic-fixture']);
     // An organization whose allow-list leaves Gemini out never gets it.
