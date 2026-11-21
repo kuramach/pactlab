@@ -24,6 +24,10 @@ export interface SourceUploadRecord {
   /** How the stored original is read (CSV, TSV or XLSX), and the workbook sheet. */
   format: UploadFormat;
   sheet: string | null;
+  /** The header's row among the sheet's non-empty rows; null: the first row (the standard template). */
+  headerRow: number | null;
+  /** The mapping assistant's checked proposal (`AssistedMapping`), shown on the mapping screen. */
+  assist: Prisma.JsonValue | null;
   mapping: Prisma.JsonValue | null;
   mappingVersion: string | null;
   objectKey: string | null;
@@ -49,6 +53,8 @@ const uploadSelect = {
   header: true,
   format: true,
   sheet: true,
+  headerRow: true,
+  assist: true,
   mapping: true,
   mappingVersion: true,
   objectKey: true,
@@ -78,6 +84,8 @@ export const sourceUploads = {
       /** CSV when absent. */
       format?: UploadFormat;
       sheet?: string | null;
+      headerRow?: number | null;
+      assist?: Prisma.InputJsonValue;
       objectKey: string;
       visibility: EvidenceVisibility;
       uploadedBy: string;
@@ -89,6 +97,16 @@ export const sourceUploads = {
   /** Switch a workbook upload to another sheet before import; its header and row count follow. */
   async selectSheet(tx: TransactionClient, uploadId: string, input: { sheet: string; header: string[]; rowCount: number }): Promise<boolean> {
     const result = await tx.sourceUpload.updateMany({ where: { id: uploadId, status: 'UPLOADED', format: 'XLSX' }, data: input });
+    return result.count === 1;
+  },
+
+  /** Re-read an upload before import: another sheet or header row, and the assistant's proposal for it. */
+  async reread(
+    tx: TransactionClient,
+    uploadId: string,
+    input: { sheet: string | null; headerRow: number | null; header: string[]; rowCount: number; assist: Prisma.InputJsonValue | typeof Prisma.DbNull },
+  ): Promise<boolean> {
+    const result = await tx.sourceUpload.updateMany({ where: { id: uploadId, status: 'UPLOADED' }, data: input });
     return result.count === 1;
   },
 

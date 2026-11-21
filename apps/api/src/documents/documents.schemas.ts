@@ -84,8 +84,9 @@ export type CategorizeDocumentBody = z.infer<typeof categorizeDocumentBodySchema
 
 /**
  * Connect a data room or drive folder (T-098). FIXTURE reads a synthetic
- * room (local and dev only); LIVE needs a read-only access token, stored once
- * in the secret store and never returned, logged or audited.
+ * room (local and dev only). LIVE reads with the organization's own Google
+ * Drive or OneDrive sign-in (T-147); a pasted read-only access token is still
+ * accepted from older clients, stored once and never returned, logged or audited.
  */
 export const connectDocumentSourceBodySchema = z.strictObject({
   provider: z.enum(DOCUMENT_SOURCE_PROVIDERS),

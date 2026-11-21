@@ -257,8 +257,11 @@ export const dealsApi = {
       `/v1/deals/${encodeURIComponent(dealId)}/uploads/${encodeURIComponent(uploadId)}/preview`,
       { mapping },
     ),
-  selectSheet: (dealId: string, uploadId: string, sheet: string) =>
-    apiPost<UploadDetailView>(`/v1/deals/${encodeURIComponent(dealId)}/uploads/${encodeURIComponent(uploadId)}/sheet`, { sheet }),
+  selectSheet: (dealId: string, uploadId: string, choice: string | { sheet?: string; headerRow?: number }) =>
+    apiPost<UploadDetailView>(`/v1/deals/${encodeURIComponent(dealId)}/uploads/${encodeURIComponent(uploadId)}/sheet`, typeof choice === 'string' ? { sheet: choice } : choice),
+  /** Import a spreadsheet already filed in the pact's documents. */
+  importDocument: (dealId: string, documentId: string, target: string) =>
+    apiPost<UploadDetailView>(`/v1/deals/${encodeURIComponent(dealId)}/documents/${encodeURIComponent(documentId)}/import`, { target }),
   importProgress: (dealId: string, runId: string) =>
     apiGet<ImportProgressView>(`/v1/deals/${encodeURIComponent(dealId)}/import-runs/${encodeURIComponent(runId)}`),
   cancelUpload: (dealId: string, uploadId: string) =>

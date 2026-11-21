@@ -1,5 +1,6 @@
 import {
   AMOUNT_UNITS,
+  PNL_KINDS,
   BILLING_SYSTEMS,
   DATE_FORMATS,
   IMPORT_TARGET_DEFINITIONS,
@@ -26,6 +27,22 @@ export const importMappingSchema = z.strictObject({
   numberFormat: z.enum(NUMBER_FORMATS),
   amountUnit: z.enum(AMOUNT_UNITS),
   negateAmounts: z.boolean(),
+  /** How the file is laid out (months across); absent: one record per row. */
+  layout: z
+    .discriminatedUnion('kind', [
+      z.strictObject({ kind: z.literal('ROWS') }),
+      z.strictObject({ kind: z.literal('PERIOD_COLUMNS'), periods: z.array(z.strictObject({ column: z.string().min(1).max(200), period: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/) })).min(1).max(60) }),
+      z.strictObject({
+        kind: z.literal('MONTHS_ACROSS'),
+        labelColumn: z.string().min(1).max(200),
+        periods: z.array(z.strictObject({ column: z.string().min(1).max(200), period: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/) })).min(1).max(60),
+      }),
+    ])
+    .optional(),
+  /** A P&L: what each account line is. */
+  lineKinds: z.record(z.string().min(1).max(200), z.enum(PNL_KINDS)).optional(),
+  /** The person accepted subtotals that do not add up to their lines. */
+  acceptTieOutGaps: z.boolean().optional(),
 });
 export type ImportMappingBody = z.infer<typeof importMappingSchema>;
 
@@ -48,6 +65,9 @@ export const uploadQuerySchema = z.strictObject({
 export type UploadQuery = z.infer<typeof uploadQuerySchema>;
 
 export const uploadParamsSchema = z.strictObject({ dealId: z.uuid(), uploadId: z.uuid() });
+/** Import a spreadsheet already filed in the pact's documents (no second upload). */
+export const documentImportParamsSchema = z.strictObject({ dealId: z.uuid(), documentId: z.uuid() });
+export const documentImportBodySchema = z.strictObject({ target: z.enum(IMPORT_TARGETS) });
 export const importTargetParamsSchema = z.strictObject({ dealId: z.uuid(), target: z.enum(IMPORT_TARGETS) });
 
 /** CSV, TSV or Excel files up to 50 MB (200,000 rows). Larger imports run in the background. */
@@ -55,7 +75,10 @@ export const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
 /** File types an import upload accepts, for the file picker. */
 export const IMPORT_FILE_ACCEPT = '.csv,.tsv,.txt,.xlsx,text/csv,text/tab-separated-values,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
-export const sheetBodySchema = z.strictObject({ sheet: z.string().trim().min(1).max(100) });
+/** Read the upload again: another workbook sheet, or the header on another row (at least one). */
+export const sheetBodySchema = z
+  .strictObject({ sheet: z.string().trim().min(1).max(100).optional(), headerRow: z.number().int().min(1).max(30).optional() })
+  .refine((body) => body.sheet !== undefined || body.headerRow !== undefined, 'A sheet or a header row');
 export const importRunParamsSchema = z.strictObject({ dealId: z.uuid(), runId: z.uuid() });
 
 export interface BillingSystemView {
@@ -87,9 +110,21 @@ export interface UploadDetailView extends SourceUploadView {
   sheet: string | null;
   sheets: string[];
   header: string[];
+  /** The header's row among the sheet's non-empty rows; null: the first row. */
+  headerRow: number | null;
+  /** The sheet's first rows before any header (for choosing the header row); never stored as evidence. */
+  preview: string[][];
   /** First rows as uploaded, for the mapping screen only; never stored as evidence. */
   sample: string[][];
   suggestedMapping: ImportMappingBody;
+  /** What the mapping assistant filled in and why, and what it asks a person; null for older uploads. */
+  assist: {
+    source: 'AI' | 'NAMES';
+    picks: Record<string, { by: 'AI' | 'NAME'; confidence: number | null; reason: string | null }>;
+    questions: { field: string | null; question: string; options: string[] }[];
+    unsureLines: string[];
+    note: string | null;
+  } | null;
   template: BillingSystemView;
 }
 
@@ -104,6 +139,10 @@ export interface ImportPreviewView {
   totals: { currency: string; amount: string; lines: number }[];
   /** Fields left empty on some valid rows; the revenue engine will explain exclusions. */
   emptyFields: { field: string; rows: number }[];
+  /** A P&L: subtotals that do not add up to their lines, per month (decimal strings). */
+  tieOut: { account: string; month: string; kind: string; stated: string; computed: string }[];
+  /** A P&L: every account still without a line kind. */
+  unclassified: string[];
 }
 
 export interface ImportResultView {

@@ -151,6 +151,20 @@ export class PactlabCompute extends Construct {
     const boldsignKey = signingSecret('SigningBoldSignKey', 'boldsign-api-key', 'BoldSign API key for Pactlab signing');
     const boldsignWebhookSecret = signingSecret('SigningBoldSignWebhookSecret', 'boldsign-webhook-secret', 'BoldSign webhook signing secret');
     const signingTestRecipients = signingSecret('SigningTestRecipients', 'test-recipients', 'the only recipients envelopes may go to before the production go');
+    // Document sources (T-147): Pactlab's OAuth clients for Google Drive and OneDrive / SharePoint. Created `unset`
+    // (that provider's Connect hidden); scripts/doc-source-key.sh sets them.
+    const documentSecret = (id: string, name: string, description: string) =>
+      new secretsmanager.Secret(this, id, {
+        secretName: `pactlab/${config.name}/documents/${name}`,
+        description: `Pactlab ${config.name}: ${description} (unset: off)`,
+        encryptionKey: dataKey,
+        secretStringValue: SecretValue.unsafePlainText('unset'),
+        removalPolicy: statefulRemoval,
+      });
+    const googleOauthId = documentSecret('DocumentsGoogleOauthId', 'google-client-id', 'Google OAuth client id for Drive document sources');
+    const googleOauthSecret = documentSecret('DocumentsGoogleOauthSecret', 'google-client-secret', 'Google OAuth client secret for Drive document sources');
+    const microsoftOauthId = documentSecret('DocumentsMicrosoftOauthId', 'microsoft-client-id', 'Microsoft Entra application id for OneDrive / SharePoint document sources');
+    const microsoftOauthSecret = documentSecret('DocumentsMicrosoftOauthSecret', 'microsoft-client-secret', 'Microsoft Entra client secret for OneDrive / SharePoint document sources');
 
     // --- Images by commit SHA: the slim server image (api, worker), its "-tools" variant (migrate, seed) and the web image.
     const repositories = {
@@ -210,6 +224,10 @@ export class PactlabCompute extends Construct {
       SIGNING_PROVIDER: service.signing.providers.join(','),
       ...(service.operatorEmail ? { OPERATOR_EMAIL: service.operatorEmail } : {}),
       ...(costRoleArn ? { COST_EXPLORER_ROLE_ARN: costRoleArn } : {}),
+      // Connection credentials (T-007, T-147): organizations' OAuth refresh tokens and connection tokens.
+      CREDENTIAL_STORE: 'secretsmanager',
+      CREDENTIAL_STORE_PREFIX: `pactlab/${config.name}/credentials`,
+      CREDENTIAL_STORE_KMS_KEY_ID: dataKey.keyArn,
     };
     const runtimePassword = ecs.Secret.fromSecretsManager(runtimeSecret, 'password');
     const ownerFields = { DB_OWNER_USER: ecs.Secret.fromSecretsManager(ownerSecret, 'username'), DB_OWNER_PASSWORD: ecs.Secret.fromSecretsManager(ownerSecret, 'password') };
@@ -235,6 +253,16 @@ export class PactlabCompute extends Construct {
     );
     // Admin → AI models → Add from Bedrock reads the account's model list (read only; no manage or provision actions).
     this.roles.api.addToPolicy(new iam.PolicyStatement({ sid: 'BedrockList', actions: ['bedrock:ListFoundationModels', 'bedrock:ListInferenceProfiles'], resources: ['*'] }));
+    // Connection credentials (T-007, T-147): the API keeps organizations' sign-ins under its own prefix only,
+    // encrypted with the environment's data key; nothing else in Secrets Manager is reachable this way.
+    this.roles.api.addToPolicy(
+      new iam.PolicyStatement({
+        sid: 'ConnectionCredentials',
+        actions: ['secretsmanager:CreateSecret', 'secretsmanager:PutSecretValue', 'secretsmanager:GetSecretValue', 'secretsmanager:DeleteSecret'],
+        resources: [`arn:${stack.partition}:secretsmanager:${stack.region}:${stack.account}:secret:pactlab/${config.name}/credentials/*`],
+      }),
+    );
+    dataKey.grantEncryptDecrypt(this.roles.api);
     if (costRoleArn) this.roles.api.addToPolicy(new iam.PolicyStatement({ sid: 'ReadHostingCost', actions: ['sts:AssumeRole'], resources: [costRoleArn] }));
     // Foresight voice (Transcribe streaming and Polly) has no resource-level scoping.
     this.roles.api.addToPolicy(new iam.PolicyStatement({ sid: 'Voice', actions: ['transcribe:StartStreamTranscription', 'polly:SynthesizeSpeech'], resources: ['*'] }));
@@ -306,6 +334,10 @@ export class PactlabCompute extends Construct {
         BOLDSIGN_API_KEY: ecs.Secret.fromSecretsManager(boldsignKey),
         BOLDSIGN_WEBHOOK_SECRET: ecs.Secret.fromSecretsManager(boldsignWebhookSecret),
         SIGNING_TEST_RECIPIENTS: ecs.Secret.fromSecretsManager(signingTestRecipients),
+        GOOGLE_OAUTH_CLIENT_ID: ecs.Secret.fromSecretsManager(googleOauthId),
+        GOOGLE_OAUTH_CLIENT_SECRET: ecs.Secret.fromSecretsManager(googleOauthSecret),
+        MICROSOFT_OAUTH_CLIENT_ID: ecs.Secret.fromSecretsManager(microsoftOauthId),
+        MICROSOFT_OAUTH_CLIENT_SECRET: ecs.Secret.fromSecretsManager(microsoftOauthSecret),
       },
       portMappings: [{ containerPort: 4000 }],
       logging: logging('api'),

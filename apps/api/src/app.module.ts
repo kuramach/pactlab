@@ -166,7 +166,7 @@ class InfrastructureModule {
         { provide: IDENTITY_VERIFIER, useValue: identityVerifier },
         { provide: LOGGER, useValue: deps.logger },
         { provide: PACK_RELEASE, useValue: { preview: deps.packPreview ?? true } },
-        { provide: PROVIDER_DEPENDENCIES, useValue: providerDependencies(deps.providers) },
+        { provide: PROVIDER_DEPENDENCIES, useValue: providerDependencies({ ...deps.providers, ...(deps.emailLogin?.tokenSecret ? { stateSecret: deps.emailLogin.tokenSecret } : {}) }) },
       ],
       exports: [PRISMA, IDENTITY_VERIFIER, API_TOKENS, LOGGER, PACK_RELEASE, PROVIDER_DEPENDENCIES],
     };
@@ -287,6 +287,9 @@ export class AppModule {
           objectStore: deps.uploads?.objectStore ?? new UnavailableUploadStore(),
           malwareScanner: deps.uploads?.malwareScanner ?? new UnavailableMalwareScanner(),
           importQueue: deps.uploads?.importQueue ?? null,
+          // The mapping assistant for files not in the standard template; off, names are matched only.
+          gateway: deps.documents?.gateway ?? new NotConfiguredClaudeGateway(),
+          documentStore: deps.documents?.objectStore ?? null,
         }),
         FindingsModule.register(findings, deps.packs),
         valuationModule,

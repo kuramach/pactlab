@@ -130,6 +130,21 @@ export const apiEnvSchema = baseEnvSchema.extend({
   DOCUSIGN_INTEGRATION_KEY: unsetIfBlank(nonEmpty.optional()),
   DOCUSIGN_CLIENT_SECRET: unsetIfBlank(nonEmpty.optional()),
   DOCUSIGN_AUTH_HOST: unsetIfBlank(z.enum(['account-d.docusign.com', 'account.docusign.com']).optional()),
+  /**
+   * Where connection credentials live when deployed (T-007, T-147): AWS Secrets Manager, under the
+   * environment's prefix, encrypted with its data key. Unset: the local encrypted store, or none.
+   */
+  CREDENTIAL_STORE: unsetIfBlank(z.enum(['secretsmanager']).optional()),
+  CREDENTIAL_STORE_PREFIX: unsetIfBlank(z.string().regex(/^pactlab\/[a-z]+\/credentials$/).optional()),
+  CREDENTIAL_STORE_KMS_KEY_ID: unsetIfBlank(nonEmpty.optional()),
+  /**
+   * Pactlab's OAuth clients for document sources (T-147): organizations sign in to their own Google Drive
+   * or OneDrive / SharePoint with them. Each pair optional (`unset` is off); the runbook registers them.
+   */
+  GOOGLE_OAUTH_CLIENT_ID: unsetIfBlank(z.string().min(1).optional()).transform((value) => (value === 'unset' ? undefined : value)),
+  GOOGLE_OAUTH_CLIENT_SECRET: unsetIfBlank(z.string().min(1).optional()).transform((value) => (value === 'unset' ? undefined : value)),
+  MICROSOFT_OAUTH_CLIENT_ID: unsetIfBlank(z.string().min(1).optional()).transform((value) => (value === 'unset' ? undefined : value)),
+  MICROSOFT_OAUTH_CLIENT_SECRET: unsetIfBlank(z.string().min(1).optional()).transform((value) => (value === 'unset' ? undefined : value)),
   /** RentCast API key for US property data on teaser pages (batch 2). Unset: the fixture outside production, no lookup in production. */
   RENTCAST_API_KEY: unsetIfBlank(nonEmpty.optional()),
   /** Stripe (T-087): a test (sk_test_) or live key and the webhook signing secret. Unset: the fixture outside production. */
@@ -252,6 +267,9 @@ export const apiEnvSchema = baseEnvSchema.extend({
   .superRefine(allOrNone(['GITHUB_APP_ID', 'GITHUB_APP_SLUG', 'GITHUB_APP_PRIVATE_KEY_PATH']))
   .superRefine(allOrNone(['DOCUSIGN_INTEGRATION_KEY', 'DOCUSIGN_CLIENT_SECRET', 'DOCUSIGN_AUTH_HOST', 'DOCUSIGN_CONNECT_HMAC_KEY']))
   .superRefine(allOrNone(['EMAIL_CONFIGURATION_SET', 'EMAIL_EVENTS_TOPIC_ARN']))
+  .superRefine(allOrNone(['CREDENTIAL_STORE', 'CREDENTIAL_STORE_PREFIX', 'CREDENTIAL_STORE_KMS_KEY_ID']))
+  .superRefine(allOrNone(['GOOGLE_OAUTH_CLIENT_ID', 'GOOGLE_OAUTH_CLIENT_SECRET']))
+  .superRefine(allOrNone(['MICROSOFT_OAUTH_CLIENT_ID', 'MICROSOFT_OAUTH_CLIENT_SECRET']))
   .superRefine((value, context) => {
     if (value.AI_PROVIDER === 'fixture' && value.APP_ENV !== 'local' && value.APP_ENV !== 'test') {
       context.addIssue({ code: 'custom', path: ['AI_PROVIDER'], message: 'fixture is for local and test runs only' });

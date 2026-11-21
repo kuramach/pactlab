@@ -95,6 +95,16 @@ export async function chooseSheet(deal: string, upload: string, sheet: string): 
   return { message: result.kind === 'conflict' ? 'This upload was already imported; its sheet is fixed.' : 'That sheet could not be read. Try another.' };
 }
 
+/** Read the upload again with its header on another row (title rows above it are left out). */
+export async function chooseHeaderRow(deal: string, upload: string, headerRow: number): Promise<{ message: string | null }> {
+  const ids = target.safeParse({ dealId: deal, uploadId: upload });
+  const row = z.number().int().min(1).max(30).safeParse(headerRow);
+  if (!ids.success || !row.success) return { message: 'Choose the row that names the columns.' };
+  const result = await dealsApi.selectSheet(ids.data.dealId, ids.data.uploadId, { headerRow: row.data });
+  if (result.kind === 'ok') return { message: null };
+  return { message: result.kind === 'conflict' ? 'This upload was already imported; its header is fixed.' : 'That row could not be read as a header. Try another.' };
+}
+
 /** Discard an upload that was the wrong file: nothing is imported, the stored copy is deleted (audited). */
 export async function cancelUpload(deal: string, upload: string): Promise<{ message: string }> {
   const ids = target.safeParse({ dealId: deal, uploadId: upload });

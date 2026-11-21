@@ -4,6 +4,7 @@ export * from './scorecard';
 export * from './vision';
 export * from './citations';
 export * from './classify';
+export * from './map-import';
 export * from './context';
 export * from './gateway';
 export * from './hash';

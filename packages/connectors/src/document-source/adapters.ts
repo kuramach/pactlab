@@ -62,6 +62,15 @@ function failure(status: number): DocumentSourceError {
 }
 
 async function bearer(secrets: SecretStore, scope: DocumentSourceScope): Promise<string> {
+  // An OAuth connection refreshes itself; its errors are already DocumentSourceErrors.
+  if (scope.accessToken) {
+    try {
+      return await scope.accessToken();
+    } catch (error) {
+      if (error instanceof DocumentSourceError) throw error;
+      throw new DocumentSourceError('ACCESS');
+    }
+  }
   if (!scope.credentialRef) throw new DocumentSourceError('ACCESS');
   try {
     return await secrets.get(scope.credentialRef);

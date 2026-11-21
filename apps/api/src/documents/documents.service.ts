@@ -53,6 +53,7 @@ import {
   type CompanyType,
   type DealRole,
   type ExpectedInputId,
+  type ImportTarget,
   type IntakeCategory,
   type PackDefinition,
   type Permission,
@@ -870,12 +871,16 @@ export class DocumentsService {
    */
   async intake(tenant: TenantContext, dealId: string, requestId: string) {
     await this.access.require(tenant, dealId, canAsk, { action: 'document.intake.viewed', requestId });
-    const [pack, documents, connections] = await Promise.all([
+    const [pack, documents, connections, imported] = await Promise.all([
       this.packOf(tenant, dealId),
       this.documents.listDocuments(tenant, dealId, { sharedOnly: false }),
       withTenant(this.prisma, tenant, (tx) =>
         // bounded: one pact's own records of this kind (tens: a checklist, versions, entries, its sources)
         tx.connection.findMany({ where: { dealId, status: 'ACTIVE' }, select: { provider: true } }),
+      ),
+      withTenant(this.prisma, tenant, (tx) =>
+        // bounded: one row per import target (distinct), at most the targets a pack offers
+        tx.sourceUpload.findMany({ where: { dealId, status: 'IMPORTED' }, select: { target: true }, distinct: ['target'] }),
       ),
     ]);
     // A file replaced or removed at its source no longer counts as received.
@@ -892,6 +897,7 @@ export class DocumentsService {
       })),
       [...new Set(connections.map((connection) => connection.provider))],
       missingContracts.length > 0 ? { CUSTOMER_CONTRACT: missingContracts } : {},
+      imported.map((upload) => upload.target as ImportTarget),
     );
     const refiled = await Promise.all(
       available

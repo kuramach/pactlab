@@ -1,12 +1,25 @@
 'use client';
 
 import type { ImportMappingBody, ImportPreviewView, ImportProgressView, UploadDetailView } from '@pactlab/contracts';
-import { AMOUNT_UNITS, DATE_FORMATS, NUMBER_FORMATS, type ImportMapping } from '@pactlab/domain';
+import {
+  AMOUNT_UNITS,
+  DATE_FORMATS,
+  guessLayout,
+  layoutProblems,
+  namesOnly,
+  NUMBER_FORMATS,
+  PERIOD_COLUMN,
+  PNL_KINDS,
+  reshapeTable,
+  VALUE_COLUMN,
+  type ImportMapping,
+  type PnlKind,
+} from '@pactlab/domain';
 import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle } from '@pactlab/ui';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState, useTransition } from 'react';
+import { useEffect, useMemo, useState, useTransition } from 'react';
 import { choiceOf, cleanMapping, definitionFor, importedUrl, sourceFromChoice, unmappedRequired } from '../_lib/mapping-form';
-import { cancelUpload, chooseSheet, importProgressOf, importWithMapping, previewMapping } from '../actions';
+import { cancelUpload, chooseHeaderRow, chooseSheet, importProgressOf, importWithMapping, previewMapping } from '../actions';
 
 const inputClass =
   'w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring';
@@ -28,6 +41,28 @@ const PHASE_LABELS: Record<ImportProgressView['phase'], string> = {
   DONE: 'Finishing…',
 };
 const POLL_MS = 2_000;
+
+const KIND_LABELS: Record<PnlKind, string> = {
+  REVENUE: 'Revenue',
+  COGS: 'Cost of revenue',
+  OPEX: 'Operating expense',
+  OTHER_INCOME: 'Other income',
+  OTHER_EXPENSE: 'Other expense',
+  TOTAL_REVENUE: 'Total: revenue',
+  TOTAL_COGS: 'Total: cost of revenue',
+  GROSS_PROFIT: 'Total: gross profit',
+  TOTAL_OPEX: 'Total: operating expenses',
+  OPERATING_INCOME: 'Total: operating income',
+  NET_INCOME: 'Total: net income',
+  OTHER_SUBTOTAL: 'Other subtotal (not checked)',
+};
+const SYNTHETIC = new Set([PERIOD_COLUMN, VALUE_COLUMN]);
+
+/** A preview row in a few words, for choosing the header: "Row 3: Unit # · Bldg · Occupancy…". */
+const rowLabel = (cells: readonly string[], index: number) => {
+  const text = cells.filter(Boolean).slice(0, 4).join(' · ');
+  return `Row ${index + 1}: ${text.length > 60 ? `${text.slice(0, 60)}…` : text || '(blank)'}`;
+};
 
 /** How the file was read, in words: “Excel workbook, sheet Loans” or “semicolon-separated text, Windows-1252”. */
 export function describeRead(read: ReadInfo): string {
@@ -60,6 +95,9 @@ export function MappingEditor({
   sample,
   suggested,
   read,
+  assist = null,
+  headerRow = null,
+  preview: grid = [],
 }: {
   dealId: string;
   uploadId: string;
@@ -68,6 +106,11 @@ export function MappingEditor({
   suggested: ImportMappingBody;
   /** How the API read the file; absent for older callers (treated as CSV). */
   read?: ReadInfo;
+  /** What the mapping assistant filled in and asks (Kumar, 2026-11-21); null for older uploads. */
+  assist?: UploadDetailView['assist'];
+  /** The header's row among the sheet's first rows, and those rows, for moving the header. */
+  headerRow?: number | null;
+  preview?: string[][];
 }) {
   const router = useRouter();
   const [mapping, setMapping] = useState<ImportMapping>(suggested as ImportMapping);
@@ -82,6 +125,31 @@ export function MappingEditor({
   const billing = definition.target === 'BILLING_INVOICE_LINE';
   const hasMoney = definition.fields.some((field) => field.kind === 'money');
   const missing = unmappedRequired(mapping, definition);
+  // The table the fields map from: the file's columns, or (months across) the reshaped ones.
+  const shaped = useMemo(() => {
+    const table = { header, rows: sample.map((cells) => ({ cells, text: '' })) };
+    return layoutProblems(definition, header, mapping.layout).length === 0 ? reshapeTable(table, mapping.layout) : table;
+  }, [definition, header, sample, mapping.layout]);
+  const columns = shaped.header;
+  const months = definition.fields.some((field) => field.name === 'month');
+  const across = mapping.layout && mapping.layout.kind !== 'ROWS' ? mapping.layout : null;
+  const guessed = useMemo(() => (months && !across ? guessLayout(definition, header) : null), [definition, header, months, across]);
+  // The assistant's questions, answered by mapping the field or by saying it is not in the file.
+  const [settled, setSettled] = useState<Set<number>>(new Set());
+  const questions = (assist?.questions ?? []).map((question, index) => ({
+    ...question,
+    index,
+    open: !settled.has(index) && (question.field === null || (mapping.fields[question.field]?.kind ?? 'none') === 'none'),
+  }));
+  const openQuestions = questions.filter((question) => question.open);
+  const unsure = new Set(assist?.unsureLines ?? []);
+  const accounts = useMemo(() => {
+    if (!definition.lineItems) return [];
+    const source = mapping.fields['account'];
+    const at = source?.kind === 'column' ? shaped.header.indexOf(source.column) : -1;
+    const seen = [...Object.keys(mapping.lineKinds ?? {}), ...(at >= 0 ? shaped.rows.map((row) => (row.cells[at] ?? '').trim()) : [])];
+    return [...new Set(seen.filter(Boolean))];
+  }, [definition.lineItems, mapping.fields, mapping.lineKinds, shaped]);
 
   const update = (next: ImportMapping) => {
     setMapping(next);
@@ -89,8 +157,31 @@ export function MappingEditor({
     setMessage(null);
   };
   const columnSample = (choice: string) => {
-    const index = choice.startsWith('column:') ? header.indexOf(choice.slice(7)) : -1;
-    return index < 0 ? '' : sample.map((row) => row[index] ?? '').filter(Boolean).slice(0, 3).join(' · ');
+    const index = choice.startsWith('column:') ? columns.indexOf(choice.slice(7)) : -1;
+    return index < 0 ? '' : shaped.rows.map((row) => row.cells[index] ?? '').filter(Boolean).slice(0, 3).join(' · ');
+  };
+  const moveHeader = (row: number) =>
+    startTransition(async () => {
+      const result = await chooseHeaderRow(dealId, uploadId, row);
+      if (result.message) setMessage(result.message);
+      else router.refresh();
+    });
+  // Months across, switched on or off by a person: the month (and a statement's amount and lines) follow.
+  const setAcross = (on: boolean) => {
+    if (on) {
+      const read = namesOnly(definition, headerRow ?? 1, header, {}, null);
+      update({ ...mapping, layout: read.layout, fields: { ...mapping.fields, ...read.fields } });
+      return;
+    }
+    const fields = Object.fromEntries(
+      Object.entries(mapping.fields).map(([name, source]) => [name, source.kind === 'column' && (SYNTHETIC.has(source.column) || !header.includes(source.column)) ? { kind: 'none' as const } : source]),
+    );
+    const { layout: _layout, ...rest } = mapping;
+    update({ ...rest, fields });
+  };
+  const setKind = (account: string, kind: PnlKind | '') => {
+    const rest = Object.fromEntries(Object.entries(mapping.lineKinds ?? {}).filter(([name]) => name !== account));
+    update({ ...mapping, lineKinds: kind ? { ...rest, [account]: kind } : rest });
   };
   const check = () =>
     startTransition(async () => {
@@ -142,7 +233,7 @@ export function MappingEditor({
       const result = await cancelUpload(dealId, uploadId);
       setMessage(result.message);
     });
-  const ready = preview !== null && preview.problems.length === 0 && preview.validRows > 0;
+  const ready = preview !== null && preview.problems.length === 0 && preview.validRows > 0 && openQuestions.length === 0;
 
   return (
     <div className="flex flex-col gap-6">
@@ -174,6 +265,80 @@ export function MappingEditor({
                     ))}
                   </select>
                 </label>
+              ) : null}
+            </div>
+          ) : null}
+          {assist ? (
+            <div className="flex flex-col gap-1 rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm">
+              {assist.source === 'AI' ? (
+                <span>
+                  Pactlab read this file and filled in what it was sure of (marked <Badge variant="evidence">AI</Badge>). Check each field; nothing is imported until you do.
+                </span>
+              ) : null}
+              {assist.note ? <span className="text-muted-foreground">{assist.note}</span> : null}
+            </div>
+          ) : null}
+          {openQuestions.length > 0 ? (
+            <section aria-label="Pactlab needs you" className="flex flex-col gap-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-950">
+              <span className="font-medium">Pactlab needs you before this can be imported</span>
+              {openQuestions.map((question) => {
+                const field = question.field ? definition.fields.find((entry) => entry.name === question.field) : null;
+                return (
+                  <div key={question.index} className="flex flex-col gap-2">
+                    <span>{question.question}</span>
+                    <div className="flex flex-wrap gap-2">
+                      {field
+                        ? question.options.map((option) => (
+                            <Button
+                              key={option}
+                              size="sm"
+                              variant="outline"
+                              onClick={() => update({ ...mapping, fields: { ...mapping.fields, [field.name]: { kind: 'column', column: option } } })}
+                            >
+                              {option}
+                            </Button>
+                          ))
+                        : null}
+                      <Button size="sm" variant="outline" onClick={() => setSettled(new Set([...settled, question.index]))}>
+                        {field ? (field.required ? 'I’ll pick it below' : 'Not in this file') : 'Understood'}
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </section>
+          ) : null}
+          {grid.length > 1 || across || guessed?.kind !== 'ROWS' ? (
+            <div className="flex flex-wrap items-center gap-3 text-sm">
+              {grid.length > 1 ? (
+                <label className="flex items-center gap-2 font-medium">
+                  The column names are on
+                  <select
+                    aria-label="Header row"
+                    className={`${inputClass} w-auto max-w-md`}
+                    value={headerRow ?? 1}
+                    disabled={pending || runId !== null}
+                    onChange={(event) => moveHeader(Number(event.target.value))}
+                  >
+                    {grid.slice(0, 30).map((cells, index) => (
+                      <option key={index} value={index + 1}>
+                        {rowLabel(cells, index)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
+              {across ? (
+                <span className="flex flex-wrap items-center gap-2">
+                  Months run across the columns: {across.periods[0]?.column} – {across.periods.at(-1)?.column} ({across.periods.length}).
+                  <Button size="sm" variant="outline" onClick={() => setAcross(false)}>
+                    No, one row per record
+                  </Button>
+                </span>
+              ) : guessed && guessed.kind !== 'ROWS' ? (
+                <Button size="sm" variant="outline" onClick={() => setAcross(true)}>
+                  Months run across the columns
+                </Button>
               ) : null}
             </div>
           ) : null}
@@ -249,6 +414,11 @@ export function MappingEditor({
                     <td className="py-2 pr-3">
                       <span className="font-medium">{field.label}</span>
                       {field.required ? <span className="ml-1 text-red-700">*</span> : null}
+                      {assist?.picks[field.name]?.by === 'AI' && choiceOf(source) === choiceOf(suggested.fields[field.name]) ? (
+                        <Badge variant="evidence" className="ml-2" title={assist.picks[field.name]?.reason ?? undefined}>
+                          AI
+                        </Badge>
+                      ) : null}
                       <span className="block text-xs text-muted-foreground">{field.hint}</span>
                     </td>
                     <td className="py-2 pr-3">
@@ -261,9 +431,9 @@ export function MappingEditor({
                         }
                       >
                         <option value="none">— Not in this file —</option>
-                        {header.map((column) => (
+                        {columns.map((column) => (
                           <option key={column} value={`column:${column}`}>
-                            {column}
+                            {column === PERIOD_COLUMN ? 'Months across the columns' : column === VALUE_COLUMN ? 'The figure under each month' : column}
                           </option>
                         ))}
                         {field.name === definition.recordIdField ? null : <option value="constant">Fixed value…</option>}
@@ -281,12 +451,51 @@ export function MappingEditor({
                     </td>
                     <td className="py-2 font-mono text-xs text-muted-foreground">
                       {source?.kind === 'constant' ? source.value : columnSample(choice)}
+                      {assist?.picks[field.name]?.by === 'AI' && assist.picks[field.name]?.reason && choiceOf(source) === choiceOf(suggested.fields[field.name]) ? (
+                        <span className="block font-sans">{assist.picks[field.name]?.reason}</span>
+                      ) : null}
                     </td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
+          {definition.lineItems && accounts.length > 0 ? (
+            <div className="flex flex-col gap-2">
+              <span className="text-sm font-medium">What each line is</span>
+              <span className="text-xs text-muted-foreground">
+                Lines are imported; totals are checked against them, never imported.
+                {unsure.size > 0 ? ' Lines Pactlab was unsure of are highlighted.' : ''}
+              </span>
+              <table className="w-full text-left text-sm">
+                <tbody className="divide-y divide-border">
+                  {[...new Set([...accounts, ...(preview?.unclassified ?? [])])].map((account) => {
+                    const kind = mapping.lineKinds?.[account] ?? '';
+                    return (
+                      <tr key={account} className={unsure.has(account) || !kind ? 'bg-amber-50' : undefined}>
+                        <td className="py-1 pr-3">{account}</td>
+                        <td className="py-1">
+                          <select
+                            aria-label={`Kind of line ${account}`}
+                            className={inputClass}
+                            value={kind}
+                            onChange={(event) => setKind(account, event.target.value as PnlKind | '')}
+                          >
+                            <option value="">— Choose —</option>
+                            {PNL_KINDS.map((option) => (
+                              <option key={option} value={option}>
+                                {KIND_LABELS[option]}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : null}
           {missing.length > 0 ? (
             <p className="text-sm text-muted-foreground">Still required: {missing.join(', ')}.</p>
           ) : null}
@@ -294,6 +503,7 @@ export function MappingEditor({
             <Button onClick={check} disabled={pending || missing.length > 0}>
               {pending && !preview ? 'Checking…' : 'Check every row'}
             </Button>
+            {openQuestions.length > 0 ? <span className="ml-3 text-xs text-muted-foreground">Answer Pactlab’s questions above to import.</span> : null}
           </div>
         </CardContent>
       </Card>
@@ -313,6 +523,22 @@ export function MappingEditor({
                   <li key={problem}>{problem}</li>
                 ))}
               </ul>
+            ) : null}
+            {preview.tieOut.length > 0 ? (
+              <div className="flex flex-col gap-2">
+                <span className="font-medium">Totals in the file that don’t add up to its lines</span>
+                <ul className="flex flex-col gap-1" data-numeric>
+                  {preview.tieOut.map((gap) => (
+                    <li key={`${gap.account}|${gap.month}`}>
+                      {gap.account}, {gap.month}: the file says <span className="font-mono">{gap.stated}</span>; its lines add up to <span className="font-mono">{gap.computed}</span>
+                    </li>
+                  ))}
+                </ul>
+                <label className="flex items-center gap-2">
+                  <input type="checkbox" checked={mapping.acceptTieOutGaps ?? false} onChange={(event) => update({ ...mapping, acceptTieOutGaps: event.target.checked })} />
+                  The line kinds are right; import the lines anyway (the gaps stay visible)
+                </label>
+              </div>
             ) : null}
             {preview.totals.length > 0 ? (
               <dl className="flex flex-wrap gap-4" data-numeric>

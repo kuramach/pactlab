@@ -21,6 +21,7 @@ import { newId, permissionsForDealRole, type DealRole, type TenantContext } from
 import { PROVIDER_DEPENDENCIES, type ProviderDependencies } from '../connections/provider-dependencies';
 import { DealAccess } from '../deals/deal-access';
 import { PRISMA } from '../tokens';
+import { DocumentConnectionsService } from './document-connections.service';
 import type { ConnectDocumentSourceBody } from './documents.schemas';
 import { DocumentsService } from './documents.service';
 import { DOCX_CONTENT_TYPE, XLSX_CONTENT_TYPE, type AcceptedContentType } from './documents.types';
@@ -79,6 +80,7 @@ export class DocumentSourcesService {
     @Inject(DealAccess) private readonly access: DealAccess,
     @Inject(DocumentsService) private readonly documents: DocumentsService,
     @Inject(PROVIDER_DEPENDENCIES) private readonly providers: ProviderDependencies,
+    @Inject(DocumentConnectionsService) private readonly accounts: DocumentConnectionsService,
   ) {}
 
   private audit(tenant: TenantContext, dealId: string, action: string, id: string, requestId: string): AuditEventInput {
@@ -109,7 +111,11 @@ export class DocumentSourcesService {
         status: row.status,
         lastSyncedAt: row.lastSyncedAt?.toISOString() ?? null,
         lastSyncSummary: row.lastSyncSummary,
+        // Reads with the organization's own sign-in (T-147), not a pasted token.
+        viaOrganization: row.organizationConnectionId !== null,
       })),
+      // Providers the organization has signed in to, so a LIVE folder can be added without a token.
+      signedIn: await this.accounts.signedIn(tenant),
       // Synthetic rooms are offered only where fixture connections are allowed (local and dev).
       fixtureRooms: this.providers.allowFixtureConnections
         ? Object.values(this.providers.fixtureRooms).map((room) => ({ id: room.id, label: room.label }))
@@ -122,7 +128,12 @@ export class DocumentSourcesService {
     if (body.mode === 'FIXTURE' && !this.providers.allowFixtureConnections) throw new ForbiddenException({ code: 'FIXTURES_OFF' });
     if (body.mode === 'FIXTURE' && !this.providers.fixtureRooms[body.folder]) throw new UnprocessableEntityException({ code: 'SOURCE_NOT_FOUND' });
     if (body.mode === 'LIVE' && body.provider === 'vdr') throw new UnprocessableEntityException({ code: 'SOURCE_NOT_CONFIGURED' });
-    if (body.mode === 'LIVE' && !body.token) throw new UnprocessableEntityException({ code: 'SOURCE_ACCESS' });
+    // LIVE reads with the organization's own sign-in (T-147); a pasted token only from older clients.
+    const account =
+      body.mode === 'LIVE' && !body.token
+        ? await withTenant(this.prisma, tenant, (tx) => tx.organizationConnection.findFirst({ where: { organizationId: tenant.organizationId, provider: body.provider, disconnectedAt: null }, select: { id: true } }))
+        : null;
+    if (body.mode === 'LIVE' && !body.token && !account) throw new UnprocessableEntityException({ code: 'SOURCE_NOT_CONNECTED' });
     const id = newId();
     let credentialRef: string | null = null;
     if (body.mode === 'LIVE' && body.token) {
@@ -145,6 +156,7 @@ export class DocumentSourcesService {
           displayName: body.displayName,
           config: { folder: body.folder },
           credentialRef,
+          organizationConnectionId: account?.id ?? null,
           createdBy: tenant.userId,
         },
       });
@@ -160,7 +172,9 @@ export class DocumentSourcesService {
     if (!source) throw new NotFoundException();
     if (source.status !== 'ACTIVE') throw new ConflictException({ code: 'SOURCE_DISABLED' });
     const config = { folder: (source.config as { folder?: string }).folder ?? '' };
-    const scope = { credentialRef: source.credentialRef };
+    // Signed in through the organization (T-147): its current sign-in, refreshed by itself; else a pasted token.
+    const accessToken = source.organizationConnectionId ? await withTenant(this.prisma, tenant, (tx) => this.accounts.tokensFor(tx, source.organizationId, source.provider)) : undefined;
+    const scope = { credentialRef: source.credentialRef, accessToken };
     const adapter = documentSourceAdapter(source.provider as DocumentSourceProvider, source.mode as 'FIXTURE' | 'LIVE', {
       fetch: this.providers.fetch,
       secrets: this.providers.secrets,

@@ -1,5 +1,6 @@
 import type { CsvTable } from '../evidence/csv';
 import type { EvidencePull, NormalizedEvidence, SourceIssue } from '../evidence/types';
+import { isPnlLine, layoutProblems, missingLineKinds, pnlTieOut, reshapeTable, type ImportLayout, type PnlKind, type TieOutGap } from './ai-mapping';
 import { IMPORT_TARGET_DEFINITIONS, type ImportTarget, type TargetDefinition } from './targets';
 import {
   parseAmountValue,
@@ -28,6 +29,12 @@ export interface ImportMapping {
   readonly amountUnit: AmountUnit;
   /** Flip every amount's sign, for exports of credit memos. */
   readonly negateAmounts: boolean;
+  /** How the file is laid out; absent means one record per row (the standard template). */
+  readonly layout?: ImportLayout;
+  /** A line-by-line statement: what each account is, confirmed by a person. */
+  readonly lineKinds?: Readonly<Record<string, PnlKind>>;
+  /** A person accepted the subtotal gaps the preview showed (the file's own totals do not tie). */
+  readonly acceptTieOutGaps?: boolean;
 }
 
 export interface MappedRow {
@@ -63,8 +70,20 @@ const INTERVAL_SYNONYMS: Readonly<Record<string, string>> = {
   years: 'year',
 };
 
-/** Problems with the mapping itself, before any row is read. */
-export function mappingProblems(definition: TargetDefinition, header: readonly string[], mapping: ImportMapping): string[] {
+/**
+ * Problems with the mapping itself, before any row is read. `header` is the file's header; a layout
+ * that reshapes it is checked against it, and the fields against the reshaped header.
+ */
+export function mappingProblems(
+  definition: TargetDefinition,
+  fileHeader: readonly string[],
+  mapping: ImportMapping,
+  /** The file's rows: months across take their column names from the row labels. */
+  rows: CsvTable['rows'] = [],
+): string[] {
+  const layout = layoutProblems(definition, fileHeader, mapping.layout);
+  if (layout.length > 0) return layout;
+  const header = reshapeTable({ header: fileHeader, rows }, mapping.layout).header;
   const problems: string[] = [];
   for (const field of definition.fields) {
     const source = mapping.fields[field.name] ?? { kind: 'none' };
@@ -86,18 +105,19 @@ export function mappingProblems(definition: TargetDefinition, header: readonly s
  * with its row number and left out — never guessed.
  */
 export function applyMapping(
-  table: CsvTable,
+  fileTable: CsvTable,
   mapping: ImportMapping,
   dataset: string,
   definition: TargetDefinition = IMPORT_TARGET_DEFINITIONS[mapping.target],
 ): MappingResult {
-  const problems = mappingProblems(definition, table.header, mapping);
+  const problems = mappingProblems(definition, fileTable.header, mapping, fileTable.rows);
   if (problems.length > 0) {
     return {
       rows: [],
       issues: problems.map((detail) => ({ dataset, row: null, code: 'MISSING_COLUMN' as const, detail })),
     };
   }
+  const table = reshapeTable(fileTable, mapping.layout);
   const columnIndex = new Map(table.header.map((name, index) => [name, index]));
   const issues: SourceIssue[] = [];
   const rows: MappedRow[] = [];
@@ -162,6 +182,16 @@ export function applyMapping(
       canonical[field.name] = parsed;
     }
 
+    if (definition.lineItems) {
+      const kind = canonical['account'] ? mapping.lineKinds?.[canonical['account']] : undefined;
+      // Subtotals are checked against the lines (`statementCheck`), never imported as lines.
+      if (kind && !isPnlLine(kind)) return;
+      if (!kind && canonical['account']) {
+        issues.push({ dataset, row, code: 'INVALID_VALUE', detail: `"${canonical['account']}" has no line kind` });
+        return;
+      }
+      canonical['line_kind'] = kind ?? null;
+    }
     const recordId = recordIdOf(definition, canonical);
     if (recordId && seen.has(recordId)) {
       issues.push({ dataset, row, code: 'DUPLICATE_RECORD_ID', detail: `${definition.fields.find((field) => field.name === definition.recordIdField)?.label ?? 'Record id'} repeated` });
@@ -206,4 +236,28 @@ export function mappedEvidence(
     };
   });
   return { records, issues: result.issues };
+}
+
+/**
+ * A line-by-line statement before import: accounts still without a kind, and subtotals that do not
+ * equal their lines. Both block the import until fixed, or (gaps only) a person accepts them.
+ */
+export function statementCheck(fileTable: CsvTable, mapping: ImportMapping, definition: TargetDefinition = IMPORT_TARGET_DEFINITIONS[mapping.target]): { unclassified: string[]; gaps: TieOutGap[] } {
+  if (!definition.lineItems || mappingProblems(definition, fileTable.header, mapping, fileTable.rows).length > 0) return { unclassified: [], gaps: [] };
+  const table = reshapeTable(fileTable, mapping.layout);
+  const at = (field: string) => {
+    const source = mapping.fields[field];
+    return source?.kind === 'column' ? table.header.indexOf(source.column) : -1;
+  };
+  const [account, month, amount] = [at('account'), at('month'), at('amount')];
+  const accounts = table.rows.map((row) => (row.cells[account] ?? '').trim()).filter(Boolean);
+  const unclassified = missingLineKinds(accounts, mapping.lineKinds);
+  const lines = table.rows.flatMap((row) => {
+    const name = (row.cells[account] ?? '').trim();
+    const kind = mapping.lineKinds?.[name];
+    const value = parseAmountValue(row.cells[amount] ?? '', { numberFormat: mapping.numberFormat, unit: mapping.amountUnit, currency: null, negate: mapping.negateAmounts });
+    const period = (row.cells[month] ?? '').trim();
+    return kind && value !== null && period ? [{ account: name, month: period, amount: value, kind }] : [];
+  });
+  return { unclassified, gaps: pnlTieOut(lines) };
 }

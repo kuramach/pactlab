@@ -112,6 +112,20 @@ export async function classifyOne(dealId: string, documentId: string): Promise<C
   return { kind: 'error', message: 'Pactlab could not sort this file. It is listed under “Pactlab needs you” on the next refresh.' };
 }
 
+/**
+ * Import a spreadsheet already filed here (a rent roll, a P&L) as the pact's data: Pactlab reads it, the
+ * mapping assistant proposes the columns, and the mapping screen opens. Nothing is imported until a person confirms.
+ */
+export async function importDocument(dealId: string, documentId: string, target: string): Promise<{ message: string }> {
+  if (!uuid.safeParse(dealId).success || !uuid.safeParse(documentId).success) return { message: 'Unknown document.' };
+  const result = await apiSend<{ id: string }>('POST', `/v1/deals/${dealId}/documents/${documentId}/import`, { target });
+  if (result.kind !== 'ok') {
+    if (result.kind === 'forbidden') return { message: 'Your role cannot import data on this pact.' };
+    return { message: 'This file could not be read as a table. Open it to check, or upload a cleaner export from Sources.' };
+  }
+  redirect(`/deals/${dealId}/sources/upload/${result.data.id}`);
+}
+
 export type CategorizeResult = { kind: 'ok' } | { kind: 'error'; message: string };
 
 /** A person files a document: answers the AI's question or corrects its category. */
@@ -225,7 +239,8 @@ export interface SourceSyncFile {
 }
 
 const SOURCE_PROBLEMS: Readonly<Record<string, string>> = {
-  SOURCE_ACCESS: 'Pactlab could not sign in to this source. Check the access token is current and read-only access was granted.',
+  SOURCE_ACCESS: 'Pactlab could not sign in to this source. Reconnect it in Settings → Document sources (an organization owner or admin), or check the folder is shared with that account.',
+  SOURCE_NOT_CONNECTED: 'Your organization has not signed in to this provider yet. An owner or admin connects it once in Settings → Document sources.',
   SOURCE_NOT_FOUND: 'That folder or room was not found. Check the folder id.',
   SOURCE_NOT_CONFIGURED: 'This kind of data room cannot be read live yet. Export it as a zip and upload that instead.',
   SOURCE_UNAVAILABLE: 'The source did not answer. Try again in a minute.',

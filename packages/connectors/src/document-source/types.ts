@@ -23,7 +23,7 @@ export const DOCUMENT_SOURCE_LABELS: Readonly<Record<DocumentSourceProvider, str
  */
 export const DOCUMENT_SOURCE_SCOPES: Readonly<Record<DocumentSourceProvider, readonly string[]>> = {
   'google-drive': ['https://www.googleapis.com/auth/drive.readonly'],
-  onedrive: ['Files.Read (delegated)', 'Files.Read.All (application)'],
+  onedrive: ['Files.Read.All (delegated)', 'offline_access', 'User.Read'],
   vdr: [],
 };
 
@@ -66,7 +66,10 @@ export const MAX_SOURCE_READS = 200;
 export const MAX_SOURCE_FILE_BYTES = 10 * 1024 * 1024;
 
 export interface DocumentSourceScope {
+  /** A pasted access token in the secret store (sources connected before T-147). */
   readonly credentialRef: string | null;
+  /** The organization's OAuth connection (T-147): a fresh access token on each call. Wins over `credentialRef`. */
+  readonly accessToken?: (() => Promise<string>) | undefined;
 }
 
 export interface DocumentSourceAdapter {
