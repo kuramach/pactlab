@@ -1,7 +1,17 @@
 # Pactlab Model Scorecard — public benchmarks per routing job
 
-**Date:** November 20, 2026 · **Status:** prior for T-132 routing decisions, refresh monthly
+**Date:** November 21, 2026 · **Status:** prior for T-132 routing decisions, refresh monthly
 **Scope:** the seven T-132 job types — `deep_review`, `contract_scrub`, `extraction`, `classification`, `document_qa`, `vision`, `fast`
+
+## Changes this month
+
+Re-pull of November 21, 2026 against the November 20 edition. **No routing verdict changed and no default chain changed.**
+
+- **vision (§6):** BenchLM refreshed the multimodal & grounded board on Nov 21 (same method, BenchAlign v6.0; 119 ranked models, was 115). **New #1: GPT-6.2 Astra 90.3** (BenchLM labels it *Estimated*: thinner independent evidence). Claude Fable 5.2 88.0 → 87.1 (#1 → #2), Gemini 4 Carbon 86.9 → 85.8, Claude Opus 5.5 81.1 → 80.6, Kimi K3.1 Pro 70.4 → 70.2 (#15 → #18, still best open-weight). GPT-6.2 Astra added as a model to evaluate. Gemini 3.1 Pro is still unranked.
+- **document_qa (§5):** **New on MKA: Gemini 4 Neon (Xhigh) 56.5% Climb-WSR**, 0.1 point behind Claude Fable 5.2 (56.6%). Neon was released on Nov 18. Claude Opus 5.5 (53.0%) and Gemini 4 Argon (51.3%) rows added. Neon (Xhigh) added as a model to evaluate; its access is unverified.
+- **deep_review (§1):** Harvey LAB-AA v1.1, now read straight from Artificial Analysis (no longer via BenchLeader), lists **Claude Opus 5.5 (Max) at 4.2%, #14**, which replaces "outside top 15". The top five are unchanged. HLAB-Vals-1.1 shows Updated 11/19, with all cited rows unchanged; Claude 5.5 models now rank 28–40 (Haiku 5.5 at #40).
+- **Unchanged on re-pull:** legalbenchmarks.ai November cycle (drafting and extraction), the legal-ai-model-router scorecard (no commit since 2026-11-20), AA Intelligence Index v5.0.1 scores, Vals LegalBench (Oct 13) and Vals Legal Research Bench (Nov 19).
+- **Not re-pulled (last figure kept, with its date):** AA cost per Intelligence Index task (Nov 9–17; not in the static page), MKA overall WSR (Google, Nov 10; AA publishes Climb-WSR only), the LAB-AA hallucination rate (AA via OpenAI's report). The fixed one-off studies (ContractScrub Aug 2026, A Few Good Clauses May 2026, Spellbook Labs 2026, MAUD/CUAD) are published once and have no new cycle.
 
 ## How to read this
 
@@ -23,7 +33,7 @@
 
 **What measures it:** long-form expert review of deal documents. Closest public boards: Harvey **LAB-AA v1.1** (120 private legal tasks, hallucination-gated all-pass, AA-run), **HLAB-Vals-1.1** (agentic legal work with files), **MKA** (end-to-end professional tasks over dense files), and the **AA Intelligence Index** as a general-capability prior. Critical split: the legal boards punish *agentic, multi-file, long-horizon* work; Pactlab's deep_review is single-pass review with documents in context. The two harnesses rank the same models in opposite orders (legalbenchmarks.ai caveat 9).
 
-**Harvey LAB-AA v1.1** — all-pass %, as of Nov 17, 2026 (Artificial Analysis via BenchLeader):
+**Harvey LAB-AA v1.1** — hallucination-gated all-pass %, re-pulled Nov 21, 2026 (Artificial Analysis; Max variants):
 
 | Model | All-pass | Cost/task | Note |
 | --- | --- | --- | --- |
@@ -32,9 +42,9 @@
 | Muse Wonder Full | 13.1% | no public figure | |
 | GPT-6.2 Sol | 11.1% | no public figure | |
 | Claude Fable 5.2 | 7.2% | no public figure | |
-| **▸ Claude Opus 5.5** | outside top 15 | no public figure | Best non-OpenAI hallucination rate: 0.59 material/task (AA, via OpenAI's report) |
+| **▸ Claude Opus 5.5** | 4.2% (#14 of 27) | no public figure | **Changed:** last month "outside top 15" (BenchLeader snapshot). Best non-OpenAI hallucination rate: 0.59 material/task (AA, via OpenAI's report; Nov 2026, not re-pulled) |
 
-**HLAB-Vals-1.1** — task pass %, as of Nov 18, 2026 (Vals, 120-task holdout):
+**HLAB-Vals-1.1** — task pass %, board updated Nov 19, 2026 (Vals, 120-task holdout; re-pulled Nov 21, rows unchanged):
 
 | Model | Task pass | Cost/test |
 | --- | --- | --- |
@@ -43,9 +53,9 @@
 | Claude Sonnet 5.5 | 10.4% (#28) | $17.71 |
 | **▸ Claude Opus 5.5** | 9.2% (#29) | $21.81 |
 
-**Single-pass counterweight** — on legalbenchmarks.ai's single-pass boards (Nov 2026), Opus 5.5 is #1 in both drafting (48.4% task pass, $1.47/task) and extraction (76.7%, §3 below). **MKA** (Google, Nov 10, 2026; multi-file professional deliverables): Fable 5.2 56.6% Climb-WSR / 73.3% overall; Gemini 4 Carbon 54.3% / 71.9%, on ~5.7× fewer tokens. **AA Intelligence Index v5.0.1** (general prior): Fable 5.2 64.6, GPT-6.2 Astra 62.1 (~$4/index task), Gemini 4 Neon 61.4, Opus 5.5 59.1 ($10.04/index task) — as of Nov 9–17, 2026.
+**Single-pass counterweight** — on legalbenchmarks.ai's single-pass boards (Nov 2026), Opus 5.5 is #1 in both drafting (48.4% task pass, $1.47/task) and extraction (76.7%, §3 below). **MKA** (Google DeepMind; AA's implementation, re-pulled Nov 21, 2026; multi-file professional deliverables): Fable 5.2 56.6% Climb-WSR / 73.3% overall; **new:** Gemini 4 Neon (Xhigh) 56.5% / no public figure; Gemini 4 Carbon 54.3% / 71.9%, on ~5.7× fewer tokens (overall WSR: Google, Nov 10). **AA Intelligence Index v5.0.1** (general prior; scores re-pulled Nov 21, unchanged): Fable 5.2 (Max) 64.6, GPT-6.2 Astra (Max) 62.1 (~$4/index task), Gemini 4 Neon (Xhigh) 61.4, Opus 5.5 (Max) 59.1 ($10.04/index task). Costs are from Nov 9–17, 2026, not re-pulled.
 
-**Routing read:** primary **Claude Opus 5.5 ▸ current route** — correct for Pactlab's single-pass harness, where it leads every board. Fallback **GPT-6.2 Astra** (best bare model on the agentic boards). If deep_review ever becomes multi-file agentic work, this read inverts — re-weight to HLAB, where Gemini 4 Argon leads and Claude 5.5 models rank 28–39 at the board's highest costs.
+**Routing read:** primary **Claude Opus 5.5 ▸ current route** — correct for Pactlab's single-pass harness, where it leads every board. Fallback **GPT-6.2 Astra** (best bare model on the agentic boards). If deep_review ever becomes multi-file agentic work, this read inverts — re-weight to HLAB, where Gemini 4 Argon leads and Claude 5.5 models rank 28–40 at the board's highest costs.
 
 ## 2. contract_scrub
 
@@ -100,33 +110,38 @@ Context for the acceptance bar (Spellbook Labs, SEC-filed contracts): ~60% of co
 
 **What measures it:** cited Q&A over a pact's document set. Closest boards: **MKA** (questions and deliverables over multiple visually dense files, incl. contracts) and the document/chart component of **BenchLM's multimodal blend** (§6). No public board isolates cited document Q&A with Pactlab's citation contract.
 
-**MKA** (Google, Nov 10, 2026) — weighted satisfaction rate:
+**MKA** (Google DeepMind; Climb-WSR re-pulled Nov 21, 2026 from Artificial Analysis; overall WSR from Google, Nov 10) — weighted satisfaction rate:
 
 | Model | Climb-WSR (hard criteria) | Overall WSR | Note |
 | --- | --- | --- | --- |
 | Claude Fable 5.2 | 56.6% | 73.3% | |
+| Gemini 4 Neon (Xhigh) | 56.5% | no public figure | **New** (released Nov 18); High variant 54.6%, a separate row |
 | Gemini 4 Carbon | 54.3% | 71.9% | ~5.7× fewer tokens than Fable 5.2 |
+| Claude Opus 5.5 | 53.0% | no public figure | Row added |
+| Gemini 4 Argon | 51.3% | no public figure | Row added |
 | **▸ Gemini 3.1 Pro** | not evaluated | — | — |
 
 Supporting signal: Gemini 4 Argon leads HLAB-Vals-1.1 (§1), the file-work board — the Gemini line is consistently strong on document-heavy work; even the best MKA score leaves the hard criteria under 57%, so citation-checking stays mandatory.
 
-**Routing read:** direction of the current route is right, the generation is stale. **▸ Gemini 3.1 Pro** has no score on any current document board. Evaluate **Gemini 4 Argon** as successor primary (generally available; Carbon's access is limited — verify before routing), fallback **Claude Opus 5.5** for single-pass Q&A over retrieved context.
+**Routing read:** direction of the current route is right, the generation is stale. **▸ Gemini 3.1 Pro** has no score on any current document board. Evaluate **Gemini 4 Argon** as successor primary (generally available; Carbon's access is limited — verify before routing), and add **Gemini 4 Neon (Xhigh)**, new this month, which ties the MKA leader within 0.1 point (access not yet verified; evaluate the Xhigh variant specifically). Fallback **Claude Opus 5.5** for single-pass Q&A over retrieved context.
 
 ## 6. vision
 
 **What measures it:** **BenchLM multimodal & grounded** — a blend of image understanding, document/chart reading and visually grounded reasoning. Understanding only; says nothing about image generation. OCR-heavy work should also be tested for resolution and page-count behaviour, which the blend covers only partially.
 
-**BenchLM multimodal & grounded (BenchAlign v6.0)** — as of Nov 19, 2026:
+**BenchLM multimodal & grounded (BenchAlign v6.0)** — data refreshed Nov 21, 2026 (re-pulled Nov 21):
 
 | Model | Score | Note |
 | --- | --- | --- |
-| Claude Fable 5.2 | 88.0 | #1 of 115 models |
-| Gemini 4 Carbon | 86.9 | Access limited — verify before routing |
-| **Claude Opus 5.5** | 81.1 | |
-| Kimi K3.1 Pro | 70.4 | Best open-weight (#15) |
+| GPT-6.2 Astra | 90.3 | **New #1** of 119 models; BenchLM label *Estimated* (thin independent evidence) |
+| Claude Fable 5.2 | 87.1 | #2 (last month 88.0, #1 of 115) |
+| Gemini 4 Carbon | 85.8 | #3 (last month 86.9). Access limited — verify before routing |
+| **Claude Opus 5.5** | 80.6 | #6 (last month 81.1) |
+| Gemini 4 Argon | 73.2 | #11; row added |
+| Kimi K3.1 Pro | 70.2 | Best open-weight (#18; last month 70.4, #15) |
 | **▸ Gemini 3.1 Pro** | **no public figure** on this board | — |
 
-**Routing read:** **▸ Gemini 3.1 Pro** was picked for T-121 on its native document-vision path, and no current public board contradicts the *family* choice — but the routed model itself is unscored on the November boards, and both November leaders sit in other generations. Evaluate **Gemini 4 Argon/Carbon** (family continuity, document strength in §5) and **Claude Fable 5.2** (the board leader) in the vision eval; keep Gemini 3.1 Pro until a successor passes the gate. Nemotron/Qwen VL remain eval challengers, not routing picks.
+**Routing read:** **▸ Gemini 3.1 Pro** was picked for T-121 on its native document-vision path, and no current public board contradicts the *family* choice — but the routed model itself is unscored on the November boards, and the November leaders sit in other generations. Evaluate **Gemini 4 Argon/Carbon** (family continuity, document strength in §5), **Claude Fable 5.2** (#2, the best-evidenced score at the top) and **GPT-6.2 Astra** (new #1, but on an *Estimated* label — the eval, not the board, decides) in the vision eval; keep Gemini 3.1 Pro until a successor passes the gate. Nemotron/Qwen VL remain eval challengers, not routing picks.
 
 ## 7. fast (triage / first-pass)
 
@@ -151,8 +166,8 @@ Supporting signal: Gemini 4 Argon leads HLAB-Vals-1.1 (§1), the file-work board
 | contract_scrub | GPT-5.5 | **Supported** by the only direct study (75% vs Gemini 74%). No change. Successors unmeasured — eval before any promotion. |
 | extraction | Gemini 3.1 Pro | **Challenged.** No current-cycle score; Opus 5.5 leads Nov by 10 pts but at $2.71/task vs the per-deal cost ceiling. Split the job: cheap tier for schema fields, Opus 5.5 for open-ended extraction; Gemini stays the volume lane. |
 | classification | Gemini 3.1 Pro | **No public evidence either way** — the canonical boards carry no current frontier models. Keep; expect to route down to Flash tier on cost once the ADR 0034 eval confirms parity. |
-| document_qa | Gemini 3.1 Pro | **Right family, stale generation.** Gemini 4 tops the document-heavy boards; evaluate Gemini 4 Argon as successor primary, Opus 5.5 fallback. |
-| vision | Gemini 3.1 Pro | **Unscored on current boards.** Nov leaders: Fable 5.2 (88), Gemini 4 Carbon (86.9). Evaluate both; no change until one passes the gate. |
+| document_qa | Gemini 3.1 Pro | **Right family, stale generation.** Gemini 4 tops the document-heavy boards; evaluate Gemini 4 Argon as successor primary (and Gemini 4 Neon (Xhigh), new on MKA at 56.5%), Opus 5.5 fallback. |
+| vision | Gemini 3.1 Pro | **Unscored on current boards.** Nov 21 leaders: GPT-6.2 Astra (90.3, Estimated), Fable 5.2 (87.1), Gemini 4 Carbon (85.8). Evaluate all three; no change until one passes the gate. |
 | fast | Haiku/Flash class | **Confirmed, sharpen it:** name Haiku 5.5 the primary — flagship-tier quality floor, $0.20/task, fastest measured latency. |
 
 **Three cautions that outrank every table above:**
@@ -160,4 +175,4 @@ Supporting signal: Gemini 4 Argon leads HLAB-Vals-1.1 (§1), the file-work board
 2. **Newest ≠ best is measured, not folklore:** Fable 5.2 trails Fable 5.1 on drafting at 2× cost; Opus 5 beats Opus 5.5 on legal research at under a third of the cost; Haiku 5.5 beats Sonnet 5.5 on drafting and extraction. Promote on the row, never the version number.
 3. **Access is part of the score.** Astra for Law is a gated product, Gemini 4 Carbon's access is limited, Muse Spark's API access is unconfirmed — a leader Pactlab cannot call under its data terms is not a routing pick, whatever it scores.
 
-**Sources (all retrieved Nov 20, 2026):** legalbenchmarks.ai Nov 2026 cycle via the legal-ai-model-router canonical scorecard (github.com/sboghossian/legal-ai-model-router, `data/scorecard-2026-11.md`, boards re-pulled 2026-11-20) and its Jul 2026 cycle; ContractScrub (Aug 2026) and A Few Good Clauses (May 2026) per the Nov 17 frontier-models research; Artificial Analysis Intelligence Index v5.0.1 (Nov 9–17, 2026) via BenchLeader/IQ Metrics snapshots; Harvey LAB-AA v1.1 via Artificial Analysis/BenchLeader (Nov 17, 2026) and Harvey's own holdout baselines (May 26, 2026); HLAB-Vals-1.1 and Vals Legal Research Bench (Nov 18, 2026); BenchLM multimodal & grounded (Nov 19, 2026, benchlm.ai); MKA (Google, Nov 10, 2026); MAUD/CUAD/LegalBench via the Atticus Project and Vals (Oct 13, 2026); Spellbook Labs contract error study (2026).
+**Sources (re-pulled Nov 21, 2026; first retrieved Nov 20):** legalbenchmarks.ai Nov 2026 cycle (legalbenchmarks.ai/leaderboard/models, re-pulled Nov 21) and the legal-ai-model-router canonical scorecard (github.com/sboghossian/legal-ai-model-router, `data/scorecard-2026-11.md`, no change since 2026-11-20) and its Jul 2026 cycle; ContractScrub (Aug 2026) and A Few Good Clauses (May 2026) per the Nov 17 frontier-models research; Artificial Analysis Intelligence Index v5.0.1 (scores re-pulled from artificialanalysis.ai Nov 21; costs Nov 9–17, 2026 via BenchLeader/IQ Metrics snapshots); Harvey LAB-AA v1.1 (artificialanalysis.ai, re-pulled Nov 21, 2026) and Harvey's own holdout baselines (May 26, 2026); HLAB-Vals-1.1 and Vals Legal Research Bench (updated Nov 19, 2026, re-pulled Nov 21); BenchLM multimodal & grounded (refreshed Nov 21, 2026, benchlm.ai); MKA (Google DeepMind, Nov 10, 2026; Climb-WSR via Artificial Analysis, re-pulled Nov 21); MAUD/CUAD/LegalBench via the Atticus Project and Vals (Oct 13, 2026); Spellbook Labs contract error study (2026).
