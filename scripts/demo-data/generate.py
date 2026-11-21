@@ -70,8 +70,12 @@ class Dataset:
         self.findings = []    # (title, where to look)
         self.notes = []
         self.summary = ''
+        self.sale_summary = None  # what the seller shares with bidders, when it differs from the summary
         self.engineering = False
         self.prefix = ''.join(w[0] for w in pack.split('-'))[:3]
+        # The selling entity and the buyer the guide enters; a syndication (T-106) seats the sponsor as the buyer.
+        self.seller, self.buyer = None, 'Demo Buyer'
+        self.syndication_step = []
 
     def amt(self, usd):
         return q(D(usd) * self.c['scale'])
@@ -92,6 +96,10 @@ class Dataset:
 
     def doc(self, name, text, description, data_class='Business'):
         self.docs[name] = (text.strip() + '\n', description, data_class)
+
+    @property
+    def seller_name(self):
+        return self.seller or self.company
 
     def bidders(self):
         """Three synthetic bidding firms for the seller-side test (T-097): one offers just under the ask and
@@ -191,7 +199,7 @@ class Dataset:
         who = 'investor' if venture else 'bidder'
         title = 'run a round' if venture else 'run a bid process'
         out = [f'# Part B — Seller side: {title}', '',
-               f'Here you are {self.company.rstrip(".")}{" raising a round" if venture else ""}. You invite three {who}s from `bidders.csv`, share a little, answer their questions and choose one.',
+               f'Here you are {self.seller_name.rstrip(".")}{" raising a round" if venture else ""}. You invite three {who}s from `bidders.csv`, share a little, answer their questions and choose one.',
                f'Each {who} sees only their own bid — never another {who}\'s questions, offers or whether they passed. Part B checks that too.', '',
                '**Addresses.** This folder holds no email addresses. Invite **an address you can read for each firm**: your own address with `+` and the firm\'s tag from `bidders.csv` added before the @ (for tag `harbor`: *yourname+harbor* at your email domain — Gmail, Outlook and most providers deliver it to you). On your own computer (`pnpm dev`) any made-up address works: every email Pactlab sends, invitations and sign-in codes, is written to `apps/api/.data/mail/`.', '']
         n = 0
@@ -202,16 +210,16 @@ class Dataset:
         step('Start the Pact as the seller')
         out += ['1. Click **Start a Pact** (top right).',
                 f'2. Under *Who are you in this deal?* choose **We are selling (or raising)**. Pact name: `Project {self.brand.split()[0]} Sale` · Base currency: **{c}** → **Next**. (There is no buying-entity step.)',
-                f'3. **Selling entity** — Legal or trading name: `{self.company}` · **Private** · What kind of company is it?: **{label}** → **Next**.',
+                f'3. **Selling entity** — Legal or trading name: `{self.seller_name}` · **Private** · What kind of company is it?: **{label}** → **Next**.',
                 '4. **Asking price** — ' + ('choose **Not known yet** → **Next**.' if venture else f'enter the same asking price as Part A, Step 1 (`{sig2(self.billed_arr() * ASKING_MULTIPLE[self.pack]):.0f}`) → **Next**.'),
                 '5. **Review and start** — the Buyer box says *Bid process — you invite buyers once the pact starts* → **Start Pact**.', '',
                 '**You should see:** the **Bidders** page, with no bidders yet.', '']
         step(f'Decide what {who}s see')
         out += ['On **Bidders**, under **What bidders see**:', '',
                 '| Field | Enter |', '|---|---|',
-                f'| Shared summary | `{self.summary}` |',
+                f'| Shared summary | `{self.sale_summary or self.summary}` |',
                 f'| Your data room (link) | `https://dataroom.example/{self.pack}` (Pactlab is not the data room; this is where you would grant access) |',
-                f'| NDA | `Mutual NDA (synthetic): everything shared about {self.company} stays confidential.` |',
+                f'| NDA | `Mutual NDA (synthetic): everything shared about {self.seller_name} stays confidential.` |',
                 '| Offer deadline (UTC) | a date a week from today |', '',
                 '→ **Save**.', '']
         if teaser:
@@ -269,8 +277,8 @@ class Dataset:
                '- `vdr-index.csv` is for reference only (how a data room would list these files). Do not upload it.',
                '- Text in **bold** below is a button, tab or option exactly as Pactlab shows it.', '',
                '## Two ways to test this company', '',
-               f'- **Part A — Buyer side** (Steps 1 onwards): you {"are the founder, diligencing your own startup before investors do" if venture else "are a buyer doing diligence on " + self.company}.',
-               f'- **Part B — Seller side** ([below](#part-b--seller-side-run-a-{"round" if venture else "bid-process"})): you {"are the founder, inviting several investors" if venture else "are " + self.company + ", inviting several buyers"} — they ask questions, then offer or pass, and you choose one. Uses `bidders.csv`.',
+               f'- **Part A — Buyer side** (Steps 1 onwards): you {"are the founder, diligencing your own startup before investors do" if venture else ("are " + self.buyer + ", the sponsor, diligencing the property you are buying and the offering you raise its equity on" if self.seller else "are a buyer doing diligence on " + self.company)}.',
+               f'- **Part B — Seller side** ([below](#part-b--seller-side-run-a-{"round" if venture else "bid-process"})): you {"are the founder, inviting several investors" if venture else "are " + self.seller_name + ", inviting several buyers"} — they ask questions, then offer or pass, and you choose one. Uses `bidders.csv`.',
                '- Each part starts its own Pact, so you can do either one, or both.', '',
                '# Part A — Buyer side', '']
         step = 0
@@ -281,8 +289,8 @@ class Dataset:
         heading('Start the Pact')
         out += ['1. Click **Start a Pact** (top right).',
                 f'2. **Name the Pact** — Pact name: `Project {self.brand.split()[0]}` · Base currency: **{c}** → **Next**.',
-                '3. **Buying entity** — Legal or trading name: `Demo Buyer` · **Private** → **Next**.',
-                f'4. **Selling entity** — Legal or trading name: `{self.company}` · **Private** · What kind of company is it?: **{label}** → **Next**.']
+                f'3. **Buying entity** — Legal or trading name: `{self.buyer}` · **Private** → **Next**.',
+                f'4. **Selling entity** — Legal or trading name: `{self.seller_name}` · **Private** · What kind of company is it?: **{label}** → **Next**.']
         if venture:
             out.append('5. **Asking price** — choose **Not known yet** (a raise has no asking price; you set your round on the **Raise** tab after the uploads) → **Next**.')
         else:
@@ -297,7 +305,7 @@ class Dataset:
                     '   | Of which earn-out, Note | leave empty |', '',
                     f'   → **Next**. (This is the seller\'s ask: {ASKING_MULTIPLE[self.pack]}× the September 2026 billed revenue run-rate. The demo shows how far the evidence supports it.)']
         out += ['6. **Review and start** — check the summary → **Start Pact**.', '',
-                f'**You should see:** the Pact overview for `{self.company}`' + ('.' if venture else f', with the asking price {money(c, asking)}.'), '']
+                f'**You should see:** the Pact overview for `{self.seller_name}`' + ('.' if venture else f', with the asking price {money(c, asking)}.'), '']
         heading('Upload the billing export')
         out += ['1. Open the **Sources** tab → **Upload billing export**.',
                 '2. *1. Where is the export from?* → **Pactlab standard template**.',
@@ -347,6 +355,9 @@ class Dataset:
                     '**You should see** on **Engineering**: the Brightwave team (six engineers and a product manager who files work but never commits), `billing/` maintained by one person, one engineer marked departed, and delivery slipping in the last two sprints. On **Findings**, two engineering drafts:', '',
                     '- **Single-contributor concentration in billing/** — one engineer wrote every billing change.',
                     '- **Commits attributed to unmatched or departed identities** — commits still arrive under an engineer who left in May.', '']
+        if self.syndication_step:
+            heading('Read the offering (Syndication tab)')
+            out += self.syndication_step
         heading('Run the checks and review the findings')
         out += [f'1. Open the **Findings** tab → **Run {label.lower()} checks**.',
                 f'2. **You should see exactly these {len(self.findings)} findings** (running the checks again adds nothing):', '']
@@ -1087,8 +1098,11 @@ def waterfall(price, loan, rate, equity, hold, noi1, growth, cap, selling, pref,
 def syndication(ds):
     """Sponsor-side (T-106): Ashgrove Residential buys Briarwood Commons and raises the equity from accredited investors."""
     ds.kind, ds.kind_label = 'rent', 'unit rent charge'
+    ds.seller, ds.buyer = f'Briarwood Commons Owner {ds.c["suffix"]}', ds.company
     ds.summary = (f'{ds.company} is a multifamily sponsor buying Briarwood Commons, a 204-unit garden-style community in six buildings (A–F), '
-                  'and raising the equity from accredited investors under Rule 506(c). The seller is Briarwood Commons Owner LLC (synthetic).')
+                  f'and raising the equity from accredited investors under Rule 506(c). The seller is {ds.seller}.')
+    # The seller's own pitch: it never mentions the sponsor's raise (the wall holds in the demo too).
+    ds.sale_summary = f'{ds.seller} is selling Briarwood Commons, a 204-unit garden-style apartment community in six buildings (A–F).'
     rows, delinq, ltl_sum, mkt_sum, repair = property_units(ds, 'ABCDEF', 34, 'C')
     t12, noi = property_t12(ds)
     c = ds.cur
@@ -1190,6 +1204,19 @@ Stonebridge Flats delivered a 19.2% investor IRR.
         ('Track-record claim with no actuals behind it: Stonebridge Flats', 'planted defect (b), on the **Syndication** tab: the deck claims 19.2%; `track-record.csv` has no actual return for it (`documents/04-investor-deck.pdf` page 2).'),
         ('Fee in the operating agreement missing from the PPM: loan guarantee fee', 'planted defect (c), on the **Syndication** tab: 1% of the loan in `documents/03-operating-agreement.pdf` page 2; the PPM fee summary (page 3) omits it.'),
     ]
+    ds.syndication_step = [
+        'Open the **Syndication** tab (it appears only on a multifamily syndication pact).', '',
+        '1. Under **The offering**, enter:', '',
+        '   | Field | Enter |', '   |---|---|',
+        f'   | Purchase price | `{price:.0f}` |', f'   | Loan | `{loan:.0f}` |', '   | Interest rate (%) | `5` |',
+        f'   | Equity raised | `{equity:.0f}` |', '   | Hold (years) | `5` |', '   | Selling costs (%) | `2` |',
+        '   | Year-1 NOI | leave empty (the T-12 is used) |', '   | Exemption | **Rule 506(c)** |',
+        '   | NOI growth (%), downside / base / upside | `1` / `3` / `4.5` |', '   | Exit cap rate (%), downside / base / upside | `6.5` / `6` / `5.5` |', '',
+        '   → **Save the offering**.',
+        '2. Under **Read the offering documents**, click **Read with AI** for `02-private-placement-memorandum.pdf` (PPM), `03-operating-agreement.pdf` (Operating agreement) and `04-investor-deck.pdf` (Investor deck).',
+        '3. Under **To confirm**, check each proposed term or claim against its quote, then **Confirm** it (or correct the figure first, or **Reject** it). Only confirmed items feed the waterfall.',
+        '4. Click **Run offering checks**.', '',
+        f'**You should see:** **Waterfall check** with the base case recomputed from the operating agreement (investor IRR {irr}%, against the PPM\'s {stated_irr}%), downside and upside alongside, each labelled as a scenario computed from stated assumptions; the **Track record** table with Stonebridge Flats\' actual IRR shown as not documented; and three offering drafts on **Findings**.', '']
     ds.notes = [
         'Sponsor-side pack: you are the sponsor. The property side is the Multifamily pack, unchanged; the offering side reads the PPM, operating agreement and deck on the **Syndication** tab: **Read with AI** on each, confirm what it proposes, then **Run offering checks**.',
         f'Offering terms for the **Syndication** tab: purchase price `{price:.0f}`, loan `{loan:.0f}` at `5`%, equity raised `{equity:.0f}`, hold `5` years, selling costs `2`%, Rule 506(c); paths (NOI growth / exit cap %): downside `1` / `6.5`, base `3` / `6`, upside `4.5` / `5.5`. Leave year-1 NOI empty to use the T-12.',

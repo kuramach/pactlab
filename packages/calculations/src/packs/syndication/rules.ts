@@ -88,7 +88,11 @@ export function waterfallTermsFrom(items: readonly OfferingCheckItem[]): { terms
     .map((item) => ({ hurdle: num(item.hurdle), gpShare: num(item.value)! }))
     .sort((a, b) => (a.hurdle === null ? 1 : b.hurdle === null ? -1 : a.hurdle.comparedTo(b.hurdle)));
   const missing = [...(pref === null ? ['the preferred return'] : []), ...(tiers.length === 0 || tiers[tiers.length - 1]!.hurdle !== null ? ['a final promote split with no hurdle'] : [])];
-  const unmodelled = oa.some((item) => item.kind === 'CATCH_UP') ? ['a sponsor catch-up'] : [];
+  const unmodelled = [
+    ...(oa.some((item) => item.kind === 'CATCH_UP') ? ['a sponsor catch-up'] : []),
+    // Other fees have no fixed basis the model can apply; they are named, never silently dropped.
+    ...oa.filter((item) => item.kind === 'OTHER_FEE').map((item) => `the ${feeName(item)}`),
+  ];
   if (missing.length > 0) return { terms: null, missing, unmodelled };
   return {
     terms: {

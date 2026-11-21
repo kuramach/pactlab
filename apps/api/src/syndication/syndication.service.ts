@@ -83,7 +83,7 @@ export interface ScenarioView {
 }
 
 /**
- * Multifamily syndication, the sponsor's side (T-106, ADR 0037). The offering's terms and claims
+ * Multifamily syndication, the sponsor's side (T-106, ADR 0038). The offering's terms and claims
  * are read from the PPM, operating agreement and deck by AI (`offering.extract`) as PROPOSED
  * items with exact quotes; the sponsor confirms, corrects or rejects each. Only confirmed items
  * feed the deterministic waterfall (`syndication-waterfall-1`) and the offering checks, whose
@@ -226,12 +226,12 @@ export class SyndicationService {
       // The documents the sponsor can have read; offering categories first. A pact's documents are tens, capped here.
       const documents = await tx.document.findMany({
         where: { dealId, status: 'AVAILABLE', aiExcluded: false, dataClass: { in: [...CITABLE_CLASSES] } },
-        select: { id: true, fileName: true, intakeCategory: true },
+        select: { id: true, fileName: true, category: true },
         orderBy: { createdAt: 'asc' },
         take: 200,
       });
       const offeringFirst = (category: string | null) => (category && OFFERING_CATEGORY_SOURCE[category] ? 0 : 1);
-      documents.sort((a, b) => offeringFirst(a.intakeCategory) - offeringFirst(b.intakeCategory));
+      documents.sort((a, b) => offeringFirst(a.category) - offeringFirst(b.category));
       const outcome = new Map(checks.claims.map((claim) => [claim.itemId, claim]));
       const items: OfferingItemView[] = rows.map((row) => {
         const citation = row.citation as unknown as DocumentCitation;
@@ -301,7 +301,7 @@ export class SyndicationService {
               version: offering.version,
             }
           : null,
-        documents: documents.map((document) => ({ id: document.id, fileName: document.fileName, category: document.intakeCategory, source: (document.intakeCategory && OFFERING_CATEGORY_SOURCE[document.intakeCategory]) ?? null })),
+        documents: documents.map((document) => ({ id: document.id, fileName: document.fileName, category: document.category, source: (document.category && OFFERING_CATEGORY_SOURCE[document.category]) ?? null })),
         items,
         trackRecord,
         waterfall: { scenarios: waterfall.views, missing: waterfall.missing, unmodelled: waterfall.unmodelled, noi: waterfall.noi, noiSource: waterfall.noiSource, unavailable: waterfall.why },
@@ -333,10 +333,12 @@ export class SyndicationService {
     const outcome = await this.documents.extractOffering(tenant, dealId, body.documentId, requestId);
     return withTenant(this.prisma, tenant, async (tx) => {
       const existing = await this.items(tx, dealId);
-      const seen = new Set(existing.map((row) => `${row.kind}|${(row.citation as unknown as DocumentCitation).quote}|${row.hurdle ?? ''}`));
+      // The same sentence can be in the PPM and the agreement (a preferred return): an item is one reading of one page.
+      const keyOf = (kind: string, citation: Pick<DocumentCitation, 'documentId' | 'pageNumber' | 'quote'>, hurdle: string | null) => `${kind}|${citation.documentId}|${citation.pageNumber}|${citation.quote}|${hurdle ?? ''}`;
+      const seen = new Set(existing.map((row) => keyOf(row.kind, row.citation as unknown as DocumentCitation, plain(row.hurdle))));
       let proposed = 0;
       for (const item of outcome.items) {
-        const key = `${item.kind}|${item.citation.quote}|${item.hurdle === null ? '' : new D(item.hurdle).toFixed(6)}`;
+        const key = keyOf(item.kind, item.citation, item.hurdle === null ? null : plain(new D(item.hurdle)));
         const shapeOk = OFFERING_KIND_REGISTRY[item.kind].labelled === (item.label !== null) && (item.hurdle === null || OFFERING_KIND_REGISTRY[item.kind].tier);
         if (!shapeOk || seen.has(key)) continue;
         seen.add(key);

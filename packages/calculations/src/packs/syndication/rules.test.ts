@@ -57,7 +57,7 @@ describe('syndication offering checks (T-106)', () => {
     expect(terms!.prefRate.toString()).toBe('0.08');
     expect(terms!.tiers.map((tier) => [tier.hurdle?.toString() ?? null, tier.gpShare.toString()])).toEqual([['0.15', '0.3'], [null, '0.4']]);
     expect(waterfallTermsFrom(ppmTerms).missing).toEqual(['the preferred return', 'a final promote split with no hurdle']);
-    expect(waterfallTermsFrom([...oaTerms, item('CATCH_UP', 'OPERATING_AGREEMENT', '50')]).unmodelled).toEqual(['a sponsor catch-up']);
+    expect(waterfallTermsFrom([...oaTerms, item('CATCH_UP', 'OPERATING_AGREEMENT', '50')]).unmodelled).toEqual(['a sponsor catch-up', 'the loan guarantee fee']);
   });
 
   it('(a) contradicts a stated IRR more than a point from the recomputed one, and verifies one within', () => {
