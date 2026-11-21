@@ -1,11 +1,11 @@
 /**
- * The model scorecard as data (docs/model-scorecard.md, Nov 20, 2026; refresh monthly with the doc). Public
+ * The model scorecard as data (docs/model-scorecard.md, Nov 21, 2026; refresh monthly with the doc). Public
  * benchmark scores are priors per job, never verdicts: a pick serves only if Pactlab can reach it, its data
  * terms are recorded (DPA and zero retention for providers outside AWS) and its health check passes. Scores
  * are in each board's own metric and are not comparable across boards. Nothing here is a model ID: picks are
  * matched by name against what Bedrock actually lists for the account.
  */
-export const SCORECARD_AS_OF = '2026-11-20';
+export const SCORECARD_AS_OF = '2026-11-21';
 export const SCORECARD_SOURCE = 'docs/model-scorecard.md';
 
 export type ScorecardJob = 'deep_review' | 'contract_scrub' | 'extraction' | 'classification' | 'document_qa' | 'vision' | 'fast';
@@ -76,10 +76,11 @@ export const SCORECARD: readonly ScorecardEntry[] = [
   {
     job: 'document_qa',
     label: 'Questions and drafting',
-    board: 'MKA (Google, Nov 10, 2026; weighted satisfaction)',
-    verdict: 'Right family, stale generation: evaluate Gemini 4 Argon; Opus 5.5 fallback.',
+    board: 'MKA (Google DeepMind; Climb-WSR via Artificial Analysis, Nov 21, 2026)',
+    verdict: 'Right family, stale generation: evaluate Gemini 4 Argon and Gemini 4 Neon; Opus 5.5 fallback.',
     picks: [
       { name: 'Gemini 4 Argon', score: '27.1% HLAB-Vals (file work)', costPerTask: '$10.55 per test', role: 'evaluate' },
+      { name: 'Gemini 4 Neon', score: '56.5% MKA Climb-WSR (Xhigh)', costPerTask: null, role: 'evaluate', note: 'new Nov 2026; Xhigh variant; access unverified' },
       { name: 'Claude Opus 5.5', score: null, costPerTask: null, role: 'fallback', note: 'single-pass Q&A over retrieved context' },
       { name: 'Gemini 3.1 Pro', score: null, costPerTask: null, role: 'primary', note: 'current route; unscored on November boards' },
     ],
@@ -87,12 +88,13 @@ export const SCORECARD: readonly ScorecardEntry[] = [
   {
     job: 'vision',
     label: 'Image documents',
-    board: 'BenchLM multimodal & grounded, Nov 19, 2026',
-    verdict: 'Unscored current route: evaluate Fable 5.2 and Gemini 4 Carbon; keep Gemini 3.1 Pro until one passes.',
+    board: 'BenchLM multimodal & grounded, Nov 21, 2026',
+    verdict: 'Unscored current route: evaluate GPT-6.2 Astra, Fable 5.2 and Gemini 4 Carbon; keep Gemini 3.1 Pro until one passes.',
     picks: [
-      { name: 'Claude Fable 5.2', score: '88.0', costPerTask: null, role: 'evaluate', note: '#1 of 115' },
-      { name: 'Gemini 4 Carbon', score: '86.9', costPerTask: null, role: 'evaluate', note: 'access limited' },
-      { name: 'Claude Opus 5.5', score: '81.1', costPerTask: null, role: 'fallback' },
+      { name: 'GPT-6.2 Astra', score: '90.3', costPerTask: null, role: 'evaluate', note: '#1 of 119; Estimated label (thin evidence)' },
+      { name: 'Claude Fable 5.2', score: '87.1', costPerTask: null, role: 'evaluate', note: '#2 of 119' },
+      { name: 'Gemini 4 Carbon', score: '85.8', costPerTask: null, role: 'evaluate', note: 'access limited' },
+      { name: 'Claude Opus 5.5', score: '80.6', costPerTask: null, role: 'fallback' },
       { name: 'Gemini 3.1 Pro', score: null, costPerTask: null, role: 'primary', note: 'current route; unscored' },
     ],
   },

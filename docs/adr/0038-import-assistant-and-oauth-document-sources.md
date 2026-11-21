@@ -36,7 +36,7 @@
 - **Records:** account × month × amount, with a line kind (revenue, COGS, opex, other income or expense). Evidence type `finance.pnl_line`.
 - **Subtotals aren't imported; they're checked:** total revenue, gross profit, operating income and net income must equal their lines (either sign convention, within one unit). A gap blocks the import until the line kinds are fixed or a person accepts it.
 - **Checklist:** an imported P&L ticks the Income statement item.
-- **Not yet:** QoE and valuation don't read `finance.pnl_line` yet (T-148).
+- **Not yet:** QoE and valuation don't read `finance.pnl_line` yet (T-149).
 
 ### 4. Document sources signed in through the organization (T-147, without Box)
 - **One sign-in per provider per organization,** in `organization_connections` (beside DocuSign): Google Drive or OneDrive / SharePoint, made by an owner or admin with OAuth 2.0 authorization code and a signed, expiring state.

@@ -36,7 +36,7 @@ const GEMINI_PRO = 'gemini-3.1-pro-preview';
 const GEMINI_FLASH = 'gemini-3.8-flash';
 
 /**
- * The default chain per job, from the model scorecard (docs/model-scorecard.md, Nov 20, 2026): public
+ * The default chain per job, from the model scorecard (docs/model-scorecard.md, Nov 21, 2026): public
  * benchmark priors per job, then cost per task. A lane serves only if its model is reachable, its data terms
  * are recorded and its health check passed; otherwise the next lane serves. Claude lanes are the roles:
  * deep_review = Opus 5.5, balanced = Sonnet 5.5, fast = Haiku 5.5 (the configured Bedrock models).
@@ -87,7 +87,7 @@ export const JOB_MODEL_MAP: Readonly<Record<JobType, JobDefinition>> = {
       { kind: 'claude', alias: 'balanced', tier: 'economy' },
     ],
   },
-  // Keep Gemini 3.1 Pro until a successor passes; Opus 5.5 scores 81.1 on the multimodal board (§6).
+  // Keep Gemini 3.1 Pro until a successor passes; Opus 5.5 scores 80.6 on the multimodal board (§6).
   vision: {
     label: 'Documents that arrive as images (scans, charts, image tables)',
     lanes: [
