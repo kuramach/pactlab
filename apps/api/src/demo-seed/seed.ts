@@ -227,6 +227,11 @@ export function demoModelResponse(request: ModelRequest): string {
       }),
     });
   }
+  // Reading a page from its image (T-121): a synthetic transcription, labelled so it is never taken for a real reading.
+  if (request.system.includes('You read one page of a document from its image')) {
+    const page = /^Page: (.+)$/m.exec(request.messages[0]?.content ?? '')?.[1] ?? 'the page';
+    return JSON.stringify({ kind: 'SCANNED_TEXT', readable: true, text: `Synthetic transcription of ${page} (fixture). Total revenue 2025: $1,250,000.`, tables: [{ title: 'Revenue by year (synthetic)', rows: [['Year', 'Revenue'], ['2024', '$1,100,000'], ['2025', '$1,250,000']] }], charts: [], summary: 'A synthetic page read by the fixture model.' });
+  }
   // Consistency checks (T-132): a synthetic, deterministic check for references to sections the pages never number.
   if (request.system.includes('check a commercial agreement for drafting consistency')) return JSON.stringify({ findings: brokenReferences(request) });
   const all = Object.values(DEMO_CONTRACTS).flat();

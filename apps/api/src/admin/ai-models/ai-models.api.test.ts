@@ -52,7 +52,7 @@ describe('AI models in the admin console', { timeout: 60_000 }, () => {
     // The fixture provider: the configured models are adopted, evaluations replay the recorded cassettes.
     ai = await createAiGateway({ AI_PROVIDER: 'fixture' } as ApiEnv, db.prisma);
     // As if OpenAI's key were set: the console offers it, and the terms gate decides whether it may run.
-    models = { ...(ai.models as AiModelsRuntime), providers: ['fixture', 'openai'] };
+    models = { ...(ai.models as AiModelsRuntime), providers: ['fixture', 'openai', 'bedrock'] };
     const pair = await generateKeyPair('RS256');
     key = pair.privateKey;
     const jwk = { ...(await exportJWK(pair.publicKey)), kid: 'test', alg: 'RS256' };
@@ -77,7 +77,9 @@ describe('AI models in the admin console', { timeout: 60_000 }, () => {
     expect(adopted[0]).toMatchObject({ providerModelId: 'synthetic-fixture', status: 'EVALUATED', platformAliases: ['balanced', 'deep_review', 'fast'] });
     expect(await models.resolver.routeFor(other.organizationId, 'balanced')).toMatchObject({ modelId: 'synthetic-fixture', provider: 'fixture', effort: 'low' });
     // Adopting again adds nothing.
-    expect(await models.resolver.adopt('fixture')).toBe(0);
+    const before = ((await call('operator', 'GET', '/v1/admin/ai-models')).body['models'] as unknown[]).length;
+    await models.resolver.adopt('fixture');
+    expect(((await call('operator', 'GET', '/v1/admin/ai-models')).body['models'] as unknown[]).length).toBe(before);
   });
 
   it('is for platform operators only', async () => {
@@ -93,6 +95,8 @@ describe('AI models in the admin console', { timeout: 60_000 }, () => {
     expect((await call('operator', 'POST', '/v1/admin/ai-models', { provider: 'fixture', providerModelId: 'synthetic-next', label: 'Again' })).body).toMatchObject({ code: 'MODEL_EXISTS' });
     // Providers this deployment cannot call are refused (they arrive with their transports).
     expect((await call('operator', 'POST', '/v1/admin/ai-models', { provider: 'google', providerModelId: 'gemini-next', label: 'Gemini' })).body).toMatchObject({ code: 'PROVIDER_NOT_AVAILABLE' });
+    // A Claude Bedrock ID with a dotted version (claude-opus-5.5) is a typo: refused before it can only fail evaluation.
+    expect((await call('operator', 'POST', '/v1/admin/ai-models', { provider: 'bedrock', providerModelId: 'us.anthropic.claude-opus-5.5', label: 'Claude Opus 5.5' })).body).toMatchObject({ code: 'BEDROCK_ID_FORMAT' });
 
     // Not evaluated: it can be neither a platform route nor on an allow-list.
     expect((await call('operator', 'PUT', '/v1/admin/ai-models/routes/balanced', { modelId: id })).body).toMatchObject({ code: 'NOT_EVALUATED' });
@@ -101,10 +105,9 @@ describe('AI models in the admin console', { timeout: 60_000 }, () => {
     expect((await call('operator', 'POST', `/v1/admin/ai-models/${id}/evaluation`)).status).toBe(202);
     const done = await evaluated(id);
     expect(done.status).toBe('EVALUATED');
-    // Evaluated on today's prompts: nothing due.
+    // The health check (2026-11-20): it answered with a valid cited answer; nothing falls due on prompt changes.
     expect((done as Model & { reevaluationDue: boolean }).reevaluationDue).toBe(false);
-    expect(done.evaluation).toMatchObject({ passed: true, citationRecall: 1, citationPrecision: 1 });
-    expect(Object.keys(done.evaluation?.['promptHashes'] as Body).length).toBeGreaterThan(0);
+    expect(done.evaluation).toMatchObject({ kind: 'health', passed: true });
 
     // The restricted organization: only the new model, which serves its deep reviews.
     const saved = await call('operator', 'PUT', `/v1/admin/ai-models/organizations/${restricted.organizationId}`, { allowed: [id], routes: { deep_review: id } });

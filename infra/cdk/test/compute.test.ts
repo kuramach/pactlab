@@ -99,7 +99,7 @@ describe('dev: the running application (ADR 0019)', () => {
     const definitions = Object.values(template.findResources('AWS::ECS::TaskDefinition')) as { Properties: { ContainerDefinitions: { Name: string; Environment?: { Name: string; Value: unknown }[] }[] } }[];
     const api = definitions.flatMap((definition) => definition.Properties.ContainerDefinitions).find((container) => container.Name === 'api');
     const environment = Object.fromEntries((api?.Environment ?? []).map((item) => [item.Name, item.Value]));
-    expect(environment).toMatchObject({ BEDROCK_MODEL_BALANCED: 'us.anthropic.claude-sonnet-4-6', BEDROCK_MODEL_DEEP_REVIEW: 'us.anthropic.claude-opus-4-6-v1', BEDROCK_MODEL_FAST: 'us.anthropic.claude-haiku-4-5-20251001-v1:0' });
+    expect(environment).toMatchObject({ BEDROCK_MODEL_BALANCED: 'us.anthropic.claude-sonnet-5-5', BEDROCK_MODEL_DEEP_REVIEW: 'us.anthropic.claude-opus-5-5', BEDROCK_MODEL_FAST: 'us.anthropic.claude-haiku-5-5' });
     const bedrock = JSON.stringify(statements(template, 'ApiTaskRole').find((statement) => statement.Sid === 'Bedrock')?.Resource);
     expect(bedrock).toContain('inference-profile/us.anthropic.claude-*');
     expect(bedrock).toContain('foundation-model/anthropic.claude-*');

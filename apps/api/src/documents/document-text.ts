@@ -1,10 +1,13 @@
 import { readWorkbookSheets, TableReadError } from '@pactlab/connectors';
-import { DOCX_CONTENT_TYPE, XLSX_CONTENT_TYPE, type AcceptedContentType } from './documents.types';
+import { DOCX_CONTENT_TYPE, PPTX_CONTENT_TYPE, XLSX_CONTENT_TYPE, type AcceptedContentType } from './documents.types';
+import { MAX_VISION_PAGES, officeMedia, pdfPagesWithImages, pptxSlides } from './page-images';
 import { ExtractionError, extractPages, MAX_PAGES, TARGET_PAGE_CHARS, type ExtractedPage } from './extraction';
 import { sha256Hex } from '@pactlab/ai';
 
 /** A PDF page with fewer characters than this is treated as having no text layer. */
 const MIN_PAGE_CHARS = 20;
+/** A page with pictures and fewer characters than this is also read from its image (a chart, an image table). */
+const IMAGE_PAGE_CHARS = 600;
 export const EXTRACTION_TIMEOUT_MS = 30_000;
 
 function withTimeout<T>(work: Promise<T>, ms: number): Promise<T> {
@@ -58,8 +61,18 @@ async function pdfPages(bytes: Uint8Array): Promise<ExtractedPage[]> {
       pages.push({ pageNumber: number, text, checksum: sha256Hex(text) });
     }
     const characters = pages.reduce((total, page) => total + page.text.length, 0);
-    if (characters < MIN_PAGE_CHARS * Math.max(1, Math.ceil(pages.length / 2))) throw new ExtractionError('NEEDS_OCR');
-    return pages;
+    // A scan (no text layer): every page is read from its image after upload (T-121), up to the cap.
+    if (characters < MIN_PAGE_CHARS * Math.max(1, Math.ceil(pages.length / 2))) {
+      return pages.map((page) => (page.pageNumber <= MAX_VISION_PAGES ? { ...page, vision: 'REPLACE' as const } : page));
+    }
+    // A text PDF: pages with pictures and little text may hold a chart or an image table; their images are read too.
+    const withImages = await pdfPagesWithImages(bytes);
+    let read = 0;
+    return pages.map((page) => {
+      if (!withImages.has(page.pageNumber) || page.text.length >= IMAGE_PAGE_CHARS || read >= MAX_VISION_PAGES) return page;
+      read += 1;
+      return { ...page, vision: 'APPEND' as const };
+    });
   } finally {
     await task.destroy();
   }
@@ -110,14 +123,54 @@ async function workbookPages(bytes: Uint8Array): Promise<ExtractedPage[]> {
  * Pages of text for any accepted document, bounded in time. The original
  * bytes are stored unchanged; only this text is cited and shown.
  */
+/** A PowerPoint deck (T-121): one page per slide, its text and speaker notes; slides with pictures are also read from them. */
+function pptxPages(bytes: Uint8Array): ExtractedPage[] {
+  let slides;
+  try {
+    slides = pptxSlides(bytes);
+  } catch {
+    throw new ExtractionError('UNREADABLE');
+  }
+  if (slides.length === 0) throw new ExtractionError('NO_TEXT');
+  if (slides.length > MAX_PAGES) throw new ExtractionError('TOO_MANY_PAGES');
+  let read = 0;
+  return slides.map((slide) => {
+    const text = `Slide ${slide.number}${slide.text ? `\n${slide.text}` : ''}`;
+    const vision = slide.images.length > 0 && read < MAX_VISION_PAGES ? (read++, slide.text ? ('APPEND' as const) : ('REPLACE' as const)) : undefined;
+    return { pageNumber: slide.number, text, checksum: sha256Hex(text), ...(vision ? { vision } : {}) };
+  });
+}
+
+/** An uploaded image (T-121): one page, read from the image after upload. */
+function imagePage(): ExtractedPage[] {
+  return [{ pageNumber: 1, text: '', checksum: sha256Hex(''), vision: 'REPLACE' }];
+}
+
+/** The pictures inside a Word or Excel file (T-121): each becomes a page after the text, read from the picture. */
+function withMediaPages(pages: ExtractedPage[], bytes: Uint8Array, folder: 'word/media/' | 'xl/media/'): ExtractedPage[] {
+  let media: string[];
+  try {
+    media = officeMedia(bytes, folder);
+  } catch {
+    return pages;
+  }
+  const extra = media.slice(0, MAX_VISION_PAGES).map((_, index) => ({ pageNumber: pages.length + index + 1, text: '', checksum: sha256Hex(''), vision: 'REPLACE' as const }));
+  return [...pages, ...extra];
+}
+
 export async function documentPages(upload: { contentType: AcceptedContentType; bytes: Uint8Array; text: string | null }): Promise<ExtractedPage[]> {
   switch (upload.contentType) {
     case 'application/pdf':
       return withTimeout(pdfPages(upload.bytes), EXTRACTION_TIMEOUT_MS);
     case DOCX_CONTENT_TYPE:
-      return withTimeout(docxPages(upload.bytes), EXTRACTION_TIMEOUT_MS);
+      return withMediaPages(await withTimeout(docxPages(upload.bytes), EXTRACTION_TIMEOUT_MS), upload.bytes, 'word/media/');
     case XLSX_CONTENT_TYPE:
-      return withTimeout(workbookPages(upload.bytes), EXTRACTION_TIMEOUT_MS);
+      return withMediaPages(await withTimeout(workbookPages(upload.bytes), EXTRACTION_TIMEOUT_MS), upload.bytes, 'xl/media/');
+    case PPTX_CONTENT_TYPE:
+      return pptxPages(upload.bytes);
+    case 'image/png':
+    case 'image/jpeg':
+      return imagePage();
     default:
       return extractPages(upload.text ?? '');
   }

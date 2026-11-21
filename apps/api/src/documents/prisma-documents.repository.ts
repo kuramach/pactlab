@@ -22,6 +22,7 @@ import type {
   DocumentPageRecord,
   DocumentRecord,
   DocumentSourceLink,
+  DocumentVisionState,
 } from './documents.types';
 
 type DocumentRow = Prisma.DocumentGetPayload<object>;
@@ -72,6 +73,13 @@ function toDocument(row: DocumentRow): DocumentRecord {
         : null,
     recategorizedFrom: row.recategorizedFrom,
     recategorizedAt: iso(row.recategorizedAt),
+    vision: {
+      status: row.visionStatus as DocumentVisionState['status'],
+      pagesTotal: row.visionPagesTotal,
+      pagesDone: row.visionPagesDone,
+      startedAt: iso(row.visionStartedAt),
+      failures: (row.visionFailures as { page: number; reason: string }[] | null) ?? [],
+    },
   };
 }
 
@@ -204,6 +212,8 @@ export class PrismaDocumentsRepository implements DocumentsRepository {
           sourceExternalId: document.source?.externalId ?? null,
           sourceVersion: document.source?.version ?? null,
           sourceState: document.source?.state ?? null,
+          visionStatus: document.vision.status,
+          visionPagesTotal: document.vision.pagesTotal,
         },
       });
       await tx.documentPage.createMany({ data: pages.map((page) => ({ ...page })) });

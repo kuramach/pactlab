@@ -81,6 +81,20 @@ const providers = {
 
 // Pactlab signing's adapters here (T-136): unset, the fixture outside production and none in production.
 const signingAdapters = config.SIGNING_PROVIDER ?? (config.APP_ENV === 'production' ? [] : ['fixture']);
+// Email: Amazon SES when deployed (EMAIL_PROVIDER=ses), a local mail folder on a laptop, else none.
+const emailSender =
+  config.EMAIL_PROVIDER === 'ses' && config.EMAIL_FROM
+    ? new BrandedEmailSender(
+        new SesEmailSender(new SESv2Client({ region: config.AWS_REGION }), config.EMAIL_FROM, {
+          ...(config.EMAIL_CONFIGURATION_SET ? { configurationSetName: config.EMAIL_CONFIGURATION_SET } : {}),
+          suppression: new DatabaseSuppressionList(prisma, config.AUTH_TOKEN_SECRET),
+          logger,
+        }),
+        emailAssets(config.APP_WEB_ORIGIN),
+      )
+    : config.APP_ENV === 'local' && config.LOCAL_MAIL_DIR
+      ? new BrandedEmailSender(new LocalFileEmailSender(config.LOCAL_MAIL_DIR), emailAssets(config.APP_WEB_ORIGIN))
+      : null;
 const app = await createApp(
   {
     prisma,
@@ -164,20 +178,7 @@ const app = await createApp(
     emailLogin: {
       tokenSecret: config.AUTH_TOKEN_SECRET,
       webauthn: relyingParty(config.APP_WEB_ORIGIN, config.WEBAUTHN_RP_ID),
-      ...(config.EMAIL_PROVIDER === 'ses' && config.EMAIL_FROM
-        ? {
-            emailSender: new BrandedEmailSender(
-              new SesEmailSender(new SESv2Client({ region: config.AWS_REGION }), config.EMAIL_FROM, {
-                ...(config.EMAIL_CONFIGURATION_SET ? { configurationSetName: config.EMAIL_CONFIGURATION_SET } : {}),
-                suppression: new DatabaseSuppressionList(prisma, config.AUTH_TOKEN_SECRET),
-                logger,
-              }),
-              emailAssets(config.APP_WEB_ORIGIN),
-            ),
-          }
-        : config.APP_ENV === 'local' && config.LOCAL_MAIL_DIR
-          ? { emailSender: new BrandedEmailSender(new LocalFileEmailSender(config.LOCAL_MAIL_DIR), emailAssets(config.APP_WEB_ORIGIN)) }
-          : {}),
+      ...(emailSender ? { emailSender } : {}),
     },
   },
   { webOrigin: config.APP_WEB_ORIGIN },

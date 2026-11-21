@@ -33,6 +33,9 @@ export interface AiEvaluation {
   ranAt: string;
   failures?: string[];
   basis?: string;
+  /** 'health': the quick health check (2026-11-20); absent on older full evaluations. */
+  kind?: 'health';
+  latencyMs?: number;
 }
 
 /** A provider outside AWS: its models serve only with a data-processing agreement and zero retention on record. */
@@ -82,6 +85,28 @@ export const aiModels = {
   async adoptRoutes(sql: SqlExecutor, routes: readonly { alias: AiAlias; provider: AiProvider; modelId: string; label: string }[]): Promise<number> {
     const [row] = await callOps<{ added: number }>(sql, 'SELECT app_ai_adopt_routes($1::jsonb) AS added', [JSON.stringify(routes)]);
     return Number(row?.added ?? 0);
+  },
+
+  /**
+   * At boot: the deployment's configured model per role (empty catalog: adopted as serving; otherwise added
+   * for evaluation, or switched in at once when already evaluated). Returns the models still to be evaluated.
+   */
+  async syncDeployment(sql: SqlExecutor, routes: readonly { alias: AiAlias; provider: AiProvider; modelId: string; label: string }[]): Promise<{ id: string; provider: AiProvider; providerModelId: string; label: string }[]> {
+    // bounded: at most one model per role (three)
+    const rows = await callOps<{ model_id: string; provider: AiProvider; provider_model_id: string; label: string }>(sql, 'SELECT * FROM app_ai_deployment_sync($1::jsonb)', [JSON.stringify(routes)]);
+    return rows.map((row) => ({ id: row.model_id, provider: row.provider, providerModelId: row.provider_model_id, label: row.label }));
+  },
+
+  /** Claim a configured model's evaluation (no person); false when another task has it or it no longer needs one. */
+  async startDeploymentEvaluation(sql: SqlExecutor, modelId: string): Promise<boolean> {
+    const [row] = await callOps<{ ok: boolean }>(sql, 'SELECT app_ai_deployment_evaluating($1::uuid) AS ok', [modelId]);
+    return row?.ok === true;
+  },
+
+  /** Record a configured model's evaluation; a pass switches it in for these roles where they follow the deployment. */
+  async recordDeploymentEvaluation(sql: SqlExecutor, modelId: string, evaluation: AiEvaluation, aliases: readonly AiAlias[]): Promise<AiAlias[]> {
+    const [row] = await callOps<{ switched: AiAlias[] | null }>(sql, 'SELECT app_ai_deployment_evaluated($1::uuid, $2, $3::jsonb, $4::text[]) AS switched', [modelId, evaluation.passed, JSON.stringify(evaluation), [...aliases]]);
+    return row?.switched ?? [];
   },
 
   // bounded: the model catalog (tens of rows; the function caps it at 500)

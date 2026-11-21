@@ -1,4 +1,5 @@
 export * from './bedrock';
+export * from './vision';
 export * from './citations';
 export * from './classify';
 export * from './context';

@@ -66,3 +66,25 @@ Each evaluation records the prompt hashes it ran against. When prompts change, r
 - **What they find:** defined terms, cross-references, party names and contradictions. Each problem lands as a **draft** finding (kind `CONSISTENCY`) with exact quotes, in the review queue.
 - **How to route them:** set *Consistency checks* under Admin → AI models. Unset, they run on GPT-5.5 when OpenAI is connected and evaluated, and otherwise on the Deep review Claude model.
 - **When the check fails** (provider down): the extraction still stands, and the response reports `consistency.status: PROVIDER_ERROR`.
+
+## Configured models go live on deploy; a health check, not a gate (2026-11-20)
+- **Configured models serve at once on deploy.** Each role's model in `infra/cdk/config/<env>.ts` (`bedrock.modelOverrides`), or in the code defaults, becomes the platform default for its role when the release starts, unless an operator chose that role in the console. The console's choice always wins.
+- **Run health check** (Admin → AI models) sends one synthetic question. The model passes when it answers with a valid, cited answer. It takes seconds and costs almost nothing.
+  - **Passed:** *Healthy*, with the time it took.
+  - **Failed:** *Not serving*, with the reason (e.g. it couldn't be called). The model stops serving, and its role falls back to the configured model.
+- **A model added by hand** (another provider or family) serves once its health check passes. Pick it per job in the routing diagram.
+- **Why there's no evaluation gate:** the full golden-set evaluation compared live answers with recorded ones almost exactly, so well-tested frontier models "failed" on harmless differences. What protects pact work runs on every call: citations verified word for word, AI output stays a draft until a person accepts it, and no people data reaches a model. The full golden set still runs in CI against recorded answers, and on demand with `pnpm eval:live`.
+- **Bedrock Claude IDs use dashes:** `us.anthropic.claude-opus-5-5`, not `5.5`. The console refuses the dotted form.
+
+## Reading images: scans, slides and charts (T-121, ADR 0037)
+- **What's read from images:**
+  - **scanned PDFs**, up to 60 pages;
+  - **PNG and JPEG uploads**;
+  - **PowerPoint** slides with pictures;
+  - pictures inside **Word and Excel** files;
+  - **text-PDF pages** that hold pictures and little text.
+- **How:** reading runs in the background after upload. The Documents library shows *Reading images… 3 of 12*, then *Read from images: check against the original*.
+- **When it fails:** a page that couldn't be read is named with the reason (*couldn't read page 7: …*), and **Read again** retries the unread pages. A reading stopped by a restart can also be started again with **Read again** after 15 minutes.
+- **Never read:** documents classed as people data, or kept away from AI. The library says so.
+- **Which model:** the **Image documents** box in the routing diagram. On Bedrock-only deployments that's Claude Sonnet 5.5.
+- **Old Office files** (`.doc`, `.xls`, `.ppt`) are refused, with a message to save them as `.docx`, `.xlsx` or `.pptx`.

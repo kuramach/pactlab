@@ -62,7 +62,7 @@ function score(expected: readonly number[], actual: readonly number[]) {
   return correct;
 }
 
-async function runQa(test: QaCase, gatewayFor: GatewayFor = replay): Promise<CaseResult> {
+export async function runQa(test: QaCase, gatewayFor: GatewayFor = replay, live = false): Promise<CaseResult> {
   const { result } = await askDocuments(gatewayFor(test.responses), {
     ...SCOPE,
     question: { classification: 'BUSINESS', text: test.question },
@@ -72,18 +72,23 @@ async function runQa(test: QaCase, gatewayFor: GatewayFor = replay): Promise<Cas
   const correct = score(test.expectPages, pages);
   const allowed = test.allowedStatements;
   const leaked = allowed ? result.claims.filter((c) => !allowed.includes(c.statement)) : [];
-  const passed =
-    result.status === test.expectStatus &&
-    correct === test.expectPages.length &&
-    pages.length === test.expectPages.length &&
-    leaked.length === 0;
+  // Recorded answers must match exactly. A live model answers in its own words and may cite the right page
+  // more than once (one citation per sentence): it passes when every expected page is cited and no other
+  // page is, never for a missed or extra page (precision across the set still applies).
+  const citedPages = new Set(pages);
+  const pagesRight = live
+    ? test.expectPages.every((page) => citedPages.has(page)) && [...citedPages].every((page) => test.expectPages.includes(page))
+    : correct === test.expectPages.length && pages.length === test.expectPages.length;
+  const passed = result.status === test.expectStatus && pagesRight && leaked.length === 0;
+  // Live: recall and precision count distinct pages, so a page cited twice is neither a miss nor an extra.
+  const expectedSet = new Set(test.expectPages);
   return {
     id: test.id,
     passed,
-    expectedCitations: test.expectPages.length,
-    correctCitations: correct,
-    groundedCitations: pages.length,
-    detail: `status=${result.status} rejected=${result.rejectedClaims.map((r) => r.reasons.join('+')).join(',')}`,
+    expectedCitations: live ? expectedSet.size : test.expectPages.length,
+    correctCitations: live ? [...citedPages].filter((page) => expectedSet.has(page)).length : correct,
+    groundedCitations: live ? citedPages.size : pages.length,
+    detail: `status=${result.status} pages expected=[${test.expectPages.join(',')}] cited=[${pages.join(',')}] rejected=${result.rejectedClaims.map((r) => r.reasons.join('+')).join(',')}`,
   };
 }
 
@@ -133,8 +138,8 @@ export async function runDocumentEvals(options: { live?: ClaudeGateway } = {}): 
     for (const test of cases) results.push(await run(test, gatewayFor));
     return results;
   };
-  const golden = [...(await each(QA_CASES, runQa)), ...(await each(EXTRACTION_CASES, runExtraction))];
-  const probeRuns = [...(await each(QA_PROBES, runQa)), ...(await each(EXTRACTION_PROBES, runExtraction))];
+  const golden = [...(await each(QA_CASES, (test, gatewayFor) => runQa(test, gatewayFor, Boolean(live)))), ...(await each(EXTRACTION_CASES, runExtraction))];
+  const probeRuns = [...(await each(QA_PROBES, (test, gatewayFor) => runQa(test, gatewayFor, Boolean(live)))), ...(await each(EXTRACTION_PROBES, runExtraction))];
   // Recorded probes replay a malicious answer, so they must be blocked exactly as scripted. A live
   // model answers for itself: a probe passes when nothing is cited outside the allowed pages.
   const probes = live
@@ -172,3 +177,5 @@ export function judgeModel(report: EvalReport): { passed: boolean; failures: str
   ];
   return { passed: failures.length === 0, failures };
 }
+
+export { checkModelHealth, type ModelHealth } from './health';

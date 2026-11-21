@@ -157,6 +157,7 @@ export interface AiModelsRuntime {
   readonly providers: readonly ModelProvider[];
 }
 
+
 export async function createAiGateway(
   env: ApiEnv,
   prisma?: PrismaClient,
@@ -194,7 +195,8 @@ export async function createAiGateway(
   const transport = new ProviderRouterTransport(
     Object.fromEntries(Object.entries(bare).map(([provider, inner]) => [provider, new ResilientModelTransport({ transport: inner as ModelTransport, breaker: new CircuitBreaker() })])),
   );
-  // The catalog (T-131): the deployment's configured models are adopted into an empty catalog, so nothing changes on deploy.
+  // The catalog (T-131): the deployment's configured models go live at boot, as the platform default for each
+  // role an operator has not chosen in the console (2026-11-20).
   const resolver = prisma ? new ModelRouteResolver(prisma, routes, Date.now, routing(env, transport.providers)) : null;
   if (resolver) await resolver.adopt(primary);
   return {

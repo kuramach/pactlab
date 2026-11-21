@@ -6,8 +6,8 @@ import { useRouter } from 'next/navigation';
 import { libraryHref } from './library-href';
 import { DOCUMENT_KINDS } from '@pactlab/contracts';
 import { useState } from 'react';
-import { citationHref, type DocumentListItem } from '../../../documents/_lib/view';
-import { classifyOne, extractOne } from './actions';
+import { citationHref, visionLine, type DocumentListItem } from '../../../documents/_lib/view';
+import { classifyOne, extractOne, readImagesAgain } from './actions';
 
 export interface LibraryRow extends DocumentListItem {
   /** AI drafts and decided findings citing this document. */
@@ -24,6 +24,9 @@ const KIND: Readonly<Record<string, string>> = {
   'text/csv': 'CSV',
   'text/plain': 'Text',
   'text/markdown': 'Markdown',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'PowerPoint',
+  'image/png': 'Image',
+  'image/jpeg': 'Image',
 };
 
 export const kindOf = (contentType: string) => KIND[contentType] ?? 'File';
@@ -241,6 +244,21 @@ export function DocumentLibrary({
                       <span className="ml-2 text-xs text-muted-foreground">{row.source.state === 'REMOVED' ? 'removed from the data room' : 'older version'}</span>
                     ) : null}
                     {row.intake?.sourcePath ? <span className="block text-xs text-muted-foreground">{row.intake.sourcePath}</span> : null}
+                    {(() => {
+                      // T-121: reading the document's images, said plainly; a failure offers Read again.
+                      const line = visionLine(row.vision);
+                      if (!line) return null;
+                      return (
+                        <span className="block text-xs text-muted-foreground" role="status">
+                          {line.text}
+                          {line.retry ? (
+                            <Button type="button" variant="link" size="sm" className="ml-1 h-auto p-0 text-xs" onClick={() => void readImagesAgain(dealId, row.id).then(() => router.refresh())}>
+                              Read again
+                            </Button>
+                          ) : null}
+                        </span>
+                      );
+                    })()}
                   </td>
                   <td className="px-2 py-2">
                     <Badge variant={category.tone} title={category.title}>

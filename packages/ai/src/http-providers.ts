@@ -60,6 +60,8 @@ export class AnthropicModelTransport implements ModelTransport {
   constructor(private readonly options: HttpOptions) {}
 
   async complete(request: ModelRequest): Promise<ModelResponse> {
+    // Images are sent through Bedrock only for now (T-121): another lane takes this call.
+    if (request.messages.some((message) => message.images?.length)) throw new ModelProviderError('UNSUPPORTED', 'IMAGES_NOT_SUPPORTED');
     const key = await this.options.apiKey();
     const body = await post(this.options, `${this.options.baseUrl ?? 'https://api.anthropic.com'}/v1/messages`, { 'x-api-key': key, 'anthropic-version': ANTHROPIC_VERSION }, {
       model: request.modelId,
@@ -83,6 +85,8 @@ export class OpenAIModelTransport implements ModelTransport {
   constructor(private readonly options: HttpOptions) {}
 
   async complete(request: ModelRequest): Promise<ModelResponse> {
+    // Images are sent through Bedrock only for now (T-121): another lane takes this call.
+    if (request.messages.some((message) => message.images?.length)) throw new ModelProviderError('UNSUPPORTED', 'IMAGES_NOT_SUPPORTED');
     const key = await this.options.apiKey();
     const body = await post(this.options, `${this.options.baseUrl ?? 'https://api.openai.com/v1'}/responses`, { authorization: `Bearer ${key}` }, {
       model: request.modelId,
@@ -117,6 +121,8 @@ export class GoogleModelTransport implements ModelTransport {
   constructor(private readonly options: HttpOptions) {}
 
   async complete(request: ModelRequest): Promise<ModelResponse> {
+    // Images are sent through Bedrock only for now (T-121): another lane takes this call.
+    if (request.messages.some((message) => message.images?.length)) throw new ModelProviderError('UNSUPPORTED', 'IMAGES_NOT_SUPPORTED');
     const key = await this.options.apiKey();
     const model = encodeURIComponent(request.modelId);
     const body = await post(this.options, `${this.options.baseUrl ?? 'https://generativelanguage.googleapis.com'}/v1beta/models/${model}:generateContent`, { 'x-goog-api-key': key }, {

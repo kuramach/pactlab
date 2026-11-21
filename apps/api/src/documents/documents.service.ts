@@ -86,9 +86,10 @@ import type {
   UploadArchiveBody,
   UploadDocumentBody,
 } from './documents.schemas';
-import { UNCLASSIFIED_INTAKE, type DocumentIntake, type DocumentPageRecord, type DocumentRecord, type DocumentSourceLink } from './documents.types';
+import { NO_VISION, UNCLASSIFIED_INTAKE, type DocumentIntake, type DocumentPageRecord, type DocumentRecord, type DocumentSourceLink, type DocumentVisionState } from './documents.types';
 import { documentPages } from './document-text';
-import { ExtractionError } from './extraction';
+import { ExtractionError, type ExtractedPage } from './extraction';
+import { VisionPass } from './vision-pass';
 import {
   retainUntil,
   UploadRejectedError,
@@ -175,6 +176,13 @@ function providerUnavailable(kind: ModelProviderErrorKind | null): ServiceUnavai
   return new ServiceUnavailableException({ code });
 }
 
+/** T-121: what to read from images for a new document (NONE when nothing, SKIPPED when it is excluded from AI). */
+function visionPlan(pages: readonly ExtractedPage[], excluded: boolean): DocumentVisionState {
+  const total = pages.filter((page) => page.vision).length;
+  if (total === 0) return NO_VISION;
+  return { ...NO_VISION, status: excluded ? 'SKIPPED' : 'PENDING', pagesTotal: total };
+}
+
 /** Categories whose documents get the consistency checks after extraction (T-132); unclassified ones too. */
 const AGREEMENT_CATEGORIES = new Set(['CUSTOMER_CONTRACT', 'SUPPLIER_CONTRACT', 'LOAN_AGREEMENT', 'LEASE']);
 
@@ -188,6 +196,7 @@ export class DocumentsService {
     @Optional() @Inject(FindingsService) private readonly register: FindingsService | null,
     @Inject(MALWARE_SCANNER) private readonly scanner: MalwareScanner,
     @Inject(CLAUDE_GATEWAY) private readonly gateway: ClaudeGateway,
+    @Inject(VisionPass) private readonly vision: VisionPass,
   ) {}
 
   private audit(
@@ -288,6 +297,8 @@ export class DocumentsService {
       source: source ? { ...source, state: 'CURRENT' } : null,
       recategorizedFrom: null,
       recategorizedAt: null,
+      // T-121: pages to read from their images; never for a document excluded from AI (people data, the uploader's choice).
+      vision: visionPlan(pages, body.aiExcluded || PROHIBITED.has(body.dataClass)),
     };
     const pageRecords: DocumentPageRecord[] = pages.map((page) => ({
       id: newId(),
@@ -297,6 +308,7 @@ export class DocumentsService {
       pageNumber: page.pageNumber,
       text: page.text,
       checksum: page.checksum,
+      visionMode: document.vision.status === 'PENDING' ? (page.vision ?? null) : null,
     }));
     try {
       await this.documents.insertDocument(
@@ -315,7 +327,20 @@ export class DocumentsService {
       await this.objects.delete(objectKey);
       throw error;
     }
+    // Read the images in the background: the upload never waits on a model, and the document shows its progress.
+    if (document.vision.status === 'PENDING') this.vision.start(tenant, dealId, documentId);
     return { ...documentView(document), duplicate: false };
+  }
+
+  /** Read the document's images again (T-121): the pages not yet read, after a failure or a restart. */
+  async readImagesAgain(tenant: TenantContext, dealId: string, documentId: string, requestId: string) {
+    await this.access.require(tenant, dealId, canUpload, { action: 'document.vision.restarted', requestId });
+    const document = await this.documents.getDocument(tenant, dealId, documentId);
+    if (!document) throw new NotFoundException();
+    if (document.aiExcluded) throw new UnprocessableEntityException({ code: 'AI_EXCLUDED' });
+    if (!['PENDING', 'READING', 'FAILED', 'PARTIAL'].includes(document.vision.status)) throw new UnprocessableEntityException({ code: 'NOTHING_TO_READ' });
+    this.vision.start(tenant, dealId, documentId);
+    return { id: documentId, vision: { ...document.vision, status: 'READING' as const } };
   }
 
   private async auditRejection(tenant: TenantContext, dealId: string, requestId: string) {

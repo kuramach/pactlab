@@ -235,6 +235,17 @@ export class DocumentsController {
     return this.service.categorize(tenant, params.dealId, params.documentId, body, requestId);
   }
 
+  /** Read the document's images again (T-121): after a failure, or a reading a restart stopped. */
+  @Post('documents/:documentId/vision')
+  @HttpCode(202)
+  async readImages(
+    @Tenant() tenant: TenantContext,
+    @RequestId() requestId: string,
+    @Param(new ZodValidationPipe(documentParamsSchema)) params: DocumentParams,
+  ) {
+    return this.service.readImagesAgain(tenant, params.dealId, params.documentId, requestId);
+  }
+
   @Post('documents/:documentId/extractions')
   async extract(
     @Tenant() tenant: TenantContext,

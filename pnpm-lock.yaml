@@ -208,6 +208,9 @@ importers:
       '@modelcontextprotocol/sdk':
         specifier: 1.32.2
         version: 1.32.2(zod@4.6.5)
+      '@napi-rs/canvas':
+        specifier: 1.0.11
+        version: 1.0.11
       '@nestjs/common':
         specifier: 12.1.2
         version: 12.1.2(reflect-metadata@0.2.2)(rxjs@7.8.2)
@@ -5123,7 +5126,6 @@ snapshots:
       '@napi-rs/canvas-linux-x64-musl': 1.0.11
       '@napi-rs/canvas-win32-arm64-msvc': 1.0.11
       '@napi-rs/canvas-win32-x64-msvc': 1.0.11
-    optional: true
 
   '@nestjs/common@12.1.2(reflect-metadata@0.2.2)(rxjs@7.8.2)':
     dependencies:

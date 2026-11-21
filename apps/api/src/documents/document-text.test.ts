@@ -21,8 +21,9 @@ describe('PDF and Word text extraction', () => {
     expect(pages[0]?.checksum).toMatch(/^[0-9a-f]{64}$/);
   });
 
-  it('refuses a PDF with no text layer and an unreadable one', async () => {
-    await expect(documentPages({ contentType: 'application/pdf', bytes: syntheticPdf([[], []]), text: null })).rejects.toMatchObject({ reason: 'NEEDS_OCR' });
+  it('accepts a PDF with no text layer for reading from its images (T-121), and refuses an unreadable one', async () => {
+    const scanned = await documentPages({ contentType: 'application/pdf', bytes: syntheticPdf([[], []]), text: null });
+    expect(scanned.map((page) => [page.pageNumber, page.vision])).toEqual([[1, 'REPLACE'], [2, 'REPLACE']]);
     const broken = new Uint8Array(Buffer.from('%PDF-1.4\nthis is not a PDF body', 'latin1'));
     await expect(documentPages({ contentType: 'application/pdf', bytes: broken, text: null })).rejects.toBeInstanceOf(ExtractionError);
   });

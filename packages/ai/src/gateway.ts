@@ -7,7 +7,7 @@ import { detectInjection } from './injection';
 import { DEFAULT_MODEL_ROUTES, isClaudeModelId, resolveModel, type ModelAlias, type ModelRoute, type ModelProvider } from './models';
 import type { JobType } from './jobs';
 import type { PromptDefinition, PromptRegistry } from './prompts/registry';
-import type { ModelMessage, ModelTransport } from './transport';
+import type { ModelImage, ModelMessage, ModelTransport } from './transport';
 
 /**
  * Data classifications that may never reach a model or embedding call
@@ -45,6 +45,10 @@ export interface GatewayRequest {
   /** Every input part declares its classification; unclassified input is rejected. */
   readonly inputs: readonly GatewayInput[];
   readonly sources?: readonly CitableSource[];
+  /** Images read with the prompt (T-121), e.g. a rendered page; covered by the same classification check. */
+  readonly images?: readonly ModelImage[];
+  /** The images' data classification: required with images, checked like every other input. */
+  readonly imagesClassification?: GatewayInput['classification'];
 }
 
 export type AiRunStatus = 'SUCCEEDED' | 'SCHEMA_INVALID' | 'PROVIDER_ERROR';
@@ -121,7 +125,9 @@ export class GatewayPolicyError extends Error {
 
 export function assertModelSafeInputs(request: GatewayRequest): void {
   const prohibited = new Set<string>(PROHIBITED_CLASSIFICATIONS);
-  const parts = [...request.inputs, ...(request.sources ?? [])];
+  // Images carry their document's classification; an image without one is refused, like any unclassified input.
+  if (request.images?.length && !request.imagesClassification) throw new GatewayPolicyError('PROHIBITED_DATA');
+  const parts = [...request.inputs, ...(request.sources ?? []), ...(request.images?.length && request.imagesClassification ? [{ classification: request.imagesClassification }] : [])];
   if (parts.some((input) => prohibited.has(input.classification))) {
     throw new GatewayPolicyError('PROHIBITED_DATA');
   }
@@ -213,7 +219,7 @@ export class TransportClaudeGateway implements ClaudeGateway {
     let fallbackReason: string | null = null;
     const sources = request.sources ?? [];
     const user = prompt.render({ sources, inputs: request.inputs });
-    const messages: ModelMessage[] = [{ role: 'user', content: user }];
+    const messages: ModelMessage[] = [{ role: 'user', content: user, ...(request.images?.length ? { images: request.images } : {}) }];
     const fallbackOf = (current: ModelRoute) =>
       current.fallbackModelId && isClaudeModelId(current.fallbackModelId) && prompt.fallbackEvaluatedOn?.includes(current.fallbackModelId) ? current.fallbackModelId : undefined;
     let answeredBy = route.modelId;
@@ -237,7 +243,7 @@ export class TransportClaudeGateway implements ClaudeGateway {
           return response;
         } catch (error) {
           const kind = error instanceof ModelProviderError ? error.kind : null;
-          const passOn = kind === 'ACCESS' || kind === 'THROTTLED' || kind === 'UNAVAILABLE' || kind === 'DELAYED';
+          const passOn = kind === 'ACCESS' || kind === 'THROTTLED' || kind === 'UNAVAILABLE' || kind === 'DELAYED' || kind === 'UNSUPPORTED';
           if (!passOn || answered || lane + 1 >= lanes.length) throw error;
           fallbackFrom ??= route.modelId;
           fallbackReason ??= kind;
