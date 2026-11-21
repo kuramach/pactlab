@@ -16,11 +16,15 @@ export interface DocumentSourceView {
   readonly status: string;
   readonly lastSyncedAt: string | null;
   readonly lastSyncSummary: Readonly<Record<string, number>> | null;
+  /** Reads with the organization's own sign-in (T-147), not a pasted token. */
+  readonly viaOrganization?: boolean;
 }
 
 export interface SourcesView {
   readonly items: readonly DocumentSourceView[];
   readonly fixtureRooms: readonly { readonly id: string; readonly label: string }[];
+  /** Providers the organization has signed in to (Settings → Document sources). */
+  readonly signedIn?: readonly string[];
 }
 
 const OUTCOME: Record<SourceSyncFile['outcome'], string> = {
@@ -35,9 +39,17 @@ const OUTCOME: Record<SourceSyncFile['outcome'], string> = {
 };
 
 const PROVIDERS = [
-  { id: 'google-drive', label: 'Google Drive', folderHint: 'Folder id (from the folder URL)' },
+  { id: 'google-drive', label: 'Google Drive', folderHint: 'Folder link, or its id' },
   { id: 'onedrive', label: 'OneDrive / SharePoint', folderHint: '<drive-id>/<folder-item-id>' },
 ] as const;
+
+/** A folder as pasted: a Drive folder link becomes its id ("…/drive/folders/<id>?usp=sharing" → <id>); anything else as typed. */
+export function folderFromInput(provider: string, text: string): string {
+  const value = text.trim();
+  if (provider !== 'google-drive') return value;
+  const linked = /\/folders\/([A-Za-z0-9_-]{10,})/.exec(value) ?? /[?&]id=([A-Za-z0-9_-]{10,})/.exec(value);
+  return linked?.[1] ?? value;
+}
 
 interface Row {
   readonly path: string;
@@ -141,7 +153,7 @@ export function SourcesPanel({ dealId, sources, aiOn }: { dealId: string; source
       ) : null}
 
       {adding ? (
-        <ConnectForm dealId={dealId} fixtureRooms={sources.fixtureRooms} onDone={() => setAdding(false)} />
+        <ConnectForm dealId={dealId} fixtureRooms={sources.fixtureRooms} signedIn={sources.signedIn ?? []} onDone={() => setAdding(false)} />
       ) : (
         <Button variant="link" size="sm" className="self-start" type="button" onClick={() => setAdding(true)}>
           Connect another data room or drive
@@ -151,16 +163,16 @@ export function SourcesPanel({ dealId, sources, aiOn }: { dealId: string; source
   );
 }
 
-function ConnectForm({ dealId, fixtureRooms, onDone }: { dealId: string; fixtureRooms: SourcesView['fixtureRooms']; onDone: () => void }) {
+function ConnectForm({ dealId, fixtureRooms, signedIn, onDone }: { dealId: string; fixtureRooms: SourcesView['fixtureRooms']; signedIn: readonly string[]; onDone: () => void }) {
   const router = useRouter();
   const [kind, setKind] = useState<'fixture' | 'google-drive' | 'onedrive'>(fixtureRooms.length > 0 ? 'fixture' : 'google-drive');
   const [room, setRoom] = useState(fixtureRooms[0]?.id ?? '');
   const [folder, setFolder] = useState('');
   const [name, setName] = useState('');
-  const [token, setToken] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const live = PROVIDERS.find((provider) => provider.id === kind);
+  const ready = kind === 'fixture' || signedIn.includes(kind);
 
   const submit = async () => {
     setBusy(true);
@@ -168,13 +180,12 @@ function ConnectForm({ dealId, fixtureRooms, onDone }: { dealId: string; fixture
     const result =
       kind === 'fixture'
         ? await connectSource(dealId, { provider: 'vdr', mode: 'FIXTURE', displayName: fixtureRooms.find((r) => r.id === room)?.label ?? 'Synthetic data room', folder: room })
-        : await connectSource(dealId, { provider: kind, mode: 'LIVE', displayName: name || (live?.label ?? 'Drive'), folder, token });
+        : await connectSource(dealId, { provider: kind, mode: 'LIVE', displayName: name || (live?.label ?? 'Drive'), folder: folderFromInput(kind, folder) });
     setBusy(false);
     if (result.kind === 'error') {
       setError(result.message);
       return;
     }
-    setToken('');
     onDone();
     router.refresh();
   };
@@ -200,27 +211,25 @@ function ConnectForm({ dealId, fixtureRooms, onDone }: { dealId: string; fixture
             </option>
           ))}
         </select>
+      ) : !ready ? (
+        <p className="text-xs text-muted-foreground">
+          Your organization signs in to {live?.label} once, read-only, and every pact can then add folders from it.{' '}
+          <a href="/settings#document-sources" className="font-medium text-indigo-ink underline">
+            Connect {live?.label} in Settings
+          </a>{' '}
+          (an organization owner or admin).
+        </p>
       ) : (
         <>
           <input value={name} onChange={(event) => setName(event.target.value)} placeholder="Name, e.g. Seller data room" aria-label="Name" className="rounded-md border border-border bg-background px-2 py-1" />
           <input value={folder} onChange={(event) => setFolder(event.target.value)} placeholder={live?.folderHint} aria-label="Folder" className="rounded-md border border-border bg-background px-2 py-1" />
-          <input
-            value={token}
-            onChange={(event) => setToken(event.target.value)}
-            type="password"
-            autoComplete="off"
-            placeholder="Read-only access token"
-            aria-label="Read-only access token"
-            className="rounded-md border border-border bg-background px-2 py-1"
-          />
           <p className="text-xs text-muted-foreground">
-            Read-only access is enough ({kind === 'google-drive' ? 'drive.readonly' : 'Files.Read'}). The token is stored in the secret store and never shown again. Pactlab never writes to
-            the source.
+            Read with your organization’s {live?.label} sign-in. Pactlab only reads; it never writes, moves or shares anything at the source.
           </p>
         </>
       )}
       <div className="flex items-center gap-2">
-        <Button type="button" size="sm" disabled={busy || (kind === 'fixture' ? !room : !folder || !token)} onClick={() => void submit()}>
+        <Button type="button" size="sm" disabled={busy || !ready || (kind === 'fixture' ? !room : !folder)} onClick={() => void submit()}>
           {busy ? 'Connecting…' : 'Connect'}
         </Button>
         {error ? <span className="text-xs text-red-700">{error}</span> : null}

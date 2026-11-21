@@ -89,7 +89,7 @@ describe('dev: the running application (ADR 0019)', () => {
     // Dev: new organizations are active at once, so sign-up can be tested end to end.
     expect(environment['SIGNUP_REQUIRES_APPROVAL']).toBe('false');
     expect(Object.keys(environment).some((name) => /PASSWORD|SECRET/.test(name))).toBe(false);
-    expect(api?.Secrets?.map((secret) => secret.Name).sort()).toEqual(['ANTHROPIC_API_KEY', 'AUTH_TOKEN_SECRET', 'BOLDSIGN_API_KEY', 'BOLDSIGN_WEBHOOK_SECRET', 'DB_PASSWORD', 'GOOGLE_API_KEY', 'OPENAI_API_KEY', 'SIGNING_TEST_RECIPIENTS']);
+    expect(api?.Secrets?.map((secret) => secret.Name).sort()).toEqual(['ANTHROPIC_API_KEY', 'AUTH_TOKEN_SECRET', 'BOLDSIGN_API_KEY', 'BOLDSIGN_WEBHOOK_SECRET', 'DB_PASSWORD', 'GOOGLE_API_KEY', 'GOOGLE_OAUTH_CLIENT_ID', 'GOOGLE_OAUTH_CLIENT_SECRET', 'MICROSOFT_OAUTH_CLIENT_ID', 'MICROSOFT_OAUTH_CLIENT_SECRET', 'OPENAI_API_KEY', 'SIGNING_TEST_RECIPIENTS']);
     // Pactlab signing (T-136): BoldSign preferred once its key is set, test signing until then; its secrets start `unset`.
     expect(environment['SIGNING_PROVIDER']).toBe('boldsign,fixture');
     for (const name of ['boldsign-api-key', 'boldsign-webhook-secret', 'test-recipients']) {

@@ -10,6 +10,7 @@ import {
   UnprocessableEntityException,
   UnsupportedMediaTypeException,
 } from '@nestjs/common';
+import { GatewayPolicyError, mapImport, type AiRunRecord, type ClaudeGateway } from '@pactlab/ai';
 import { D, parseDecimal } from '@pactlab/calculations';
 import { BILLING_TEMPLATES, readTable, TableReadError, type BillingTemplate, type ReadTable } from '@pactlab/connectors';
 import {
@@ -35,6 +36,7 @@ import {
   UPLOAD_CONNECTOR_VERSION,
   uploadDataset,
   withTenant,
+  type Prisma,
   type PrismaClient,
   type SourceUploadRecord,
   type TransactionClient,
@@ -42,6 +44,13 @@ import {
 import {
   applyMapping,
   canonicalMappingJson,
+  checkProposal,
+  layoutProblems,
+  CORE_IMPORT_TARGETS,
+  namesOnly,
+  reshapeTable,
+  statementCheck,
+  type AssistedMapping,
   detectDateFormat,
   isBuyerSideRole,
   IMPORT_TARGET_DEFINITIONS,
@@ -57,6 +66,7 @@ import {
   type CompanyType,
   type CsvTable,
   type DealRole,
+  type FieldSource,
   type ImportMapping,
   type ImportTarget,
   type PackDefinition,
@@ -64,6 +74,7 @@ import {
   type TenantContext,
 } from '@pactlab/domain';
 import { DealAccess } from '../deals/deal-access';
+import { CLAUDE_GATEWAY, DOCUMENT_OBJECT_STORE, type DocumentObjectStore } from '../documents/documents.repository';
 import { FindingsService } from '../findings/findings.service';
 import type { MalwareScanner } from '../documents/upload-policy';
 import { PRISMA } from '../tokens';
@@ -76,19 +87,42 @@ const canRead = (role: DealRole) => permissionsForDealRole(role).has('DEAL_READ'
 export { UPLOAD_CONNECTOR_VERSION };
 const MAX_ROWS = 200_000;
 const SAMPLE_ROWS = 10;
+/** Rows the mapping screen gets: enough for a T-12's or a P&L's row labels. */
+const DETAIL_ROWS = 40;
 
 const sha256 = (bytes: Uint8Array | string) => createHash('sha256').update(bytes).digest('hex');
 
 const definitionOf = (target: ImportTarget): TargetDefinition => IMPORT_TARGET_DEFINITIONS[target];
 const isBilling = (target: ImportTarget) => target === 'BILLING_INVOICE_LINE';
 
-/** Problems that stop a mapping before any row is read: refused people columns (rule 7), then the mapping itself. */
-function blockingProblems(definition: TargetDefinition, header: readonly string[], mapping: ImportMapping): string[] {
-  return [
-    ...peopleColumnProblems(definition, header),
+/**
+ * Problems that stop a mapping: refused people columns (rule 7), the mapping itself, and for a
+ * statement, accounts with no kind and (unless a person accepted them) subtotals that do not tie out.
+ */
+function blockingProblems(definition: TargetDefinition, table: CsvTable, mapping: ImportMapping): string[] {
+  const problems = [
+    ...peopleColumnProblems(definition, table.header),
     ...(mapping.target === definition.target ? [] : [`This file is imported as ${definition.label}, not ${mapping.target}`]),
-    ...mappingProblems(definition, header, mapping),
+    ...mappingProblems(definition, table.header, mapping, table.rows),
   ];
+  if (problems.length > 0 || !definition.lineItems) return problems;
+  const { unclassified, gaps } = statementCheck(table, mapping, definition);
+  return [
+    ...(unclassified.length > 0 ? [`Say what ${unclassified.length === 1 ? 'this line is' : 'these lines are'}: ${unclassified.slice(0, 5).map((account) => `"${account}"`).join(', ')}${unclassified.length > 5 ? ` and ${unclassified.length - 5} more` : ''}`] : []),
+    ...(gaps.length > 0 && !mapping.acceptTieOutGaps ? [`${gaps.length === 1 ? 'A subtotal does' : `${gaps.length} subtotals do`} not add up to its lines: check the line kinds, or accept the gaps`] : []),
+  ];
+}
+
+/** The mapping screen's view of the assistant's proposal: what it filled in and why, and what it asks. */
+function assistView(assist: AssistedMapping | null): UploadDetailView['assist'] {
+  if (!assist) return null;
+  return {
+    source: assist.source,
+    picks: Object.fromEntries(Object.entries(assist.picks).map(([field, pick]) => [field, { by: pick.by, confidence: pick.confidence, reason: pick.reason }])),
+    questions: assist.questions.map((question) => ({ field: question.field, question: question.question, options: [...question.options] })),
+    unsureLines: [...assist.unsureLines],
+    note: assist.note,
+  };
 }
 
 export function targetView(definition: TargetDefinition): ImportTargetView {
@@ -146,6 +180,22 @@ function suggestMapping(table: CsvTable, template: BillingTemplate, definition: 
   };
 }
 
+/** The mapping the screen starts from: the assistant's checked proposal over the name match, when there is one. */
+function suggestedFrom(table: CsvTable, template: BillingTemplate, definition: TargetDefinition, delimiter: ReadTable['delimiter'], assist: AssistedMapping | null): ImportMapping {
+  const base = suggestMapping(table, template, definition, delimiter);
+  if (!assist) return base;
+  const shaped = layoutProblems(definition, table.header, assist.layout).length === 0 ? reshapeTable(table, assist.layout) : table;
+  const dateColumn = Object.entries(assist.fields).find(([name, source]) => source.kind === 'column' && definition.fields.find((field) => field.name === name)?.kind === 'date')?.[1];
+  const detected = dateColumn?.kind === 'column' ? detectDateFormat(shaped, dateColumn.column) : null;
+  return {
+    ...base,
+    fields: { ...assist.fields },
+    ...(detected ? { dateFormat: detected } : {}),
+    ...(assist.layout.kind === 'ROWS' ? {} : { layout: assist.layout }),
+    ...(definition.lineItems ? { lineKinds: { ...assist.lineKinds } } : {}),
+  };
+}
+
 const CONTENT_TYPES = { CSV: 'text/csv', TSV: 'text/tab-separated-values', XLSX: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' } as const;
 
 /** A file that cannot be read as a table, as a stable problem code the web app explains. */
@@ -168,7 +218,7 @@ function tableProblem(error: TableReadError): Error {
  */
 /** A pack's own imports, plus the regulatory screen's footprint and package where it runs at full depth (T-091). */
 function importableTargets(pack: PackDefinition): readonly ImportTarget[] {
-  return regulatoryProfile(pack.id).depth === 'FULL' ? [...pack.importTargets, ...REGULATORY_TARGETS] : pack.importTargets;
+  return [...pack.importTargets, ...CORE_IMPORT_TARGETS, ...(regulatoryProfile(pack.id).depth === 'FULL' ? REGULATORY_TARGETS : [])];
 }
 
 @Injectable()
@@ -180,7 +230,80 @@ export class ImportsService {
     @Inject(UPLOAD_MALWARE_SCANNER) private readonly scanner: MalwareScanner,
     @Inject(IMPORT_QUEUE) private readonly queue: ImportQueue | null,
     @Optional() @Inject(FindingsService) private readonly findings: FindingsService | null,
+    @Optional() @Inject(CLAUDE_GATEWAY) private readonly gateway: ClaudeGateway | null = null,
+    @Optional() @Inject(DOCUMENT_OBJECT_STORE) private readonly documentStore: DocumentObjectStore | null = null,
   ) {}
+
+  /**
+   * Read a file the way it really is (Kumar, 2026-11-21): the header found below any title rows, then
+   * the mapping assistant's proposal, checked against the file. A person's own header row is kept.
+   * Without the assistant, or when it fails, the read stands and columns are matched by name, said so.
+   */
+  private async assisted(
+    tenant: TenantContext,
+    dealId: string,
+    input: { uploadId: string; bytes: Uint8Array; fileName: string; sheet: string | null; headerRow: number | null; target: ImportTarget; system: string },
+  ): Promise<{ read: ReadTable; assist: AssistedMapping; run: AiRunRecord | null }> {
+    const definition = definitionOf(input.target);
+    const readAt = async (headerRow: number | 'detect') => {
+      try {
+        return await readTable(input.bytes, { fileName: input.fileName, sheet: input.sheet, headerRow });
+      } catch (error) {
+        if (error instanceof TableReadError) throw tableProblem(error);
+        throw error;
+      }
+    };
+    let read = await readAt(input.headerRow ?? 'detect');
+    const byName = (table: CsvTable) => suggestMapping(table, templateFor(input.system), definition, read.delimiter).fields as Record<string, FieldSource>;
+    const fallback = (note: string) => ({ read, assist: namesOnly(definition, read.headerRow ?? 1, read.table.header, byName(read.table), note), run: null });
+    // A standard file needs no assistant: every required field matched its own column.
+    const named = byName(read.table);
+    if (definition.fields.every((field) => !field.required || named[field.name]?.kind === 'column') && !definition.lineItems) {
+      return { read, assist: namesOnly(definition, read.headerRow ?? 1, read.table.header, named, null), run: null };
+    }
+    // People data never reaches a model (rule 7); such a file is refused at preview anyway.
+    if (peopleColumnProblems(definition, read.table.header).length > 0) return fallback('Columns were matched by name only: this file has people columns, which must be removed first.');
+    // The same file filed in the pact's documents and kept away from AI stays away from the assistant too.
+    const digest = sha256(input.bytes);
+    const excluded = await withTenant(this.prisma, tenant, (tx) => tx.document.findFirst({ where: { dealId, sha256: digest, aiExcluded: true }, select: { id: true } }));
+    if (excluded) return fallback('Columns were matched by name only: this file is kept away from AI.');
+    if (!this.gateway) return fallback('Columns were matched by name only: the mapping assistant is off.');
+    let outcome;
+    try {
+      outcome = await mapImport(this.gateway, { organizationId: tenant.organizationId, dealId, uploadId: input.uploadId, fileName: input.fileName, sheet: read.sheet, definition, preview: read.preview });
+    } catch (error) {
+      if (error instanceof GatewayPolicyError) {
+        return fallback(error.code === 'NOT_CONFIGURED' ? 'Columns were matched by name only: the mapping assistant is off.' : 'Columns were matched by name only: the mapping assistant is not available for this pact.');
+      }
+      throw error;
+    }
+    if (!outcome.proposal) return { ...fallback('Columns were matched by name only: the mapping assistant did not answer. Map the rest below.'), run: outcome.run };
+    const headerRow = input.headerRow ?? outcome.proposal.headerRow;
+    if (headerRow !== read.headerRow) {
+      try {
+        read = await readAt(headerRow);
+      } catch {
+        // A header row past the data: keep the detected one.
+      }
+    }
+    const layout = outcome.proposal.layout;
+    const reshaped = layoutProblems(definition, read.table.header, layout).length === 0 ? reshapeTable(read.table, layout) : read.table;
+    const assist = checkProposal({
+      definition,
+      header: reshaped.header,
+      rawHeader: read.table.header,
+      preview: read.preview,
+      proposal: { ...outcome.proposal, headerRow: read.headerRow ?? headerRow },
+      byName: byName(read.table),
+    });
+    return { read, assist, run: outcome.run };
+  }
+
+  /** The assistant's run (cost, audit trail), for buyer and seller uploads alike (`app_import_record_run`). */
+  private async recordRun(tx: TransactionClient, dealId: string, run: AiRunRecord | null): Promise<void> {
+    if (!run) return;
+    await tx.$queryRaw`SELECT app_import_record_run(${dealId}::uuid, ${JSON.stringify(run)}::jsonb)`;
+  }
 
   systems(): BillingSystemView[] {
     return Object.values(BILLING_TEMPLATES).map(systemView);
@@ -217,17 +340,38 @@ export class ImportsService {
     }
     if (verdict === 'UNAVAILABLE') throw new ServiceUnavailableException();
     if (verdict !== 'CLEAN') throw new UnprocessableEntityException();
-    let read: ReadTable;
+    return this.create(tenant, dealId, role, body, query, requestId);
+  }
+
+  /**
+   * Import a spreadsheet already filed in the pact's documents (a rent roll or P&L the intake filed):
+   * the stored original, checked against its hash, becomes an upload, with no second upload. It was
+   * scanned when it was filed. A person the document is hidden from cannot import it (RLS).
+   */
+  async fromDocument(tenant: TenantContext, dealId: string, documentId: string, target: ImportTarget, requestId: string): Promise<UploadDetailView> {
+    const role = await this.access.require(tenant, dealId, canSupply, { action: 'source_upload.created', requestId });
+    if (!this.documentStore) throw new ServiceUnavailableException();
+    const document = await withTenant(this.prisma, tenant, (tx) =>
+      tx.document.findFirst({ where: { id: documentId, dealId, status: 'AVAILABLE' }, select: { fileName: true, contentType: true, objectKey: true, sha256: true } }),
+    );
+    if (!document) throw new NotFoundException();
+    if (!(Object.values(CONTENT_TYPES) as string[]).includes(document.contentType)) throw new UnsupportedMediaTypeException({ code: 'NOT_A_TABLE' });
+    let bytes: Uint8Array;
     try {
-      read = await readTable(body, { fileName: query.fileName });
-    } catch (error) {
-      if (error instanceof TableReadError) throw tableProblem(error);
-      throw error;
+      bytes = await this.documentStore.get(document.objectKey);
+    } catch {
+      throw new ServiceUnavailableException();
     }
+    if (sha256(bytes) !== document.sha256) throw new ConflictException();
+    return this.create(tenant, dealId, role, bytes, { target, system: 'pactlab_standard', fileName: document.fileName }, requestId);
+  }
+
+  private async create(tenant: TenantContext, dealId: string, role: DealRole, body: Uint8Array, query: UploadQuery, requestId: string): Promise<UploadDetailView> {
+    const id = newId();
+    const { read, assist, run } = await this.assisted(tenant, dealId, { uploadId: id, bytes: body, fileName: query.fileName, sheet: null, headerRow: null, target: query.target, system: query.system });
     const table = read.table;
     if (table.rows.length > MAX_ROWS) throw new PayloadTooLargeException({ code: 'TOO_MANY_ROWS' });
 
-    const id = newId();
     const digest = sha256(body);
     const objectKey = `${tenant.organizationId}/${dealId}/uploads/${id}/original`;
     try {
@@ -251,6 +395,8 @@ export class ImportsService {
         header: [...table.header],
         format: read.format,
         sheet: read.sheet,
+        headerRow: read.headerRow,
+        assist: assist as unknown as Prisma.InputJsonValue,
         objectKey,
         visibility: isBuyerSideRole(role) ? 'BUYER_ONLY' : 'SHARED',
         uploadedBy: tenant.userId,
@@ -265,6 +411,7 @@ export class ImportsService {
         outcome: 'SUCCEEDED',
         requestId,
       });
+      await this.recordRun(tx, dealId, run);
       return created;
     });
     return this.detail(row, read);
@@ -293,8 +440,11 @@ export class ImportsService {
     const row = await this.load(tenant, dealId, uploadId, canSupply, 'source_upload.previewed', requestId);
     const table = await this.table(row);
     const definition = definitionOf(row.target);
-    const problems = blockingProblems(definition, table.header, mapping as ImportMapping);
-    const result = problems.length > 0 ? { rows: [], issues: [] } : applyMapping(table, mapping as ImportMapping, uploadDataset(row), definition);
+    const problems = blockingProblems(definition, table, mapping as ImportMapping);
+    const unblocked = problems.filter((problem) => !problem.includes('not add up'));
+    const result = unblocked.length > 0 ? { rows: [], issues: [] } : applyMapping(table, mapping as ImportMapping, uploadDataset(row), definition);
+    const statement = definition.lineItems ? statementCheck(table, mapping as ImportMapping, definition) : { unclassified: [], gaps: [] };
+    const tieOut = unblocked.length === 0 ? statement.gaps : [];
     const grouped = new Map<string, { code: string; count: number; rows: number[]; detail: string }>();
     for (const issue of problems.length > 0 ? [] : result.issues) {
       const entry = grouped.get(issue.code) ?? { code: issue.code, count: 0, rows: [], detail: issue.detail };
@@ -323,6 +473,8 @@ export class ImportsService {
         .sort(([a], [b]) => a.localeCompare(b))
         .map(([currency, entry]) => ({ currency, amount: entry.amount.toFixed(), lines: entry.lines })),
       emptyFields,
+      tieOut: tieOut.slice(0, 50).map((gap) => ({ ...gap })),
+      unclassified: statement.unclassified.slice(0, 300),
     };
   }
 
@@ -341,7 +493,7 @@ export class ImportsService {
     const row = await this.load(tenant, dealId, uploadId, canSupply, 'source_upload.imported', requestId);
     const table = await this.table(row);
     const definition = definitionOf(row.target);
-    if (blockingProblems(definition, table.header, mapping as ImportMapping).length > 0) throw new UnprocessableEntityException();
+    if (blockingProblems(definition, table, mapping as ImportMapping).length > 0) throw new UnprocessableEntityException();
     const mappingJson = canonicalMappingJson(mapping as ImportMapping);
     const template = templateFor(row.system);
 
@@ -468,16 +620,22 @@ export class ImportsService {
     };
   }
 
-  /** Read another sheet of a workbook upload before import; its header and suggested mapping follow. */
-  async selectSheet(tenant: TenantContext, dealId: string, uploadId: string, sheet: string, requestId: string): Promise<UploadDetailView> {
+  /**
+   * Read the upload again before import: another workbook sheet, or the header on another row (a person's
+   * correction). The header, row count and the assistant's proposal follow.
+   */
+  async selectSheet(tenant: TenantContext, dealId: string, uploadId: string, choice: { sheet?: string | undefined; headerRow?: number | undefined }, requestId: string): Promise<UploadDetailView> {
     const row = await this.load(tenant, dealId, uploadId, canSupply, 'source_upload.sheet_selected', requestId);
-    if (row.format !== 'XLSX' || row.status !== 'UPLOADED') throw new ConflictException();
-    const read = await this.stored({ ...row, sheet });
+    if (row.status !== 'UPLOADED' || (choice.sheet !== undefined && row.format !== 'XLSX')) throw new ConflictException();
+    const bytes = await this.storedBytes(row);
+    // A new sheet is read afresh (its header found again); a header row is the person's and is kept.
+    const sheet = choice.sheet ?? row.sheet;
+    const headerRow = choice.headerRow ?? (choice.sheet !== undefined ? null : row.headerRow);
+    const { read, assist, run } = await this.assisted(tenant, dealId, { uploadId: row.id, bytes, fileName: row.fileName, sheet, headerRow, target: row.target, system: row.system });
     if (read.table.rows.length > MAX_ROWS) throw new PayloadTooLargeException({ code: 'TOO_MANY_ROWS' });
     const updated = await withTenant(this.prisma, tenant, async (tx) => {
-      if (!(await sourceUploads.selectSheet(tx, row.id, { sheet: read.sheet ?? sheet, header: [...read.table.header], rowCount: read.table.rows.length }))) {
-        throw new ConflictException();
-      }
+      const input = { sheet: read.sheet, headerRow: read.headerRow, header: [...read.table.header], rowCount: read.table.rows.length, assist: assist as unknown as Prisma.InputJsonValue };
+      if (!(await sourceUploads.reread(tx, row.id, input))) throw new ConflictException();
       await appendAuditEvent(tx, {
         organizationId: tenant.organizationId,
         dealId,
@@ -488,6 +646,7 @@ export class ImportsService {
         outcome: 'SUCCEEDED',
         requestId,
       });
+      await this.recordRun(tx, dealId, run);
       return sourceUploads.get(tx, dealId, row.id);
     });
     return this.detail(updated ?? row, read);
@@ -540,8 +699,8 @@ export class ImportsService {
     return row;
   }
 
-  /** The stored original, verified against the upload's hash, read the way it was uploaded. */
-  private async stored(row: SourceUploadRecord): Promise<ReadTable> {
+  /** The stored original, verified against the upload's hash. */
+  private async storedBytes(row: SourceUploadRecord): Promise<Uint8Array> {
     if (!row.objectKey) throw new ConflictException();
     let bytes: Uint8Array;
     try {
@@ -551,8 +710,14 @@ export class ImportsService {
     }
     // The stored original must still be the file that was uploaded.
     if (sha256(bytes) !== row.sha256) throw new ConflictException();
+    return bytes;
+  }
+
+  /** The stored original, read the way it was uploaded (its sheet and header row). */
+  private async stored(row: SourceUploadRecord): Promise<ReadTable> {
+    const bytes = await this.storedBytes(row);
     try {
-      return await readTable(bytes, { fileName: row.fileName, sheet: row.sheet });
+      return await readTable(bytes, { fileName: row.fileName, sheet: row.sheet, headerRow: row.headerRow });
     } catch (error) {
       if (error instanceof TableReadError) throw tableProblem(error);
       throw error;
@@ -566,6 +731,7 @@ export class ImportsService {
   private detail(row: SourceUploadRecord, read: ReadTable): UploadDetailView {
     const template = templateFor(row.system);
     const table = read.table;
+    const assist = (row.assist ?? null) as unknown as AssistedMapping | null;
     return {
       ...toView(row),
       format: read.format,
@@ -574,8 +740,11 @@ export class ImportsService {
       sheet: read.sheet,
       sheets: [...read.sheets],
       header: [...table.header],
-      sample: table.rows.slice(0, SAMPLE_ROWS).map((source) => [...source.cells]),
-      suggestedMapping: suggestMapping(table, template, definitionOf(row.target), read.delimiter) as ImportMappingBody,
+      headerRow: read.headerRow,
+      preview: read.preview.slice(0, SAMPLE_ROWS + 10).map((cells) => [...cells]),
+      sample: table.rows.slice(0, DETAIL_ROWS).map((source) => [...source.cells]),
+      suggestedMapping: suggestedFrom(table, template, definitionOf(row.target), read.delimiter, assist) as ImportMappingBody,
+      assist: assistView(assist),
       template: systemView(template),
     };
   }

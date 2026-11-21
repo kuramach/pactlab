@@ -9,6 +9,7 @@ import { currentRelease, releaseLabel } from '../../../lib/release';
 import { isOpen, STATUS_LABELS, statusBadge } from './bug-reports/_lib/status';
 import { setDefaultPersona } from './persona-actions';
 import { connectDocuSign, disconnectDocuSign } from './docusign-actions';
+import { DocumentSourcesCard } from './document-sources-card';
 import { SigningCard } from './signing-card';
 import { DevicesCard } from './devices-card';
 import { IcCard } from './ic-card';
@@ -182,6 +183,7 @@ async function AboutCard() {
 export default async function SettingsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const billingOutcome = (await searchParams)['billing'];
   const signingOutcome = (await searchParams)['signing'];
+  const outcome = (await searchParams)['outcome'];
   const brandOutcome = (await searchParams)['brand'];
   const brandSince = (await searchParams)['since'];
   const session = await getSessionContext();
@@ -238,6 +240,8 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
       {organization && !session.guest ? <SigningCard outcome={typeof signingOutcome === 'string' ? signingOutcome : undefined} /> : null}
 
       {organization ? <DocuSignCard /> : null}
+
+      {organization && !session.guest ? <DocumentSourcesCard outcome={typeof outcome === 'string' && outcome.startsWith('document-source') ? outcome : undefined} /> : null}
 
       <Card>
         <CardHeader>

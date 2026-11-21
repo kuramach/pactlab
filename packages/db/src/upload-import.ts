@@ -72,7 +72,7 @@ export async function readUploadTable(store: TenantObjectStore, row: SourceUploa
     throw new UploadImportError('STORE_UNAVAILABLE');
   }
   if (sha256(bytes) !== row.sha256) throw new UploadImportError('TAMPERED');
-  return (await readTable(bytes, { fileName: row.fileName, sheet: row.sheet })).table;
+  return (await readTable(bytes, { fileName: row.fileName, sheet: row.sheet, headerRow: row.headerRow })).table;
 }
 
 /**

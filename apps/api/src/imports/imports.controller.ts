@@ -1,6 +1,8 @@
 import { Body, Controller, Get, Header, HttpCode, Inject, NotFoundException, Param, Post, Query } from '@nestjs/common';
 import {
   dealParamsSchema,
+  documentImportBodySchema,
+  documentImportParamsSchema,
   importRunParamsSchema,
   importTargetParamsSchema,
   sheetBodySchema,
@@ -20,7 +22,7 @@ import {
   type PageQuery,
   type UploadQuery,
 } from '@pactlab/contracts';
-import type { TenantContext } from '@pactlab/domain';
+import type { ImportTarget, TenantContext } from '@pactlab/domain';
 import { Tenant } from '../auth/tenant.decorator';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { RequestId } from '../deals/request-id.decorator';
@@ -74,6 +76,18 @@ export class ImportsController {
     return this.imports.upload(tenant, params.dealId, query, body, requestId);
   }
 
+  /** Import a spreadsheet already in the pact's documents, as one of the pact's import targets. */
+  @Post('deals/:dealId/documents/:documentId/import')
+  @HttpCode(201)
+  async fromDocument(
+    @Tenant() tenant: TenantContext,
+    @RequestId() requestId: string,
+    @Param(new ZodValidationPipe(documentImportParamsSchema)) params: { dealId: string; documentId: string },
+    @Body(new ZodValidationPipe(documentImportBodySchema)) body: { target: ImportTarget },
+  ): Promise<UploadDetailView> {
+    return this.imports.fromDocument(tenant, params.dealId, params.documentId, body.target, requestId);
+  }
+
   @Get('deals/:dealId/uploads')
   async list(
     @Tenant() tenant: TenantContext,
@@ -113,7 +127,7 @@ export class ImportsController {
     @Param(new ZodValidationPipe(uploadParamsSchema)) params: UploadParams,
     @Body(new ZodValidationPipe(sheetBodySchema)) body: { sheet: string },
   ): Promise<UploadDetailView> {
-    return this.imports.selectSheet(tenant, params.dealId, params.uploadId, body.sheet, requestId);
+    return this.imports.selectSheet(tenant, params.dealId, params.uploadId, body, requestId);
   }
 
   /** How far an import has got; a background import is followed by polling this. */

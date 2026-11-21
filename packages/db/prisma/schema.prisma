@@ -151,6 +151,7 @@ enum ImportTarget {
   VENTURE_FINANCIALS
   REGULATORY_FOOTPRINT
   REMEDY_PACKAGE
+  FINANCIAL_PNL
 
   @@map("import_target")
 }
@@ -1226,6 +1227,8 @@ model DocumentSource {
   displayName     String    @map("display_name")
   config          Json
   credentialRef   String?   @map("credential_ref")
+  /// The organization's Google Drive or OneDrive OAuth connection this source reads with.
+  organizationConnectionId String? @map("organization_connection_id") @db.Uuid
   /// ACTIVE | DISABLED
   status          String    @default("ACTIVE")
   lastSyncedAt    DateTime? @map("last_synced_at") @db.Timestamptz(3)
@@ -1544,6 +1547,10 @@ model SourceUpload {
   format         String             @default("CSV")
   /// Workbook sheet read, for XLSX uploads.
   sheet          String?
+  /// The header's row among the sheet's non-empty rows; null: the first row (the standard template).
+  headerRow      Int?               @map("header_row")
+  /// The mapping assistant's checked proposal (picks, reasons, questions); never a value from the file.
+  assist         Json?
   mapping        Json?
   mappingVersion String?            @map("mapping_version")
   objectKey      String?            @map("object_key")

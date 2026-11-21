@@ -5,9 +5,10 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { libraryHref } from './library-href';
 import { DOCUMENT_KINDS } from '@pactlab/contracts';
+import { IMPORT_TARGETS, type ImportTarget } from '@pactlab/domain';
 import { useState } from 'react';
 import { citationHref, visionLine, type DocumentListItem } from '../../../documents/_lib/view';
-import { classifyOne, extractOne, readImagesAgain } from './actions';
+import { classifyOne, extractOne, importDocument, readImagesAgain } from './actions';
 
 export interface LibraryRow extends DocumentListItem {
   /** AI drafts and decided findings citing this document. */
@@ -30,6 +31,16 @@ const KIND: Readonly<Record<string, string>> = {
 };
 
 export const kindOf = (contentType: string) => KIND[contentType] ?? 'File';
+
+const TABLES = new Set(['text/csv', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']);
+
+/** What a filed spreadsheet can be imported as: its own import target, or a P&L for an income statement. */
+export function importTargetOf(row: Pick<LibraryRow, 'intake' | 'contentType' | 'status'>): ImportTarget | null {
+  const category = row.intake?.state === 'FILED' ? row.intake.category : null;
+  if (!category || row.status !== 'AVAILABLE' || !TABLES.has(row.contentType)) return null;
+  if (category === 'INCOME_STATEMENT') return 'FINANCIAL_PNL';
+  return (IMPORT_TARGETS as readonly string[]).includes(category) ? (category as ImportTarget) : null;
+}
 
 /** What intake made of the file (T-098), for the Category column. */
 export function categoryCell(row: Pick<LibraryRow, 'intake'>, labels: Readonly<Record<string, string>>): { label: string; tone: 'neutral' | 'reviewed' | 'draft'; title?: string } {
@@ -264,6 +275,24 @@ export function DocumentLibrary({
                     <Badge variant={category.tone} title={category.title}>
                       {category.label}
                     </Badge>
+                    {writer && importTargetOf(row) ? (
+                      <Button
+                        type="button"
+                        variant="link"
+                        size="sm"
+                        className="ml-1 h-auto p-0 text-xs"
+                        disabled={running === `import:${row.id}`}
+                        onClick={() => {
+                          setRunning(`import:${row.id}`);
+                          void importDocument(dealId, row.id, importTargetOf(row) as string).then((result) => {
+                            setRunning(null);
+                            setNote(result.message);
+                          });
+                        }}
+                      >
+                        {running === `import:${row.id}` ? 'Reading…' : 'Import data'}
+                      </Button>
+                    ) : null}
                   </td>
                   <td className="px-2 py-2 text-muted-foreground">{kindOf(row.contentType)}</td>
                   <td className="px-2 py-2 tabular-nums">{row.status === 'PURGED' ? '—' : `${row.pageCount} pp`}</td>

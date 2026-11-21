@@ -33,6 +33,7 @@ export const IMPORT_TARGETS = [
   'VENTURE_FINANCIALS',
   'REGULATORY_FOOTPRINT',
   'REMEDY_PACKAGE',
+  'FINANCIAL_PNL',
 ] as const;
 export type ImportTarget = (typeof IMPORT_TARGETS)[number];
 
@@ -70,6 +71,11 @@ export interface TargetDefinition {
   /** Field used as the observation date, falling back in order. */
   readonly observedAtFields: readonly string[];
   readonly fields: readonly TargetField[];
+  /**
+   * A line-by-line statement (a P&L): every line carries a kind (revenue, expense, subtotal…), chosen
+   * per account in the mapping; subtotal lines are checked against the lines, never imported.
+   */
+  readonly lineItems?: boolean;
 }
 
 /**
@@ -677,6 +683,32 @@ export const REMEDY_PACKAGE: TargetDefinition = {
 };
 
 /** Imports every pack offers when its regulatory screen runs at full depth (T-091). */
+/**
+ * A profit and loss statement, line by line (Kumar, 2026-11-21): every pact can import one, whatever
+ * its layout (months across, subtotals, title rows). One record per account per month; what each
+ * account is comes from the mapping's line kinds, which a person confirms.
+ */
+export const FINANCIAL_PNL: TargetDefinition = {
+  target: 'FINANCIAL_PNL',
+  label: 'Profit and loss (P&L)',
+  fileName: 'pnl.csv',
+  people: 'NONE',
+  refusesPeopleColumns: true,
+  evidenceType: 'finance.pnl_line',
+  recordIdField: 'account',
+  recordIdFields: ['account', 'month'],
+  observedAtFields: [],
+  lineItems: true,
+  fields: [
+    { name: 'account', label: 'Account', kind: 'text', required: true, hint: 'The line as the statement names it, e.g. "Subscription revenue".' },
+    { name: 'month', label: 'Month', kind: 'text', required: true, hint: 'YYYY-MM. When months run across the columns, Pactlab reads them from the header.' },
+    { name: 'amount', label: 'Amount', kind: 'money', required: true, hint: IN_BASE_CURRENCY },
+  ],
+};
+
+/** Imports every pact offers, whatever its pack. */
+export const CORE_IMPORT_TARGETS = ['FINANCIAL_PNL'] as const satisfies readonly ImportTarget[];
+
 export const REGULATORY_TARGETS = ['REGULATORY_FOOTPRINT', 'REMEDY_PACKAGE'] as const satisfies readonly ImportTarget[];
 
 export const IMPORT_TARGET_DEFINITIONS: Readonly<Record<ImportTarget, TargetDefinition>> = {
@@ -709,6 +741,7 @@ export const IMPORT_TARGET_DEFINITIONS: Readonly<Record<ImportTarget, TargetDefi
   VENTURE_FINANCIALS,
   REGULATORY_FOOTPRINT,
   REMEDY_PACKAGE,
+  FINANCIAL_PNL,
 };
 
 /**

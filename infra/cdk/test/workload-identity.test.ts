@@ -23,6 +23,17 @@ describe.each(ENVIRONMENT_NAMES.filter((name) => ENVIRONMENTS[name].service))('%
     }
   });
 
+  it('connection credentials (T-007, T-147): the API reaches only its own prefix in Secrets Manager', () => {
+    const statements = Object.values(template.findResources('AWS::IAM::Policy')).flatMap(
+      (policy) => (policy as { Properties: { PolicyDocument: { Statement: Statement[] } } }).Properties.PolicyDocument.Statement,
+    );
+    const credentials = statements.filter((statement) => statement.Sid === 'ConnectionCredentials');
+    expect(credentials).toHaveLength(1);
+    expect([credentials[0]?.Action].flat().sort()).toEqual(['secretsmanager:CreateSecret', 'secretsmanager:DeleteSecret', 'secretsmanager:GetSecretValue', 'secretsmanager:PutSecretValue']);
+    expect(JSON.stringify(credentials[0]?.Resource)).toContain(`:secret:pactlab/${name}/credentials/*`);
+    expect([credentials[0]?.Resource].flat()).not.toContain('*');
+  });
+
   it('Bedrock: invoke any model in the account region (Kumar, 2026-11-20), list models; never bedrock:*, manage or provision', () => {
     const statements = Object.values(template.findResources('AWS::IAM::Policy')).flatMap(
       (policy) => (policy as { Properties: { PolicyDocument: { Statement: Statement[] } } }).Properties.PolicyDocument.Statement,

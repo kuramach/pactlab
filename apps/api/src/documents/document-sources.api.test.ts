@@ -202,7 +202,7 @@ describe('document sources, requests and customer gaps (T-098)', () => {
 
     it('refuses what it cannot do, and keeps sources to the buyer team', async () => {
       expect((await call('lead', 'POST', '/document-sources', { provider: 'vdr', mode: 'LIVE', displayName: 'VDR', folder: 'room', token: 'x'.repeat(20) })).body).toMatchObject({ code: 'SOURCE_NOT_CONFIGURED' });
-      expect((await call('lead', 'POST', '/document-sources', { provider: 'onedrive', mode: 'LIVE', displayName: 'OD', folder: 'd/i' })).body).toMatchObject({ code: 'SOURCE_ACCESS' });
+      expect((await call('lead', 'POST', '/document-sources', { provider: 'onedrive', mode: 'LIVE', displayName: 'OD', folder: 'd/i' })).body).toMatchObject({ code: 'SOURCE_NOT_CONNECTED' }); // no pasted token and no organization sign-in (T-147)
       expect((await call('lead', 'POST', '/document-sources', { provider: 'google-drive', mode: 'FIXTURE', displayName: 'x', folder: 'no-such-room' })).body).toMatchObject({ code: 'SOURCE_NOT_FOUND' });
       expect((await call('viewer', 'GET', '/document-sources')).status).toBe(403);
       expect((await call('target_contributor', 'POST', `/document-sources/${sourceId}/sync`)).status).toBe(403);

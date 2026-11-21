@@ -1,4 +1,4 @@
-import { CsvParseError, detectDelimiter, parseDelimited, type CsvTable, type Delimiter } from '@pactlab/domain';
+import { CsvParseError, detectDelimiter, detectHeaderRow, parseDelimited, parseDelimitedRecords, tableAtHeaderRow, type CsvTable, type Delimiter } from '@pactlab/domain';
 import { Decimal } from 'decimal.js';
 import { unzipSync } from 'fflate';
 import readXlsxFile from 'read-excel-file/node';
@@ -34,7 +34,19 @@ export interface ReadTable {
   /** Workbooks only: the sheet read, and every sheet with data. */
   readonly sheet: string | null;
   readonly sheets: readonly string[];
+  /**
+   * The header's row among the sheet's non-empty rows (1-based), when the file was read with one: title
+   * rows above it are left out. Null for a strict read (header on the first row, the standard template).
+   */
+  readonly headerRow: number | null;
+  /** The sheet's first non-empty rows as cell text, before any header is chosen (what the mapping assistant sees). */
+  readonly preview: readonly (readonly string[])[];
 }
+
+/** Rows kept in `ReadTable.preview`. */
+export const PREVIEW_ROWS = 30;
+/** A header chosen by `headerRow`: a row number, or 'detect' to find it below title rows. */
+export type HeaderChoice = number | 'detect' | null;
 
 /** Declared uncompressed size a workbook may expand to (a zip-bomb guard). */
 export const MAX_WORKBOOK_EXPANDED_BYTES = 100 * 1024 * 1024;
@@ -152,21 +164,56 @@ export async function readWorkbookSheets(bytes: Uint8Array): Promise<{ sheet: st
     .filter((entry) => entry.rows.length > 0);
 }
 
-async function readWorkbook(bytes: Uint8Array, sheet: string | null): Promise<ReadTable> {
+type SheetRecords = { cells: string[]; text: string }[];
+
+const previewOf = (records: SheetRecords) => records.filter((record) => record.cells.some((cell) => cell.trim() !== '')).slice(0, PREVIEW_ROWS).map((record) => record.cells.map((cell) => cell.trim()));
+
+/** The table under a chosen header row (lenient: blank or repeated header names are named, short rows padded). */
+function atHeader(records: SheetRecords, choice: number | 'detect'): { table: CsvTable; headerRow: number } {
+  const headerRow = choice === 'detect' ? detectHeaderRow(previewOf(records)) : choice;
+  try {
+    return { table: tableAtHeaderRow(records, headerRow), headerRow };
+  } catch (error) {
+    if (error instanceof CsvParseError) throw new TableReadError('UNREADABLE');
+    throw error;
+  }
+}
+
+async function readWorkbook(bytes: Uint8Array, sheet: string | null, header: HeaderChoice): Promise<ReadTable> {
   const sheets = await workbookSheets(bytes);
   const withData = sheets.filter((entry) => entry.data.some((row) => row.some((cell) => cellText(cell) !== '')));
   if (withData.length === 0) throw new TableReadError('NO_DATA');
   const chosen = sheet === null ? withData[0] : withData.find((entry) => entry.sheet === sheet);
   if (!chosen) throw new TableReadError('SHEET_NOT_FOUND');
-  return { table: sheetTable(chosen.data), format: 'XLSX', encoding: null, delimiter: null, sheet: chosen.sheet, sheets: withData.map((entry) => entry.sheet) };
+  const records: SheetRecords = chosen.data.map((row) => {
+    const cells = row.map(cellText);
+    return { cells, text: csvLine(cells) };
+  });
+  const base = { format: 'XLSX' as const, encoding: null, delimiter: null, sheet: chosen.sheet, sheets: withData.map((entry) => entry.sheet), preview: previewOf(records) };
+  if (header === null) return { ...base, table: sheetTable(chosen.data), headerRow: null };
+  return { ...base, ...atHeader(records, header) };
 }
 
-/** Read an uploaded file as a table. `sheet` picks a workbook sheet (default: the first with data). */
-export async function readTable(bytes: Uint8Array, input: { fileName: string; sheet?: string | null }): Promise<ReadTable> {
+/**
+ * Read an uploaded file as a table. `sheet` picks a workbook sheet (default: the first with data).
+ * `headerRow` reads a real-world file whose header is not on the first row; without it the read is
+ * strict (the standard template's shape).
+ */
+export async function readTable(bytes: Uint8Array, input: { fileName: string; sheet?: string | null; headerRow?: HeaderChoice }): Promise<ReadTable> {
   if (bytes.byteLength === 0) throw new TableReadError('NO_DATA');
   const format = tableFormatOf(bytes, input.fileName);
-  if (format === 'XLSX') return readWorkbook(bytes, input.sheet ?? null);
+  const header = input.headerRow ?? null;
+  if (format === 'XLSX') return readWorkbook(bytes, input.sheet ?? null, header);
   const { text, encoding } = decodeText(bytes);
   const delimiter = format === 'TSV' ? '\t' : detectDelimiter(text);
-  return { table: parse(text, delimiter), format: delimiter === '\t' ? 'TSV' : 'CSV', encoding, delimiter, sheet: null, sheets: [] };
+  let records: SheetRecords;
+  try {
+    records = parseDelimitedRecords(text, delimiter);
+  } catch (error) {
+    if (error instanceof CsvParseError) throw new TableReadError('UNREADABLE');
+    throw error;
+  }
+  const base = { format: delimiter === '\t' ? ('TSV' as const) : ('CSV' as const), encoding, delimiter, sheet: null, sheets: [], preview: previewOf(records) };
+  if (header === null) return { ...base, table: parse(text, delimiter), headerRow: null };
+  return { ...base, ...atHeader(records, header) };
 }
