@@ -41,6 +41,35 @@ export interface DocumentListItem {
   intake?: DocumentIntakeView;
   /** The data room it was read from, and whether it is still there. */
   source?: { sourceId: string; state: 'CURRENT' | 'REPLACED' | 'REMOVED' } | null;
+  /** T-121: pages read from their images (scans, image uploads, slides, charts), and what could not be read. */
+  vision?: DocumentVisionView;
+}
+
+export interface DocumentVisionView {
+  status: 'NONE' | 'PENDING' | 'READING' | 'DONE' | 'PARTIAL' | 'FAILED' | 'SKIPPED';
+  pagesTotal: number;
+  pagesDone: number;
+  failures: { page: number; reason: string }[];
+}
+
+/** What the library says about reading a document's images (T-121); null when there is nothing to say. */
+export function visionLine(vision: DocumentVisionView | undefined): { text: string; retry: boolean } | null {
+  if (!vision || vision.status === 'NONE') return null;
+  const first = vision.failures[0];
+  const unread = first ? (first.page > 0 ? `couldn’t read page ${first.page}: ${first.reason}` : first.reason) : '';
+  switch (vision.status) {
+    case 'PENDING':
+    case 'READING':
+      return { text: `Reading images… ${vision.pagesDone} of ${vision.pagesTotal}`, retry: false };
+    case 'DONE':
+      return { text: `Read from images (${vision.pagesTotal} ${vision.pagesTotal === 1 ? 'page' : 'pages'}): check against the original`, retry: false };
+    case 'PARTIAL':
+      return { text: `Read ${vision.pagesDone} of ${vision.pagesTotal} pages from images; ${unread}${vision.failures.length > 1 ? ` (and ${vision.failures.length - 1} more)` : ''}`, retry: true };
+    case 'FAILED':
+      return { text: `Images not read: ${unread || 'the reading failed'}`, retry: true };
+    case 'SKIPPED':
+      return { text: 'Images not read: this document is kept away from AI', retry: false };
+  }
 }
 
 export interface DocumentIntakeView {

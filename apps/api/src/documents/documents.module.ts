@@ -12,6 +12,7 @@ import {
 } from './documents.repository';
 import { DocumentSourcesService } from './document-sources.service';
 import { DocumentsService } from './documents.service';
+import { VisionPass } from './vision-pass';
 import type { MalwareScanner } from './upload-policy';
 
 export interface DocumentsModuleDependencies {
@@ -35,6 +36,7 @@ export class DocumentsModule {
       providers: [
         DocumentsService,
         DocumentSourcesService,
+        VisionPass,
         DealAccess,
         { provide: DOCUMENTS_REPOSITORY, useValue: deps.repository },
         { provide: DOCUMENT_OBJECT_STORE, useValue: deps.objectStore },

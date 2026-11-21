@@ -1155,6 +1155,13 @@ model Document {
   sha256             String             @db.Char(64)
   objectKey          String             @map("object_key")
   pageCount          Int                @map("page_count")
+  /// T-121: reading pages from their images. NONE, PENDING, READING, DONE, PARTIAL, FAILED or SKIPPED.
+  visionStatus       String             @default("NONE") @map("vision_status")
+  visionPagesTotal   Int                @default(0) @map("vision_pages_total")
+  visionPagesDone    Int                @default(0) @map("vision_pages_done")
+  visionStartedAt    DateTime?          @map("vision_started_at") @db.Timestamptz(3)
+  /// Pages that could not be read, with why (page numbers and reasons only).
+  visionFailures     Json               @default("[]") @map("vision_failures")
   dataClass          DataClassification @map("data_class")
   /// Per-document AI exclusion; always true for prohibited data classes.
   aiExcluded         Boolean            @map("ai_excluded")
@@ -1293,6 +1300,10 @@ model DocumentPage {
   pageNumber     Int     @map("page_number")
   text           String?
   checksum       String  @db.Char(64)
+  /// T-121: TEXT (the file's own text), VISION (read by AI from the page image), TEXT_AND_VISION.
+  textSource     String  @default("TEXT") @map("text_source")
+  /// T-121: REPLACE or APPEND while the page waits to be read from its image; null otherwise.
+  visionMode     String? @map("vision_mode")
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   deal         Deal         @relation(fields: [organizationId, dealId], references: [organizationId, id], onDelete: Restrict)

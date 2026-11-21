@@ -15,9 +15,14 @@ export const CONTENT_TYPES: Readonly<Record<string, string>> = {
   docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   csv: 'text/csv',
   xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  // T-121: PowerPoint decks (a page per slide) and images (scans, photos, charts), read with the vision step.
+  pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
 };
 
-export const ACCEPT = '.pdf,.docx,.xlsx,.csv,.txt,.md,.zip';
+export const ACCEPT = '.pdf,.docx,.xlsx,.pptx,.png,.jpg,.jpeg,.csv,.txt,.md,.zip';
 
 /** A whole data room in one zip (T-098): unpacked on the server, every file inside uploaded on its own. */
 export const ARCHIVE_MAX_BYTES = 10 * 1024 * 1024;
@@ -25,10 +30,9 @@ export const isArchive = (name: string) => /\.zip$/i.test(name);
 
 export const UPLOAD_PROBLEMS = {
   'no-file': 'Choose a file to upload.',
-  type: 'Upload a PDF, Word (.docx), Excel (.xlsx), CSV, text or Markdown file, or a .zip of them. Older .xls workbooks: save as .xlsx first.',
-  'too-large': 'PDF, Word, Excel and zip files can be up to 10 MB; CSV, text and Markdown up to 512 KB.',
-  rejected:
-    'The file was rejected — it may be empty, unreadable, password-protected, a scanned PDF with no text (OCR is not available yet) or flagged by the virus scan.',
+  type: 'Upload a PDF, Word (.docx), Excel (.xlsx), PowerPoint (.pptx), image (.png, .jpg), CSV, text or Markdown file, or a .zip of them. Older .doc, .xls or .ppt files: save them as .docx, .xlsx or .pptx first.',
+  'too-large': 'PDF, Office, image and zip files can be up to 10 MB; CSV, text and Markdown up to 512 KB.',
+  rejected: 'The file was rejected — it may be empty, unreadable, password-protected or flagged by the virus scan.',
   unavailable: 'Uploads are not available in this environment.',
   failed: 'The upload did not reach Pactlab. Nothing was saved — try this file again.',
 } as const;
