@@ -2,7 +2,8 @@ import type { ConverseCommandInput, ConverseCommandOutput } from '@aws-sdk/clien
 import type { ModelRequest, ModelResponse, ModelTransport } from './transport';
 
 /** Why a provider call failed, without any request or response content. */
-export type ModelProviderErrorKind = 'ACCESS' | 'THROTTLED' | 'UNAVAILABLE' | 'DELAYED' | 'INVALID_REQUEST' | 'EMPTY_RESPONSE' | 'UNKNOWN';
+/** UNSUPPORTED (T-121): the provider's transport cannot send what the call needs (e.g. images); the next lane is tried. */
+export type ModelProviderErrorKind = 'ACCESS' | 'THROTTLED' | 'UNAVAILABLE' | 'DELAYED' | 'INVALID_REQUEST' | 'EMPTY_RESPONSE' | 'UNSUPPORTED' | 'UNKNOWN';
 
 const HINTS: Record<ModelProviderErrorKind, string> = {
   ACCESS: 'Bedrock refused access: sign in (aws sso login) and enable the Claude models in the Bedrock console',
@@ -11,6 +12,7 @@ const HINTS: Record<ModelProviderErrorKind, string> = {
   DELAYED: 'AI is delayed after repeated provider failures; calls resume shortly',
   INVALID_REQUEST: 'Bedrock rejected the request (model ID or parameters)',
   EMPTY_RESPONSE: 'Bedrock returned no text',
+  UNSUPPORTED: 'This provider cannot take this kind of input (images); another model is used',
   UNKNOWN: 'The model call failed',
 };
 
@@ -117,7 +119,11 @@ export class BedrockModelTransport implements ModelTransport {
     const input: ConverseCommandInput = {
       modelId: request.modelId,
       system: request.system ? [{ text: request.system }] : undefined,
-      messages: request.messages.map((message) => ({ role: message.role, content: [{ text: message.content }] })),
+      // Images first, then the text (T-121): Converse image blocks carry the raw bytes.
+      messages: request.messages.map((message) => ({
+        role: message.role,
+        content: [...(message.images ?? []).map((image) => ({ image: { format: image.format, source: { bytes: image.bytes } } })), { text: message.content }],
+      })),
       inferenceConfig: { maxTokens: request.maxOutputTokens },
     };
     const deadline = this.now() + this.deadlineMs;

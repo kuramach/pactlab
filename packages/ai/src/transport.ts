@@ -1,8 +1,16 @@
 import type { ModelProvider, ReasoningEffort } from './models';
 
+/** An image sent with a message (T-121): a page or slide rendered or taken from a document. */
+export interface ModelImage {
+  readonly format: 'png' | 'jpeg' | 'gif' | 'webp';
+  readonly bytes: Uint8Array;
+}
+
 export interface ModelMessage {
   readonly role: 'user' | 'assistant';
   readonly content: string;
+  /** Images to read with the text (T-121); only transports that can send them accept them. */
+  readonly images?: readonly ModelImage[];
 }
 
 export interface ModelRequest {

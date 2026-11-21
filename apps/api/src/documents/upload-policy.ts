@@ -3,6 +3,7 @@ import {
   ACCEPTED_CONTENT_TYPES,
   DOCX_CONTENT_TYPE,
   XLSX_CONTENT_TYPE,
+  PPTX_CONTENT_TYPE,
   type AcceptedContentType,
   type RetentionClass,
 } from './documents.types';
@@ -58,6 +59,9 @@ const EXTENSIONS: Record<AcceptedContentType, readonly string[]> = {
   'application/pdf': ['.pdf'],
   [DOCX_CONTENT_TYPE]: ['.docx'],
   [XLSX_CONTENT_TYPE]: ['.xlsx'],
+  [PPTX_CONTENT_TYPE]: ['.pptx'],
+  'image/png': ['.png'],
+  'image/jpeg': ['.jpg', '.jpeg'],
 };
 
 const BINARY_MAGIC = ['%PDF', 'PK\u0003\u0004', 'MZ', '\u007fELF', 'ÐÏ\u0011à'];
@@ -67,6 +71,9 @@ const REQUIRED_MAGIC: Partial<Record<AcceptedContentType, string>> = {
   'application/pdf': '%PDF-',
   [DOCX_CONTENT_TYPE]: 'PK\u0003\u0004',
   [XLSX_CONTENT_TYPE]: 'PK\u0003\u0004',
+  [PPTX_CONTENT_TYPE]: 'PK\u0003\u0004',
+  'image/png': '\u0089PNG',
+  'image/jpeg': '\u00ff\u00d8\u00ff',
 };
 
 /** Strip any path and unsafe characters from a client-supplied file name. */

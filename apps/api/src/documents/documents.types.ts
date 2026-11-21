@@ -6,7 +6,9 @@ export type RetentionClass = (typeof RETENTION_CLASSES)[number];
 
 export const DOCX_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 export const XLSX_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-export const ACCEPTED_CONTENT_TYPES = ['text/plain', 'text/markdown', 'text/csv', 'application/pdf', DOCX_CONTENT_TYPE, XLSX_CONTENT_TYPE] as const;
+export const PPTX_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+/** PowerPoint and images (T-121) are read with the vision step: slides and pictures become cited page text. */
+export const ACCEPTED_CONTENT_TYPES = ['text/plain', 'text/markdown', 'text/csv', 'application/pdf', DOCX_CONTENT_TYPE, XLSX_CONTENT_TYPE, PPTX_CONTENT_TYPE, 'image/png', 'image/jpeg'] as const;
 export type AcceptedContentType = (typeof ACCEPTED_CONTENT_TYPES)[number];
 
 /** Spec `documents`: metadata, object key, checksum, page count and retention class. */
@@ -38,7 +40,19 @@ export interface DocumentRecord {
   /** The category before a person re-filed it (results built under it are listed to recheck). */
   readonly recategorizedFrom: string | null;
   readonly recategorizedAt: string | null;
+  /** T-121: reading pages from their images, and what could not be read (page numbers and reasons only). */
+  readonly vision: DocumentVisionState;
 }
+
+export type VisionStatus = 'NONE' | 'PENDING' | 'READING' | 'DONE' | 'PARTIAL' | 'FAILED' | 'SKIPPED';
+export interface DocumentVisionState {
+  readonly status: VisionStatus;
+  readonly pagesTotal: number;
+  readonly pagesDone: number;
+  readonly startedAt: string | null;
+  readonly failures: readonly { page: number; reason: string }[];
+}
+export const NO_VISION: DocumentVisionState = { status: 'NONE', pagesTotal: 0, pagesDone: 0, startedAt: null, failures: [] };
 
 export interface DocumentSourceLink {
   readonly sourceId: string;
@@ -95,6 +109,10 @@ export interface DocumentPageRecord {
   readonly pageNumber: number;
   readonly text: string | null;
   readonly checksum: string;
+  /** T-121: TEXT, VISION (read by AI from the page image) or TEXT_AND_VISION. */
+  readonly textSource?: 'TEXT' | 'VISION' | 'TEXT_AND_VISION';
+  /** T-121: waiting to be read from its image (REPLACE or APPEND); null once read. */
+  readonly visionMode?: 'REPLACE' | 'APPEND' | null;
 }
 
 export const DOCUMENT_FINDING_STATUSES = ['DRAFT', 'ACCEPTED', 'REJECTED'] as const;

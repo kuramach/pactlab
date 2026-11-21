@@ -137,6 +137,13 @@ export async function extractOne(dealId: string, documentId: string): Promise<Ex
   return { kind: 'error', message: 'AI extraction failed. Use “Re-run AI extraction” on the document to try again.' };
 }
 
+/** Read a document's images again (T-121): after a failure, or a reading a restart stopped. */
+export async function readImagesAgain(dealId: string, documentId: string): Promise<{ kind: 'ok' } | { kind: 'error'; message: string }> {
+  if (!uuid.safeParse(dealId).success || !uuid.safeParse(documentId).success) return { kind: 'error', message: 'Unknown document.' };
+  const result = await apiSend('POST', `/v1/deals/${dealId}/documents/${documentId}/vision`, {});
+  return result.kind === 'ok' ? { kind: 'ok' } : { kind: 'error', message: 'The images could not be read again. Try once more in a minute.' };
+}
+
 /** Ask the model to draft cited findings from one document. */
 export async function extractDocument(dealId: string, documentId: string): Promise<void> {
   if (!uuid.safeParse(dealId).success || !uuid.safeParse(documentId).success) redirect('/deals');

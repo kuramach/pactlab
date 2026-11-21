@@ -8,6 +8,11 @@ export interface ExtractedPage {
   readonly pageNumber: number;
   readonly text: string;
   readonly checksum: string;
+  /**
+   * T-121: read this page from its image after upload. REPLACE: it has no text of its own (a scan, an
+   * image, a picture inside an Office file); APPEND: add what its image shows (a chart, an image table).
+   */
+  readonly vision?: 'REPLACE' | 'APPEND';
 }
 
 export class ExtractionError extends Error {
