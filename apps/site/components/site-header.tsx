@@ -4,14 +4,17 @@ import { ChevronDown, Menu } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useRef } from 'react';
-import { ABOUT_PAGES, ANNOUNCEMENT, MODULES, NAV } from '../lib/content';
+import { ABOUT_PAGES, ANNOUNCEMENT, industryArt, MODULES, NAV } from '../lib/content';
 import { PUBLISHED_INDUSTRIES } from '../lib/industry-stories';
 import { Icon } from './icon';
 import { Lockup } from './lockup';
 
 const isActive = (pathname: string, href: string) => pathname === href || pathname.startsWith(`${href}/`);
 
-const MENUS: Readonly<Record<string, { title: string; items: readonly { href: string; label: string; detail: string; icon: Parameters<typeof Icon>[0]['name'] }[] }>> = {
+/** A menu entry: an icon, or (industries) a miniature of the pack's editorial art (T-143). */
+type MenuItem = { href: string; label: string; detail: string; icon: Parameters<typeof Icon>[0]['name']; image?: string };
+
+const MENUS: Readonly<Record<string, { title: string; items: readonly MenuItem[] }>> = {
   '/product': {
     title: 'Product',
     items: MODULES.map((module) => ({ href: `/product/${module.slug}`, label: module.name, detail: module.summary, icon: module.icon })),
@@ -23,6 +26,7 @@ const MENUS: Readonly<Record<string, { title: string; items: readonly { href: st
       label: industry.name,
       detail: industry.status === 'AVAILABLE' ? 'Full industry pack' : 'Industry pack',
       icon: industry.icon,
+      image: industryArt(industry.slug),
     })),
   },
   '/about': {
@@ -72,9 +76,14 @@ function MegaMenu({ href, active }: { href: string; active: boolean }) {
         <div className="grid grid-cols-2 gap-1">
           {menu.items.map((item) => (
             <Link key={item.href} href={item.href} className="flex gap-3 rounded-xl p-3 hover:bg-mist">
-              <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-indigo/10 text-indigo-ink">
-                <Icon name={item.icon} className="h-4 w-4" />
-              </span>
+              {item.image ? (
+                // Decorative: the label beside it names the industry.
+                <img src={item.image} alt="" width={36} height={36} loading="lazy" className="h-9 w-9 shrink-0 rounded-lg object-cover" />
+              ) : (
+                <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-indigo/10 text-indigo-ink">
+                  <Icon name={item.icon} className="h-4 w-4" />
+                </span>
+              )}
               <span className="flex flex-col">
                 <span className="text-sm font-bold text-navy">{item.label}</span>
                 <span className="line-clamp-2 text-xs text-slate-text">{item.detail}</span>
