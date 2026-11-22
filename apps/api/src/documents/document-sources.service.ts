@@ -8,21 +8,27 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import {
+  connectionTokens,
+  destroySecret,
+  DOCUMENT_OAUTH_PROVIDERS,
   DOCUMENT_SOURCE_LABELS,
+  documentSourceConfigSchema,
   DocumentSourceError,
   documentSourceAdapter,
   MAX_SOURCE_FILES,
   MAX_SOURCE_READS,
+  type DocumentOAuthProvider,
   type DocumentSourceProvider,
   type SourceFile,
 } from '@pactlab/connectors';
 import { appendAuditEvent, withTenant, type AuditEventInput, type PrismaClient } from '@pactlab/db';
-import { newId, permissionsForDealRole, type DealRole, type TenantContext } from '@pactlab/domain';
+import { isBuyerSideRole, newId, permissionsForDealRole, type DealRole, type TenantContext } from '@pactlab/domain';
 import { PROVIDER_DEPENDENCIES, type ProviderDependencies } from '../connections/provider-dependencies';
 import { DealAccess } from '../deals/deal-access';
 import { PRISMA } from '../tokens';
 import { DocumentConnectionsService } from './document-connections.service';
-import type { ConnectDocumentSourceBody } from './documents.schemas';
+import type { ConnectDocumentSourceBody, DocumentSignInBody } from './documents.schemas';
+import type { SignInState } from './oauth-state';
 import { DocumentsService } from './documents.service';
 import { DOCX_CONTENT_TYPE, XLSX_CONTENT_TYPE, type AcceptedContentType } from './documents.types';
 
@@ -31,6 +37,13 @@ const canManage = (role: DealRole) => {
   const permissions = permissionsForDealRole(role);
   return permissions.has('DEAL_WRITE') && permissions.has('BUYER_ANALYSIS_READ');
 };
+
+/**
+ * Who may connect a drive folder from the pact itself with their own sign-in: the deal team, and the
+ * seller, whose folder comes in shared with the deal (Kumar, 2026-11-21). RLS keeps a seller to the
+ * sources they connected.
+ */
+const canSupply = (role: DealRole) => canManage(role) || role === 'TARGET_CONTRIBUTOR';
 
 const CONTENT_TYPES: Readonly<Record<string, AcceptedContentType>> = {
   txt: 'text/plain',
@@ -97,9 +110,11 @@ export class DocumentSourcesService {
   }
 
   async list(tenant: TenantContext, dealId: string, requestId: string) {
-    await this.access.require(tenant, dealId, canManage, { action: 'document_source.list', requestId });
+    const role = await this.access.require(tenant, dealId, canSupply, { action: 'document_source.list', requestId });
+    const team = canManage(role);
     // bounded: one pact's own records of this kind (tens: a checklist, versions, entries, its sources)
     const rows = await withTenant(this.prisma, tenant, (tx) => tx.documentSource.findMany({ where: { dealId }, orderBy: { createdAt: 'asc' } }));
+    const signedIn = await this.accounts.signedIn(tenant);
     return {
       items: rows.map((row) => ({
         id: row.id,
@@ -113,11 +128,24 @@ export class DocumentSourcesService {
         lastSyncSummary: row.lastSyncSummary,
         // Reads with the organization's own sign-in (T-147), not a pasted token.
         viaOrganization: row.organizationConnectionId !== null,
+        // How it reads, and as whom (an email; never a token).
+        kind: row.organizationConnectionId ? 'ORGANIZATION' : row.credentialKind === 'OAUTH' ? 'PERSON' : row.mode === 'LIVE' ? 'TOKEN' : 'FIXTURE',
+        signedInAs: row.accountName,
+        shared: row.visibility === 'SHARED',
+        canDisconnect: row.status === 'ACTIVE' && row.mode === 'LIVE' && (team || row.createdBy === tenant.userId),
       })),
       // Providers the organization has signed in to, so a LIVE folder can be added without a token.
-      signedIn: await this.accounts.signedIn(tenant),
+      signedIn: team ? signedIn : [],
+      // Providers someone may sign in to from this pact (Pactlab's client is set up here).
+      providers: DOCUMENT_OAUTH_PROVIDERS.filter((provider) => Boolean(this.providers.documentOAuth[provider] && this.providers.webOrigin)).map((provider) => ({
+        provider,
+        label: DOCUMENT_SOURCE_LABELS[provider],
+        organizationSignedIn: team && signedIn.includes(provider),
+      })),
+      // The seller's own view: what they connect is shared with the deal team.
+      seller: !team,
       // Synthetic rooms are offered only where fixture connections are allowed (local and dev).
-      fixtureRooms: this.providers.allowFixtureConnections
+      fixtureRooms: team && this.providers.allowFixtureConnections
         ? Object.values(this.providers.fixtureRooms).map((room) => ({ id: room.id, label: room.label }))
         : [],
     };
@@ -165,15 +193,97 @@ export class DocumentSourcesService {
     return { id };
   }
 
+  /**
+   * Connect a folder from the pact with the person's own sign-in: off to Google or Microsoft, back to the
+   * provider's registered callback, then `completeSignIn`. The folder and name travel in the signed state.
+   */
+  async startSignIn(tenant: TenantContext, dealId: string, body: DocumentSignInBody, requestId: string): Promise<{ url: string }> {
+    await this.access.require(tenant, dealId, canSupply, { action: 'document_source.sign_in_started', requestId });
+    return this.accounts.signInUrl(tenant, body.provider, { k: 'pact', d: dealId, f: body.folder, n: body.displayName });
+  }
+
+  /**
+   * The person came back signed in: the code is exchanged, the tokens stored under this source's own
+   * reference, and the source created. A seller's folder is shared with the deal; the deal team's is
+   * buyer-only, as their uploads are.
+   */
+  async completeSignIn(tenant: TenantContext, state: Extract<SignInState, { k: 'pact' }>, code: string, requestId: string): Promise<{ dealId: string; sourceId: string }> {
+    const dealId = state.d;
+    const role = await this.access.require(tenant, dealId, canSupply, { action: 'document_source.connected', requestId });
+    const folder = documentSourceConfigSchema.shape.folder.safeParse(state.f);
+    if (!folder.success) throw new UnprocessableEntityException({ code: 'SOURCE_NOT_FOUND' });
+    const { tokens, account } = await this.accounts.exchange(state.p, code);
+    const id = newId();
+    const credentialRef = `secretref:${tenant.organizationId}/${dealId}/document-source/${id}`;
+    try {
+      // Stored once, never returned, logged or audited.
+      await this.providers.secrets.put(credentialRef, JSON.stringify(tokens));
+    } catch {
+      throw new ServiceUnavailableException({ code: 'SECRETS_UNAVAILABLE' });
+    }
+    await withTenant(this.prisma, tenant, async (tx) => {
+      await tx.documentSource.create({
+        data: {
+          id,
+          organizationId: tenant.organizationId,
+          dealId,
+          provider: state.p,
+          mode: 'LIVE',
+          displayName: state.n,
+          config: { folder: folder.data },
+          credentialRef,
+          credentialKind: 'OAUTH',
+          accountName: account.accountName,
+          visibility: isBuyerSideRole(role) ? 'BUYER_ONLY' : 'SHARED',
+          createdBy: tenant.userId,
+        },
+      });
+      await appendAuditEvent(tx, this.audit(tenant, dealId, 'document_source.connected', id, requestId));
+    });
+    return { dealId, sourceId: id };
+  }
+
+  /**
+   * Stop reading a source: its sign-in is destroyed and the source disabled. Files already read stay,
+   * like any document. The person who connected it, or the deal team, may do this.
+   */
+  async disconnect(tenant: TenantContext, dealId: string, sourceId: string, requestId: string) {
+    const role = await this.access.require(tenant, dealId, canSupply, { action: 'document_source.disconnected', requestId });
+    const source = await withTenant(this.prisma, tenant, (tx) => tx.documentSource.findFirst({ where: { id: sourceId, dealId } }));
+    if (!source) throw new NotFoundException();
+    if (!canManage(role) && source.createdBy !== tenant.userId) throw new ForbiddenException();
+    await withTenant(this.prisma, tenant, async (tx) => {
+      await tx.documentSource.update({ where: { id: sourceId }, data: { status: 'DISABLED' } });
+      await appendAuditEvent(tx, this.audit(tenant, dealId, 'document_source.disconnected', sourceId, requestId));
+    });
+    // An organization sign-in is the organization's (Settings); only the source's own credential goes.
+    if (source.credentialRef) {
+      // handled: the source is already disabled, so the credential is never used again; a store outage only delays deletion
+      await destroySecret(this.providers.secrets, source.credentialRef).catch(() => undefined);
+    }
+    return { id: sourceId, status: 'DISABLED' };
+  }
+
   /** Read the source: new and changed files in, removed ones marked. Each file's outcome is returned. */
   async sync(tenant: TenantContext, dealId: string, sourceId: string, requestId: string) {
-    const role = await this.access.require(tenant, dealId, canManage, { action: 'document_source.synced', requestId });
+    // The deal team syncs any source; a seller only their own (RLS hides the rest).
+    const role = await this.access.require(tenant, dealId, canSupply, { action: 'document_source.synced', requestId });
     const source = await withTenant(this.prisma, tenant, (tx) => tx.documentSource.findFirst({ where: { id: sourceId, dealId } }));
     if (!source) throw new NotFoundException();
     if (source.status !== 'ACTIVE') throw new ConflictException({ code: 'SOURCE_DISABLED' });
     const config = { folder: (source.config as { folder?: string }).folder ?? '' };
     // Signed in through the organization (T-147): its current sign-in, refreshed by itself; else a pasted token.
-    const accessToken = source.organizationConnectionId ? await withTenant(this.prisma, tenant, (tx) => this.accounts.tokensFor(tx, source.organizationId, source.provider)) : undefined;
+    // The person's own sign-in (from the pact): its tokens, refreshed by themselves under the source's reference.
+    const personal = source.credentialKind === 'OAUTH' && source.credentialRef ? this.providers.documentOAuth[source.provider as DocumentOAuthProvider] : undefined;
+    const accessToken = source.organizationConnectionId
+      ? await withTenant(this.prisma, tenant, (tx) => this.accounts.tokensFor(tx, source.organizationId, source.provider))
+      : source.credentialKind === 'OAUTH'
+        ? personal && source.credentialRef
+          ? connectionTokens(personal, this.providers.secrets, source.credentialRef)
+          : async () => {
+              throw new DocumentSourceError('ACCESS');
+            }
+        : undefined;
     const scope = { credentialRef: source.credentialRef, accessToken };
     const adapter = documentSourceAdapter(source.provider as DocumentSourceProvider, source.mode as 'FIXTURE' | 'LIVE', {
       fetch: this.providers.fetch,
@@ -237,7 +347,7 @@ export class DocumentSourcesService {
           tenant,
           dealId,
           role,
-          { fileName: file.name, contentType, contentBase64: Buffer.from(bytes).toString('base64'), retentionClass: 'DEAL_TERM', dataClass: 'BUSINESS', aiExcluded: false, shared: false },
+          { fileName: file.name, contentType, contentBase64: Buffer.from(bytes).toString('base64'), retentionClass: 'DEAL_TERM', dataClass: 'BUSINESS', aiExcluded: false, shared: source.visibility === 'SHARED' },
           file.folder || null,
           requestId,
           { sourceId, externalId: file.externalId, version: file.version },

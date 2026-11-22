@@ -97,6 +97,14 @@ export const connectDocumentSourceBodySchema = z.strictObject({
 });
 export type ConnectDocumentSourceBody = z.infer<typeof connectDocumentSourceBodySchema>;
 
+/** Connect a folder from the pact with one's own Google or Microsoft sign-in (the seller too). */
+export const documentSignInBodySchema = z.strictObject({
+  provider: z.enum(['google-drive', 'onedrive']),
+  displayName: z.string().trim().min(1).max(200),
+  folder: documentSourceConfigSchema.shape.folder,
+});
+export type DocumentSignInBody = z.infer<typeof documentSignInBodySchema>;
+
 export const sourceParamsSchema = z.strictObject({ dealId: z.uuid(), sourceId: z.uuid() });
 
 /** Ask the seller for missing inputs: expected-input ids for this pact, and an optional note. */

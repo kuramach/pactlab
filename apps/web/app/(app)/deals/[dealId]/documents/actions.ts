@@ -269,6 +269,29 @@ export async function connectSource(
   return { kind: 'error', message: sourceProblem(result) };
 }
 
+/** Where each provider's sign-in lives: the start URL must go there, nowhere else. */
+const SIGN_IN_HOSTS = { 'google-drive': 'https://accounts.google.com/', onedrive: 'https://login.microsoftonline.com/' } as const;
+
+/**
+ * Connect a folder with one's own Google or Microsoft sign-in (the deal team or the seller): off to the
+ * provider, back to this pact, where the folder reads in. Read-only; the sign-in is kept for this folder only.
+ */
+export async function signInForFolder(dealId: string, input: { provider: 'google-drive' | 'onedrive'; displayName: string; folder: string }): Promise<{ message: string }> {
+  if (!uuid.safeParse(dealId).success) return { message: 'Unknown deal.' };
+  if (!input.folder.trim() || !input.displayName.trim()) return { message: 'Name the folder and paste its link.' };
+  const result = await apiSend<{ url: string }>('POST', `/v1/deals/${dealId}/document-sources/sign-in`, { provider: input.provider, displayName: input.displayName.trim(), folder: input.folder.trim() });
+  if (result.kind !== 'ok') return { message: sourceProblem(result) };
+  if (!result.data.url.startsWith(SIGN_IN_HOSTS[input.provider])) return { message: 'That sign-in could not be started. Try again.' };
+  redirect(result.data.url);
+}
+
+/** Stop reading a folder: its sign-in is deleted; files already read stay. */
+export async function disconnectSource(dealId: string, sourceId: string): Promise<{ kind: 'ok' } | { kind: 'error'; message: string }> {
+  if (!uuid.safeParse(dealId).success || !uuid.safeParse(sourceId).success) return { kind: 'error', message: 'Unknown source.' };
+  const result = await apiSend('POST', `/v1/deals/${dealId}/document-sources/${sourceId}/disconnect`, {});
+  return result.kind === 'ok' ? { kind: 'ok' } : { kind: 'error', message: result.kind === 'forbidden' ? 'Only the person who connected it, or the deal team, can disconnect it.' : 'It could not be disconnected. Try again.' };
+}
+
 /** Read new and changed files from a connected source. */
 export async function syncSource(dealId: string, sourceId: string): Promise<{ kind: 'ok'; files: SourceSyncFile[]; waiting: number; complete: boolean; listedLimit: number } | { kind: 'error'; message: string }> {
   if (!uuid.safeParse(dealId).success || !uuid.safeParse(sourceId).success) return { kind: 'error', message: 'Unknown source.' };

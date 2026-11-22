@@ -1229,6 +1229,12 @@ model DocumentSource {
   credentialRef   String?   @map("credential_ref")
   /// The organization's Google Drive or OneDrive OAuth connection this source reads with.
   organizationConnectionId String? @map("organization_connection_id") @db.Uuid
+  /// TOKEN (a pasted access token) | OAUTH (the person's own sign-in, refresh tokens under credential_ref).
+  credentialKind  String?   @map("credential_kind")
+  /// Who the source is signed in as (an email or sign-in name); never a token.
+  accountName     String?   @map("account_name")
+  /// SHARED for a seller's folder; BUYER_ONLY for the deal team's.
+  visibility      EvidenceVisibility @default(BUYER_ONLY)
   /// ACTIVE | DISABLED
   status          String    @default("ACTIVE")
   lastSyncedAt    DateTime? @map("last_synced_at") @db.Timestamptz(3)

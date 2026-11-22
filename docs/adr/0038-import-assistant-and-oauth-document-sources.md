@@ -64,3 +64,15 @@
   - a Google Cloud OAuth client and a Microsoft Entra app registration (runbook `document-sources.md`);
   - the next deploy creates the secrets and the API's grants (no separate access step).
 - **Box** remains in T-147.
+
+## Addendum (2026-11-21): connecting from the pact, buyers and sellers alike
+Kumar: "How does buyer and seller connect their Google Drive easily?" → "build it since it makes it easy to connect and view."
+- **Anyone who supplies documents connects a folder from the pact's Documents page with their own sign-in:** the deal team, or the seller (`TARGET_CONTRIBUTOR`). No admin and no Settings detour. The organization sign-in stays as an option for the deal team.
+- **One registered callback for both kinds:** providers accept only pre-registered redirect URIs, so a pact sign-in comes back to `/settings/document-sources/<provider>/callback` too. The signed state (v2: a JSON payload plus HMAC, 10 minutes, bound to the person) says whether it was the organization's or a pact folder's, and carries the deal, folder and name.
+- **A personal sign-in's tokens live under the source's own credential reference** (`credential_kind = OAUTH`) and refresh the same way. Disconnect destroys them and disables the source; files already read stay.
+- **Visibility follows who connected:** a seller's folder is `SHARED` with the deal, whoever runs the sync; the deal team's is buyer-only, as their uploads are.
+- **RLS:**
+  - a seller reads, adds and updates only sources they created, always shared;
+  - a seller may update only shared documents from their own sources (a sync marks replaced and removed files);
+  - the buyer-side policies are unchanged.
+- **The deal team sorts what a seller connects** (AI filing), as with seller uploads.

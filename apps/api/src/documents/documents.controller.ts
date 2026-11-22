@@ -22,6 +22,8 @@ import {
   askQuestionBodySchema,
   categorizeDocumentBodySchema,
   connectDocumentSourceBodySchema,
+  documentSignInBodySchema,
+  type DocumentSignInBody,
   createDocumentRequestBodySchema,
   documentRequestParamsSchema,
   documentParamsSchema,
@@ -74,6 +76,29 @@ export class DocumentsController {
     @Body(new ZodValidationPipe(connectDocumentSourceBodySchema)) body: ConnectDocumentSourceBody,
   ) {
     return this.sources.connect(tenant, params.dealId, body, requestId);
+  }
+
+  /** Connect a folder with one's own Google or Microsoft sign-in (the deal team or the seller): where to sign in. */
+  @Post('document-sources/sign-in')
+  @HttpCode(200)
+  async startSourceSignIn(
+    @Tenant() tenant: TenantContext,
+    @RequestId() requestId: string,
+    @Param(new ZodValidationPipe(dealParamsSchema)) params: DealParams,
+    @Body(new ZodValidationPipe(documentSignInBodySchema)) body: DocumentSignInBody,
+  ) {
+    return this.sources.startSignIn(tenant, params.dealId, body, requestId);
+  }
+
+  /** Stop reading a source: its own sign-in is destroyed; files already read stay. */
+  @Post('document-sources/:sourceId/disconnect')
+  @HttpCode(200)
+  async disconnectSource(
+    @Tenant() tenant: TenantContext,
+    @RequestId() requestId: string,
+    @Param(new ZodValidationPipe(sourceParamsSchema)) params: { dealId: string; sourceId: string },
+  ) {
+    return this.sources.disconnect(tenant, params.dealId, params.sourceId, requestId);
   }
 
   /** Read new and changed files from the source; mark removed ones. */
