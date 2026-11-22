@@ -7,7 +7,7 @@ import { FeatureGrid } from '../../../components/features';
 import { Icon, ModuleMark } from '../../../components/icon';
 import { Section } from '../../../components/page-hero';
 import { StatusBadge } from '../../../components/status-badge';
-import { FLOW, PILOT, PLANNED_NOTE } from '../../../lib/content';
+import { FLOW, industryArt, PILOT, PLANNED_NOTE } from '../../../lib/content';
 import { INDUSTRY_STORIES, PUBLISHED_INDUSTRIES } from '../../../lib/industry-stories';
 import { faqPageJsonLd, jsonLdScript, pageMetadata } from '../../../lib/seo';
 
@@ -27,7 +27,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
         title: `${industry.name} M&A diligence`,
         description: story.subhead,
         path: `/industries/${industry.slug}`,
-        image: { url: `/illustrations/${industry.slug}.svg`, alt: story.illustrationAlt },
+        image: { url: industryArt(industry.slug), alt: `${industry.name} illustration` },
       })
     : {};
 }
@@ -72,11 +72,11 @@ export default async function IndustryPage({ params }: { params: Promise<{ slug:
           </div>
           <div className="rounded-3xl bg-white p-3 shadow-2xl shadow-black/30">
             <img
-              src={`/illustrations/${industry.slug}.svg`}
-              alt={story.illustrationAlt}
+              src={industryArt(industry.slug)}
+              alt={`${industry.name} illustration`}
               width={640}
               height={420}
-              className="h-auto w-full rounded-2xl"
+              className="aspect-[640/420] h-auto w-full object-cover rounded-2xl"
             />
           </div>
         </div>
@@ -224,7 +224,7 @@ export default async function IndustryPage({ params }: { params: Promise<{ slug:
                 href={`/industries/${other.slug}`}
                 className="group flex h-full flex-col overflow-hidden rounded-2xl border border-navy/10 bg-white transition-colors hover:border-indigo"
               >
-                <img src={`/illustrations/${other.slug}.svg`} alt="" width={640} height={420} loading="lazy" className="h-auto w-full" />
+                <img src={industryArt(other.slug)} alt={`${other.name} illustration`} width={640} height={420} loading="lazy" className="aspect-[640/420] h-auto w-full object-cover" />
                 <div className="flex items-center justify-between gap-3 p-4">
                   <span className="inline-flex items-center gap-2 font-semibold">
                     <ModuleMark name={other.icon} />

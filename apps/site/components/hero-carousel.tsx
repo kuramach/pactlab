@@ -138,7 +138,7 @@ export function HeroCarousel({
                   </div>
                 </div>
                 <div className="rounded-3xl bg-white p-3 shadow-2xl shadow-black/30">
-                  <img src={slide.image} alt={slide.imageAlt} width={640} height={420} className="h-auto w-full rounded-2xl" />
+                  <img src={slide.image} alt={slide.imageAlt} width={640} height={420} className="aspect-[640/420] h-auto w-full object-cover rounded-2xl" />
                 </div>
               </div>
             );

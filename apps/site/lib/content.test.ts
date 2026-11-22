@@ -252,6 +252,13 @@ describe('pacts carousel (T-086)', () => {
     }
   });
 
+  it('shows every published industry with its editorial illustration (T-143)', () => {
+    for (const industry of PUBLISHED_INDUSTRIES) {
+      expect(content.industryArt(industry.slug)).toBe(`/illustrations/${industry.slug}.webp`);
+      expect(existsSync(join(publicDir, `illustrations/${industry.slug}.webp`)), industry.slug).toBe(true);
+    }
+  });
+
   it('gives every shown pact a full slide in the top slider', () => {
     for (const card of content.PACT_CARDS.filter((pact) => isPublishedHref(pact.href))) {
       const slide = content.pactSlide(card);
