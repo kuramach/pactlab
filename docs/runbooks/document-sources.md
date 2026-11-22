@@ -1,6 +1,10 @@
 # Document sources: Google Drive and OneDrive / SharePoint sign-in (T-147, ADR 0038)
 
-Organizations sign in once, read-only, in **Settings → Document sources**. Each pact then adds folders from it on the Documents page. This runbook registers Pactlab's OAuth clients, once per provider. Each client serves every environment through its redirect URIs.
+People connect folders in either of two ways, both read-only:
+- **From the pact (the usual way):** anyone who supplies documents, the deal team or the seller, opens the pact's **Documents → Data room**, pastes the folder link and clicks **Sign in with Google / Microsoft**. They come back signed in and the folder reads in. A seller's files are shared with the deal team.
+- **For the whole organization:** an owner or admin signs in once in **Settings → Document sources**, and the deal team can then pick **Use the organization's Google Drive** on any pact.
+
+Both use the same Pactlab OAuth clients and the same redirect URIs below; nothing extra is registered. This runbook registers Pactlab's OAuth clients, once per provider. Each client serves every environment through its redirect URIs.
 
 ## Redirect URIs
 | Environment | Google Drive | OneDrive / SharePoint |

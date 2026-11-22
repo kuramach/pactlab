@@ -1,4 +1,3 @@
-import { createHmac, timingSafeEqual } from 'node:crypto';
 import { ForbiddenException, Inject, Injectable, NotFoundException, ServiceUnavailableException, UnprocessableEntityException } from '@nestjs/common';
 import {
   connectionTokens,
@@ -13,6 +12,7 @@ import { appendAuditEvent, withTenant, type PrismaClient, type TransactionClient
 import { newId, type TenantContext } from '@pactlab/domain';
 import { PROVIDER_DEPENDENCIES, type ProviderDependencies } from '../connections/provider-dependencies';
 import { PRISMA } from '../tokens';
+import { readState, signState, type SignInState } from './oauth-state';
 
 /** The API each provider's sources read from (organization_connections.base_uri). */
 const API_BASE: Readonly<Record<DocumentOAuthProvider, string>> = { 'google-drive': 'https://www.googleapis.com', onedrive: 'https://graph.microsoft.com' };
@@ -45,17 +45,40 @@ export class DocumentConnectionsService {
     return new URL(`/settings/document-sources/${provider}/callback`, this.providers.webOrigin).toString();
   }
 
-  /** The sign-in's state: who started it, for which provider, until when; signed so it cannot be forged or replayed elsewhere. */
-  private stateFor(tenant: TenantContext, provider: DocumentOAuthProvider, expires: number): string {
-    const payload = `${tenant.organizationId}.${tenant.userId}.${provider}.${expires}`;
-    return `${payload}.${createHmac('sha256', this.providers.stateSecret).update(`document-source-state:${payload}`).digest('base64url')}`;
+  /**
+   * Where a person signs in to the provider, for the organization or for one pact's folder (`oauth-state.ts`).
+   * Both come back to the provider's one registered callback.
+   */
+  signInUrl(tenant: TenantContext, provider: string, state: Omit<Extract<SignInState, { k: 'org' }>, 'o' | 'u' | 'p' | 'e'> | Omit<Extract<SignInState, { k: 'pact' }>, 'o' | 'u' | 'p' | 'e'>): { url: string } {
+    const client = this.client(provider);
+    const signed = signState(this.providers.stateSecret, { ...state, o: tenant.organizationId, u: tenant.userId, p: client.provider, e: Date.now() + STATE_TTL_MS } as SignInState);
+    return { url: client.authorizeUrl(this.redirectUri(client.provider), signed) };
+  }
+
+  /** The state the provider sent back, when it is genuine, unexpired, for this provider and started by this person. */
+  verifiedState(tenant: TenantContext, provider: string, state: string): SignInState {
+    const read = readState(this.providers.stateSecret, state);
+    if (!read || read.p !== provider || read.o !== tenant.organizationId || read.u !== tenant.userId) throw new ForbiddenException();
+    return read;
+  }
+
+  /** Exchange the one-time code for tokens and read who signed in. */
+  async exchange(provider: string, code: string) {
+    const client = this.client(provider);
+    try {
+      const tokens = await client.exchangeCode(code, this.redirectUri(client.provider));
+      return { tokens, account: await client.account(tokens.accessToken) };
+    } catch (error) {
+      if (error instanceof DocumentOAuthError) throw error.reason === 'REVOKED' ? new UnprocessableEntityException({ code: 'SIGN_IN_REFUSED' }) : new ServiceUnavailableException({ code: 'SOURCE_UNAVAILABLE' });
+      throw error;
+    }
   }
 
   private requireAdmin(tenant: TenantContext): void {
     if (tenant.organizationRole !== 'ORG_OWNER' && tenant.organizationRole !== 'ORG_ADMIN') throw new ForbiddenException();
   }
 
-  private client(provider: string) {
+  client(provider: string) {
     if (!(DOCUMENT_OAUTH_PROVIDERS as readonly string[]).includes(provider)) throw new NotFoundException();
     const client = this.providers.documentOAuth[provider as DocumentOAuthProvider];
     if (!client) throw new ServiceUnavailableException({ code: 'SOURCE_NOT_CONFIGURED' });
@@ -89,26 +112,20 @@ export class DocumentConnectionsService {
   /** Where an owner or admin signs in to the provider to connect the organization's drive. */
   start(tenant: TenantContext, provider: string): { url: string } {
     this.requireAdmin(tenant);
-    const client = this.client(provider);
-    return { url: client.authorizeUrl(this.redirectUri(client.provider), this.stateFor(tenant, client.provider, Date.now() + STATE_TTL_MS)) };
+    return this.signInUrl(tenant, provider, { k: 'org' });
   }
 
   async callback(tenant: TenantContext, provider: string, code: string, state: string, requestId: string) {
     this.requireAdmin(tenant);
+    if (this.verifiedState(tenant, provider, state).k !== 'org') throw new ForbiddenException();
+    return this.completeOrganization(tenant, provider, code, requestId);
+  }
+
+  /** The organization's sign-in, once its state is verified: the code exchanged, the tokens stored, the old sign-in retired. */
+  async completeOrganization(tenant: TenantContext, provider: string, code: string, requestId: string) {
+    this.requireAdmin(tenant);
     const client = this.client(provider);
-    const expires = Number(state.split('.').at(-2));
-    const expected = Buffer.from(this.stateFor(tenant, client.provider, expires));
-    const given = Buffer.from(state);
-    if (!Number.isFinite(expires) || expires < Date.now() || expected.length !== given.length || !timingSafeEqual(expected, given)) throw new ForbiddenException();
-    let tokens;
-    let account;
-    try {
-      tokens = await client.exchangeCode(code, this.redirectUri(client.provider));
-      account = await client.account(tokens.accessToken);
-    } catch (error) {
-      if (error instanceof DocumentOAuthError) throw error.reason === 'REVOKED' ? new UnprocessableEntityException({ code: 'SIGN_IN_REFUSED' }) : new ServiceUnavailableException({ code: 'SOURCE_UNAVAILABLE' });
-      throw error;
-    }
+    const { tokens, account } = await this.exchange(provider, code);
     const id = newId();
     const credentialRef = `secretref:${tenant.organizationId}/${client.provider}/${id}`;
     try {
