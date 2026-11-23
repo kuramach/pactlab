@@ -342,3 +342,18 @@ describe('best-of-breed model routing (T-133)', () => {
     for (const word of content.BANNED_WORDS) expect(text.toLowerCase()).not.toContain(word);
   });
 });
+
+describe('privacy policy and terms (Google verification needs both public)', () => {
+  it('are published pages, linked from every page’s footer, with the legal entity and contact', async () => {
+    const { PRIVACY, TERMS, LEGAL_ENTITY, LEGAL_CONTACT } = await import('./legal');
+    expect(existsSync(join(APP, 'privacy/page.tsx'))).toBe(true);
+    expect(existsSync(join(APP, 'terms/page.tsx'))).toBe(true);
+    expect(LEGAL_ENTITY).toBe('Pactlab LLC');
+    const privacy = JSON.stringify(PRIVACY);
+    // Google's Limited Use disclosure, verbatim, and the read-only Drive scope.
+    expect(privacy).toContain('Pactlab’s use and transfer of information received from Google APIs to any other app will adhere to the Google API Services User Data Policy, including the Limited Use requirements.');
+    expect(privacy).toContain('drive.readonly');
+    expect(privacy).toContain(LEGAL_CONTACT);
+    expect(JSON.stringify(TERMS)).toContain('State of Texas');
+  });
+});

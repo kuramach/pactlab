@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { MODULES, NAV } from '../lib/content';
 import { PUBLISHED_INDUSTRIES } from '../lib/industry-stories';
 import { siteConfig } from '../lib/config';
+import { LEGAL_ENTITY } from '../lib/legal';
 import { Lockup } from './lockup';
 
 export function SiteFooter() {
@@ -50,12 +51,18 @@ export function SiteFooter() {
       </div>
       <div className="border-t border-white/10">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-6 py-6 text-xs">
-          <p>© {new Date().getFullYear()} Pactlab</p>
-          <p>
+          <p>© {new Date().getFullYear()} {LEGAL_ENTITY}</p>
+          <nav aria-label="Legal" className="flex flex-wrap gap-4">
             <Link href="/trust" className="hover:text-white">
               Security and trust
             </Link>
-          </p>
+            <Link href="/privacy" className="hover:text-white">
+              Privacy policy
+            </Link>
+            <Link href="/terms" className="hover:text-white">
+              Terms of service
+            </Link>
+          </nav>
         </div>
       </div>
     </footer>
