@@ -39,6 +39,8 @@ export const SITE_ROUTES: readonly string[] = [
   '/about',
   '/about/story',
   '/about/vision',
+  '/privacy',
+  '/terms',
 ];
 
 /**
