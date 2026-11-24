@@ -14,6 +14,7 @@ import {
   DOCUMENT_SOURCE_LABELS,
   documentSourceConfigSchema,
   MAX_PICKED_FILES,
+  OneDriveDocumentSourceAdapter,
   DocumentSourceError,
   documentSourceAdapter,
   MAX_SOURCE_FILES,
@@ -136,6 +137,9 @@ export class DocumentSourcesService {
         filesChosen: Array.isArray((row.config as { files?: unknown }).files) ? ((row.config as { files: unknown[] }).files.length) : null,
         shared: row.visibility === 'SHARED',
         canDisconnect: row.status === 'ACTIVE' && row.mode === 'LIVE' && (team || row.createdBy === tenant.userId),
+        // A OneDrive source waits for its folder, chosen in Pactlab by whoever connected it (in the account it reads with).
+        needsFolder: row.provider === 'onedrive' && row.mode === 'LIVE' && !(row.config as { folder?: string }).folder,
+        canChooseFolder: row.status === 'ACTIVE' && row.provider === 'onedrive' && row.mode === 'LIVE' && row.createdBy === tenant.userId,
         // Only the person who signed in can open Google's picker on their own Drive.
         canChooseFiles: row.status === 'ACTIVE' && row.provider === 'google-drive' && row.credentialKind === 'OAUTH' && row.createdBy === tenant.userId,
       })),
@@ -221,7 +225,7 @@ export class DocumentSourcesService {
     const dealId = state.d;
     const role = await this.access.require(tenant, dealId, canSupply, { action: 'document_source.connected', requestId });
     const folder = documentSourceConfigSchema.shape.folder.safeParse(state.f);
-    if (!folder.success || (state.p === 'onedrive' && !folder.data)) throw new UnprocessableEntityException({ code: 'SOURCE_NOT_FOUND' });
+    if (!folder.success) throw new UnprocessableEntityException({ code: 'SOURCE_NOT_FOUND' });
     const { tokens, account } = await this.accounts.exchange(state.p, code);
     const id = newId();
     const credentialRef = `secretref:${tenant.organizationId}/${dealId}/document-source/${id}`;
@@ -240,7 +244,7 @@ export class DocumentSourcesService {
           provider: state.p,
           mode: 'LIVE',
           displayName: state.n,
-          // Google Drive: no folder; the files come from the picker next (`addFiles`).
+          // Google Drive: no folder; the files come from the picker next (`addFiles`). OneDrive: chosen next (`chooseFolder`).
           config: state.p === 'google-drive' ? { folder: '', files: [] } : { folder: folder.data },
           credentialRef,
           credentialKind: 'OAUTH',
@@ -273,6 +277,57 @@ export class DocumentSourcesService {
       await destroySecret(this.providers.secrets, source.credentialRef).catch(() => undefined);
     }
     return { id: sourceId, status: 'DISABLED' };
+  }
+
+  /**
+   * How a source signs in: the organization's current sign-in (T-147), the person's own (from the pact,
+   * refreshed under the source's reference), or a pasted token (before T-147).
+   */
+  private async scopeOf(tenant: TenantContext, source: { organizationId: string; provider: string; organizationConnectionId: string | null; credentialKind: string | null; credentialRef: string | null }) {
+    const personal = source.credentialKind === 'OAUTH' && source.credentialRef ? this.providers.documentOAuth[source.provider as DocumentOAuthProvider] : undefined;
+    const accessToken = source.organizationConnectionId
+      ? await withTenant(this.prisma, tenant, (tx) => this.accounts.tokensFor(tx, source.organizationId, source.provider))
+      : source.credentialKind === 'OAUTH'
+        ? personal && source.credentialRef
+          ? connectionTokens(personal, this.providers.secrets, source.credentialRef)
+          : async () => {
+              throw new DocumentSourceError('ACCESS');
+            }
+        : undefined;
+    return { credentialRef: source.credentialRef, accessToken };
+  }
+
+  /** A OneDrive source the caller connected: the chooser browses the account it reads with. */
+  private async ownOneDriveSource(tenant: TenantContext, dealId: string, sourceId: string, action: string, requestId: string) {
+    await this.access.require(tenant, dealId, canSupply, { action, requestId });
+    const source = await withTenant(this.prisma, tenant, (tx) => tx.documentSource.findFirst({ where: { id: sourceId, dealId } }));
+    if (!source) throw new NotFoundException();
+    if (source.provider !== 'onedrive' || source.mode !== 'LIVE') throw new ConflictException({ code: 'NOT_A_ONEDRIVE_SOURCE' });
+    if (source.createdBy !== tenant.userId) throw new ForbiddenException();
+    if (source.status !== 'ACTIVE') throw new ConflictException({ code: 'SOURCE_DISABLED' });
+    return source;
+  }
+
+  /** One level of folders in the account the source reads with: My files, or inside a folder (read-only listing). */
+  async folders(tenant: TenantContext, dealId: string, sourceId: string, at: { driveId?: string | undefined; itemId?: string | undefined }, requestId: string) {
+    const source = await this.ownOneDriveSource(tenant, dealId, sourceId, 'document_source.folders_listed', requestId);
+    const adapter = new OneDriveDocumentSourceAdapter({ fetch: this.providers.fetch, secrets: this.providers.secrets });
+    try {
+      const folders = await adapter.folders(await this.scopeOf(tenant, source), at.driveId && at.itemId ? { driveId: at.driveId, itemId: at.itemId } : undefined);
+      return { items: folders };
+    } catch (error) {
+      sourceError(error);
+    }
+  }
+
+  /** The folder a OneDrive source reads, chosen in the chooser. Its whole content is read, including files added later. */
+  async chooseFolder(tenant: TenantContext, dealId: string, sourceId: string, folder: { driveId: string; itemId: string }, requestId: string) {
+    await this.ownOneDriveSource(tenant, dealId, sourceId, 'document_source.folder_chosen', requestId);
+    await withTenant(this.prisma, tenant, async (tx) => {
+      await tx.documentSource.update({ where: { id: sourceId }, data: { config: { folder: `${folder.driveId}/${folder.itemId}` } } });
+      await appendAuditEvent(tx, this.audit(tenant, dealId, 'document_source.folder_chosen', sourceId, requestId));
+    });
+    return { id: sourceId };
   }
 
   /** A Google Drive source the caller connected with their own sign-in (the picker runs as them, in their Drive). */
@@ -328,19 +383,7 @@ export class DocumentSourcesService {
     if (source.status !== 'ACTIVE') throw new ConflictException({ code: 'SOURCE_DISABLED' });
     const stored = source.config as { folder?: string; files?: string[] };
     const config = { folder: stored.folder ?? '', ...(Array.isArray(stored.files) ? { files: stored.files } : {}) };
-    // Signed in through the organization (T-147): its current sign-in, refreshed by itself; else a pasted token.
-    // The person's own sign-in (from the pact): its tokens, refreshed by themselves under the source's reference.
-    const personal = source.credentialKind === 'OAUTH' && source.credentialRef ? this.providers.documentOAuth[source.provider as DocumentOAuthProvider] : undefined;
-    const accessToken = source.organizationConnectionId
-      ? await withTenant(this.prisma, tenant, (tx) => this.accounts.tokensFor(tx, source.organizationId, source.provider))
-      : source.credentialKind === 'OAUTH'
-        ? personal && source.credentialRef
-          ? connectionTokens(personal, this.providers.secrets, source.credentialRef)
-          : async () => {
-              throw new DocumentSourceError('ACCESS');
-            }
-        : undefined;
-    const scope = { credentialRef: source.credentialRef, accessToken };
+    const scope = await this.scopeOf(tenant, source);
     const adapter = documentSourceAdapter(source.provider as DocumentSourceProvider, source.mode as 'FIXTURE' | 'LIVE', {
       fetch: this.providers.fetch,
       secrets: this.providers.secrets,

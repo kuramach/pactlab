@@ -241,7 +241,7 @@ export interface SourceSyncFile {
 const SOURCE_PROBLEMS: Readonly<Record<string, string>> = {
   SOURCE_ACCESS: 'Pactlab could not sign in to this source. Reconnect it in Settings → Document sources (an organization owner or admin), or check the folder is shared with that account.',
   SOURCE_NOT_CONNECTED: 'Your organization has not signed in to this provider yet. An owner or admin connects it once in Settings → Document sources.',
-  USE_PICKER: 'Google Drive files are chosen in Google’s picker: use “Choose files from Google Drive”.',
+  USE_PICKER: 'Google Drive files are picked in Google’s file picker: use Connect Google Drive.',
   SOURCE_NOT_FOUND: 'That folder or room was not found. Check the folder id.',
   SOURCE_NOT_CONFIGURED: 'This kind of data room cannot be read live yet. Export it as a zip and upload that instead.',
   SOURCE_UNAVAILABLE: 'The source did not answer. Try again in a minute.',
@@ -258,7 +258,7 @@ export async function connectSource(
   input: { provider: 'google-drive' | 'onedrive' | 'vdr'; mode: 'FIXTURE' | 'LIVE'; displayName: string; folder: string; token?: string },
 ): Promise<{ kind: 'ok'; id: string } | { kind: 'error'; message: string }> {
   if (!uuid.safeParse(dealId).success) return { kind: 'error', message: 'Unknown deal.' };
-  if (!input.folder.trim() || !input.displayName.trim()) return { kind: 'error', message: 'Name the source and say which folder to read.' };
+  if (!input.displayName.trim() || (input.mode === 'FIXTURE' && !input.folder.trim())) return { kind: 'error', message: 'Give it a name.' };
   const result = await apiSend<{ id: string }>('POST', `/v1/deals/${dealId}/document-sources`, {
     provider: input.provider,
     mode: input.mode,
@@ -279,13 +279,9 @@ const SIGN_IN_HOSTS = { 'google-drive': 'https://accounts.google.com/', onedrive
  */
 export async function signInForFolder(dealId: string, input: { provider: 'google-drive' | 'onedrive'; displayName: string; folder: string }): Promise<{ message: string }> {
   if (!uuid.safeParse(dealId).success) return { message: 'Unknown deal.' };
-  // Google Drive: files are chosen in Google's picker after signing in, so there is no folder to give.
-  if (!input.displayName.trim() || (input.provider === 'onedrive' && !input.folder.trim())) return { message: input.provider === 'onedrive' ? 'Name the folder and paste its link.' : 'Name it first.' };
-  const result = await apiSend<{ url: string }>('POST', `/v1/deals/${dealId}/document-sources/sign-in`, {
-    provider: input.provider,
-    displayName: input.displayName.trim(),
-    ...(input.provider === 'onedrive' ? { folder: input.folder.trim() } : {}),
-  });
+  // Nothing to paste: Google files are picked in Google's picker, a OneDrive folder in Pactlab's chooser, after signing in.
+  if (!input.displayName.trim()) return { message: 'Give it a name.' };
+  const result = await apiSend<{ url: string }>('POST', `/v1/deals/${dealId}/document-sources/sign-in`, { provider: input.provider, displayName: input.displayName.trim() });
   if (result.kind !== 'ok') return { message: sourceProblem(result) };
   if (!result.data.url.startsWith(SIGN_IN_HOSTS[input.provider])) return { message: 'That sign-in could not be started. Try again.' };
   redirect(result.data.url);
@@ -306,6 +302,30 @@ export async function addChosenFiles(dealId: string, sourceId: string, fileIds: 
   const result = await apiSend<{ filesChosen: number }>('POST', `/v1/deals/${dealId}/document-sources/${sourceId}/files`, { fileIds });
   if (result.kind === 'ok') return { kind: 'ok', filesChosen: result.data.filesChosen };
   return { kind: 'error', message: 'Those files could not be added (a source holds up to 500). Try again.' };
+}
+
+export interface DriveFolder {
+  readonly driveId: string;
+  readonly itemId: string;
+  readonly name: string;
+  readonly shared: boolean;
+}
+
+/** One level of OneDrive folders for the chooser: My files, or inside a folder. */
+export async function listFolders(dealId: string, sourceId: string, at?: { driveId: string; itemId: string }): Promise<{ kind: 'ok'; folders: DriveFolder[] } | { kind: 'error'; message: string }> {
+  if (!uuid.safeParse(dealId).success || !uuid.safeParse(sourceId).success) return { kind: 'error', message: 'Unknown source.' };
+  const query = at ? `?${new URLSearchParams({ driveId: at.driveId, itemId: at.itemId }).toString()}` : '';
+  const result = await apiGet<{ items: DriveFolder[] }>(`/v1/deals/${dealId}/document-sources/${sourceId}/folders${query}`);
+  if (result.kind === 'ok') return { kind: 'ok', folders: result.data.items };
+  if (result.kind === 'forbidden') return { kind: 'error', message: 'Only the person who connected this OneDrive can choose its folder.' };
+  return { kind: 'error', message: 'Your OneDrive folders could not be shown. Try again in a moment.' };
+}
+
+/** Use this folder: the source reads it, including files added to it later. */
+export async function chooseFolder(dealId: string, sourceId: string, folder: { driveId: string; itemId: string }): Promise<{ kind: 'ok' } | { kind: 'error'; message: string }> {
+  if (!uuid.safeParse(dealId).success || !uuid.safeParse(sourceId).success) return { kind: 'error', message: 'Unknown source.' };
+  const result = await apiSend('POST', `/v1/deals/${dealId}/document-sources/${sourceId}/folder`, folder);
+  return result.kind === 'ok' ? { kind: 'ok' } : { kind: 'error', message: 'That folder could not be chosen. Try again.' };
 }
 
 /** Stop reading a folder: its sign-in is deleted; files already read stay. */

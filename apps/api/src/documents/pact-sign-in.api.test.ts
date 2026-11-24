@@ -178,8 +178,8 @@ describe('Google Drive through the picker, from the pact, buyer and seller (Kuma
     expect((await call('seller', 'POST', '/v1/document-sign-ins/google-drive/callback', { code: 'code-x', state: `${state}x` })).status).toBe(403);
     expect((await call('lead', 'POST', '/v1/document-sign-ins/google-drive/callback', { code: 'code-x', state })).status).toBe(403);
     expect((await call('lead', 'POST', '/v1/organization/document-connections/google-drive/start')).body).toMatchObject({ code: 'USE_PICKER' });
-    // OneDrive still reads a whole folder, so it needs one.
-    expect((await call('lead', 'POST', deal('/document-sources/sign-in'), { provider: 'onedrive', displayName: 'OD' })).status).toBe(400);
+    // OneDrive's folder is chosen in Pactlab after signing in, so none is needed up front.
+    expect((await call('lead', 'POST', deal('/document-sources/sign-in'), { provider: 'onedrive', displayName: 'OD' })).status).toBe(200);
   });
 
   it('a revoked sign-in reads nothing (SOURCE_ACCESS); disconnecting destroys the source’s credential and keeps its files', async () => {

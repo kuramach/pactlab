@@ -143,3 +143,36 @@ describe('documentSourceAdapter', () => {
     await expect(adapter.list(scope, { folder: 'x' })).rejects.toMatchObject({ reason: 'NOT_CONFIGURED' });
   });
 });
+
+describe('choosing a OneDrive folder in Pactlab (no ids to paste)', () => {
+  it('lists the folders in My files, shortcuts to shared folders included, and inside a folder; never files', async () => {
+    const calls: string[] = [];
+    const fetch = async (url: string) => {
+      calls.push(url);
+      if (url.includes('/me/drive/root/children')) {
+        return json({
+          value: [
+            { id: 'ITEM!dulles', name: 'Dulles', folder: { childCount: 2 }, parentReference: { driveId: 'drive-me' } },
+            { id: 'ITEM!file', name: 'Notes.docx', file: { mimeType: 'application/msword' }, parentReference: { driveId: 'drive-me' } },
+            { id: 'shortcut-1', name: 'Seller data room', remoteItem: { id: 'THEIRS!room', folder: {}, parentReference: { driveId: 'drive-seller' } } },
+          ],
+        });
+      }
+      return json({ value: [{ id: 'ITEM!loomis', name: 'Loomis', folder: { childCount: 4 }, parentReference: { driveId: 'drive-me' } }] });
+    };
+    const adapter = new OneDriveDocumentSourceAdapter({ fetch, secrets: await secrets() });
+    expect(await adapter.folders(scope)).toEqual([
+      { driveId: 'drive-me', itemId: 'ITEM!dulles', name: 'Dulles', shared: false },
+      { driveId: 'drive-seller', itemId: 'THEIRS!room', name: 'Seller data room', shared: true },
+    ]);
+    expect(await adapter.folders(scope, { driveId: 'drive-me', itemId: 'ITEM!dulles' })).toEqual([{ driveId: 'drive-me', itemId: 'ITEM!loomis', name: 'Loomis', shared: false }]);
+    expect(calls[1]).toContain('/drives/drive-me/items/ITEM!dulles/children');
+    expect(calls.some((url) => url.includes('sharedWithMe'))).toBe(false);
+  });
+
+  it('refused access is said, not shown as an empty drive', async () => {
+    const adapter = new OneDriveDocumentSourceAdapter({ fetch: async () => json({}, 401), secrets: await secrets() });
+    await expect(adapter.folders(scope)).rejects.toMatchObject({ reason: 'ACCESS' });
+  });
+});
+

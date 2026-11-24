@@ -38,8 +38,18 @@ const fetch = async (input: string | URL | Request, init?: RequestInit) => {
   }
   if (url.startsWith('https://download.example/')) return new Response('Cash flow statement FY26 (synthetic)\nOperating: 610,000', { status: 200 });
   if (headers['authorization'] !== `Bearer ${ms.issued}`) return json(401, {});
-  if (url.startsWith('https://graph.microsoft.com/v1.0/me')) return json(200, { id: 'user-1', mail: 'seller-ops@example.com', userPrincipalName: 'seller-ops@example.com' });
   if (url.includes('/content')) return new Response(null, { status: 302, headers: { location: 'https://download.example/f1' } });
+  // The chooser: My files, then inside a folder (folders only matter; a file in the list is ignored).
+  if (url.includes('/me/drive/root/children')) {
+    return json(200, {
+      value: [
+        { id: 'ME!dulles', name: 'Dulles', folder: { childCount: 1 }, parentReference: { driveId: 'drive-1' } },
+        { id: 'ME!notes', name: 'Notes.docx', file: { mimeType: 'application/msword' }, parentReference: { driveId: 'drive-1' } },
+      ],
+    });
+  }
+  if (url.includes('/items/ME!dulles/children')) return json(200, { value: [{ id: 'ME!loomis', name: 'Loomis', folder: { childCount: 1 }, parentReference: { driveId: 'drive-1' } }] });
+  if (url.startsWith('https://graph.microsoft.com/v1.0/me?') || url === 'https://graph.microsoft.com/v1.0/me') return json(200, { id: 'user-1', mail: 'seller-ops@example.com', userPrincipalName: 'seller-ops@example.com' });
   return json(200, { value: [{ id: 'f1', name: 'Cash flow FY26.md', size: 40, cTag: 'c2', file: { mimeType: 'text/markdown' } }] });
 };
 
@@ -82,6 +92,21 @@ describe('OneDrive / SharePoint signed in through the organization (T-147)', { t
   afterAll(async () => {
     await app?.close();
     await db?.stop();
+  });
+
+  it('an organization Google sign-in from before the picker is retired, and its credential deleted, when an admin opens Settings', async () => {
+    const ref = `secretref:${a.organizationId}/google-drive/old-connection`;
+    await secrets.put(ref, JSON.stringify({ accessToken: 'old', refreshToken: 'old', expiresAt: 0 }));
+    await db.owner.query(
+      `INSERT INTO organization_connections (id, organization_id, provider, credential_ref, account_id, account_name, base_uri, connected_by) VALUES (gen_random_uuid(), $1, 'google-drive', $2, 'p', 'kumar@example.com', 'https://www.googleapis.com', $3)`,
+      [a.organizationId, ref, a.userId],
+    );
+    // A member opening Settings changes nothing; an admin does.
+    await call('member', 'GET', base);
+    expect((await db.owner.query(`SELECT 1 FROM organization_connections WHERE provider = 'google-drive' AND disconnected_at IS NULL`)).rows).toHaveLength(1);
+    await call('admin', 'GET', base);
+    expect((await db.owner.query(`SELECT 1 FROM organization_connections WHERE provider = 'google-drive' AND disconnected_at IS NULL`)).rows).toHaveLength(0);
+    await expect(secrets.get(ref)).rejects.toThrow();
   });
 
   it('lists the providers: OneDrive offered; Google Drive has no organization sign-in (it is chosen file by file in the picker)', async () => {
@@ -127,6 +152,23 @@ describe('OneDrive / SharePoint signed in through the organization (T-147)', { t
     expect(JSON.stringify(synced.body)).toContain('Cash flow FY26.md');
     // Google Drive cannot be read through an organization sign-in.
     expect((await call('admin', 'POST', `/v1/deals/${a.dealId}/document-sources`, { provider: 'google-drive', mode: 'LIVE', displayName: 'G', folder: 'folder-1' })).body).toMatchObject({ code: 'USE_PICKER' });
+  });
+
+  it('a folder is chosen in Pactlab, no ids to paste: My files, into a folder, Use this folder, read', async () => {
+    const added = await call('admin', 'POST', `/v1/deals/${a.dealId}/document-sources`, { provider: 'onedrive', mode: 'LIVE', displayName: 'Loomis data room', folder: '' });
+    expect(added.status).toBe(201);
+    const id = added.body['id'] as string;
+    const listed = await call('admin', 'GET', `/v1/deals/${a.dealId}/document-sources`);
+    expect(listed.body['items']).toContainEqual(expect.objectContaining({ id, needsFolder: true, canChooseFolder: true }));
+    const top = await call('admin', 'GET', `/v1/deals/${a.dealId}/document-sources/${id}/folders`);
+    expect(top.body).toEqual({ items: [{ driveId: 'drive-1', itemId: 'ME!dulles', name: 'Dulles', shared: false }] });
+    const inside = await call('admin', 'GET', `/v1/deals/${a.dealId}/document-sources/${id}/folders?driveId=drive-1&itemId=ME!dulles`);
+    expect(inside.body).toEqual({ items: [{ driveId: 'drive-1', itemId: 'ME!loomis', name: 'Loomis', shared: false }] });
+    // Only the person who connected it browses; another member may not.
+    expect((await call('member', 'GET', `/v1/deals/${a.dealId}/document-sources/${id}/folders`)).status).toBe(403);
+    expect((await call('admin', 'POST', `/v1/deals/${a.dealId}/document-sources/${id}/folder`, { driveId: 'drive-1', itemId: 'ME!loomis' })).status).toBe(200);
+    expect((await call('admin', 'GET', `/v1/deals/${a.dealId}/document-sources`)).body['items']).toContainEqual(expect.objectContaining({ id, needsFolder: false }));
+    expect((await call('admin', 'POST', `/v1/deals/${a.dealId}/document-sources/${id}/sync`)).status).toBe(200);
   });
 
   it('an expired access token is refreshed by itself, keeping Microsoft’s new refresh token', async () => {

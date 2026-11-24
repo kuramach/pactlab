@@ -4,6 +4,7 @@ import { Badge, Button } from '@pactlab/ui';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { addChosenFiles, connectSource, disconnectSource, pickerFor, signInForFolder, syncSource, type SourceSyncFile } from './actions';
+import { FolderChooser } from './folder-chooser';
 import { chooseDriveFiles } from './google-picker';
 import { sortDocument } from './sorting';
 
@@ -28,6 +29,9 @@ export interface DocumentSourceView {
   /** Google Drive through the picker: how many files were chosen, and whether this person may choose more. */
   readonly filesChosen?: number | null;
   readonly canChooseFiles?: boolean;
+  /** OneDrive: no folder chosen yet; and whether this person may choose it. */
+  readonly needsFolder?: boolean;
+  readonly canChooseFolder?: boolean;
 }
 
 export interface SourcesView {
@@ -71,13 +75,13 @@ const PROVIDERS = [
  * folder. OneDrive reads the whole folder, including files added later.
  */
 export const GOOGLE_LIMIT =
-  'Google Drive: Pactlab can read only the files you choose. Files added to the Drive folder later are not read until you choose them too: use Add files. Edits to files you chose are picked up on the next sync.';
-export const ONEDRIVE_READS = 'Reads the whole folder, including files added to it later.';
+  'With Google Drive, you pick the files to share. Files you add to the folder later won’t appear here until you add them too (use Add files). Changes to files you picked do come through.';
+export const ONEDRIVE_READS = 'With OneDrive, you pick a folder next. Everything in it is shared with this pact, including files you add later.';
 
 /** What a source reads, in a few words, for its row. */
 export function readsWhat(source: DocumentSourceView): string | null {
-  if (source.provider === 'google-drive' && typeof source.filesChosen === 'number') return `${source.filesChosen} file${source.filesChosen === 1 ? '' : 's'} chosen; files added to the folder later are not read until chosen`;
-  if (source.provider === 'onedrive' && source.mode === 'LIVE') return 'whole folder, including files added later';
+  if (source.provider === 'google-drive' && typeof source.filesChosen === 'number') return `${source.filesChosen} file${source.filesChosen === 1 ? '' : 's'} shared · new files in the folder need Add files`;
+  if (source.provider === 'onedrive' && source.mode === 'LIVE') return source.needsFolder ? 'No folder chosen yet' : 'Whole folder · new files come in automatically';
   return null;
 }
 
@@ -108,6 +112,8 @@ export function SourcesPanel({ dealId, sources, aiOn, justConnected = null }: { 
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState<string | null>(null);
   const [adding, setAdding] = useState(sources.items.length === 0);
+  // The OneDrive source whose folder is being chosen in Pactlab's chooser.
+  const [choosingFolder, setChoosingFolder] = useState<string | null>(null);
   // The deal team sorts what a seller connects, as with seller uploads.
   const sorting = aiOn && !sources.seller;
 
@@ -179,7 +185,9 @@ export function SourcesPanel({ dealId, sources, aiOn, justConnected = null }: { 
     const source = justConnected ? sources.items.find((item) => item.id === justConnected && item.status === 'ACTIVE') : undefined;
     if (!source || started.current) return;
     started.current = true;
-    void (source.canChooseFiles && !source.filesChosen ? choose(source.id) : sync(source.id));
+    if (source.canChooseFiles && !source.filesChosen) void choose(source.id);
+    else if (source.canChooseFolder && source.needsFolder) setChoosingFolder(source.id);
+    else void sync(source.id);
   }, [justConnected]);
 
   return (
@@ -205,12 +213,17 @@ export function SourcesPanel({ dealId, sources, aiOn, justConnected = null }: { 
                 </span>
               </span>
               <span className="flex items-center gap-2">
+                {source.canChooseFolder && source.needsFolder ? (
+                  <Button type="button" size="sm" disabled={syncing !== null} onClick={() => setChoosingFolder(source.id)}>
+                    Choose folder
+                  </Button>
+                ) : null}
                 {source.canChooseFiles ? (
                   <Button type="button" size="sm" variant="outline" disabled={syncing !== null} onClick={() => void choose(source.id)}>
                     Add files
                   </Button>
                 ) : null}
-                {source.status === 'ACTIVE' ? (
+                {source.status === 'ACTIVE' && !source.needsFolder ? (
                   <Button type="button" size="sm" variant="outline" disabled={syncing !== null} onClick={() => void sync(source.id)}>
                     {syncing === source.id ? 'Reading…' : 'Sync now'}
                   </Button>
@@ -226,6 +239,19 @@ export function SourcesPanel({ dealId, sources, aiOn, justConnected = null }: { 
         </ul>
       ) : null}
 
+      {choosingFolder ? (
+        <FolderChooser
+          dealId={dealId}
+          sourceId={choosingFolder}
+          onChosen={() => {
+            const id = choosingFolder;
+            setChoosingFolder(null);
+            router.refresh();
+            void sync(id);
+          }}
+          onCancel={() => setChoosingFolder(null)}
+        />
+      ) : null}
       {error ? <p className="text-xs text-red-700">{error}</p> : null}
       {progress ? (
         <p role="status" className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
@@ -256,7 +282,11 @@ export function SourcesPanel({ dealId, sources, aiOn, justConnected = null }: { 
           signedIn={sources.signedIn ?? []}
           providers={sources.providers ?? []}
           seller={sources.seller ?? false}
-          onDone={() => setAdding(false)}
+          onDone={(id) => {
+            setAdding(false);
+            // A OneDrive folder through the organization's sign-in: choose it right away.
+            if (id) setChoosingFolder(id);
+          }}
         />
       ) : (
         <Button variant="link" size="sm" className="self-start" type="button" onClick={() => setAdding(true)}>
@@ -280,65 +310,71 @@ function ConnectForm({
   signedIn: readonly string[];
   providers: NonNullable<SourcesView['providers']>;
   seller: boolean;
-  onDone: () => void;
+  onDone: (sourceId?: string) => void;
 }) {
   const router = useRouter();
-  const offered = PROVIDERS.filter((provider) => providers.some((entry) => entry.provider === provider.id) || signedIn.includes(provider.id));
-  const [kind, setKind] = useState<'fixture' | 'google-drive' | 'onedrive'>(fixtureRooms.length > 0 ? 'fixture' : (offered[0]?.id ?? 'google-drive'));
+  const offered = PROVIDERS.filter((provider) => providers.some((entry) => entry.provider === provider.id));
+  const [kind, setKind] = useState<'fixture' | 'google-drive' | 'onedrive'>(offered[0]?.id ?? (fixtureRooms.length > 0 ? 'fixture' : 'google-drive'));
   const [room, setRoom] = useState(fixtureRooms[0]?.id ?? '');
-  const [folder, setFolder] = useState('');
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const live = PROVIDERS.find((provider) => provider.id === kind);
-  const canSignIn = kind !== 'fixture' && providers.some((entry) => entry.provider === kind);
-  // Google Drive has no organization sign-in: files are chosen in each person's picker.
-  const organization = kind === 'onedrive' && signedIn.includes(kind);
-  const google = kind === 'google-drive';
+  // OneDrive through the organization's sign-in, when there is one: no second sign-in.
+  const organization = kind === 'onedrive' && signedIn.includes('onedrive');
+  const displayName = name.trim() || (seller ? 'My documents' : 'Data room');
 
-  const useOrganization = async () => {
+  const connect = async (useOrganization: boolean) => {
     setBusy(true);
     setError(null);
-    const result =
-      kind === 'fixture'
-        ? await connectSource(dealId, { provider: 'vdr', mode: 'FIXTURE', displayName: fixtureRooms.find((r) => r.id === room)?.label ?? 'Synthetic data room', folder: room })
-        : await connectSource(dealId, { provider: kind, mode: 'LIVE', displayName: name || (live?.label ?? 'Drive'), folder: folderFromInput(kind, folder) });
-    setBusy(false);
-    if (result.kind === 'error') {
-      setError(result.message);
+    if (kind === 'fixture') {
+      const result = await connectSource(dealId, { provider: 'vdr', mode: 'FIXTURE', displayName: fixtureRooms.find((r) => r.id === room)?.label ?? 'Synthetic data room', folder: room });
+      setBusy(false);
+      if (result.kind === 'error') setError(result.message);
+      else {
+        onDone();
+        router.refresh();
+      }
       return;
     }
-    onDone();
-    router.refresh();
-  };
-  // Off to Google or Microsoft; back here signed in, and the folder reads in.
-  const signIn = async () => {
-    if (kind === 'fixture') return;
-    setBusy(true);
-    setError(null);
-    const result = await signInForFolder(dealId, { provider: kind, displayName: name || (live?.label ?? 'Drive'), folder: folderFromInput(kind, folder) });
+    if (useOrganization) {
+      const result = await connectSource(dealId, { provider: 'onedrive', mode: 'LIVE', displayName, folder: '' });
+      setBusy(false);
+      if (result.kind === 'error') setError(result.message);
+      else {
+        onDone(result.id);
+        router.refresh();
+      }
+      return;
+    }
+    // Off to Google or Microsoft to sign in; back here to pick files (Google) or a folder (OneDrive).
+    const result = await signInForFolder(dealId, { provider: kind, displayName, folder: '' });
     setBusy(false);
     setError(result.message);
   };
 
   if (offered.length === 0 && fixtureRooms.length === 0) {
-    return <p className="text-xs text-muted-foreground">Drive folders can’t be connected on this Pactlab yet. Upload the files instead.</p>;
+    return <p className="text-xs text-muted-foreground">Connecting Google Drive or OneDrive isn’t set up on this Pactlab yet. You can upload files instead.</p>;
   }
   return (
-    <div className="flex flex-col gap-2 rounded-md border border-dashed border-border p-3">
-      <label className="flex flex-wrap items-center gap-2">
-        Read documents from
-        <select value={kind} onChange={(event) => setKind(event.target.value as typeof kind)} className="rounded-md border border-border bg-background px-2 py-1">
-          {fixtureRooms.length > 0 ? <option value="fixture">A synthetic data room (test data)</option> : null}
+    <div className="flex flex-col gap-3 rounded-md border border-dashed border-border p-3">
+      <div className="flex flex-col gap-2">
+        <span className="font-medium">Add documents from</span>
+        <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Add documents from">
           {offered.map((provider) => (
-            <option key={provider.id} value={provider.id}>
+            <Button key={provider.id} type="button" size="sm" role="radio" aria-checked={kind === provider.id} variant={kind === provider.id ? 'default' : 'outline'} onClick={() => setKind(provider.id)}>
               {provider.label}
-            </option>
+            </Button>
           ))}
-        </select>
-      </label>
+          {fixtureRooms.length > 0 ? (
+            <Button type="button" size="sm" role="radio" aria-checked={kind === 'fixture'} variant={kind === 'fixture' ? 'default' : 'outline'} onClick={() => setKind('fixture')}>
+              Test data room
+            </Button>
+          ) : null}
+        </div>
+      </div>
       {kind === 'fixture' ? (
-        <select value={room} onChange={(event) => setRoom(event.target.value)} aria-label="Synthetic data room" className="rounded-md border border-border bg-background px-2 py-1">
+        <select value={room} onChange={(event) => setRoom(event.target.value)} aria-label="Test data room" className="rounded-md border border-border bg-background px-2 py-1">
           {fixtureRooms.map((entry) => (
             <option key={entry.id} value={entry.id}>
               {entry.label}
@@ -347,45 +383,37 @@ function ConnectForm({
         </select>
       ) : (
         <>
-          <input value={name} onChange={(event) => setName(event.target.value)} placeholder="Name, e.g. Seller data room" aria-label="Name" className="rounded-md border border-border bg-background px-2 py-1" />
-          {google ? (
-            <p role="note" className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
-              {GOOGLE_LIMIT}
-            </p>
-          ) : (
-            <>
-              <input value={folder} onChange={(event) => setFolder(event.target.value)} placeholder={live?.folderHint} aria-label="Folder" className="rounded-md border border-border bg-background px-2 py-1" />
-              <p className="text-xs text-muted-foreground">{ONEDRIVE_READS}</p>
-            </>
-          )}
+          <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+            Name (optional)
+            <input value={name} onChange={(event) => setName(event.target.value)} placeholder={seller ? 'My documents' : 'Data room'} aria-label="Name" className="rounded-md border border-border bg-background px-2 py-1 text-sm text-foreground" />
+          </label>
+          <p role="note" className={`rounded-md px-3 py-2 text-xs ${kind === 'google-drive' ? 'border border-amber-200 bg-amber-50 text-amber-950' : 'bg-muted text-foreground'}`}>
+            {kind === 'google-drive' ? GOOGLE_LIMIT : ONEDRIVE_READS}
+          </p>
           <p className="text-xs text-muted-foreground">
-            {seller
-              ? `Sign in with your own ${live?.label} account. What you share is shared with the deal team. `
-              : `Sign in with your own ${live?.label} account${organization ? ', or use the organization’s sign-in' : ''}. `}
-            Pactlab only reads; it never writes, moves or shares anything there.
+            {seller ? 'What you share here is visible to the deal team. ' : ''}Pactlab only reads your files. It never changes, moves or deletes anything.
           </p>
         </>
       )}
       <div className="flex flex-wrap items-center gap-2">
         {kind === 'fixture' ? (
-          <Button type="button" size="sm" disabled={busy || !room} onClick={() => void useOrganization()}>
+          <Button type="button" size="sm" disabled={busy || !room} onClick={() => void connect(false)}>
             {busy ? 'Connecting…' : 'Connect'}
           </Button>
-        ) : (
+        ) : organization ? (
           <>
-            {canSignIn ? (
-              <Button type="button" size="sm" disabled={busy || (!google && !folder)} onClick={() => void signIn()}>
-                {busy ? 'Opening…' : google ? 'Choose files from Google Drive' : 'Sign in with Microsoft'}
-              </Button>
-            ) : null}
-            {organization ? (
-              <Button type="button" size="sm" variant="outline" disabled={busy || !folder} onClick={() => void useOrganization()}>
-                Use the organization’s {live?.label}
-              </Button>
-            ) : null}
+            <Button type="button" size="sm" disabled={busy} onClick={() => void connect(true)}>
+              {busy ? 'Connecting…' : `Connect ${live?.label}`}
+            </Button>
+            <Button type="button" size="sm" variant="link" disabled={busy} onClick={() => void connect(false)}>
+              Use a different Microsoft account
+            </Button>
           </>
+        ) : (
+          <Button type="button" size="sm" disabled={busy} onClick={() => void connect(false)}>
+            {busy ? 'Opening…' : `Connect ${live?.label}`}
+          </Button>
         )}
-        {!busy && kind === 'onedrive' && !folder ? <span className="text-xs text-muted-foreground">Paste the folder’s link to continue.</span> : null}
         {error ? <span className="text-xs text-red-700">{error}</span> : null}
       </div>
     </div>
