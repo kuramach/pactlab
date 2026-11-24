@@ -3,7 +3,8 @@
 import { Badge, Button } from '@pactlab/ui';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
-import { connectSource, disconnectSource, signInForFolder, syncSource, type SourceSyncFile } from './actions';
+import { addChosenFiles, connectSource, disconnectSource, pickerFor, signInForFolder, syncSource, type SourceSyncFile } from './actions';
+import { chooseDriveFiles } from './google-picker';
 import { sortDocument } from './sorting';
 
 export interface DocumentSourceView {
@@ -24,6 +25,9 @@ export interface DocumentSourceView {
   /** Its files are shared with the deal (a seller's folder). */
   readonly shared?: boolean;
   readonly canDisconnect?: boolean;
+  /** Google Drive through the picker: how many files were chosen, and whether this person may choose more. */
+  readonly filesChosen?: number | null;
+  readonly canChooseFiles?: boolean;
 }
 
 export interface SourcesView {
@@ -57,9 +61,25 @@ const OUTCOME: Record<SourceSyncFile['outcome'], string> = {
 };
 
 const PROVIDERS = [
-  { id: 'google-drive', label: 'Google Drive', folderHint: 'Folder link, or its id' },
+  { id: 'google-drive', label: 'Google Drive', folderHint: '' },
   { id: 'onedrive', label: 'OneDrive / SharePoint', folderHint: '<drive-id>/<folder-item-id>' },
 ] as const;
+
+/**
+ * What each provider reads, said where people choose it and on every source (Kumar, 2026-11-24). Google
+ * Drive is read through Google's picker under `drive.file`: only the files chosen, never the rest of a
+ * folder. OneDrive reads the whole folder, including files added later.
+ */
+export const GOOGLE_LIMIT =
+  'Google Drive: Pactlab can read only the files you choose. Files added to the Drive folder later are not read until you choose them too: use Add files. Edits to files you chose are picked up on the next sync.';
+export const ONEDRIVE_READS = 'Reads the whole folder, including files added to it later.';
+
+/** What a source reads, in a few words, for its row. */
+export function readsWhat(source: DocumentSourceView): string | null {
+  if (source.provider === 'google-drive' && typeof source.filesChosen === 'number') return `${source.filesChosen} file${source.filesChosen === 1 ? '' : 's'} chosen; files added to the folder later are not read until chosen`;
+  if (source.provider === 'onedrive' && source.mode === 'LIVE') return 'whole folder, including files added later';
+  return null;
+}
 
 /** A folder as pasted: a Drive folder link becomes its id ("…/drive/folders/<id>?usp=sharing" → <id>); anything else as typed. */
 export function folderFromInput(provider: string, text: string): string {
@@ -124,18 +144,42 @@ export function SourcesPanel({ dealId, sources, aiOn, justConnected = null }: { 
     }
     setSyncing(null);
   };
+  // Google's picker, opened over the page with this person's own short-lived token; the chosen files are read next.
+  const choose = async (sourceId: string) => {
+    setError(null);
+    const keys = await pickerFor(dealId, sourceId);
+    if (keys.kind === 'error') {
+      setError(keys.message);
+      return;
+    }
+    let chosen: string[];
+    try {
+      chosen = await chooseDriveFiles(keys);
+    } catch {
+      setError('Google’s file picker could not open. Check that pop-ups and third-party content from Google are allowed, then try again.');
+      return;
+    }
+    if (chosen.length === 0) return;
+    const added = await addChosenFiles(dealId, sourceId, chosen);
+    if (added.kind === 'error') {
+      setError(added.message);
+      return;
+    }
+    await sync(sourceId);
+  };
   const disconnect = async (sourceId: string) => {
     const result = await disconnectSource(dealId, sourceId);
     if (result.kind === 'error') setError(result.message);
     router.refresh();
   };
 
-  // Back from signing in for a folder: read it in once, by itself.
+  // Back from signing in: Google Drive opens the picker to choose files; a OneDrive folder reads in by itself.
   const started = useRef(false);
   useEffect(() => {
-    if (!justConnected || started.current || !sources.items.some((source) => source.id === justConnected && source.status === 'ACTIVE')) return;
+    const source = justConnected ? sources.items.find((item) => item.id === justConnected && item.status === 'ACTIVE') : undefined;
+    if (!source || started.current) return;
     started.current = true;
-    void sync(justConnected);
+    void (source.canChooseFiles && !source.filesChosen ? choose(source.id) : sync(source.id));
   }, [justConnected]);
 
   return (
@@ -153,6 +197,7 @@ export function SourcesPanel({ dealId, sources, aiOn, justConnected = null }: { 
                     {[readsWith(source), source.shared ? 'shared with the deal team' : null, source.status === 'DISABLED' ? 'disconnected' : null].filter(Boolean).join(' · ')}
                   </span>
                 ) : null}
+                {readsWhat(source) ? <span className="text-xs text-muted-foreground">{readsWhat(source)}</span> : null}
                 <span className="text-xs text-muted-foreground">
                   {source.lastSyncedAt
                     ? `Last read ${source.lastSyncedAt.slice(0, 16).replace('T', ' ')} UTC${source.lastSyncSummary ? ` — ${source.lastSyncSummary['NEW'] ?? 0} new, ${source.lastSyncSummary['UPDATED'] ?? 0} updated, ${source.lastSyncSummary['REMOVED'] ?? 0} removed${(source.lastSyncSummary['WAITING'] ?? 0) > 0 ? `, ${source.lastSyncSummary['WAITING']} still to read (sync again)` : ''}${source.lastSyncSummary['LISTING_COMPLETE'] === 0 ? ' — larger than one listing' : ''}` : ''}`
@@ -160,6 +205,11 @@ export function SourcesPanel({ dealId, sources, aiOn, justConnected = null }: { 
                 </span>
               </span>
               <span className="flex items-center gap-2">
+                {source.canChooseFiles ? (
+                  <Button type="button" size="sm" variant="outline" disabled={syncing !== null} onClick={() => void choose(source.id)}>
+                    Add files
+                  </Button>
+                ) : null}
                 {source.status === 'ACTIVE' ? (
                   <Button type="button" size="sm" variant="outline" disabled={syncing !== null} onClick={() => void sync(source.id)}>
                     {syncing === source.id ? 'Reading…' : 'Sync now'}
@@ -242,7 +292,9 @@ function ConnectForm({
   const [error, setError] = useState<string | null>(null);
   const live = PROVIDERS.find((provider) => provider.id === kind);
   const canSignIn = kind !== 'fixture' && providers.some((entry) => entry.provider === kind);
-  const organization = kind !== 'fixture' && signedIn.includes(kind);
+  // Google Drive has no organization sign-in: files are chosen in each person's picker.
+  const organization = kind === 'onedrive' && signedIn.includes(kind);
+  const google = kind === 'google-drive';
 
   const useOrganization = async () => {
     setBusy(true);
@@ -296,11 +348,20 @@ function ConnectForm({
       ) : (
         <>
           <input value={name} onChange={(event) => setName(event.target.value)} placeholder="Name, e.g. Seller data room" aria-label="Name" className="rounded-md border border-border bg-background px-2 py-1" />
-          <input value={folder} onChange={(event) => setFolder(event.target.value)} placeholder={live?.folderHint} aria-label="Folder" className="rounded-md border border-border bg-background px-2 py-1" />
+          {google ? (
+            <p role="note" className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
+              {GOOGLE_LIMIT}
+            </p>
+          ) : (
+            <>
+              <input value={folder} onChange={(event) => setFolder(event.target.value)} placeholder={live?.folderHint} aria-label="Folder" className="rounded-md border border-border bg-background px-2 py-1" />
+              <p className="text-xs text-muted-foreground">{ONEDRIVE_READS}</p>
+            </>
+          )}
           <p className="text-xs text-muted-foreground">
             {seller
-              ? `Sign in with your own ${live?.label} account. The files in this folder are shared with the deal team. `
-              : `Sign in with your own ${live?.label} account for this folder${organization ? ', or use the organization’s sign-in' : ''}. `}
+              ? `Sign in with your own ${live?.label} account. What you share is shared with the deal team. `
+              : `Sign in with your own ${live?.label} account${organization ? ', or use the organization’s sign-in' : ''}. `}
             Pactlab only reads; it never writes, moves or shares anything there.
           </p>
         </>
@@ -313,8 +374,8 @@ function ConnectForm({
         ) : (
           <>
             {canSignIn ? (
-              <Button type="button" size="sm" disabled={busy || !folder} onClick={() => void signIn()}>
-                {busy ? 'Opening…' : `Sign in with ${kind === 'google-drive' ? 'Google' : 'Microsoft'}`}
+              <Button type="button" size="sm" disabled={busy || (!google && !folder)} onClick={() => void signIn()}>
+                {busy ? 'Opening…' : google ? 'Choose files from Google Drive' : 'Sign in with Microsoft'}
               </Button>
             ) : null}
             {organization ? (
@@ -324,6 +385,7 @@ function ConnectForm({
             ) : null}
           </>
         )}
+        {!busy && kind === 'onedrive' && !folder ? <span className="text-xs text-muted-foreground">Paste the folder’s link to continue.</span> : null}
         {error ? <span className="text-xs text-red-700">{error}</span> : null}
       </div>
     </div>

@@ -2,6 +2,7 @@
 # Set Pactlab's OAuth client for a document-source provider in an environment (T-147), then restart the API so it reads it.
 #   scripts/doc-source-key.sh live google      # Google Cloud OAuth client id and secret (docs/runbooks/document-sources.md)
 #   scripts/doc-source-key.sh live microsoft   # Microsoft Entra application (client) id and a client secret
+#   scripts/doc-source-key.sh live google picker  # Google's file picker only: its API key and the project number
 #   scripts/doc-source-key.sh live google off  # that provider's Connect button hidden again (values become `unset`)
 # Both values are asked (the secret typed hidden), never saved locally. Uses your AWS sign-in (scripts/aws.sh login).
 set -euo pipefail
@@ -20,7 +21,29 @@ PREFIX="pactlab/${CDK_ENV}/documents/${PROVIDER}"
 
 aws sts get-caller-identity >/dev/null 2>&1 || { echo "Not signed in. Run: scripts/aws.sh login" >&2; exit 1; }
 
-if [ "$MODE" = off ]; then
+ask_picker() {
+  # Google's file picker runs in the browser: an API key restricted to the Picker API and app.pactlab.ai, and the
+  # project number (Google Cloud → the project's dashboard, "Project number").
+  printf 'Enter the Google Picker API key (starts AIza), then Enter: '
+  IFS= read -r PICKER_KEY
+  printf 'Enter the Google Cloud project number (digits), then Enter: '
+  IFS= read -r PROJECT_NUMBER
+  PICKER_KEY=$(printf '%s' "$PICKER_KEY" | tr -d '[:space:]')
+  PROJECT_NUMBER=$(printf '%s' "$PROJECT_NUMBER" | tr -d '[:space:]')
+  [[ "$PICKER_KEY" =~ ^AIza[A-Za-z0-9_-]{35}$ ]] || { echo "That API key is ${#PICKER_KEY} characters; Google's are 39 and start with AIza. Nothing changed." >&2; exit 1; }
+  [[ "$PROJECT_NUMBER" =~ ^[0-9]{6,20}$ ]] || { echo "The project number is digits only (not the project ID). Nothing changed." >&2; exit 1; }
+}
+save() { printf '%s' "$2" | aws secretsmanager put-secret-value --secret-id "$1" --secret-string file:///dev/stdin --query VersionId --output text >/dev/null; }
+
+if [ "$MODE" = picker ]; then
+  [ "$PROVIDER" = google ] || { echo "The picker is Google's only." >&2; exit 2; }
+  ask_picker
+  save "pactlab/${CDK_ENV}/documents/google-picker-api-key" "$PICKER_KEY"
+  save "pactlab/${CDK_ENV}/documents/google-project-number" "$PROJECT_NUMBER"
+  unset PICKER_KEY
+  echo "Saved Google's picker key and project number."
+  CLIENT_ID=''
+elif [ "$MODE" = off ]; then
   CLIENT_ID=unset
   CLIENT_SECRET=unset
 else
@@ -46,10 +69,23 @@ else
   echo "Client id and a ${#CLIENT_SECRET}-character secret: they look right."
 fi
 # Values travel on stdin to the AWS CLI, never on a command line (where other processes could see them).
-printf '%s' "$CLIENT_ID" | aws secretsmanager put-secret-value --secret-id "${PREFIX}-client-id" --secret-string file:///dev/stdin --query VersionId --output text >/dev/null
-printf '%s' "$CLIENT_SECRET" | aws secretsmanager put-secret-value --secret-id "${PREFIX}-client-secret" --secret-string file:///dev/stdin --query VersionId --output text >/dev/null
-unset CLIENT_ID CLIENT_SECRET
-echo "Saved ${PREFIX}-client-id and -client-secret."
+if [ "$MODE" != picker ]; then
+  save "${PREFIX}-client-id" "$CLIENT_ID"
+  save "${PREFIX}-client-secret" "$CLIENT_SECRET"
+  unset CLIENT_ID CLIENT_SECRET
+  echo "Saved ${PREFIX}-client-id and -client-secret."
+  if [ "$PROVIDER" = google ] && [ "$MODE" != off ]; then
+    echo "Google Drive also needs its file picker:"
+    ask_picker
+    save "pactlab/${CDK_ENV}/documents/google-picker-api-key" "$PICKER_KEY"
+    save "pactlab/${CDK_ENV}/documents/google-project-number" "$PROJECT_NUMBER"
+    unset PICKER_KEY
+    echo "Saved Google's picker key and project number."
+  elif [ "$PROVIDER" = google ]; then
+    save "pactlab/${CDK_ENV}/documents/google-picker-api-key" unset
+    save "pactlab/${CDK_ENV}/documents/google-project-number" unset
+  fi
+fi
 
 out() { aws cloudformation describe-stacks --stack-name "$STACK" --query "Stacks[0].Outputs[?OutputKey=='$1'].OutputValue" --output text; }
 CLUSTER=$(out ClusterName)

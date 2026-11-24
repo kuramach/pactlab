@@ -102,9 +102,9 @@ interface DriveFile {
 }
 
 /**
- * Google Drive, read-only (`drive.readonly`): `files.list` under the folder,
- * recursively, and `files.get?alt=media` (or `files.export` for Docs and
- * Sheets) for each file. Shared drives included.
+ * Google Drive, read-only: the files chosen in Google's picker (`drive.file`), each by `files.get`; or,
+ * for sources connected with a pasted token, `files.list` under a folder, recursively. Each file is read
+ * with `files.get?alt=media` (or `files.export` for Docs and Sheets). Shared drives included.
  */
 export class GoogleDriveDocumentSourceAdapter implements DocumentSourceAdapter {
   readonly provider = 'google-drive' as const;
@@ -118,8 +118,39 @@ export class GoogleDriveDocumentSourceAdapter implements DocumentSourceAdapter {
     return response;
   }
 
+  /** The files chosen in Google's picker (`drive.file`): each one's metadata, never a folder listing. */
+  private async picked(token: string, ids: readonly string[]): Promise<SourceFile[]> {
+    const files: SourceFile[] = [];
+    for (const id of ids) {
+      const query = new URLSearchParams({ fields: 'id,name,mimeType,size,version,trashed', supportsAllDrives: 'true' });
+      const response = await this.deps.fetch(`${DRIVE}/${encodeURIComponent(id)}?${query.toString()}`, { headers: { authorization: `Bearer ${token}` } });
+      // Deleted at the source, or no longer shared with the app: not listed, so the sync marks it removed.
+      if (response.status === 404) continue;
+      if (!response.ok) throw failure(response.status);
+      const file = (await response.json()) as DriveFile & { trashed?: boolean };
+      if (file.trashed || file.mimeType === DRIVE_FOLDER) continue;
+      files.push(this.entry(file, ''));
+    }
+    return files;
+  }
+
+  private entry(file: DriveFile, folder: string): SourceFile {
+    const exported = DRIVE_EXPORTS[file.mimeType];
+    return {
+      externalId: file.id,
+      folder,
+      name: exported && !file.name.toLowerCase().endsWith(`.${exported.extension}`) ? `${file.name}.${exported.extension}` : file.name,
+      mediaType: exported?.mimeType ?? file.mimeType,
+      sizeBytes: file.size ? Number(file.size) : null,
+      version: file.version ?? '0',
+      ...(exported ? { exportAs: exported.mimeType } : {}),
+    };
+  }
+
   async list(scope: DocumentSourceScope, config: DocumentSourceConfig): Promise<SourceFile[]> {
     const token = await bearer(this.deps.secrets, scope);
+    if (config.files) return this.picked(token, config.files);
+    // A whole folder: sources connected with a pasted token before the picker (T-147).
     const files: SourceFile[] = [];
     const queue: { id: string; path: string }[] = [{ id: config.folder, path: '' }];
     while (queue.length > 0 && files.length <= MAX_SOURCE_FILES) {
@@ -140,16 +171,7 @@ export class GoogleDriveDocumentSourceAdapter implements DocumentSourceAdapter {
             queue.push({ id: file.id, path: folder.path ? `${folder.path}/${file.name}` : file.name });
             continue;
           }
-          const exported = DRIVE_EXPORTS[file.mimeType];
-          files.push({
-            externalId: file.id,
-            folder: folder.path,
-            name: exported && !file.name.toLowerCase().endsWith(`.${exported.extension}`) ? `${file.name}.${exported.extension}` : file.name,
-            mediaType: exported?.mimeType ?? file.mimeType,
-            sizeBytes: file.size ? Number(file.size) : null,
-            version: file.version ?? '0',
-            ...(exported ? { exportAs: exported.mimeType } : {}),
-          });
+          files.push(this.entry(file, folder.path));
         }
         pageToken = page.nextPageToken;
       } while (pageToken && files.length <= MAX_SOURCE_FILES);

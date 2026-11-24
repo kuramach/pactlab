@@ -39,7 +39,7 @@ const NOW = 1_800_000_000_000;
 describe('document source sign-in (T-147)', () => {
   it('asks each provider for read-only access only, and nothing more (adding a scope fails this test)', () => {
     expect(DOCUMENT_OAUTH_SCOPES).toEqual({
-      'google-drive': ['https://www.googleapis.com/auth/drive.readonly'],
+      'google-drive': ['https://www.googleapis.com/auth/drive.file'],
       onedrive: ['Files.Read.All', 'offline_access', 'User.Read'],
     });
     const { fetch } = recorded({});
@@ -49,7 +49,7 @@ describe('document source sign-in (T-147)', () => {
       client_id: 'g-client',
       redirect_uri: 'https://app.example/cb',
       response_type: 'code',
-      scope: 'https://www.googleapis.com/auth/drive.readonly',
+      scope: 'https://www.googleapis.com/auth/drive.file',
       state: 'st',
       access_type: 'offline',
       prompt: 'consent',

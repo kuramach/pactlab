@@ -145,6 +145,9 @@ export const apiEnvSchema = baseEnvSchema.extend({
   GOOGLE_OAUTH_CLIENT_SECRET: unsetIfBlank(z.string().min(1).optional()).transform((value) => (value === 'unset' ? undefined : value)),
   MICROSOFT_OAUTH_CLIENT_ID: unsetIfBlank(z.string().min(1).optional()).transform((value) => (value === 'unset' ? undefined : value)),
   MICROSOFT_OAUTH_CLIENT_SECRET: unsetIfBlank(z.string().min(1).optional()).transform((value) => (value === 'unset' ? undefined : value)),
+  /** Google's file picker (Google Drive sources choose files with it): a browser API key and the Cloud project number. */
+  GOOGLE_PICKER_API_KEY: unsetIfBlank(z.string().min(1).optional()).transform((value) => (value === 'unset' ? undefined : value)),
+  GOOGLE_PROJECT_NUMBER: unsetIfBlank(z.string().min(1).optional()).transform((value) => (value === 'unset' ? undefined : value)),
   /** RentCast API key for US property data on teaser pages (batch 2). Unset: the fixture outside production, no lookup in production. */
   RENTCAST_API_KEY: unsetIfBlank(nonEmpty.optional()),
   /** Stripe (T-087): a test (sk_test_) or live key and the webhook signing secret. Unset: the fixture outside production. */
@@ -270,6 +273,7 @@ export const apiEnvSchema = baseEnvSchema.extend({
   .superRefine(allOrNone(['CREDENTIAL_STORE', 'CREDENTIAL_STORE_PREFIX', 'CREDENTIAL_STORE_KMS_KEY_ID']))
   .superRefine(allOrNone(['GOOGLE_OAUTH_CLIENT_ID', 'GOOGLE_OAUTH_CLIENT_SECRET']))
   .superRefine(allOrNone(['MICROSOFT_OAUTH_CLIENT_ID', 'MICROSOFT_OAUTH_CLIENT_SECRET']))
+  .superRefine(allOrNone(['GOOGLE_PICKER_API_KEY', 'GOOGLE_PROJECT_NUMBER']))
   .superRefine((value, context) => {
     if (value.AI_PROVIDER === 'fixture' && value.APP_ENV !== 'local' && value.APP_ENV !== 'test') {
       context.addIssue({ code: 'custom', path: ['AI_PROVIDER'], message: 'fixture is for local and test runs only' });

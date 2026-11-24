@@ -79,6 +79,31 @@ describe('Google Drive document source', () => {
     expect(calls.every((call) => call.auth === 'Bearer token-123')).toBe(true);
   });
 
+  it('reads only the files chosen in the picker (drive.file): never a folder listing; deleted or unshared ones drop out', async () => {
+    const calls: string[] = [];
+    const fetch = async (url: string) => {
+      calls.push(url);
+      const id = new URL(url).pathname.split('/').pop();
+      if (id === 'f1') return json({ id: 'f1', name: 'Rent roll.csv', mimeType: 'text/csv', size: '120', version: '7' });
+      if (id === 'g1') return json({ id: 'g1', name: 'Lease 4B', mimeType: 'application/vnd.google-apps.document', version: '3' });
+      if (id === 'trashed1') return json({ id: 'trashed1', name: 'Old.pdf', mimeType: 'application/pdf', version: '1', trashed: true });
+      return json({ error: { code: 404 } }, 404);
+    };
+    const adapter = new GoogleDriveDocumentSourceAdapter({ fetch, secrets: await secrets() });
+    const files = await adapter.list(scope, { folder: '', files: ['f1', 'g1', 'trashed1', 'gone-file-1'] });
+    expect(files.map((file) => [file.externalId, file.name, file.version])).toEqual([
+      ['f1', 'Rent roll.csv', '7'],
+      ['g1', 'Lease 4B.docx', '3'],
+    ]);
+    expect(calls.every((url) => !url.includes('q='))).toBe(true);
+    expect(calls).toHaveLength(4);
+  });
+
+  it('a picked file it may no longer read stops the sync as refused access (said, never skipped silently)', async () => {
+    const adapter = new GoogleDriveDocumentSourceAdapter({ fetch: async () => json({}, 403), secrets: await secrets() });
+    await expect(adapter.list(scope, { folder: '', files: ['f1'] })).rejects.toMatchObject({ reason: 'ACCESS' });
+  });
+
   it('maps refused access and refuses oversized files before downloading', async () => {
     const adapter = new GoogleDriveDocumentSourceAdapter({ fetch: async () => json({}, 403), secrets: await secrets() });
     await expect(adapter.list(scope, { folder: 'x' })).rejects.toMatchObject({ reason: 'ACCESS' });

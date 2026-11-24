@@ -76,3 +76,11 @@ Kumar: "How does buyer and seller connect their Google Drive easily?" → "build
   - a seller may update only shared documents from their own sources (a sync marks replaced and removed files);
   - the buyer-side policies are unchanged.
 - **The deal team sorts what a seller connects** (AI filing), as with seller uploads.
+
+## Addendum (2026-11-24): Google Drive through Google's picker (`drive.file`)
+Kumar: "I may just go with File Picker and keep OneDrive… But u need to highlight it in the UI for users to know what the restriction is for Google Drive."
+- **Why:** Google classes `drive.readonly` as **restricted**: public use of an app that stores the data needs a paid, yearly third-party security assessment. `drive.file` is **non-sensitive** (a free review) and works with the **Google Picker**. Pactlab may read only the files a person chooses. Both facts are from Google's Drive scope guide.
+- **What is relied on:** only what Google documents. People choose **files** (multi-select; they can open folders and select everything in one). Google's docs do not say that choosing a folder grants its contents, so folder selection is off. Files added to a folder later are read only once chosen (**Add files**). The limit is shown wherever Google Drive is chosen and on every Google source; OneDrive's rows say "whole folder, including files added later".
+- **The picker runs in the browser,** so `GET …/document-sources/:id/picker` returns the signed-in person's **own** short-lived Google access token (`drive.file`), only to that person, audited, never logged, together with Pactlab's picker API key and project number. This is the one exception to "tokens are never returned", bounded to the token's owner.
+- **Google Drive has no organization sign-in,** because the picker shows the signer's own Drive. OneDrive keeps both kinds.
+- **Unchanged:** OneDrive (`Files.Read.All`, whole folder), the credential store, the RLS, and visibility (a seller's files are shared).

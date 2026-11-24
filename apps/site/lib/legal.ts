@@ -7,7 +7,7 @@
 
 export const LEGAL_ENTITY = 'Pactlab LLC';
 export const LEGAL_CONTACT = 'support@pactlab.ai';
-export const LEGAL_UPDATED = '2026-11-23';
+export const LEGAL_UPDATED = '2026-11-24';
 
 export interface LegalSection {
   readonly heading: string;
@@ -39,7 +39,7 @@ export const PRIVACY: LegalDocument = {
       items: [
         'Account information: your name, work email address, organization and role, and the sign-in methods you set up (one-time email codes, passkeys, or your organization’s identity provider). We never see or store a passkey’s private key.',
         'Deal content you or your organization add: documents and files you upload or connect, imported data (for example billing exports, rent rolls and profit and loss statements), and the findings, notes, assumptions, valuations and terms people create in a pact.',
-        'Connected sources you choose to connect: read-only access to code repositories, delivery trackers, billing systems and drive folders (Google Drive, OneDrive / SharePoint), limited to what you connect.',
+        'Connected sources you choose to connect: read-only access to code repositories, delivery trackers, billing systems, OneDrive / SharePoint folders, and the Google Drive files you choose, limited to what you connect.',
         'Usage and security records: an audit trail of sensitive reads, decisions, exports, approvals and sign-ins, and technical logs needed to run and secure the service (for example the time, request identifier and outcome of a request).',
         'Messages you send us, such as support requests and pilot enquiries.',
       ],
@@ -64,10 +64,10 @@ export const PRIVACY: LegalDocument = {
     {
       heading: 'Google Drive and other connected sources',
       paragraphs: [
-        'When you connect a Google Drive folder, Pactlab asks Google for read-only access (the drive.readonly permission) and reads only the folder you choose and the files in it, to bring them into the pact you connected it to. Pactlab never creates, changes, moves, shares or deletes anything in your Drive.',
+        'With Google Drive, you choose files in Google’s own file picker, and Pactlab asks Google only for access to the files you choose (the drive.file permission). Pactlab reads those files, and nothing else in your Drive, to bring them into the pact you chose them for. Files you add to a Drive folder later are not read unless you choose them too. Pactlab never creates, changes, moves, shares or deletes anything in your Drive.',
         'Information received from Google is used only to provide that feature to you: listing and reading the folder’s files into the pact, where they are handled like any other document in it (including the AI processing described above, for that pact only). It is not used for advertising, not sold, not used to train AI models, and not shared with anyone except as needed to provide the feature, to comply with law, or with your consent.',
         'Pactlab’s use and transfer of information received from Google APIs to any other app will adhere to the Google API Services User Data Policy, including the Limited Use requirements.',
-        'The same applies to OneDrive / SharePoint (read-only Files.Read.All) and other sources. Your sign-in to a source is kept encrypted, is never shown again, and is deleted when you disconnect. You can also revoke Pactlab’s access at any time in your Google or Microsoft account settings.',
+        'With OneDrive / SharePoint, Pactlab asks Microsoft for read-only access (Files.Read.All) and reads the folder you connect, including files added to it later; the same commitments apply. Your sign-in to a source is kept encrypted and is deleted when you disconnect. You can also revoke Pactlab’s access at any time in your Google or Microsoft account settings.',
       ],
     },
     {
@@ -77,7 +77,7 @@ export const PRIVACY: LegalDocument = {
         'Amazon Web Services: hosting, storage, databases, encryption keys, email delivery and AI models (Amazon Bedrock). Pactlab’s data is hosted in the United States (AWS US East, Ohio).',
         'Stripe: payments and billing.',
         'BoldSign, and DocuSign where an organization connects its own account: electronic signatures on agreed terms.',
-        'Google and Microsoft: only when you connect a drive folder, to read it.',
+        'Google and Microsoft: only when you connect a Drive file or a OneDrive folder, to read it.',
         'Other AI model providers: only where enabled for a task, as described above.',
       ],
     },

@@ -79,6 +79,7 @@ const providers = {
     ...(config.MICROSOFT_OAUTH_CLIENT_ID && config.MICROSOFT_OAUTH_CLIENT_SECRET ? { onedrive: { clientId: config.MICROSOFT_OAUTH_CLIENT_ID, clientSecret: config.MICROSOFT_OAUTH_CLIENT_SECRET } } : {}),
   },
   webOrigin: config.APP_WEB_ORIGIN,
+  googlePicker: config.GOOGLE_PICKER_API_KEY && config.GOOGLE_PROJECT_NUMBER ? { apiKey: config.GOOGLE_PICKER_API_KEY, appId: config.GOOGLE_PROJECT_NUMBER } : null,
   githubApp:
     config.GITHUB_APP_ID && config.GITHUB_APP_SLUG && config.GITHUB_APP_PRIVATE_KEY_PATH
       ? {

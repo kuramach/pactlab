@@ -1,8 +1,9 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
-import { folderFromInput, readsWith, SourcesPanel, type SourcesView } from './sources-panel';
+import { folderFromInput, GOOGLE_LIMIT, readsWhat, readsWith, SourcesPanel, type SourcesView } from './sources-panel';
 
-vi.mock('./actions', () => ({ connectSource: vi.fn(), disconnectSource: vi.fn(), signInForFolder: vi.fn(), syncSource: vi.fn() }));
+vi.mock('./actions', () => ({ addChosenFiles: vi.fn(), connectSource: vi.fn(), disconnectSource: vi.fn(), pickerFor: vi.fn(), signInForFolder: vi.fn(), syncSource: vi.fn() }));
+vi.mock('./google-picker', () => ({ chooseDriveFiles: vi.fn() }));
 vi.mock('./sorting', () => ({ sortDocument: vi.fn() }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 
@@ -44,13 +45,35 @@ describe('connecting a drive folder from the pact', () => {
     expect(html).toContain('Disconnect');
   });
 
-  it('the deal team may sign in themselves or use the organization’s sign-in', () => {
+  it('Google Drive: files are chosen in Google’s picker, and its limit is said plainly where it is chosen', () => {
     const html = renderToStaticMarkup(
-      <SourcesPanel dealId="d" aiOn sources={{ items: [], fixtureRooms: [], signedIn: ['google-drive'], providers: [{ provider: 'google-drive', label: 'Google Drive', organizationSignedIn: true }], seller: false }} />,
+      <SourcesPanel dealId="d" aiOn sources={{ items: [], fixtureRooms: [], signedIn: [], providers: [{ provider: 'google-drive', label: 'Google Drive', organizationSignedIn: false }], seller: false }} />,
     );
-    expect(html).toContain('Sign in with Google');
-    expect(html).toContain('Use the organization’s Google Drive');
+    expect(html).toContain('Choose files from Google Drive');
+    expect(html).toContain('Pactlab can read only the files you choose');
+    expect(html).not.toContain('aria-label="Folder"');
     expect(html).not.toContain('access token');
+    expect(GOOGLE_LIMIT).toContain('Files added to the Drive folder later are not read until you choose them too');
+  });
+
+  it('OneDrive: a whole folder, said so; Continue waits for the folder link; the organization sign-in is offered', () => {
+    const html = renderToStaticMarkup(
+      <SourcesPanel dealId="d" aiOn sources={{ items: [], fixtureRooms: [], signedIn: ['onedrive'], providers: [{ provider: 'onedrive', label: 'OneDrive / SharePoint', organizationSignedIn: true }], seller: false }} />,
+    );
+    expect(html).toContain('Sign in with Microsoft');
+    expect(html).toContain('Use the organization’s OneDrive / SharePoint');
+    expect(html).toContain('Reads the whole folder, including files added to it later.');
+    expect(html).toContain('Paste the folder’s link to continue.');
+  });
+
+  it('each source says what it reads; the person who chose the files may add more', () => {
+    expect(readsWhat(source({ provider: 'google-drive', filesChosen: 12 }))).toBe('12 files chosen; files added to the folder later are not read until chosen');
+    expect(readsWhat(source({ provider: 'onedrive', providerLabel: 'OneDrive / SharePoint' }))).toBe('whole folder, including files added later');
+    const html = renderToStaticMarkup(
+      <SourcesPanel dealId="d" aiOn sources={{ items: [source({ kind: 'PERSON', signedInAs: 'kumar@example.com', filesChosen: 3, canChooseFiles: true })], fixtureRooms: [], providers: [], seller: false }} />,
+    );
+    expect(html).toContain('3 files chosen');
+    expect(html).toContain('Add files');
   });
 
   it('says so when no drive can be connected here', () => {

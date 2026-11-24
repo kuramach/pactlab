@@ -10,7 +10,7 @@ import { DocumentSourceError } from './types';
  * Verified against the providers' documentation (2026-11-21):
  * - Google: `accounts.google.com/o/oauth2/v2/auth`, `oauth2.googleapis.com/token`; `access_type=offline`
  *   issues a refresh token, which a refresh does not return again; a revoked one is `invalid_grant`.
- *   The account is `drive/v3/about?fields=user(...)`, allowed by `drive.readonly`.
+ *   The account is `drive/v3/about?fields=user(...)`. Scope `drive.file`: only files chosen in the picker.
  * - Microsoft identity platform v2 (`common` tenant): `/oauth2/v2.0/authorize` and `/token`;
  *   `offline_access` issues a refresh token, and a refresh may return a new one, which replaces the old.
  *   The account is Graph `/me` (`User.Read`).
@@ -20,7 +20,9 @@ export const DOCUMENT_OAUTH_PROVIDERS = ['google-drive', 'onedrive'] as const;
 export type DocumentOAuthProvider = (typeof DOCUMENT_OAUTH_PROVIDERS)[number];
 
 export const DOCUMENT_OAUTH_SCOPES: Readonly<Record<DocumentOAuthProvider, readonly string[]>> = {
-  'google-drive': ['https://www.googleapis.com/auth/drive.readonly'],
+  // Only the files a person chooses in Google's picker (Google: non-sensitive; drive.readonly is restricted
+  // and would need a yearly security assessment). Kumar, 2026-11-24.
+  'google-drive': ['https://www.googleapis.com/auth/drive.file'],
   // Files.Read.All (delegated): what the signed-in person can open, including folders shared from
   // SharePoint; Files.Read alone covers only their own OneDrive. Read-only either way.
   onedrive: ['Files.Read.All', 'offline_access', 'User.Read'],

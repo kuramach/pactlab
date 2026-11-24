@@ -15,16 +15,16 @@ const AUDIENCE = 'https://api.pactlab.test';
 type Body = Record<string, unknown>;
 
 /**
- * Google, as recorded: each code is exchanged for its own tokens (one per person), and each folder holds
- * its own files. Drive answers only tokens it issued and not revoked. CI never calls a live provider.
+ * Google, as recorded, under drive.file: each code is exchanged for its own tokens (one per person), and a
+ * file's metadata and content are read by id. Every Drive request is kept, so a test can prove a file nobody
+ * chose is never requested. CI never calls a live provider.
  */
-const google = { issued: new Map<string, string>(), revoked: new Set<string>(), seq: 0 };
-const FOLDERS: Record<string, { id: string; name: string; text: string }[]> = {
-  'buyer-folder': [{ id: 'b1', name: 'Buyer model notes.md', text: 'Buyer working notes (synthetic)' }],
-  'seller-folder': [
-    { id: 's1', name: 'Customer list.md', text: 'Top customers FY26 (synthetic): Fjord Analytics' },
-    { id: 's2', name: 'Cap table.md', text: 'Cap table (synthetic)' },
-  ],
+const google = { issued: new Map<string, string>(), revoked: new Set<string>(), seq: 0, requested: [] as string[] };
+const DRIVE: Record<string, { name: string; text: string }> = {
+  buyerFile001: { name: 'Buyer model notes.md', text: 'Buyer working notes (synthetic)' },
+  sellerFile01: { name: 'Customer list.md', text: 'Top customers FY26 (synthetic): Fjord Analytics' },
+  sellerFile02: { name: 'Cap table.md', text: 'Cap table (synthetic)' },
+  'notChosen0001': { name: 'Board minutes.md', text: 'Never chosen (synthetic)' },
 };
 const fetch = async (input: string | URL | Request, init?: RequestInit) => {
   const url = String(input);
@@ -42,21 +42,21 @@ const fetch = async (input: string | URL | Request, init?: RequestInit) => {
   const who = google.issued.get(token);
   if (!who || google.revoked.has(who)) return json(401, {});
   if (url.startsWith('https://www.googleapis.com/drive/v3/about')) return json(200, { user: { emailAddress: `${who}@example.com`, permissionId: who } });
-  const media = /files\/([a-z0-9]+)\?alt=media/.exec(url);
-  if (media) return new Response(Object.values(FOLDERS).flat().find((file) => file.id === media[1])?.text ?? '', { status: 200 });
-  const folder = /'([a-z-]+)'\+in\+parents|'([a-z-]+)'%20in%20parents|q=%27([a-z-]+)%27/.exec(url);
-  const id = folder?.[1] ?? folder?.[2] ?? folder?.[3] ?? Object.keys(FOLDERS).find((name) => url.includes(name)) ?? '';
-  return json(200, { files: (FOLDERS[id] ?? []).map((file) => ({ id: file.id, name: file.name, mimeType: 'text/markdown', size: '40', version: '1' })) });
+  const id = decodeURIComponent(new URL(url).pathname.split('/').pop() ?? '');
+  google.requested.push(id);
+  const file = DRIVE[id];
+  if (!file) return json(404, { error: { code: 404 } });
+  if (url.includes('alt=media')) return new Response(file.text, { status: 200 });
+  return json(200, { id, name: file.name, mimeType: 'text/markdown', size: '40', version: '1' });
 };
 
-describe('connecting a drive folder from the pact, buyer and seller (Kumar, 2026-11-21)', { timeout: 180_000 }, () => {
+describe('Google Drive through the picker, from the pact, buyer and seller (Kumar, 2026-11-24)', { timeout: 180_000 }, () => {
   let db: TestDatabase;
   let app: NestFastifyApplication;
   let a: SyntheticTenant;
   let key: CryptoKey;
   const secrets = new MemorySecretStore();
   const tokens: Record<string, string> = {};
-  const users: Record<string, string> = {};
   const ids: Record<string, string> = {};
 
   const sign = (subject: string) =>
@@ -68,12 +68,12 @@ describe('connecting a drive folder from the pact, buyer and seller (Kumar, 2026
   }
   const deal = (path: string) => `/v1/deals/${a.dealId}${path}`;
 
-  /** Sign in from the pact as `who`, the way the browser does: start, the provider's redirect, the callback. */
-  async function connect(who: string, folder: string, name: string) {
-    const started = await call(who, 'POST', deal('/document-sources/sign-in'), { provider: 'google-drive', folder, displayName: name });
+  /** Sign in from the pact as `who`, as the browser does: start (no folder), Google's redirect, the callback. */
+  async function connect(who: string, name: string) {
+    const started = await call(who, 'POST', deal('/document-sources/sign-in'), { provider: 'google-drive', displayName: name });
     expect(started.status).toBe(200);
     const url = new URL(started.body['url'] as string);
-    expect(url.searchParams.get('redirect_uri')).toBe('https://app.pactlab.test/settings/document-sources/google-drive/callback');
+    expect(url.searchParams.get('scope')).toBe('https://www.googleapis.com/auth/drive.file');
     return call(who, 'POST', '/v1/document-sign-ins/google-drive/callback', { code: `code-${who}`, state: url.searchParams.get('state') ?? '' });
   }
   const visibilityOf = async (name: string) =>
@@ -90,14 +90,18 @@ describe('connecting a drive folder from the pact, buyer and seller (Kumar, 2026
       identityVerifier: new JwtIdentityVerifier({ issuer: ISSUER, audience: AUDIENCE, keys: createLocalJWKSet({ keys: [jwk] }) }),
       logger: createLogger('api-test', { level: 'silent' }),
       documents: { objectStore: new InMemoryObjectStore(), malwareScanner: new SignatureMalwareScanner() },
-      providers: { secrets, fetch, documentOAuth: { 'google-drive': { clientId: 'g-client', clientSecret: 'g-secret' } }, webOrigin: 'https://app.pactlab.test' },
+      providers: {
+        secrets,
+        fetch,
+        documentOAuth: { 'google-drive': { clientId: 'g-client', clientSecret: 'g-secret' }, onedrive: { clientId: 'm-client', clientSecret: 'm-secret' } },
+        googlePicker: { apiKey: 'AIza-test-key', appId: '250759997538' },
+        webOrigin: 'https://app.pactlab.test',
+      },
     });
     tokens['lead'] = await sign(a.subject);
-    for (const role of ['TARGET_CONTRIBUTOR', 'VIEWER'] as const) {
+    for (const role of ['TARGET_CONTRIBUTOR', 'VIEWER', 'ANALYST'] as const) {
       const member = await addSyntheticDealMember(db.owner, a, role);
-      const name = role === 'TARGET_CONTRIBUTOR' ? 'seller' : 'viewer';
-      tokens[name] = await sign(member.subject);
-      users[name] = member.userId;
+      tokens[role === 'TARGET_CONTRIBUTOR' ? 'seller' : role.toLowerCase()] = await sign(member.subject);
     }
   }, 60_000);
 
@@ -106,80 +110,87 @@ describe('connecting a drive folder from the pact, buyer and seller (Kumar, 2026
     await db?.stop();
   });
 
-  it('the deal lead connects a folder with their own sign-in, no admin or Settings needed; its files are buyer-only', async () => {
-    const done = await connect('lead', 'buyer-folder', 'Our working folder');
+  it('the deal lead signs in with Google (no folder), opens the picker, chooses a file; only that file is read, buyer-only', async () => {
+    const done = await connect('lead', 'Our working files');
     expect(done.body).toMatchObject({ kind: 'pact', dealId: a.dealId, sourceId: expect.any(String) });
     ids['buyer'] = done.body['sourceId'] as string;
-    expect(JSON.stringify(done.body)).not.toMatch(/at-|rt-/);
+
+    // The picker: the lead's own short-lived token and Pactlab's picker keys, for the lead only.
+    const picker = await call('lead', 'GET', deal(`/document-sources/${ids['buyer']}/picker`));
+    expect(picker.body).toMatchObject({ accessToken: expect.stringMatching(/^at-code-lead-/), apiKey: 'AIza-test-key', appId: '250759997538' });
+    expect((await call('analyst', 'GET', deal(`/document-sources/${ids['buyer']}/picker`))).status).toBe(403);
+    expect((await call('viewer', 'GET', deal(`/document-sources/${ids['buyer']}/picker`))).status).toBe(403);
+    expect((await db.owner.query(`SELECT 1 FROM audit_events WHERE action = 'document_source.picker_opened' AND outcome = 'SUCCEEDED'`)).rows).toHaveLength(1);
+
+    expect((await call('lead', 'POST', deal(`/document-sources/${ids['buyer']}/files`), { fileIds: ['buyerFile001'] })).body).toEqual({ id: ids['buyer'], filesChosen: 1 });
     expect((await call('lead', 'POST', deal(`/document-sources/${ids['buyer']}/sync`))).status).toBe(200);
     expect(await visibilityOf('Buyer model notes.md')).toEqual(['BUYER_ONLY']);
+    expect(google.requested).not.toContain('notChosen0001');
+
     const listed = await call('lead', 'GET', deal('/document-sources'));
-    expect(listed.body['items']).toContainEqual(expect.objectContaining({ id: ids['buyer'], kind: 'PERSON', signedInAs: 'lead@example.com', shared: false, canDisconnect: true }));
-    expect(listed.body['providers']).toEqual([{ provider: 'google-drive', label: 'Google Drive', organizationSignedIn: false }]);
+    expect(listed.body['items']).toContainEqual(expect.objectContaining({ id: ids['buyer'], kind: 'PERSON', signedInAs: 'lead@example.com', filesChosen: 1, shared: false, canChooseFiles: true }));
+    expect(listed.body['providers']).toEqual([
+      { provider: 'google-drive', label: 'Google Drive', organizationSignedIn: false },
+      { provider: 'onedrive', label: 'OneDrive / SharePoint', organizationSignedIn: false },
+    ]);
   });
 
-  it('the seller connects their own Drive folder; its files are shared with the deal and the seller sees them', async () => {
-    const done = await connect('seller', 'seller-folder', 'Seller data room');
-    expect(done.status).toBe(200);
+  it('the seller chooses files from their own Drive; they are shared with the deal, and the seller sees them', async () => {
+    const done = await connect('seller', 'Seller data room');
     ids['seller'] = done.body['sourceId'] as string;
+    await call('seller', 'POST', deal(`/document-sources/${ids['seller']}/files`), { fileIds: ['sellerFile01', 'sellerFile02', 'sellerFile01'] });
     const synced = await call('seller', 'POST', deal(`/document-sources/${ids['seller']}/sync`));
     expect(synced.status).toBe(200);
     expect(await visibilityOf('Customer list.md')).toEqual(['SHARED']);
-    // The seller sees their files; the deal team sees them too.
-    const sellerDocs = await call('seller', 'GET', deal('/documents'));
-    expect(JSON.stringify(sellerDocs.body)).toContain('Customer list.md');
+    expect(JSON.stringify((await call('seller', 'GET', deal('/documents'))).body)).toContain('Customer list.md');
     expect(JSON.stringify((await call('lead', 'GET', deal('/documents'))).body)).toContain('Customer list.md');
+    expect((await call('seller', 'GET', deal('/document-sources'))).body['items']).toEqual([expect.objectContaining({ id: ids['seller'], filesChosen: 2, shared: true })]);
   });
 
-  it('the seller never sees the buyer’s sources or buyer-only files (RLS)', async () => {
-    const listed = await call('seller', 'GET', deal('/document-sources'));
-    expect(listed.body).toMatchObject({ seller: true, signedIn: [], fixtureRooms: [] });
-    expect((listed.body['items'] as { id: string }[]).map((item) => item.id)).toEqual([ids['seller']]);
+  it('the picker and file choice belong to the person who signed in; the seller never reaches the buyer’s source', async () => {
+    expect((await call('lead', 'GET', deal(`/document-sources/${ids['seller']}/picker`))).status).toBe(403);
+    expect((await call('lead', 'POST', deal(`/document-sources/${ids['seller']}/files`), { fileIds: ['buyerFile001'] })).status).toBe(403);
+    expect((await call('seller', 'GET', deal(`/document-sources/${ids['buyer']}/picker`))).status).toBe(404);
     expect(JSON.stringify((await call('seller', 'GET', deal('/documents'))).body)).not.toContain('Buyer model notes.md');
-    expect((await call('seller', 'POST', deal(`/document-sources/${ids['buyer']}/sync`))).status).toBe(404);
-    expect((await call('seller', 'POST', deal(`/document-sources/${ids['buyer']}/disconnect`))).status).toBe(404);
-  });
-
-  it('the deal team can sync the seller’s folder too; the files stay shared', async () => {
+    // The deal team may still read the seller's chosen files; they stay shared.
     expect((await call('lead', 'POST', deal(`/document-sources/${ids['seller']}/sync`))).status).toBe(200);
     expect(await visibilityOf('Cap table.md')).toEqual(['SHARED']);
   });
 
-  it('a file removed from the seller’s folder is marked removed by the seller’s own sync', async () => {
-    const removed = FOLDERS['seller-folder']?.pop();
+  it('a chosen file deleted at the source is marked removed; files added to the folder later are not read until chosen', async () => {
+    const removed = DRIVE['sellerFile02'];
+    delete DRIVE['sellerFile02'];
     const synced = await call('seller', 'POST', deal(`/document-sources/${ids['seller']}/sync`));
-    expect(synced.status).toBe(200);
     expect(JSON.stringify(synced.body)).toContain('REMOVED');
-    const state = await db.owner.query<{ source_state: string }>(`SELECT source_state FROM documents WHERE deal_id = $1 AND file_name = $2`, [a.dealId, removed?.name]);
-    expect(state.rows[0]?.source_state).toBe('REMOVED');
+    expect((await db.owner.query<{ source_state: string }>(`SELECT source_state FROM documents WHERE deal_id = $1 AND file_name = $2`, [a.dealId, removed?.name])).rows[0]?.source_state).toBe('REMOVED');
+    DRIVE['sellerFile03'] = { name: 'New in the folder.md', text: 'Added later (synthetic)' };
+    await call('seller', 'POST', deal(`/document-sources/${ids['seller']}/sync`));
+    expect(google.requested).not.toContain('sellerFile03');
+    expect((await call('seller', 'POST', deal(`/document-sources/${ids['seller']}/files`), { fileIds: ['sellerFile03'] })).body).toMatchObject({ filesChosen: 3 });
+    await call('seller', 'POST', deal(`/document-sources/${ids['seller']}/sync`));
+    expect(await visibilityOf('New in the folder.md')).toEqual(['SHARED']);
   });
 
-  it('refuses a viewer, a forged state, and a state started by someone else', async () => {
-    expect((await call('viewer', 'POST', deal('/document-sources/sign-in'), { provider: 'google-drive', folder: 'x', displayName: 'x' })).status).toBe(403);
-    const started = await call('seller', 'POST', deal('/document-sources/sign-in'), { provider: 'google-drive', folder: 'seller-folder', displayName: 'Again' });
+  it('refuses a viewer, a forged state, a state started by someone else, and an organization sign-in for Google', async () => {
+    expect((await call('viewer', 'POST', deal('/document-sources/sign-in'), { provider: 'google-drive', displayName: 'x' })).status).toBe(403);
+    const started = await call('seller', 'POST', deal('/document-sources/sign-in'), { provider: 'google-drive', displayName: 'Again' });
     const state = new URL(started.body['url'] as string).searchParams.get('state') ?? '';
     expect((await call('seller', 'POST', '/v1/document-sign-ins/google-drive/callback', { code: 'code-x', state: `${state}x` })).status).toBe(403);
     expect((await call('lead', 'POST', '/v1/document-sign-ins/google-drive/callback', { code: 'code-x', state })).status).toBe(403);
-    expect((await call('seller', 'POST', '/v1/document-sign-ins/onedrive/callback', { code: 'code-x', state })).status).toBe(403);
+    expect((await call('lead', 'POST', '/v1/organization/document-connections/google-drive/start')).body).toMatchObject({ code: 'USE_PICKER' });
+    // OneDrive still reads a whole folder, so it needs one.
+    expect((await call('lead', 'POST', deal('/document-sources/sign-in'), { provider: 'onedrive', displayName: 'OD' })).status).toBe(400);
   });
 
-  it('a revoked sign-in reads nothing (SOURCE_ACCESS); disconnecting destroys the source’s credential', async () => {
+  it('a revoked sign-in reads nothing (SOURCE_ACCESS); disconnecting destroys the source’s credential and keeps its files', async () => {
     google.revoked.add('seller');
     expect((await call('seller', 'POST', deal(`/document-sources/${ids['seller']}/sync`))).body).toMatchObject({ code: 'SOURCE_ACCESS' });
     google.revoked.delete('seller');
     const [row] = (await db.owner.query<{ credential_ref: string }>(`SELECT credential_ref FROM document_sources WHERE id = $1`, [ids['seller']])).rows;
-    const disconnected = await call('seller', 'POST', deal(`/document-sources/${ids['seller']}/disconnect`));
-    expect(disconnected.body).toMatchObject({ status: 'DISABLED' });
+    expect((await call('seller', 'POST', deal(`/document-sources/${ids['seller']}/disconnect`))).body).toMatchObject({ status: 'DISABLED' });
     await expect(secrets.get(row?.credential_ref ?? '')).rejects.toThrow();
-    expect((await call('seller', 'POST', deal(`/document-sources/${ids['seller']}/sync`))).status).toBe(409); // disabled: nothing is read
-    // Files already read stay, as documents do.
+    expect((await call('seller', 'POST', deal(`/document-sources/${ids['seller']}/sync`))).status).toBe(409);
+    expect((await call('seller', 'GET', deal(`/document-sources/${ids['seller']}/picker`))).status).toBe(409);
     expect(await visibilityOf('Customer list.md')).toEqual(['SHARED']);
-  });
-
-  it('the organization sign-in still completes through the same callback', async () => {
-    const started = await call('lead', 'POST', '/v1/organization/document-connections/google-drive/start');
-    const state = new URL(started.body['url'] as string).searchParams.get('state') ?? '';
-    expect((await call('lead', 'POST', '/v1/document-sign-ins/google-drive/callback', { code: 'code-org', state })).body).toEqual({ kind: 'org' });
-    expect((await call('lead', 'GET', deal('/document-sources'))).body['providers']).toEqual([{ provider: 'google-drive', label: 'Google Drive', organizationSignedIn: true }]);
   });
 });

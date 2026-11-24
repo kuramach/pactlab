@@ -32,6 +32,8 @@ export interface ProviderDependencies {
   readonly webOrigin: string | null;
   /** Signs OAuth `state` (the API's token secret), so every API task accepts a sign-in another started. */
   readonly stateSecret: string;
+  /** Google's file picker (runs in the browser): its API key and the Cloud project number (`appId`). Null: not set up. */
+  readonly googlePicker: { readonly apiKey: string; readonly appId: string } | null;
 }
 
 export const PROVIDER_DEPENDENCIES = Symbol('PROVIDER_DEPENDENCIES');
@@ -50,6 +52,8 @@ export interface ProviderSettings {
   readonly documentOAuth?: Partial<Readonly<Record<DocumentOAuthProvider, { readonly clientId: string; readonly clientSecret: string }>>>;
   readonly webOrigin?: string;
   readonly stateSecret?: string;
+  /** From GOOGLE_PICKER_API_KEY and GOOGLE_PROJECT_NUMBER. */
+  readonly googlePicker?: { readonly apiKey: string; readonly appId: string } | null;
 }
 
 /** Fail-closed defaults: no secret store, no GitHub App, the platform fetch. */
@@ -74,5 +78,6 @@ export function providerDependencies(settings: ProviderSettings = {}): ProviderD
     webOrigin: settings.webOrigin ?? null,
     // Unset (tests): a per-process key, so a state is still never forgeable.
     stateSecret: settings.stateSecret ?? randomBytes(32).toString('base64url'),
+    googlePicker: settings.googlePicker ?? null,
   };
 }

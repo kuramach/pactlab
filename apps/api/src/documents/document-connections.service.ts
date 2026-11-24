@@ -96,7 +96,8 @@ export class DocumentConnectionsService {
         return {
           provider,
           label: DOCUMENT_SOURCE_LABELS[provider],
-          available: Boolean(this.providers.documentOAuth[provider] && this.providers.webOrigin),
+          // Google Drive is chosen file by file in each person's picker (drive.file), so it has no organization sign-in.
+          available: provider !== 'google-drive' && Boolean(this.providers.documentOAuth[provider] && this.providers.webOrigin),
           connected: row ? { accountName: row.accountName, connectedAt: row.connectedAt.toISOString() } : null,
         };
       }),
@@ -112,6 +113,7 @@ export class DocumentConnectionsService {
   /** Where an owner or admin signs in to the provider to connect the organization's drive. */
   start(tenant: TenantContext, provider: string): { url: string } {
     this.requireAdmin(tenant);
+    if (provider === 'google-drive') throw new UnprocessableEntityException({ code: 'USE_PICKER' });
     return this.signInUrl(tenant, provider, { k: 'org' });
   }
 
@@ -124,6 +126,7 @@ export class DocumentConnectionsService {
   /** The organization's sign-in, once its state is verified: the code exchanged, the tokens stored, the old sign-in retired. */
   async completeOrganization(tenant: TenantContext, provider: string, code: string, requestId: string) {
     this.requireAdmin(tenant);
+    if (provider === 'google-drive') throw new UnprocessableEntityException({ code: 'USE_PICKER' });
     const client = this.client(provider);
     const { tokens, account } = await this.exchange(provider, code);
     const id = newId();
