@@ -29,7 +29,21 @@ else
   printf 'Enter its client secret (hidden), then Enter: '
   IFS= read -rs CLIENT_SECRET
   echo
+  # A paste often carries a stray space or newline; neither belongs in an id or secret.
+  CLIENT_ID=$(printf '%s' "$CLIENT_ID" | tr -d '[:space:]')
+  CLIENT_SECRET=$(printf '%s' "$CLIENT_SECRET" | tr -d '[:space:]')
   [ -n "$CLIENT_ID" ] && [ -n "$CLIENT_SECRET" ] || { echo "Both are needed; nothing changed." >&2; exit 1; }
+  # Refuse what cannot be right, before anything is saved: a short paste fails only later, at sign-in.
+  if [ "$PROVIDER" = google ]; then
+    [[ "$CLIENT_ID" =~ ^[0-9]+-[a-z0-9]+\.apps\.googleusercontent\.com$ ]] || { echo "That client id doesn't look like Google's (it ends in .apps.googleusercontent.com). Nothing changed." >&2; exit 1; }
+    [[ "$CLIENT_SECRET" =~ ^GOCSPX-[A-Za-z0-9_-]{28}$ ]] || { echo "That client secret is ${#CLIENT_SECRET} characters; Google's are 35 and start with GOCSPX-. Copy it again (use the copy icon). Nothing changed." >&2; exit 1; }
+  else
+    [[ "$CLIENT_ID" =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || { echo "That application id doesn't look like Microsoft's (a GUID like 00001111-aaaa-2222-bbbb-3333cccc4444). Nothing changed." >&2; exit 1; }
+    # Copy the secret's Value, not its Secret ID (a GUID).
+    if [[ "$CLIENT_SECRET" =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}- ]]; then echo "That looks like the secret's ID; copy its Value instead. Nothing changed." >&2; exit 1; fi
+    [ "${#CLIENT_SECRET}" -ge 30 ] || { echo "That client secret is only ${#CLIENT_SECRET} characters; copy the whole Value. Nothing changed." >&2; exit 1; }
+  fi
+  echo "Client id and a ${#CLIENT_SECRET}-character secret: they look right."
 fi
 # Values travel on stdin to the AWS CLI, never on a command line (where other processes could see them).
 printf '%s' "$CLIENT_ID" | aws secretsmanager put-secret-value --secret-id "${PREFIX}-client-id" --secret-string file:///dev/stdin --query VersionId --output text >/dev/null
