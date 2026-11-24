@@ -86,6 +86,7 @@ export class DocumentConnectionsService {
   }
 
   async list(tenant: TenantContext): Promise<{ items: DocumentConnectionView[]; canEdit: boolean }> {
+    await this.retireGoogleSignIn(tenant);
     // bounded: at most one live connection per provider per organization (two providers)
     const rows = await withTenant(this.prisma, tenant, (tx) =>
       tx.organizationConnection.findMany({ where: { organizationId: tenant.organizationId, provider: { in: [...DOCUMENT_OAUTH_PROVIDERS] }, disconnectedAt: null } }),
@@ -161,6 +162,22 @@ export class DocumentConnectionsService {
     });
     await this.destroy(retired);
     return this.list(tenant);
+  }
+
+  /**
+   * Google Drive has no organization sign-in since the picker (2026-11-24): one made before is retired and its
+   * credential deleted the next time an owner or admin opens Settings (only they may change connections).
+   */
+  private async retireGoogleSignIn(tenant: TenantContext): Promise<void> {
+    if (tenant.organizationRole !== 'ORG_OWNER' && tenant.organizationRole !== 'ORG_ADMIN') return;
+    const retired = await withTenant(this.prisma, tenant, async (tx) => {
+      const previous = await this.retire(tx, tenant, 'google-drive');
+      if (previous.length > 0) {
+        await appendAuditEvent(tx, { organizationId: tenant.organizationId, dealId: null, actorUserId: tenant.userId, action: 'document_source.account_disconnected', targetType: 'organization', targetId: tenant.organizationId, outcome: 'SUCCEEDED', requestId: 'google-picker-migration' });
+      }
+      return previous;
+    });
+    await this.destroy(retired);
   }
 
   private async retire(tx: TransactionClient, tenant: TenantContext, provider: DocumentOAuthProvider) {

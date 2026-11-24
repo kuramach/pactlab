@@ -198,8 +198,23 @@ interface GraphItem {
   readonly size?: number;
   readonly cTag?: string;
   readonly file?: { readonly mimeType?: string };
-  readonly folder?: object;
+  readonly folder?: { readonly childCount?: number };
+  readonly parentReference?: { readonly driveId?: string };
+  /** A shortcut in My files to a folder someone shared ("Add shortcut to My files"): the folder lives in their drive. */
+  readonly remoteItem?: { readonly id: string; readonly folder?: object; readonly parentReference?: { readonly driveId?: string } };
 }
+
+/** A folder the chooser offers: where it lives (drive and item), and its name. */
+export interface DriveFolder {
+  readonly driveId: string;
+  readonly itemId: string;
+  readonly name: string;
+  /** A shortcut to a folder someone shared with the person. */
+  readonly shared: boolean;
+}
+
+/** Most folders one level of the chooser shows. */
+export const MAX_CHOOSER_FOLDERS = 500;
 
 /**
  * OneDrive and SharePoint through Microsoft Graph, read-only (`Files.Read` /
@@ -217,6 +232,34 @@ export class OneDriveDocumentSourceAdapter implements DocumentSourceAdapter {
     const [drive, item] = config.folder.split('/');
     if (!drive || !item) throw new DocumentSourceError('NOT_FOUND');
     return { drive: encodeURIComponent(drive), item: encodeURIComponent(item) };
+  }
+
+  /**
+   * The folders in one level of the person's OneDrive, for choosing a data room in Pactlab rather than
+   * pasting ids: My files (`/me/drive/root/children`) when no folder is given, else that folder's children.
+   * Shortcuts to shared folders resolve to the folder in its own drive. Read-only (`Files.Read.All`).
+   * (`/me/drive/sharedWithMe` is not used: Microsoft deprecated it, ending November 2026.)
+   */
+  async folders(scope: DocumentSourceScope, at?: { driveId: string; itemId: string }): Promise<DriveFolder[]> {
+    const token = await bearer(this.deps.secrets, scope);
+    const select = '$select=id,name,folder,remoteItem,parentReference&$top=200';
+    let next: string | undefined = at
+      ? `${GRAPH}/drives/${encodeURIComponent(at.driveId)}/items/${encodeURIComponent(at.itemId)}/children?${select}`
+      : `${GRAPH}/me/drive/root/children?${select}`;
+    const folders: DriveFolder[] = [];
+    while (next && folders.length < MAX_CHOOSER_FOLDERS) {
+      const response = await this.deps.fetch(next, { headers: { authorization: `Bearer ${token}` } });
+      if (!response.ok) throw failure(response.status);
+      const page = (await response.json()) as { value?: GraphItem[]; '@odata.nextLink'?: string };
+      for (const entry of page.value ?? []) {
+        if (entry.folder && entry.parentReference?.driveId) folders.push({ driveId: entry.parentReference.driveId, itemId: entry.id, name: entry.name, shared: false });
+        else if (entry.remoteItem?.folder && entry.remoteItem.parentReference?.driveId)
+          folders.push({ driveId: entry.remoteItem.parentReference.driveId, itemId: entry.remoteItem.id, name: entry.name, shared: true });
+      }
+      const link = page['@odata.nextLink'];
+      next = link && link.startsWith(`${GRAPH}/`) ? link : undefined;
+    }
+    return folders.slice(0, MAX_CHOOSER_FOLDERS).sort((a, b) => a.name.localeCompare(b.name));
   }
 
   async list(scope: DocumentSourceScope, config: DocumentSourceConfig): Promise<SourceFile[]> {

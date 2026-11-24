@@ -32,8 +32,7 @@ export async function DocumentSourcesCard({ outcome }: { outcome?: string | unde
       <CardHeader>
         <CardTitle>Document sources</CardTitle>
         <CardDescription>
-          Sign in once and pacts can read deal folders straight from your drive. Pactlab only reads: it never writes, moves, shares or deletes anything there, and it stays
-          signed in by itself.
+          Sign in once with your organization’s OneDrive and the deal team can add its folders to any pact. Pactlab only reads your files and never changes anything.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-3 text-sm">
@@ -42,6 +41,7 @@ export async function DocumentSourcesCard({ outcome }: { outcome?: string | unde
             {OUTCOMES[outcome]}
           </p>
         ) : null}
+        <p className="text-muted-foreground">Google Drive is connected on each pact instead: everyone picks their own files on the pact’s Documents page.</p>
         <ul className="divide-y divide-border rounded-lg border border-border" aria-label="Document sources">
           {items.map((item) => (
             <li key={item.provider} className="flex flex-wrap items-center justify-between gap-3 px-3 py-2">

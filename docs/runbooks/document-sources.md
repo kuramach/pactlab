@@ -1,7 +1,9 @@
 # Document sources: Google Drive and OneDrive / SharePoint sign-in (T-147, ADR 0038)
 
 People connect folders in either of two ways, both read-only:
-- **From the pact (the usual way):** anyone who supplies documents, the deal team or the seller, opens the pact's **Documents → Data room**. For OneDrive they paste the folder link and **Sign in with Microsoft**; for Google Drive they click **Choose files from Google Drive**, sign in, and choose files in Google's picker. They come back and the files read in. A seller's files are shared with the deal team.
+- **From the pact (the usual way):** anyone who supplies documents, the deal team or the seller, opens the pact's **Documents → Data room**, picks **Google Drive** or **OneDrive** and clicks **Connect**. Nothing to paste:
+  - **Google Drive:** sign in, then pick files in Google's picker. New files added to the folder later need **Add files** (the app says so).
+  - **OneDrive / SharePoint:** sign in, then choose the folder in Pactlab's folder chooser (My files, click into folders, **Use this folder**). Everything in it is read, including files added later. A folder someone shared appears once they add it to My files (**Add shortcut to My files** in OneDrive); Microsoft's "Shared with me" listing is deprecated (ends November 2026), so Pactlab doesn't use it.
 - **For the whole organization (OneDrive only):** an owner or admin signs in once in **Settings → Document sources**, and the deal team can then pick **Use the organization's OneDrive / SharePoint** on any pact. Google Drive has no organization sign-in: each person chooses files in their own picker.
 
 Both use the same Pactlab OAuth clients and the same redirect URIs below; nothing extra is registered. This runbook registers Pactlab's OAuth clients, once per provider. Each client serves every environment through its redirect URIs.

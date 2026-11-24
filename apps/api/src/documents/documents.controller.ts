@@ -24,6 +24,8 @@ import {
   connectDocumentSourceBodySchema,
   documentSignInBodySchema,
   pickedFilesBodySchema,
+  driveFolderQuerySchema,
+  driveFolderSchema,
   type DocumentSignInBody,
   createDocumentRequestBodySchema,
   documentRequestParamsSchema,
@@ -99,6 +101,29 @@ export class DocumentsController {
     @Param(new ZodValidationPipe(sourceParamsSchema)) params: { dealId: string; sourceId: string },
   ) {
     return this.sources.picker(tenant, params.dealId, params.sourceId, requestId);
+  }
+
+  /** One level of OneDrive folders for the chooser (My files, or inside a folder): for the person who connected the source. */
+  @Get('document-sources/:sourceId/folders')
+  async sourceFolders(
+    @Tenant() tenant: TenantContext,
+    @RequestId() requestId: string,
+    @Param(new ZodValidationPipe(sourceParamsSchema)) params: { dealId: string; sourceId: string },
+    @Query(new ZodValidationPipe(driveFolderQuerySchema)) query: { driveId?: string; itemId?: string },
+  ) {
+    return this.sources.folders(tenant, params.dealId, params.sourceId, query, requestId);
+  }
+
+  /** The OneDrive folder this source reads (chosen in the chooser). */
+  @Post('document-sources/:sourceId/folder')
+  @HttpCode(200)
+  async chooseSourceFolder(
+    @Tenant() tenant: TenantContext,
+    @RequestId() requestId: string,
+    @Param(new ZodValidationPipe(sourceParamsSchema)) params: { dealId: string; sourceId: string },
+    @Body(new ZodValidationPipe(driveFolderSchema)) body: { driveId: string; itemId: string },
+  ) {
+    return this.sources.chooseFolder(tenant, params.dealId, params.sourceId, body, requestId);
   }
 
   /** Files chosen in Google's picker join the source; Pactlab reads only these. */
