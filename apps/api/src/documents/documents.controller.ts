@@ -23,6 +23,7 @@ import {
   categorizeDocumentBodySchema,
   connectDocumentSourceBodySchema,
   documentSignInBodySchema,
+  pickedFilesBodySchema,
   type DocumentSignInBody,
   createDocumentRequestBodySchema,
   documentRequestParamsSchema,
@@ -88,6 +89,28 @@ export class DocumentsController {
     @Body(new ZodValidationPipe(documentSignInBodySchema)) body: DocumentSignInBody,
   ) {
     return this.sources.startSignIn(tenant, params.dealId, body, requestId);
+  }
+
+  /** Google's picker, for the person who connected this Google Drive source: their short-lived token and Pactlab's picker keys. */
+  @Get('document-sources/:sourceId/picker')
+  async sourcePicker(
+    @Tenant() tenant: TenantContext,
+    @RequestId() requestId: string,
+    @Param(new ZodValidationPipe(sourceParamsSchema)) params: { dealId: string; sourceId: string },
+  ) {
+    return this.sources.picker(tenant, params.dealId, params.sourceId, requestId);
+  }
+
+  /** Files chosen in Google's picker join the source; Pactlab reads only these. */
+  @Post('document-sources/:sourceId/files')
+  @HttpCode(200)
+  async addSourceFiles(
+    @Tenant() tenant: TenantContext,
+    @RequestId() requestId: string,
+    @Param(new ZodValidationPipe(sourceParamsSchema)) params: { dealId: string; sourceId: string },
+    @Body(new ZodValidationPipe(pickedFilesBodySchema)) body: { fileIds: string[] },
+  ) {
+    return this.sources.addFiles(tenant, params.dealId, params.sourceId, body.fileIds, requestId);
   }
 
   /** Stop reading a source: its own sign-in is destroyed; files already read stay. */

@@ -352,7 +352,8 @@ describe('privacy policy and terms (Google verification needs both public)', () 
     const privacy = JSON.stringify(PRIVACY);
     // Google's Limited Use disclosure, verbatim, and the read-only Drive scope.
     expect(privacy).toContain('Pactlab’s use and transfer of information received from Google APIs to any other app will adhere to the Google API Services User Data Policy, including the Limited Use requirements.');
-    expect(privacy).toContain('drive.readonly');
+    expect(privacy).toContain('drive.file');
+    expect(privacy).not.toContain('drive.readonly');
     expect(privacy).toContain(LEGAL_CONTACT);
     expect(JSON.stringify(TERMS)).toContain('State of Texas');
   });

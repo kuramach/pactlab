@@ -3,7 +3,7 @@
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import { AI_UNAVAILABLE, aiOutcome } from './ai-messages';
-import { apiSend } from '../../_lib/api';
+import { apiGet, apiSend } from '../../_lib/api';
 import { checkFile, isArchive, UPLOAD_PROBLEMS } from './upload-rules';
 
 const uuid = z.uuid();
@@ -241,6 +241,7 @@ export interface SourceSyncFile {
 const SOURCE_PROBLEMS: Readonly<Record<string, string>> = {
   SOURCE_ACCESS: 'Pactlab could not sign in to this source. Reconnect it in Settings → Document sources (an organization owner or admin), or check the folder is shared with that account.',
   SOURCE_NOT_CONNECTED: 'Your organization has not signed in to this provider yet. An owner or admin connects it once in Settings → Document sources.',
+  USE_PICKER: 'Google Drive files are chosen in Google’s picker: use “Choose files from Google Drive”.',
   SOURCE_NOT_FOUND: 'That folder or room was not found. Check the folder id.',
   SOURCE_NOT_CONFIGURED: 'This kind of data room cannot be read live yet. Export it as a zip and upload that instead.',
   SOURCE_UNAVAILABLE: 'The source did not answer. Try again in a minute.',
@@ -278,11 +279,33 @@ const SIGN_IN_HOSTS = { 'google-drive': 'https://accounts.google.com/', onedrive
  */
 export async function signInForFolder(dealId: string, input: { provider: 'google-drive' | 'onedrive'; displayName: string; folder: string }): Promise<{ message: string }> {
   if (!uuid.safeParse(dealId).success) return { message: 'Unknown deal.' };
-  if (!input.folder.trim() || !input.displayName.trim()) return { message: 'Name the folder and paste its link.' };
-  const result = await apiSend<{ url: string }>('POST', `/v1/deals/${dealId}/document-sources/sign-in`, { provider: input.provider, displayName: input.displayName.trim(), folder: input.folder.trim() });
+  // Google Drive: files are chosen in Google's picker after signing in, so there is no folder to give.
+  if (!input.displayName.trim() || (input.provider === 'onedrive' && !input.folder.trim())) return { message: input.provider === 'onedrive' ? 'Name the folder and paste its link.' : 'Name it first.' };
+  const result = await apiSend<{ url: string }>('POST', `/v1/deals/${dealId}/document-sources/sign-in`, {
+    provider: input.provider,
+    displayName: input.displayName.trim(),
+    ...(input.provider === 'onedrive' ? { folder: input.folder.trim() } : {}),
+  });
   if (result.kind !== 'ok') return { message: sourceProblem(result) };
   if (!result.data.url.startsWith(SIGN_IN_HOSTS[input.provider])) return { message: 'That sign-in could not be started. Try again.' };
   redirect(result.data.url);
+}
+
+/** What Google's picker needs, for the person who connected this Google Drive source: their own short-lived token and Pactlab's picker keys. */
+export async function pickerFor(dealId: string, sourceId: string): Promise<{ kind: 'ok'; accessToken: string; apiKey: string; appId: string } | { kind: 'error'; message: string }> {
+  if (!uuid.safeParse(dealId).success || !uuid.safeParse(sourceId).success) return { kind: 'error', message: 'Unknown source.' };
+  const result = await apiGet<{ accessToken: string; apiKey: string; appId: string }>(`/v1/deals/${dealId}/document-sources/${sourceId}/picker`);
+  if (result.kind === 'ok') return { kind: 'ok', ...result.data };
+  if (result.kind === 'forbidden') return { kind: 'error', message: 'Only the person who connected this Google Drive can choose its files.' };
+  return { kind: 'error', message: sourceProblem(result) };
+}
+
+/** Files chosen in Google's picker join the source; the next sync reads them. */
+export async function addChosenFiles(dealId: string, sourceId: string, fileIds: string[]): Promise<{ kind: 'ok'; filesChosen: number } | { kind: 'error'; message: string }> {
+  if (!uuid.safeParse(dealId).success || !uuid.safeParse(sourceId).success || fileIds.length === 0) return { kind: 'error', message: 'Nothing was chosen.' };
+  const result = await apiSend<{ filesChosen: number }>('POST', `/v1/deals/${dealId}/document-sources/${sourceId}/files`, { fileIds });
+  if (result.kind === 'ok') return { kind: 'ok', filesChosen: result.data.filesChosen };
+  return { kind: 'error', message: 'Those files could not be added (a source holds up to 500). Try again.' };
 }
 
 /** Stop reading a folder: its sign-in is deleted; files already read stay. */

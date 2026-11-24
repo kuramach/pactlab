@@ -1,6 +1,6 @@
 import { DOCUMENT_KINDS, pageQuerySchema } from '@pactlab/contracts';
 import { DATA_CLASSIFICATIONS } from '@pactlab/ai';
-import { DOCUMENT_SOURCE_PROVIDERS, documentSourceConfigSchema } from '@pactlab/connectors';
+import { DOCUMENT_SOURCE_PROVIDERS, documentSourceConfigSchema, driveFileIdSchema, MAX_PICKED_FILES } from '@pactlab/connectors';
 import { z } from 'zod';
 import { DOCUMENT_FINDING_STATUSES, RETENTION_CLASSES } from './documents.types';
 
@@ -98,11 +98,17 @@ export const connectDocumentSourceBodySchema = z.strictObject({
 export type ConnectDocumentSourceBody = z.infer<typeof connectDocumentSourceBodySchema>;
 
 /** Connect a folder from the pact with one's own Google or Microsoft sign-in (the seller too). */
-export const documentSignInBodySchema = z.strictObject({
-  provider: z.enum(['google-drive', 'onedrive']),
-  displayName: z.string().trim().min(1).max(200),
-  folder: documentSourceConfigSchema.shape.folder,
-});
+export const documentSignInBodySchema = z
+  .strictObject({
+    provider: z.enum(['google-drive', 'onedrive']),
+    displayName: z.string().trim().min(1).max(200),
+    /** OneDrive: the folder to read. Google Drive: none; files are chosen in Google's picker after signing in. */
+    folder: documentSourceConfigSchema.shape.folder.optional(),
+  })
+  .refine((body) => body.provider === 'google-drive' || Boolean(body.folder), { message: 'A OneDrive folder is required', path: ['folder'] });
+
+/** Files chosen in Google's picker, added to a Google Drive source. */
+export const pickedFilesBodySchema = z.strictObject({ fileIds: z.array(driveFileIdSchema).min(1).max(MAX_PICKED_FILES) });
 export type DocumentSignInBody = z.infer<typeof documentSignInBodySchema>;
 
 export const sourceParamsSchema = z.strictObject({ dealId: z.uuid(), sourceId: z.uuid() });

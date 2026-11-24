@@ -22,15 +22,24 @@ export const DOCUMENT_SOURCE_LABELS: Readonly<Record<DocumentSourceProvider, str
  * Graph `driveItem` children + `/content`.
  */
 export const DOCUMENT_SOURCE_SCOPES: Readonly<Record<DocumentSourceProvider, readonly string[]>> = {
-  'google-drive': ['https://www.googleapis.com/auth/drive.readonly'],
+  'google-drive': ['https://www.googleapis.com/auth/drive.file'],
   onedrive: ['Files.Read.All (delegated)', 'offline_access', 'User.Read'],
   vdr: [],
 };
 
 /** Non-secret settings: which folder (or fixture room) to read. */
+/** Most files one Google Drive source may hold, chosen in Google's picker. */
+export const MAX_PICKED_FILES = 500;
+export const driveFileIdSchema = z.string().regex(/^[A-Za-z0-9_-]{10,200}$/);
+
 export const documentSourceConfigSchema = z.strictObject({
-  /** Fixture room id, Drive folder id, or `<drive-id>/<item-id>` for OneDrive/SharePoint. */
-  folder: z.string().trim().regex(/^[A-Za-z0-9!_.:/-]{1,300}$/),
+  /** Fixture room id, Drive folder id, or `<drive-id>/<item-id>` for OneDrive/SharePoint; '' for picked files. */
+  folder: z.string().trim().regex(/^([A-Za-z0-9!_.:/-]{1,300})?$/),
+  /**
+   * Google Drive through Google's picker (`drive.file`): the files the person chose. Pactlab may read
+   * these and nothing else; files added to their folder later are not read until chosen too.
+   */
+  files: z.array(driveFileIdSchema).max(MAX_PICKED_FILES).optional(),
 });
 export type DocumentSourceConfig = z.infer<typeof documentSourceConfigSchema>;
 

@@ -165,6 +165,9 @@ export class PactlabCompute extends Construct {
     const googleOauthSecret = documentSecret('DocumentsGoogleOauthSecret', 'google-client-secret', 'Google OAuth client secret for Drive document sources');
     const microsoftOauthId = documentSecret('DocumentsMicrosoftOauthId', 'microsoft-client-id', 'Microsoft Entra application id for OneDrive / SharePoint document sources');
     const microsoftOauthSecret = documentSecret('DocumentsMicrosoftOauthSecret', 'microsoft-client-secret', 'Microsoft Entra client secret for OneDrive / SharePoint document sources');
+    // Google's file picker (Google Drive files are chosen in it): a browser API key and the Cloud project number.
+    const googlePickerKey = documentSecret('DocumentsGooglePickerKey', 'google-picker-api-key', 'Google Picker API key (browser, restricted to the web origin)');
+    const googleProjectNumber = documentSecret('DocumentsGoogleProjectNumber', 'google-project-number', 'Google Cloud project number (the picker app id)');
 
     // --- Images by commit SHA: the slim server image (api, worker), its "-tools" variant (migrate, seed) and the web image.
     const repositories = {
@@ -338,6 +341,8 @@ export class PactlabCompute extends Construct {
         GOOGLE_OAUTH_CLIENT_SECRET: ecs.Secret.fromSecretsManager(googleOauthSecret),
         MICROSOFT_OAUTH_CLIENT_ID: ecs.Secret.fromSecretsManager(microsoftOauthId),
         MICROSOFT_OAUTH_CLIENT_SECRET: ecs.Secret.fromSecretsManager(microsoftOauthSecret),
+        GOOGLE_PICKER_API_KEY: ecs.Secret.fromSecretsManager(googlePickerKey),
+        GOOGLE_PROJECT_NUMBER: ecs.Secret.fromSecretsManager(googleProjectNumber),
       },
       portMappings: [{ containerPort: 4000 }],
       logging: logging('api'),

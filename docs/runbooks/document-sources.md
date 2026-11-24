@@ -1,8 +1,8 @@
 # Document sources: Google Drive and OneDrive / SharePoint sign-in (T-147, ADR 0038)
 
 People connect folders in either of two ways, both read-only:
-- **From the pact (the usual way):** anyone who supplies documents, the deal team or the seller, opens the pact's **Documents → Data room**, pastes the folder link and clicks **Sign in with Google / Microsoft**. They come back signed in and the folder reads in. A seller's files are shared with the deal team.
-- **For the whole organization:** an owner or admin signs in once in **Settings → Document sources**, and the deal team can then pick **Use the organization's Google Drive** on any pact.
+- **From the pact (the usual way):** anyone who supplies documents, the deal team or the seller, opens the pact's **Documents → Data room**. For OneDrive they paste the folder link and **Sign in with Microsoft**; for Google Drive they click **Choose files from Google Drive**, sign in, and choose files in Google's picker. They come back and the files read in. A seller's files are shared with the deal team.
+- **For the whole organization (OneDrive only):** an owner or admin signs in once in **Settings → Document sources**, and the deal team can then pick **Use the organization's OneDrive / SharePoint** on any pact. Google Drive has no organization sign-in: each person chooses files in their own picker.
 
 Both use the same Pactlab OAuth clients and the same redirect URIs below; nothing extra is registered. This runbook registers Pactlab's OAuth clients, once per provider. Each client serves every environment through its redirect URIs.
 
@@ -14,14 +14,19 @@ Both use the same Pactlab OAuth clients and the same redirect URIs below; nothin
 | local | `http://localhost:3000/settings/document-sources/google-drive/callback` | `http://localhost:3000/settings/document-sources/onedrive/callback` |
 
 ## Google Drive (Google Cloud console, the Pactlab project)
+Google Drive is read through **Google's file picker** with the `drive.file` permission: people choose files, and Pactlab may read only those. Google classes `drive.file` as non-sensitive (no yearly security assessment); `drive.readonly`, which a whole-folder read needs, is restricted. Files added to a Drive folder later are read only once chosen too (**Add files**); the app says so wherever Google Drive is chosen.
+
 1. **APIs & Services → Library:** enable the **Google Drive API**.
 2. **Google Auth Platform → Branding:**
    - app name **Pactlab**, with support email and logo;
    - authorized domain **pactlab.ai**;
    - links to the privacy policy and terms.
-3. **Data access:** add the scope `https://www.googleapis.com/auth/drive.readonly`, and nothing else. It's a restricted scope, so Google asks for verification before the app is public. Until verification passes, use **Audience → Testing** with the test users who will connect.
+3. **Data access:** add the scope `https://www.googleapis.com/auth/drive.file`, and nothing else (remove `drive.readonly` if it is listed). Until Google's (free) verification passes, use **Audience → Testing** with the test users who will connect.
+   - **APIs & Services → Library:** also enable the **Google Picker API**.
+   - **APIs & Services → Credentials → Create credentials → API key:** restrict it to the **Google Picker API**, and under *Application restrictions* to websites `https://app.pactlab.ai/*`. Copy the key (`AIza…`).
+   - **Project number:** the project's dashboard shows it (digits, not the project ID).
 4. **Clients → Create client → Web application:** add the redirect URIs above, then copy the **client id** and **client secret**.
-5. **Store them:** run `scripts/doc-source-key.sh live google`; it asks for both, with the secret hidden. Repeat per environment.
+5. **Store them:** run `scripts/doc-source-key.sh live google`; it asks for the client id and secret (hidden), then the picker API key and project number, and checks each one's format. To change only the picker values: `scripts/doc-source-key.sh live google picker`. Repeat per environment.
 
 ## OneDrive / SharePoint (Microsoft Entra admin center)
 1. **App registrations → New registration:**

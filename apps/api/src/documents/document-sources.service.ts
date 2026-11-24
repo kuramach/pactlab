@@ -13,6 +13,7 @@ import {
   DOCUMENT_OAUTH_PROVIDERS,
   DOCUMENT_SOURCE_LABELS,
   documentSourceConfigSchema,
+  MAX_PICKED_FILES,
   DocumentSourceError,
   documentSourceAdapter,
   MAX_SOURCE_FILES,
@@ -131,13 +132,19 @@ export class DocumentSourcesService {
         // How it reads, and as whom (an email; never a token).
         kind: row.organizationConnectionId ? 'ORGANIZATION' : row.credentialKind === 'OAUTH' ? 'PERSON' : row.mode === 'LIVE' ? 'TOKEN' : 'FIXTURE',
         signedInAs: row.accountName,
+        // Google Drive through the picker: how many files were chosen (Pactlab reads only those).
+        filesChosen: Array.isArray((row.config as { files?: unknown }).files) ? ((row.config as { files: unknown[] }).files.length) : null,
         shared: row.visibility === 'SHARED',
         canDisconnect: row.status === 'ACTIVE' && row.mode === 'LIVE' && (team || row.createdBy === tenant.userId),
+        // Only the person who signed in can open Google's picker on their own Drive.
+        canChooseFiles: row.status === 'ACTIVE' && row.provider === 'google-drive' && row.credentialKind === 'OAUTH' && row.createdBy === tenant.userId,
       })),
       // Providers the organization has signed in to, so a LIVE folder can be added without a token.
       signedIn: team ? signedIn : [],
       // Providers someone may sign in to from this pact (Pactlab's client is set up here).
-      providers: DOCUMENT_OAUTH_PROVIDERS.filter((provider) => Boolean(this.providers.documentOAuth[provider] && this.providers.webOrigin)).map((provider) => ({
+      providers: DOCUMENT_OAUTH_PROVIDERS.filter(
+        (provider) => Boolean(this.providers.documentOAuth[provider] && this.providers.webOrigin) && (provider !== 'google-drive' || this.providers.googlePicker !== null),
+      ).map((provider) => ({
         provider,
         label: DOCUMENT_SOURCE_LABELS[provider],
         organizationSignedIn: team && signedIn.includes(provider),
@@ -156,6 +163,8 @@ export class DocumentSourcesService {
     if (body.mode === 'FIXTURE' && !this.providers.allowFixtureConnections) throw new ForbiddenException({ code: 'FIXTURES_OFF' });
     if (body.mode === 'FIXTURE' && !this.providers.fixtureRooms[body.folder]) throw new UnprocessableEntityException({ code: 'SOURCE_NOT_FOUND' });
     if (body.mode === 'LIVE' && body.provider === 'vdr') throw new UnprocessableEntityException({ code: 'SOURCE_NOT_CONFIGURED' });
+    // Google Drive files are chosen in each person's picker (`startSignIn`), never read through an organization sign-in.
+    if (body.mode === 'LIVE' && body.provider === 'google-drive' && !body.token) throw new UnprocessableEntityException({ code: 'USE_PICKER' });
     // LIVE reads with the organization's own sign-in (T-147); a pasted token only from older clients.
     const account =
       body.mode === 'LIVE' && !body.token
@@ -199,7 +208,8 @@ export class DocumentSourcesService {
    */
   async startSignIn(tenant: TenantContext, dealId: string, body: DocumentSignInBody, requestId: string): Promise<{ url: string }> {
     await this.access.require(tenant, dealId, canSupply, { action: 'document_source.sign_in_started', requestId });
-    return this.accounts.signInUrl(tenant, body.provider, { k: 'pact', d: dealId, f: body.folder, n: body.displayName });
+    if (body.provider === 'google-drive' && !this.providers.googlePicker) throw new ServiceUnavailableException({ code: 'SOURCE_NOT_CONFIGURED' });
+    return this.accounts.signInUrl(tenant, body.provider, { k: 'pact', d: dealId, f: body.provider === 'google-drive' ? '' : (body.folder ?? ''), n: body.displayName });
   }
 
   /**
@@ -211,7 +221,7 @@ export class DocumentSourcesService {
     const dealId = state.d;
     const role = await this.access.require(tenant, dealId, canSupply, { action: 'document_source.connected', requestId });
     const folder = documentSourceConfigSchema.shape.folder.safeParse(state.f);
-    if (!folder.success) throw new UnprocessableEntityException({ code: 'SOURCE_NOT_FOUND' });
+    if (!folder.success || (state.p === 'onedrive' && !folder.data)) throw new UnprocessableEntityException({ code: 'SOURCE_NOT_FOUND' });
     const { tokens, account } = await this.accounts.exchange(state.p, code);
     const id = newId();
     const credentialRef = `secretref:${tenant.organizationId}/${dealId}/document-source/${id}`;
@@ -230,7 +240,8 @@ export class DocumentSourcesService {
           provider: state.p,
           mode: 'LIVE',
           displayName: state.n,
-          config: { folder: folder.data },
+          // Google Drive: no folder; the files come from the picker next (`addFiles`).
+          config: state.p === 'google-drive' ? { folder: '', files: [] } : { folder: folder.data },
           credentialRef,
           credentialKind: 'OAUTH',
           accountName: account.accountName,
@@ -264,6 +275,50 @@ export class DocumentSourcesService {
     return { id: sourceId, status: 'DISABLED' };
   }
 
+  /** A Google Drive source the caller connected with their own sign-in (the picker runs as them, in their Drive). */
+  private async ownGoogleSource(tenant: TenantContext, dealId: string, sourceId: string, action: string, requestId: string) {
+    await this.access.require(tenant, dealId, canSupply, { action, requestId });
+    const source = await withTenant(this.prisma, tenant, (tx) => tx.documentSource.findFirst({ where: { id: sourceId, dealId } }));
+    if (!source) throw new NotFoundException();
+    if (source.provider !== 'google-drive' || source.credentialKind !== 'OAUTH' || !source.credentialRef) throw new ConflictException({ code: 'NOT_A_PICKER_SOURCE' });
+    if (source.createdBy !== tenant.userId) throw new ForbiddenException();
+    if (source.status !== 'ACTIVE') throw new ConflictException({ code: 'SOURCE_DISABLED' });
+    return source as typeof source & { credentialRef: string };
+  }
+
+  /**
+   * What Google's picker needs in the browser, for the person who connected this source only: their own
+   * short-lived access token (drive.file, about an hour), Pactlab's picker API key and project number.
+   * Audited; never logged. The picker can show only that person's own Drive.
+   */
+  async picker(tenant: TenantContext, dealId: string, sourceId: string, requestId: string) {
+    const source = await this.ownGoogleSource(tenant, dealId, sourceId, 'document_source.picker_opened', requestId);
+    const picker = this.providers.googlePicker;
+    const client = this.providers.documentOAuth['google-drive'];
+    if (!picker || !client) throw new ServiceUnavailableException({ code: 'SOURCE_NOT_CONFIGURED' });
+    let accessToken: string;
+    try {
+      accessToken = await connectionTokens(client, this.providers.secrets, source.credentialRef)();
+    } catch (error) {
+      sourceError(error);
+    }
+    await withTenant(this.prisma, tenant, (tx) => appendAuditEvent(tx, this.audit(tenant, dealId, 'document_source.picker_opened', sourceId, requestId)));
+    return { accessToken, apiKey: picker.apiKey, appId: picker.appId };
+  }
+
+  /** Files chosen in the picker join the source (deduplicated, at most MAX_PICKED_FILES); the next sync reads them. */
+  async addFiles(tenant: TenantContext, dealId: string, sourceId: string, fileIds: readonly string[], requestId: string) {
+    const source = await this.ownGoogleSource(tenant, dealId, sourceId, 'document_source.files_chosen', requestId);
+    const current = (source.config as { files?: string[] }).files ?? [];
+    const files = [...new Set([...current, ...fileIds])];
+    if (files.length > MAX_PICKED_FILES) throw new UnprocessableEntityException({ code: 'TOO_MANY_FILES' });
+    await withTenant(this.prisma, tenant, async (tx) => {
+      await tx.documentSource.update({ where: { id: sourceId }, data: { config: { folder: '', files } } });
+      await appendAuditEvent(tx, this.audit(tenant, dealId, 'document_source.files_chosen', sourceId, requestId));
+    });
+    return { id: sourceId, filesChosen: files.length };
+  }
+
   /** Read the source: new and changed files in, removed ones marked. Each file's outcome is returned. */
   async sync(tenant: TenantContext, dealId: string, sourceId: string, requestId: string) {
     // The deal team syncs any source; a seller only their own (RLS hides the rest).
@@ -271,7 +326,8 @@ export class DocumentSourcesService {
     const source = await withTenant(this.prisma, tenant, (tx) => tx.documentSource.findFirst({ where: { id: sourceId, dealId } }));
     if (!source) throw new NotFoundException();
     if (source.status !== 'ACTIVE') throw new ConflictException({ code: 'SOURCE_DISABLED' });
-    const config = { folder: (source.config as { folder?: string }).folder ?? '' };
+    const stored = source.config as { folder?: string; files?: string[] };
+    const config = { folder: stored.folder ?? '', ...(Array.isArray(stored.files) ? { files: stored.files } : {}) };
     // Signed in through the organization (T-147): its current sign-in, refreshed by itself; else a pasted token.
     // The person's own sign-in (from the pact): its tokens, refreshed by themselves under the source's reference.
     const personal = source.credentialKind === 'OAUTH' && source.credentialRef ? this.providers.documentOAuth[source.provider as DocumentOAuthProvider] : undefined;
