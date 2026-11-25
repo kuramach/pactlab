@@ -339,7 +339,7 @@ export default async function DealSourcesPage({
         <h2 id="imports" className="text-lg font-semibold tracking-tight">
           Imports
         </h2>
-        <p className="text-sm text-muted-foreground">Every file imported into this pact, newest first. A wrong import can be withdrawn from its page: its data stops counting and the record stays here.</p>
+        <p className="text-sm text-muted-foreground">Every file imported into this pact, newest first. Imported something wrongly? Delete it and import it again: its data stops counting and a note stays here.</p>
         {uploads.kind !== 'ok' ? (
           <ApiState result={uploads} />
         ) : uploads.data.items.length === 0 ? (
@@ -356,6 +356,11 @@ export default async function DealSourcesPage({
                   <Badge variant={UPLOAD_STATUS[upload.status].variant}>{UPLOAD_STATUS[upload.status].label}</Badge>
                   {upload.supersedesUploadId ? <Badge>Re-import</Badge> : null}
                   {upload.withdrawal ? <span className="text-muted-foreground">“{upload.withdrawal.reason}”</span> : null}
+                  {upload.canDelete && upload.status === 'IMPORTED' ? (
+                    <Link href={`/deals/${dealId}/sources/upload/${upload.id}?delete=1#delete`} className="ml-auto text-sm text-muted-foreground underline hover:text-foreground" aria-label={`Delete ${upload.fileName}`}>
+                      Delete
+                    </Link>
+                  ) : null}
                 </li>
               ))}
             </ul>
@@ -370,7 +375,7 @@ export default async function DealSourcesPage({
 const UPLOAD_STATUS = {
   UPLOADED: { label: 'Not imported yet', variant: 'draft' },
   IMPORTED: { label: 'Imported', variant: 'reviewed' },
-  WITHDRAWN: { label: 'Withdrawn', variant: 'danger' },
+  WITHDRAWN: { label: 'Deleted', variant: 'danger' },
   PURGED: { label: 'Cancelled', variant: 'neutral' },
   REJECTED: { label: 'Rejected', variant: 'danger' },
 } as const;

@@ -220,6 +220,79 @@ describe('withdraw an import and re-import (T-154)', { timeout: 60_000 }, () => 
     expect(runs.rows.map((row) => row.id)).toEqual([firstRun['id'], (rerun.body['latestRun'] as Body)['id']]);
   });
 
+  it('whoever imported a file can delete it and import it again; only the deal lead or an analyst can delete someone else\'s', async () => {
+    const tenant = await createSyntheticTenant(db.owner, 'Own import');
+    const lead = await token(tenant.subject, tenant);
+    const analyst = await token((await addSyntheticDealMember(db.owner, tenant, 'ANALYST')).subject, tenant);
+    const reviewer = await token((await addSyntheticDealMember(db.owner, tenant, 'REVIEWER')).subject, tenant);
+    const seller = await token((await addSyntheticDealMember(db.owner, tenant, 'TARGET_CONTRIBUTOR')).subject, tenant);
+    const otherSeller = await token((await addSyntheticDealMember(db.owner, tenant, 'TARGET_CONTRIBUTOR')).subject, tenant);
+    const base = `/v1/deals/${tenant.dealId}`;
+
+    // The seller imports a billing export; the buyer builds an accepted finding and a valuation run on it.
+    const mine = (await send(`${base}/uploads?system=pactlab_standard&fileName=seller-billing.csv`, seller, csv)).body;
+    await importFile(tenant, seller, mine);
+    const mineId = mine['id'] as string;
+    const lines = await invoiceLines(tenant, lead);
+    const created = await call('POST', `${base}/findings`, analyst, {
+      domain: 'FINANCIAL', title: 'Renewal priced below list', description: 'x', severity: 'MEDIUM', confidence: 'HIGH',
+      evidence: [{ evidenceItemId: lines.items[0]!.id, commitSha: null, toolName: 'billing-review', toolVersion: '1', rulesetVersion: null, path: null, lineStart: null, lineEnd: null }],
+      pricedRisk: { type: 'PRICE_REDUCTION', currency: 'USD', low: '100000', high: '300000', basis: 'Renewal gap' },
+      direction: -1,
+    });
+    const findingId = created.body['id'] as string;
+    await call('POST', `${base}/findings/${findingId}/reviews`, analyst, { expectedVersion: 1, decision: 'SUBMITTED', rationale: 'Ready' });
+    await call('POST', `${base}/findings/${findingId}/reviews`, reviewer, { expectedVersion: 2, decision: 'ACCEPTED', rationale: 'Checked' });
+    const scenario = await call('POST', `${base}/valuation/scenarios`, analyst, {
+      name: 'Base case',
+      values: { assumptions: { method: 'ARR_MULTIPLE', arr: '10000000.00', multiple: '6.5' }, bridge: { cash: '0', debt: '0', debtLikeItems: '0', workingCapitalAdjustment: '0' }, findingLinks: [{ findingId, point: 'MID' }] },
+    });
+    const scenarioId = (scenario.body['scenario'] as Body)['id'] as string;
+    const run = ((await call('POST', `${base}/valuation/scenarios/${scenarioId}/runs`, analyst, { expectedVersion: 1 })).body['latestRun'] as Body)['id'] as string;
+
+    // The buyer's own import, which the seller cannot see or delete.
+    const buyers = (await send(`${base}/uploads?system=pactlab_standard&fileName=buyer-billing.csv`, lead, doubled(csv))).body;
+    await importFile(tenant, lead, buyers);
+    const buyersId = buyers['id'] as string;
+
+    // Who may delete what, as the screens are told.
+    const sellerList = (await call('GET', `${base}/uploads`, seller)).body['items'] as Body[];
+    expect(sellerList.find((item) => item['id'] === mineId)?.['canDelete']).toBe(true);
+    expect(((await call('GET', `${base}/uploads`, otherSeller)).body['items'] as Body[]).find((item) => item['id'] === mineId)?.['canDelete']).toBe(false);
+    expect(((await call('GET', `${base}/uploads`, analyst)).body['items'] as Body[]).every((item) => item['canDelete'] === true)).toBe(true);
+    expect(((await call('GET', `${base}/uploads`, reviewer)).body['items'] as Body[]).every((item) => item['canDelete'] === false)).toBe(true);
+    expect((await call('GET', `${base}/uploads/${mineId}`, seller)).body['canDelete']).toBe(true);
+
+    // Not someone else's.
+    expect((await call('POST', `${base}/uploads/${mineId}/withdraw`, otherSeller, { reason: 'Not mine' })).status).toBe(403);
+    expect([403, 404]).toContain((await call('POST', `${base}/uploads/${buyersId}/withdraw`, seller, { reason: 'Not mine' })).status);
+    expect((await call('POST', `${base}/uploads/${mineId}/withdraw`, reviewer, { reason: 'No rights' })).status).toBe(403);
+
+    // Their own: deleted, and everything built on it is found and flagged, though the seller cannot see it.
+    const deleted = await call('POST', `${base}/uploads/${mineId}/withdraw`, seller, { reason: 'Columns read wrongly' });
+    expect(deleted.status).toBe(200);
+    expect(deleted.body['result']).toEqual({ voidedRecords: 84, flaggedFindings: 1, flaggedValuationRuns: 1 });
+    expect(deleted.body['upload']).toMatchObject({ id: mineId, status: 'WITHDRAWN', withdrawal: { reason: 'Columns read wrongly' } });
+    expect((await call('POST', `${base}/uploads/${mineId}/withdraw`, seller, { reason: 'Again' })).status).toBe(409);
+    expect(await audited('source_upload.withdrawn', mineId)).toBe(1);
+    expect(await audited('finding.source_withdrawn', findingId)).toBe(1);
+    expect(await audited('valuation_run.source_withdrawn', run)).toBe(1);
+    expect((await call('GET', `${base}/findings/${findingId}`, lead)).body['sourceWithdrawn']).toEqual([expect.objectContaining({ uploadId: mineId, reason: 'Columns read wrongly' })]);
+    // The buyer's import is untouched.
+    expect((await call('GET', `${base}/uploads/${buyersId}`, lead)).body['status']).toBe('IMPORTED');
+
+    // And imports it again; its history is theirs to see, not the other seller's.
+    expect((await call('POST', `${base}/uploads/${mineId}/reimport`, otherSeller, {})).status).toBe(403);
+    const again = await call('POST', `${base}/uploads/${mineId}/reimport`, seller, {});
+    expect(again.status).toBe(201);
+    await importFile(tenant, seller, again.body);
+    expect((await call('GET', `${base}/uploads/${again.body['id'] as string}/history`, seller)).status).toBe(200);
+    expect((await call('GET', `${base}/uploads/${again.body['id'] as string}/history`, otherSeller)).status).toBe(403);
+
+    // The deal lead can delete the seller's.
+    expect((await call('POST', `${base}/uploads/${again.body['id'] as string}/withdraw`, lead, { reason: 'Superseded by data room copy' })).status).toBe(200);
+  });
+
   it('re-importing the same rows restores them: the voids stay as history, naming the import that restored them', async () => {
     const tenant = await createSyntheticTenant(db.owner, 'Restore');
     const lead = await token(tenant.subject, tenant);

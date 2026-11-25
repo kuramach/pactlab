@@ -79,6 +79,18 @@ export const withdrawals = {
   },
 
   /**
+   * A seller withdrawing an import they uploaded (Kumar, 2026-11-25): the same steps, run by
+   * `app_import_withdraw_own`, which sees the whole pact (buyer-only imports and findings included) so no
+   * record another import still reads is voided and every affected finding is named. Null when the import
+   * is not the caller's or not (still) imported.
+   */
+  async withdrawOwn(tx: TransactionClient, input: { uploadId: string; reason: string }): Promise<WithdrawalOutcome | null> {
+    const [row] = await tx.$queryRaw<{ outcome: { voided: number; findingIds: string[]; valuationRunIds: string[] } | null }[]>`
+      SELECT app_import_withdraw_own(${input.uploadId}::uuid, ${input.reason}) AS outcome`;
+    return row?.outcome ?? null;
+  },
+
+  /**
    * A later import that read voided records again (a re-import of the same
    * rows) restores them; the void stays as history, naming the import that restored it.
    */

@@ -24,4 +24,13 @@ test('a billing export uploads, maps, validates and imports; importing again cha
 
   await upload();
   await expect(page.getByRole('status')).toContainText('already imported with the same mapping. Nothing changed.');
+
+  // Read wrongly? Delete it from the list and import it again (Kumar, 2026-11-25).
+  await page.getByRole('link', { name: 'Delete invoice-lines.csv' }).first().click();
+  await page.getByLabel('Why are you deleting it?').fill('Columns read wrongly');
+  await page.getByRole('button', { name: 'Delete import' }).click();
+  await expect(page.getByRole('heading', { name: 'This import was deleted' })).toBeVisible();
+  await expect(page.getByRole('status')).toContainText('302 records no longer count');
+  await page.getByRole('button', { name: 'Import again' }).click();
+  await expect(page.getByText('2. Map columns to the standard invoice line')).toBeVisible();
 });
