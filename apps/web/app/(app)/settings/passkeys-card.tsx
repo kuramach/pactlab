@@ -15,7 +15,7 @@ export async function PasskeysCard() {
   if (result.kind !== 'ok') return null;
   const { passkeys, canAdd } = result.data;
   return (
-    <Card id="sign-in">
+    <Card id="sign-in" section="sign-in">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Fingerprint className="h-4 w-4" aria-hidden /> Sign-in

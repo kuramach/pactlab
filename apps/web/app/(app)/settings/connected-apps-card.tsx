@@ -12,7 +12,7 @@ export async function ConnectedAppsCard({ mcpAddress }: { mcpAddress: string }) 
   if (result.kind !== 'ok') return null;
   const { apps } = result.data;
   return (
-    <Card id="connected-apps">
+    <Card id="connected-apps" section="connected-apps">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Plug className="h-4 w-4" aria-hidden /> Connected apps

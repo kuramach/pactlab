@@ -28,7 +28,7 @@ export default async function SettingsPage() {
       />
 
       {gaps.length > 0 ? (
-        <Card>
+        <Card section="controls-gaps">
           <CardHeader>
             <CardTitle>Open gaps</CardTitle>
           </CardHeader>
@@ -45,7 +45,7 @@ export default async function SettingsPage() {
       ) : null}
 
       {controlsByArea().map((group) => (
-        <Card key={group.area}>
+        <Card key={group.area} section="controls">
           <CardHeader>
             <CardTitle>{group.area}</CardTitle>
           </CardHeader>

@@ -28,7 +28,7 @@ export async function DocumentSourcesCard({ outcome }: { outcome?: string | unde
   if (items.length === 0) return null;
   const { canEdit } = result.data;
   return (
-    <Card id="document-sources">
+    <Card id="document-sources" section="document-sources">
       <CardHeader>
         <CardTitle>Document sources</CardTitle>
         <CardDescription>
