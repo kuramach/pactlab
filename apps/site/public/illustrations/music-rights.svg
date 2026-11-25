@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 420" role="img" aria-labelledby="t">
+<title id="t">Music rights: a record, a royalty statement and the works register with a termination window</title>
+<rect width="640" height="420" rx="28" fill="#f3f5ff"/>
+<circle cx="560" cy="70" r="120" fill="#e6e9ff"/>
+<circle cx="70" cy="380" r="90" fill="#e6e9ff"/>
+<g fill="#c9cffd"><circle cx="40" cy="40" r="2.5"/><circle cx="62" cy="40" r="2.5"/><circle cx="84" cy="40" r="2.5"/><circle cx="106" cy="40" r="2.5"/><circle cx="128" cy="40" r="2.5"/><circle cx="150" cy="40" r="2.5"/><circle cx="172" cy="40" r="2.5"/><circle cx="194" cy="40" r="2.5"/></g>
+
+<g transform="translate(170 215)">
+<circle r="120" fill="#081127"/>
+<g fill="none" stroke="#1c2747" stroke-width="2"><circle r="104"/><circle r="90"/><circle r="76"/><circle r="62"/></g>
+<circle r="42" fill="#6978ff"/>
+<circle r="8" fill="#f3f5ff"/>
+<path d="M -70 -70 A 99 99 0 0 1 20 -97" fill="none" stroke="#c9cffd" stroke-width="3" stroke-linecap="round"/>
+</g>
+
+<rect x="350" y="70" width="230" height="130" rx="16" fill="#ffffff" stroke="#c9cffd" stroke-width="2"/>
+<text x="370" y="100" font-family="Manrope, sans-serif" font-size="14" font-weight="700" fill="#081127">Royalty statement</text>
+<g stroke-linecap="round" stroke-width="7"><line x1="370" y1="124" x2="470" y2="124" stroke="#c9cffd"/><line x1="500" y1="124" x2="555" y2="124" stroke="#6978ff"/><line x1="370" y1="148" x2="450" y2="148" stroke="#c9cffd"/><line x1="500" y1="148" x2="555" y2="148" stroke="#6978ff"/><line x1="370" y1="172" x2="480" y2="172" stroke="#c9cffd"/><line x1="500" y1="172" x2="555" y2="172" stroke="#6978ff"/></g>
+
+<rect x="350" y="225" width="230" height="140" rx="16" fill="#ffffff" stroke="#c9cffd" stroke-width="2"/>
+<text x="370" y="255" font-family="Manrope, sans-serif" font-size="14" font-weight="700" fill="#081127">Works register</text>
+<g stroke-linecap="round" stroke-width="7"><line x1="370" y1="280" x2="450" y2="280" stroke="#c9cffd"/><line x1="370" y1="304" x2="430" y2="304" stroke="#c9cffd"/><line x1="370" y1="328" x2="460" y2="328" stroke="#c9cffd"/></g>
+<rect x="475" y="272" width="80" height="16" rx="8" fill="#e6e9ff"/>
+<rect x="500" y="272" width="40" height="16" rx="8" fill="#6978ff"/>
+<circle cx="545" cy="328" r="11" fill="#081127"/>
+<path d="M 540 328 l 4 4 l 7 -8" fill="none" stroke="#f3f5ff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

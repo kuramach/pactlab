@@ -19,6 +19,7 @@ import {
   CLASSIFY_MAX_PAGES,
   classifyDocument,
   extractContractTerms,
+  extractMusicItems,
   extractOfferingItems,
   scrubContract,
   GatewayPolicyError,
@@ -1089,6 +1090,30 @@ export class DocumentsService {
     }
     const { run, items, rejected, providerError } = outcome;
     await this.documents.recordAiRun(tenant, run, this.audit(tenant, dealId, 'syndication.extraction.completed', { type: 'ai_run', id: run.id }, requestId));
+    if (run.status === 'PROVIDER_ERROR') throw providerUnavailable(providerError);
+    return { document: { id: document.id, fileName: document.fileName, category: document.intake.category }, runId: run.id, items, rejected };
+  }
+
+  /**
+   * Music rights extraction (T-140): read a royalty statement, split sheet, publishing agreement,
+   * Copyright Office record or lien search with `music.extract`. Only grounded entries come back
+   * (quote on the page, figure and date year in the quote); the music service stores them as
+   * PROPOSED for a person to confirm. The AI run is recorded either way.
+   */
+  async extractMusic(tenant: TenantContext, dealId: string, documentId: string, requestId: string) {
+    await this.access.require(tenant, dealId, canExtract, { action: 'music.extraction.requested', requestId });
+    const document = await this.documents.getDocument(tenant, dealId, documentId);
+    if (!document) throw new NotFoundException();
+    if (!modelEligible(document)) throw new UnprocessableEntityException({ code: 'NOT_FOR_AI', message: 'This document is kept away from AI' });
+    const { sources } = await this.sources(tenant, dealId, [document]);
+    let outcome;
+    try {
+      outcome = await extractMusicItems(this.gateway, { organizationId: tenant.organizationId, dealId, sources });
+    } catch (error) {
+      gatewayError(error);
+    }
+    const { run, items, rejected, providerError } = outcome;
+    await this.documents.recordAiRun(tenant, run, this.audit(tenant, dealId, 'music.extraction.completed', { type: 'ai_run', id: run.id }, requestId));
     if (run.status === 'PROVIDER_ERROR') throw providerUnavailable(providerError);
     return { document: { id: document.id, fileName: document.fileName, category: document.intake.category }, runId: run.id, items, rejected };
   }

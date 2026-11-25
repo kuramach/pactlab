@@ -180,12 +180,33 @@ function offeringExtraction(request: ModelRequest) {
 }
 
 /**
+ * Music rights extraction (T-140): the entries a model would propose from the demo's rights
+ * documents — split sheet shares, the unrecouped balance and a lien — each quoting its sentence.
+ */
+function musicExtraction(request: ModelRequest) {
+  const prompt = request.messages[0]?.content ?? '';
+  const items = [];
+  const plain = (figure: string) => figure.replaceAll(',', '');
+  for (const block of prompt.split('<untrusted_source ').slice(1)) {
+    const citationId = /citation_id="([^"]+)"/.exec(block)?.[1] ?? '';
+    const text = block.slice(block.indexOf('>') + 1, block.indexOf('</untrusted_source>')).replace(/\s+/g, ' ');
+    for (const match of text.matchAll(/Split sheet (W-\d{4}): ((?:WR-\d{3} \d+%(?:, )?)+)\./g)) {
+      for (const share of (match[2] ?? '').matchAll(/(WR-\d{3}) (\d+)%/g)) items.push({ kind: 'SPLIT', work: match[1] ?? null, detail: share[1] ?? null, value: share[2] ?? null, date: null, citations: [{ citationId, quote: match[0] }] });
+    }
+    for (const match of text.matchAll(/Unrecouped balance carried forward: [A-Z]{3} ([\d,]+)\./g)) items.push({ kind: 'ADVANCE_BALANCE', work: null, detail: null, value: plain(match[1] ?? ''), date: null, citations: [{ citationId, quote: match[0] }] });
+    for (const match of text.matchAll(/in favour of ([^,]+), securing obligations up to [A-Z]{3} ([\d,]+)/g)) items.push({ kind: 'ENCUMBRANCE', work: null, detail: match[1] ?? null, value: plain(match[2] ?? ''), date: null, citations: [{ citationId, quote: match[0] }] });
+  }
+  return { items };
+}
+
+/**
  * Scripted model responses for the demo contracts: the extraction a model
  * would propose, cited to the exact text. Runs are recorded under the model
  * id `synthetic-fixture`, never as a real model.
  */
 export function demoModelResponse(request: ModelRequest): string {
   if (request.system.includes('offering documents of a multifamily real-estate syndication')) return JSON.stringify(offeringExtraction(request));
+  if (request.system.includes('rights documents of a music catalog')) return JSON.stringify(musicExtraction(request));
   // The mapping assistant (import.map@1): rule-based, from the grid the prompt shows.
   if (request.system.includes('You help import a spreadsheet')) return importMapFixtureResponse(request.messages[0]?.content ?? '');
   // Negotiation brief (T-105): one synthetic, grounded section per finding carried by the terms.

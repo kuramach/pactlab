@@ -67,6 +67,14 @@ export const REGULATORY_PROFILES: Readonly<Record<PackId, RegulatoryProfile>> = 
       { name: 'Securities regulators', scope: 'Exempt-offering rules for the raise (Regulation D 506(b) or 506(c))', theoryOfHarm: 'Investor eligibility and disclosure' },
     ),
   },
+  // A catalog purchase rarely meets merger review; the rights authorities hold the records title diligence reads.
+  MUSIC_RIGHTS: {
+    depth: 'LIGHT',
+    authorities: [
+      { name: 'U.S. Copyright Office', scope: 'Registration and recordation of transfers; notices of termination under 17 U.S.C. §203 and §304', theoryOfHarm: 'Not a merger authority: its records show chain of title and terminable grants' },
+      ...ANTITRUST,
+    ],
+  },
   // A seed round has no merger review: the light screen keeps the checklist and the covenant tracker only.
   VENTURE_RAISE: { depth: 'LIGHT', authorities: [{ name: 'Securities regulators', scope: 'Exempt-offering rules for the round', theoryOfHarm: 'Investor eligibility and disclosure' }] },
 };

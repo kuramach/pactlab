@@ -22,6 +22,8 @@ describe('deal sections per pact (batch 2)', () => {
     expect(sectionApplies('/syndication', { companyType: 'MULTIFAMILY_SYNDICATION', initiatedBy: 'BUYER' })).toBe(true);
     expect(sectionApplies('/syndication', { companyType: 'MULTIFAMILY', initiatedBy: 'BUYER' })).toBe(false);
     expect(sectionCompanyTypes('/syndication')).toEqual(['MULTIFAMILY_SYNDICATION']);
+    // A music catalog's register (T-140): only on a music rights pact.
+    expect(sectionCompanyTypes('/catalog')).toEqual(['MUSIC_RIGHTS']);
   });
 
   it('shows subscription metrics only for subscription businesses', () => {

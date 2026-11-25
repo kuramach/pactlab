@@ -76,6 +76,8 @@ class Dataset:
         # The selling entity and the buyer the guide enters; a syndication (T-106) seats the sponsor as the buyer.
         self.seller, self.buyer = None, 'Demo Buyer'
         self.syndication_step = []
+        self.music_step = []
+        self.ask = None
 
     def amt(self, usd):
         return q(D(usd) * self.c['scale'])
@@ -96,6 +98,10 @@ class Dataset:
 
     def doc(self, name, text, description, data_class='Business'):
         self.docs[name] = (text.strip() + '\n', description, data_class)
+
+    def asking(self):
+        """The seller's asking price: a multiple of billed revenue, or the pack's own ask (a royalty catalog prices on statement income)."""
+        return self.ask if self.ask is not None else sig2(self.billed_arr() * ASKING_MULTIPLE[self.pack])
 
     @property
     def seller_name(self):
@@ -121,7 +127,7 @@ class Dataset:
                      question='', scope='', answer='', price=None, round2=None, pre_money=None, round2_pre=None,
                      structure='', conditions='', outcome='Passes: "Too early for our fund this year."'),
             ]
-        ask = sig2(self.billed_arr() * ASKING_MULTIPLE[self.pack])
+        ask = self.asking()
         return [
             dict(firm='Harbor Capital Partners (synthetic)', tag='harbor', kind='Private equity',
                  question='Can any customer or supplier contract be ended on a change of control?', scope='ALL',
@@ -211,7 +217,7 @@ class Dataset:
         out += ['1. Click **Start a Pact** (top right).',
                 f'2. Under *Who are you in this deal?* choose **We are selling (or raising)**. Pact name: `Project {self.brand.split()[0]} Sale` · Base currency: **{c}** → **Next**. (There is no buying-entity step.)',
                 f'3. **Selling entity** — Legal or trading name: `{self.seller_name}` · **Private** · What kind of company is it?: **{label}** → **Next**.',
-                '4. **Asking price** — ' + ('choose **Not known yet** → **Next**.' if venture else f'enter the same asking price as Part A, Step 1 (`{sig2(self.billed_arr() * ASKING_MULTIPLE[self.pack]):.0f}`) → **Next**.'),
+                '4. **Asking price** — ' + ('choose **Not known yet** → **Next**.' if venture else f'enter the same asking price as Part A, Step 1 (`{self.asking():.0f}`) → **Next**.'),
                 '5. **Review and start** — the Buyer box says *Bid process — you invite buyers once the pact starts* → **Start Pact**.', '',
                 '**You should see:** the **Bidders** page, with no bidders yet.', '']
         step(f'Decide what {who}s see')
@@ -294,7 +300,7 @@ class Dataset:
         if venture:
             out.append('5. **Asking price** — choose **Not known yet** (a raise has no asking price; you set your round on the **Raise** tab after the uploads) → **Next**.')
         else:
-            asking = sig2(self.billed_arr() * ASKING_MULTIPLE[self.pack])
+            asking = self.asking()
             out += ['5. **Asking price** — choose **We have an asking price**, then:', '',
                     '   | Field | Enter |', '   |---|---|',
                     f'   | Asking price | `{asking:.0f}` ({money(c, asking)}) |',
@@ -303,7 +309,7 @@ class Dataset:
                     '   | Where it came from | **Teaser or information memorandum** |',
                     '   | Date quoted | 30 September 2026 |',
                     '   | Of which earn-out, Note | leave empty |', '',
-                    f'   → **Next**. (This is the seller\'s ask: {ASKING_MULTIPLE[self.pack]}× the September 2026 billed revenue run-rate. The demo shows how far the evidence supports it.)']
+                    (f'   → **Next**. (This is the seller\'s ask: about 14× trailing statement income. The demo shows how far the evidence supports it.)' if self.ask is not None else f'   → **Next**. (This is the seller\'s ask: {ASKING_MULTIPLE[self.pack]}× the September 2026 billed revenue run-rate. The demo shows how far the evidence supports it.)')]
         out += ['6. **Review and start** — check the summary → **Start Pact**.', '',
                 f'**You should see:** the Pact overview for `{self.seller_name}`' + ('.' if venture else f', with the asking price {money(c, asking)}.'), '']
         heading('Upload the billing export')
@@ -358,6 +364,9 @@ class Dataset:
         if self.syndication_step:
             heading('Read the offering (Syndication tab)')
             out += self.syndication_step
+        if self.music_step:
+            heading('Read the catalog (Catalog tab)')
+            out += self.music_step
         heading('Run the checks and review the findings')
         out += [f'1. Open the **Findings** tab → **Run {label.lower()} checks**.',
                 f'2. **You should see exactly these {len(self.findings)} findings** (running the checks again adds nothing):', '']
@@ -407,6 +416,7 @@ PACK_IMPORTS = {
     'hospitals': {'census': 'Census', 'payer-mix': 'Payer mix'},
     'venture-raise': {'cap-table': 'Cap table', 'monthly-financials': 'Monthly financials'},
     'multifamily-syndication': {'rent-roll': 'Rent roll', 't12': 'T-12 operating statement', 'delinquency': 'Delinquency report', 'unit-inspections': 'Unit inspections', 'track-record': 'Sponsor track record'},
+    'music-rights': {'works-register': 'Works register', 'writer-splits': 'Writer splits', 'chain-of-title': 'Chain of title', 'royalty-statements': 'Royalty statements'},
 }
 
 # What Pactlab's "What kind of company is it?" shows (COMPANY_TYPE_LABELS in
@@ -416,7 +426,7 @@ COMPANY_TYPE_LABELS = {
     'telecom-media': 'Telecom & media', 'professional-services': 'Professional services', 'pharma-biotech': 'Pharma & biotech',
     'ecommerce-dtc': 'E-commerce & DTC', 'multifamily': 'Multifamily', 'commercial-property': 'Commercial property',
     'hotels': 'Hotels & hospitality', 'small-clinics': 'Small clinics', 'hospitals': 'Hospitals',
-    'venture-raise': 'Venture Raise', 'multifamily-syndication': 'Multifamily syndication',
+    'venture-raise': 'Venture Raise', 'multifamily-syndication': 'Multifamily syndication', 'music-rights': 'Music rights',
 }
 # The Documents tab's data-class options.
 DATA_CLASS_LABELS = {'Business': 'business information', 'Financial': 'financial information'}
@@ -426,7 +436,7 @@ PACK_TITLES = {
     'telecom-media': 'Telecom and media', 'professional-services': 'IT and professional services', 'pharma-biotech': 'Pharma and biotech',
     'ecommerce-dtc': 'E-commerce and DTC', 'multifamily': 'Multifamily', 'commercial-property': 'Commercial property',
     'hotels': 'Hotels and hospitality', 'small-clinics': 'Small clinics', 'hospitals': 'Hospitals',
-    'venture-raise': 'Venture Raise', 'multifamily-syndication': 'Multifamily syndication',
+    'venture-raise': 'Venture Raise', 'multifamily-syndication': 'Multifamily syndication', 'music-rights': 'Music rights',
 }
 
 def ramp(rng, base, growth, months=MONTHS, start=None, end=None, noise=D('0')):
@@ -1225,12 +1235,165 @@ Stonebridge Flats delivered a 19.2% investor IRR.
         'Diligence support only: not legal advice, no accreditation determination, no securities-offering or broker-dealer function.',
     ]
 
+def music(ds):
+    """Music rights (T-140): a publishing and masters catalog of 120 works with four semi-annual statements and planted defects."""
+    ds.kind, ds.kind_label = 'sync_licence', 'direct licence'
+    ds.summary = f'{ds.company} owns a catalog of 120 song copyrights and recorded masters, administered by a third party and sold for its royalty income.'
+    rng, c = ds.rng, ds.cur
+    periods = ['2024-12-31', '2025-06-30', '2025-12-31', '2026-06-30']
+    words_a = ['Harbour', 'Silver', 'Northern', 'Paper', 'Velvet', 'Midnight', 'Copper', 'Glass', 'Summer', 'Hollow', 'Neon', 'River', 'Quiet', 'Golden', 'Wild', 'Distant', 'Amber', 'Static', 'Lantern', 'Open']
+    words_b = ['Lights', 'Roads', 'Hearts', 'Skies', 'Lines', 'Rooms', 'Waves', 'Fields', 'Echoes', 'Signals', 'Gardens', 'Streets', 'Letters', 'Shores', 'Engines', 'Hours']
+    societies = ['Cardinal PRS (synthetic)', 'Northbeam Rights (synthetic)']
+    writers = [f'WR-{i:03d}' for i in range(1, 31)]
+    works, splits, grants, lines = [], [], [], []
+    hit, over, leaks = 'W-0042', 'W-0077', ['W-0018', 'W-0063']
+    exposed = set()
+    used = {'Harbour Lights'}
+    for i in range(1, 121):
+        wid = f'W-{i:04d}'
+        while True:
+            title = f'{rng.choice(words_a)} {rng.choice(words_b)}'
+            if wid == hit or title not in used: break
+        if wid == hit: title = 'Harbour Lights'
+        used.add(title)
+        recording = i > 100
+        year = 2012 if wid == hit else (1979 + (i * 7) % 46)
+        if wid in leaks: year = 2016 + (i % 3)
+        us = 'no' if i % 6 == 0 and wid != hit else 'yes'
+        society = societies[i % 2]
+        works.append([wid, title, 'recording' if recording else 'composition', '' if recording else f'T-{900000000 + i:09d}-{i % 10}', f'QZ-K7S-{year % 100:02d}-{i:05d}' if recording else '', '' if recording else society, f'{ds.company}', year, us])
+        # Writers and splits (compositions); masters are works made for hire.
+        n = 1 if recording else 2 if wid == hit else 1 + (i % 3)
+        team = [writers[(i * 3 + k * 7) % 30] for k in range(n)]
+        shares = {1: [100], 2: [50, 50], 3: [40, 30, 30]}[n]
+        if wid == over: shares = [55, 50]; team = team[:2]
+        if not recording:
+            for k, (w, sh) in enumerate(zip(team, shares)):
+                splits.append([f'S-{i:04d}-{k + 1}', wid, w, sh, 'split_sheet'])
+                if i % 10 == 3:
+                    splits.append([f'S-{i:04d}-{k + 1}P', wid, w, sh, 'statement'])
+        grants.append([f'G-{i:04d}-R', wid, 'registration', f'{year}-03-01', '', '', '', f'PA{1000000 + i * 37:010d}'])
+        if recording:
+            grants.append([f'G-{i:04d}-H', wid, 'work_for_hire', f'{year}-01-15', '', '', '', f'Recording agreement RA-{i:04d}'])
+        elif wid != hit:
+            for k, w in enumerate(team):
+                grants.append([f'G-{i:04d}-A{k + 1}', wid, 'assignment', f'{year}-02-01', '', '', w, f'Assignment {wid}/{k + 1}'])
+            # §203: executed 1986-06-30 to 2001-06-30 opens inside a 10-year hold from 2026-06-30 and has not lapsed.
+            if us == 'yes' and 1987 <= year <= 2001: exposed.add(wid)
+        grants.append([f'G-{i:04d}-M', wid, 'administration', '2019-07-01', '', '', '', 'Administration agreement AA-2019'])
+        # Income: a base by age, decaying a little each half-year; the hit is the largest by far.
+        age = 2026 - year
+        base = D(60000) if wid == hit else D(rng.randint(900, 2600)) * (D('1.6') if age <= 10 else D('1'))
+        decay = D('0.94') if age <= 10 else D('0.985')
+        for p, period in enumerate(periods):
+            amount = base * decay ** p
+            if recording:
+                lines.append([f'L-{wid}-{period}-st', period, wid, 'streaming', 'Lattice Digital Distribution (synthetic)', amount * D('0.7')])
+                lines.append([f'L-{wid}-{period}-nr', period, wid, 'neighbouring', 'Fernway Neighbouring Rights (synthetic)', amount * D('0.3')])
+            else:
+                if wid not in leaks:
+                    lines.append([f'L-{wid}-{period}-pf', period, wid, 'performance', society, amount * D('0.55')])
+                lines.append([f'L-{wid}-{period}-mc', period, wid, 'mechanical', 'Keystone Mechanical Agency (synthetic)', amount * D('0.45')])
+            if wid == hit:
+                lines.append([f'L-{wid}-{period}-sy', period, wid, 'sync', 'Direct licences', D(4000)])
+    # Scale the exposed works so their grants carry about 30% of trailing income.
+    trailing = lambda keep: sum((l[5] for l in lines if l[1] > '2025-06-30' and keep(l[2])), D(0))
+    factor = (D('0.30') * trailing(lambda w: w not in exposed)) / (D('0.70') * trailing(lambda w: w in exposed))
+    for l in lines:
+        if l[2] in exposed: l[5] = l[5] * factor
+        l[5] = ds.amt(l[5])
+    rows = [[*l[:5], f'{l[5]:.2f}'] for l in lines]
+    ds.ext('works-register', ['work_id', 'title', 'work_type', 'iswc', 'isrc', 'pro', 'publisher', 'release_year', 'us_work'], works, 'Works and rights register: one row per composition or master')
+    ds.ext('writer-splits', ['split_id', 'work_id', 'writer_ref', 'share_pct', 'source'], splits, 'Writer splits from the split sheets, and as statements pay them (pseudonymous writer references)')
+    ds.ext('chain-of-title', ['grant_id', 'work_id', 'grant_type', 'executed_on', 'publication_date', 'copyright_secured_on', 'grantor_ref', 'reference'], grants, 'Chain of title: registrations, assignments, administration and work-for-hire agreements')
+    ds.ext('royalty-statements', ['line_id', 'period_end', 'work_id', 'income_source', 'payer', 'amount'], rows, 'Royalty statement lines by work, period and income source, net to the catalog owner')
+    # Direct sync licences billed by the owner (the billing export).
+    for j, (name, months) in enumerate([('Brightlane Films (synthetic)', ['2025-02', '2025-11', '2026-05']), ('Pixelcourt Games (synthetic)', ['2025-08', '2026-03']), ('Orchard Lane Advertising (synthetic)', ['2024-12', '2025-09', '2026-07'])]):
+        ds.customer(f'{ds.prefix}-lic-{j + 1:03d}', name, {mo: ds.amt(6500 + 1500 * j) for mo in months})
+    # Figures the README and the checks state.
+    in_trailing = lambda l: l[1] > '2025-06-30'
+    total = sum((l[5] for l in lines if in_trailing(l)), D(0))
+    by_work = {}
+    for l in lines:
+        if in_trailing(l): by_work[l[2]] = by_work.get(l[2], D(0)) + l[5]
+    exposed_income = sum((v for w, v in by_work.items() if w in exposed), D(0))
+    hit_income = by_work[hit]
+    ledger = ds.amt(412500)
+    lien = ds.amt(1500000)
+    over_writers = [row[2] for row in splits if row[1] == over and row[4] == 'split_sheet']
+    # The ask: about fourteen times trailing statement income, before diligence.
+    ds.ask = sig2(total * 14)
+    ds.doc('01-catalog-summary', f"""
+{ds.company} — catalog sale summary (synthetic)
+
+The catalog: 120 works — 100 song copyrights and 20 recorded masters — released between 1979 and 2024, administered by Keystone Music Administration (synthetic).
+---page---
+Rights and income
+
+The seller owns the copyrights and masters outright, by assignment from the writers and under recording agreements.
+There are no unrecouped advances outstanding against the catalog.
+The catalog is sold free of liens and encumbrances.
+Income is reported semi-annually by the administrator; statements for the last two years are in the data room.
+""", 'The seller\'s catalog sale summary')
+    ds.doc('02-split-sheet-w0077', f"""
+Split sheet — {over} {works[76][1]} (synthetic)
+
+Writers and shares as signed:
+---page---
+Split sheet {over}: {over_writers[0]} 55%, {over_writers[1]} 50%.
+Signed by both writers on 1 March {works[76][7]}.
+""", 'Split sheet for one composition, as signed')
+    ds.doc('03-administration-agreement', f"""
+Administration agreement AA-2019 — {ds.company} and Keystone Music Administration (synthetic)
+---page---
+4.1 The Administrator collects all income from the catalog worldwide and accounts to the Owner semi-annually.
+6.2 The Administrator paid the Owner an advance of {money(c, ds.amt(600000))}, recoupable from the Owner's share of income before any payment to the Owner.
+""", 'Administration agreement, with the advance and recoupment terms')
+    ds.doc('04-administration-ledger', f"""
+Keystone Music Administration (synthetic) — account statement for {ds.company}
+
+Statement period ending 2026-06-30.
+---page---
+Account summary
+
+Income credited this period, net of the administration fee, is applied first to the advance.
+Unrecouped balance carried forward: {money(c, ledger)}.
+""", 'The administrator\'s account statement and advance ledger')
+    ds.doc('05-lien-search', f"""
+Lien and UCC search report — {ds.company} (synthetic)
+---page---
+Results
+
+One record found. A UCC-1 financing statement was filed in favour of Northgate Credit Partners (synthetic), securing obligations up to {money(c, lien)} against the catalog and its income.
+""", 'Lien and UCC search over the selling entity')
+    ds.findings = [
+        ('Chain-of-title gap: Harbour Lights', f'planted defect (a): {hit} earned {money(c, hit_income)} in the year to June 2026 ({pct(hit_income / total)} of trailing income), but `chain-of-title.csv` holds a registration and no assignment for it.'),
+        ('Termination exposure inside the hold period', f'planted defect (b): grants behind {pct(exposed_income / total)} of trailing income ({len(exposed)} works, {money(c, exposed_income)} a year) become terminable under §203 before a 10-year hold ends.'),
+        (f'Split mismatch: {works[76][1]}', f'planted defect (c): the split sheet for {over} totals 105% in `writer-splits.csv` (and `documents/02-split-sheet-w0077.pdf`).'),
+        ('Unrecouped advance not disclosed', f'planted defect (d): `documents/04-administration-ledger.pdf` page 2 shows {money(c, ledger)} unrecouped; the catalog summary says there are none. Priced off the price.'),
+        ('Income concentration: Harbour Lights', f'{hit} is {pct(hit_income / total)} of trailing income — above the 15% the pack flags.'),
+        ('Royalty leakage: registered works with no performance income', f'{leaks[0]} and {leaks[1]} earn mechanicals but no performance income while works of the same age do.'),
+        ('Undisclosed encumbrance: Northgate Credit Partners (synthetic)', f'`documents/05-lien-search.pdf` page 2: a UCC-1 filing securing {money(c, lien)}; the catalog summary says the catalog is free of liens. An indemnity.'),
+    ]
+    ds.music_step = [
+        'Open the **Catalog** tab (it appears only on a music rights pact).', '',
+        f'**You should see:** the works register (120 works), trailing net income of {money(c, total)} for the year to 30 June 2026 by source and catalog age, the decay-adjusted income the royalty multiple applies to, and **Termination exposure**: {pct(exposed_income / total)} of trailing income behind grants that become terminable inside the 10-year hold.', '',
+        '1. Under **Read the rights documents**, click **Read with AI** for `02-split-sheet-w0077.pdf` and `04-administration-ledger.pdf`.',
+        '2. Under **To confirm**, check each proposed entry against its quote, then **Confirm** it (or correct it first, or **Reject** it). Only confirmed entries join the register and the math.',
+        '3. Click **Run catalog checks**: it runs the same rules as Findings, over the confirmed entries too, and adds nothing already drafted.', '']
+    ds.notes = [
+        'Buyer-side pack: you are a catalog buyer. The register, splits, chain of title and statements are CSV imports; rights documents are read on the **Catalog** tab, where a person confirms each entry before it counts.',
+        f'For the **Valuation** tab, the method is shown as **Royalty multiple**: use the decay-adjusted income from the **Catalog** tab as the income, and price the termination exposure finding as its own line (the exposed income × your multiple).',
+        'Termination windows follow 17 U.S.C. §203 and §304(c) as the Catalog tab states; whether a notice is or could be validly served is for counsel.',
+        'Diligence support only: not legal advice. Pactlab makes no determination that title is good or that a termination notice is valid.',
+    ]
+
 PACKS = [
     ('software-saas', 'Brightwave Software', software), ('fintech', 'Tallyport Payments', fintech), ('healthcare', 'Riverside Care Partners', healthcare),
     ('telecom-media', 'Northlake Fibre', telecom), ('professional-services', 'Sablestone Consulting', services), ('pharma-biotech', 'Calvera Pharmaceuticals', pharma),
     ('ecommerce-dtc', 'Ridgeline Outfitters', ecommerce), ('hotels', 'Harbourview Hotel Holdings', hotels), ('multifamily', 'Larkfield Residential', multifamily),
     ('commercial-property', 'Quayside Estates', commercial), ('hospitals', 'St. Brennan Health', hospitals), ('small-clinics', 'Clearbrook Clinics', clinics),
-    ('venture-raise', 'Loopwise', venture), ('multifamily-syndication', 'Ashgrove Residential', syndication),
+    ('venture-raise', 'Loopwise', venture), ('multifamily-syndication', 'Ashgrove Residential', syndication), ('music-rights', 'Fairlight Songs', music),
 ]
 
 if __name__ == '__main__':

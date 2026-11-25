@@ -50,6 +50,7 @@ export async function ScenarioEditor({
       <ScenarioForm
         action={action}
         methods={pack.valuationMethods}
+        methodLabels={pack.methodLabels ?? {}}
         name={scenario?.name ?? ''}
         values={scenario?.values ?? null}
         currency={deal.kind === 'ok' ? (deal.data.baseCurrency ?? 'USD') : 'USD'}

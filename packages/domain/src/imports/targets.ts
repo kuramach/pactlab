@@ -32,6 +32,10 @@ export const IMPORT_TARGETS = [
   'VENTURE_CAP_TABLE',
   'VENTURE_FINANCIALS',
   'SYNDICATION_TRACK_RECORD',
+  'MUSIC_WORKS',
+  'MUSIC_SPLITS',
+  'MUSIC_TITLE_CHAIN',
+  'MUSIC_ROYALTY_STATEMENTS',
   'REGULATORY_FOOTPRINT',
   'REMEDY_PACKAGE',
   'FINANCIAL_PNL',
@@ -632,6 +636,97 @@ export const VENTURE_FINANCIALS: TargetDefinition = {
 };
 
 /**
+ * Music rights (T-140): the works and rights register. One row per work (a composition) or
+ * recording (a master), with its identifiers and the year it was released. Writers are never
+ * named here: splits carry pseudonymous writer references.
+ */
+export const MUSIC_WORKS: TargetDefinition = {
+  target: 'MUSIC_WORKS',
+  label: 'Works register',
+  fileName: 'works-register.csv',
+  people: 'NONE',
+  refusesPeopleColumns: true,
+  evidenceType: 'music.work',
+  recordIdField: 'work_id',
+  observedAtFields: [],
+  fields: [
+    { name: 'work_id', label: 'Work id', kind: 'text', required: true, hint: 'The catalog\'s own id for the work or recording, e.g. W-0042.' },
+    { name: 'title', label: 'Title', kind: 'text', required: true, hint: 'The work\'s title as registered.' },
+    { name: 'work_type', label: 'Work type', kind: 'code', required: true, hint: 'composition (publishing) or recording (master).' },
+    { name: 'iswc', label: 'ISWC', kind: 'text', required: false, hint: 'International Standard Musical Work Code, for compositions.' },
+    { name: 'isrc', label: 'ISRC', kind: 'text', required: false, hint: 'International Standard Recording Code, for recordings.' },
+    { name: 'pro', label: 'PRO', kind: 'text', required: false, hint: 'Performing rights organisation the work is registered with, e.g. ASCAP, BMI, PRS.' },
+    { name: 'publisher', label: 'Publisher or label', kind: 'text', required: false, hint: 'Who publishes the composition or releases the recording.' },
+    { name: 'release_year', label: 'Release year', kind: 'decimal', required: true, hint: 'Year the work was first released; the catalog-age bands read it.' },
+    { name: 'us_work', label: 'US work', kind: 'code', required: true, hint: 'yes when the grant is governed by US copyright law (termination rights apply), otherwise no.' },
+  ],
+};
+
+/** Music rights (T-140): each writer's share of a work, from the split sheet or as a statement pays it. */
+export const MUSIC_SPLITS: TargetDefinition = {
+  target: 'MUSIC_SPLITS',
+  label: 'Writer splits',
+  fileName: 'writer-splits.csv',
+  people: 'PSEUDONYMOUS',
+  refusesPeopleColumns: true,
+  evidenceType: 'music.split',
+  recordIdField: 'split_id',
+  observedAtFields: [],
+  fields: [
+    { name: 'split_id', label: 'Split id', kind: 'text', required: true, hint: 'Unique id of the split line.' },
+    { name: 'work_id', label: 'Work id', kind: 'text', required: true, hint: 'The work, as in the works register.' },
+    { name: 'writer_ref', label: 'Writer reference', kind: 'text', required: true, hint: 'A pseudonymous reference such as WR-014 — never a name or IPI number.' },
+    { name: 'share_pct', label: 'Share (%)', kind: 'decimal', required: true, hint: 'The writer\'s share of the work, in percent.' },
+    { name: 'source', label: 'Source', kind: 'code', required: true, hint: 'split_sheet (as signed) or statement (as the royalty statement pays it).' },
+  ],
+};
+
+/**
+ * Music rights (T-140): the chain of title — every registration, assignment, licence and
+ * administration grant behind a work, with the dates the termination windows run from.
+ */
+export const MUSIC_TITLE_CHAIN: TargetDefinition = {
+  target: 'MUSIC_TITLE_CHAIN',
+  label: 'Chain of title',
+  fileName: 'chain-of-title.csv',
+  people: 'PSEUDONYMOUS',
+  refusesPeopleColumns: true,
+  evidenceType: 'music.grant',
+  recordIdField: 'grant_id',
+  observedAtFields: ['executed_on'],
+  fields: [
+    { name: 'grant_id', label: 'Grant id', kind: 'text', required: true, hint: 'Unique id of the registration or agreement line.' },
+    { name: 'work_id', label: 'Work id', kind: 'text', required: true, hint: 'The work, as in the works register.' },
+    { name: 'grant_type', label: 'Grant type', kind: 'code', required: true, hint: 'registration, assignment, license, administration or work_for_hire.' },
+    { name: 'executed_on', label: 'Executed on', kind: 'date', required: false, hint: 'When the grant was signed (or the registration\'s effective date).' },
+    { name: 'publication_date', label: 'Publication date', kind: 'date', required: false, hint: 'When the grant covers publication: the work\'s first publication under it.' },
+    { name: 'copyright_secured_on', label: 'Copyright secured on', kind: 'date', required: false, hint: 'For works from before 1978: when copyright was first secured.' },
+    { name: 'grantor_ref', label: 'Grantor reference', kind: 'text', required: false, hint: 'A pseudonymous reference to the author or prior owner, e.g. WR-014.' },
+    { name: 'reference', label: 'Reference', kind: 'text', required: false, hint: 'Registration number or agreement reference.' },
+  ],
+};
+
+/** Music rights (T-140): royalty statement lines — income by work, period and source. Absent periods stay absent. */
+export const MUSIC_ROYALTY_STATEMENTS: TargetDefinition = {
+  target: 'MUSIC_ROYALTY_STATEMENTS',
+  label: 'Royalty statements',
+  fileName: 'royalty-statements.csv',
+  people: 'NONE',
+  refusesPeopleColumns: true,
+  evidenceType: 'music.royalty_line',
+  recordIdField: 'line_id',
+  observedAtFields: ['period_end'],
+  fields: [
+    { name: 'line_id', label: 'Line id', kind: 'text', required: true, hint: 'Unique id of the statement line.' },
+    { name: 'period_end', label: 'Period end', kind: 'date', required: true, hint: 'Last day of the statement period.' },
+    { name: 'work_id', label: 'Work id', kind: 'text', required: true, hint: 'The work, as in the works register.' },
+    { name: 'income_source', label: 'Income source', kind: 'code', required: true, hint: 'performance, mechanical, sync, neighbouring or streaming.' },
+    { name: 'payer', label: 'Payer', kind: 'text', required: false, hint: 'The society, administrator, label or licensee that paid.' },
+    { name: 'amount', label: 'Net amount', kind: 'money', required: true, hint: `Net to the catalog owner (net publisher's share or net label share). ${IN_BASE_CURRENCY}` },
+  ],
+};
+
+/**
  * Multifamily syndication (T-106): the sponsor's prior deals, projected and
  * actual side by side. Blank actuals stay blank — absence is shown as absence,
  * never filled in. Deals, not people.
@@ -768,6 +863,10 @@ export const IMPORT_TARGET_DEFINITIONS: Readonly<Record<ImportTarget, TargetDefi
   VENTURE_CAP_TABLE,
   VENTURE_FINANCIALS,
   SYNDICATION_TRACK_RECORD,
+  MUSIC_WORKS,
+  MUSIC_SPLITS,
+  MUSIC_TITLE_CHAIN,
+  MUSIC_ROYALTY_STATEMENTS,
   REGULATORY_FOOTPRINT,
   REMEDY_PACKAGE,
   FINANCIAL_PNL,

@@ -18,3 +18,4 @@ export * from './brand';
 export * from './qoe/registry';
 export * from './syndication/registry';
 export * from './signing';
+export * from './music/registry';
