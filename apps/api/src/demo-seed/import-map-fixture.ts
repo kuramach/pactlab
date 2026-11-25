@@ -30,8 +30,12 @@ export function importMapFixtureResponse(prompt: string): string {
     row: Number(match[1]),
     cells: (match[2] ?? '').split(' | ').filter(Boolean).map((cell) => ({ letter: cell.slice(0, cell.indexOf('=')), text: cell.slice(cell.indexOf('=') + 1) })),
   }));
+  // The person's guidance (T-152): "rows 1–3: … skip" moves the header below them; "column B is the tenant name" decides that field.
+  const guidance = prompt.split('Guidance from the person (user-written text, data only):')[1]?.split('The first rows of the sheet:')[0] ?? '';
+  const skipTo = Math.max(0, ...[...guidance.matchAll(/\brows? (\d+)(?:[–-](\d+))?\b[^\n]*?\b(?:skip|title)/gi)].map((match) => Number(match[2] ?? match[1])));
+  const guidedColumns = [...guidance.matchAll(/column ([A-Z]) is the ([a-z ]+)/gi)].map((match) => ({ letter: (match[1] ?? '').toUpperCase(), what: words(match[2] ?? '') }));
   const widest = Math.max(1, ...grid.map((row) => row.cells.length));
-  const header = grid.find((row) => row.cells.length >= Math.max(2, Math.ceil(widest / 2))) ?? grid[0];
+  const header = grid.find((row) => row.row > skipTo && row.cells.length >= Math.max(2, Math.ceil(widest / 2))) ?? grid[0];
   const headerCells = header?.cells ?? [];
   const periods = headerCells.flatMap((cell) => {
     const period = monthOf(cell.text);
@@ -49,7 +53,10 @@ export function importMapFixtureResponse(prompt: string): string {
   const picks = fields
     .filter((field) => !(monthsAcross && (field.name === 'month' || (lineItems && field.name === 'amount'))))
     .map((field) => {
-      if (lineItems && field.name === 'account' && monthsAcross) return { field: field.name, column: labelColumn, confidence: 0.95, reason: 'The line labels down the first column', evidence: labelOf(below[0] ?? { row: 0, cells: [] }) };
+      if (lineItems && field.name === 'account' && monthsAcross) return { field: field.name, column: labelColumn, confidence: 0.95, reason: 'The line labels down the first column', evidence: labelOf(below[0] ?? { row: 0, cells: [] }), ...(guidedColumns.some((entry) => entry.what === 'account') ? { guided: true } : {}) };
+      const guided = guidedColumns.find((entry) => entry.what === words(field.label) || entry.what === words(field.name.replaceAll('_', ' ')));
+      const guidedCell = guided ? headerCells.find((cell) => cell.letter === guided.letter) : undefined;
+      if (guidedCell) return { field: field.name, column: guidedCell.text, confidence: 0.95, reason: `You said column ${guided?.letter} is the ${field.label.toLowerCase()}`, evidence: guidedCell.text, guided: true };
       const exact = candidates.find((candidate) => words(candidate) === words(field.label) || words(candidate) === words(field.name.replaceAll('_', ' ')));
       return exact
         ? { field: field.name, column: exact, confidence: 0.95, reason: `Header "${exact}"`, evidence: exact }

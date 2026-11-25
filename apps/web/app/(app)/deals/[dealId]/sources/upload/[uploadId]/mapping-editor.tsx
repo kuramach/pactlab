@@ -19,6 +19,7 @@ import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitl
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState, useTransition } from 'react';
 import { choiceOf, cleanMapping, definitionFor, importedUrl, sourceFromChoice, unmappedRequired } from '../_lib/mapping-form';
+import { GuidancePanel } from './guidance-panel';
 import { cancelUpload, chooseHeaderRow, chooseSheet, importProgressOf, importWithMapping, previewMapping } from '../actions';
 
 const inputClass =
@@ -96,6 +97,7 @@ export function MappingEditor({
   suggested,
   read,
   assist = null,
+  guidance = null,
   headerRow = null,
   preview: grid = [],
 }: {
@@ -108,6 +110,8 @@ export function MappingEditor({
   read?: ReadInfo;
   /** What the mapping assistant filled in and asks (Kumar, 2026-11-21); null for older uploads. */
   assist?: UploadDetailView['assist'];
+  /** What the person told the AI about the file (T-152), quoted back and editable. */
+  guidance?: UploadDetailView['guidance'];
   /** The header's row among the sheet's first rows, and those rows, for moving the header. */
   headerRow?: number | null;
   preview?: string[][];
@@ -278,6 +282,7 @@ export function MappingEditor({
               {assist.note ? <span className="text-muted-foreground">{assist.note}</span> : null}
             </div>
           ) : null}
+          {grid.length > 0 && !billing ? <GuidancePanel dealId={dealId} uploadId={uploadId} guidance={guidance} grid={grid} disabled={pending || runId !== null} /> : null}
           {openQuestions.length > 0 ? (
             <section aria-label="Pactlab needs you" className="flex flex-col gap-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-950">
               <span className="font-medium">Pactlab needs you before this can be imported</span>
@@ -414,9 +419,9 @@ export function MappingEditor({
                     <td className="py-2 pr-3">
                       <span className="font-medium">{field.label}</span>
                       {field.required ? <span className="ml-1 text-red-700">*</span> : null}
-                      {assist?.picks[field.name]?.by === 'AI' && choiceOf(source) === choiceOf(suggested.fields[field.name]) ? (
-                        <Badge variant="evidence" className="ml-2" title={assist.picks[field.name]?.reason ?? undefined}>
-                          AI
+                      {(assist?.picks[field.name]?.by === 'AI' || assist?.picks[field.name]?.by === 'GUIDED') && choiceOf(source) === choiceOf(suggested.fields[field.name]) ? (
+                        <Badge variant={assist.picks[field.name]?.by === 'GUIDED' ? 'reviewed' : 'evidence'} className="ml-2" title={assist.picks[field.name]?.reason ?? undefined}>
+                          {assist.picks[field.name]?.by === 'GUIDED' ? 'Guided by you' : 'AI'}
                         </Badge>
                       ) : null}
                       <span className="block text-xs text-muted-foreground">{field.hint}</span>
@@ -451,7 +456,7 @@ export function MappingEditor({
                     </td>
                     <td className="py-2 font-mono text-xs text-muted-foreground">
                       {source?.kind === 'constant' ? source.value : columnSample(choice)}
-                      {assist?.picks[field.name]?.by === 'AI' && assist.picks[field.name]?.reason && choiceOf(source) === choiceOf(suggested.fields[field.name]) ? (
+                      {(assist?.picks[field.name]?.by === 'AI' || assist?.picks[field.name]?.by === 'GUIDED') && assist.picks[field.name]?.reason && choiceOf(source) === choiceOf(suggested.fields[field.name]) ? (
                         <span className="block font-sans">{assist.picks[field.name]?.reason}</span>
                       ) : null}
                     </td>

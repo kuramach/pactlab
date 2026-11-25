@@ -84,3 +84,12 @@ Kumar: "I may just go with File Picker and keep OneDrive… But u need to highli
 - **The picker runs in the browser,** so `GET …/document-sources/:id/picker` returns the signed-in person's **own** short-lived Google access token (`drive.file`), only to that person, audited, never logged, together with Pactlab's picker API key and project number. This is the one exception to "tokens are never returned", bounded to the token's owner.
 - **Google Drive has no organization sign-in,** because the picker shows the signer's own Drive. OneDrive keeps both kinds.
 - **Unchanged:** OneDrive (`Files.Read.All`, whole folder), the credential store, the RLS, and visibility (a seller's files are shared).
+
+## Addendum (2026-11-24): import prompting (T-152)
+Kumar: let the user give the AI explicit instructions when importing, down to the row, instead of correcting a wrong mapping afterwards.
+- **Guidance is two things:** free text about the whole file (up to 1,000 characters, with one-click starters) and notes on numbered rows or ranges (up to 20 notes of 300 characters; rows are numbered as the mapping screen shows them, among the sheet's non-empty rows, 1–30). No formula language, no new grid editor.
+- **It steers mapping only.** It rides to the `import.map` job (prompt v2) as quoted user content and nowhere else. The system prompt tells the model it can never change a value or lift its rules. Values are still read from the cells by deterministic code, and P&L tie-outs still run.
+- **Guided is marked.** A field the model says the guidance decided shows **Guided by you** (`by: GUIDED`); inferred fields stay **AI**; doubts stay questions. The guidance is quoted back above the mapping.
+- **Conflicts ask.** A note that calls a row a subtotal is checked in code (exact decimal sums, a cent's tolerance) against the rows above it; when it does not add up, a question names the conflict and neither the note nor the data is silently overridden. The model is told to raise the same kind of conflict itself.
+- **Persistence:** `source_uploads.guidance` (jsonb, nullable, expand only). Saved guidance re-reads the file afresh (it may say where the header is), is audited as `source_upload.guidance_set`, and is reused when the same file (by hash) is uploaded again in the pact, for the person to edit before the re-run; an upload with instructions of its own replaces it. Visibility follows the upload's own RLS.
+- **Rollback:** drop `source_uploads.guidance`; nothing reads it elsewhere. PDF imports are out of scope.

@@ -18,6 +18,8 @@ export interface MapImportRequest {
   readonly definition: TargetDefinition;
   /** The sheet's first non-empty rows as cell text (`ReadTable.preview`). */
   readonly preview: readonly (readonly string[])[];
+  /** What the person said about the file (`renderGuidance`); sent to this job only (T-152). */
+  readonly guidance?: string;
 }
 
 /** The grid as the prompt shows it: "Row n: A=text | B=text", empty cells left out. */
@@ -58,6 +60,7 @@ export async function mapImport(
       },
       { name: 'fileName', classification: 'BUSINESS', text: request.fileName },
       { name: 'sheet', classification: 'BUSINESS', text: request.sheet ?? '' },
+      { name: 'guidance', classification: 'BUSINESS', text: request.guidance ?? '' },
     ],
     sources: [{ citationId: 'sheet', documentId: request.uploadId, documentName: request.fileName, pageNumber: 1, text: renderGrid(request.preview), classification: 'FINANCIAL' }],
   });

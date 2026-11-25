@@ -5,6 +5,7 @@ import { notFound } from 'next/navigation';
 import { dealsApi } from '../../../_lib/api';
 import { isUuidParam } from '../../../_lib/filters';
 import { ApiState } from '../../../_lib/states';
+import { GuidanceField } from './_lib/guidance-field';
 import { SystemLogo } from './_lib/system-logos';
 import { uploadBillingExport } from './actions';
 
@@ -68,6 +69,7 @@ export default async function BillingUploadPage({
                 <span>Choose the file</span>
                 <FileDrop name="file" accept={IMPORT_FILE_ACCEPT} required formats={['CSV', 'TSV', 'Excel']} hint="Up to 50 MB · comma, semicolon or tab separated · first sheet with data" />
               </div>
+              <GuidanceField />
               <p className="text-xs text-muted-foreground">
                 Columns: {pack.fields.map((field) => field.name).join(', ')}.{' '}
                 <a href={`data:text/csv;charset=utf-8,${encodeURIComponent(pack.templateCsv)}`} download={pack.fileName} className="text-indigo-ink underline">
@@ -135,6 +137,7 @@ export default async function BillingUploadPage({
                 <span>2. Choose the file</span>
                 <FileDrop name="file" accept={IMPORT_FILE_ACCEPT} required formats={['CSV', 'TSV', 'Excel']} hint="Up to 50 MB · comma, semicolon or tab separated · first sheet with data" />
               </div>
+              <GuidanceField />
               <p className="text-xs text-muted-foreground">
                 The file is virus-scanned and stored with this deal. Only the mapped invoice-line fields become evidence.{' '}
                 <a href="/billing-template.csv" className="text-indigo-ink underline">
