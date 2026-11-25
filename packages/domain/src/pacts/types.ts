@@ -22,6 +22,7 @@ export const COMPANY_TYPES = [
   'VENTURE_RAISE',
   'MULTIFAMILY_SYNDICATION',
   'MUSIC_RIGHTS',
+  'ENERGY_GENERATION',
   'OTHER',
 ] as const;
 export type CompanyType = (typeof COMPANY_TYPES)[number];
@@ -45,6 +46,8 @@ export const COMPANY_TYPE_LABELS: Readonly<Record<CompanyType, string>> = {
   MULTIFAMILY_SYNDICATION: 'Multifamily syndication',
   // A catalog of music publishing and master recording rights, bought for its royalty income (T-140).
   MUSIC_RIGHTS: 'Music rights',
+  // Power plants, oil & gas mineral, royalty and working interests, and energy businesses (T-142).
+  ENERGY_GENERATION: 'Energy generation & rights',
   OTHER: 'Other',
 };
 

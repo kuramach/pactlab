@@ -40,6 +40,7 @@ import { DealDeletionService } from '../deals/deletion/deal-deletion.service';
 import { demoModelResponse } from '../demo-seed/seed';
 import { SyndicationService } from '../syndication/syndication.service';
 import { MusicService } from '../music/music.service';
+import { EnergyService } from '../energy/energy.service';
 import { DocumentsService } from '../documents/documents.service';
 import { FileSystemObjectStore } from '../documents/storage-adapters';
 import { SignatureMalwareScanner } from '../documents/upload-policy';
@@ -100,6 +101,7 @@ const LABELS: Readonly<Record<string, string>> = {
   VENTURE_RAISE: 'Venture raise',
   MULTIFAMILY_SYNDICATION: 'Multifamily syndication',
   MUSIC_RIGHTS: 'Music rights',
+  ENERGY_GENERATION: 'Energy generation & rights',
 };
 export const pactName = (type: CompanyType, closed = false) => `${LABELS[type] ?? type} demo${closed ? ', closed' : ''} (synthetic)`;
 /** A raise has no buyer terms or close, so it gets one pact; every other pack gets a second, closed one for Post-Close. */
@@ -123,7 +125,10 @@ function scenarios(type: CompanyType, pricedFindingIds: readonly string[]) {
           : type === 'MUSIC_RIGHTS'
             ? // A royalty multiple on the catalog's decay-adjusted income (shown on the Catalog tab).
               { method: 'ARR_MULTIPLE' as const, arr: '630000', multiple: ['12', '14', '16'][index] as string }
-            : { method: 'ARR_MULTIPLE' as const, arr: '12000000', multiple: ['4', '5', '6'][index] as string },
+            : type === 'ENERGY_GENERATION'
+              ? // Capacity value: the plant's 600 MW as kW × a price per kW (shown on the Assets tab).
+                { method: 'ARR_MULTIPLE' as const, arr: '600000', multiple: ['150', '200', '250'][index] as string }
+              : { method: 'ARR_MULTIPLE' as const, arr: '12000000', multiple: ['4', '5', '6'][index] as string },
       bridge: type === 'VENTURE_RAISE' ? { cash: '0', debt: '0', debtLikeItems: '0', workingCapitalAdjustment: '0' } : bridge,
       stockConsiderationShare: '0',
       // Accepted priced risks move each case: the downside takes their high price, the upside their low.
@@ -176,6 +181,22 @@ async function catalog(app: App, buyer: TenantContext, dealId: string, uploaded:
   for (const item of proposed.items) await service.decide(buyer, dealId, item.id, { decision: 'CONFIRM' }, REQUEST_ID);
   const checks = await service.runChecks(buyer, dealId, REQUEST_ID);
   return `catalog: ${proposed.items.length} register entries confirmed, ${checks.created} catalog drafts`;
+}
+
+/**
+ * An energy package's register (T-142): the reserve report and the environmental reports read by the
+ * scripted `energy.extract`, every proposal confirmed by the buyer, then the energy checks.
+ */
+async function energy(app: App, buyer: TenantContext, dealId: string, uploaded: Readonly<Record<string, string>>): Promise<string> {
+  const service = app.get(EnergyService, { strict: false });
+  for (const file of ['05-reserve-report.pdf', '06-ash-pond-closure-plan.pdf', '07-decommissioning-study.pdf']) {
+    const documentId = uploaded[file];
+    if (documentId) await service.extract(buyer, dealId, { documentId }, REQUEST_ID);
+  }
+  const proposed = await service.items(buyer, dealId, { status: 'PROPOSED', limit: 100 }, REQUEST_ID);
+  for (const item of proposed.items) await service.decide(buyer, dealId, item.id, { decision: 'CONFIRM' }, REQUEST_ID);
+  const checks = await service.runChecks(buyer, dealId, REQUEST_ID);
+  return `energy: ${proposed.items.length} register entries confirmed, ${checks.created} energy drafts`;
 }
 
 /** The schema owner's session: a pg client when deployed, PGlite in tests. */
@@ -380,6 +401,7 @@ export async function buildPact(app: App, owner: OwnerSession, people: People, t
   // After the accept loop, so the offering's planted defects stay drafts for the viewer to review.
   if (wall) await step('syndication', () => syndication(app, buyer, dealId, data, uploaded));
   if (type === 'MUSIC_RIGHTS') await step('catalog', () => catalog(app, buyer, dealId, uploaded));
+  if (type === 'ENERGY_GENERATION') await step('energy', () => energy(app, buyer, dealId, uploaded));
   await step('claims', () => claims(app, buyer, dealId, pricedIds));
   await step('finances', () => finances(app, buyer, dealId));
   await step('regulatory', () => regulatory(app, buyer, dealId));

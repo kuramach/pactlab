@@ -24,6 +24,8 @@ describe('deal sections per pact (batch 2)', () => {
     expect(sectionCompanyTypes('/syndication')).toEqual(['MULTIFAMILY_SYNDICATION']);
     // A music catalog's register (T-140): only on a music rights pact.
     expect(sectionCompanyTypes('/catalog')).toEqual(['MUSIC_RIGHTS']);
+    // An energy package's register (T-142): only on an energy generation & rights pact.
+    expect(sectionCompanyTypes('/energy')).toEqual(['ENERGY_GENERATION']);
   });
 
   it('shows subscription metrics only for subscription businesses', () => {

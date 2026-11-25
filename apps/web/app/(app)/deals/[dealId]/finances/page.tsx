@@ -312,7 +312,7 @@ function PackMetricsCard({ report }: { report: PackMetricsView }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{report.calculator === 'multifamily-metrics' ? 'Property metrics' : report.calculator === 'music-royalties' ? 'Royalty income' : 'Industry metrics'}</CardTitle>
+        <CardTitle>{report.calculator === 'multifamily-metrics' ? 'Property metrics' : report.calculator === 'music-royalties' ? 'Royalty income' : report.calculator === 'energy-assets' ? 'Assets and interests' : 'Industry metrics'}</CardTitle>
         <CardDescription>
           From the imported industry extracts, in {report.currency}. Deterministic ({report.version}); each figure shows its formula.
         </CardDescription>

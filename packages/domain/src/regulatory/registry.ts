@@ -75,6 +75,17 @@ export const REGULATORY_PROFILES: Readonly<Record<PackId, RegulatoryProfile>> = 
       ...ANTITRUST,
     ],
   },
+  // Energy assets (T-142): transfers of generation need federal power approval, and permits and leases
+  // move only with the agencies' and lessors' consent; the screen is a checklist, not a prediction.
+  ENERGY_GENERATION: {
+    depth: 'LIGHT',
+    authorities: [
+      { name: 'Federal Energy Regulatory Commission', scope: 'Approval of transfers of jurisdictional generation and transmission facilities (Federal Power Act §203)', theoryOfHarm: 'Effects on competition, rates and regulation in power markets' },
+      { name: 'Environmental agencies (EPA and state)', scope: 'Transfer of air, water and coal-ash (CCR) permits; consent decrees and remediation orders', theoryOfHarm: 'Not a merger authority: permit conditions and open obligations travel with the asset' },
+      { name: 'State oil & gas commissions and land offices', scope: 'Operator transfers, plugging bonds and approval of lease assignments on state and federal land', theoryOfHarm: 'Not a merger authority: bonding and well-plugging obligations' },
+      ...ANTITRUST,
+    ],
+  },
   // A seed round has no merger review: the light screen keeps the checklist and the covenant tracker only.
   VENTURE_RAISE: { depth: 'LIGHT', authorities: [{ name: 'Securities regulators', scope: 'Exempt-offering rules for the round', theoryOfHarm: 'Investor eligibility and disclosure' }] },
 };

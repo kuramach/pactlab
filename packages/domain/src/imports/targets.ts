@@ -36,6 +36,11 @@ export const IMPORT_TARGETS = [
   'MUSIC_SPLITS',
   'MUSIC_TITLE_CHAIN',
   'MUSIC_ROYALTY_STATEMENTS',
+  'ENERGY_PLANTS',
+  'ENERGY_INTERESTS',
+  'ENERGY_LEASES',
+  'ENERGY_PRODUCTION',
+  'ENERGY_LIABILITIES',
   'REGULATORY_FOOTPRINT',
   'REMEDY_PACKAGE',
   'FINANCIAL_PNL',
@@ -727,6 +732,121 @@ export const MUSIC_ROYALTY_STATEMENTS: TargetDefinition = {
 };
 
 /**
+ * Energy generation & rights (T-142): the plant register — one row per power plant, with its
+ * capacity, fuel, age, capacity factor and power purchase agreement. Counterparties are businesses.
+ */
+export const ENERGY_PLANTS: TargetDefinition = {
+  target: 'ENERGY_PLANTS',
+  label: 'Plant register',
+  fileName: 'plant-register.csv',
+  people: 'NONE',
+  refusesPeopleColumns: true,
+  evidenceType: 'energy.plant',
+  recordIdField: 'plant_id',
+  observedAtFields: [],
+  fields: [
+    { name: 'plant_id', label: 'Plant id', kind: 'text', required: true, hint: 'The seller\'s own id for the plant, e.g. PL-001.' },
+    { name: 'name', label: 'Plant name', kind: 'text', required: true, hint: 'The plant\'s name as the permits and agreements write it.' },
+    { name: 'fuel', label: 'Fuel', kind: 'code', required: true, hint: 'coal, gas, wind, solar, hydro, storage or other.' },
+    { name: 'capacity_mw', label: 'Net capacity (MW)', kind: 'decimal', required: true, hint: 'Net summer capacity in megawatts.' },
+    { name: 'commissioned_year', label: 'Commissioned', kind: 'decimal', required: true, hint: 'Year the plant entered commercial operation.' },
+    { name: 'capacity_factor_pct', label: 'Capacity factor (%)', kind: 'decimal', required: false, hint: 'Trailing-year net generation ÷ (capacity × hours), in percent, as the seller reports it.' },
+    { name: 'ppa_counterparty', label: 'PPA counterparty', kind: 'text', required: false, hint: 'The offtaker under the power purchase agreement, if any.' },
+    { name: 'ppa_expires_on', label: 'PPA expires on', kind: 'date', required: false, hint: 'When the power purchase agreement ends; blank when the plant sells merchant.' },
+  ],
+};
+
+/**
+ * Energy generation & rights (T-142): the oil & gas interest register — mineral, royalty and
+ * working interests, each on a lease, with the decimal the division order pays.
+ */
+export const ENERGY_INTERESTS: TargetDefinition = {
+  target: 'ENERGY_INTERESTS',
+  label: 'Interest register',
+  fileName: 'interest-register.csv',
+  people: 'NONE',
+  refusesPeopleColumns: true,
+  evidenceType: 'energy.interest',
+  recordIdField: 'interest_id',
+  observedAtFields: [],
+  fields: [
+    { name: 'interest_id', label: 'Interest id', kind: 'text', required: true, hint: 'The seller\'s own id for the interest, e.g. OG-014.' },
+    { name: 'name', label: 'Well or unit', kind: 'text', required: true, hint: 'The well, unit or tract the interest is in.' },
+    { name: 'legal_description', label: 'Legal description', kind: 'text', required: false, hint: 'Section, township and range (or survey and abstract), as the title opinion writes it.' },
+    { name: 'lease_id', label: 'Lease id', kind: 'text', required: true, hint: 'The lease, as in the lease schedule.' },
+    { name: 'interest_type', label: 'Interest type', kind: 'code', required: true, hint: 'working, mineral or royalty.' },
+    { name: 'interest_share', label: 'Interest share', kind: 'decimal', required: true, hint: 'The seller\'s share as a decimal: the working interest, or the share of the minerals or royalty owned (e.g. 0.5).' },
+    { name: 'division_order_nri', label: 'Division-order decimal', kind: 'decimal', required: true, hint: 'The net revenue interest the division order pays, as a decimal (e.g. 0.09375).' },
+    { name: 'operator', label: 'Operator', kind: 'text', required: false, hint: 'The operator of the well or unit.' },
+  ],
+};
+
+/** Energy generation & rights (T-142): the lease schedule — acreage, the royalty chain, expiry and whether production holds it. */
+export const ENERGY_LEASES: TargetDefinition = {
+  target: 'ENERGY_LEASES',
+  label: 'Lease schedule',
+  fileName: 'lease-schedule.csv',
+  people: 'PSEUDONYMOUS',
+  refusesPeopleColumns: true,
+  evidenceType: 'energy.lease',
+  recordIdField: 'lease_id',
+  observedAtFields: [],
+  fields: [
+    { name: 'lease_id', label: 'Lease id', kind: 'text', required: true, hint: 'Unique id of the lease.' },
+    { name: 'lessor_ref', label: 'Lessor reference', kind: 'text', required: false, hint: 'A pseudonymous reference to the lessor, e.g. LR-031 — never a name.' },
+    { name: 'net_acres', label: 'Net acres', kind: 'decimal', required: true, hint: 'Net mineral acres under the lease attributable to the interests.' },
+    { name: 'royalty_rate', label: 'Lessor royalty', kind: 'decimal', required: true, hint: 'The lease royalty as a decimal (3/16 → 0.1875).' },
+    { name: 'overriding_royalty', label: 'Overriding royalty', kind: 'decimal', required: false, hint: 'Overriding royalties burdening the working interest, as a decimal; blank for none.' },
+    { name: 'effective_on', label: 'Effective on', kind: 'date', required: false, hint: 'When the lease took effect.' },
+    { name: 'expires_on', label: 'Primary term ends', kind: 'date', required: false, hint: 'When the primary term ends, if production does not hold the lease.' },
+    { name: 'held_by_production', label: 'Held by production', kind: 'code', required: true, hint: 'yes when production (or a unit) holds the lease past its primary term, otherwise no.' },
+  ],
+};
+
+/**
+ * Energy generation & rights (T-142): production history — volumes and gross revenue by asset,
+ * period and product, with whether a plant's power sold under contract or merchant. Absent periods stay absent.
+ */
+export const ENERGY_PRODUCTION: TargetDefinition = {
+  target: 'ENERGY_PRODUCTION',
+  label: 'Production history',
+  fileName: 'production-history.csv',
+  people: 'NONE',
+  refusesPeopleColumns: true,
+  evidenceType: 'energy.production',
+  recordIdField: 'record_id',
+  observedAtFields: ['period_end'],
+  fields: [
+    { name: 'record_id', label: 'Record id', kind: 'text', required: true, hint: 'Unique id of the production line.' },
+    { name: 'asset_id', label: 'Asset id', kind: 'text', required: true, hint: 'The plant or interest, as in the plant or interest register.' },
+    { name: 'period_end', label: 'Period end', kind: 'date', required: true, hint: 'Last day of the production month.' },
+    { name: 'product', label: 'Product', kind: 'code', required: true, hint: 'oil (bbl), gas (mcf), ngl (bbl) or power (MWh).' },
+    { name: 'volume', label: 'Volume', kind: 'decimal', required: true, hint: 'Gross (8/8ths) volume for an interest; net generation for a plant.' },
+    { name: 'gross_revenue', label: 'Gross revenue', kind: 'money', required: true, hint: `Revenue at 8/8ths for an interest; the plant's power revenue. ${IN_BASE_CURRENCY}` },
+    { name: 'sales_type', label: 'Sold under', kind: 'code', required: false, hint: 'contracted (a PPA or hedge) or merchant, for a plant; blank for an interest.' },
+  ],
+};
+
+/** Energy generation & rights (T-142): the seller's liability schedule — what the seller has booked for each obligation. */
+export const ENERGY_LIABILITIES: TargetDefinition = {
+  target: 'ENERGY_LIABILITIES',
+  label: 'Liability schedule',
+  fileName: 'liability-schedule.csv',
+  people: 'NONE',
+  refusesPeopleColumns: true,
+  evidenceType: 'energy.liability',
+  recordIdField: 'liability_id',
+  observedAtFields: [],
+  fields: [
+    { name: 'liability_id', label: 'Liability id', kind: 'text', required: true, hint: 'Unique id of the schedule line.' },
+    { name: 'asset_id', label: 'Asset id', kind: 'text', required: false, hint: 'The plant or interest it belongs to; blank for a portfolio-wide obligation.' },
+    { name: 'kind', label: 'Obligation', kind: 'code', required: true, hint: 'remediation, ccr (coal ash closure), reclamation or aro (asset retirement / decommissioning).' },
+    { name: 'description', label: 'Description', kind: 'text', required: false, hint: 'What the obligation is, as the schedule says.' },
+    { name: 'booked_amount', label: 'Booked amount', kind: 'money', required: true, hint: `What the seller has booked for it. ${IN_BASE_CURRENCY}` },
+  ],
+};
+
+/**
  * Multifamily syndication (T-106): the sponsor's prior deals, projected and
  * actual side by side. Blank actuals stay blank — absence is shown as absence,
  * never filled in. Deals, not people.
@@ -868,6 +988,11 @@ export const IMPORT_TARGET_DEFINITIONS: Readonly<Record<ImportTarget, TargetDefi
   MUSIC_SPLITS,
   MUSIC_TITLE_CHAIN,
   MUSIC_ROYALTY_STATEMENTS,
+  ENERGY_PLANTS,
+  ENERGY_INTERESTS,
+  ENERGY_LEASES,
+  ENERGY_PRODUCTION,
+  ENERGY_LIABILITIES,
   REGULATORY_FOOTPRINT,
   REMEDY_PACKAGE,
   FINANCIAL_PNL,
