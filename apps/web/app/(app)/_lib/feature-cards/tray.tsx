@@ -1,12 +1,9 @@
 'use client';
 
-import { Button } from '@pactlab/ui';
-import { ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
-import Link from 'next/link';
+import { Sparkles } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { markFeatureCardsRead } from './actions';
-import { step, themeOf } from './carousel';
-import { CardIcon } from './card-icon';
+import { FeatureCardStepper } from './carousel';
 import type { FeatureCardView } from './types';
 
 /** The badge: unread cards in the list, until it has been opened. */
@@ -21,8 +18,6 @@ export function badgeCount(cards: readonly FeatureCardView[], opened: boolean): 
 export function FeatureCardTray({ cards }: { cards: readonly FeatureCardView[] }) {
   const [open, setOpen] = useState(false);
   const [opened, setOpened] = useState(false);
-  // One card at a time, paged with back and forward (Kumar, 2026-11-25).
-  const [at, setAt] = useState(0);
   const root = useRef<HTMLDivElement>(null);
   const count = badgeCount(cards, opened);
 
@@ -44,8 +39,6 @@ export function FeatureCardTray({ cards }: { cards: readonly FeatureCardView[] }
   useEffect(() => setOpened(false), [unreadKey]);
 
   if (cards.length === 0) return null;
-  const index = Math.min(at, cards.length - 1);
-  const card = cards[index];
 
   const toggle = () => {
     const next = !open;
@@ -75,42 +68,9 @@ export function FeatureCardTray({ cards }: { cards: readonly FeatureCardView[] }
         ) : null}
       </button>
       {open ? (
-        <section
-          id="feature-card-list"
-          aria-label="What’s new"
-          className="fixed bottom-20 right-4 z-40 flex max-h-[70vh] w-[min(26rem,calc(100vw-2rem))] flex-col gap-3 overflow-y-auto rounded-xl border border-border bg-card p-4 text-sm shadow-xl"
-        >
-          <div className="flex items-center justify-between gap-2">
-            <h2 className="text-sm font-semibold">What’s new</h2>
-            {cards.length > 1 ? (
-              <div className="flex items-center gap-1">
-                <span className="mr-1 text-xs tabular-nums text-muted-foreground" aria-live="polite">
-                  {index + 1} of {cards.length}
-                </span>
-                <Button size="sm" variant="outline" className="h-8 w-8 rounded-full p-0" aria-label="Back" onClick={() => setAt(step(index, -1, cards.length))}>
-                  <ChevronLeft aria-hidden className="h-4 w-4" />
-                </Button>
-                <Button size="sm" variant="outline" className="h-8 w-8 rounded-full p-0" aria-label="Forward" onClick={() => setAt(step(index, 1, cards.length))}>
-                  <ChevronRight aria-hidden className="h-4 w-4" />
-                </Button>
-              </div>
-            ) : null}
-          </div>
-          {card ? (
-            <article aria-label={card.title} className={`flex gap-3 rounded-xl border p-4 ${themeOf(index).card}`}>
-              <CardIcon name={card.icon} className={`mt-0.5 h-5 w-5 shrink-0 ${themeOf(index).label}`} />
-              <div className="flex min-w-0 flex-col gap-1">
-                <p className="font-semibold leading-snug">{card.title}</p>
-                <p className="text-muted-foreground">{card.body}</p>
-                {card.href ? (
-                  <Link href={card.href} onClick={() => setOpen(false)} className="w-fit font-medium text-indigo-ink underline underline-offset-2">
-                    {card.linkLabel ?? 'Learn more'}
-                  </Link>
-                ) : null}
-              </div>
-            </article>
-          ) : null}
-        </section>
+        <div id="feature-card-list" className="fixed bottom-20 right-4 z-40 w-[min(32rem,calc(100vw-2rem))] rounded-xl bg-card shadow-xl">
+          <FeatureCardStepper cards={cards} dismissible={false} onFollow={() => setOpen(false)} />
+        </div>
       ) : null}
     </div>
   );

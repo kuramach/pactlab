@@ -108,6 +108,7 @@ Never weaken these rules to pass a test or accelerate a demo.
   - **MCP:** tools pass `cursor` through.
   - **Enforced by `apps/api/src/paginated-lists.test.ts`:** a `findMany` without `take` needs `// bounded: <why it cannot grow>` or `// whole-set: <why a calculation needs every row, never returned as a list>` just above it, and the old unpaged reads in `pagination-baseline.json` may only go down. Raw SQL and `app_ops_*` list functions follow the same rule.
 - Propagate stale state when evidence or accepted findings change.
+- **One approved pattern per kind of UI (Kumar, 2026-11-25).** Before building a UI element, check `docs/ui-patterns.md`. If the pattern is approved there, build from its shared component, unchanged; never a look-alike, and never a local restyle. A new pattern is approved by Kumar first, then added there. `apps/web/lib/ui-patterns.test.ts` enforces the step panel.
 - Ask before changing settled architecture or adding a paid dependency.
 
 ## Testing principles
