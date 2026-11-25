@@ -96,7 +96,7 @@ describe('the mapping assistant on screen (Kumar, 2026-11-21)', () => {
     expect(html).toContain('Row 3:');
     expect(html).toContain('What each line is');
     expect(html).toContain('aria-label="Kind of line Total revenue"');
-    expect(html).toContain('Months across the columns');
+    expect(html).toContain('Periods across the columns');
     expect(html).not.toContain('Pactlab needs you');
   });
 

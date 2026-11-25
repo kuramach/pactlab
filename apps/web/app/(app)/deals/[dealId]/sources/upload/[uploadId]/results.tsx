@@ -7,7 +7,8 @@ import { AskSellerButton } from '../../../../_lib/ask-seller';
 import { missingImports, needsLabel, requestNote } from '../../../../_lib/property-metrics';
 
 const count = new Intl.NumberFormat('en-US');
-const monthName = (period: string) => new Date(`${period}-01T00:00:00Z`).toLocaleString('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' });
+/** A month as "Jan 2026"; a year (a statement by year) as itself. */
+const monthName = (period: string) => (/^\d{4}$/.test(period) ? period : new Date(`${period}-01T00:00:00Z`).toLocaleString('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' }));
 
 /** The subscription figures worth a first look, in order. */
 const SUBSCRIPTION_HEADLINE = ['ARR', 'MRR', 'ACTIVE_CUSTOMERS', 'NRR', 'GRR', 'ARPA'];
@@ -136,14 +137,14 @@ export function ImportResults({
 
       {results.pnlMonths && results.pnlMonths.length > 0 ? (
         <div className="flex flex-col gap-1">
-          <span className="font-medium">What the P&amp;L adds up to, month by month</span>
+          <span className="font-medium">What the P&amp;L adds up to, period by period</span>
           <span className="text-xs text-muted-foreground">Worked out from the lines you confirmed; the file’s own totals were checked against them, not imported.</span>
           <div className="overflow-x-auto rounded-md border border-border bg-background">
-            <table className="w-full text-right text-xs" aria-label="P&L month by month">
+            <table className="w-full text-right text-xs" aria-label="P&L period by period">
               <thead className="bg-muted/60">
                 <tr>
                   <th scope="col" className="px-2 py-1 text-left font-medium">
-                    Month
+                    Period
                   </th>
                   {['Revenue', 'Cost of revenue', 'Gross profit', 'Operating expenses', 'Operating income', 'Net income'].map((label) => (
                     <th key={label} scope="col" className="whitespace-nowrap px-2 py-1 font-medium">

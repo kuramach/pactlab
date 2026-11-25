@@ -9,7 +9,8 @@ type Reading = NonNullable<NonNullable<UploadDetailView['assist']>['reading']>;
 
 const count = new Intl.NumberFormat('en-US');
 const plural = (n: number, one: string, many = `${one}s`) => `${count.format(n)} ${n === 1 ? one : many}`;
-const monthName = (period: string) => new Date(`${period}-01T00:00:00Z`).toLocaleString('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' });
+/** A month as "Jan 2026"; a year (a statement by year) as itself. */
+const monthName = (period: string) => (/^\d{4}$/.test(period) ? period : new Date(`${period}-01T00:00:00Z`).toLocaleString('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' }));
 
 const GROUP_LABELS: Record<Reading['rowGroups'][number]['kind'], string> = {
   TITLE: 'Titles',
@@ -52,7 +53,8 @@ export function readingFacts(input: {
   if (layout && layout.kind !== 'ROWS' && layout.periods.length > 0) {
     const first = layout.periods[0]?.period ?? '';
     const last = layout.periods.at(-1)?.period ?? first;
-    facts.push(`Months run across the columns, ${monthName(first)} to ${monthName(last)} (${plural(layout.periods.length, 'month')}).`);
+    const yearly = /^\d{4}$/.test(first);
+    facts.push(`${yearly ? 'Years' : 'Months'} run across the columns, ${monthName(first)} to ${monthName(last)} (${plural(layout.periods.length, yearly ? 'year' : 'month')}).`);
   } else if (input.rowCount !== null) {
     facts.push(`Below them ${input.rowCount === 1 ? 'is 1 row' : `are ${count.format(input.rowCount)} rows`}; each row becomes one record of ${definition.label.toLowerCase()}.`);
   }
