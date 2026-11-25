@@ -29,7 +29,6 @@ import {
   type Page,
 } from '@pactlab/contracts';
 import {
-  ACTIVE_EVIDENCE,
   appendAuditEvent,
   BACKGROUND_IMPORT_ROWS,
   IdempotencyConflictError,
@@ -665,12 +664,26 @@ export class ImportsService {
       if (!run) throw new NotFoundException();
       const definition = definitionOf(row.target);
       const syncRunId = row.syncRunId;
-      // Records this import's run read that still count.
-      const activeRecords = await tx.evidenceItem.count({ where: { dealId, syncRunLinks: { some: { syncRunId } }, ...ACTIVE_EVIDENCE } });
+      // Records this import's run read that still count: from the run's links alone (indexed by run), minus the voided
+      // ones. Never a join of the run's links to evidence_items here: before Postgres has statistics on a fresh import
+      // it planned that as a nested loop over every pair of the run's records (21M row checks for 4,628 rows, 90 s in e2e).
+      const activeRecords =
+        (
+          await tx.$queryRaw<{ n: number }[]>`
+            SELECT count(*)::int AS n FROM sync_run_evidence m
+             WHERE m.deal_id = ${dealId}::uuid AND m.sync_run_id = ${syncRunId}::uuid
+               AND NOT EXISTS (SELECT 1 FROM evidence_voids v WHERE v.deal_id = m.deal_id AND v.evidence_item_id = m.evidence_item_id AND v.restored_at IS NULL)`
+        )[0]?.n ?? 0;
+      // The run's records, by a known set of ids (each an index lookup).
+      // void-ok: a builder; each caller passes ids already filtered as it needs (the sample shows records even once deleted).
+      const recordsById = (ids: readonly string[]) =>
+        ids.length === 0 ? Promise.resolve([] as { canonical: unknown }[]) : tx.$queryRaw<{ canonical: unknown }[]>`SELECT canonical FROM evidence_items WHERE deal_id = ${dealId}::uuid AND id = ANY (${[...ids]}::uuid[]) ORDER BY id`;
       let sample: ImportResultsView['sample'] = null;
       if (definition.people === 'NONE') {
         // void-ok: the first records this import picked up are shown even once it is deleted, so a person can see what was read.
-        const firsts = await tx.evidenceItem.findMany({ where: { dealId, syncRunLinks: { some: { syncRunId } } }, orderBy: { id: 'asc' }, take: 10, select: { canonical: true } });
+        const firstIds = await tx.$queryRaw<{ id: string }[]>`
+          SELECT m.evidence_item_id::text AS id FROM sync_run_evidence m WHERE m.deal_id = ${dealId}::uuid AND m.sync_run_id = ${syncRunId}::uuid ORDER BY m.evidence_item_id LIMIT 10`;
+        const firsts = await recordsById(firstIds.map((entry) => entry.id));
         const fields = definition.fields.map((field) => ({ name: field.name, label: field.label }));
         const cell = (value: unknown) => (value === null || value === undefined || value === '' ? null : typeof value === 'object' ? JSON.stringify(value) : String(value));
         sample = { fields, rows: firsts.map((item) => fields.map((field) => cell((item.canonical as Record<string, unknown>)[field.name]))) };
@@ -681,7 +694,12 @@ export class ImportsService {
       let pnlMonths: ImportResultsView['pnlMonths'] = null;
       if (definition.lineItems) {
         // whole-set: a P&L's monthly totals need every line of this import (bounded by the upload's row limit), never returned as a list.
-        const lines = await tx.evidenceItem.findMany({ where: { dealId, syncRunLinks: { some: { syncRunId } }, ...ACTIVE_EVIDENCE }, select: { canonical: true } });
+        // void-ok: the active filter is written out below (ACTIVE_EVIDENCE_SQL's condition: no unrestored void).
+        const lines = await tx.$queryRaw<{ canonical: unknown }[]>`
+          SELECT evidence_items.canonical FROM evidence_items
+           WHERE evidence_items.deal_id = ${dealId}::uuid
+             AND evidence_items.id IN (SELECT m.evidence_item_id FROM sync_run_evidence m WHERE m.deal_id = ${dealId}::uuid AND m.sync_run_id = ${syncRunId}::uuid)
+             AND NOT EXISTS (SELECT 1 FROM evidence_voids v WHERE v.evidence_item_id = evidence_items.id AND v.restored_at IS NULL)`;
         pnlMonths = pnlMonthlyTotals(
           lines.map((item) => {
             const canonical = item.canonical as Record<string, unknown>;
