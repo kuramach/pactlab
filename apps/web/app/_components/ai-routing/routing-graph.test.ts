@@ -18,10 +18,13 @@ const view = (scope: RoutingView['scope']): RoutingView => ({
 describe('AI routing diagram', () => {
   it('has a node for every job, between the inputs and what people receive', () => {
     const { nodes } = buildRoutingGraph(view('PLATFORM'));
-    expect(nodes.filter((n) => n.kind === 'job').map((n) => n.id).sort()).toEqual(['classification', 'contract_scrub', 'deep_review', 'document_qa', 'extraction', 'vision']);
-    expect(nodes.filter((n) => n.kind === 'input').map((n) => n.id)).toEqual(['upload', 'video', 'question']);
-    expect(nodes.filter((n) => n.kind === 'output').map((n) => n.id)).toEqual(['findings', 'review', 'answer']);
+    expect(nodes.filter((n) => n.kind === 'job').map((n) => n.id).sort()).toEqual(['classification', 'contract_scrub', 'deep_review', 'document_qa', 'extraction', 'import_mapping', 'vision']);
+    expect(nodes.filter((n) => n.kind === 'input').map((n) => n.id)).toEqual(['spreadsheet', 'upload', 'video', 'question']);
+    expect(nodes.filter((n) => n.kind === 'output').map((n) => n.id)).toEqual(['imported', 'findings', 'review', 'answer']);
     const x = (id: string) => nodes.find((n) => n.id === id)?.position.x ?? -1;
+    // Spreadsheets for import: their own job, then a mapping a person confirms (Kumar, 2026-11-25).
+    expect(x('spreadsheet')).toBeLessThan(x('import_mapping'));
+    expect(x('import_mapping')).toBeLessThan(x('imported'));
     expect(x('upload')).toBeLessThan(x('classification'));
     expect(x('extraction')).toBeLessThan(x('findings'));
     expect(x('findings')).toBeLessThan(x('review'));

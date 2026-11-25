@@ -8,7 +8,7 @@ import { PRISMA } from '../tokens';
 import { AI_ROUTES } from './ai.controller';
 import type { AiModelsRuntime } from './ai-provider';
 
-const ROUTE_KEYS = ['fast', 'balanced', 'deep_review', 'contract_scrub', 'extraction', 'classification', 'document_qa', 'vision'] as const;
+const ROUTE_KEYS = ['fast', 'balanced', 'deep_review', 'contract_scrub', 'extraction', 'classification', 'document_qa', 'vision', 'import_mapping'] as const;
 const keyParams = z.strictObject({ key: z.enum(ROUTE_KEYS) });
 const routeBody = z.strictObject({ modelId: z.uuid().nullable() });
 const isAdmin = (tenant: TenantContext) => tenant.organizationRole === 'ORG_OWNER' || tenant.organizationRole === 'ORG_ADMIN';

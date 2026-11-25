@@ -8,7 +8,7 @@ import { apiPost, apiSend } from '../(app)/deals/_lib/api';
 /** AI models in the operator console (T-131). The API checks every action again and audits it. */
 const uuid = z.uuid();
 /** The three roles, and the job types of best-of-breed routing (T-132). */
-const ALIASES = ['fast', 'balanced', 'deep_review', 'contract_scrub', 'extraction', 'classification', 'document_qa', 'vision'] as const;
+const ALIASES = ['fast', 'balanced', 'deep_review', 'contract_scrub', 'extraction', 'classification', 'document_qa', 'vision', 'import_mapping'] as const;
 const ROLE_ALIASES = ['fast', 'balanced', 'deep_review'];
 const back = (outcome: string, organizationId?: string): never =>
   redirect(`/admin?tab=models&outcome=${outcome}${organizationId ? `&aiorg=${organizationId}` : ''}`);

@@ -6,7 +6,7 @@ import { ZodValidationPipe } from '../../common/zod-validation.pipe';
 import { AiModelsService } from './ai-models.service';
 
 /** The three roles, and the job types of best-of-breed routing (T-132). */
-const ROUTE_KEYS = ['fast', 'balanced', 'deep_review', 'contract_scrub', 'extraction', 'classification', 'document_qa', 'vision'] as const;
+const ROUTE_KEYS = ['fast', 'balanced', 'deep_review', 'contract_scrub', 'extraction', 'classification', 'document_qa', 'vision', 'import_mapping'] as const;
 const alias = z.enum(ROUTE_KEYS);
 export const addModelSchema = z.strictObject({
   provider: z.enum(['bedrock', 'anthropic', 'openai', 'google', 'fixture']),
