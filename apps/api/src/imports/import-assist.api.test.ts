@@ -113,6 +113,12 @@ describe('the mapping assistant through the API (Kumar, 2026-11-21)', { timeout:
     expect(mapping['layout']).toEqual({ kind: 'PERIOD_COLUMNS', periods: [{ column: 'Jan 2026', period: '2026-01' }, { column: 'Feb 2026', period: '2026-02' }, { column: 'Mar 2026', period: '2026-03' }] });
     expect(mapping['lineKinds']).toMatchObject({ 'Subscription revenue': 'REVENUE', 'Total revenue': 'TOTAL_REVENUE', Hosting: 'COGS', 'Net income': 'NET_INCOME' });
     expect(uploaded.body['assist']).toMatchObject({ source: 'AI', note: null, questions: [] });
+    // How it read the file, said back before anything is mapped: its words, and row groups checked against the grid.
+    const reading = (uploaded.body['assist'] as { reading: { summary: string; rowGroups: { from: number; to: number; kind: string }[] } }).reading;
+    expect(reading.summary).toContain('row 3');
+    expect(reading.rowGroups.slice(0, 2)).toEqual([expect.objectContaining({ from: 1, to: 2, kind: 'TITLE' }), expect.objectContaining({ from: 3, to: 3, kind: 'HEADER' })]);
+    expect(reading.rowGroups.some((group) => group.kind === 'SUBTOTAL')).toBe(true);
+    expect(reading.rowGroups.every((group) => group.to <= (uploaded.body['preview'] as unknown[]).length)).toBe(true);
 
     // The model saw the grid as cells, never asked for a value; its run is on record.
     expect(seen.at(-1)?.messages[0]?.content).toContain('Row 3: B=Jan 2026 | C=Feb 2026 | D=Mar 2026');
@@ -167,6 +173,8 @@ describe('the mapping assistant through the API (Kumar, 2026-11-21)', { timeout:
   it('a model answer naming columns the file does not have is dropped, never trusted', async () => {
     reply = () =>
       JSON.stringify({
+        summary: 'A P&L with a ledger line column.',
+        rowGroups: [{ from: 3, to: 3, kind: 'HEADER', note: '' }, { from: 40, to: 50, kind: 'DATA', note: 'not in the grid' }],
         headerRow: 3,
         layout: { kind: 'PERIOD_COLUMNS', periods: [{ column: 'Apr 2026', period: '2026-04' }] },
         fields: [{ field: 'account', column: 'Ledger line', confidence: 0.99, reason: 'Header "Ledger line"', evidence: 'Ledger line' }],
@@ -178,6 +186,7 @@ describe('the mapping assistant through the API (Kumar, 2026-11-21)', { timeout:
     const mapping = uploaded.body['suggestedMapping'] as { fields: Body; layout?: unknown };
     expect(mapping.layout).toBeUndefined();
     expect(mapping.fields['account']).toEqual({ kind: 'none' });
+    expect((uploaded.body['assist'] as { reading: unknown }).reading).toEqual({ summary: 'A P&L with a ledger line column.', rowGroups: [{ from: 3, to: 3, kind: 'HEADER', note: '' }] });
     reply = null;
   });
 

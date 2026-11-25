@@ -100,6 +100,7 @@ export default async function MapUploadPage({
           guidance={upload.data.guidance}
           headerRow={upload.data.headerRow}
           preview={upload.data.preview}
+          rowCount={upload.data.rowCount}
         />
         </>
       )}

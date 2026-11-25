@@ -141,6 +141,11 @@ export interface UploadDetailView extends SourceUploadView {
     note: string | null;
     /** What the person told the assistant, quoted back (T-152). */
     guidance?: ImportGuidanceBody | null;
+    /** How the assistant read the file, in its words, before anything is mapped; null when no assistant read it. */
+    reading?: {
+      summary: string | null;
+      rowGroups: { from: number; to: number; kind: 'TITLE' | 'HEADER' | 'DATA' | 'SUBTOTAL' | 'NOTES' | 'BLANK'; note: string }[];
+    } | null;
   } | null;
   /** The person's instructions and row notes as stored with this upload; null when none were given. */
   guidance: ImportGuidanceBody | null;

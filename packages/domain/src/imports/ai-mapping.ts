@@ -228,8 +228,40 @@ export function pnlTieOut(lines: readonly { account: string; month: string; amou
 /** At or above this, a field the assistant proposes is filled in; below it, a person is asked. */
 export const ASSIST_CONFIDENCE = 0.85;
 
+/** What a group of the grid's rows is, as the assistant read it (Kumar, 2026-11-25: "how the rows are setup"). */
+export type RowGroupKind = 'TITLE' | 'HEADER' | 'DATA' | 'SUBTOTAL' | 'NOTES' | 'BLANK';
+export interface RowGroup {
+  /** Row numbers as the grid numbers them (non-empty rows from 1). */
+  readonly from: number;
+  readonly to: number;
+  readonly kind: RowGroupKind;
+  readonly note: string;
+}
+
+/** How the assistant read the file, said back to the person before anything is mapped. Words only, never a value. */
+export interface FileReading {
+  readonly summary: string | null;
+  readonly rowGroups: readonly RowGroup[];
+}
+
+/**
+ * The assistant's row groups, checked against the grid: a group whose rows are not in the grid, runs backwards or
+ * overlaps one before it is dropped, so every row number shown points at a row the person can see.
+ */
+export function checkRowGroups(groups: readonly RowGroup[], rowCount: number): RowGroup[] {
+  const kept: RowGroup[] = [];
+  for (const group of groups) {
+    if (!Number.isInteger(group.from) || !Number.isInteger(group.to) || group.from < 1 || group.to < group.from || group.to > rowCount) continue;
+    if ((kept.at(-1)?.to ?? 0) >= group.from) continue;
+    kept.push({ from: group.from, to: group.to, kind: group.kind, note: group.note.trim().slice(0, 200) });
+  }
+  return kept;
+}
+
 /** What the mapping assistant proposes (already schema-validated by the prompt). */
 export interface MappingProposal {
+  readonly summary?: string | undefined;
+  readonly rowGroups?: readonly RowGroup[] | undefined;
   readonly headerRow: number;
   readonly layout: ImportLayout;
   readonly fields: readonly { field: string; column: string | null; confidence: number; reason: string; evidence: string; guided?: boolean | undefined }[];
@@ -259,6 +291,8 @@ export interface AssistedMapping {
   readonly note: string | null;
   /** What the person told the assistant about this file, quoted back on the mapping screen (T-152). */
   readonly guidance?: ImportGuidance | null;
+  /** How the assistant read the file (its words, checked against the grid); absent when no assistant read it. */
+  readonly reading?: FileReading | null;
 }
 
 const squash = (text: string) => text.toLowerCase().replaceAll(/\s+/g, ' ').trim();
@@ -352,7 +386,9 @@ export function checkProposal(input: {
       if (entry.confidence < ASSIST_CONFIDENCE) unsureLines.push(entry.account);
     }
   }
-  return { source: 'AI', headerRow: proposal.headerRow, layout, fields, picks, lineKinds, unsureLines, questions, note: null, guidance };
+  const summary = proposal.summary?.trim() ?? '';
+  const reading: FileReading = { summary: summary === '' ? null : summary.slice(0, 600), rowGroups: checkRowGroups(proposal.rowGroups ?? [], input.preview.length) };
+  return { source: 'AI', headerRow: proposal.headerRow, layout, fields, picks, lineKinds, unsureLines, questions, note: null, guidance, reading };
 }
 
 /**

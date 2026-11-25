@@ -70,5 +70,27 @@ export function importMapFixtureResponse(prompt: string): string {
         return [{ account, kind, confidence: KINDS.some(([pattern]) => pattern.test(account.toLowerCase())) ? 0.9 : 0.5 }];
       })
     : [];
-  return JSON.stringify({ headerRow: header?.row ?? 1, layout, fields: picks, lineKinds, questions: [] });
+  // How the file is set up, in plain words, and its rows in groups: titles, the header, data and totals.
+  const headerRow = header?.row ?? 1;
+  const subtotal = (row: (typeof grid)[number]) => lineItems && /^(total|net |gross |operating income|ebit|subtotal)/i.test(labelOf(row).trim());
+  const rowGroups: { from: number; to: number; kind: string; note: string }[] = [];
+  if (headerRow > 1) rowGroups.push({ from: 1, to: headerRow - 1, kind: 'TITLE', note: 'Title rows above the column names' });
+  rowGroups.push({ from: headerRow, to: headerRow, kind: 'HEADER', note: 'The column names' });
+  for (const row of below) {
+    const kind = subtotal(row) ? 'SUBTOTAL' : 'DATA';
+    const last = rowGroups.at(-1);
+    if (last && last.kind === kind && last.to === row.row - 1) last.to = row.row;
+    else rowGroups.push({ from: row.row, to: row.row, kind, note: kind === 'SUBTOTAL' ? 'A total line' : 'Data' });
+  }
+  const target = /^Target: ([^(\n]+)/m.exec(prompt)?.[1]?.trim() ?? 'data';
+  const totals = rowGroups.filter((group) => group.kind === 'SUBTOTAL').map((group) => (group.from === group.to ? `${group.from}` : `${group.from}–${group.to}`));
+  const first = below[0]?.row;
+  const lastRow = below.at(-1)?.row;
+  const summary = [
+    `This looks like a ${target.toLowerCase()} file.`,
+    headerRow > 1 ? `The column names are on row ${headerRow}; the rows above them are titles.` : 'The column names are on row 1.',
+    first ? `Rows ${first}–${lastRow ?? first} hold the data${monthsAcross ? `, with ${periods.length} months running across the columns` : ''}.` : 'No data rows were found below the column names.',
+    ...(totals.length > 0 ? [`Row${totals.length === 1 && !totals[0]?.includes('–') ? '' : 's'} ${totals.join(', ')} ${totals.length === 1 && !totals[0]?.includes('–') ? 'is a total' : 'are totals'}, which Pactlab checks instead of importing.`] : []),
+  ].join(' ');
+  return JSON.stringify({ summary, rowGroups: rowGroups.slice(0, 20), headerRow, layout, fields: picks, lineKinds, questions: [] });
 }

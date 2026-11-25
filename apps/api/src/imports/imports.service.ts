@@ -139,6 +139,7 @@ function assistView(assist: AssistedMapping | null): UploadDetailView['assist'] 
     unsureLines: [...assist.unsureLines],
     note: assist.note,
     guidance: guidanceView(assist.guidance ?? null),
+    reading: assist.reading ? { summary: assist.reading.summary, rowGroups: assist.reading.rowGroups.map((group) => ({ ...group })) } : null,
   };
 }
 

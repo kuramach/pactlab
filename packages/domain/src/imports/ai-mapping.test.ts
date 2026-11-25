@@ -3,6 +3,7 @@ import { tableAtHeaderRow, type CsvTable } from '../evidence/csv';
 import {
   ASSIST_CONFIDENCE,
   checkProposal,
+  checkRowGroups,
   detectHeaderRow,
   layoutProblems,
   PERIOD_COLUMN,
@@ -238,4 +239,25 @@ describe('checking the assistant’s proposal', () => {
 it('the reshaped table keeps every row’s source text for citations', () => {
   const table: CsvTable = { header: ['Line', 'Jan'], rows: [{ cells: ['Revenue', '5'], text: 'Revenue,5' }] };
   expect(reshapeTable(table, { kind: 'PERIOD_COLUMNS', periods: [{ column: 'Jan', period: '2026-01' }] }).rows[0]?.text).toBe('Revenue,5');
+});
+
+describe('the assistant’s row groups (Kumar, 2026-11-25)', () => {
+  it('keeps groups that point at rows in the grid, in order; drops the rest', () => {
+    const groups = checkRowGroups(
+      [
+        { from: 1, to: 2, kind: 'TITLE', note: ' Company name ' },
+        { from: 3, to: 3, kind: 'HEADER', note: '' },
+        { from: 2, to: 4, kind: 'DATA', note: 'overlaps the header' },
+        { from: 4, to: 9, kind: 'DATA', note: '' },
+        { from: 7, to: 5, kind: 'NOTES', note: 'backwards' },
+        { from: 10, to: 40, kind: 'NOTES', note: 'past the grid' },
+      ],
+      12,
+    );
+    expect(groups).toEqual([
+      { from: 1, to: 2, kind: 'TITLE', note: 'Company name' },
+      { from: 3, to: 3, kind: 'HEADER', note: '' },
+      { from: 4, to: 9, kind: 'DATA', note: '' },
+    ]);
+  });
 });
