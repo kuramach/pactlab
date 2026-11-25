@@ -18,7 +18,9 @@ test('a fintech loan tape maps to loan fields, not billing ones', { tag: '@regre
   await expect(page.getByText('120 of 120 rows are ready to import')).toBeVisible();
   await page.getByRole('button', { name: 'Import 120 rows' }).click();
 
-  await expect(page).toHaveURL(new RegExp(`/deals/${dealId}/sources\\?imported=FINTECH_LOAN_TAPE`));
+  // The import's page: what it picked up (Kumar, 2026-11-25).
+  await expect(page).toHaveURL(new RegExp(`/deals/${dealId}/sources/upload/[^?]+\\?imported=1`));
+  await expect(page.getByRole('heading', { name: 'What Pactlab picked up' })).toBeVisible();
   await expect(page.getByRole('status')).toContainText('Loan tape imported: 120 new records');
   await expect(page.getByRole('status')).toContainText('Industry checks ran on them');
 });

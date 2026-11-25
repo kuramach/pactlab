@@ -48,6 +48,7 @@ enum CompanyType {
   HOSPITALS
   VENTURE_RAISE
   MULTIFAMILY_SYNDICATION
+  MUSIC_RIGHTS
   OTHER
 
   @@map("company_type")
@@ -151,6 +152,10 @@ enum ImportTarget {
   VENTURE_CAP_TABLE
   VENTURE_FINANCIALS
   SYNDICATION_TRACK_RECORD
+  MUSIC_WORKS
+  MUSIC_SPLITS
+  MUSIC_TITLE_CHAIN
+  MUSIC_ROYALTY_STATEMENTS
   REGULATORY_FOOTPRINT
   REMEDY_PACKAGE
   FINANCIAL_PNL
@@ -3636,4 +3641,43 @@ model SyndicationOfferingItem {
   @@unique([organizationId, dealId, id])
   @@index([organizationId, dealId, status, createdAt], map: "syndication_offering_items_org_deal_idx")
   @@map("syndication_offering_items")
+}
+
+/// Music rights (T-140): one register entry read from a royalty statement, split sheet, publishing
+/// agreement, Copyright Office record or lien search, with its exact quote and page. AI proposes; a
+/// person confirms (optionally correcting) or rejects; only CONFIRMED entries feed the catalog
+/// math and checks. The buyer's own side (RLS).
+model MusicRegisterItem {
+  id             String    @id @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  dealId         String    @map("deal_id") @db.Uuid
+  documentId     String    @map("document_id") @db.Uuid
+  /// MUSIC_ITEM_KINDS (@pactlab/domain)
+  kind           String
+  /// The work id or title as the document writes it; null for catalog-wide entries.
+  workRef        String?   @map("work_ref")
+  /// A writer reference (SPLIT), a grant type (GRANT), an income source (INCOME), a secured party (ENCUMBRANCE).
+  detail         String?
+  /// A share in percent (SPLIT) or an amount in the deal's base currency.
+  value          Decimal?  @db.Decimal(24, 6)
+  /// Executed on (GRANT) or the statement period end (INCOME).
+  date           DateTime? @db.Date
+  /// { documentId, pageNumber, quote, quoteHash, charStart, charEnd }
+  citation       Json
+  /// PROPOSED | CONFIRMED | REJECTED
+  status         String    @default("PROPOSED")
+  /// AI | PERSON
+  origin         String
+  aiRunId        String?   @map("ai_run_id") @db.Uuid
+  decisionNote   String?   @map("decision_note")
+  decidedBy      String?   @map("decided_by") @db.Uuid
+  decidedAt      DateTime? @map("decided_at") @db.Timestamptz(3)
+  version        Int       @default(1)
+  createdBy      String    @map("created_by") @db.Uuid
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime  @default(now()) @map("updated_at") @db.Timestamptz(3)
+
+  @@unique([organizationId, dealId, id])
+  @@index([organizationId, dealId, status, createdAt], map: "music_register_items_org_deal_idx")
+  @@map("music_register_items")
 }

@@ -1,5 +1,5 @@
 import type { ImportTarget } from '../imports/targets';
-import type { OfferingCategory } from '../intake/categories';
+import type { PackDocumentCategory } from '../intake/categories';
 import type { ExpectedInput } from '../intake/checklist';
 import { COMPANY_TYPES, COMPANY_TYPE_LABELS, type CompanyType } from '../pacts/types';
 
@@ -14,10 +14,10 @@ import { COMPANY_TYPES, COMPANY_TYPE_LABELS, type CompanyType } from '../pacts/t
 export type PackId = Exclude<CompanyType, 'OTHER'>;
 export const PACK_IDS = COMPANY_TYPES.filter((type): type is PackId => type !== 'OTHER');
 
-export type PackCluster = 'technology' | 'healthcare' | 'real-estate' | 'services' | 'life-sciences' | 'consumer' | 'capital';
+export type PackCluster = 'technology' | 'healthcare' | 'real-estate' | 'services' | 'life-sciences' | 'consumer' | 'capital' | 'media-rights';
 
 /** Calculator ids in `@pactlab/calculations` (`metricCalculator`). */
-export const METRIC_CALCULATOR_IDS = ['saas-metrics', 'multifamily-metrics'] as const;
+export const METRIC_CALCULATOR_IDS = ['saas-metrics', 'multifamily-metrics', 'music-royalties'] as const;
 export type MetricCalculatorId = (typeof METRIC_CALCULATOR_IDS)[number];
 
 /** Valuation method ids in `@pactlab/calculations` (`VALUATION_METHODS`). */
@@ -41,7 +41,13 @@ export interface PackDefinition {
   /** What intake expects to receive (T-098); absent → derived by `expectedInputs`. */
   readonly expectedInputs?: readonly ExpectedInput[];
   /** Document categories only this pack offers at intake (e.g. a syndication's PPM), on top of the common ones. */
-  readonly documentCategories?: readonly OfferingCategory[];
+  readonly documentCategories?: readonly PackDocumentCategory[];
+  /**
+   * How this pack names a core valuation method (e.g. music rights values on trailing royalty
+   * income × a multiple, which the engine runs as the revenue multiple). Labels only: the method,
+   * its formula and its validation are the core's.
+   */
+  readonly methodLabels?: Readonly<Partial<Record<PackValuationMethod, { readonly label: string; readonly help: string; readonly input: string }>>>;
 }
 
 /** What every pack starts with: the software core, which transfers as it is. */
@@ -170,6 +176,34 @@ export const PACKS: Readonly<Record<PackId, PackDefinition>> = {
     importTargets: [...MULTIFAMILY.importTargets, 'SYNDICATION_TRACK_RECORD'],
     findingRules: [...MULTIFAMILY.findingRules, 'syndication-track-record-thin'],
     documentCategories: ['OFFERING_PPM', 'OPERATING_AGREEMENT', 'INVESTOR_DECK'],
+  },
+  // A buyer acquiring music publishing and master rights (T-140, ADR 0041): the works and rights
+  // register, royalty statements and the chain of title are the evidence; the price is a multiple of
+  // the trailing, decay-adjusted net income. Billing holds direct licence invoices (sync, if any).
+  MUSIC_RIGHTS: {
+    ...pack('MUSIC_RIGHTS', 'music-rights', 'media-rights', true),
+    importTargets: ['BILLING_INVOICE_LINE', 'MUSIC_WORKS', 'MUSIC_SPLITS', 'MUSIC_TITLE_CHAIN', 'MUSIC_ROYALTY_STATEMENTS'],
+    metricCalculator: 'music-royalties',
+    findingRules: [
+      'music-chain-of-title-gap',
+      'music-split-mismatch',
+      'music-termination-exposure',
+      'music-income-concentration',
+      'music-recoupment-mismatch',
+      'music-royalty-leakage',
+      'music-undisclosed-encumbrance',
+      'music-statement-gap',
+      'music-verified-growth',
+    ],
+    valuationMethods: ['ARR_MULTIPLE', 'DCF'],
+    methodLabels: {
+      ARR_MULTIPLE: {
+        label: 'Royalty multiple',
+        help: 'Enterprise value = trailing, decay-adjusted net income (net publisher’s share / net label share) × multiple. The Catalog tab computes the income.',
+        input: 'Trailing decay-adjusted net income',
+      },
+    },
+    documentCategories: ['ROYALTY_STATEMENT', 'SPLIT_SHEET', 'PUBLISHING_AGREEMENT', 'COPYRIGHT_RECORD', 'LIEN_SEARCH'],
   },
 };
 

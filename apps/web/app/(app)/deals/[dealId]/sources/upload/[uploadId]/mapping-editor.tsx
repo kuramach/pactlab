@@ -20,6 +20,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState, useTransition } from 'react';
 import { choiceOf, cleanMapping, definitionFor, importedUrl, sourceFromChoice, unmappedRequired } from '../_lib/mapping-form';
 import { GuidancePanel } from './guidance-panel';
+import { ReadingCard, readingFacts } from './reading-card';
 import { cancelUpload, chooseHeaderRow, chooseSheet, importProgressOf, importWithMapping, previewMapping } from '../actions';
 
 const inputClass =
@@ -100,6 +101,7 @@ export function MappingEditor({
   guidance = null,
   headerRow = null,
   preview: grid = [],
+  rowCount = null,
 }: {
   dealId: string;
   uploadId: string;
@@ -115,6 +117,8 @@ export function MappingEditor({
   /** The header's row among the sheet's first rows, and those rows, for moving the header. */
   headerRow?: number | null;
   preview?: string[][];
+  /** Rows below the header, for saying how the file was read. */
+  rowCount?: number | null;
 }) {
   const router = useRouter();
   const [mapping, setMapping] = useState<ImportMapping>(suggested as ImportMapping);
@@ -146,6 +150,21 @@ export function MappingEditor({
     open: !settled.has(index) && (question.field === null || (mapping.fields[question.field]?.kind ?? 'none') === 'none'),
   }));
   const openQuestions = questions.filter((question) => question.open);
+  // "Not quite, let me explain" (and "Explain in your own words" on a question) opens the guidance, in the person's words.
+  const [explain, setExplain] = useState(0);
+  // A file in the standard format imports as it is (Kumar, 2026-11-25: "If the format is exactly as we asked for, we
+  // are good"): no card to confirm. A new format is read and talked through first.
+  const needsReading = assist !== null && (assist.source === 'AI' || assist.note !== null || questions.length > 0 || missing.length > 0);
+  const facts = readingFacts({
+    definition,
+    headerRow,
+    header,
+    rowCount,
+    layout: suggested.layout as ImportMapping['layout'],
+    lineKinds: suggested.lineKinds as ImportMapping['lineKinds'],
+    matched: Object.values(suggested.fields).filter((source) => source !== undefined && source.kind !== 'none').length,
+    questions: questions.length,
+  });
   const unsure = new Set(assist?.unsureLines ?? []);
   const accounts = useMemo(() => {
     if (!definition.lineItems) return [];
@@ -216,7 +235,7 @@ export function MappingEditor({
       if (stopped) return;
       if (next) setProgress(next);
       if (next?.status === 'SUCCEEDED') {
-        router.push(importedUrl(dealId, mapping.target, next));
+        router.push(importedUrl(dealId, mapping.target, next, false, uploadId));
         return;
       }
       if (next?.status === 'FAILED') {
@@ -282,7 +301,8 @@ export function MappingEditor({
               {assist.note ? <span className="text-muted-foreground">{assist.note}</span> : null}
             </div>
           ) : null}
-          {grid.length > 0 && !billing ? <GuidancePanel dealId={dealId} uploadId={uploadId} guidance={guidance} grid={grid} disabled={pending || runId !== null} /> : null}
+          {grid.length > 0 && !billing && needsReading ? <ReadingCard facts={facts} reading={assist?.reading ?? null} onExplain={() => setExplain((n) => n + 1)} /> : null}
+          {grid.length > 0 && !billing ? <GuidancePanel key={explain} dealId={dealId} uploadId={uploadId} guidance={guidance} grid={grid} disabled={pending || runId !== null} explaining={explain > 0} /> : null}
           {openQuestions.length > 0 ? (
             <section aria-label="Pactlab needs you" className="flex flex-col gap-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-950">
               <span className="font-medium">Pactlab needs you before this can be imported</span>
@@ -307,6 +327,11 @@ export function MappingEditor({
                       <Button size="sm" variant="outline" onClick={() => setSettled(new Set([...settled, question.index]))}>
                         {field ? (field.required ? 'I’ll pick it below' : 'Not in this file') : 'Understood'}
                       </Button>
+                      {grid.length > 0 && !billing ? (
+                        <Button size="sm" variant="outline" onClick={() => setExplain((n) => n + 1)}>
+                          Explain in your own words
+                        </Button>
+                      ) : null}
                     </div>
                   </div>
                 );

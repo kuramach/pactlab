@@ -30,7 +30,7 @@ test('an Excel loan tape: pick the sheet, map, import', { tag: '@regression' }, 
   await page.getByRole('button', { name: 'Check every row' }).click();
   await expect(page.getByText('120 of 120 rows are ready to import')).toBeVisible();
   await page.getByRole('button', { name: 'Import 120 rows' }).click();
-  await expect(page).toHaveURL(new RegExp(`/deals/${dealId}/sources\\?imported=FINTECH_LOAN_TAPE`));
+  await expect(page).toHaveURL(new RegExp(`/deals/${dealId}/sources/upload/[^?]+\\?imported=1`));
   await expect(page.getByText('Loan tape imported: 120 new records')).toBeVisible();
 });
 
@@ -59,8 +59,8 @@ test('a 20,000-line export imports in the background with visible progress', { t
   const progress = page.getByRole('status', { name: 'Import progress' });
   await expect(progress).toBeVisible();
   await expect(progress).toContainText('of 20,000 lines');
-  await expect(page).toHaveURL(new RegExp(`/deals/${dealId}/sources\\?imported=BILLING_INVOICE_LINE`), { timeout: 200_000 });
-  await expect(page.getByText('Invoice lines imported: 20000 new records')).toBeVisible();
+  await expect(page).toHaveURL(new RegExp(`/deals/${dealId}/sources/upload/[^?]+\\?imported=1`), { timeout: 200_000 });
+  await expect(page.getByText('Invoice lines imported: 20,000 new records')).toBeVisible();
 });
 
 test('an Excel workbook in the data room: each sheet is a page', { tag: '@regression' }, async ({ page }) => {

@@ -3,6 +3,8 @@ import { tableAtHeaderRow, type CsvTable } from '../evidence/csv';
 import {
   ASSIST_CONFIDENCE,
   checkProposal,
+  checkRowGroups,
+  pnlMonthlyTotals,
   detectHeaderRow,
   layoutProblems,
   PERIOD_COLUMN,
@@ -238,4 +240,46 @@ describe('checking the assistant’s proposal', () => {
 it('the reshaped table keeps every row’s source text for citations', () => {
   const table: CsvTable = { header: ['Line', 'Jan'], rows: [{ cells: ['Revenue', '5'], text: 'Revenue,5' }] };
   expect(reshapeTable(table, { kind: 'PERIOD_COLUMNS', periods: [{ column: 'Jan', period: '2026-01' }] }).rows[0]?.text).toBe('Revenue,5');
+});
+
+describe('the assistant’s row groups (Kumar, 2026-11-25)', () => {
+  it('keeps groups that point at rows in the grid, in order; drops the rest', () => {
+    const groups = checkRowGroups(
+      [
+        { from: 1, to: 2, kind: 'TITLE', note: ' Company name ' },
+        { from: 3, to: 3, kind: 'HEADER', note: '' },
+        { from: 2, to: 4, kind: 'DATA', note: 'overlaps the header' },
+        { from: 4, to: 9, kind: 'DATA', note: '' },
+        { from: 7, to: 5, kind: 'NOTES', note: 'backwards' },
+        { from: 10, to: 40, kind: 'NOTES', note: 'past the grid' },
+      ],
+      12,
+    );
+    expect(groups).toEqual([
+      { from: 1, to: 2, kind: 'TITLE', note: 'Company name' },
+      { from: 3, to: 3, kind: 'HEADER', note: '' },
+      { from: 4, to: 9, kind: 'DATA', note: '' },
+    ]);
+  });
+});
+
+describe('an imported P&L, month by month (Kumar, 2026-11-25)', () => {
+  it('adds up the lines by kind, never the subtotals; costs written either sign read as costs', () => {
+    const totals = pnlMonthlyTotals([
+      { month: '2026-02', amount: '1000.10', kind: 'REVENUE' },
+      { month: '2026-02', amount: '-200.05', kind: 'COGS' },
+      { month: '2026-02', amount: '-300', kind: 'OPEX' },
+      { month: '2026-02', amount: '9999', kind: 'GROSS_PROFIT' },
+      { month: '2026-01', amount: '500', kind: 'REVENUE' },
+      { month: '2026-01', amount: '100', kind: 'COGS' },
+      { month: '2026-01', amount: '50', kind: 'OPEX' },
+      { month: '2026-01', amount: '10', kind: 'OTHER_INCOME' },
+      { month: '2026-01', amount: '20', kind: 'OTHER_EXPENSE' },
+      { month: '2026-01', amount: '1', kind: null },
+    ]);
+    expect(totals).toEqual([
+      { month: '2026-01', revenue: '500', costOfRevenue: '100', grossProfit: '400', operatingExpenses: '50', operatingIncome: '350', netIncome: '340' },
+      { month: '2026-02', revenue: '1000.1', costOfRevenue: '200.05', grossProfit: '800.05', operatingExpenses: '300', operatingIncome: '500.05', netIncome: '500.05' },
+    ]);
+  });
 });

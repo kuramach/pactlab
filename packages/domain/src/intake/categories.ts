@@ -41,8 +41,17 @@ export const DOCUMENT_CATEGORIES = [
  */
 export const OFFERING_CATEGORIES = ['OFFERING_PPM', 'OPERATING_AGREEMENT', 'INVESTOR_DECK'] as const;
 export type OfferingCategory = (typeof OFFERING_CATEGORIES)[number];
+/**
+ * A music catalog (T-140) is diligenced from its rights documents: royalty statements, split
+ * sheets, publishing and administration agreements, Copyright Office records and lien searches.
+ * Their entries are read on the Catalog page for a person to confirm.
+ */
+export const MUSIC_CATEGORIES = ['ROYALTY_STATEMENT', 'SPLIT_SHEET', 'PUBLISHING_AGREEMENT', 'COPYRIGHT_RECORD', 'LIEN_SEARCH'] as const;
+export type MusicCategory = (typeof MUSIC_CATEGORIES)[number];
+/** Every category a pack may add on top of the common ones. */
+export type PackDocumentCategory = OfferingCategory | MusicCategory;
 
-export type DocumentCategory = (typeof DOCUMENT_CATEGORIES)[number] | OfferingCategory;
+export type DocumentCategory = (typeof DOCUMENT_CATEGORIES)[number] | PackDocumentCategory;
 
 /** A file's category: a document category or one of the import targets. */
 export type IntakeCategory = DocumentCategory | ImportTarget;
@@ -150,6 +159,42 @@ const DOCUMENT_DEFINITIONS: Readonly<Record<DocumentCategory, CategoryDefinition
     id: 'OPERATING_AGREEMENT',
     label: 'Operating agreement',
     description: 'The operating agreement (LLC or LP agreement) of the investing entity: capital, fees, preferred return, promote and distribution waterfall.',
+    route: { kind: 'FILE' },
+    people: false,
+  },
+  // Music rights documents (T-140): kept and listed here; their entries are read on the Catalog page.
+  ROYALTY_STATEMENT: {
+    id: 'ROYALTY_STATEMENT',
+    label: 'Royalty statement',
+    description: 'A royalty or income statement from a performing rights organisation, mechanical society, administrator, label or distributor: income by work and period.',
+    route: { kind: 'FILE' },
+    people: false,
+  },
+  SPLIT_SHEET: {
+    id: 'SPLIT_SHEET',
+    label: 'Split sheet',
+    description: 'A split sheet or songwriter agreement stating each writer\'s share of a composition.',
+    route: { kind: 'FILE' },
+    people: false,
+  },
+  PUBLISHING_AGREEMENT: {
+    id: 'PUBLISHING_AGREEMENT',
+    label: 'Publishing or administration agreement',
+    description: 'A publishing, co-publishing, administration, recording or assignment agreement granting rights in works or masters, including advances and recoupment.',
+    route: { kind: 'FILE' },
+    people: false,
+  },
+  COPYRIGHT_RECORD: {
+    id: 'COPYRIGHT_RECORD',
+    label: 'Copyright Office record',
+    description: 'A copyright registration certificate, a recorded transfer or a search report from the U.S. Copyright Office or another registry.',
+    route: { kind: 'FILE' },
+    people: false,
+  },
+  LIEN_SEARCH: {
+    id: 'LIEN_SEARCH',
+    label: 'Lien or UCC search',
+    description: 'A UCC, lien or security-interest search report, or a notice of a claim against the catalog.',
     route: { kind: 'FILE' },
     people: false,
   },

@@ -39,6 +39,7 @@ import { IcService } from '../ic/ic.service';
 import { DealDeletionService } from '../deals/deletion/deal-deletion.service';
 import { demoModelResponse } from '../demo-seed/seed';
 import { SyndicationService } from '../syndication/syndication.service';
+import { MusicService } from '../music/music.service';
 import { DocumentsService } from '../documents/documents.service';
 import { FileSystemObjectStore } from '../documents/storage-adapters';
 import { SignatureMalwareScanner } from '../documents/upload-policy';
@@ -98,6 +99,7 @@ const LABELS: Readonly<Record<string, string>> = {
   PHARMA_BIOTECH: 'Pharma & Biotech',
   VENTURE_RAISE: 'Venture raise',
   MULTIFAMILY_SYNDICATION: 'Multifamily syndication',
+  MUSIC_RIGHTS: 'Music rights',
 };
 export const pactName = (type: CompanyType, closed = false) => `${LABELS[type] ?? type} demo${closed ? ', closed' : ''} (synthetic)`;
 /** A raise has no buyer terms or close, so it gets one pact; every other pack gets a second, closed one for Post-Close. */
@@ -106,7 +108,7 @@ const SELLER_LED = 'Multifamily for sale demo (synthetic)';
 /** T-127: engineering diligence on a real open-source codebase. Not synthetic, not live: recorded once. */
 export const KAFKA_PACT = 'Apache Kafka engineering demo (real public data)';
 
-/** Scenario assumptions by valuation method: property by NOI and cap rate, a raise by pre-money, the rest by revenue multiple. */
+/** Scenario assumptions by valuation method: property by NOI and cap rate, a raise by pre-money, a catalog by royalty multiple, the rest by revenue multiple. */
 function scenarios(type: CompanyType, pricedFindingIds: readonly string[]) {
   const bridge = { cash: '1500000', debt: '4000000', debtLikeItems: '250000', workingCapitalAdjustment: '0' };
   const property = type === 'MULTIFAMILY' || type === 'MULTIFAMILY_SYNDICATION' || type === 'COMMERCIAL_PROPERTY' || type === 'HOTELS';
@@ -118,7 +120,10 @@ function scenarios(type: CompanyType, pricedFindingIds: readonly string[]) {
         ? { method: 'NOI_CAP_RATE' as const, noi: '3200000', capRate: ['0.0675', '0.06', '0.055'][index] as string }
         : type === 'VENTURE_RAISE'
           ? { method: 'ROUND_PRE_MONEY' as const, preMoney: ['20000000', '25000000', '30000000'][index] as string }
-          : { method: 'ARR_MULTIPLE' as const, arr: '12000000', multiple: ['4', '5', '6'][index] as string },
+          : type === 'MUSIC_RIGHTS'
+            ? // A royalty multiple on the catalog's decay-adjusted income (shown on the Catalog tab).
+              { method: 'ARR_MULTIPLE' as const, arr: '630000', multiple: ['12', '14', '16'][index] as string }
+            : { method: 'ARR_MULTIPLE' as const, arr: '12000000', multiple: ['4', '5', '6'][index] as string },
       bridge: type === 'VENTURE_RAISE' ? { cash: '0', debt: '0', debtLikeItems: '0', workingCapitalAdjustment: '0' } : bridge,
       stockConsiderationShare: '0',
       // Accepted priced risks move each case: the downside takes their high price, the upside their low.
@@ -155,6 +160,22 @@ async function syndication(app: App, buyer: TenantContext, dealId: string, data:
   for (const item of view.items.filter((entry) => entry.status === 'PROPOSED')) await service.decide(buyer, dealId, item.id, { decision: 'CONFIRM' }, REQUEST_ID);
   const checks = await service.runChecks(buyer, dealId, REQUEST_ID);
   return `syndication: ${view.items.length} offering items confirmed, ${checks.created} offering drafts`;
+}
+
+/**
+ * A music catalog's register (T-140): the split sheet and the administrator's ledger read by the
+ * scripted `music.extract`, every proposal confirmed by the buyer, then the catalog checks.
+ */
+async function catalog(app: App, buyer: TenantContext, dealId: string, uploaded: Readonly<Record<string, string>>): Promise<string> {
+  const service = app.get(MusicService, { strict: false });
+  for (const file of ['02-split-sheet-w0077.pdf', '04-administration-ledger.pdf', '05-lien-search.pdf']) {
+    const documentId = uploaded[file];
+    if (documentId) await service.extract(buyer, dealId, { documentId }, REQUEST_ID);
+  }
+  const proposed = await service.items(buyer, dealId, { status: 'PROPOSED', limit: 100 }, REQUEST_ID);
+  for (const item of proposed.items) await service.decide(buyer, dealId, item.id, { decision: 'CONFIRM' }, REQUEST_ID);
+  const checks = await service.runChecks(buyer, dealId, REQUEST_ID);
+  return `catalog: ${proposed.items.length} register entries confirmed, ${checks.created} catalog drafts`;
 }
 
 /** The schema owner's session: a pg client when deployed, PGlite in tests. */
@@ -358,6 +379,7 @@ export async function buildPact(app: App, owner: OwnerSession, people: People, t
 
   // After the accept loop, so the offering's planted defects stay drafts for the viewer to review.
   if (wall) await step('syndication', () => syndication(app, buyer, dealId, data, uploaded));
+  if (type === 'MUSIC_RIGHTS') await step('catalog', () => catalog(app, buyer, dealId, uploaded));
   await step('claims', () => claims(app, buyer, dealId, pricedIds));
   await step('finances', () => finances(app, buyer, dealId));
   await step('regulatory', () => regulatory(app, buyer, dealId));

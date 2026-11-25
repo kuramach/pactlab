@@ -188,6 +188,12 @@ export class ImportsController {
     return this.imports.reimport(tenant, params.dealId, params.uploadId, query.fileName, body, requestId);
   }
 
+  /** What the import picked up, which metrics read it and what it raised (Kumar, 2026-11-25). */
+  @Get('deals/:dealId/uploads/:uploadId/results')
+  async results(@Tenant() tenant: TenantContext, @RequestId() requestId: string, @Param(new ZodValidationPipe(uploadParamsSchema)) params: UploadParams) {
+    return this.imports.results(tenant, params.dealId, params.uploadId, requestId);
+  }
+
   /** The import's chain of re-imports, with each withdrawal and its reason (manage rights). */
   @Get('deals/:dealId/uploads/:uploadId/history')
   async history(

@@ -6,5 +6,6 @@ test('a telecom subscriber extract maps to subscriber fields and imports every r
   const dealId = await startPact(page, 'Telecom & media');
   await importPackExtract(page, dealId, 'Subscribers by month', demoFile('telecom-media', 'USD', 'subscribers-by-month.csv'), 144);
   await expect(page.getByRole('status')).toContainText('Industry checks ran on them');
-  await expect(page).toHaveURL(new RegExp(`/deals/${dealId}/sources\\?imported=TELECOM_SUBSCRIBERS`));
+  await expect(page).toHaveURL(new RegExp(`/deals/${dealId}/sources/upload/[^?]+\\?imported=1`));
+  await expect(page.getByRole('heading', { name: 'What Pactlab picked up' })).toBeVisible();
 });

@@ -223,13 +223,91 @@ export function pnlTieOut(lines: readonly { account: string; month: string; amou
   return gaps;
 }
 
+/** One month of an imported P&L, from its lines only (subtotals are never summed). Decimal strings; costs as positive amounts. */
+export interface PnlMonthTotals {
+  readonly month: string;
+  readonly revenue: string;
+  readonly costOfRevenue: string;
+  readonly grossProfit: string;
+  readonly operatingExpenses: string;
+  readonly operatingIncome: string;
+  readonly netIncome: string;
+}
+
+/**
+ * What an imported P&L adds up to, month by month (Kumar, 2026-11-25: "what metrics it derived"). Deterministic,
+ * from the lines and their confirmed kinds: costs written negative or positive are both read as costs (the sign
+ * of each month's costs decides, as in `pnlTieOut`).
+ */
+export function pnlMonthlyTotals(lines: readonly { month: string; amount: string; kind: PnlKind | null }[]): PnlMonthTotals[] {
+  const zero = (): Record<PnlLineKind, bigint> => ({ REVENUE: 0n, COGS: 0n, OPEX: 0n, OTHER_INCOME: 0n, OTHER_EXPENSE: 0n });
+  const months = new Map<string, Record<PnlLineKind, bigint>>();
+  for (const line of lines) {
+    if (!line.kind || !isPnlLine(line.kind)) continue;
+    const sums = months.get(line.month) ?? zero();
+    sums[line.kind] += toScaled(line.amount);
+    months.set(line.month, sums);
+  }
+  const abs = (value: bigint) => (value < 0n ? -value : value);
+  return [...months.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([month, s]) => {
+      const costs = abs(s.COGS);
+      const opex = abs(s.OPEX);
+      const otherExpense = abs(s.OTHER_EXPENSE);
+      const gross = s.REVENUE - costs;
+      const operating = gross - opex;
+      return {
+        month,
+        revenue: fromScaled(s.REVENUE),
+        costOfRevenue: fromScaled(costs),
+        grossProfit: fromScaled(gross),
+        operatingExpenses: fromScaled(opex),
+        operatingIncome: fromScaled(operating),
+        netIncome: fromScaled(operating + s.OTHER_INCOME - otherExpense),
+      };
+    });
+}
+
 // ——— The mapping assistant's proposal, checked ———
 
 /** At or above this, a field the assistant proposes is filled in; below it, a person is asked. */
 export const ASSIST_CONFIDENCE = 0.85;
 
+/** What a group of the grid's rows is, as the assistant read it (Kumar, 2026-11-25: "how the rows are setup"). */
+export type RowGroupKind = 'TITLE' | 'HEADER' | 'DATA' | 'SUBTOTAL' | 'NOTES' | 'BLANK';
+export interface RowGroup {
+  /** Row numbers as the grid numbers them (non-empty rows from 1). */
+  readonly from: number;
+  readonly to: number;
+  readonly kind: RowGroupKind;
+  readonly note: string;
+}
+
+/** How the assistant read the file, said back to the person before anything is mapped. Words only, never a value. */
+export interface FileReading {
+  readonly summary: string | null;
+  readonly rowGroups: readonly RowGroup[];
+}
+
+/**
+ * The assistant's row groups, checked against the grid: a group whose rows are not in the grid, runs backwards or
+ * overlaps one before it is dropped, so every row number shown points at a row the person can see.
+ */
+export function checkRowGroups(groups: readonly RowGroup[], rowCount: number): RowGroup[] {
+  const kept: RowGroup[] = [];
+  for (const group of groups) {
+    if (!Number.isInteger(group.from) || !Number.isInteger(group.to) || group.from < 1 || group.to < group.from || group.to > rowCount) continue;
+    if ((kept.at(-1)?.to ?? 0) >= group.from) continue;
+    kept.push({ from: group.from, to: group.to, kind: group.kind, note: group.note.trim().slice(0, 200) });
+  }
+  return kept;
+}
+
 /** What the mapping assistant proposes (already schema-validated by the prompt). */
 export interface MappingProposal {
+  readonly summary?: string | undefined;
+  readonly rowGroups?: readonly RowGroup[] | undefined;
   readonly headerRow: number;
   readonly layout: ImportLayout;
   readonly fields: readonly { field: string; column: string | null; confidence: number; reason: string; evidence: string; guided?: boolean | undefined }[];
@@ -259,6 +337,8 @@ export interface AssistedMapping {
   readonly note: string | null;
   /** What the person told the assistant about this file, quoted back on the mapping screen (T-152). */
   readonly guidance?: ImportGuidance | null;
+  /** How the assistant read the file (its words, checked against the grid); absent when no assistant read it. */
+  readonly reading?: FileReading | null;
 }
 
 const squash = (text: string) => text.toLowerCase().replaceAll(/\s+/g, ' ').trim();
@@ -352,7 +432,9 @@ export function checkProposal(input: {
       if (entry.confidence < ASSIST_CONFIDENCE) unsureLines.push(entry.account);
     }
   }
-  return { source: 'AI', headerRow: proposal.headerRow, layout, fields, picks, lineKinds, unsureLines, questions, note: null, guidance };
+  const summary = proposal.summary?.trim() ?? '';
+  const reading: FileReading = { summary: summary === '' ? null : summary.slice(0, 600), rowGroups: checkRowGroups(proposal.rowGroups ?? [], input.preview.length) };
+  return { source: 'AI', headerRow: proposal.headerRow, layout, fields, picks, lineKinds, unsureLines, questions, note: null, guidance, reading };
 }
 
 /**
