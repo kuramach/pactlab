@@ -49,6 +49,7 @@ enum CompanyType {
   VENTURE_RAISE
   MULTIFAMILY_SYNDICATION
   MUSIC_RIGHTS
+  ENERGY_GENERATION
   OTHER
 
   @@map("company_type")
@@ -156,6 +157,11 @@ enum ImportTarget {
   MUSIC_SPLITS
   MUSIC_TITLE_CHAIN
   MUSIC_ROYALTY_STATEMENTS
+  ENERGY_PLANTS
+  ENERGY_INTERESTS
+  ENERGY_LEASES
+  ENERGY_PRODUCTION
+  ENERGY_LIABILITIES
   REGULATORY_FOOTPRINT
   REMEDY_PACKAGE
   FINANCIAL_PNL
@@ -3711,4 +3717,42 @@ model MusicRegisterItem {
   @@unique([organizationId, dealId, id])
   @@index([organizationId, dealId, status, createdAt], map: "music_register_items_org_deal_idx")
   @@map("music_register_items")
+}
+
+/// Energy generation & rights (T-142): one entry read from a third-party reserve report or an
+/// environmental report or permit — reserves by category, their discounted value, the decline the
+/// report assumes, or a liability estimate — with its exact quote and page. AI proposes; a person
+/// confirms (optionally correcting) or rejects; only CONFIRMED entries feed the models and checks.
+/// The buyer's own side (RLS).
+model EnergyRegisterItem {
+  id             String    @id @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  dealId         String    @map("deal_id") @db.Uuid
+  documentId     String    @map("document_id") @db.Uuid
+  /// ENERGY_ITEM_KINDS (@pactlab/domain)
+  kind           String
+  /// The plant or interest id or name as the document writes it; null for portfolio-wide entries.
+  assetRef       String?   @map("asset_ref")
+  /// A reserve category (RESERVES, RESERVE_VALUE) or an obligation (LIABILITY_ESTIMATE); null for a decline.
+  detail         String?
+  /// A volume in MBOE, an amount in the deal's base currency, or a percentage.
+  value          Decimal   @db.Decimal(24, 6)
+  /// { documentId, pageNumber, quote, quoteHash, charStart, charEnd }
+  citation       Json
+  /// PROPOSED | CONFIRMED | REJECTED
+  status         String    @default("PROPOSED")
+  /// AI | PERSON
+  origin         String
+  aiRunId        String?   @map("ai_run_id") @db.Uuid
+  decisionNote   String?   @map("decision_note")
+  decidedBy      String?   @map("decided_by") @db.Uuid
+  decidedAt      DateTime? @map("decided_at") @db.Timestamptz(3)
+  version        Int       @default(1)
+  createdBy      String    @map("created_by") @db.Uuid
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime  @default(now()) @map("updated_at") @db.Timestamptz(3)
+
+  @@unique([organizationId, dealId, id])
+  @@index([organizationId, dealId, status, createdAt], map: "energy_register_items_org_deal_idx")
+  @@map("energy_register_items")
 }

@@ -16,4 +16,5 @@ export * from './hospitals';
 export * from './venture';
 export * from './syndication';
 export * from './music';
+export * from './energy';
 export * from './software';

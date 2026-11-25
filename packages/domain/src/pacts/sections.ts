@@ -47,6 +47,8 @@ export const DEAL_SECTION_RULES: Readonly<Record<string, (context: SectionContex
   '/syndication': (context) => context.companyType === 'MULTIFAMILY_SYNDICATION',
   // A music catalog's works and rights register, royalty income and termination exposure (T-140).
   '/catalog': (context) => context.companyType === 'MUSIC_RIGHTS',
+  // An energy package's asset and interest register, reserves and production, and liabilities (T-142).
+  '/energy': (context) => context.companyType === 'ENERGY_GENERATION',
   '/valuation': everywhere,
   '/foresight': everywhere,
   '/terms': buyerLedAcquisition,

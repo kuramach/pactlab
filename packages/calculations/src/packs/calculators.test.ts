@@ -10,7 +10,7 @@ describe('pack calculators and valuation methods', () => {
   });
 
   it('the SaaS calculator is the existing engine, unchanged', () => {
-    expect(Object.keys(METRIC_CALCULATORS)).toEqual(['saas-metrics', 'multifamily-metrics', 'music-royalties']);
+    expect(Object.keys(METRIC_CALCULATORS)).toEqual(['saas-metrics', 'multifamily-metrics', 'music-royalties', 'energy-assets']);
     const input = {
       lines: [],
       fxRates: [],

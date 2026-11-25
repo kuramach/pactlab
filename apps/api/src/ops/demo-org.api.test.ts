@@ -25,7 +25,7 @@ describe('demo organization (batch 2)', () => {
   let first: string[] = [];
   const demoData = generatedDemoData();
   const rows = async (sql: string, params: unknown[] = []) => ((await db.owner.query(sql, params)) as { rows: Row[] }).rows;
-  const types = ['SOFTWARE_SAAS', 'MULTIFAMILY', 'VENTURE_RAISE', 'MULTIFAMILY_SYNDICATION', 'MUSIC_RIGHTS'] as const;
+  const types = ['SOFTWARE_SAAS', 'MULTIFAMILY', 'VENTURE_RAISE', 'MULTIFAMILY_SYNDICATION', 'MUSIC_RIGHTS', 'ENERGY_GENERATION'] as const;
   const run = (reset = false, only: readonly (typeof types)[number][] = types) => runDemoOrg(app as never, db.owner as never, db.prisma, { types: only, reset, data: demoData.source });
 
   beforeAll(async () => {
@@ -113,7 +113,7 @@ describe('demo organization (batch 2)', () => {
     expect(await count('deal_memberships', teaser.id, `AND role = 'BIDDER'`)).toBe(3);
     expect(await rows(`SELECT scope, status FROM report_versions WHERE organization_id = $1 AND scope <> 'IC' ORDER BY scope`, [DEMO_ORG.id])).toEqual([{ scope: 'EXECUTIVE', status: 'READY' }, { scope: 'PACT', status: 'READY' }]);
     // Each buyer-led acquisition pact has its committee pack (T-124 demo coverage).
-    expect((await rows(`SELECT count(*)::int AS n FROM report_versions WHERE organization_id = $1 AND scope = 'IC'`, [DEMO_ORG.id]))[0]).toEqual({ n: 8 });
+    expect((await rows(`SELECT count(*)::int AS n FROM report_versions WHERE organization_id = $1 AND scope = 'IC'`, [DEMO_ORG.id]))[0]).toEqual({ n: 10 });
     // The syndication pact reads its offering, and the seller sees none of the sponsor's offering documents (T-106).
     const syndication = await deal(pactName('MULTIFAMILY_SYNDICATION'));
     expect(await count('syndication_offerings', syndication.id)).toBe(1);
@@ -124,6 +124,10 @@ describe('demo organization (batch 2)', () => {
     const music = await deal(pactName('MUSIC_RIGHTS'));
     expect(await count('music_register_items', music.id, `AND status = 'CONFIRMED'`)).toBeGreaterThanOrEqual(3);
     expect(await count('findings', music.id, `AND title = 'Termination exposure inside the hold period'`)).toBe(1);
+    // The energy package reads its reserve report and environmental reports, confirmed by the buyer (T-142).
+    const energy = await deal(pactName('ENERGY_GENERATION'));
+    expect(await count('energy_register_items', energy.id, `AND status = 'CONFIRMED'`)).toBeGreaterThanOrEqual(5);
+    expect(await count('findings', energy.id, `AND title = 'ARO shortfall: Cinder Ridge Station (synthetic)'`)).toBe(1);
   });
 
   it('every section a demo pact shows has data, derived from the section rules, not a list kept by hand (T-124)', async () => {
