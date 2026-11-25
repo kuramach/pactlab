@@ -804,7 +804,7 @@ export class ImportsService {
    * Read the upload again before import: another workbook sheet, or the header on another row (a person's
    * correction). The header, row count and the assistant's proposal follow.
    */
-  async selectSheet(tenant: TenantContext, dealId: string, uploadId: string, choice: { sheet?: string | undefined; headerRow?: number | undefined; guidance?: ImportGuidance | undefined }, requestId: string): Promise<UploadDetailView> {
+  async selectSheet(tenant: TenantContext, dealId: string, uploadId: string, choice: { sheet?: string | undefined; headerRow?: number | undefined; guidance?: ImportGuidance | undefined }, requestId: string): Promise<UploadDetail> {
     const row = await this.load(tenant, dealId, uploadId, canSupply, choice.guidance ? 'source_upload.guidance_set' : 'source_upload.sheet_selected', requestId);
     if (row.status !== 'UPLOADED' || (choice.sheet !== undefined && row.format !== 'XLSX')) throw new ConflictException();
     const bytes = await this.storedBytes(row);
