@@ -19,6 +19,7 @@ import {
   CLASSIFY_MAX_PAGES,
   classifyDocument,
   extractContractTerms,
+  understandDocument,
   extractMusicItems,
   extractOfferingItems,
   scrubContract,
@@ -89,7 +90,7 @@ import type {
   UploadArchiveBody,
   UploadDocumentBody,
 } from './documents.schemas';
-import { NO_VISION, UNCLASSIFIED_INTAKE, type DocumentIntake, type DocumentPageRecord, type DocumentRecord, type DocumentSourceLink, type DocumentVisionState } from './documents.types';
+import { NO_VISION, UNCLASSIFIED_INTAKE, XLSX_CONTENT_TYPE, type DocumentIntake, type DocumentPageRecord, type DocumentRecord, type DocumentSourceLink, type DocumentVisionState } from './documents.types';
 import { documentPages } from './document-text';
 import { ExtractionError, type ExtractedPage } from './extraction';
 import { VisionPass } from './vision-pass';
@@ -118,6 +119,12 @@ const canReadFindings = (role: DealRole) => has(role, 'BUYER_ANALYSIS_READ');
 const canReviewFindings = (role: DealRole) => role === 'DEAL_LEAD' || role === 'REVIEWER';
 
 const PROHIBITED = new Set<string>(PROHIBITED_CLASSIFICATIONS);
+/** A spreadsheet is imported as data (its columns mapped, then metrics), never read as a contract (Kumar, 2026-11-25). */
+const TABLE_CONTENT_TYPES: ReadonlySet<string> = new Set(['text/csv', XLSX_CONTENT_TYPE]);
+function refuseTable(document: DocumentRecord): void {
+  if (TABLE_CONTENT_TYPES.has(document.contentType)) throw new UnprocessableEntityException({ code: 'TABLE_DOCUMENT' });
+}
+
 const modelEligible = (document: DocumentRecord) =>
   document.status === 'AVAILABLE' && !document.aiExcluded && !PROHIBITED.has(document.dataClass);
 
@@ -990,7 +997,42 @@ export class DocumentsService {
     return { id: documentRequestId, status: 'CLOSED' };
   }
 
-  async extract(tenant: TenantContext, dealId: string, documentId: string, requestId: string) {
+  /**
+   * Read a document before extracting from it (Kumar, 2026-11-25): what it is, how it is set up, what will be drafted
+   * and what the reader needs from a person, each part cited to its page. Nothing is stored but the AI run.
+   */
+  async understand(tenant: TenantContext, dealId: string, documentId: string, requestId: string) {
+    await this.access.require(tenant, dealId, canExtract, { action: 'document.understanding.requested', requestId });
+    const document = await this.documents.getDocument(tenant, dealId, documentId);
+    if (!document) throw new NotFoundException();
+    if (!modelEligible(document)) throw new UnprocessableEntityException();
+    refuseTable(document);
+    const { sources, names } = await this.sources(tenant, dealId, [document]);
+    let outcome;
+    try {
+      outcome = await understandDocument(this.gateway, { organizationId: tenant.organizationId, dealId, sources });
+    } catch (error) {
+      gatewayError(error);
+    }
+    const { run, understanding, providerError } = outcome;
+    await this.documents.recordAiRun(tenant, run, this.audit(tenant, dealId, 'document.understanding.completed', { type: 'ai_run', id: run.id }, requestId));
+    if (run.status === 'PROVIDER_ERROR') throw providerUnavailable(providerError);
+    if (!understanding) return { aiRunId: run.id, status: run.status, understanding: null };
+    const cite = (citations: readonly ResolvedCitation[]) => citations.map((citation) => this.citationView(citation, names));
+    return {
+      aiRunId: run.id,
+      status: run.status,
+      understanding: {
+        documentType: understanding.documentType,
+        summary: understanding.summary,
+        sections: understanding.sections.map((entry) => ({ title: entry.title, citations: cite(entry.citations) })),
+        willExtract: understanding.willExtract.map((entry) => ({ kind: entry.kind, note: entry.note, citations: cite(entry.citations) })),
+        questions: understanding.questions.map((entry) => ({ question: entry.question, citations: cite(entry.citations) })),
+      },
+    };
+  }
+
+  async extract(tenant: TenantContext, dealId: string, documentId: string, requestId: string, guidance: string | null = null) {
     await this.access.require(tenant, dealId, canExtract, {
       action: 'document.extraction.requested',
       requestId,
@@ -998,7 +1040,8 @@ export class DocumentsService {
     const document = await this.documents.getDocument(tenant, dealId, documentId);
     if (!document) throw new NotFoundException();
     if (!modelEligible(document)) throw new UnprocessableEntityException();
-    const { sources } = await this.sources(tenant, dealId, [document]);
+    refuseTable(document);
+    const { sources, names } = await this.sources(tenant, dealId, [document]);
 
     let outcome;
     try {
@@ -1006,6 +1049,7 @@ export class DocumentsService {
         organizationId: tenant.organizationId,
         dealId,
         sources,
+        guidance: guidance && guidance.trim() !== '' ? guidance.trim() : null,
       });
     } catch (error) {
       gatewayError(error);
@@ -1065,6 +1109,8 @@ export class DocumentsService {
       status: run.status,
       drafted: drafts.length,
       duplicates: items.length - drafts.length,
+      // What it picked up, for the "What Pactlab picked up" card: each new draft with its quote and page.
+      drafts: drafts.map((draft) => ({ id: draft.id, kind: draft.kind, subtype: draft.subtype, title: draft.title, summary: draft.summary, severity: draft.severity, citations: draft.citations.map((citation) => this.citationView(citation, names)) })),
       rejected: rejected.map((item) => ({ title: item.title, reasons: item.reasons })),
       consistency,
     };

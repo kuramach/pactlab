@@ -23,8 +23,12 @@ test('a data-room document uploads, opens by page, and AI extraction runs on the
 
   // Outcome, not prose: the run reached the model seam (the fixture), and no failure or "AI off" shows.
   const before = aiRequests().length;
-  await page.getByRole('button', { name: 'Re-run AI extraction' }).click();
-  await expect.poll(() => aiRequests().length).toBeGreaterThan(before);
+  // It reads the document first and says how it is set up, then extracts and says what it picked up (Kumar, 2026-11-25).
+  await page.getByRole('button', { name: 'Read with AI' }).click();
+  await expect(page.getByRole('heading', { name: /Here’s how Pactlab read this document/ })).toBeVisible();
+  await page.getByRole('button', { name: 'Looks right, extract' }).click();
+  await expect(page.getByRole('heading', { name: 'What Pactlab picked up' })).toBeVisible();
+  await expect.poll(() => aiRequests().length).toBeGreaterThan(before + 1);
   expect(aiRequests().every((request) => request.provider === 'fixture' && request.live === false)).toBe(true);
   await expect(page.getByText(/AI is not switched on/)).toHaveCount(0);
   await expect(page.getByText('The model call failed or timed out')).toHaveCount(0);

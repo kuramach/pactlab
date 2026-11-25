@@ -11,7 +11,9 @@ import type { AnswerStatus } from '../grounding';
  */
 export const CASSETTE_PROMPTS = {
   'document.qa@1': '6a10cd0bf4bc44fb8200a6cbcb860c8cef105f6297a4d9b689a11c4090d985cf',
-  'contract.extract@1': 'ffae8183109eabe06923a40958037929e4f225b90d0619a460f3a4a9ac8b17ad',
+  // @2 adds only the optional "Guidance from the person" rule (Kumar, 2026-11-25); the output schema and these recorded
+  // outputs are unchanged, and the golden extraction cases carry no guidance. Re-record with `pnpm eval:live` when convenient.
+  'contract.extract@2': '9fbcfab60901d223ab317304ce21d725d3b568fbaed070869c0b04e66ef72ff2',
 } as const;
 
 const DOCUMENT_ID = '01920000-0000-7000-8000-00000000d0c1';

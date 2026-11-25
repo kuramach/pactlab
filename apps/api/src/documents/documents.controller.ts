@@ -30,6 +30,8 @@ import {
   createDocumentRequestBodySchema,
   documentRequestParamsSchema,
   documentParamsSchema,
+  extractBodySchema,
+  type ExtractBody,
   findingParamsSchema,
   listDocumentsQuerySchema,
   listFindingsQuerySchema,
@@ -319,13 +321,25 @@ export class DocumentsController {
     return this.service.readImagesAgain(tenant, params.dealId, params.documentId, requestId);
   }
 
+  /** Read a document before extracting (Kumar, 2026-11-25): how it is set up, what will be drafted, what it needs to know. */
+  @Post('documents/:documentId/understanding')
+  @HttpCode(200)
+  async understand(
+    @Tenant() tenant: TenantContext,
+    @RequestId() requestId: string,
+    @Param(new ZodValidationPipe(documentParamsSchema)) params: DocumentParams,
+  ) {
+    return this.service.understand(tenant, params.dealId, params.documentId, requestId);
+  }
+
   @Post('documents/:documentId/extractions')
   async extract(
     @Tenant() tenant: TenantContext,
     @RequestId() requestId: string,
     @Param(new ZodValidationPipe(documentParamsSchema)) params: DocumentParams,
+    @Body(new ZodValidationPipe(extractBodySchema)) body: ExtractBody,
   ) {
-    return this.service.extract(tenant, params.dealId, params.documentId, requestId);
+    return this.service.extract(tenant, params.dealId, params.documentId, requestId, body.guidance ?? null);
   }
 
   @Post('questions')

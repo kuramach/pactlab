@@ -152,6 +152,9 @@ export function MappingEditor({
   const openQuestions = questions.filter((question) => question.open);
   // "Not quite, let me explain" (and "Explain in your own words" on a question) opens the guidance, in the person's words.
   const [explain, setExplain] = useState(0);
+  // A file in the standard format imports as it is (Kumar, 2026-11-25: "If the format is exactly as we asked for, we
+  // are good"): no card to confirm. A new format is read and talked through first.
+  const needsReading = assist !== null && (assist.source === 'AI' || assist.note !== null || questions.length > 0 || missing.length > 0);
   const facts = readingFacts({
     definition,
     headerRow,
@@ -298,7 +301,7 @@ export function MappingEditor({
               {assist.note ? <span className="text-muted-foreground">{assist.note}</span> : null}
             </div>
           ) : null}
-          {grid.length > 0 && !billing ? <ReadingCard facts={facts} reading={assist?.reading ?? null} onExplain={() => setExplain((n) => n + 1)} /> : null}
+          {grid.length > 0 && !billing && needsReading ? <ReadingCard facts={facts} reading={assist?.reading ?? null} onExplain={() => setExplain((n) => n + 1)} /> : null}
           {grid.length > 0 && !billing ? <GuidancePanel key={explain} dealId={dealId} uploadId={uploadId} guidance={guidance} grid={grid} disabled={pending || runId !== null} explaining={explain > 0} /> : null}
           {openQuestions.length > 0 ? (
             <section aria-label="Pactlab needs you" className="flex flex-col gap-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-950">

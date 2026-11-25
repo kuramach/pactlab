@@ -199,6 +199,38 @@ function musicExtraction(request: ModelRequest) {
   return { items };
 }
 
+function understanding(request: ModelRequest) {
+  const prompt = request.messages[0]?.content ?? '';
+  const blocks = prompt.split('<untrusted_source ').slice(1).map((block) => ({
+    citationId: /citation_id="([^"]+)"/.exec(block)?.[1] ?? '',
+    text: block.slice(block.indexOf('>') + 1, block.indexOf('</untrusted_source>')),
+  }));
+  const sections = blocks.flatMap((block, index) => {
+    const line = block.text.split('\n').map((entry) => entry.trim()).find((entry) => entry.length >= 12);
+    return line ? [{ title: index === 0 ? 'Opening and parties' : `Page ${index + 1}`, citations: [{ citationId: block.citationId, quote: line.slice(0, 200) }] }] : [];
+  });
+  const contract = Object.values(DEMO_CONTRACTS).flat().find((entry) => entry.extraction && citationIdFor(request, entry.extraction.parties[0]?.quote ?? '\u0000'));
+  const extraction = contract?.extraction;
+  const cite = (quote: string) => [{ citationId: citationIdFor(request, quote) ?? '', quote }];
+  const willExtract = extraction
+    ? [
+        ...(extraction.parties[0] ? [{ kind: 'PARTIES', note: 'Who signs it', citations: cite(extraction.parties[0].quote) }] : []),
+        ...(extraction.dates[0] ? [{ kind: 'KEY_DATES', note: 'When it starts and ends', citations: cite(extraction.dates[0].quote) }] : []),
+        ...extraction.clauses.map((clause) => ({ kind: clause.kind, note: clause.summary.slice(0, 200), citations: cite(clause.quote) })),
+      ]
+    : [];
+  const questions = [...new Set(blocks.flatMap((block) => [...block.text.matchAll(/\b(Schedule|Exhibit|Annex) ([A-Z0-9]+)\b/g)].map((match) => match[0])))]
+    .slice(0, 3)
+    .map((reference) => ({ question: `${reference} is mentioned. Is it included in this file, or is it a separate document?`, citations: [] }));
+  return {
+    documentType: extraction ? 'Commercial agreement' : 'Document',
+    summary: `This looks like a ${extraction ? 'commercial agreement' : 'document'} of ${blocks.length} page${blocks.length === 1 ? '' : 's'} (synthetic reading by the fixture model).`,
+    sections: sections.slice(0, 15),
+    willExtract: willExtract.slice(0, 20),
+    questions,
+  };
+}
+
 /**
  * Scripted model responses for the demo contracts: the extraction a model
  * would propose, cited to the exact text. Runs are recorded under the model
@@ -258,6 +290,9 @@ export function demoModelResponse(request: ModelRequest): string {
   }
   // Consistency checks (T-132): a synthetic, deterministic check for references to sections the pages never number.
   if (request.system.includes('check a commercial agreement for drafting consistency')) return JSON.stringify({ findings: brokenReferences(request) });
+  // Reading a document before extraction (document.understand@1): its first sentence per page as sections, the demo
+  // contract's quotes as what will be drafted, and a question for each schedule or exhibit the pages mention.
+  if (request.system.includes('explain to a non-technical person how it is set up')) return JSON.stringify(understanding(request));
   const all = Object.values(DEMO_CONTRACTS).flat();
   const contract = all.find((entry) => entry.extraction && citationIdFor(request, entry.extraction.parties[0]?.quote ?? '\u0000'));
   const extraction = contract?.extraction;

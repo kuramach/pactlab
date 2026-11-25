@@ -1,4 +1,4 @@
-import { AiBadge, Button, Card, CardContent, CardHeader, CardTitle, EmptyState, Glossed } from '@pactlab/ui';
+import { AiBadge, Card, CardContent, CardHeader, CardTitle, EmptyState, Glossed } from '@pactlab/ui';
 import type { Page } from '@pactlab/contracts';
 import Link from 'next/link';
 import { keepParams, pageApiQuery, Pager, pagerLinks, readPage } from '../../../../_components/pager';
@@ -6,11 +6,12 @@ import { apiGet, dealsApi } from '../../_lib/api';
 import { OutcomeBanner } from '../../_lib/outcome';
 import { ApiState } from '../../_lib/states';
 import { can, dealViewer } from '../../_lib/viewer';
-import { extractDocument } from './actions';
+import { ExtractionAssistant, ReadSpreadsheet } from './extraction-assistant';
 import { IntakePanel, type IntakeView } from './intake-panel';
 import { RequestsCard, type DocumentRequestView } from './requests-card';
 import { SourcesPanel, type SourcesView } from './sources-panel';
 import { DocumentLibrary } from './library';
+import { importTargetOf, TABLE_TYPES } from './spreadsheets';
 import { libraryHref } from './library-href';
 import { ReviewQueue } from './review-queue';
 import { DocumentUploader } from './uploader';
@@ -244,15 +245,17 @@ export default async function DocumentsPage({
                 ? page.data.fileName
                 : 'Document'}
             </CardTitle>
-            {page?.kind === 'ok' && writer ? (
-              <form action={extractDocument.bind(null, dealId, page.data.documentId)}>
-                <Button type="submit" size="sm" variant="outline">
-                  Re-run AI extraction
-                </Button>
-              </form>
-            ) : null}
           </CardHeader>
           <CardContent>
+            {page?.kind === 'ok' && writer && openDocument && openDocument.status === 'AVAILABLE' && !openDocument.aiExcluded ? (
+              <div className="mb-4">
+                {TABLE_TYPES.has(openDocument.contentType) ? (
+                  <ReadSpreadsheet dealId={dealId} documentId={openDocument.id} target={importTargetOf(openDocument)} />
+                ) : aiOn ? (
+                  <ExtractionAssistant key={openDocument.id} dealId={dealId} documentId={openDocument.id} />
+                ) : null}
+              </div>
+            ) : null}
             {page === null ? (
               <EmptyState
                 title="No page open"

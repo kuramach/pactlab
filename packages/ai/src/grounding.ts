@@ -3,7 +3,7 @@ import type { CitableSource } from './context';
 import type { ModelProviderErrorKind } from './bedrock';
 import type { AiRunRecord, ClaudeGateway, GatewayInput } from './gateway';
 import type { ModelAlias } from './models';
-import { contractExtractionPrompt, contractScrubPrompt, documentQaPrompt, musicExtractionPrompt, offeringExtractionPrompt, type ContractExtraction, type MusicExtraction, type OfferingExtraction } from './prompts';
+import { contractExtractionPrompt, contractScrubPrompt, documentQaPrompt, documentUnderstandingPrompt, musicExtractionPrompt, offeringExtractionPrompt, type ContractExtraction, type DocumentUnderstanding, type MusicExtraction, type OfferingExtraction } from './prompts';
 
 interface Scope {
   readonly organizationId: string;
@@ -97,7 +97,7 @@ const humanize = (value: string) =>
  */
 export async function extractContractTerms(
   gateway: ClaudeGateway,
-  request: Scope & { readonly sources: readonly CitableSource[] },
+  request: Scope & { readonly sources: readonly CitableSource[]; readonly guidance?: string | null },
 ): Promise<{
   run: AiRunRecord;
   items: ExtractedItem[];
@@ -109,7 +109,7 @@ export async function extractContractTerms(
     organizationId: request.organizationId,
     dealId: request.dealId,
     modelAlias: request.modelAlias,
-    inputs: [],
+    inputs: request.guidance ? [{ name: 'guidance', classification: 'BUSINESS', text: request.guidance }] : [],
     sources: request.sources,
   });
   if (!response.output) return { run: response.run, items: [], rejected: [], providerError: response.providerError };
@@ -147,6 +147,46 @@ export async function extractContractTerms(
     items: grounded.map(({ item, citations }) => ({ ...item, citations })),
     rejected: rejected.map(({ item, reasons }) => ({ title: item.title, reasons })),
   };
+}
+
+/** A document as the reader understood it: every section and kind grounded on a page; ungrounded ones dropped. */
+export interface GroundedUnderstanding {
+  readonly documentType: string;
+  readonly summary: string;
+  readonly sections: readonly { title: string; citations: readonly ResolvedCitation[] }[];
+  readonly willExtract: readonly { kind: DocumentUnderstanding['willExtract'][number]['kind']; note: string; citations: readonly ResolvedCitation[] }[];
+  readonly questions: readonly { question: string; citations: readonly ResolvedCitation[] }[];
+}
+
+/**
+ * Read a document before extracting (Kumar, 2026-11-25): how it is set up, what will be drafted, and what the reader
+ * needs from a person. Sections and kinds whose citations do not resolve are dropped; a question keeps only the
+ * citations that resolve (it may have none: "Schedule 3 is not included").
+ */
+export async function understandDocument(
+  gateway: ClaudeGateway,
+  request: Scope & { readonly sources: readonly CitableSource[] },
+): Promise<{ run: AiRunRecord; understanding: GroundedUnderstanding | null; providerError: ModelProviderErrorKind | null }> {
+  const response = await gateway.invoke(documentUnderstandingPrompt, {
+    organizationId: request.organizationId,
+    dealId: request.dealId,
+    modelAlias: request.modelAlias,
+    inputs: [],
+    sources: request.sources,
+  });
+  if (!response.output) return { run: response.run, understanding: null, providerError: response.providerError };
+  const index = new SourceIndex(request.sources);
+  const output = response.output;
+  const sections = groundItems(output.sections, index).grounded.map(({ item, citations }) => ({ title: item.title, citations }));
+  const willExtract = groundItems(output.willExtract, index).grounded.map(({ item, citations }) => ({ kind: item.kind, note: item.note, citations }));
+  const questions = output.questions.map((question) => ({
+    question: question.question,
+    citations: question.citations.flatMap((citation) => {
+      const check = index.verify(citation);
+      return check.ok ? [check.citation] : [];
+    }),
+  }));
+  return { run: response.run, providerError: null, understanding: { documentType: output.documentType, summary: output.summary, sections, willExtract, questions } };
 }
 
 /**

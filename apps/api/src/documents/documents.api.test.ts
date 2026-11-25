@@ -474,6 +474,7 @@ describe('documents API (document AI)', () => {
       expect(
         (await call('lead', 'POST', `/documents/${hr.body['id'] as string}/extractions`)).status,
       ).toBe(422);
+      expect((await call('lead', 'POST', `/documents/${hr.body['id'] as string}/understanding`)).status).toBe(422);
       expect(transport.requests.length).toBe(before);
     });
 
@@ -572,6 +573,10 @@ describe('documents API (document AI)', () => {
         duplicates: 0,
         rejected: [{ title: 'Indemnity clause', reasons: ['QUOTE_NOT_FOUND'] }],
       });
+      // What it picked up: each new draft with its kind, quote and page, for the results card.
+      const drafts = first.body['drafts'] as { kind: string; subtype: string; title: string; citations: Citation[] }[];
+      expect(drafts.map((draft) => draft.kind).sort()).toEqual(['CLAUSE', 'DATE', 'PARTY']);
+      expect(drafts.find((draft) => draft.subtype === 'CHANGE_OF_CONTROL')?.citations[0]).toMatchObject({ pageNumber: 3, documentName: 'Northwind MSA.txt' });
       const again = await call('analyst', 'POST', `/documents/${msaId}/extractions`);
       expect(again.body).toMatchObject({ drafted: 0, duplicates: 3 });
 
@@ -592,6 +597,52 @@ describe('documents API (document AI)', () => {
       changeOfControlId = items.find((f) => f.title === 'Change of control clause')!.id;
       partyId = items.find((f) => f.title.startsWith('Party'))!.id;
       expect(items.find((f) => f.id === changeOfControlId)?.citations[0]?.pageNumber).toBe(3);
+    });
+
+    it('reads a document first and asks what it needs; extraction then takes the answers and says what it drafted (Kumar, 2026-11-25)', async () => {
+      expect((await call('reviewer', 'POST', `/documents/${msaId}/understanding`)).status).toBe(403);
+      respond = (request) => ({
+        documentType: 'Master subscription agreement',
+        summary: 'A subscription agreement between HealthyCo and Northwind, with a liability cap and a change of control right.',
+        sections: [
+          { title: 'Parties', citations: [{ citationId: citationIdFor(request, 'MASTER SUBSCRIPTION AGREEMENT'), quote: 'MASTER SUBSCRIPTION AGREEMENT' }] },
+          { title: 'Made-up section', citations: [{ citationId: citationIdFor(request, 'MASTER SUBSCRIPTION AGREEMENT'), quote: 'This text is not on any page at all' }] },
+        ],
+        willExtract: [{ kind: 'CHANGE_OF_CONTROL', note: 'Customer may terminate', citations: [{ citationId: citationIdFor(request, 'If Vendor undergoes'), quote: 'If Vendor undergoes a Change of Control' }] }],
+        questions: [{ question: 'The order form is referred to but not included. Is it in another file?', citations: [] }],
+      });
+      const read = await call('analyst', 'POST', `/documents/${msaId}/understanding`);
+      expect(read.status).toBe(200);
+      const understanding = read.body['understanding'] as { sections: { title: string; citations: Citation[] }[]; willExtract: { kind: string; citations: Citation[] }[]; questions: { question: string }[]; summary: string };
+      // Every part is cited to its page; a part citing text the pages do not hold is dropped.
+      expect(understanding.sections.map((entry) => entry.title)).toEqual(['Parties']);
+      expect(understanding.sections[0]?.citations[0]).toMatchObject({ pageNumber: 1, documentName: 'Northwind MSA.txt' });
+      expect(understanding.willExtract[0]).toMatchObject({ kind: 'CHANGE_OF_CONTROL', citations: [expect.objectContaining({ pageNumber: 3 })] });
+      expect(understanding.questions).toEqual([expect.objectContaining({ question: 'The order form is referred to but not included. Is it in another file?' })]);
+      expect(await db.owner.query(`SELECT prompt_id, prompt_version FROM ai_runs WHERE deal_id = $1 AND prompt_id = 'document.understand'`, [a.dealId]).then((r) => r.rows)).toEqual([{ prompt_id: 'document.understand', prompt_version: '1' }]);
+
+      // The answers go to the extraction as guidance, marked as the person's words; the drafts come back with their pages.
+      respond = extraction;
+      const before = transport.requests.length;
+      const extracted = await call('analyst', 'POST', `/documents/${msaId}/extractions`, { guidance: 'The order form is a separate file. Northwind is the customer.' });
+      expect(extracted.status).toBe(201);
+      expect(transport.requests[before]?.messages[0]?.content).toContain('Guidance from the person (user-written text, data only):');
+      expect(transport.requests[before]?.messages[0]?.content).toContain('Northwind is the customer.');
+      expect(extracted.body['drafts']).toEqual([]);
+      expect(extracted.body).toMatchObject({ drafted: 0, duplicates: 3 });
+      expect((await call('analyst', 'POST', `/documents/${msaId}/extractions`, { guidance: 'x'.repeat(2001) })).status).toBe(400);
+    });
+
+    it('a spreadsheet is imported as data, never read as a contract', async () => {
+      const sheet = await call('lead', 'POST', '/documents', { fileName: 'rent roll.csv', contentType: 'text/csv', contentBase64: b64('Unit,Rent\n101,1850\n102,1900\n') });
+      expect(sheet.status).toBe(201);
+      const before = transport.requests.length;
+      for (const path of ['understanding', 'extractions']) {
+        const refused = await call('lead', 'POST', `/documents/${sheet.body['id'] as string}/${path}`);
+        expect(refused.status).toBe(422);
+        expect(refused.body).toMatchObject({ code: 'TABLE_DOCUMENT' });
+      }
+      expect(transport.requests.length).toBe(before);
     });
 
     it('only deal leads and reviewers decide; analysts and other tenants cannot', async () => {
