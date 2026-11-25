@@ -128,6 +128,17 @@ export class ImportsController {
     return this.imports.selectSheet(tenant, params.dealId, params.uploadId, body, requestId);
   }
 
+  /** Read the upload afresh, past a saved format (ADR 0042): the assistant reads it as a new layout. */
+  @Post('deals/:dealId/uploads/:uploadId/read-fresh')
+  @HttpCode(200)
+  async readFresh(
+    @Tenant() tenant: TenantContext,
+    @RequestId() requestId: string,
+    @Param(new ZodValidationPipe(uploadParamsSchema)) params: UploadParams,
+  ): Promise<UploadDetail> {
+    return this.imports.selectSheet(tenant, params.dealId, params.uploadId, { fresh: true }, requestId);
+  }
+
   /** How far an import has got; a background import is followed by polling this. */
   @Get('deals/:dealId/import-runs/:runId')
   async progress(

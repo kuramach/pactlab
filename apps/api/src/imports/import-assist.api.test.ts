@@ -7,7 +7,7 @@ import { defaultPromptRegistry, ScriptedModelTransport, TransportClaudeGateway, 
 import { addSyntheticDealMember, createSyntheticTenant, startTestDatabase, type SyntheticTenant, type TestDatabase } from '@pactlab/db/testing';
 import { createLogger } from '@pactlab/observability';
 import { createLocalJWKSet, exportJWK, generateKeyPair, SignJWT, type CryptoKey } from 'jose';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createApp } from '../app';
 import { JwtIdentityVerifier } from '../auth/identity';
 import { importMapFixtureResponse } from '../demo-seed/import-map-fixture';
@@ -77,6 +77,11 @@ describe('the mapping assistant through the API (Kumar, 2026-11-21)', { timeout:
     });
     return { status: response.statusCode, body: (response.body ? response.json() : null) as Body };
   }
+
+  // Each test reads its files as new layouts; saved formats (ADR 0042) are tested on their own, within one test.
+  beforeEach(async () => {
+    if (db && alpha) await db.owner.query(`DELETE FROM import_formats WHERE deal_id = $1`, [alpha.dealId]);
+  });
 
   beforeAll(async () => {
     db = await startTestDatabase();
@@ -165,6 +170,50 @@ describe('the mapping assistant through the API (Kumar, 2026-11-21)', { timeout:
       ['2021', '1190', '880'],
       ['2023', '1360', '1040'],
     ]);
+  });
+
+  it('a confirmed format is reused on the next file laid out the same way, with no AI; only what changed is asked (ADR 0042)', async () => {
+    reply = null;
+    const lead = await token(alpha.subject, alpha);
+    const first = await upload(app, lead, PNL.replace('Northwind', 'Northwind Formats'), 'pnl-q1.csv');
+    expect((first.body['assist'] as Body)['source']).toBe('AI');
+    const firstMapping = first.body['suggestedMapping'] as Body;
+    const imported = await call(app, 'POST', `/v1/deals/${alpha.dealId}/uploads/${first.body['id'] as string}/import`, lead, { mapping: firstMapping });
+    expect(imported.body).toMatchObject({ syncRun: { status: 'SUCCEEDED' } });
+    const saved = await db.owner.query<{ uses: number; source_file_name: string }>(`SELECT uses, source_file_name FROM import_formats WHERE deal_id = $1`, [alpha.dealId]);
+    expect(saved.rows).toEqual([{ uses: 0, source_file_name: 'pnl-q1.csv' }]);
+
+    // Next quarter: new month columns, the same lines plus one the format has never seen.
+    const next = PNL.replace('Northwind', 'Northwind Formats').replace(',Jan 2026,Feb 2026,Mar 2026', ',Apr 2026,May 2026,Jun 2026').replace('Net income,', 'Office supplies,500,500,500\nNet income,');
+    const before = seen.length;
+    const second = await upload(app, lead, next, 'pnl-q2.csv');
+    expect(second.status).toBe(201);
+    expect(seen.length).toBe(before);
+    const assist = second.body['assist'] as { source: string; format: { fileName: string }; unsureLines: string[]; questions: unknown[] };
+    expect(assist).toMatchObject({ source: 'FORMAT', format: { fileName: 'pnl-q1.csv' }, questions: [] });
+    expect(assist.unsureLines).toEqual(['Office supplies']);
+    const mapping = second.body['suggestedMapping'] as Body;
+    expect(mapping['layout']).toEqual({ kind: 'PERIOD_COLUMNS', periods: [{ column: 'Apr 2026', period: '2026-04' }, { column: 'May 2026', period: '2026-05' }, { column: 'Jun 2026', period: '2026-06' }] });
+    expect(mapping['fields']).toEqual(firstMapping['fields']);
+    expect((mapping['lineKinds'] as Body)['Subscription revenue']).toBe('REVENUE');
+    expect((mapping['lineKinds'] as Body)['Office supplies']).toBeUndefined();
+    expect((await db.owner.query<{ uses: number }>(`SELECT uses FROM import_formats WHERE deal_id = $1`, [alpha.dealId])).rows).toEqual([{ uses: 1 }]);
+    expect((await db.owner.query<{ n: number }>(`SELECT count(*)::int AS n FROM audit_events WHERE deal_id = $1 AND action = 'import_format.applied'`, [alpha.dealId])).rows[0]?.n).toBe(1);
+
+    // Read it fresh: past the format, the assistant reads it as a new layout.
+    const fresh = await call(app, 'POST', `/v1/deals/${alpha.dealId}/uploads/${second.body['id'] as string}/read-fresh`, lead);
+    expect(fresh.status).toBe(200);
+    expect((fresh.body['assist'] as Body)['source']).toBe('AI');
+    expect(seen.length).toBe(before + 1);
+
+    // The buyer's own (buyer-only) format is never used for, or shown to, the seller: their upload is read anew.
+    const seller = await token((await addSyntheticDealMember(db.owner, alpha, 'TARGET_CONTRIBUTOR')).subject, alpha);
+    const theirs = await upload(app, seller, next.replace('Apr 2026,May 2026,Jun 2026', 'Jul 2026,Aug 2026,Sep 2026'), 'pnl-q3.csv');
+    expect((theirs.body['assist'] as Body)['source']).toBe('AI');
+
+    // A different layout is not matched.
+    const other = await upload(app, lead, PNL.replace('Northwind', 'Northwind Formats').replace(',Jan 2026,Feb 2026,Mar 2026', 'Line,Jan 2026,Feb 2026,Mar 2026'), 'pnl-other.csv');
+    expect((other.body['assist'] as Body)['source']).toBe('AI');
   });
 
   it('a subtotal that does not add up blocks the import until the line kinds are fixed or the gap accepted', async () => {

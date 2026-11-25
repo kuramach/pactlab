@@ -279,6 +279,8 @@ export const dealsApi = {
     ),
   selectSheet: (dealId: string, uploadId: string, choice: string | { sheet?: string; headerRow?: number; guidance?: ImportGuidanceBody }) =>
     apiPost<UploadDetailView>(`/v1/deals/${encodeURIComponent(dealId)}/uploads/${encodeURIComponent(uploadId)}/sheet`, typeof choice === 'string' ? { sheet: choice } : choice),
+  /** Read an upload afresh, past a saved format (ADR 0042). */
+  readFresh: (dealId: string, uploadId: string) => apiPost<UploadDetailView>(`/v1/deals/${encodeURIComponent(dealId)}/uploads/${encodeURIComponent(uploadId)}/read-fresh`, {}),
   /** Import a spreadsheet already filed in the pact's documents. */
   importDocument: (dealId: string, documentId: string, target: string) =>
     apiPost<UploadDetailView>(`/v1/deals/${encodeURIComponent(dealId)}/documents/${encodeURIComponent(documentId)}/import`, { target }),

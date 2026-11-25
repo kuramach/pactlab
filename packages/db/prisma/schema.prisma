@@ -484,6 +484,7 @@ model Organization {
   evidenceEdges            EvidenceEdge[]
   syncRunEvidence          SyncRunEvidence[]
   evidenceVoids            EvidenceVoid[]
+  importFormats            ImportFormat[]
   citations                Citation[]
   findings                 Finding[]
   findingLinks             FindingEvidenceLink[]
@@ -609,6 +610,7 @@ model Deal {
   evidenceEdges            EvidenceEdge[]
   syncRunEvidence          SyncRunEvidence[]
   evidenceVoids            EvidenceVoid[]
+  importFormats            ImportFormat[]
   citations                Citation[]
   findings                 Finding[]
   findingLinks             FindingEvidenceLink[]
@@ -1647,6 +1649,35 @@ model SourceUpload {
   @@unique([organizationId, dealId, supersedesUploadId])
   @@index([organizationId, dealId, createdAt])
   @@map("source_uploads")
+}
+
+/// A confirmed import format (ADR 0042): how a file of this layout is read, reused on the next file with the same
+/// layout signature without the assistant. One per pact, import target, signature and visibility (which follows the upload).
+model ImportFormat {
+  id             String             @id @default(uuid(7)) @db.Uuid
+  organizationId String             @map("organization_id") @db.Uuid
+  dealId         String             @map("deal_id") @db.Uuid
+  target         ImportTarget
+  /// sha256 of the target, layout kind, period granularity and the non-period header cells.
+  signature      String             @db.Char(64)
+  headerRow      Int?               @map("header_row")
+  /// The confirmed mapping (fields, units, date format, line kinds), as stored on the upload it was confirmed on.
+  mapping        Json
+  sourceUploadId String             @map("source_upload_id") @db.Uuid
+  sourceFileName String             @map("source_file_name")
+  visibility     EvidenceVisibility
+  confirmedBy    String             @map("confirmed_by") @db.Uuid
+  confirmedAt    DateTime           @default(now()) @map("confirmed_at") @db.Timestamptz(3)
+  uses           Int                @default(0)
+  lastUsedAt     DateTime?          @map("last_used_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  deal         Deal         @relation(fields: [organizationId, dealId], references: [organizationId, id], onDelete: Restrict)
+
+  /// One per visibility: a seller's shared format and the buyer's own never overwrite each other.
+  @@unique([organizationId, dealId, target, signature, visibility])
+  @@index([organizationId, dealId, target])
+  @@map("import_formats")
 }
 
 /// The seller's asking price for a deal. Append-only: a revision is a new

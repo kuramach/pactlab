@@ -134,8 +134,11 @@ export interface UploadDetailView extends SourceUploadView {
   suggestedMapping: ImportMappingBody;
   /** What the mapping assistant filled in and why, and what it asks a person; null for older uploads. */
   assist: {
-    source: 'AI' | 'NAMES';
-    picks: Record<string, { by: 'AI' | 'NAME' | 'GUIDED'; confidence: number | null; reason: string | null }>;
+    /** FORMAT: read with a saved format from an earlier file laid out the same way; no assistant (ADR 0042). */
+    source: 'AI' | 'NAMES' | 'FORMAT';
+    picks: Record<string, { by: 'AI' | 'NAME' | 'GUIDED' | 'FORMAT'; confidence: number | null; reason: string | null }>;
+    /** The earlier file this one was read like (source FORMAT). */
+    format?: { fileName: string; confirmedAt: string } | null;
     questions: { field: string | null; question: string; options: string[] }[];
     unsureLines: string[];
     note: string | null;
