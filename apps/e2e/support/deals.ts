@@ -36,7 +36,8 @@ export async function startPact(page: Page, seller: Seller, currency = 'USD'): P
 
   await page.getByLabel('Legal or trading name').fill(`E2E Seller ${tag} (synthetic)`);
   await page.getByRole('radio', { name: 'Private' }).check();
-  await page.getByRole('radio', { name: new RegExp(`^${seller.replace(/[&]/g, '\\$&')}`) }).check();
+  // A pack whose name starts another's ('Multifamily' / 'Multifamily syndication', T-106) must not match both.
+  await page.getByRole('radio', { name: new RegExp(`^${seller.replace(/[&]/g, '\\$&')}(?! syndication)`, 'i') }).check();
   await page.getByRole('button', { name: 'Next' }).click();
 
   await page.getByRole('radio', { name: 'Not known yet' }).check();
