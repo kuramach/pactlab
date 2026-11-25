@@ -1,4 +1,5 @@
-import { PageHeader, Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, EmptyState } from '@pactlab/ui';
+import { PageHeader, Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, EmptyState, StepPanel } from '@pactlab/ui';
+import { Lightbulb } from 'lucide-react';
 
 export default function DesignSystemPage() {
   return (
@@ -32,6 +33,32 @@ export default function DesignSystemPage() {
           <Badge variant="draft">Model draft</Badge>
           <Badge variant="reviewed">Human reviewed</Badge>
           <Badge variant="danger">Blocked</Badge>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle>Step panel</CardTitle>
+          <CardDescription>The one way to step through items: the guided tour and What’s new. Approved 2026-11-25; see docs/ui-patterns.md.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <StepPanel
+            label="Step panel example"
+            icon={<Lightbulb />}
+            eyebrow="Tour · 2 of 9"
+            title="A step’s title"
+            actions={
+              <>
+                <Button type="button" size="sm" variant="outline">
+                  Back
+                </Button>
+                <Button type="button" size="sm">
+                  Next
+                </Button>
+              </>
+            }
+          >
+            <p className="text-slate-text">What this step shows, in a sentence or two.</p>
+          </StepPanel>
         </CardContent>
       </Card>
       <EmptyState title="Empty state" description="Used when a list has no rows the viewer is permitted to see." />

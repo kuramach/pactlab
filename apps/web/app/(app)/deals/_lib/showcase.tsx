@@ -1,7 +1,7 @@
 'use client';
 
 import { sectionApplies, type CompanyType } from '@pactlab/domain';
-import { Button } from '@pactlab/ui';
+import { Button, StepPanel } from '@pactlab/ui';
 import { Compass, Lightbulb, X } from 'lucide-react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -58,24 +58,13 @@ export function Showcase({ dealId, companyType, sellerLed }: { dealId: string; c
   if (!entry) return null;
 
   return (
-    <aside aria-label="Why this matters" className="rounded-xl border border-indigo/30 bg-indigo/5 p-4 text-sm">
-      <div className="flex flex-wrap items-start gap-3">
-        <Lightbulb aria-hidden className="mt-0.5 h-5 w-5 shrink-0 text-indigo-ink" />
-        <div className="flex min-w-0 flex-1 flex-col gap-1">
-          <p className="font-semibold text-navy">
-            {touring && index >= 0 ? <span className="mr-2 text-xs font-bold uppercase tracking-wide text-indigo-ink">Tour · {index + 1} of {steps.length}</span> : null}
-            {entry.title}
-          </p>
-          <p className="text-slate-text">{entry.why}</p>
-          <ul className="mt-1 flex flex-wrap gap-x-5 gap-y-1 text-xs text-muted-foreground">
-            {entry.lookFor.map((item) => (
-              <li key={item} className="before:mr-1 before:text-indigo-ink before:content-['→']">
-                {item}
-              </li>
-            ))}
-          </ul>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
+    <StepPanel
+      label="Why this matters"
+      icon={<Lightbulb />}
+      eyebrow={touring && index >= 0 ? `Tour · ${index + 1} of ${steps.length}` : undefined}
+      title={entry.title}
+      actions={
+        <>
           {touring ? (
             <>
               <Button type="button" size="sm" variant="outline" disabled={index <= 0} onClick={() => go(steps[index - 1])}>
@@ -106,8 +95,17 @@ export function Showcase({ dealId, companyType, sellerLed }: { dealId: string; c
               <X aria-hidden className="h-4 w-4" />
             </Button>
           </form>
-        </div>
-      </div>
-    </aside>
+        </>
+      }
+    >
+      <p className="text-slate-text">{entry.why}</p>
+      <ul className="mt-1 flex flex-wrap gap-x-5 gap-y-1 text-xs text-muted-foreground">
+        {entry.lookFor.map((item) => (
+          <li key={item} className="before:mr-1 before:text-indigo-ink before:content-['→']">
+            {item}
+          </li>
+        ))}
+      </ul>
+    </StepPanel>
   );
 }

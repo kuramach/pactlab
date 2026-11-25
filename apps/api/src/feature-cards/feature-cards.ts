@@ -19,13 +19,94 @@ export interface FeatureCardDefinition {
   icon: FeatureCardIcon;
 }
 
-export const FEATURE_CARD_ICONS = ['table', 'cloud', 'palette'] as const;
+export const FEATURE_CARD_ICONS = ['table', 'cloud', 'palette', 'shield', 'lock', 'fingerprint', 'key', 'check', 'layers', 'compass', 'message'] as const;
 export type FeatureCardIcon = (typeof FEATURE_CARD_ICONS)[number];
 
 /** How many undismissed cards the home shows at once; the rest queue behind the icon. */
 export const HOME_CARD_LIMIT = 2;
 
 export const FEATURE_CARDS: readonly FeatureCardDefinition[] = [
+  // What Pactlab stands on (Kumar, 2026-11-25: "lots of features that we need to highlight"): each card says only
+  // what the product does today, in the words of the privacy, security and trust pages.
+  {
+    id: 'aws-security',
+    version: 1,
+    addedOn: '2026-11-25',
+    title: 'Security first, on AWS',
+    body: 'Pactlab runs on AWS in the United States. Every organization is kept apart in the database itself, credentials sit in encrypted stores, and code scans run in throwaway workspaces, so source code is never kept.',
+    href: '/settings/controls',
+    linkLabel: 'See the security controls',
+    icon: 'shield',
+  },
+  {
+    id: 'ai-never-keeps-your-data',
+    version: 1,
+    addedOn: '2026-11-25',
+    title: 'AI that never trains on or keeps your data',
+    body: 'Models run on Amazon Bedrock inside Pactlab’s AWS account. Your content is never used to train a model, and any other provider an organization switches on works under terms that do not let it keep your content. Names, pay and other people data never reach a model.',
+    href: '/settings/ai-models',
+    linkLabel: 'See the AI models',
+    icon: 'lock',
+  },
+  {
+    id: 'audit-trail',
+    version: 1,
+    addedOn: '2026-11-25',
+    title: 'A tamper-evident audit trail',
+    body: 'Sensitive reads, decisions, exports and refusals are written to your organization’s hash-chained, append-only log, so every number and every decision can be traced to who did it and when.',
+    href: '/audit',
+    linkLabel: 'Open the audit log',
+    icon: 'fingerprint',
+  },
+  {
+    id: 'enterprise-sso',
+    version: 1,
+    addedOn: '2026-11-25',
+    title: 'Enterprise single sign-on',
+    body: 'Your team can sign in through your company’s identity provider, such as Microsoft Entra ID, Okta or Google Workspace. Ask Pactlab and we set it up for your organization.',
+    href: null,
+    icon: 'key',
+  },
+  {
+    id: 'humans-decide',
+    version: 1,
+    addedOn: '2026-11-25',
+    title: 'AI drafts, people decide',
+    body: 'Every AI finding quotes the page it came from and stays a draft until a named reviewer accepts it. Metrics, prices and valuations come from versioned calculations, never from model text.',
+    href: '/findings',
+    linkLabel: 'Open Findings',
+    icon: 'check',
+  },
+  {
+    id: 'industry-packs',
+    version: 1,
+    addedOn: '2026-11-25',
+    title: 'Every pact knows its industry',
+    body: 'Software, apartments, fintech, healthcare, music rights and more: each industry brings its own imports, metrics and checks, so diligence asks the questions that matter for that business.',
+    href: '/pacts/new',
+    linkLabel: 'Start a pact',
+    icon: 'layers',
+  },
+  {
+    id: 'deal-making-style',
+    version: 1,
+    addedOn: '2026-11-25',
+    title: 'Price findings in your deal-making style',
+    body: 'Choose how Sextant prices what diligence finds for each pact. The seller never sees it, and you can re-evaluate under another style at any time.',
+    href: '/pacts/new',
+    linkLabel: 'Start a pact',
+    icon: 'compass',
+  },
+  {
+    id: 'files-read-with-you',
+    version: 1,
+    addedOn: '2026-11-25',
+    title: 'Pactlab talks you through each file',
+    body: 'Before importing a spreadsheet or extracting from a contract, Pactlab says how it read the file and asks what it needs. Afterwards it shows what it picked up, the metrics it worked out and where they show.',
+    href: '/deals',
+    linkLabel: 'Open a pact',
+    icon: 'message',
+  },
   {
     id: 'import-mapping-assistant',
     version: 1,
@@ -38,12 +119,12 @@ export const FEATURE_CARDS: readonly FeatureCardDefinition[] = [
   },
   {
     id: 'document-sources-oauth',
-    version: 1,
+    version: 2,
     addedOn: '2026-11-21',
-    title: 'Connect Google Drive or OneDrive by signing in',
-    body: 'An owner or admin signs in to Google Drive or OneDrive / SharePoint once for the organization, with no access token to paste or renew. Pacts can then read documents from folders you choose.',
-    href: '/settings',
-    linkLabel: 'Open Settings',
+    title: 'Add a data room from Google Drive or OneDrive',
+    body: 'Anyone on a pact can add their own Google Drive or OneDrive by signing in, with no access token to paste. On Google Drive you pick the files with Google’s picker; on OneDrive you choose a folder.',
+    href: '/deals',
+    linkLabel: 'Open a pact',
     icon: 'cloud',
   },
   {

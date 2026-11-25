@@ -6,7 +6,7 @@ export interface FeatureCardView {
   body: string;
   href: string | null;
   linkLabel: string | null;
-  icon: 'table' | 'cloud' | 'palette';
+  icon: 'table' | 'cloud' | 'palette' | 'shield' | 'lock' | 'fingerprint' | 'key' | 'check' | 'layers' | 'compass' | 'message';
   where: 'HOME' | 'QUEUED' | 'DISMISSED';
   unread: boolean;
 }

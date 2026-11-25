@@ -22,37 +22,35 @@ const card = (id: string, over: Partial<FeatureCardView> = {}): FeatureCardView 
   ...over,
 });
 
-describe('the home carousel (Kumar, 2026-11-25)', () => {
-  it('shows the first card with its dismiss control and link, and arrows and dots to move to the others', () => {
-    const html = renderToStaticMarkup(<FeatureCardRail cards={[card('a'), card('b', { where: 'QUEUED' }), card('c', { where: 'QUEUED', icon: 'cloud' })]} />);
-    expect(html).toContain('aria-roledescription="carousel"');
+describe('What’s new, in the guided tour’s panel (Kumar, 2026-11-25)', () => {
+  it('shows one card with “What’s new · 1 of 3”, its link, and Back, Next and dismiss inside the panel', () => {
+    const html = renderToStaticMarkup(<FeatureCardRail cards={[card('a'), card('b', { where: 'QUEUED' }), card('c', { where: 'QUEUED', icon: 'shield' })]} />);
+    expect(html).toContain('aria-label="What’s new"');
+    expect(html).toContain('What’s new · 1 of 3');
     expect(html).toContain('Title a');
+    expect(html).not.toContain('Title b');
+    expect(html).toContain('href="/settings"');
+    expect(html).toContain('>Back<');
+    expect(html).toContain('>Next<');
     expect(html).toContain('aria-label="Dismiss: Title a"');
     expect(html).toContain('name="cardId" value="a"');
-    expect(html).toContain('href="/settings"');
-    expect(html).toContain('1 of 3');
-    expect(html).toContain('aria-label="Previous card"');
-    expect(html).toContain('aria-label="Next card"');
-    expect(html).toContain('aria-label="Show card 3: Title c"');
-    // Each card its own colour.
-    expect(html).toContain('from-indigo/15');
-    expect(html).toContain('from-teal/15');
-    expect(html).toContain('from-amber/15');
+    // The tour's panel, not a look-alike.
+    expect(html).toContain('border-indigo/30 bg-indigo/5');
   });
 
-  it('one card needs no arrows', () => {
+  it('one card: no Back or Next', () => {
     const html = renderToStaticMarkup(<FeatureCardRail cards={[card('a')]} />);
     expect(html).toContain('Title a');
-    expect(html).not.toContain('Next card');
+    expect(html).not.toContain('>Next<');
   });
 
   it('renders nothing with no cards', () => {
     expect(renderToStaticMarkup(<FeatureCardRail cards={[]} />)).toBe('');
   });
 
-  it('moves round at either end', () => {
-    expect(step(0, -1, 3)).toBe(2);
-    expect(step(2, 1, 3)).toBe(0);
+  it('stops at either end, as the tour does', () => {
+    expect(step(0, -1, 3)).toBe(0);
+    expect(step(2, 1, 3)).toBe(2);
     expect(step(1, 1, 3)).toBe(2);
     expect(step(0, 1, 0)).toBe(0);
   });

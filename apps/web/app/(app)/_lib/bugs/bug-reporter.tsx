@@ -13,21 +13,31 @@ type Severity = 'LOW' | 'MEDIUM' | 'HIGH' | 'BLOCKER';
 const inputClass = 'w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring';
 const dealIdOf = (path: string) => /^\/deals\/([0-9a-f-]{36})(\/|$)/.exec(path)?.[1] ?? null;
 
+/**
+ * Browser noise that is not a Pactlab bug: resize-observer loops, opaque cross-origin "Script error." from
+ * extensions, and navigations that abort a fetch. Not filed, never flagged.
+ */
+export function isNoise(detail: { name: string; message: string }): boolean {
+  return /ResizeObserver loop|^Script error\.?$|AbortError|The user aborted a request|NEXT_REDIRECT|NEXT_NOT_FOUND/i.test(`${detail.name}: ${detail.message}`) || detail.message.trim() === 'Script error.';
+}
+
 /** Open the report dialog from anywhere (the error boundary uses this). */
 export const OPEN_BUG_REPORT_EVENT = 'pactlab:report-bug';
 
 /**
  * The in-app bug reporter (T-072): a floating button on every signed-in page,
  * a dialog that attaches the page context and a masked screenshot of the app
- * view, and a non-blocking prompt when an unhandled error happens. Errors are
- * filed even when the prompt is dismissed (deduplicated by fingerprint).
+ * view. An unhandled error is filed automatically (deduplicated by fingerprint) and marks the button with a dot;
+ * the dialog opens only when the person clicks (Kumar, 2026-11-25: "should only open on a click"), with that error
+ * attached.
  */
 export function BugReporter({ appVersion, environment }: { appVersion: string; environment: string }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [screenshot, setScreenshot] = useState<Screenshot>(null);
   const [capturing, setCapturing] = useState(false);
   const [error, setError] = useState<ErrorDetail | null>(null);
-  const [prompt, setPrompt] = useState<ErrorDetail | null>(null);
+  // The last unhandled error, filed already: shown as a dot on the button until the person opens the report.
+  const [logged, setLogged] = useState<ErrorDetail | null>(null);
   const [sent, setSent] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -54,10 +64,10 @@ export function BugReporter({ appVersion, environment }: { appVersion: string; e
     const seen = new Set<string>();
     const report = (detail: ErrorDetail) => {
       const key = `${detail.name}:${detail.message}`;
-      if (seen.has(key)) return;
+      if (isNoise(detail) || seen.has(key)) return;
       seen.add(key);
       void fileBugReport({ trigger: 'FRONTEND_EXCEPTION', title: 'Something went wrong', severity: 'MEDIUM', dealId: dealIdOf(window.location.pathname) ?? '', context: context(detail) });
-      setPrompt(detail);
+      setLogged(detail);
     };
     const onError = (event: ErrorEvent) => report({ name: event.error?.name ?? 'Error', message: event.message, stack: event.error?.stack });
     const onRejection = (event: PromiseRejectionEvent) => {
@@ -93,29 +103,20 @@ export function BugReporter({ appVersion, environment }: { appVersion: string; e
 
   return (
     <div data-bug-report-ui>
-      {prompt ? (
-        <div role="status" className="fixed bottom-20 right-4 z-40 flex max-w-sm flex-col gap-2 rounded-xl border border-border bg-card p-4 text-sm shadow-xl">
-          <span className="font-semibold">Something went wrong — send a bug report?</span>
-          <span className="text-muted-foreground">It was logged automatically. Add a line and a screenshot to help fix it.</span>
-          <div className="flex gap-2">
-            <Button size="sm" type="button" onClick={() => { setPrompt(null); void open(prompt); }}>
-              Add details
-            </Button>
-            <Button variant="outline" size="sm" type="button" onClick={() => setPrompt(null)}>
-              Dismiss
-            </Button>
-          </div>
-        </div>
-      ) : null}
       <button
         type="button"
-        aria-label="Report a bug"
-        title="Report a bug"
+        aria-label={logged ? 'Report a bug (an error was just logged)' : 'Report a bug'}
+        title={logged ? 'An error was logged automatically. Click to add details.' : 'Report a bug'}
         disabled={capturing}
-        onClick={() => void open(null)}
+        onClick={() => {
+          const detail = logged;
+          setLogged(null);
+          void open(detail);
+        }}
         className="fixed bottom-4 right-4 z-30 flex h-11 w-11 items-center justify-center rounded-full bg-navy text-white shadow-lg ring-1 ring-white/20 hover:bg-navy/90 focus:outline-none focus:ring-2 focus:ring-indigo"
       >
         <Bug aria-hidden className="h-5 w-5" />
+        {logged ? <span aria-hidden data-testid="bug-logged-dot" className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full bg-amber ring-2 ring-background" /> : null}
       </button>
       <dialog ref={dialog} aria-labelledby="bug-report-title" className="w-full max-w-lg rounded-2xl border border-border bg-card p-0 text-sm shadow-2xl backdrop:bg-navy/40">
         {sent ? (
