@@ -21,6 +21,7 @@ export const providerTermsSchema = z.strictObject({
   notes: z.string().trim().max(1000).nullable().default(null),
 });
 const modelParams = z.strictObject({ modelId: z.uuid() });
+const bedrockUseSchema = z.strictObject({ modelId: z.string().trim().regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]{1,199}$/) });
 const aliasParams = z.strictObject({ alias });
 const organizationParams = z.strictObject({ organizationId: z.uuid() });
 const routeBody = z.strictObject({ modelId: z.uuid() });
@@ -42,6 +43,19 @@ export class AiModelsController {
   @Post()
   add(@Tenant() tenant: TenantContext, @Body(new ZodValidationPipe(addModelSchema)) body: z.infer<typeof addModelSchema>) {
     return this.service.add(tenant, body);
+  }
+
+  /** Add from Bedrock: the models this account can use there (minus those in the catalog). */
+  @Get('bedrock')
+  bedrock(@Tenant() tenant: TenantContext) {
+    return this.service.bedrockModels(tenant);
+  }
+
+  /** Use a Bedrock model: added, and its health check started. */
+  @Post('bedrock')
+  @HttpCode(202)
+  useBedrock(@Tenant() tenant: TenantContext, @Body(new ZodValidationPipe(bedrockUseSchema)) body: { modelId: string }) {
+    return this.service.useBedrockModel(tenant, body.modelId);
   }
 
   @Post(':modelId/evaluation')

@@ -1,0 +1,62 @@
+name: scorecard-refresh
+# The monthly model-scorecard refresh (docs/agent/scorecard-refresh.md): Claude Code, headless, re-pulls the
+# scorecard's sources, updates docs/model-scorecard.md and packages/ai/src/scorecard.ts, and opens one PR.
+# The model is Claude on Pactlab's own Bedrock (live account), signed in through GitHub OIDC with a role that
+# may only call Claude. Nothing is deployed; a person reviews and merges the PR.
+on:
+  schedule:
+    # 1st of each month, 09:17 Chicago (14:17 UTC in winter).
+    - cron: '17 14 1 * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  id-token: write
+
+concurrency:
+  group: scorecard-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    # Its own GitHub Environment: the scorecard role trusts only this, never the deploy environments.
+    environment: scorecard
+    timeout-minutes: 60
+    env:
+      AWS_REGION: us-east-2
+      CLAUDE_CODE_USE_BEDROCK: '1'
+      ANTHROPIC_MODEL: us.anthropic.claude-opus-5-5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.SCORECARD_ROLE_ARN }}
+          role-session-name: scorecard-${{ github.run_id }}
+          aws-region: ${{ env.AWS_REGION }}
+      - run: npm install -g @anthropic-ai/claude-code
+      - name: Refresh the scorecard
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name "kuramach"
+          git config user.email "Kuramach@gmail.com"
+          claude -p "In this repository (kuramach/pactlab), follow docs/agent/scorecard-refresh.md exactly. Work on a new branch named scorecard/$(date -u +%Y-%m), commit with git, push it, and open the PR with gh against main. If nothing changed in any source since the last refresh, say so and open no PR." \
+            --dangerously-skip-permissions \
+            --output-format stream-json --verbose > claude-run.jsonl
+          tail -c 4000 claude-run.jsonl | grep -o '"result":"[^"]*' | tail -1 || true
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scorecard-run
+          path: claude-run.jsonl
+          retention-days: 30

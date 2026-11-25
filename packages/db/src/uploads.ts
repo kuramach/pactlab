@@ -1,5 +1,5 @@
 import { afterCursor, toPage, type PageRequest, type PageResult } from './pagination';
-import type { EvidenceVisibility, ImportTarget } from '@pactlab/domain';
+import type { EvidenceVisibility, ImportStatus, ImportTarget } from '@pactlab/domain';
 import type { Prisma, TransactionClient } from './client';
 import { connections, type ConnectionRecord } from './evidence';
 
@@ -24,15 +24,28 @@ export interface SourceUploadRecord {
   /** How the stored original is read (CSV, TSV or XLSX), and the workbook sheet. */
   format: UploadFormat;
   sheet: string | null;
+  /** The header's row among the sheet's non-empty rows; null: the first row (the standard template). */
+  headerRow: number | null;
+  /** The mapping assistant's checked proposal (`AssistedMapping`), shown on the mapping screen. */
+  assist: Prisma.JsonValue | null;
+  /** The person's instructions and row notes for the mapping assistant (`ImportGuidance`). */
+  guidance: Prisma.JsonValue | null;
   mapping: Prisma.JsonValue | null;
   mappingVersion: string | null;
   objectKey: string | null;
-  status: 'UPLOADED' | 'IMPORTED' | 'REJECTED' | 'PURGED';
+  status: ImportStatus;
   syncRunId: string | null;
   visibility: EvidenceVisibility;
   uploadedBy: string;
   createdAt: Date;
   importedAt: Date | null;
+  /** Withdrawal (T-154): who, when and why; all null until withdrawn. */
+  withdrawnAt: Date | null;
+  withdrawnBy: string | null;
+  withdrawalReason: string | null;
+  /** The withdrawn import this one re-imports, and the import that re-imported this one. */
+  supersedesUploadId: string | null;
+  supersededByUploadId: string | null;
 }
 
 const uploadSelect = {
@@ -49,6 +62,9 @@ const uploadSelect = {
   header: true,
   format: true,
   sheet: true,
+  headerRow: true,
+  assist: true,
+  guidance: true,
   mapping: true,
   mappingVersion: true,
   objectKey: true,
@@ -58,7 +74,19 @@ const uploadSelect = {
   uploadedBy: true,
   createdAt: true,
   importedAt: true,
+  withdrawnAt: true,
+  withdrawnBy: true,
+  withdrawalReason: true,
+  supersedesUploadId: true,
+  supersededBy: { select: { id: true } },
 } as const;
+
+type UploadRow = Prisma.SourceUploadGetPayload<{ select: typeof uploadSelect }>;
+const toRecord = ({ supersededBy, ...row }: UploadRow): SourceUploadRecord =>
+  ({ ...row, supersededByUploadId: supersededBy?.id ?? null }) as SourceUploadRecord;
+
+/** Longest chain of re-imports read for one import's history. */
+const MAX_LINEAGE = 50;
 
 /** Uploaded billing exports. RLS hides buyer-only uploads from target contributors. */
 export const sourceUploads = {
@@ -78,12 +106,17 @@ export const sourceUploads = {
       /** CSV when absent. */
       format?: UploadFormat;
       sheet?: string | null;
+      headerRow?: number | null;
+      assist?: Prisma.InputJsonValue;
+      guidance?: Prisma.InputJsonValue;
       objectKey: string;
       visibility: EvidenceVisibility;
       uploadedBy: string;
+      /** A re-import: the withdrawn upload this one supersedes (T-154). */
+      supersedesUploadId?: string | null;
     },
   ): Promise<SourceUploadRecord> {
-    return (await tx.sourceUpload.create({ data: input, select: uploadSelect })) as SourceUploadRecord;
+    return toRecord(await tx.sourceUpload.create({ data: input, select: uploadSelect }));
   },
 
   /** Switch a workbook upload to another sheet before import; its header and row count follow. */
@@ -92,8 +125,25 @@ export const sourceUploads = {
     return result.count === 1;
   },
 
+  /** Re-read an upload before import: another sheet or header row, and the assistant's proposal for it. */
+  async reread(
+    tx: TransactionClient,
+    uploadId: string,
+    input: { sheet: string | null; headerRow: number | null; header: string[]; rowCount: number; assist: Prisma.InputJsonValue | typeof Prisma.DbNull; guidance?: Prisma.InputJsonValue },
+  ): Promise<boolean> {
+    const result = await tx.sourceUpload.updateMany({ where: { id: uploadId, status: 'UPLOADED' }, data: input });
+    return result.count === 1;
+  },
+
+  /** The guidance on the pact's latest earlier upload of the same file (by hash): the person's last word, reused when it is uploaded again (T-152). */
+  async guidanceFor(tx: TransactionClient, dealId: string, sha256: string): Promise<Prisma.JsonValue | null> {
+    const found = await tx.sourceUpload.findFirst({ where: { dealId, sha256 }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], select: { guidance: true } });
+    return found?.guidance ?? null;
+  },
+
   async get(tx: TransactionClient, dealId: string, uploadId: string): Promise<SourceUploadRecord | null> {
-    return (await tx.sourceUpload.findFirst({ where: { id: uploadId, dealId }, select: uploadSelect })) as SourceUploadRecord | null;
+    const row = await tx.sourceUpload.findFirst({ where: { id: uploadId, dealId }, select: uploadSelect });
+    return row ? toRecord(row) : null;
   },
 
   /** A pact's uploads, newest first, a page at a time (T-126). */
@@ -102,7 +152,30 @@ export const sourceUploads = {
       tx.sourceUpload.findMany({ where: { AND: [{ dealId }, afterCursor('createdAt', request.cursor, { asDate: true })] }, select: { ...uploadSelect, id: true, createdAt: true }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], take: request.limit + 1 }),
       tx.sourceUpload.count({ where: { dealId } }),
     ]);
-    return toPage(rows, request, total, (row) => row.createdAt, (row) => row as SourceUploadRecord);
+    return toPage(rows, request, total, (row) => row.createdAt, toRecord);
+  },
+
+  /**
+   * Every import in one upload's chain of re-imports (v1 withdrawn → v2 …),
+   * walked both ways from it under RLS, oldest first.
+   */
+  async lineage(tx: TransactionClient, dealId: string, uploadId: string): Promise<SourceUploadRecord[]> {
+    const start = await sourceUploads.get(tx, dealId, uploadId);
+    if (!start) return [];
+    const chain = [start];
+    for (let row = start; row.supersedesUploadId && chain.length < MAX_LINEAGE; ) {
+      const previous = await sourceUploads.get(tx, dealId, row.supersedesUploadId);
+      if (!previous) break;
+      chain.unshift(previous);
+      row = previous;
+    }
+    for (let row = start; row.supersededByUploadId && chain.length < MAX_LINEAGE; ) {
+      const next = await sourceUploads.get(tx, dealId, row.supersededByUploadId);
+      if (!next) break;
+      chain.push(next);
+      row = next;
+    }
+    return chain;
   },
 
   async markImported(
@@ -110,8 +183,9 @@ export const sourceUploads = {
     uploadId: string,
     input: { connectionId: string; syncRunId: string; mapping: Prisma.InputJsonValue; mappingVersion: string },
   ): Promise<void> {
-    await tx.sourceUpload.update({
-      where: { id: uploadId },
+    // Only from UPLOADED: a replayed run never brings a withdrawn import back.
+    await tx.sourceUpload.updateMany({
+      where: { id: uploadId, status: 'UPLOADED' },
       data: { ...input, status: 'IMPORTED', importedAt: new Date() },
     });
   },

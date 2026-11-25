@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { BoldSignSigningProvider, BoldSignWebhook, DocuSignOAuth, FixturePropertyProvider, LocalEncryptedSecretStore, parseSelfHostedHosts, RentCastPropertyProvider, StripeBillingProvider, UnconfiguredBillingProvider } from '@pactlab/connectors';
 import { createLogger } from '@pactlab/observability';
 import { S3Client } from '@aws-sdk/client-s3';
+import { SecretsManagerClient } from '@aws-sdk/client-secrets-manager';
 import { SESv2Client } from '@aws-sdk/client-sesv2';
 import { PollyTextToSpeech, TranscribeSpeechToText } from '@pactlab/ai';
 import { createAiGateway } from './ai/ai-provider';
@@ -22,6 +23,7 @@ import { ensureEmailEventsSubscription } from './email-events/subscribe';
 import { BrandedEmailSender, emailAssets } from './email-login/branded-email';
 import { ReleaseInfo, ssmReleaseSource } from './health/release-info';
 import { SignatureMalwareScanner } from './documents/upload-policy';
+import { SecretsManagerSecretStore } from './connections/secrets-manager-store';
 import { FixtureMacroForecastProvider, ImfMacroForecastProvider } from '@pactlab/connectors';
 
 // Deployed tasks get database credentials as separate secret fields; build the URL from them.
@@ -66,9 +68,18 @@ const providers = {
   allowFixtureConnections: config.ALLOW_FIXTURE_CONNECTIONS
     ? config.ALLOW_FIXTURE_CONNECTIONS === 'true'
     : ['local', 'test', 'dev', 'qa'].includes(config.APP_ENV),
-  ...(config.APP_ENV === 'local' && config.LOCAL_SECRETS_DIR && config.LOCAL_SECRETS_KEY
-    ? { secrets: new LocalEncryptedSecretStore(config.LOCAL_SECRETS_DIR, config.LOCAL_SECRETS_KEY) }
-    : {}),
+  ...(config.CREDENTIAL_STORE === 'secretsmanager' && config.CREDENTIAL_STORE_PREFIX && config.CREDENTIAL_STORE_KMS_KEY_ID
+    ? { secrets: new SecretsManagerSecretStore(new SecretsManagerClient({ region: config.AWS_REGION }), config.CREDENTIAL_STORE_PREFIX, config.CREDENTIAL_STORE_KMS_KEY_ID) }
+    : config.APP_ENV === 'local' && config.LOCAL_SECRETS_DIR && config.LOCAL_SECRETS_KEY
+      ? { secrets: new LocalEncryptedSecretStore(config.LOCAL_SECRETS_DIR, config.LOCAL_SECRETS_KEY) }
+      : {}),
+  // Document sources sign in with OAuth (T-147): each provider's Connect shows only when its client is set.
+  documentOAuth: {
+    ...(config.GOOGLE_OAUTH_CLIENT_ID && config.GOOGLE_OAUTH_CLIENT_SECRET ? { 'google-drive': { clientId: config.GOOGLE_OAUTH_CLIENT_ID, clientSecret: config.GOOGLE_OAUTH_CLIENT_SECRET } } : {}),
+    ...(config.MICROSOFT_OAUTH_CLIENT_ID && config.MICROSOFT_OAUTH_CLIENT_SECRET ? { onedrive: { clientId: config.MICROSOFT_OAUTH_CLIENT_ID, clientSecret: config.MICROSOFT_OAUTH_CLIENT_SECRET } } : {}),
+  },
+  webOrigin: config.APP_WEB_ORIGIN,
+  googlePicker: config.GOOGLE_PICKER_API_KEY && config.GOOGLE_PROJECT_NUMBER ? { apiKey: config.GOOGLE_PICKER_API_KEY, appId: config.GOOGLE_PROJECT_NUMBER } : null,
   githubApp:
     config.GITHUB_APP_ID && config.GITHUB_APP_SLUG && config.GITHUB_APP_PRIVATE_KEY_PATH
       ? {

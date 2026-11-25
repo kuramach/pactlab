@@ -49,9 +49,13 @@ describe('dev: the running application (ADR 0019)', () => {
   it('gives each task only what it uses: scoped Bedrock and SES for the API, nothing for web', () => {
     const api = statements(template, 'ApiTaskRole');
     const bedrock = api.find((statement) => statement.Sid === 'Bedrock');
-    expect(JSON.stringify(bedrock?.Resource)).toContain('foundation-model/anthropic.claude-*');
-    expect(JSON.stringify(bedrock?.Resource)).toContain('inference-profile/us.anthropic.claude-*');
+    // Any Bedrock model may be chosen (2026-11-20), but only in this account's region, and only to call it.
+    expect(JSON.stringify(bedrock?.Resource)).toContain('foundation-model/*');
+    expect(JSON.stringify(bedrock?.Resource)).toContain(':inference-profile/*');
     expect(JSON.stringify(bedrock?.Resource)).not.toMatch(/"\*"/);
+    expect(bedrock?.Action).toEqual(['bedrock:InvokeModel', 'bedrock:InvokeModelWithResponseStream', 'bedrock:Converse', 'bedrock:ConverseStream']);
+    // Reading the model list (Add from Bedrock): list actions only, never manage or provision.
+    expect(api.find((statement) => statement.Sid === 'BedrockList')?.Action).toEqual(['bedrock:ListFoundationModels', 'bedrock:ListInferenceProfiles']);
     expect(JSON.stringify(api.find((statement) => statement.Sid === 'SendSignInEmail')?.Resource)).toContain('identity/pactlab.ai');
     expect(statements(template, 'WebTaskRole')).toEqual([]);
     expect(statements(template, 'MigrateTaskRole')).toEqual([]);
@@ -85,7 +89,7 @@ describe('dev: the running application (ADR 0019)', () => {
     // Dev: new organizations are active at once, so sign-up can be tested end to end.
     expect(environment['SIGNUP_REQUIRES_APPROVAL']).toBe('false');
     expect(Object.keys(environment).some((name) => /PASSWORD|SECRET/.test(name))).toBe(false);
-    expect(api?.Secrets?.map((secret) => secret.Name).sort()).toEqual(['ANTHROPIC_API_KEY', 'AUTH_TOKEN_SECRET', 'BOLDSIGN_API_KEY', 'BOLDSIGN_WEBHOOK_SECRET', 'DB_PASSWORD', 'GOOGLE_API_KEY', 'OPENAI_API_KEY', 'SIGNING_TEST_RECIPIENTS']);
+    expect(api?.Secrets?.map((secret) => secret.Name).sort()).toEqual(['ANTHROPIC_API_KEY', 'AUTH_TOKEN_SECRET', 'BOLDSIGN_API_KEY', 'BOLDSIGN_WEBHOOK_SECRET', 'DB_PASSWORD', 'GOOGLE_API_KEY', 'GOOGLE_OAUTH_CLIENT_ID', 'GOOGLE_OAUTH_CLIENT_SECRET', 'GOOGLE_PICKER_API_KEY', 'GOOGLE_PROJECT_NUMBER', 'MICROSOFT_OAUTH_CLIENT_ID', 'MICROSOFT_OAUTH_CLIENT_SECRET', 'OPENAI_API_KEY', 'SIGNING_TEST_RECIPIENTS']);
     // Pactlab signing (T-136): BoldSign preferred once its key is set, test signing until then; its secrets start `unset`.
     expect(environment['SIGNING_PROVIDER']).toBe('boldsign,fixture');
     for (const name of ['boldsign-api-key', 'boldsign-webhook-secret', 'test-recipients']) {
@@ -101,9 +105,8 @@ describe('dev: the running application (ADR 0019)', () => {
     const environment = Object.fromEntries((api?.Environment ?? []).map((item) => [item.Name, item.Value]));
     expect(environment).toMatchObject({ BEDROCK_MODEL_BALANCED: 'us.anthropic.claude-sonnet-5-5', BEDROCK_MODEL_DEEP_REVIEW: 'us.anthropic.claude-opus-5-5', BEDROCK_MODEL_FAST: 'us.anthropic.claude-haiku-5-5' });
     const bedrock = JSON.stringify(statements(template, 'ApiTaskRole').find((statement) => statement.Sid === 'Bedrock')?.Resource);
-    expect(bedrock).toContain('inference-profile/us.anthropic.claude-*');
-    expect(bedrock).toContain('foundation-model/anthropic.claude-*');
-    expect(bedrock).not.toContain('nova');
+    expect(bedrock).toContain(':inference-profile/*');
+    expect(bedrock).toContain('foundation-model/*');
   });
 
   it('has no shared-demo sweep outside live', () => {
@@ -206,6 +209,22 @@ describe('live (GitHub Environment live, CDK prod)', () => {
       AssumeRolePolicyDocument: Match.objectLike({ Statement: [Match.objectLike({ Condition: { StringEquals: Match.objectLike({ 'token.actions.githubusercontent.com:sub': 'repo:owner/repo:environment:live' }) } })] }),
     });
     expect(JSON.stringify(access.findResources('AWS::IAM::Policy'))).toContain('repository/pactlab-prod-server');
+  });
+
+  it('the monthly scorecard refresh gets its own role: the scorecard environment only, Claude on Bedrock only', async () => {
+    const { PactlabEnvironmentDeployAccessStack } = await import('../lib/deploy-access-stack');
+    const access = Template.fromStack(new PactlabEnvironmentDeployAccessStack(new App(), 'PactlabProdDeployAccess', { environment: 'prod', githubEnvironment: 'live', githubSubjectPrefix: 'repo:owner/repo', appStackName: 'PactlabProd', scorecardRefresh: true }));
+    access.hasResourceProperties('AWS::IAM::Role', {
+      RoleName: 'pactlab-github-prod-scorecard',
+      AssumeRolePolicyDocument: Match.objectLike({ Statement: [Match.objectLike({ Condition: { StringEquals: Match.objectLike({ 'token.actions.githubusercontent.com:sub': 'repo:owner/repo:environment:scorecard' }) } })] }),
+    });
+    const policies = Object.values(access.findResources('AWS::IAM::Policy')) as { Properties: { Roles: unknown[]; PolicyDocument: { Statement: { Action: string | string[]; Resource: unknown }[] } } }[];
+    const scorecard = policies.find((policy) => JSON.stringify(policy.Properties.Roles).includes('ScorecardRefreshRole'));
+    const statements = scorecard?.Properties.PolicyDocument.Statement ?? [];
+    expect(statements).toHaveLength(1);
+    expect([statements[0]?.Action].flat().every((action) => /^bedrock:(InvokeModel|InvokeModelWithResponseStream|Converse|ConverseStream)$/.test(action as string))).toBe(true);
+    expect(JSON.stringify(statements[0]?.Resource)).toContain('anthropic.claude-*');
+    expect(JSON.stringify(statements[0]?.Resource)).not.toMatch(/"\*"/);
   });
 });
 

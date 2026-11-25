@@ -9,3 +9,4 @@ export * from './components/term';
 export * from './utils';
 export * from './components/file-drop';
 export * from './components/marks';
+export * from './section-accents';

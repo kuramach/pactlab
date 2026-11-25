@@ -1,3 +1,4 @@
+import type { ImportTarget } from '../imports/targets';
 import type { PackDefinition } from '../packs/registry';
 import { categoryDefinition, type IntakeCategory } from './categories';
 import type { IntakeState } from './decide';
@@ -24,6 +25,11 @@ export const CONNECTION_COVERAGE: Readonly<Record<string, readonly ExpectedInput
 
 const CONNECTION_LABELS: Readonly<Record<ConnectionInput, string>> = {
   CODE_AND_DELIVERY: 'Code and delivery (GitHub, Jira)',
+};
+
+/** Which inputs an imported upload covers besides its own target: a P&L import is the income statement. */
+export const IMPORT_COVERAGE: Partial<Readonly<Record<ImportTarget, readonly ExpectedInputId[]>>> = {
+  FINANCIAL_PNL: ['INCOME_STATEMENT'],
 };
 
 /** Connection providers that can feed an input, for the "connect or upload" offer. */
@@ -100,15 +106,19 @@ export function intakeChecklist(
   activeProviders: readonly string[],
   /** Named gaps inside an input, e.g. CUSTOMER_CONTRACT → top customers without one. */
   gaps: Partial<Readonly<Record<ExpectedInputId, readonly string[]>>> = {},
+  /** Targets the pact has imported data for: each covers its own input (and `IMPORT_COVERAGE`'s). */
+  imported: readonly ImportTarget[] = [],
 ): ChecklistItem[] {
+  const importedInputs = new Set<string>(imported.flatMap((target) => [target, ...(IMPORT_COVERAGE[target] ?? [])]));
   return expectedInputs(pack).map((input) => {
     const documentIds = files
       .filter((file) => file.intakeState === 'FILED' && file.category === input.id)
       .map((file) => file.id);
     const connections = activeProviders.filter((provider) => CONNECTION_COVERAGE[provider]?.includes(input.id));
     const missingFor = gaps[input.id] ?? [];
+    const received = documentIds.length > 0 || importedInputs.has(input.id);
     const state: ChecklistState =
-      connections.length > 0 ? 'CONNECTED' : documentIds.length === 0 ? 'MISSING' : missingFor.length > 0 ? 'PARTIAL' : 'RECEIVED';
+      connections.length > 0 ? 'CONNECTED' : !received ? 'MISSING' : missingFor.length > 0 ? 'PARTIAL' : 'RECEIVED';
     return {
       id: input.id,
       label: expectedInputLabel(input.id),

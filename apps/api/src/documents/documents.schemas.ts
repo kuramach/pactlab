@@ -1,6 +1,6 @@
 import { DOCUMENT_KINDS, pageQuerySchema } from '@pactlab/contracts';
 import { DATA_CLASSIFICATIONS } from '@pactlab/ai';
-import { DOCUMENT_SOURCE_PROVIDERS, documentSourceConfigSchema } from '@pactlab/connectors';
+import { DOCUMENT_SOURCE_PROVIDERS, documentSourceConfigSchema, driveFileIdSchema, MAX_PICKED_FILES } from '@pactlab/connectors';
 import { z } from 'zod';
 import { DOCUMENT_FINDING_STATUSES, RETENTION_CLASSES } from './documents.types';
 
@@ -84,8 +84,9 @@ export type CategorizeDocumentBody = z.infer<typeof categorizeDocumentBodySchema
 
 /**
  * Connect a data room or drive folder (T-098). FIXTURE reads a synthetic
- * room (local and dev only); LIVE needs a read-only access token, stored once
- * in the secret store and never returned, logged or audited.
+ * room (local and dev only). LIVE reads with the organization's own Google
+ * Drive or OneDrive sign-in (T-147); a pasted read-only access token is still
+ * accepted from older clients, stored once and never returned, logged or audited.
  */
 export const connectDocumentSourceBodySchema = z.strictObject({
   provider: z.enum(DOCUMENT_SOURCE_PROVIDERS),
@@ -95,6 +96,23 @@ export const connectDocumentSourceBodySchema = z.strictObject({
   token: z.string().min(10).max(8000).optional(),
 });
 export type ConnectDocumentSourceBody = z.infer<typeof connectDocumentSourceBodySchema>;
+
+/** Connect a folder from the pact with one's own Google or Microsoft sign-in (the seller too). */
+export const documentSignInBodySchema = z.strictObject({
+  provider: z.enum(['google-drive', 'onedrive']),
+  displayName: z.string().trim().min(1).max(200),
+  /** None needed: Google files are chosen in Google's picker, a OneDrive folder in Pactlab's chooser, after signing in. */
+  folder: documentSourceConfigSchema.shape.folder.optional(),
+});
+
+/** A OneDrive folder, as the chooser lists it (a drive and an item). */
+const graphId = z.string().regex(/^[A-Za-z0-9!_.:-]{1,200}$/);
+export const driveFolderSchema = z.strictObject({ driveId: graphId, itemId: graphId });
+export const driveFolderQuerySchema = z.strictObject({ driveId: graphId.optional(), itemId: graphId.optional() }).refine((query) => Boolean(query.driveId) === Boolean(query.itemId), 'Both or neither');
+
+/** Files chosen in Google's picker, added to a Google Drive source. */
+export const pickedFilesBodySchema = z.strictObject({ fileIds: z.array(driveFileIdSchema).min(1).max(MAX_PICKED_FILES) });
+export type DocumentSignInBody = z.infer<typeof documentSignInBodySchema>;
 
 export const sourceParamsSchema = z.strictObject({ dealId: z.uuid(), sourceId: z.uuid() });
 

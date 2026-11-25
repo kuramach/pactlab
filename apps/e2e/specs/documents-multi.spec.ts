@@ -35,7 +35,7 @@ test('a file that cannot be uploaded says so on its own row, and the others stil
   ]);
   const files = page.getByRole('list', { name: 'Files to upload' });
   await expect(files.getByText('Upload failed')).toHaveCount(1);
-  await expect(files.getByText(/Older \.xls workbooks: save as \.xlsx first/)).toBeVisible();
+  await expect(files.getByText(/Older \.doc, \.xls or \.ppt files: save them as \.docx, \.xlsx or \.pptx first/)).toBeVisible();
   await page.getByRole('button', { name: 'Upload', exact: true }).click();
   await expect(files.getByText(UPLOAD_FINISHED)).toHaveCount(1);
   await expect(page.getByRole('navigation', { name: 'Documents' }).getByRole('link', { name: /good\.txt/ })).toBeVisible();

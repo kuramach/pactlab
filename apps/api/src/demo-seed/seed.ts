@@ -20,6 +20,7 @@ import { RegulatoryService } from '../regulatory/regulatory.service';
 import { updateAssumptionsSchema } from '../valuation/valuation.schemas';
 import { ValuationService } from '../valuation/valuation.service';
 import { DEMO_CONTRACTS, type SyntheticContract } from './contracts';
+import { importMapFixtureResponse } from './import-map-fixture';
 
 const REQUEST_ID = 'demo-seed';
 const SYNTHETIC = '(synthetic demo data)';
@@ -142,11 +143,6 @@ function brokenReferences(request: ModelRequest) {
 }
 
 /**
- * Scripted model responses for the demo contracts: the extraction a model
- * would propose, cited to the exact text. Runs are recorded under the model
- * id `synthetic-fixture`, never as a real model.
- */
-/**
  * Offering extraction (T-106), scripted: reads the synthetic PPM, operating agreement and deck the
  * demo data writes, with the fee, distribution and claim sentences they use, and quotes each
  * sentence from its own page. Deterministic, so the demo and tests run without a model.
@@ -183,8 +179,15 @@ function offeringExtraction(request: ModelRequest) {
   return { items };
 }
 
+/**
+ * Scripted model responses for the demo contracts: the extraction a model
+ * would propose, cited to the exact text. Runs are recorded under the model
+ * id `synthetic-fixture`, never as a real model.
+ */
 export function demoModelResponse(request: ModelRequest): string {
   if (request.system.includes('offering documents of a multifamily real-estate syndication')) return JSON.stringify(offeringExtraction(request));
+  // The mapping assistant (import.map@1): rule-based, from the grid the prompt shows.
+  if (request.system.includes('You help import a spreadsheet')) return importMapFixtureResponse(request.messages[0]?.content ?? '');
   // Negotiation brief (T-105): one synthetic, grounded section per finding carried by the terms.
   if (request.system.includes('negotiation brief')) {
     const prompt = request.messages[0]?.content ?? '';

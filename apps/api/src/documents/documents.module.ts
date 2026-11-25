@@ -10,6 +10,8 @@ import {
   type DocumentObjectStore,
   type DocumentsRepository,
 } from './documents.repository';
+import { DocumentConnectionsController } from './document-connections.controller';
+import { DocumentConnectionsService } from './document-connections.service';
 import { DocumentSourcesService } from './document-sources.service';
 import { DocumentsService } from './documents.service';
 import { VisionPass } from './vision-pass';
@@ -32,10 +34,11 @@ export class DocumentsModule {
   static register(deps: DocumentsModuleDependencies): DynamicModule {
     return {
       module: DocumentsModule,
-      controllers: [DocumentsController],
+      controllers: [DocumentsController, DocumentConnectionsController],
       providers: [
         DocumentsService,
         DocumentSourcesService,
+        DocumentConnectionsService,
         VisionPass,
         DealAccess,
         { provide: DOCUMENTS_REPOSITORY, useValue: deps.repository },

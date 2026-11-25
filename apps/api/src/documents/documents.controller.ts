@@ -22,6 +22,11 @@ import {
   askQuestionBodySchema,
   categorizeDocumentBodySchema,
   connectDocumentSourceBodySchema,
+  documentSignInBodySchema,
+  pickedFilesBodySchema,
+  driveFolderQuerySchema,
+  driveFolderSchema,
+  type DocumentSignInBody,
   createDocumentRequestBodySchema,
   documentRequestParamsSchema,
   documentParamsSchema,
@@ -74,6 +79,74 @@ export class DocumentsController {
     @Body(new ZodValidationPipe(connectDocumentSourceBodySchema)) body: ConnectDocumentSourceBody,
   ) {
     return this.sources.connect(tenant, params.dealId, body, requestId);
+  }
+
+  /** Connect a folder with one's own Google or Microsoft sign-in (the deal team or the seller): where to sign in. */
+  @Post('document-sources/sign-in')
+  @HttpCode(200)
+  async startSourceSignIn(
+    @Tenant() tenant: TenantContext,
+    @RequestId() requestId: string,
+    @Param(new ZodValidationPipe(dealParamsSchema)) params: DealParams,
+    @Body(new ZodValidationPipe(documentSignInBodySchema)) body: DocumentSignInBody,
+  ) {
+    return this.sources.startSignIn(tenant, params.dealId, body, requestId);
+  }
+
+  /** Google's picker, for the person who connected this Google Drive source: their short-lived token and Pactlab's picker keys. */
+  @Get('document-sources/:sourceId/picker')
+  async sourcePicker(
+    @Tenant() tenant: TenantContext,
+    @RequestId() requestId: string,
+    @Param(new ZodValidationPipe(sourceParamsSchema)) params: { dealId: string; sourceId: string },
+  ) {
+    return this.sources.picker(tenant, params.dealId, params.sourceId, requestId);
+  }
+
+  /** One level of OneDrive folders for the chooser (My files, or inside a folder): for the person who connected the source. */
+  @Get('document-sources/:sourceId/folders')
+  async sourceFolders(
+    @Tenant() tenant: TenantContext,
+    @RequestId() requestId: string,
+    @Param(new ZodValidationPipe(sourceParamsSchema)) params: { dealId: string; sourceId: string },
+    @Query(new ZodValidationPipe(driveFolderQuerySchema)) query: { driveId?: string; itemId?: string },
+  ) {
+    return this.sources.folders(tenant, params.dealId, params.sourceId, query, requestId);
+  }
+
+  /** The OneDrive folder this source reads (chosen in the chooser). */
+  @Post('document-sources/:sourceId/folder')
+  @HttpCode(200)
+  async chooseSourceFolder(
+    @Tenant() tenant: TenantContext,
+    @RequestId() requestId: string,
+    @Param(new ZodValidationPipe(sourceParamsSchema)) params: { dealId: string; sourceId: string },
+    @Body(new ZodValidationPipe(driveFolderSchema)) body: { driveId: string; itemId: string },
+  ) {
+    return this.sources.chooseFolder(tenant, params.dealId, params.sourceId, body, requestId);
+  }
+
+  /** Files chosen in Google's picker join the source; Pactlab reads only these. */
+  @Post('document-sources/:sourceId/files')
+  @HttpCode(200)
+  async addSourceFiles(
+    @Tenant() tenant: TenantContext,
+    @RequestId() requestId: string,
+    @Param(new ZodValidationPipe(sourceParamsSchema)) params: { dealId: string; sourceId: string },
+    @Body(new ZodValidationPipe(pickedFilesBodySchema)) body: { fileIds: string[] },
+  ) {
+    return this.sources.addFiles(tenant, params.dealId, params.sourceId, body.fileIds, requestId);
+  }
+
+  /** Stop reading a source: its own sign-in is destroyed; files already read stay. */
+  @Post('document-sources/:sourceId/disconnect')
+  @HttpCode(200)
+  async disconnectSource(
+    @Tenant() tenant: TenantContext,
+    @RequestId() requestId: string,
+    @Param(new ZodValidationPipe(sourceParamsSchema)) params: { dealId: string; sourceId: string },
+  ) {
+    return this.sources.disconnect(tenant, params.dealId, params.sourceId, requestId);
   }
 
   /** Read new and changed files from the source; mark removed ones. */

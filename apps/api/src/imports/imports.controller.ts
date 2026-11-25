@@ -1,6 +1,8 @@
 import { Body, Controller, Get, Header, HttpCode, Inject, NotFoundException, Param, Post, Query } from '@nestjs/common';
 import {
   dealParamsSchema,
+  documentImportBodySchema,
+  documentImportParamsSchema,
   importRunParamsSchema,
   importTargetParamsSchema,
   sheetBodySchema,
@@ -12,19 +14,17 @@ import {
   type BillingSystemView,
   type ImportMappingBody,
   type ImportPreviewView,
-  type ImportResultView,
   type ImportTargetView,
-  type SourceUploadView,
-  type UploadDetailView,
   type Page,
   type PageQuery,
   type UploadQuery,
 } from '@pactlab/contracts';
-import type { TenantContext } from '@pactlab/domain';
+import type { ImportLineageEntry, ImportTarget, TenantContext, WithdrawalResultView } from '@pactlab/domain';
 import { Tenant } from '../auth/tenant.decorator';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { RequestId } from '../deals/request-id.decorator';
-import { ImportsService } from './imports.service';
+import { ImportsService, type ImportResult, type UploadDetail, type UploadView } from './imports.service';
+import { reimportQuerySchema, withdrawBodySchema, type ReimportQuery, type WithdrawBody } from './withdrawal.schemas';
 
 type UploadParams = { dealId: string; uploadId: string };
 
@@ -70,8 +70,20 @@ export class ImportsController {
     @Param(new ZodValidationPipe(dealParamsSchema)) params: { dealId: string },
     @Query(new ZodValidationPipe(uploadQuerySchema)) query: UploadQuery,
     @Body() body: unknown,
-  ): Promise<UploadDetailView> {
+  ): Promise<UploadDetail> {
     return this.imports.upload(tenant, params.dealId, query, body, requestId);
+  }
+
+  /** Import a spreadsheet already in the pact's documents, as one of the pact's import targets. */
+  @Post('deals/:dealId/documents/:documentId/import')
+  @HttpCode(201)
+  async fromDocument(
+    @Tenant() tenant: TenantContext,
+    @RequestId() requestId: string,
+    @Param(new ZodValidationPipe(documentImportParamsSchema)) params: { dealId: string; documentId: string },
+    @Body(new ZodValidationPipe(documentImportBodySchema)) body: { target: ImportTarget },
+  ): Promise<UploadDetail> {
+    return this.imports.fromDocument(tenant, params.dealId, params.documentId, body.target, requestId);
   }
 
   @Get('deals/:dealId/uploads')
@@ -80,7 +92,7 @@ export class ImportsController {
     @RequestId() requestId: string,
     @Param(new ZodValidationPipe(dealParamsSchema)) params: { dealId: string },
     @Query(new ZodValidationPipe(pageQuerySchema)) query: PageQuery,
-  ): Promise<Page<SourceUploadView>> {
+  ): Promise<Page<UploadView>> {
     return this.imports.list(tenant, params.dealId, query, requestId);
   }
 
@@ -89,7 +101,7 @@ export class ImportsController {
     @Tenant() tenant: TenantContext,
     @RequestId() requestId: string,
     @Param(new ZodValidationPipe(uploadParamsSchema)) params: UploadParams,
-  ): Promise<UploadDetailView> {
+  ): Promise<UploadDetail> {
     return this.imports.get(tenant, params.dealId, params.uploadId, requestId);
   }
 
@@ -112,8 +124,8 @@ export class ImportsController {
     @RequestId() requestId: string,
     @Param(new ZodValidationPipe(uploadParamsSchema)) params: UploadParams,
     @Body(new ZodValidationPipe(sheetBodySchema)) body: { sheet: string },
-  ): Promise<UploadDetailView> {
-    return this.imports.selectSheet(tenant, params.dealId, params.uploadId, body.sheet, requestId);
+  ): Promise<UploadDetail> {
+    return this.imports.selectSheet(tenant, params.dealId, params.uploadId, body, requestId);
   }
 
   /** How far an import has got; a background import is followed by polling this. */
@@ -133,7 +145,7 @@ export class ImportsController {
     @Tenant() tenant: TenantContext,
     @RequestId() requestId: string,
     @Param(new ZodValidationPipe(uploadParamsSchema)) params: UploadParams,
-  ): Promise<SourceUploadView> {
+  ): Promise<UploadView> {
     return this.imports.cancel(tenant, params.dealId, params.uploadId, requestId);
   }
 
@@ -144,7 +156,45 @@ export class ImportsController {
     @RequestId() requestId: string,
     @Param(new ZodValidationPipe(uploadParamsSchema)) params: UploadParams,
     @Body(new ZodValidationPipe(mappingBodySchema)) body: { mapping: ImportMappingBody },
-  ): Promise<ImportResultView> {
+  ): Promise<ImportResult> {
     return this.imports.import(tenant, params.dealId, params.uploadId, body.mapping, requestId);
+  }
+
+  /**
+   * Withdraw an imported upload (T-154, manage rights): its data stops counting everywhere,
+   * artefacts built on it are flagged, and the record stays in the import history.
+   */
+  @Post('deals/:dealId/uploads/:uploadId/withdraw')
+  @HttpCode(200)
+  async withdraw(
+    @Tenant() tenant: TenantContext,
+    @RequestId() requestId: string,
+    @Param(new ZodValidationPipe(uploadParamsSchema)) params: UploadParams,
+    @Body(new ZodValidationPipe(withdrawBodySchema)) body: WithdrawBody,
+  ): Promise<{ upload: UploadView; result: WithdrawalResultView }> {
+    return this.imports.withdraw(tenant, params.dealId, params.uploadId, body.reason, requestId);
+  }
+
+  /** Re-import a withdrawn upload: a corrected file as the raw body, or no body to read the stored original again. */
+  @Post('deals/:dealId/uploads/:uploadId/reimport')
+  @HttpCode(201)
+  async reimport(
+    @Tenant() tenant: TenantContext,
+    @RequestId() requestId: string,
+    @Param(new ZodValidationPipe(uploadParamsSchema)) params: UploadParams,
+    @Query(new ZodValidationPipe(reimportQuerySchema)) query: ReimportQuery,
+    @Body() body: unknown,
+  ): Promise<UploadDetail> {
+    return this.imports.reimport(tenant, params.dealId, params.uploadId, query.fileName, body, requestId);
+  }
+
+  /** The import's chain of re-imports, with each withdrawal and its reason (manage rights). */
+  @Get('deals/:dealId/uploads/:uploadId/history')
+  async history(
+    @Tenant() tenant: TenantContext,
+    @RequestId() requestId: string,
+    @Param(new ZodValidationPipe(uploadParamsSchema)) params: UploadParams,
+  ): Promise<{ chain: ImportLineageEntry[] }> {
+    return this.imports.history(tenant, params.dealId, params.uploadId, requestId);
   }
 }

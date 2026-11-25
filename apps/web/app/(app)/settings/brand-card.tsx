@@ -48,7 +48,7 @@ export async function BrandCard({ outcome, since }: { outcome?: string | undefin
   const message = finished ? OUTCOMES[failedFetch ? 'fetch-failed' : 'fetched'] : outcome && outcome !== 'fetching' ? OUTCOMES[outcome] : undefined;
   const signInLink = `${serverEnv().APP_BASE_URL ?? ''}/login/${kit.slug}`;
   return (
-    <Card id="brand">
+    <Card id="brand" section="brand">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           Brand <Badge variant="neutral">{SOURCE_LABELS[kit.source]}</Badge>

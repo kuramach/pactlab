@@ -79,6 +79,31 @@ describe('Google Drive document source', () => {
     expect(calls.every((call) => call.auth === 'Bearer token-123')).toBe(true);
   });
 
+  it('reads only the files chosen in the picker (drive.file): never a folder listing; deleted or unshared ones drop out', async () => {
+    const calls: string[] = [];
+    const fetch = async (url: string) => {
+      calls.push(url);
+      const id = new URL(url).pathname.split('/').pop();
+      if (id === 'f1') return json({ id: 'f1', name: 'Rent roll.csv', mimeType: 'text/csv', size: '120', version: '7' });
+      if (id === 'g1') return json({ id: 'g1', name: 'Lease 4B', mimeType: 'application/vnd.google-apps.document', version: '3' });
+      if (id === 'trashed1') return json({ id: 'trashed1', name: 'Old.pdf', mimeType: 'application/pdf', version: '1', trashed: true });
+      return json({ error: { code: 404 } }, 404);
+    };
+    const adapter = new GoogleDriveDocumentSourceAdapter({ fetch, secrets: await secrets() });
+    const files = await adapter.list(scope, { folder: '', files: ['f1', 'g1', 'trashed1', 'gone-file-1'] });
+    expect(files.map((file) => [file.externalId, file.name, file.version])).toEqual([
+      ['f1', 'Rent roll.csv', '7'],
+      ['g1', 'Lease 4B.docx', '3'],
+    ]);
+    expect(calls.every((url) => !url.includes('q='))).toBe(true);
+    expect(calls).toHaveLength(4);
+  });
+
+  it('a picked file it may no longer read stops the sync as refused access (said, never skipped silently)', async () => {
+    const adapter = new GoogleDriveDocumentSourceAdapter({ fetch: async () => json({}, 403), secrets: await secrets() });
+    await expect(adapter.list(scope, { folder: '', files: ['f1'] })).rejects.toMatchObject({ reason: 'ACCESS' });
+  });
+
   it('maps refused access and refuses oversized files before downloading', async () => {
     const adapter = new GoogleDriveDocumentSourceAdapter({ fetch: async () => json({}, 403), secrets: await secrets() });
     await expect(adapter.list(scope, { folder: 'x' })).rejects.toMatchObject({ reason: 'ACCESS' });
@@ -118,3 +143,36 @@ describe('documentSourceAdapter', () => {
     await expect(adapter.list(scope, { folder: 'x' })).rejects.toMatchObject({ reason: 'NOT_CONFIGURED' });
   });
 });
+
+describe('choosing a OneDrive folder in Pactlab (no ids to paste)', () => {
+  it('lists the folders in My files, shortcuts to shared folders included, and inside a folder; never files', async () => {
+    const calls: string[] = [];
+    const fetch = async (url: string) => {
+      calls.push(url);
+      if (url.includes('/me/drive/root/children')) {
+        return json({
+          value: [
+            { id: 'ITEM!dulles', name: 'Dulles', folder: { childCount: 2 }, parentReference: { driveId: 'drive-me' } },
+            { id: 'ITEM!file', name: 'Notes.docx', file: { mimeType: 'application/msword' }, parentReference: { driveId: 'drive-me' } },
+            { id: 'shortcut-1', name: 'Seller data room', remoteItem: { id: 'THEIRS!room', folder: {}, parentReference: { driveId: 'drive-seller' } } },
+          ],
+        });
+      }
+      return json({ value: [{ id: 'ITEM!loomis', name: 'Loomis', folder: { childCount: 4 }, parentReference: { driveId: 'drive-me' } }] });
+    };
+    const adapter = new OneDriveDocumentSourceAdapter({ fetch, secrets: await secrets() });
+    expect(await adapter.folders(scope)).toEqual([
+      { driveId: 'drive-me', itemId: 'ITEM!dulles', name: 'Dulles', shared: false },
+      { driveId: 'drive-seller', itemId: 'THEIRS!room', name: 'Seller data room', shared: true },
+    ]);
+    expect(await adapter.folders(scope, { driveId: 'drive-me', itemId: 'ITEM!dulles' })).toEqual([{ driveId: 'drive-me', itemId: 'ITEM!loomis', name: 'Loomis', shared: false }]);
+    expect(calls[1]).toContain('/drives/drive-me/items/ITEM!dulles/children');
+    expect(calls.some((url) => url.includes('sharedWithMe'))).toBe(false);
+  });
+
+  it('refused access is said, not shown as an empty drive', async () => {
+    const adapter = new OneDriveDocumentSourceAdapter({ fetch: async () => json({}, 401), secrets: await secrets() });
+    await expect(adapter.folders(scope)).rejects.toMatchObject({ reason: 'ACCESS' });
+  });
+});
+

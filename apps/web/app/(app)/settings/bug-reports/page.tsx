@@ -41,7 +41,7 @@ export default async function BugsSubmittedPage({ searchParams }: { searchParams
               </Link>
             ))}
           </nav>
-          <Card>
+          <Card section="bug-reports">
             <CardContent className="p-0">
               {items.length === 0 ? (
                 <p className="p-4 text-sm text-muted-foreground">Nothing here.</p>

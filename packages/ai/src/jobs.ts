@@ -35,7 +35,14 @@ const GPT_5_5 = 'gpt-5.5';
 const GEMINI_PRO = 'gemini-3.1-pro-preview';
 const GEMINI_FLASH = 'gemini-3.8-flash';
 
+/**
+ * The default chain per job, from the model scorecard (docs/model-scorecard.md, Nov 21, 2026): public
+ * benchmark priors per job, then cost per task. A lane serves only if its model is reachable, its data terms
+ * are recorded and its health check passed; otherwise the next lane serves. Claude lanes are the roles:
+ * deep_review = Opus 5.5, balanced = Sonnet 5.5, fast = Haiku 5.5 (the configured Bedrock models).
+ */
 export const JOB_MODEL_MAP: Readonly<Record<JobType, JobDefinition>> = {
+  // Opus 5.5 leads every single-pass legal board (scorecard §1).
   deep_review: {
     label: 'Deep review of agreements',
     lanes: [
@@ -43,41 +50,50 @@ export const JOB_MODEL_MAP: Readonly<Record<JobType, JobDefinition>> = {
       { kind: 'claude', alias: 'balanced', tier: 'economy' },
     ],
   },
+  // ContractScrub, the only direct study: GPT-5.5 75%, Gemini 3.1 Pro 74% (§2).
   contract_scrub: {
     label: 'Consistency checks (defined terms, cross-references, party names)',
     lanes: [
       { kind: 'model', provider: 'openai', modelId: GPT_5_5, effort: 'high', tier: 'flagship' },
+      { kind: 'model', provider: 'google', modelId: GEMINI_PRO, effort: 'medium', tier: 'flagship' },
       { kind: 'claude', alias: 'deep_review', tier: 'flagship' },
       { kind: 'claude', alias: 'balanced', tier: 'economy' },
     ],
   },
+  // Schema-bound fields route on cost: Haiku 5.5 56.7% at $0.20/task (beats Sonnet 5.5's 40%); Opus 5.5 76.7% at $2.71 as the quality fallback (§3).
   extraction: {
     label: 'Extraction (contract fields, financial lines)',
     lanes: [
+      { kind: 'claude', alias: 'fast', tier: 'economy' },
       { kind: 'model', provider: 'google', modelId: GEMINI_PRO, effort: 'medium', tier: 'economy' },
-      { kind: 'claude', alias: 'balanced', tier: 'flagship' },
+      { kind: 'claude', alias: 'deep_review', tier: 'flagship' },
     ],
   },
+  // No current public board either way: route on cost and latency, never Opus-class (§4).
   classification: {
     label: 'Classification and triage',
     lanes: [
       { kind: 'model', provider: 'google', modelId: GEMINI_FLASH, effort: 'low', tier: 'economy' },
-      // The classify prompt is evaluated on the balanced Claude model; a Haiku-class lane is a console route once evaluated.
+      { kind: 'claude', alias: 'fast', tier: 'economy' },
       { kind: 'claude', alias: 'balanced', tier: 'flagship' },
     ],
   },
+  // The Gemini line leads the document boards; Opus 5.5 for single-pass Q&A over retrieved context (§5).
   document_qa: {
     label: 'Questions and drafting over documents',
     lanes: [
       { kind: 'model', provider: 'google', modelId: GEMINI_PRO, effort: 'medium', tier: 'economy' },
-      { kind: 'claude', alias: 'balanced', tier: 'flagship' },
+      { kind: 'claude', alias: 'deep_review', tier: 'flagship' },
+      { kind: 'claude', alias: 'balanced', tier: 'economy' },
     ],
   },
+  // Keep Gemini 3.1 Pro until a successor passes; Opus 5.5 scores 80.6 on the multimodal board (§6).
   vision: {
     label: 'Documents that arrive as images (scans, charts, image tables)',
     lanes: [
       { kind: 'model', provider: 'google', modelId: GEMINI_PRO, effort: 'medium', tier: 'economy' },
-      { kind: 'claude', alias: 'balanced', tier: 'flagship' },
+      { kind: 'claude', alias: 'deep_review', tier: 'flagship' },
+      { kind: 'claude', alias: 'balanced', tier: 'economy' },
     ],
   },
 };

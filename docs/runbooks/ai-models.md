@@ -88,3 +88,30 @@ Each evaluation records the prompt hashes it ran against. When prompts change, r
 - **Never read:** documents classed as people data, or kept away from AI. The library says so.
 - **Which model:** the **Image documents** box in the routing diagram. On Bedrock-only deployments that's Claude Sonnet 5.5.
 - **Old Office files** (`.doc`, `.xls`, `.ppt`) are refused, with a message to save them as `.docx`, `.xlsx` or `.pptx`.
+
+## Choosing models: the scorecard and Bedrock (2026-11-21)
+- **Recommended models by job:** Admin → AI models shows, per job, the model scorecard's picks (`docs/model-scorecard.md`, as data in `packages/ai/src/scorecard.ts`). Each pick shows its board score and cost per task, and is marked one of:
+  - **✓ In use**;
+  - **Use** (this account's Bedrock has it; one click adds it, and its health check runs in seconds);
+  - **Not on your Bedrock** (it needs that provider's key and data terms).
+- **Public scores are priors, never verdicts:** a model serves only once it's reachable and its check passes.
+- **Every other Bedrock model** is listed below, by maker.
+- **Models in use:** each model shows Ready, Checking or Not working (with why), and where it's the default. **Remove** applies to unused models only.
+- **Default chains per job** (`packages/ai/src/jobs.ts`) follow the scorecard's verdicts:
+  - extraction and classification route to Haiku 5.5 on cost;
+  - Q&A and image documents fall back to Opus 5.5;
+  - consistency checks go GPT-5.5, then Gemini 3.1 Pro, then Claude.
+- **Live's API role** may call any Bedrock model in its region, and list them. It has no manage or provision actions.
+- **The monthly refresh:** a scheduled job researches the scorecard's sources, updates the doc and `scorecard.ts`, and opens a PR. Merging the PR applies the new scores.
+
+## Monthly scorecard refresh
+- **What runs:** the GitHub Actions workflow `scorecard-refresh` (`.github/workflows/scorecard-refresh.yml`), on the 1st of each month at 09:17 Chicago. You can also start it from **Actions → scorecard-refresh → Run workflow**.
+- **What it does:** Claude Code runs headless on **Claude Opus 5.5 on Pactlab's own Bedrock**, follows `docs/agent/scorecard-refresh.md` and opens one PR. Nothing is deployed.
+- **Sign-in:** GitHub OIDC with the role `pactlab-github-prod-scorecard` (live account). The role is trusted only from the GitHub Environment `scorecard` and can only call Claude on Bedrock.
+- **One-time setup:**
+  1. Run `scripts/deploy-access.sh live` to create the role.
+  2. Create the GitHub Environment `scorecard`, with no reviewers.
+  3. Set the repository variable `SCORECARD_ROLE_ARN` to the role ARN the stack outputs (`ScorecardRefreshRoleArn`).
+- **The run log** is attached to each run as the `scorecard-run` artifact, kept 30 days.
+- **CI doesn't start on its own:** GitHub doesn't run CI for PRs opened by the workflow token. To run the checks, use **Update branch** on the PR (or push to it).
+- **Sources the run can't reach** (Bedrock agents fetch pages; they can't run open-ended web searches) are named in the PR. To add a new board, add it to the doc's Sources line first.

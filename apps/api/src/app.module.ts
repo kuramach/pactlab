@@ -53,6 +53,7 @@ import { ReportsModule } from './reports/reports.module';
 import { QoeModule } from './qoe/qoe.module';
 import { SyndicationModule } from './syndication/syndication.module';
 import { BrandModule } from './brand/brand.module';
+import { FeatureCardsModule } from './feature-cards/feature-cards.module';
 import { EmailEventsModule } from './email-events/email-events.module';
 import type { SnsVerifier } from './email-events/sns';
 import { HttpsWebFetcher, type WebFetcher } from './common/safe-fetch';
@@ -167,7 +168,7 @@ class InfrastructureModule {
         { provide: IDENTITY_VERIFIER, useValue: identityVerifier },
         { provide: LOGGER, useValue: deps.logger },
         { provide: PACK_RELEASE, useValue: { preview: deps.packPreview ?? true } },
-        { provide: PROVIDER_DEPENDENCIES, useValue: providerDependencies(deps.providers) },
+        { provide: PROVIDER_DEPENDENCIES, useValue: providerDependencies({ ...deps.providers, ...(deps.emailLogin?.tokenSecret ? { stateSecret: deps.emailLogin.tokenSecret } : {}) }) },
       ],
       exports: [PRISMA, IDENTITY_VERIFIER, API_TOKENS, LOGGER, PACK_RELEASE, PROVIDER_DEPENDENCIES],
     };
@@ -288,6 +289,9 @@ export class AppModule {
           objectStore: deps.uploads?.objectStore ?? new UnavailableUploadStore(),
           malwareScanner: deps.uploads?.malwareScanner ?? new UnavailableMalwareScanner(),
           importQueue: deps.uploads?.importQueue ?? null,
+          // The mapping assistant for files not in the standard template; off, names are matched only.
+          gateway: deps.documents?.gateway ?? new NotConfiguredClaudeGateway(),
+          documentStore: deps.documents?.objectStore ?? null,
         }),
         FindingsModule.register(findings, deps.packs),
         valuationModule,
@@ -300,6 +304,7 @@ export class AppModule {
         reportsModule,
         IcModule.register({ reports: reportsModule }),
         BrandModule.register({ store: deps.documents?.objectStore ?? new UnavailableObjectStore(), fetcher: deps.webFetcher ?? new HttpsWebFetcher() }),
+        FeatureCardsModule,
         EmailEventsModule.register({ verifier: deps.emailEvents?.verifier ?? null, fetcher: deps.webFetcher ?? new HttpsWebFetcher(), hashSecret: deps.emailLogin?.tokenSecret ?? randomBytes(32).toString('hex') }),
         ...(tokens && deps.emailLogin
           ? [

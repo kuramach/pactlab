@@ -10,6 +10,7 @@ import { EmptyMarkIcon } from '../../_lib/empty-marks';
 import { isUuidParam } from '../../_lib/filters';
 import { failureHint, HEALTH_TEXT, PROVIDER_LABELS, sourceHealth } from '../../_lib/sources';
 import { ApiState } from '../../_lib/states';
+import { keepParams, Pager, pagerLinks, readPage } from '../../../../_components/pager';
 
 // Per-user data: never prerender.
 export const dynamic = 'force-dynamic';
@@ -155,10 +156,12 @@ export default async function DealSourcesPage({
   searchParams,
 }: {
   params: Promise<{ dealId: string }>;
-  searchParams: Promise<{ started?: string; imported?: string; created?: string; unchanged?: string; cancelled?: string; replayed?: string; checked?: string }>;
+  searchParams: Promise<Record<string, string | undefined>>;
 }) {
   const { dealId } = await params;
-  const { started, imported, created, unchanged, cancelled, replayed, checked } = await searchParams;
+  const search = await searchParams;
+  const { started, imported, created, unchanged, cancelled, replayed, checked } = search;
+  const importsAt = readPage(search, 'imp');
   // Which import finished: billing or a pack extract (the query carries the target).
   const importedLabel = imported && imported in IMPORT_TARGET_DEFINITIONS ? IMPORT_TARGET_DEFINITIONS[imported as ImportTarget].label : 'Billing export';
   if (!isUuidParam(dealId)) notFound();
@@ -168,6 +171,7 @@ export default async function DealSourcesPage({
     apiGet<{ allowed: boolean }>('/v1/synthetic-sources'),
     dealsApi.importTargets(dealId),
   ]);
+  const uploads = await dealsApi.uploads(dealId, importsAt.cursor);
   // Industry-pack extracts (ADR 0010); billing has its own card above.
   const packTargets = targets.kind === 'ok' ? targets.data.items.filter((item) => item.target !== 'BILLING_INVOICE_LINE') : [];
 
@@ -330,6 +334,43 @@ export default async function DealSourcesPage({
           })}
         </div>
       )}
+
+      <section aria-labelledby="imports" className="flex flex-col gap-3">
+        <h2 id="imports" className="text-lg font-semibold tracking-tight">
+          Imports
+        </h2>
+        <p className="text-sm text-muted-foreground">Every file imported into this pact, newest first. A wrong import can be withdrawn from its page: its data stops counting and the record stays here.</p>
+        {uploads.kind !== 'ok' ? (
+          <ApiState result={uploads} />
+        ) : uploads.data.items.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No files imported yet.</p>
+        ) : (
+          <div className="rounded-md border border-border">
+            <ul className="divide-y divide-border text-sm">
+              {uploads.data.items.map((upload) => (
+                <li key={upload.id} className="flex flex-wrap items-center gap-2 px-3 py-2">
+                  <Link href={`/deals/${dealId}/sources/upload/${upload.id}`} className="font-medium hover:underline">
+                    {upload.fileName}
+                  </Link>
+                  <span className="text-muted-foreground">· {IMPORT_TARGET_DEFINITIONS[upload.target].label} · {number.format(upload.rowCount)} rows</span>
+                  <Badge variant={UPLOAD_STATUS[upload.status].variant}>{UPLOAD_STATUS[upload.status].label}</Badge>
+                  {upload.supersedesUploadId ? <Badge>Re-import</Badge> : null}
+                  {upload.withdrawal ? <span className="text-muted-foreground">“{upload.withdrawal.reason}”</span> : null}
+                </li>
+              ))}
+            </ul>
+            <Pager label="Import pages" base={`/deals/${dealId}/sources`} links={pagerLinks({ ...uploads.data, itemCount: uploads.data.items.length }, importsAt, keepParams(search), 'imp')} />
+          </div>
+        )}
+      </section>
     </div>
   );
 }
+
+const UPLOAD_STATUS = {
+  UPLOADED: { label: 'Not imported yet', variant: 'draft' },
+  IMPORTED: { label: 'Imported', variant: 'reviewed' },
+  WITHDRAWN: { label: 'Withdrawn', variant: 'danger' },
+  PURGED: { label: 'Cancelled', variant: 'neutral' },
+  REJECTED: { label: 'Rejected', variant: 'danger' },
+} as const;

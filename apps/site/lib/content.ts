@@ -794,13 +794,19 @@ export interface PactCard {
   readonly image: string;
 }
 
+/**
+ * An industry's editorial illustration (T-143): square art, shown cover-cropped in the 640×420 slots.
+ * The flat SVGs stay in public/ until the new set is proven live.
+ */
+export const industryArt = (slug: string) => `/illustrations/${slug}.webp`;
+
 const industryName = (slug: string) => INDUSTRIES.find((industry) => industry.slug === slug)?.name ?? slug;
 const packCard = (slug: string, line: string): PactCard => ({
   id: slug,
   name: industryName(slug),
   line,
   href: `/industries/${slug}`,
-  image: `/illustrations/${slug}.svg`,
+  image: industryArt(slug),
 });
 
 /**
@@ -814,7 +820,7 @@ export const PACT_CARDS: readonly PactCard[] = [
     name: 'Technology acquisition',
     line: 'Diligence a software company end to end: code, contracts, financials and valuation.',
     href: '/product',
-    image: '/illustrations/software-saas.svg',
+    image: industryArt('software-saas'),
   },
   packCard('fintech', 'Test payment volumes, loan losses and compliance evidence before you sign.'),
   packCard('healthcare', 'See payer mix, billing integrity and provider risk in the evidence.'),

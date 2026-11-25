@@ -191,12 +191,12 @@ export default async function DocumentsPage({
       ) : null}
 
       {sources.kind === 'ok' ? (
-        <Card>
+        <Card id="data-room">
           <CardHeader>
-            <CardTitle className="text-base">Data room</CardTitle>
+            <CardTitle className="text-base">{sources.data.seller ? 'Your drive folders' : 'Data room'}</CardTitle>
           </CardHeader>
           <CardContent>
-            <SourcesPanel dealId={dealId} sources={sources.data} aiOn={aiOn} />
+            <SourcesPanel dealId={dealId} sources={sources.data} aiOn={aiOn} justConnected={typeof search['source'] === 'string' ? search['source'] : null} />
           </CardContent>
         </Card>
       ) : null}

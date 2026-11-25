@@ -1,5 +1,5 @@
 import type { ClaimView } from '@pactlab/contracts';
-import { FINDING_DOMAINS, FINDING_STATUSES, PACKS, type Finding } from '@pactlab/domain';
+import { FINDING_DOMAINS, FINDING_STATUSES, PACKS, type Finding, type SourceWithdrawnFlag } from '@pactlab/domain';
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle, EmptyState, Glossed, IconTile } from '@pactlab/ui';
 import {
   AlertOctagon,
@@ -42,6 +42,7 @@ import {
   directionVariant,
 } from '../../../findings/_lib/view';
 import { ClaimVerdictBadge, claimsFor } from '../../_lib/seller-claims';
+import { SourceWithdrawnBadge } from '../../_lib/source-withdrawn';
 
 /**
  * Technology review: findings grouped by domain, each with the commit, tool
@@ -98,7 +99,7 @@ export default async function FindingsPage({
   const listQuery = [query, filters.pricing === 'needed' ? 'pricing=needed' : '', pageApiQuery(position)].filter(Boolean).join('&');
   const [fetched, fromDocuments, plan, claimsResult, summary] = dealId
     ? await Promise.all([
-        apiGet<Page<Finding>>(`/v1/deals/${encodeURIComponent(dealId)}/findings?${listQuery}`),
+        apiGet<Page<Finding & { sourceWithdrawn?: SourceWithdrawnFlag[] }>>(`/v1/deals/${encodeURIComponent(dealId)}/findings?${listQuery}`),
         apiGet<{ pending: number }>(`/v1/deals/${encodeURIComponent(dealId)}/findings/from-documents`),
         dealsApi.sourcePlan(dealId),
         apiGet<{ items: ClaimView[] }>(`/v1/deals/${encodeURIComponent(dealId)}/claims`),
@@ -107,6 +108,8 @@ export default async function FindingsPage({
     : [null, null, null, null, null];
   const claims = claimsResult?.kind === 'ok' ? claimsResult.data.items : [];
   const result = fetched;
+  // Built on an import that was later withdrawn (T-154): shown beside the finding, never changing it.
+  const withdrawnFlags = new Map(result?.kind === 'ok' ? result.data.items.map((finding) => [finding.id, finding.sourceWithdrawn ?? []] as const) : []);
   const counts = summary?.kind === 'ok' ? summary.data : null;
   const unpriced = counts?.pricingNeeded ?? 0;
   const pendingFromDocuments = fromDocuments?.kind === 'ok' ? fromDocuments.data.pending : 0;
@@ -328,6 +331,7 @@ export default async function FindingsPage({
                             </div>
                             <div className="mt-1">
                               <ClaimVerdictBadge claims={claimsFor(claims, finding.id)} />
+                              <SourceWithdrawnBadge flags={withdrawnFlags.get(finding.id)} />
                             </div>
                             {fromDocumentReview(finding) ? (
                               <Link href={`/deals/${dealId}/documents`} className="mt-1 inline-flex">

@@ -138,9 +138,10 @@ describe('billing CSV import through the API', { timeout: 30_000 }, () => {
     const targets = await call('GET', `/v1/deals/${standard.dealId}/import-targets`, bearer);
     expect(targets.status).toBe(200);
     const items = targets.body['items'] as { target: string; label: string; people: string; templateCsv: string }[];
-    // Billing, then the regulatory screen's footprint and package (T-091), offered wherever it runs at full depth.
+    // Billing, the P&L every pact offers, then the regulatory screen's footprint and package (T-091), offered wherever it runs at full depth.
     expect(items.map((item) => [item.target, item.label, item.people])).toEqual([
       ['BILLING_INVOICE_LINE', 'Invoice lines', 'NONE'],
+      ['FINANCIAL_PNL', 'Profit and loss (P&L)', 'NONE'],
       ['REGULATORY_FOOTPRINT', 'Site footprint', 'NONE'],
       ['REMEDY_PACKAGE', 'Divestiture package', 'NONE'],
     ]);
@@ -309,7 +310,8 @@ describe('billing CSV import through the API', { timeout: 30_000 }, () => {
     expect((await upload(standard, lead, `a,b\n${eicar},1\n`, 'other')).status).toBe(422);
     const binary = await upload(standard, lead, Buffer.from([0x61, 0x2c, 0x62, 0x0a, 0x00, 0xfe, 0x0a]), 'other');
     expect(binary).toMatchObject({ status: 415, body: { code: 'NOT_TEXT' } });
-    expect((await upload(standard, lead, 'a,b\n1,2,3\n', 'other')).status).toBe(422);
+    // A ragged row reads (real exports carry stray cells); an unclosed quote cannot be read at all.
+    expect((await upload(standard, lead, 'a,b\n"1,2\n', 'other')).status).toBe(422);
     expect((await upload(standard, lead, Buffer.alloc(50 * 1024 * 1024 + 1, 0x61), 'other')).status).toBe(413);
     expect((await upload(standard, lead, 'a\n1\n', 'github')).status).toBe(400);
     expect((await upload(standard, lead, 'a\n1\n', 'jira')).status).toBe(400);

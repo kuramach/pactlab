@@ -1,6 +1,6 @@
 import 'reflect-metadata';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
-import { defaultPromptRegistry, documentQaPrompt, ScriptedModelTransport, TransportClaudeGateway } from '@pactlab/ai';
+import { defaultPromptRegistry, documentQaPrompt, FixtureBedrockCatalog, SCORECARD_AS_OF, ScriptedModelTransport, TransportClaudeGateway } from '@pactlab/ai';
 import type { ApiEnv } from '@pactlab/config';
 import { createSyntheticTenant, startTestDatabase, type SyntheticTenant, type TestDatabase } from '@pactlab/db/testing';
 import { createLogger } from '@pactlab/observability';
@@ -52,7 +52,16 @@ describe('AI models in the admin console', { timeout: 60_000 }, () => {
     // The fixture provider: the configured models are adopted, evaluations replay the recorded cassettes.
     ai = await createAiGateway({ AI_PROVIDER: 'fixture' } as ApiEnv, db.prisma);
     // As if OpenAI's key were set: the console offers it, and the terms gate decides whether it may run.
-    models = { ...(ai.models as AiModelsRuntime), providers: ['fixture', 'openai', 'bedrock'] };
+    models = {
+      ...(ai.models as AiModelsRuntime),
+      providers: ['fixture', 'openai', 'bedrock'],
+      // What Bedrock lists for the account (Add from Bedrock): a scorecard pick in two jobs, one in another, and one it doesn't name.
+      bedrock: new FixtureBedrockCatalog([
+        { modelId: 'us.anthropic.claude-haiku-5-5', maker: 'Anthropic', name: 'Claude Haiku 5.5', readsImages: true },
+        { modelId: 'openai.gpt-5-5-v1:0', maker: 'OpenAI', name: 'GPT-5.5', readsImages: false },
+        { modelId: 'meta.llama4-maverick-17b-instruct-v1:0', maker: 'Meta', name: 'Llama 4 Maverick 17B Instruct', readsImages: true },
+      ]),
+    };
     const pair = await generateKeyPair('RS256');
     key = pair.privateKey;
     const jwk = { ...(await exportJWK(pair.publicKey)), kid: 'test', alg: 'RS256' };
@@ -169,6 +178,30 @@ describe('AI models in the admin console', { timeout: 60_000 }, () => {
     expect(await models.resolver.routeFor(other.organizationId, 'balanced')).toMatchObject({ modelId: 'synthetic-fixture' });
     const audited = await db.owner.query<{ action: string }>(`SELECT DISTINCT action FROM audit_events WHERE action LIKE 'operator.ai_provider.%'`);
     expect(new Set(audited.rows.map((row) => row.action))).toEqual(new Set(['operator.ai_provider.cleared', 'operator.ai_provider.not_cleared']));
+  });
+
+  it('Add from Bedrock is led by the model scorecard: each job\'s picks with score and cost, marked available, in use or not on Bedrock', async () => {
+    expect((await call('other', 'GET', '/v1/admin/ai-models/bedrock')).status).toBe(403);
+    const listed = (await call('operator', 'GET', '/v1/admin/ai-models/bedrock')).body as { connected: boolean; scorecard: { asOf: string; jobs: { job: string; picks: { name: string; costPerTask: string | null; bedrockModelId: string | null; inUse: unknown }[] }[] }; items: { modelId: string }[] };
+    expect(listed.connected).toBe(true);
+    expect(listed.scorecard.asOf).toBe(SCORECARD_AS_OF);
+    const extraction = listed.scorecard.jobs.find((job) => job.job === 'extraction')!;
+    expect(extraction.picks[0]).toMatchObject({ name: 'Claude Haiku 5.5', costPerTask: '$0.20', bedrockModelId: 'us.anthropic.claude-haiku-5-5', inUse: null });
+    // Not on this account's Bedrock: shown, with nothing to use.
+    expect(extraction.picks.find((pick) => pick.name === 'Gemini 3.1 Pro')).toMatchObject({ bedrockModelId: null, inUse: null });
+    expect(listed.scorecard.jobs.find((job) => job.job === 'contract_scrub')?.picks[0]).toMatchObject({ name: 'GPT-5.5', bedrockModelId: 'openai.gpt-5-5-v1:0' });
+    // Everything else Bedrock lists, minus the scorecard's picks.
+    expect(listed.items.map((model) => model.modelId)).toEqual(['meta.llama4-maverick-17b-instruct-v1:0']);
+  });
+
+  it('Use adds a Bedrock model and checks it; only models Bedrock lists can be used', async () => {
+    expect((await call('operator', 'POST', '/v1/admin/ai-models/bedrock', { modelId: 'us.anthropic.claude-made-up-9' })).body).toMatchObject({ code: 'NOT_ON_BEDROCK' });
+    const used = await call('operator', 'POST', '/v1/admin/ai-models/bedrock', { modelId: 'us.anthropic.claude-haiku-5-5' });
+    expect(used.status, JSON.stringify(used.body)).toBe(202);
+    for (let i = 0; i < 100 && (await catalog()).find((m) => m.providerModelId === 'us.anthropic.claude-haiku-5-5')?.status !== 'EVALUATED'; i += 1) await new Promise((resolve) => setTimeout(resolve, 50));
+    expect((await catalog()).find((m) => m.providerModelId === 'us.anthropic.claude-haiku-5-5')).toMatchObject({ provider: 'bedrock', label: 'Claude Haiku 5.5', status: 'EVALUATED' });
+    const after = (await call('operator', 'GET', '/v1/admin/ai-models/bedrock')).body as { scorecard: { jobs: { job: string; picks: { name: string; inUse: unknown; bedrockModelId: string | null }[] }[] } };
+    expect(after.scorecard.jobs.find((job) => job.job === 'fast')?.picks[0]).toMatchObject({ name: 'Claude Haiku 5.5', inUse: { ready: true }, bedrockModelId: null });
   });
 
   it('re-evaluation is due when a prompt changed or was added since the evaluation, never for an adopted baseline', () => {

@@ -13,6 +13,8 @@ import { apiGet } from './deals/_lib/api';
 import { Sidebar } from './_lib/sidebar';
 import { Topbar } from './_lib/topbar';
 import { BugReporter } from './_lib/bugs/bug-reporter';
+import { loadFeatureCards } from './_lib/feature-cards/load';
+import { FeatureCardTrayMount } from './_lib/feature-cards/tray';
 import { DemoBlockedNotice } from './_lib/demo-blocked';
 import { PasskeyOffer } from './settings/passkeys-card';
 
@@ -42,6 +44,8 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   const sections = visibleSections(session.permissions, undefined, session.kind === 'signed-in' && session.guest, session.kind === 'signed-in' && session.operator);
   const version = releaseLabel(await currentRelease());
   const brand = await activeBrand();
+  // What's new (T-155): the cards dismissed from the home, behind an icon beside the bug icon. Not for guests.
+  const featureCards = session.kind === 'signed-in' && !session.guest ? await loadFeatureCards() : null;
   const css = brand ? themeCss(brand.variables) : null;
   return (
     <AppShell
@@ -68,6 +72,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
       <footer className="mt-12 pb-2 text-xs text-muted-foreground" aria-label="Version">
         Pactlab {version}
       </footer>
+      <FeatureCardTrayMount cards={featureCards?.tray ?? null} />
       <BugReporter appVersion={version} environment={env.NEXT_PUBLIC_APP_ENV} />
     </AppShell>
   );

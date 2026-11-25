@@ -35,6 +35,7 @@ import {
   withTenant,
   type AuditEventInput,
   type PrismaClient,
+  ACTIVE_EVIDENCE,
 } from '@pactlab/db';
 import {
   isCounterpartyRole,
@@ -54,6 +55,7 @@ import {
   type CompanyType,
   type DealRole,
   type ExpectedInputId,
+  type ImportTarget,
   type IntakeCategory,
   type PackDefinition,
   type Permission,
@@ -850,7 +852,7 @@ export class DocumentsService {
   /** Billing lines and contract counterparties → the top customers with no contract filed. */
   private async customerGaps(tenant: TenantContext, dealId: string, documents: readonly DocumentRecord[]): Promise<string[]> {
     const lines = await withTenant(this.prisma, tenant, (tx) =>
-      tx.evidenceItem.findMany({ where: { dealId, evidenceType: 'billing.invoice_line' }, select: { canonical: true }, take: 50_000 }),
+      tx.evidenceItem.findMany({ where: { dealId, evidenceType: 'billing.invoice_line', ...ACTIVE_EVIDENCE }, select: { canonical: true }, take: 50_000 }),
     );
     if (lines.length === 0) return [];
     const billed = lines.map(({ canonical }) => {
@@ -871,12 +873,16 @@ export class DocumentsService {
    */
   async intake(tenant: TenantContext, dealId: string, requestId: string) {
     await this.access.require(tenant, dealId, canAsk, { action: 'document.intake.viewed', requestId });
-    const [pack, documents, connections] = await Promise.all([
+    const [pack, documents, connections, imported] = await Promise.all([
       this.packOf(tenant, dealId),
       this.documents.listDocuments(tenant, dealId, { sharedOnly: false }),
       withTenant(this.prisma, tenant, (tx) =>
         // bounded: one pact's own records of this kind (tens: a checklist, versions, entries, its sources)
         tx.connection.findMany({ where: { dealId, status: 'ACTIVE' }, select: { provider: true } }),
+      ),
+      withTenant(this.prisma, tenant, (tx) =>
+        // bounded: one row per import target (distinct), at most the targets a pack offers
+        tx.sourceUpload.findMany({ where: { dealId, status: 'IMPORTED' }, select: { target: true }, distinct: ['target'] }),
       ),
     ]);
     // A file replaced or removed at its source no longer counts as received.
@@ -893,6 +899,7 @@ export class DocumentsService {
       })),
       [...new Set(connections.map((connection) => connection.provider))],
       missingContracts.length > 0 ? { CUSTOMER_CONTRACT: missingContracts } : {},
+      imported.map((upload) => upload.target as ImportTarget),
     );
     const refiled = await Promise.all(
       available

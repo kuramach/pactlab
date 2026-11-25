@@ -1,5 +1,5 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 
 /** A reference into the secret store. Never the secret itself. */
@@ -23,6 +23,14 @@ export class SecretUnavailableError extends Error {
 export interface SecretStore {
   put(ref: string, value: string): Promise<void>;
   get(ref: string): Promise<string>;
+  /** Destroy a credential (a disconnect). Stores without it are overwritten instead. */
+  delete?(ref: string): Promise<void>;
+}
+
+/** Destroy a credential: deleted where the store can, else overwritten so nothing usable remains. */
+export async function destroySecret(store: SecretStore, ref: string): Promise<void> {
+  if (store.delete) await store.delete(ref);
+  else await store.put(ref, '');
 }
 
 /** Fails closed where no store is configured (deployed environments until Secrets Manager). */
@@ -81,6 +89,10 @@ export class LocalEncryptedSecretStore implements SecretStore {
       throw new SecretUnavailableError('Secret could not be decrypted');
     }
   }
+
+  async delete(ref: string): Promise<void> {
+    await rm(this.pathFor(ref), { force: true });
+  }
 }
 
 /** In-memory store for tests. */
@@ -96,5 +108,9 @@ export class MemorySecretStore implements SecretStore {
     const value = this.values.get(ref);
     if (value === undefined) throw new SecretUnavailableError('Secret not found');
     return value;
+  }
+
+  async delete(ref: string): Promise<void> {
+    this.values.delete(ref);
   }
 }

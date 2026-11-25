@@ -9,7 +9,7 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { citationStillValid, SourceIndex } from '@pactlab/ai';
-import { appendAuditEvent, evidence, withTenant, type PrismaClient } from '@pactlab/db';
+import { ACTIVE_EVIDENCE, appendAuditEvent, evidence, withdrawals, withTenant, type PrismaClient } from '@pactlab/db';
 import {
   auditActionFor,
   canDraftFindings,
@@ -103,8 +103,10 @@ export class FindingsService {
   ) {
     const ids = [...new Set(links.flatMap((link) => (link.evidenceItemId ? [link.evidenceItemId] : [])))];
     const citations = links.flatMap((link) => (link.documentCitation ? [link.documentCitation] : []));
-    const { found, pages } = await withTenant(this.prisma, tenant, async (tx) => ({
+    const { found, active, pages } = await withTenant(this.prisma, tenant, async (tx) => ({
       found: await Promise.all(ids.map((id) => evidence.get(tx, dealId, id))),
+      // A withdrawn import's records can no longer be cited (T-154).
+      active: ids.length === 0 ? 0 : await tx.evidenceItem.count({ where: { dealId, id: { in: ids }, ...ACTIVE_EVIDENCE } }),
       pages: await Promise.all(
         citations.map((citation) =>
           tx.documentPage.findFirst({
@@ -121,6 +123,7 @@ export class FindingsService {
     }));
     if (found.some((item) => item === null))
       throw new UnprocessableEntityException('Evidence link does not resolve');
+    if (active !== ids.length) throw new UnprocessableEntityException('Evidence link cites a withdrawn import');
     // A cited page quote must still be on that page, in a class findings may cite.
     if (citations.some((citation, index) => !pages[index]?.text || !citationStillValid({ citationId: '', ...citation }, pages[index].text)))
       throw new UnprocessableEntityException('Document citation does not resolve');
@@ -136,12 +139,17 @@ export class FindingsService {
     return found;
   }
 
+  /** "Source withdrawn" flags (T-154): findings built on an import that was later withdrawn. Shown, never changed. */
+  private async withdrawnFlags(tenant: TenantContext, dealId: string, findingIds: readonly string[]) {
+    return withTenant(this.prisma, tenant, (tx) => withdrawals.findingFlags(tx, dealId, findingIds));
+  }
+
   async list(tenant: TenantContext, dealId: string, query: ListFindingsQuery, requestId: string, options: { excludeValueConfirmations?: boolean } = {}) {
     await this.access.require(tenant, dealId, canReadFindings, {
       action: 'finding.list',
       requestId,
     });
-    return this.findings.page(
+    const page = await this.findings.page(
       tenant,
       dealId,
       {
@@ -157,6 +165,8 @@ export class FindingsService {
       },
       query,
     );
+    const flags = await this.withdrawnFlags(tenant, dealId, page.items.map((finding) => finding.id));
+    return { ...page, items: page.items.map((finding) => ({ ...finding, sourceWithdrawn: flags.get(finding.id) ?? [] })) };
   }
 
   /** Counts across every matching finding (severity, status, risks needing a price), for the charts above a paged list. */
@@ -168,7 +178,9 @@ export class FindingsService {
   /** Every finding, for the complete record of a pact (the pact report); never a screen. */
   async all(tenant: TenantContext, dealId: string, requestId: string) {
     await this.access.require(tenant, dealId, canReadFindings, { action: 'finding.list', requestId });
-    return { items: await this.findings.list(tenant, dealId, {}) };
+    const items = await this.findings.list(tenant, dealId, {});
+    const flags = await this.withdrawnFlags(tenant, dealId, items.map((finding) => finding.id));
+    return { items: items.map((finding) => ({ ...finding, sourceWithdrawn: flags.get(finding.id) ?? [] })) };
   }
 
   async get(tenant: TenantContext, dealId: string, findingId: string, requestId: string) {
@@ -176,7 +188,9 @@ export class FindingsService {
       action: 'finding.viewed',
       requestId,
     });
-    return this.load(tenant, dealId, findingId);
+    const found = await this.load(tenant, dealId, findingId);
+    const flags = await this.withdrawnFlags(tenant, dealId, [findingId]);
+    return { ...found, sourceWithdrawn: flags.get(findingId) ?? [] };
   }
 
   async create(tenant: TenantContext, dealId: string, body: CreateFindingBody, requestId: string) {

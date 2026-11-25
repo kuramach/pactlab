@@ -62,6 +62,15 @@ function failure(status: number): DocumentSourceError {
 }
 
 async function bearer(secrets: SecretStore, scope: DocumentSourceScope): Promise<string> {
+  // An OAuth connection refreshes itself; its errors are already DocumentSourceErrors.
+  if (scope.accessToken) {
+    try {
+      return await scope.accessToken();
+    } catch (error) {
+      if (error instanceof DocumentSourceError) throw error;
+      throw new DocumentSourceError('ACCESS');
+    }
+  }
   if (!scope.credentialRef) throw new DocumentSourceError('ACCESS');
   try {
     return await secrets.get(scope.credentialRef);
@@ -93,9 +102,9 @@ interface DriveFile {
 }
 
 /**
- * Google Drive, read-only (`drive.readonly`): `files.list` under the folder,
- * recursively, and `files.get?alt=media` (or `files.export` for Docs and
- * Sheets) for each file. Shared drives included.
+ * Google Drive, read-only: the files chosen in Google's picker (`drive.file`), each by `files.get`; or,
+ * for sources connected with a pasted token, `files.list` under a folder, recursively. Each file is read
+ * with `files.get?alt=media` (or `files.export` for Docs and Sheets). Shared drives included.
  */
 export class GoogleDriveDocumentSourceAdapter implements DocumentSourceAdapter {
   readonly provider = 'google-drive' as const;
@@ -109,8 +118,39 @@ export class GoogleDriveDocumentSourceAdapter implements DocumentSourceAdapter {
     return response;
   }
 
+  /** The files chosen in Google's picker (`drive.file`): each one's metadata, never a folder listing. */
+  private async picked(token: string, ids: readonly string[]): Promise<SourceFile[]> {
+    const files: SourceFile[] = [];
+    for (const id of ids) {
+      const query = new URLSearchParams({ fields: 'id,name,mimeType,size,version,trashed', supportsAllDrives: 'true' });
+      const response = await this.deps.fetch(`${DRIVE}/${encodeURIComponent(id)}?${query.toString()}`, { headers: { authorization: `Bearer ${token}` } });
+      // Deleted at the source, or no longer shared with the app: not listed, so the sync marks it removed.
+      if (response.status === 404) continue;
+      if (!response.ok) throw failure(response.status);
+      const file = (await response.json()) as DriveFile & { trashed?: boolean };
+      if (file.trashed || file.mimeType === DRIVE_FOLDER) continue;
+      files.push(this.entry(file, ''));
+    }
+    return files;
+  }
+
+  private entry(file: DriveFile, folder: string): SourceFile {
+    const exported = DRIVE_EXPORTS[file.mimeType];
+    return {
+      externalId: file.id,
+      folder,
+      name: exported && !file.name.toLowerCase().endsWith(`.${exported.extension}`) ? `${file.name}.${exported.extension}` : file.name,
+      mediaType: exported?.mimeType ?? file.mimeType,
+      sizeBytes: file.size ? Number(file.size) : null,
+      version: file.version ?? '0',
+      ...(exported ? { exportAs: exported.mimeType } : {}),
+    };
+  }
+
   async list(scope: DocumentSourceScope, config: DocumentSourceConfig): Promise<SourceFile[]> {
     const token = await bearer(this.deps.secrets, scope);
+    if (config.files) return this.picked(token, config.files);
+    // A whole folder: sources connected with a pasted token before the picker (T-147).
     const files: SourceFile[] = [];
     const queue: { id: string; path: string }[] = [{ id: config.folder, path: '' }];
     while (queue.length > 0 && files.length <= MAX_SOURCE_FILES) {
@@ -131,16 +171,7 @@ export class GoogleDriveDocumentSourceAdapter implements DocumentSourceAdapter {
             queue.push({ id: file.id, path: folder.path ? `${folder.path}/${file.name}` : file.name });
             continue;
           }
-          const exported = DRIVE_EXPORTS[file.mimeType];
-          files.push({
-            externalId: file.id,
-            folder: folder.path,
-            name: exported && !file.name.toLowerCase().endsWith(`.${exported.extension}`) ? `${file.name}.${exported.extension}` : file.name,
-            mediaType: exported?.mimeType ?? file.mimeType,
-            sizeBytes: file.size ? Number(file.size) : null,
-            version: file.version ?? '0',
-            ...(exported ? { exportAs: exported.mimeType } : {}),
-          });
+          files.push(this.entry(file, folder.path));
         }
         pageToken = page.nextPageToken;
       } while (pageToken && files.length <= MAX_SOURCE_FILES);
@@ -167,8 +198,23 @@ interface GraphItem {
   readonly size?: number;
   readonly cTag?: string;
   readonly file?: { readonly mimeType?: string };
-  readonly folder?: object;
+  readonly folder?: { readonly childCount?: number };
+  readonly parentReference?: { readonly driveId?: string };
+  /** A shortcut in My files to a folder someone shared ("Add shortcut to My files"): the folder lives in their drive. */
+  readonly remoteItem?: { readonly id: string; readonly folder?: object; readonly parentReference?: { readonly driveId?: string } };
 }
+
+/** A folder the chooser offers: where it lives (drive and item), and its name. */
+export interface DriveFolder {
+  readonly driveId: string;
+  readonly itemId: string;
+  readonly name: string;
+  /** A shortcut to a folder someone shared with the person. */
+  readonly shared: boolean;
+}
+
+/** Most folders one level of the chooser shows. */
+export const MAX_CHOOSER_FOLDERS = 500;
 
 /**
  * OneDrive and SharePoint through Microsoft Graph, read-only (`Files.Read` /
@@ -186,6 +232,34 @@ export class OneDriveDocumentSourceAdapter implements DocumentSourceAdapter {
     const [drive, item] = config.folder.split('/');
     if (!drive || !item) throw new DocumentSourceError('NOT_FOUND');
     return { drive: encodeURIComponent(drive), item: encodeURIComponent(item) };
+  }
+
+  /**
+   * The folders in one level of the person's OneDrive, for choosing a data room in Pactlab rather than
+   * pasting ids: My files (`/me/drive/root/children`) when no folder is given, else that folder's children.
+   * Shortcuts to shared folders resolve to the folder in its own drive. Read-only (`Files.Read.All`).
+   * (`/me/drive/sharedWithMe` is not used: Microsoft deprecated it, ending November 2026.)
+   */
+  async folders(scope: DocumentSourceScope, at?: { driveId: string; itemId: string }): Promise<DriveFolder[]> {
+    const token = await bearer(this.deps.secrets, scope);
+    const select = '$select=id,name,folder,remoteItem,parentReference&$top=200';
+    let next: string | undefined = at
+      ? `${GRAPH}/drives/${encodeURIComponent(at.driveId)}/items/${encodeURIComponent(at.itemId)}/children?${select}`
+      : `${GRAPH}/me/drive/root/children?${select}`;
+    const folders: DriveFolder[] = [];
+    while (next && folders.length < MAX_CHOOSER_FOLDERS) {
+      const response = await this.deps.fetch(next, { headers: { authorization: `Bearer ${token}` } });
+      if (!response.ok) throw failure(response.status);
+      const page = (await response.json()) as { value?: GraphItem[]; '@odata.nextLink'?: string };
+      for (const entry of page.value ?? []) {
+        if (entry.folder && entry.parentReference?.driveId) folders.push({ driveId: entry.parentReference.driveId, itemId: entry.id, name: entry.name, shared: false });
+        else if (entry.remoteItem?.folder && entry.remoteItem.parentReference?.driveId)
+          folders.push({ driveId: entry.remoteItem.parentReference.driveId, itemId: entry.remoteItem.id, name: entry.name, shared: true });
+      }
+      const link = page['@odata.nextLink'];
+      next = link && link.startsWith(`${GRAPH}/`) ? link : undefined;
+    }
+    return folders.slice(0, MAX_CHOOSER_FOLDERS).sort((a, b) => a.name.localeCompare(b.name));
   }
 
   async list(scope: DocumentSourceScope, config: DocumentSourceConfig): Promise<SourceFile[]> {

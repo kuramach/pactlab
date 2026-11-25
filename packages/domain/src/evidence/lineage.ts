@@ -51,6 +51,13 @@ export interface EvidenceLineage {
     readonly direction: 'OUTGOING' | 'INCOMING';
     readonly depth: number;
   }[];
+  /** Withdrawn imports that voided this item (T-154); restored when a later import read it again. */
+  readonly voids?: readonly {
+    readonly sourceUploadId: string;
+    readonly voidedAt: string;
+    readonly restoredAt: string | null;
+    readonly restoredByUploadId: string | null;
+  }[];
 }
 
 export interface LineageStep {

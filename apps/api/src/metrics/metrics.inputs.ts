@@ -5,7 +5,7 @@ import type {
   SourceRef,
 } from '@pactlab/calculations';
 import { INVOICE_LINE_EVIDENCE_TYPE, parseInvoiceLine } from '@pactlab/connectors';
-import type { TransactionClient } from '@pactlab/db';
+import { ACTIVE_EVIDENCE, type TransactionClient } from '@pactlab/db';
 
 export const FX_RATE_EVIDENCE_TYPE = 'fx.rate';
 export const MANAGEMENT_KPI_EVIDENCE_TYPE = 'management.kpi';
@@ -48,6 +48,8 @@ export async function loadMetricsEvidence(
       evidenceType: {
         in: [INVOICE_LINE_EVIDENCE_TYPE, FX_RATE_EVIDENCE_TYPE, MANAGEMENT_KPI_EVIDENCE_TYPE],
       },
+      // A withdrawn import's records stop counting (T-154); an earlier version still held counts again.
+      ...ACTIVE_EVIDENCE,
     },
     select: {
       id: true,

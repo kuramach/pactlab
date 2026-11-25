@@ -22,7 +22,7 @@ export async function DevicesCard() {
   if (devices.kind !== 'ok') return null;
   const others = devices.data.devices.filter((device) => !device.current).length;
   return (
-    <Card id="devices">
+    <Card id="devices" section="devices">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <MonitorSmartphone className="h-4 w-4" aria-hidden /> Signed-in devices

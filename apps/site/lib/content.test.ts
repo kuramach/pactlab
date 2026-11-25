@@ -252,6 +252,13 @@ describe('pacts carousel (T-086)', () => {
     }
   });
 
+  it('shows every published industry with its editorial illustration (T-143)', () => {
+    for (const industry of PUBLISHED_INDUSTRIES) {
+      expect(content.industryArt(industry.slug)).toBe(`/illustrations/${industry.slug}.webp`);
+      expect(existsSync(join(publicDir, `illustrations/${industry.slug}.webp`)), industry.slug).toBe(true);
+    }
+  });
+
   it('gives every shown pact a full slide in the top slider', () => {
     for (const card of content.PACT_CARDS.filter((pact) => isPublishedHref(pact.href))) {
       const slide = content.pactSlide(card);
@@ -333,5 +340,21 @@ describe('best-of-breed model routing (T-133)', () => {
     expect(text).not.toMatch(/\d/);
     expect(text).not.toMatch(/accura|faster|benchmark|percent|customer/i);
     for (const word of content.BANNED_WORDS) expect(text.toLowerCase()).not.toContain(word);
+  });
+});
+
+describe('privacy policy and terms (Google verification needs both public)', () => {
+  it('are published pages, linked from every page’s footer, with the legal entity and contact', async () => {
+    const { PRIVACY, TERMS, LEGAL_ENTITY, LEGAL_CONTACT } = await import('./legal');
+    expect(existsSync(join(APP, 'privacy/page.tsx'))).toBe(true);
+    expect(existsSync(join(APP, 'terms/page.tsx'))).toBe(true);
+    expect(LEGAL_ENTITY).toBe('Pactlab LLC');
+    const privacy = JSON.stringify(PRIVACY);
+    // Google's Limited Use disclosure, verbatim, and the read-only Drive scope.
+    expect(privacy).toContain('Pactlab’s use and transfer of information received from Google APIs to any other app will adhere to the Google API Services User Data Policy, including the Limited Use requirements.');
+    expect(privacy).toContain('drive.file');
+    expect(privacy).not.toContain('drive.readonly');
+    expect(privacy).toContain(LEGAL_CONTACT);
+    expect(JSON.stringify(TERMS)).toContain('State of Texas');
   });
 });

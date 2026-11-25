@@ -24,7 +24,7 @@ import {
   type ScenarioCase,
   type ValuationInputs,
 } from '@pactlab/calculations';
-import { appendAuditEvent, askingPrices, balanceSheetItems, deals, withTenant, type PrismaClient } from '@pactlab/db';
+import { appendAuditEvent, askingPrices, balanceSheetItems, deals, withdrawals, withTenant, type PrismaClient } from '@pactlab/db';
 import { newId, permissionsForDealRole, type DealRole, type TenantContext } from '@pactlab/domain';
 import { DealAccess } from '../deals/deal-access';
 import { FINDINGS_REPOSITORY, type FindingsRepository } from '../findings/findings.repository';
@@ -266,6 +266,12 @@ export class ValuationService {
       latestRun: run,
       stale: run ? reasons.length > 0 : null,
       staleReasons: reasons,
+      // A source behind the run's adjusting findings was withdrawn after it ran (T-154): flagged, the run kept as it was.
+      sourceWithdrawn: run
+        ? await withTenant(this.prisma, tenant, (tx) =>
+            withdrawals.runFlags(tx, record.scenario.dealId, { ranAt: new Date(run.ranAt), findingIds: run.inputs.adjustments.map((adjustment) => adjustment.findingId) }),
+          )
+        : [],
       submissions: record.submissions.map(({ canonical: _bytes, ...meta }) => meta),
       decisions: record.decisions,
     };

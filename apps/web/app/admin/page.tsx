@@ -138,7 +138,7 @@ async function Approvals() {
   if (result.kind !== 'ok') return <ApiState result={result} />;
   if (result.data.items.length === 0) return <p className="text-sm">No organizations are waiting for approval.</p>;
   return (
-    <Card>
+    <Card section="admin-approvals">
       <CardContent className="p-0">
         <table className="w-full text-left text-sm" aria-label="Pending sign-ups">
           <thead className="text-xs uppercase text-muted-foreground"><tr><th className={cell}>Organization</th><th className={cell}>Owner</th><th className={cell}>Signed up</th><th className={cell}>Decision</th></tr></thead>
@@ -182,7 +182,7 @@ async function Organizations({ search, q }: { search: Search; q: string }) {
       <input name="q" defaultValue={q} placeholder="Search by name or slug" className="w-72 rounded-md border border-border px-3 py-1.5" />
       <Button variant="outline" size="sm" type="submit">Search</Button>
     </form>
-    <Card>
+    <Card section="admin-organizations">
       <CardContent className="overflow-x-auto p-0">
         <table className="w-full text-left text-sm" aria-label="Organizations">
           <thead className="text-xs uppercase text-muted-foreground"><tr><th className={cell}>Organization</th><th className={cell}>Status</th><th className={cell}>Members</th><th className={cell}>Deals (pre · diligence · post)</th><th className={cell}>AI tokens</th><th className={cell}>Flags</th><th className={cell}></th></tr></thead>
@@ -245,7 +245,7 @@ async function Users({ q, search }: { q: string; search: Search }) {
       {result.kind !== 'ok' ? (
         <ApiState result={result} />
       ) : (
-        <Card>
+        <Card section="admin-users">
           <CardContent className="p-0">
             <table className="w-full text-left text-sm" aria-label="Users">
               <thead className="text-xs uppercase text-muted-foreground"><tr><th className={cell}>Person</th><th className={cell}>Organization</th><th className={cell}>Role</th><th className={cell}>Status</th><th className={cell}></th></tr></thead>
@@ -303,7 +303,7 @@ async function Health({ search }: { search: Search }) {
       {connections.kind !== 'ok' ? (
         <ApiState result={connections} />
       ) : (
-        <Card>
+        <Card section="admin-health">
           <CardContent className="overflow-x-auto p-0">
             <table className="w-full text-left text-sm" aria-label="Connector health">
               <thead className="text-xs uppercase text-muted-foreground"><tr><th className={cell}>Organization</th><th className={cell}>Connection</th><th className={cell}>Last sync</th><th className={cell}>Last error</th></tr></thead>
@@ -380,7 +380,7 @@ async function Bugs({ status, severity, search }: { status: string; severity: st
         </select>
         <Button variant="outline" size="sm" type="submit">Filter</Button>
       </form>
-      <Card>
+      <Card section="admin-bugs">
         <CardContent className="p-0">
           <table className="w-full text-left text-sm" aria-label="Bug inbox">
             <thead className="text-xs uppercase text-muted-foreground"><tr><th className={cell}>Reference</th><th className={cell}>Title</th><th className={cell}>Severity</th><th className={cell}>Status</th><th className={cell}>Seen</th><th className={cell}>Organization</th></tr></thead>
@@ -413,7 +413,7 @@ async function PromoCodes({ search }: { search: Search }) {
   if (result.kind !== 'ok') return <ApiState result={result} />;
   return (
     <div className="flex flex-col gap-4">
-      <Card>
+      <Card section="admin-promo-codes">
         <CardContent className="p-4">
           <form action={createPromoCode} className="grid gap-3 text-sm sm:grid-cols-2" aria-label="Create a promo code">
             <label className="flex flex-col gap-1 font-medium">Code<input name="code" required pattern="[A-Za-z0-9-]{4,40}" placeholder="MF-LAUNCH-2026" className={`${field} uppercase`} /></label>
@@ -453,7 +453,7 @@ async function PromoCodes({ search }: { search: Search }) {
           </form>
         </CardContent>
       </Card>
-      <Card>
+      <Card section="admin-promo-codes">
         <CardContent className="overflow-x-auto p-0">
           <table className="w-full text-left text-sm" aria-label="Promo codes">
             <thead className="text-xs uppercase text-muted-foreground"><tr><th className="px-3 py-2">Code</th><th className="px-3 py-2">Gives</th><th className="px-3 py-2">Valid</th><th className="px-3 py-2">Used</th><th className="px-3 py-2">Sign-up</th><th className="px-3 py-2"></th></tr></thead>
@@ -501,7 +501,7 @@ async function Demos() {
   if (result.kind !== 'ok') return <ApiState result={result} />;
   return (
     <div className="flex flex-col gap-4">
-      <Card>
+      <Card section="admin-demos">
         <CardContent className="flex flex-col gap-2 p-4">
           <p className="text-sm text-muted-foreground">
             Lend a full demo (synthetic pacts on every tab) for a set time. The visitor opens a link, with no sign-in. Outward actions are off: invitations, e-signature, billing and
@@ -510,7 +510,7 @@ async function Demos() {
           <DemoShareForm />
         </CardContent>
       </Card>
-      <Card>
+      <Card section="admin-demos">
         <CardContent className="overflow-x-auto p-0">
           <table className="w-full text-left text-sm" aria-label="Demo pool">
             <thead className="text-xs uppercase tracking-wide text-muted-foreground">

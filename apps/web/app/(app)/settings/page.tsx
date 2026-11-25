@@ -9,6 +9,7 @@ import { currentRelease, releaseLabel } from '../../../lib/release';
 import { isOpen, STATUS_LABELS, statusBadge } from './bug-reports/_lib/status';
 import { setDefaultPersona } from './persona-actions';
 import { connectDocuSign, disconnectDocuSign } from './docusign-actions';
+import { DocumentSourcesCard } from './document-sources-card';
 import { SigningCard } from './signing-card';
 import { DevicesCard } from './devices-card';
 import { IcCard } from './ic-card';
@@ -45,7 +46,7 @@ async function DealStyleCard() {
   if (result.kind !== 'ok') return null;
   const { effective, canEdit, options, defaultPersona } = result.data;
   return (
-    <Card id="deal-style">
+    <Card id="deal-style" section="deal-style">
       <CardHeader>
         <CardTitle>Deal-making style</CardTitle>
         <CardDescription>
@@ -91,7 +92,7 @@ async function DocuSignCard() {
   if (result.kind !== 'ok' || !result.data.available) return null;
   const { connected, canEdit } = result.data;
   return (
-    <Card id="docusign">
+    <Card id="docusign" section="signing">
       <CardHeader>
         <CardTitle>E-signature (DocuSign)</CardTitle>
         <CardDescription>Agreed terms are sent for signature from your organization’s own DocuSign account. Pactlab never sends from an account of its own.</CardDescription>
@@ -129,7 +130,7 @@ async function BugsSubmittedCard() {
   const items = result.kind === 'ok' ? result.data.items : [];
   const open = items.filter((bug) => isOpen(bug.status)).length;
   return (
-    <Card>
+    <Card section="bugs">
       <CardHeader className="flex flex-row items-start justify-between gap-3">
         <div className="flex flex-col gap-1.5">
           <CardTitle className="flex items-center gap-2">
@@ -167,7 +168,7 @@ async function BugsSubmittedCard() {
 async function AboutCard() {
   const release = await currentRelease();
   return (
-    <Card>
+    <Card section="about">
       <CardHeader>
         <CardTitle>About Pactlab</CardTitle>
         <CardDescription>
@@ -182,6 +183,7 @@ async function AboutCard() {
 export default async function SettingsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const billingOutcome = (await searchParams)['billing'];
   const signingOutcome = (await searchParams)['signing'];
+  const outcome = (await searchParams)['outcome'];
   const brandOutcome = (await searchParams)['brand'];
   const brandSince = (await searchParams)['since'];
   const session = await getSessionContext();
@@ -202,7 +204,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
     <div className="flex flex-col gap-6">
       <PageHeader breadcrumbs={crumbs} title="Settings" description="Your profile, your organization and its controls." />
 
-      <Card>
+      <Card section="profile">
         <CardHeader>
           <CardTitle>Profile</CardTitle>
           <CardDescription>How you appear on reviews, approvals and the audit log.</CardDescription>
@@ -239,7 +241,9 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
 
       {organization ? <DocuSignCard /> : null}
 
-      <Card>
+      {organization && !session.guest ? <DocumentSourcesCard outcome={typeof outcome === 'string' && outcome.startsWith('document-source') ? outcome : undefined} /> : null}
+
+      <Card section="organization">
         <CardHeader>
           <CardTitle>Organization</CardTitle>
           <CardDescription>Deals, evidence and audit trails are kept separate for every organization.</CardDescription>
@@ -271,7 +275,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
       </Card>
 
       {admin || audit ? (
-        <Card>
+        <Card section="administration">
           <CardHeader>
             <CardTitle>Administration</CardTitle>
             <CardDescription>Available to organization owners and administrators.</CardDescription>
@@ -300,7 +304,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
 
       <AboutCard />
 
-      <Card>
+      <Card section="session">
         <CardHeader>
           <CardTitle>Session</CardTitle>
           <CardDescription>
@@ -322,7 +326,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
 /** The guided tour and "Why this matters" callouts on each pact (2026-11-13): on unless hidden here. */
 function GuideCard({ hidden }: { hidden: boolean }) {
   return (
-    <Card id="guide">
+    <Card id="guide" section="guide">
       <CardHeader>
         <CardTitle>Guided tour</CardTitle>
         <CardDescription>

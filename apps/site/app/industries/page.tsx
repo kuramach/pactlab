@@ -6,7 +6,7 @@ import { ModuleMark } from '../../components/icon';
 import { PageHero, Section } from '../../components/page-hero';
 import { StatusBadge } from '../../components/status-badge';
 import { INDUSTRY_STORIES, PUBLISHED_INDUSTRIES } from '../../lib/industry-stories';
-import { INDUSTRY_CORE, PILOT } from '../../lib/content';
+import { INDUSTRY_CORE, industryArt, PILOT } from '../../lib/content';
 import { pageMetadata } from '../../lib/seo';
 
 export const metadata: Metadata = pageMetadata({
@@ -34,7 +34,7 @@ export default function IndustriesPage() {
                 href={`/industries/${industry.slug}`}
                 className="group flex h-full flex-col overflow-hidden rounded-2xl border border-navy/10 bg-white transition-colors hover:border-indigo"
               >
-                <img src={`/illustrations/${industry.slug}.svg`} alt="" width={640} height={420} loading="lazy" className="h-auto w-full" />
+                <img src={industryArt(industry.slug)} alt={`${industry.name} illustration`} width={640} height={420} loading="lazy" className="aspect-[640/420] h-auto w-full object-cover" />
                 <div className="flex flex-1 flex-col gap-3 p-6">
                   <div className="flex items-start justify-between gap-3">
                     <ModuleMark name={industry.icon} />

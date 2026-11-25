@@ -153,6 +153,7 @@ enum ImportTarget {
   SYNDICATION_TRACK_RECORD
   REGULATORY_FOOTPRINT
   REMEDY_PACKAGE
+  FINANCIAL_PNL
 
   @@map("import_target")
 }
@@ -162,6 +163,8 @@ enum SourceUploadStatus {
   IMPORTED
   REJECTED
   PURGED
+  /// Withdrawn by a person with a reason (T-154): kept with its history; its data is voided.
+  WITHDRAWN
 
   @@map("source_upload_status")
 }
@@ -474,6 +477,8 @@ model Organization {
   syncRuns                 SyncRun[]
   evidenceItems            EvidenceItem[]
   evidenceEdges            EvidenceEdge[]
+  syncRunEvidence          SyncRunEvidence[]
+  evidenceVoids            EvidenceVoid[]
   citations                Citation[]
   findings                 Finding[]
   findingLinks             FindingEvidenceLink[]
@@ -597,6 +602,8 @@ model Deal {
   syncRuns                 SyncRun[]
   evidenceItems            EvidenceItem[]
   evidenceEdges            EvidenceEdge[]
+  syncRunEvidence          SyncRunEvidence[]
+  evidenceVoids            EvidenceVoid[]
   citations                Citation[]
   findings                 Finding[]
   findingLinks             FindingEvidenceLink[]
@@ -826,11 +833,12 @@ model SyncRun {
   startedAt        DateTime?     @map("started_at") @db.Timestamptz(3)
   completedAt      DateTime?     @map("completed_at") @db.Timestamptz(3)
 
-  organization       Organization   @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  deal               Deal           @relation(fields: [organizationId, dealId], references: [organizationId, id], onDelete: Restrict)
-  connection         Connection     @relation(fields: [organizationId, dealId, connectionId], references: [organizationId, dealId, id], onDelete: Restrict)
-  firstEvidenceItems EvidenceItem[] @relation("FirstSyncRun")
-  lastEvidenceItems  EvidenceItem[] @relation("LastSyncRun")
+  organization       Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  deal               Deal              @relation(fields: [organizationId, dealId], references: [organizationId, id], onDelete: Restrict)
+  connection         Connection        @relation(fields: [organizationId, dealId, connectionId], references: [organizationId, dealId, id], onDelete: Restrict)
+  firstEvidenceItems EvidenceItem[]    @relation("FirstSyncRun")
+  lastEvidenceItems  EvidenceItem[]    @relation("LastSyncRun")
+  evidenceLinks      SyncRunEvidence[]
 
   @@unique([organizationId, dealId, id])
   @@unique([organizationId, dealId, idempotencyKey])
@@ -869,12 +877,58 @@ model EvidenceItem {
   edgesFrom    EvidenceEdge[]        @relation("EdgeFrom")
   edgesTo      EvidenceEdge[]        @relation("EdgeTo")
   findingLinks FindingEvidenceLink[]
+  syncRunLinks SyncRunEvidence[]
+  voids        EvidenceVoid[]
 
   @@unique([organizationId, dealId, id])
   @@unique([organizationId, dealId, connectionId, sourceRecordId, contentHash])
   @@index([organizationId, dealId, evidenceType])
   @@index([organizationId, dealId, connectionId, sourceRecordId])
   @@map("evidence_items")
+}
+
+/// Which evidence items a sync run read (T-154): a record seen again by a later
+/// run is listed under both. A withdrawn import voids only what no active
+/// import still holds. Insert-only.
+model SyncRunEvidence {
+  organizationId String   @map("organization_id") @db.Uuid
+  dealId         String   @map("deal_id") @db.Uuid
+  syncRunId      String   @map("sync_run_id") @db.Uuid
+  evidenceItemId String   @map("evidence_item_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  deal         Deal         @relation(fields: [organizationId, dealId], references: [organizationId, id], onDelete: Restrict)
+  syncRun      SyncRun      @relation(fields: [organizationId, dealId, syncRunId], references: [organizationId, dealId, id], onDelete: Restrict)
+  evidenceItem EvidenceItem @relation(fields: [organizationId, dealId, evidenceItemId], references: [organizationId, dealId, id], onDelete: Restrict)
+
+  @@id([syncRunId, evidenceItemId])
+  @@index([organizationId, dealId, evidenceItemId])
+  @@map("sync_run_evidence")
+}
+
+/// Evidence voided by a withdrawn import (T-154, ADR 0039): kept in storage,
+/// excluded from every read path while `restoredAt` is null. A re-import that
+/// reads the same record again restores it, recorded here; the row is never deleted.
+model EvidenceVoid {
+  id                 String    @id @default(uuid(7)) @db.Uuid
+  organizationId     String    @map("organization_id") @db.Uuid
+  dealId             String    @map("deal_id") @db.Uuid
+  evidenceItemId     String    @map("evidence_item_id") @db.Uuid
+  sourceUploadId     String    @map("source_upload_id") @db.Uuid
+  voidedAt           DateTime  @default(now()) @map("voided_at") @db.Timestamptz(3)
+  voidedBy           String    @map("voided_by") @db.Uuid
+  restoredAt         DateTime? @map("restored_at") @db.Timestamptz(3)
+  restoredByUploadId String?   @map("restored_by_upload_id") @db.Uuid
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  deal         Deal         @relation(fields: [organizationId, dealId], references: [organizationId, id], onDelete: Restrict)
+  evidenceItem EvidenceItem @relation(fields: [organizationId, dealId, evidenceItemId], references: [organizationId, dealId, id], onDelete: Restrict)
+  sourceUpload SourceUpload @relation("UploadVoids", fields: [organizationId, dealId, sourceUploadId], references: [organizationId, dealId, id], onDelete: Restrict)
+
+  @@unique([organizationId, dealId, evidenceItemId, sourceUploadId])
+  @@index([organizationId, dealId, sourceUploadId])
+  @@map("evidence_voids")
 }
 
 /// Relational lineage between evidence items; traversed with recursive CTEs.
@@ -1218,22 +1272,30 @@ model Document {
 
 /// A data room or drive folder documents are read from (T-098, ADR 0016). Read-only. Buyer side.
 model DocumentSource {
-  id              String    @id @db.Uuid
-  organizationId  String    @map("organization_id") @db.Uuid
-  dealId          String    @map("deal_id") @db.Uuid
+  id                       String             @id @db.Uuid
+  organizationId           String             @map("organization_id") @db.Uuid
+  dealId                   String             @map("deal_id") @db.Uuid
   /// google-drive | onedrive | vdr
-  provider        String
+  provider                 String
   /// FIXTURE | LIVE
-  mode            String
-  displayName     String    @map("display_name")
-  config          Json
-  credentialRef   String?   @map("credential_ref")
+  mode                     String
+  displayName              String             @map("display_name")
+  config                   Json
+  credentialRef            String?            @map("credential_ref")
+  /// The organization's Google Drive or OneDrive OAuth connection this source reads with.
+  organizationConnectionId String?            @map("organization_connection_id") @db.Uuid
+  /// TOKEN (a pasted access token) | OAUTH (the person's own sign-in, refresh tokens under credential_ref).
+  credentialKind           String?            @map("credential_kind")
+  /// Who the source is signed in as (an email or sign-in name); never a token.
+  accountName              String?            @map("account_name")
+  /// SHARED for a seller's folder; BUYER_ONLY for the deal team's.
+  visibility               EvidenceVisibility @default(BUYER_ONLY)
   /// ACTIVE | DISABLED
-  status          String    @default("ACTIVE")
-  lastSyncedAt    DateTime? @map("last_synced_at") @db.Timestamptz(3)
-  lastSyncSummary Json?     @map("last_sync_summary")
-  createdBy       String    @map("created_by") @db.Uuid
-  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  status                   String             @default("ACTIVE")
+  lastSyncedAt             DateTime?          @map("last_synced_at") @db.Timestamptz(3)
+  lastSyncSummary          Json?              @map("last_sync_summary")
+  createdBy                String             @map("created_by") @db.Uuid
+  createdAt                DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   deal         Deal         @relation(fields: [organizationId, dealId], references: [organizationId, id], onDelete: Restrict, map: "document_sources_deal_fkey")
@@ -1531,21 +1593,27 @@ model SignupChallenge {
 /// standard invoice line. Imports run through the idempotent sync engine on
 /// a `billing_upload` connection; the mapping is kept for lineage.
 model SourceUpload {
-  id             String             @id @default(uuid(7)) @db.Uuid
-  organizationId String             @map("organization_id") @db.Uuid
-  dealId         String             @map("deal_id") @db.Uuid
-  connectionId   String?            @map("connection_id") @db.Uuid
-  target         ImportTarget
-  system         String
-  fileName       String             @map("file_name")
-  sha256         String             @db.Char(64)
-  sizeBytes      Int                @map("size_bytes")
-  rowCount       Int                @map("row_count")
-  header         Json
+  id                 String             @id @default(uuid(7)) @db.Uuid
+  organizationId     String             @map("organization_id") @db.Uuid
+  dealId             String             @map("deal_id") @db.Uuid
+  connectionId       String?            @map("connection_id") @db.Uuid
+  target             ImportTarget
+  system             String
+  fileName           String             @map("file_name")
+  sha256             String             @db.Char(64)
+  sizeBytes          Int                @map("size_bytes")
+  rowCount           Int                @map("row_count")
+  header             Json
   /// CSV | TSV | XLSX: how the stored original is read (T-075).
-  format         String             @default("CSV")
+  format             String             @default("CSV")
   /// Workbook sheet read, for XLSX uploads.
-  sheet          String?
+  sheet              String?
+  /// The header's row among the sheet's non-empty rows; null: the first row (the standard template).
+  headerRow          Int?               @map("header_row")
+  /// The mapping assistant's checked proposal (picks, reasons, questions); never a value from the file.
+  assist         Json?
+  /// What the person told the mapping assistant about the file (T-152): free text and row notes; steers mapping only.
+  guidance       Json?
   mapping        Json?
   mappingVersion String?            @map("mapping_version")
   objectKey      String?            @map("object_key")
@@ -1556,12 +1624,22 @@ model SourceUpload {
   createdAt      DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
   importedAt     DateTime?          @map("imported_at") @db.Timestamptz(3)
   purgedAt       DateTime?          @map("purged_at") @db.Timestamptz(3)
+  /// Withdrawal (T-154): who, when and why; all three or none.
+  withdrawnAt        DateTime?          @map("withdrawn_at") @db.Timestamptz(3)
+  withdrawnBy        String?            @map("withdrawn_by") @db.Uuid
+  withdrawalReason   String?            @map("withdrawal_reason")
+  /// The withdrawn import this one re-imports; at most one successor each.
+  supersedesUploadId String?            @map("supersedes_upload_id") @db.Uuid
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  deal         Deal         @relation(fields: [organizationId, dealId], references: [organizationId, id], onDelete: Restrict)
-  connection   Connection?  @relation(fields: [organizationId, dealId, connectionId], references: [organizationId, dealId, id], onDelete: Restrict)
+  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  deal         Deal           @relation(fields: [organizationId, dealId], references: [organizationId, id], onDelete: Restrict)
+  connection   Connection?    @relation(fields: [organizationId, dealId, connectionId], references: [organizationId, dealId, id], onDelete: Restrict)
+  supersedes   SourceUpload?  @relation("UploadLineage", fields: [organizationId, dealId, supersedesUploadId], references: [organizationId, dealId, id], onDelete: Restrict)
+  supersededBy SourceUpload?  @relation("UploadLineage")
+  voids        EvidenceVoid[] @relation("UploadVoids")
 
   @@unique([organizationId, dealId, id])
+  @@unique([organizationId, dealId, supersedesUploadId])
   @@index([organizationId, dealId, createdAt])
   @@map("source_uploads")
 }
@@ -3184,6 +3262,19 @@ model OrganizationBrandKit {
   updatedAt       DateTime  @default(now()) @map("updated_at") @db.Timestamptz(3)
 
   @@map("organization_brand_kits")
+}
+
+/// Which feature cards a person has dismissed and read (T-155): per user, by card version.
+/// The cards live in code (the API's registry); a new version comes back on its own.
+model UserFeatureCard {
+  userId           String   @map("user_id") @db.Uuid
+  cardId           String   @map("card_id")
+  dismissedVersion Int      @default(0) @map("dismissed_version")
+  readVersion      Int      @default(0) @map("read_version")
+  updatedAt        DateTime @default(now()) @map("updated_at") @db.Timestamptz(3)
+
+  @@id([userId, cardId])
+  @@map("user_feature_cards")
 }
 
 /// A buyer's financing plan on a pact (T-117, ADR 0033): the own side of a buyer-led pact (no bid),

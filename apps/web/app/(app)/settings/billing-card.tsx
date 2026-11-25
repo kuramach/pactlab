@@ -42,7 +42,7 @@ export async function BillingCard({ outcome }: { outcome?: string }) {
   );
   const message = outcome ? MESSAGES[outcome] : undefined;
   return (
-    <Card id="billing">
+    <Card id="billing" section="billing">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <CreditCard className="h-4 w-4" aria-hidden /> Billing
