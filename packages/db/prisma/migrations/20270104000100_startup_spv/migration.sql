@@ -96,7 +96,10 @@ CREATE FUNCTION app_current_investor_id(target_deal uuid) RETURNS uuid
        AND m.user_id = app_current_user_id() AND m.status = 'ACTIVE' AND m.role::text = 'INVESTOR'
      LIMIT 1
   $$;
--- The pacts where the caller is seated as an investor (evaluated once per query, not per row).
+-- The pacts where the caller is seated as an investor. `withTenant` reads it once per transaction into the
+-- `app.investor_deal_ids` setting; policies read the setting (app_current_investor_deal_ids, below), never this
+-- function: called per row it queries deal_memberships for every row checked, which made a 4,628-row import's
+-- results time out in e2e.
 CREATE FUNCTION app_investor_deal_ids() RETURNS uuid[]
   LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, public
   AS $$
@@ -104,6 +107,11 @@ CREATE FUNCTION app_investor_deal_ids() RETURNS uuid[]
      WHERE m.organization_id = app_current_organization_id()
        AND m.user_id = app_current_user_id() AND m.status = 'ACTIVE' AND m.role::text = 'INVESTOR'
   $$;
+-- The caller's investor pacts as set for this transaction (as app_current_deal_ids reads app.deal_ids): no table
+-- access, so the restrictive policies below cost nothing per row. Unset (ops, migrations): none.
+CREATE FUNCTION app_current_investor_deal_ids() RETURNS uuid[]
+  LANGUAGE sql STABLE PARALLEL SAFE
+  AS $$ SELECT coalesce(nullif(current_setting('app.investor_deal_ids', true), '')::uuid[], '{}'::uuid[]) $$;
 ALTER FUNCTION app_current_investor_id(uuid) OWNER TO pactlab_auth;
 ALTER FUNCTION app_investor_deal_ids() OWNER TO pactlab_auth;
 REVOKE ALL ON FUNCTION app_current_investor_id(uuid), app_investor_deal_ids() FROM PUBLIC;
@@ -246,10 +254,10 @@ CREATE POLICY investor_view_versions_investor_read ON investor_view_versions FOR
 -- 9. The wall around the pact's material: an investor reads none of its evidence, documents, pages,
 --    sources, uploads or import formats — not even what the startup shared with the organizer. A
 --    restrictive policy, so it narrows every existing policy rather than replacing any.
-CREATE POLICY connections_no_investors ON connections AS RESTRICTIVE FOR ALL TO pactlab_app USING (NOT (deal_id = ANY (app_investor_deal_ids())));
-CREATE POLICY evidence_items_no_investors ON evidence_items AS RESTRICTIVE FOR ALL TO pactlab_app USING (NOT (deal_id = ANY (app_investor_deal_ids())));
-CREATE POLICY documents_no_investors ON documents AS RESTRICTIVE FOR ALL TO pactlab_app USING (NOT (deal_id = ANY (app_investor_deal_ids())));
-CREATE POLICY document_pages_no_investors ON document_pages AS RESTRICTIVE FOR ALL TO pactlab_app USING (NOT (deal_id = ANY (app_investor_deal_ids())));
-CREATE POLICY document_sources_no_investors ON document_sources AS RESTRICTIVE FOR ALL TO pactlab_app USING (NOT (deal_id = ANY (app_investor_deal_ids())));
-CREATE POLICY source_uploads_no_investors ON source_uploads AS RESTRICTIVE FOR ALL TO pactlab_app USING (NOT (deal_id = ANY (app_investor_deal_ids())));
-CREATE POLICY import_formats_no_investors ON import_formats AS RESTRICTIVE FOR ALL TO pactlab_app USING (NOT (deal_id = ANY (app_investor_deal_ids())));
+CREATE POLICY connections_no_investors ON connections AS RESTRICTIVE FOR ALL TO pactlab_app USING (NOT (deal_id = ANY (app_current_investor_deal_ids())));
+CREATE POLICY evidence_items_no_investors ON evidence_items AS RESTRICTIVE FOR ALL TO pactlab_app USING (NOT (deal_id = ANY (app_current_investor_deal_ids())));
+CREATE POLICY documents_no_investors ON documents AS RESTRICTIVE FOR ALL TO pactlab_app USING (NOT (deal_id = ANY (app_current_investor_deal_ids())));
+CREATE POLICY document_pages_no_investors ON document_pages AS RESTRICTIVE FOR ALL TO pactlab_app USING (NOT (deal_id = ANY (app_current_investor_deal_ids())));
+CREATE POLICY document_sources_no_investors ON document_sources AS RESTRICTIVE FOR ALL TO pactlab_app USING (NOT (deal_id = ANY (app_current_investor_deal_ids())));
+CREATE POLICY source_uploads_no_investors ON source_uploads AS RESTRICTIVE FOR ALL TO pactlab_app USING (NOT (deal_id = ANY (app_current_investor_deal_ids())));
+CREATE POLICY import_formats_no_investors ON import_formats AS RESTRICTIVE FOR ALL TO pactlab_app USING (NOT (deal_id = ANY (app_current_investor_deal_ids())));

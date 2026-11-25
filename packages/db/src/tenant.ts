@@ -40,6 +40,8 @@ export async function withTenant<T>(
         'app.user_id': context.userId,
         'app.deal_ids': dealIdsLiteral(context.dealIds),
       });
+      // The caller's investor seats (T-141), read once here so the "no investors" policies only read a setting.
+      await tx.$executeRaw`SELECT set_config('app.investor_deal_ids', app_investor_deal_ids()::text, true)`;
       return fn(tx);
     },
     options?.timeoutMs ? { timeout: options.timeoutMs } : undefined,
