@@ -88,61 +88,81 @@ function MetricBlock({ dealId, metric, years, canEdit, aiEnabled, aiMissingReaso
         ) : null}
       </div>
 
-      {canEdit ? (
-        <ForecastLineEditor formId={formId} label={metric.label} years={years} neutral={metric.neutral} published={metric.external?.values ?? null} ai={metric.ai?.values ?? null} initial={yours} />
-      ) : metric.user ? (
-        <p className={cell}>Yours: {row(metric.user.values)}</p>
-      ) : (
-        <p className="text-xs text-muted-foreground">No forecast of your own yet.</p>
-      )}
-
-      <dl className="grid gap-1 text-xs sm:grid-cols-[7rem_1fr]">
-        <dt><Badge>Published</Badge></dt>
-        <dd className="text-muted-foreground">
-          {metric.external ? (
-            <>
-              <span className="font-mono">{row(metric.external.values)}</span> ·{' '}
-              <a href={metric.external.sourceUrl ?? undefined} target="_blank" rel="noreferrer" className="underline">
-                {metric.external.sourceName}
-              </a>
-            </>
+      {/* Yours and the AI's side by side on a wide screen, one above the other on a narrow one (Kumar, 2026-11-25). */}
+      <div className="grid gap-4 lg:grid-cols-2">
+        <div aria-label={`Yours: ${metric.label}`} role="group" className="flex min-w-0 flex-col gap-3 rounded-lg border border-teal/30 bg-teal/5 p-3">
+          <span className="flex items-center gap-1.5 text-sm font-semibold">
+            <HumanMark className="h-4 w-4" /> Yours
+          </span>
+          {canEdit ? (
+            <ForecastLineEditor formId={formId} label={metric.label} years={years} neutral={metric.neutral} published={metric.external?.values ?? null} ai={metric.ai?.values ?? null} initial={yours} />
+          ) : metric.user ? (
+            <p className={cell}>{row(metric.user.values)}</p>
           ) : (
-            'No published forecast for this metric.'
+            <p className="text-xs text-muted-foreground">No forecast of your own yet.</p>
           )}
-        </dd>
-        <dt><AiBadge /></dt>
-        <dd className="text-muted-foreground">
-          {metric.ai ? (
-            <>
-              <span className="font-mono">{row(metric.ai.values)}</span>
-              <details className="inline">
-                <summary className="ml-2 inline cursor-pointer underline">Why</summary> {metric.ai.rationale} ({metric.ai.modelId})
-              </details>
-            </>
-          ) : metric.custom && canEdit && aiEnabled ? (
-            <form action={forecastMetric.bind(null, dealId, metric.key)} className="inline">
-              <Button type="submit" size="sm" variant="outline">
-                Ask AI to forecast it
+          {canEdit ? (
+            <form id={formId} action={saveUserForecast.bind(null, dealId, metric.key)} className="flex flex-wrap items-center gap-3">
+              <Button type="submit" size="sm">
+                {metric.user ? `Save my line (v${metric.user.version + 1})` : 'Save my line'}
               </Button>
+              {metric.user ? (
+                <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <HumanMark className="h-3.5 w-3.5" /> v{metric.user.version} by {metric.user.createdByName ?? 'a team member'}
+                </span>
+              ) : null}
             </form>
-          ) : (
-            aiMissingReason
-          )}
-        </dd>
-      </dl>
-
-      {canEdit ? (
-        <form id={formId} action={saveUserForecast.bind(null, dealId, metric.key)} className="flex flex-wrap items-center gap-3">
-          <Button type="submit" size="sm">
-            {metric.user ? `Save my line (v${metric.user.version + 1})` : 'Save my line'}
-          </Button>
-          {metric.user ? (
-            <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <HumanMark className="h-3.5 w-3.5" /> v{metric.user.version} by {metric.user.createdByName ?? 'a team member'}
-            </span>
           ) : null}
-        </form>
-      ) : null}
+        </div>
+
+        <div aria-label={`AI: ${metric.label}`} role="group" className="flex min-w-0 flex-col gap-3 rounded-lg border border-indigo/30 bg-indigo/5 p-3">
+          <span className="flex items-center gap-1.5 text-sm font-semibold">
+            <AiBadge /> AI
+          </span>
+          <div className="text-xs text-muted-foreground">
+            {metric.ai ? (
+              <div className="flex flex-col gap-1.5">
+                <ul className="flex flex-col gap-0.5 font-mono tabular-nums text-foreground">
+                  {metric.ai.values.map((value, index) => (
+                    <li key={years[index]} className="flex justify-between gap-3 border-b border-border/60 py-0.5 last:border-b-0">
+                      <span>{years[index]}</span>
+                      <span>{pct(value)}</span>
+                    </li>
+                  ))}
+                </ul>
+                <details>
+                  <summary className="cursor-pointer underline">Why</summary> {metric.ai.rationale} ({metric.ai.modelId})
+                </details>
+              </div>
+            ) : metric.custom && canEdit && aiEnabled ? (
+              <form action={forecastMetric.bind(null, dealId, metric.key)} className="inline">
+                <Button type="submit" size="sm" variant="outline">
+                  Ask AI to forecast it
+                </Button>
+              </form>
+            ) : (
+              aiMissingReason
+            )}
+          </div>
+          <div className="flex flex-col gap-1 border-t border-indigo/20 pt-2 text-xs">
+            <span>
+              <Badge>Published</Badge>
+            </span>
+            <span className="text-muted-foreground">
+              {metric.external ? (
+                <>
+                  <span className="font-mono">{row(metric.external.values)}</span> ·{' '}
+                  <a href={metric.external.sourceUrl ?? undefined} target="_blank" rel="noreferrer" className="underline">
+                    {metric.external.sourceName}
+                  </a>
+                </>
+              ) : (
+                'No published forecast for this metric.'
+              )}
+            </span>
+          </div>
+        </div>
+      </div>
     </section>
   );
 }
