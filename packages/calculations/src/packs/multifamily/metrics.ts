@@ -16,7 +16,8 @@ export function multifamilyMetrics(input: PackMetricsInput): PackMetricsReport {
   const inspections = of(input.evidence, INSPECTION);
   const live = occupied(units);
   const ltl = lossToLease(units);
-  const missing = (what: string) => ({ value: null, unavailableReason: `Import the ${what}.` });
+  const missing = (what: string, needs: readonly string[]) => ({ value: null, unavailableReason: `Import the ${what}.`, needs });
+  const RENT_ROLL = ['MULTIFAMILY_RENT_ROLL'];
   const metrics: PackMetric[] = [
     {
       key: 'occupancy',
@@ -24,7 +25,7 @@ export function multifamilyMetrics(input: PackMetricsInput): PackMetricsReport {
       unit: 'RATIO',
       formula: 'Occupied units ÷ units on the rent roll',
       sourceCount: units.length,
-      ...(units.length ? { value: ratio(new D(live.length).div(units.length)) } : missing('rent roll')),
+      ...(units.length ? { value: ratio(new D(live.length).div(units.length)) } : missing('rent roll', RENT_ROLL)),
     },
     {
       key: 'units',
@@ -32,7 +33,7 @@ export function multifamilyMetrics(input: PackMetricsInput): PackMetricsReport {
       unit: 'COUNT',
       formula: 'Units on the rent roll',
       sourceCount: units.length,
-      ...(units.length ? { value: String(units.length) } : missing('rent roll')),
+      ...(units.length ? { value: String(units.length) } : missing('rent roll', RENT_ROLL)),
     },
     {
       key: 'annual_in_place_rent',
@@ -40,7 +41,7 @@ export function multifamilyMetrics(input: PackMetricsInput): PackMetricsReport {
       unit: 'MONEY',
       formula: 'Σ in-place monthly rent of occupied units × 12',
       sourceCount: live.length,
-      ...(units.length ? { value: cash(total(live, 'in_place_rent').times(12)) } : missing('rent roll')),
+      ...(units.length ? { value: cash(total(live, 'in_place_rent').times(12)) } : missing('rent roll', RENT_ROLL)),
     },
     {
       key: 'loss_to_lease',
@@ -48,7 +49,7 @@ export function multifamilyMetrics(input: PackMetricsInput): PackMetricsReport {
       unit: 'RATIO',
       formula: 'Σ(market − in-place rent) ÷ Σ market rent, occupied units',
       sourceCount: live.length,
-      ...(ltl ? { value: ratio(ltl.ratio) } : missing('rent roll with market rents')),
+      ...(ltl ? { value: ratio(ltl.ratio) } : missing('rent roll with market rents', RENT_ROLL)),
     },
     {
       key: 't12_noi',
@@ -56,7 +57,7 @@ export function multifamilyMetrics(input: PackMetricsInput): PackMetricsReport {
       unit: 'MONEY',
       formula: 'Σ net operating income over the trailing twelve months',
       sourceCount: months.length,
-      ...(months.length ? { value: cash(total(months, 'net_operating_income')) } : missing('T-12 operating statement')),
+      ...(months.length ? { value: cash(total(months, 'net_operating_income')) } : missing('T-12 operating statement', ['MULTIFAMILY_T12'])),
     },
     {
       key: 'delinquent_balance',
@@ -64,7 +65,7 @@ export function multifamilyMetrics(input: PackMetricsInput): PackMetricsReport {
       unit: 'MONEY',
       formula: 'Σ balance due on the delinquency report',
       sourceCount: delinquent.length,
-      ...(delinquent.length || units.length ? { value: cash(total(delinquent, 'balance_due')) } : missing('delinquency report')),
+      ...(delinquent.length || units.length ? { value: cash(total(delinquent, 'balance_due')) } : missing('delinquency report', ['MULTIFAMILY_DELINQUENCY'])),
     },
     {
       key: 'delinquent_units',
@@ -80,7 +81,7 @@ export function multifamilyMetrics(input: PackMetricsInput): PackMetricsReport {
       unit: 'MONEY',
       formula: 'Σ estimated repair cost from inspections ÷ units on the rent roll',
       sourceCount: inspections.length,
-      ...(inspections.length && units.length ? { value: cash(total(inspections, 'estimated_repair_cost').div(units.length)) } : missing('rent roll and unit inspections')),
+      ...(inspections.length && units.length ? { value: cash(total(inspections, 'estimated_repair_cost').div(units.length)) } : missing('rent roll and unit inspections', [...(units.length ? [] : RENT_ROLL), 'MULTIFAMILY_INSPECTION'])),
     },
   ];
   return { calculator: 'multifamily-metrics', version: MULTIFAMILY_METRICS_VERSION, currency: input.currency, metrics };

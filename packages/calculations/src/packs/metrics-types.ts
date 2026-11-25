@@ -15,6 +15,11 @@ export interface PackMetric {
   readonly formula: string;
   readonly sourceCount: number;
   readonly unavailableReason?: string;
+  /**
+   * The imports that would fill it in (import target ids), so a missing figure can be asked of the seller
+   * (Kumar, 2026-11-25: "if some data is needed, u need to ask the seller"). Absent when nothing is missing.
+   */
+  readonly needs?: readonly string[];
 }
 
 export interface PackMetricsReport {

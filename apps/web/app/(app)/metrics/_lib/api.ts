@@ -131,7 +131,7 @@ export interface PackMetricsView {
   calculator: string;
   version: string;
   currency: string;
-  metrics: { key: string; label: string; unit: 'MONEY' | 'RATIO' | 'COUNT'; value: string | null; formula: string; sourceCount: number; unavailableReason?: string }[];
+  metrics: { key: string; label: string; unit: 'MONEY' | 'RATIO' | 'COUNT'; value: string | null; formula: string; sourceCount: number; unavailableReason?: string; needs?: string[] }[];
 }
 
 export const metricsApi = {

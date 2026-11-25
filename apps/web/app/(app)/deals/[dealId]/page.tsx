@@ -22,6 +22,9 @@ import {
 import { BarChart, CHART_COLORS, DonutChart } from '../../_lib/charts';
 import Link from 'next/link';
 import { formatMoney } from '../../metrics/_lib/format';
+import { metricsApi } from '../../metrics/_lib/api';
+import type { DocumentRequestView } from './documents/requests-card';
+import { PropertyMetricsCard } from '../_lib/property-metrics';
 import { BASIS_LABELS, describeGap, type ScenarioView } from '../../valuation/_lib/view';
 import type { Finding } from '@pactlab/domain';
 import type { AnchorsView, BenchmarkView } from '@pactlab/contracts';
@@ -76,6 +79,11 @@ export default async function DealOverviewPage({
     apiGet<{ total: number }>(`/v1/deals/${dealId}/document-findings?status=DRAFT&limit=1`),
     apiGet<FinancingView>(`/v1/deals/${dealId}/financing`),
   ]);
+  // The pack's metrics on Home, and what has already been asked of the seller (Kumar, 2026-11-25). The buyer side only:
+  // the API refuses a counterparty, and the card is then left out.
+  const [packMetrics, requests] = await Promise.all([metricsApi.pack(dealId), apiGet<{ items: DocumentRequestView[] }>(`/v1/deals/${dealId}/document-requests`)]);
+  const requested = new Set(requests.kind === 'ok' ? requests.data.items.filter((request) => request.status === 'OPEN').flatMap((request) => request.items.filter((item) => !item.received).map((item) => item.id)) : []);
+  const hasSeller = viewer.members.some((member) => member.role === 'TARGET_CONTRIBUTOR' && member.status === 'ACTIVE');
   const scenarioItems = scenarios.kind === 'ok' ? scenarios.data.items : [];
   const pipeline = pipelineSteps(dealId, {
     documents: documentList.kind === 'ok' ? documentList.data.total : 0,
@@ -131,6 +139,7 @@ export default async function DealOverviewPage({
         </form>
       ) : null}
       <PipelineCard steps={pipeline} />
+      {packMetrics.kind === 'ok' ? <PropertyMetricsCard dealId={dealId} report={packMetrics.data} canAsk={can.draft(viewer.role) && hasSeller} requested={requested} /> : null}
       {/* Certainty of close (T-117): how the buyer funds the deal, as attested; the seller's first question. */}
       {financing.kind === 'ok' && financing.data.side && financing.data.plans.some((entry) => entry.tranches.length > 0 || entry.escrow) ? (
         <Card>

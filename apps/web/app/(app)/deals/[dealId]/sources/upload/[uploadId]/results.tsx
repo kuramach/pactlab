@@ -3,6 +3,8 @@ import type { TargetDefinition } from '@pactlab/domain';
 import Link from 'next/link';
 import { formatDecimal, formatMoney, formatRatio } from '../../../../../metrics/_lib/format';
 import type { MetricsSummaryView, PackMetricsView } from '../../../../../metrics/_lib/api';
+import { AskSellerButton } from '../../../../_lib/ask-seller';
+import { missingImports, needsLabel, requestNote } from '../../../../_lib/property-metrics';
 
 const count = new Intl.NumberFormat('en-US');
 const monthName = (period: string) => new Date(`${period}-01T00:00:00Z`).toLocaleString('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' });
@@ -15,6 +17,8 @@ export interface ShownMetric {
   readonly label: string;
   readonly value: string;
   readonly how: string;
+  /** The imports a missing figure needs (industry metrics only). */
+  readonly needs?: readonly string[];
 }
 
 /** The metrics this data feeds, as figures a person can read, each with how it was worked out. */
@@ -34,7 +38,8 @@ export function shownMetrics(results: Pick<ImportResultsView, 'metrics'>, subscr
       label: metric.label,
       value:
         metric.value === null ? '—' : metric.unit === 'MONEY' ? formatMoney({ amount: metric.value, currency: industry.currency }) : metric.unit === 'RATIO' ? formatRatio(metric.value) : formatDecimal(metric.value),
-      how: metric.value === null ? (metric.unavailableReason ?? 'Not enough data yet') : `${metric.formula} · ${count.format(metric.sourceCount)} records`,
+      how: metric.value === null ? (metric.needs?.length ? `Needs ${needsLabel(metric.needs)}.` : (metric.unavailableReason ?? 'Not enough data yet')) : `${metric.formula} · ${count.format(metric.sourceCount)} records`,
+      ...(metric.value === null && metric.needs?.length ? { needs: metric.needs } : {}),
     }));
   }
   return [];
@@ -55,6 +60,8 @@ export function ImportResults({
   canDelete,
   justImported,
   checked = false,
+  askSeller = false,
+  requested = new Set<string>(),
 }: {
   dealId: string;
   uploadId: string;
@@ -67,7 +74,12 @@ export function ImportResults({
   justImported: boolean;
   /** The pack's industry checks ran on the import (T-060). */
   checked?: boolean;
+  /** The buyer team with a seller on the pact: missing figures can be asked of the seller (Kumar, 2026-11-25). */
+  askSeller?: boolean;
+  /** Import ids already asked for in an open request. */
+  requested?: ReadonlySet<string>;
 }) {
+  const stillMissing = missingImports(metrics.map((metric) => ({ label: metric.label, value: metric.needs ? null : metric.value, needs: metric.needs }))).filter((entry) => !requested.has(entry.id));
   const { run } = results;
   const deleted = results.status === 'WITHDRAWN';
   return (
@@ -179,6 +191,20 @@ export function ImportResults({
           ) : (
             <p className="text-muted-foreground">The metrics are still being worked out; open Finances to see them.</p>
           )}
+          {!metricsHidden && stillMissing.length > 0 ? (
+            <div className="flex flex-wrap items-center gap-2 rounded-md border border-dashed border-amber/40 bg-amber/5 px-3 py-2">
+              <span>
+                Some figures still need {needsLabel(stillMissing.map((entry) => entry.id))}.
+              </span>
+              {askSeller ? (
+                <AskSellerButton dealId={dealId} items={stillMissing.map((entry) => entry.id)} note={stillMissing.map((entry) => requestNote([entry.id], entry.metrics)).join('\n')} label="Ask the seller for it" />
+              ) : (
+                <Link href={`/deals/${dealId}/sources/upload`} className="underline">
+                  Import it
+                </Link>
+              )}
+            </div>
+          ) : null}
         </div>
       ) : null}
 
