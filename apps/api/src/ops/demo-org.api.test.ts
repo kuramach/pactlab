@@ -26,7 +26,7 @@ describe('demo organization (batch 2)', () => {
   const demoData = generatedDemoData();
   const rows = async (sql: string, params: unknown[] = []) => ((await db.owner.query(sql, params)) as { rows: Row[] }).rows;
   const types = ['SOFTWARE_SAAS', 'MULTIFAMILY', 'VENTURE_RAISE', 'MULTIFAMILY_SYNDICATION', 'MUSIC_RIGHTS'] as const;
-  const run = (reset = false) => runDemoOrg(app as never, db.owner as never, db.prisma, { types, reset, data: demoData.source });
+  const run = (reset = false, only: readonly (typeof types)[number][] = types) => runDemoOrg(app as never, db.owner as never, db.prisma, { types: only, reset, data: demoData.source });
 
   beforeAll(async () => {
     db = await startTestDatabase();
@@ -177,10 +177,10 @@ describe('demo organization (batch 2)', () => {
     expect(await rows(`SELECT count(*)::int AS n FROM deals WHERE organization_id = $1`, [DEMO_ORG.id])).toEqual(before);
   });
 
-  // Seeds and resets four demo pacts end to end (T-106 added the syndication pact): ~75s locally, over 200s on
-  // CI's shared runners, so the limit has headroom rather than racing the runner.
+  // Deletes every demo pact, then seeds one pack again: the reset is what is under test (the full seed is covered
+  // above), so it stays well inside the limit as packs are added (it timed out on CI at five pacts).
   it('resets only the demo organization', { timeout: 300_000 }, async () => {
-    const report = await run(true);
+    const report = await run(true, ['SOFTWARE_SAAS']);
     expect(report[0]).toMatch(/^reset: \d+ demo pacts deleted$/);
     expect(await rows(`SELECT name FROM deals WHERE organization_id = $1 AND status = 'DELETED'`, [other.organizationId])).toEqual([]);
     expect((await rows(`SELECT 1 FROM deals WHERE organization_id = $1 AND status <> 'DELETED'`, [other.organizationId])).length).toBeGreaterThan(0);
