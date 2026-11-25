@@ -4,8 +4,10 @@ import { Badge, Button } from '@pactlab/ui';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { libraryHref } from './library-href';
+import { importTargetOf, TABLE_TYPES } from './spreadsheets';
+
+export { importTargetOf, TABLE_TYPES } from './spreadsheets';
 import { DOCUMENT_KINDS } from '@pactlab/contracts';
-import { IMPORT_TARGETS, type ImportTarget } from '@pactlab/domain';
 import { useState } from 'react';
 import { citationHref, visionLine, type DocumentListItem } from '../../../documents/_lib/view';
 import { classifyOne, extractOne, importDocument, readImagesAgain } from './actions';
@@ -31,16 +33,6 @@ const KIND: Readonly<Record<string, string>> = {
 };
 
 export const kindOf = (contentType: string) => KIND[contentType] ?? 'File';
-
-const TABLES = new Set(['text/csv', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']);
-
-/** What a filed spreadsheet can be imported as: its own import target, or a P&L for an income statement. */
-export function importTargetOf(row: Pick<LibraryRow, 'intake' | 'contentType' | 'status'>): ImportTarget | null {
-  const category = row.intake?.state === 'FILED' ? row.intake.category : null;
-  if (!category || row.status !== 'AVAILABLE' || !TABLES.has(row.contentType)) return null;
-  if (category === 'INCOME_STATEMENT') return 'FINANCIAL_PNL';
-  return (IMPORT_TARGETS as readonly string[]).includes(category) ? (category as ImportTarget) : null;
-}
 
 /** What intake made of the file (T-098), for the Category column. */
 export function categoryCell(row: Pick<LibraryRow, 'intake'>, labels: Readonly<Record<string, string>>): { label: string; tone: 'neutral' | 'reviewed' | 'draft'; title?: string } {
@@ -116,7 +108,8 @@ export function DocumentLibrary({
   };
 
   const rerun = async () => {
-    const ids = shown.filter((row) => selected.has(row.id) && !row.aiExcluded && row.status === 'AVAILABLE').map((row) => row.id);
+    // Spreadsheets are imported as data, not read as contracts (Kumar, 2026-11-25).
+    const ids = shown.filter((row) => selected.has(row.id) && !row.aiExcluded && row.status === 'AVAILABLE' && !TABLE_TYPES.has(row.contentType)).map((row) => row.id);
     let drafted = 0;
     const problems: string[] = [];
     for (const id of ids) {

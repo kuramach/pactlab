@@ -3,11 +3,7 @@ import type { CitableSource } from './context';
 import type { ModelProviderErrorKind } from './bedrock';
 import type { AiRunRecord, ClaudeGateway, GatewayInput } from './gateway';
 import type { ModelAlias } from './models';
-<<<<<<< HEAD
-import { contractExtractionPrompt, contractScrubPrompt, documentQaPrompt, documentUnderstandingPrompt, offeringExtractionPrompt, type ContractExtraction, type DocumentUnderstanding, type OfferingExtraction } from './prompts';
-=======
-import { contractExtractionPrompt, contractScrubPrompt, documentQaPrompt, musicExtractionPrompt, offeringExtractionPrompt, type ContractExtraction, type MusicExtraction, type OfferingExtraction } from './prompts';
->>>>>>> origin/main
+import { contractExtractionPrompt, contractScrubPrompt, documentQaPrompt, documentUnderstandingPrompt, musicExtractionPrompt, offeringExtractionPrompt, type ContractExtraction, type DocumentUnderstanding, type MusicExtraction, type OfferingExtraction } from './prompts';
 
 interface Scope {
   readonly organizationId: string;

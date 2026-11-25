@@ -146,9 +146,62 @@ export async function extractOne(dealId: string, documentId: string): Promise<Ex
   if (!uuid.safeParse(dealId).success || !uuid.safeParse(documentId).success) return { kind: 'error', message: 'Unknown document.' };
   const result = await apiSend<{ drafted: number }>('POST', `/v1/deals/${dealId}/documents/${documentId}/extractions`, {});
   if (result.kind === 'ok') return { kind: 'ok', drafted: result.data.drafted };
-  if (result.kind === 'invalid') return { kind: 'skipped', message: 'Kept away from AI — no drafts for this document.' };
+  if (result.kind === 'invalid') return { kind: 'skipped', message: result.code === 'TABLE_DOCUMENT' ? 'A spreadsheet: imported as data instead.' : 'Kept away from AI — no drafts for this document.' };
   if (result.kind === 'unavailable') return { kind: 'error', message: AI_UNAVAILABLE[aiOutcome(result.code)] };
   return { kind: 'error', message: 'AI extraction failed. Use “Re-run AI extraction” on the document to try again.' };
+}
+
+export interface CitedQuote {
+  documentId: string;
+  pageNumber: number;
+  quote: string;
+}
+
+/** How the AI read a document before extracting (Kumar, 2026-11-25), each part cited to its page. */
+export interface DocumentUnderstandingView {
+  documentType: string;
+  summary: string;
+  sections: { title: string; citations: CitedQuote[] }[];
+  willExtract: { kind: string; note: string; citations: CitedQuote[] }[];
+  questions: { question: string; citations: CitedQuote[] }[];
+}
+
+export type UnderstandResult = { kind: 'ok'; understanding: DocumentUnderstandingView } | { kind: 'error'; message: string };
+
+const TABLE_MESSAGE = 'This is a spreadsheet: Pactlab imports it as data instead, so its numbers feed the metrics. Use “Read this spreadsheet”.';
+
+/** Ask the AI to read a document and say how it is set up, before anything is drafted. */
+export async function understandOne(dealId: string, documentId: string): Promise<UnderstandResult> {
+  if (!uuid.safeParse(dealId).success || !uuid.safeParse(documentId).success) return { kind: 'error', message: 'Unknown document.' };
+  const result = await apiSend<{ understanding: DocumentUnderstandingView | null }>('POST', `/v1/deals/${dealId}/documents/${documentId}/understanding`, {});
+  if (result.kind === 'ok') return result.data.understanding ? { kind: 'ok', understanding: result.data.understanding } : { kind: 'error', message: 'The AI could not read this document this time. Try again, or extract straight away.' };
+  if (result.kind === 'invalid') return { kind: 'error', message: result.code === 'TABLE_DOCUMENT' ? TABLE_MESSAGE : 'Kept away from AI: nothing is read or drafted from this document.' };
+  if (result.kind === 'unavailable') return { kind: 'error', message: AI_UNAVAILABLE[aiOutcome(result.code)] };
+  if (result.kind === 'forbidden') return { kind: 'error', message: 'Your role cannot run AI extraction on this pact.' };
+  return { kind: 'error', message: 'The AI could not read this document this time. Try again.' };
+}
+
+export interface DraftView {
+  id: string;
+  kind: string;
+  subtype: string;
+  title: string;
+  summary: string;
+  severity: string;
+  citations: CitedQuote[];
+}
+
+export type GuidedExtractResult = { kind: 'ok'; drafted: number; duplicates: number; drafts: DraftView[] } | { kind: 'error'; message: string };
+
+/** Extract with the person's answers as guidance; returns what was drafted, for "What Pactlab picked up". */
+export async function extractWithGuidance(dealId: string, documentId: string, guidance: string): Promise<GuidedExtractResult> {
+  if (!uuid.safeParse(dealId).success || !uuid.safeParse(documentId).success) return { kind: 'error', message: 'Unknown document.' };
+  const text = guidance.trim().slice(0, 2000);
+  const result = await apiSend<{ drafted: number; duplicates: number; drafts: DraftView[] }>('POST', `/v1/deals/${dealId}/documents/${documentId}/extractions`, text ? { guidance: text } : {});
+  if (result.kind === 'ok') return { kind: 'ok', drafted: result.data.drafted, duplicates: result.data.duplicates, drafts: result.data.drafts };
+  if (result.kind === 'invalid') return { kind: 'error', message: result.code === 'TABLE_DOCUMENT' ? TABLE_MESSAGE : 'Kept away from AI: no drafts for this document.' };
+  if (result.kind === 'unavailable') return { kind: 'error', message: AI_UNAVAILABLE[aiOutcome(result.code)] };
+  return { kind: 'error', message: 'AI extraction failed. Try again.' };
 }
 
 /** Read a document's images again (T-121): after a failure, or a reading a restart stopped. */

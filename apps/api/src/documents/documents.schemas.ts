@@ -52,6 +52,10 @@ export const listDocumentsQuerySchema = pageQuerySchema
 export type ListDocumentsQuery = z.infer<typeof listDocumentsQuerySchema>;
 export type ListDocumentFindingsQuery = z.infer<typeof listFindingsQuerySchema>;
 
+/** Extraction's optional guidance: the person's answers to the reader's questions, in their own words (Kumar, 2026-11-25). */
+export const extractBodySchema = z.strictObject({ guidance: z.string().trim().max(2000).optional() });
+export type ExtractBody = z.infer<typeof extractBodySchema>;
+
 export const findingParamsSchema = z.strictObject({ dealId: z.uuid(), findingId: z.uuid() });
 
 export const reviewFindingBodySchema = z.strictObject({
