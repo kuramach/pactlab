@@ -83,7 +83,7 @@ export interface ScenarioView {
 }
 
 /**
- * Multifamily syndication, the sponsor's side (T-106, ADR 0038). The offering's terms and claims
+ * Multifamily syndication, the sponsor's side (T-106, ADR 0040). The offering's terms and claims
  * are read from the PPM, operating agreement and deck by AI (`offering.extract`) as PROPOSED
  * items with exact quotes; the sponsor confirms, corrects or rejects each. Only confirmed items
  * feed the deterministic waterfall (`syndication-waterfall-1`) and the offering checks, whose
@@ -184,7 +184,7 @@ export class SyndicationService {
           exitCapRate: new D(cap).dividedBy(100),
           sellingCosts: new D(offering.sellingCostsPct.toString()).dividedBy(100),
         });
-        return { scenario, noiGrowthPct: plain(new D(growth))!, exitCapPct: plain(new D(cap))!, result, error: null };
+        return { scenario, noiGrowthPct: plain(new D(growth)) ?? growth, exitCapPct: plain(new D(cap)) ?? cap, result, error: null };
       } catch (error) {
         if (error instanceof WaterfallError) return { scenario, noiGrowthPct: growth, exitCapPct: cap, result: null, error: error.message };
         throw error;
@@ -204,8 +204,8 @@ export class SyndicationService {
     const t12Noi = t12.length ? t12.reduce((total, row) => total.plus(row.canonical['net_operating_income'] ?? '0'), new D(0)) : null;
     const items = this.checkItems(rows);
     const waterfall = this.scenarios(offering, items, t12Noi);
-    const base = waterfall.views.find((view) => view.scenario === 'BASE')!;
-    const checks = offeringChecks({ items, base: base.result, baseUnavailable: base.error, evidence: evidence.filter((row) => row.evidenceType !== T12) });
+    const base = waterfall.views.find((view) => view.scenario === 'BASE');
+    const checks = offeringChecks({ items, base: base?.result ?? null, baseUnavailable: base ? base.error : 'No base case', evidence: evidence.filter((row) => row.evidenceType !== T12) });
     return { offering, rows, evidence, items, waterfall, checks };
   }
 

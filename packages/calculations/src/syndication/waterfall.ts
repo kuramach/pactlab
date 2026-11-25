@@ -132,8 +132,8 @@ function validate(terms: WaterfallTerms, path: PropertyPath): void {
     if (!fraction(tier.gpShare)) throw new WaterfallError('INVALID_TERMS', 'A sponsor share must be from 0 up to 1');
     const last = index === terms.tiers.length - 1;
     if (last !== (tier.hurdle === null)) throw new WaterfallError('INVALID_TERMS', 'Only the last promote tier has no hurdle');
-    const floor = index === 0 ? terms.prefRate : terms.tiers[index - 1]!.hurdle!;
-    if (tier.hurdle && tier.hurdle.lte(floor)) throw new WaterfallError('INVALID_TERMS', 'Promote hurdles must rise above the preferred return');
+    const floor = index === 0 ? terms.prefRate : terms.tiers[index - 1]?.hurdle;
+    if (tier.hurdle && floor && tier.hurdle.lte(floor)) throw new WaterfallError('INVALID_TERMS', 'Promote hurdles must rise above the preferred return');
   });
   if (!Number.isInteger(path.holdYears) || path.holdYears < 1 || path.holdYears > 30) throw new WaterfallError('INVALID_PATH', 'Hold must be 1 to 30 whole years');
   if (path.purchasePrice.lte(0) || path.equity.lte(0) || path.loanAmount.lt(0) || path.loanAmount.gte(path.purchasePrice))
@@ -153,7 +153,7 @@ function distribute(cash: Dec, balances: Dec[], terms: WaterfallTerms): { lp: De
   let lp = ZERO;
   let gp = ZERO;
   // Tier 0: everything to the partners up to the preferred return.
-  const toPref = Decimal.min(rest, Decimal.max(ZERO, balances[0]!));
+  const toPref = Decimal.min(rest, Decimal.max(ZERO, balances[0] ?? ZERO));
   lp = lp.plus(toPref);
   rest = rest.minus(toPref);
   terms.tiers.forEach((tier, index) => {
@@ -161,14 +161,14 @@ function distribute(cash: Dec, balances: Dec[], terms: WaterfallTerms): { lp: De
     const lpShare = ONE.minus(tier.gpShare);
     let slice = rest;
     if (tier.hurdle !== null) {
-      const need = Decimal.max(ZERO, balances[index + 1]!.minus(lp));
+      const need = Decimal.max(ZERO, (balances[index + 1] ?? ZERO).minus(lp));
       slice = Decimal.min(rest, need.dividedBy(lpShare));
     }
     lp = lp.plus(slice.times(lpShare));
     gp = gp.plus(slice.times(tier.gpShare));
     rest = rest.minus(slice);
   });
-  for (let k = 0; k < balances.length; k += 1) balances[k] = balances[k]!.minus(lp);
+  balances.forEach((balance, k) => (balances[k] = balance.minus(lp)));
   return { lp, gp };
 }
 
@@ -206,7 +206,7 @@ export function runWaterfall(terms: WaterfallTerms, path: PropertyPath): Waterfa
   let operatingToLp = ZERO;
   let promote = ZERO;
   for (let year = 1; year <= path.holdYears; year += 1) {
-    hurdles.forEach((rate, k) => (balances[k] = balances[k]!.times(ONE.plus(rate))));
+    balances.forEach((balance, k) => (balances[k] = balance.times(ONE.plus(hurdles[k] ?? ZERO))));
     const noi = path.noiYear1.times(ONE.plus(path.noiGrowth).pow(year - 1));
     const cash = noi.minus(debtService).minus(amFee);
     let paid = { lp: ZERO, gp: ZERO };
@@ -223,7 +223,7 @@ export function runWaterfall(terms: WaterfallTerms, path: PropertyPath): Waterfa
   const dispositionFee = salePrice.times(terms.dispositionFee);
   const net = Decimal.max(ZERO, salePrice.minus(sellingCosts).minus(dispositionFee).minus(path.loanAmount).plus(reserves));
   const sale = distribute(net, balances, terms);
-  flows[flows.length - 1] = flows[flows.length - 1]!.plus(sale.lp);
+  flows.push((flows.pop() ?? ZERO).plus(sale.lp));
   promote = promote.plus(sale.gp);
   const distributed = flows.slice(1).reduce((total, flow) => total.plus(flow), ZERO);
   const rate = irr(flows);

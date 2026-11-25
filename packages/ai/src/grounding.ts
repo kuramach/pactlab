@@ -239,7 +239,9 @@ export async function extractOfferingItems(
       dropped.push({ kind: item.kind, reasons: ['FIGURE_NOT_IN_QUOTE'] });
       continue;
     }
-    items.push({ kind: item.kind, label: item.label, value: item.value, hurdle: item.hurdle, citation: citations[0]! });
+    const [citation] = citations;
+    if (!citation) continue;
+    items.push({ kind: item.kind, label: item.label, value: item.value, hurdle: item.hurdle, citation });
   }
   return { run: response.run, items, rejected: dropped, providerError: null };
 }

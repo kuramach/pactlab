@@ -401,6 +401,40 @@ export const INDUSTRY_STORIES: Readonly<Record<string, IndustryStory>> = {
       { q: 'Does it give legal or financial advice?', a: 'No. It shows the mechanics and consequences of each term and the evidence behind each finding. Decisions stay with you and your advisers.' },
     ],
   },
+  'multifamily-syndication': {
+    headline: 'Test the offering against the property and the agreement.',
+    subhead:
+      'A syndication is two deals at once: the property the sponsor buys and the offering investors buy into. Pactlab diligences the property with the Multifamily pack, reads the PPM and operating agreement, recomputes the waterfall and checks every claim against its evidence.',
+    illustrationAlt: 'Illustration of an apartment community, an offering memorandum and a distribution waterfall.',
+    pains: [
+      { icon: 'ChartLine', title: 'A projected IRR the waterfall cannot reach', body: 'The deck states a return; the operating agreement’s own terms, on the property’s own income, produce another.' },
+      { icon: 'Receipt', title: 'Fees that only the agreement mentions', body: 'A fee in the operating agreement that the PPM summary leaves out changes what investors keep.' },
+      { icon: 'History', title: 'Track-record claims with nothing behind them', body: 'A prior deal described in the deck with no actual returns on file is a claim, not a record.' },
+    ],
+    walkthrough: [
+      { step: 'Evidence', text: 'The rent roll, T-12 and inspections run through the Multifamily pack; the PPM, operating agreement, deck and the sponsor’s prior-deal records are read with their source.' },
+      { step: 'Finding', text: 'Fees, the preferred return and promote tiers are proposed from the documents with exact quotes. The waterfall is recomputed from the confirmed terms, and every mismatch is drafted as a finding.' },
+      { step: 'Review', text: 'The sponsor confirms or corrects each extracted term; a reviewer accepts the findings and settles each claim as verified, contradicted or unverified.' },
+      { step: 'Valuation', text: 'The property is priced on NOI and cap rate. Investor returns after pref and promote run on downside, base and upside paths, labelled as scenarios from stated assumptions.' },
+      { step: 'Deal terms', text: 'Offering defects are corrected in the documents before investors see them; property findings carry into the price and terms with the seller, behind the wall.' },
+    ],
+    findings: [
+      { title: 'Projected IRR above the recomputed waterfall', severity: 'High', evidence: 'Operating agreement terms on the T-12 income path', term: 'Correct the PPM and deck before the raise' },
+      { title: 'Operating-agreement fee missing from the PPM', severity: 'High', evidence: 'The agreement’s fee clause against the PPM fee summary', term: 'Disclose the fee in the PPM' },
+      { title: 'Prior-deal claim with no actuals', severity: 'Medium', evidence: 'The deck’s track-record statement against the prior-deal records', term: 'Unverified claim until actuals are supplied' },
+    ],
+    deliverables: [
+      { icon: 'ListChecks', title: 'An offering claims register', body: 'Every material claim with its evidence and status.' },
+      { icon: 'Calculator', title: 'A waterfall check', body: 'Stated against recomputed returns, with the conventions written out.' },
+      { icon: 'ClipboardList', title: 'A track-record table', body: 'Prior deals, projected against actual, with absence shown as absence.' },
+    ],
+    faq: [
+      { q: 'How is this different from the Multifamily pack?', a: 'The Multifamily pack is a two-party sale. A syndication adds the raise: the sponsor diligences the property, and the offering is diligenced against the property, the operating agreement and the sponsor’s record. The property checks are the Multifamily pack’s, unchanged.' },
+      { q: 'Does Pactlab verify accreditation?', a: 'No. Pactlab makes no accreditation determination. It tracks each investor’s status and the evidence pointer from the specialist who verified it.' },
+      { q: 'Is this legal advice or a securities offering service?', a: 'No. It is diligence support: it organises evidence and flags gaps for the parties and their counsel. It performs no securities-offering or broker-dealer function.' },
+      { q: 'Can the seller see the raise?', a: 'No. The offering is the sponsor’s own side of the pact. The seller never sees the raise, and investors never see the acquisition negotiation.' },
+    ],
+  },
   'small-clinics': {
     headline: 'In a clinic roll-up, revenue follows the providers.',
     subhead:

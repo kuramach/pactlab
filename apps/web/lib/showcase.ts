@@ -94,6 +94,11 @@ export const SHOWCASE: Readonly<Record<string, ShowcaseEntry>> = {
     why: 'Competing offers modelled side by side: dilution, preferences and terms explained as consequences, plus a clean view to share with investors.',
     lookFor: ['Three offers compared', 'The round model for each', 'The investor view: verified facts only'],
   },
+  '/syndication': {
+    title: 'The offering, checked against its own documents',
+    why: 'Fees, the preferred return and the promote read from the PPM and operating agreement, confirmed by you, and the waterfall recomputed. Diligence support, not legal advice.',
+    lookFor: ['Projected returns against the recomputed waterfall', 'Track-record claims against prior-deal actuals', 'Fees in the agreement missing from the PPM'],
+  },
   '/valuation': {
     title: 'Sextant: what to pay, and why',
     why: 'Scenarios from stored inputs, accepted risks priced in, comparables and negotiation anchors: a price you can defend line by line.',

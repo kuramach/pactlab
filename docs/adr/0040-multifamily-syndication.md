@@ -1,4 +1,4 @@
-# ADR 0038: Multifamily syndication: a sponsor-side pack, offering extraction the sponsor confirms, and a wall between the two sides (T-106)
+# ADR 0040: Multifamily syndication: a sponsor-side pack, offering extraction the sponsor confirms, and a wall between the two sides (T-106)
 
 **Status:** accepted (Kumar, 2026-11-06 and 2026-11-09; scope widened 2026-11-20). PR 1 of 3: the sponsor's side.
 
@@ -34,9 +34,9 @@
 
 ## Still to come (planned, same task)
 - **PR 2, investors:** a new deal role `INVESTOR` with `syndication_investors` rows (the BIDDER/`bid_id` pattern of ADR 0015, `app_current_investor_id`), investors invisible to each other; accreditation status per investor (self-certified, third-party verified, pending, not accredited, plus a provider link and an evidence pointer; Pactlab verifies nothing); a published, frozen **investor view** built from an allow-list (the property findings the sponsor publishes, the claims register, the track record, the waterfall check, the return scenarios), which can never carry the price position, persona runs, the confirmed-value ledger, terms or the negotiation brief; wall snapshot tests both ways; planted defect (d).
-- **PR 3:** the site's industry page, written as available, and release in `RELEASED_COMPANY_TYPES` and `RELEASED_INDUSTRY_SLUGS`.
+- **Release (after PR 2):** the site's industry page is written (preview environments only); release adds the pack to `RELEASED_COMPANY_TYPES` and `RELEASED_INDUSTRY_SLUGS`.
 
 ## Consequences
 - The pack is visible in preview environments (dev, qa, local) and not on stage or live until released.
 - Demo data: `pactlab-demo-data/multifamily-syndication/{USD,EUR,GBP}` (Ashgrove Residential, Briarwood Commons, 204 units) with planted defects (a) to (c); the demo organization builds a syndication pact whose offering documents are never shared with the seller.
-- **Migration** `20261227000000_multifamily_syndication` is expand-only: two enum values and two tables. Rollback: drop both tables; the enum values stay unused.
+- **Migration** `20261231000000_multifamily_syndication` is expand-only: two enum values and two tables. Rollback: drop both tables; the enum values stay unused.

@@ -1,5 +1,5 @@
 /**
- * Multifamily syndication (T-106, ADR 0038): a sponsor buys a property and raises the equity
+ * Multifamily syndication (T-106, ADR 0040): a sponsor buys a property and raises the equity
  * from accredited investors. This file is the registry of what the offering documents say —
  * every fee, distribution term and claim the extraction may propose, the documents each comes
  * from, and how a person confirms it. Pactlab organises evidence and flags gaps for the sponsor

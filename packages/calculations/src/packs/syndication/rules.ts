@@ -70,7 +70,7 @@ export interface OfferingCheckItem {
 
 const FEE_KINDS = ['ACQUISITION_FEE', 'ASSET_MANAGEMENT_FEE', 'DISPOSITION_FEE', 'OTHER_FEE'] as const;
 const FEE_LABELS: Record<string, string> = { ACQUISITION_FEE: 'acquisition fee', ASSET_MANAGEMENT_FEE: 'asset-management fee', DISPOSITION_FEE: 'disposition fee' };
-const feeName = (item: OfferingCheckItem) => (item.kind === 'OTHER_FEE' ? (item.label ?? 'other fee').toLowerCase() : FEE_LABELS[item.kind]!);
+const feeName = (item: OfferingCheckItem) => (item.kind === 'OTHER_FEE' ? (item.label ?? 'other fee').toLowerCase() : FEE_LABELS[item.kind] ?? item.kind.toLowerCase());
 const feeKey = (item: OfferingCheckItem) => (item.kind === 'OTHER_FEE' ? `OTHER:${normalize(item.label ?? '')}` : item.kind);
 const quoteOf = (item: OfferingCheckItem): PackRuleQuote => ({ documentId: item.documentId, pageNumber: item.pageNumber, quote: item.quote });
 const num = (value: string | null | undefined) => parseDecimal(value ?? null);
@@ -84,19 +84,22 @@ export function waterfallTermsFrom(items: readonly OfferingCheckItem[]): { terms
   const one = (kind: string) => num(oa.find((item) => item.kind === kind)?.value ?? null);
   const pref = one('PREFERRED_RETURN');
   const tiers = oa
-    .filter((item) => item.kind === 'PROMOTE_TIER' && num(item.value) !== null)
-    .map((item) => ({ hurdle: num(item.hurdle), gpShare: num(item.value)! }))
+    .filter((item) => item.kind === 'PROMOTE_TIER')
+    .flatMap((item) => {
+      const gpShare = num(item.value);
+      return gpShare === null ? [] : [{ hurdle: num(item.hurdle), gpShare }];
+    })
     .sort((a, b) => (a.hurdle === null ? 1 : b.hurdle === null ? -1 : a.hurdle.comparedTo(b.hurdle)));
-  const missing = [...(pref === null ? ['the preferred return'] : []), ...(tiers.length === 0 || tiers[tiers.length - 1]!.hurdle !== null ? ['a final promote split with no hurdle'] : [])];
+  const missing = [...(pref === null ? ['the preferred return'] : []), ...((tiers.at(-1) === undefined || tiers.at(-1)?.hurdle !== null) ? ['a final promote split with no hurdle'] : [])];
   const unmodelled = [
     ...(oa.some((item) => item.kind === 'CATCH_UP') ? ['a sponsor catch-up'] : []),
     // Other fees have no fixed basis the model can apply; they are named, never silently dropped.
     ...oa.filter((item) => item.kind === 'OTHER_FEE').map((item) => `the ${feeName(item)}`),
   ];
-  if (missing.length > 0) return { terms: null, missing, unmodelled };
+  if (missing.length > 0 || pref === null) return { terms: null, missing, unmodelled };
   return {
     terms: {
-      prefRate: percent(pref!),
+      prefRate: percent(pref),
       tiers: tiers.map((tier) => ({ hurdle: tier.hurdle === null ? null : percent(tier.hurdle), gpShare: percent(tier.gpShare) })),
       acquisitionFee: percent(one('ACQUISITION_FEE') ?? new D(0)),
       assetManagementFee: percent(one('ASSET_MANAGEMENT_FEE') ?? new D(0)),
@@ -207,13 +210,14 @@ export function offeringChecks(input: OfferingCheckInput): { proposals: PackRule
       continue;
     }
     const key = `track-record:${name || item.id}`;
-    const contradicted = row !== undefined && actual !== null && stated !== null;
+    const contradiction = row !== undefined && actual !== null && stated !== null ? { actual, stated } : null;
+    const contradicted = contradiction !== null;
     proposals.push({
       key,
       domain: 'COMMERCIAL',
       title: contradicted ? `Track-record claim contradicted: ${item.label}` : `Track-record claim with no actuals behind it: ${item.label ?? 'a prior deal'}`,
       description: contradicted
-        ? `The ${SOURCE_NAME[item.source]} says ${item.label} delivered ${stated!.toFixed()}%; the track record documents ${actual!.toFixed()}%.`
+        ? `The ${SOURCE_NAME[item.source]} says ${item.label} delivered ${contradiction?.stated.toFixed()}%; the track record documents ${contradiction?.actual.toFixed()}%.`
         : `The ${SOURCE_NAME[item.source]} says ${item.label ?? 'a prior deal'} delivered ${item.value ?? 'a stated'}% to investors, but ${row ? 'the track record has no actual return for that deal' : 'the track record does not list that deal'}. Shown as unverified until the sponsor supplies the actuals (distribution statements or K-1 summaries).`,
       severity: 'MEDIUM',
       confidence: 'HIGH',
@@ -226,7 +230,7 @@ export function offeringChecks(input: OfferingCheckInput): { proposals: PackRule
       itemId: item.id,
       statement: statementOf(item),
       status: contradicted ? 'CONTRADICTED' : 'UNVERIFIED',
-      rationale: contradicted ? `The track record documents ${actual!.toFixed()}%.` : row ? 'The track record lists the deal with no actual return.' : 'The deal is not in the track record.',
+      rationale: contradiction ? `The track record documents ${contradiction.actual.toFixed()}%.` : row ? 'The track record lists the deal with no actual return.' : 'The deal is not in the track record.',
       proposalKey: key,
       evidenceIds: row ? [row.id] : [],
     });
@@ -306,12 +310,13 @@ export function offeringChecks(input: OfferingCheckInput): { proposals: PackRule
   // 6. The PPM's description of the waterfall against the operating agreement's math.
   const prefOf = (source: OfferingCheckItem['source']) => items.find((item) => item.source === source && item.kind === 'PREFERRED_RETURN');
   const [oaPref, ppmPref] = [prefOf('OPERATING_AGREEMENT'), prefOf('PPM')];
-  if (oaPref && ppmPref && num(oaPref.value) && num(ppmPref.value) && !num(oaPref.value)!.eq(num(ppmPref.value)!))
+  const [oaPrefRate, ppmPrefRate] = [num(oaPref?.value), num(ppmPref?.value)];
+  if (oaPref && ppmPref && oaPrefRate && ppmPrefRate && !oaPrefRate.eq(ppmPrefRate))
     proposals.push({
       key: 'pref-mismatch',
       domain: 'LEGAL',
       title: 'Preferred return described differently in the PPM',
-      description: `The operating agreement sets a ${num(oaPref.value)!.toFixed()}% preferred return; the PPM describes ${num(ppmPref.value)!.toFixed()}%.`,
+      description: `The operating agreement sets a ${oaPrefRate.toFixed()}% preferred return; the PPM describes ${ppmPrefRate.toFixed()}%.`,
       severity: 'HIGH',
       confidence: 'HIGH',
       direction: 0,

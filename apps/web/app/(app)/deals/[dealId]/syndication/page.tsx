@@ -74,9 +74,9 @@ const OUTCOMES: Record<string, string> = {
 };
 const outcomeMessage = (outcome: string | undefined): Record<string, string> => {
   const read = outcome?.match(/^ok-read-(\d+)-(\d+)$/);
-  if (read) return { [outcome!]: `Read. ${read[1]} new item${read[1] === '1' ? '' : 's'} to confirm${read[2] !== '0' ? `; ${read[2]} dropped because the figure or quote was not on the page` : ''}.` };
+  if (read) return { [read[0]]: `Read. ${read[1]} new item${read[1] === '1' ? '' : 's'} to confirm${read[2] !== '0' ? `; ${read[2]} dropped because the figure or quote was not on the page` : ''}.` };
   const checks = outcome?.match(/^ok-checks-(\d+)$/);
-  if (checks) return { [outcome!]: `Checks ran. ${checks[1]} new draft${checks[1] === '1' ? '' : 's'} on Findings; claim outcomes are on Seller statements. A person decides each one.` };
+  if (checks) return { [checks[0]]: `Checks ran. ${checks[1]} new draft${checks[1] === '1' ? '' : 's'} on Findings; claim outcomes are on Seller statements. A person decides each one.` };
   return OUTCOMES;
 };
 const CLAIM_TONE = { VERIFIED: 'reviewed', CONTRADICTED: 'danger', UNVERIFIED: 'draft' } as const;

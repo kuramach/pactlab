@@ -1530,7 +1530,7 @@ Five further packs in two clusters. Hotels, multifamily and commercial property 
 - **The investor view** (`GET …/venture/investor-view?offerId=`) is the only outward surface: company and round basics, that investor's own terms, VERIFIED claims, billed revenue, the cap table by holder type and the data room as the checklist sees it. It never carries a finding of any direction, an unverified or contradicted claim, another investor's bid, or cash and runway; every read is audited.
 - **Fixtures and acceptance:** `pactlab-demo-data/venture-raise/{USD,EUR,GBP}` (Loopwise, a fictional seed-stage SaaS) — six planted findings surface once, deck metrics become contradicted claims, two competing offers compare with the pool shuffle stated, readiness differs by investor type and the investor view carries nothing confidential (`apps/api/src/packs/venture.acceptance.api.test.ts`).
 
-**13. Multifamily syndication (sponsor-side; T-106, ADR 0038)**
+**13. Multifamily syndication (sponsor-side; T-106, ADR 0040)**
 
 - **The deal.** A sponsor buys a large multifamily property and raises the equity from accredited investors. One pact, two walled directions: the acquisition side (sponsor ↔ seller) uses the Multifamily pack unchanged; the offering side (sponsor ↔ investors) diligences the sponsor and the offering. The seller never sees the raise; investors never see the acquisition negotiation. The sponsor opens a buyer-led pact; the pack is the seller's company type, `MULTIFAMILY_SYNDICATION`.
 - **By reference.** Multifamily's import targets, metrics (`multifamily-metrics-1`), rules and methods (`NOI_CAP_RATE`, DCF) apply through the registry, never copied.
