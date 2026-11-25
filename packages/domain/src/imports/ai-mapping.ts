@@ -330,15 +330,19 @@ export interface MappingProposal {
 }
 
 export interface AssistPick {
-  /** GUIDED: the pick follows what the person told the assistant (T-152); AI: inferred; NAME: matched by header name. */
-  readonly by: 'AI' | 'NAME' | 'GUIDED';
+  /**
+   * GUIDED: the pick follows what the person told the assistant (T-152); AI: inferred; NAME: matched by header name;
+   * FORMAT: as confirmed on an earlier file with the same layout (ADR 0042).
+   */
+  readonly by: 'AI' | 'NAME' | 'GUIDED' | 'FORMAT';
   readonly confidence: number | null;
   readonly reason: string | null;
 }
 
 /** The assisted mapping: what is filled in, why, and what a person must answer before import. */
 export interface AssistedMapping {
-  readonly source: 'AI' | 'NAMES';
+  /** FORMAT: read with a saved format, no assistant (ADR 0042). */
+  readonly source: 'AI' | 'NAMES' | 'FORMAT';
   readonly headerRow: number;
   readonly layout: ImportLayout;
   readonly fields: Readonly<Record<string, FieldSource>>;
@@ -353,6 +357,10 @@ export interface AssistedMapping {
   readonly guidance?: ImportGuidance | null;
   /** How the assistant read the file (its words, checked against the grid); absent when no assistant read it. */
   readonly reading?: FileReading | null;
+  /** The earlier file whose confirmed format this one was read with (source FORMAT). */
+  readonly format?: { readonly fileName: string; readonly confirmedAt: string } | null;
+  /** A saved format's other confirmed settings (date and number format, amount unit, sign), kept as confirmed. */
+  readonly settings?: { readonly dateFormat: string; readonly numberFormat: string; readonly amountUnit: string; readonly negateAmounts: boolean } | null;
 }
 
 const squash = (text: string) => text.toLowerCase().replaceAll(/\s+/g, ' ').trim();

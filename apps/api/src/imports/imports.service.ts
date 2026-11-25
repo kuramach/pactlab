@@ -38,6 +38,7 @@ import {
   syncRuns,
   UPLOAD_CONNECTOR_VERSION,
   uploadDataset,
+  importFormats,
   withdrawals,
   withTenant,
   type Prisma,
@@ -89,6 +90,9 @@ import {
   type WithdrawalResultView,
   pnlMonthlyTotals,
   type PnlKind,
+  applySavedFormat,
+  formatAssist,
+  formatSignatureText,
 } from '@pactlab/domain';
 import { DealAccess } from '../deals/deal-access';
 import { CLAUDE_GATEWAY, DOCUMENT_OBJECT_STORE, type DocumentObjectStore } from '../documents/documents.repository';
@@ -150,6 +154,7 @@ function assistView(assist: AssistedMapping | null): UploadDetailView['assist'] 
     note: assist.note,
     guidance: guidanceView(assist.guidance ?? null),
     reading: assist.reading ? { summary: assist.reading.summary, rowGroups: assist.reading.rowGroups.map((group) => ({ ...group })) } : null,
+    format: assist.format ? { ...assist.format } : null,
   };
 }
 
@@ -237,6 +242,8 @@ function suggestedFrom(table: CsvTable, template: BillingTemplate, definition: T
     ...base,
     fields: { ...assist.fields },
     ...(detected ? { dateFormat: detected } : {}),
+    // A saved format keeps every setting it was confirmed with (ADR 0042).
+    ...(assist.settings ? (assist.settings as Pick<ImportMapping, 'dateFormat' | 'numberFormat' | 'amountUnit' | 'negateAmounts'>) : {}),
     ...(assist.layout.kind === 'ROWS' ? {} : { layout: assist.layout }),
     ...(definition.lineItems ? { lineKinds: { ...assist.lineKinds } } : {}),
   };
@@ -288,7 +295,7 @@ export class ImportsService {
   private async assisted(
     tenant: TenantContext,
     dealId: string,
-    input: { uploadId: string; bytes: Uint8Array; fileName: string; sheet: string | null; headerRow: number | null; target: ImportTarget; system: string; guidance: ImportGuidance | null },
+    input: { uploadId: string; bytes: Uint8Array; fileName: string; sheet: string | null; headerRow: number | null; target: ImportTarget; system: string; guidance: ImportGuidance | null; fresh?: boolean },
   ): Promise<{ read: ReadTable; assist: AssistedMapping; run: AiRunRecord | null }> {
     const result = await this.assistedRead(tenant, dealId, input);
     // The person's words are quoted back whichever way the mapping was reached; when no assistant read the file, that is said.
@@ -300,7 +307,7 @@ export class ImportsService {
   private async assistedRead(
     tenant: TenantContext,
     dealId: string,
-    input: { uploadId: string; bytes: Uint8Array; fileName: string; sheet: string | null; headerRow: number | null; target: ImportTarget; system: string; guidance: ImportGuidance | null },
+    input: { uploadId: string; bytes: Uint8Array; fileName: string; sheet: string | null; headerRow: number | null; target: ImportTarget; system: string; guidance: ImportGuidance | null; fresh?: boolean },
   ): Promise<{ read: ReadTable; assist: AssistedMapping; run: AiRunRecord | null }> {
     const definition = definitionOf(input.target);
     const readAt = async (headerRow: number | 'detect') => {
@@ -318,6 +325,12 @@ export class ImportsService {
     const named = byName(read.table);
     if (definition.fields.every((field) => !field.required || named[field.name]?.kind === 'column') && !definition.lineItems) {
       return { read, assist: namesOnly(definition, read.headerRow ?? 1, read.table.header, named, null), run: null };
+    }
+    // A layout a person has confirmed before is read the same way, with no assistant (ADR 0042). Not when the person
+    // moved the header, gave guidance, or asked to read it fresh: then they want it read anew.
+    if (input.headerRow === null && input.guidance === null && !input.fresh) {
+      const saved = await this.savedFormat(tenant, dealId, definition, read, readAt);
+      if (saved) return { read: saved.read, assist: saved.assist, run: null };
     }
     // People data never reaches a model (rule 7); such a file is refused at preview anyway.
     if (peopleColumnProblems(definition, read.table.header).length > 0) return fallback('Columns were matched by name only: this file has people columns, which must be removed first.');
@@ -356,6 +369,35 @@ export class ImportsService {
       guidance: input.guidance,
     });
     return { read, assist, run: outcome.run };
+  }
+
+  /** The first saved format whose layout this file matches (ADR 0042), applied; null when none fits. */
+  private async savedFormat(
+    tenant: TenantContext,
+    dealId: string,
+    definition: TargetDefinition,
+    detected: ReadTable,
+    readAt: (headerRow: number | 'detect') => Promise<ReadTable>,
+  ): Promise<{ read: ReadTable; assist: AssistedMapping } | null> {
+    const formats = await withTenant(this.prisma, tenant, (tx) => importFormats.forTarget(tx, dealId, definition.target));
+    for (const format of formats) {
+      let read = detected;
+      if ((format.headerRow ?? 1) !== (detected.headerRow ?? 1)) {
+        try {
+          read = await readAt(format.headerRow ?? 1);
+        } catch {
+          continue;
+        }
+      }
+      const applied = applySavedFormat(definition, read.table, format.mapping as ImportMapping);
+      if (!applied || sha256(formatSignatureText(definition.target, applied.mapping.layout, read.table.header)) !== format.signature) continue;
+      await withTenant(this.prisma, tenant, async (tx) => {
+        await importFormats.recordUse(tx, format.id, new Date());
+        await appendAuditEvent(tx, { organizationId: tenant.organizationId, dealId, actorUserId: tenant.userId, action: 'import_format.applied', targetType: 'import_format', targetId: format.id, outcome: 'SUCCEEDED', requestId: null });
+      });
+      return { read, assist: formatAssist(applied, read.headerRow ?? 1, { fileName: format.sourceFileName, confirmedAt: format.confirmedAt.toISOString() }) };
+    }
+    return null;
   }
 
   /** The assistant's run (cost, audit trail), for buyer and seller uploads alike (`app_import_record_run`). */
@@ -830,6 +872,25 @@ export class ImportsService {
     const outcome = await withTenant(this.prisma, tenant, async (tx) => {
       const run = await syncRuns.get(tx, dealId, requested.run.id);
       if (!run) throw new NotFoundException();
+      // The mapping a person confirmed becomes this layout's saved format (ADR 0042): the next file laid out the same
+      // way is read with it, no assistant. A corrected mapping, imported, replaces it.
+      if (run.status !== 'FAILED') {
+        const { acceptTieOutGaps: _accepted, ...confirmed } = mapping as ImportMapping;
+        const formatId = await importFormats.save(tx, {
+          organizationId: tenant.organizationId,
+          dealId,
+          target: row.target,
+          signature: sha256(formatSignatureText(row.target, confirmed.layout, table.header)),
+          headerRow: row.headerRow,
+          mapping: confirmed as unknown as Prisma.InputJsonValue,
+          sourceUploadId: row.id,
+          sourceFileName: row.fileName,
+          visibility: row.visibility,
+          confirmedBy: tenant.userId,
+          at: new Date(),
+        });
+        await appendAuditEvent(tx, { organizationId: tenant.organizationId, dealId, actorUserId: tenant.userId, action: 'import_format.saved', targetType: 'import_format', targetId: formatId, outcome: 'SUCCEEDED', requestId });
+      }
       return { run, upload: await sourceUploads.get(tx, dealId, row.id) };
     });
     return {
@@ -875,17 +936,19 @@ export class ImportsService {
    * Read the upload again before import: another workbook sheet, or the header on another row (a person's
    * correction). The header, row count and the assistant's proposal follow.
    */
-  async selectSheet(tenant: TenantContext, dealId: string, uploadId: string, choice: { sheet?: string | undefined; headerRow?: number | undefined; guidance?: ImportGuidance | undefined }, requestId: string): Promise<UploadDetail> {
-    const row = await this.load(tenant, dealId, uploadId, canSupply, choice.guidance ? 'source_upload.guidance_set' : 'source_upload.sheet_selected', requestId);
+  async selectSheet(tenant: TenantContext, dealId: string, uploadId: string, choice: { sheet?: string | undefined; headerRow?: number | undefined; guidance?: ImportGuidance | undefined; fresh?: boolean }, requestId: string): Promise<UploadDetail> {
+    const action = choice.fresh ? 'source_upload.read_fresh' : choice.guidance ? 'source_upload.guidance_set' : 'source_upload.sheet_selected';
+    const row = await this.load(tenant, dealId, uploadId, canSupply, action, requestId);
     if (row.status !== 'UPLOADED' || (choice.sheet !== undefined && row.format !== 'XLSX')) throw new ConflictException();
     const bytes = await this.storedBytes(row);
     // A new sheet is read afresh (its header found again); a header row is the person's and is kept.
     const sheet = choice.sheet ?? row.sheet;
     // New guidance reads the file afresh too: it may say where the header is.
-    const headerRow = choice.headerRow ?? (choice.sheet !== undefined || choice.guidance ? null : row.headerRow);
+    // Reading it fresh (past a saved format, ADR 0042) finds the header again too.
+    const headerRow = choice.headerRow ?? (choice.sheet !== undefined || choice.guidance || choice.fresh ? null : row.headerRow);
     // New guidance replaces the stored one (an empty one clears it); a header-row correction keeps what is stored.
     const guidance = choice.guidance ? normalizeGuidance(choice.guidance) : normalizeGuidance(row.guidance as ImportGuidance | null);
-    const { read, assist, run } = await this.assisted(tenant, dealId, { uploadId: row.id, bytes, fileName: row.fileName, sheet, headerRow, target: row.target, system: row.system, guidance });
+    const { read, assist, run } = await this.assisted(tenant, dealId, { uploadId: row.id, bytes, fileName: row.fileName, sheet, headerRow, target: row.target, system: row.system, guidance, fresh: choice.fresh === true });
     if (read.table.rows.length > MAX_ROWS) throw new PayloadTooLargeException({ code: 'TOO_MANY_ROWS' });
     const updated = await withTenant(this.prisma, tenant, async (tx) => {
       const input = { sheet: read.sheet, headerRow: read.headerRow, header: [...read.table.header], rowCount: read.table.rows.length, assist: assist as unknown as Prisma.InputJsonValue, guidance: (guidance ?? EMPTY_GUIDANCE) as unknown as Prisma.InputJsonValue };
@@ -894,7 +957,7 @@ export class ImportsService {
         organizationId: tenant.organizationId,
         dealId,
         actorUserId: tenant.userId,
-        action: choice.guidance ? 'source_upload.guidance_set' : 'source_upload.sheet_selected',
+        action,
         targetType: 'source_upload',
         targetId: row.id,
         outcome: 'SUCCEEDED',

@@ -120,6 +120,15 @@ export async function saveGuidance(deal: string, upload: string, guidance: unkno
   return { message: result.kind === 'conflict' ? 'This upload was already imported; its guidance is fixed.' : 'The file could not be read again with those instructions.' };
 }
 
+/** Read the file afresh instead of the way an earlier file was read (ADR 0042): the AI reads it as a new layout. */
+export async function readFresh(deal: string, upload: string): Promise<{ message: string | null }> {
+  const ids = target.safeParse({ dealId: deal, uploadId: upload });
+  if (!ids.success) return { message: 'This upload cannot be read again.' };
+  const result = await dealsApi.readFresh(ids.data.dealId, ids.data.uploadId);
+  if (result.kind === 'ok') return { message: null };
+  return { message: result.kind === 'conflict' ? 'This upload was already imported; it is read as it was.' : 'The file could not be read again. Try once more.' };
+}
+
 /** Discard an upload that was the wrong file: nothing is imported, the stored copy is deleted (audited). */
 export async function cancelUpload(deal: string, upload: string): Promise<{ message: string }> {
   const ids = target.safeParse({ dealId: deal, uploadId: upload });

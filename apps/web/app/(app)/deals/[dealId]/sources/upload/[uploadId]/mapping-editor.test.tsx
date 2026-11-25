@@ -113,6 +113,14 @@ describe('the mapping assistant on screen (Kumar, 2026-11-21)', () => {
     expect(html).toContain('Answer Pactlab’s questions above to import.');
   });
 
+  it('a file read with a saved format says which earlier file, that nothing went to AI, what is new, and offers to read it fresh (ADR 0042)', () => {
+    const html = pnl({ source: 'FORMAT', picks: { account: { by: 'FORMAT', confidence: null, reason: 'As in pnl-q1.csv' } }, questions: [], unsureLines: ['Office supplies'], note: null, format: { fileName: 'pnl-q1.csv', confirmedAt: '2026-11-20T10:00:00.000Z' } });
+    expect(html).toContain('Read the same way as <span class="font-medium">pnl-q1.csv</span>, confirmed 20 Nov 2026. Nothing was sent to AI.');
+    expect(html).toContain('One line is new: say what it is below.');
+    expect(html).toContain('Read it fresh');
+    expect(html).not.toContain('Here’s how Pactlab read your file');
+  });
+
   it('says plainly when the assistant did not help', () => {
     const html = pnl({ source: 'NAMES', picks: {}, questions: [], unsureLines: [], note: 'Columns were matched by name only: the mapping assistant is off.' });
     expect(html).toContain('the mapping assistant is off');

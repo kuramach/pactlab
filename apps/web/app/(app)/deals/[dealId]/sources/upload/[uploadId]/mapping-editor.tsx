@@ -21,7 +21,7 @@ import { useEffect, useMemo, useState, useTransition } from 'react';
 import { choiceOf, cleanMapping, definitionFor, importedUrl, sourceFromChoice, unmappedRequired } from '../_lib/mapping-form';
 import { GuidancePanel } from './guidance-panel';
 import { ReadingCard, readingFacts } from './reading-card';
-import { cancelUpload, chooseHeaderRow, chooseSheet, importProgressOf, importWithMapping, previewMapping } from '../actions';
+import { cancelUpload, chooseHeaderRow, chooseSheet, importProgressOf, importWithMapping, previewMapping, readFresh } from '../actions';
 
 const inputClass =
   'w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring';
@@ -327,6 +327,28 @@ export function MappingEditor({
               {assist.source === 'AI' ? (
                 <span>
                   Pactlab read this file and filled in what it was sure of (marked <Badge variant="evidence">AI</Badge>). Check each field; nothing is imported until you do.
+                </span>
+              ) : null}
+              {assist.source === 'FORMAT' && assist.format ? (
+                <span className="flex flex-wrap items-center gap-2">
+                  <span>
+                    Read the same way as <span className="font-medium">{assist.format.fileName}</span>, confirmed {new Date(assist.format.confirmedAt).toLocaleDateString('en-GB', { dateStyle: 'medium', timeZone: 'UTC' })}. Nothing was sent to AI.
+                    {assist.unsureLines.length > 0 ? ` ${assist.unsureLines.length === 1 ? 'One line is' : `${assist.unsureLines.length} lines are`} new: say what ${assist.unsureLines.length === 1 ? 'it is' : 'they are'} below.` : ''}
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={pending || runId !== null}
+                    onClick={() =>
+                      startTransition(async () => {
+                        const result = await readFresh(dealId, uploadId);
+                        if (result.message) setMessage(result.message);
+                        else router.refresh();
+                      })
+                    }
+                  >
+                    Read it fresh
+                  </Button>
                 </span>
               ) : null}
               {assist.note ? <span className="text-muted-foreground">{assist.note}</span> : null}
