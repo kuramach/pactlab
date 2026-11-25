@@ -5,7 +5,6 @@ import { notFound } from 'next/navigation';
 import { dealsApi } from '../../../../_lib/api';
 import { isUuidParam } from '../../../../_lib/filters';
 import { ApiState } from '../../../../_lib/states';
-import { can, dealViewer } from '../../../../_lib/viewer';
 import { MappingEditor } from './mapping-editor';
 import { ImportHistory, withdrawalFailure, WithdrawnPanel, WithdrawPanel } from './withdrawal';
 
@@ -20,14 +19,14 @@ export default async function MapUploadPage({
   searchParams,
 }: {
   params: Promise<{ dealId: string; uploadId: string }>;
-  searchParams: Promise<{ withdrawn?: string; voided?: string; findings?: string; runs?: string; withdraw?: string; reimport?: string }>;
+  searchParams: Promise<{ withdrawn?: string; voided?: string; findings?: string; runs?: string; withdraw?: string; reimport?: string; delete?: string }>;
 }) {
   const { dealId, uploadId } = await params;
   const query = await searchParams;
   if (!isUuidParam(dealId) || !isUuidParam(uploadId)) notFound();
-  const [upload, viewer] = await Promise.all([dealsApi.upload(dealId, uploadId), dealViewer(dealId)]);
-  // Withdrawing and re-importing are the deal team's (T-154); the API decides, this only hides the controls.
-  const canManage = can.draft(viewer.role);
+  const upload = await dealsApi.upload(dealId, uploadId);
+  // Deleting and importing again: whoever imported it, or the deal lead or an analyst (the API decides and says so).
+  const canManage = upload.kind === 'ok' && upload.data.canDelete;
   const inChain = upload.kind === 'ok' && (upload.data.status === 'WITHDRAWN' || upload.data.supersedesUploadId !== null);
   const history = canManage && inChain ? await dealsApi.uploadHistory(dealId, uploadId) : null;
   const chain = history?.kind === 'ok' ? history.data.chain : null;
@@ -58,7 +57,7 @@ export default async function MapUploadPage({
               </>
             )}
             {upload.data.status === 'IMPORTED' ? <Badge variant="reviewed">Imported</Badge> : null}
-            {upload.data.status === 'WITHDRAWN' ? <Badge variant="danger">Withdrawn</Badge> : null}
+            {upload.data.status === 'WITHDRAWN' ? <Badge variant="danger">Deleted</Badge> : null}
             {upload.data.supersedesUploadId ? <Badge>Re-import</Badge> : null}
           </p>
         ) : null}
@@ -86,7 +85,7 @@ export default async function MapUploadPage({
       ) : (
         <>
         {chain && chain.length > 1 ? <ImportHistory dealId={dealId} chain={chain} current={uploadId} /> : null}
-        {upload.data.status === 'IMPORTED' && canManage ? <WithdrawPanel dealId={dealId} uploadId={uploadId} /> : null}
+        {upload.data.status === 'IMPORTED' && canManage ? <WithdrawPanel dealId={dealId} uploadId={uploadId} open={query.delete === '1' || failure !== null} /> : null}
         <MappingEditor
           // A different sheet is a different table: start the mapping afresh.
           key={`${upload.data.sheet ?? 'table'}:${upload.data.headerRow ?? 1}`}
