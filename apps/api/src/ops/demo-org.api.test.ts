@@ -173,7 +173,9 @@ describe('demo organization (batch 2)', () => {
     expect(await rows(`SELECT count(*)::int AS n FROM deals WHERE organization_id = $1`, [DEMO_ORG.id])).toEqual(before);
   });
 
-  it('resets only the demo organization', { timeout: 120_000 }, async () => {
+  // Seeds and resets four demo pacts end to end (T-106 added the syndication pact): ~75s locally, over 200s on
+  // CI's shared runners, so the limit has headroom rather than racing the runner.
+  it('resets only the demo organization', { timeout: 300_000 }, async () => {
     const report = await run(true);
     expect(report[0]).toMatch(/^reset: \d+ demo pacts deleted$/);
     expect(await rows(`SELECT name FROM deals WHERE organization_id = $1 AND status = 'DELETED'`, [other.organizationId])).toEqual([]);
