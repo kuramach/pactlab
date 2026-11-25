@@ -28,6 +28,8 @@ export interface SourceUploadRecord {
   headerRow: number | null;
   /** The mapping assistant's checked proposal (`AssistedMapping`), shown on the mapping screen. */
   assist: Prisma.JsonValue | null;
+  /** The person's instructions and row notes for the mapping assistant (`ImportGuidance`). */
+  guidance: Prisma.JsonValue | null;
   mapping: Prisma.JsonValue | null;
   mappingVersion: string | null;
   objectKey: string | null;
@@ -62,6 +64,7 @@ const uploadSelect = {
   sheet: true,
   headerRow: true,
   assist: true,
+  guidance: true,
   mapping: true,
   mappingVersion: true,
   objectKey: true,
@@ -105,6 +108,7 @@ export const sourceUploads = {
       sheet?: string | null;
       headerRow?: number | null;
       assist?: Prisma.InputJsonValue;
+      guidance?: Prisma.InputJsonValue;
       objectKey: string;
       visibility: EvidenceVisibility;
       uploadedBy: string;
@@ -125,10 +129,16 @@ export const sourceUploads = {
   async reread(
     tx: TransactionClient,
     uploadId: string,
-    input: { sheet: string | null; headerRow: number | null; header: string[]; rowCount: number; assist: Prisma.InputJsonValue | typeof Prisma.DbNull },
+    input: { sheet: string | null; headerRow: number | null; header: string[]; rowCount: number; assist: Prisma.InputJsonValue | typeof Prisma.DbNull; guidance?: Prisma.InputJsonValue },
   ): Promise<boolean> {
     const result = await tx.sourceUpload.updateMany({ where: { id: uploadId, status: 'UPLOADED' }, data: input });
     return result.count === 1;
+  },
+
+  /** The guidance on the pact's latest earlier upload of the same file (by hash): the person's last word, reused when it is uploaded again (T-152). */
+  async guidanceFor(tx: TransactionClient, dealId: string, sha256: string): Promise<Prisma.JsonValue | null> {
+    const found = await tx.sourceUpload.findFirst({ where: { dealId, sha256 }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], select: { guidance: true } });
+    return found?.guidance ?? null;
   },
 
   async get(tx: TransactionClient, dealId: string, uploadId: string): Promise<SourceUploadRecord | null> {

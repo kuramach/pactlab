@@ -1609,17 +1609,19 @@ model SourceUpload {
   /// The header's row among the sheet's non-empty rows; null: the first row (the standard template).
   headerRow          Int?               @map("header_row")
   /// The mapping assistant's checked proposal (picks, reasons, questions); never a value from the file.
-  assist             Json?
-  mapping            Json?
-  mappingVersion     String?            @map("mapping_version")
-  objectKey          String?            @map("object_key")
-  status             SourceUploadStatus @default(UPLOADED)
-  syncRunId          String?            @map("sync_run_id") @db.Uuid
-  visibility         EvidenceVisibility
-  uploadedBy         String             @map("uploaded_by") @db.Uuid
-  createdAt          DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
-  importedAt         DateTime?          @map("imported_at") @db.Timestamptz(3)
-  purgedAt           DateTime?          @map("purged_at") @db.Timestamptz(3)
+  assist         Json?
+  /// What the person told the mapping assistant about the file (T-152): free text and row notes; steers mapping only.
+  guidance       Json?
+  mapping        Json?
+  mappingVersion String?            @map("mapping_version")
+  objectKey      String?            @map("object_key")
+  status         SourceUploadStatus @default(UPLOADED)
+  syncRunId      String?            @map("sync_run_id") @db.Uuid
+  visibility     EvidenceVisibility
+  uploadedBy     String             @map("uploaded_by") @db.Uuid
+  createdAt      DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+  importedAt     DateTime?          @map("imported_at") @db.Timestamptz(3)
+  purgedAt       DateTime?          @map("purged_at") @db.Timestamptz(3)
   /// Withdrawal (T-154): who, when and why; all three or none.
   withdrawnAt        DateTime?          @map("withdrawn_at") @db.Timestamptz(3)
   withdrawnBy        String?            @map("withdrawn_by") @db.Uuid

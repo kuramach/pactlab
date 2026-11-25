@@ -1,6 +1,6 @@
 'use server';
 
-import { importMappingSchema, MAX_UPLOAD_BYTES, uploadQuerySchema, type ImportPreviewView, type ImportProgressView } from '@pactlab/contracts';
+import { importGuidanceSchema, importMappingSchema, MAX_UPLOAD_BYTES, uploadQuerySchema, type ImportPreviewView, type ImportProgressView } from '@pactlab/contracts';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import { dealsApi } from '../../../_lib/api';
@@ -20,7 +20,11 @@ export async function uploadBillingExport(deal: string, formData: FormData): Pro
   const file = formData.get('file');
   if (!(file instanceof File) || file.size === 0) redirect(`${back}error=no-file`);
   if (file.size > MAX_UPLOAD_BYTES) redirect(`${back}error=too-large`);
+  // Guidance for the AI (T-152); left empty, the same file's earlier guidance is reused by the API.
+  const instructionsField = formData.get('instructions');
+  const instructions = typeof instructionsField === 'string' && instructionsField.trim() !== '' ? instructionsField.trim() : undefined;
   const query = uploadQuerySchema.safeParse({
+    ...(instructions ? { instructions } : {}),
     system: packTarget ? 'pactlab_standard' : formData.get('system'),
     fileName: file.name || 'upload.csv',
     ...(packTarget ? { target: packTarget } : {}),
@@ -32,6 +36,7 @@ export async function uploadBillingExport(deal: string, formData: FormData): Pro
     query.data.fileName,
     new Uint8Array(await file.arrayBuffer()),
     packTarget ? query.data.target : undefined,
+    query.data.instructions,
   );
   if (result.kind !== 'ok') redirect(`${back}error=${result.kind}`);
   redirect(`${base}/${result.data.id}`);
@@ -103,6 +108,16 @@ export async function chooseHeaderRow(deal: string, upload: string, headerRow: n
   const result = await dealsApi.selectSheet(ids.data.dealId, ids.data.uploadId, { headerRow: row.data });
   if (result.kind === 'ok') return { message: null };
   return { message: result.kind === 'conflict' ? 'This upload was already imported; its header is fixed.' : 'That row could not be read as a header. Try another.' };
+}
+
+/** Tell the AI how to read the file (instructions and row notes), then read it again with that guidance (T-152). */
+export async function saveGuidance(deal: string, upload: string, guidance: unknown): Promise<{ message: string | null }> {
+  const ids = target.safeParse({ dealId: deal, uploadId: upload });
+  const body = importGuidanceSchema.safeParse(guidance);
+  if (!ids.success || !body.success) return { message: 'Those instructions could not be saved. Shorten them and try again.' };
+  const result = await dealsApi.selectSheet(ids.data.dealId, ids.data.uploadId, { guidance: body.data });
+  if (result.kind === 'ok') return { message: null };
+  return { message: result.kind === 'conflict' ? 'This upload was already imported; its guidance is fixed.' : 'The file could not be read again with those instructions.' };
 }
 
 /** Discard an upload that was the wrong file: nothing is imported, the stored copy is deleted (audited). */

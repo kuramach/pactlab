@@ -7,6 +7,7 @@ import type {
   Page,
   DealSummary,
   ImportMappingBody,
+  ImportGuidanceBody,
   ImportPreviewView,
   ImportProgressView,
   ImportResultView,
@@ -263,9 +264,9 @@ export const dealsApi = {
     apiGet<{ chain: ImportLineageEntry[] }>(`/v1/deals/${encodeURIComponent(dealId)}/uploads/${encodeURIComponent(uploadId)}/history`),
   /** CSV import targets the deal's pack offers (billing first), with template headers. */
   importTargets: (dealId: string) => apiGet<{ items: ImportTargetView[] }>(`/v1/deals/${encodeURIComponent(dealId)}/import-targets`),
-  uploadCsv: (dealId: string, system: string, fileName: string, body: Uint8Array<ArrayBuffer>, target?: string) =>
+  uploadCsv: (dealId: string, system: string, fileName: string, body: Uint8Array<ArrayBuffer>, target?: string, instructions?: string) =>
     apiUploadCsv(
-      `/v1/deals/${encodeURIComponent(dealId)}/uploads?${new URLSearchParams({ system, fileName, ...(target ? { target } : {}) }).toString()}`,
+      `/v1/deals/${encodeURIComponent(dealId)}/uploads?${new URLSearchParams({ system, fileName, ...(target ? { target } : {}), ...(instructions !== undefined ? { instructions } : {}) }).toString()}`,
       body,
     ),
   previewImport: (dealId: string, uploadId: string, mapping: ImportMappingBody) =>
@@ -273,7 +274,7 @@ export const dealsApi = {
       `/v1/deals/${encodeURIComponent(dealId)}/uploads/${encodeURIComponent(uploadId)}/preview`,
       { mapping },
     ),
-  selectSheet: (dealId: string, uploadId: string, choice: string | { sheet?: string; headerRow?: number }) =>
+  selectSheet: (dealId: string, uploadId: string, choice: string | { sheet?: string; headerRow?: number; guidance?: ImportGuidanceBody }) =>
     apiPost<UploadDetailView>(`/v1/deals/${encodeURIComponent(dealId)}/uploads/${encodeURIComponent(uploadId)}/sheet`, typeof choice === 'string' ? { sheet: choice } : choice),
   /** Import a spreadsheet already filed in the pact's documents. */
   importDocument: (dealId: string, documentId: string, target: string) =>

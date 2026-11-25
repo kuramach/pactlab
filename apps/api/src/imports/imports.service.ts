@@ -46,7 +46,11 @@ import {
   applyMapping,
   canonicalMappingJson,
   checkProposal,
+  EMPTY_GUIDANCE,
   layoutProblems,
+  normalizeGuidance,
+  renderGuidance,
+  type ImportGuidance,
   CORE_IMPORT_TARGETS,
   namesOnly,
   reshapeTable,
@@ -121,6 +125,10 @@ function blockingProblems(definition: TargetDefinition, table: CsvTable, mapping
   ];
 }
 
+function guidanceView(guidance: ImportGuidance | null): UploadDetailView['guidance'] {
+  return guidance ? { instructions: guidance.instructions, annotations: guidance.annotations.map((entry) => ({ ...entry })) } : null;
+}
+
 /** The mapping screen's view of the assistant's proposal: what it filled in and why, and what it asks. */
 function assistView(assist: AssistedMapping | null): UploadDetailView['assist'] {
   if (!assist) return null;
@@ -130,6 +138,7 @@ function assistView(assist: AssistedMapping | null): UploadDetailView['assist'] 
     questions: assist.questions.map((question) => ({ field: question.field, question: question.question, options: [...question.options] })),
     unsureLines: [...assist.unsureLines],
     note: assist.note,
+    guidance: guidanceView(assist.guidance ?? null),
   };
 }
 
@@ -267,7 +276,19 @@ export class ImportsService {
   private async assisted(
     tenant: TenantContext,
     dealId: string,
-    input: { uploadId: string; bytes: Uint8Array; fileName: string; sheet: string | null; headerRow: number | null; target: ImportTarget; system: string },
+    input: { uploadId: string; bytes: Uint8Array; fileName: string; sheet: string | null; headerRow: number | null; target: ImportTarget; system: string; guidance: ImportGuidance | null },
+  ): Promise<{ read: ReadTable; assist: AssistedMapping; run: AiRunRecord | null }> {
+    const result = await this.assistedRead(tenant, dealId, input);
+    // The person's words are quoted back whichever way the mapping was reached; when no assistant read the file, that is said.
+    const unused = input.guidance !== null && result.run === null && result.assist.source === 'NAMES';
+    const note = unused ? [result.assist.note, 'Your instructions were not used.'].filter(Boolean).join(' ') : result.assist.note;
+    return { ...result, assist: { ...result.assist, note, guidance: input.guidance } };
+  }
+
+  private async assistedRead(
+    tenant: TenantContext,
+    dealId: string,
+    input: { uploadId: string; bytes: Uint8Array; fileName: string; sheet: string | null; headerRow: number | null; target: ImportTarget; system: string; guidance: ImportGuidance | null },
   ): Promise<{ read: ReadTable; assist: AssistedMapping; run: AiRunRecord | null }> {
     const definition = definitionOf(input.target);
     const readAt = async (headerRow: number | 'detect') => {
@@ -295,7 +316,7 @@ export class ImportsService {
     if (!this.gateway) return fallback('Columns were matched by name only: the mapping assistant is off.');
     let outcome;
     try {
-      outcome = await mapImport(this.gateway, { organizationId: tenant.organizationId, dealId, uploadId: input.uploadId, fileName: input.fileName, sheet: read.sheet, definition, preview: read.preview });
+      outcome = await mapImport(this.gateway, { organizationId: tenant.organizationId, dealId, uploadId: input.uploadId, fileName: input.fileName, sheet: read.sheet, definition, preview: read.preview, guidance: renderGuidance(input.guidance) });
     } catch (error) {
       if (error instanceof GatewayPolicyError) {
         return fallback(error.code === 'NOT_CONFIGURED' ? 'Columns were matched by name only: the mapping assistant is off.' : 'Columns were matched by name only: the mapping assistant is not available for this pact.');
@@ -320,6 +341,7 @@ export class ImportsService {
       preview: read.preview,
       proposal: { ...outcome.proposal, headerRow: read.headerRow ?? headerRow },
       byName: byName(read.table),
+      guidance: input.guidance,
     });
     return { read, assist, run: outcome.run };
   }
@@ -401,7 +423,10 @@ export class ImportsService {
     reimport: SourceUploadRecord | null = null,
   ): Promise<UploadDetail> {
     const id = newId();
-    const { read, assist, run } = await this.assisted(tenant, dealId, { uploadId: id, bytes: body, fileName: query.fileName, sheet: null, headerRow: null, target: query.target, system: query.system });
+    // Guidance given now wins; otherwise the same file's last guidance is reused (T-152), for the person to edit before the re-run.
+    const earlier = query.instructions === undefined ? await withTenant(this.prisma, tenant, (tx) => sourceUploads.guidanceFor(tx, dealId, sha256(body))) : null;
+    const guidance = query.instructions === undefined ? normalizeGuidance(earlier as ImportGuidance | null) : normalizeGuidance({ instructions: query.instructions });
+    const { read, assist, run } = await this.assisted(tenant, dealId, { uploadId: id, bytes: body, fileName: query.fileName, sheet: null, headerRow: null, target: query.target, system: query.system, guidance });
     const table = read.table;
     if (table.rows.length > MAX_ROWS) throw new PayloadTooLargeException({ code: 'TOO_MANY_ROWS' });
 
@@ -430,6 +455,7 @@ export class ImportsService {
         sheet: read.sheet,
         headerRow: read.headerRow,
         assist: assist as unknown as Prisma.InputJsonValue,
+        guidance: (guidance ?? EMPTY_GUIDANCE) as unknown as Prisma.InputJsonValue,
         objectKey,
         // A re-import keeps the audience of the import it replaces: never wider, never narrower.
         visibility: reimport ? reimport.visibility : isBuyerSideRole(role) ? 'BUYER_ONLY' : 'SHARED',
@@ -778,23 +804,26 @@ export class ImportsService {
    * Read the upload again before import: another workbook sheet, or the header on another row (a person's
    * correction). The header, row count and the assistant's proposal follow.
    */
-  async selectSheet(tenant: TenantContext, dealId: string, uploadId: string, choice: { sheet?: string | undefined; headerRow?: number | undefined }, requestId: string): Promise<UploadDetail> {
-    const row = await this.load(tenant, dealId, uploadId, canSupply, 'source_upload.sheet_selected', requestId);
+  async selectSheet(tenant: TenantContext, dealId: string, uploadId: string, choice: { sheet?: string | undefined; headerRow?: number | undefined; guidance?: ImportGuidance | undefined }, requestId: string): Promise<UploadDetailView> {
+    const row = await this.load(tenant, dealId, uploadId, canSupply, choice.guidance ? 'source_upload.guidance_set' : 'source_upload.sheet_selected', requestId);
     if (row.status !== 'UPLOADED' || (choice.sheet !== undefined && row.format !== 'XLSX')) throw new ConflictException();
     const bytes = await this.storedBytes(row);
     // A new sheet is read afresh (its header found again); a header row is the person's and is kept.
     const sheet = choice.sheet ?? row.sheet;
-    const headerRow = choice.headerRow ?? (choice.sheet !== undefined ? null : row.headerRow);
-    const { read, assist, run } = await this.assisted(tenant, dealId, { uploadId: row.id, bytes, fileName: row.fileName, sheet, headerRow, target: row.target, system: row.system });
+    // New guidance reads the file afresh too: it may say where the header is.
+    const headerRow = choice.headerRow ?? (choice.sheet !== undefined || choice.guidance ? null : row.headerRow);
+    // New guidance replaces the stored one (an empty one clears it); a header-row correction keeps what is stored.
+    const guidance = choice.guidance ? normalizeGuidance(choice.guidance) : normalizeGuidance(row.guidance as ImportGuidance | null);
+    const { read, assist, run } = await this.assisted(tenant, dealId, { uploadId: row.id, bytes, fileName: row.fileName, sheet, headerRow, target: row.target, system: row.system, guidance });
     if (read.table.rows.length > MAX_ROWS) throw new PayloadTooLargeException({ code: 'TOO_MANY_ROWS' });
     const updated = await withTenant(this.prisma, tenant, async (tx) => {
-      const input = { sheet: read.sheet, headerRow: read.headerRow, header: [...read.table.header], rowCount: read.table.rows.length, assist: assist as unknown as Prisma.InputJsonValue };
+      const input = { sheet: read.sheet, headerRow: read.headerRow, header: [...read.table.header], rowCount: read.table.rows.length, assist: assist as unknown as Prisma.InputJsonValue, guidance: (guidance ?? EMPTY_GUIDANCE) as unknown as Prisma.InputJsonValue };
       if (!(await sourceUploads.reread(tx, row.id, input))) throw new ConflictException();
       await appendAuditEvent(tx, {
         organizationId: tenant.organizationId,
         dealId,
         actorUserId: tenant.userId,
-        action: 'source_upload.sheet_selected',
+        action: choice.guidance ? 'source_upload.guidance_set' : 'source_upload.sheet_selected',
         targetType: 'source_upload',
         targetId: row.id,
         outcome: 'SUCCEEDED',
@@ -900,6 +929,7 @@ export class ImportsService {
       // A re-import starts from the mapping that was confirmed before, where it still fits.
       suggestedMapping: (inherited ?? suggestedFrom(table, template, definitionOf(row.target), read.delimiter, assist)) as ImportMappingBody,
       assist: assistView(assist),
+      guidance: guidanceView(normalizeGuidance(row.guidance as ImportGuidance | null)),
       template: systemView(template),
     };
   }

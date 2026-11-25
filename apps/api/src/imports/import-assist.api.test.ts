@@ -68,10 +68,10 @@ describe('the mapping assistant through the API (Kumar, 2026-11-21)', { timeout:
     return { status: response.statusCode, body: (response.body ? response.json() : null) as Body };
   }
 
-  async function upload(target: NestFastifyApplication, bearer: string, content: string, fileName = 'pnl.csv', as = 'FINANCIAL_PNL') {
+  async function upload(target: NestFastifyApplication, bearer: string, content: string, fileName = 'pnl.csv', as = 'FINANCIAL_PNL', instructions?: string) {
     const response = await target.inject({
       method: 'POST',
-      url: `/v1/deals/${alpha.dealId}/uploads?target=${as}&system=pactlab_standard&fileName=${encodeURIComponent(fileName)}`,
+      url: `/v1/deals/${alpha.dealId}/uploads?target=${as}&system=pactlab_standard&fileName=${encodeURIComponent(fileName)}${instructions === undefined ? '' : `&instructions=${encodeURIComponent(instructions)}`}`,
       headers: { authorization: `Bearer ${bearer}`, 'content-type': 'text/csv' },
       payload: content,
     });
@@ -237,5 +237,89 @@ describe('the mapping assistant through the API (Kumar, 2026-11-21)', { timeout:
     const back = await call(app, 'POST', `${base}/sheet`, lead, { headerRow: 3 });
     expect(back.body).toMatchObject({ headerRow: 3, rowCount: 7 });
     expect((await call(app, 'POST', `${base}/sheet`, lead, { sheet: 'Sheet 2' })).status).toBe(409);
+  });
+
+  describe('import prompting (T-152)', () => {
+    /** A full-width title row looks like a header; only the person knows it is not. */
+    const TITLED = ['Northwind Software LLC,Annual,Report,Draft', ...PNL.split('\n').slice(1)].join('\n');
+
+    it('instructions reach the mapping job, change the outcome, are quoted back and marked as guided', async () => {
+      reply = null;
+      const lead = await token(alpha.subject, alpha);
+      const plain = await upload(app, lead, TITLED.replace('Northwind', 'Guided One'), 'guided-one.csv');
+      expect(plain.body).toMatchObject({ headerRow: 1, guidance: null });
+
+      const before = seen.length;
+      const told = 'rows 1: title row, skip it';
+      const guided = await upload(app, lead, TITLED.replace('Northwind', 'Guided Two'), 'guided-two.csv', 'FINANCIAL_PNL', told);
+      expect(guided.body).toMatchObject({ headerRow: 3, guidance: { instructions: told, annotations: [] } });
+      expect(seen.length).toBe(before + 1);
+    });
+
+    it('row annotations go to the mapper as numbered rows, steer the header and mark fields guided', async () => {
+      reply = null;
+      const lead = await token(alpha.subject, alpha);
+      const uploaded = await upload(app, lead, TITLED.replace('Northwind', 'Guided Three'), 'guided-three.csv');
+      const base = `/v1/deals/${alpha.dealId}/uploads/${uploaded.body['id'] as string}`;
+      const guidance = { instructions: 'Amounts are annual. column A is the account', annotations: [{ fromRow: 1, toRow: 2, note: 'title rows, skip them' }] };
+      const saved = await call(app, 'POST', `${base}/sheet`, lead, { guidance });
+      expect(saved.status).toBe(200);
+      expect(saved.body).toMatchObject({ headerRow: 3, guidance, assist: { source: 'AI', guidance } });
+      const prompt = seen.at(-1)?.messages[0]?.content ?? '';
+      expect(prompt).toContain('About the file: Amounts are annual. column A is the account');
+      expect(prompt).toContain('rows 1–2: title rows, skip them');
+      expect((saved.body['assist'] as { picks: Record<string, { by: string }> }).picks['account']?.by).toBe('GUIDED');
+      expect((saved.body['assist'] as { picks: Record<string, { by: string }> }).picks['month']?.by).toBe('AI');
+
+      // It is stored with the import and shown again by the detail view.
+      expect((await call(app, 'GET', base, lead)).body).toMatchObject({ guidance });
+      // Clearing it reads the file without it.
+      const cleared = await call(app, 'POST', `${base}/sheet`, lead, { guidance: { instructions: '', annotations: [] } });
+      expect(cleared.body).toMatchObject({ guidance: null });
+      const audit = await db.owner.query(`SELECT 1 FROM audit_events WHERE deal_id = $1 AND action = 'source_upload.guidance_set' AND target_id = $2`, [alpha.dealId, uploaded.body['id']]);
+      expect(audit.rows).toHaveLength(2);
+    });
+
+    it('an annotation calling a data row a subtotal asks a question; the import is never silently changed', async () => {
+      reply = null;
+      const lead = await token(alpha.subject, alpha);
+      const uploaded = await upload(app, lead, PNL.replace('Northwind', 'Guided Four'), 'guided-four.csv');
+      const base = `/v1/deals/${alpha.dealId}/uploads/${uploaded.body['id'] as string}`;
+      // Row 5 is "Services revenue": it does not add up the row above it.
+      const wrong = await call(app, 'POST', `${base}/sheet`, lead, { guidance: { instructions: '', annotations: [{ fromRow: 5, toRow: 5, note: 'row 5 is a subtotal, not data' }] } });
+      const questions = (wrong.body['assist'] as { questions: { field: string | null; question: string }[] }).questions;
+      expect(questions.find((question) => question.field === null)?.question).toContain('row 5');
+      // The right row ties out and raises nothing; the values read are the same either way.
+      const right = await call(app, 'POST', `${base}/sheet`, lead, { guidance: { instructions: '', annotations: [{ fromRow: 6, toRow: 6, note: 'subtotal' }] } });
+      expect((right.body['assist'] as { questions: unknown[] }).questions).toEqual([]);
+      expect(right.body['suggestedMapping']).toEqual(wrong.body['suggestedMapping']);
+    });
+
+    it('guidance round-trips when the same file is uploaded again, and can be replaced', async () => {
+      reply = null;
+      const lead = await token(alpha.subject, alpha);
+      const file = TITLED.replace('Northwind', 'Guided Five');
+      const first = await upload(app, lead, file, 'guided-five.csv', 'FINANCIAL_PNL', 'rows 1: title row, skip it');
+      expect(first.body).toMatchObject({ headerRow: 3 });
+      const again = await upload(app, lead, file, 'guided-five.csv');
+      expect(again.body).toMatchObject({ headerRow: 3, guidance: { instructions: 'rows 1: title row, skip it' } });
+      const replaced = await upload(app, lead, file, 'guided-five.csv', 'FINANCIAL_PNL', 'Amounts are monthly');
+      expect(replaced.body).toMatchObject({ headerRow: 1, guidance: { instructions: 'Amounts are monthly' } });
+    });
+
+    it('with the assistant off, guidance is kept and shown, and the screen says it was not used', async () => {
+      const lead = await token(alpha.subject, alpha);
+      const uploaded = await upload(off, lead, PNL.replace('Northwind', 'Guided Six'), 'guided-six.csv', 'FINANCIAL_PNL', 'Amounts are annual');
+      expect(uploaded.body).toMatchObject({ guidance: { instructions: 'Amounts are annual' }, assist: { source: 'NAMES' } });
+      expect((uploaded.body['assist'] as { note: string }).note).toContain('Your instructions were not used.');
+    });
+
+    it('too-long guidance is refused', async () => {
+      const lead = await token(alpha.subject, alpha);
+      const uploaded = await upload(app, lead, PNL.replace('Northwind', 'Guided Seven'), 'guided-seven.csv');
+      const base = `/v1/deals/${alpha.dealId}/uploads/${uploaded.body['id'] as string}`;
+      expect((await call(app, 'POST', `${base}/sheet`, lead, { guidance: { instructions: 'x'.repeat(1001), annotations: [] } })).status).toBe(400);
+      expect((await upload(app, lead, PNL, 'long.csv', 'FINANCIAL_PNL', 'x'.repeat(1001))).status).toBe(400);
+    });
   });
 });
