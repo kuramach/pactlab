@@ -78,9 +78,9 @@ export function ReadingCard({ facts, reading, onExplain }: { facts: readonly str
     return (
       <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
         Thanks. Pactlab will read the file this way. Check the columns below, then import.{' '}
-        <button type="button" className="underline" onClick={() => setAnswer(null)}>
+        <Button size="sm" variant="link" className="h-auto p-0" onClick={() => setAnswer(null)}>
           Change your answer
-        </button>
+        </Button>
       </p>
     );
   }

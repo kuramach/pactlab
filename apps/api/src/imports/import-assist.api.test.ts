@@ -132,6 +132,16 @@ describe('the mapping assistant through the API (Kumar, 2026-11-21)', { timeout:
     expect(imported.body).toMatchObject({ syncRun: { status: 'SUCCEEDED', recordsCreated: 12 } });
     const lines = await db.owner.query(`SELECT 1 FROM evidence_items WHERE deal_id = $1 AND evidence_type = 'finance.pnl_line'`, [alpha.dealId]);
     expect(lines.rows).toHaveLength(12);
+
+    // What it picked up: the records, the month-by-month totals from the lines alone (never the file's subtotals).
+    const results = await call(app, 'GET', `${base}/results`, lead);
+    expect(results.status).toBe(200);
+    expect(results.body).toMatchObject({ status: 'IMPORTED', activeRecords: 12, run: { recordsCreated: 12 }, findings: 0 });
+    const sample = results.body['sample'] as { fields: { name: string }[]; rows: (string | null)[][] };
+    expect(sample.fields.map((field) => field.name)).toEqual(['account', 'month', 'amount']);
+    expect(sample.rows).toHaveLength(10);
+    expect((results.body['pnlMonths'] as Body[])[0]).toEqual({ month: '2026-01', revenue: '120000', costOfRevenue: '15000', grossProfit: '105000', operatingExpenses: '60000', operatingIncome: '45000', netIncome: '45000' });
+    expect(results.body['pnlMonths']).toHaveLength(3);
   });
 
   it('a subtotal that does not add up blocks the import until the line kinds are fixed or the gap accepted', async () => {

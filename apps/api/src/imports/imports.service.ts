@@ -12,7 +12,7 @@ import {
   UnsupportedMediaTypeException,
 } from '@nestjs/common';
 import { GatewayPolicyError, mapImport, type AiRunRecord, type ClaudeGateway } from '@pactlab/ai';
-import { D, parseDecimal } from '@pactlab/calculations';
+import { D, METRIC_CALCULATORS, parseDecimal, SAAS_METRICS_CALCULATOR } from '@pactlab/calculations';
 import { BILLING_TEMPLATES, readTable, TableReadError, type BillingTemplate, type ReadTable } from '@pactlab/connectors';
 import {
   MAX_UPLOAD_BYTES,
@@ -20,6 +20,7 @@ import {
   type ImportMappingBody,
   type ImportPreviewView,
   type ImportProgressView,
+  type ImportResultsView,
   type ImportResultView,
   type ImportTargetView,
   type SourceUploadView,
@@ -28,6 +29,7 @@ import {
   type Page,
 } from '@pactlab/contracts';
 import {
+  ACTIVE_EVIDENCE,
   appendAuditEvent,
   BACKGROUND_IMPORT_ROWS,
   IdempotencyConflictError,
@@ -85,6 +87,8 @@ import {
   type ImportLineageEntry,
   type ImportRecordFields,
   type WithdrawalResultView,
+  pnlMonthlyTotals,
+  type PnlKind,
 } from '@pactlab/domain';
 import { DealAccess } from '../deals/deal-access';
 import { CLAUDE_GATEWAY, DOCUMENT_OBJECT_STORE, type DocumentObjectStore } from '../documents/documents.repository';
@@ -605,6 +609,53 @@ export class ImportsService {
         });
       }
       return { chain };
+    });
+  }
+
+  /** What an import picked up, and where it now shows (Kumar, 2026-11-25). Reads only. */
+  async results(tenant: TenantContext, dealId: string, uploadId: string, requestId: string): Promise<ImportResultsView> {
+    const role = await this.access.require(tenant, dealId, canRead, { action: 'source_upload.results', requestId });
+    return withTenant(this.prisma, tenant, async (tx) => {
+      const row = await sourceUploads.get(tx, dealId, uploadId);
+      if (!row) throw new NotFoundException();
+      if (!row.syncRunId) throw new ConflictException({ code: 'NOT_IMPORTED' });
+      const run = await tx.syncRun.findFirst({ where: { dealId, id: row.syncRunId }, select: { status: true, recordsSeen: true, recordsCreated: true, recordsUnchanged: true, issuesCount: true } });
+      if (!run) throw new NotFoundException();
+      const definition = definitionOf(row.target);
+      const syncRunId = row.syncRunId;
+      // Records this import's run read that still count.
+      const activeRecords = await tx.evidenceItem.count({ where: { dealId, syncRunLinks: { some: { syncRunId } }, ...ACTIVE_EVIDENCE } });
+      let sample: ImportResultsView['sample'] = null;
+      if (definition.people === 'NONE') {
+        // void-ok: the first records this import picked up are shown even once it is deleted, so a person can see what was read.
+        const firsts = await tx.evidenceItem.findMany({ where: { dealId, syncRunLinks: { some: { syncRunId } } }, orderBy: { id: 'asc' }, take: 10, select: { canonical: true } });
+        const fields = definition.fields.map((field) => ({ name: field.name, label: field.label }));
+        const cell = (value: unknown) => (value === null || value === undefined || value === '' ? null : typeof value === 'object' ? JSON.stringify(value) : String(value));
+        sample = { fields, rows: firsts.map((item) => fields.map((field) => cell((item.canonical as Record<string, unknown>)[field.name]))) };
+      }
+      const companyType = await this.sellerType(tx, dealId);
+      const calculator = METRIC_CALCULATORS[packFor(companyType).metricCalculator];
+      const metrics = calculator?.evidenceTypes.includes(definition.evidenceType) ? (calculator.id === SAAS_METRICS_CALCULATOR.id ? 'SUBSCRIPTION' : 'INDUSTRY') : null;
+      let pnlMonths: ImportResultsView['pnlMonths'] = null;
+      if (definition.lineItems) {
+        // whole-set: a P&L's monthly totals need every line of this import (bounded by the upload's row limit), never returned as a list.
+        const lines = await tx.evidenceItem.findMany({ where: { dealId, syncRunLinks: { some: { syncRunId } }, ...ACTIVE_EVIDENCE }, select: { canonical: true } });
+        pnlMonths = pnlMonthlyTotals(
+          lines.map((item) => {
+            const canonical = item.canonical as Record<string, unknown>;
+            return { month: String(canonical['month'] ?? ''), amount: String(canonical['amount'] ?? '0'), kind: (canonical['line_kind'] ?? null) as PnlKind | null };
+          }),
+        );
+      }
+      const findings = isBuyerSideRole(role)
+        ? (
+            await tx.$queryRaw<{ n: number }[]>`
+              SELECT count(DISTINCT l.finding_id)::int AS n FROM finding_evidence_links l
+                JOIN sync_run_evidence m ON m.evidence_item_id = l.evidence_item_id AND m.deal_id = l.deal_id
+               WHERE l.deal_id = ${dealId}::uuid AND m.sync_run_id = ${syncRunId}::uuid`
+          )[0]?.n ?? 0
+        : null;
+      return { status: row.status, run, activeRecords, sample, metrics, pnlMonths, findings };
     });
   }
 

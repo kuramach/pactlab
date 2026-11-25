@@ -184,6 +184,26 @@ export interface ImportResultView {
   background: boolean;
 }
 
+/**
+ * What an import picked up (Kumar, 2026-11-25: "After the extraction, it shd show me what it picked up, what metrics
+ * it derived and how it will show"): its counts, its first records in the field labels, which metrics read it, a
+ * P&L's monthly totals (computed by code from the lines), and the draft findings the industry checks raised from it.
+ */
+export interface ImportResultsView {
+  status: string;
+  run: { status: string; recordsSeen: number; recordsCreated: number; recordsUnchanged: number; issuesCount: number };
+  /** Records this import holds that still count (none once it is deleted). */
+  activeRecords: number;
+  /** Its first records, field by field; null for a file about people (counts only). */
+  sample: { fields: { name: string; label: string }[]; rows: (string | null)[][] } | null;
+  /** Which metrics read this kind of data: the subscription metrics, the industry pack's, or none. */
+  metrics: 'SUBSCRIPTION' | 'INDUSTRY' | null;
+  /** A P&L: what its lines add up to, month by month (decimal strings, costs positive). */
+  pnlMonths: { month: string; revenue: string; costOfRevenue: string; grossProfit: string; operatingExpenses: string; operatingIncome: string; netIncome: string }[] | null;
+  /** Findings that cite this import's records (the buyer's side only; null for a counterparty). */
+  findings: number | null;
+}
+
 /** How far an import run has got. Counts only. */
 export interface ImportProgressView {
   syncRunId: string;

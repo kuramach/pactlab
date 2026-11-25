@@ -223,6 +223,52 @@ export function pnlTieOut(lines: readonly { account: string; month: string; amou
   return gaps;
 }
 
+/** One month of an imported P&L, from its lines only (subtotals are never summed). Decimal strings; costs as positive amounts. */
+export interface PnlMonthTotals {
+  readonly month: string;
+  readonly revenue: string;
+  readonly costOfRevenue: string;
+  readonly grossProfit: string;
+  readonly operatingExpenses: string;
+  readonly operatingIncome: string;
+  readonly netIncome: string;
+}
+
+/**
+ * What an imported P&L adds up to, month by month (Kumar, 2026-11-25: "what metrics it derived"). Deterministic,
+ * from the lines and their confirmed kinds: costs written negative or positive are both read as costs (the sign
+ * of each month's costs decides, as in `pnlTieOut`).
+ */
+export function pnlMonthlyTotals(lines: readonly { month: string; amount: string; kind: PnlKind | null }[]): PnlMonthTotals[] {
+  const zero = (): Record<PnlLineKind, bigint> => ({ REVENUE: 0n, COGS: 0n, OPEX: 0n, OTHER_INCOME: 0n, OTHER_EXPENSE: 0n });
+  const months = new Map<string, Record<PnlLineKind, bigint>>();
+  for (const line of lines) {
+    if (!line.kind || !isPnlLine(line.kind)) continue;
+    const sums = months.get(line.month) ?? zero();
+    sums[line.kind] += toScaled(line.amount);
+    months.set(line.month, sums);
+  }
+  const abs = (value: bigint) => (value < 0n ? -value : value);
+  return [...months.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([month, s]) => {
+      const costs = abs(s.COGS);
+      const opex = abs(s.OPEX);
+      const otherExpense = abs(s.OTHER_EXPENSE);
+      const gross = s.REVENUE - costs;
+      const operating = gross - opex;
+      return {
+        month,
+        revenue: fromScaled(s.REVENUE),
+        costOfRevenue: fromScaled(costs),
+        grossProfit: fromScaled(gross),
+        operatingExpenses: fromScaled(opex),
+        operatingIncome: fromScaled(operating),
+        netIncome: fromScaled(operating + s.OTHER_INCOME - otherExpense),
+      };
+    });
+}
+
 // ——— The mapping assistant's proposal, checked ———
 
 /** At or above this, a field the assistant proposes is filled in; below it, a person is asked. */

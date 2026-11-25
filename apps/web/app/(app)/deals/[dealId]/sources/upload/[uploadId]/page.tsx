@@ -2,10 +2,12 @@ import { IMPORT_TARGET_DEFINITIONS } from '@pactlab/domain';
 import { Badge } from '@pactlab/ui';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { metricsApi } from '../../../../../metrics/_lib/api';
 import { dealsApi } from '../../../../_lib/api';
 import { isUuidParam } from '../../../../_lib/filters';
 import { ApiState } from '../../../../_lib/states';
 import { MappingEditor } from './mapping-editor';
+import { ImportResults, shownMetrics } from './results';
 import { ImportHistory, withdrawalFailure, WithdrawnPanel, WithdrawPanel } from './withdrawal';
 
 // Per-user data: never prerender.
@@ -19,7 +21,7 @@ export default async function MapUploadPage({
   searchParams,
 }: {
   params: Promise<{ dealId: string; uploadId: string }>;
-  searchParams: Promise<{ withdrawn?: string; voided?: string; findings?: string; runs?: string; withdraw?: string; reimport?: string; delete?: string }>;
+  searchParams: Promise<{ withdrawn?: string; voided?: string; findings?: string; runs?: string; withdraw?: string; reimport?: string; delete?: string; imported?: string; checked?: string }>;
 }) {
   const { dealId, uploadId } = await params;
   const query = await searchParams;
@@ -33,6 +35,27 @@ export default async function MapUploadPage({
   const failure = withdrawalFailure(query.withdraw ?? query.reimport);
   const definition = upload.kind === 'ok' ? IMPORT_TARGET_DEFINITIONS[upload.data.target] : null;
   const billing = !definition || definition.target === 'BILLING_INVOICE_LINE';
+  // After an import (and on a deleted one): what it picked up, the metrics it feeds and where it shows (Kumar, 2026-11-25).
+  const done = upload.kind === 'ok' && (upload.data.status === 'IMPORTED' || upload.data.status === 'WITHDRAWN') && upload.data.syncRunId !== null;
+  const results = done ? await dealsApi.uploadResults(dealId, uploadId) : null;
+  const feeds = results?.kind === 'ok' && results.data.status === 'IMPORTED' ? results.data.metrics : null;
+  const [subscription, industry] = await Promise.all([feeds === 'SUBSCRIPTION' ? metricsApi.summary(dealId) : null, feeds === 'INDUSTRY' ? metricsApi.pack(dealId) : null]);
+  const metricsResult = subscription ?? industry;
+  const metricsHidden = metricsResult?.kind === 'forbidden';
+  const picked =
+    results?.kind === 'ok' && definition ? (
+      <ImportResults
+        dealId={dealId}
+        uploadId={uploadId}
+        definition={definition}
+        results={results.data}
+        metrics={shownMetrics(results.data, subscription?.kind === 'ok' ? subscription.data : null, industry?.kind === 'ok' ? industry.data : null)}
+        metricsHidden={metricsHidden}
+        canDelete={canManage}
+        justImported={query.imported === '1'}
+        checked={query.checked === '1'}
+      />
+    ) : null;
 
   return (
     <div className="flex max-w-5xl flex-col gap-6">
@@ -70,6 +93,7 @@ export default async function MapUploadPage({
       {upload.kind !== 'ok' ? (
         <ApiState result={upload} />
       ) : upload.data.status === 'WITHDRAWN' ? (
+        <>
         <WithdrawnPanel
           dealId={dealId}
           uploadId={uploadId}
@@ -78,14 +102,21 @@ export default async function MapUploadPage({
           canManage={canManage}
           done={query.withdrawn ? { voided: Number(query.voided ?? 0), findings: Number(query.findings ?? 0), runs: Number(query.runs ?? 0) } : null}
         />
+        {picked}
+        </>
       ) : upload.data.status === 'PURGED' ? (
         <p role="status" className="rounded-md border border-border bg-muted px-3 py-2 text-sm">
           This upload was cancelled; nothing was imported and the stored file was deleted.
         </p>
       ) : (
         <>
+        {picked}
         {chain && chain.length > 1 ? <ImportHistory dealId={dealId} chain={chain} current={uploadId} /> : null}
         {upload.data.status === 'IMPORTED' && canManage ? <WithdrawPanel dealId={dealId} uploadId={uploadId} open={query.delete === '1' || failure !== null} /> : null}
+        {upload.data.status === 'IMPORTED' ? (
+          <details className="rounded-md border border-border px-3 py-2 text-sm">
+            <summary className="cursor-pointer font-medium">See how the columns were read</summary>
+            <div className="mt-3">
         <MappingEditor
           // A different sheet is a different table: start the mapping afresh.
           key={`${upload.data.sheet ?? 'table'}:${upload.data.headerRow ?? 1}`}
@@ -101,6 +132,25 @@ export default async function MapUploadPage({
           preview={upload.data.preview}
           rowCount={upload.data.rowCount}
         />
+            </div>
+          </details>
+        ) : (
+        <MappingEditor
+          // A different sheet is a different table: start the mapping afresh.
+          key={`${upload.data.sheet ?? 'table'}:${upload.data.headerRow ?? 1}`}
+          dealId={dealId}
+          uploadId={uploadId}
+          header={upload.data.header}
+          sample={upload.data.sample}
+          suggested={upload.data.suggestedMapping}
+          read={upload.data}
+          assist={upload.data.assist}
+          guidance={upload.data.guidance}
+          headerRow={upload.data.headerRow}
+          preview={upload.data.preview}
+          rowCount={upload.data.rowCount}
+        />
+        )}
         </>
       )}
     </div>

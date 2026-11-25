@@ -5,7 +5,7 @@ test('a billing export uploads, maps, validates and imports; importing again cha
   const dealId = await startPact(page, 'Software & SaaS');
   const file = demoFile('software-saas', 'USD', 'invoice-lines.csv');
 
-  const upload = async () => {
+  const upload = async (first: boolean) => {
     await page.goto(`/deals/${dealId}/sources/upload`);
     await page.getByRole('radio', { name: /Pactlab standard template/ }).check();
     await page.locator('input[type="file"]').setInputFiles(file);
@@ -15,14 +15,16 @@ test('a billing export uploads, maps, validates and imports; importing again cha
     await expect(page.getByText('3. Validation report')).toBeVisible();
     await expect(page.getByText(/302 of 302 lines are ready to import/)).toBeVisible();
     await page.getByRole('button', { name: 'Import 302 lines' }).click();
-    await expect(page).toHaveURL(/\/sources\?imported=BILLING_INVOICE_LINE/);
+    // A fresh import lands on its own page, showing what it picked up; the same file again goes back to Sources.
+    await expect(page).toHaveURL(first ? /\/sources\/upload\/[^?]+\?imported=1/ : /\/sources\?imported=BILLING_INVOICE_LINE/);
   };
 
-  await upload();
-  await expect(page.getByRole('status')).toContainText('302 new records, 0 already known');
-  await expect(page.getByRole('status')).toContainText('Finances now include them');
+  await upload(true);
+  await expect(page.getByRole('heading', { name: 'What Pactlab picked up' })).toBeVisible();
+  await expect(page.getByRole('status')).toContainText('Invoice lines imported: 302 new records, 0 already known');
+  await expect(page.getByRole('region', { name: 'What Pactlab picked up' }).getByRole('link', { name: 'Finances' })).toBeVisible();
 
-  await upload();
+  await upload(false);
   await expect(page.getByRole('status')).toContainText('already imported with the same mapping. Nothing changed.');
 
   // Read wrongly? Delete it from the list and import it again (Kumar, 2026-11-25).

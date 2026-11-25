@@ -232,7 +232,7 @@ export function MappingEditor({
       if (stopped) return;
       if (next) setProgress(next);
       if (next?.status === 'SUCCEEDED') {
-        router.push(importedUrl(dealId, mapping.target, next));
+        router.push(importedUrl(dealId, mapping.target, next, false, uploadId));
         return;
       }
       if (next?.status === 'FAILED') {
