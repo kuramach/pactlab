@@ -3,7 +3,9 @@ import { Badge } from '@pactlab/ui';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { metricsApi } from '../../../../../metrics/_lib/api';
-import { dealsApi } from '../../../../_lib/api';
+import { apiGet, dealsApi } from '../../../../_lib/api';
+import { can, dealViewer } from '../../../../_lib/viewer';
+import type { DocumentRequestView } from '../../../documents/requests-card';
 import { isUuidParam } from '../../../../_lib/filters';
 import { ApiState } from '../../../../_lib/states';
 import { MappingEditor } from './mapping-editor';
@@ -42,6 +44,10 @@ export default async function MapUploadPage({
   const [subscription, industry] = await Promise.all([feeds === 'SUBSCRIPTION' ? metricsApi.summary(dealId) : null, feeds === 'INDUSTRY' ? metricsApi.pack(dealId) : null]);
   const metricsResult = subscription ?? industry;
   const metricsHidden = metricsResult?.kind === 'forbidden';
+  // A figure still missing can be asked of the seller by the buyer team (Kumar, 2026-11-25).
+  const [viewer, requests] = feeds === 'INDUSTRY' && !metricsHidden ? await Promise.all([dealViewer(dealId), apiGet<{ items: DocumentRequestView[] }>(`/v1/deals/${dealId}/document-requests`)]) : [null, null];
+  const askSeller = viewer !== null && can.draft(viewer.role) && viewer.members.some((member) => member.role === 'TARGET_CONTRIBUTOR' && member.status === 'ACTIVE');
+  const requested = new Set(requests?.kind === 'ok' ? requests.data.items.filter((request) => request.status === 'OPEN').flatMap((request) => request.items.filter((item) => !item.received).map((item) => item.id)) : []);
   const picked =
     results?.kind === 'ok' && definition ? (
       <ImportResults
@@ -51,6 +57,8 @@ export default async function MapUploadPage({
         results={results.data}
         metrics={shownMetrics(results.data, subscription?.kind === 'ok' ? subscription.data : null, industry?.kind === 'ok' ? industry.data : null)}
         metricsHidden={metricsHidden}
+        askSeller={askSeller}
+        requested={requested}
         canDelete={canManage}
         justImported={query.imported === '1'}
         checked={query.checked === '1'}

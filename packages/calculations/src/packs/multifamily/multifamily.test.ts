@@ -33,7 +33,15 @@ describe('multifamily metrics', () => {
   it('says which import is missing instead of inventing a figure', () => {
     const report = multifamilyMetrics({ currency: 'EUR', evidence: [] });
     const noi = report.metrics.find((metric) => metric.key === 't12_noi');
-    expect(noi).toMatchObject({ value: null, unavailableReason: 'Import the T-12 operating statement.' });
+    expect(noi).toMatchObject({ value: null, unavailableReason: 'Import the T-12 operating statement.', needs: ['MULTIFAMILY_T12'] });
+  });
+
+  it('names the import each missing figure needs, so it can be asked of the seller (Kumar, 2026-11-25)', () => {
+    const empty = multifamilyMetrics({ currency: 'USD', evidence: [] });
+    const needs = Object.fromEntries(empty.metrics.map((metric) => [metric.key, metric.needs ?? null]));
+    expect(needs).toMatchObject({ occupancy: ['MULTIFAMILY_RENT_ROLL'], t12_noi: ['MULTIFAMILY_T12'], delinquent_balance: ['MULTIFAMILY_DELINQUENCY'], capex_per_door: ['MULTIFAMILY_RENT_ROLL', 'MULTIFAMILY_INSPECTION'] });
+    const full = multifamilyMetrics({ currency: 'USD', evidence });
+    expect(full.metrics.every((metric) => metric.needs === undefined)).toBe(true);
   });
 });
 
