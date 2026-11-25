@@ -18,6 +18,10 @@ describe('deal sections per pact (batch 2)', () => {
     expect(sectionApplies('/terms', { companyType: 'MULTIFAMILY', initiatedBy: 'SELLER' })).toBe(false);
     expect(sectionApplies('/raise', { companyType: 'VENTURE_RAISE', initiatedBy: 'SELLER' })).toBe(true);
     expect(sectionApplies('/raise', { companyType: 'SOFTWARE_SAAS', initiatedBy: 'BUYER' })).toBe(false);
+    // The sponsor's offering (T-106): only on a multifamily syndication, never on Multifamily itself.
+    expect(sectionApplies('/syndication', { companyType: 'MULTIFAMILY_SYNDICATION', initiatedBy: 'BUYER' })).toBe(true);
+    expect(sectionApplies('/syndication', { companyType: 'MULTIFAMILY', initiatedBy: 'BUYER' })).toBe(false);
+    expect(sectionCompanyTypes('/syndication')).toEqual(['MULTIFAMILY_SYNDICATION']);
   });
 
   it('shows subscription metrics only for subscription businesses', () => {

@@ -64,6 +64,7 @@ export function expectedInputs(pack: PackDefinition): readonly ExpectedInput[] {
     { id: 'LEASE', need: realEstate ? 'REQUIRED' : 'OPTIONAL' },
     { id: 'LOAN_AGREEMENT', need: 'OPTIONAL' },
     { id: 'CASH_FLOW_STATEMENT', need: 'OPTIONAL' },
+    ...(pack.documentCategories ?? []).map((id): ExpectedInput => ({ id, need: 'REQUIRED' })),
   ];
   if (pack.id === 'SOFTWARE_SAAS') inputs.push({ id: 'CODE_AND_DELIVERY', need: 'OPTIONAL' });
   return inputs;

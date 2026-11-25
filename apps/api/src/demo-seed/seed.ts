@@ -143,11 +143,49 @@ function brokenReferences(request: ModelRequest) {
 }
 
 /**
+ * Offering extraction (T-106), scripted: reads the synthetic PPM, operating agreement and deck the
+ * demo data writes, with the fee, distribution and claim sentences they use, and quotes each
+ * sentence from its own page. Deterministic, so the demo and tests run without a model.
+ */
+const OFFERING_PATTERNS: readonly { kind: string; pattern: RegExp; value: number; hurdle?: number; label?: number }[] = [
+  { kind: 'ACQUISITION_FEE', pattern: /Acquisition fee: (\d+(?:\.\d+)?)% of [^.]*\./g, value: 1 },
+  { kind: 'ASSET_MANAGEMENT_FEE', pattern: /Asset management fee: (\d+(?:\.\d+)?)% of [^.]*\./g, value: 1 },
+  { kind: 'DISPOSITION_FEE', pattern: /Disposition fee: (\d+(?:\.\d+)?)% of [^.]*\./g, value: 1 },
+  { kind: 'OTHER_FEE', pattern: /(Loan guarantee fee|Refinancing fee|Construction management fee): (\d+(?:\.\d+)?)% of [^.]*\./g, value: 2, label: 1 },
+  { kind: 'PREFERRED_RETURN', pattern: /Preferred return: (\d+(?:\.\d+)?)% per year/g, value: 1 },
+  { kind: 'PROMOTE_TIER', pattern: /Thereafter, \d+% to the (?:investors|Investor Members) and (\d+(?:\.\d+)?)% to the Manager until the (?:investors|Investor Members) reach a (\d+(?:\.\d+)?)% IRR\./g, value: 1, hurdle: 2 },
+  { kind: 'PROMOTE_TIER', pattern: /Thereafter, \d+% to the (?:investors|Investor Members) and (\d+(?:\.\d+)?)% to the Manager\./g, value: 1 },
+  { kind: 'PROJECTED_IRR', pattern: /Projected investor IRR: (\d+(?:\.\d+)?)%/g, value: 1 },
+  { kind: 'EQUITY_MULTIPLE', pattern: /Projected equity multiple: (\d+(?:\.\d+)?)x/g, value: 1 },
+  { kind: 'CASH_ON_CASH', pattern: /Projected average cash-on-cash return: (\d+(?:\.\d+)?)%/g, value: 1 },
+  { kind: 'OCCUPANCY', pattern: /Occupancy at acquisition: (\d+(?:\.\d+)?)%/g, value: 1 },
+  { kind: 'NOI_GROWTH', pattern: /NOI growth assumption: (\d+(?:\.\d+)?)% per year/g, value: 1 },
+  { kind: 'EXIT_CAP_RATE', pattern: /Exit cap rate assumption: (\d+(?:\.\d+)?)%/g, value: 1 },
+  { kind: 'TRACK_RECORD', pattern: /([A-Z][A-Za-z]+(?: [A-Z][A-Za-z]+)*) delivered a (\d+(?:\.\d+)?)% investor IRR\./g, value: 2, label: 1 },
+];
+
+function offeringExtraction(request: ModelRequest) {
+  const prompt = request.messages[0]?.content ?? '';
+  const items = [];
+  for (const block of prompt.split('<untrusted_source ').slice(1)) {
+    const citationId = /citation_id="([^"]+)"/.exec(block)?.[1] ?? '';
+    const text = block.slice(block.indexOf('>') + 1, block.indexOf('</untrusted_source>')).replace(/\s+/g, ' ');
+    for (const { kind, pattern, value, hurdle, label } of OFFERING_PATTERNS) {
+      for (const match of text.matchAll(pattern)) {
+        items.push({ kind, label: label ? (match[label] ?? null) : null, value: match[value] ?? null, hurdle: hurdle ? (match[hurdle] ?? null) : null, citations: [{ citationId, quote: match[0] }] });
+      }
+    }
+  }
+  return { items };
+}
+
+/**
  * Scripted model responses for the demo contracts: the extraction a model
  * would propose, cited to the exact text. Runs are recorded under the model
  * id `synthetic-fixture`, never as a real model.
  */
 export function demoModelResponse(request: ModelRequest): string {
+  if (request.system.includes('offering documents of a multifamily real-estate syndication')) return JSON.stringify(offeringExtraction(request));
   // The mapping assistant (import.map@1): rule-based, from the grid the prompt shows.
   if (request.system.includes('You help import a spreadsheet')) return importMapFixtureResponse(request.messages[0]?.content ?? '');
   // Negotiation brief (T-105): one synthetic, grounded section per finding carried by the terms.

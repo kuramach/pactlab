@@ -19,6 +19,7 @@ import {
   CLASSIFY_MAX_PAGES,
   classifyDocument,
   extractContractTerms,
+  extractOfferingItems,
   scrubContract,
   GatewayPolicyError,
   PROHIBITED_CLASSIFICATIONS,
@@ -1066,6 +1067,30 @@ export class DocumentsService {
       rejected: rejected.map((item) => ({ title: item.title, reasons: item.reasons })),
       consistency,
     };
+  }
+
+  /**
+   * Offering extraction (T-106): read a syndication's PPM, operating agreement or investor deck
+   * with `offering.extract`. Only grounded items come back (quote on the page, every figure in
+   * the quote); the syndication service stores them as PROPOSED for the sponsor to confirm.
+   * The AI run is recorded either way.
+   */
+  async extractOffering(tenant: TenantContext, dealId: string, documentId: string, requestId: string) {
+    await this.access.require(tenant, dealId, canExtract, { action: 'syndication.extraction.requested', requestId });
+    const document = await this.documents.getDocument(tenant, dealId, documentId);
+    if (!document) throw new NotFoundException();
+    if (!modelEligible(document)) throw new UnprocessableEntityException({ code: 'NOT_FOR_AI', message: 'This document is kept away from AI' });
+    const { sources } = await this.sources(tenant, dealId, [document]);
+    let outcome;
+    try {
+      outcome = await extractOfferingItems(this.gateway, { organizationId: tenant.organizationId, dealId, sources });
+    } catch (error) {
+      gatewayError(error);
+    }
+    const { run, items, rejected, providerError } = outcome;
+    await this.documents.recordAiRun(tenant, run, this.audit(tenant, dealId, 'syndication.extraction.completed', { type: 'ai_run', id: run.id }, requestId));
+    if (run.status === 'PROVIDER_ERROR') throw providerUnavailable(providerError);
+    return { document: { id: document.id, fileName: document.fileName, category: document.intake.category }, runId: run.id, items, rejected };
   }
 
   /**

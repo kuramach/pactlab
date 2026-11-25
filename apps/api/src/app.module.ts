@@ -51,6 +51,7 @@ import { InvitationsModule } from './invitations/invitations.module';
 import { FinancingModule } from './financing/financing.module';
 import { ReportsModule } from './reports/reports.module';
 import { QoeModule } from './qoe/qoe.module';
+import { SyndicationModule } from './syndication/syndication.module';
 import { BrandModule } from './brand/brand.module';
 import { FeatureCardsModule } from './feature-cards/feature-cards.module';
 import { EmailEventsModule } from './email-events/email-events.module';
@@ -298,6 +299,8 @@ export class AppModule {
         documentsModule,
         // Reports (T-110): the same service instances the app reads through.
         qoeModule,
+        // Multifamily syndication (T-106): offering extraction runs through the documents module.
+        SyndicationModule.register({ documents: documentsModule }),
         reportsModule,
         IcModule.register({ reports: reportsModule }),
         BrandModule.register({ store: deps.documents?.objectStore ?? new UnavailableObjectStore(), fetcher: deps.webFetcher ?? new HttpsWebFetcher() }),

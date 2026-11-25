@@ -782,6 +782,38 @@ export const INDUSTRIES: readonly Industry[] = [
       { icon: 'EyeOff', title: 'An investor view that cannot leak', body: 'Share verified numbers and the data room; your weaknesses never cross over.' },
     ],
   },
+  {
+    slug: 'multifamily-syndication',
+    icon: 'HandCoins',
+    name: 'Multifamily syndication',
+    status: 'AVAILABLE',
+    order: 13,
+    pack: {
+      cluster: 'real-estate',
+      evidence: ['Everything the Multifamily pack reads: rent roll, T-12, leases, delinquency and inspections', 'Private placement memorandum (PPM)', 'Operating agreement', 'Investor deck', 'Sponsor track record: prior deals with projected and actual returns'],
+      findings: ['Projected IRR or equity multiple the waterfall does not support', 'Track-record claims with no actuals behind them', 'A fee in the operating agreement missing from the PPM summary', 'Preferred return or promote described differently in the PPM', 'A thin or missing track record, shown as a gap'],
+      valuation: ['The property priced on NOI and cap rate, as in the Multifamily pack', 'The waterfall recomputed from the operating agreement, in decimals', 'Investor returns after pref and promote on downside, base and upside paths, labelled as scenarios, never promises'],
+    },
+    summary: 'A sponsor buying a large multifamily property and raising the equity: the property and the offering, each checked against its evidence.',
+    dealShape: 'Sponsors acquiring apartment communities with equity raised from accredited investors under Rule 506(b) or 506(c).',
+    questions: [
+      'Does the property support the returns the PPM projects?',
+      'Does the waterfall in the operating agreement produce the IRR the deck states?',
+      'Is every fee in the operating agreement disclosed in the PPM?',
+      'What does the sponsor’s track record show, deal by deal, projected against actual?',
+    ],
+    transfers: [
+      { icon: 'Building2', title: 'The Multifamily pack, unchanged', body: 'Rent roll, T-12, inspections and NOI ÷ cap rate, by reference.' },
+      { icon: 'ListChecks', title: 'Claims register', body: 'Every offering claim verified, contradicted or unverified, linked to its evidence.' },
+      { icon: 'FileText', title: 'Exact citations', body: 'Fees and splits quoted to the page of the PPM and operating agreement.' },
+    ],
+    adds: [
+      { icon: 'FileSearch', title: 'Offering terms read for you', body: 'Fees, pref and promote proposed from the documents, each with its quote; you confirm them.' },
+      { icon: 'Calculator', title: 'A deterministic waterfall', body: 'Return of capital, pref and promote tiers recomputed from the confirmed terms.' },
+      { icon: 'History', title: 'Sponsor track record', body: 'Prior deals with projected and actual returns; missing actuals shown as missing.' },
+      { icon: 'EyeOff', title: 'A wall between the two sides', body: 'The seller never sees the raise; investors never see the acquisition negotiation.' },
+    ],
+  },
 ];
 
 export interface PactCard {
@@ -833,6 +865,7 @@ export const PACT_CARDS: readonly PactCard[] = [
   packCard('hotels', 'Weigh RevPAR, franchise terms and PIP capex against the asking price.'),
   packCard('small-clinics', 'See per-site economics, provider dependence and coding against policy.'),
   packCard('hospitals', 'Value on payer-mix-adjusted EBITDA, with census and accreditation in view.'),
+  packCard('multifamily-syndication', 'Check the property and the offering: returns, fees and track record.'),
   packCard('venture-raise', 'You are the one being diligenced. See what the investor will find, first.'),
 ];
 

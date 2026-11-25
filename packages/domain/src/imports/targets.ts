@@ -31,6 +31,7 @@ export const IMPORT_TARGETS = [
   'HOSPITALS_PAYER_MIX',
   'VENTURE_CAP_TABLE',
   'VENTURE_FINANCIALS',
+  'SYNDICATION_TRACK_RECORD',
   'REGULATORY_FOOTPRINT',
   'REMEDY_PACKAGE',
   'FINANCIAL_PNL',
@@ -631,6 +632,33 @@ export const VENTURE_FINANCIALS: TargetDefinition = {
 };
 
 /**
+ * Multifamily syndication (T-106): the sponsor's prior deals, projected and
+ * actual side by side. Blank actuals stay blank — absence is shown as absence,
+ * never filled in. Deals, not people.
+ */
+export const SYNDICATION_TRACK_RECORD: TargetDefinition = {
+  target: 'SYNDICATION_TRACK_RECORD',
+  label: 'Sponsor track record',
+  fileName: 'track-record.csv',
+  people: 'NONE',
+  refusesPeopleColumns: true,
+  evidenceType: 'syndication.prior_deal',
+  recordIdField: 'deal',
+  observedAtFields: ['exited_on', 'acquired_on'],
+  fields: [
+    { name: 'deal', label: 'Prior deal', kind: 'text', required: true, hint: 'The property or fund, as the sponsor names it in its materials.' },
+    { name: 'units', label: 'Units', kind: 'decimal', required: false, hint: 'Apartment units.' },
+    { name: 'acquired_on', label: 'Acquired on', kind: 'date', required: false, hint: 'Closing date of the purchase.' },
+    { name: 'exited_on', label: 'Exited on', kind: 'date', required: false, hint: 'Sale date; empty while held.' },
+    { name: 'status', label: 'Status', kind: 'code', required: true, hint: 'realized or held.' },
+    { name: 'projected_irr_pct', label: 'Projected IRR (%)', kind: 'decimal', required: false, hint: 'Investor IRR the offering projected, in percent.' },
+    { name: 'actual_irr_pct', label: 'Actual IRR (%)', kind: 'decimal', required: false, hint: 'Investor IRR delivered, in percent; empty when not documented.' },
+    { name: 'projected_multiple', label: 'Projected equity multiple', kind: 'decimal', required: false, hint: 'e.g. 1.85.' },
+    { name: 'actual_multiple', label: 'Actual equity multiple', kind: 'decimal', required: false, hint: 'Empty when not documented.' },
+  ],
+};
+
+/**
  * Regulatory & deal certainty (T-091): the merging parties' and rivals' sites
  * by local market — the input to the local-market concentration screen. Sales
  * and union status are per site (aggregates, never people).
@@ -739,6 +767,7 @@ export const IMPORT_TARGET_DEFINITIONS: Readonly<Record<ImportTarget, TargetDefi
   HOSPITALS_PAYER_MIX,
   VENTURE_CAP_TABLE,
   VENTURE_FINANCIALS,
+  SYNDICATION_TRACK_RECORD,
   REGULATORY_FOOTPRINT,
   REMEDY_PACKAGE,
   FINANCIAL_PNL,

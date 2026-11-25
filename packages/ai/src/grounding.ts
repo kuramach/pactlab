@@ -3,7 +3,7 @@ import type { CitableSource } from './context';
 import type { ModelProviderErrorKind } from './bedrock';
 import type { AiRunRecord, ClaudeGateway, GatewayInput } from './gateway';
 import type { ModelAlias } from './models';
-import { contractExtractionPrompt, contractScrubPrompt, documentQaPrompt, type ContractExtraction } from './prompts';
+import { contractExtractionPrompt, contractScrubPrompt, documentQaPrompt, offeringExtractionPrompt, type ContractExtraction, type OfferingExtraction } from './prompts';
 
 interface Scope {
   readonly organizationId: string;
@@ -185,4 +185,63 @@ export async function scrubContract(
     items: grounded.map(({ item, citations }) => ({ ...item, citations })),
     rejected: rejected.map(({ item, reasons }) => ({ title: item.title, reasons })),
   };
+}
+
+/** Why an offering item was dropped: its citation did not resolve, or a figure is not in its quote. */
+export type OfferingRejection = CitationFailure | 'FIGURE_NOT_IN_QUOTE';
+
+export interface ExtractedOfferingItem {
+  readonly kind: OfferingExtraction['items'][number]['kind'];
+  readonly label: string | null;
+  readonly value: string | null;
+  readonly hurdle: string | null;
+  readonly citation: ResolvedCitation;
+}
+
+/** The numbers written in a quote ("1,250,000", "8%", "1.85x"), as canonical decimals. */
+export function figuresIn(quote: string): Set<string> {
+  const found = new Set<string>();
+  for (const match of quote.matchAll(/\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?/g)) found.add(canonicalFigure(match[0].replaceAll(',', '')));
+  return found;
+}
+
+const canonicalFigure = (text: string) => (text.includes('.') ? text.replace(/0+$/, '').replace(/\.$/, '') : text).replace(/^0+(?=\d)/, '');
+
+/**
+ * Offering extraction (T-106): the model proposes fees, distribution terms and claims; code
+ * keeps an item only when its quote is on the cited page and every figure it gives (value and
+ * hurdle) is written in that quote. Everything kept is a draft for the sponsor to confirm.
+ */
+export async function extractOfferingItems(
+  gateway: ClaudeGateway,
+  request: Scope & { readonly sources: readonly CitableSource[] },
+): Promise<{
+  run: AiRunRecord;
+  items: ExtractedOfferingItem[];
+  rejected: { kind: string; reasons: readonly OfferingRejection[] }[];
+  providerError: ModelProviderErrorKind | null;
+}> {
+  const response = await gateway.invoke(offeringExtractionPrompt, {
+    organizationId: request.organizationId,
+    dealId: request.dealId,
+    modelAlias: request.modelAlias,
+    inputs: [],
+    sources: request.sources,
+  });
+  if (!response.output) return { run: response.run, items: [], rejected: [], providerError: response.providerError };
+  const { grounded, rejected } = groundItems(response.output.items, new SourceIndex(request.sources));
+  const items: ExtractedOfferingItem[] = [];
+  const dropped: { kind: string; reasons: readonly OfferingRejection[] }[] = rejected.map(({ item, reasons }) => ({ kind: item.kind, reasons }));
+  for (const { item, citations } of grounded) {
+    const written = new Set(citations.flatMap((citation) => [...figuresIn(citation.quote)]));
+    const figures = [item.value, item.hurdle].filter((figure): figure is string => figure !== null);
+    if (figures.some((figure) => !written.has(canonicalFigure(figure)))) {
+      dropped.push({ kind: item.kind, reasons: ['FIGURE_NOT_IN_QUOTE'] });
+      continue;
+    }
+    const [citation] = citations;
+    if (!citation) continue;
+    items.push({ kind: item.kind, label: item.label, value: item.value, hurdle: item.hurdle, citation });
+  }
+  return { run: response.run, items, rejected: dropped, providerError: null };
 }

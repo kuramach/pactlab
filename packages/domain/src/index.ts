@@ -16,4 +16,5 @@ export * from './foresight-metrics';
 export * from './regulatory/registry';
 export * from './brand';
 export * from './qoe/registry';
+export * from './syndication/registry';
 export * from './signing';

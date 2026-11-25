@@ -9,10 +9,24 @@ import { PACK_IDS, PACKS, packFor } from './registry';
 describe('pack registry', () => {
   it('has one pack per company type except OTHER, each with unique slugs', () => {
     expect([...PACK_IDS].sort()).toEqual(COMPANY_TYPES.filter((type) => type !== 'OTHER').sort());
-    expect(PACK_IDS).toHaveLength(13);
+    expect(PACK_IDS).toHaveLength(14);
     const slugs = PACK_IDS.map((id) => PACKS[id].slug);
-    expect(new Set(slugs).size).toBe(13);
+    expect(new Set(slugs).size).toBe(14);
     for (const id of PACK_IDS) expect(PACKS[id].id).toBe(id);
+  });
+
+  it('Multifamily syndication reuses the Multifamily pack by reference and only adds the offering (T-106)', () => {
+    const mf = PACKS.MULTIFAMILY;
+    const syn = PACKS.MULTIFAMILY_SYNDICATION;
+    expect(syn.slug).toBe('multifamily-syndication');
+    expect(syn.cluster).toBe(mf.cluster);
+    expect(syn.metricCalculator).toBe(mf.metricCalculator);
+    expect(syn.valuationMethods).toEqual(mf.valuationMethods);
+    expect(syn.importTargets.slice(0, mf.importTargets.length)).toEqual(mf.importTargets);
+    expect(syn.findingRules.slice(0, mf.findingRules.length)).toEqual(mf.findingRules);
+    expect(syn.importTargets.slice(mf.importTargets.length)).toEqual(['SYNDICATION_TRACK_RECORD']);
+    expect(syn.documentCategories).toEqual(['OFFERING_PPM', 'OPERATING_AGREEMENT', 'INVESTOR_DECK']);
+    expect(mf.documentCategories).toBeUndefined();
   });
 
   it('every pack offers billing first, and only targets that exist (rule ids resolve in the API test)', () => {

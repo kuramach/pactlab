@@ -68,6 +68,7 @@ const SECTOR: Readonly<Record<PackId, ForesightMetric>> = {
   HOTELS: sector('revpar_growth', 'RevPAR growth (revenue per available room)', 'Room revenue per available room drives hotel earnings.', '3', '0.75'),
   SMALL_CLINICS: sector('reimbursement_change', 'Reimbursement rate change', 'Payer rates set revenue per visit.', '2'),
   HOSPITALS: sector('reimbursement_change', 'Reimbursement rate change', 'Payer rates set revenue per admission.', '2'),
+  MULTIFAMILY_SYNDICATION: sector('market_rent_growth', 'Market rent growth', 'Rents reset to market as leases turn over.', '3', '0.75'),
   VENTURE_RAISE: sector('vc_funding_growth', 'Venture funding growth', 'How much capital investors deploy sets round sizes and prices.', '0', '0.25'),
 };
 

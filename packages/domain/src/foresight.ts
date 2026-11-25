@@ -57,6 +57,12 @@ export const PACK_TRENDS: Readonly<Partial<Record<PackId, readonly TrendDefiniti
     sector('multifamily.rent_growth', 'Rent growth', 'Over five years, does market rent growth accelerate, hold or slow?', [{ lever: 'GROWTH', whenUp: 1 }]),
     sector('multifamily.cap_rates', 'Cap rates', 'Over five years, do cap rates for this property type rise, hold or fall?', [{ lever: 'MULTIPLE', whenUp: -1 }]),
   ],
+  // Same property and the same market as Multifamily (T-106).
+  MULTIFAMILY_SYNDICATION: [
+    sector('multifamily.supply', 'Housing supply', 'Over five years, does new rental housing supply in this market rise, hold or fall?', [{ lever: 'GROWTH', whenUp: -1 }]),
+    sector('multifamily.rent_growth', 'Rent growth', 'Over five years, does market rent growth accelerate, hold or slow?', [{ lever: 'GROWTH', whenUp: 1 }]),
+    sector('multifamily.cap_rates', 'Cap rates', 'Over five years, do cap rates for this property type rise, hold or fall?', [{ lever: 'MULTIPLE', whenUp: -1 }]),
+  ],
   HOTELS: [
     sector('hotels.travel_demand', 'Travel demand', 'Over five years, does travel demand for this market grow, hold or decline?', [{ lever: 'GROWTH', whenUp: 1 }]),
     sector('hotels.labor', 'Labor costs', 'Over five years, do hotel labor costs rise, hold or fall?', [{ lever: 'MARGIN', whenUp: -1 }]),

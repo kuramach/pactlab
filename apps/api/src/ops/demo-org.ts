@@ -38,6 +38,7 @@ import { LoiService } from '../close/loi.service';
 import { IcService } from '../ic/ic.service';
 import { DealDeletionService } from '../deals/deletion/deal-deletion.service';
 import { demoModelResponse } from '../demo-seed/seed';
+import { SyndicationService } from '../syndication/syndication.service';
 import { DocumentsService } from '../documents/documents.service';
 import { FileSystemObjectStore } from '../documents/storage-adapters';
 import { SignatureMalwareScanner } from '../documents/upload-policy';
@@ -96,6 +97,7 @@ const LABELS: Readonly<Record<string, string>> = {
   PROFESSIONAL_SERVICES: 'Professional services',
   PHARMA_BIOTECH: 'Pharma & Biotech',
   VENTURE_RAISE: 'Venture raise',
+  MULTIFAMILY_SYNDICATION: 'Multifamily syndication',
 };
 export const pactName = (type: CompanyType, closed = false) => `${LABELS[type] ?? type} demo${closed ? ', closed' : ''} (synthetic)`;
 /** A raise has no buyer terms or close, so it gets one pact; every other pack gets a second, closed one for Post-Close. */
@@ -107,7 +109,7 @@ export const KAFKA_PACT = 'Apache Kafka engineering demo (real public data)';
 /** Scenario assumptions by valuation method: property by NOI and cap rate, a raise by pre-money, the rest by revenue multiple. */
 function scenarios(type: CompanyType, pricedFindingIds: readonly string[]) {
   const bridge = { cash: '1500000', debt: '4000000', debtLikeItems: '250000', workingCapitalAdjustment: '0' };
-  const property = type === 'MULTIFAMILY' || type === 'COMMERCIAL_PROPERTY' || type === 'HOTELS';
+  const property = type === 'MULTIFAMILY' || type === 'MULTIFAMILY_SYNDICATION' || type === 'COMMERCIAL_PROPERTY' || type === 'HOTELS';
   return (['DOWNSIDE', 'BASE', 'UPSIDE'] as const).map((scenarioCase, index) => ({
     name: `${scenarioCase[0]}${scenarioCase.slice(1).toLowerCase()} (synthetic)`,
     scenarioCase,
@@ -127,6 +129,32 @@ function scenarios(type: CompanyType, pricedFindingIds: readonly string[]) {
       sensitivity: null,
     },
   }));
+}
+
+/**
+ * A syndication's offering (T-106): the terms the README gives, the PPM, agreement and deck read by
+ * the scripted `offering.extract`, every proposal confirmed by the sponsor, then the offering checks.
+ */
+async function syndication(app: App, buyer: TenantContext, dealId: string, data: DemoDataSource, uploaded: Readonly<Record<string, string>>): Promise<string> {
+  const service = app.get(SyndicationService, { strict: false });
+  const readme = (await data.file('MULTIFAMILY_SYNDICATION', 'README.md')).toString('utf8');
+  const [, price, loan, equity] = /purchase price `(\d+)`, loan `(\d+)` at `5`%, equity raised `(\d+)`/.exec(readme) ?? [];
+  if (!price || !loan || !equity) throw new Error('offering terms not in the README');
+  await service.saveOffering(
+    buyer,
+    dealId,
+    { currency: 'USD', purchasePrice: price, loanAmount: loan, interestRatePct: '5', equityRaise: equity, holdYears: 5, sellingCostsPct: '2', noiYear1: null, downsideNoiGrowthPct: '1', baseNoiGrowthPct: '3', upsideNoiGrowthPct: '4.5', downsideExitCapPct: '6.5', baseExitCapPct: '6', upsideExitCapPct: '5.5', exemption: 'RULE_506C' },
+    REQUEST_ID,
+  );
+  const sources = { PPM: '02-private-placement-memorandum.pdf', OPERATING_AGREEMENT: '03-operating-agreement.pdf', DECK: '04-investor-deck.pdf' } as const;
+  for (const [source, file] of Object.entries(sources)) {
+    const documentId = uploaded[file];
+    if (documentId) await service.extract(buyer, dealId, { documentId, source: source as keyof typeof sources }, REQUEST_ID);
+  }
+  const view = await service.view(buyer, dealId, REQUEST_ID);
+  for (const item of view.items.filter((entry) => entry.status === 'PROPOSED')) await service.decide(buyer, dealId, item.id, { decision: 'CONFIRM' }, REQUEST_ID);
+  const checks = await service.runChecks(buyer, dealId, REQUEST_ID);
+  return `syndication: ${view.items.length} offering items confirmed, ${checks.created} offering drafts`;
 }
 
 /** The schema owner's session: a pg client when deployed, PGlite in tests. */
@@ -269,8 +297,10 @@ export async function buildPact(app: App, owner: OwnerSession, people: People, t
   await step('team', () => team(owner, spec.id, dealId, spec.analyst));
 
   // The data room: one zip, unpacked and sorted by the intake; shared so the seller sees the documents too.
+  // A syndication's room holds the sponsor's PPM, agreement and deck: the seller never sees the raise (T-106).
+  const wall = type === 'MULTIFAMILY_SYNDICATION';
   const zip = await data.file(type, 'dataroom.zip');
-  await documents.uploadArchive(buyer, dealId, { fileName: 'dataroom.zip', contentBase64: zip.toString('base64'), retentionClass: 'DEAL_TERM', dataClass: 'BUSINESS', aiExcluded: false, shared: true }, REQUEST_ID);
+  await documents.uploadArchive(buyer, dealId, { fileName: 'dataroom.zip', contentBase64: zip.toString('base64'), retentionClass: 'DEAL_TERM', dataClass: 'BUSINESS', aiExcluded: false, shared: !wall }, REQUEST_ID);
 
   // The pack's extracts through the import pipeline (metrics, and the checks that run on import), as the pack acceptance tests load them.
   const imports = app.get(ImportsService, { strict: false });
@@ -281,9 +311,11 @@ export async function buildPact(app: App, owner: OwnerSession, people: People, t
     await imports.import(buyer, dealId, upload.id, upload.suggestedMapping as never, REQUEST_ID);
   }
   // The paged documents some checks cite (PDFs, with the extracts' paged copy kept to the financial class).
+  const uploaded: Record<string, string> = {};
   for (const file of (await data.documents(type)).filter((name) => name.endsWith('.pdf'))) {
     const pdf = await data.file(type, `documents/${file}`);
-    await documents.upload(buyer, dealId, { fileName: file, contentType: 'application/pdf', contentBase64: pdf.toString('base64'), retentionClass: 'DEAL_TERM', dataClass: file.startsWith('99-') ? 'FINANCIAL' : 'BUSINESS', aiExcluded: false, shared: !file.startsWith('99-') }, REQUEST_ID);
+    const document = await documents.upload(buyer, dealId, { fileName: file, contentType: 'application/pdf', contentBase64: pdf.toString('base64'), retentionClass: 'DEAL_TERM', dataClass: file.startsWith('99-') ? 'FINANCIAL' : 'BUSINESS', aiExcluded: false, shared: !wall && !file.startsWith('99-') }, REQUEST_ID);
+    uploaded[file] = document.id;
   }
 
   await step('sources', () => connectSources(app, buyer, dealId, type));
@@ -324,6 +356,8 @@ export async function buildPact(app: App, owner: OwnerSession, people: People, t
     }
   }
 
+  // After the accept loop, so the offering's planted defects stay drafts for the viewer to review.
+  if (wall) await step('syndication', () => syndication(app, buyer, dealId, data, uploaded));
   await step('claims', () => claims(app, buyer, dealId, pricedIds));
   await step('finances', () => finances(app, buyer, dealId));
   await step('regulatory', () => regulatory(app, buyer, dealId));

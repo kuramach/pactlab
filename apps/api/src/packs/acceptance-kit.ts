@@ -6,6 +6,7 @@ import { join, resolve } from 'node:path';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { addSyntheticDealMember, createSyntheticTenant, startTestDatabase, type SyntheticTenant, type TestDatabase } from '@pactlab/db/testing';
 import { IMPORT_TARGET_DEFINITIONS, PACK_IDS, PACKS, type PackId } from '@pactlab/domain';
+import type { ClaudeGateway } from '@pactlab/ai';
 import { createLogger } from '@pactlab/observability';
 import { createLocalJWKSet, exportJWK, generateKeyPair, SignJWT, type CryptoKey } from 'jose';
 import { expect } from 'vitest';
@@ -33,6 +34,8 @@ export interface AcceptanceDeal {
   readonly dealId: string;
   readonly folder: string;
   readonly readme: string;
+  /** Uploaded documents by PDF file name. */
+  readonly documents: Readonly<Record<string, string>>;
   call(method: 'GET' | 'POST' | 'PATCH' | 'PUT', url: string, who: string, payload?: unknown): Promise<{ status: number; body: Body }>;
   close(): Promise<void>;
 }
@@ -54,7 +57,7 @@ export function pdfOf(markdown: string): Buffer {
   return Buffer.from(syntheticPdf(markdown.split(/^---page---$/m).map((page) => wrap(page.trim()))));
 }
 
-export async function startAcceptanceDeal(packId: PackId, currency: string, options: { dataClasses?: Record<string, string> } = {}): Promise<AcceptanceDeal> {
+export async function startAcceptanceDeal(packId: PackId, currency: string, options: { dataClasses?: Record<string, string>; gateway?: ClaudeGateway } = {}): Promise<AcceptanceDeal> {
   const repo = resolve(import.meta.dirname, '../../../..');
   const out = mkdtempSync(join(tmpdir(), `pactlab-${packId.toLowerCase()}-`));
   const run = spawnSync('python3', [join(repo, 'scripts/demo-data/generate.py'), out], { encoding: 'utf8' });
@@ -74,7 +77,7 @@ export async function startAcceptanceDeal(packId: PackId, currency: string, opti
     identityVerifier: new JwtIdentityVerifier({ issuer: ISSUER, audience: AUDIENCE, keys: createLocalJWKSet({ keys: [jwk] }) }),
     logger: createLogger('api-test', { level: process.env['TEST_LOG'] ? 'error' : 'silent' }),
     uploads: { objectStore: new FileSystemObjectStore(storeDir), malwareScanner: new SignatureMalwareScanner() },
-    documents: { objectStore: new InMemoryObjectStore(), malwareScanner: new SignatureMalwareScanner() },
+    documents: { objectStore: new InMemoryObjectStore(), malwareScanner: new SignatureMalwareScanner(), ...(options.gateway ? { gateway: options.gateway } : {}) },
   });
   const token = (subject: string, org: string) =>
     new SignJWT({ org_id: org }).setProtectedHeader({ alg: 'RS256', kid: 'test' }).setSubject(subject).setIssuer(ISSUER).setAudience(AUDIENCE).setIssuedAt().setExpirationTime('5m').sign(key);
@@ -113,6 +116,7 @@ export async function startAcceptanceDeal(packId: PackId, currency: string, opti
     expect(imported.body['syncRun'], file).toMatchObject({ status: 'SUCCEEDED', issuesCount: 0 });
   };
   for (const target of pack.importTargets) await importCsv(IMPORT_TARGET_DEFINITIONS[target].fileName, target);
+  const documents: Record<string, string> = {};
   for (const file of readdirSync(join(folder, 'documents')).filter((name) => name.endsWith('.md'))) {
     const uploaded = await call('POST', `/v1/deals/${dealId}/documents`, 'lead', {
       fileName: file.replace(/\.md$/, '.pdf'),
@@ -121,6 +125,7 @@ export async function startAcceptanceDeal(packId: PackId, currency: string, opti
       dataClass: options.dataClasses?.[file] ?? (file.startsWith('99-') ? 'FINANCIAL' : 'BUSINESS'),
     });
     expect(uploaded.status, `${file}: ${JSON.stringify(uploaded.body)}`).toBe(201);
+    documents[file.replace(/\.md$/, '.pdf')] = uploaded.body['id'] as string;
   }
 
   return {
@@ -128,6 +133,7 @@ export async function startAcceptanceDeal(packId: PackId, currency: string, opti
     dealId,
     folder,
     readme: readFileSync(join(folder, 'README.md'), 'utf8'),
+    documents,
     call,
     close: async () => {
       await app.close();
