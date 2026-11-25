@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import {
   ConflictException,
+  ForbiddenException,
   Inject,
   Injectable,
   NotFoundException,
@@ -94,6 +95,11 @@ import { IMPORT_QUEUE, UPLOAD_MALWARE_SCANNER, UPLOAD_OBJECT_STORE, type ImportQ
 
 /** Uploads come from the deal team or from the seller's own contributors. */
 const canSupply = (role: DealRole) => permissionsForDealRole(role).has('DEAL_WRITE') || role === 'TARGET_CONTRIBUTOR';
+/**
+ * Who may delete (withdraw) and re-import an import (Kumar, 2026-11-25): whoever imported it; the deal lead or an
+ * analyst (`canManageImports`) for anyone's.
+ */
+const mayDelete = (role: DealRole, row: { uploadedBy: string }, userId: string) => canManageImports(role) || (canSupply(role) && row.uploadedBy === userId);
 const canRead = (role: DealRole) => permissionsForDealRole(role).has('DEAL_READ') || role === 'TARGET_CONTRIBUTOR';
 
 export { UPLOAD_CONNECTOR_VERSION };
@@ -164,7 +170,7 @@ function withdrawalOf(row: SourceUploadRecord, withdrawnByName: string | null = 
     : null;
 }
 
-function toView(row: SourceUploadRecord): UploadView {
+function toView(row: SourceUploadRecord, canDelete = false): UploadView {
   return {
     id: row.id,
     target: row.target,
@@ -180,6 +186,7 @@ function toView(row: SourceUploadRecord): UploadView {
     withdrawal: withdrawalOf(row),
     supersedesUploadId: row.supersedesUploadId,
     supersededByUploadId: row.supersededByUploadId,
+    canDelete,
   };
 }
 
@@ -494,9 +501,10 @@ export class ImportsService {
    * is offered again wherever it still fits; a person confirms it before anything is imported.
    */
   async reimport(tenant: TenantContext, dealId: string, uploadId: string, fileName: string | undefined, body: unknown, requestId: string): Promise<UploadDetail> {
-    const role = await this.access.require(tenant, dealId, canManageImports, { action: 'source_upload.reimported', requestId });
+    const role = await this.access.require(tenant, dealId, canSupply, { action: 'source_upload.reimported', requestId });
     const previous = await withTenant(this.prisma, tenant, (tx) => sourceUploads.get(tx, dealId, uploadId));
     if (!previous) throw new NotFoundException();
+    if (!mayDelete(role, previous, tenant.userId)) throw new ForbiddenException();
     const problem = reimportProblem(previous, previous.target);
     if (problem) throw new ConflictException({ code: problem });
     let bytes: Uint8Array;
@@ -536,9 +544,13 @@ export class ImportsService {
    * with the flagged artefacts, in the pact's own chain.
    */
   async withdraw(tenant: TenantContext, dealId: string, uploadId: string, reason: string, requestId: string): Promise<{ upload: UploadView; result: WithdrawalResultView }> {
-    await this.access.require(tenant, dealId, canManageImports, { action: 'source_upload.withdrawn', requestId });
+    const role = await this.access.require(tenant, dealId, canSupply, { action: 'source_upload.withdrawn', requestId });
     const row = await withTenant(this.prisma, tenant, (tx) => sourceUploads.get(tx, dealId, uploadId));
     if (!row) throw new NotFoundException();
+    if (!mayDelete(role, row, tenant.userId)) throw new ForbiddenException();
+    // A seller's own import: withdrawn by the database function that sees the whole pact (counterparty RLS hides
+    // buyer-only imports and findings, which the withdrawal must take into account).
+    const own = !canManageImports(role);
     const problem = withdrawalProblem(row.status, reason);
     if (problem === 'REASON_REQUIRED') throw new UnprocessableEntityException({ code: problem });
     if (problem || !row.syncRunId) throw new ConflictException({ code: problem ?? 'NOT_IMPORTED' });
@@ -547,7 +559,9 @@ export class ImportsService {
       this.prisma,
       tenant,
       async (tx) => {
-        const outcome = await withdrawals.withdraw(tx, { organizationId: tenant.organizationId, dealId, uploadId, syncRunId, actorUserId: tenant.userId, reason, at: new Date() });
+        const outcome = own
+          ? await withdrawals.withdrawOwn(tx, { uploadId, reason })
+          : await withdrawals.withdraw(tx, { organizationId: tenant.organizationId, dealId, uploadId, syncRunId, actorUserId: tenant.userId, reason, at: new Date() });
         if (!outcome) throw new ConflictException({ code: 'ALREADY_WITHDRAWN' });
         const audit = (action: string, targetType: string, targetId: string) =>
           appendAuditEvent(tx, { organizationId: tenant.organizationId, dealId, actorUserId: tenant.userId, action, targetType, targetId, outcome: 'SUCCEEDED', requestId });
@@ -557,7 +571,7 @@ export class ImportsService {
         for (const runId of outcome.valuationRunIds) await audit('valuation_run.source_withdrawn', 'valuation_run', runId);
         const updated = await sourceUploads.get(tx, dealId, uploadId);
         return {
-          upload: toView(updated ?? row),
+          upload: toView(updated ?? row, true),
           result: { voidedRecords: outcome.voided, flaggedFindings: outcome.findingIds.length, flaggedValuationRuns: outcome.valuationRunIds.length },
         };
       },
@@ -565,10 +579,13 @@ export class ImportsService {
     );
   }
 
-  /** An import's chain of re-imports, oldest first, with each withdrawal and its reason (manage rights). */
+  /** An import's chain of re-imports, oldest first, with each withdrawal and its reason (the deal team, or the person who imported it). */
   async history(tenant: TenantContext, dealId: string, uploadId: string, requestId: string): Promise<{ chain: ImportLineageEntry[] }> {
-    await this.access.require(tenant, dealId, canManageImports, { action: 'source_upload.history', requestId });
+    const role = await this.access.require(tenant, dealId, canSupply, { action: 'source_upload.history', requestId });
     return withTenant(this.prisma, tenant, async (tx) => {
+      const own = await sourceUploads.get(tx, dealId, uploadId);
+      if (!own) throw new NotFoundException();
+      if (!mayDelete(role, own, tenant.userId)) throw new ForbiddenException();
       const rows = lineageOrder(await sourceUploads.lineage(tx, dealId, uploadId));
       if (rows.length === 0) throw new NotFoundException();
       const chain: ImportLineageEntry[] = [];
@@ -591,16 +608,18 @@ export class ImportsService {
   }
 
   async get(tenant: TenantContext, dealId: string, uploadId: string, requestId: string): Promise<UploadDetail> {
-    const row = await this.load(tenant, dealId, uploadId, canRead, 'source_upload.read', requestId);
+    const role = await this.access.require(tenant, dealId, canRead, { action: 'source_upload.read', requestId });
+    const row = await withTenant(this.prisma, tenant, (tx) => sourceUploads.get(tx, dealId, uploadId));
+    if (!row) throw new NotFoundException();
     const read = await this.stored(row);
-    return this.detail(row, read, await this.inheritedMapping(tenant, dealId, row, read.table));
+    return { ...this.detail(row, read, await this.inheritedMapping(tenant, dealId, row, read.table)), canDelete: mayDelete(role, row, tenant.userId) };
   }
 
   /** A pact's uploads, newest first, a page at a time (T-126). */
   async list(tenant: TenantContext, dealId: string, request: { cursor?: string | undefined; limit: number }, requestId: string): Promise<Page<UploadView>> {
-    await this.access.require(tenant, dealId, canRead, { action: 'source_upload.list', requestId });
+    const role = await this.access.require(tenant, dealId, canRead, { action: 'source_upload.list', requestId });
     const page = await withTenant(this.prisma, tenant, (tx) => sourceUploads.page(tx, dealId, request));
-    return { ...page, items: page.items.map(toView) };
+    return { ...page, items: page.items.map((row) => toView(row, mayDelete(role, row, tenant.userId))) };
   }
 
   /** Dry run: what the mapping would import. Writes nothing. */
