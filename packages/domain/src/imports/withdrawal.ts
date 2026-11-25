@@ -63,6 +63,11 @@ export interface ImportRecordFields {
   withdrawal: ImportWithdrawalView | null;
   supersedesUploadId: string | null;
   supersededByUploadId: string | null;
+  /**
+   * Whether the reader may delete (withdraw) this import and import it again (Kumar, 2026-11-25): the person who
+   * imported it, or the deal lead or an analyst for anyone's. Rights only; its status says whether it can be now.
+   */
+  canDelete: boolean;
 }
 
 /** What a withdrawal did, as the confirmation reports it. */
