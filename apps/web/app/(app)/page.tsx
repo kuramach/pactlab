@@ -1,5 +1,6 @@
 import { Badge, buttonVariants, Card, CardContent, CardHeader, CardTitle, EmptyState, Glossed, IconTile, PageHeader, Section, Stat } from '@pactlab/ui';
 import { BrandPrompt } from './_lib/brand-prompt';
+import { HomeFeatureCards } from './_lib/feature-cards/home-cards';
 import { Activity, ArrowRight, Briefcase, Building2, Compass, Plus, Scale, Search } from 'lucide-react';
 import Link from 'next/link';
 import { getSessionContext } from '../../lib/session';
@@ -75,6 +76,8 @@ export default async function HomePage() {
           </Link>
         }
       />
+
+      {session.guest ? null : <HomeFeatureCards />}
 
       {session.guest ? null : <BrandPrompt />}
 

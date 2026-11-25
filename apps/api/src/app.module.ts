@@ -52,6 +52,7 @@ import { FinancingModule } from './financing/financing.module';
 import { ReportsModule } from './reports/reports.module';
 import { QoeModule } from './qoe/qoe.module';
 import { BrandModule } from './brand/brand.module';
+import { FeatureCardsModule } from './feature-cards/feature-cards.module';
 import { EmailEventsModule } from './email-events/email-events.module';
 import type { SnsVerifier } from './email-events/sns';
 import { HttpsWebFetcher, type WebFetcher } from './common/safe-fetch';
@@ -300,6 +301,7 @@ export class AppModule {
         reportsModule,
         IcModule.register({ reports: reportsModule }),
         BrandModule.register({ store: deps.documents?.objectStore ?? new UnavailableObjectStore(), fetcher: deps.webFetcher ?? new HttpsWebFetcher() }),
+        FeatureCardsModule,
         EmailEventsModule.register({ verifier: deps.emailEvents?.verifier ?? null, fetcher: deps.webFetcher ?? new HttpsWebFetcher(), hashSecret: deps.emailLogin?.tokenSecret ?? randomBytes(32).toString('hex') }),
         ...(tokens && deps.emailLogin
           ? [

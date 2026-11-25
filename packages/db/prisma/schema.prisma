@@ -3197,6 +3197,19 @@ model OrganizationBrandKit {
   @@map("organization_brand_kits")
 }
 
+/// Which feature cards a person has dismissed and read (T-155): per user, by card version.
+/// The cards live in code (the API's registry); a new version comes back on its own.
+model UserFeatureCard {
+  userId           String   @map("user_id") @db.Uuid
+  cardId           String   @map("card_id")
+  dismissedVersion Int      @default(0) @map("dismissed_version")
+  readVersion      Int      @default(0) @map("read_version")
+  updatedAt        DateTime @default(now()) @map("updated_at") @db.Timestamptz(3)
+
+  @@id([userId, cardId])
+  @@map("user_feature_cards")
+}
+
 /// A buyer's financing plan on a pact (T-117, ADR 0033): the own side of a buyer-led pact (no bid),
 /// or one bidder on a seller-led one. Buyer-attested; the seller sees structure, status and coverage.
 model FinancingPlan {
