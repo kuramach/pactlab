@@ -1,5 +1,5 @@
 import { KAFKA_SNAPSHOT_REPOSITORY, KAFKA_SNAPSHOT_SITE } from '@pactlab/connectors';
-import { decodeCursor, encodeCursor, type TransactionClient } from '@pactlab/db';
+import { ACTIVE_EVIDENCE_SQL, decodeCursor, encodeCursor, type TransactionClient } from '@pactlab/db';
 import { z } from 'zod';
 
 /**
@@ -41,7 +41,7 @@ export function sourceUrl(source: Source | undefined, record: { issueKey: string
 
 const LATEST = (type: string) => `
   SELECT DISTINCT ON (connection_id, source_record_id) connection_id::text AS connection_id, source_record_id, canonical
-    FROM evidence_items WHERE deal_id = $1::uuid AND evidence_type = '${type}'
+    FROM evidence_items WHERE deal_id = $1::uuid AND evidence_type = '${type}' AND ${ACTIVE_EVIDENCE_SQL}
    ORDER BY connection_id, source_record_id, created_at DESC, id DESC`;
 
 type Row = { connection_id: string; source_record_id: string; canonical: Canonical };

@@ -10,7 +10,7 @@ import type {
   UpdateClaimInput,
   UpdatePostCloseItemInput,
 } from '@pactlab/contracts';
-import { appendAuditEvent, askingPrices, dealMemberships, withTenant, type PrismaClient, type TransactionClient } from '@pactlab/db';
+import { ACTIVE_EVIDENCE, appendAuditEvent, askingPrices, dealMemberships, withTenant, type PrismaClient, type TransactionClient } from '@pactlab/db';
 import {
   isCounterpartyRole,
   newId,
@@ -208,7 +208,7 @@ export class PhasesService {
       const claim = await tx.dealClaim.findFirst({ where: { id: claimId, dealId } });
       if (!claim) throw new NotFoundException();
       const [evidence, findings] = await Promise.all([
-        input.evidenceItemIds.length > 0 ? tx.evidenceItem.count({ where: { dealId, id: { in: input.evidenceItemIds } } }) : 0,
+        input.evidenceItemIds.length > 0 ? tx.evidenceItem.count({ where: { dealId, id: { in: input.evidenceItemIds }, ...ACTIVE_EVIDENCE } }) : 0,
         input.findingIds.length > 0 ? tx.finding.count({ where: { dealId, id: { in: input.findingIds } } }) : 0,
       ]);
       if (evidence !== new Set(input.evidenceItemIds).size || findings !== new Set(input.findingIds).size) {

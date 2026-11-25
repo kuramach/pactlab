@@ -16,6 +16,7 @@ import { syncRuns, type SyncRunRecord } from './evidence';
 import type { TenantObjectStore } from './object-store';
 import { executeSyncRun } from './sync';
 import { resolveJobContext, withTenant } from './tenant';
+import { withdrawals } from './withdrawal';
 import { BILLING_UPLOAD_PROVIDER, PACK_UPLOAD_PROVIDER, sourceUploads, type SourceUploadRecord } from './uploads';
 
 /**
@@ -152,13 +153,15 @@ async function finish(prisma: PrismaClient, tenant: TenantContext, job: UploadIm
     const run = await syncRuns.get(tx, job.dealId, job.syncRunId);
     if (!run) throw new UploadImportError('NOT_FOUND');
     const current = await sourceUploads.get(tx, job.dealId, row.id);
-    if (run.status === 'SUCCEEDED' && current && current.status !== 'IMPORTED') {
+    if (run.status === 'SUCCEEDED' && current && current.status === 'UPLOADED') {
       await sourceUploads.markImported(tx, row.id, {
         connectionId: job.connectionId,
         syncRunId: run.id,
         mapping: JSON.parse(canonicalMappingJson(job.mapping)) as object,
         mappingVersion: MAPPING_VERSION,
       });
+      // Records a withdrawn import voided and this one reads again count again (T-154); the voids stay as history.
+      await withdrawals.restoreHeld(tx, { dealId: job.dealId, uploadId: row.id, syncRunId: run.id, at: new Date() });
     }
     await appendAuditEvent(tx, {
       organizationId: job.organizationId,

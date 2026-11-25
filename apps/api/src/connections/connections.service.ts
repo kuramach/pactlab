@@ -22,6 +22,7 @@ import {
   type TransactionClient,
   operatorOps,
   prismaExecutor,
+  ACTIVE_EVIDENCE,
 } from '@pactlab/db';
 import {
   isBuyerSideRole,
@@ -195,7 +196,7 @@ export class ConnectionsService {
           where: { dealId, connectionId: row.id },
           orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         });
-        const evidenceCount = await tx.evidenceItem.count({ where: { dealId, connectionId: row.id } });
+        const evidenceCount = await tx.evidenceItem.count({ where: { dealId, connectionId: row.id, ...ACTIVE_EVIDENCE } });
         views.push({
           ...toConnectionView(row),
           lastSyncRun: run

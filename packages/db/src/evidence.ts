@@ -7,6 +7,7 @@ import type {
   SourceLocator,
 } from '@pactlab/domain';
 import type { Prisma, TransactionClient } from './client';
+import { ACTIVE_EVIDENCE } from './withdrawal';
 
 export interface ConnectionRecord {
   id: string;
@@ -209,13 +210,16 @@ export const evidence = {
     dealId: string,
     filter: EvidenceFilter,
   ): Promise<{ items: EvidenceItemView[]; nextCursor: string | null; total: number; limit: number }> {
+    // Voided evidence (a withdrawn import) leaves the browser; it still resolves by id and in lineage.
     const matching = {
       dealId,
+      ...ACTIVE_EVIDENCE,
       ...(filter.evidenceType ? { evidenceType: filter.evidenceType } : {}),
       ...(filter.connectionId ? { connectionId: filter.connectionId } : {}),
       ...(filter.visibility ? { visibility: filter.visibility } : {}),
       ...(filter.sourceRecordId ? { sourceRecordId: { startsWith: filter.sourceRecordId } } : {}),
     };
+    // void-ok: `matching` carries ACTIVE_EVIDENCE.
     const rows = await tx.evidenceItem.findMany({
       where: { ...matching, ...(filter.after ? { id: { lt: filter.after } } : {}) },
       select: evidenceSelect,
@@ -223,6 +227,7 @@ export const evidence = {
       take: filter.limit + 1,
     });
     // Same filters and the same transaction (so the same RLS scope) as the page, ignoring the cursor.
+    // void-ok: `matching` carries ACTIVE_EVIDENCE.
     const total = await tx.evidenceItem.count({ where: matching });
     const page = rows.slice(0, filter.limit);
     return {
@@ -236,7 +241,7 @@ export const evidence = {
   async types(tx: TransactionClient, dealId: string): Promise<string[]> {
     // bounded: the distinct evidence types, a fixed catalog
     const rows = await tx.evidenceItem.findMany({
-      where: { dealId },
+      where: { dealId, ...ACTIVE_EVIDENCE },
       distinct: ['evidenceType'],
       select: { evidenceType: true },
       orderBy: { evidenceType: 'asc' },
@@ -249,6 +254,7 @@ export const evidence = {
     dealId: string,
     evidenceId: string,
   ): Promise<EvidenceItemView | null> {
+    // void-ok: one item by id, so a citation to withdrawn data still explains what was seen.
     const row = await tx.evidenceItem.findFirst({
       where: { id: evidenceId, dealId },
       select: evidenceSelect,
@@ -280,10 +286,12 @@ export const evidence = {
     dealId: string,
     evidenceId: string,
   ): Promise<EvidenceLineage | null> {
+    // void-ok: lineage explains an item whatever its state, voids included.
     const row = await tx.evidenceItem.findFirst({
       where: { id: evidenceId, dealId },
       select: {
         ...evidenceSelect,
+        voids: { select: { sourceUploadId: true, voidedAt: true, restoredAt: true, restoredByUploadId: true }, orderBy: { voidedAt: 'asc' }, take: 50 },
         lastSyncRunId: true,
         citations: {
           select: { id: true, locator: true, quoteHash: true },
@@ -331,7 +339,7 @@ export const evidence = {
       SELECT evidence_id::text, edge_type::text, 'INCOMING', min(depth)::int
         FROM incoming GROUP BY evidence_id, edge_type
       ORDER BY direction, depth, evidence_id`;
-    const { citations, firstSyncRun, connection, lastSyncRunId, ...item } = row;
+    const { citations, firstSyncRun, connection, lastSyncRunId, voids, ...item } = row;
     return {
       evidence: toEvidenceView(item),
       citations: citations.map((citation) => ({
@@ -346,6 +354,12 @@ export const evidence = {
       },
       lastSeenSyncRunId: lastSyncRunId,
       connection,
+      voids: voids.map((entry) => ({
+        sourceUploadId: entry.sourceUploadId,
+        voidedAt: entry.voidedAt.toISOString(),
+        restoredAt: entry.restoredAt?.toISOString() ?? null,
+        restoredByUploadId: entry.restoredByUploadId,
+      })),
       related: related.map((edge) => ({
         evidenceId: edge.evidence_id,
         edgeType: edge.edge_type,

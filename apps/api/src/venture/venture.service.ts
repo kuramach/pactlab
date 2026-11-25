@@ -1,7 +1,7 @@
 import { ConflictException, Inject, Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import { billedMrr, capTableOf, D, liquidationPreference, roundScenario, RoundModelError, type RoundScenario } from '@pactlab/calculations';
 import type { CreateOfferInput, OfferView, UpdateOfferInput, VentureSettingsInput, VentureSettingsView } from '@pactlab/contracts';
-import { appendAuditEvent, withTenant, type PrismaClient, type TransactionClient } from '@pactlab/db';
+import { ACTIVE_EVIDENCE, appendAuditEvent, withTenant, type PrismaClient, type TransactionClient } from '@pactlab/db';
 import {
   isCounterpartyRole,
   IMPORT_TARGET_DEFINITIONS,
@@ -170,7 +170,7 @@ export class VentureService {
 
   private async held(tx: TransactionClient, dealId: string) {
     // bounded: the distinct evidence types, a fixed catalog
-    const types = await tx.evidenceItem.findMany({ where: { dealId }, distinct: ['evidenceType'], select: { evidenceType: true } });
+    const types = await tx.evidenceItem.findMany({ where: { dealId, ...ACTIVE_EVIDENCE }, distinct: ['evidenceType'], select: { evidenceType: true } });
     const present = new Set(types.map((row) => row.evidenceType));
     const importTargets = Object.values(IMPORT_TARGET_DEFINITIONS).filter((definition) => present.has(definition.evidenceType)).map((definition) => definition.target);
     // whole-set: the readiness checklist tests every file name in the data room against its patterns; it is never listed

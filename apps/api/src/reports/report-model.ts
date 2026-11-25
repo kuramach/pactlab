@@ -57,6 +57,8 @@ export interface FindingView {
   valueConfirmation: { valueDriver: string } | null;
   directionRationale: string | null;
   updatedAt: string;
+  /** Built on an import later withdrawn (T-154); absent on older payloads. */
+  sourceWithdrawn?: { fileName: string; reason: string }[];
 }
 export interface ValuationItemView {
   scenario: { id: string; name: string; scenarioCase: string | null; status: string; currency: string; updatedAt?: string };

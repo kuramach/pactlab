@@ -16,6 +16,7 @@ import { appendAuditEvent } from './audit';
 import type { PrismaClient } from './client';
 import { findings } from './findings';
 import { withTenant } from './tenant';
+import { ACTIVE_EVIDENCE } from './withdrawal';
 
 /**
  * Record the ghost-commit and key-person signals for a synced repository as
@@ -45,6 +46,7 @@ export async function recordCodeSignalFindings(
         connectionId: input.connectionId,
         evidenceType: REPOSITORY_HEAD_EVIDENCE_TYPE,
         sourceRecordId: `${input.head.repository}@${input.head.headSha}`,
+        ...ACTIVE_EVIDENCE,
       },
       select: { id: true },
     }),

@@ -35,6 +35,7 @@ import {
   syncRuns,
   UPLOAD_CONNECTOR_VERSION,
   uploadDataset,
+  withdrawals,
   withTenant,
   type Prisma,
   type PrismaClient,
@@ -72,6 +73,13 @@ import {
   type PackDefinition,
   type TargetDefinition,
   type TenantContext,
+  canManageImports,
+  lineageOrder,
+  reimportProblem,
+  withdrawalProblem,
+  type ImportLineageEntry,
+  type ImportRecordFields,
+  type WithdrawalResultView,
 } from '@pactlab/domain';
 import { DealAccess } from '../deals/deal-access';
 import { CLAUDE_GATEWAY, DOCUMENT_OBJECT_STORE, type DocumentObjectStore } from '../documents/documents.repository';
@@ -136,7 +144,18 @@ export function targetView(definition: TargetDefinition): ImportTargetView {
   };
 }
 
-function toView(row: SourceUploadRecord): SourceUploadView {
+/** An import as every screen sees it: the shared view, with its withdrawal and lineage (T-154). */
+export type UploadView = Omit<SourceUploadView, 'status'> & ImportRecordFields;
+export type UploadDetail = Omit<UploadDetailView, 'status'> & ImportRecordFields;
+export type ImportResult = Omit<ImportResultView, 'upload'> & { upload: UploadView };
+
+function withdrawalOf(row: SourceUploadRecord, withdrawnByName: string | null = null): ImportRecordFields['withdrawal'] {
+  return row.withdrawnAt && row.withdrawnBy && row.withdrawalReason
+    ? { withdrawnAt: row.withdrawnAt.toISOString(), withdrawnBy: row.withdrawnBy, withdrawnByName, reason: row.withdrawalReason }
+    : null;
+}
+
+function toView(row: SourceUploadRecord): UploadView {
   return {
     id: row.id,
     target: row.target,
@@ -149,8 +168,14 @@ function toView(row: SourceUploadRecord): SourceUploadView {
     syncRunId: row.syncRunId,
     createdAt: row.createdAt.toISOString(),
     importedAt: row.importedAt?.toISOString() ?? null,
+    withdrawal: withdrawalOf(row),
+    supersedesUploadId: row.supersedesUploadId,
+    supersededByUploadId: row.supersededByUploadId,
   };
 }
+
+/** Long enough to void every record of the largest import (200,000 rows). */
+const WITHDRAW_TIMEOUT_MS = 5 * 60_000;
 
 function systemView(template: BillingTemplate): BillingSystemView {
   return { system: template.system, label: template.label, verified: template.verified, exportHint: template.exportHint };
@@ -327,7 +352,7 @@ export class ImportsService {
     query: UploadQuery,
     body: unknown,
     requestId: string,
-  ): Promise<UploadDetailView> {
+  ): Promise<UploadDetail> {
     const role = await this.access.require(tenant, dealId, canSupply, { action: 'source_upload.created', requestId });
     if (!(body instanceof Uint8Array)) throw new UnsupportedMediaTypeException();
     if (body.byteLength === 0) throw new UnprocessableEntityException();
@@ -348,7 +373,7 @@ export class ImportsService {
    * the stored original, checked against its hash, becomes an upload, with no second upload. It was
    * scanned when it was filed. A person the document is hidden from cannot import it (RLS).
    */
-  async fromDocument(tenant: TenantContext, dealId: string, documentId: string, target: ImportTarget, requestId: string): Promise<UploadDetailView> {
+  async fromDocument(tenant: TenantContext, dealId: string, documentId: string, target: ImportTarget, requestId: string): Promise<UploadDetail> {
     const role = await this.access.require(tenant, dealId, canSupply, { action: 'source_upload.created', requestId });
     if (!this.documentStore) throw new ServiceUnavailableException();
     const document = await withTenant(this.prisma, tenant, (tx) =>
@@ -366,7 +391,15 @@ export class ImportsService {
     return this.create(tenant, dealId, role, bytes, { target, system: 'pactlab_standard', fileName: document.fileName }, requestId);
   }
 
-  private async create(tenant: TenantContext, dealId: string, role: DealRole, body: Uint8Array, query: UploadQuery, requestId: string): Promise<UploadDetailView> {
+  private async create(
+    tenant: TenantContext,
+    dealId: string,
+    role: DealRole,
+    body: Uint8Array,
+    query: UploadQuery,
+    requestId: string,
+    reimport: SourceUploadRecord | null = null,
+  ): Promise<UploadDetail> {
     const id = newId();
     const { read, assist, run } = await this.assisted(tenant, dealId, { uploadId: id, bytes: body, fileName: query.fileName, sheet: null, headerRow: null, target: query.target, system: query.system });
     const table = read.table;
@@ -398,8 +431,10 @@ export class ImportsService {
         headerRow: read.headerRow,
         assist: assist as unknown as Prisma.InputJsonValue,
         objectKey,
-        visibility: isBuyerSideRole(role) ? 'BUYER_ONLY' : 'SHARED',
+        // A re-import keeps the audience of the import it replaces: never wider, never narrower.
+        visibility: reimport ? reimport.visibility : isBuyerSideRole(role) ? 'BUYER_ONLY' : 'SHARED',
         uploadedBy: tenant.userId,
+        supersedesUploadId: reimport?.id ?? null,
       });
       await appendAuditEvent(tx, {
         organizationId: tenant.organizationId,
@@ -411,19 +446,132 @@ export class ImportsService {
         outcome: 'SUCCEEDED',
         requestId,
       });
+      if (reimport) {
+        // Lineage both ways in the audit chain: the new import, and the withdrawn one it supersedes.
+        for (const [action, targetId] of [['source_upload.reimported', id], ['source_upload.superseded', reimport.id]] as const) {
+          await appendAuditEvent(tx, { organizationId: tenant.organizationId, dealId, actorUserId: tenant.userId, action, targetType: 'source_upload', targetId, outcome: 'SUCCEEDED', requestId });
+        }
+      }
       await this.recordRun(tx, dealId, run);
       return created;
+      // handled: two re-imports of one withdrawn import race; the loser is told it was already re-imported (409)
+    }).catch((error: unknown) => {
+      if (reimport && (error as { code?: string } | null)?.code === 'P2002') throw new ConflictException({ code: 'ALREADY_SUPERSEDED' });
+      throw error;
     });
-    return this.detail(row, read);
+    return this.detail(row, read, reimport ? await this.inheritedMapping(tenant, dealId, row, read.table) : null);
   }
 
-  async get(tenant: TenantContext, dealId: string, uploadId: string, requestId: string): Promise<UploadDetailView> {
+  /**
+   * Re-import a withdrawn import (T-154): a new upload that supersedes it, from a corrected file
+   * or, with no file, the stored original again (a wrong mapping). The withdrawn import's mapping
+   * is offered again wherever it still fits; a person confirms it before anything is imported.
+   */
+  async reimport(tenant: TenantContext, dealId: string, uploadId: string, fileName: string | undefined, body: unknown, requestId: string): Promise<UploadDetail> {
+    const role = await this.access.require(tenant, dealId, canManageImports, { action: 'source_upload.reimported', requestId });
+    const previous = await withTenant(this.prisma, tenant, (tx) => sourceUploads.get(tx, dealId, uploadId));
+    if (!previous) throw new NotFoundException();
+    const problem = reimportProblem(previous, previous.target);
+    if (problem) throw new ConflictException({ code: problem });
+    let bytes: Uint8Array;
+    if (body instanceof Uint8Array && body.byteLength > 0) {
+      if (body.byteLength > MAX_UPLOAD_BYTES) throw new PayloadTooLargeException();
+      let verdict;
+      try {
+        verdict = await this.scanner.scan(body);
+      } catch {
+        verdict = 'UNAVAILABLE' as const;
+      }
+      if (verdict === 'UNAVAILABLE') throw new ServiceUnavailableException();
+      if (verdict !== 'CLEAN') throw new UnprocessableEntityException();
+      bytes = body;
+    } else {
+      bytes = await this.storedBytes(previous);
+    }
+    const query = { target: previous.target, system: previous.system as UploadQuery['system'], fileName: fileName ?? previous.fileName };
+    return this.create(tenant, dealId, role, bytes, query, requestId, previous);
+  }
+
+  /** The withdrawn import's mapping, when a re-import's file still fits it; null otherwise. */
+  private async inheritedMapping(tenant: TenantContext, dealId: string, row: SourceUploadRecord, table: CsvTable): Promise<ImportMapping | null> {
+    if (!row.supersedesUploadId || row.status !== 'UPLOADED') return null;
+    const previousId = row.supersedesUploadId;
+    const previous = await withTenant(this.prisma, tenant, (tx) => sourceUploads.get(tx, dealId, previousId));
+    // The stored mapping is canonical JSON with its schema version; the screen gets the mapping alone.
+    const { version: _version, ...mapping } = (previous?.mapping ?? {}) as unknown as ImportMapping & { version?: string };
+    if (!previous?.mapping || mapping.target !== row.target) return null;
+    return blockingProblems(definitionOf(row.target), table, mapping).length === 0 ? mapping : null;
+  }
+
+  /**
+   * Withdraw an import (T-154): a state change, never an erasure. The record, its file and
+   * mapping stay; the records only it held are voided (excluded from every read path, kept in
+   * storage); findings and valuation runs built on them are flagged, not changed. Audited,
+   * with the flagged artefacts, in the pact's own chain.
+   */
+  async withdraw(tenant: TenantContext, dealId: string, uploadId: string, reason: string, requestId: string): Promise<{ upload: UploadView; result: WithdrawalResultView }> {
+    await this.access.require(tenant, dealId, canManageImports, { action: 'source_upload.withdrawn', requestId });
+    const row = await withTenant(this.prisma, tenant, (tx) => sourceUploads.get(tx, dealId, uploadId));
+    if (!row) throw new NotFoundException();
+    const problem = withdrawalProblem(row.status, reason);
+    if (problem === 'REASON_REQUIRED') throw new UnprocessableEntityException({ code: problem });
+    if (problem || !row.syncRunId) throw new ConflictException({ code: problem ?? 'NOT_IMPORTED' });
+    const syncRunId = row.syncRunId;
+    return withTenant(
+      this.prisma,
+      tenant,
+      async (tx) => {
+        const outcome = await withdrawals.withdraw(tx, { organizationId: tenant.organizationId, dealId, uploadId, syncRunId, actorUserId: tenant.userId, reason, at: new Date() });
+        if (!outcome) throw new ConflictException({ code: 'ALREADY_WITHDRAWN' });
+        const audit = (action: string, targetType: string, targetId: string) =>
+          appendAuditEvent(tx, { organizationId: tenant.organizationId, dealId, actorUserId: tenant.userId, action, targetType, targetId, outcome: 'SUCCEEDED', requestId });
+        await audit('source_upload.withdrawn', 'source_upload', uploadId);
+        // Which artefacts were affected: each finding and valuation run, flagged and named in the log.
+        for (const findingId of outcome.findingIds) await audit('finding.source_withdrawn', 'finding', findingId);
+        for (const runId of outcome.valuationRunIds) await audit('valuation_run.source_withdrawn', 'valuation_run', runId);
+        const updated = await sourceUploads.get(tx, dealId, uploadId);
+        return {
+          upload: toView(updated ?? row),
+          result: { voidedRecords: outcome.voided, flaggedFindings: outcome.findingIds.length, flaggedValuationRuns: outcome.valuationRunIds.length },
+        };
+      },
+      { timeoutMs: WITHDRAW_TIMEOUT_MS },
+    );
+  }
+
+  /** An import's chain of re-imports, oldest first, with each withdrawal and its reason (manage rights). */
+  async history(tenant: TenantContext, dealId: string, uploadId: string, requestId: string): Promise<{ chain: ImportLineageEntry[] }> {
+    await this.access.require(tenant, dealId, canManageImports, { action: 'source_upload.history', requestId });
+    return withTenant(this.prisma, tenant, async (tx) => {
+      const rows = lineageOrder(await sourceUploads.lineage(tx, dealId, uploadId));
+      if (rows.length === 0) throw new NotFoundException();
+      const chain: ImportLineageEntry[] = [];
+      for (const [index, row] of rows.entries()) {
+        const person = row.withdrawnBy ? await tx.user.findFirst({ where: { id: row.withdrawnBy }, select: { displayName: true } }) : null;
+        chain.push({
+          uploadId: row.id,
+          version: index + 1,
+          fileName: row.fileName,
+          status: row.status,
+          createdAt: row.createdAt.toISOString(),
+          importedAt: row.importedAt?.toISOString() ?? null,
+          rowCount: row.rowCount,
+          withdrawal: withdrawalOf(row, person?.displayName ?? null),
+          voidedRecords: await tx.evidenceVoid.count({ where: { dealId, sourceUploadId: row.id } }),
+        });
+      }
+      return { chain };
+    });
+  }
+
+  async get(tenant: TenantContext, dealId: string, uploadId: string, requestId: string): Promise<UploadDetail> {
     const row = await this.load(tenant, dealId, uploadId, canRead, 'source_upload.read', requestId);
-    return this.detail(row, await this.stored(row));
+    const read = await this.stored(row);
+    return this.detail(row, read, await this.inheritedMapping(tenant, dealId, row, read.table));
   }
 
   /** A pact's uploads, newest first, a page at a time (T-126). */
-  async list(tenant: TenantContext, dealId: string, request: { cursor?: string | undefined; limit: number }, requestId: string): Promise<Page<SourceUploadView>> {
+  async list(tenant: TenantContext, dealId: string, request: { cursor?: string | undefined; limit: number }, requestId: string): Promise<Page<UploadView>> {
     await this.access.require(tenant, dealId, canRead, { action: 'source_upload.list', requestId });
     const page = await withTenant(this.prisma, tenant, (tx) => sourceUploads.page(tx, dealId, request));
     return { ...page, items: page.items.map(toView) };
@@ -489,8 +637,10 @@ export class ImportsService {
     uploadId: string,
     mapping: ImportMappingBody,
     requestId: string,
-  ): Promise<ImportResultView> {
+  ): Promise<ImportResult> {
     const row = await this.load(tenant, dealId, uploadId, canSupply, 'source_upload.imported', requestId);
+    // A withdrawn import stays withdrawn; its data comes back only through a re-import.
+    if (row.status === 'WITHDRAWN') throw new ConflictException({ code: 'ALREADY_WITHDRAWN' });
     const table = await this.table(row);
     const definition = definitionOf(row.target);
     if (blockingProblems(definition, table, mapping as ImportMapping).length > 0) throw new UnprocessableEntityException();
@@ -513,12 +663,16 @@ export class ImportsService {
           visibility: row.visibility,
           createdBy: tenant.userId,
         });
+        // The same file and mapping replay one run, unless that file was withdrawn: a re-import, or
+        // the same file uploaded again after a withdrawal, runs afresh so it holds its own records.
+        const sameKey = `upload:${connection.id}:${row.sha256}:${sha256(mappingJson)}`;
+        const afresh = row.supersedesUploadId !== null || (await tx.sourceUpload.count({ where: { dealId, sha256: row.sha256, status: 'WITHDRAWN' } })) > 0;
         const result = await syncRuns.request(tx, {
           organizationId: tenant.organizationId,
           dealId,
           connectionId: connection.id,
           connectorVersion: UPLOAD_CONNECTOR_VERSION,
-          idempotencyKey: `upload:${connection.id}:${row.sha256}:${sha256(mappingJson)}`,
+          idempotencyKey: afresh ? `${sameKey}:upload:${row.id}` : sameKey,
           requestedBy: tenant.userId,
           correlationId: requestId,
         });
@@ -624,7 +778,7 @@ export class ImportsService {
    * Read the upload again before import: another workbook sheet, or the header on another row (a person's
    * correction). The header, row count and the assistant's proposal follow.
    */
-  async selectSheet(tenant: TenantContext, dealId: string, uploadId: string, choice: { sheet?: string | undefined; headerRow?: number | undefined }, requestId: string): Promise<UploadDetailView> {
+  async selectSheet(tenant: TenantContext, dealId: string, uploadId: string, choice: { sheet?: string | undefined; headerRow?: number | undefined }, requestId: string): Promise<UploadDetail> {
     const row = await this.load(tenant, dealId, uploadId, canSupply, 'source_upload.sheet_selected', requestId);
     if (row.status !== 'UPLOADED' || (choice.sheet !== undefined && row.format !== 'XLSX')) throw new ConflictException();
     const bytes = await this.storedBytes(row);
@@ -657,7 +811,7 @@ export class ImportsService {
    * original is deleted, and the decision is audited. An imported upload
    * cannot be cancelled — its evidence stays (upload a corrected file instead).
    */
-  async cancel(tenant: TenantContext, dealId: string, uploadId: string, requestId: string): Promise<SourceUploadView> {
+  async cancel(tenant: TenantContext, dealId: string, uploadId: string, requestId: string): Promise<UploadView> {
     const row = await this.load(tenant, dealId, uploadId, canSupply, 'source_upload.cancelled', requestId);
     if (row.status === 'PURGED') return toView(row);
     if (row.status !== 'UPLOADED') throw new ConflictException();
@@ -728,7 +882,7 @@ export class ImportsService {
     return (await this.stored(row)).table;
   }
 
-  private detail(row: SourceUploadRecord, read: ReadTable): UploadDetailView {
+  private detail(row: SourceUploadRecord, read: ReadTable, inherited: ImportMapping | null = null): UploadDetail {
     const template = templateFor(row.system);
     const table = read.table;
     const assist = (row.assist ?? null) as unknown as AssistedMapping | null;
@@ -743,7 +897,8 @@ export class ImportsService {
       headerRow: read.headerRow,
       preview: read.preview.slice(0, SAMPLE_ROWS + 10).map((cells) => [...cells]),
       sample: table.rows.slice(0, DETAIL_ROWS).map((source) => [...source.cells]),
-      suggestedMapping: suggestedFrom(table, template, definitionOf(row.target), read.delimiter, assist) as ImportMappingBody,
+      // A re-import starts from the mapping that was confirmed before, where it still fits.
+      suggestedMapping: (inherited ?? suggestedFrom(table, template, definitionOf(row.target), read.delimiter, assist)) as ImportMappingBody,
       assist: assistView(assist),
       template: systemView(template),
     };
