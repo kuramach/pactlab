@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 vi.mock('./actions', () => ({ dismissFeatureCard: vi.fn(), markFeatureCardsRead: vi.fn() }));
 vi.mock('next/link', () => ({ default: ({ href, children }: { href: string; children: unknown }) => <a href={href}>{children as never}</a> }));
 
+import { step } from './carousel';
 import { FeatureCardRail } from './home-cards';
 import { badgeCount, FeatureCardTray, FeatureCardTrayMount } from './tray';
 import type { FeatureCardView } from './types';
@@ -21,23 +22,39 @@ const card = (id: string, over: Partial<FeatureCardView> = {}): FeatureCardView 
   ...over,
 });
 
-describe('the home rail', () => {
-  it('shows each card with a dismiss control and its link', () => {
-    const html = renderToStaticMarkup(<FeatureCardRail cards={[card('a'), card('b')]} queued={0} />);
+describe('the home carousel (Kumar, 2026-11-25)', () => {
+  it('shows the first card with its dismiss control and link, and arrows and dots to move to the others', () => {
+    const html = renderToStaticMarkup(<FeatureCardRail cards={[card('a'), card('b', { where: 'QUEUED' }), card('c', { where: 'QUEUED', icon: 'cloud' })]} />);
+    expect(html).toContain('aria-roledescription="carousel"');
     expect(html).toContain('Title a');
-    expect(html).toContain('Title b');
     expect(html).toContain('aria-label="Dismiss: Title a"');
     expect(html).toContain('name="cardId" value="a"');
     expect(html).toContain('href="/settings"');
-    expect(html).not.toContain('waiting behind');
+    expect(html).toContain('1 of 3');
+    expect(html).toContain('aria-label="Previous card"');
+    expect(html).toContain('aria-label="Next card"');
+    expect(html).toContain('aria-label="Show card 3: Title c"');
+    // Each card its own colour.
+    expect(html).toContain('from-indigo/15');
+    expect(html).toContain('from-teal/15');
+    expect(html).toContain('from-amber/15');
   });
 
-  it('says how many more wait behind the icon', () => {
-    expect(renderToStaticMarkup(<FeatureCardRail cards={[card('a')]} queued={3} />)).toContain('3 more cards are waiting behind');
+  it('one card needs no arrows', () => {
+    const html = renderToStaticMarkup(<FeatureCardRail cards={[card('a')]} />);
+    expect(html).toContain('Title a');
+    expect(html).not.toContain('Next card');
   });
 
   it('renders nothing with no cards', () => {
-    expect(renderToStaticMarkup(<FeatureCardRail cards={[]} queued={0} />)).toBe('');
+    expect(renderToStaticMarkup(<FeatureCardRail cards={[]} />)).toBe('');
+  });
+
+  it('moves round at either end', () => {
+    expect(step(0, -1, 3)).toBe(2);
+    expect(step(2, 1, 3)).toBe(0);
+    expect(step(1, 1, 3)).toBe(2);
+    expect(step(0, 1, 0)).toBe(0);
   });
 });
 
