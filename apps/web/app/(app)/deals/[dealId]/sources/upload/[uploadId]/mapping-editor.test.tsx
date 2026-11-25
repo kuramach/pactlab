@@ -5,7 +5,7 @@ import { unmappedRequired } from '../_lib/mapping-form';
 import { MappingEditor } from './mapping-editor';
 
 // The screen's server actions are not exercised here; the screen itself is.
-vi.mock('../actions', () => ({ previewMapping: vi.fn(), importWithMapping: vi.fn(), cancelUpload: vi.fn(), chooseSheet: vi.fn(), chooseHeaderRow: vi.fn(), importProgressOf: vi.fn() }));
+vi.mock('../actions', () => ({ previewMapping: vi.fn(), importWithMapping: vi.fn(), cancelUpload: vi.fn(), chooseSheet: vi.fn(), chooseHeaderRow: vi.fn(), importProgressOf: vi.fn(), saveGuidance: vi.fn() }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }) }));
 
 /** The mapping screen as a user sees it, for one import target, with the API's suggested mapping. */

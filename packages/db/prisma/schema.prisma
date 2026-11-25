@@ -1557,6 +1557,8 @@ model SourceUpload {
   headerRow      Int?               @map("header_row")
   /// The mapping assistant's checked proposal (picks, reasons, questions); never a value from the file.
   assist         Json?
+  /// What the person told the mapping assistant about the file (T-152): free text and row notes; steers mapping only.
+  guidance       Json?
   mapping        Json?
   mappingVersion String?            @map("mapping_version")
   objectKey      String?            @map("object_key")

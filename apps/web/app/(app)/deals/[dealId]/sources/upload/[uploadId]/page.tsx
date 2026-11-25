@@ -63,6 +63,7 @@ export default async function MapUploadPage({ params }: { params: Promise<{ deal
           suggested={upload.data.suggestedMapping}
           read={upload.data}
           assist={upload.data.assist}
+          guidance={upload.data.guidance}
           headerRow={upload.data.headerRow}
           preview={upload.data.preview}
         />

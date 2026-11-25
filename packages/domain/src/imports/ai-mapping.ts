@@ -1,5 +1,6 @@
 import type { CsvTable } from '../evidence/csv';
 import type { FieldSource } from './mapping';
+import { subtotalConflicts, type ImportGuidance } from './guidance';
 import type { TargetDefinition } from './targets';
 
 /**
@@ -231,13 +232,14 @@ export const ASSIST_CONFIDENCE = 0.85;
 export interface MappingProposal {
   readonly headerRow: number;
   readonly layout: ImportLayout;
-  readonly fields: readonly { field: string; column: string | null; confidence: number; reason: string; evidence: string }[];
+  readonly fields: readonly { field: string; column: string | null; confidence: number; reason: string; evidence: string; guided?: boolean | undefined }[];
   readonly lineKinds: readonly { account: string; kind: PnlKind; confidence: number }[];
   readonly questions: readonly { field: string | null; question: string; options: readonly string[] }[];
 }
 
 export interface AssistPick {
-  readonly by: 'AI' | 'NAME';
+  /** GUIDED: the pick follows what the person told the assistant (T-152); AI: inferred; NAME: matched by header name. */
+  readonly by: 'AI' | 'NAME' | 'GUIDED';
   readonly confidence: number | null;
   readonly reason: string | null;
 }
@@ -255,6 +257,8 @@ export interface AssistedMapping {
   readonly questions: readonly { field: string | null; question: string; options: readonly string[] }[];
   /** Said on screen when the assistant could not help ("names matched only"). */
   readonly note: string | null;
+  /** What the person told the assistant about this file, quoted back on the mapping screen (T-152). */
+  readonly guidance?: ImportGuidance | null;
 }
 
 const squash = (text: string) => text.toLowerCase().replaceAll(/\s+/g, ' ').trim();
@@ -278,8 +282,11 @@ export function checkProposal(input: {
   preview: readonly (readonly string[])[];
   proposal: MappingProposal;
   byName: Readonly<Record<string, FieldSource>>;
+  /** The person's instructions and row notes; they steer the proposal, and conflicts with the data become questions. */
+  guidance?: ImportGuidance | null;
 }): AssistedMapping {
   const { definition, header, rawHeader, proposal, byName } = input;
+  const guidance = input.guidance ?? null;
   const layout = layoutProblems(definition, rawHeader, proposal.layout).length === 0 ? proposal.layout : ({ kind: 'ROWS' } as const);
   const cells = new Set(input.preview.flat().map(squash).filter(Boolean));
   const fields: Record<string, FieldSource> = {};
@@ -313,7 +320,7 @@ export function checkProposal(input: {
     const grounded = pick !== undefined && (pick.evidence.trim() === '' ? false : cells.has(squash(pick.evidence)));
     if (pick && column && header.includes(column) && !used.has(column) && pick.confidence >= ASSIST_CONFIDENCE && grounded) {
       fields[field.name] = { kind: 'column', column };
-      picks[field.name] = { by: 'AI', confidence: pick.confidence, reason: pick.reason };
+      picks[field.name] = { by: guidance && pick.guided ? 'GUIDED' : 'AI', confidence: pick.confidence, reason: pick.reason };
       used.add(column);
       continue;
     }
@@ -334,6 +341,9 @@ export function checkProposal(input: {
     if (question.field === null) questions.push({ field: null, question: question.question, options: [] });
   }
 
+  // A note that contradicts the data (a "subtotal" that does not add up) is asked about, never silently trusted or overridden.
+  for (const conflict of subtotalConflicts(input.preview, proposal.headerRow, guidance)) questions.push({ field: null, question: conflict.question, options: [] });
+
   const lineKinds: Record<string, PnlKind> = {};
   const unsureLines: string[] = [];
   if (definition.lineItems) {
@@ -342,7 +352,7 @@ export function checkProposal(input: {
       if (entry.confidence < ASSIST_CONFIDENCE) unsureLines.push(entry.account);
     }
   }
-  return { source: 'AI', headerRow: proposal.headerRow, layout, fields, picks, lineKinds, unsureLines, questions, note: null };
+  return { source: 'AI', headerRow: proposal.headerRow, layout, fields, picks, lineKinds, unsureLines, questions, note: null, guidance };
 }
 
 /**

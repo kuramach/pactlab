@@ -3,6 +3,10 @@ import {
   PNL_KINDS,
   BILLING_SYSTEMS,
   DATE_FORMATS,
+  GUIDANCE_MAX_ANNOTATIONS,
+  GUIDANCE_MAX_NOTE,
+  GUIDANCE_MAX_ROW,
+  GUIDANCE_MAX_TEXT,
   IMPORT_TARGET_DEFINITIONS,
   IMPORT_TARGETS,
   NUMBER_FORMATS,
@@ -48,6 +52,15 @@ export type ImportMappingBody = z.infer<typeof importMappingSchema>;
 
 export const mappingBodySchema = z.strictObject({ mapping: importMappingSchema });
 
+/** What a person tells the mapping assistant about a file: free text, and notes on numbered rows (T-152). */
+export const importGuidanceSchema = z.strictObject({
+  instructions: z.string().max(GUIDANCE_MAX_TEXT),
+  annotations: z
+    .array(z.strictObject({ fromRow: z.number().int().min(1).max(GUIDANCE_MAX_ROW), toRow: z.number().int().min(1).max(GUIDANCE_MAX_ROW), note: z.string().trim().min(1).max(GUIDANCE_MAX_NOTE) }))
+    .max(GUIDANCE_MAX_ANNOTATIONS),
+});
+export type ImportGuidanceBody = z.infer<typeof importGuidanceSchema>;
+
 export const billingSystemSchema = z.enum(BILLING_SYSTEMS);
 
 export const uploadQuerySchema = z.strictObject({
@@ -61,6 +74,8 @@ export const uploadQuerySchema = z.strictObject({
     .min(1)
     .max(255)
     .regex(/^[^/\\]+$/, 'A file name, not a path'),
+  /** Anything the mapping assistant should know about the file (T-152); the earlier upload's guidance is reused when absent. */
+  instructions: z.string().max(GUIDANCE_MAX_TEXT).optional(),
 });
 export type UploadQuery = z.infer<typeof uploadQuerySchema>;
 
@@ -77,8 +92,8 @@ export const IMPORT_FILE_ACCEPT = '.csv,.tsv,.txt,.xlsx,text/csv,text/tab-separa
 
 /** Read the upload again: another workbook sheet, or the header on another row (at least one). */
 export const sheetBodySchema = z
-  .strictObject({ sheet: z.string().trim().min(1).max(100).optional(), headerRow: z.number().int().min(1).max(30).optional() })
-  .refine((body) => body.sheet !== undefined || body.headerRow !== undefined, 'A sheet or a header row');
+  .strictObject({ sheet: z.string().trim().min(1).max(100).optional(), headerRow: z.number().int().min(1).max(30).optional(), guidance: importGuidanceSchema.optional() })
+  .refine((body) => body.sheet !== undefined || body.headerRow !== undefined || body.guidance !== undefined, 'A sheet, a header row or guidance');
 export const importRunParamsSchema = z.strictObject({ dealId: z.uuid(), runId: z.uuid() });
 
 export interface BillingSystemView {
@@ -120,11 +135,15 @@ export interface UploadDetailView extends SourceUploadView {
   /** What the mapping assistant filled in and why, and what it asks a person; null for older uploads. */
   assist: {
     source: 'AI' | 'NAMES';
-    picks: Record<string, { by: 'AI' | 'NAME'; confidence: number | null; reason: string | null }>;
+    picks: Record<string, { by: 'AI' | 'NAME' | 'GUIDED'; confidence: number | null; reason: string | null }>;
     questions: { field: string | null; question: string; options: string[] }[];
     unsureLines: string[];
     note: string | null;
+    /** What the person told the assistant, quoted back (T-152). */
+    guidance?: ImportGuidanceBody | null;
   } | null;
+  /** The person's instructions and row notes as stored with this upload; null when none were given. */
+  guidance: ImportGuidanceBody | null;
   template: BillingSystemView;
 }
 
