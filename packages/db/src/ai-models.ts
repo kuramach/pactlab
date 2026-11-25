@@ -10,7 +10,7 @@ export type AiAlias = 'fast' | 'balanced' | 'deep_review';
 export const AI_ALIASES: readonly AiAlias[] = ['fast', 'balanced', 'deep_review'];
 
 /** The routes the console may set: the three aliases, and the job types of best-of-breed routing (T-132). */
-export type AiRouteKey = AiAlias | 'contract_scrub' | 'extraction' | 'classification' | 'document_qa' | 'vision';
+export type AiRouteKey = AiAlias | 'contract_scrub' | 'extraction' | 'classification' | 'document_qa' | 'vision' | 'import_mapping';
 
 export interface ResolvedAiRoute {
   alias: AiRouteKey;

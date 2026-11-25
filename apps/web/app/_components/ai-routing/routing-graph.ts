@@ -5,7 +5,7 @@
  * models (one organization).
  */
 
-export type JobType = 'deep_review' | 'contract_scrub' | 'extraction' | 'classification' | 'document_qa' | 'vision';
+export type JobType = 'deep_review' | 'contract_scrub' | 'extraction' | 'classification' | 'document_qa' | 'vision' | 'import_mapping';
 export type RoleAlias = 'fast' | 'balanced' | 'deep_review';
 export type JobSource = 'ORGANIZATION' | 'PLATFORM' | 'DEPLOYMENT' | 'REGISTRY';
 
@@ -38,6 +38,7 @@ export const JOB_TITLES: Record<JobType, { title: string; help: string }> = {
   contract_scrub: { title: 'Consistency checks', help: 'defined terms, cross-references, party names' },
   deep_review: { title: 'Deep review', help: 'judgment on agreement findings' },
   document_qa: { title: 'Questions and drafting', help: 'document Q&A, Foresight, briefs' },
+  import_mapping: { title: 'Reading spreadsheets', help: 'header, layout and columns of an import' },
 };
 
 export const ROLE_TITLES: Record<RoleAlias, string> = { fast: 'Claude · Fast', balanced: 'Claude · Balanced', deep_review: 'Claude · Deep review' };
@@ -83,10 +84,13 @@ export interface GraphEdge {
 }
 
 /** The kind of material each job mostly works on (its box's accent). */
-const JOB_FLOW: Record<JobType, Flow> = { classification: 'text', vision: 'image', extraction: 'text', contract_scrub: 'draft', deep_review: 'draft', document_qa: 'question' };
+const JOB_FLOW: Record<JobType, Flow> = { classification: 'text', vision: 'image', extraction: 'text', contract_scrub: 'draft', deep_review: 'draft', document_qa: 'question', import_mapping: 'text' };
 
 /** Inputs on the left, the jobs in the middle, what people receive on the right. */
 const POSITIONS: Record<string, { x: number; y: number }> = {
+  spreadsheet: { x: 0, y: -240 },
+  import_mapping: { x: 250, y: -240 },
+  imported: { x: 560, y: -240 },
   upload: { x: 0, y: 60 },
   video: { x: 0, y: 300 },
   question: { x: 0, y: 470 },
@@ -108,6 +112,9 @@ export function buildRoutingGraph(view: RoutingView): { nodes: GraphNode[]; edge
     return { id: jobType, kind: 'job', flow: JOB_FLOW[jobType], ...JOB_TITLES[jobType], source: found ? sourceText(found.source, view.scope) : 'registry chain', lanes: found?.lanes ?? [], position: POSITIONS[jobType] as { x: number; y: number } };
   };
   const nodes: GraphNode[] = [
+    { id: 'spreadsheet', kind: 'input', flow: 'text', title: 'Imported spreadsheets', note: 'rent rolls, P&Ls, T-12s, extracts', position: POSITIONS['spreadsheet'] as { x: number; y: number } },
+    job('import_mapping'),
+    { id: 'imported', kind: 'output', flow: 'review', title: 'Records and metrics', note: 'a person confirms every column; code reads every value', position: POSITIONS['imported'] as { x: number; y: number } },
     { id: 'upload', kind: 'input', flow: 'text', title: 'Uploaded documents', note: 'PDF, Word, spreadsheets, scans', position: POSITIONS['upload'] as { x: number; y: number } },
     { id: 'video', kind: 'input', flow: 'video', title: 'Video', note: 'not yet: keyframes go to image documents', muted: true, position: POSITIONS['video'] as { x: number; y: number } },
     { id: 'question', kind: 'input', flow: 'question', title: 'A question, Foresight or a brief', position: POSITIONS['question'] as { x: number; y: number } },
@@ -122,6 +129,8 @@ export function buildRoutingGraph(view: RoutingView): { nodes: GraphNode[]; edge
     { id: 'answer', kind: 'output', flow: 'answer', title: 'Cited answer', position: POSITIONS['answer'] as { x: number; y: number } },
   ];
   const edges: GraphEdge[] = [
+    { id: 'spreadsheet-import_mapping', source: 'spreadsheet', target: 'import_mapping', label: 'a new layout', flow: 'text' },
+    { id: 'import_mapping-imported', source: 'import_mapping', target: 'imported', label: 'mapping to confirm', flow: 'review' },
     { id: 'upload-classification', source: 'upload', target: 'classification', label: 'text pages', flow: 'text' },
     { id: 'upload-vision', source: 'upload', target: 'vision', label: 'images and scans', flow: 'image' },
     { id: 'video-vision', source: 'video', target: 'vision', label: 'keyframes', flow: 'video', planned: true },

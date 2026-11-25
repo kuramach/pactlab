@@ -18,7 +18,7 @@ import type { ModelAlias, ModelProvider, ReasoningEffort } from './models';
  * On a deployment with only its Claude provider (every environment until other keys and terms are
  * set), each job's Claude lane is the alias its prompts already run on, so nothing changes there.
  */
-export const JOB_TYPES = ['deep_review', 'contract_scrub', 'extraction', 'classification', 'document_qa', 'vision'] as const;
+export const JOB_TYPES = ['deep_review', 'contract_scrub', 'extraction', 'classification', 'document_qa', 'vision', 'import_mapping'] as const;
 export type JobType = (typeof JOB_TYPES)[number];
 
 export type Lane =
@@ -83,6 +83,16 @@ export const JOB_MODEL_MAP: Readonly<Record<JobType, JobDefinition>> = {
     label: 'Questions and drafting over documents',
     lanes: [
       { kind: 'model', provider: 'google', modelId: GEMINI_PRO, effort: 'medium', tier: 'economy' },
+      { kind: 'claude', alias: 'deep_review', tier: 'flagship' },
+      { kind: 'claude', alias: 'balanced', tier: 'economy' },
+    ],
+  },
+  // Reading a spreadsheet's structure for import (Kumar, 2026-11-25: "use the best model inside Bedrock for most
+  // optimal import outcome"): Opus 5.5 on Bedrock, Sonnet 5.5 if it cannot answer; no other provider. It runs once per
+  // new layout only (saved formats, ADR 0042), so the stronger model costs little and every first read is the best one.
+  import_mapping: {
+    label: 'Reading spreadsheets for import (header, layout, columns, line kinds)',
+    lanes: [
       { kind: 'claude', alias: 'deep_review', tier: 'flagship' },
       { kind: 'claude', alias: 'balanced', tier: 'economy' },
     ],

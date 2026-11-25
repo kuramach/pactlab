@@ -62,11 +62,12 @@ export type ImportMappingProposal = z.infer<typeof importMappingProposalSchema>;
 
 export const importMappingPrompt = {
   id: 'import.map',
-  version: '4',
+  version: '5',
   taskType: 'import.mapping',
-  defaultAlias: 'fast',
-  // Reading a sheet's structure: the scorecard's extraction verdict (cost first, Haiku on Bedrock).
-  jobType: 'extraction',
+  defaultAlias: 'deep_review',
+  // Reading a sheet's structure, on the strongest Claude model on Bedrock (Kumar, 2026-11-25): its own job type, so
+  // the admin console shows and overrides it apart from contract extraction. Runs once per new layout (ADR 0042).
+  jobType: 'import_mapping',
   maxOutputTokens: 4000,
   system: [
     'You help import a spreadsheet received for a company acquisition or investment. Pactlab needs it as a list of records with set fields. You say how the file maps onto those fields; you never write, compute, convert or correct a value.',

@@ -24,6 +24,14 @@ describe('the job-type registry (T-132)', () => {
     }
   });
 
+  it('reads spreadsheets for import on the strongest Claude model, with Claude as the only fallback (Kumar, 2026-11-25)', () => {
+    expect(JOB_MODEL_MAP.import_mapping.lanes).toEqual([
+      { kind: 'claude', alias: 'deep_review', tier: 'flagship' },
+      { kind: 'claude', alias: 'balanced', tier: 'economy' },
+    ]);
+    expect(defaultPromptRegistry().list().filter((prompt) => defaultPromptRegistry().get(prompt.id, prompt.version)?.jobType === 'import_mapping').map((prompt) => prompt.id)).toEqual(['import.map']);
+  });
+
   it('reads MODEL_JOB_<JOB> overrides as provider:model, and refuses anything else', () => {
     expect(parseJobOverride('anthropic:claude-opus-5-5')).toEqual({ provider: 'anthropic', modelId: 'claude-opus-5-5' });
     expect(parseJobOverride('openai:gpt-5.5')).toEqual({ provider: 'openai', modelId: 'gpt-5.5' });

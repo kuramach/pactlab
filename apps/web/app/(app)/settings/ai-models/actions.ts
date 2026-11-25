@@ -5,7 +5,7 @@ import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import { apiSend } from '../../deals/_lib/api';
 
-const KEYS = ['fast', 'balanced', 'deep_review', 'contract_scrub', 'extraction', 'classification', 'document_qa', 'vision'] as const;
+const KEYS = ['fast', 'balanced', 'deep_review', 'contract_scrub', 'extraction', 'classification', 'document_qa', 'vision', 'import_mapping'] as const;
 
 /** An owner or admin routes one job (or Claude role) to an approved model, or back to Pactlab's default (blank). */
 export async function setOrganizationRoute(key: string, formData: FormData): Promise<void> {
