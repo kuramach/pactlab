@@ -97,3 +97,13 @@ describe('ui', () => {
     }
   });
 });
+
+describe('section accents', () => {
+  it('gives a card its registered accent and keeps unaccented cards plain', async () => {
+    const { renderToStaticMarkup } = await import('react-dom/server');
+    const { Card, SECTION_ACCENTS, accentFor } = await import('./index');
+    const accented = renderToStaticMarkup(<Card section="billing">x</Card>);
+    expect(accented).toContain(`--section-accent:${SECTION_ACCENTS[accentFor('billing')]}`);
+    expect(renderToStaticMarkup(<Card>x</Card>)).not.toContain('--section-accent');
+  });
+});

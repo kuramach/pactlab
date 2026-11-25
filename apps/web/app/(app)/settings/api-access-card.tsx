@@ -17,7 +17,7 @@ export async function ApiAccessCard({ search }: { search: Record<string, string 
   if (result.kind !== 'ok') return null;
   const { enabled, grants } = result.data;
   return (
-    <Card id="api-access">
+    <Card id="api-access" section="api-access">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <KeyRound className="h-4 w-4" aria-hidden /> API access

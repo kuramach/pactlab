@@ -28,7 +28,7 @@ export default async function AiModelsSettingsPage({ searchParams }: { searchPar
           {OUTCOMES[outcome]}
         </p>
       ) : null}
-      <Card>
+      <Card section="ai-models">
         <CardHeader>
           <CardTitle>Routing</CardTitle>
           <CardDescription>

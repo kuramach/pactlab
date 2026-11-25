@@ -29,7 +29,7 @@ export async function IcCard({ search }: { search: Record<string, string | strin
     </li>
   );
   return (
-    <Card id="investment-committee">
+    <Card id="investment-committee" section="investment-committee">
       <CardHeader>
         <CardTitle>Investment committee</CardTitle>
         <CardDescription>

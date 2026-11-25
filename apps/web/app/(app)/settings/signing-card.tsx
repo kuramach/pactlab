@@ -20,7 +20,7 @@ export async function SigningCard({ outcome }: { outcome?: string }) {
   const view = result.data;
   const message = outcome ? OUTCOMES[outcome] : undefined;
   return (
-    <Card id="signing">
+    <Card id="signing" section="signing">
       <CardHeader>
         <CardTitle>Signing</CardTitle>
         <CardDescription>How letters of intent and agreed terms are sent for signature. Envelopes already sent finish on the provider they went out with.</CardDescription>
