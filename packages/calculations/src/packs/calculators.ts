@@ -1,6 +1,7 @@
 import { computeSaasMetrics, prepareWorkspace, type MetricsInput } from '../metrics/metrics';
 import { METRICS_ENGINE_VERSION } from '../metrics/types';
 import { MULTIFAMILY_METRICS_CALCULATOR } from './multifamily/metrics';
+import { MUSIC_METRICS_CALCULATOR } from './music/metrics';
 
 /**
  * Metric calculators, one per pack family (ADR 0009). Deterministic,
@@ -26,4 +27,5 @@ export const SAAS_METRICS_CALCULATOR: MetricCalculator<MetricsInput, ReturnType<
 export const METRIC_CALCULATORS: Readonly<Record<string, MetricCalculator<never, unknown>>> = {
   [SAAS_METRICS_CALCULATOR.id]: SAAS_METRICS_CALCULATOR as MetricCalculator<never, unknown>,
   [MULTIFAMILY_METRICS_CALCULATOR.id]: MULTIFAMILY_METRICS_CALCULATOR as MetricCalculator<never, unknown>,
+  [MUSIC_METRICS_CALCULATOR.id]: MUSIC_METRICS_CALCULATOR as MetricCalculator<never, unknown>,
 };

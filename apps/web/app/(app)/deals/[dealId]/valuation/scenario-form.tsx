@@ -59,6 +59,7 @@ export function ScenarioForm({
   items = [],
   submitLabel,
   methods = ['ARR_MULTIPLE', 'DCF'],
+  methodLabels = {},
 }: {
   action: (state: ScenarioFormState, data: FormData) => Promise<ScenarioFormState>;
   name: string;
@@ -73,6 +74,8 @@ export function ScenarioForm({
   multipleHint?: string;
   /** The valuation methods the deal's industry pack offers, first one the default. */
   methods?: readonly ScenarioMethod[];
+  /** How the pack names a core method (e.g. a royalty multiple runs as the revenue multiple). Labels only. */
+  methodLabels?: Readonly<Partial<Record<ScenarioMethod, { label: string; help: string; input: string }>>>;
 }) {
   const [state, formAction, pending] = useActionState(action, { error: null });
   const assumptions = values?.assumptions;
@@ -122,9 +125,9 @@ export function ScenarioForm({
               <label key={option} className={`flex cursor-pointer flex-col gap-1 rounded-lg border p-3 text-sm ${method === option ? 'border-indigo-ink bg-muted' : 'border-border'}`}>
                 <span className="flex items-center gap-2 font-medium">
                   <input type="radio" checked={method === option} onChange={() => setMethod(option)} />
-                  {METHOD_TEXT[option].label}
+                  {(methodLabels[option] ?? METHOD_TEXT[option]).label}
                 </span>
-                <span className="text-muted-foreground">{METHOD_TEXT[option].help}</span>
+                <span className="text-muted-foreground">{(methodLabels[option] ?? METHOD_TEXT[option]).help}</span>
               </label>
             ))}
           </div>
@@ -173,8 +176,8 @@ export function ScenarioForm({
             </div>
           ) : method === 'ARR_MULTIPLE' ? (
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="ARR" name="arr" defaultValue={assumptions?.method === 'ARR_MULTIPLE' ? assumptions.arr : ''} hint="Use the reconciled ARR from Finances." />
-              <Field label="ARR multiple" name="multiple" defaultValue={assumptions?.method === 'ARR_MULTIPLE' ? assumptions.multiple : ''} suffix="×" hint={multipleHint} />
+              <Field label={methodLabels.ARR_MULTIPLE?.input ?? 'ARR'} name="arr" defaultValue={assumptions?.method === 'ARR_MULTIPLE' ? assumptions.arr : ''} hint={methodLabels.ARR_MULTIPLE ? undefined : 'Use the reconciled ARR from Finances.'} />
+              <Field label={methodLabels.ARR_MULTIPLE ? 'Multiple' : 'ARR multiple'} name="multiple" defaultValue={assumptions?.method === 'ARR_MULTIPLE' ? assumptions.multiple : ''} suffix="×" hint={multipleHint} />
             </div>
           ) : (
             <div className="flex flex-col gap-4">

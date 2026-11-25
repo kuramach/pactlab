@@ -325,7 +325,7 @@ export type IndustryStatus = 'AVAILABLE' | 'PLANNED';
 /** What a pack adds to the unchanged core: the only three things that vary (spec §19). */
 export interface PackDefinition {
   /** Real estate packs form their own cluster; hospitals and clinics extend healthcare services. */
-  readonly cluster: 'technology' | 'healthcare' | 'real-estate' | 'services' | 'life-sciences' | 'consumer' | 'capital';
+  readonly cluster: 'technology' | 'healthcare' | 'real-estate' | 'services' | 'life-sciences' | 'consumer' | 'capital' | 'media-rights';
   readonly evidence: readonly string[];
   readonly findings: readonly string[];
   readonly valuation: readonly string[];
@@ -814,6 +814,38 @@ export const INDUSTRIES: readonly Industry[] = [
       { icon: 'EyeOff', title: 'A wall between the two sides', body: 'The seller never sees the raise; investors never see the acquisition negotiation.' },
     ],
   },
+  {
+    slug: 'music-rights',
+    icon: 'Tag',
+    name: 'Music rights',
+    status: 'AVAILABLE',
+    order: 14,
+    pack: {
+      cluster: 'media-rights',
+      evidence: ['Works and rights register: titles, ISWC and ISRC codes, PRO registrations', 'Writer splits from split sheets and as statements pay them', 'Chain of title: Copyright Office registrations, assignments, licences and administration agreements', 'Royalty statements by work, period and income source', 'Advance ledgers, lien and UCC searches'],
+      findings: ['An earning work with no assignment or registration behind it', 'Splits that do not total 100%, or statements paying different splits', 'Income whose grants become terminable under §203 or §304 inside the hold', 'One work or writer carrying too much of the income', 'An unrecouped advance or a lien the deal summary leaves out', 'Registered works with no performance income, and missing statement periods'],
+      valuation: ['A royalty multiple on trailing net income (net publisher’s share or net label share), decay-adjusted by catalog age', 'Termination exposure priced as its own line on the bridge', 'Verified growth and clean title recorded as confirmed value, never a price increase'],
+    },
+    summary: 'A buyer acquiring music publishing or master rights: every work’s income, title and termination windows traced to statements and registrations.',
+    dealShape: 'Funds, catalog acquirers and labels buying publishing and master catalogs from artists, estates, publishers or prior funds.',
+    questions: [
+      'Does the seller hold title to the works that earn the money?',
+      'Do the splits add up, and do statements pay what the split sheets say?',
+      'How much of the income can authors take back before the hold ends?',
+      'Is any advance still unrecouped, or any lien undisclosed?',
+    ],
+    transfers: [
+      { icon: 'ListChecks', title: 'Findings and review', body: 'Every gap drafted with its evidence; a named reviewer decides.' },
+      { icon: 'FileText', title: 'Exact citations', body: 'Ledgers, split sheets and lien searches quoted to the page.' },
+      { icon: 'Calculator', title: 'The purchase-price bridge', body: 'Accepted risks priced line by line against the multiple.' },
+    ],
+    adds: [
+      { icon: 'ClipboardList', title: 'A works and rights register', body: 'Every work with its identifiers, splits, chain of title and income.' },
+      { icon: 'ChartLine', title: 'A royalty income model', body: 'Trailing income by work and source, with decay by catalog age, in decimals.' },
+      { icon: 'Hourglass', title: 'Termination exposure', body: 'Section 203 and 304 windows from the grant dates, the exposed income quantified.' },
+      { icon: 'FileSearch', title: 'Rights documents read for you', body: 'Statements, split sheets and agreements proposed as entries with their quotes; you confirm them.' },
+    ],
+  },
 ];
 
 export interface PactCard {
@@ -866,6 +898,7 @@ export const PACT_CARDS: readonly PactCard[] = [
   packCard('small-clinics', 'See per-site economics, provider dependence and coding against policy.'),
   packCard('hospitals', 'Value on payer-mix-adjusted EBITDA, with census and accreditation in view.'),
   packCard('multifamily-syndication', 'Check the property and the offering: returns, fees and track record.'),
+  packCard('music-rights', 'Trace each work’s income, title and termination windows before you buy the catalog.'),
   packCard('venture-raise', 'You are the one being diligenced. See what the investor will find, first.'),
 ];
 

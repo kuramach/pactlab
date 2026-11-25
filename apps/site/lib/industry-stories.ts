@@ -435,6 +435,40 @@ export const INDUSTRY_STORIES: Readonly<Record<string, IndustryStory>> = {
       { q: 'Can the seller see the raise?', a: 'No. The offering is the sponsor’s own side of the pact. The seller never sees the raise, and investors never see the acquisition negotiation.' },
     ],
   },
+  'music-rights': {
+    headline: 'Buy the royalties you can prove.',
+    subhead:
+      'A music catalog is bought for its royalty income, and the diligence fails in checkable ways: a hit with no assignment, splits that add up to 105%, grants authors can terminate during your hold. Pactlab builds the register from statements and registrations, models the income and quantifies the termination exposure.',
+    illustrationAlt: 'Illustration of a music catalog: records, a royalty statement and a rights register.',
+    pains: [
+      { icon: 'FileLock', title: 'Income with no title behind it', body: 'A work earns on every statement, but nothing in the chain of title shows how the seller came to own it.' },
+      { icon: 'Hourglass', title: 'Rights that can go home', body: 'Grants made decades ago become terminable under US copyright law, sometimes in the middle of the hold.' },
+      { icon: 'Receipt', title: 'Income that is already spent', body: 'An unrecouped advance on the administrator’s ledger takes the royalties before they reach the owner.' },
+    ],
+    walkthrough: [
+      { step: 'Evidence', text: 'The works register, writer splits, chain of title and royalty statements arrive as imports; statements, split sheets, agreements and lien searches are read with their source.' },
+      { step: 'Finding', text: 'Deterministic checks draft title gaps, split mismatches, termination exposure, concentration, unrecouped advances, undisclosed liens and missing statement periods, each cited.' },
+      { step: 'Review', text: 'Entries read from documents are confirmed or corrected by a person before they count; a reviewer accepts or rejects every finding.' },
+      { step: 'Valuation', text: 'A royalty multiple on the trailing, decay-adjusted net income, with the termination exposure as its own line on the bridge.' },
+      { step: 'Deal terms', text: 'Title gaps become a holdback, the exposed income a price reduction, and an undisclosed lien an indemnity, each traced to its source.' },
+    ],
+    findings: [
+      { title: 'Hit work with no assignment on record', severity: 'High', evidence: 'The chain of title against the work’s statement income', term: 'Title holdback until the assignment is produced' },
+      { title: 'Termination windows inside the hold', severity: 'High', evidence: 'Grant dates against §203 and §304 windows, on trailing income', term: 'Price reduction on the exposed share' },
+      { title: 'Unrecouped advance left out of the summary', severity: 'High', evidence: 'The administrator’s ledger against the seller’s summary', term: 'Comes off the price' },
+    ],
+    deliverables: [
+      { icon: 'ClipboardList', title: 'A works and rights register', body: 'Every work with its income, splits, title evidence and termination window.' },
+      { icon: 'ChartLine', title: 'An income model', body: 'Trailing income by source and catalog age, with the decay adjustment written out.' },
+      { icon: 'Hourglass', title: 'A termination exposure schedule', body: 'Which grants open inside the hold, and how much income stands behind them.' },
+    ],
+    faq: [
+      { q: 'Does Pactlab tell me whether title is good?', a: 'No. It is diligence support, not legal advice: it organises the evidence and flags gaps in the chain of title for you and your counsel. It makes no determination that title is good.' },
+      { q: 'Does it decide whether a termination notice is valid?', a: 'No. It computes the §203 and §304 windows from the grant dates, states its conventions and quantifies the income behind them. Whether a notice has been or could be validly served is for counsel.' },
+      { q: 'Where do the income figures come from?', a: 'Only from royalty statements, registries and connected sources. A missing statement period is shown as a gap, never estimated.' },
+      { q: 'Does growth raise the price?', a: 'No. The multiple applies to decay-adjusted income: declines reduce it and growth is never added. Verified growth and clean title are recorded as confirmed value.' },
+    ],
+  },
   'small-clinics': {
     headline: 'In a clinic roll-up, revenue follows the providers.',
     subhead:
@@ -512,7 +546,7 @@ export const WRITTEN_INDUSTRIES = INDUSTRIES.filter((industry) => industry.slug 
  * Venture Raise (2026-11-09), with the others released one at a time after testing. Same list as the
  * app's RELEASED_COMPANY_TYPES (packages/domain/src/packs/release.ts).
  */
-export const RELEASED_INDUSTRY_SLUGS: readonly string[] = ['software-saas', 'multifamily', 'venture-raise'];
+export const RELEASED_INDUSTRY_SLUGS: readonly string[] = ['software-saas', 'multifamily', 'venture-raise', 'music-rights'];
 
 /** An environment's copy of the site (dev, qa) previews every written pack, for testing before release. */
 export const PACK_PREVIEW = process.env['NEXT_PUBLIC_PACK_PREVIEW'] === 'true';
