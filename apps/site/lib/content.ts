@@ -846,6 +846,38 @@ export const INDUSTRIES: readonly Industry[] = [
       { icon: 'FileSearch', title: 'Rights documents read for you', body: 'Statements, split sheets and agreements proposed as entries with their quotes; you confirm them.' },
     ],
   },
+  {
+    slug: 'startup-spv',
+    icon: 'Users',
+    name: 'Startup equity SPV',
+    status: 'AVAILABLE',
+    order: 15,
+    pack: {
+      cluster: 'capital',
+      evidence: ['The startup’s billing, cap table and monthly cash and burn', 'The round summary or deck, the term sheet and the signed SAFEs and notes', 'The vehicle’s operating agreement and the investor summary', 'Side letters and the Form D filing', 'Each investor’s commitment and accreditation status, from a verification specialist'],
+      findings: ['A cap table that does not add up once every SAFE and note converts', 'Instrument terms in the signed documents that differ from the deck', 'A deck claim billing or the bank balance contradicts, or that nothing supports', 'Fee or carry in the operating agreement that differs from the investor summary', 'A side letter granting economics the summary does not disclose', 'A 506(c) investor not verified, or no Form D on file'],
+      valuation: ['The round’s pre-money, recomputed from the price and the share count', 'The vehicle’s fee load recomputed from its operating agreement', 'Net-of-fees investor returns on exit paths you state, labelled as scenarios, never promises'],
+    },
+    summary: 'An organizer pooling investors into one vehicle for a startup’s round: the round and the vehicle’s own economics, each checked against its documents.',
+    dealShape: 'Angels, syndicate leads and emerging managers raising a single-company SPV that takes one line in a seed or Series A round.',
+    questions: [
+      'Does the cap table add up once the SAFEs convert?',
+      'Do the deck’s claims hold up against billing and the bank balance?',
+      'Do the fee and carry investors were told match the operating agreement?',
+      'Is every investor eligible for the vehicle’s exemption?',
+    ],
+    transfers: [
+      { icon: 'ListChecks', title: 'Findings and review', body: 'Every defect drafted with its evidence; a named reviewer decides.' },
+      { icon: 'FileText', title: 'Exact citations', body: 'Round summaries, SAFEs and operating agreements quoted to the page.' },
+      { icon: 'ClipboardCheck', title: 'The claims register', body: 'Every deck claim marked verified, contradicted or unverified.' },
+    ],
+    adds: [
+      { icon: 'Calculator', title: 'Round-math verification', body: 'Shares × price against the round, every SAFE and note converted with its cap, discount and MFN.' },
+      { icon: 'Percent', title: 'Vehicle economics', body: 'Fee load and carry recomputed from the operating agreement and checked against the summary.' },
+      { icon: 'UserCheck', title: 'Investor seats', body: 'Each investor seated on their own, with accreditation tracked from a specialist; never shown each other.' },
+      { icon: 'EyeOff', title: 'A published investor view', body: 'A frozen snapshot of what you choose to share; side letters and other investors never enter it.' },
+    ],
+  },
 ];
 
 export interface PactCard {
@@ -899,6 +931,7 @@ export const PACT_CARDS: readonly PactCard[] = [
   packCard('hospitals', 'Value on payer-mix-adjusted EBITDA, with census and accreditation in view.'),
   packCard('multifamily-syndication', 'Check the property and the offering: returns, fees and track record.'),
   packCard('music-rights', 'Trace each work’s income, title and termination windows before you buy the catalog.'),
+  packCard('startup-spv', 'Check the round and your own vehicle before you pool the money.'),
   packCard('venture-raise', 'You are the one being diligenced. See what the investor will find, first.'),
 ];
 
@@ -925,6 +958,17 @@ const PACT_SLIDE_COPY: Readonly<Record<string, Pick<Slide, 'short' | 'title' | '
     points: ['Rent roll and T-12 tied to the memorandum', 'Loss-to-lease and delinquency by unit', 'Capital expenditure per door priced as remediation'],
     imageAlt: 'Multifamily: apartment buildings, the rent roll and net operating income',
     linkLabel: 'Run a multifamily pact',
+  },
+  'startup-spv': {
+    short: 'Startup SPV',
+    icon: 'Users',
+    title: 'Pool the money on a round that adds up.',
+    body:
+      'Pactlab recomputes the startup’s cap table with every SAFE converted, checks each deck claim against its evidence, ' +
+      'recomputes your vehicle’s fee and carry, and publishes to investors only what you choose.',
+    points: ['Cap table and SAFE conversions recomputed', 'Fee and carry checked against the investor summary', 'A frozen investor view, never another investor’s terms'],
+    imageAlt: 'Startup equity SPV: investors pooled into one vehicle on a startup’s cap table',
+    linkLabel: 'Run a startup SPV pact',
   },
 };
 

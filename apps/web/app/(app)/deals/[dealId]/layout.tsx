@@ -45,6 +45,16 @@ export default async function DealLayout({ children, params }: { children: React
   const venture = seller?.companyType === 'VENTURE_RAISE';
   const sellerLed = deal.data.initiatedBy === 'SELLER';
 
+  // An investor in a pooled vehicle (T-141): their own seat and the published investor view, no deal tabs.
+  if (viewer.role === 'INVESTOR') {
+    return (
+      <div className="flex flex-col gap-6">
+        <PageHeader tone="navy" eyebrow="Your investment" breadcrumbs={[{ href: '/', label: 'Home' }, { label: deal.data.name }]} title={deal.data.name} description={<>{deal.data.targetName} — through a pooled vehicle</>} />
+        {children}
+      </div>
+    );
+  }
+
   // A bidder (T-097) works in their own bid only: no deal tabs, no team, nothing of the seller's side.
   if (viewer.role === 'BIDDER') {
     return (

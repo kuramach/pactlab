@@ -3,8 +3,8 @@ import { COMPANY_TYPES } from '../pacts/types';
 import { isReleasedCompanyType, RELEASED_COMPANY_TYPES, selectableCompanyTypes } from './release';
 
 describe('released packs', () => {
-  it('sells Software & SaaS, Multifamily, Venture Raise and Music rights only', () => {
-    expect([...RELEASED_COMPANY_TYPES]).toEqual(['SOFTWARE_SAAS', 'MULTIFAMILY', 'VENTURE_RAISE', 'MUSIC_RIGHTS']);
+  it('sells Software & SaaS, Multifamily, Venture Raise, Music rights and Startup equity SPV only', () => {
+    expect([...RELEASED_COMPANY_TYPES]).toEqual(['SOFTWARE_SAAS', 'MULTIFAMILY', 'VENTURE_RAISE', 'MUSIC_RIGHTS', 'STARTUP_SPV']);
     expect(isReleasedCompanyType('HOSPITALS')).toBe(false);
     expect(isReleasedCompanyType('OTHER')).toBe(false);
     expect(isReleasedCompanyType('VENTURE_RAISE')).toBe(true);
@@ -12,6 +12,6 @@ describe('released packs', () => {
 
   it('offers every type in preview, and only released ones otherwise', () => {
     expect(selectableCompanyTypes(true)).toEqual(COMPANY_TYPES);
-    expect(selectableCompanyTypes(false)).toEqual(['SOFTWARE_SAAS', 'MULTIFAMILY', 'VENTURE_RAISE', 'MUSIC_RIGHTS']);
+    expect(selectableCompanyTypes(false)).toEqual(['SOFTWARE_SAAS', 'MULTIFAMILY', 'VENTURE_RAISE', 'MUSIC_RIGHTS', 'STARTUP_SPV']);
   });
 });

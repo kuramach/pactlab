@@ -25,7 +25,7 @@ describe('demo organization (batch 2)', () => {
   let first: string[] = [];
   const demoData = generatedDemoData();
   const rows = async (sql: string, params: unknown[] = []) => ((await db.owner.query(sql, params)) as { rows: Row[] }).rows;
-  const types = ['SOFTWARE_SAAS', 'MULTIFAMILY', 'VENTURE_RAISE', 'MULTIFAMILY_SYNDICATION', 'MUSIC_RIGHTS'] as const;
+  const types = ['SOFTWARE_SAAS', 'MULTIFAMILY', 'VENTURE_RAISE', 'MULTIFAMILY_SYNDICATION', 'MUSIC_RIGHTS', 'STARTUP_SPV'] as const;
   const run = (reset = false, only: readonly (typeof types)[number][] = types) => runDemoOrg(app as never, db.owner as never, db.prisma, { types: only, reset, data: demoData.source });
 
   beforeAll(async () => {
@@ -88,7 +88,8 @@ describe('demo organization (batch 2)', () => {
       expect(await count('balance_sheet_items', id), type).toBe(4);
       expect(await count('regulatory_entries', id), type).toBe(3);
       expect(await count('deal_memberships', id, `AND role = 'ANALYST'`), type).toBe(1);
-      if (type !== 'VENTURE_RAISE') {
+      // A raise sets its own round and an SPV buys in at the round's pre-money: neither has an asking price.
+      if (type !== 'VENTURE_RAISE' && type !== 'STARTUP_SPV') {
         expect(await count('asking_prices', id), type).toBeGreaterThan(0);
         expect(await count('multiple_judgements', id), type).toBe(1);
       }
@@ -124,6 +125,12 @@ describe('demo organization (batch 2)', () => {
     const music = await deal(pactName('MUSIC_RIGHTS'));
     expect(await count('music_register_items', music.id, `AND status = 'CONFIRMED'`)).toBeGreaterThanOrEqual(3);
     expect(await count('findings', music.id, `AND title = 'Termination exposure inside the hold period'`)).toBe(1);
+    // The SPV seats its investors, runs its checks and publishes the investor view; the startup sees none of the vehicle's papers (T-141).
+    const spv = await deal(pactName('STARTUP_SPV'));
+    expect(await count('pact_investors', spv.id)).toBe(5);
+    expect(await count('investor_view_versions', spv.id)).toBe(1);
+    expect(await count('findings', spv.id, `AND title = 'Accreditation gap in a 506(c) vehicle'`)).toBe(1);
+    expect(await count('documents', spv.id, `AND visibility = 'SHARED'`)).toBe(0);
   });
 
   it('every section a demo pact shows has data, derived from the section rules, not a list kept by hand (T-124)', async () => {

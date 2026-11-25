@@ -75,6 +75,14 @@ export const REGULATORY_PROFILES: Readonly<Record<PackId, RegulatoryProfile>> = 
       ...ANTITRUST,
     ],
   },
+  // A pooled vehicle buying into one round (T-141): no merger review; the vehicle's own offering is exempt-offering law.
+  STARTUP_SPV: {
+    depth: 'LIGHT',
+    authorities: [
+      { name: 'Securities regulators', scope: 'The vehicle\'s exempt offering (Regulation D 506(b) or 506(c)) and its Form D notice', theoryOfHarm: 'Investor eligibility and disclosure' },
+      { name: 'Investment-adviser regulators', scope: 'Whether the organizer advises the vehicle under an exemption (e.g. the venture capital fund adviser exemption)', theoryOfHarm: 'Not a merger authority: counsel confirms the organizer\'s status' },
+    ],
+  },
   // A seed round has no merger review: the light screen keeps the checklist and the covenant tracker only.
   VENTURE_RAISE: { depth: 'LIGHT', authorities: [{ name: 'Securities regulators', scope: 'Exempt-offering rules for the round', theoryOfHarm: 'Investor eligibility and disclosure' }] },
 };

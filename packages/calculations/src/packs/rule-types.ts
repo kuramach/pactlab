@@ -48,7 +48,7 @@ export interface PackRuleProposal {
   readonly evidenceIds: readonly string[];
   readonly quotes?: readonly PackRuleQuote[];
   /** A statement the finding settles for the claims register (T-083). */
-  readonly claim?: { readonly statement: string; readonly status: 'VERIFIED' | 'CONTRADICTED'; readonly rationale: string } | null;
+  readonly claim?: { readonly statement: string; readonly status: 'VERIFIED' | 'CONTRADICTED' | 'UNVERIFIED'; readonly rationale: string } | null;
 }
 
 export interface PackRule {

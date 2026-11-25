@@ -104,6 +104,11 @@ export const SHOWCASE: Readonly<Record<string, ShowcaseEntry>> = {
     why: 'The works register, royalty income by source and catalog age, and the income whose grants become terminable inside your hold: every figure from statements and the chain of title. Diligence support, not legal advice.',
     lookFor: ['A hit with no assignment behind it', 'Termination windows inside the hold, quantified', 'Splits that do not add up to 100%'],
   },
+  '/spv': {
+    title: 'The round and your vehicle, both checked',
+    why: 'The startup’s cap table recomputed with every SAFE converted, each deck claim against its evidence, and your vehicle’s fee and carry against what investors were told. Investors see only the view you publish. Diligence support, not legal advice.',
+    lookFor: ['A post-round share count that misses a conversion', 'Carry in the operating agreement that differs from the summary', 'A side letter or an accreditation gap only you should see'],
+  },
   '/valuation': {
     title: 'Sextant: what to pay, and why',
     why: 'Scenarios from stored inputs, accepted risks priced in, comparables and negotiation anchors: a price you can defend line by line.',

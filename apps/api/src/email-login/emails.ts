@@ -43,7 +43,7 @@ export const emails = {
 
   /** An invitation to one pact (T-094 B12): who, which pact, which side and role; the link expires. */
   dealInvitation(to: string, invite: { inviterName: string; dealName: string; side: string; role: string; link: string; days: number }): OutboundEmail {
-    const side = invite.side === 'SELLER' ? 'the seller side' : invite.side === 'ADVISOR' ? 'as an advisor' : invite.side === 'BIDDER' ? 'as a bidder' : 'the buyer side';
+    const side = invite.side === 'SELLER' ? 'the seller side' : invite.side === 'ADVISOR' ? 'as an advisor' : invite.side === 'BIDDER' ? 'as a bidder' : invite.side === 'INVESTOR' ? 'as an investor in the vehicle' : 'the buyer side';
     return {
       to,
       subject: `${invite.inviterName} invited you to a pact on Pactlab`,
@@ -55,7 +55,7 @@ export const emails = {
       ].join('\n'),
       content: {
         heading: `You're invited to “${invite.dealName}”`,
-        paragraphs: [`${invite.inviterName} invited you to this pact on Pactlab, ${side}${invite.role === 'BIDDER' ? '' : ` (${invite.role.toLowerCase().replaceAll('_', ' ')})`}.`, 'You join this pact only — not the inviting company.'],
+        paragraphs: [`${invite.inviterName} invited you to this pact on Pactlab, ${side}${invite.role === 'BIDDER' || invite.role === 'INVESTOR' ? '' : ` (${invite.role.toLowerCase().replaceAll('_', ' ')})`}.`, 'You join this pact only — not the inviting company.'],
         action: { label: 'Open the invitation', url: invite.link },
         footnote: `The link works once and expires in ${invite.days} days. If you were not expecting this, ignore this email.`,
       },

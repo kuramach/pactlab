@@ -49,6 +49,7 @@ enum CompanyType {
   VENTURE_RAISE
   MULTIFAMILY_SYNDICATION
   MUSIC_RIGHTS
+  STARTUP_SPV
   OTHER
 
   @@map("company_type")
@@ -233,6 +234,8 @@ enum DealRole {
   BIDDER
   /// The buyer organization's investment committee on this pact (T-118): reads, and decides the IC pack.
   INVESTMENT_COMMITTEE
+  /// An investor seated in a pooled vehicle (T-141): their own seat and the published investor view only.
+  INVESTOR
 
   @@map("deal_role")
 }
@@ -685,6 +688,8 @@ model DealMembership {
   role           DealRole
   /// For a BIDDER: the bid (firm) they act for.
   bidId          String?          @map("bid_id") @db.Uuid
+  /// For an INVESTOR: their seat in the vehicle (T-141).
+  investorId     String?          @map("investor_id") @db.Uuid
   status         MembershipStatus @default(ACTIVE)
   createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
 
@@ -2280,6 +2285,8 @@ model DealInvitation {
   side           String
   role           DealRole
   bidId          String?   @map("bid_id") @db.Uuid
+  /// For an INVESTOR invitation: the seat it is for (T-141).
+  investorId     String?   @map("investor_id") @db.Uuid
   tokenHash      String    @unique @map("token_hash")
   /// PENDING | ACCEPTED | REVOKED (expiry is read from expires_at)
   status         String    @default("PENDING")
@@ -3711,4 +3718,65 @@ model MusicRegisterItem {
   @@unique([organizationId, dealId, id])
   @@index([organizationId, dealId, status, createdAt], map: "music_register_items_org_deal_idx")
   @@map("music_register_items")
+}
+
+/// A startup equity SPV's vehicle (T-141, ADR 0043): its name and the organizer's stated exit paths. Own side only.
+model SpvVehicle {
+  organizationId   String   @map("organization_id") @db.Uuid
+  dealId           String   @map("deal_id") @db.Uuid
+  vehicleName      String   @map("vehicle_name")
+  /// Exit equity value ÷ the round's post-money, as the organizer states it; null until stated.
+  downsideMultiple Decimal? @map("downside_multiple") @db.Decimal(10, 4)
+  baseMultiple     Decimal? @map("base_multiple") @db.Decimal(10, 4)
+  upsideMultiple   Decimal? @map("upside_multiple") @db.Decimal(10, 4)
+  updatedBy        String   @map("updated_by") @db.Uuid
+  updatedAt        DateTime @default(now()) @map("updated_at") @db.Timestamptz(3)
+
+  @@id([organizationId, dealId])
+  @@map("spv_vehicles")
+}
+
+/// An investor's seat in a pooled vehicle (T-141): commitment and tracked accreditation (Pactlab verifies nothing).
+model PactInvestor {
+  id                     String    @id @db.Uuid
+  organizationId         String    @map("organization_id") @db.Uuid
+  dealId                 String    @map("deal_id") @db.Uuid
+  /// The investor's name as the organizer records it (a firm or a person); never sent to a model.
+  label                  String
+  /// Pseudonymous reference (e.g. INV-03) the checks and side letters use.
+  reference              String
+  commitment             Decimal?  @db.Decimal(24, 4)
+  currency               String    @db.Char(3)
+  /// ACTIVE | WITHDRAWN
+  status                 String    @default("ACTIVE")
+  /// ACCREDITATION_STATUSES (@pactlab/domain)
+  accreditationStatus    String    @default("NOT_STARTED") @map("accreditation_status")
+  accreditationProvider  String?   @map("accreditation_provider")
+  accreditationUrl       String?   @map("accreditation_url")
+  accreditationEvidence  String?   @map("accreditation_evidence")
+  accreditationUpdatedAt DateTime? @map("accreditation_updated_at") @db.Timestamptz(3)
+  accreditationUpdatedBy String?   @map("accreditation_updated_by") @db.Uuid
+  createdBy              String    @map("created_by") @db.Uuid
+  createdAt              DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@unique([organizationId, dealId, id], map: "pact_investors_org_deal_id_key")
+  @@unique([organizationId, dealId, reference], map: "pact_investors_reference_key")
+  @@index([organizationId, dealId, createdAt, id], map: "pact_investors_org_deal_created_idx")
+  @@map("pact_investors")
+}
+
+/// A published, frozen investor view (T-141): allow-listed sections only (a CHECK), never changed once written.
+model InvestorViewVersion {
+  id             String   @id @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  dealId         String   @map("deal_id") @db.Uuid
+  version        Int
+  /// { meta, claims, capTable, economics, scenarios } — INVESTOR_VIEW_SECTIONS (@pactlab/domain)
+  content        Json
+  contentSha256  String   @map("content_sha256") @db.Char(64)
+  publishedBy    String   @map("published_by") @db.Uuid
+  publishedAt    DateTime @default(now()) @map("published_at") @db.Timestamptz(3)
+
+  @@unique([organizationId, dealId, version], map: "investor_view_versions_deal_version_key")
+  @@map("investor_view_versions")
 }

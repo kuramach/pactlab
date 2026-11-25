@@ -40,7 +40,26 @@ export const findTryPack = (slug: string) => TRY_PACKS.find((pack) => pack.slug 
 export function trySteps(pack: TryPack): readonly TryStep[] {
   const label = COMPANY_TYPE_LABELS[pack.type];
   const raise = pack.type === 'VENTURE_RAISE';
-  return [
+  // A pooled vehicle (T-141): after the findings, investors are seated and shown a published view.
+  const spvSteps: readonly TryStep[] = [
+    {
+      icon: 'UserCheck',
+      title: 'Seat the investors',
+      where: 'Diligence → SPV',
+      section: '/spv',
+      do: ['Name the vehicle and state its exit paths.', 'Add each investor’s seat with their commitment and accreditation status, then run the SPV checks.'],
+      see: 'The round recomputed with every SAFE converted, the vehicle’s fee and carry against the investor summary, and side letters on your side only.',
+    },
+    {
+      icon: 'EyeOff',
+      title: 'Publish the investor view',
+      where: 'Diligence → SPV',
+      section: '/spv',
+      do: ['Preview the investor view, then publish it.', 'Invite each investor to their own seat.'],
+      see: 'A frozen snapshot of the claims register, the round check, the economics and the scenarios: never another investor or a side letter.',
+    },
+  ];
+  const steps: readonly TryStep[] = [
     {
       icon: 'Database',
       title: 'Download the synthetic data',
@@ -107,4 +126,5 @@ export function trySteps(pack: TryPack): readonly TryStep[] {
       see: raise ? 'What an investor will see, with nothing confidential in it.' : 'Each term tied to the risk that justifies it, then signed by both sides on the Closing tab.',
     },
   ];
+  return pack.type === 'STARTUP_SPV' ? [...steps.slice(0, 6), ...spvSteps] : steps;
 }

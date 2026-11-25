@@ -52,6 +52,8 @@ export const DEAL_GROUPS: readonly DealGroup[] = [
       { path: '/syndication', label: 'Syndication' },
       // A music catalog (T-140): the works and rights register, royalty income and termination exposure.
       { path: '/catalog', label: 'Catalog' },
+      // A pooled vehicle (T-141): round checks, vehicle economics, side letters, investor seats and the investor view.
+      { path: '/spv', label: 'SPV' },
       { path: '/engineering', label: 'Engineering' },
       { path: '/regulatory', label: 'Regulatory' },
       { path: '/claims', label: 'Seller statements' },
@@ -105,7 +107,7 @@ const visible = (sections: readonly DealSection[], companyType: CompanyType | nu
 
 /** Four tabs across the deal, and the open tab's sections beneath them; sub-pages keep their section highlighted. */
 /** Sections only the pact's own side ever sees, not even as a tab name (T-118). */
-const OWN_SIDE_ONLY = new Set(['/ic', '/suggestions', '/qoe', '/syndication', '/catalog']);
+const OWN_SIDE_ONLY = new Set(['/ic', '/suggestions', '/qoe', '/syndication', '/catalog', '/spv']);
 
 export function DealTabs({
   dealId,

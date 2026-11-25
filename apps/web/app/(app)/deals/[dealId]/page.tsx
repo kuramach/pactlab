@@ -63,7 +63,10 @@ export default async function DealOverviewPage({
   const { dealId } = await params;
   const outcome = (await searchParams)['outcome'];
   // A bidder's pact is their bid (T-097).
-  if ((await dealViewer(dealId)).role === 'BIDDER') redirect(`/deals/${dealId}/bid`);
+  const role = (await dealViewer(dealId)).role;
+  if (role === 'BIDDER') redirect(`/deals/${dealId}/bid`);
+  // An investor in a pooled vehicle (T-141) sees their own seat and the published investor view only.
+  if (role === 'INVESTOR') redirect(`/deals/${dealId}/spv`);
   const [plan, sources, parties, asking, scenarios, viewer, accepted, deal, documentList, documentFindings, financing] = await Promise.all([
     dealsApi.sourcePlan(dealId),
     dealsApi.sources(dealId),

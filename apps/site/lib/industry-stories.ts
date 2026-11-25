@@ -469,6 +469,40 @@ export const INDUSTRY_STORIES: Readonly<Record<string, IndustryStory>> = {
       { q: 'Does growth raise the price?', a: 'No. The multiple applies to decay-adjusted income: declines reduce it and growth is never added. Verified growth and clean title are recorded as confirmed value.' },
     ],
   },
+  'startup-spv': {
+    headline: 'Pool the money on a round that adds up.',
+    subhead:
+      'An SPV organizer answers to every investor for two things: the startup’s round and the vehicle’s own terms. Pactlab recomputes the cap table with every SAFE converted, checks each deck claim against its evidence, recomputes fee and carry from the operating agreement, and publishes to investors only what you choose to share.',
+    illustrationAlt: 'Illustration of a pooled vehicle: several investors joining into one line on a startup’s cap table.',
+    pains: [
+      { icon: 'Calculator', title: 'A cap table that does not add up', body: 'The round summary forgets that the SAFEs convert, so the vehicle owns less than everyone was told.' },
+      { icon: 'Percent', title: 'Terms that changed on the way', body: 'The operating agreement says 20% carry; the summary investors signed up on says 15%.' },
+      { icon: 'FileLock', title: 'Side deals and eligibility', body: 'A side letter waives one investor’s fee, and one investor in a 506(c) vehicle was never verified.' },
+    ],
+    walkthrough: [
+      { step: 'Evidence', text: 'The startup’s billing, cap table and cash come in as imports; the round summary, SAFEs, operating agreement, investor summary, side letters and Form D are read with their source.' },
+      { step: 'Finding', text: 'Deterministic checks draft cap-table and round-math gaps, contradicted or unsupported claims, fee and carry mismatches, undisclosed side letters, accreditation gaps and a missing Form D, each cited.' },
+      { step: 'Review', text: 'A reviewer accepts or rejects every finding; the claims register shows each deck claim as verified, contradicted or unverified.' },
+      { step: 'Valuation', text: 'The round’s pre-money recomputed from the price and the share count, and net-of-fees return scenarios on the exit paths you state.' },
+      { step: 'Deal terms', text: 'What you publish to investors is a frozen, versioned snapshot: the claims register, the round check, the vehicle economics and the scenarios — nothing else.' },
+    ],
+    findings: [
+      { title: 'Post-round shares miss the SAFE conversion', severity: 'High', evidence: 'The cap table with every SAFE converted against the round summary', term: 'Correct the summary before the vehicle commits' },
+      { title: 'Carry differs from the investor summary', severity: 'High', evidence: 'The operating agreement against the summary of terms', term: 'Correct and re-disclose to investors' },
+      { title: 'Undisclosed fee waiver in a side letter', severity: 'High', evidence: 'The side letter against the summary’s disclosure', term: 'Disclose to every investor, or withdraw it' },
+    ],
+    deliverables: [
+      { icon: 'Calculator', title: 'A round verification', body: 'Every conversion, the pre-money and the post-round count recomputed, with pro-rata rights per instrument.' },
+      { icon: 'Percent', title: 'A vehicle economics check', body: 'Fee load and carry from the operating agreement, set against what investors were told.' },
+      { icon: 'EyeOff', title: 'A published investor view', body: 'Versioned and frozen; one investor’s terms never appear in another’s view.' },
+    ],
+    faq: [
+      { q: 'Does Pactlab verify accreditation?', a: 'No. Accreditation is tracked, not determined: you record what a verification specialist found, with a link and an evidence pointer, and the checks flag gaps for you and your counsel.' },
+      { q: 'Is this legal or securities advice?', a: 'No. It is diligence support only: Pactlab performs no securities-offering, broker-dealer or investment-adviser function. It organises the evidence and flags gaps for the parties and their counsel.' },
+      { q: 'Can investors see each other or the side letters?', a: 'No. Each investor sees their own seat and the investor view you publish; side letters, other investors and your own analysis never enter it. The startup never sees the investor list.' },
+      { q: 'Are the return scenarios a forecast?', a: 'No. They are computed from exit paths you state, net of the vehicle’s fees and carry, and labelled as scenarios — never a projection or a promise.' },
+    ],
+  },
   'small-clinics': {
     headline: 'In a clinic roll-up, revenue follows the providers.',
     subhead:
@@ -546,7 +580,7 @@ export const WRITTEN_INDUSTRIES = INDUSTRIES.filter((industry) => industry.slug 
  * Venture Raise (2026-11-09), with the others released one at a time after testing. Same list as the
  * app's RELEASED_COMPANY_TYPES (packages/domain/src/packs/release.ts).
  */
-export const RELEASED_INDUSTRY_SLUGS: readonly string[] = ['software-saas', 'multifamily', 'venture-raise', 'music-rights'];
+export const RELEASED_INDUSTRY_SLUGS: readonly string[] = ['software-saas', 'multifamily', 'venture-raise', 'music-rights', 'startup-spv'];
 
 /** An environment's copy of the site (dev, qa) previews every written pack, for testing before release. */
 export const PACK_PREVIEW = process.env['NEXT_PUBLIC_PACK_PREVIEW'] === 'true';
