@@ -33,6 +33,7 @@ import {
   type ValuationResultView,
   ENTERED_BRIDGE_KINDS,
 } from '../../../valuation/_lib/view';
+import { SourceWithdrawnNotice } from '../../_lib/source-withdrawn';
 
 function axisValue(variable: string, value: string): string {
   return isRateVariable(variable) ? formatRatio(value) : formatDecimal(value);
@@ -414,6 +415,7 @@ function ScenarioCard({
           </div>
         ) : null}
 
+        <SourceWithdrawnNotice dealId={dealId} flags={view.sourceWithdrawn} subject="the latest run" />
         {view.staleReasons.length > 0 ? (
           <ul className="list-disc pl-5 text-red-800">
             {view.staleReasons.map((reason, index) => (

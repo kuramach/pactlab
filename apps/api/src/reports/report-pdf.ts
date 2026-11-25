@@ -317,7 +317,7 @@ export async function pactReportPdf(
     w.table(
       [{ label: 'Finding', width: 0.36 }, { label: 'Direction', width: 0.13 }, { label: 'Status', width: 0.11 }, { label: 'Severity', width: 0.1 }, { label: 'Priced impact / why', width: 0.3 }],
       model.findings.map((finding) => [
-        finding.title,
+        finding.sourceWithdrawn?.length ? `${finding.title} (source withdrawn)` : finding.title,
         finding.direction === null ? 'Undecided' : (DIRECTION[String(finding.direction)] ?? '—'),
         STATUS[finding.status] ?? finding.status,
         finding.severity.toLowerCase(),

@@ -25,6 +25,7 @@ of what a pilot partner gets, which controls protect them, and how we roll back.
 | [suspected-cross-tenant-access.md](suspected-cross-tenant-access.md) | Any hint that one tenant saw another's data           |
 | [invalid-ai-citations.md](invalid-ai-citations.md)                   | AI output cites something that does not resolve       |
 | [object-store-exposure.md](object-store-exposure.md)                 | A bucket policy, ACL or presigned URL may expose data |
+| [withdrawn-imports.md](withdrawn-imports.md)                         | A customer asks where their numbers went (withdrawn import) |
 
 ## Conventions
 

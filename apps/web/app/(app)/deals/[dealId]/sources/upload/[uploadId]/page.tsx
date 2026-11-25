@@ -5,7 +5,9 @@ import { notFound } from 'next/navigation';
 import { dealsApi } from '../../../../_lib/api';
 import { isUuidParam } from '../../../../_lib/filters';
 import { ApiState } from '../../../../_lib/states';
+import { can, dealViewer } from '../../../../_lib/viewer';
 import { MappingEditor } from './mapping-editor';
+import { ImportHistory, withdrawalFailure, WithdrawnPanel, WithdrawPanel } from './withdrawal';
 
 // Per-user data: never prerender.
 export const dynamic = 'force-dynamic';
@@ -13,10 +15,23 @@ export const dynamic = 'force-dynamic';
 const number = new Intl.NumberFormat('en-US');
 
 /** Steps 2–3 of an import — billing or a pack extract (ADR 0010): map, check, import. */
-export default async function MapUploadPage({ params }: { params: Promise<{ dealId: string; uploadId: string }> }) {
+export default async function MapUploadPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ dealId: string; uploadId: string }>;
+  searchParams: Promise<{ withdrawn?: string; voided?: string; findings?: string; runs?: string; withdraw?: string; reimport?: string }>;
+}) {
   const { dealId, uploadId } = await params;
+  const query = await searchParams;
   if (!isUuidParam(dealId) || !isUuidParam(uploadId)) notFound();
-  const upload = await dealsApi.upload(dealId, uploadId);
+  const [upload, viewer] = await Promise.all([dealsApi.upload(dealId, uploadId), dealViewer(dealId)]);
+  // Withdrawing and re-importing are the deal team's (T-154); the API decides, this only hides the controls.
+  const canManage = can.draft(viewer.role);
+  const inChain = upload.kind === 'ok' && (upload.data.status === 'WITHDRAWN' || upload.data.supersedesUploadId !== null);
+  const history = canManage && inChain ? await dealsApi.uploadHistory(dealId, uploadId) : null;
+  const chain = history?.kind === 'ok' ? history.data.chain : null;
+  const failure = withdrawalFailure(query.withdraw ?? query.reimport);
   const definition = upload.kind === 'ok' ? IMPORT_TARGET_DEFINITIONS[upload.data.target] : null;
   const billing = !definition || definition.target === 'BILLING_INVOICE_LINE';
 
@@ -43,16 +58,35 @@ export default async function MapUploadPage({ params }: { params: Promise<{ deal
               </>
             )}
             {upload.data.status === 'IMPORTED' ? <Badge variant="reviewed">Imported</Badge> : null}
+            {upload.data.status === 'WITHDRAWN' ? <Badge variant="danger">Withdrawn</Badge> : null}
+            {upload.data.supersedesUploadId ? <Badge>Re-import</Badge> : null}
           </p>
         ) : null}
       </header>
+      {failure ? (
+        <p role="alert" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900">
+          {failure}
+        </p>
+      ) : null}
       {upload.kind !== 'ok' ? (
         <ApiState result={upload} />
+      ) : upload.data.status === 'WITHDRAWN' ? (
+        <WithdrawnPanel
+          dealId={dealId}
+          uploadId={uploadId}
+          chain={chain}
+          supersededByUploadId={upload.data.supersededByUploadId}
+          canManage={canManage}
+          done={query.withdrawn ? { voided: Number(query.voided ?? 0), findings: Number(query.findings ?? 0), runs: Number(query.runs ?? 0) } : null}
+        />
       ) : upload.data.status === 'PURGED' ? (
         <p role="status" className="rounded-md border border-border bg-muted px-3 py-2 text-sm">
           This upload was cancelled; nothing was imported and the stored file was deleted.
         </p>
       ) : (
+        <>
+        {chain && chain.length > 1 ? <ImportHistory dealId={dealId} chain={chain} current={uploadId} /> : null}
+        {upload.data.status === 'IMPORTED' && canManage ? <WithdrawPanel dealId={dealId} uploadId={uploadId} /> : null}
         <MappingEditor
           // A different sheet is a different table: start the mapping afresh.
           key={`${upload.data.sheet ?? 'table'}:${upload.data.headerRow ?? 1}`}
@@ -67,6 +101,7 @@ export default async function MapUploadPage({ params }: { params: Promise<{ deal
           headerRow={upload.data.headerRow}
           preview={upload.data.preview}
         />
+        </>
       )}
     </div>
   );

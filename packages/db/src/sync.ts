@@ -36,8 +36,9 @@ async function ingestRecord(
   run: { id: string; organizationId: string; dealId: string; connectionId: string },
   visibility: 'BUYER_ONLY' | 'SHARED',
   record: NormalizedEvidence,
-): Promise<'CREATED' | 'UNCHANGED'> {
+): Promise<{ outcome: 'CREATED' | 'UNCHANGED'; evidenceItemId: string }> {
   const contentHash = evidenceContentHash(record);
+  // void-ok: ingestion matches a record's identity, voided or not; a later import restores what it reads again.
   const existing = await tx.evidenceItem.findUnique({
     where: {
       organizationId_dealId_connectionId_sourceRecordId_contentHash: {
@@ -52,10 +53,11 @@ async function ingestRecord(
   });
   if (existing) {
     await tx.evidenceItem.update({ where: { id: existing.id }, data: { lastSyncRunId: run.id } });
-    return 'UNCHANGED';
+    return { outcome: 'UNCHANGED', evidenceItemId: existing.id };
   }
 
   // Changed content for a known record becomes a new version, never an overwrite.
+  // void-ok: lineage links the new version to the previous one, whatever its state.
   const previous = await tx.evidenceItem.findFirst({
     where: { connectionId: run.connectionId, sourceRecordId: record.sourceRecordId },
     orderBy: { id: 'desc' },
@@ -99,7 +101,33 @@ async function ingestRecord(
       },
     });
   }
-  return 'CREATED';
+  return { outcome: 'CREATED', evidenceItemId: created.id };
+}
+
+/** Rows per insert when recording which evidence a run read. */
+const RUN_EVIDENCE_BATCH = 5_000;
+
+/**
+ * Record every evidence item the run read, created or unchanged (T-154): a
+ * withdrawn import voids only what no active import still holds.
+ */
+async function recordRunEvidence(
+  tx: TransactionClient,
+  run: { id: string; organizationId: string; dealId: string },
+  evidenceItemIds: readonly string[],
+): Promise<void> {
+  const unique = [...new Set(evidenceItemIds)];
+  for (let start = 0; start < unique.length; start += RUN_EVIDENCE_BATCH) {
+    await tx.syncRunEvidence.createMany({
+      data: unique.slice(start, start + RUN_EVIDENCE_BATCH).map((evidenceItemId) => ({
+        organizationId: run.organizationId,
+        dealId: run.dealId,
+        syncRunId: run.id,
+        evidenceItemId,
+      })),
+      skipDuplicates: true,
+    });
+  }
 }
 
 /**
@@ -175,12 +203,15 @@ export async function executeSyncRun(
       }
       let created = 0;
       let unchanged = 0;
+      const read: string[] = [];
       for (const [index, record] of pull.records.entries()) {
-        if ((await ingestRecord(tx, run, run.connection.evidenceVisibility, record)) === 'CREATED')
-          created += 1;
+        const ingested = await ingestRecord(tx, run, run.connection.evidenceVisibility, record);
+        read.push(ingested.evidenceItemId);
+        if (ingested.outcome === 'CREATED') created += 1;
         else unchanged += 1;
         if (options.onProgress && (index + 1) % PROGRESS_EVERY === 0) await options.onProgress(index + 1, pull.records.length);
       }
+      await recordRunEvidence(tx, run, read);
       if (options.onProgress) await options.onProgress(pull.records.length, pull.records.length);
       // People behind the records go to the gated directory — only when a
       // buyer-side member runs the sync (target contributors cannot see it).

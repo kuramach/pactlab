@@ -14,6 +14,7 @@ import {
   type ContributorIdentityRecord,
   type PrismaClient,
   type TransactionClient,
+  ACTIVE_EVIDENCE,
 } from '@pactlab/db';
 import { permissionsForDealRole, type DealRole, type TenantContext } from '@pactlab/domain';
 import { DealAccess } from '../deals/deal-access';
@@ -46,7 +47,7 @@ async function loadActivity(tx: TransactionClient, dealId: string): Promise<{ co
   let after: string | null = null;
   for (;;) {
     const page: typeof rows = await tx.evidenceItem.findMany({
-      where: { dealId, evidenceType: { in: [CODE_CONTRIBUTOR_ACTIVITY_EVIDENCE_TYPE, DELIVERY_CONTRIBUTOR_ACTIVITY_EVIDENCE_TYPE] }, ...(after ? { id: { gt: after } } : {}) },
+      where: { dealId, evidenceType: { in: [CODE_CONTRIBUTOR_ACTIVITY_EVIDENCE_TYPE, DELIVERY_CONTRIBUTOR_ACTIVITY_EVIDENCE_TYPE] }, ...ACTIVE_EVIDENCE, ...(after ? { id: { gt: after } } : {}) },
       select: { id: true, connectionId: true, evidenceType: true, sourceRecordId: true, canonical: true },
       orderBy: { id: 'asc' },
       take: PAGE_ROWS,

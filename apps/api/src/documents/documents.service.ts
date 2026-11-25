@@ -34,6 +34,7 @@ import {
   withTenant,
   type AuditEventInput,
   type PrismaClient,
+  ACTIVE_EVIDENCE,
 } from '@pactlab/db';
 import {
   isCounterpartyRole,
@@ -850,7 +851,7 @@ export class DocumentsService {
   /** Billing lines and contract counterparties → the top customers with no contract filed. */
   private async customerGaps(tenant: TenantContext, dealId: string, documents: readonly DocumentRecord[]): Promise<string[]> {
     const lines = await withTenant(this.prisma, tenant, (tx) =>
-      tx.evidenceItem.findMany({ where: { dealId, evidenceType: 'billing.invoice_line' }, select: { canonical: true }, take: 50_000 }),
+      tx.evidenceItem.findMany({ where: { dealId, evidenceType: 'billing.invoice_line', ...ACTIVE_EVIDENCE }, select: { canonical: true }, take: 50_000 }),
     );
     if (lines.length === 0) return [];
     const billed = lines.map(({ canonical }) => {

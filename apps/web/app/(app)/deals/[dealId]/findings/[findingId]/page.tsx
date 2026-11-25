@@ -1,5 +1,5 @@
 import type { ClaimView } from '@pactlab/contracts';
-import { PRICED_RISK_TYPES, type Finding, type FindingReview } from '@pactlab/domain';
+import { PRICED_RISK_TYPES, type Finding, type FindingReview, type SourceWithdrawnFlag } from '@pactlab/domain';
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from '@pactlab/ui';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
@@ -21,6 +21,7 @@ import { FindingEvidenceChip } from '../../../_lib/finding-evidence';
 import { can, dealViewer } from '../../../_lib/viewer';
 import { decideFinding, priceFinding, setFindingDirection } from '../actions';
 import { claimsFor, SellerClaims } from '../../../_lib/seller-claims';
+import { SourceWithdrawnBadge, SourceWithdrawnNotice } from '../../../_lib/source-withdrawn';
 
 // Per-user data: never prerender.
 export const dynamic = 'force-dynamic';
@@ -64,13 +65,13 @@ export default async function FindingPage({
   const { outcome } = await searchParams;
   if (!isUuidParam(dealId) || !isUuidParam(findingId)) notFound();
   const [result, viewer, claimsResult] = await Promise.all([
-    apiGet<{ finding: Finding; reviews: FindingReview[] }>(`/v1/deals/${dealId}/findings/${findingId}`),
+    apiGet<{ finding: Finding; reviews: FindingReview[]; sourceWithdrawn?: SourceWithdrawnFlag[] }>(`/v1/deals/${dealId}/findings/${findingId}`),
     dealViewer(dealId),
     apiGet<{ items: ClaimView[] }>(`/v1/deals/${dealId}/claims`),
   ]);
   const linkedClaims = claimsResult.kind === 'ok' ? claimsFor(claimsResult.data.items, findingId) : [];
   if (result.kind !== 'ok') return <ApiState result={result} />;
-  const { finding, reviews } = result.data;
+  const { finding, reviews, sourceWithdrawn } = result.data;
   const decide = decideFinding.bind(null, dealId, findingId);
   const price = priceFinding.bind(null, dealId, findingId);
   const setDirection = setFindingDirection.bind(null, dealId, findingId);
@@ -92,6 +93,7 @@ export default async function FindingPage({
             {finding.severity.toLowerCase()} severity
           </Badge>
           <Badge variant="draft">{finding.origin.toLowerCase()} draft</Badge>
+          <SourceWithdrawnBadge flags={sourceWithdrawn} />
           <Badge variant={directionVariant(finding.direction)} title={finding.direction === null ? undefined : DIRECTION_LABELS[String(finding.direction)]?.help}>
             {finding.status === 'ACCEPTED' ? '' : 'proposed '}
             {directionText(finding.direction)}
@@ -99,6 +101,7 @@ export default async function FindingPage({
         </div>
         <h2 className="text-xl font-semibold tracking-tight">{finding.title}</h2>
         <p className="max-w-3xl text-sm leading-relaxed text-muted-foreground">{finding.description}</p>
+        <SourceWithdrawnNotice dealId={dealId} flags={sourceWithdrawn} subject="this finding" />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">

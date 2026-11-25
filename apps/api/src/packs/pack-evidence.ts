@@ -1,4 +1,4 @@
-import type { TransactionClient } from '@pactlab/db';
+import { ACTIVE_EVIDENCE, type TransactionClient } from '@pactlab/db';
 
 /** Largest evidence read for one pack rule or metrics run. */
 export const MAX_PACK_EVIDENCE = 200_000;
@@ -26,7 +26,7 @@ export interface PackEvidenceRow {
 export async function loadPackEvidence(tx: TransactionClient, dealId: string, evidenceTypes: readonly string[]): Promise<PackEvidenceRow[]> {
   if (evidenceTypes.length === 0) return [];
   const rows = await tx.evidenceItem.findMany({
-    where: { dealId, evidenceType: { in: [...evidenceTypes] } },
+    where: { dealId, evidenceType: { in: [...evidenceTypes] }, ...ACTIVE_EVIDENCE },
     select: { id: true, connectionId: true, evidenceType: true, sourceRecordId: true, canonical: true },
     orderBy: { id: 'asc' },
     take: MAX_PACK_EVIDENCE + 1,

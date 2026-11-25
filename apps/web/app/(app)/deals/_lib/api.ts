@@ -16,7 +16,7 @@ import type {
   StartPactCommand,
   UploadDetailView,
 } from '@pactlab/contracts';
-import type { EvidenceItemView, EvidenceLineage } from '@pactlab/domain';
+import type { EvidenceItemView, EvidenceLineage, ImportLineageEntry, ImportRecordFields, WithdrawalResultView } from '@pactlab/domain';
 import { redirect } from 'next/navigation';
 import { organizationAccessToken } from '../../../../lib/auth0';
 import { publicEnv } from '../../../../lib/env';
@@ -146,13 +146,17 @@ export function apiPost<T>(path: string, body: unknown, headers: Record<string, 
   return apiSend<T>('POST', path, body, headers);
 }
 
-export type UploadFailure = 'too-large' | 'too-many-rows' | 'not-text' | 'legacy-excel' | 'macros' | 'unreadable' | 'scanner' | 'forbidden' | 'signed-out' | 'error';
+/** An import with its withdrawal and lineage (T-154): the API's upload views carry both. */
+export type UploadRecordView = Omit<SourceUploadView, 'status'> & ImportRecordFields;
+export type UploadDetailRecord = Omit<UploadDetailView, 'status'> & ImportRecordFields;
+
+export type UploadFailure = 'conflict' | 'too-large' | 'too-many-rows' | 'not-text' | 'legacy-excel' | 'macros' | 'unreadable' | 'scanner' | 'forbidden' | 'signed-out' | 'error';
 
 /** Server-side raw file upload (CSV, TSV or Excel); the browser never holds the token or calls the API directly. */
 export async function apiUploadCsv(
   path: string,
   body: Uint8Array<ArrayBuffer>,
-): Promise<{ kind: 'ok'; data: UploadDetailView } | { kind: UploadFailure }> {
+): Promise<{ kind: 'ok'; data: UploadDetailRecord } | { kind: UploadFailure }> {
   const token = await organizationAccessToken();
   if (!token) return { kind: 'signed-out' };
   let response: Response;
@@ -167,7 +171,8 @@ export async function apiUploadCsv(
   } catch {
     return { kind: 'error' };
   }
-  if (response.ok) return { kind: 'ok', data: (await response.json()) as UploadDetailView };
+  if (response.ok) return { kind: 'ok', data: (await response.json()) as UploadDetailRecord };
+  if (response.status === 409) return { kind: 'conflict' };
   const code = ((await response.json().catch(() => null)) as { code?: string } | null)?.code;
   const byCode: Record<string, UploadFailure> = { LEGACY_EXCEL: 'legacy-excel', MACROS: 'macros', NOT_TEXT: 'not-text', TOO_MANY_ROWS: 'too-many-rows' };
   if (code && byCode[code]) return { kind: byCode[code] };
@@ -243,9 +248,20 @@ export const dealsApi = {
     ),
   startPact: (command: StartPactCommand) => apiPost<DealSummary>('/v1/pacts', command),
   billingSystems: () => apiGet<{ items: BillingSystemView[] }>('/v1/billing-import/systems'),
-  uploads: (dealId: string, cursor?: string) => apiGet<Page<SourceUploadView>>(`/v1/deals/${encodeURIComponent(dealId)}/uploads${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`),
+  uploads: (dealId: string, cursor?: string) => apiGet<Page<UploadRecordView>>(`/v1/deals/${encodeURIComponent(dealId)}/uploads${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`),
   upload: (dealId: string, uploadId: string) =>
-    apiGet<UploadDetailView>(`/v1/deals/${encodeURIComponent(dealId)}/uploads/${encodeURIComponent(uploadId)}`),
+    apiGet<UploadDetailRecord>(`/v1/deals/${encodeURIComponent(dealId)}/uploads/${encodeURIComponent(uploadId)}`),
+  /** Withdraw an import with a reason (T-154): its data stops counting; what used it is flagged. */
+  withdrawUpload: (dealId: string, uploadId: string, reason: string) =>
+    apiPost<{ upload: UploadRecordView; result: WithdrawalResultView }>(`/v1/deals/${encodeURIComponent(dealId)}/uploads/${encodeURIComponent(uploadId)}/withdraw`, { reason }),
+  /** Re-import a withdrawn import: a corrected file, or (no body) the stored original again. */
+  reimportUpload: (dealId: string, uploadId: string, file?: { fileName: string; body: Uint8Array<ArrayBuffer> }) =>
+    file
+      ? apiUploadCsv(`/v1/deals/${encodeURIComponent(dealId)}/uploads/${encodeURIComponent(uploadId)}/reimport?${new URLSearchParams({ fileName: file.fileName }).toString()}`, file.body)
+      : apiPost<UploadDetailRecord>(`/v1/deals/${encodeURIComponent(dealId)}/uploads/${encodeURIComponent(uploadId)}/reimport`, {}),
+  /** The import's chain: v1 withdrawn (reason) → v2 active. Manage rights only. */
+  uploadHistory: (dealId: string, uploadId: string) =>
+    apiGet<{ chain: ImportLineageEntry[] }>(`/v1/deals/${encodeURIComponent(dealId)}/uploads/${encodeURIComponent(uploadId)}/history`),
   /** CSV import targets the deal's pack offers (billing first), with template headers. */
   importTargets: (dealId: string) => apiGet<{ items: ImportTargetView[] }>(`/v1/deals/${encodeURIComponent(dealId)}/import-targets`),
   uploadCsv: (dealId: string, system: string, fileName: string, body: Uint8Array<ArrayBuffer>, target?: string, instructions?: string) =>

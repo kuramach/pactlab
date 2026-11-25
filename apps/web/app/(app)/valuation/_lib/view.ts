@@ -4,6 +4,8 @@
  * percent points, never parses into JavaScript numbers.
  */
 
+import type { SourceWithdrawnFlag } from '@pactlab/domain';
+
 export interface MoneyValue {
   amount: string;
   currency: string;
@@ -174,6 +176,8 @@ export interface ScenarioView {
   } | null;
   stale: boolean | null;
   staleReasons: StaleReason[];
+  /** A source behind the latest run was withdrawn after it ran (T-154): flagged, the run kept as it was. */
+  sourceWithdrawn?: SourceWithdrawnFlag[];
   submissions: { id: string; digest: string; submittedAt: string; submittedBy: string }[];
   decisions: {
     id: string;
