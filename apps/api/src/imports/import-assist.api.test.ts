@@ -144,6 +144,29 @@ describe('the mapping assistant through the API (Kumar, 2026-11-21)', { timeout:
     expect(results.body['pnlMonths']).toHaveLength(3);
   });
 
+  it('a P&L by year: the years are read as years, the line names filled in, and it imports with no question to decode (Kumar, 2026-11-25)', async () => {
+    reply = null;
+    const lead = await token(alpha.subject, alpha);
+    const yearly = ['Acme Apartments LLC (synthetic),,,', 'Profit and loss,,,', ',2020,2021,2023', 'Rental revenue,1000,1100,1200', 'Pet fee revenue,615,90,160', 'Insurance,300,310,320', 'Net income,1315,880,1040'].join('\n');
+    const uploaded = await upload(app, lead, yearly, 'pnl-by-year.csv');
+    expect(uploaded.status).toBe(201);
+    const mapping = uploaded.body['suggestedMapping'] as Body;
+    expect(mapping['layout']).toEqual({ kind: 'PERIOD_COLUMNS', periods: [{ column: '2020', period: '2020' }, { column: '2021', period: '2021' }, { column: '2023', period: '2023' }] });
+    expect((mapping['fields'] as Body)['account']).toEqual({ kind: 'column', column: 'Column A' });
+    expect((uploaded.body['assist'] as { questions: unknown[] }).questions).toEqual([]);
+    const base = `/v1/deals/${alpha.dealId}/uploads/${uploaded.body['id'] as string}`;
+    const preview = await call(app, 'POST', `${base}/preview`, lead, { mapping });
+    expect(preview.body).toMatchObject({ problems: [], tieOut: [], unclassified: [] });
+    const imported = await call(app, 'POST', `${base}/import`, lead, { mapping });
+    expect(imported.body).toMatchObject({ syncRun: { status: 'SUCCEEDED', recordsCreated: 9 } });
+    const results = await call(app, 'GET', `${base}/results`, lead);
+    expect((results.body['pnlMonths'] as Body[]).map((entry) => [entry['month'], entry['revenue'], entry['netIncome']])).toEqual([
+      ['2020', '1615', '1315'],
+      ['2021', '1190', '880'],
+      ['2023', '1360', '1040'],
+    ]);
+  });
+
   it('a subtotal that does not add up blocks the import until the line kinds are fixed or the gap accepted', async () => {
     reply = null;
     const lead = await token(alpha.subject, alpha);
@@ -159,8 +182,8 @@ describe('the mapping assistant through the API (Kumar, 2026-11-21)', { timeout:
     expect(accepted.body).toMatchObject({ syncRun: { status: 'SUCCEEDED' } });
   });
 
-  it('an unsure pick is left empty with the assistant’s question; import is refused until a person maps it', async () => {
-    // The assistant is unsure which column holds the accounts.
+  it('periods across: the line names are filled in even when the assistant is unsure, never left as a question to decode (Kumar, 2026-11-25)', async () => {
+    // The assistant is unsure which column holds the line names, and asks.
     reply = (request) => {
       const proposal = JSON.parse(importMapFixtureResponse(request.messages[0]?.content ?? '')) as { fields: { field: string; confidence: number }[]; questions: unknown[] };
       for (const field of proposal.fields) if (field.field === 'account') field.confidence = 0.4;
@@ -169,14 +192,11 @@ describe('the mapping assistant through the API (Kumar, 2026-11-21)', { timeout:
     };
     const lead = await token(alpha.subject, alpha);
     const uploaded = await upload(app, lead, PNL.replace('Northwind', 'Northwind Three'), 'pnl-three.csv');
-    expect(uploaded.body['assist']).toMatchObject({ questions: [{ field: 'account', question: 'Which column names the P&L lines?', options: ['Column A'] }] });
+    expect((uploaded.body['assist'] as { questions: { field: string | null }[] }).questions.filter((question) => question.field === 'account')).toEqual([]);
     const mapping = uploaded.body['suggestedMapping'] as { fields: Body };
-    expect(mapping.fields['account']).toEqual({ kind: 'none' });
+    expect(mapping.fields['account']).toEqual({ kind: 'column', column: 'Column A' });
     const base = `/v1/deals/${alpha.dealId}/uploads/${uploaded.body['id'] as string}`;
-    expect((await call(app, 'POST', `${base}/preview`, lead, { mapping })).body['problems']).toContain('Account is required');
-    expect((await call(app, 'POST', `${base}/import`, lead, { mapping })).status).toBe(422);
-    const answered = { ...mapping, fields: { ...mapping.fields, account: { kind: 'column', column: 'Column A' } } };
-    expect((await call(app, 'POST', `${base}/import`, lead, { mapping: answered })).body).toMatchObject({ syncRun: { status: 'SUCCEEDED' } });
+    expect((await call(app, 'POST', `${base}/import`, lead, { mapping })).body).toMatchObject({ syncRun: { status: 'SUCCEEDED' } });
     reply = null;
   });
 

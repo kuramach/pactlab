@@ -47,7 +47,9 @@ export function importMapFixtureResponse(prompt: string): string {
   const monthsAcross = periods.length >= 2;
   const labelOf = (row: (typeof grid)[number]) => row.cells.find((cell) => cell.letter === 'A')?.text ?? '';
   const labelColumn = headerCells.find((cell) => cell.letter === labelLetter && !monthOf(cell.text))?.text ?? 'Column A';
-  const layout = !monthsAcross ? { kind: 'ROWS' } : lineItems ? { kind: 'PERIOD_COLUMNS', periods } : { kind: 'MONTHS_ACROSS', labelColumn, periods };
+  // Years across only for a statement (a monthly target's columns must be months).
+  const byYear = periods.some((entry) => /^\d{4}$/.test(entry.period));
+  const layout = !monthsAcross || (byYear && !lineItems) ? { kind: 'ROWS' } : lineItems ? { kind: 'PERIOD_COLUMNS', periods } : { kind: 'MONTHS_ACROSS', labelColumn, periods };
   // What the fields can be mapped from: header cells, or (months across a monthly target) row labels.
   const candidates = layout.kind === 'MONTHS_ACROSS' ? below.map(labelOf).filter(Boolean) : headerCells.map((cell) => cell.text);
   const picks = fields

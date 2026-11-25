@@ -150,6 +150,8 @@ export function MappingEditor({
     open: !settled.has(index) && (question.field === null || (mapping.fields[question.field]?.kind ?? 'none') === 'none'),
   }));
   const openQuestions = questions.filter((question) => question.open);
+  const matchedCount = definition.fields.filter((field) => (mapping.fields[field.name]?.kind ?? 'none') !== 'none').length;
+  const matchedAll = missing.length === 0 && openQuestions.length === 0;
   // "Not quite, let me explain" (and "Explain in your own words" on a question) opens the guidance, in the person's words.
   const [explain, setExplain] = useState(0);
   // A file in the standard format imports as it is (Kumar, 2026-11-25: "If the format is exactly as we asked for, we
@@ -206,6 +208,35 @@ export function MappingEditor({
     const rest = Object.fromEntries(Object.entries(mapping.lineKinds ?? {}).filter(([name]) => name !== account));
     update({ ...mapping, lineKinds: kind ? { ...rest, [account]: kind } : rest });
   };
+
+  // The lines to look at first: ones Pactlab was unsure of, without a kind, or a total the check found off.
+  const lineAccounts = [...new Set([...accounts, ...(preview?.unclassified ?? [])])];
+  const needsLook = (account: string) => unsure.has(account) || !mapping.lineKinds?.[account] || (preview?.unclassified ?? []).includes(account);
+  const lineRows = (list: readonly string[]) =>
+    list.length === 0 ? null : (
+      <table className="w-full text-left text-sm">
+        <tbody className="divide-y divide-border">
+          {list.map((account) => {
+            const kind = mapping.lineKinds?.[account] ?? '';
+            return (
+              <tr key={account} className={needsLook(account) ? 'bg-amber-50' : undefined}>
+                <td className="py-1 pr-3">{account}</td>
+                <td className="py-1">
+                  <select aria-label={`Kind of line ${account}`} className={inputClass} value={kind} onChange={(event) => setKind(account, event.target.value as PnlKind | '')}>
+                    <option value="">— Choose —</option>
+                    {PNL_KINDS.map((option) => (
+                      <option key={option} value={option}>
+                        {KIND_LABELS[option]}
+                      </option>
+                    ))}
+                  </select>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    );
   const check = () =>
     startTransition(async () => {
       const result = await previewMapping(dealId, uploadId, cleanMapping(mapping));
@@ -427,12 +458,17 @@ export function MappingEditor({
           </label>
           ) : null}
 
-          <table className="w-full text-left text-sm">
+          {/* Once every field is matched and nothing is asked, the matching folds away (Kumar, 2026-11-25: "make it simple"). */}
+          <details key={matchedAll ? 'matched' : 'open'} open={!matchedAll} className="rounded-lg border border-border px-3 py-2">
+            <summary className="cursor-pointer text-sm font-medium">
+              {matchedAll ? `Every column is matched (${matchedCount} of ${definition.fields.length}). See or change how each column is read` : 'How each column of your file is read'}
+            </summary>
+          <table className="mt-2 w-full text-left text-sm">
             <thead className="text-xs uppercase tracking-wide text-muted-foreground">
               <tr>
-                <th className="py-2 pr-3 font-medium">Pactlab field</th>
-                <th className="py-2 pr-3 font-medium">From your file</th>
-                <th className="py-2 font-medium">Sample values</th>
+                <th className="py-2 pr-3 font-medium">What Pactlab needs</th>
+                <th className="py-2 pr-3 font-medium">Column in your file</th>
+                <th className="py-2 font-medium">Example from your file</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -463,7 +499,7 @@ export function MappingEditor({
                         <option value="none">— Not in this file —</option>
                         {columns.map((column) => (
                           <option key={column} value={`column:${column}`}>
-                            {column === PERIOD_COLUMN ? 'Months across the columns' : column === VALUE_COLUMN ? 'The figure under each month' : column}
+                            {column === PERIOD_COLUMN ? 'Periods across the columns' : column === VALUE_COLUMN ? 'The figure under each period' : column}
                           </option>
                         ))}
                         {field.name === definition.recordIdField ? null : <option value="constant">Fixed value…</option>}
@@ -490,44 +526,26 @@ export function MappingEditor({
               })}
             </tbody>
           </table>
+          </details>
           {definition.lineItems && accounts.length > 0 ? (
             <div className="flex flex-col gap-2">
               <span className="text-sm font-medium">What each line is</span>
               <span className="text-xs text-muted-foreground">
-                Lines are imported; totals are checked against them, never imported.
-                {unsure.size > 0 ? ' Lines Pactlab was unsure of are highlighted.' : ''}
+                Income and cost lines are imported; totals are checked against them, never imported.
               </span>
-              <table className="w-full text-left text-sm">
-                <tbody className="divide-y divide-border">
-                  {[...new Set([...accounts, ...(preview?.unclassified ?? [])])].map((account) => {
-                    const kind = mapping.lineKinds?.[account] ?? '';
-                    return (
-                      <tr key={account} className={unsure.has(account) || !kind ? 'bg-amber-50' : undefined}>
-                        <td className="py-1 pr-3">{account}</td>
-                        <td className="py-1">
-                          <select
-                            aria-label={`Kind of line ${account}`}
-                            className={inputClass}
-                            value={kind}
-                            onChange={(event) => setKind(account, event.target.value as PnlKind | '')}
-                          >
-                            <option value="">— Choose —</option>
-                            {PNL_KINDS.map((option) => (
-                              <option key={option} value={option}>
-                                {KIND_LABELS[option]}
-                              </option>
-                            ))}
-                          </select>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+              {lineRows(lineAccounts.filter(needsLook))}
+              {lineAccounts.some((account) => !needsLook(account)) ? (
+                <details className="rounded-lg border border-border px-3 py-2">
+                  <summary className="cursor-pointer text-sm">
+                    {lineAccounts.some(needsLook) ? 'The other' : 'All'} {lineAccounts.filter((account) => !needsLook(account)).length} lines: Pactlab is sure of these. See or change them
+                  </summary>
+                  {lineRows(lineAccounts.filter((account) => !needsLook(account)))}
+                </details>
+              ) : null}
             </div>
           ) : null}
           {missing.length > 0 ? (
-            <p className="text-sm text-muted-foreground">Still required: {missing.join(', ')}.</p>
+            <p className="text-sm text-muted-foreground">Before checking, choose the column in your file for: {missing.join(', ')}.</p>
           ) : null}
           <div>
             <Button onClick={check} disabled={pending || missing.length > 0}>

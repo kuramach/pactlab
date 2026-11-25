@@ -808,7 +808,7 @@ export const REMEDY_PACKAGE: TargetDefinition = {
 /** Imports every pack offers when its regulatory screen runs at full depth (T-091). */
 /**
  * A profit and loss statement, line by line (Kumar, 2026-11-21): every pact can import one, whatever
- * its layout (months across, subtotals, title rows). One record per account per month; what each
+ * its layout (months or years across, subtotals, title rows). One record per line per period; what each
  * account is comes from the mapping's line kinds, which a person confirms.
  */
 export const FINANCIAL_PNL: TargetDefinition = {
@@ -823,8 +823,9 @@ export const FINANCIAL_PNL: TargetDefinition = {
   observedAtFields: [],
   lineItems: true,
   fields: [
-    { name: 'account', label: 'Account', kind: 'text', required: true, hint: 'The line as the statement names it, e.g. "Subscription revenue".' },
-    { name: 'month', label: 'Month', kind: 'text', required: true, hint: 'YYYY-MM. When months run across the columns, Pactlab reads them from the header.' },
+    // Plain words (Kumar, 2026-11-25): "Line name" and "Period", never "Account"; a statement by year is fine.
+    { name: 'account', label: 'Line name', kind: 'text', required: true, hint: 'The name of each line, e.g. "Rent income" or "Insurance".' },
+    { name: 'month', label: 'Period', kind: 'text', required: true, hint: 'The month (YYYY-MM) or the year (YYYY). When periods run across the columns, Pactlab reads them from the header.' },
     { name: 'amount', label: 'Amount', kind: 'money', required: true, hint: IN_BASE_CURRENCY },
   ],
 };

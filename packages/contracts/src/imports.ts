@@ -35,7 +35,7 @@ export const importMappingSchema = z.strictObject({
   layout: z
     .discriminatedUnion('kind', [
       z.strictObject({ kind: z.literal('ROWS') }),
-      z.strictObject({ kind: z.literal('PERIOD_COLUMNS'), periods: z.array(z.strictObject({ column: z.string().min(1).max(200), period: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/) })).min(1).max(60) }),
+      z.strictObject({ kind: z.literal('PERIOD_COLUMNS'), periods: z.array(z.strictObject({ column: z.string().min(1).max(200), period: z.string().regex(/^\d{4}(-(0[1-9]|1[0-2]))?$/) })).min(1).max(60) }),
       z.strictObject({
         kind: z.literal('MONTHS_ACROSS'),
         labelColumn: z.string().min(1).max(200),

@@ -17,7 +17,7 @@ export const VALUE_COLUMN = 'Amount (from columns)';
 export interface PeriodColumn {
   /** A header cell of the file. */
   readonly column: string;
-  /** YYYY-MM. */
+  /** YYYY-MM for a month, or YYYY for a year (a statement by year, Kumar 2026-11-25). */
   readonly period: string;
 }
 
@@ -34,11 +34,19 @@ export type ImportLayout =
   | { readonly kind: 'MONTHS_ACROSS'; readonly labelColumn: string; readonly periods: readonly PeriodColumn[] };
 
 const PERIOD = /^\d{4}-(0[1-9]|1[0-2])$/;
+const YEAR = /^(19|20)\d{2}$/;
+/** A year (YYYY), as a statement by year gives its periods. */
+export const isYearPeriod = (period: string) => YEAR.test(period);
 const MONTH_NAMES = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
 
-/** A header cell as a month: "Jan 2026", "January 2026", "Jan-26", "2026-01", "01/2026" → 2026-01; else null. */
+/**
+ * A header cell as a period: a month ("Jan 2026", "January 2026", "Jan-26", "2026-01", "01/2026" → 2026-01) or a
+ * year ("2021", "FY2021", "FY 2021", "2021 Actual" → 2021); else null.
+ */
 export function periodOfHeader(text: string): string | null {
   const value = text.trim().toLowerCase();
+  const annual = /^(?:fy|cy|year)?\s*'?((?:19|20)\d{2})(?:\s+(?:actual|actuals|total|a))?$/.exec(value);
+  if (annual) return annual[1] ?? null;
   const iso = /^(\d{4})-(\d{2})(?:-\d{2})?$/.exec(value);
   if (iso && PERIOD.test(`${iso[1]}-${iso[2]}`)) return `${iso[1]}-${iso[2]}`;
   const slash = /^(\d{1,2})\/(\d{4})$/.exec(value);
@@ -64,8 +72,11 @@ export function guessLayout(definition: TargetDefinition, header: readonly strin
   });
   const label = header.find((column) => !periodOfHeader(column));
   if (periods.length < 2 || new Set(periods.map((entry) => entry.period)).size !== periods.length || !label) return { kind: 'ROWS' };
+  // One granularity: all months, or (a statement only) all years.
+  const years = periods.filter((entry) => isYearPeriod(entry.period)).length;
+  if (years > 0 && years < periods.length) return { kind: 'ROWS' };
   if (definition.lineItems) return { kind: 'PERIOD_COLUMNS', periods };
-  if (definition.fields.some((field) => field.name === 'month')) return { kind: 'MONTHS_ACROSS', labelColumn: label, periods };
+  if (years === 0 && definition.fields.some((field) => field.name === 'month')) return { kind: 'MONTHS_ACROSS', labelColumn: label, periods };
   return { kind: 'ROWS' };
 }
 const blank = (cell: string | undefined) => (cell ?? '').trim() === '';
@@ -83,7 +94,8 @@ export function detectHeaderRow(preview: readonly (readonly string[])[]): number
   for (const [index, row] of preview.slice(0, 20).entries()) {
     const cells = row.filter((cell) => !blank(cell));
     if (cells.length < Math.max(2, Math.ceil(widest / 2))) continue;
-    const words = cells.filter((cell) => !NUMERIC.test(cell)).length;
+    // Period headers ("2021", "FY2022") are words here, not figures.
+    const words = cells.filter((cell) => !NUMERIC.test(cell) || periodOfHeader(cell) !== null).length;
     if (words >= Math.ceil(cells.length / 2)) return index + 1;
   }
   return 1;
@@ -93,11 +105,13 @@ export function detectHeaderRow(preview: readonly (readonly string[])[]): number
 export function layoutProblems(definition: TargetDefinition, header: readonly string[], layout: ImportLayout | undefined): string[] {
   if (!layout || layout.kind === 'ROWS') return [];
   const problems: string[] = [];
-  if (layout.periods.length === 0) problems.push('Choose the columns that hold months');
+  if (layout.periods.length === 0) problems.push('Choose the columns that hold the periods');
   const seen = new Set<string>();
+  const years = layout.periods.filter((entry) => isYearPeriod(entry.period)).length;
+  if (years > 0 && (layout.kind === 'MONTHS_ACROSS' || years < layout.periods.length)) problems.push(layout.kind === 'MONTHS_ACROSS' ? `${definition.label} is monthly, so its columns must be months` : 'Use months for every column, or years for every column');
   for (const { column, period } of layout.periods) {
-    if (!header.includes(column)) problems.push(`Month column "${column}" is not in the file`);
-    if (!PERIOD.test(period)) problems.push(`"${column}": the month must be YYYY-MM`);
+    if (!header.includes(column)) problems.push(`Period column "${column}" is not in the file`);
+    if (!PERIOD.test(period) && !(layout.kind === 'PERIOD_COLUMNS' && isYearPeriod(period))) problems.push(`"${column}": the period must be a month (YYYY-MM) or a year (YYYY)`);
     if (seen.has(period)) problems.push(`${period} is chosen for two columns`);
     seen.add(period);
   }
@@ -377,13 +391,23 @@ export function checkProposal(input: {
   // Layout-owned fields: the month (and, line by line, the amount) come from the reshape itself.
   if (layout.kind !== 'ROWS') {
     fields['month'] = { kind: 'column', column: PERIOD_COLUMN };
-    picks['month'] = { by: 'AI', confidence: null, reason: 'Months across the columns' };
+    picks['month'] = { by: 'AI', confidence: null, reason: 'Periods across the columns' };
     used.add(PERIOD_COLUMN);
   }
   if (layout.kind === 'PERIOD_COLUMNS') {
     fields['amount'] = { kind: 'column', column: VALUE_COLUMN };
-    picks['amount'] = { by: 'AI', confidence: null, reason: 'The figure under each month' };
+    picks['amount'] = { by: 'AI', confidence: null, reason: 'The figure under each period' };
     used.add(VALUE_COLUMN);
+    // The line names: what the assistant named, or else the column left of the periods. Never a question a person
+    // must decode (Kumar, 2026-11-25: "Still required Account. I dont know what is Account").
+    const named = proposal.fields.find((entry) => entry.field === 'account');
+    const labels = header.filter((column) => column !== PERIOD_COLUMN && column !== VALUE_COLUMN);
+    const column = named?.column && labels.includes(named.column) ? named.column : labels[0];
+    if (definition.lineItems && column) {
+      fields['account'] = { kind: 'column', column };
+      picks['account'] = { by: guidance && named?.guided && named.column === column ? 'GUIDED' : 'AI', confidence: null, reason: `The line names in “${column}”` };
+      used.add(column);
+    }
   }
   if (layout.kind === 'ROWS') {
     for (const [field, source] of Object.entries(byName)) {
@@ -447,12 +471,12 @@ export function namesOnly(definition: TargetDefinition, headerRow: number, heade
   const picks: Record<string, AssistPick> = {};
   if (layout.kind !== 'ROWS') {
     fields['month'] = { kind: 'column', column: PERIOD_COLUMN };
-    picks['month'] = { by: 'NAME', confidence: null, reason: 'Months across the columns' };
+    picks['month'] = { by: 'NAME', confidence: null, reason: 'Periods across the columns' };
   }
   if (layout.kind === 'PERIOD_COLUMNS') {
     const label = header.find((column) => !periodOfHeader(column));
     fields['amount'] = { kind: 'column', column: VALUE_COLUMN };
-    picks['amount'] = { by: 'NAME', confidence: null, reason: 'The figure under each month' };
+    picks['amount'] = { by: 'NAME', confidence: null, reason: 'The figure under each period' };
     if (label) {
       fields['account'] = { kind: 'column', column: label };
       picks['account'] = { by: 'NAME', confidence: null, reason: `The line labels in "${label}"` };

@@ -6,6 +6,8 @@ import {
   checkRowGroups,
   pnlMonthlyTotals,
   detectHeaderRow,
+  guessLayout,
+  periodOfHeader,
   layoutProblems,
   PERIOD_COLUMN,
   pnlTieOut,
@@ -132,10 +134,10 @@ describe('layouts', () => {
     expect(result.rows.map((row) => row.canonical['net_operating_income'])).toEqual(['50000', '50000']);
   });
 
-  it('refuses a month column the file does not have, or a month that is not YYYY-MM', () => {
+  it('refuses a period column the file does not have, or a period that is neither a month nor a year', () => {
     const header = ['Column A', 'Jan 2026'];
-    expect(layoutProblems(FINANCIAL_PNL, header, { kind: 'PERIOD_COLUMNS', periods: [{ column: 'Dec 2025', period: '2025-12' }] })).toEqual(['Month column "Dec 2025" is not in the file']);
-    expect(layoutProblems(FINANCIAL_PNL, header, { kind: 'PERIOD_COLUMNS', periods: [{ column: 'Jan 2026', period: 'January' }] })).toEqual(['"Jan 2026": the month must be YYYY-MM']);
+    expect(layoutProblems(FINANCIAL_PNL, header, { kind: 'PERIOD_COLUMNS', periods: [{ column: 'Dec 2025', period: '2025-12' }] })).toEqual(['Period column "Dec 2025" is not in the file']);
+    expect(layoutProblems(FINANCIAL_PNL, header, { kind: 'PERIOD_COLUMNS', periods: [{ column: 'Jan 2026', period: 'January' }] })).toEqual(['"Jan 2026": the period must be a month (YYYY-MM) or a year (YYYY)']);
     expect(layoutProblems(MULTIFAMILY_RENT_ROLL, header, { kind: 'PERIOD_COLUMNS', periods: [{ column: 'Jan 2026', period: '2026-01' }] })).toContain('Rent roll has no month, so months across cannot be read');
   });
 });
@@ -281,5 +283,37 @@ describe('an imported P&L, month by month (Kumar, 2026-11-25)', () => {
       { month: '2026-01', revenue: '500', costOfRevenue: '100', grossProfit: '400', operatingExpenses: '50', operatingIncome: '350', netIncome: '340' },
       { month: '2026-02', revenue: '1000.1', costOfRevenue: '200.05', grossProfit: '800.05', operatingExpenses: '300', operatingIncome: '500.05', netIncome: '500.05' },
     ]);
+  });
+});
+
+describe('a statement by year (Kumar, 2026-11-25: "we have provided in years")', () => {
+  it('reads year headers as years, never as a month', () => {
+    expect(['2021', 'FY2022', 'FY 2023', '2024 Actual'].map(periodOfHeader)).toEqual(['2021', '2022', '2023', '2024']);
+    expect(periodOfHeader('Jan 2026')).toBe('2026-01');
+    expect(periodOfHeader('Rent')).toBeNull();
+  });
+
+  it('a P&L with years across is line by line with year periods; a monthly target never takes years', () => {
+    expect(guessLayout(FINANCIAL_PNL, ['Column A', '2020', '2021', '2023'])).toEqual({ kind: 'PERIOD_COLUMNS', periods: [{ column: '2020', period: '2020' }, { column: '2021', period: '2021' }, { column: '2023', period: '2023' }] });
+    expect(layoutProblems(FINANCIAL_PNL, ['Line', '2020', '2021'], { kind: 'PERIOD_COLUMNS', periods: [{ column: '2020', period: '2020' }, { column: '2021', period: '2021' }] })).toEqual([]);
+    expect(layoutProblems(FINANCIAL_PNL, ['Line', '2020', 'Jan 2021'], { kind: 'PERIOD_COLUMNS', periods: [{ column: '2020', period: '2020' }, { column: 'Jan 2021', period: '2021-01' }] })).toContain('Use months for every column, or years for every column');
+  });
+
+  it('finds the header row when its cells are years', () => {
+    expect(detectHeaderRow([['Acme Apartments LLC'], ['Profit and loss'], ['', '2020', '2021', '2023'], ['Rent income', '615', '90', '160']])).toBe(3);
+  });
+
+  it('fills in the line names with no question to decode', () => {
+    const header = ['Column A', PERIOD_COLUMN, VALUE_COLUMN];
+    const assist = checkProposal({
+      definition: FINANCIAL_PNL,
+      header,
+      rawHeader: ['Column A', '2020', '2021'],
+      preview: [['', '2020', '2021'], ['Pet Fees', '615', '90']],
+      proposal: { headerRow: 1, layout: { kind: 'PERIOD_COLUMNS', periods: [{ column: '2020', period: '2020' }, { column: '2021', period: '2021' }] }, fields: [{ field: 'account', column: null, confidence: 0.1, reason: 'unsure', evidence: '' }], lineKinds: [], questions: [] },
+      byName: {},
+    });
+    expect(assist.fields['account']).toEqual({ kind: 'column', column: 'Column A' });
+    expect(assist.questions.filter((question) => question.field === 'account')).toEqual([]);
   });
 });
