@@ -77,7 +77,7 @@ export async function importWithMapping(deal: string, upload: string, mapping: u
   if (run.status !== 'SUCCEEDED') return { kind: 'message', message: 'The import failed before writing evidence. Try again.' };
   // Inline pack imports run the pack's checks in the API (T-060); say so on Sources.
   const checked = result.data.upload.target !== 'BILLING_INVOICE_LINE' && !result.data.replayed;
-  redirect(`${importedUrl(ids.data.dealId, result.data.upload.target, run, result.data.replayed)}${checked ? '&checked=1' : ''}`);
+  redirect(`${importedUrl(ids.data.dealId, result.data.upload.target, run, result.data.replayed, result.data.upload.id)}${checked ? '&checked=1' : ''}`);
 }
 
 const runIds = z.strictObject({ dealId: z.uuid(), runId: z.uuid() });

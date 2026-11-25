@@ -4,7 +4,7 @@ import type { ImportGuidanceBody } from '@pactlab/contracts';
 import { GUIDANCE_MAX_NOTE, GUIDANCE_MAX_TEXT, GUIDANCE_STARTERS, normalizeGuidance, rangeLabel } from '@pactlab/domain';
 import { Button } from '@pactlab/ui';
 import { useRouter } from 'next/navigation';
-import { useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import { saveGuidance } from '../actions';
 
 const inputClass = 'w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring';
@@ -19,7 +19,22 @@ const gist = (cells: readonly string[]) => {
  * What the AI was told about this file (T-152), quoted back, and editable: free text plus notes on
  * rows. Select rows in the grid, type the note, save; saving reads the file again with the guidance.
  */
-export function GuidancePanel({ dealId, uploadId, guidance, grid, disabled }: { dealId: string; uploadId: string; guidance: ImportGuidanceBody | null; grid: string[][]; disabled: boolean }) {
+export function GuidancePanel({
+  dealId,
+  uploadId,
+  guidance,
+  grid,
+  disabled,
+  explaining = false,
+}: {
+  dealId: string;
+  uploadId: string;
+  guidance: ImportGuidanceBody | null;
+  grid: string[][];
+  disabled: boolean;
+  /** The person said the reading was not quite right: open, in view, ready to type. */
+  explaining?: boolean;
+}) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [text, setText] = useState(guidance?.instructions ?? '');
@@ -27,7 +42,13 @@ export function GuidancePanel({ dealId, uploadId, guidance, grid, disabled }: { 
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [note, setNote] = useState('');
   const [message, setMessage] = useState<string | null>(null);
-  const [open, setOpen] = useState(guidance !== null);
+  const [open, setOpen] = useState(guidance !== null || explaining);
+  const panel = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (!explaining) return;
+    panel.current?.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
+    panel.current?.querySelector('textarea')?.focus();
+  }, [explaining]);
   const rows = grid.slice(0, 30);
 
   const toggle = (row: number) => setSelected((current) => new Set(current.has(row) ? [...current].filter((entry) => entry !== row) : [...current, row]));
@@ -50,7 +71,7 @@ export function GuidancePanel({ dealId, uploadId, guidance, grid, disabled }: { 
     });
 
   return (
-    <section aria-label="Guide the AI" className="flex flex-col gap-3 rounded-lg border border-border px-3 py-3 text-sm">
+    <section ref={panel} aria-label="Guide the AI" className="flex flex-col gap-3 rounded-lg border border-border px-3 py-3 text-sm">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="font-medium">Guide the AI</span>
         {open ? null : (

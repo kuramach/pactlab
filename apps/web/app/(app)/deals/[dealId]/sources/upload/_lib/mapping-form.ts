@@ -43,7 +43,11 @@ export function cleanMapping(mapping: ImportMapping): ImportMapping {
   };
 }
 
-/** Sources with the import's outcome banner (also used when a background import finishes). */
-export function importedUrl(dealId: string, target: string, run: { recordsCreated: number; recordsUnchanged: number }, replayed = false): string {
+/**
+ * Where an import lands (also when a background import finishes): the import's own page, showing what it picked up
+ * (Kumar, 2026-11-25); a file already imported the same way goes back to Sources, where nothing changed.
+ */
+export function importedUrl(dealId: string, target: string, run: { recordsCreated: number; recordsUnchanged: number }, replayed = false, uploadId?: string): string {
+  if (uploadId && !replayed) return `/deals/${dealId}/sources/upload/${uploadId}?imported=1`;
   return `/deals/${dealId}/sources?imported=${encodeURIComponent(target)}&created=${run.recordsCreated}&unchanged=${run.recordsUnchanged}${replayed ? '&replayed=1' : ''}`;
 }

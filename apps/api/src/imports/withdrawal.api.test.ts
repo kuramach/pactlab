@@ -263,6 +263,12 @@ describe('withdraw an import and re-import (T-154)', { timeout: 60_000 }, () => 
     expect(((await call('GET', `${base}/uploads`, reviewer)).body['items'] as Body[]).every((item) => item['canDelete'] === false)).toBe(true);
     expect((await call('GET', `${base}/uploads/${mineId}`, seller)).body['canDelete']).toBe(true);
 
+    // What it picked up, as each side sees it: the buyer also sees the finding built on it; the seller never does.
+    const forBuyer = (await call('GET', `${base}/uploads/${mineId}/results`, analyst)).body;
+    expect(forBuyer).toMatchObject({ activeRecords: 84, metrics: 'SUBSCRIPTION', findings: 1, pnlMonths: null });
+    expect((forBuyer['sample'] as { rows: unknown[] }).rows).toHaveLength(10);
+    expect((await call('GET', `${base}/uploads/${mineId}/results`, seller)).body).toMatchObject({ activeRecords: 84, findings: null });
+
     // Not someone else's.
     expect((await call('POST', `${base}/uploads/${mineId}/withdraw`, otherSeller, { reason: 'Not mine' })).status).toBe(403);
     expect([403, 404]).toContain((await call('POST', `${base}/uploads/${buyersId}/withdraw`, seller, { reason: 'Not mine' })).status);
@@ -278,6 +284,7 @@ describe('withdraw an import and re-import (T-154)', { timeout: 60_000 }, () => 
     expect(await audited('finding.source_withdrawn', findingId)).toBe(1);
     expect(await audited('valuation_run.source_withdrawn', run)).toBe(1);
     expect((await call('GET', `${base}/findings/${findingId}`, lead)).body['sourceWithdrawn']).toEqual([expect.objectContaining({ uploadId: mineId, reason: 'Columns read wrongly' })]);
+    expect((await call('GET', `${base}/uploads/${mineId}/results`, seller)).body).toMatchObject({ status: 'WITHDRAWN', activeRecords: 0 });
     // The buyer's import is untouched.
     expect((await call('GET', `${base}/uploads/${buyersId}`, lead)).body['status']).toBe('IMPORTED');
 

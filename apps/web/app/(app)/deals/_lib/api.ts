@@ -10,6 +10,7 @@ import type {
   ImportGuidanceBody,
   ImportPreviewView,
   ImportProgressView,
+  ImportResultsView,
   ImportResultView,
   SourcePlanResponse,
   SourceUploadView,
@@ -259,6 +260,8 @@ export const dealsApi = {
     file
       ? apiUploadCsv(`/v1/deals/${encodeURIComponent(dealId)}/uploads/${encodeURIComponent(uploadId)}/reimport?${new URLSearchParams({ fileName: file.fileName }).toString()}`, file.body)
       : apiPost<UploadDetailRecord>(`/v1/deals/${encodeURIComponent(dealId)}/uploads/${encodeURIComponent(uploadId)}/reimport`, {}),
+  /** What an import picked up, which metrics read it and what it raised (Kumar, 2026-11-25). */
+  uploadResults: (dealId: string, uploadId: string) => apiGet<ImportResultsView>(`/v1/deals/${encodeURIComponent(dealId)}/uploads/${encodeURIComponent(uploadId)}/results`),
   /** The import's chain: v1 withdrawn (reason) → v2 active. Manage rights only. */
   uploadHistory: (dealId: string, uploadId: string) =>
     apiGet<{ chain: ImportLineageEntry[] }>(`/v1/deals/${encodeURIComponent(dealId)}/uploads/${encodeURIComponent(uploadId)}/history`),

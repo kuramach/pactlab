@@ -113,6 +113,12 @@ describe('the mapping assistant through the API (Kumar, 2026-11-21)', { timeout:
     expect(mapping['layout']).toEqual({ kind: 'PERIOD_COLUMNS', periods: [{ column: 'Jan 2026', period: '2026-01' }, { column: 'Feb 2026', period: '2026-02' }, { column: 'Mar 2026', period: '2026-03' }] });
     expect(mapping['lineKinds']).toMatchObject({ 'Subscription revenue': 'REVENUE', 'Total revenue': 'TOTAL_REVENUE', Hosting: 'COGS', 'Net income': 'NET_INCOME' });
     expect(uploaded.body['assist']).toMatchObject({ source: 'AI', note: null, questions: [] });
+    // How it read the file, said back before anything is mapped: its words, and row groups checked against the grid.
+    const reading = (uploaded.body['assist'] as { reading: { summary: string; rowGroups: { from: number; to: number; kind: string }[] } }).reading;
+    expect(reading.summary).toContain('row 3');
+    expect(reading.rowGroups.slice(0, 2)).toEqual([expect.objectContaining({ from: 1, to: 2, kind: 'TITLE' }), expect.objectContaining({ from: 3, to: 3, kind: 'HEADER' })]);
+    expect(reading.rowGroups.some((group) => group.kind === 'SUBTOTAL')).toBe(true);
+    expect(reading.rowGroups.every((group) => group.to <= (uploaded.body['preview'] as unknown[]).length)).toBe(true);
 
     // The model saw the grid as cells, never asked for a value; its run is on record.
     expect(seen.at(-1)?.messages[0]?.content).toContain('Row 3: B=Jan 2026 | C=Feb 2026 | D=Mar 2026');
@@ -126,6 +132,16 @@ describe('the mapping assistant through the API (Kumar, 2026-11-21)', { timeout:
     expect(imported.body).toMatchObject({ syncRun: { status: 'SUCCEEDED', recordsCreated: 12 } });
     const lines = await db.owner.query(`SELECT 1 FROM evidence_items WHERE deal_id = $1 AND evidence_type = 'finance.pnl_line'`, [alpha.dealId]);
     expect(lines.rows).toHaveLength(12);
+
+    // What it picked up: the records, the month-by-month totals from the lines alone (never the file's subtotals).
+    const results = await call(app, 'GET', `${base}/results`, lead);
+    expect(results.status).toBe(200);
+    expect(results.body).toMatchObject({ status: 'IMPORTED', activeRecords: 12, run: { recordsCreated: 12 }, findings: 0 });
+    const sample = results.body['sample'] as { fields: { name: string }[]; rows: (string | null)[][] };
+    expect(sample.fields.map((field) => field.name)).toEqual(['account', 'month', 'amount']);
+    expect(sample.rows).toHaveLength(10);
+    expect((results.body['pnlMonths'] as Body[])[0]).toEqual({ month: '2026-01', revenue: '120000', costOfRevenue: '15000', grossProfit: '105000', operatingExpenses: '60000', operatingIncome: '45000', netIncome: '45000' });
+    expect(results.body['pnlMonths']).toHaveLength(3);
   });
 
   it('a subtotal that does not add up blocks the import until the line kinds are fixed or the gap accepted', async () => {
@@ -167,6 +183,8 @@ describe('the mapping assistant through the API (Kumar, 2026-11-21)', { timeout:
   it('a model answer naming columns the file does not have is dropped, never trusted', async () => {
     reply = () =>
       JSON.stringify({
+        summary: 'A P&L with a ledger line column.',
+        rowGroups: [{ from: 3, to: 3, kind: 'HEADER', note: '' }, { from: 40, to: 50, kind: 'DATA', note: 'not in the grid' }],
         headerRow: 3,
         layout: { kind: 'PERIOD_COLUMNS', periods: [{ column: 'Apr 2026', period: '2026-04' }] },
         fields: [{ field: 'account', column: 'Ledger line', confidence: 0.99, reason: 'Header "Ledger line"', evidence: 'Ledger line' }],
@@ -178,6 +196,7 @@ describe('the mapping assistant through the API (Kumar, 2026-11-21)', { timeout:
     const mapping = uploaded.body['suggestedMapping'] as { fields: Body; layout?: unknown };
     expect(mapping.layout).toBeUndefined();
     expect(mapping.fields['account']).toEqual({ kind: 'none' });
+    expect((uploaded.body['assist'] as { reading: unknown }).reading).toEqual({ summary: 'A P&L with a ledger line column.', rowGroups: [{ from: 3, to: 3, kind: 'HEADER', note: '' }] });
     reply = null;
   });
 
