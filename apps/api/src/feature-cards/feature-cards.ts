@@ -78,6 +78,16 @@ export const FEATURE_CARDS: readonly FeatureCardDefinition[] = [
     icon: 'check',
   },
   {
+    id: 'commercial-property-pack',
+    version: 1,
+    addedOn: '2026-11-26',
+    title: 'Commercial property: the rent roll against the leases, recoveries and expiry cliffs',
+    body: 'On a commercial property pact, Pactlab reads each lease and recomputes its rent with the escalations, flags a rent roll that overstates it, ties the statements’ base rent to the leases year by year, checks NNN recoveries billed against what the leases make recoverable across every imported year, lists the allowances, commissions and committed capex the buyer inherits, measures rent share and the expiry profile against the hold, and sets the condition report against the capex schedule. Documents and arithmetic only, never an appraisal; a person decides every finding.',
+    href: '/pacts/new',
+    linkLabel: 'Start a commercial property pact',
+    icon: 'layers',
+  },
+  {
     id: 'ecommerce-dtc-pack',
     version: 1,
     addedOn: '2026-11-26',

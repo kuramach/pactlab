@@ -309,36 +309,38 @@ export const INDUSTRY_STORIES: Readonly<Record<string, IndustryStory>> = {
   },
 
   'commercial-property': {
-    headline: 'A building is worth the leases inside it.',
+    headline: 'A rent roll is only as good as the leases behind it.',
     subhead:
-      'Office, retail and industrial assets are priced on lease income and how long it lasts. Pactlab abstracts the leases with exact citations, maps the rollover, and flags what the environmental and zoning record holds.',
+      'Office, retail and industrial assets are priced on the rent roll. Pactlab reads each lease and recomputes its rent with the escalations, ties the rent roll and the statements to it, checks NNN recoveries against what the leases make recoverable year by year, and sets the expiries against the hold and the condition report against the capex schedule — documents and arithmetic, never an appraisal.',
     illustrationAlt: 'Illustration of a commercial building, a lease rollover timeline and an environmental report.',
     pains: [
-      { icon: 'ChartPie', title: 'Two tenants, most of the income', body: 'Tenant concentration decides how durable the income is.' },
-      { icon: 'Hourglass', title: 'Leases that end inside the hold period', body: 'A strong WALT on paper can hide a wall of near-term expiries.' },
-      { icon: 'ShieldAlert', title: 'An environmental report nobody read closely', body: 'Phase I findings and zoning limits travel with the asset.' },
+      { icon: 'ClipboardList', title: 'A rent roll above the leases', body: 'Two tenants show more rent on the roll than their leases give, and NOI is priced on the roll.' },
+      { icon: 'Hourglass', title: 'The anchor leaves in year one', body: 'Four tenths of the rent comes from one tenant whose lease ends in the first year of the hold.' },
+      { icon: 'Receipt', title: 'Recoveries that never catch up', body: 'Tenants are billed less than the leases let the landlord recover, every year — a leak a single year hides.' },
     ],
     walkthrough: [
-      { step: 'Evidence', text: 'Lease abstracts, the rent roll, CAM reconciliations, Phase I environmental assessments and zoning documents.' },
-      { step: 'Finding', text: 'Tenant concentration, near-term rollover against WALT, above- and below-market leases and environmental flags, each citing its clause or report.' },
-      { step: 'Review', text: 'Reviewers decide each finding with the lease clause or report page in view.' },
-      { step: 'Valuation', text: 'WALT and the rollover schedule are scenario inputs, with cap-rate sensitivity run deterministically.' },
-      { step: 'Deal terms', text: 'Price adjustments, leasing reserves and environmental indemnities tied to the findings.' },
+      { step: 'Evidence', text: 'The rent roll, the CAM reconciliation, the capex schedule and the operating statement by year arrive as imports; the leases, the condition and environmental reports, commission letters and the offering memorandum are read with their source. Absence is shown as absence.' },
+      { step: 'Finding', text: 'Deterministic checks recompute each lease’s rent against the roll and the statements, recoveries billed against recoverable by year, the expiry profile against the hold, and condition items against the capex schedule; allowances, commissions and committed capex go into one register, each cited to the rows or the page.' },
+      { step: 'Review', text: 'A named reviewer accepts, rejects or asks for support on every finding; nothing is decided by the software.' },
+      { step: 'Valuation', text: 'NOI ÷ cap rate and the DCF run as they are; obligations and unscheduled condition items reach the purchase-price bridge, and a below-market lease stays confirmed value, never a reason to pay more.' },
+      { step: 'Deal terms', text: 'Price adjustments for the obligations and the roof, renewal of the anchor as a condition or a leasing reserve, and an escrow for the environmental condition.' },
     ],
     findings: [
-      { title: 'Anchor tenant lease expires within the hold period', severity: 'High', evidence: 'Expiry and renewal clauses cited from the lease', term: 'Leasing reserve and downside case' },
-      { title: 'Recognized environmental condition in the Phase I', severity: 'High', evidence: 'Phase I environmental site assessment, cited by page', term: 'Environmental indemnity or escrow' },
-      { title: 'CAM recoveries below expenses', severity: 'Medium', evidence: 'CAM reconciliations against the operating statement', term: 'Income adjustment in the valuation' },
+      { title: 'The rent roll overstates two tenants’ rent against their leases', severity: 'High', evidence: 'The rent roll against each lease’s rent and escalation', term: 'NOI at the lease rent in the scenarios' },
+      { title: '41% of rent from a tenant whose lease expires in year one of the hold', severity: 'High', evidence: 'The leases’ rent and expiry against the stated closing and hold', term: 'Renewal as a condition, or a leasing reserve' },
+      { title: 'NNN recoveries short of the leases in every statement year', severity: 'High', evidence: 'The leases’ shares against the statements’ recoverable lines and recoveries, by year', term: 'The leak out of NOI, priced at the cap rate' },
+      { title: 'A roof the condition report flags, missing from the capex schedule', severity: 'High', evidence: 'The condition report’s estimate against the capex schedule', term: 'Remediation off the price or in escrow' },
     ],
     deliverables: [
-      { icon: 'FileText', title: 'Cited lease abstracts', body: 'Every key term tied to the clause it came from.' },
-      { icon: 'CalendarRange', title: 'A rollover schedule', body: 'Expiries against WALT, in the valuation rather than an appendix.' },
-      { icon: 'SlidersHorizontal', title: 'Cap-rate sensitivity', body: 'What a change in cap rate does to price, from stored inputs.' },
+      { icon: 'ClipboardList', title: 'The rent roll, verified', body: 'Every suite against the rent its lease gives, with the lease page cited.' },
+      { icon: 'CalendarRange', title: 'An expiry profile against the hold', body: 'Rent expiring by year of the hold, and the tenants that make the cliff.' },
+      { icon: 'Receipt', title: 'An obligations register', body: 'Allowances, commissions and committed capex the buyer inherits, priced into the bridge.' },
     ],
     faq: [
-      { q: 'Which property types does the pack cover?', a: 'Office, retail and industrial assets, single buildings and portfolios.' },
-      { q: 'How are leases abstracted?', a: 'Models draft the abstract with exact citations to the lease; a clause that cannot be found is rejected, and a named reviewer accepts each term.' },
-      { q: 'How do environmental findings reach the deal?', a: 'An accepted Phase I or zoning finding becomes a priced risk — an indemnity, an escrow or a price adjustment — linked to the page it came from.' },
+      { q: 'What does the commercial property pack read?', a: 'The rent roll, the CAM reconciliation, the seller’s capex schedule and the operating statement by year as imports; and the leases, property condition and environmental reports, commission letters and the offering memorandum as documents. Each lease is read sentence by sentence for its term, base rent, escalation and the tenant’s share of recoverable expenses; what a document does not state is shown as missing.' },
+      { q: 'Does Pactlab value the property?', a: 'No. The pack reconciles documents and arithmetic: rent against the leases, recoveries against the lease terms, expiries against the hold and condition items against the capex schedule. Value comes from your own NOI and cap-rate or DCF scenarios, with accepted findings on the bridge.' },
+      { q: 'How are recoveries checked?', a: 'Each net lease states its tenant’s pro rata share of the recoverable expenses. Pactlab applies those shares to the statements’ tax, insurance, repairs, security, common-area and utility lines for each year and sets the result against the recoveries billed. A shortfall in every imported year is drafted as a trend; one year alone is shown, not drafted.' },
+      { q: 'How do condition and environmental findings reach the deal?', a: 'An item a condition or environmental report recommends at an estimated cost, with no project in the capex schedule covering it, is drafted priced at the report’s estimate. A recognized environmental condition in a Phase I is drafted for the reviewer to price as an escrow or indemnity.' },
     ],
   },
 
@@ -625,7 +627,7 @@ export const WRITTEN_INDUSTRIES = INDUSTRIES.filter((industry) => industry.slug 
  * lease checks, T-161, 2026-11-26). Same list as the
  * app's RELEASED_COMPANY_TYPES (packages/domain/src/packs/release.ts).
  */
-export const RELEASED_INDUSTRY_SLUGS: readonly string[] = ['software-saas', 'multifamily', 'venture-raise', 'music-rights', 'energy-generation', 'startup-spv', 'fintech', 'healthcare', 'small-clinics', 'pharma-biotech', 'ecommerce-dtc'];
+export const RELEASED_INDUSTRY_SLUGS: readonly string[] = ['software-saas', 'multifamily', 'venture-raise', 'music-rights', 'energy-generation', 'startup-spv', 'fintech', 'healthcare', 'small-clinics', 'pharma-biotech', 'ecommerce-dtc', 'commercial-property'];
 
 /** An environment's copy of the site (dev, qa) previews every written pack, for testing before release. */
 export const PACK_PREVIEW = process.env['NEXT_PUBLIC_PACK_PREVIEW'] === 'true';

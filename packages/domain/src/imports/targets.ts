@@ -33,6 +33,7 @@ export const IMPORT_TARGETS = [
   'ECOMMERCE_INVENTORY',
   'CRE_RENT_ROLL',
   'CRE_CAM_RECONCILIATION',
+  'CRE_CAPEX_SCHEDULE',
   'HOTELS_OPERATING_HISTORY',
   'HOTELS_STR_BENCHMARK',
   'CLINICS_PATIENT_VOLUME',
@@ -745,6 +746,30 @@ export const CRE_CAM_RECONCILIATION: TargetDefinition = {
   ],
 };
 
+/**
+ * Commercial property (T-165): the seller's capital-expenditure schedule — each planned or committed
+ * project by year. Property-condition and environmental items the schedule leaves out are findings;
+ * committed projects not yet spent join the obligations register.
+ */
+export const CRE_CAPEX_SCHEDULE: TargetDefinition = {
+  target: 'CRE_CAPEX_SCHEDULE',
+  label: 'Capex schedule',
+  fileName: 'capex-schedule.csv',
+  people: 'NONE',
+  refusesPeopleColumns: true,
+  evidenceType: 'cre.capex_item',
+  recordIdField: 'item',
+  recordIdFields: ['item', 'year'],
+  observedAtFields: [],
+  fields: [
+    { name: 'item', label: 'Project', kind: 'text', required: true, hint: 'e.g. HVAC replacement, Units 4–6.' },
+    { name: 'category', label: 'Category', kind: 'text', required: false, hint: 'e.g. roof, hvac, parking, facade, interior.' },
+    { name: 'year', label: 'Year', kind: 'text', required: true, hint: 'The year the work is scheduled, YYYY.' },
+    { name: 'amount', label: 'Amount', kind: 'money', required: true, hint: IN_BASE_CURRENCY },
+    { name: 'status', label: 'Status', kind: 'code', required: true, hint: 'planned, committed or completed.' },
+  ],
+};
+
 /** Hotels (T-067): monthly operating history from the property-management system — no guest data. */
 export const HOTELS_OPERATING_HISTORY: TargetDefinition = {
   target: 'HOTELS_OPERATING_HISTORY',
@@ -1323,6 +1348,7 @@ export const IMPORT_TARGET_DEFINITIONS: Readonly<Record<ImportTarget, TargetDefi
   ECOMMERCE_INVENTORY,
   CRE_RENT_ROLL,
   CRE_CAM_RECONCILIATION,
+  CRE_CAPEX_SCHEDULE,
   HOTELS_OPERATING_HISTORY,
   HOTELS_STR_BENCHMARK,
   CLINICS_PATIENT_VOLUME,

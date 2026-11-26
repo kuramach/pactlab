@@ -57,6 +57,10 @@ export const ECOMMERCE_COHORT_MONTH_EVIDENCE_TYPE = 'ecommerce.cohort_month';
 export const ECOMMERCE_AD_SPEND_MONTH_EVIDENCE_TYPE = 'ecommerce.ad_spend_month';
 export const ECOMMERCE_CHANNEL_MONTH_EVIDENCE_TYPE = 'ecommerce.channel_month';
 export const ECOMMERCE_STOCK_LOT_EVIDENCE_TYPE = 'ecommerce.stock_lot';
+/** Commercial property (T-066, T-165): the rent roll by suite, the CAM reconciliation and the seller's capex schedule. */
+export const CRE_LEASE_EVIDENCE_TYPE = 'cre.lease';
+export const CRE_CAM_CATEGORY_EVIDENCE_TYPE = 'cre.cam_category';
+export const CRE_CAPEX_ITEM_EVIDENCE_TYPE = 'cre.capex_item';
 
 /**
  * Every evidence type the adapters and engines emit, with the direction each
@@ -215,6 +219,10 @@ export const VALUATION_DIRECTION_MAP: Readonly<Record<string, readonly Direction
     { signal: 'expense-outpacing', findingDomain: 'FINANCIAL', defaultDirection: -1, channel: 'ASSUMPTION' },
     // R&D flat across the imported years while a document says the timeline was brought forward (T-163).
     { signal: 'rd-flat-timeline-accelerated', findingDomain: 'FINANCIAL', defaultDirection: -1, channel: 'ASSUMPTION' },
+    // Commercial property (T-165): the statements' base rent against the leases' rent, and NNN recoveries
+    // billed against what the leases make recoverable, year by year. NOI follows; the reviewer prices it at the cap rate.
+    { signal: 'rent-unreconciled', findingDomain: 'PROPERTY', defaultDirection: -1, channel: 'ASSUMPTION' },
+    { signal: 'recovery-shortfall', findingDomain: 'PROPERTY', defaultDirection: -1, channel: 'ASSUMPTION' },
   ],
   // Healthcare services (T-160, ADR 0051). Payer mix, denials and days in AR are recomputed from the remittances;
   // credentials and payer contracts are read at the analysis date. Dates and arithmetic only, never a clinical or legal judgment.
@@ -338,6 +346,20 @@ export const VALUATION_DIRECTION_MAP: Readonly<Record<string, readonly Direction
     { signal: 'contribution-compressing', findingDomain: 'COMMERCIAL', defaultDirection: -1, channel: 'ASSUMPTION' },
   ],
   [ECOMMERCE_STOCK_LOT_EVIDENCE_TYPE]: [{ signal: 'aged-inventory', findingDomain: 'OPERATIONAL', defaultDirection: -1, channel: 'PRICED_TERM' }],
+  // Commercial property (T-066, T-165, ADR 0055): the rent roll against the leases, the expiry cliff against the
+  // hold, the obligations the leases and documents state, and condition items the capex schedule omits.
+  // Documents and arithmetic only; never an appraisal.
+  [CRE_LEASE_EVIDENCE_TYPE]: [
+    { signal: 'anchor-rollover', findingDomain: 'PROPERTY', defaultDirection: -1, channel: 'ASSUMPTION' },
+    // Upside the buyer confirms on renewal: confirmed value, never a reason to pay more (T-066).
+    { signal: 'below-market-anchor', findingDomain: 'PROPERTY', defaultDirection: 1, channel: 'CONFIRMATION' },
+    { signal: 'rent-overstated', findingDomain: 'PROPERTY', defaultDirection: -1, channel: 'ASSUMPTION' },
+    { signal: 'expiry-mismatch', findingDomain: 'PROPERTY', defaultDirection: -1, channel: 'ASSUMPTION' },
+    { signal: 'expiry-cliff', findingDomain: 'PROPERTY', defaultDirection: -1, channel: 'ASSUMPTION' },
+    { signal: 'landlord-obligations', findingDomain: 'PROPERTY', defaultDirection: -1, channel: 'PRICED_TERM' },
+  ],
+  [CRE_CAM_CATEGORY_EVIDENCE_TYPE]: [{ signal: 'cam-under-recovery', findingDomain: 'PROPERTY', defaultDirection: -1, channel: 'ASSUMPTION' }],
+  [CRE_CAPEX_ITEM_EVIDENCE_TYPE]: [{ signal: 'condition-item-unscheduled', findingDomain: 'PROPERTY', defaultDirection: -1, channel: 'PRICED_TERM' }],
   [DOCUMENT_FINDING_EVIDENCE_TYPE]: [
     // A product one manufacturer makes, with no second source described (T-163).
     {
@@ -406,6 +428,9 @@ export const ADAPTER_EVIDENCE_TYPES = [
   ECOMMERCE_AD_SPEND_MONTH_EVIDENCE_TYPE,
   ECOMMERCE_CHANNEL_MONTH_EVIDENCE_TYPE,
   ECOMMERCE_STOCK_LOT_EVIDENCE_TYPE,
+  CRE_LEASE_EVIDENCE_TYPE,
+  CRE_CAM_CATEGORY_EVIDENCE_TYPE,
+  CRE_CAPEX_ITEM_EVIDENCE_TYPE,
 ] as const;
 
 /** The default direction for one signal, or null when the map does not know it. */

@@ -25,5 +25,6 @@ export * from './healthcare/registry';
 export * from './clinics/registry';
 export * from './pharma/registry';
 export * from './ecommerce/registry';
+export * from './commercial-property/registry';
 export * from './spv/registry';
 export * from './notifications';

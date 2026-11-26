@@ -139,6 +139,11 @@ export const SHOWCASE: Readonly<Record<string, ShowcaseEntry>> = {
     why: 'Revenue by channel reconciled to the P&L; lifetime value on a contribution basis against the deck; who holds each storefront, marketplace and ad account; stock age; acquisition cost and contribution by year. Exports and documents only, never a scrape.',
     lookFor: ['The deck’s LTV computed on gross revenue, contradicted by the contribution recompute', '64% of revenue through a marketplace account the founder holds personally', '22% of stock older than 180 days, priced on the bridge', 'Acquisition cost rising and contribution compressing across three years'],
   },
+  '/leases': {
+    title: 'The rent roll against the leases, recoveries and the expiry cliff',
+    why: 'Rent recomputed lease by lease against the rent roll and the statements; recoveries against the lease shares by year; the obligations the buyer inherits; expiries against the hold; condition items against the capex schedule. Never an appraisal.',
+    lookFor: ['Two tenants whose rent-roll rent is above their leases', '41% of the rent from a tenant expiring in year one of the hold', 'Recoveries billed short of the leases in every statement year', 'A roof the condition report flags, missing from the capex schedule'],
+  },
   '/valuation': {
     title: 'Sextant: what to pay, and why',
     why: 'Scenarios from stored inputs, accepted risks priced in, comparables and negotiation anchors: a price you can defend line by line.',

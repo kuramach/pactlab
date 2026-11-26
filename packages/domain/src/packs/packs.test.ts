@@ -141,6 +141,18 @@ describe('pack registry', () => {
     expect(peopleColumnProblems(IMPORT_TARGET_DEFINITIONS.ECOMMERCE_CHANNEL_ORDERS, ['month', 'channel', 'customer_email'])).toHaveLength(1);
   });
 
+  it('Commercial property reads the leases, the capex schedule and the condition reports against the rent roll (T-165)', () => {
+    const property = PACKS.COMMERCIAL_PROPERTY;
+    expect(property).toMatchObject({ slug: 'commercial-property', cluster: 'real-estate', metricCalculator: 'commercial-property-leases', built: true, valuationMethods: ['NOI_CAP_RATE', 'DCF'] });
+    expect(property.importTargets).toEqual(['BILLING_INVOICE_LINE', 'CRE_RENT_ROLL', 'CRE_CAM_RECONCILIATION', 'CRE_CAPEX_SCHEDULE']);
+    // The T-066 rules stay, first and unchanged.
+    expect(property.findingRules.slice(0, 4)).toEqual(['cre-anchor-rollover', 'cre-environmental-condition', 'cre-cam-under-recovery', 'cre-below-market-anchor']);
+    expect(property.findingRules).toHaveLength(13);
+    expect(property.documentCategories).toEqual(['PROPERTY_CONDITION_REPORT', 'ENVIRONMENTAL_REPORT']);
+    expect(IMPORT_TARGET_DEFINITIONS.CRE_CAPEX_SCHEDULE).toMatchObject({ people: 'NONE', refusesPeopleColumns: true, evidenceType: 'cre.capex_item' });
+    expect(peopleColumnProblems(IMPORT_TARGET_DEFINITIONS.CRE_CAPEX_SCHEDULE, ['item', 'year', 'contact_email'])).toHaveLength(1);
+  });
+
   it('every pack offers billing first, and only targets that exist (rule ids resolve in the API test)', () => {
     for (const id of PACK_IDS) {
       const pack = PACKS[id];

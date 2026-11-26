@@ -37,6 +37,7 @@ export const DEMO_SECTION_COVERAGE: Readonly<Record<string, SectionProbe>> = {
   '/clinics': { table: 'evidence_items', where: `evidence_type = 'clinics.service_line_month'` },
   '/pharma': { table: 'evidence_items', where: `evidence_type = 'pharma.registry_trial'` },
   '/ecommerce': { table: 'evidence_items', where: `evidence_type = 'ecommerce.channel_month'` },
+  '/leases': { table: 'evidence_items', where: `evidence_type = 'cre.capex_item'` },
   '/spv': { table: 'spv_vehicles' },
   '/valuation': { table: 'valuation_scenarios' },
   '/foresight': { exempt: 'Prepared from published forecasts the first time the tab is opened, so it is never stale in a demo.' },

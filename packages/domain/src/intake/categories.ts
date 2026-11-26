@@ -95,8 +95,15 @@ export type PharmaCategory = (typeof PHARMA_CATEGORIES)[number];
  */
 export const ECOMMERCE_CATEGORIES = ['PLATFORM_ACCOUNT_RECORD', 'MARKETPLACE_AGREEMENT'] as const;
 export type EcommerceCategory = (typeof ECOMMERCE_CATEGORIES)[number];
+/**
+ * A commercial property (T-165) is diligenced from its leases (a common category), the property-condition
+ * assessment and the environmental reports, whose flagged items are checked against the seller's capex
+ * schedule. The Leases page reads them; absence is shown as absence.
+ */
+export const COMMERCIAL_PROPERTY_CATEGORIES = ['PROPERTY_CONDITION_REPORT', 'ENVIRONMENTAL_REPORT'] as const;
+export type CommercialPropertyCategory = (typeof COMMERCIAL_PROPERTY_CATEGORIES)[number];
 /** Every category a pack may add on top of the common ones. */
-export type PackDocumentCategory = OfferingCategory | MusicCategory | EnergyCategory | SpvCategory | FintechCategory | HealthcareCategory | PharmaCategory | EcommerceCategory;
+export type PackDocumentCategory = OfferingCategory | MusicCategory | EnergyCategory | SpvCategory | FintechCategory | HealthcareCategory | PharmaCategory | EcommerceCategory | CommercialPropertyCategory;
 
 export type DocumentCategory = (typeof DOCUMENT_CATEGORIES)[number] | PackDocumentCategory;
 
@@ -357,6 +364,14 @@ const DOCUMENT_DEFINITIONS: Readonly<Record<DocumentCategory, CategoryDefinition
     id: 'REGULATORY_EXAM',
     label: 'Exam report or consent order',
     description: 'A regulator\'s examination report, a matter requiring attention, a consent order or another enforcement action.',
+    route: { kind: 'FILE' },
+    people: false,
+  },
+  // Commercial property documents (T-165): kept and listed; the Leases page and the pack's checks read them.
+  PROPERTY_CONDITION_REPORT: {
+    id: 'PROPERTY_CONDITION_REPORT',
+    label: 'Property condition report',
+    description: 'A property condition assessment (PCA) or building survey: the condition of the roof, structure, building systems and site, with recommended repairs and their estimated cost.',
     route: { kind: 'FILE' },
     people: false,
   },

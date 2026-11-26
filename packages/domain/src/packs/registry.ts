@@ -17,7 +17,7 @@ export const PACK_IDS = COMPANY_TYPES.filter((type): type is PackId => type !== 
 export type PackCluster = 'technology' | 'healthcare' | 'real-estate' | 'services' | 'life-sciences' | 'consumer' | 'capital' | 'media-rights' | 'energy';
 
 /** Calculator ids in `@pactlab/calculations` (`metricCalculator`). */
-export const METRIC_CALCULATOR_IDS = ['saas-metrics', 'multifamily-metrics', 'music-royalties', 'energy-assets', 'spv-round', 'fintech-payments', 'healthcare-collections', 'clinics-practice', 'pharma-pipeline', 'ecommerce-channels'] as const;
+export const METRIC_CALCULATOR_IDS = ['saas-metrics', 'multifamily-metrics', 'music-royalties', 'energy-assets', 'spv-round', 'fintech-payments', 'healthcare-collections', 'clinics-practice', 'pharma-pipeline', 'ecommerce-channels', 'commercial-property-leases'] as const;
 export type MetricCalculatorId = (typeof METRIC_CALCULATOR_IDS)[number];
 
 /** Valuation method ids in `@pactlab/calculations` (`VALUATION_METHODS`). */
@@ -226,10 +226,31 @@ export const PACKS: Readonly<Record<PackId, PackDefinition>> = {
     valuationMethods: ['DCF', 'ARR_MULTIPLE'],
   },
   MULTIFAMILY,
+  // The rent roll against the leases, recoveries and expiry cliffs (T-066, extended by T-165, ADR 0055).
+  // The T-066 rules stay first; the pack adds rent, escalations and expiries recomputed lease by lease and
+  // reconciled to the rent roll and the statements, NNN recoveries billed against recoverable by year, the
+  // obligations register (TI, leasing commissions, committed capex), the expiry cliff against the hold,
+  // condition items the capex schedule omits, and the multi-year P&L trend. Never an appraisal.
   COMMERCIAL_PROPERTY: {
     ...pack('COMMERCIAL_PROPERTY', 'commercial-property', 'real-estate', true),
-    importTargets: ['BILLING_INVOICE_LINE', 'CRE_RENT_ROLL', 'CRE_CAM_RECONCILIATION'],
-    findingRules: ['cre-anchor-rollover', 'cre-environmental-condition', 'cre-cam-under-recovery', 'cre-below-market-anchor'],
+    importTargets: ['BILLING_INVOICE_LINE', 'CRE_RENT_ROLL', 'CRE_CAM_RECONCILIATION', 'CRE_CAPEX_SCHEDULE'],
+    metricCalculator: 'commercial-property-leases',
+    findingRules: [
+      'cre-anchor-rollover',
+      'cre-environmental-condition',
+      'cre-cam-under-recovery',
+      'cre-below-market-anchor',
+      'cre-rent-roll-verification',
+      'cre-rent-statement-reconciliation',
+      'cre-recovery-shortfall',
+      'cre-obligations',
+      'cre-expiry-cliff',
+      'cre-condition-capex-gap',
+      'cre-pnl-trend',
+      'cre-pnl-margin-drift',
+      'cre-pnl-expense-outpacing',
+    ],
+    documentCategories: ['PROPERTY_CONDITION_REPORT', 'ENVIRONMENTAL_REPORT'],
     // Income property values on NOI ÷ cap rate (T-059), with a DCF of the rollover schedule alongside.
     valuationMethods: ['NOI_CAP_RATE', 'DCF'],
   },

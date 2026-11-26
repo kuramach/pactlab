@@ -27,7 +27,7 @@ EXPORT_LABELS = {
     'timesheets-summary': 'Timesheets summary', 'headcount-movements': 'Headcount movements',
     'patent-schedule': 'Patent schedule', 'pipeline': 'Pipeline',
     'orders-by-cohort': 'Orders by cohort', 'ad-spend': 'Ad spend',
-    'cam-reconciliation': 'CAM reconciliation',
+    'cam-reconciliation': 'CAM reconciliation', 'capex-schedule': 'Capex schedule',
     'operating-history': 'Operating history', 'str-benchmark': 'STR benchmark',
     'patient-volume': 'Patient volume', 'equipment-schedule': 'Equipment schedule', 'coding-summary': 'Coding summary',
     'census': 'Census', 'payer-mix': 'Payer mix',
@@ -42,6 +42,7 @@ DOCUMENT_RULES = [
     ('spv-operating-agreement', ('06 Vehicle', 'SPV operating agreement')), ('spv-investor-summary', ('06 Vehicle', 'SPV investor summary')),
     ('side-letter', ('06 Vehicle', 'Side letter')), ('form-d', ('06 Vehicle', 'Form D filing')),
     ('balance-sheet', ('04 Legal', 'Balance sheet')),          # deliberately misfiled
+    ('property-condition', ('03 Commercial/Property', 'Property condition report')),
     ('lease', ('03 Commercial/Leases', 'Lease')),
     ('loan', ('04 Legal', 'Loan agreement')), ('facility', ('04 Legal', 'Loan agreement')), ('credit', ('04 Legal', 'Loan agreement')),
     ('contractor', ('03 Commercial/Suppliers', 'Supplier contract')), ('supplier', ('03 Commercial/Suppliers', 'Supplier contract')),

@@ -93,6 +93,8 @@ The source plan then adds **Industry data** (`pack_upload` connections) automati
 
 - **One draft per independent signal (T-164).** A trend that reads two imports (the orders export and the P&L) drafts each part on its own key: rules run after every import, and a combined draft keyed on what was present at the time is left stale when the second import arrives.
 
+- **Read text copies too (T-165).** The data-room zip also delivers a document's text copy, chunked into pages at arbitrary points: recognise a heading at sentence level, not only at the top of a page, and never let a sentence run across a `---page---` marker. Rules run after every import, and an early run may see only the copy.
+
 ## 9. Extending a parent pack (small clinics on healthcare, T-161)
 
 - **By reference:** list the parent's import targets and rule ids in the child's registry entry; never copy a rule. The parent's tab may open for the child too (`DEAL_SECTION_RULES`), with only what differs (e.g. the P&L key expenses) chosen per pack.

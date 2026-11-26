@@ -25,7 +25,7 @@ describe('demo organization (batch 2)', () => {
   let first: string[] = [];
   const demoData = generatedDemoData();
   const rows = async (sql: string, params: unknown[] = []) => ((await db.owner.query(sql, params)) as { rows: Row[] }).rows;
-  const types = ['SOFTWARE_SAAS', 'MULTIFAMILY', 'VENTURE_RAISE', 'MULTIFAMILY_SYNDICATION', 'MUSIC_RIGHTS', 'ENERGY_GENERATION', 'STARTUP_SPV', 'FINTECH', 'HEALTHCARE', 'SMALL_CLINICS', 'PHARMA_BIOTECH', 'ECOMMERCE_DTC'] as const;
+  const types = ['SOFTWARE_SAAS', 'MULTIFAMILY', 'VENTURE_RAISE', 'MULTIFAMILY_SYNDICATION', 'MUSIC_RIGHTS', 'ENERGY_GENERATION', 'STARTUP_SPV', 'FINTECH', 'HEALTHCARE', 'SMALL_CLINICS', 'PHARMA_BIOTECH', 'ECOMMERCE_DTC', 'COMMERCIAL_PROPERTY'] as const;
   const run = (reset = false, only: readonly (typeof types)[number][] = types) => runDemoOrg(app as never, db.owner as never, db.prisma, { types: only, reset, data: demoData.source });
 
   beforeAll(async () => {
@@ -114,7 +114,7 @@ describe('demo organization (batch 2)', () => {
     expect(await count('deal_memberships', teaser.id, `AND role = 'BIDDER'`)).toBe(3);
     expect(await rows(`SELECT scope, status FROM report_versions WHERE organization_id = $1 AND scope <> 'IC' ORDER BY scope`, [DEMO_ORG.id])).toEqual([{ scope: 'EXECUTIVE', status: 'READY' }, { scope: 'PACT', status: 'READY' }]);
     // Each buyer-led acquisition pact has its committee pack (T-124 demo coverage).
-    expect((await rows(`SELECT count(*)::int AS n FROM report_versions WHERE organization_id = $1 AND scope = 'IC'`, [DEMO_ORG.id]))[0]).toEqual({ n: 20 });
+    expect((await rows(`SELECT count(*)::int AS n FROM report_versions WHERE organization_id = $1 AND scope = 'IC'`, [DEMO_ORG.id]))[0]).toEqual({ n: 22 });
     // The syndication pact reads its offering, and the seller sees none of the sponsor's offering documents (T-106).
     const syndication = await deal(pactName('MULTIFAMILY_SYNDICATION'));
     expect(await count('syndication_offerings', syndication.id)).toBe(1);
@@ -178,6 +178,19 @@ describe('demo organization (batch 2)', () => {
       'Contribution margin compressing every year, 2023–2025',
     ]) {
       expect(await count('findings', ecommerce.id, `AND title = '${title}'`), title).toBe(1);
+    }
+    // The commercial-property pact imports the rent roll, the capex schedule and three years of P&L; the planted defects are drafted (T-165).
+    const property = await deal(pactName('COMMERCIAL_PROPERTY'));
+    expect(await count('evidence_items', property.id, `AND evidence_type = 'cre.capex_item'`)).toBe(4);
+    expect(await count('evidence_items', property.id, `AND evidence_type = 'finance.pnl_line'`)).toBe(30);
+    for (const title of [
+      'Rent roll overstates rent: Pellham Engineering (synthetic)',
+      'Rent roll overstates rent: Teal Harbor Software (synthetic)',
+      'Lease-expiry cliff: Corvane Logistics (synthetic) (41.0% of rent) expires in year 1 of the hold',
+      'NNN recoveries short of the leases every year, 2023–2025',
+      'Condition item missing from the capex schedule: Roof',
+    ]) {
+      expect(await count('findings', property.id, `AND title = '${title}'`), title).toBe(1);
     }
     // The SPV seats its investors, runs its checks and publishes the investor view; the startup sees none of the vehicle's papers (T-141).
     const spv = await deal(pactName('STARTUP_SPV'));

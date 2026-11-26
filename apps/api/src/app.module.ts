@@ -60,6 +60,7 @@ import { HealthcareModule } from './healthcare/healthcare.module';
 import { ClinicsModule } from './clinics/clinics.module';
 import { PharmaModule } from './pharma/pharma.module';
 import { EcommerceModule } from './ecommerce/ecommerce.module';
+import { CommercialPropertyModule } from './commercial-property/commercial-property.module';
 import { SpvModule } from './spv/spv.module';
 import { BrandModule } from './brand/brand.module';
 import { FeatureCardsModule } from './feature-cards/feature-cards.module';
@@ -336,6 +337,8 @@ export class AppModule {
         PharmaModule,
         // E-commerce and DTC (T-164): the read-only Channels page; its checks run through Findings.
         EcommerceModule,
+        // Commercial property (T-165): the read-only Leases page; its checks run through Findings.
+        CommercialPropertyModule,
         // Startup equity SPV (T-141): investors are invited to their seats through the invitations module.
         SpvModule.register(invitations),
         reportsModule,

@@ -61,6 +61,8 @@ export const DEAL_SECTION_RULES: Readonly<Record<string, (context: SectionContex
   '/pharma': (context) => context.companyType === 'PHARMA_BIOTECH',
   // An e-commerce or DTC brand (T-164): channel revenue, unit economics on a contribution basis, platform-account ownership, returns and stock age.
   '/ecommerce': (context) => context.companyType === 'ECOMMERCE_DTC',
+  // A commercial property (T-165): rent, escalations and expiries against the leases, recoveries, obligations, the expiry cliff and condition items.
+  '/leases': (context) => context.companyType === 'COMMERCIAL_PROPERTY',
   // A pooled vehicle (T-141): the round checks, the vehicle economics, side letters, investor seats and the published investor view.
   '/spv': (context) => context.companyType === 'STARTUP_SPV',
   '/valuation': everywhere,
