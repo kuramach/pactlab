@@ -73,7 +73,8 @@ export interface RuleProposal {
 
 export interface RuleClaim {
   readonly statement: string;
-  readonly status: 'VERIFIED' | 'CONTRADICTED';
+  /** UNVERIFIED: the claim has no underlying document or record to check it against (a gap, T-141). */
+  readonly status: 'VERIFIED' | 'CONTRADICTED' | 'UNVERIFIED';
   readonly rationale: string;
 }
 

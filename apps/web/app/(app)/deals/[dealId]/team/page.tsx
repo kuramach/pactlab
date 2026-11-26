@@ -39,6 +39,7 @@ const ROLE_TEXT: Record<(typeof DEAL_ROLES)[number], { label: string; detail: st
   TARGET_CONTRIBUTOR: { label: 'Target contributor', detail: 'From the seller: supplies data and sees only what is shared with them.' },
   BIDDER: { label: 'Bidder', detail: 'From a bidding firm: sees the shared view and their own bid only — never other bidders.' },
   INVESTMENT_COMMITTEE: { label: 'Investment committee', detail: 'Reads the deal and its analysis, and decides the investment committee pack. Changes nothing else.' },
+  INVESTOR: { label: 'Investor', detail: 'Seated in the vehicle: sees their own seat and the published investor view only — never other investors.' },
 };
 
 /** Who works on this deal, with which role — and adding colleagues. */

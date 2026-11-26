@@ -71,6 +71,7 @@ const SECTOR: Readonly<Record<PackId, ForesightMetric>> = {
   MULTIFAMILY_SYNDICATION: sector('market_rent_growth', 'Market rent growth', 'Rents reset to market as leases turn over.', '3', '0.75'),
   MUSIC_RIGHTS: sector('streaming_revenue_growth', 'Recorded-music streaming revenue growth', 'Streaming payouts drive most catalog royalties; their growth offsets catalog decay.', '6'),
   ENERGY_GENERATION: sector('energy_price_change', 'Wholesale power and oil & gas price change', 'Merchant power and commodity prices set the revenue not under contract.', '0', '0.75'),
+  STARTUP_SPV: sector('vc_funding_growth', 'Venture funding growth', 'How much capital investors deploy sets the next round, and so the vehicle’s exit paths.', '0', '0.25'),
   VENTURE_RAISE: sector('vc_funding_growth', 'Venture funding growth', 'How much capital investors deploy sets round sizes and prices.', '0', '0.25'),
 };
 

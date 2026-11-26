@@ -20,16 +20,21 @@ export const DEAL_ROLES = [
   'BIDDER',
   /** The buyer organization's investment committee on this pact (T-118, ADR 0029): reads, and decides the IC pack. */
   'INVESTMENT_COMMITTEE',
+  /**
+   * An investor seated in a pooled vehicle (T-141, ADR 0044): reads their own seat and the
+   * organizer's published investor view, nothing else; never sees another investor.
+   */
+  'INVESTOR',
 ] as const;
 export type DealRole = (typeof DEAL_ROLES)[number];
 
 /**
  * The other party on a pact: the seller's contributor on a buyer-led pact,
- * or a bidder on a seller-led one. Never the pact's own side, so never
- * shown the owner's confidential analysis.
+ * a bidder on a seller-led one, or an investor seated in a vehicle (T-141).
+ * Never the pact's own side, so never shown the owner's confidential analysis.
  */
 export function isCounterpartyRole(role: DealRole): boolean {
-  return role === 'TARGET_CONTRIBUTOR' || role === 'BIDDER';
+  return role === 'TARGET_CONTRIBUTOR' || role === 'BIDDER' || role === 'INVESTOR';
 }
 
 export const PERMISSIONS = [
@@ -55,6 +60,8 @@ const DEAL_ROLE_PERMISSIONS: Record<DealRole, readonly Permission[]> = {
   BIDDER: ['DEAL_READ'],
   // The committee reads the buyer's analysis and decides; it changes nothing else (T-118).
   INVESTMENT_COMMITTEE: ['DEAL_READ', 'EVIDENCE_READ', 'BUYER_ANALYSIS_READ'],
+  // An investor reads their own seat and the published investor view; no evidence (T-141).
+  INVESTOR: ['DEAL_READ'],
 };
 
 const ORGANIZATION_ROLE_PERMISSIONS: Record<TenantOrganizationRole, readonly Permission[]> = {

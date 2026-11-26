@@ -54,6 +54,7 @@ import { QoeModule } from './qoe/qoe.module';
 import { SyndicationModule } from './syndication/syndication.module';
 import { MusicModule } from './music/music.module';
 import { EnergyModule } from './energy/energy.module';
+import { SpvModule } from './spv/spv.module';
 import { BrandModule } from './brand/brand.module';
 import { FeatureCardsModule } from './feature-cards/feature-cards.module';
 import { EmailEventsModule } from './email-events/email-events.module';
@@ -307,6 +308,8 @@ export class AppModule {
         MusicModule.register({ documents: documentsModule }),
         // Energy generation & rights (T-142): report extraction runs through the documents module.
         EnergyModule.register({ documents: documentsModule }),
+        // Startup equity SPV (T-141): investors are invited to their seats through the invitations module.
+        SpvModule.register(invitations),
         reportsModule,
         IcModule.register({ reports: reportsModule }),
         BrandModule.register({ store: deps.documents?.objectStore ?? new UnavailableObjectStore(), fetcher: deps.webFetcher ?? new HttpsWebFetcher() }),

@@ -17,7 +17,7 @@ export const PACK_IDS = COMPANY_TYPES.filter((type): type is PackId => type !== 
 export type PackCluster = 'technology' | 'healthcare' | 'real-estate' | 'services' | 'life-sciences' | 'consumer' | 'capital' | 'media-rights' | 'energy';
 
 /** Calculator ids in `@pactlab/calculations` (`metricCalculator`). */
-export const METRIC_CALCULATOR_IDS = ['saas-metrics', 'multifamily-metrics', 'music-royalties', 'energy-assets'] as const;
+export const METRIC_CALCULATOR_IDS = ['saas-metrics', 'multifamily-metrics', 'music-royalties', 'energy-assets', 'spv-round'] as const;
 export type MetricCalculatorId = (typeof METRIC_CALCULATOR_IDS)[number];
 
 /** Valuation method ids in `@pactlab/calculations` (`VALUATION_METHODS`). */
@@ -73,6 +73,24 @@ const MULTIFAMILY: PackDefinition = {
   metricCalculator: 'multifamily-metrics',
   findingRules: ['multifamily-om-noi', 'multifamily-deferred-maintenance', 'multifamily-delinquency-concentration', 'multifamily-loss-to-lease'],
   valuationMethods: ['NOI_CAP_RATE', 'DCF'],
+};
+
+// Founder-side (T-083): the founder's own startup is the seller; investors are the counterparty.
+const VENTURE_RAISE: PackDefinition = {
+  ...pack('VENTURE_RAISE', 'venture-raise', 'capital', true),
+  importTargets: ['BILLING_INVOICE_LINE', 'VENTURE_CAP_TABLE', 'VENTURE_FINANCIALS'],
+  findingRules: [
+    'venture-deck-metric',
+    'venture-ip-assignment',
+    'venture-cap-table-record',
+    'venture-safe-stack',
+    'venture-runway-short',
+    'venture-missing-83b',
+    'venture-undisclosed-concentration',
+    'venture-term-variance',
+  ],
+  // The round is the price: the founder's ask, adjusted by what the evidence forces.
+  valuationMethods: ['ROUND_PRE_MONEY', 'ARR_MULTIPLE'],
 };
 
 export const PACKS: Readonly<Record<PackId, PackDefinition>> = {
@@ -148,23 +166,7 @@ export const PACKS: Readonly<Record<PackId, PackDefinition>> = {
     findingRules: ['hospitals-payer-concentration', 'hospitals-accreditation-transfer', 'hospitals-physician-dependence', 'hospitals-regulatory-capex', 'healthcare-director-fee', 'healthcare-privacy-assessment'],
     valuationMethods: ['PAYER_MIX_EBITDA', 'DCF'],
   },
-  // Founder-side (T-083): the founder's own startup is the seller; investors are the counterparty.
-  VENTURE_RAISE: {
-    ...pack('VENTURE_RAISE', 'venture-raise', 'capital', true),
-    importTargets: ['BILLING_INVOICE_LINE', 'VENTURE_CAP_TABLE', 'VENTURE_FINANCIALS'],
-    findingRules: [
-      'venture-deck-metric',
-      'venture-ip-assignment',
-      'venture-cap-table-record',
-      'venture-safe-stack',
-      'venture-runway-short',
-      'venture-missing-83b',
-      'venture-undisclosed-concentration',
-      'venture-term-variance',
-    ],
-    // The round is the price: the founder's ask, adjusted by what the evidence forces.
-    valuationMethods: ['ROUND_PRE_MONEY', 'ARR_MULTIPLE'],
-  },
+  VENTURE_RAISE,
   // Sponsor-side (T-106): the Multifamily pack by reference — its targets, calculator, rules and
   // methods flow through unchanged — plus the offering: the sponsor's track record and the PPM,
   // operating agreement and investor deck the offering checks read.
@@ -237,6 +239,20 @@ export const PACKS: Readonly<Record<PackId, PackDefinition>> = {
       },
     },
     documentCategories: ['TITLE_OPINION', 'OIL_GAS_LEASE', 'DIVISION_ORDER', 'RESERVE_REPORT', 'POWER_PURCHASE_AGREEMENT', 'ENVIRONMENTAL_REPORT'],
+  },
+  // An organizer pools investors into one vehicle for one startup round (T-141, ADR 0044). The
+  // startup's evidence is Venture Raise's by reference (billing, the cap table with its SAFEs and
+  // notes, monthly cash and burn); the pack adds the round-math, claims, vehicle-economics,
+  // side-letter and Form D checks, and the vehicle's documents. Seats, accreditation and the
+  // published investor view live on the SPV tab.
+  STARTUP_SPV: {
+    ...pack('STARTUP_SPV', 'startup-spv', 'capital', true),
+    importTargets: VENTURE_RAISE.importTargets,
+    metricCalculator: 'spv-round',
+    findingRules: ['spv-cap-table-math', 'spv-instrument-terms', 'spv-round-claims', 'spv-fee-carry', 'spv-side-letters', 'spv-form-d'],
+    // The vehicle buys in at the round's price; the round's pre-money is the price it pays for its line.
+    valuationMethods: ['ROUND_PRE_MONEY', 'ARR_MULTIPLE'],
+    documentCategories: ['ROUND_SUMMARY', 'CONVERTIBLE_INSTRUMENT', 'SPV_OPERATING_AGREEMENT', 'SPV_INVESTOR_SUMMARY', 'SIDE_LETTER', 'FORM_D'],
   },
 };
 

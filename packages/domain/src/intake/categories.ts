@@ -49,6 +49,14 @@ export type OfferingCategory = (typeof OFFERING_CATEGORIES)[number];
 export const MUSIC_CATEGORIES = ['ROYALTY_STATEMENT', 'SPLIT_SHEET', 'PUBLISHING_AGREEMENT', 'COPYRIGHT_RECORD', 'LIEN_SEARCH'] as const;
 export type MusicCategory = (typeof MUSIC_CATEGORIES)[number];
 /**
+ * A startup equity SPV (T-141) reads two sets of documents: the startup's round (the round
+ * summary or deck, the signed SAFEs and notes) and the vehicle's own (the operating agreement,
+ * the investor-facing summary, side letters and the Form D). The SPV page and the pack checks
+ * read them; nothing in them is shared with investors except what the organizer publishes.
+ */
+export const SPV_CATEGORIES = ['ROUND_SUMMARY', 'CONVERTIBLE_INSTRUMENT', 'SPV_OPERATING_AGREEMENT', 'SPV_INVESTOR_SUMMARY', 'SIDE_LETTER', 'FORM_D'] as const;
+export type SpvCategory = (typeof SPV_CATEGORIES)[number];
+/**
  * An energy package (T-142) is diligenced from its title opinions, leases, division orders,
  * third-party reserve reports, power purchase agreements and environmental reports and permits.
  * Their entries are read on the Assets page for a person to confirm.
@@ -56,7 +64,7 @@ export type MusicCategory = (typeof MUSIC_CATEGORIES)[number];
 export const ENERGY_CATEGORIES = ['TITLE_OPINION', 'OIL_GAS_LEASE', 'DIVISION_ORDER', 'RESERVE_REPORT', 'POWER_PURCHASE_AGREEMENT', 'ENVIRONMENTAL_REPORT'] as const;
 export type EnergyCategory = (typeof ENERGY_CATEGORIES)[number];
 /** Every category a pack may add on top of the common ones. */
-export type PackDocumentCategory = OfferingCategory | MusicCategory | EnergyCategory;
+export type PackDocumentCategory = OfferingCategory | MusicCategory | EnergyCategory | SpvCategory;
 
 export type DocumentCategory = (typeof DOCUMENT_CATEGORIES)[number] | PackDocumentCategory;
 
@@ -245,6 +253,49 @@ const DOCUMENT_DEFINITIONS: Readonly<Record<DocumentCategory, CategoryDefinition
     id: 'ENVIRONMENTAL_REPORT',
     label: 'Environmental report or permit',
     description: 'An environmental site assessment, closure or remediation plan, decommissioning study, permit, consent decree or emissions compliance record.',
+    route: { kind: 'FILE' },
+    people: false,
+  },
+  // Startup equity SPV documents (T-141): kept and listed; the SPV checks read their pages.
+  ROUND_SUMMARY: {
+    id: 'ROUND_SUMMARY',
+    label: 'Round summary or deck',
+    description: 'A startup\'s round summary, term sheet or pitch deck: the round size, price, valuation, traction, runway and prior-round terms it states.',
+    route: { kind: 'FILE' },
+    people: false,
+  },
+  CONVERTIBLE_INSTRUMENT: {
+    id: 'CONVERTIBLE_INSTRUMENT',
+    label: 'SAFE or convertible note',
+    description: 'A signed SAFE or convertible note: its principal, valuation cap, discount, most-favoured-nation and pro-rata terms.',
+    route: { kind: 'FILE' },
+    people: false,
+  },
+  SPV_OPERATING_AGREEMENT: {
+    id: 'SPV_OPERATING_AGREEMENT',
+    label: 'SPV operating agreement',
+    description: 'The vehicle\'s operating or limited partnership agreement: management fee, carried interest, expenses, the organizer\'s commitment and the offering exemption.',
+    route: { kind: 'FILE' },
+    people: false,
+  },
+  SPV_INVESTOR_SUMMARY: {
+    id: 'SPV_INVESTOR_SUMMARY',
+    label: 'SPV investor summary',
+    description: 'The summary of terms or subscription summary investors are given: the fee, carry and expenses as presented to them, and any side letters disclosed.',
+    route: { kind: 'FILE' },
+    people: false,
+  },
+  SIDE_LETTER: {
+    id: 'SIDE_LETTER',
+    label: 'Side letter',
+    description: 'A side letter granting one investor different terms: a fee waiver, a different carry, information or co-investment rights.',
+    route: { kind: 'FILE' },
+    people: false,
+  },
+  FORM_D: {
+    id: 'FORM_D',
+    label: 'Form D filing',
+    description: 'The SEC Form D notice of exempt offering for the vehicle, or its filing confirmation.',
     route: { kind: 'FILE' },
     people: false,
   },

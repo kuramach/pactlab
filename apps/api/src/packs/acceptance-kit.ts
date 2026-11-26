@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { addSyntheticDealMember, createSyntheticTenant, startTestDatabase, type SyntheticTenant, type TestDatabase } from '@pactlab/db/testing';
-import { IMPORT_TARGET_DEFINITIONS, PACK_IDS, PACKS, type PackId } from '@pactlab/domain';
+import { IMPORT_TARGET_DEFINITIONS, newId, PACK_IDS, PACKS, type PackId } from '@pactlab/domain';
 import type { ClaudeGateway } from '@pactlab/ai';
 import { createLogger } from '@pactlab/observability';
 import { createLocalJWKSet, exportJWK, generateKeyPair, SignJWT, type CryptoKey } from 'jose';
@@ -37,6 +37,14 @@ export interface AcceptanceDeal {
   /** Uploaded documents by PDF file name. */
   readonly documents: Readonly<Record<string, string>>;
   call(method: 'GET' | 'POST' | 'PATCH' | 'PUT', url: string, who: string, payload?: unknown): Promise<{ status: number; body: Body }>;
+  /**
+   * Seat one more person on the pact under `name` (an investor names their seat, T-141). Like the
+   * bidder tests, an organization member holding only that deal role: RLS for real guests is proven in
+   * packages/db (spv.test.ts); here the API's role checks and the data layer's wall are what is tested.
+   */
+  addPerson(name: string, role: 'INVESTOR' | 'VIEWER', options?: { investorId?: string }): Promise<string>;
+  /** The schema owner's query, for assertions that must read past RLS. */
+  ownerQuery(sql: string, params?: unknown[]): Promise<{ rows: Record<string, unknown>[] }>;
   close(): Promise<void>;
 }
 
@@ -128,10 +136,22 @@ export async function startAcceptanceDeal(packId: PackId, currency: string, opti
     documents[file.replace(/\.md$/, '.pdf')] = uploaded.body['id'] as string;
   }
 
+  const addPerson: AcceptanceDeal['addPerson'] = async (name, role, extra = {}) => {
+    const userId = newId();
+    const subject = `auth0|${name}-${userId.slice(-6)}`;
+    await db.owner.query(`INSERT INTO users (id, auth0_subject, display_name, email) VALUES ($1, $2, $3, $4)`, [userId, subject, `${name} (synthetic)`, `${name}@example.test`]);
+    await db.owner.query(`INSERT INTO organization_memberships (id, organization_id, user_id, role) VALUES ($1, $2, $3, 'MEMBER')`, [newId(), a.organizationId, userId]);
+    await db.owner.query(`INSERT INTO deal_memberships (id, organization_id, deal_id, user_id, role, investor_id) VALUES ($1, $2, $3, $4, $5, $6)`, [newId(), a.organizationId, dealId, userId, role, extra.investorId ?? null]);
+    tokens[name] = await token(subject, a.auth0OrganizationId);
+    return userId;
+  };
+
   return {
     app,
     dealId,
     folder,
+    addPerson,
+    ownerQuery: async (sql, params = []) => (await db.owner.query(sql, params)) as { rows: Record<string, unknown>[] },
     readme: readFileSync(join(folder, 'README.md'), 'utf8'),
     documents,
     call,

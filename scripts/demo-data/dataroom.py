@@ -37,6 +37,10 @@ COMMERCIAL_RENT_ROLL = {'commercial-property'}
 
 # Document name keywords → (folder, category label intake should settle on). First match wins.
 DOCUMENT_RULES = [
+    # A startup equity SPV (T-141): the round's documents and the vehicle's own, by the pack's categories.
+    ('round-summary', ('01 Corporate', 'Round summary or deck')), ('safe-1', ('01 Corporate', 'SAFE or convertible note')),
+    ('spv-operating-agreement', ('06 Vehicle', 'SPV operating agreement')), ('spv-investor-summary', ('06 Vehicle', 'SPV investor summary')),
+    ('side-letter', ('06 Vehicle', 'Side letter')), ('form-d', ('06 Vehicle', 'Form D filing')),
     ('balance-sheet', ('04 Legal', 'Balance sheet')),          # deliberately misfiled
     ('lease', ('03 Commercial/Leases', 'Lease')),
     ('loan', ('04 Legal', 'Loan agreement')), ('facility', ('04 Legal', 'Loan agreement')), ('credit', ('04 Legal', 'Loan agreement')),

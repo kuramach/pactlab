@@ -41,6 +41,7 @@ import { demoModelResponse } from '../demo-seed/seed';
 import { SyndicationService } from '../syndication/syndication.service';
 import { MusicService } from '../music/music.service';
 import { EnergyService } from '../energy/energy.service';
+import { SpvService } from '../spv/spv.service';
 import { DocumentsService } from '../documents/documents.service';
 import { FileSystemObjectStore } from '../documents/storage-adapters';
 import { SignatureMalwareScanner } from '../documents/upload-policy';
@@ -102,10 +103,12 @@ const LABELS: Readonly<Record<string, string>> = {
   MULTIFAMILY_SYNDICATION: 'Multifamily syndication',
   MUSIC_RIGHTS: 'Music rights',
   ENERGY_GENERATION: 'Energy generation & rights',
+  STARTUP_SPV: 'Startup equity SPV',
 };
 export const pactName = (type: CompanyType, closed = false) => `${LABELS[type] ?? type} demo${closed ? ', closed' : ''} (synthetic)`;
-/** A raise has no buyer terms or close, so it gets one pact; every other pack gets a second, closed one for Post-Close. */
-export const pactVariants = (type: CompanyType): readonly boolean[] => (type === 'VENTURE_RAISE' ? [false] : [false, true]);
+/** A raise or an SPV has no buyer terms or close, so it gets one pact; every other pack gets a second, closed one for Post-Close. */
+const ROUND_PACTS: readonly CompanyType[] = ['VENTURE_RAISE', 'STARTUP_SPV'];
+export const pactVariants = (type: CompanyType): readonly boolean[] => (ROUND_PACTS.includes(type) ? [false] : [false, true]);
 const SELLER_LED = 'Multifamily for sale demo (synthetic)';
 /** T-127: engineering diligence on a real open-source codebase. Not synthetic, not live: recorded once. */
 export const KAFKA_PACT = 'Apache Kafka engineering demo (real public data)';
@@ -122,6 +125,9 @@ function scenarios(type: CompanyType, pricedFindingIds: readonly string[]) {
         ? { method: 'NOI_CAP_RATE' as const, noi: '3200000', capRate: ['0.0675', '0.06', '0.055'][index] as string }
         : type === 'VENTURE_RAISE'
           ? { method: 'ROUND_PRE_MONEY' as const, preMoney: ['20000000', '25000000', '30000000'][index] as string }
+          : type === 'STARTUP_SPV'
+            ? // The round the vehicle buys into, around its stated pre-money.
+              { method: 'ROUND_PRE_MONEY' as const, preMoney: ['7000000', '8000000', '9000000'][index] as string }
           : type === 'MUSIC_RIGHTS'
             ? // A royalty multiple on the catalog's decay-adjusted income (shown on the Catalog tab).
               { method: 'ARR_MULTIPLE' as const, arr: '630000', multiple: ['12', '14', '16'][index] as string }
@@ -129,7 +135,7 @@ function scenarios(type: CompanyType, pricedFindingIds: readonly string[]) {
               ? // Capacity value: the plant's 600 MW as kW × a price per kW (shown on the Assets tab).
                 { method: 'ARR_MULTIPLE' as const, arr: '600000', multiple: ['150', '200', '250'][index] as string }
               : { method: 'ARR_MULTIPLE' as const, arr: '12000000', multiple: ['4', '5', '6'][index] as string },
-      bridge: type === 'VENTURE_RAISE' ? { cash: '0', debt: '0', debtLikeItems: '0', workingCapitalAdjustment: '0' } : bridge,
+      bridge: ROUND_PACTS.includes(type) ? { cash: '0', debt: '0', debtLikeItems: '0', workingCapitalAdjustment: '0' } : bridge,
       stockConsiderationShare: '0',
       // Accepted priced risks move each case: the downside takes their high price, the upside their low.
       findingLinks: pricedFindingIds.map((findingId) => ({ findingId, point: (['HIGH', 'MID', 'LOW'] as const)[index] as 'LOW' | 'MID' | 'HIGH' })),
@@ -197,6 +203,27 @@ async function energy(app: App, buyer: TenantContext, dealId: string, uploaded: 
   for (const item of proposed.items) await service.decide(buyer, dealId, item.id, { decision: 'CONFIRM' }, REQUEST_ID);
   const checks = await service.runChecks(buyer, dealId, REQUEST_ID);
   return `energy: ${proposed.items.length} register entries confirmed, ${checks.created} energy drafts`;
+}
+
+/**
+ * A startup equity SPV (T-141): the vehicle and its exit paths, five investor seats (one only
+ * self-certified in a 506(c) vehicle, the planted accreditation gap), the SPV checks, and version 1
+ * of the published investor view. The seats are the demo data's, by pseudonymous reference.
+ */
+const SPV_SEATS = [
+  ['INV-01', 'Marlowe Family Office (synthetic)', '600000', 'THIRD_PARTY_VERIFIED'],
+  ['INV-02', 'Pinecrest Angels LLC (synthetic)', '500000', 'THIRD_PARTY_VERIFIED'],
+  ['INV-03', 'Quayle Partners (synthetic)', '450000', 'THIRD_PARTY_VERIFIED'],
+  ['INV-04', 'Rowan Okafor (synthetic)', '250000', 'SELF_CERTIFIED'],
+  ['INV-05', 'Sable Point Capital (synthetic)', '150000', 'THIRD_PARTY_VERIFIED'],
+] as const;
+async function spvVehicle(app: App, buyer: TenantContext, dealId: string): Promise<string> {
+  const service = app.get(SpvService, { strict: false });
+  await service.saveVehicle(buyer, dealId, { vehicleName: 'Halyard Lumen Seed SPV LLC (synthetic)', downsideMultiple: '0.5', baseMultiple: '3', upsideMultiple: '10' }, REQUEST_ID);
+  for (const [reference, label, commitment, accreditationStatus] of SPV_SEATS) await service.addSeat(buyer, dealId, { reference, label, commitment, accreditationStatus }, REQUEST_ID);
+  const checks = await service.runChecks(buyer, dealId, REQUEST_ID);
+  const published = await service.publish(buyer, dealId, REQUEST_ID);
+  return `spv: ${SPV_SEATS.length} seats, ${checks.created} SPV drafts, investor view v${published.version} published`;
 }
 
 /** The schema owner's session: a pg client when deployed, PGlite in tests. */
@@ -340,7 +367,8 @@ export async function buildPact(app: App, owner: OwnerSession, people: People, t
 
   // The data room: one zip, unpacked and sorted by the intake; shared so the seller sees the documents too.
   // A syndication's room holds the sponsor's PPM, agreement and deck: the seller never sees the raise (T-106).
-  const wall = type === 'MULTIFAMILY_SYNDICATION';
+  // An SPV's room holds the vehicle's papers and side letters: the startup never sees them (T-141).
+  const wall = type === 'MULTIFAMILY_SYNDICATION' || type === 'STARTUP_SPV';
   const zip = await data.file(type, 'dataroom.zip');
   await documents.uploadArchive(buyer, dealId, { fileName: 'dataroom.zip', contentBase64: zip.toString('base64'), retentionClass: 'DEAL_TERM', dataClass: 'BUSINESS', aiExcluded: false, shared: !wall }, REQUEST_ID);
 
@@ -399,7 +427,7 @@ export async function buildPact(app: App, owner: OwnerSession, people: People, t
   }
 
   // After the accept loop, so the offering's planted defects stay drafts for the viewer to review.
-  if (wall) await step('syndication', () => syndication(app, buyer, dealId, data, uploaded));
+  if (type === 'MULTIFAMILY_SYNDICATION') await step('syndication', () => syndication(app, buyer, dealId, data, uploaded));
   if (type === 'MUSIC_RIGHTS') await step('catalog', () => catalog(app, buyer, dealId, uploaded));
   if (type === 'ENERGY_GENERATION') await step('energy', () => energy(app, buyer, dealId, uploaded));
   await step('claims', () => claims(app, buyer, dealId, pricedIds));
@@ -411,6 +439,10 @@ export async function buildPact(app: App, owner: OwnerSession, people: People, t
   if (type === 'VENTURE_RAISE') {
     await step('raise', () => raise(app, buyer, dealId));
     return `${name}: data room, ${accepted} findings accepted, scenarios (a raise has no buyer terms); ${done.join('; ')}`;
+  }
+  if (type === 'STARTUP_SPV') {
+    await step('spv', () => spvVehicle(app, buyer, dealId));
+    return `${name}: data room, ${accepted} findings accepted, scenarios (an SPV has no acquisition terms); ${done.join('; ')}`;
   }
   await step('sextant', () => sextant(app, buyer, dealId));
   await pricing.evaluate(buyer, dealId, { persona: 'VALUE_INVESTOR' }, REQUEST_ID);

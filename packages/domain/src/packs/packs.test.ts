@@ -9,9 +9,9 @@ import { PACK_IDS, PACKS, packFor } from './registry';
 describe('pack registry', () => {
   it('has one pack per company type except OTHER, each with unique slugs', () => {
     expect([...PACK_IDS].sort()).toEqual(COMPANY_TYPES.filter((type) => type !== 'OTHER').sort());
-    expect(PACK_IDS).toHaveLength(16);
+    expect(PACK_IDS).toHaveLength(17);
     const slugs = PACK_IDS.map((id) => PACKS[id].slug);
-    expect(new Set(slugs).size).toBe(16);
+    expect(new Set(slugs).size).toBe(17);
     for (const id of PACK_IDS) expect(PACKS[id].id).toBe(id);
   });
 
@@ -52,6 +52,14 @@ describe('pack registry', () => {
     for (const target of energy.importTargets.slice(1)) expect(IMPORT_TARGET_DEFINITIONS[target].refusesPeopleColumns, target).toBe(true);
     expect(peopleColumnProblems(IMPORT_TARGET_DEFINITIONS.ENERGY_LEASES, ['lease_id', 'lessor_ref', 'net_acres', 'royalty_rate', 'held_by_production'])).toEqual([]);
     expect(peopleColumnProblems(IMPORT_TARGET_DEFINITIONS.ENERGY_LEASES, ['lease_id', 'full_name', 'net_acres'])).toHaveLength(1);
+  });
+
+  it('Startup equity SPV reads the startup by reference to Venture Raise and adds the vehicle checks (T-141)', () => {
+    const spv = PACKS.STARTUP_SPV;
+    expect(spv).toMatchObject({ slug: 'startup-spv', label: 'Startup equity SPV', cluster: 'capital', metricCalculator: 'spv-round', built: true });
+    expect(spv.importTargets).toBe(PACKS.VENTURE_RAISE.importTargets);
+    expect(spv.findingRules).toHaveLength(6);
+    expect(spv.documentCategories).toEqual(expect.arrayContaining(['SIDE_LETTER', 'FORM_D', 'SPV_OPERATING_AGREEMENT']));
   });
 
   it('every pack offers billing first, and only targets that exist (rule ids resolve in the API test)', () => {

@@ -61,7 +61,8 @@ const PROPERTY: readonly CompanyType[] = ['MULTIFAMILY', 'COMMERCIAL_PROPERTY', 
  * base case (ARR 12M × 5 = 60M; NOI 3.2M ÷ 6% ≈ 53.3M), as asks usually are. A raise has none.
  */
 export function demoAskingPrice(type: CompanyType) {
-  if (type === 'VENTURE_RAISE') return null;
+  // A round has no asking price: the raise sets its own, and an SPV buys in at the round's stated pre-money (T-141).
+  if (type === 'VENTURE_RAISE' || type === 'STARTUP_SPV') return null;
   return {
     amount: PROPERTY.includes(type) ? '58500000' : '66000000',
     currency: 'USD',
@@ -95,10 +96,10 @@ export async function screen(app: App, buyer: TenantContext, dealId: string, typ
     dealId,
     screeningInputSchema.parse({
       intakeNotes: 'Teaser and headline financials received from the banker (synthetic demo).',
-      headlineRevenue: property ? '5400000' : type === 'VENTURE_RAISE' ? '1800000' : '12000000',
+      headlineRevenue: property ? '5400000' : type === 'VENTURE_RAISE' || type === 'STARTUP_SPV' ? '1800000' : '12000000',
       headlineCurrency: 'USD',
-      valueLow: property ? '48000000' : type === 'VENTURE_RAISE' ? '18000000' : '50000000',
-      valueHigh: property ? '60000000' : type === 'VENTURE_RAISE' ? '30000000' : '70000000',
+      valueLow: property ? '48000000' : type === 'VENTURE_RAISE' || type === 'STARTUP_SPV' ? '18000000' : '50000000',
+      valueHigh: property ? '60000000' : type === 'VENTURE_RAISE' || type === 'STARTUP_SPV' ? '30000000' : '70000000',
       redFlags: property
         ? ['Occupancy quoted at 96% but the rent roll shows notices to vacate', 'Roof replacement deferred two years running']
         : ['Reported ARR includes one-off implementation fees', 'Top customer contract renews inside the next year'],

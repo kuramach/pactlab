@@ -78,6 +78,7 @@ class Dataset:
         self.syndication_step = []
         self.music_step = []
         self.energy_step = []
+        self.spv_step = []
         self.ask = None
         self.ask_note = None
 
@@ -372,6 +373,9 @@ class Dataset:
         if self.energy_step:
             heading('Read the reserves and liabilities (Assets tab)')
             out += self.energy_step
+        if self.spv_step:
+            heading('Seat the investors and check the vehicle (SPV tab)')
+            out += self.spv_step
         heading('Run the checks and review the findings')
         out += [f'1. Open the **Findings** tab → **Run {label.lower()} checks**.',
                 f'2. **You should see exactly these {len(self.findings)} findings** (running the checks again adds nothing):', '']
@@ -423,6 +427,7 @@ PACK_IMPORTS = {
     'multifamily-syndication': {'rent-roll': 'Rent roll', 't12': 'T-12 operating statement', 'delinquency': 'Delinquency report', 'unit-inspections': 'Unit inspections', 'track-record': 'Sponsor track record'},
     'music-rights': {'works-register': 'Works register', 'writer-splits': 'Writer splits', 'chain-of-title': 'Chain of title', 'royalty-statements': 'Royalty statements'},
     'energy-generation': {'plant-register': 'Plant register', 'interest-register': 'Interest register', 'lease-schedule': 'Lease schedule', 'production-history': 'Production history', 'liability-schedule': 'Liability schedule'},
+    'startup-spv': {'cap-table': 'Cap table', 'monthly-financials': 'Monthly financials'},
 }
 
 # What Pactlab's "What kind of company is it?" shows (COMPANY_TYPE_LABELS in
@@ -434,6 +439,7 @@ COMPANY_TYPE_LABELS = {
     'hotels': 'Hotels & hospitality', 'small-clinics': 'Small clinics', 'hospitals': 'Hospitals',
     'venture-raise': 'Venture Raise', 'multifamily-syndication': 'Multifamily syndication', 'music-rights': 'Music rights',
     'energy-generation': 'Energy generation & rights',
+    'startup-spv': 'Startup equity SPV',
 }
 # The Documents tab's data-class options.
 DATA_CLASS_LABELS = {'Business': 'business information', 'Financial': 'financial information'}
@@ -445,6 +451,7 @@ PACK_TITLES = {
     'hotels': 'Hotels and hospitality', 'small-clinics': 'Small clinics', 'hospitals': 'Hospitals',
     'venture-raise': 'Venture Raise', 'multifamily-syndication': 'Multifamily syndication', 'music-rights': 'Music rights',
     'energy-generation': 'Energy generation and rights',
+    'startup-spv': 'Startup equity SPV',
 }
 
 def ramp(rng, base, growth, months=MONTHS, start=None, end=None, noise=D('0')):
@@ -1556,6 +1563,141 @@ The decommissioning study for {plant_name} estimates the cost to retire and deco
         'Diligence support only: not legal, engineering or regulatory advice. Pactlab makes no title determination and certifies no reserves.',
     ]
 
+def spv(ds):
+    """An organizer pools investors into one SPV for a startup's seed round (T-141). Planted defects:
+    (a) the round summary's post-round share count leaves out the SAFE conversion; (b) carry is 20% in the
+    operating agreement and 15% in the investor summary; (c) a side letter waives one investor's fee and the
+    summary discloses none; (d) one investor in a 506(c) vehicle is only self-certified (entered on the SPV tab)."""
+    ds.kind, ds.kind_label = 'subscription', 'customer subscription'
+    c = ds.cur
+    ds.seller, ds.buyer = f'Lumen Labs {ds.c["suffix"]}', ds.company
+    vehicle = 'Halyard Lumen Seed SPV LLC (synthetic)'
+    ds.summary = (f'{ds.company} is an SPV organizer pooling five investors into {vehicle}, which takes one line in the seed round of {ds.seller}, '
+                  'a field-service scheduling startup. Offered under Rule 506(c).')
+    teams = [('Brightline Plumbing', 14000), ('Copperfield Electric', 12000), ('Northgate HVAC', 10500), ('Tidewater Roofing', 9500), ('Juniper Landscapes', 8500),
+             ('Ashby Pest Control', 8000), ('Marlow Cleaning Co', 7500), ('Fernhill Glazing', 7000), ('Oriel Locksmiths', 6500), ('Kestrel Pools', 6000),
+             ('Wrenfield Joinery', 5500), ('Halden Solar', 5000)]
+    for i, (n, base) in enumerate(teams):
+        ds.customer(f'{ds.prefix}-cus-{i + 1:03d}', f'{n} (synthetic)', ramp(ds.rng, ds.amt(base), '0.01', noise=D('0.01')))
+    billed = ds.billed_arr()
+    claimed_arr = (billed / 10000).quantize(D('1'), ROUND_HALF_UP) * 10000
+    # The startup's cap table before the round: 8,000,000 shares, one SAFE (pseudonymous holders).
+    price = ds.amt(1)
+    principal, cap = ds.amt(300000), ds.amt(6000000)
+    rows = [
+        ['CS-1', 'F-1', 'founder', 'common', 3500000, '', '', '', 'no', 'no', 'yes', '2023-03-01'],
+        ['CS-2', 'F-2', 'founder', 'common', 2500000, '', '', '', 'no', 'no', 'yes', '2023-03-01'],
+        ['CS-3', 'E-01', 'employee', 'common', 400000, '', '', '', 'no', 'no', 'yes', '2024-05-01'],
+        ['OP-1', 'E-02', 'employee', 'option', 600000, '', '', '', 'no', 'no', 'yes', '2025-01-15'],
+        ['POOL', 'POOL', 'pool', 'pool_unallocated', 1000000, '', '', '', 'no', 'no', 'no', '2024-05-01'],
+        ['SAFE-1', 'I-1', 'investor', 'safe', '', f'{principal:.2f}', f'{cap:.2f}', '20', 'no', 'yes', 'no', '2025-06-01'],
+    ]
+    ds.ext('cap-table', ['security_id', 'holder_ref', 'holder_type', 'instrument', 'shares', 'principal', 'valuation_cap', 'discount_pct', 'mfn', 'pro_rata', 'vesting', 'issued_on'], rows,
+           'The startup\'s cap table before the round, one row per security (pseudonymous holders)')
+    pre_shares, new_shares = 8000000, 3000000
+    conversion = int(principal / (cap / pre_shares))  # converts at the cap price: 400,000 shares
+    post_true, post_stated = pre_shares + conversion + new_shares, pre_shares + new_shares
+    burns = [ds.amt(b) for b in (80000, 82000, 85000, 88000, 90000, 92000, 94000, 96000, 98000, 100000, 100000, 100000)]
+    cash, balances = ds.amt(1800000), []
+    for burn in reversed(burns):
+        balances.append(cash); cash += burn
+    ds.ext('monthly-financials', ['month', 'cash_balance', 'net_burn'], [[mo, f'{bal:.2f}', f'{burn:.2f}'] for mo, burn, bal in zip(LAST12, burns, reversed(balances))],
+           'The startup\'s cash balance and net burn by month')
+    seats = [('INV-01', 'Marlowe Family Office (synthetic)', 600000, 'THIRD_PARTY_VERIFIED'), ('INV-02', 'Pinecrest Angels LLC (synthetic)', 500000, 'THIRD_PARTY_VERIFIED'),
+             ('INV-03', 'Quayle Partners (synthetic)', 450000, 'THIRD_PARTY_VERIFIED'), ('INV-04', 'Rowan Okafor (synthetic)', 250000, 'SELF_CERTIFIED'),
+             ('INV-05', 'Sable Point Capital (synthetic)', 150000, 'THIRD_PARTY_VERIFIED')]
+    organizer = ds.amt(50000)
+    commitments = sum(ds.amt(a) for _, _, a, _ in seats) + organizer
+    fee, expenses = commitments * D('0.02'), ds.amt(25000)
+    invested = commitments - fee - expenses
+    ds.doc('01-round-summary', f"""
+ROUND SUMMARY — Seed round of {ds.seller} (synthetic)
+
+The startup's own summary of the round, as shared with the SPV organizer.
+---page---
+Pre-money valuation: {c} {pre_shares * price:,.0f}.
+Round size: {c} {new_shares * price:,.0f}.
+Price per share: {c} {price:.2f}.
+New shares issued: {new_shares:,}.
+Fully diluted shares after the round: {post_stated:,}.
+ARR: {c} {claimed_arr:,.0f}.
+Runway: 18 months.
+Net revenue retention: 128%.
+Prior round: SAFE with a valuation cap of {c} {cap:,.0f} and a 20% discount, with pro-rata rights.
+""", 'The startup\'s round summary: size, price, valuation and its headline claims')
+    ds.doc('02-safe-1', f"""
+SIMPLE AGREEMENT FOR FUTURE EQUITY — {ds.seller} (synthetic)
+---page---
+Instrument: SAFE-1.
+Purchase Amount: {c} {principal:,.0f}.
+Valuation Cap: {c} {cap:,.0f}.
+Discount Rate: 20%.
+Most favoured nation: no.
+Pro rata rights: yes.
+Signed 1 June 2025.
+""", 'The signed SAFE from the startup\'s earlier round')
+    ds.doc('03-spv-operating-agreement', f"""
+OPERATING AGREEMENT OF {vehicle.upper()}
+
+{ds.company} is the Manager of the vehicle.
+---page---
+Management Fee: 2% of capital commitments, charged once at closing.
+Carried Interest: 20% of net profits.
+Expenses: up to {c} {expenses:,.0f} of organizational expenses, borne by the Members.
+Organizer Commitment: {c} {organizer:,.0f} alongside the Members.
+This offering is made under Rule 506(c) of Regulation D.
+""", 'The vehicle\'s operating agreement: fee, carry, expenses and the offering exemption')
+    ds.doc('04-spv-investor-summary', f"""
+SUMMARY OF TERMS for investors in {vehicle}
+---page---
+Management fee: 2% of commitments, charged once.
+Carry: 15%.
+Expenses: capped at {c} {expenses:,.0f}.
+Side letters: none.
+""", 'The summary of terms given to investors')
+    ds.doc('05-side-letter-inv-03', f"""
+SIDE LETTER to the operating agreement of {vehicle}
+---page---
+Investor reference: INV-03.
+Management fee: waived for this investor.
+Information rights: quarterly reports.
+""", 'A side letter with one investor')
+    ds.doc('06-form-d', f"""
+FORM D — Notice of Exempt Offering of Securities (synthetic)
+---page---
+Issuer: {vehicle}.
+Filed with the SEC on 2 October 2026.
+""", 'The vehicle\'s Form D filing confirmation')
+    ds.ask = pre_shares * price
+    ds.ask_note = 'This is the round\'s stated pre-money: the price the vehicle buys in at. The demo shows how far the evidence supports the round.'
+    ds.findings = [
+        ('Cap table does not add up after the round', f'planted defect (a): the round summary states {post_stated:,} fully diluted shares after the round; the cap table with SAFE-1 converted gives {post_true:,} — exactly the {conversion:,} shares SAFE-1 converts into.'),
+        ('Carried interest in the operating agreement differs from the investor summary', 'planted defect (b): 20% in `documents/03-spv-operating-agreement.pdf`, 15% in `documents/04-spv-investor-summary.pdf`.'),
+        ('Side letter grants preferential terms the summary does not disclose', 'planted defect (c): `documents/05-side-letter-inv-03.pdf` waives INV-03\'s fee; the summary says "Side letters: none." Organizer-side only.'),
+        ('Accreditation gap in a 506(c) vehicle', 'planted defect (d): INV-04 is recorded as self-certified in a Rule 506(c) vehicle (from the seats you enter on the SPV tab).'),
+        ('Stated pre-money ties to the cap table', f'confirmed: {c} {price:.2f} × 8,000,000 pre-round shares is the stated pre-money.'),
+        ('Prior-round terms match the signed instruments', 'confirmed: the summary\'s SAFE cap and discount match `documents/02-safe-1.pdf`.'),
+        ('Round claim verified: ARR', f'the summary\'s ARR ties to `invoice-lines.csv` (billed {money(c, billed)} for September 2026).'),
+        ('Round claim verified: Runway', '18 months agrees with `monthly-financials.csv`.'),
+        ('Round claim not verified: Net revenue retention', 'a gap: nothing in the evidence checks the 128% claim. Ask the startup for the cohort data.'),
+    ]
+    ds.spv_step = [
+        'Open the **SPV** tab (it appears only on a startup equity SPV).', '',
+        f'1. Under **The vehicle**, enter Vehicle name `{vehicle}`, and the exits (× post-money) Downside `0.5`, Base `3`, Upside `10` → **Save the vehicle**.',
+        '2. Under **Investor seats**, add each seat (one at a time) → **Add seat**:', '',
+        '   | Investor | Reference | Commitment | Accreditation |', '   |---|---|---|---|',
+        *[f'   | {label} | `{ref}` | `{ds.amt(amount):.0f}` | **{ {"THIRD_PARTY_VERIFIED": "Verified by a third party", "SELF_CERTIFIED": "Self-certified"}[status]}** |' for ref, label, amount, status in seats], '',
+        '3. Click **Run SPV checks**. Drafts appear on **Findings**; a person decides each.',
+        f'4. **You should see** under **Vehicle economics**: commitments {money(c, commitments)} (the seats plus the organizer\'s {money(c, organizer)}), management fee {money(c, fee)}, expenses {money(c, expenses)}, invested {money(c, invested)}; carry 20% in the agreement against 15% in the summary.',
+        f'5. Under **Round verification**: the cap table gives {post_true:,} shares after the round against the summary\'s {post_stated:,}; SAFE-1 converts into {conversion:,} shares at its cap.',
+        '6. Under **Investor view**, click **Preview** and then **Publish version 1**. The published view holds the round claims, the cap-table check, the vehicle economics and the return scenarios — never the side letter, the seats or any other investor.', '']
+    ds.notes = [
+        'Organizer-side pack: you run the vehicle. Investors are seated as guests and see only their own seat and the published investor view; the startup sees the vehicle as one investor and never the investor list.',
+        'Accreditation is tracked, never determined: record what a verification specialist found, with a link and an evidence pointer.',
+        'Return scenarios are computed from the exit paths you state — never a projection or a promise.',
+        'Diligence support only: not legal advice. Pactlab performs no securities-offering, broker-dealer or investment-adviser function.',
+    ]
+
 PACKS = [
     ('software-saas', 'Brightwave Software', software), ('fintech', 'Tallyport Payments', fintech), ('healthcare', 'Riverside Care Partners', healthcare),
     ('telecom-media', 'Northlake Fibre', telecom), ('professional-services', 'Sablestone Consulting', services), ('pharma-biotech', 'Calvera Pharmaceuticals', pharma),
@@ -1563,6 +1705,7 @@ PACKS = [
     ('commercial-property', 'Quayside Estates', commercial), ('hospitals', 'St. Brennan Health', hospitals), ('small-clinics', 'Clearbrook Clinics', clinics),
     ('venture-raise', 'Loopwise', venture), ('multifamily-syndication', 'Ashgrove Residential', syndication), ('music-rights', 'Fairlight Songs', music),
     ('energy-generation', 'Cinder Ridge Energy', energy),
+    ('startup-spv', 'Halyard Syndicate', spv),
 ]
 
 if __name__ == '__main__':

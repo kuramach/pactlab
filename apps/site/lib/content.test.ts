@@ -68,8 +68,9 @@ describe('industries', () => {
       'multifamily-syndication',
       'music-rights',
       'energy-generation',
+      'startup-spv',
     ]);
-    expect(packs.map((industry) => industry.order)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]);
+    expect(packs.map((industry) => industry.order)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]);
   });
 
   it('gives every industry a full value story', () => {
@@ -82,9 +83,9 @@ describe('industries', () => {
 });
 
 describe('pack registry', () => {
-  it('defines all fifteen packs with evidence, finding types and valuation notes', () => {
+  it('defines all sixteen packs with evidence, finding types and valuation notes', () => {
     const packs = content.INDUSTRIES.filter((industry) => industry.pack !== null);
-    expect(packs).toHaveLength(15);
+    expect(packs).toHaveLength(16);
     for (const industry of packs) {
       expect(industry.pack, industry.slug).not.toBeNull();
       expect(industry.pack!.evidence.length, industry.slug).toBeGreaterThan(0);
@@ -180,7 +181,7 @@ describe('siteConfig', () => {
 describe('industry stories', () => {
   it('every pack has a written page, and every story belongs to a listed industry', () => {
     expect(WRITTEN_INDUSTRIES.map((industry) => industry.slug)).toEqual(content.INDUSTRIES.map((industry) => industry.slug));
-    expect(WRITTEN_INDUSTRIES).toHaveLength(16);
+    expect(WRITTEN_INDUSTRIES).toHaveLength(17);
     for (const slug of Object.keys(INDUSTRY_STORIES)) {
       expect(content.INDUSTRIES.map((industry) => industry.slug), slug).toContain(slug);
       expect(routeExists(`/industries/${slug}`), slug).toBe(true);
@@ -188,7 +189,7 @@ describe('industry stories', () => {
   });
 
   it('publishes only the released packs: Software & SaaS, Multifamily and Venture Raise (Kumar, 2026-11-01 and 2026-11-09)', () => {
-    expect(PUBLISHED_INDUSTRIES.map((industry) => industry.slug)).toEqual(['software-saas', 'multifamily', 'venture-raise', 'music-rights', 'energy-generation']);
+    expect(PUBLISHED_INDUSTRIES.map((industry) => industry.slug)).toEqual(['software-saas', 'multifamily', 'venture-raise', 'music-rights', 'energy-generation', 'startup-spv']);
     expect(isPublishedHref('/industries/hospitals')).toBe(false);
     expect(isPublishedHref('/industries/multifamily')).toBe(true);
     expect(isPublishedHref('/product')).toBe(true);
@@ -199,7 +200,7 @@ describe('industry stories', () => {
     vi.stubEnv('NEXT_PUBLIC_PACK_PREVIEW', 'true');
     try {
       const preview = await import('./industry-stories');
-      expect(preview.PUBLISHED_INDUSTRIES).toHaveLength(16);
+      expect(preview.PUBLISHED_INDUSTRIES).toHaveLength(17);
       const answers = await import('./answers');
       expect(answers.FAQS.map((page) => page.slug)).toContain('founders');
     } finally {

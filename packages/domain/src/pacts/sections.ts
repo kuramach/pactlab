@@ -16,9 +16,10 @@ const everywhere = () => true;
 /**
  * A tab a pact will never have data for is hidden; one it may have later stays (Kumar, 2026-11-14).
  * A venture raise is negotiated on its Raise tab: it never has acquisition terms, a letter of intent,
- * a buyer's committee or financing, a closing checklist or a post-close register.
+ * a buyer's committee or financing, a closing checklist or a post-close register. Nor does a startup
+ * equity SPV (T-141): the vehicle takes one line in a round; its work is on the SPV tab.
  */
-const notRaise = (context: SectionContext) => context.companyType !== 'VENTURE_RAISE';
+const notRaise = (context: SectionContext) => context.companyType !== 'VENTURE_RAISE' && context.companyType !== 'STARTUP_SPV';
 const buyerLedAcquisition = (context: SectionContext) => context.initiatedBy === 'BUYER' && notRaise(context);
 const usesSource = (kinds: readonly string[]) => (context: SectionContext) =>
   context.companyType === null || sourcesFor(context.companyType).sources.some((source) => kinds.includes(source.kind));
@@ -49,6 +50,8 @@ export const DEAL_SECTION_RULES: Readonly<Record<string, (context: SectionContex
   '/catalog': (context) => context.companyType === 'MUSIC_RIGHTS',
   // An energy package's asset and interest register, reserves and production, and liabilities (T-142).
   '/energy': (context) => context.companyType === 'ENERGY_GENERATION',
+  // A pooled vehicle (T-141): the round checks, the vehicle economics, side letters, investor seats and the published investor view.
+  '/spv': (context) => context.companyType === 'STARTUP_SPV',
   '/valuation': everywhere,
   '/foresight': everywhere,
   '/terms': buyerLedAcquisition,
