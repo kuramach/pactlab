@@ -1,3 +1,4 @@
+import { pnlPeriods, type PnlLineInput } from '@pactlab/calculations';
 import { describe, expect, it } from 'vitest';
 import { adjustedEbitdaSchedule, workingCapitalAnalysis, type AddBackInput, type WorkingCapitalInput } from './qoe-engine';
 
@@ -21,7 +22,7 @@ const addBack = (key: string, overrides: Partial<AddBackInput>): AddBackInput =>
   ...overrides,
 });
 
-describe('adjusted-EBITDA schedule (qoe-1)', () => {
+describe('adjusted-EBITDA schedule (qoe-2)', () => {
   const base = {
     reported: [{ ...cited('r'), period: 'FY2025', label: 'Reported EBITDA', amount: '1200000', currency: 'USD' }],
     adjustments: [
@@ -52,14 +53,54 @@ describe('adjusted-EBITDA schedule (qoe-1)', () => {
     expect(schedule!.addBacks[0]).toMatchObject({ counts: true, counted: '100000.00', treatment: 'Included by reviewer decision (unverified)' });
   });
 
-  it('computes nothing without a cited reported figure', () => {
+  it('computes nothing without a reported figure', () => {
     const [schedule] = adjustedEbitdaSchedule({ reported: [], adjustments: base.adjustments, addBacks: [] });
     expect(schedule!.adjustedEbitda).toBeNull();
-    expect(schedule!.flags[0]).toContain('No cited reported EBITDA');
+    expect(schedule!.flags[0]).toContain('No reported EBITDA');
   });
 });
 
-describe('working-capital analysis (qoe-1)', () => {
+describe('the imported P&L in the schedule (qoe-2, T-149)', () => {
+  let n = 0;
+  const line = (period: string, kind: PnlLineInput['kind'], amount: string): PnlLineInput => ({ evidenceId: `ev-${n++}`, account: `${kind} ${n}`, period, amount, kind });
+  const month = (period: string) => [line(period, 'REVENUE', '250000'), line(period, 'COGS', '-100000'), line(period, 'OPEX', '-50000')];
+  const fy = pnlPeriods(Array.from({ length: 12 }, (_, index) => month(`2025-${String(index + 1).padStart(2, '0')}`)).flat());
+  const filed = (amount: string) => [{ ...cited('r'), period: 'FY2025', label: 'Reported EBITDA', amount, currency: 'USD' }];
+
+  it('reads each month from the imported lines, citing its rows, with no entry needed', () => {
+    const schedule = adjustedEbitdaSchedule({ reported: [], adjustments: [], addBacks: [], pnl: fy, currency: 'USD' });
+    expect(schedule).toHaveLength(12);
+    expect(schedule[0]).toMatchObject({ period: '2025-01', currency: 'USD', reportedEbitda: { amount: '100000.00', source: 'IMPORTED_PNL' }, adjustedEbitda: '100000.00', conflict: null });
+    expect(schedule[0]!.pnl).toMatchObject({ revenue: '250000.00', costOfRevenue: '100000.00', operatingExpenses: '50000.00' });
+    expect(schedule[0]!.pnl!.sources.map((row) => row.evidenceId)).toHaveLength(3);
+  });
+
+  it('rolls a written year up from its twelve imported months and shows an agreeing filed figure beside it', () => {
+    const schedule = adjustedEbitdaSchedule({ reported: filed('1200000.40'), adjustments: [], addBacks: [], pnl: fy });
+    const year = schedule.find((period) => period.period === 'FY2025')!;
+    expect(year.reportedEbitda).toEqual({ amount: '1200000.00', source: 'BOTH' });
+    expect(year.pnl!.rolledUpFrom).toHaveLength(12);
+    expect(year.pnl!.sources).toHaveLength(36);
+    expect(year.adjustedEbitda).toBe('1200000.00');
+    expect(schedule).toHaveLength(13);
+  });
+
+  it('never picks silently when the imported P&L and the filed statement disagree', () => {
+    const year = adjustedEbitdaSchedule({ reported: filed('1350000'), adjustments: [{ ...cited('owner'), period: 'FY2025', category: 'OWNER_COMPENSATION', label: 'Owner pay', amount: '150000', currency: 'USD', rationale: null, findingId: null }], addBacks: [], pnl: fy }).find((period) => period.period === 'FY2025')!;
+    expect(year.reportedEbitda).toBeNull();
+    expect(year.adjustedEbitda).toBeNull();
+    expect(year.sellerAdjustedEbitda).toBeNull();
+    expect(year.conflict).toMatchObject({ imported: '1200000.00', filed: '1350000.00', difference: '-150000.00', filedEntry: { entryKey: 'r' } });
+    expect(year.flags.join(' ')).toContain('disagree by -150000.00');
+  });
+
+  it('keeps a filed-only period as before', () => {
+    const [period] = adjustedEbitdaSchedule({ reported: filed('900000'), adjustments: [], addBacks: [], pnl: [] });
+    expect(period!.reportedEbitda).toEqual({ amount: '900000.00', source: 'FILED_STATEMENT' });
+  });
+});
+
+describe('working-capital analysis', () => {
   const line = (periodEnd: string, component: WorkingCapitalInput['component'], amount: string): WorkingCapitalInput => ({ ...cited(`${periodEnd}-${component}`), periodEnd, component, label: component, amount, currency: 'USD' });
   const months = ['2026-06-30', '2026-07-31', '2026-08-31', '2026-09-30'];
   const receivables = ['300000', '360000', '420000', '330000'];

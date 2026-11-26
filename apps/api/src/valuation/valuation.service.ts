@@ -11,7 +11,9 @@ import {
   compareToAsking,
   confirmedValueLedger,
   freeze,
+  PNL_EBITDA_BASIS,
   runValuation,
+  trailingPnl,
   staleReasons,
   validateInputs,
   ValuationInputError,
@@ -28,6 +30,7 @@ import { appendAuditEvent, askingPrices, balanceSheetItems, deals, withdrawals, 
 import { newId, permissionsForDealRole, type DealRole, type TenantContext } from '@pactlab/domain';
 import { DealAccess } from '../deals/deal-access';
 import { FINDINGS_REPOSITORY, type FindingsRepository } from '../findings/findings.repository';
+import { filesOf, loadImportedPnl, type PnlSourceFile } from '../qoe/pnl-evidence';
 import { PRISMA } from '../tokens';
 import {
   VALUATION_REPOSITORY,
@@ -301,6 +304,25 @@ export class ValuationService {
     });
     const records = await this.scenarios.list(tenant, dealId);
     return { items: await Promise.all(records.map((record) => this.present(tenant, record))) };
+  }
+
+  /**
+   * Trailing revenue and EBITDA from the imported P&L (T-149), where one is imported, with the
+   * files and the count of rows they rest on. Shown beside the scenarios and offered as a
+   * starting figure; a scenario's assumptions change only when a person saves them.
+   */
+  async pnlBasis(tenant: TenantContext, dealId: string, requestId: string) {
+    await this.access.require(tenant, dealId, canReadValuation, { action: 'valuation.pnl_basis.viewed', requestId });
+    return withTenant(this.prisma, tenant, async (tx) => {
+      const deal = await deals.get(tx, dealId);
+      if (!deal) throw new NotFoundException();
+      const imported = await loadImportedPnl(tx, dealId);
+      const trailing = trailingPnl(imported.periods);
+      if ('unavailable' in trailing) return { currency: deal.baseCurrency, imported: imported.periods.length > 0, trailing: null, unavailable: trailing.unavailable, readerVersion: trailing.version };
+      const { evidenceIds, ...figures } = trailing;
+      const files: PnlSourceFile[] = filesOf(imported, evidenceIds);
+      return { currency: deal.baseCurrency, imported: true, trailing: { ...figures, ebitdaBasis: PNL_EBITDA_BASIS, files }, unavailable: null, readerVersion: trailing.version };
+    });
   }
 
   async get(tenant: TenantContext, dealId: string, scenarioId: string, requestId: string) {

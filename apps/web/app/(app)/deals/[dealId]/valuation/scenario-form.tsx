@@ -60,6 +60,7 @@ export function ScenarioForm({
   submitLabel,
   methods = ['ARR_MULTIPLE', 'DCF'],
   methodLabels = {},
+  fromPnl = null,
 }: {
   action: (state: ScenarioFormState, data: FormData) => Promise<ScenarioFormState>;
   name: string;
@@ -76,6 +77,8 @@ export function ScenarioForm({
   methods?: readonly ScenarioMethod[];
   /** How the pack names a core method (e.g. a royalty multiple runs as the revenue multiple). Labels only. */
   methodLabels?: Readonly<Partial<Record<ScenarioMethod, { label: string; help: string; input: string }>>>;
+  /** Trailing figures read from the imported P&L, offered as a new scenario's starting values (T-149). */
+  fromPnl?: { revenue: string; ebitda: string; source: string } | null;
 }) {
   const [state, formAction, pending] = useActionState(action, { error: null });
   const assumptions = values?.assumptions;
@@ -139,7 +142,7 @@ export function ScenarioForm({
           ) : method === 'PAYER_MIX_EBITDA' ? (
             <div className="flex flex-col gap-4">
               <div className="grid gap-4 sm:grid-cols-3">
-                <Field label="Reported EBITDA" name="ebitda" defaultValue={payerMix?.ebitda ?? ''} hint="Annual, from the cost report or the management accounts." />
+                <Field label="Reported EBITDA" name="ebitda" defaultValue={payerMix?.ebitda ?? fromPnl?.ebitda ?? ''} hint={fromPnl ? fromPnl.source : 'Annual, from the cost report or the management accounts.'} />
                 <Field label="Net patient revenue" name="netRevenue" defaultValue={payerMix?.netRevenue ?? ''} hint="Annual; the payer shares apply to it." />
                 <Field label="EBITDA multiple" name="ebitdaMultiple" defaultValue={payerMix?.multiple ?? ''} suffix="×" />
               </div>
@@ -182,7 +185,7 @@ export function ScenarioForm({
           ) : (
             <div className="flex flex-col gap-4">
               <div className="grid gap-4 sm:grid-cols-2">
-                <Field label="Base-year revenue" name="baseRevenue" defaultValue={dcf?.baseRevenue} />
+                <Field label="Base-year revenue" name="baseRevenue" defaultValue={dcf?.baseRevenue ?? fromPnl?.revenue} {...(fromPnl ? { hint: fromPnl.source } : {})} />
                 <Field label="Discount rate" name="discountRate" defaultValue={pct(dcf?.discountRate)} suffix="%" />
               </div>
               <input type="hidden" name="yearCount" value={yearCount} />
@@ -315,7 +318,7 @@ export function ScenarioForm({
           {takePrivate ? <input type="hidden" name="lboEnabled" value="on" /> : null}
           {lboEnabled ? (
             <div className="grid gap-4 sm:grid-cols-3">
-              <Field label="Entry EBITDA" name="entryEbitda" defaultValue={values?.lbo?.entryEbitda} />
+              <Field label="Entry EBITDA" name="entryEbitda" defaultValue={values?.lbo?.entryEbitda ?? fromPnl?.ebitda} {...(fromPnl ? { hint: fromPnl.source } : {})} />
               <Field label="Leverage" name="leverageMultiple" defaultValue={values?.lbo?.leverageMultiple} suffix="× EBITDA" />
               <Field label="Debt repaid over hold" name="debtRepaid" defaultValue={values?.lbo?.debtRepaid} />
               <Field label="Exit EBITDA" name="exitEbitda" defaultValue={values?.lbo?.exitEbitda} />

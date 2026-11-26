@@ -7,6 +7,7 @@ import { formatMoney } from '../../../metrics/_lib/format';
 import type { ScenarioValues } from '../../../valuation/_lib/form';
 import { apiGet, apiGetAll, dealsApi } from '../../_lib/api';
 import { saveScenario } from './actions';
+import { describeTrailing, type PnlBasisView } from './pnl-basis-card';
 import { ScenarioForm } from './scenario-form';
 
 /** Shared body of the new and edit scenario pages. */
@@ -17,14 +18,18 @@ export async function ScenarioEditor({
   dealId: string;
   scenario: { id: string; name: string; version: number; values: ScenarioValues } | null;
 }) {
-  const [deal, accepted, benchmark, sheet, plan] = await Promise.all([
+  const [deal, accepted, benchmark, sheet, plan, pnl] = await Promise.all([
     dealsApi.get(dealId),
     // Accepted findings are each reviewed by a person, so the set stays small: read every page (T-126).
     apiGetAll<Finding>(`/v1/deals/${dealId}/findings?status=ACCEPTED`),
     apiGet<BenchmarkView>(`/v1/deals/${dealId}/benchmark`),
     apiGet<BalanceSheetView>(`/v1/deals/${dealId}/balance-sheet-items`),
     dealsApi.sourcePlan(dealId),
+    apiGet<PnlBasisView>(`/v1/deals/${dealId}/valuation/pnl-basis`),
   ]);
+  // A new scenario starts from the imported P&L's trailing figures, where there are some (T-149).
+  const trailing = pnl.kind === 'ok' ? pnl.data.trailing : null;
+  const fromPnl = trailing ? { revenue: trailing.revenue, ebitda: trailing.ebitda, source: `From the imported P&L (${trailing.files.map((file) => file.fileName).join(', ') || 'import'}): ${describeTrailing(trailing).toLowerCase()}, ${trailing.lineCount} rows.` } : null;
   // The seller's industry pack decides which valuation methods are offered (ADR 0009).
   const pack = packFor(plan.kind === 'ok' ? plan.data.companyType : null);
   const stats = benchmark.kind === 'ok' ? benchmark.data.stats : null;
@@ -70,6 +75,7 @@ export async function ScenarioEditor({
         }
         submitLabel={scenario ? 'Save new version' : 'Create scenario'}
         multipleHint={multipleHint}
+        fromPnl={scenario ? null : fromPnl}
       />
     </div>
   );
