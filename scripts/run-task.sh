@@ -239,6 +239,11 @@ if $AUTO_MERGE; then
     echo "### $TASK_ID → review (diff left task scope; needs human)" | tee -a "$LOG"
     exit 0
   fi
+  # CI takes a moment to register on a new PR; "no checks reported" is not a failure.
+  for _ in $(seq 1 20); do
+    gh pr checks "$PR_URL" 2>&1 | grep -q "no checks reported" || break
+    sleep 30
+  done
   if gh pr checks "$PR_URL" --watch --interval 30 >>"$LOG" 2>&1; then
     if gh pr merge "$PR_URL" --squash --delete-branch >>"$LOG" 2>&1; then
       git worktree remove --force "$WT" 2>/dev/null || true
