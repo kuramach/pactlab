@@ -78,8 +78,17 @@ export type FintechCategory = (typeof FINTECH_CATEGORIES)[number];
  */
 export const HEALTHCARE_CATEGORIES = ['LICENCE_VERIFICATION', 'CODING_AUDIT', 'HIPAA_RISK_ASSESSMENT', 'PAYER_CONTRACT', 'RESTRICTIVE_COVENANTS'] as const;
 export type HealthcareCategory = (typeof HEALTHCARE_CATEGORIES)[number];
+/**
+ * A pharma or biotech target (T-163) is diligenced from documents: its trial-registry filings and
+ * regulatory correspondence (which the pipeline's claims are checked against), its patent certificates
+ * and records, its licence and collaboration agreements (whose milestones, royalties and fees are
+ * recomputed) and its manufacturing and supply agreements. The Pipeline page reads them; absence is
+ * shown as absence.
+ */
+export const PHARMA_CATEGORIES = ['REGULATORY_CORRESPONDENCE', 'PATENT_RECORD', 'LICENCE_AGREEMENT', 'SUPPLY_AGREEMENT'] as const;
+export type PharmaCategory = (typeof PHARMA_CATEGORIES)[number];
 /** Every category a pack may add on top of the common ones. */
-export type PackDocumentCategory = OfferingCategory | MusicCategory | EnergyCategory | SpvCategory | FintechCategory | HealthcareCategory;
+export type PackDocumentCategory = OfferingCategory | MusicCategory | EnergyCategory | SpvCategory | FintechCategory | HealthcareCategory | PharmaCategory;
 
 export type DocumentCategory = (typeof DOCUMENT_CATEGORIES)[number] | PackDocumentCategory;
 
@@ -340,6 +349,35 @@ const DOCUMENT_DEFINITIONS: Readonly<Record<DocumentCategory, CategoryDefinition
     id: 'REGULATORY_EXAM',
     label: 'Exam report or consent order',
     description: 'A regulator\'s examination report, a matter requiring attention, a consent order or another enforcement action.',
+    route: { kind: 'FILE' },
+    people: false,
+  },
+  // Pharma documents (T-163): kept and listed; the Pipeline page and the pack's checks read them.
+  REGULATORY_CORRESPONDENCE: {
+    id: 'REGULATORY_CORRESPONDENCE',
+    label: 'Registry filing or regulatory correspondence',
+    description: 'A trial-registry record, or a letter, meeting minutes or filing exchanged with a regulator (FDA, EMA, MHRA) about a programme.',
+    route: { kind: 'FILE' },
+    people: false,
+  },
+  PATENT_RECORD: {
+    id: 'PATENT_RECORD',
+    label: 'Patent record',
+    description: 'A patent certificate, register extract or term-extension decision, with the family, jurisdiction and expiry.',
+    route: { kind: 'FILE' },
+    people: false,
+  },
+  LICENCE_AGREEMENT: {
+    id: 'LICENCE_AGREEMENT',
+    label: 'Licence or collaboration agreement',
+    description: 'An in-licence, out-licence, collaboration or asset purchase agreement: its milestones, royalties and fees.',
+    route: { kind: 'FILE' },
+    people: false,
+  },
+  SUPPLY_AGREEMENT: {
+    id: 'SUPPLY_AGREEMENT',
+    label: 'Manufacturing or supply agreement',
+    description: 'A contract-manufacturing, supply or quality agreement: who makes the product and whether a second source exists.',
     route: { kind: 'FILE' },
     people: false,
   },

@@ -85,6 +85,12 @@ The source plan then adds **Industry data** (`pack_upload` connections) automati
 
 `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm test:integration`, `pnpm test:fixtures`, `pnpm test:e2e`, and `prisma migrate diff` (empty).
 
+## 8b. Checks that read documents (T-163)
+
+- **Wait for the documents.** Rules run after every import, often before the data room. A rule whose answer a document can change (a record that governs a date, a retention agreement that clears a finding, correspondence that settles a claim) returns nothing while `pages` is empty, so no stale draft is left behind.
+- **Order imports by dependency.** When one extract checks another (pharma's registry records against the pipeline), list the evidence first in `importTargets`.
+- **Read the right documents.** Recognise a document by its heading (a patent record, regulator correspondence) before reading its sentences: the paged extracts PDF repeats every CSV row and must never verify itself.
+
 ## 9. Extending a parent pack (small clinics on healthcare, T-161)
 
 - **By reference:** list the parent's import targets and rule ids in the child's registry entry; never copy a rule. The parent's tab may open for the child too (`DEAL_SECTION_RULES`), with only what differs (e.g. the P&L key expenses) chosen per pack.

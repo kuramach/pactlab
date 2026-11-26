@@ -423,7 +423,7 @@ PACK_IMPORTS = {
     'healthcare': {'claims-summary': 'Claims summary', 'provider-roster': 'Provider roster', 'remittances': 'Remittances by payer', 'clinician-collections': 'Collections by clinician', 'credentialing-register': 'Credentialing register', 'payer-contracts': 'Payer contract register'},
     'telecom-media': {'subscribers-by-month': 'Subscribers by month'},
     'professional-services': {'timesheets-summary': 'Timesheets summary', 'headcount-movements': 'Headcount movements'},
-    'pharma-biotech': {'patent-schedule': 'Patent schedule', 'pipeline': 'Pipeline'},
+    'pharma-biotech': {'patent-schedule': 'Patent schedule', 'trial-registry': 'Trial registry records', 'pipeline': 'Pipeline', 'obligations-model': 'Payment obligations model', 'rd-roster': 'R&D roster'},
     'ecommerce-dtc': {'orders-by-cohort': 'Orders by cohort', 'ad-spend': 'Ad spend'},
     'commercial-property': {'rent-roll': 'Commercial rent roll', 'cam-reconciliation': 'CAM reconciliation'},
     'hotels': {'operating-history': 'Operating history', 'str-benchmark': 'STR benchmark'},
@@ -1020,17 +1020,55 @@ Master services agreement — {ds.company} and Meridian Retail Group (synthetic)
 
 def pharma(ds):
     ds.kind, ds.kind_label = 'royalty', 'partner royalty and supply payment'
-    ds.summary = f'{ds.company} is a specialty-pharma company earning royalties and supply revenue on two marketed products, with one late-stage programme.'
+    ds.summary = f'{ds.company} is a specialty-pharma company earning royalties and supply revenue on two marketed products, with two development programmes led by PX-410.'
     partners = [('Aldermoor Therapeutics — royalties on Product A', 410000), ('Aldermoor Therapeutics — supply of Product A', 160000), ('Kingsway Health — royalties on Product B', 95000), ('Tessaly Pharma — licence fee', 40000)]
     for i, (n, base) in enumerate(partners):
         ds.customer(f'{ds.prefix}-par-{i + 1:03d}', f'{n} (synthetic)', ramp(ds.rng, ds.amt(base), '0.005', noise=D('0.05')))
     ds.ext('patent-schedule', ['family', 'product', 'jurisdiction', 'type', 'expiry'], [
         ['PF-01', 'Product A', 'US', 'composition of matter', '2028-03-31'], ['PF-01', 'Product A', 'EP', 'composition of matter', '2028-06-30'],
-        ['PF-02', 'Product A', 'US', 'formulation', '2033-11-30'], ['PF-03', 'Product B', 'US', 'method of use', '2031-08-31']], 'Patent families, products and expiry dates')
+        ['PF-02', 'Product A', 'US', 'formulation', '2033-11-30'], ['PF-03', 'Product B', 'US', 'method of use', '2033-08-31']], 'Patent families, products and expiry dates')
     ds.ext('pipeline', ['programme', 'indication', 'phase', 'next_milestone', 'expected'], [
-        ['PX-210', 'Chronic cough', 'Phase 3', 'Top-line data', '2027-Q2'], ['PX-330', 'Dry eye', 'Phase 1', 'First patient dosed', '2026-Q4']], 'Development pipeline and next milestones')
+        ['PX-410', 'Idiopathic pulmonary fibrosis', 'Phase 2', 'Phase 2 interim data', '2027-Q4'],
+        ['PX-330', 'Dry eye', 'Phase 1', 'Phase 2 start', '2027-Q3']], 'Development pipeline: each programme\'s claimed phase and next milestone')
+    # T-163: the registry records the seller supplies. The lead asset is filed as Phase 1, not the Phase 2 the pipeline claims (planted (a)).
+    ds.ext('trial-registry', ['registry_id', 'programme', 'phase', 'status', 'start_date', 'primary_completion'], [
+        ['CTR-2025-04101', 'PX-410', 'Phase 1', 'recruiting', '2025-03-10', '2027-02-28'],
+        ['CTR-2024-03301', 'PX-330', 'Phase 1', 'completed', '2024-02-01', '2026-06-30']], 'Trial-registry records for the pipeline programmes, as filed')
+    licensor = 'Brennick Biologics (synthetic)'
+    phase2, phase3, fee = ds.amt(12000000), ds.amt(25000000), ds.amt(250000)
+    # The seller's model of what it owes: the Phase 2 start milestone on PX-330 is missing (planted (c)).
+    ds.ext('obligations-model', ['obligation_id', 'counterparty', 'kind', 'trigger', 'amount', 'rate', 'expected'], [
+        ['OB-01', licensor, 'milestone', 'Phase 3 start (PX-330)', f'{phase3:.2f}', '', '2029-Q1'],
+        ['OB-02', licensor, 'royalty', 'Net sales of PX-330', '', '0.06', ''],
+        ['OB-03', licensor, 'licence_fee', '', f'{fee:.2f}', '', 'Annually']], 'The seller\'s model of milestones, royalties and licence fees owed')
+    ds.ext('rd-roster', ['scientist_ref', 'function', 'programmes_led', 'patent_families'], [
+        ['S-01', 'Discovery chemistry', '2', '3'], ['S-02', 'Clinical development', '0', '0'], ['S-03', 'Formulation', '0', '1'], ['S-04', 'Translational biology', '0', '0']],
+        'R&D roster by pseudonymous reference: programmes led and patent families as inventor')
     top, share = ds.share_top()
     c = ds.cur
+
+    # Three fiscal years of P&L. R&D is flat across the years while the deck brings the PX-410 readout forward (planted (d)).
+    def billed(year, word):
+        return sum((mo.get(m, D(0)) for _, n, mo in ds.customers for m in MONTHS if m.startswith(year) and word in n), D(0))
+    years = ['FY2023', 'FY2024', 'FY2025']
+    growth = [D('0.86'), D('0.93'), D('1')]
+    royalty = [q(billed('2025', 'royalties') * g) for g in growth]
+    supply = [q(billed('2025', 'supply') * g) for g in growth]
+    licence = [q(billed('2025', 'licence fee') * g) for g in growth]
+    rev = [royalty[i] + supply[i] + licence[i] for i in range(3)]
+    rd = [ds.amt(22000000), ds.amt(22300000), ds.amt(22100000)]
+    pnl_rows = [['Royalty revenue'] + [f'{x:.2f}' for x in royalty], ['Product supply revenue'] + [f'{x:.2f}' for x in supply], ['Licence fee revenue'] + [f'{x:.2f}' for x in licence],
+                ['Cost of product supply'] + [f'{q(supply[i] * D(r)):.2f}' for i, r in enumerate(('0.42', '0.42', '0.41'))],
+                ['Research and development'] + [f'{x:.2f}' for x in rd],
+                ['Royalties paid to licensors'] + [f'{q(rev[i] * D(r)):.2f}' for i, r in enumerate(('0.021', '0.020', '0.020'))],
+                ['General and administrative'] + [f'{q(rev[i] * D(r)):.2f}' for i, r in enumerate(('0.19', '0.18', '0.17'))]]
+    ds.ext('pnl', ['Line'] + years, pnl_rows, 'Profit and loss by fiscal year, FY2023 to FY2025')
+    ds.pnl_step = ['Open the **Sources** tab, scroll to **Industry data** and click **Upload profit and loss (p&l)**.', '',
+                   '1. Choose `pnl.csv` → **Upload and map columns**. Pactlab reads the three years across the columns (FY2023, FY2024, FY2025).',
+                   '2. Say what each line is: the three lines ending in *revenue* are **Revenue**, `Cost of product supply` is **Cost of revenue**, and the rest are **Operating expenses**.',
+                   f'3. **Check every row**, then **Import {len(pnl_rows) * 3} rows**.', '',
+                   '**You should see:** the import succeed. The **Pipeline** tab shows R&D year by year, and the checks in the next step read every year.', '']
+
     ds.doc('01-revenue-forecast', f'''
 {ds.company} — five-year revenue forecast (synthetic)
 
@@ -1041,11 +1079,59 @@ Inspection close-out summary — contract manufacturer for Product A (synthetic)
 ---page---
 Open observations: 3 (including one on cleaning validation). Corrective actions due: Q1 2027.
 ''', 'Contract manufacturer inspection summary')
+    ds.doc('03-investor-presentation', f'''
+{ds.company} — investor presentation, September 2026 (synthetic demo data).
+
+PX-410, our lead asset, is in Phase 2 for idiopathic pulmonary fibrosis.
+We have brought forward the PX-410 Phase 2 readout from 2028-Q4 to 2027-Q4.
+The target closing date is 30 September 2026.
+The buyer's investment case assumes a hold period of 5 years.
+''', 'Investor presentation: pipeline claims, the accelerated readout, the closing date and the hold')
+    ds.doc('04-fda-meeting-minutes', f'''
+Minutes of the Type B meeting with the FDA on PX-410 (synthetic).
+
+The sponsor presented the ongoing Phase 1 dose-escalation study of PX-410 (CTR-2025-04101).
+The Agency asked for the completed safety data before a further protocol is submitted.
+''', 'Regulatory correspondence: minutes of the FDA meeting on PX-410')
+    ds.doc('05-patent-record', f'''
+Patent record — {ds.company} (synthetic).
+
+Patent family PF-01 (US), composition of matter covering Product A, is in force and expires on 31 March 2028.
+Patent family PF-01 (EP), composition of matter covering Product A, is in force and expires on 30 June 2028.
+Patent family PF-02 (US), a formulation patent on Product A, expires on 30 November 2033.
+''', 'Patent record extract with each family\'s expiry')
+    ds.doc('06-licence-agreement-brennick', f'''
+Licence agreement between {ds.company} and {licensor} for PX-330.
+---page---
+7.1 {ds.company} shall pay {licensor} a milestone payment of {money(c, phase2)} upon the first dosing of a patient in a Phase 2 trial of PX-330.
+7.2 {ds.company} shall pay {licensor} a milestone payment of {money(c, phase3)} upon the start of the first Phase 3 trial of PX-330.
+8.1 {ds.company} shall pay {licensor} a royalty of 6% of net sales of PX-330.
+8.4 {ds.company} shall pay {licensor} an annual licence fee of {money(c, fee)}.
+''', 'In-licence of PX-330: milestones, royalty and annual fee')
+    ds.doc('07-supply-agreement-halvorsen', f'''
+Supply agreement between {ds.company} and Halvorsen Contract Manufacturing (synthetic).
+
+Halvorsen Contract Manufacturing (synthetic) is the sole manufacturer of Product A.
+No second source for Product A has been qualified.
+''', 'Manufacturing and supply agreement for Product A')
+
+    product_a = sum((mo.get(m, D(0)) for _, n, mo in ds.customers for m in LAST12 if 'Product A' in n), D(0))
     ds.findings = [
         ('Key patent expires earlier than the forecast assumes', 'the forecast assumes exclusivity through 2031; `patent-schedule.csv` shows the Product A composition-of-matter patents expiring in 2028.'),
         ('Open manufacturing observations at the supplier', '`documents/02-supplier-inspection-report.pdf` page 2 — three open observations.'),
         ('Partner concentration', f'Aldermoor Therapeutics accounts for both of the two largest revenue lines; the royalty line alone is {pct(share)} of September 2026 revenue.'),
+        ('Claim contradicted: PX-410 phase', 'the pipeline schedule says Phase 2; `trial-registry.csv` files CTR-2025-04101 as Phase 1, and the FDA minutes (`documents/04-fda-meeting-minutes.pdf`) describe an ongoing Phase 1 study.'),
+        ('Claim not verified: PX-410 timeline', 'no Phase 2 trial is registered for PX-410, so no registered date bears on the 2027-Q4 interim data.'),
+        ('Claim verified: PX-330 phase', 'CTR-2024-03301 is registered as Phase 1 (completed).'),
+        ('Key patent expires 18 months after closing: Product A', f'PF-01 (US) expires on 31 March 2028 (`documents/05-patent-record.pdf`), 18 months after the 30 September 2026 closing and inside the 5-year hold; priced on Product A\'s {money(c, product_a)} of trailing revenue.'),
+        (f'Milestone payment omitted from the seller\'s model: {licensor}', f'clause 7.1 of `documents/06-licence-agreement-brennick.pdf` — {money(c, phase2)} on the first Phase 2 dosing of PX-330, which the pipeline expects in 2027-Q3; `obligations-model.csv` has no such line.'),
+        ('Single-source manufacturing: Product A', '`documents/07-supply-agreement-halvorsen.pdf` — one manufacturer, no second source qualified.'),
+        ('Key-scientist concentration: S-01', '`rd-roster.csv` — S-01 leads both programmes and is an inventor on all 3 patent families; no retention agreement is on file.'),
+        ('R&D spend flat while the timeline is brought forward, 2023–2025', f'`pnl.csv` — R&D of {money(c, rd[0])}, {money(c, rd[1])} and {money(c, rd[2])} across FY2023–FY2025, while the investor presentation brings the PX-410 readout forward a year; FY2025 alone shows nothing.'),
+        ('P&L trend, 2023–2025', 'every imported year side by side: revenue, growth, margins and the R&D, supply and royalties-paid ratios.'),
     ]
+    ds.notes = ds.notes + ['The P&L (`pnl.csv`) imports through Sources like any extract; the multi-year checks read every year it holds. A single year still imports: the trend then reports that year alone.',
+                           'Pactlab checks documents, dates and consistency only: it never opines on efficacy, approvability or trial design.']
 
 def ecommerce(ds):
     ds.kind, ds.kind_label = 'channel_payout', 'sales-channel payout'

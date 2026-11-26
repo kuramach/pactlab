@@ -46,6 +46,12 @@ export const HEALTHCARE_PAYER_CONTRACT_EVIDENCE_TYPE = 'healthcare.payer_contrac
 /** Small clinics (T-161): collections and direct costs by service line and provider, and visits by referral source. */
 export const CLINICS_SERVICE_LINE_MONTH_EVIDENCE_TYPE = 'clinics.service_line_month';
 export const CLINICS_REFERRAL_MONTH_EVIDENCE_TYPE = 'clinics.referral_month';
+/** Pharma and biotech (T-064, T-163): the pipeline schedule, trial-registry records, patent schedule, obligations model and R&D roster. */
+export const PHARMA_PROGRAMME_EVIDENCE_TYPE = 'pharma.programme';
+export const PHARMA_REGISTRY_TRIAL_EVIDENCE_TYPE = 'pharma.registry_trial';
+export const PHARMA_PATENT_EVIDENCE_TYPE = 'pharma.patent';
+export const PHARMA_OBLIGATION_EVIDENCE_TYPE = 'pharma.obligation';
+export const PHARMA_SCIENTIST_EVIDENCE_TYPE = 'pharma.scientist';
 
 /**
  * Every evidence type the adapters and engines emit, with the direction each
@@ -202,6 +208,8 @@ export const VALUATION_DIRECTION_MAP: Readonly<Record<string, readonly Direction
     },
     { signal: 'margin-drift', findingDomain: 'FINANCIAL', defaultDirection: -1, channel: 'ASSUMPTION' },
     { signal: 'expense-outpacing', findingDomain: 'FINANCIAL', defaultDirection: -1, channel: 'ASSUMPTION' },
+    // R&D flat across the imported years while a document says the timeline was brought forward (T-163).
+    { signal: 'rd-flat-timeline-accelerated', findingDomain: 'FINANCIAL', defaultDirection: -1, channel: 'ASSUMPTION' },
   ],
   // Healthcare services (T-160, ADR 0051). Payer mix, denials and days in AR are recomputed from the remittances;
   // credentials and payer contracts are read at the analysis date. Dates and arithmetic only, never a clinical or legal judgment.
@@ -276,7 +284,36 @@ export const VALUATION_DIRECTION_MAP: Readonly<Record<string, readonly Direction
     { signal: 'owner-no-succession', findingDomain: 'PEOPLE', defaultDirection: -1, channel: 'PRICED_TERM' },
   ],
   [CLINICS_REFERRAL_MONTH_EVIDENCE_TYPE]: [{ signal: 'referral-concentration', findingDomain: 'COMMERCIAL', defaultDirection: -1, channel: 'ASSUMPTION' }],
+  // Pharma and biotech (T-163, ADR 0053): consistency between the pipeline's claims and the filings, patent dates
+  // against the hold, the agreements' payments against the seller's model. Never a view on efficacy or approvability.
+  [PHARMA_PROGRAMME_EVIDENCE_TYPE]: [
+    { signal: 'claim-contradicted', findingDomain: 'REGULATORY', defaultDirection: -1, channel: 'ASSUMPTION' },
+    { signal: 'claim-verified', findingDomain: 'REGULATORY', defaultDirection: 1, channel: 'CONFIRMATION' },
+    {
+      signal: 'claim-unverified',
+      findingDomain: 'REGULATORY',
+      defaultDirection: 0,
+      channel: 'INFORMATIONAL',
+      rationale: 'A phase or timeline claim no registry record or correspondence bears on is a gap to close, neither priced nor relied on.',
+    },
+  ],
+  [PHARMA_REGISTRY_TRIAL_EVIDENCE_TYPE]: [{ signal: 'trials-halted', findingDomain: 'REGULATORY', defaultDirection: -1, channel: 'ASSUMPTION' }],
+  [PHARMA_PATENT_EVIDENCE_TYPE]: [{ signal: 'patent-cliff-in-hold', findingDomain: 'LEGAL', defaultDirection: -1, channel: 'PRICED_TERM' }],
+  [PHARMA_OBLIGATION_EVIDENCE_TYPE]: [
+    { signal: 'obligation-omitted', findingDomain: 'LEGAL', defaultDirection: -1, channel: 'PRICED_TERM' },
+    { signal: 'obligation-understated', findingDomain: 'LEGAL', defaultDirection: -1, channel: 'PRICED_TERM' },
+    { signal: 'royalty-rate-understated', findingDomain: 'LEGAL', defaultDirection: -1, channel: 'ASSUMPTION' },
+  ],
+  [PHARMA_SCIENTIST_EVIDENCE_TYPE]: [{ signal: 'key-scientist-concentration', findingDomain: 'PEOPLE', defaultDirection: -1, channel: 'PRICED_TERM' }],
   [DOCUMENT_FINDING_EVIDENCE_TYPE]: [
+    // A product one manufacturer makes, with no second source described (T-163).
+    {
+      signal: 'single-source-manufacturing',
+      findingDomain: 'OPERATIONAL',
+      defaultDirection: 0,
+      channel: 'INFORMATIONAL',
+      rationale: 'A supply-continuity covenant or second-source qualification as a closing or post-close deliverable, not a price adjustment.',
+    },
     // The clinic lease as read sentence by sentence (T-161): a short term with no renewal is relocation or
     // renegotiation risk the reviewer prices; consent to assign is a closing condition.
     { signal: 'lease-short-term', findingDomain: 'PROPERTY', defaultDirection: -1, channel: 'PRICED_TERM' },
@@ -327,6 +364,11 @@ export const ADAPTER_EVIDENCE_TYPES = [
   HEALTHCARE_PAYER_CONTRACT_EVIDENCE_TYPE,
   CLINICS_SERVICE_LINE_MONTH_EVIDENCE_TYPE,
   CLINICS_REFERRAL_MONTH_EVIDENCE_TYPE,
+  PHARMA_PROGRAMME_EVIDENCE_TYPE,
+  PHARMA_REGISTRY_TRIAL_EVIDENCE_TYPE,
+  PHARMA_PATENT_EVIDENCE_TYPE,
+  PHARMA_OBLIGATION_EVIDENCE_TYPE,
+  PHARMA_SCIENTIST_EVIDENCE_TYPE,
 ] as const;
 
 /** The default direction for one signal, or null when the map does not know it. */

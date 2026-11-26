@@ -203,35 +203,38 @@ export const INDUSTRY_STORIES: Readonly<Record<string, IndustryStory>> = {
   },
 
   'pharma-biotech': {
-    headline: 'The largest deals rest on the most specialized evidence.',
+    headline: 'Pharma deals are priced on claims. Check them against the filings.',
     subhead:
-      'Clinical data, regulatory pathways, patent expiries and manufacturing quality decide pharma and biotech value. The pack plugs that evidence into the same review and valuation core — with exact citations throughout.',
+      'A pipeline and a patent estate carry the price, and the checkable failures are consistency failures: a phase the registry filing contradicts, a patent cliff nobody priced, a milestone left out of the model. Pactlab reads the registry records, correspondence, patent records and agreements you supply and checks them against the seller’s claims — documents, dates and consistency, never a view on the science.',
     illustrationAlt: 'Illustration of a DNA helix, a capsule and a patent document with a calendar.',
     pains: [
-      { icon: 'Microscope', title: 'Clinical evidence read through a summary', body: 'What the data supports and what the deck says can differ.' },
-      { icon: 'FileCheck', title: 'An approval path with open questions', body: 'Regulatory risk is binary and lands on the timeline and the price.' },
-      { icon: 'Pill', title: 'A patent cliff inside the forecast', body: 'Exclusivity dates decide when revenue falls away.' },
+      { icon: 'FileCheck', title: 'A phase the filings do not support', body: 'The deck says Phase 2; the registry record supplied says Phase 1.' },
+      { icon: 'Pill', title: 'A patent cliff inside the hold', body: 'The key patent expires a year and a half after closing, and the price assumes it does not.' },
+      { icon: 'Calculator', title: 'A milestone left out of the model', body: 'The licence agreement owes a payment at the next phase start; the seller’s model does not carry it.' },
     ],
     walkthrough: [
-      { step: 'Evidence', text: 'Trial registries, regulatory filings, patent data and manufacturing records join the document set.' },
-      { step: 'Finding', text: 'Clinical, regulatory, patent and quality findings are drafted with exact citations to filings and protocols.' },
-      { step: 'Review', text: 'Scientific, regulatory and legal reviewers decide in one workflow.' },
-      { step: 'Valuation', text: 'Approval timing and exclusivity feed the scenarios the deal team runs.' },
-      { step: 'Deal terms', text: 'Milestones, contingent payments and indemnities tied to the findings.' },
+      { step: 'Evidence', text: 'The pipeline schedule, the trial-registry records, the patent schedule, the obligations model, the R&D roster and the P&L by year arrive as imports; the regulatory correspondence, patent records, licence and supply agreements and the deck are read with their source.' },
+      { step: 'Finding', text: 'Deterministic checks mark each phase, status and readout claim verified, contradicted or unverified, draft a patent cliff inside the hold, an obligation missing from or understated in the model, single-source manufacturing, key-scientist concentration and R&D flat against a timeline brought forward, each cited to the rows or the page.' },
+      { step: 'Review', text: 'A named reviewer accepts, rejects or asks for support on every finding; nothing is decided by the software, and nothing judges efficacy, approvability or trial design.' },
+      { step: 'Valuation', text: 'DCF scenarios, with accepted findings on the purchase-price bridge: the patent cliff priced on the product’s revenue, the omitted milestone at the amount the agreement states.' },
+      { step: 'Deal terms', text: 'Milestones and contingent payments, a supply-continuity covenant or a retention arrangement, each traced to its source.' },
     ],
     findings: [
-      { title: 'Key patent expires earlier than the forecast assumes', severity: 'High', evidence: 'Patent record and the revenue forecast', term: 'Revised exclusivity case in the valuation' },
-      { title: 'Open manufacturing observations at a supplier site', severity: 'Medium', evidence: 'Inspection records cited', term: 'Supply-continuity covenant' },
+      { title: 'The lead asset is claimed Phase 2; the registry record says Phase 1', severity: 'High', evidence: 'The pipeline schedule against the trial-registry record and the regulator’s minutes', term: 'A later, slower case in the scenarios' },
+      { title: 'The key patent expires 18 months after closing', severity: 'High', evidence: 'The patent record’s expiry against the closing date and the hold', term: 'A price reduction on the revenue at risk' },
+      { title: 'A milestone due at the next phase start is missing from the seller’s model', severity: 'High', evidence: 'The licence agreement’s clause against the obligations model', term: 'The milestone off the price, or a seller-borne payment' },
+      { title: 'R&D spend is flat while the timeline is brought forward', severity: 'High', evidence: 'R&D across every imported P&L year against the deck’s new dates', term: 'The later dates or the extra R&D in the scenarios' },
     ],
     deliverables: [
-      { icon: 'Microscope', title: 'Cited clinical and regulatory findings', body: 'Every claim tied to the filing or protocol it came from.' },
-      { icon: 'Pill', title: 'An exclusivity timeline', body: 'Patent and exclusivity dates in the valuation, not in an appendix.' },
-      { icon: 'Handshake', title: 'Milestone-based terms', body: 'Contingent consideration linked to the risks behind it.' },
+      { icon: 'FileCheck', title: 'A pipeline claims register', body: 'Every claimed phase and readout, verified, contradicted or unverified, with the filing behind it.' },
+      { icon: 'Pill', title: 'The patent estate against the hold', body: 'Each product’s first cliff, the record that dates it, and the revenue behind it.' },
+      { icon: 'Handshake', title: 'Obligations the model must carry', body: 'Each milestone, royalty and fee the agreements state, and whether the seller’s model carries it.' },
     ],
     faq: [
-      { q: 'What evidence does the pack read?', a: 'Trial registries, regulatory filings, patent data and manufacturing records, alongside the documents in the data room. Every finding cites the filing or protocol it rests on.' },
-      { q: 'How are approval and exclusivity risks priced?', a: 'Approval timing and exclusivity dates are scenario inputs. Accepted findings become milestones, contingent payments or indemnities tied to the risk behind them.' },
-      { q: 'Who decides the scientific and regulatory findings?', a: 'Your reviewers. Models can draft findings with citations; only a named person can accept them.' },
+      { q: 'What evidence does the pack read?', a: 'The pipeline schedule, the trial-registry records the seller supplies, the patent schedule and patent records, the licence and supply agreements, the seller’s model of what it owes, an R&D roster by pseudonymous reference, regulatory correspondence and the P&L by year. Pactlab does not look registries up itself; it checks what is supplied.' },
+      { q: 'Does it judge the science or the chance of approval?', a: 'No. It checks documents, dates and consistency: a claimed phase against the filing, an expiry against the hold, a payment against the agreement. Efficacy, approvability and trial design are for your scientific and regulatory advisers.' },
+      { q: 'How are patent cliffs and obligations priced?', a: 'A cliff inside the hold is priced on the billed revenue of the product it protects: low one year of it, high a year for each year of the hold left, before the erosion your reviewer sets. An omitted milestone is priced at the amount the agreement states. A person accepts every price.' },
+      { q: 'How is people data handled?', a: 'Scientists appear only as pseudonymous references and counts; their figures stay in deterministic code and are never sent to a model. HR documents are never read by the checks.' },
     ],
   },
 
@@ -619,7 +622,7 @@ export const WRITTEN_INDUSTRIES = INDUSTRIES.filter((industry) => industry.slug 
  * lease checks, T-161, 2026-11-26). Same list as the
  * app's RELEASED_COMPANY_TYPES (packages/domain/src/packs/release.ts).
  */
-export const RELEASED_INDUSTRY_SLUGS: readonly string[] = ['software-saas', 'multifamily', 'venture-raise', 'music-rights', 'energy-generation', 'startup-spv', 'fintech', 'healthcare', 'small-clinics'];
+export const RELEASED_INDUSTRY_SLUGS: readonly string[] = ['software-saas', 'multifamily', 'venture-raise', 'music-rights', 'energy-generation', 'startup-spv', 'fintech', 'healthcare', 'small-clinics', 'pharma-biotech'];
 
 /** An environment's copy of the site (dev, qa) previews every written pack, for testing before release. */
 export const PACK_PREVIEW = process.env['NEXT_PUBLIC_PACK_PREVIEW'] === 'true';
