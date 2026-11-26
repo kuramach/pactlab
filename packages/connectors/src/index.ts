@@ -6,6 +6,7 @@ export * from './http/cassette';
 export * from './github';
 export * from './imports';
 export * from './jira';
+export * from './mcp';
 export * from './testing';
 export * from './stripe';
 export * from './kafka-snapshot';

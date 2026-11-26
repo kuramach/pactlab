@@ -1,6 +1,7 @@
 import type { FindingDomain, ValuationDirection } from '@pactlab/domain';
 import { CODE_CONTRIBUTOR_ACTIVITY_EVIDENCE_TYPE, ISSUE_LINK_EVIDENCE_TYPE, PULL_REQUEST_EVIDENCE_TYPE, REPOSITORY_HEAD_EVIDENCE_TYPE } from './github/evidence';
 import { DELIVERY_CONTRIBUTOR_ACTIVITY_EVIDENCE_TYPE, JIRA_ISSUE_EVIDENCE_TYPE, JIRA_SPRINT_EVIDENCE_TYPE } from './jira/evidence';
+import { DEPENDENCY_ALERT_EVIDENCE_TYPE } from './mcp/evidence-types';
 import { INVOICE_LINE_EVIDENCE_TYPE } from './stripe/invoice-line';
 
 /**
@@ -56,6 +57,18 @@ export const VALUATION_DIRECTION_MAP: Readonly<Record<string, readonly Direction
       defaultDirection: 0,
       channel: 'INFORMATIONAL',
       rationale: 'Links code to delivery work so other findings can cite both; a link moves no value by itself.',
+    },
+  ],
+  // Read through an MCP server (T-084c). An open alert is remediation work the buyer prices;
+  // a closed one is history.
+  [DEPENDENCY_ALERT_EVIDENCE_TYPE]: [
+    { signal: 'open-vulnerability', findingDomain: 'SECURITY', defaultDirection: -1, channel: 'PRICED_TERM' },
+    {
+      signal: 'resolved-vulnerability',
+      findingDomain: 'SECURITY',
+      defaultDirection: 0,
+      channel: 'INFORMATIONAL',
+      rationale: 'A fixed or dismissed alert is patching history; it moves no value by itself.',
     },
   ],
   [JIRA_ISSUE_EVIDENCE_TYPE]: [
@@ -147,6 +160,7 @@ export const ADAPTER_EVIDENCE_TYPES = [
   CODE_CONTRIBUTOR_ACTIVITY_EVIDENCE_TYPE,
   PULL_REQUEST_EVIDENCE_TYPE,
   ISSUE_LINK_EVIDENCE_TYPE,
+  DEPENDENCY_ALERT_EVIDENCE_TYPE,
   JIRA_ISSUE_EVIDENCE_TYPE,
   JIRA_SPRINT_EVIDENCE_TYPE,
   DELIVERY_CONTRIBUTOR_ACTIVITY_EVIDENCE_TYPE,

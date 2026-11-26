@@ -1,10 +1,10 @@
 import { Module } from '@nestjs/common';
 import { DealAccess } from '../deals/deal-access';
-import { ConnectionsController, GitHubAppController, SyntheticSourcesController } from './connections.controller';
+import { ConnectionsController, GitHubAppController, McpEvidenceServersController, SyntheticSourcesController } from './connections.controller';
 import { ConnectionsService } from './connections.service';
 
 @Module({
-  controllers: [ConnectionsController, GitHubAppController, SyntheticSourcesController],
+  controllers: [ConnectionsController, GitHubAppController, McpEvidenceServersController, SyntheticSourcesController],
   providers: [ConnectionsService, DealAccess],
   exports: [ConnectionsService],
 })
