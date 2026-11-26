@@ -49,13 +49,16 @@ for id in "${TASKS[@]}"; do
   if [[ ! -f "tasks/ready/$id.md" && ! -f "tasks/active/$id.md" ]]; then
     RESULTS+=("$id  skipped (not in tasks/ready or tasks/active)"); continue
   fi
+  # A task whose PR is open is waiting for review: never built twice (states live on task branches, not main).
+  open_pr="$(gh pr list --head "agent/$id" --state open --json url -q '.[0].url' 2>/dev/null)"
+  if [[ -n "$open_pr" ]]; then RESULTS+=("$id  skipped (PR open: $open_pr)"); continue; fi
   echo
   echo "================ $id  ($(date '+%H:%M')) ================"
   start=$SECONDS
   ./scripts/run-task.sh "$id" $AUTO_MERGE
   code=$?
   mins=$(( (SECONDS - start) / 60 ))
-  state="$(ls tasks/*/"$id".md 2>/dev/null | head -1 | cut -d/ -f2)"
+  state="$(cat "tasks/.runs/$id.state" 2>/dev/null)"
   pr="$(gh pr list --head "agent/$id" --state all --json url -q '.[0].url' 2>/dev/null)"
   RESULTS+=("$id  ${state:-?}  ${mins}m  ${pr:-no PR}")
   if [[ $code -eq 75 ]]; then
