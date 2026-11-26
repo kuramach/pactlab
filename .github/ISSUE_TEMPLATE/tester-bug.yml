@@ -1,0 +1,80 @@
+name: Tester bug
+description: A bug found while running the daily tester plan
+title: "[bug] "
+labels: ["tester-bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Demo identities and synthetic data only. Never paste credentials, tokens, or real personal data.
+  - type: input
+    id: build
+    attributes:
+      label: Environment and build
+      description: dev or live (demo org only), browser and version, device, and the build or commit shown in the app if visible.
+      placeholder: "dev, Chrome 131 on macOS, build abc1234"
+    validations:
+      required: true
+  - type: input
+    id: account
+    attributes:
+      label: Account, organization and pact
+      description: Demo identity used, organization, and pact name or id.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Numbered, starting from sign-in.
+      placeholder: |
+        1. Sign in as ...
+        2. Open ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected result
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual result
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: Screenshots, screen recording, console or network errors. Drag files in. Redact anything sensitive.
+    validations:
+      required: true
+  - type: dropdown
+    id: frequency
+    attributes:
+      label: Frequency
+      options:
+        - Always
+        - Often (more than half the tries)
+        - Sometimes
+        - Once, could not reproduce
+    validations:
+      required: true
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      options:
+        - S1 - Blocker or confidentiality leak
+        - S2 - Major or wrong result
+        - S3 - Minor, workaround exists
+        - S4 - Cosmetic
+    validations:
+      required: true
+  - type: input
+    id: plan
+    attributes:
+      label: Plan section
+      description: Which daily plan and section you were in, e.g. 2026-11-26 section 2.
