@@ -19,3 +19,4 @@ export * from './qoe/registry';
 export * from './syndication/registry';
 export * from './signing';
 export * from './music/registry';
+export * from './energy/registry';

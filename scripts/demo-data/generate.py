@@ -77,7 +77,9 @@ class Dataset:
         self.seller, self.buyer = None, 'Demo Buyer'
         self.syndication_step = []
         self.music_step = []
+        self.energy_step = []
         self.ask = None
+        self.ask_note = None
 
     def amt(self, usd):
         return q(D(usd) * self.c['scale'])
@@ -309,7 +311,7 @@ class Dataset:
                     '   | Where it came from | **Teaser or information memorandum** |',
                     '   | Date quoted | 30 September 2026 |',
                     '   | Of which earn-out, Note | leave empty |', '',
-                    (f'   → **Next**. (This is the seller\'s ask: about 14× trailing statement income. The demo shows how far the evidence supports it.)' if self.ask is not None else f'   → **Next**. (This is the seller\'s ask: {ASKING_MULTIPLE[self.pack]}× the September 2026 billed revenue run-rate. The demo shows how far the evidence supports it.)')]
+                    (f'   → **Next**. ({self.ask_note})' if self.ask_note else f'   → **Next**. (This is the seller\'s ask: about 14× trailing statement income. The demo shows how far the evidence supports it.)' if self.ask is not None else f'   → **Next**. (This is the seller\'s ask: {ASKING_MULTIPLE[self.pack]}× the September 2026 billed revenue run-rate. The demo shows how far the evidence supports it.)')]
         out += ['6. **Review and start** — check the summary → **Start Pact**.', '',
                 f'**You should see:** the Pact overview for `{self.seller_name}`' + ('.' if venture else f', with the asking price {money(c, asking)}.'), '']
         heading('Upload the billing export')
@@ -367,6 +369,9 @@ class Dataset:
         if self.music_step:
             heading('Read the catalog (Catalog tab)')
             out += self.music_step
+        if self.energy_step:
+            heading('Read the reserves and liabilities (Assets tab)')
+            out += self.energy_step
         heading('Run the checks and review the findings')
         out += [f'1. Open the **Findings** tab → **Run {label.lower()} checks**.',
                 f'2. **You should see exactly these {len(self.findings)} findings** (running the checks again adds nothing):', '']
@@ -417,6 +422,7 @@ PACK_IMPORTS = {
     'venture-raise': {'cap-table': 'Cap table', 'monthly-financials': 'Monthly financials'},
     'multifamily-syndication': {'rent-roll': 'Rent roll', 't12': 'T-12 operating statement', 'delinquency': 'Delinquency report', 'unit-inspections': 'Unit inspections', 'track-record': 'Sponsor track record'},
     'music-rights': {'works-register': 'Works register', 'writer-splits': 'Writer splits', 'chain-of-title': 'Chain of title', 'royalty-statements': 'Royalty statements'},
+    'energy-generation': {'plant-register': 'Plant register', 'interest-register': 'Interest register', 'lease-schedule': 'Lease schedule', 'production-history': 'Production history', 'liability-schedule': 'Liability schedule'},
 }
 
 # What Pactlab's "What kind of company is it?" shows (COMPANY_TYPE_LABELS in
@@ -427,6 +433,7 @@ COMPANY_TYPE_LABELS = {
     'ecommerce-dtc': 'E-commerce & DTC', 'multifamily': 'Multifamily', 'commercial-property': 'Commercial property',
     'hotels': 'Hotels & hospitality', 'small-clinics': 'Small clinics', 'hospitals': 'Hospitals',
     'venture-raise': 'Venture Raise', 'multifamily-syndication': 'Multifamily syndication', 'music-rights': 'Music rights',
+    'energy-generation': 'Energy generation & rights',
 }
 # The Documents tab's data-class options.
 DATA_CLASS_LABELS = {'Business': 'business information', 'Financial': 'financial information'}
@@ -437,6 +444,7 @@ PACK_TITLES = {
     'ecommerce-dtc': 'E-commerce and DTC', 'multifamily': 'Multifamily', 'commercial-property': 'Commercial property',
     'hotels': 'Hotels and hospitality', 'small-clinics': 'Small clinics', 'hospitals': 'Hospitals',
     'venture-raise': 'Venture Raise', 'multifamily-syndication': 'Multifamily syndication', 'music-rights': 'Music rights',
+    'energy-generation': 'Energy generation and rights',
 }
 
 def ramp(rng, base, growth, months=MONTHS, start=None, end=None, noise=D('0')):
@@ -1388,12 +1396,173 @@ One record found. A UCC-1 financing statement was filed in favour of Northgate C
         'Diligence support only: not legal advice. Pactlab makes no determination that title is good or that a termination notice is valid.',
     ]
 
+def month_end(mo):
+    yy, mm = map(int, mo.split('-'))
+    nxt = (yy + 1, 1) if mm == 12 else (yy, mm + 1)
+    import datetime
+    return (datetime.date(nxt[0], nxt[1], 1) - datetime.timedelta(days=1)).isoformat()
+
+def energy(ds):
+    """Energy generation & rights (T-142): one coal plant and a mineral, royalty and working-interest portfolio, with planted defects."""
+    ds.kind, ds.kind_label = 'power_sales', 'power sale'
+    plant_name = 'Cinder Ridge Station (synthetic)'
+    ds.summary = f'{ds.company} sells a 600 MW coal-fired plant, {plant_name}, together with a portfolio of oil and gas mineral, royalty and working interests in 20 wells.'
+    rng, c = ds.rng, ds.cur
+    offtaker, pool = 'Valley Electric Cooperative (synthetic)', 'Midcontinent Power Pool (synthetic)'
+    ppa_end = '2028-06-30'
+    # The plant register.
+    ds.ext('plant-register', ['plant_id', 'name', 'fuel', 'capacity_mw', 'commissioned_year', 'capacity_factor_pct', 'ppa_counterparty', 'ppa_expires_on'],
+           [['PL-001', plant_name, 'coal', '600', '1981', '52', offtaker, ppa_end]], 'Plant register: capacity, fuel, age, capacity factor and PPA')
+    # Plant production: about half capacity, 80% sold under the PPA; and the billing export of the same sales.
+    plant_rows, ppa_sales, pool_sales = [], {}, {}
+    for i, mo in enumerate(MONTHS):
+        mwh = whole(D(600) * D(730) * (D('0.50') + D(rng.randint(-3, 3)) / D(100)))
+        contracted, merchant = whole(mwh * D('0.8')), mwh - whole(mwh * D('0.8'))
+        rev_c, rev_m = ds.amt(contracted * D('42')), ds.amt(merchant * D(rng.randint(30, 55)))
+        end = month_end(mo)
+        plant_rows.append([f'PR-PL001-{mo}-C', 'PL-001', end, 'power', f'{contracted}', f'{rev_c:.2f}', 'contracted'])
+        plant_rows.append([f'PR-PL001-{mo}-M', 'PL-001', end, 'power', f'{merchant}', f'{rev_m:.2f}', 'merchant'])
+        ppa_sales[mo], pool_sales[mo] = rev_c, rev_m
+    ds.customer(f'{ds.prefix}-off-001', offtaker, ppa_sales)
+    ds.customer(f'{ds.prefix}-pool-002', pool, pool_sales)
+    # Interests, one lease each, plus undeveloped leases not held by production.
+    wells = ['Ridgeback', 'Cottonwood', 'Bluestem', 'Mesquite', 'Red Fork', 'Saltgrass', 'Blackjack', 'Prairie Hen', 'Caddo', 'Wolf Creek']
+    operators = ['Plainsview Operating (synthetic)', 'Hardpan Energy (synthetic)', 'Ochre Basin Resources (synthetic)']
+    interests, leases, prod = [], [], []
+    error_id = 'OG-007'
+    for i in range(1, 21):
+        iid, lid = f'OG-{i:03d}', f'LS-{i:03d}'
+        name = f'{wells[(i - 1) % 10]} {i}H (synthetic)'
+        kind = ['mineral', 'royalty', 'working', 'mineral'][i % 4]
+        royalty = [D('0.1875'), D('0.2'), D('0.25')][i % 3]
+        orri = D('0.03') if kind == 'working' else D('0')
+        share = D('0.25') if kind == 'working' else D('0.5')
+        if iid == error_id: kind, share, royalty, orri = 'mineral', D('0.5'), D('0.1875'), D('0')
+        nri = share * (1 - royalty - orri) if kind == 'working' else share * royalty
+        stated = D('0.125') if iid == error_id else nri
+        acres = D(rng.randint(12, 32) * 10)
+        interests.append([iid, name, f'Section {i + 4}, T{10 + i % 5}N, R{20 + i % 7}W (synthetic)', lid, kind, f'{share}', f'{stated:.8f}', operators[i % 3]])
+        leases.append([lid, f'LR-{i:03d}', f'{acres}', f'{royalty}', f'{orri}' if orri else '', f'{2008 + i % 10}-04-01', f'{2013 + i % 10}-04-01', 'yes'])
+        # Production: oil and gas declining about 10% a year (gross, 8/8ths).
+        oil0, gas0 = D(rng.randint(900, 2200)), D(rng.randint(4000, 12000))
+        for k, mo in enumerate(MONTHS):
+            f = D('0.9') ** (D(k) / D(12))
+            oil, gas = whole(oil0 * f), whole(gas0 * f)
+            end = month_end(mo)
+            prod.append([f'PR-{iid}-{mo}-O', iid, end, 'oil', f'{oil}', f'{ds.amt(oil * D(70)):.2f}', ''])
+            prod.append([f'PR-{iid}-{mo}-G', iid, end, 'gas', f'{gas}', f'{ds.amt(gas * D("2.80")):.2f}', ''])
+    held = sum((D(l[2]) for l in leases), D(0))
+    # About 25% of all net acres: undeveloped leases, not held by production, expiring within 18 months of 30 September 2026.
+    expiring = ['2026-12-31', '2027-03-31', '2027-06-30', '2027-09-30', '2027-12-31', '2028-03-31']
+    target = held / D(3)  # exposed = 1/4 of the total when exposed = held / 3
+    per = whole(target / len(expiring))
+    for j, end in enumerate(expiring):
+        acres = per if j < len(expiring) - 1 else whole(target) - per * (len(expiring) - 1)
+        leases.append([f'LS-{21 + j:03d}', f'LR-{21 + j:03d}', f'{acres}', '0.1875', '', f'{2023 + j % 2}-01-01', end, 'no'])
+    total_acres = sum((D(l[2]) for l in leases), D(0))
+    exposed_acres = sum((D(l[2]) for l in leases if l[7] == 'no'), D(0))
+    ds.ext('interest-register', ['interest_id', 'name', 'legal_description', 'lease_id', 'interest_type', 'interest_share', 'division_order_nri', 'operator'], interests, 'Interest register: mineral, royalty and working interests with the division-order decimal')
+    ds.ext('lease-schedule', ['lease_id', 'lessor_ref', 'net_acres', 'royalty_rate', 'overriding_royalty', 'effective_on', 'expires_on', 'held_by_production'], leases, 'Lease schedule: net acres, royalty chain, primary term and whether production holds each lease')
+    ds.ext('production-history', ['record_id', 'asset_id', 'period_end', 'product', 'volume', 'gross_revenue', 'sales_type'], plant_rows + prod, 'Production history: plant generation and revenue by contract type, and well volumes and gross revenue')
+    # The seller's liability schedule: the ARO is booked at 60% of the study, and the ash pond is not on it.
+    aro, booked_aro, ash = ds.amt(42000000), ds.amt(25200000), ds.amt(18400000)
+    liabilities = [['LB-001', 'PL-001', 'aro', 'Plant retirement obligation', f'{booked_aro:.2f}'],
+                   ['LB-002', 'PL-001', 'remediation', 'Coal yard runoff remediation', f'{ds.amt(1100000):.2f}']]
+    for i in (3, 7, 11, 15, 19):
+        liabilities.append([f'LB-{i + 100:03d}', f'OG-{i:03d}', 'aro', 'Well plugging and abandonment', f'{ds.amt(85000):.2f}'])
+    ds.ext('liability-schedule', ['liability_id', 'asset_id', 'kind', 'description', 'booked_amount'], liabilities, 'The seller\'s liability schedule: environmental and retirement obligations as booked')
+    err = next(r for r in interests if r[0] == error_id)
+    trailing_rev = sum((D(r[5]) for r in prod if r[1] == error_id and r[2] > '2025-09-30'), D(0))
+    yearly = (D('0.125') - D('0.09375')) * trailing_rev
+    pdp, pdnp, pud = 1240, 310, 880
+    ds.ask = sig2(ds.amt(190000000))
+    ds.ask_note = 'This is the seller\'s ask for the plant and the interests together. The demo shows how far the evidence supports it.'
+    ds.doc('01-sale-summary', f"""
+{ds.company} — sale summary (synthetic)
+
+The package: {plant_name}, a 600 MW coal-fired plant commissioned in 1981, and mineral, royalty and working interests in 20 producing wells.
+---page---
+Assets and obligations
+
+The plant sells most of its output to {offtaker} under a long-term power purchase agreement.
+The seller's liability schedule lists the environmental and retirement obligations it carries for the plant and the wells.
+Leases on the producing wells are held by production.
+""", 'The seller\'s sale summary')
+    ds.doc('02-title-opinion', f"""
+Division-order title opinion — {ds.company} interests (synthetic)
+---page---
+Opinion
+
+Ownership of the mineral, royalty and working interests in Schedule A is vested of record in {ds.company}, subject to the leases listed there.
+""", 'Division-order title opinion over the interests')
+    ds.doc('03-division-order-og007', f"""
+Division order — {err[1]} ({error_id}) (synthetic)
+---page---
+Owner: {ds.company}. Interest type: mineral (royalty). Decimal interest: 0.12500000.
+Operator: {err[7]}.
+""", 'The operator\'s division order for one well')
+    ds.doc('04-power-purchase-agreement', f"""
+Power purchase agreement — {plant_name} and {offtaker}
+---page---
+2.1 The Buyer purchases 80% of the net output of {plant_name} at the contract price.
+2.4 This agreement terminates on 30 June 2028.
+""", 'The plant\'s power purchase agreement')
+    ds.doc('05-reserve-report', f"""
+Third-party reserve report — {ds.company} oil and gas interests (synthetic)
+
+Prepared by Lantern Petroleum Engineers (synthetic) as of 30 September 2026.
+---page---
+Reserves and values
+
+Net PDP reserves: {pdp:,} MBOE.
+Net PDNP reserves: {pdnp:,} MBOE.
+Net PUD reserves: {pud:,} MBOE.
+PDP discounted at 10%: {money(c, ds.amt(24600000))}.
+PDNP discounted at 10%: {money(c, ds.amt(4100000))}.
+PUD discounted at 10%: {money(c, ds.amt(7300000))}.
+The forecast assumes an annual decline of 12% for the producing wells.
+""", 'Third-party reserve report: reserves by category, values and the decline assumed')
+    ds.doc('06-ash-pond-closure-plan', f"""
+Ash pond closure plan — {plant_name}
+---page---
+Closure cost
+
+The closure plan for {plant_name} ash pond estimates closure and groundwater remediation costs of {money(c, ash)}.
+""", 'Closure and remediation plan for the plant\'s coal ash pond')
+    ds.doc('07-decommissioning-study', f"""
+Decommissioning study — {plant_name}
+---page---
+Cost to retire
+
+The decommissioning study for {plant_name} estimates the cost to retire and decommission the plant at {money(c, aro)}.
+""", 'Decommissioning study for the plant')
+    ds.findings = [
+        (f'Unbooked environmental liability: Coal ash (CCR) closure at {plant_name}', f'planted defect (a): `documents/06-ash-pond-closure-plan.pdf` page 2 estimates {money(c, ash)}; `liability-schedule.csv` books nothing for the ash pond. A remediation cost.'),
+        (f'ARO shortfall: {plant_name}', f'planted defect (b): the decommissioning study estimates {money(c, aro)}; the schedule books {money(c, booked_aro)} (60%), {money(c, aro - booked_aro)} short — underfunded by 40%. An escrow.'),
+        ('Lease expiry risk: acreage not held by production', f'planted defect (c): {pct(exposed_acres / total_acres)} of the net acres ({exposed_acres:.0f} of {total_acres:.0f}) are not held by production and expire by 31 March 2028, within 18 months.'),
+        (f'Royalty decimal error: {err[1]}', f'planted defect (d): the division order for {error_id} pays 0.12500000; the lease chain (0.5 × 3/16) supports 0.09375000 — overpaid by about {money(c, yearly)} a year.'),
+        (f'PPA cliff: {plant_name}', f'the PPA with {offtaker} ends on {ppa_end}, inside the 5-year hold: 80% of the plant\'s revenue turns merchant.'),
+    ]
+    ds.energy_step = [
+        'Open the **Assets** tab (it appears only on an energy generation & rights pact).', '',
+        f'**You should see:** the plant and the 20 interests, contract coverage of about 80% on the plant, production declining about 10% a year, **Lease expiry**: {pct(exposed_acres / total_acres)} of the net acres not held by production inside the 5-year hold, one **division-order decimal** off the lease chain, and the **Liabilities** table: the ash pond unbooked and the ARO 40% short.', '',
+        '1. Under **Read the reports**, click **Read with AI** for `05-reserve-report.pdf`, `06-ash-pond-closure-plan.pdf` and `07-decommissioning-study.pdf`.',
+        '2. Under **To confirm**, check each proposed entry against its quote, then **Confirm** it (or correct it first, or **Reject** it). Only confirmed entries count: the reserves appear under **Reserves** as the report states them.',
+        '3. Click **Run energy checks**: it runs the same rules as Findings, over the confirmed entries too, and adds nothing already drafted.', '']
+    ds.notes = [
+        'Buyer-side pack: you are buying the plant and the interests. Registers, the lease schedule, production and the liability schedule are CSV imports; the reserve report and environmental reports are read on the **Assets** tab, where a person confirms each entry before it counts.',
+        'For the **Valuation** tab: **Reserve-based DCF** for the interests (the reserve report\'s categories and values on the **Assets** tab), or **Capacity value ($/kW)** for the plant — enter the net capacity in kW (600000) and a price per kW.',
+        'Reserves are the third-party engineer\'s, cited as such; Pactlab never estimates reserves. A missing report is a gap finding.',
+        'Diligence support only: not legal, engineering or regulatory advice. Pactlab makes no title determination and certifies no reserves.',
+    ]
+
 PACKS = [
     ('software-saas', 'Brightwave Software', software), ('fintech', 'Tallyport Payments', fintech), ('healthcare', 'Riverside Care Partners', healthcare),
     ('telecom-media', 'Northlake Fibre', telecom), ('professional-services', 'Sablestone Consulting', services), ('pharma-biotech', 'Calvera Pharmaceuticals', pharma),
     ('ecommerce-dtc', 'Ridgeline Outfitters', ecommerce), ('hotels', 'Harbourview Hotel Holdings', hotels), ('multifamily', 'Larkfield Residential', multifamily),
     ('commercial-property', 'Quayside Estates', commercial), ('hospitals', 'St. Brennan Health', hospitals), ('small-clinics', 'Clearbrook Clinics', clinics),
     ('venture-raise', 'Loopwise', venture), ('multifamily-syndication', 'Ashgrove Residential', syndication), ('music-rights', 'Fairlight Songs', music),
+    ('energy-generation', 'Cinder Ridge Energy', energy),
 ]
 
 if __name__ == '__main__':

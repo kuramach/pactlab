@@ -31,6 +31,7 @@ export const DEMO_SECTION_COVERAGE: Readonly<Record<string, SectionProbe>> = {
   '/raise': { table: 'venture_offers' },
   '/syndication': { table: 'syndication_offering_items' },
   '/catalog': { table: 'music_register_items' },
+  '/energy': { table: 'energy_register_items' },
   '/valuation': { table: 'valuation_scenarios' },
   '/foresight': { exempt: 'Prepared from published forecasts the first time the tab is opened, so it is never stale in a demo.' },
   '/terms': { table: 'term_proposal_batches' },

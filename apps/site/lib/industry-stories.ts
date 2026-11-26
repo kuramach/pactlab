@@ -469,6 +469,40 @@ export const INDUSTRY_STORIES: Readonly<Record<string, IndustryStory>> = {
       { q: 'Does growth raise the price?', a: 'No. The multiple applies to decay-adjusted income: declines reduce it and growth is never added. Verified growth and clean title are recorded as confirmed value.' },
     ],
   },
+  'energy-generation': {
+    headline: 'Price the liabilities before you inherit them.',
+    subhead:
+      'Plants and oil & gas interests trade on title chains, production and reserve data, contracts — and large, quantifiable obligations. Pactlab builds the asset and interest register, checks production against the reserve report and sets every remediation and retirement estimate against what the seller booked.',
+    illustrationAlt: 'Illustration of a power plant, a well site and a liability schedule.',
+    pains: [
+      { icon: 'ShieldAlert', title: 'Obligations left off the schedule', body: 'An ash-pond closure plan sits in the data room, and the liability schedule books nothing for it.' },
+      { icon: 'Hourglass', title: 'Acreage on a clock', body: 'Leases not held by production expire during the hold, and the value goes with them.' },
+      { icon: 'Percent', title: 'Decimals that do not add up', body: 'A division order pays a decimal the lease royalty chain does not support, and the operator can claw it back.' },
+    ],
+    walkthrough: [
+      { step: 'Evidence', text: 'Plant and interest registers, leases, production and the liability schedule arrive as imports; reserve reports, title opinions, permits and studies are read with their source.' },
+      { step: 'Finding', text: 'Deterministic checks draft unbooked liabilities, ARO shortfalls, decline mismatches, lease expiry, decimal errors, PPA cliffs, title breaks and compliance capex gaps, each cited.' },
+      { step: 'Review', text: 'Entries read from reports are confirmed or corrected by a person before they count; a reviewer accepts or rejects every finding.' },
+      { step: 'Valuation', text: 'A reserve-based DCF for the interests and $/kW plus contract coverage for the plants, through the standard bridge.' },
+      { step: 'Deal terms', text: 'Unbooked remediation becomes a price reduction, the ARO shortfall an escrow and a title break a cure period or holdback, each traced to its source.' },
+    ],
+    findings: [
+      { title: 'Ash-pond closure missing from the liability schedule', severity: 'High', evidence: 'The closure plan’s estimate against the seller’s schedule', term: 'Remediation cost off the price' },
+      { title: 'Retirement obligation 40% under-booked', severity: 'High', evidence: 'The decommissioning study against the booked ARO', term: 'Escrow sized at the shortfall' },
+      { title: 'A quarter of the acreage expiring inside the hold', severity: 'High', evidence: 'The lease schedule’s terms and production status', term: 'A drag on the exposed share' },
+    ],
+    deliverables: [
+      { icon: 'ClipboardList', title: 'An asset and interest register', body: 'Every plant and interest with its contract, lease, decimal and production.' },
+      { icon: 'ChartLine', title: 'A production and reserves view', body: 'Actual decline against the report’s assumption; reserves as the engineers state them.' },
+      { icon: 'ShieldAlert', title: 'A liability schedule, checked', body: 'Every remediation and retirement estimate against what the seller booked, with the gap.' },
+    ],
+    faq: [
+      { q: 'Does Pactlab estimate reserves?', a: 'No. Reserve figures come only from the third-party engineering report, cited as such and confirmed by a person. A missing report is shown as a gap, never filled in.' },
+      { q: 'Does it tell me whether title is good?', a: 'No. It is diligence support, not legal, engineering or regulatory advice: it organises the evidence and flags breaks in the chain of title for you and your counsel. It makes no title determination.' },
+      { q: 'Where do the liability figures come from?', a: 'Only from reports, permits and the seller’s schedule. Pactlab compares the evidence’s estimate with what was booked; it never estimates a liability itself.' },
+      { q: 'Does clean title or an over-booked ARO raise the price?', a: 'No. Verified cushions are recorded as confirmed value, never as a price increase.' },
+    ],
+  },
   'small-clinics': {
     headline: 'In a clinic roll-up, revenue follows the providers.',
     subhead:
@@ -546,7 +580,7 @@ export const WRITTEN_INDUSTRIES = INDUSTRIES.filter((industry) => industry.slug 
  * Venture Raise (2026-11-09), with the others released one at a time after testing. Same list as the
  * app's RELEASED_COMPANY_TYPES (packages/domain/src/packs/release.ts).
  */
-export const RELEASED_INDUSTRY_SLUGS: readonly string[] = ['software-saas', 'multifamily', 'venture-raise', 'music-rights'];
+export const RELEASED_INDUSTRY_SLUGS: readonly string[] = ['software-saas', 'multifamily', 'venture-raise', 'music-rights', 'energy-generation'];
 
 /** An environment's copy of the site (dev, qa) previews every written pack, for testing before release. */
 export const PACK_PREVIEW = process.env['NEXT_PUBLIC_PACK_PREVIEW'] === 'true';
