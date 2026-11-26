@@ -3,6 +3,7 @@
 import { randomUUID } from 'node:crypto';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
+import { readLookback } from '../../../_lib/lookback';
 import { dealsApi, type ValidationView } from '../../../_lib/api';
 
 export type ConnectState =
@@ -17,9 +18,11 @@ const repository = z
   .regex(/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})\/[A-Za-z0-9_.-]{1,100}$/)
   .refine((value) => !['.', '..'].includes(value.split('/')[1] ?? ''));
 
+const lookbackSchema = z.union([z.number().int().min(1).max(240), z.literal('ALL')]).optional();
+
 const input = z.discriminatedUnion('method', [
-  z.strictObject({ method: z.literal('APP'), repository }),
-  z.strictObject({ method: z.literal('TOKEN'), repository, token: z.string().trim().regex(/^[A-Za-z0-9_]{20,255}$/) }),
+  z.strictObject({ method: z.literal('APP'), repository, lookbackMonths: lookbackSchema }),
+  z.strictObject({ method: z.literal('TOKEN'), repository, token: z.string().trim().regex(/^[A-Za-z0-9_]{20,255}$/), lookbackMonths: lookbackSchema }),
 ]);
 
 const FAILURES: Record<string, string> = {
@@ -34,10 +37,11 @@ const FAILURES: Record<string, string> = {
 export async function connectGitHub(dealId: string, _previous: ConnectState, formData: FormData): Promise<ConnectState> {
   if (!z.uuid().safeParse(dealId).success) return { kind: 'error', message: 'Unknown deal.' };
   const method = formData.get('method') === 'TOKEN' ? 'TOKEN' : 'APP';
+  const lookbackMonths = readLookback(formData.get('lookbackMonths')) ?? undefined;
   const parsed = input.safeParse(
     method === 'TOKEN'
-      ? { method, repository: formData.get('repository'), token: formData.get('token') }
-      : { method, repository: formData.get('repository') },
+      ? { method, repository: formData.get('repository'), token: formData.get('token'), lookbackMonths }
+      : { method, repository: formData.get('repository'), lookbackMonths },
   );
   if (!parsed.success)
     return { kind: 'error', message: 'Enter the repository as owner/name' + (method === 'TOKEN' ? ' and paste a valid token.' : '.') };

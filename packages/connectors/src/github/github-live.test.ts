@@ -19,7 +19,7 @@ const HEAD = '7fd1a60b01f91b314f59955a4e4d4e80d8edf11d';
 
 async function adapter(repository = 'octocat/Hello-World') {
   const replay = cassetteFetch(await helloWorld());
-  return { replay, live: new GitHubLiveAdapter({ repository }, () => STATIC_AUTH, replay) };
+  return { replay, live: new GitHubLiveAdapter({ repository, lookbackMonths: 'ALL' }, () => STATIC_AUTH, replay) };
 }
 
 describe('GitHub live adapter (recorded cassette)', () => {
@@ -101,10 +101,10 @@ describe('GitHub live adapter (recorded cassette)', () => {
       [500, {}, 'UNAVAILABLE'],
     ];
     for (const [status, headers, code] of cases) {
-      const live = new GitHubLiveAdapter({ repository: 'octocat/Hello-World' }, () => STATIC_AUTH, respond(status, headers));
+      const live = new GitHubLiveAdapter({ repository: 'octocat/Hello-World', lookbackMonths: 'ALL' }, () => STATIC_AUTH, respond(status, headers));
       await expect(live.head(scope())).rejects.toMatchObject({ code });
     }
-    const offline = new GitHubLiveAdapter({ repository: 'octocat/Hello-World' }, () => STATIC_AUTH, async () => {
+    const offline = new GitHubLiveAdapter({ repository: 'octocat/Hello-World', lookbackMonths: 'ALL' }, () => STATIC_AUTH, async () => {
       throw new TypeError('fetch failed');
     });
     await expect(offline.head(scope())).rejects.toMatchObject({ code: 'UNAVAILABLE' });
@@ -122,7 +122,7 @@ describe('GitHub pull requests, reviews and checks (recorded, apache/kafka)', ()
     const url = new URL('../../../../fixtures/cassettes/github/apache__kafka-pulls.json', import.meta.url);
     const { readFile } = await import('node:fs/promises');
     const replay = cassetteFetch(JSON.parse(await readFile(url, 'utf8')));
-    return new GitHubLiveAdapter({ repository: 'apache/kafka' }, () => new AnonymousAuth(), replay);
+    return new GitHubLiveAdapter({ repository: 'apache/kafka', lookbackMonths: 'ALL' }, () => new AnonymousAuth(), replay);
   }
 
   it('reads pull requests anonymously, with sanitized titles that carry Jira keys', async () => {
@@ -151,24 +151,24 @@ describe('GitHub pull requests, reviews and checks (recorded, apache/kafka)', ()
 
 describe('anonymous GitHub reads', () => {
   it('pass validation for a public repository, without a credential check', async () => {
-    const live = new GitHubLiveAdapter({ repository: 'octocat/Hello-World' }, () => new AnonymousAuth(), cassetteFetch(await helloWorld()));
+    const live = new GitHubLiveAdapter({ repository: 'octocat/Hello-World', lookbackMonths: 'ALL' }, () => new AnonymousAuth(), cassetteFetch(await helloWorld()));
     const validation = await live.validateConnection(scope(null));
     expect(validation.ok).toBe(true);
     expect(validation.checks.find((check) => check.name === 'credentials')?.status).toBe('SKIPPED');
   });
 
   it('fail clearly for a private or unknown repository', async () => {
-    const live = new GitHubLiveAdapter({ repository: 'octocat/pactlab-does-not-exist' }, () => new AnonymousAuth(), cassetteFetch(await helloWorld()));
+    const live = new GitHubLiveAdapter({ repository: 'octocat/pactlab-does-not-exist', lookbackMonths: 'ALL' }, () => new AnonymousAuth(), cassetteFetch(await helloWorld()));
     const validation = await live.validateConnection(scope(null));
     expect(validation.ok).toBe(false);
     expect(validation.checks.find((check) => check.name === 'reachability')?.detail).toMatch(/private or not found — connect it with the Pactlab GitHub App or a token/);
-    const reportedPrivate = new GitHubLiveAdapter({ repository: 'octocat/Hello-World' }, () => new AnonymousAuth(), async () => new Response(JSON.stringify({ full_name: 'octocat/Hello-World', default_branch: 'master', private: true }), { status: 200 }));
+    const reportedPrivate = new GitHubLiveAdapter({ repository: 'octocat/Hello-World', lookbackMonths: 'ALL' }, () => new AnonymousAuth(), async () => new Response(JSON.stringify({ full_name: 'octocat/Hello-World', default_branch: 'master', private: true }), { status: 200 }));
     expect((await reportedPrivate.validateConnection(scope(null))).checks.find((check) => check.name === 'reachability')?.detail).toMatch(/private/);
   });
 
   it('never follows a redirect', async () => {
     const seen: (string | undefined)[] = [];
-    const live = new GitHubLiveAdapter({ repository: 'octocat/Hello-World' }, () => new AnonymousAuth(), async (_url, init) => {
+    const live = new GitHubLiveAdapter({ repository: 'octocat/Hello-World', lookbackMonths: 'ALL' }, () => new AnonymousAuth(), async (_url, init) => {
       seen.push(init?.redirect);
       return new Response(null, { status: 301, headers: { location: 'https://elsewhere.example/' } });
     });

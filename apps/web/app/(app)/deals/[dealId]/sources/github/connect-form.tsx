@@ -2,6 +2,7 @@
 
 import { Badge, Button, buttonVariants } from '@pactlab/ui';
 import { useActionState, useState } from 'react';
+import { LookbackField } from '../lookback-field';
 import { connectGitHub, syncNow, type ConnectState } from './actions';
 
 const inputClass =
@@ -99,6 +100,7 @@ export function ConnectGitHubForm({ dealId, installUrl }: { dealId: string; inst
         Repository
         <input name="repository" placeholder="owner/name" required className={inputClass} autoComplete="off" />
       </label>
+      <LookbackField />
       {method === 'TOKEN' ? (
         <label className="flex flex-col gap-1 text-sm font-medium">
           Fine-grained token

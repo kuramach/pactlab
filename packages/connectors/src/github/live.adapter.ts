@@ -7,6 +7,7 @@ import {
   type ValidationResult,
 } from '../contract';
 import type { FetchLike } from '../http/cassette';
+import { lookbackStart, withinLookback, type LookbackMonths } from '../lookback';
 import { GITHUB_API, githubHeaders, type GitHubAuth } from './auth';
 import { sanitizeMessage } from './messages';
 import {
@@ -22,7 +23,7 @@ import {
   type ReviewSummary,
 } from './types';
 
-export const GITHUB_LIVE_VERSION = 'github-live-2';
+export const GITHUB_LIVE_VERSION = 'github-live-3';
 const TIMEOUT_MS = 15_000;
 const MAX_PAGE = 100;
 
@@ -90,6 +91,15 @@ export class GitHubLiveAdapter implements GitHubAdapter {
     private readonly resolveAuth: GitHubAuthResolver = () => null,
     private readonly fetchImpl: FetchLike = fetch,
   ) {}
+
+  get lookbackMonths(): LookbackMonths | undefined {
+    return this.config.lookbackMonths;
+  }
+
+  /** The window start, computed at sync time (T-169); null for all history. */
+  private windowStart(): Date | null {
+    return lookbackStart(this.config.lookbackMonths);
+  }
 
   private async get<T>(scope: ConnectionScope, path: string, query: Record<string, string> = {}): Promise<{ body: T; link: string | null }> {
     const auth = this.resolveAuth(scope);
@@ -211,10 +221,12 @@ export class GitHubLiveAdapter implements GitHubAdapter {
     if (!/^[1-9]\d{0,5}$/.test(page)) throw new GitHubAdapterError('INVALID_CURSOR', 'Invalid cursor');
     const perPage = Math.min(Math.max(1, Math.trunc(options.limit)), MAX_PAGE);
     const { body: repo } = await this.get<{ default_branch?: string }>(scope, this.repoPath());
+    const start = this.windowStart();
     const { body: items, link } = await this.get<CommitListItem[]>(scope, `${this.repoPath()}/commits`, {
       sha: repo.default_branch ?? '',
       per_page: String(perPage),
       page,
+      ...(start ? { since: start.toISOString() } : {}),
     });
     const commits: CommitMetadata[] = [];
     for (const item of items) {
@@ -254,8 +266,15 @@ export class GitHubLiveAdapter implements GitHubAdapter {
       page,
     });
     const pullRequests: PullRequestMetadata[] = [];
+    const start = this.windowStart();
+    let windowEnded = false;
     for (const item of items) {
       if (typeof item.number !== 'number' || !item.head?.sha || !item.created_at) continue;
+      // Newest first by creation: the first pull request older than the window ends the read.
+      if (!withinLookback(item.created_at, start)) {
+        windowEnded = true;
+        break;
+      }
       pullRequests.push({
         number: item.number,
         state: item.merged_at ? 'MERGED' : item.state === 'closed' ? 'CLOSED' : 'OPEN',
@@ -269,7 +288,7 @@ export class GitHubLiveAdapter implements GitHubAdapter {
         baseBranch: item.base?.ref ?? '',
       });
     }
-    return { pullRequests, nextCursor: items.length === 0 ? null : nextPage(link) };
+    return { pullRequests, nextCursor: items.length === 0 || windowEnded ? null : nextPage(link) };
   }
 
   /** Submitted reviews on a pull request, by outcome (first 100; pending reviews are not submitted). */

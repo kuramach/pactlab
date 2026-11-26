@@ -74,7 +74,7 @@ const scope = { organizationId: 'recorder', dealId: 'recorder', connectionId: 'r
 const token = process.env['GITHUB_TOKEN'];
 const auth: GitHubAuth = token ? { method: 'TOKEN', token: async () => token } : new AnonymousAuth();
 const github = recorder('github');
-const repo = new GitHubLiveAdapter({ repository: 'apache/kafka' }, () => auth, github.record);
+const repo = new GitHubLiveAdapter({ repository: 'apache/kafka', lookbackMonths: 'ALL' }, () => auth, github.record);
 await repo.validateConnection(scope);
 await repo.head(scope);
 const commits = await repo.listCommits(scope, { cursor: null, limit: 3 });
@@ -90,7 +90,7 @@ save('github/apache__kafka.json', 'github', `https://api.github.com/repos/apache
 // Jira: the keys the recorded commits and pull requests name, plus two pages of the project.
 const keys = [...new Set([...commits.commits.flatMap((commit) => issueKeysIn(commit.message)), ...pulls.pullRequests.flatMap((pull) => issueKeysIn(pull.title))])].filter((key) => key.startsWith('KAFKA-'));
 const jira = recorder('jira');
-const site = new JiraLiveAdapter({ site: 'issues.apache.org', basePath: '/jira', projectKeys: ['KAFKA'] }, { fetch: jira.record, policy: { selfHostedHosts: ['issues.apache.org'] } });
+const site = new JiraLiveAdapter({ site: 'issues.apache.org', basePath: '/jira', lookbackMonths: 'ALL', projectKeys: ['KAFKA'] }, { fetch: jira.record, policy: { selfHostedHosts: ['issues.apache.org'] } });
 await site.validateConnection(scope);
 const issues = await site.listIssues(scope, { cursor: null, limit: 3 });
 if (issues.nextCursor) await site.listIssues(scope, { cursor: issues.nextCursor, limit: 3 });

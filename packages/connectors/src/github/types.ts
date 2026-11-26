@@ -1,6 +1,7 @@
 import type { CommitMetadata, ContributorIdentity } from '@pactlab/domain';
 import { z } from 'zod';
 import type { ConnectionScope, ProviderAdapter } from '../contract';
+import { lookbackMonthsSchema, type LookbackMonths } from '../lookback';
 
 export const GITHUB_PROVIDER = 'github';
 
@@ -12,6 +13,8 @@ export const githubConnectionConfigSchema = z.strictObject({
     .string()
     .regex(/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})\/[A-Za-z0-9_.-]{1,100}$/)
     .refine((value) => !['.', '..'].includes(value.split('/')[1] ?? ''), 'Not a repository name'),
+  /** Months of history to read; unset is 24 and `ALL` is an explicit choice (T-169). */
+  lookbackMonths: lookbackMonthsSchema.optional(),
 });
 export type GitHubConnectionConfig = z.infer<typeof githubConnectionConfigSchema>;
 
@@ -82,6 +85,8 @@ export interface CheckSummary {
  */
 export interface GitHubAdapter extends ProviderAdapter<CommitMetadata> {
   readonly version: string;
+  /** Months of history this connection reads; unset means the 24-month default. */
+  readonly lookbackMonths?: LookbackMonths;
   head(scope: ConnectionScope): Promise<RepositoryHead>;
   listCommits(
     scope: ConnectionScope,

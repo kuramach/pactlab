@@ -1,3 +1,4 @@
+import { lookbackStart, withinLookback, type LookbackMonths } from '../lookback';
 import { boundedLimit, isAnonymous, type ConnectionScope, type DryRunResult, type ValidationCheck, type ValidationResult } from '../contract';
 import type { SecretStore } from '../credentials';
 import type { FetchLike } from '../http/cassette';
@@ -17,7 +18,7 @@ import {
   MAX_KEYS_PER_LOOKUP,
 } from './types';
 
-export const JIRA_LIVE_VERSION = 'jira-live-1';
+export const JIRA_LIVE_VERSION = 'jira-live-2';
 const TIMEOUT_MS = 15_000;
 const MAX_PAGE = 100;
 /** Latest sprints read per board, and boards per project. */
@@ -130,6 +131,10 @@ export class JiraLiveAdapter implements JiraAdapter {
     this.fetchImpl = options.fetch ?? ((input, init) => fetch(input, init));
     this.secrets = options.secrets ?? null;
     this.policy = options.policy ?? CLOUD_ONLY;
+  }
+
+  get lookbackMonths(): LookbackMonths | undefined {
+    return this.config.lookbackMonths;
   }
 
   private get cloud(): boolean {
@@ -315,7 +320,10 @@ export class JiraLiveAdapter implements JiraAdapter {
     const meta = await this.siteMeta(scope);
     if (meta.readable.length === 0) throw new JiraAdapterError('PERMISSION_DENIED', 'None of the configured projects is readable');
     const fields = this.issueFields(meta);
-    const jql = `project in (${meta.readable.join(', ')}) ORDER BY created ASC, key ASC`;
+    // Work touched inside the window (T-169); the date is computed at sync time. JQL dates are day-precise.
+    const start = lookbackStart(this.config.lookbackMonths);
+    const inWindow = start ? ` AND updated >= "${start.toISOString().slice(0, 10)}"` : '';
+    const jql = `project in (${meta.readable.join(', ')})${inWindow} ORDER BY created ASC, key ASC`;
     const page = await this.search(scope, jql, fields, options.cursor, options.limit, true);
     const issues = page.issues.map((raw) => this.issueOf(raw, meta)).filter((issue): issue is JiraIssue => issue !== null);
     const gaps: JiraGap[] = [];
@@ -389,6 +397,7 @@ export class JiraLiveAdapter implements JiraAdapter {
           throw new JiraAdapterError('PERMISSION_DENIED', 'Sprints are not readable on this site');
         throw error;
       }
+      const sprintsStart = lookbackStart(this.config.lookbackMonths);
       for (const board of (boards.values ?? []).filter((entry) => entry.type === 'scrum' && typeof entry.id === 'number').slice(0, MAX_BOARDS)) {
         const found: { id?: number; state?: string; name?: string; startDate?: string; endDate?: string }[] = [];
         let startAt = 0;
@@ -404,6 +413,7 @@ export class JiraLiveAdapter implements JiraAdapter {
         }
         const latest = found
           .filter((sprint) => typeof sprint.id === 'number' && jiraDate(sprint.startDate))
+          .filter((sprint) => withinLookback(jiraDate(sprint.startDate) as string, sprintsStart) || sprint.state === 'active')
           .sort((a, b) => (jiraDate(b.startDate) ?? '').localeCompare(jiraDate(a.startDate) ?? ''))
           .slice(0, MAX_SPRINTS);
         for (const sprint of latest) {

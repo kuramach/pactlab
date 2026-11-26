@@ -6,6 +6,7 @@ import {
   type ValidationCheck,
   type ValidationResult,
 } from '../contract';
+import type { LookbackMonths } from '../lookback';
 import { GITHUB_FIXTURES, type GitHubFixtureRepository } from './fixture-data';
 import {
   GITHUB_CORE_PERMISSIONS,
@@ -31,6 +32,10 @@ export class GitHubFixtureAdapter implements GitHubAdapter {
   readonly version = GITHUB_FIXTURE_VERSION;
 
   constructor(private readonly config: GitHubConnectionConfig) {}
+
+  get lookbackMonths(): LookbackMonths | undefined {
+    return this.config.lookbackMonths;
+  }
 
   private fixture(): GitHubFixtureRepository | undefined {
     return Object.hasOwn(GITHUB_FIXTURES, this.config.repository)

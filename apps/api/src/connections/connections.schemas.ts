@@ -1,6 +1,6 @@
 import { CONNECTION_MODES } from '@pactlab/domain';
 import { z } from 'zod';
-import { githubConnectionConfigSchema, jiraConnectionConfigSchema, mcpConnectionConfigSchema } from '@pactlab/connectors';
+import { githubConnectionConfigSchema, jiraConnectionConfigSchema, lookbackMonthsSchema, mcpConnectionConfigSchema } from '@pactlab/connectors';
 import type { SUPPORTED_PROVIDERS } from './adapter-registry';
 
 /** Every supported provider has a create schema below. */
@@ -36,6 +36,10 @@ export const setModeSchema = z.strictObject({
 });
 export type SetModeCommand = z.infer<typeof setModeSchema>;
 
+/** Edit how much history an engineering source reads (T-169): months, or `ALL` as a deliberate choice. */
+export const setLookbackSchema = z.strictObject({ lookbackMonths: lookbackMonthsSchema });
+export type SetLookbackCommand = z.infer<typeof setLookbackSchema>;
+
 export const dryRunSchema = z.strictObject({
   limit: z.number().int().min(1).max(1000).default(10),
 });
@@ -54,12 +58,13 @@ export const idempotencyKeySchema = z
  * secret store and never returned, logged or audited.
  */
 export const connectGitHubSchema = z.discriminatedUnion('method', [
-  z.strictObject({ method: z.literal('APP'), repository: githubConnectionConfigSchema.shape.repository }),
+  z.strictObject({ method: z.literal('APP'), repository: githubConnectionConfigSchema.shape.repository, lookbackMonths: lookbackMonthsSchema.optional() }),
   /** A public repository read without a credential, at GitHub's anonymous rate limit (T-082). */
-  z.strictObject({ method: z.literal('PUBLIC'), repository: githubConnectionConfigSchema.shape.repository }),
+  z.strictObject({ method: z.literal('PUBLIC'), repository: githubConnectionConfigSchema.shape.repository, lookbackMonths: lookbackMonthsSchema.optional() }),
   z.strictObject({
     method: z.literal('TOKEN'),
     repository: githubConnectionConfigSchema.shape.repository,
+    lookbackMonths: lookbackMonthsSchema.optional(),
     token: z.string().trim().regex(/^[A-Za-z0-9_]{20,255}$/, 'A GitHub token'),
   }),
 ]);
@@ -75,6 +80,7 @@ const jiraTarget = {
   site: jiraConnectionConfigSchema.shape.site,
   basePath: jiraConnectionConfigSchema.shape.basePath,
   projectKeys: jiraConnectionConfigSchema.shape.projectKeys,
+  lookbackMonths: lookbackMonthsSchema.optional(),
 };
 export const connectJiraSchema = z.discriminatedUnion('method', [
   z.strictObject({ method: z.literal('PUBLIC'), ...jiraTarget }),
