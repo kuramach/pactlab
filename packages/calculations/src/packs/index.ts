@@ -4,6 +4,7 @@ export * from './fintech';
 export * from './metrics-types';
 export * from './multifamily';
 export * from './common';
+export * from './pnl-trend';
 export * from './healthcare';
 export * from './telecom';
 export * from './services';

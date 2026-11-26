@@ -51,6 +51,10 @@ The source plan then adds **Industry data** (`pack_upload` connections) automati
 - **When rules run:** after every inline pack import, and from "Run … checks" on Findings.
 - **Unpriced drags:** a drag with no defensible amount is proposed −1 without a price. Findings shows it as **Needs pricing**, and acceptance waits for a person to price it.
 
+### The multi-year P&L trend (every pack, T-161)
+
+Register a trend rule with the pack's key expense lines: `pnlTrendRule({ id: '<pack>-pnl-trend', expenses: [{ key, label, match }] })` from `packs/pnl-trend.ts`. It reads every imported fiscal year (`finance.pnl_line`, withdrawn imports excluded), drafts revenue falling, margin drift and expense lines outpacing revenue, and cites every year's rows. The pack's calculator reports each year with `pnlYears`.
+
 ## 5. Metrics
 
 - **Calculator:** in `packages/calculations/src/packs/calculators.ts`. It returns the generic `PackMetricsReport` (`packs/metrics-types.ts`): label, value as a decimal string, unit, formula and source count.

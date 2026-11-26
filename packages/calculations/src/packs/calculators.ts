@@ -4,6 +4,7 @@ import { MULTIFAMILY_METRICS_CALCULATOR } from './multifamily/metrics';
 import { MUSIC_METRICS_CALCULATOR } from './music/metrics';
 import { ENERGY_METRICS_CALCULATOR } from './energy/metrics';
 import { SPV_METRICS_CALCULATOR } from './spv/metrics';
+import { CLINICS_METRICS_CALCULATOR } from './clinics/metrics';
 
 /**
  * Metric calculators, one per pack family (ADR 0009). Deterministic,
@@ -32,4 +33,5 @@ export const METRIC_CALCULATORS: Readonly<Record<string, MetricCalculator<never,
   [MUSIC_METRICS_CALCULATOR.id]: MUSIC_METRICS_CALCULATOR as MetricCalculator<never, unknown>,
   [ENERGY_METRICS_CALCULATOR.id]: ENERGY_METRICS_CALCULATOR as MetricCalculator<never, unknown>,
   [SPV_METRICS_CALCULATOR.id]: SPV_METRICS_CALCULATOR as MetricCalculator<never, unknown>,
+  [CLINICS_METRICS_CALCULATOR.id]: CLINICS_METRICS_CALCULATOR as MetricCalculator<never, unknown>,
 };

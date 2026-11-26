@@ -166,6 +166,8 @@ enum ImportTarget {
   REGULATORY_FOOTPRINT
   REMEDY_PACKAGE
   FINANCIAL_PNL
+  CLINICS_VISITS
+  CLINICS_SERVICE_LINES
 
   @@map("import_target")
 }

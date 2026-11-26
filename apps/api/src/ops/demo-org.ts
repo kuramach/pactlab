@@ -24,7 +24,7 @@ import { apiEnvSchema, applyDatabaseUrls, loadConfig } from '@pactlab/config';
 import { FixturePropertyProvider, hasKafkaSnapshot, kafkaSnapshot } from '@pactlab/connectors';
 import { createPrismaClient, resolvePrincipal, S3ObjectStore } from '@pactlab/db';
 import { uploadQuerySchema } from '@pactlab/contracts';
-import { COMPANY_TYPES, DEMO_DATA_COMMIT, demoDataUrl, IMPORT_TARGET_DEFINITIONS, isReleasedCompanyType, newId, packFor, type CompanyType, type TenantContext } from '@pactlab/domain';
+import { COMPANY_TYPES, DEMO_DATA_COMMIT, demoDataUrl, IMPORT_TARGET_DEFINITIONS, isReleasedCompanyType, newId, packFor, parseCsv, type CompanyType, type TenantContext } from '@pactlab/domain';
 import { createLogger } from '@pactlab/observability';
 import pg from 'pg';
 import type { PrismaClient } from '@pactlab/db';
@@ -379,6 +379,17 @@ export async function buildPact(app: App, owner: OwnerSession, people: People, t
     const query = uploadQuerySchema.parse({ system: 'pactlab_standard', fileName, ...(target === 'BILLING_INVOICE_LINE' ? {} : { target }) });
     const upload = await imports.upload(buyer, dealId, query, new Uint8Array(await data.file(type, fileName)), REQUEST_ID);
     await imports.import(buyer, dealId, upload.id, upload.suggestedMapping as never, REQUEST_ID);
+  }
+  // A P&L by fiscal year where the folder has one (T-161): imported like any statement, with the line kinds a person picks on screen read from the folder.
+  // silent-ok: a folder without a P&L simply has none to import; the pack's other evidence is unaffected
+  const pnlKinds = await data.file(type, 'pnl-line-kinds.csv').catch(() => null);
+  if (pnlKinds) {
+    await step('p&l', async () => {
+      const lineKinds = Object.fromEntries(parseCsv(pnlKinds.toString('utf8')).rows.map((row) => [row.cells[0] ?? '', row.cells[1] ?? '']));
+      const upload = await imports.upload(buyer, dealId, uploadQuerySchema.parse({ system: 'pactlab_standard', fileName: 'pnl.csv', target: 'FINANCIAL_PNL' }), new Uint8Array(await data.file(type, 'pnl.csv')), REQUEST_ID);
+      await imports.import(buyer, dealId, upload.id, { ...(upload.suggestedMapping as object), lineKinds } as never, REQUEST_ID);
+      return `P&L by year (${Object.keys(lineKinds).length} lines)`;
+    });
   }
   // The paged documents some checks cite (PDFs, with the extracts' paged copy kept to the financial class).
   const uploaded: Record<string, string> = {};

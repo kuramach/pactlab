@@ -27,6 +27,8 @@ export const IMPORT_TARGETS = [
   'CLINICS_PATIENT_VOLUME',
   'CLINICS_EQUIPMENT',
   'CLINICS_CODING_SUMMARY',
+  'CLINICS_VISITS',
+  'CLINICS_SERVICE_LINES',
   'HOSPITALS_CENSUS',
   'HOSPITALS_PAYER_MIX',
   'VENTURE_CAP_TABLE',
@@ -554,6 +556,51 @@ export const CLINICS_CODING_SUMMARY: TargetDefinition = {
   ],
 };
 
+/**
+ * Small clinics, the few-site variant (T-161): visits and collections by month, service line,
+ * pseudonymous provider and referral source, from the schedule or billing export. The provider's
+ * role says whether the selling owner delivered the visit; nothing names a person or a patient.
+ */
+export const CLINICS_VISITS: TargetDefinition = {
+  target: 'CLINICS_VISITS',
+  label: 'Visits by provider and referral',
+  fileName: 'visit-summary.csv',
+  people: 'PSEUDONYMOUS',
+  refusesPeopleColumns: true,
+  evidenceType: 'clinics.visit_month',
+  recordIdField: 'month',
+  recordIdFields: ['month', 'service_line', 'provider_ref', 'referral_source'],
+  observedAtFields: [],
+  fields: [
+    { name: 'month', label: 'Month', kind: 'text', required: true, hint: 'YYYY-MM.' },
+    { name: 'service_line', label: 'Service line', kind: 'text', required: true, hint: 'e.g. Implants, Hygiene, Physiotherapy.' },
+    { name: 'provider_ref', label: 'Provider reference', kind: 'text', required: true, hint: 'A pseudonymous reference such as P01 — never a name or licence number.' },
+    { name: 'provider_role', label: 'Provider role', kind: 'code', required: true, hint: 'owner for the selling owner-operator; associate or contractor for everyone else.' },
+    { name: 'referral_source', label: 'Referral source', kind: 'text', required: true, hint: 'Where the visit was referred from: a practice, a scheme, or Self-referred.' },
+    { name: 'visits', label: 'Visits', kind: 'decimal', required: true, hint: 'Visits in the month (a count; no patient detail).' },
+    { name: 'collections', label: 'Collections', kind: 'money', required: true, hint: IN_BASE_CURRENCY },
+  ],
+};
+
+/** Small clinics (T-161): revenue and direct costs by service line and fiscal year, for each line's margin. */
+export const CLINICS_SERVICE_LINES: TargetDefinition = {
+  target: 'CLINICS_SERVICE_LINES',
+  label: 'Service-line margins',
+  fileName: 'service-lines.csv',
+  people: 'NONE',
+  refusesPeopleColumns: true,
+  evidenceType: 'clinics.service_line_year',
+  recordIdField: 'year',
+  recordIdFields: ['year', 'service_line'],
+  observedAtFields: [],
+  fields: [
+    { name: 'year', label: 'Fiscal year', kind: 'text', required: true, hint: 'YYYY.' },
+    { name: 'service_line', label: 'Service line', kind: 'text', required: true, hint: 'As in the visit summary.' },
+    { name: 'revenue', label: 'Revenue', kind: 'money', required: true, hint: IN_BASE_CURRENCY },
+    { name: 'direct_costs', label: 'Direct costs', kind: 'money', required: true, hint: `Supplies, lab fees and other costs of the line, in total (never one person’s pay). ${IN_BASE_CURRENCY}` },
+  ],
+};
+
 /** Hospitals (T-069): admissions, patient days and average daily census by month and service line — aggregates. */
 export const HOSPITALS_CENSUS: TargetDefinition = {
   target: 'HOSPITALS_CENSUS',
@@ -979,6 +1026,8 @@ export const IMPORT_TARGET_DEFINITIONS: Readonly<Record<ImportTarget, TargetDefi
   CLINICS_PATIENT_VOLUME,
   CLINICS_EQUIPMENT,
   CLINICS_CODING_SUMMARY,
+  CLINICS_VISITS,
+  CLINICS_SERVICE_LINES,
   HOSPITALS_CENSUS,
   HOSPITALS_PAYER_MIX,
   VENTURE_CAP_TABLE,

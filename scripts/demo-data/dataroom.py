@@ -30,6 +30,7 @@ EXPORT_LABELS = {
     'cam-reconciliation': 'CAM reconciliation',
     'operating-history': 'Operating history', 'str-benchmark': 'STR benchmark',
     'patient-volume': 'Patient volume', 'equipment-schedule': 'Equipment schedule', 'coding-summary': 'Coding summary',
+    'visit-summary': 'Visits by provider and referral', 'service-lines': 'Service-line margins',
     'census': 'Census', 'payer-mix': 'Payer mix',
     'cap-table': 'Cap table', 'monthly-financials': 'Monthly financials',
 }

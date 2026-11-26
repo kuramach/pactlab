@@ -25,7 +25,7 @@ describe('demo organization (batch 2)', () => {
   let first: string[] = [];
   const demoData = generatedDemoData();
   const rows = async (sql: string, params: unknown[] = []) => ((await db.owner.query(sql, params)) as { rows: Row[] }).rows;
-  const types = ['SOFTWARE_SAAS', 'MULTIFAMILY', 'VENTURE_RAISE', 'MULTIFAMILY_SYNDICATION', 'MUSIC_RIGHTS', 'ENERGY_GENERATION', 'STARTUP_SPV'] as const;
+  const types = ['SOFTWARE_SAAS', 'MULTIFAMILY', 'VENTURE_RAISE', 'MULTIFAMILY_SYNDICATION', 'MUSIC_RIGHTS', 'ENERGY_GENERATION', 'STARTUP_SPV', 'SMALL_CLINICS'] as const;
   const run = (reset = false, only: readonly (typeof types)[number][] = types) => runDemoOrg(app as never, db.owner as never, db.prisma, { types: only, reset, data: demoData.source });
 
   beforeAll(async () => {
@@ -114,7 +114,7 @@ describe('demo organization (batch 2)', () => {
     expect(await count('deal_memberships', teaser.id, `AND role = 'BIDDER'`)).toBe(3);
     expect(await rows(`SELECT scope, status FROM report_versions WHERE organization_id = $1 AND scope <> 'IC' ORDER BY scope`, [DEMO_ORG.id])).toEqual([{ scope: 'EXECUTIVE', status: 'READY' }, { scope: 'PACT', status: 'READY' }]);
     // Each buyer-led acquisition pact has its committee pack (T-124 demo coverage).
-    expect((await rows(`SELECT count(*)::int AS n FROM report_versions WHERE organization_id = $1 AND scope = 'IC'`, [DEMO_ORG.id]))[0]).toEqual({ n: 10 });
+    expect((await rows(`SELECT count(*)::int AS n FROM report_versions WHERE organization_id = $1 AND scope = 'IC'`, [DEMO_ORG.id]))[0]).toEqual({ n: 12 });
     // The syndication pact reads its offering, and the seller sees none of the sponsor's offering documents (T-106).
     const syndication = await deal(pactName('MULTIFAMILY_SYNDICATION'));
     expect(await count('syndication_offerings', syndication.id)).toBe(1);
@@ -135,6 +135,11 @@ describe('demo organization (batch 2)', () => {
     expect(await count('investor_view_versions', spv.id)).toBe(1);
     expect(await count('findings', spv.id, `AND title = 'Accreditation gap in a 506(c) vehicle'`)).toBe(1);
     expect(await count('documents', spv.id, `AND visibility = 'SHARED'`)).toBe(0);
+    // The clinic imports its P&L for three fiscal years, and the trend no single year shows is a finding (T-161).
+    const clinics = await deal(pactName('SMALL_CLINICS'));
+    expect(await count('evidence_items', clinics.id, `AND evidence_type = 'finance.pnl_line'`)).toBe(18);
+    expect(await count('findings', clinics.id, `AND title = 'Clinical supplies outpacing revenue'`)).toBe(1);
+    expect(await count('findings', clinics.id, `AND title = 'One referral source sends 58.0% of visits'`)).toBe(1);
   });
 
   it('every section a demo pact shows has data, derived from the section rules, not a list kept by hand (T-124)', async () => {

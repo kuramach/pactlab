@@ -31,6 +31,13 @@ export const FX_RATE_EVIDENCE_TYPE = 'fx.rate';
 /** Venture Raise (T-083): the founder's cap table and monthly cash, imported as pack extracts. */
 export const VENTURE_CAP_TABLE_EVIDENCE_TYPE = 'venture.cap_table_row';
 export const VENTURE_FINANCIALS_EVIDENCE_TYPE = 'venture.financials_month';
+/** Small clinics, the few-site variant (T-161), and the healthcare evidence it reuses (T-061). */
+export const CLINICS_VISIT_EVIDENCE_TYPE = 'clinics.visit_month';
+export const HEALTHCARE_CLAIMS_EVIDENCE_TYPE = 'healthcare.claims_month';
+/** The imported P&L (ADR 0038), read by year for the trend findings every pack drafts. */
+export const PNL_LINE_EVIDENCE_TYPE = 'finance.pnl_line';
+/** A clinic's lease, read from the filed documents (T-161). */
+export const PREMISES_LEASE_EVIDENCE_TYPE = 'document.premises_lease';
 
 /**
  * Every evidence type the adapters and engines emit, with the direction each
@@ -137,6 +144,24 @@ export const VALUATION_DIRECTION_MAP: Readonly<Record<string, readonly Direction
       rationale: 'Cash and burn inform the raise’s timing; only a contradicted runway claim moves the round.',
     },
   ],
+  // Small clinics (T-161): the risks of a few-site clinic concentrate in the owner, a referral source and a lease.
+  [CLINICS_VISIT_EVIDENCE_TYPE]: [
+    { signal: 'owner-dependence', findingDomain: 'PEOPLE', defaultDirection: -1, channel: 'ASSUMPTION' },
+    {
+      signal: 'referral-concentration',
+      findingDomain: 'COMMERCIAL',
+      defaultDirection: 0,
+      channel: 'INFORMATIONAL',
+      rationale: 'A volume sensitivity in the scenarios and a review of the referral relationship, not a price term.',
+    },
+  ],
+  [HEALTHCARE_CLAIMS_EVIDENCE_TYPE]: [{ signal: 'denials-rising', findingDomain: 'FINANCIAL', defaultDirection: -1, channel: 'ASSUMPTION' }],
+  [PNL_LINE_EVIDENCE_TYPE]: [
+    { signal: 'revenue-falling', findingDomain: 'FINANCIAL', defaultDirection: -1, channel: 'ASSUMPTION' },
+    { signal: 'margin-drift', findingDomain: 'FINANCIAL', defaultDirection: -1, channel: 'ASSUMPTION' },
+    { signal: 'expense-outpacing-revenue', findingDomain: 'FINANCIAL', defaultDirection: -1, channel: 'ASSUMPTION' },
+  ],
+  [PREMISES_LEASE_EVIDENCE_TYPE]: [{ signal: 'short-term-no-renewal', findingDomain: 'PROPERTY', defaultDirection: -1, channel: 'PRICED_TERM' }],
   [DOCUMENT_FINDING_EVIDENCE_TYPE]: [
     { signal: 'CHANGE_OF_CONTROL', findingDomain: 'CONTRACT', defaultDirection: -1, channel: 'PRICED_TERM' },
     { signal: 'ASSIGNMENT', findingDomain: 'CONTRACT', defaultDirection: -1, channel: 'PRICED_TERM' },

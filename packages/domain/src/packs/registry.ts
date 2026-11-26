@@ -17,7 +17,7 @@ export const PACK_IDS = COMPANY_TYPES.filter((type): type is PackId => type !== 
 export type PackCluster = 'technology' | 'healthcare' | 'real-estate' | 'services' | 'life-sciences' | 'consumer' | 'capital' | 'media-rights' | 'energy';
 
 /** Calculator ids in `@pactlab/calculations` (`metricCalculator`). */
-export const METRIC_CALCULATOR_IDS = ['saas-metrics', 'multifamily-metrics', 'music-royalties', 'energy-assets', 'spv-round'] as const;
+export const METRIC_CALCULATOR_IDS = ['saas-metrics', 'multifamily-metrics', 'music-royalties', 'energy-assets', 'spv-round', 'clinics-metrics'] as const;
 export type MetricCalculatorId = (typeof METRIC_CALCULATOR_IDS)[number];
 
 /** Valuation method ids in `@pactlab/calculations` (`VALUATION_METHODS`). */
@@ -154,9 +154,36 @@ export const PACKS: Readonly<Record<PackId, PackDefinition>> = {
   },
   SMALL_CLINICS: {
     ...pack('SMALL_CLINICS', 'small-clinics', 'healthcare', true),
-    importTargets: ['BILLING_INVOICE_LINE', 'CLINICS_PATIENT_VOLUME', 'CLINICS_EQUIPMENT', 'CLINICS_CODING_SUMMARY'],
-    // Extends healthcare (T-061): its reimbursement and compliance rules run here too.
-    findingRules: ['clinics-provider-carries-site', 'clinics-coding-above-policy', 'clinics-equipment-past-life', 'healthcare-government-concentration', 'healthcare-director-fee', 'healthcare-privacy-assessment'],
+    // The few-site variant of healthcare (T-068, T-161). Healthcare's claims summary (payer mix,
+    // denials) and provider roster (credentialing) by reference, scaled to a small roster; then what a
+    // small clinic's risk concentrates in: the selling owner, one referral source, one lease.
+    importTargets: [
+      'BILLING_INVOICE_LINE',
+      'CLINICS_PATIENT_VOLUME',
+      'CLINICS_EQUIPMENT',
+      'CLINICS_CODING_SUMMARY',
+      'HEALTHCARE_CLAIMS_SUMMARY',
+      'HEALTHCARE_PROVIDER_ROSTER',
+      // Margins before visits: the owner check reads both, and it first runs when the visits arrive.
+      'CLINICS_SERVICE_LINES',
+      'CLINICS_VISITS',
+    ],
+    metricCalculator: 'clinics-metrics',
+    // Extends healthcare (T-061): its reimbursement, compliance, credentialing and denials rules run here too.
+    findingRules: [
+      'clinics-provider-carries-site',
+      'clinics-coding-above-policy',
+      'clinics-equipment-past-life',
+      'healthcare-government-concentration',
+      'healthcare-director-fee',
+      'healthcare-privacy-assessment',
+      'healthcare-credentials-expiring',
+      'healthcare-denials-rising',
+      'clinics-owner-dependence',
+      'clinics-referral-concentration',
+      'clinics-lease-term',
+      'clinics-pnl-trend',
+    ],
     valuationMethods: ['DCF'],
   },
   HOSPITALS: {

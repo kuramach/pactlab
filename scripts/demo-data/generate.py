@@ -81,6 +81,7 @@ class Dataset:
         self.spv_step = []
         self.ask = None
         self.ask_note = None
+        self.pnl = None  # (header, rows, {line: kind as Pactlab shows it}): a P&L by year, imported on Sources (T-161)
 
     def amt(self, usd):
         return q(D(usd) * self.c['scale'])
@@ -177,6 +178,13 @@ class Dataset:
             self.doc('99-data-room-extracts', '\n---page---\n'.join(pages), 'Every CSV extract in this folder as one paged PDF, so findings can cite a page', 'Financial')
         for name, (text, _, _) in self.docs.items():
             open(os.path.join(d, 'documents', f'{name}.md'), 'w').write(text)
+        if self.pnl:
+            header, rows, kinds = self.pnl
+            b = io.StringIO(); ww = csv.writer(b, lineterminator='\n'); ww.writerow(header); ww.writerows(rows)
+            open(os.path.join(d, 'pnl.csv'), 'w').write(b.getvalue())
+            # What each line is, for scripted imports (the demo organization); a person picks them on screen.
+            b = io.StringIO(); ww = csv.writer(b, lineterminator='\n'); ww.writerow(['line', 'kind']); ww.writerows([[line, PNL_KIND_IDS[kind]] for line, kind in kinds.items()])
+            open(os.path.join(d, 'pnl-line-kinds.csv'), 'w').write(b.getvalue())
         # VDR index
         b = io.StringIO(); ww = csv.writer(b, lineterminator='\n')
         ww.writerow(['doc_id', 'title', 'file', 'data_class', 'as_of'])
@@ -184,6 +192,8 @@ class Dataset:
         i = 1
         for name, (_, _, desc) in self.extracts.items():
             i += 1; ww.writerow([f'{self.prefix.upper()}-{i:03d}', desc, f'{name}.csv', 'Financial', '2026-09-30'])
+        if self.pnl:
+            i += 1; ww.writerow([f'{self.prefix.upper()}-{i:03d}', 'Profit and loss by fiscal year', 'pnl.csv', 'Financial', '2026-09-30'])
         for name, (_, desc, dc) in self.docs.items():
             i += 1; ww.writerow([f'{self.prefix.upper()}-{i:03d}', desc, f'documents/{name}.pdf', dc, '2026-09-30'])
         open(os.path.join(d, 'vdr-index.csv'), 'w').write(b.getvalue())
@@ -281,7 +291,7 @@ class Dataset:
                '## Before you start', '',
                '- Download this whole folder (on GitHub: **Code → Download ZIP** at the top of the repository, then unzip).',
                '- Sign in to Pactlab. The steps take about 15 minutes.',
-               f'- You upload **{1 + len(imports)} CSV file{"s" if imports else ""}** and **{len(pdfs)} PDF{"s" if len(pdfs) != 1 else ""}**. Nothing else.',
+               f'- You upload **{1 + len(imports) + (1 if self.pnl else 0)} CSV file{"s" if imports or self.pnl else ""}** and **{len(pdfs)} PDF{"s" if len(pdfs) != 1 else ""}**. Nothing else.',
                '- **Never upload the `.md` files** in `documents/`. They are the text each PDF is built from; Pactlab reads the PDFs.',
                '- `vdr-index.csv` is for reference only (how a data room would list these files). Do not upload it.',
                '- Text in **bold** below is a button, tab or option exactly as Pactlab shows it.', '',
@@ -328,6 +338,16 @@ class Dataset:
             for i, (name, target) in enumerate(imports.items(), 1):
                 out.append(f'| {i} | **Upload {target.lower()}** | `{name}.csv` | **Upload and map columns** → **Check every row** | **Import {len(self.extracts[name][1])} rows** |')
             out += ['', '**You should see** after each import: "… imported … Industry checks ran on them". Some findings may already appear as drafts; that is expected.', '']
+        if self.pnl:
+            header, rows, kinds = self.pnl
+            heading('Upload the P&L, by year')
+            out += [f'`pnl.csv` holds the profit and loss for fiscal years {", ".join(header[1:])}, one column per year. Pactlab reads every year, so the trend across them shows.', '',
+                    '1. On **Sources**, under **Industry data**, click **Upload profit and loss (p&l)** → `pnl.csv` → **Upload and map columns**.',
+                    '2. The line names and the years are read from the file. Under **What each line is**, choose:', '',
+                    '   | Line | What it is |', '   |---|---|']
+            out += [f'   | `{line}` | **{kind}** |' for line, kind in kinds.items()]
+            out += ['', f'3. Click **Check every row**, then **Import {len(rows) * (len(header) - 1)} rows**.', '',
+                    '**You should see:** the statement for each year, adding up. **Quality of earnings** and **Valuation** read every imported year.', '']
         heading('Upload the documents')
         out += [f'Open the **Documents** tab. Under **Upload a document**, upload each PDF from the `documents/` folder, one at a time — choose the file, set **Data class**, leave **Keep away from AI** unticked, click **Upload**.', '',
                 '| # | File | Data class | What it is |', '|---|---|---|---|']
@@ -399,6 +419,9 @@ class Dataset:
                 out.append(f'| `{name}.csv` | {desc} ({len(rows)} rows) | **Yes** — industry data step |')
             else:
                 out.append(f'| `{name}.csv` | {desc} ({len(rows)} rows) | **No** — it is already inside `documents/99-data-room-extracts.pdf`, which you upload |')
+        if self.pnl:
+            out.append(f'| `pnl.csv` | Profit and loss by fiscal year ({len(self.pnl[1])} lines × {len(self.pnl[0]) - 1} years) | **Yes** — P&L step |')
+            out.append('| `pnl-line-kinds.csv` | What each P&L line is, as you choose it on screen | **No** — the P&L step lists the same |')
         for name, desc, _ in pdfs:
             out.append(f'| `documents/{name}.pdf` | {desc} | **Yes** — documents step |')
         out += ['| `bidders.csv` | The three bidding firms for Part B: who to invite, what each asks and offers | **No** — read it while you follow Part B |',
@@ -421,7 +444,8 @@ PACK_IMPORTS = {
     'ecommerce-dtc': {'orders-by-cohort': 'Orders by cohort', 'ad-spend': 'Ad spend'},
     'commercial-property': {'rent-roll': 'Commercial rent roll', 'cam-reconciliation': 'CAM reconciliation'},
     'hotels': {'operating-history': 'Operating history', 'str-benchmark': 'STR benchmark'},
-    'small-clinics': {'patient-volume': 'Patient volume', 'equipment-schedule': 'Equipment schedule', 'coding-summary': 'Coding summary'},
+    'small-clinics': {'patient-volume': 'Patient volume', 'equipment-schedule': 'Equipment schedule', 'coding-summary': 'Coding summary', 'claims-summary': 'Claims summary',
+                      'provider-roster': 'Provider roster', 'service-lines': 'Service-line margins', 'visit-summary': 'Visits by provider and referral'},
     'hospitals': {'census': 'Census', 'payer-mix': 'Payer mix'},
     'venture-raise': {'cap-table': 'Cap table', 'monthly-financials': 'Monthly financials'},
     'multifamily-syndication': {'rent-roll': 'Rent roll', 't12': 'T-12 operating statement', 'delinquency': 'Delinquency report', 'unit-inspections': 'Unit inspections', 'track-record': 'Sponsor track record'},
@@ -441,6 +465,8 @@ COMPANY_TYPE_LABELS = {
     'energy-generation': 'Energy generation & rights',
     'startup-spv': 'Startup equity SPV',
 }
+# The P&L step's line kinds as Pactlab shows them, and their ids.
+PNL_KIND_IDS = {'Revenue': 'REVENUE', 'Cost of revenue': 'COGS', 'Operating expense': 'OPEX', 'Other income': 'OTHER_INCOME', 'Other expense': 'OTHER_EXPENSE'}
 # The Documents tab's data-class options.
 DATA_CLASS_LABELS = {'Business': 'business information', 'Financial': 'financial information'}
 
@@ -951,7 +977,7 @@ Cardiology: two interventional cardiologists perform about 80% of procedures.
 
 def clinics(ds):
     ds.kind, ds.kind_label = 'clinic_revenue', 'payer remittance'
-    ds.summary = f'{ds.company} runs six dental and physiotherapy clinics with 22 providers, paid by insurers and patients.'
+    ds.summary = f'{ds.company} runs six dental and physiotherapy clinics with 22 providers, paid by insurers and patients. Its founder, the selling owner, still treats patients at Site 1.'
     payers = [('Insurer Bluepoint', 96000), ('Insurer Harrowgate', 54000), ('Government scheme', 41000), ('Patients — self-pay', 38000)]
     for i, (n, base) in enumerate(payers):
         ds.customer(f'{ds.prefix}-pay-{i + 1:03d}', f'{n} (synthetic)', ramp(ds.rng, ds.amt(base), '0.005', noise=D('0.03')))
@@ -970,18 +996,85 @@ def clinics(ds):
         ['Panoramic X-ray unit', 'Site 1', '2014-05-01', 10, 'in service'], ['Panoramic X-ray unit', 'Site 4', '2015-02-01', 10, 'in service'],
         ['Dental chairs (6)', 'Site 2', '2021-09-01', 12, 'in service'], ['Shockwave therapy unit', 'Site 5', '2023-03-01', 8, 'in service']], 'Equipment with acquisition dates and useful lives')
     ds.ext('coding-summary', ['quarter', 'high_complexity_share', 'policy_benchmark'], [['2025-Q4', '0.31', '0.15'], ['2026-Q1', '0.33', '0.15'], ['2026-Q2', '0.34', '0.15'], ['2026-Q3', '0.36', '0.15']], 'Share of visits billed at the highest complexity code')
+
+    # The healthcare evidence, scaled to a small roster (T-161): claims by payer with steady denials, credentials all current.
+    claims = []
+    for mo in LAST12:
+        for (n, _), rate in zip(payers, ['4.0', '5.0', '6.0', '2.0']):
+            paid = next(m2 for _, nn, m2 in ds.customers if nn == f'{n} (synthetic)')[mo]
+            claims.append([mo, f'{n} (synthetic)', 300 + len(n) * 10, f'{q(paid * D("1.25")):.2f}', f'{paid:.2f}', rate])
+    ds.ext('claims-summary', ['month', 'payer', 'claims', 'billed', 'paid', 'denial_rate_pct'], claims, 'Monthly claims billed, paid and denial rate by payer')
+    team = [('P01', 'General dentistry and implants', '1.0'), ('P02', 'General dentistry', '1.0'), ('P03', 'General dentistry', '0.8'), ('P04', 'Hygiene', '1.0'),
+            ('P05', 'Hygiene', '0.6'), ('P06', 'Physiotherapy', '1.0'), ('P13', 'Physiotherapy', '0.8')]
+    ds.ext('provider-roster', ['provider_ref', 'specialty', 'fte', 'credential_expiry'], [[ref, spec, fte, f'{2028 + i % 2}-{(i * 2) % 12 + 1:02d}-01'] for i, (ref, spec, fte) in enumerate(team)], 'Provider roster, pseudonymous, with credential expiry dates')
+
+    # Visits by service line, provider and referral source (defects a and c): P01 is the selling owner and the only implant provider.
+    sources = [('Harbourside Orthodontic Group (synthetic)', D('0.58')), ('Self-referred', D('0.22')), ('Insurer Bluepoint network (synthetic)', D('0.12')), ('Other local practices', D('0.08'))]
+    lines = [('Implants', 'P01', 'owner', 50, 1400), ('General dentistry', 'P01', 'owner', 100, 180), ('General dentistry', 'P02', 'associate', 150, 180),
+             ('General dentistry', 'P03', 'associate', 100, 180), ('Hygiene', 'P04', 'associate', 200, 110), ('Hygiene', 'P05', 'associate', 100, 110),
+             ('Physiotherapy', 'P06', 'associate', 150, 95), ('Physiotherapy', 'P13', 'contractor', 100, 95)]
+    visits, referred, owner_coll, all_coll = [], D(0), D(0), D(0)
+    for mo in LAST12:
+        for line, ref, role, count, fee in lines:
+            for source, share in sources:
+                n = int(count * share)
+                coll = ds.amt(n * fee)
+                visits.append([mo, line, ref, role, source, n, f'{coll:.2f}'])
+                referred += n if source.startswith('Harbourside') else 0
+                all_coll += coll; owner_coll += coll if role == 'owner' else 0
+    total_visits = sum(row[5] for row in visits)
+    ds.ext('visit-summary', ['month', 'service_line', 'provider_ref', 'provider_role', 'referral_source', 'visits', 'collections'], visits, 'Visits and collections by service line, pseudonymous provider and referral source')
+    margins = {'Implants': D('0.31'), 'General dentistry': D('0.58'), 'Hygiene': D('0.64'), 'Physiotherapy': D('0.70')}  # direct costs ÷ revenue
+    yearly = {line: sum(count * fee for l2, _, _, count, fee in lines if l2 == line) * 12 for line in margins}
+    service = [[str(year), line, f'{ds.amt(yearly[line] * g):.2f}', f'{ds.amt(yearly[line] * g * margins[line]):.2f}'] for year, g in ((2024, D('0.89')), (2025, D('0.94')), (2026, D('1'))) for line in margins]
+    ds.ext('service-lines', ['year', 'service_line', 'revenue', 'direct_costs'], service, 'Revenue and direct costs by service line and fiscal year')
+
+    # Three fiscal years of P&L (defect d): revenue up 6% a year, clinical supplies up 15% a year.
+    years = ['2024', '2025', '2026']
+    revenue = [D('2450000'), D('2597000'), D('2752820')]
+    supplies = [D('220500'), D('253575'), D('291611.25')]
+    pnl_lines = [('Patient fees', 'Revenue', revenue), ('Clinical supplies', 'Cost of revenue', supplies), ('Lab fees', 'Cost of revenue', [r * D('0.05') for r in revenue]),
+                 ('Associate and staff costs', 'Operating expense', [r * D('0.46') for r in revenue]), ('Rent and occupancy', 'Operating expense', [D('190000')] * 3),
+                 ('Other operating costs', 'Operating expense', [r * D('0.085') for r in revenue])]
+    ds.pnl = (['Line'] + years, [[name] + [f'{ds.amt(v):.2f}' for v in values] for name, _, values in pnl_lines], {name: kind for name, kind, _ in pnl_lines})
+    ratio = [ds.amt(sv) / ds.amt(rv) for sv, rv in zip(supplies, revenue)]
+
     c = ds.cur
     ds.doc('01-coding-policy', f'''
 {ds.company} — coding and billing policy (synthetic)
 
 Highest-complexity codes are expected for about 15% of visits. Higher shares require a documented clinical review.
 ''', 'Coding and billing policy')
+    ds.doc('02-site-1-premises-lease', f'''
+Lease of 14 Harbour Row, Site 1 — {ds.company} (synthetic)
+
+Landlord: Harbour Row Estates Ltd (synthetic). Tenant: {ds.company}.
+The term of this lease expires on 31 March 2028.
+Tenant has no option to renew or extend the term.
+The tenant may not assign this lease, including on a sale of the practice, without the landlord's prior written consent.
+Base rent: {money(c, ds.amt(15800))} per month.
+''', 'Premises lease for Site 1, the flagship practice')
+    ds.doc('03-transaction-timetable', f'''
+Project Clearbrook — transaction timetable (synthetic)
+
+The target closing date is 31 January 2027.
+Exclusivity runs to the target closing date.
+---page---
+Premises note (synthetic)
+
+Estimated cost to relocate and fit out a replacement site: {money(c, ds.amt(420000))}.
+''', 'Transaction timetable, with a premises note')
     ds.findings = [
         ('One provider carries Site 3', f'P07 earns {pct(site3_p07 / site3_total)} of Site 3 revenue in `patient-volume.csv` — a retention risk after closing.'),
         ('High-complexity coding above policy', '`coding-summary.csv` shows 31–36% of visits at the highest code against the 15% expected by `documents/01-coding-policy.pdf`.'),
         ('Imaging equipment past its useful life', 'two panoramic X-ray units in `equipment-schedule.csv` (2014 and 2015, ten-year lives). Price as remediation.'),
+        ('Selling owner is the only provider of Implants', f'P01, the selling owner, delivers {pct(owner_coll / all_coll)} of collections in `visit-summary.csv` and is the only provider of Implants, the highest-margin service line in `service-lines.csv`; no succession plan is filed.'),
+        (f'One referral source sends {pct(D(referred) / D(total_visits))} of visits', f'Harbourside Orthodontic Group refers {pct(D(referred) / D(total_visits))} of visits in `visit-summary.csv`.'),
+        ('Clinic lease ends 14 months after closing with no renewal option', '`documents/02-site-1-premises-lease.pdf` (expires 31 March 2028, no renewal option) against the target closing date in `documents/03-transaction-timetable.pdf`; priced from its relocation estimate.'),
+        ('Clinical supplies outpacing revenue', f'`pnl.csv` — supplies grow 15% a year against revenue\'s 6%, from {pct(ratio[0])} to {pct(ratio[2])} of revenue over 2024–2026. Any one year looks normal.'),
     ]
-    ds.notes = ['Providers are pseudonymous (P01, P02, …); Pactlab never sends people data to a model.']
+    ds.notes = ['Providers are pseudonymous (P01, P02, …); the selling owner is a role in `visit-summary.csv`, never a name. Pactlab never sends people data to a model.',
+                'Referral sources are businesses or "Self-referred"; Pactlab counts visits and makes no judgment on the referral arrangement.']
 
 def venture(ds):
     """Founder-side (T-083): a seed-stage SaaS startup preparing to raise; the founder is the user."""

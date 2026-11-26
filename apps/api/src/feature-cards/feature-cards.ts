@@ -26,6 +26,17 @@ export type FeatureCardIcon = (typeof FEATURE_CARD_ICONS)[number];
 export const HOME_CARD_LIMIT = 2;
 
 export const FEATURE_CARDS: readonly FeatureCardDefinition[] = [
+  // Released with its few-site delta (T-161).
+  {
+    id: 'small-clinics-pack',
+    version: 1,
+    addedOn: '2026-11-26',
+    title: 'Small clinics: the owner, the referrals and the lease',
+    body: 'Start a pact for a small clinic and Pactlab checks what its value rests on: how much the selling owner delivers and which service lines nobody else covers, how many visits one referral source sends, how long the lease runs past closing, and how supplies, margins and revenue moved across every P&L year you import. Each finding cites its rows or the page it came from, and a person decides.',
+    href: '/pacts/new',
+    linkLabel: 'Start a clinic pact',
+    icon: 'layers',
+  },
   // What Pactlab stands on (Kumar, 2026-11-25: "lots of features that we need to highlight"): each card says only
   // what the product does today, in the words of the privacy, security and trust pages.
   {

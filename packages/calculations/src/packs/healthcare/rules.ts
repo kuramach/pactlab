@@ -109,5 +109,44 @@ export const HEALTHCARE_CREDENTIALS_EXPIRING: PackRule = {
   },
 };
 
-export const HEALTHCARE_RULES: readonly PackRule[] = [HEALTHCARE_GOVERNMENT_CONCENTRATION, HEALTHCARE_DIRECTOR_FEE, HEALTHCARE_PRIVACY_ASSESSMENT, HEALTHCARE_CREDENTIALS_EXPIRING];
+const quarterOf = (month: string) => `${month.slice(0, 4)}-Q${Math.ceil(Number(month.slice(5, 7)) / 3)}`;
+
+/**
+ * Claims-weighted denial rate by quarter over the claims summary, rising in every quarter by two
+ * points or more in total (T-161; shared with the clinics and hospitals variants). A collections
+ * drag the reviewer prices; Pactlab judges no claim, only the arithmetic of the summary.
+ */
+export const HEALTHCARE_DENIALS_RISING: PackRule = {
+  id: 'healthcare-denials-rising',
+  version: '1',
+  evidenceTypes: [CLAIMS],
+  detect: ({ evidence }) => {
+    const rows = evidence.filter((row) => row.evidenceType === CLAIMS && /^\d{4}-\d{2}$/.test(row.canonical['month'] ?? ''));
+    const quarters = [...new Set(rows.map((row) => quarterOf(row.canonical['month'] ?? '')))].sort();
+    const rates = quarters.map((quarter) => {
+      const inQuarter = rows.filter((row) => quarterOf(row.canonical['month'] ?? '') === quarter);
+      const claims = inQuarter.reduce((sum, row) => sum.plus(amountOf(row, 'claims')), new D(0));
+      const denied = inQuarter.reduce((sum, row) => sum.plus(amountOf(row, 'claims').times(amountOf(row, 'denial_rate_pct'))), new D(0));
+      return claims.gt(0) ? denied.div(claims).div(100) : null;
+    });
+    if (rates.length < 3 || rates.some((rate, index) => rate === null || (index > 0 && !rate.gt(rates[index - 1] as InstanceType<typeof D>)))) return [];
+    const rise = (rates.at(-1) as InstanceType<typeof D>).minus(rates[0] as InstanceType<typeof D>);
+    if (rise.lt('0.02')) return [];
+    return [
+      {
+        key: `${quarters[0]}:${quarters.at(-1)}`,
+        domain: 'FINANCIAL',
+        title: 'Claim denials rising',
+        description: `The claims-weighted denial rate rose in every quarter, from ${percent(rates[0] as InstanceType<typeof D>)} in ${quarters[0]} to ${percent(rates.at(-1) as InstanceType<typeof D>)} in ${quarters.at(-1)}: ${quarters.map((quarter, index) => `${quarter} ${percent(rates[index] as InstanceType<typeof D>)}`).join(', ')}. Collections follow denials; a revenue-cycle review before closing.`,
+        severity: rise.gte('0.04') ? 'HIGH' : 'MEDIUM',
+        confidence: 'HIGH',
+        direction: -1,
+        directionRationale: 'A collections haircut in the scenarios, sized by the reviewer after a revenue-cycle review.',
+        evidenceIds: rows.slice(-MAX_CITED).map((row) => row.id),
+      },
+    ];
+  },
+};
+
+export const HEALTHCARE_RULES: readonly PackRule[] = [HEALTHCARE_GOVERNMENT_CONCENTRATION, HEALTHCARE_DIRECTOR_FEE, HEALTHCARE_PRIVACY_ASSESSMENT, HEALTHCARE_CREDENTIALS_EXPIRING, HEALTHCARE_DENIALS_RISING];
 export const HEALTHCARE_EVIDENCE = { PROVIDER, CLAIMS } as const;

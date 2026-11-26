@@ -538,36 +538,38 @@ export const INDUSTRY_STORIES: Readonly<Record<string, IndustryStory>> = {
     ],
   },
   'small-clinics': {
-    headline: 'In a clinic roll-up, revenue follows the providers.',
+    headline: 'A small clinic is often one owner, one referrer and one lease.',
     subhead:
-      'Provider concentration, billing practice and equipment age decide what a clinic is worth. The small-clinics pack builds on the healthcare pack and reads the provider, billing and equipment records behind each site.',
+      'In a few-site clinic the risks concentrate: the selling owner does the most valuable work, one practice sends most of the patients, and the lease runs out soon after closing. The small-clinics pack builds on the healthcare pack and checks each of them against the clinic’s own records.',
     illustrationAlt: 'Illustration of a small clinic, a provider schedule in aggregate and a billing report.',
     pains: [
-      { icon: 'UserRound', title: 'One provider carrying the site', body: 'Patient volume often depends on a few providers, and they can leave.' },
-      { icon: 'ShieldPlus', title: 'Coding that will not survive an audit', body: 'Billing patterns that look efficient can be compliance exposure.' },
-      { icon: 'Timer', title: 'Equipment at the end of its life', body: 'Replacement capex is easy to leave out of the forecast.' },
+      { icon: 'UserRound', title: 'The owner is the business', body: 'The selling owner delivers the highest-margin work, and no associate covers it.' },
+      { icon: 'Users', title: 'One referrer sends the patients', body: 'If one practice stops referring, most of the volume goes with it.' },
+      { icon: 'Building', title: 'A lease that ends too soon', body: 'Months after closing the premises are up for renegotiation, or a move.' },
     ],
     walkthrough: [
-      { step: 'Evidence', text: 'Provider contracts, patient volume, billing and RCM reports, equipment schedules and HIPAA and Stark Law compliance records.' },
-      { step: 'Finding', text: 'Provider concentration, coding and billing risk, and aged equipment, drafted with the records behind them — provider data in aggregate.' },
-      { step: 'Review', text: 'Clinical, compliance and financial reviewers decide in one workflow.' },
-      { step: 'Valuation', text: 'Revenue per provider and post-close retention risk feed the scenarios; equipment replacement lands as remediation.' },
-      { step: 'Deal terms', text: 'Retention arrangements, compliance indemnities and equipment escrows tied to the findings.' },
+      { step: 'Evidence', text: 'Billing, visits by service line, provider role and referral source, service-line margins, the claims summary and provider roster, equipment and coding extracts, and the P&L by year arrive as imports; the lease and timetable are read sentence by sentence.' },
+      { step: 'Finding', text: 'Deterministic checks draft owner dependence, referral concentration, a short lease with no renewal option, the multi-year cost trend, rising denials, expiring credentials, site concentration, coding above policy and aged equipment, each citing its rows or its sentence.' },
+      { step: 'Review', text: 'A named reviewer accepts, rejects or asks for support on every finding; Pactlab only drafts.' },
+      { step: 'Valuation', text: 'A DCF, with the owner, referral and trend findings as scenario inputs the reviewer sizes; relocation and equipment replacement land as remediation costs.' },
+      { step: 'Deal terms', text: 'A transition agreement or earn-out for the owner, a lease extension as a closing condition, and remediation tied to the findings.' },
     ],
     findings: [
-      { title: 'Most site revenue from one provider', severity: 'High', evidence: 'Patient volume and billing, aggregated by provider', term: 'Retention arrangement and earn-out' },
-      { title: 'Coding pattern outside documented practice', severity: 'High', evidence: 'Billing and RCM reports against coding policy', term: 'Compliance indemnity and remediation covenant' },
-      { title: 'Imaging equipment past its service life', severity: 'Medium', evidence: 'Equipment schedule and service records', term: 'Equipment escrow or price adjustment' },
+      { title: 'Selling owner is the only provider of Implants', severity: 'High', evidence: 'Visit summary by service line and provider role, against service-line margins', term: 'Transition agreement or earn-out' },
+      { title: 'One referral source sends 58% of visits', severity: 'High', evidence: 'Visit summary by referral source, twelve months', term: 'Volume sensitivity in the scenarios' },
+      { title: 'Clinic lease ends 14 months after closing with no renewal option', severity: 'High', evidence: 'The lease and the transaction timetable, quoted', term: 'Relocation priced as remediation, or an extension at closing' },
+      { title: 'Clinical supplies outpacing revenue', severity: 'Medium', evidence: 'The P&L across three fiscal years', term: 'A margin haircut in the scenarios' },
     ],
     deliverables: [
-      { icon: 'Users', title: 'Provider concentration, in aggregate', body: 'Which sites depend on whom, with named data gated.' },
-      { icon: 'ShieldPlus', title: 'A billing and compliance register', body: 'Coding, HIPAA and Stark Law findings with their evidence.' },
-      { icon: 'Calculator', title: 'Revenue per provider', body: 'Scenarios that show what retention does to price.' },
+      { icon: 'UserRound', title: 'An owner-dependence view', body: 'The owner’s share of visits and collections, and the lines only they deliver, with providers pseudonymous.' },
+      { icon: 'ClipboardList', title: 'A premises check', body: 'The lease’s end, renewal and assignment terms against the closing date, each quoted.' },
+      { icon: 'ChartLine', title: 'A multi-year P&L trend', body: 'Revenue, margins and supply ratios for every imported year, each figure traced to its row.' },
     ],
     faq: [
-      { q: 'How does this relate to the healthcare pack?', a: 'It extends it. The reimbursement and compliance findings of the healthcare pack apply; the small-clinics pack adds provider, billing and equipment evidence.' },
-      { q: 'How is provider data handled?', a: 'In aggregate by default. Named data is gated and audited, and provider, performance and compensation data are never sent to a model.' },
-      { q: 'Which clinics does it cover?', a: 'Physician, dental, veterinary and therapy clinics, one site or many.' },
+      { q: 'How does this relate to the healthcare pack?', a: 'It extends it. The healthcare pack’s claims summary, provider roster and its reimbursement, credentialing and compliance checks run here too, scaled to a small roster; the small-clinics pack adds the owner, referral, premises and multi-year trend checks.' },
+      { q: 'Does Pactlab judge clinical quality, the referral arrangement or the lease?', a: 'No. It reads documents, dates and arithmetic only. It makes no clinical or legal judgment, and what the documents do not state is shown as missing, never filled in.' },
+      { q: 'How is provider data handled?', a: 'Providers appear only as pseudonymous references, and the selling owner only as a role. No patient data is accepted, and provider data never reaches a model.' },
+      { q: 'Which clinics does it cover?', a: 'Owner-operated dental, physician, veterinary and therapy clinics with one site or a few.' },
     ],
   },
 
@@ -611,10 +613,10 @@ export const WRITTEN_INDUSTRIES = INDUSTRIES.filter((industry) => industry.slug 
 
 /**
  * The packs on sale (Kumar, 2026-11-01): Software & SaaS and Multifamily, then
- * Venture Raise (2026-11-09), with the others released one at a time after testing. Same list as the
+ * Venture Raise (2026-11-09) and Small clinics (T-161, 2026-11-26), with the others released one at a time after testing. Same list as the
  * app's RELEASED_COMPANY_TYPES (packages/domain/src/packs/release.ts).
  */
-export const RELEASED_INDUSTRY_SLUGS: readonly string[] = ['software-saas', 'multifamily', 'venture-raise', 'music-rights', 'energy-generation', 'startup-spv'];
+export const RELEASED_INDUSTRY_SLUGS: readonly string[] = ['software-saas', 'multifamily', 'venture-raise', 'music-rights', 'energy-generation', 'startup-spv', 'small-clinics'];
 
 /** An environment's copy of the site (dev, qa) previews every written pack, for testing before release. */
 export const PACK_PREVIEW = process.env['NEXT_PUBLIC_PACK_PREVIEW'] === 'true';
