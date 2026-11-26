@@ -18,3 +18,4 @@ export * from './voice';
 export * from './http-providers';
 export * from './provider-router';
 export * from './jobs';
+export * from './retrieval';

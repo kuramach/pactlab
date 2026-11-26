@@ -1,4 +1,4 @@
-import type { PageRequest, PageResult } from '@pactlab/db';
+import type { PageRequest, PageResult, PageSize, RankedPage } from '@pactlab/db';
 import type { AiRunRecord } from '@pactlab/ai';
 import type { AuditEventInput } from '@pactlab/db';
 import type { TenantContext } from '@pactlab/domain';
@@ -15,6 +15,7 @@ export const DOCUMENTS_REPOSITORY = Symbol('DOCUMENTS_REPOSITORY');
 export const DOCUMENT_OBJECT_STORE = Symbol('DOCUMENT_OBJECT_STORE');
 export const MALWARE_SCANNER = Symbol('MALWARE_SCANNER');
 export const CLAUDE_GATEWAY = Symbol('CLAUDE_GATEWAY');
+export const CONTEXT_BUDGET_CHARS = Symbol('CONTEXT_BUDGET_CHARS');
 
 /**
  * Persistence port for documents, pages, AI runs and document findings.
@@ -58,6 +59,12 @@ export interface DocumentsRepository {
     dealId: string,
     documentIds: readonly string[],
   ): Promise<DocumentPageRecord[]>;
+  /** Pages by id (the ones retrieval chose), in the order given; pages the caller cannot see are left out. */
+  pagesById(tenant: TenantContext, dealId: string, pageIds: readonly string[]): Promise<DocumentPageRecord[]>;
+  /** Every page of the documents without its text (T-139): ids, checksums and lengths for the budget check. */
+  pageSizes(tenant: TenantContext, dealId: string, documentIds: readonly string[]): Promise<PageSize[]>;
+  /** Keyword ranking of the documents' pages for a question, best first, under RLS (T-139). */
+  rankPages(tenant: TenantContext, dealId: string, documentIds: readonly string[], question: string): Promise<RankedPage[]>;
   /** Removes page text; keeps page numbers, checksums and decision history. */
   markPurged(
     tenant: TenantContext,

@@ -1388,12 +1388,15 @@ model DocumentPage {
   textSource     String  @default("TEXT") @map("text_source")
   /// T-121: REPLACE or APPEND while the page waits to be read from its image; null otherwise.
   visionMode     String? @map("vision_mode")
+  /// T-139: full-text index of the page (english), kept by a trigger; null for AI-excluded and purged pages.
+  searchVector   Unsupported("tsvector")? @map("search_vector")
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   deal         Deal         @relation(fields: [organizationId, dealId], references: [organizationId, id], onDelete: Restrict)
   document     Document     @relation(fields: [organizationId, dealId, documentId], references: [organizationId, dealId, id], onDelete: Restrict)
 
   @@unique([organizationId, dealId, documentId, pageNumber])
+  @@index([searchVector], map: "document_pages_search_idx", type: Gin)
   @@map("document_pages")
 }
 
@@ -1427,6 +1430,8 @@ model AiRun {
   createdAt        DateTime    @map("created_at") @db.Timestamptz(3)
   /// The person whose request made the run (hosting cost by person); from the tenant context. Null for older runs.
   requestedBy      String?     @default(dbgenerated("app_current_user_id()")) @map("requested_by") @db.Uuid
+  /// T-139: how a pact-wide run's pages were chosen (FULL or KEYWORD, page ids and checksums; never content).
+  retrieval        Json?
 
   organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   deal         Deal              @relation(fields: [organizationId, dealId], references: [organizationId, id], onDelete: Restrict)

@@ -178,7 +178,7 @@ export default async function DocumentsPage({
             <CardTitle className="text-base">Ask the documents</CardTitle>
           </CardHeader>
           <CardContent>
-            <AskBox dealId={dealId} />
+            <AskBox dealId={dealId} choices={documents.kind === 'ok' ? documents.data.items.map((item) => ({ id: item.id, fileName: item.fileName })) : []} />
           </CardContent>
         </Card>
       </div>
