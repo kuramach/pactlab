@@ -244,7 +244,8 @@ describe('demo organization (batch 2)', () => {
     expect(await rows(`SELECT 1 FROM evidence_items WHERE deal_id = $1 AND canonical::text ~ '[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+\\.[A-Za-z]{2,}' LIMIT 1`, [dealId])).toEqual([]);
   });
 
-  it('adds nothing on a re-run', async () => {
+  // The re-run walks every demo pact (one more per pack), so it outgrew the 5s default on CI as packs were added.
+  it('adds nothing on a re-run', { timeout: 120_000 }, async () => {
     const before = await rows(`SELECT count(*)::int AS n FROM deals WHERE organization_id = $1`, [DEMO_ORG.id]);
     const again = await run();
     expect(again.filter((line) => line.endsWith('already present'))).toHaveLength(types.flatMap(pactVariants).length);
