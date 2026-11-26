@@ -64,6 +64,11 @@ export interface EnvironmentConfig {
    * to zero and the database stops; a wake page brings it back (ADR 0019).
    */
   readonly idlePause?: { readonly idleMinutes: number };
+  /**
+   * Live log triage (T-150, ADR 0045): a daily Lambda sweeps the app's logs, triages error
+   * clusters with Bedrock, emails one digest and opens deduplicated GitHub issues. Live only.
+   */
+  readonly logTriage?: LogTriageConfig;
   /** Approved feature flags, published to SSM for the application to read. */
   readonly featureFlags: {
     /** Pilot guardrails on: invite-only organizations, no self-serve signup. */
@@ -140,4 +145,21 @@ export interface EnvironmentSiteConfig {
   readonly domain: string;
   /** `none` outside production: noindex header, robots.txt disallows everything. */
   readonly indexing: 'public' | 'none';
+}
+
+export interface LogTriageConfig {
+  /** Who receives the digest; the Lambda's SES permission is limited to this address. */
+  readonly recipient: string;
+  /** The repository issues open in (`owner/name`). */
+  readonly githubRepo: string;
+  /** The Secrets Manager name of the fine-grained token (Issues read/write on `githubRepo` only); scripts/github-triage-key.sh sets it. */
+  readonly githubTokenSecretName: string;
+  /** The Bedrock inference profile the triage calls (the account's default Claude route). */
+  readonly modelId: string;
+  /** Run the queries and the triage, but send, open and store nothing: drafts go to the Lambda's log. */
+  readonly dryRun: boolean;
+  /** UTC hour of the daily run. */
+  readonly hourUtc: number;
+  /** At most this many clusters go to Bedrock per run. */
+  readonly maxClusters: number;
 }

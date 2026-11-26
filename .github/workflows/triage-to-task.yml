@@ -1,0 +1,72 @@
+name: triage-to-task
+# Live log triage (T-150, docs/runbooks/log-triage.md): when Kumar labels a live-triage issue
+# `triage-approved`, write a house-format task file into tasks/ready/, commit it to main, comment
+# the task id on the issue and label it `task-filed`. The agent loop picks the task up the next time
+# it runs; this workflow never opens a fix PR. It uses this repository's own GITHUB_TOKEN, never the
+# triage Lambda's token. The issue's text is untrusted: it reaches only scripts/triage-to-task.cjs
+# through the event file, never a shell command line.
+on:
+  issues:
+    types: [labeled]
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  # One at a time, so two approvals never take the same T-number.
+  group: triage-to-task
+  cancel-in-progress: false
+
+jobs:
+  file-task:
+    if: github.event.label.name == 'triage-approved' && contains(github.event.issue.labels.*.name, 'live-triage') && !contains(github.event.issue.labels.*.name, 'task-filed')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Only an approver's label files a task
+        env:
+          SENDER: ${{ github.event.sender.login }}
+          APPROVERS: ${{ vars.TRIAGE_APPROVERS || 'kuramach' }}
+        run: |
+          case ",${APPROVERS// /}," in
+            *",${SENDER},"*) echo "Approved by ${SENDER}." ;;
+            *) echo "::error::${SENDER} is not a triage approver (TRIAGE_APPROVERS); no task filed."; exit 1 ;;
+          esac
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Write the task file and commit it to main
+        id: task
+        env:
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          git config user.name "kuramach"
+          git config user.email "Kuramach@gmail.com"
+          for attempt in 1 2 3; do
+            git fetch origin main
+            git reset --hard origin/main
+            read -r TASK_ID STATE TASK_FILE < <(node scripts/triage-to-task.cjs)
+            if [ "$STATE" = exists ]; then echo "Already filed as ${TASK_ID}."; break; fi
+            git add "$TASK_FILE"
+            git commit -m "${TASK_ID}: file live-triage issue #${ISSUE_NUMBER} as a task"
+            if git push origin HEAD:main; then break; fi
+            # Someone else pushed first: start again from the new main, with a fresh T-number.
+            if [ "$attempt" = 3 ]; then echo "::error::Could not push the task file to main."; exit 1; fi
+          done
+          echo "id=${TASK_ID}" >> "$GITHUB_OUTPUT"
+          echo "file=${TASK_FILE}" >> "$GITHUB_OUTPUT"
+      - name: Comment the task id and label the issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          TASK_ID: ${{ steps.task.outputs.id }}
+          TASK_FILE: ${{ steps.task.outputs.file }}
+        run: |
+          gh label create task-filed --color 0e8a16 --description 'Live triage: filed as a task in tasks/ready/' 2>/dev/null || true
+          gh issue comment "$ISSUE_NUMBER" --body "Filed as task **${TASK_ID}**: [\`${TASK_FILE}\`](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/blob/main/${TASK_FILE}). The agent loop builds it through its normal gates; it opens its own PR."
+          gh issue edit "$ISSUE_NUMBER" --add-label task-filed
