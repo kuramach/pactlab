@@ -179,3 +179,4 @@ export function judgeModel(report: EvalReport): { passed: boolean; failures: str
 }
 
 export { checkModelHealth, type ModelHealth } from './health';
+export { retrievalRoom, RETRIEVAL_ROOM, type RetrievalQuestion, type RetrievalRoomDocument } from './retrieval-room';

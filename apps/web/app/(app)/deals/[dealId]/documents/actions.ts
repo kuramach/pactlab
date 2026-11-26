@@ -248,16 +248,33 @@ export async function decideDocumentFinding(
   return { kind: 'error', message: 'The decision was not saved. Try again.' };
 }
 
+/** What a pact-wide answer searched and read (T-139): "not found" must never look like "not in the data room". */
+export interface AskCoverage {
+  strategy: 'FULL' | 'KEYWORD';
+  partial: boolean;
+  documentsSearched: number;
+  pagesSearched: number;
+  documentsRead: number;
+  pagesRead: number;
+  summary: string;
+  documents: { documentId: string; documentName: string; pageNumbers: number[] }[];
+  moreDocuments: number;
+}
+
 export type AskState =
   | { kind: 'idle' }
   | { kind: 'error'; message: string }
   | {
       kind: 'answer';
       question: string;
+      status: 'ANSWERED' | 'PARTIAL' | 'UNSUPPORTED' | 'UNANSWERABLE' | 'FAILED';
       answer: string | null;
       claims: { statement: string; citations: { documentId: string; pageNumber: number; quote: string; documentName: string | null }[] }[];
       withheld: number;
-      model: string;
+      model: string | null;
+      coverage: AskCoverage | null;
+      /** The documents the question was narrowed to, if it was. */
+      narrowedTo: string[];
     };
 
 /** Ask a question across the deal's documents; only cited claims come back. */
@@ -265,22 +282,28 @@ export async function askQuestion(dealId: string, _previous: AskState, formData:
   if (!uuid.safeParse(dealId).success) return { kind: 'error', message: 'Unknown deal.' };
   const question = String(formData.get('question') ?? '').trim();
   if (question.length < 3) return { kind: 'error', message: 'Ask a question of at least a few words.' };
+  const documentIds = [...new Set(formData.getAll('documentId').map(String))].filter((id) => uuid.safeParse(id).success).slice(0, 50);
   const result = await apiSend<{
+    status: Extract<AskState, { kind: 'answer' }>['status'];
     answer: string | null;
     claims: Extract<AskState, { kind: 'answer' }>['claims'];
     rejectedClaims: unknown[];
-    generatedBy: { resolvedModelId: string };
-  }>('POST', `/v1/deals/${dealId}/questions`, { question });
+    generatedBy: { resolvedModelId: string } | null;
+    coverage?: AskCoverage;
+  }>('POST', `/v1/deals/${dealId}/questions`, documentIds.length > 0 ? { question, documentIds } : { question });
   if (result.kind === 'unavailable') return { kind: 'error', message: AI_UNAVAILABLE[aiOutcome(result.code)] };
   if (result.kind === 'invalid') return { kind: 'error', message: 'There are no documents the AI may read in this deal.' };
   if (result.kind !== 'ok') return { kind: 'error', message: 'The question could not be answered. Try again.' };
   return {
     kind: 'answer',
     question,
+    status: result.data.status,
     answer: result.data.answer,
     claims: result.data.claims,
     withheld: result.data.rejectedClaims.length,
-    model: result.data.generatedBy.resolvedModelId,
+    model: result.data.generatedBy?.resolvedModelId ?? null,
+    coverage: result.data.coverage ?? null,
+    narrowedTo: documentIds,
   };
 }
 

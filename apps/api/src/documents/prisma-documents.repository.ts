@@ -2,12 +2,16 @@ import type { AiRunRecord, ResolvedCitation } from '@pactlab/ai';
 import {
   afterCursor,
   appendAuditEvent,
+  pageSizes,
+  rankPages,
   toPage as toResultPage,
   withTenant,
   type AuditEventInput,
   type PageRequest,
   type PageResult,
+  type PageSize,
   type Prisma,
+  type RankedPage,
   type PrismaClient,
 } from '@pactlab/db';
 import type { TenantContext } from '@pactlab/domain';
@@ -166,6 +170,7 @@ function createAiRun(tx: Prisma.TransactionClient, run: AiRunRecord) {
       outputTokens: run.outputTokens,
       latencyMs: run.latencyMs,
       createdAt: new Date(run.createdAt),
+      ...(run.retrieval ? { retrieval: run.retrieval as unknown as Prisma.InputJsonValue } : {}),
     },
   });
 }
@@ -313,6 +318,24 @@ export class PrismaDocumentsRepository implements DocumentsRepository {
       }),
     );
     return rows.map(toPage);
+  }
+
+  async pagesById(tenant: TenantContext, dealId: string, pageIds: readonly string[]): Promise<DocumentPageRecord[]> {
+    if (pageIds.length === 0) return [];
+    const rows = await withTenant(this.prisma, tenant, (tx) =>
+      // bounded: the pages retrieval chose, which fit the context budget
+      tx.documentPage.findMany({ where: { dealId, id: { in: [...pageIds] } } }),
+    );
+    const byId = new Map(rows.map((row) => [row.id, toPage(row)]));
+    return pageIds.flatMap((id) => byId.get(id) ?? []);
+  }
+
+  pageSizes(tenant: TenantContext, dealId: string, documentIds: readonly string[]): Promise<PageSize[]> {
+    return withTenant(this.prisma, tenant, (tx) => pageSizes(tx, { dealId, documentIds }));
+  }
+
+  rankPages(tenant: TenantContext, dealId: string, documentIds: readonly string[], question: string): Promise<RankedPage[]> {
+    return withTenant(this.prisma, tenant, (tx) => rankPages(tx, { dealId, documentIds, question }));
   }
 
   async markPurged(
