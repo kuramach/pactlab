@@ -19,3 +19,4 @@ export * from './music';
 export * from './energy';
 export * from './spv';
 export * from './software';
+export * from './pnl-trend';

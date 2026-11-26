@@ -31,6 +31,13 @@ export const FX_RATE_EVIDENCE_TYPE = 'fx.rate';
 /** Venture Raise (T-083): the founder's cap table and monthly cash, imported as pack extracts. */
 export const VENTURE_CAP_TABLE_EVIDENCE_TYPE = 'venture.cap_table_row';
 export const VENTURE_FINANCIALS_EVIDENCE_TYPE = 'venture.financials_month';
+/** Fintech (T-058, T-159): the loan tape, AML alerts, processor exports and the licence register, imported as pack extracts. */
+export const FINTECH_LOAN_EVIDENCE_TYPE = 'fintech.loan';
+export const FINTECH_AML_ALERT_EVIDENCE_TYPE = 'fintech.aml_alert';
+export const FINTECH_PROCESSOR_MONTH_EVIDENCE_TYPE = 'fintech.processor_month';
+export const FINTECH_LICENCE_EVIDENCE_TYPE = 'fintech.licence';
+/** The imported P&L (ADR 0038), read across years by the trend rules (Kumar, 2026-11-26 — every pack). */
+export const PNL_LINE_EVIDENCE_TYPE = 'finance.pnl_line';
 
 /**
  * Every evidence type the adapters and engines emit, with the direction each
@@ -137,6 +144,57 @@ export const VALUATION_DIRECTION_MAP: Readonly<Record<string, readonly Direction
       rationale: 'Cash and burn inform the raise’s timing; only a contradicted runway claim moves the round.',
     },
   ],
+  // Fintech (T-159, ADR 0050). Claims and loss rates are recomputed from the processor exports; licences are read at the analysis date.
+  [FINTECH_PROCESSOR_MONTH_EVIDENCE_TYPE]: [
+    { signal: 'claim-contradicted', findingDomain: 'FINANCIAL', defaultDirection: -1, channel: 'ASSUMPTION' },
+    { signal: 'claim-verified', findingDomain: 'FINANCIAL', defaultDirection: 1, channel: 'CONFIRMATION' },
+    {
+      signal: 'claim-unverified',
+      findingDomain: 'FINANCIAL',
+      defaultDirection: 0,
+      channel: 'INFORMATIONAL',
+      rationale: 'A claim nothing in the evidence checks is a gap to close, neither priced nor relied on.',
+    },
+    { signal: 'revenue-unreconciled', findingDomain: 'FINANCIAL', defaultDirection: -1, channel: 'ASSUMPTION' },
+    { signal: 'loss-threshold-breach', findingDomain: 'REGULATORY', defaultDirection: -1, channel: 'PRICED_TERM' },
+    {
+      signal: 'loss-rate-rising',
+      findingDomain: 'REGULATORY',
+      defaultDirection: 0,
+      channel: 'INFORMATIONAL',
+      rationale: 'Within the stated threshold: a watch item and a covenant to keep, not a price adjustment.',
+    },
+    {
+      signal: 'compliance-gap',
+      findingDomain: 'REGULATORY',
+      defaultDirection: 0,
+      channel: 'INFORMATIONAL',
+      rationale: 'Absent or stale compliance evidence, or a consent order for counsel to read: requested and reviewed, never priced as if known.',
+    },
+  ],
+  [FINTECH_LICENCE_EVIDENCE_TYPE]: [
+    { signal: 'licence-lapsed', findingDomain: 'REGULATORY', defaultDirection: -1, channel: 'PRICED_TERM' },
+    {
+      signal: 'licence-near-expiry',
+      findingDomain: 'REGULATORY',
+      defaultDirection: 0,
+      channel: 'INFORMATIONAL',
+      rationale: 'A closing condition (renewal before close), not a price adjustment.',
+    },
+  ],
+  [FINTECH_LOAN_EVIDENCE_TYPE]: [{ signal: 'allowance-shortfall', findingDomain: 'FINANCIAL', defaultDirection: -1, channel: 'PRICED_TERM' }],
+  [FINTECH_AML_ALERT_EVIDENCE_TYPE]: [{ signal: 'unreviewed-alerts', findingDomain: 'REGULATORY', defaultDirection: -1, channel: 'PRICED_TERM' }],
+  [PNL_LINE_EVIDENCE_TYPE]: [
+    {
+      signal: 'trend',
+      findingDomain: 'FINANCIAL',
+      defaultDirection: 0,
+      channel: 'INFORMATIONAL',
+      rationale: 'A record of the multi-year trend for review; drifts and expenses outpacing revenue carry their own direction.',
+    },
+    { signal: 'margin-drift', findingDomain: 'FINANCIAL', defaultDirection: -1, channel: 'ASSUMPTION' },
+    { signal: 'expense-outpacing', findingDomain: 'FINANCIAL', defaultDirection: -1, channel: 'ASSUMPTION' },
+  ],
   [DOCUMENT_FINDING_EVIDENCE_TYPE]: [
     { signal: 'CHANGE_OF_CONTROL', findingDomain: 'CONTRACT', defaultDirection: -1, channel: 'PRICED_TERM' },
     { signal: 'ASSIGNMENT', findingDomain: 'CONTRACT', defaultDirection: -1, channel: 'PRICED_TERM' },
@@ -167,6 +225,11 @@ export const ADAPTER_EVIDENCE_TYPES = [
   INVOICE_LINE_EVIDENCE_TYPE,
   VENTURE_CAP_TABLE_EVIDENCE_TYPE,
   VENTURE_FINANCIALS_EVIDENCE_TYPE,
+  FINTECH_LOAN_EVIDENCE_TYPE,
+  FINTECH_AML_ALERT_EVIDENCE_TYPE,
+  FINTECH_PROCESSOR_MONTH_EVIDENCE_TYPE,
+  FINTECH_LICENCE_EVIDENCE_TYPE,
+  PNL_LINE_EVIDENCE_TYPE,
 ] as const;
 
 /** The default direction for one signal, or null when the map does not know it. */

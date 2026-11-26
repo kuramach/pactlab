@@ -50,6 +50,8 @@ export const DEAL_SECTION_RULES: Readonly<Record<string, (context: SectionContex
   '/catalog': (context) => context.companyType === 'MUSIC_RIGHTS',
   // An energy package's asset and interest register, reserves and production, and liabilities (T-142).
   '/energy': (context) => context.companyType === 'ENERGY_GENERATION',
+  // A fintech target's payments and licence checks (T-159): volume and take rate recomputed, the claims, licences, loss rates and compliance evidence.
+  '/fintech': (context) => context.companyType === 'FINTECH',
   // A pooled vehicle (T-141): the round checks, the vehicle economics, side letters, investor seats and the published investor view.
   '/spv': (context) => context.companyType === 'STARTUP_SPV',
   '/valuation': everywhere,

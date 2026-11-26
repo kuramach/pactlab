@@ -55,6 +55,7 @@ import { QoeModule } from './qoe/qoe.module';
 import { SyndicationModule } from './syndication/syndication.module';
 import { MusicModule } from './music/music.module';
 import { EnergyModule } from './energy/energy.module';
+import { FintechModule } from './fintech/fintech.module';
 import { SpvModule } from './spv/spv.module';
 import { BrandModule } from './brand/brand.module';
 import { FeatureCardsModule } from './feature-cards/feature-cards.module';
@@ -321,6 +322,8 @@ export class AppModule {
         MusicModule.register({ documents: documentsModule }),
         // Energy generation & rights (T-142): report extraction runs through the documents module.
         EnergyModule.register({ documents: documentsModule }),
+        // Fintech (T-159): the read-only Payments page; its checks run through Findings.
+        FintechModule,
         // Startup equity SPV (T-141): investors are invited to their seats through the invitations module.
         SpvModule.register(invitations),
         reportsModule,

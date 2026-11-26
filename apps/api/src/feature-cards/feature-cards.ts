@@ -78,6 +78,16 @@ export const FEATURE_CARDS: readonly FeatureCardDefinition[] = [
     icon: 'check',
   },
   {
+    id: 'fintech-payments-pack',
+    version: 1,
+    addedOn: '2026-11-26',
+    title: 'Fintech: volume and licences checked against the evidence',
+    body: 'On a fintech pact, Pactlab recomputes processed volume, take rate and chargeback and fraud-loss rates from the processor exports, checks the deck’s claims against them, reads each licence’s status and expiry from the register and its documents, and reads every imported year of the P&L for trends. A person decides every finding.',
+    href: '/pacts/new',
+    linkLabel: 'Start a fintech pact',
+    icon: 'layers',
+  },
+  {
     id: 'industry-packs',
     version: 1,
     addedOn: '2026-11-25',

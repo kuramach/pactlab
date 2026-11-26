@@ -51,6 +51,12 @@ The source plan then adds **Industry data** (`pack_upload` connections) automati
 - **When rules run:** after every inline pack import, and from "Run … checks" on Findings.
 - **Unpriced drags:** a drag with no defensible amount is proposed −1 without a price. Findings shows it as **Needs pricing**, and acceptance waits for a person to price it.
 
+## 4b. Multi-year P&L trend (every pack, Kumar 2026-11-26)
+
+- **Reuse, never fork:** `pnlTrendRules('<pack>', KEY_EXPENSES)` (`packages/calculations/src/packs/pnl-trend.ts`) gives three rules over the imported P&L (`finance.pnl_line`): the trend record (0), margin drift (−1) and a key expense outpacing revenue (−1). Name the vertical's key expenses (label and line-name pattern); list the three rule ids in the registry (fintech: `fintech-pnl-trend`, `-margin-drift`, `-expense-outpacing`).
+- **Years:** a year the file states, or all twelve of its months; partial years are left out, never scaled up. One year still reads as one year.
+- **Demo data:** at least three years of P&L with one planted trend defect a single year misses; the acceptance test imports it through `FINANCIAL_PNL` with the line kinds a person confirms.
+
 ## 5. Metrics
 
 - **Calculator:** in `packages/calculations/src/packs/calculators.ts`. It returns the generic `PackMetricsReport` (`packs/metrics-types.ts`): label, value as a decimal string, unit, formula and source count.

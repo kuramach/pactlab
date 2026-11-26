@@ -318,7 +318,7 @@ function PackMetricsCard({ dealId, report, marketRents }: { dealId: string; repo
     <Card>
       <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
         <div className="flex flex-col gap-1">
-        <CardTitle>{report.calculator === 'multifamily-metrics' ? 'Property metrics' : report.calculator === 'music-royalties' ? 'Royalty income' : report.calculator === 'energy-assets' ? 'Assets and interests' : 'Industry metrics'}</CardTitle>
+        <CardTitle>{report.calculator === 'multifamily-metrics' ? 'Property metrics' : report.calculator === 'music-royalties' ? 'Royalty income' : report.calculator === 'energy-assets' ? 'Assets and interests' : report.calculator === 'fintech-payments' ? 'Payments and lending' : 'Industry metrics'}</CardTitle>
         <CardDescription>
           From the imported industry extracts, in {report.currency}. Deterministic ({report.version}); each figure shows its formula.
         </CardDescription>

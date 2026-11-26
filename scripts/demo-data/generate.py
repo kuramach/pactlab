@@ -79,6 +79,7 @@ class Dataset:
         self.music_step = []
         self.energy_step = []
         self.spv_step = []
+        self.pnl_step = []
         self.ask = None
         self.ask_note = None
 
@@ -376,6 +377,9 @@ class Dataset:
         if self.spv_step:
             heading('Seat the investors and check the vehicle (SPV tab)')
             out += self.spv_step
+        if self.pnl_step:
+            heading('Upload the P&L by year')
+            out += self.pnl_step
         heading('Run the checks and review the findings')
         out += [f'1. Open the **Findings** tab → **Run {label.lower()} checks**.',
                 f'2. **You should see exactly these {len(self.findings)} findings** (running the checks again adds nothing):', '']
@@ -397,6 +401,8 @@ class Dataset:
         for name, (_, rows, desc) in self.extracts.items():
             if name in imports:
                 out.append(f'| `{name}.csv` | {desc} ({len(rows)} rows) | **Yes** — industry data step |')
+            elif name == 'pnl' and self.pnl_step:
+                out.append(f'| `{name}.csv` | {desc} ({len(rows)} lines) | **Yes** — P&L step |')
             else:
                 out.append(f'| `{name}.csv` | {desc} ({len(rows)} rows) | **No** — it is already inside `documents/99-data-room-extracts.pdf`, which you upload |')
         for name, desc, _ in pdfs:
@@ -412,7 +418,7 @@ class Dataset:
 # name, with the target's label as Pactlab shows it. Kept in step with the
 # pack registry by apps/api/src/ops/demo-data.test.ts.
 PACK_IMPORTS = {
-    'fintech': {'loan-tape': 'Loan tape', 'aml-alerts': 'AML alerts'},
+    'fintech': {'loan-tape': 'Loan tape', 'aml-alerts': 'AML alerts', 'processor-volume': 'Processor volume', 'licence-register': 'Licence and sponsor register'},
     'multifamily': {'rent-roll': 'Rent roll', 't12': 'T-12 operating statement', 'delinquency': 'Delinquency report', 'unit-inspections': 'Unit inspections'},
     'healthcare': {'claims-summary': 'Claims summary', 'provider-roster': 'Provider roster'},
     'telecom-media': {'subscribers-by-month': 'Subscribers by month'},
@@ -530,10 +536,13 @@ Deferred revenue on annual subscriptions billed in advance: {money(c, ds.amt(960
     ds.notes = ['Code and delivery data (GitHub, Jira) connect through their APIs, never files. The synthetic Brightwave repository and Jira site in the Engineering step are built into local and dev Pactlab; production connects the real ones.']
     ds.engineering = True
 
+KIND_TITLE = {'money_transmitter': 'money-transmitter licence', 'payment_institution': 'payment-institution licence', 'e_money': 'e-money licence', 'lending': 'lending licence'}
+
 def fintech(ds):
     ds.kind, ds.kind_label = 'platform_fee', 'merchant platform fee'
     ds.summary = f'{ds.company} runs a payments and working-capital platform for independent retailers, earning monthly platform fees and lending to merchants through a partner bank.'
     rng = ds.rng
+    sponsor_ref = 'SBA-2023-0412'
     for i in range(16):
         base = ds.amt(rng.choice([900, 1400, 2100, 3200, 4800, 7500]))
         ds.customer(f'{ds.prefix}-mer-{i + 1:04d}', f'{["Juniper", "Marlow", "Oakhurst", "Bramble", "Larkspur", "Thistle", "Rowan", "Hazel", "Wren", "Ember", "Clover", "Sorrel", "Briar", "Tansy", "Fennel", "Aster"][i]} Goods (synthetic)', flat(base, MONTHS[i % 8]))
@@ -564,7 +573,7 @@ Merchant loans receivable, gross: {money(c, bal_total)}
 Allowance for credit losses: {money(c, allowance)} (2.0% of gross loans)
 ''', 'Balance sheet extract with the credit-loss allowance', 'Financial')
     ds.doc('02-aml-procedure', f'''
-{ds.company} — transaction-monitoring procedure (synthetic)
+BSA/AML programme: transaction-monitoring procedure for {ds.company} (synthetic).
 
 Every alert must be reviewed by a compliance analyst before closure. The analyst records the evidence reviewed and the rationale in the case file.
 ''', 'Written AML alert-handling procedure')
@@ -572,12 +581,139 @@ Every alert must be reviewed by a compliance analyst before closure. The analyst
 Program agreement between {ds.c["bank"]} (synthetic) and {ds.company}
 ---page---
 22.3 The Bank may terminate this agreement on ninety days' notice if the Program Manager undergoes a change of control without the Bank's prior written consent.
-''', 'Partner-bank program agreement')
+---page---
+8.2 The Program Manager shall keep the chargeback ratio, measured each calendar quarter as chargebacks divided by settled transactions by count, below 0.90%.
+8.3 Fraud losses shall not exceed 0.15% of processed volume in any calendar quarter.
+This agreement, reference {sponsor_ref}, expires on 31 March 2028 unless renewed.
+''', 'Partner-bank program agreement, with its monitoring thresholds and term')
     ds.findings = [
         ('Allowance below observed loss experience', f'the balance sheet carries a 2.0% allowance ({money(c, allowance)}); `loan-tape.csv` shows charge-offs of {pct(loss_rate)} of originated principal.'),
         ('Alerts closed without review evidence', f'{unreviewed} of 80 closed alerts in `aml-alerts.csv` have `review_evidence = no`, against the procedure in `documents/02-aml-procedure.pdf`.'),
         ('Partner bank can terminate on change of control', '`documents/03-partner-bank-agreement.pdf` page 2, clause 22.3 — consent needed before closing.'),
     ]
+    # --- Payments (T-159): processor exports, the licence register, compliance evidence and a three-year P&L.
+    procs = [('Northpass Processing (synthetic)', D('9000000'), D('0.022')), ('Keystone Acquiring (synthetic)', D('5000000'), D('0.026'))]
+    cb_rates = [D('0.0042'), D('0.0045'), D('0.0049'), D('0.0053'), D('0.0058'), D('0.0066'), D('0.0078'), D('0.0094')]   # by quarter; the last breaches 0.90%
+    fraud_rates = [D('0.00062'), D('0.00058'), D('0.00065'), D('0.00060'), D('0.00066'), D('0.00061'), D('0.00067'), D('0.00063')]
+    vol_rows, by_key = [], {}
+    for pi, (pname, base, growth) in enumerate(procs):
+        v = base
+        for i, mo in enumerate(MONTHS):
+            vol = whole(ds.amt(v) * (D(1) + D(rng.randint(-10, 10)) / 1000))
+            ticket = D(62) + D(rng.randint(-20, 20)) / 10
+            tx = whole(vol / ds.amt(ticket))
+            net = q(vol * (D('0.0085') + D(rng.randint(-4, 4)) / 100000))
+            cbs = whole(tx * cb_rates[i // 3])
+            cba = q(cbs * ds.amt(ticket))
+            fraud = q(vol * fraud_rates[i // 3])
+            vol_rows.append([mo, pname, f'{vol:.2f}', f'{tx:.0f}', f'{net:.2f}', f'{cbs:.0f}', f'{cba:.2f}', f'{fraud:.2f}'])
+            by_key[(mo, pname)] = (vol, net)
+            v = v * (D(1) + growth)
+    ds.ext('processor-volume', ['month', 'processor', 'gross_volume', 'transactions', 'net_revenue', 'chargeback_count', 'chargeback_amount', 'fraud_losses'], vol_rows,
+           'Processor settlement exports by month: volume, transactions, net revenue, chargebacks and fraud losses')
+    trailing = sum((by_key[(mo, p)][0] for mo in LAST12 for p, _, _ in procs), D(0))
+    prior = sum((by_key[(mo, p)][0] for mo in MONTHS[:12] for p, _, _ in procs), D(0))
+    net12 = sum((by_key[(mo, p)][1] for mo in LAST12 for p, _, _ in procs), D(0))
+    doubled_month, doubled_proc = '2026-03', procs[0][0]
+    deck_tpv = trailing + by_key[(doubled_month, doubled_proc)][0]
+    tpv_growth = ((trailing / prior - 1) * 100).quantize(D('1'), ROUND_HALF_UP)
+    take = (net12 / trailing * 100).quantize(D('0.01'), ROUND_HALF_UP)
+    q3 = [r for r in vol_rows if r[0] in ('2026-07', '2026-08', '2026-09')]
+    cb_q3 = sum(D(r[5]) for r in q3) / sum(D(r[3]) for r in q3)
+
+    LIC = {
+        'USD': [('MT-OH-20431', 'money_transmitter', 'Ohio', 'Ohio Division of Financial Institutions', '2021-07-01', '2027-06-30'),
+                ('MT-IL-30981', 'money_transmitter', 'Illinois', 'Illinois Department of Financial and Professional Regulation', '2021-06-01', '2026-05-31'),
+                ('MT-TX-11872', 'money_transmitter', 'Texas', 'Texas Department of Banking', '2022-01-15', '2027-12-31'),
+                ('MT-FL-50214', 'money_transmitter', 'Florida', 'Florida Office of Financial Regulation', '2022-04-30', '2028-04-30'),
+                ('CFL-CA-60778', 'lending', 'California', 'California Department of Financial Protection and Innovation', '2023-02-01', '2027-12-31'),
+                ('SML-OH-70345', 'lending', 'Ohio', 'Ohio Division of Financial Institutions', '2023-03-01', '2028-02-28')],
+        'EUR': [('PI-NL-20431', 'payment_institution', 'Netherlands', 'De Nederlandsche Bank', '2021-07-01', '2027-06-30'),
+                ('PI-BE-30981', 'payment_institution', 'Belgium', 'National Bank of Belgium', '2021-06-01', '2026-05-31'),
+                ('PI-FR-11872', 'payment_institution', 'France', 'ACPR', '2022-01-15', '2027-12-31'),
+                ('EM-IE-50214', 'e_money', 'Ireland', 'Central Bank of Ireland', '2022-04-30', '2028-04-30'),
+                ('CR-DE-60778', 'lending', 'Germany', 'BaFin', '2023-02-01', '2027-12-31'),
+                ('CR-NL-70345', 'lending', 'Netherlands', 'Netherlands Authority for the Financial Markets', '2023-03-01', '2028-02-28')],
+        'GBP': [('PI-UK-20431', 'payment_institution', 'United Kingdom', 'Financial Conduct Authority', '2021-07-01', '2027-06-30'),
+                ('PI-IE-30981', 'payment_institution', 'Ireland', 'Central Bank of Ireland', '2021-06-01', '2026-05-31'),
+                ('EM-GI-11872', 'e_money', 'Gibraltar', 'Gibraltar Financial Services Commission', '2022-01-15', '2027-12-31'),
+                ('PI-JE-50214', 'payment_institution', 'Jersey', 'Jersey Financial Services Commission', '2022-04-30', '2028-04-30'),
+                ('CC-UK-60778', 'lending', 'United Kingdom', 'Financial Conduct Authority', '2023-02-01', '2027-12-31'),
+                ('CC-NI-70345', 'lending', 'Northern Ireland', 'Financial Conduct Authority', '2023-03-01', '2028-02-28')],
+    }[ds.cur]
+    lic_rows = [[lid, kind, jur, auth, 'active', issued, exp] for lid, kind, jur, auth, issued, exp in LIC]
+    lic_rows.append([sponsor_ref, 'sponsor_bank', ds.c['country'], f'{ds.c["bank"]} (synthetic)', 'active', '2023-04-01', '2028-03-31'])
+    ds.ext('licence-register', ['licence_id', 'kind', 'jurisdiction', 'authority', 'status', 'issued_on', 'expires_on'], lic_rows, 'Licence and sponsor-bank register as the company keeps it')
+    lapsed = LIC[1]
+    kind_word = {'money_transmitter': 'money transmitter licence', 'payment_institution': 'payment institution authorisation', 'e_money': 'e-money authorisation', 'lending': 'lending licence'}
+
+    # Three fiscal years of P&L, by year across the columns. Fraud losses grow faster than revenue every year (planted (d)).
+    proc_2025 = sum((by_key[(mo, p)][1] for mo in MONTHS if mo.startswith('2025-') for p, _, _ in procs), D(0))
+    fees_2025 = sum((mo.get(m, D(0)) for _, _, mo in ds.customers for m in MONTHS if m.startswith('2025-')), D(0))
+    loans_2025 = ds.amt(1200000)
+    years = ['FY2023', 'FY2024', 'FY2025']
+    proc = [q(proc_2025 / D('1.52') / D('1.45')), q(proc_2025 / D('1.45')), q(proc_2025)]
+    fees = [q(fees_2025 * D('0.62')), q(fees_2025 * D('0.81')), q(fees_2025)]
+    loan_rev = [q(loans_2025 * D('0.58')), q(loans_2025 * D('0.79')), q(loans_2025)]
+    rev = [proc[i] + fees[i] + loan_rev[i] for i in range(3)]
+    ratios = {
+        'Cost of processing (processor platform fees)': ([D('0.180'), D('0.175'), D('0.182')], proc),
+        'Fraud losses': ([D('0.006'), D('0.010'), D('0.017')], rev),
+        'Credit losses on merchant loans': ([D('0.030'), D('0.028'), D('0.031')], rev),
+        'Staff costs': ([D('0.32'), D('0.30'), D('0.29')], rev),
+        'Technology': ([D('0.10'), D('0.10'), D('0.09')], rev),
+        'Sales and marketing': ([D('0.12'), D('0.13'), D('0.12')], rev),
+        'General and administrative': ([D('0.07'), D('0.065'), D('0.06')], rev),
+    }
+    pnl_rows = [['Payment processing revenue'] + [f'{x:.2f}' for x in proc], ['Platform fee revenue'] + [f'{x:.2f}' for x in fees], ['Merchant loan revenue'] + [f'{x:.2f}' for x in loan_rev]]
+    for name, (rs, base) in ratios.items():
+        pnl_rows.append([name] + [f'{q(base[i] * rs[i]):.2f}' for i in range(3)])
+    fraud = [q(rev[i] * ratios['Fraud losses'][0][i]) for i in range(3)]
+    ds.ext('pnl', ['Line'] + years, pnl_rows, 'Profit and loss by fiscal year, FY2023 to FY2025')
+    ds.pnl_step = ['Open the **Sources** tab, scroll to **Industry data** and click **Upload profit and loss (p&l)**.', '',
+                   '1. Choose `pnl.csv` → **Upload and map columns**. Pactlab reads the three years across the columns (FY2023, FY2024, FY2025).',
+                   '2. Say what each line is: the three lines ending in *revenue* are **Revenue**, `Cost of processing (processor platform fees)` is **Cost of revenue**, and the rest are **Operating expenses**.',
+                   f'3. **Check every row**, then **Import {len(pnl_rows) * 3} rows**.', '',
+                   '**You should see:** the import succeed. The **Payments** tab now shows the P&L year by year, and the checks in the next step read every year.', '']
+
+    ds.doc('04-investor-presentation', f'''
+{ds.company} — investor presentation, September 2026 (synthetic demo data).
+
+Total payment volume (TPV), twelve months to September 2026: {money(c, deck_tpv)}.
+TPV grew {tpv_growth}% year on year.
+Effective take rate: {take}% of payment volume.
+Net revenue retention: 116%.
+''', 'Investor presentation with TPV, growth, take-rate and retention claims')
+    ds.doc('05-licence-' + lapsed[2].lower().replace(' ', '-'), f'''
+{lapsed[2]} {kind_word[lapsed[1]]} (synthetic).
+
+Issued by {lapsed[3]} to {ds.company}.
+Licence number {lapsed[0]} was issued on 1 June 2021 and expires on 31 May 2026.
+Renewal must be filed before the expiry date.
+''', f'{lapsed[2]} licence certificate, with its expiry date')
+    ds.doc('06-pci-attestation', f'''
+PCI DSS Attestation of Compliance for {ds.company} (synthetic).
+
+Date of attestation: 14 March 2026.
+Assessed entity: {ds.company}, service provider level 2. Qualified security assessor: Ridgecrest Assurance (synthetic).
+''', 'PCI DSS attestation of compliance')
+    ds.doc('07-report-of-examination', f'''
+Report of examination of {ds.company} (synthetic).
+
+Examination date: 12 February 2026.
+The examination reviewed the money-services programme, complaint handling and record keeping. Findings are listed in the appendix for management's response.
+''', 'Regulatory report of examination')
+    ds.findings += [
+        ('Claim contradicted: Total payment volume', f'the investor presentation states {money(c, deck_tpv)} for the twelve months to September 2026; `processor-volume.csv` gives {money(c, trailing)} — the gap is {doubled_proc}\'s March 2026 volume ({money(c, by_key[(doubled_month, doubled_proc)][0])}), counted twice.'),
+        ('Claim verified: TPV growth', f'{tpv_growth}% year on year, recomputed from the exports.'),
+        ('Claim verified: Take rate', f'{take}%: net revenue ÷ processed volume, twelve months to September 2026.'),
+        ('Claim not verified: Retention', 'net revenue retention of 116%: the processor exports carry no merchant identities to recompute it from.'),
+        (f'Lapsed: {lapsed[2]} {KIND_TITLE[lapsed[1]]} ({lapsed[0]})', f'`documents/05-licence-{lapsed[2].lower().replace(" ", "-")}.pdf` — it expired on 31 May 2026, four months before the latest processor month; `licence-register.csv` still records it as active.'),
+        ('Chargeback rate breaches the stated threshold, 2026-Q3', f'{(cb_q3 * 100).quantize(D("0.01"), ROUND_HALF_UP)}% of settled transactions in July–September 2026, against the 0.90% in clause 8.2 of `documents/03-partner-bank-agreement.pdf` (page 3).'),
+        ('P&L trend, 2023–2025', 'every imported year side by side: revenue, growth, margins and the fraud, credit-loss and processing ratios.'),
+        ('Fraud losses growing faster than revenue, 2023–2025', f'`pnl.csv` — fraud losses rise from {pct(ratios["Fraud losses"][0][0])} of revenue in FY2023 to {pct(ratios["Fraud losses"][0][2])} in FY2025 ({money(c, fraud[0])} to {money(c, fraud[2])}); FY2025 alone looks small.'),
+    ]
+    ds.notes = ds.notes + ['The P&L (`pnl.csv`) imports through Sources like any extract; the multi-year checks read every year it holds. A single year still imports: the trend then reports that year alone.']
 
 def healthcare(ds):
     ds.kind, ds.kind_label = 'reimbursement', 'payer remittance'

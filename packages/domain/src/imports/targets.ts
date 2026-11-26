@@ -7,6 +7,8 @@ export const IMPORT_TARGETS = [
   'BILLING_INVOICE_LINE',
   'FINTECH_LOAN_TAPE',
   'FINTECH_AML_ALERT',
+  'FINTECH_PROCESSOR_VOLUME',
+  'FINTECH_LICENCES',
   'MULTIFAMILY_RENT_ROLL',
   'MULTIFAMILY_T12',
   'MULTIFAMILY_DELINQUENCY',
@@ -156,6 +158,58 @@ export const FINTECH_AML_ALERT: TargetDefinition = {
     { name: 'rule', label: 'Monitoring rule', kind: 'code', required: true, hint: 'The scenario that raised it, e.g. velocity or structuring.' },
     { name: 'status', label: 'Status', kind: 'code', required: true, hint: 'open or closed.' },
     { name: 'review_evidence', label: 'Review evidence on file', kind: 'code', required: true, hint: 'yes when the case file records what was reviewed and why; otherwise no.' },
+  ],
+};
+
+/**
+ * Fintech (T-159): the processor or bank settlement export, one row per month and processor —
+ * processed volume, transaction and chargeback counts, the company's net revenue on that volume and
+ * the fraud losses it bore. Counts and amounts only; no merchant or cardholder is identified.
+ */
+export const FINTECH_PROCESSOR_VOLUME: TargetDefinition = {
+  target: 'FINTECH_PROCESSOR_VOLUME',
+  label: 'Processor volume',
+  fileName: 'processor-volume.csv',
+  people: 'NONE',
+  refusesPeopleColumns: true,
+  evidenceType: 'fintech.processor_month',
+  recordIdField: 'month',
+  recordIdFields: ['month', 'processor'],
+  observedAtFields: [],
+  fields: [
+    { name: 'month', label: 'Month', kind: 'text', required: true, hint: 'YYYY-MM.' },
+    { name: 'processor', label: 'Processor or bank', kind: 'text', required: true, hint: 'The processor, acquirer or settlement bank the export comes from.' },
+    { name: 'gross_volume', label: 'Processed volume', kind: 'money', required: true, hint: 'Settled payment volume for the month, as the processor reports it. In the deal\'s base currency.' },
+    { name: 'transactions', label: 'Transactions', kind: 'decimal', required: true, hint: 'Settled transactions in the month (a count).' },
+    { name: 'net_revenue', label: 'Net revenue', kind: 'money', required: true, hint: 'The company\'s revenue on that volume after interchange and network fees. In the deal\'s base currency.' },
+    { name: 'chargeback_count', label: 'Chargebacks', kind: 'decimal', required: true, hint: 'Chargebacks received in the month (a count).' },
+    { name: 'chargeback_amount', label: 'Chargeback amount', kind: 'money', required: false, hint: 'In the deal\'s base currency.' },
+    { name: 'fraud_losses', label: 'Fraud losses', kind: 'money', required: false, hint: 'Losses the company bore from fraud in the month. In the deal\'s base currency.' },
+  ],
+};
+
+/**
+ * Fintech (T-159): the licence and sponsor register — money-transmitter, lending and other state or
+ * federal licences, and sponsor-bank agreements, each with its status and dates as the seller keeps
+ * them. The documents govern: a licence or agreement that states its own expiry is read from the page.
+ */
+export const FINTECH_LICENCES: TargetDefinition = {
+  target: 'FINTECH_LICENCES',
+  label: 'Licence and sponsor register',
+  fileName: 'licence-register.csv',
+  people: 'NONE',
+  refusesPeopleColumns: true,
+  evidenceType: 'fintech.licence',
+  recordIdField: 'licence_id',
+  observedAtFields: [],
+  fields: [
+    { name: 'licence_id', label: 'Licence or agreement id', kind: 'text', required: true, hint: 'The licence number, or the agreement\'s reference.' },
+    { name: 'kind', label: 'Kind', kind: 'code', required: true, hint: 'money_transmitter, lending, payment_institution, e_money, other_licence or sponsor_bank.' },
+    { name: 'jurisdiction', label: 'Jurisdiction', kind: 'text', required: true, hint: 'The state, country or regulator area it covers; for a sponsor bank, where the program runs.' },
+    { name: 'authority', label: 'Issued by', kind: 'text', required: true, hint: 'The regulator that issued the licence, or the sponsor bank.' },
+    { name: 'status', label: 'Status', kind: 'code', required: true, hint: 'active, pending, lapsed, surrendered or revoked, as the register records it.' },
+    { name: 'issued_on', label: 'Issued or signed', kind: 'date', required: false, hint: 'When it was issued or signed.' },
+    { name: 'expires_on', label: 'Expires', kind: 'date', required: false, hint: 'When it expires or must be renewed; blank when it does not expire.' },
   ],
 };
 
@@ -959,6 +1013,8 @@ export const IMPORT_TARGET_DEFINITIONS: Readonly<Record<ImportTarget, TargetDefi
   BILLING_INVOICE_LINE,
   FINTECH_LOAN_TAPE,
   FINTECH_AML_ALERT,
+  FINTECH_PROCESSOR_VOLUME,
+  FINTECH_LICENCES,
   MULTIFAMILY_RENT_ROLL,
   MULTIFAMILY_T12,
   MULTIFAMILY_DELINQUENCY,

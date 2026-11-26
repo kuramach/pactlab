@@ -62,6 +62,19 @@ describe('pack registry', () => {
     expect(spv.documentCategories).toEqual(expect.arrayContaining(['SIDE_LETTER', 'FORM_D', 'SPV_OPERATING_AGREEMENT']));
   });
 
+  it('Fintech reads the loan tape, AML alerts, the processor export and the licence register, and its compliance documents (T-159)', () => {
+    const fintech = PACKS.FINTECH;
+    expect(fintech).toMatchObject({ slug: 'fintech', cluster: 'technology', metricCalculator: 'fintech-payments', built: true });
+    expect(fintech.importTargets).toEqual(['BILLING_INVOICE_LINE', 'FINTECH_LOAN_TAPE', 'FINTECH_AML_ALERT', 'FINTECH_PROCESSOR_VOLUME', 'FINTECH_LICENCES']);
+    // The T-058 rules stay, first and unchanged; the payments, licence, compliance and trend rules follow.
+    expect(fintech.findingRules.slice(0, 3)).toEqual(['fintech-credit-loss', 'fintech-aml-unreviewed', 'fintech-partner-bank-coc']);
+    expect(fintech.findingRules).toHaveLength(11);
+    expect(fintech.documentCategories).toEqual(['REGULATORY_LICENCE', 'SPONSOR_BANK_AGREEMENT', 'PCI_ATTESTATION', 'AML_PROGRAM', 'REGULATORY_EXAM']);
+    for (const target of fintech.importTargets.slice(1)) expect(IMPORT_TARGET_DEFINITIONS[target].refusesPeopleColumns, target).toBe(true);
+    expect(peopleColumnProblems(IMPORT_TARGET_DEFINITIONS.FINTECH_PROCESSOR_VOLUME, ['month', 'processor', 'gross_volume', 'transactions', 'net_revenue', 'chargeback_count'])).toEqual([]);
+    expect(peopleColumnProblems(IMPORT_TARGET_DEFINITIONS.FINTECH_LICENCES, ['licence_id', 'kind', 'email'])).toHaveLength(1);
+  });
+
   it('every pack offers billing first, and only targets that exist (rule ids resolve in the API test)', () => {
     for (const id of PACK_IDS) {
       const pack = PACKS[id];

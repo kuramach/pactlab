@@ -226,6 +226,24 @@ async function spvVehicle(app: App, buyer: TenantContext, dealId: string): Promi
   return `spv: ${SPV_SEATS.length} seats, ${checks.created} SPV drafts, investor view v${published.version} published`;
 }
 
+/**
+ * A fintech target's P&L by year (T-159): the three-year statement imported through the P&L target,
+ * its line kinds confirmed as a person would (revenue lines as revenue, "cost of" lines as cost of
+ * revenue, the rest operating costs), so the multi-year trend checks read every year.
+ */
+export const FINTECH_PNL_FILE = 'pnl.csv';
+export const pnlLineKind = (account: string) => (/revenue/i.test(account) ? 'REVENUE' : /^cost of/i.test(account) ? 'COGS' : 'OPEX');
+async function fintechPnl(app: App, buyer: TenantContext, dealId: string, data: DemoDataSource): Promise<string> {
+  const imports = app.get(ImportsService, { strict: false });
+  const csv = await data.file('FINTECH', FINTECH_PNL_FILE);
+  const accounts = csv.toString('utf8').split(/\r?\n/).slice(1).map((row) => row.split(',')[0]?.trim() ?? '').filter(Boolean);
+  const query = uploadQuerySchema.parse({ system: 'pactlab_standard', fileName: FINTECH_PNL_FILE, target: 'FINANCIAL_PNL' });
+  const upload = await imports.upload(buyer, dealId, query, new Uint8Array(csv), REQUEST_ID);
+  const mapping = { ...(upload.suggestedMapping as object), lineKinds: Object.fromEntries(accounts.map((account) => [account, pnlLineKind(account)])) };
+  await imports.import(buyer, dealId, upload.id, mapping as never, REQUEST_ID);
+  return `pnl: ${accounts.length} lines by year`;
+}
+
 /** The schema owner's session: a pg client when deployed, PGlite in tests. */
 export interface OwnerSession {
   query<T>(sql: string, params?: unknown[]): Promise<{ rows: T[] }>;
@@ -380,6 +398,8 @@ export async function buildPact(app: App, owner: OwnerSession, people: People, t
     const upload = await imports.upload(buyer, dealId, query, new Uint8Array(await data.file(type, fileName)), REQUEST_ID);
     await imports.import(buyer, dealId, upload.id, upload.suggestedMapping as never, REQUEST_ID);
   }
+  // A fintech target's P&L by year (T-159), before the checks run so the multi-year trend reads every year.
+  if (type === 'FINTECH') await step('pnl', () => fintechPnl(app, buyer, dealId, data));
   // The paged documents some checks cite (PDFs, with the extracts' paged copy kept to the financial class).
   const uploaded: Record<string, string> = {};
   for (const file of (await data.documents(type)).filter((name) => name.endsWith('.pdf'))) {
