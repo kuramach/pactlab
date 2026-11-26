@@ -15,7 +15,7 @@ export interface NotificationModuleSettings {
   readonly suppression: SuppressionList | null;
   /** The web origin links point into. */
   readonly appOrigin: string;
-  /** Run the dispatcher on a timer (the API process; ADR 0045). Off in tests, which call run(). */
+  /** Run the dispatcher on a timer (the API process; ADR 0046). Off in tests, which call run(). */
   readonly scheduled: boolean;
   readonly intervalMs: number;
 }

@@ -1,7 +1,7 @@
 import type { TransactionClient } from './client';
 
 /**
- * Keyword retrieval over document pages (T-139, ADR 0045). Runs inside the caller's tenant transaction, so the
+ * Keyword retrieval over document pages (T-139, ADR 0047). Runs inside the caller's tenant transaction, so the
  * RLS on document_pages and documents decides which pages can rank at all: another tenant's pages, and
  * documents a counterparty may not see, never match. AI-excluded and purged pages carry no index (trigger).
  */

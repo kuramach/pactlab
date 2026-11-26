@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { pageQuerySchema } from './pagination';
 
 /**
- * Pact activity notifications (T-145, ADR 0045): the inbox query, a person's settings and a
+ * Pact activity notifications (T-145, ADR 0046): the inbox query, a person's settings and a
  * per-pact override, from `@pactlab/domain`'s modes; the API validates every write here.
  */
 

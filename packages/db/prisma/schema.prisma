@@ -3832,7 +3832,7 @@ model InvestorViewVersion {
   @@map("investor_view_versions")
 }
 
-/// One meaningful change on a pact (T-145, ADR 0045), recorded through `app_notify` in the change's
+/// One meaningful change on a pact (T-145, ADR 0046), recorded through `app_notify` in the change's
 /// own transaction; deduplicated by a stable key. Readable only through a notification of one's own.
 model NotificationEvent {
   id             String   @id @db.Uuid

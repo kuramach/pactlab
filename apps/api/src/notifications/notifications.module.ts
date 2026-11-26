@@ -4,7 +4,7 @@ import { NotificationDispatcher, NOTIFICATION_SETTINGS, type NotificationModuleS
 import { NotificationSettingsController, NotificationsController } from './notifications.controller';
 import { NotificationsService } from './notifications.service';
 
-/** Pact activity notifications (T-145, ADR 0045): the inbox, settings and the email dispatcher. */
+/** Pact activity notifications (T-145, ADR 0046): the inbox, settings and the email dispatcher. */
 @Module({})
 export class NotificationsModule {
   static register(settings: NotificationModuleSettings): DynamicModule {

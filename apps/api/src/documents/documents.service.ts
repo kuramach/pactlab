@@ -109,7 +109,7 @@ import {
 
 /**
  * The direct long-context budget (about 150k tokens). One document over it is refused; a pact-wide job over it
- * reads the pages keyword retrieval ranks highest for the question (T-139, ADR 0045).
+ * reads the pages keyword retrieval ranks highest for the question (T-139, ADR 0046).
  */
 export const MAX_CONTEXT_CHARS = 600_000;
 

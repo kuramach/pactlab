@@ -44,7 +44,7 @@ function blocks(request: ModelRequest): Map<string, string> {
 }
 
 /**
- * Retrieval for pact-wide Q&A (T-139, ADR 0045). The scripted model answers from the planted clause when it was
+ * Retrieval for pact-wide Q&A (T-139, ADR 0047). The scripted model answers from the planted clause when it was
  * sent and says it cannot answer otherwise, so end-to-end correctness here measures the pipeline (selection,
  * prompt, grounding, citation check); a real model's answer quality is the live eval's job.
  */
@@ -240,7 +240,7 @@ describe('pact-wide retrieval', () => {
     const summary = [MAX_CONTEXT_CHARS, TIGHT_BUDGET].flatMap((budget) =>
       ['KEYWORD', 'PARAPHRASE'].map((kind) => `${kind} @${budget}: recall ${mean(kind, budget, 'recall').toFixed(2)}, answered ${mean(kind, budget, 'answered').toFixed(2)}`),
     );
-    // The measured table, recorded in ADR 0045's decision note: a change to ranking or selection shows here as a diff.
+    // The measured table, recorded in ADR 0047's decision note: a change to ranking or selection shows here as a diff.
     expect(summary).toEqual([
       'KEYWORD @600000: recall 1.00, answered 1.00',
       'PARAPHRASE @600000: recall 0.71, answered 0.71',
@@ -252,7 +252,7 @@ describe('pact-wide retrieval', () => {
     // Questions in the documents' own words are found at the default budget.
     expect(mean('KEYWORD', MAX_CONTEXT_CHARS, 'recall')).toBe(1);
     expect(mean('KEYWORD', TIGHT_BUDGET, 'recall')).toBe(1);
-    // Paraphrases are where keyword search misses (ADR 0045's decision note); this guards against getting worse.
+    // Paraphrases are where keyword search misses (ADR 0047's decision note); this guards against getting worse.
     expect(mean('PARAPHRASE', MAX_CONTEXT_CHARS, 'recall')).toBeGreaterThanOrEqual(5 / 7);
   }, 300_000);
 });

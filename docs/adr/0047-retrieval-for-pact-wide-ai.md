@@ -1,4 +1,4 @@
-# ADR 0045: Retrieval for pact-wide AI: keyword search over pages first, vectors only if the evaluation says so (T-139)
+# ADR 0047: Retrieval for pact-wide AI: keyword search over pages first, vectors only if the evaluation says so (T-139)
 
 **Status:** accepted (Kumar, 2026-11-17: "Do we need RAG for this project?" Not yet, but for one feature.)
 
@@ -42,4 +42,4 @@
 ## Consequences
 - A data room of any size gets an answer with cited pages and a statement of what was read, instead of "too much to read".
 - Recall for colloquial questions is limited until vectors land; the coverage note keeps a miss from reading as "not in the data room".
-- **Migration** `20270107000000_page_search` is expand-only (a column, an index, a JSONB column on `ai_runs`, two trigger functions owned by `pactlab_ops`, and a backfill). Rollback: drop the triggers, `app_page_search_index()`, `app_page_search_unindex()`, the index and both columns; Q&A then needs the earlier release (which refused over the budget).
+- **Migration** `20270109000000_page_search` is expand-only (a column, an index, a JSONB column on `ai_runs`, two trigger functions owned by `pactlab_ops`, and a backfill). Rollback: drop the triggers, `app_page_search_index()`, `app_page_search_unindex()`, the index and both columns; Q&A then needs the earlier release (which refused over the budget).

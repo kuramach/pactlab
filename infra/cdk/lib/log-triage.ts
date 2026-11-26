@@ -31,7 +31,7 @@ export interface LogTriageProps {
 }
 
 /**
- * Live log triage (T-150, ADR 0045): runs in the live account, never on a
+ * Live log triage (T-150, ADR 0048): runs in the live account, never on a
  * developer's machine. A daily schedule invokes one Lambda that reads the
  * app's logs (Logs Insights), keeps its own state (DynamoDB), asks Bedrock for
  * a verdict per error cluster, emails the operator one digest (SES) and opens

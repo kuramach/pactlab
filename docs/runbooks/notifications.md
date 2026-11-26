@@ -1,4 +1,4 @@
-# Pact activity notifications (T-145, ADR 0045)
+# Pact activity notifications (T-145, ADR 0046)
 
 People get an in-app item (the bell) for each event on their pacts, and email by their settings: "act now" at once, "for your information" in a digest. The API's dispatcher sends every minute.
 

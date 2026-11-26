@@ -1,4 +1,4 @@
-# ADR 0045: Live log triage runs in production, independent of the Mac mini (T-150)
+# ADR 0048: Live log triage runs in production, independent of the Mac mini (T-150)
 
 **Status:** accepted (Kumar, 2026-11-22)
 

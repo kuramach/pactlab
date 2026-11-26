@@ -1,4 +1,4 @@
--- Keyword retrieval over pages for pact-wide AI (T-139, ADR 0045). Expand-only; re-runnable.
+-- Keyword retrieval over pages for pact-wide AI (T-139, ADR 0047). Expand-only; re-runnable.
 -- A page's text is indexed for Postgres full-text search, under the existing RLS on document_pages: a tenant can
 -- only ever rank its own pages. Pages of AI-excluded documents (people data, the uploader's choice) and purged
 -- pages are never indexed. An AI run records how its pages were chosen (ids and hashes, never content).

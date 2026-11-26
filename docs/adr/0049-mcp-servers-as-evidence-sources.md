@@ -1,4 +1,4 @@
-# ADR 0045: External MCP servers as read-only evidence sources, operator-allowlisted (T-084c)
+# ADR 0049: External MCP servers as read-only evidence sources, operator-allowlisted (T-084c)
 
 **Status:** accepted (2026-11-25). T-084 Part 3; builds on ADR 0011 (Jira host allowlist) and ADR 0024 (Pactlab's own MCP server).
 

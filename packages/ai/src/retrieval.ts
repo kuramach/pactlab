@@ -1,5 +1,5 @@
 /**
- * Which pages a pact-wide job sends to the model (T-139, ADR 0045). Retrieval only decides what is sent: the
+ * Which pages a pact-wide job sends to the model (T-139, ADR 0047). Retrieval only decides what is sent: the
  * gateway, prompts, grounding and citation checks are unchanged, and every citation is still verified against
  * the exact page text. Selection is deterministic: the same ranking over the same pages gives the same pages.
  */

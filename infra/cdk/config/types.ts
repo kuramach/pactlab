@@ -65,7 +65,7 @@ export interface EnvironmentConfig {
    */
   readonly idlePause?: { readonly idleMinutes: number };
   /**
-   * Live log triage (T-150, ADR 0045): a daily Lambda sweeps the app's logs, triages error
+   * Live log triage (T-150, ADR 0048): a daily Lambda sweeps the app's logs, triages error
    * clusters with Bedrock, emails one digest and opens deduplicated GitHub issues. Live only.
    */
   readonly logTriage?: LogTriageConfig;

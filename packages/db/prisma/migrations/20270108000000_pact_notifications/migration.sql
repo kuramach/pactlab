@@ -1,4 +1,4 @@
--- T-145 (ADR 0045): pact activity notifications — an in-app inbox and email, with urgency and a digest.
+-- T-145 (ADR 0046): pact activity notifications — an in-app inbox and email, with urgency and a digest.
 --
 -- - notification_events: one row per meaningful change on a pact, deduplicated by a stable key, written
 --   in the same transaction as the change through app_notify (never by the runtime role directly).

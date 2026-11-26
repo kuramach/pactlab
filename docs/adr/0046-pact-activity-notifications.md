@@ -1,4 +1,4 @@
-# ADR 0045: Pact activity notifications: an event catalogue, recipients that follow access, an inbox, and at-most-once email with a digest (T-145)
+# ADR 0046: Pact activity notifications: an event catalogue, recipients that follow access, an inbox, and at-most-once email with a digest (T-145)
 
 **Status:** accepted (2026-11-25). Planned in the task brief (Kumar, 2026-11-20: "When deals are in full flight keeping the parties in tight dance is key"). T-146 (push and SMS) adds channels on the same events.
 
@@ -43,4 +43,4 @@
 - A session is in one organization at a time, so the inbox shows that organization's pacts; the digest email covers every organization a person is on.
 - An Auth0 user with no stored address gets in-app items only (`NO_ADDRESS`).
 - Not yet notified: LOI countersigned or declined, bid answers to bidders, sale-process rounds. Each is one more `notify` on its audit write.
-- **Migration** `20270107000000_pact_notifications` is expand-only: four tables and the functions above. Rollback: drop the functions, then `notifications`, `notification_deliveries`, `notification_events` and `notification_preferences`; nothing else reads them.
+- **Migration** `20270108000000_pact_notifications` is expand-only: four tables and the functions above. Rollback: drop the functions, then `notifications`, `notification_deliveries`, `notification_events` and `notification_preferences`; nothing else reads them.

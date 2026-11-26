@@ -1,6 +1,6 @@
 'use strict';
 /**
- * Live log triage (T-150, ADR 0045): once a day in the live account, sweep the
+ * Live log triage (T-150, ADR 0048): once a day in the live account, sweep the
  * app's logs since the last successful run, cluster the errors, ask Bedrock for
  * a verdict on each reportable cluster, open or update one GitHub issue per bug
  * worth a look, and email one digest. Nothing reportable: no email.

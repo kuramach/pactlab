@@ -1,6 +1,6 @@
 'use strict';
 /**
- * Live log triage (T-150, ADR 0045): the pure parts, with no AWS or network
+ * Live log triage (T-150, ADR 0048): the pure parts, with no AWS or network
  * calls, so every rule here is unit-tested. index.js wires them to Logs
  * Insights, DynamoDB, Bedrock, SES and GitHub.
  *

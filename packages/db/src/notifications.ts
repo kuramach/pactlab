@@ -19,7 +19,7 @@ import { toPage, afterCursor, type PageRequest, type PageResult } from './pagina
 import { APP_DB_ROLE, withTenant } from './tenant';
 
 /**
- * Pact activity notifications (T-145, ADR 0045). An event is recorded inside the transaction that
+ * Pact activity notifications (T-145, ADR 0046). An event is recorded inside the transaction that
  * makes its change (usually through the change's audit event, `AuditEventInput.notify`); the
  * recipients are computed by `app_notify` from the pact's memberships, never from client input.
  */

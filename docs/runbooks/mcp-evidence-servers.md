@@ -1,4 +1,4 @@
-# MCP servers as evidence sources (T-084c, ADR 0045)
+# MCP servers as evidence sources (T-084c, ADR 0049)
 
 Pactlab can read evidence from an external MCP server, read-only, when the operator approves it. Today one server is supported: GitHub's MCP server, for a repository's Dependabot alerts.
 
@@ -39,4 +39,4 @@ A new server is a reviewed code change; nothing is configured by users.
 4. **Write a synthetic fixture server** (`<server>/fixture.ts`) that answers in the documented shape, including fields that must be dropped, and add it to `MCP_FIXTURE_SERVERS`.
 5. **Register** the profile in `MCP_EVIDENCE_PROFILES` (`packages/connectors/src/mcp/index.ts`).
 6. **Test**: the profile's pull from the fixture (no people or prose in evidence, pagination, refused calls), and a run through `SdkMcpSessionFactory` against an in-process SDK server (`mcp.test.ts` shows how).
-7. **Document** the server in ADR 0045's list and this runbook; then the operator can approve it.
+7. **Document** the server in ADR 0049's list and this runbook; then the operator can approve it.

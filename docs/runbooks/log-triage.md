@@ -1,6 +1,6 @@
 # Live log triage
 
-Errors in live are found by live itself (T-150, ADR 0045). Once a day a Lambda in the live account sweeps the app's logs, groups the errors, asks Bedrock for a verdict on each new or growing group, opens or updates one GitHub issue per group worth a look, and emails one digest to kumar@pactlab.ai. Nothing new or growing means no email: silence is healthy.
+Errors in live are found by live itself (T-150, ADR 0048). Once a day a Lambda in the live account sweeps the app's logs, groups the errors, asks Bedrock for a verdict on each new or growing group, opens or updates one GitHub issue per group worth a look, and emails one digest to kumar@pactlab.ai. Nothing new or growing means no email: silence is healthy.
 
 Nothing here depends on the Mac mini. Approved issues become task files in `tasks/ready/`; if the Mac is off, they wait there.
 

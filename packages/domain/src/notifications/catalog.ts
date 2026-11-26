@@ -1,5 +1,5 @@
 /**
- * Pact activity notifications (T-145, ADR 0045): the small, explicit catalogue of events a person
+ * Pact activity notifications (T-145, ADR 0046): the small, explicit catalogue of events a person
  * is told about, each with an urgency. An event is recorded where its change happens, in the same
  * transaction; recipients follow access (server-side, under the definer function `app_notify`).
  *
