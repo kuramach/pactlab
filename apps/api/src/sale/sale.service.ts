@@ -547,7 +547,8 @@ export class SaleService {
     await withTenant(this.prisma, tenant, async (tx) => {
       const { bid } = await this.openBid(tx, dealId);
       await tx.bidQuestion.create({ data: { id, organizationId: tenant.organizationId, dealId, bidId: bid.id, question: body.question, askedBy: tenant.userId } });
-      await appendAuditEvent(tx, this.audit(tenant, dealId, 'sale.question.asked', { type: 'bid_question', id }, requestId));
+      // T-145: the seller's team is asked at once, on its bidders board; other bidders never hear of it.
+      await appendAuditEvent(tx, { ...this.audit(tenant, dealId, 'sale.question.asked', { type: 'bid_question', id }, requestId), notify: { type: 'QUESTION_ASKED', dedupeKey: `bid-question:${id}:asked`, visibility: 'SHARED', audience: 'OWN_SIDE', section: 'bidders' } });
     });
     return { id };
   }

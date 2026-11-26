@@ -25,7 +25,7 @@ import {
   type TermLever,
   type TermMix,
 } from '@pactlab/calculations';
-import { appendAuditEvent, withTenant, type Prisma, type PrismaClient, type TransactionClient } from '@pactlab/db';
+import { appendAuditEvent, withTenant, type PactEventInput, type Prisma, type PrismaClient, type TransactionClient } from '@pactlab/db';
 import { isCounterpartyRole, newId, permissionsForDealRole, type DealRole, type TenantContext } from '@pactlab/domain';
 import { DealAccess } from '../deals/deal-access';
 import { FINDINGS_REPOSITORY, type FindingsRepository } from '../findings/findings.repository';
@@ -209,8 +209,8 @@ export class PricingService {
     @Inject(PRICING_DEPENDENCIES) private readonly deps: PricingDependencies,
   ) {}
 
-  private audit(tx: TransactionClient, tenant: TenantContext, dealId: string, action: string, targetType: string, targetId: string, requestId: string) {
-    return appendAuditEvent(tx, { organizationId: tenant.organizationId, dealId, actorUserId: tenant.userId, action, targetType, targetId, outcome: 'SUCCEEDED', requestId });
+  private audit(tx: TransactionClient, tenant: TenantContext, dealId: string, action: string, targetType: string, targetId: string, requestId: string, notify?: PactEventInput | readonly PactEventInput[]) {
+    return appendAuditEvent(tx, { organizationId: tenant.organizationId, dealId, actorUserId: tenant.userId, action, targetType, targetId, outcome: 'SUCCEEDED', requestId, notify: notify ?? null });
   }
 
   private async personaOf(tx: TransactionClient, tenant: TenantContext, dealId: string) {
@@ -523,7 +523,8 @@ export class PricingService {
     await withTenant(this.prisma, tenant, async (tx) => {
       await this.draft(tx, dealId, batchId);
       await tx.termProposalBatch.update({ where: { id: batchId }, data: { proposedAt: new Date(), proposedBy: tenant.userId } });
-      await this.audit(tx, tenant, dealId, 'terms.proposed', 'term_proposal_batch', batchId, requestId);
+      // T-145: the seller is asked to answer, at once.
+      await this.audit(tx, tenant, dealId, 'terms.proposed', 'term_proposal_batch', batchId, requestId, { type: 'TERMS_PROPOSED', dedupeKey: `terms:${batchId}:proposed`, visibility: 'SHARED', audience: 'COUNTERPARTY' });
     });
     return this.view(tenant, dealId, requestId);
   }
@@ -605,13 +606,22 @@ export class PricingService {
           respondedAt: now,
         })),
       });
-      await this.audit(tx, tenant, dealId, 'terms.responded', 'term_proposal_batch', batch.id, requestId);
+      // T-145: the side that proposed hears the answer at once (the buyer's deal lead, or the seller).
+      await this.audit(tx, tenant, dealId, 'terms.responded', 'term_proposal_batch', batch.id, requestId, {
+        type: 'TERMS_COUNTERED',
+        dedupeKey: `terms:${batch.id}:answered:${newId()}`,
+        visibility: 'SHARED',
+        audience: batch.initiatedBySide === 'BUYER' ? 'OWN_LEADS' : 'COUNTERPARTY',
+      });
       // bounded: the rows of one record (one finding, one term batch or one listing)
       const all = await tx.termResponse.findMany({ where: { batchId: batch.id } });
       const latest = latestResponses(all);
       if (batch.terms.every((term) => latest.get(term.ordinal)?.decision === 'ACCEPT')) {
         await tx.termProposalBatch.update({ where: { id: batch.id }, data: { agreedAt: now } });
-        await this.audit(tx, tenant, dealId, 'terms.agreed', 'term_proposal_batch', batch.id, requestId);
+        // Agreed: both named signatories are asked to sign off (T-107), at once.
+        const signatories = await Promise.all((['BUYER', 'SELLER'] as const).map((side) => tx.pactSignatory.findFirst({ where: { dealId, side }, orderBy: [{ namedAt: 'desc' }, { id: 'desc' }], select: { userId: true } })));
+        const users = signatories.flatMap((row) => (row ? [row.userId] : []));
+        await this.audit(tx, tenant, dealId, 'terms.agreed', 'term_proposal_batch', batch.id, requestId, users.length > 0 ? { type: 'SIGNATURE_REQUESTED', dedupeKey: `terms:${batch.id}:sign-off`, visibility: 'SHARED', audience: 'USERS', users } : undefined);
       }
     });
     return this.proposedTerms(tenant, dealId, requestId);
@@ -689,7 +699,8 @@ export class PricingService {
       const batch = await this.draft(tx, dealId, batchId);
       if (batch.initiatedBySide !== 'SELLER') throw new NotFoundException();
       await tx.termProposalBatch.update({ where: { id: batchId }, data: { proposedAt: new Date(), proposedBy: tenant.userId } });
-      await this.audit(tx, tenant, dealId, 'terms.proposed', 'term_proposal_batch', batchId, requestId);
+      // T-145: the buyer's deal lead is asked to answer, at once.
+      await this.audit(tx, tenant, dealId, 'terms.proposed', 'term_proposal_batch', batchId, requestId, { type: 'TERMS_PROPOSED', dedupeKey: `terms:${batchId}:proposed`, visibility: 'SHARED', audience: 'OWN_LEADS' });
     });
     return this.proposedTerms(tenant, dealId, requestId);
   }
