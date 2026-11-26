@@ -22,6 +22,20 @@ export const devConfig: EnvironmentConfig = {
   auditArchive: { mode: 'GOVERNANCE', days: 1 },
   // Only production runs all the time: this environment pauses after an hour without use.
   idlePause: { idleMinutes: 60 },
+  // Pre-production log triage (T-157): this account's one deployment sweeps dev AND qa (separate log groups,
+  // state, labels and digest sections). Cluster-only: Bedrock access is not enabled in this account yet, so no
+  // model is named and no model call is made. The flip, once it is: modelId 'us.anthropic.claude-sonnet-5-5'.
+  // Dry run until Kumar approves the dry-run digest.
+  logTriage: {
+    environments: ['dev', 'qa'],
+    recipient: 'kumar@pactlab.ai',
+    githubRepo: 'kuramach/pactlab',
+    githubTokenSecretName: 'pactlab/dev/github-triage',
+    dryRun: true,
+    // 07:00 Chicago in winter, as live.
+    hourUtc: 13,
+    maxClusters: 10,
+  },
   featureFlags: { pilotMode: false, liveConnectors: false },
   // The running app (ADR 0019), sized for small and medium pacts: one task each.
   service: {

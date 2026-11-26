@@ -10,12 +10,44 @@ import * as logs from 'aws-cdk-lib/aws-logs';
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import { Construct } from 'constructs';
 import { fileURLToPath } from 'node:url';
-import type { EnvironmentName, LogTriageConfig } from '../config';
+import { ENVIRONMENTS, type EnvironmentConfig, type EnvironmentName, type LogTriageConfig } from '../config';
 
 const lambdaDir = fileURLToPath(new URL('../lambda/log-triage', import.meta.url));
 export const logTriageRuleName = (env: EnvironmentName) => `pactlab-${env}-log-triage`;
 /** The sender's bare address, from `Name <address>`. */
 const addressOf = (from: string) => /<([^>]+)>/.exec(from)?.[1] ?? from;
+
+/** One environment a pre-production deployment sweeps (T-157). */
+export interface TriageEnvironment {
+  readonly name: EnvironmentName;
+  readonly logGroupName: string;
+  readonly cluster: string;
+  /** The environment whose stack holds the deployment: its log group and services are this stack's own. */
+  readonly own: boolean;
+}
+
+/**
+ * The environments one account's deployment sweeps (T-157). Live's (no `environments`): itself, as
+ * T-150 built it, so `undefined`. Otherwise each listed environment must be this one, or one on the
+ * same shared base (so in the same account: the dev account sweeps dev and qa); never live, and
+ * never one that runs a deployment of its own.
+ */
+export function triageEnvironments(config: EnvironmentConfig): readonly TriageEnvironment[] | undefined {
+  const names = config.logTriage?.environments;
+  if (!names) return undefined;
+  if (!names.includes(config.name)) throw new Error(`${config.name}'s log triage must sweep ${config.name} itself`);
+  if (new Set(names).size !== names.length) throw new Error(`${config.name}'s log triage lists an environment twice`);
+  return names.map((name) => {
+    const other = ENVIRONMENTS[name];
+    if (name === 'prod') throw new Error('Live has its own log triage (T-150); a pre-production deployment never sweeps it');
+    if (!other.service) throw new Error(`${name} runs no app to sweep`);
+    if (name !== config.name) {
+      if (!config.shared || other.shared?.base !== config.shared.base) throw new Error(`${name} is not in ${config.name}'s account; it needs its own deployment`);
+      if (other.logTriage) throw new Error(`${name} has its own log triage; ${config.name}'s cannot sweep it too`);
+    }
+    return { name, logGroupName: `/pactlab/${name}/app`, cluster: `pactlab-${name}`, own: name === config.name };
+  });
+}
 
 export interface LogTriageProps {
   readonly env: EnvironmentName;
@@ -28,18 +60,24 @@ export interface LogTriageProps {
   readonly email: { readonly from: string; readonly identityDomain: string };
   readonly dataKey: kms.IKey;
   readonly protectedState: boolean;
+  /** Pre-production (T-157): the environments swept (triageEnvironments). Absent: live. */
+  readonly environments?: readonly TriageEnvironment[];
 }
 
 /**
- * Live log triage (T-150, ADR 0048): runs in the live account, never on a
- * developer's machine. A daily schedule invokes one Lambda that reads the
+ * Log triage (T-150 live, T-157 dev, qa and stage; ADR 0048): runs in each
+ * account, never on a developer's machine. A daily schedule invokes one Lambda that reads the
  * app's logs (Logs Insights), keeps its own state (DynamoDB), asks Bedrock for
  * a verdict per error cluster, emails the operator one digest (SES) and opens
  * deduplicated GitHub issues with a token held in Secrets Manager.
  *
- * Its role reads the live log group, invokes the one triage model, sends only
- * to the configured recipient and writes only its own table. It has no access
- * to any application resource.
+ * Its role reads its environments' log groups, invokes the one triage model
+ * (none in cluster-only mode), sends only to the configured recipient and
+ * writes only its own table. It has no access to any application resource
+ * and no cross-account role.
+ *
+ * Pre-production (`environments`): one deployment per account sweeps each of
+ * its environments with separate state, labels and digest sections.
  */
 export class LogTriage extends Construct {
   readonly function: lambda.Function;
@@ -51,6 +89,9 @@ export class LogTriage extends Construct {
     super(scope, id);
     const stack = Stack.of(this);
     const { env, config } = props;
+    const environments = props.environments;
+    const live = !environments;
+    const what = live ? 'live log triage' : `pre-production log triage (${environments.map((e) => e.name).join(', ')})`;
     const removal = props.protectedState ? RemovalPolicy.RETAIN : RemovalPolicy.DESTROY;
 
     // Per signature: first and last seen, counts, status; plus the sweep watermark. Small, on demand.
@@ -65,13 +106,40 @@ export class LogTriage extends Construct {
     // scripts/github-triage-key.sh sets it, so its value never enters the repository or the template.
     this.githubToken = new secretsmanager.Secret(this, 'GithubToken', {
       secretName: config.githubTokenSecretName,
-      description: `Pactlab ${env}: GitHub token for live log triage issues (unset: no issues opened)`,
+      description: `Pactlab ${env}: GitHub token for ${what} issues (unset: no issues opened)`,
       encryptionKey: props.dataKey,
       secretStringValue: SecretValue.unsafePlainText('unset'),
       removalPolicy: removal,
     });
 
     const logGroupPrefix = `/pactlab/${env}/`;
+    // Every environment's log group: this stack's own, and (pre-production) the neighbours' by name.
+    const swept = (environments ?? [{ name: env, logGroupName: props.logGroup.logGroupName, cluster: props.cluster.clusterName, own: true }]).map((e) => ({
+      ...e,
+      group: e.own ? props.logGroup : logs.LogGroup.fromLogGroupName(this, `${e.name}Logs`, e.logGroupName),
+    }));
+    // Live: the variables T-150 set, unchanged. Pre-production: one entry per swept environment (T-157).
+    const targets: Record<string, string> = live
+      ? {
+          LOG_GROUPS: stack.toJsonString([props.logGroup.logGroupName]),
+          LOG_GROUP_PREFIX: logGroupPrefix,
+          CLUSTER: props.cluster.clusterName,
+          SERVICES: stack.toJsonString(props.services.map((service) => service.serviceName)),
+        }
+      : {
+          // Services are named only for this stack's own environment; a neighbour's deploy history is not read.
+          TRIAGE_ENVIRONMENTS: stack.toJsonString(
+            swept.map((e) => ({
+              name: e.name,
+              logGroups: [e.group.logGroupName],
+              logGroupPrefix: `/pactlab/${e.name}/`,
+              cluster: e.own ? props.cluster.clusterName : e.cluster,
+              ...(e.own ? { services: props.services.map((service) => service.serviceName) } : {}),
+            })),
+          ),
+          ACCOUNT_LABEL: `${env} account`,
+        };
+    const { LOG_GROUPS, LOG_GROUP_PREFIX, ...rest } = targets;
     this.function = new lambda.Function(this, 'Function', {
       runtime: lambda.Runtime.NODEJS_22_X,
       architecture: lambda.Architecture.ARM_64,
@@ -82,48 +150,52 @@ export class LogTriage extends Construct {
       memorySize: 512,
       // A failed run is not retried by Lambda: the next day's run sweeps the same window again.
       retryAttempts: 0,
-      description: `Pactlab ${env}: daily live log triage (T-150)`,
+      description: live ? `Pactlab ${env}: daily live log triage (T-150)` : `Pactlab ${env}: daily ${what} (T-157)`,
       logRetention: logs.RetentionDays.ONE_MONTH,
       environment: {
-        LOG_GROUPS: stack.toJsonString([props.logGroup.logGroupName]),
-        LOG_GROUP_PREFIX: logGroupPrefix,
+        // Same keys and order as T-150 for live, so its template is unchanged.
+        ...(LOG_GROUPS && LOG_GROUP_PREFIX ? { LOG_GROUPS, LOG_GROUP_PREFIX } : {}),
         TABLE: this.table.tableName,
-        MODEL_ID: config.modelId,
+        // Empty: cluster-only (no model call).
+        MODEL_ID: config.modelId ?? '',
         RECIPIENT: config.recipient,
         SENDER: props.email.from,
         GITHUB_REPO: config.githubRepo,
         GITHUB_TOKEN_SECRET_ARN: this.githubToken.secretArn,
         DRY_RUN: String(config.dryRun),
         MAX_CLUSTERS: String(config.maxClusters),
-        CLUSTER: props.cluster.clusterName,
-        SERVICES: stack.toJsonString(props.services.map((service) => service.serviceName)),
+        ...rest,
       },
     });
     const fn = this.function;
 
-    // Logs: queries on the live app's group only. GetQueryResults and StopQuery have no resource-level permissions.
-    fn.addToRolePolicy(new iam.PolicyStatement({ sid: 'QueryLiveLogs', actions: ['logs:StartQuery'], resources: [props.logGroup.logGroupArn] }));
+    // Logs: queries on the swept app groups only. GetQueryResults and StopQuery have no resource-level permissions.
+    const sid = (name: string) => (live ? `${name}LiveLogs` : `${name}EnvironmentLogs`);
+    fn.addToRolePolicy(new iam.PolicyStatement({ sid: sid('Query'), actions: ['logs:StartQuery'], resources: swept.map((e) => e.group.logGroupArn) }));
     fn.addToRolePolicy(new iam.PolicyStatement({ sid: 'QueryResults', actions: ['logs:GetQueryResults', 'logs:StopQuery'], resources: ['*'] }));
     fn.addToRolePolicy(
       new iam.PolicyStatement({
-        sid: 'InventoryLiveLogs',
+        sid: sid('Inventory'),
         actions: ['logs:DescribeLogGroups'],
-        resources: [`arn:${stack.partition}:logs:${stack.region}:${stack.account}:log-group:${logGroupPrefix}*`],
+        resources: swept.map((e) => `arn:${stack.partition}:logs:${stack.region}:${stack.account}:log-group:/pactlab/${e.name}/*`),
       }),
     );
 
     // Bedrock: the one triage model, through its inference profile (which routes to the model in US Regions).
-    const foundationModel = config.modelId.replace(/^(us|eu|apac|global)\./, '');
-    fn.addToRolePolicy(
-      new iam.PolicyStatement({
-        sid: 'TriageModel',
-        actions: ['bedrock:InvokeModel'],
-        resources: [
-          `arn:${stack.partition}:bedrock:${stack.region}:${stack.account}:inference-profile/${config.modelId}`,
-          `arn:${stack.partition}:bedrock:*::foundation-model/${foundationModel}*`,
-        ],
-      }),
-    );
+    // Cluster-only mode (no model configured): no Bedrock permission at all.
+    if (config.modelId) {
+      const foundationModel = config.modelId.replace(/^(us|eu|apac|global)\./, '');
+      fn.addToRolePolicy(
+        new iam.PolicyStatement({
+          sid: 'TriageModel',
+          actions: ['bedrock:InvokeModel'],
+          resources: [
+            `arn:${stack.partition}:bedrock:${stack.region}:${stack.account}:inference-profile/${config.modelId}`,
+            `arn:${stack.partition}:bedrock:*::foundation-model/${foundationModel}*`,
+          ],
+        }),
+      );
+    }
 
     // Deploy times, so a verdict can say "started right after deploy X". Read only, this cluster's services.
     fn.addToRolePolicy(
@@ -149,7 +221,7 @@ export class LogTriage extends Construct {
 
     this.rule = new events.Rule(this, 'Daily', {
       ruleName: logTriageRuleName(env),
-      description: `Pactlab ${env}: daily live log triage (disable to pause)`,
+      description: `Pactlab ${env}: daily ${what} (disable to pause)`,
       schedule: events.Schedule.cron({ minute: '0', hour: String(config.hourUtc) }),
       targets: [new eventTargets.LambdaFunction(fn, { retryAttempts: 0 })],
     });
