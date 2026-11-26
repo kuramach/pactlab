@@ -422,7 +422,7 @@ PACK_IMPORTS = {
     'multifamily': {'rent-roll': 'Rent roll', 't12': 'T-12 operating statement', 'delinquency': 'Delinquency report', 'unit-inspections': 'Unit inspections'},
     'healthcare': {'claims-summary': 'Claims summary', 'provider-roster': 'Provider roster', 'remittances': 'Remittances by payer', 'clinician-collections': 'Collections by clinician', 'credentialing-register': 'Credentialing register', 'payer-contracts': 'Payer contract register'},
     'telecom-media': {'subscribers-by-month': 'Subscribers by month'},
-    'professional-services': {'timesheets-summary': 'Timesheets summary', 'headcount-movements': 'Headcount movements'},
+    'professional-services': {'timesheets-summary': 'Timesheets summary', 'headcount-movements': 'Headcount movements', 'time-billing': 'Time and billing', 'wip-ar-ageing': 'WIP and debtor ageing'},
     'pharma-biotech': {'patent-schedule': 'Patent schedule', 'trial-registry': 'Trial registry records', 'pipeline': 'Pipeline', 'obligations-model': 'Payment obligations model', 'rd-roster': 'R&D roster'},
     'ecommerce-dtc': {'orders-by-cohort': 'Orders by cohort', 'ad-spend': 'Ad spend', 'channel-orders': 'Orders by channel', 'inventory': 'Stock report'},
     'commercial-property': {'rent-roll': 'Commercial rent roll', 'cam-reconciliation': 'CAM reconciliation'},
@@ -980,16 +980,55 @@ Wholesale network access agreement — {ds.company} and Valleyline Networks (syn
     ]
 
 def services(ds):
-    ds.kind, ds.kind_label = 'retainer', 'client retainer'
-    ds.summary = f'{ds.company} is a 140-person digital and data consultancy working on monthly retainers for enterprise clients.'
-    clients = [('Meridian Retail Group', 118000), ('Halcyon Mutual', 52000), ('Brookfield Transit', 38000), ('Kestrel Pharma Services', 31000), ('Oakmont Utilities', 26000),
-               ('Lumen Education Trust', 18000), ('Seabright Leisure', 14000), ('Carraway Foods', 11000)]
-    for i, (n, base) in enumerate(clients):
-        ds.customer(f'{ds.prefix}-cli-{i + 1:03d}', f'{n} (synthetic)', ramp(ds.rng, ds.amt(base), '0.004', noise=D('0.04')))
+    ds.kind, ds.kind_label = 'retainer', 'client fee'
+    ds.summary = f'{ds.company} is a 140-person digital and data consultancy working on retainers and projects for enterprise clients.'
+    rng = ds.rng
+    c = ds.cur
+    # --- Time and billing (T-167): January 2023 to September 2026, one row per month, client and fee-earner.
+    # Fee-earners are pseudonymous references (P- partners, C- consultants); each client's relationship
+    # partner bills 40% of its fees. Meridian is about 27% of fees against the deck's 15% ceiling (planted (a)).
+    OM = []
+    yy, mm = 2023, 1
+    while (yy, mm) <= (2026, 9):
+        OM.append(f'{yy}-{mm:02d}'); mm += 1
+        if mm == 13: yy, mm = yy + 1, 1
+    clients = [  # name, relationship partner, consultant, engagement, Sep-2026 monthly fees (USD)
+        ('Meridian Retail Group', 'P-01', 'C-01', 'retainer', 81000),
+        ('Seabright Leisure', 'P-01', 'C-02', 'time_and_materials', 21000),
+        ('Halcyon Mutual', 'P-02', 'C-03', 'managed_service', 42000),
+        ('Lumen Education Trust', 'P-02', 'C-04', 'project', 24000),
+        ('Carraway Foods', 'P-02', 'C-05', 'retainer', 15000),
+        ('Brookfield Transit', 'P-03', 'C-06', 'project', 36000),
+        ('Kestrel Pharma Services', 'P-03', 'C-07', 'project', 24000),
+        ('Oakmont Utilities', 'P-04', 'C-08', 'retainer', 36000),
+        ('Northwind Councils', 'P-05', 'C-09', 'project', 21000),
+    ]
+    # Realization (fees ÷ standard value) falls every year (planted (b)); a single year looks unremarkable.
+    REAL = {'2023': D('0.92'), '2024': D('0.87'), '2025': D('0.81'), '2026': D('0.80')}
+    RATE = {'Partner': ds.amt(350), 'Consultant': ds.amt(160)}
+    tb_rows, fees = [], {}
+    for name, partner, consultant, engagement, base in clients:
+        for i, mo in enumerate(OM):
+            back = len(OM) - 1 - i
+            month_fees = ds.amt(D(base) / (D('1.008') ** back)) * (D(1) + D(rng.randint(-20, 20)) / 1000)
+            yr = mo[:4]
+            for ref, grade, part in ((partner, 'Partner', D('0.4')), (consultant, 'Consultant', D('0.6'))):
+                billed = q(month_fees * part)
+                standard = q(billed / REAL[yr])
+                worked = (standard / RATE[grade]).quantize(D('0.1'), ROUND_HALF_UP)
+                hours_billed = (worked * (REAL[yr] + D('0.04'))).quantize(D('0.1'), ROUND_HALF_UP)
+                collected = q(billed * D('0.97'))
+                tb_rows.append([mo, f'{name} (synthetic)', engagement, ref, grade, partner, f'{worked}', f'{hours_billed}', f'{standard:.2f}', f'{billed:.2f}', f'{collected:.2f}'])
+                fees[(mo, name)] = fees.get((mo, name), D(0)) + billed
+    ds.ext('time-billing', ['month', 'client', 'engagement', 'fee_earner', 'grade', 'relationship_partner', 'hours_worked', 'hours_billed', 'standard_value', 'billed', 'collected'], tb_rows,
+           'Time and billing by month, client, engagement and fee-earner (pseudonymous): hours, standard value, fees billed and collected')
+    # Billing is the clients' fees, October 2024 to September 2026.
+    for i, (name, *_rest) in enumerate(clients):
+        ds.customer(f'{ds.prefix}-cli-{i + 1:03d}', f'{name} (synthetic)', {mo: fees[(mo, name)] for mo in MONTHS})
     rows = []
     for mo in LAST12:
         for team, hc in (('Engineering', 62), ('Data', 34), ('Design', 22)):
-            avail = hc * 140; billable = int(avail * (0.62 + ds.rng.randint(0, 5) / 100))
+            avail = hc * 140; billable = int(avail * (0.62 + rng.randint(0, 5) / 100))
             rows.append([mo, team, hc, avail, billable])
     util = D(sum(r[4] for r in rows)) / D(sum(r[3] for r in rows))
     ds.ext('timesheets-summary', ['month', 'team', 'headcount', 'available_hours', 'billable_hours'], rows, 'Available and billable hours by team (aggregate)')
@@ -998,25 +1037,109 @@ def services(ds):
         hm.append([mo, 'Delivery', 2 + i % 2, 1 + (i // 3), 118 + i % 3])
         hm.append([mo, 'Support functions', 1, 0 + (i % 2), 22])
     ds.ext('headcount-movements', ['month', 'role_family', 'starters', 'leavers', 'headcount'], hm, 'Starters, leavers and headcount by role family (aggregate)')
+
+    # Trailing twelve months, as the checks read them.
+    trail = [r for r in tb_rows if r[0] in LAST12]
+    total = sum((D(r[9]) for r in trail), D(0))
+    by_client, by_partner = {}, {}
+    for r in trail:
+        by_client[r[1]] = by_client.get(r[1], D(0)) + D(r[9])
+        by_partner[r[5]] = by_partner.get(r[5], D(0)) + D(r[9])
+    top_client, top_fees = max(by_client.items(), key=lambda kv: kv[1])
+    top_partner, partner_fees = max(by_partner.items(), key=lambda kv: kv[1])
+    recurring = sum((D(r[9]) for r in trail if r[2] in ('retainer', 'managed_service')), D(0))
+    def year_rows(y): return [r for r in tb_rows if r[0].startswith(y)]
+    def realization(y): return sum((D(r[9]) for r in year_rows(y)), D(0)) / sum((D(r[8]) for r in year_rows(y)), D(0))
+
+    # WIP and debtor ageing at each year end. WIP over 90 days doubles from 2024 to 2025 (planted (d)).
+    def month_fees_of(mo): return sum((fees[(mo, n)] for n, *_rest in clients), D(0))
+    ageing, over = [], {}
+    SPLIT = {'wip': [D('0.55'), D('0.22'), D('0.12'), D('0.07'), D('0.04')], 'ar': [D('0.60'), D('0.25'), D('0.08'), D('0.05'), D('0.02')]}
+    for y in ['2023', '2024', '2025']:
+        f = month_fees_of(f'{y}-12')
+        for ledger, times in (('wip', D('1.3')), ('ar', D('1.1'))):
+            amounts = [q(f * times * part) for part in SPLIT[ledger]]
+            if ledger == 'wip' and y == '2025':
+                late = q(over[('wip', '2024')] * D('2.1'))
+                first = q(late * D('0.64'))
+                amounts = amounts[:3] + [first, late - first]
+            over[(ledger, y)] = amounts[3] + amounts[4]
+            for band, amount in zip(['0-30', '31-60', '61-90', '91-180', '181+'], amounts):
+                ageing.append([f'{y}-12-31', ledger, band, f'{amount:.2f}'])
+    ds.ext('wip-ar-ageing', ['as_of', 'ledger', 'band', 'amount'], ageing, 'WIP and debtor ageing by band at each year end, FY2023 to FY2025')
+    wip_factor = over[('wip', '2025')] / over[('wip', '2024')]
+    wip_increase = over[('wip', '2025')] - over[('wip', '2024')]
+
+    # Three fiscal years of P&L. Fees tie to the export; staff cost follows the time worked, so the margin falls as
+    # realization does, and write-offs outpace revenue.
+    years = ['2023', '2024', '2025']
+    def ysum(y, kinds=None, col=9): return sum((D(r[col]) for r in year_rows(y) if kinds is None or r[2] in kinds), D(0))
+    rev = {y: ysum(y) for y in years}
+    WO = {'2023': D('0.010'), '2024': D('0.016'), '2025': D('0.026')}
+    staff = {y: q(ysum(y, col=8) * D('0.48')) for y in years}
+    subs = {y: q(rev[y] * D('0.08')) for y in years}
+    other = {y: q(rev[y] * D('0.015')) + q(rev[y] * D('0.07')) + q(rev[y] * D('0.05')) + q(rev[y] * WO[y]) for y in years}
+    pnl_rows = [['Retainer and managed-service fee revenue'] + [f'{ysum(y, ("retainer", "managed_service")):.2f}' for y in years],
+                ['Project fee revenue'] + [f'{ysum(y, ("project", "time_and_materials")):.2f}' for y in years],
+                ['Cost of fee-earner salaries'] + [f'{staff[y]:.2f}' for y in years],
+                ['Cost of subcontractors'] + [f'{subs[y]:.2f}' for y in years],
+                ['WIP and bad-debt write-offs'] + [f'{q(rev[y] * WO[y]):.2f}' for y in years],
+                ['Recruitment'] + [f'{q(rev[y] * D("0.015")):.2f}' for y in years],
+                ['Rent and office'] + [f'{q(rev[y] * D("0.07")):.2f}' for y in years],
+                ['Business development and general'] + [f'{q(rev[y] * D("0.05")):.2f}' for y in years]]
+    ds.ext('pnl', ['Line'] + [f'FY{y}' for y in years], pnl_rows, 'Profit and loss by fiscal year, FY2023 to FY2025')
+    def gm(y): return (rev[y] - staff[y] - subs[y]) / rev[y]
+    def om(y): return (rev[y] - staff[y] - subs[y] - other[y]) / rev[y]
+    ds.pnl_step = ['Open the **Sources** tab, scroll to **Industry data** and click **Upload profit and loss (p&l)**.', '',
+                   '1. Choose `pnl.csv` → **Upload and map columns**. Pactlab reads the three years across the columns (FY2023, FY2024, FY2025).',
+                   '2. Say what each line is: the two lines ending in *revenue* are **Revenue**, the two lines starting *Cost of* are **Cost of revenue**, and the rest are **Operating expenses**.',
+                   f'3. **Check every row**, then **Import {len(pnl_rows) * 3} rows**.', '',
+                   '**You should see:** the import succeed. The **Practice** tab now shows the P&L year by year, reconciled to the billing export, and the checks in the next step read every year.', '']
+
     top, share = ds.share_top()
-    c = ds.cur
-    ds.doc('01-management-pack-2026-09', f'''
+    ds.doc('01-management-pack-2026-09', f"""
 {ds.company} — management pack, September 2026 (synthetic)
 
 Billable utilization, trailing twelve months: 78%
 Voluntary attrition: stable
-''', 'Management pack with reported utilization')
-    ds.doc('02-msa-meridian', f'''
+""", 'Management pack with reported utilization')
+    ds.doc('02-msa-meridian', f"""
 Master services agreement — {ds.company} and Meridian Retail Group (synthetic)
 ---page---
 18.2 Termination for convenience. The Client may terminate this agreement, or any statement of work, for convenience on sixty days' written notice.
-''', 'Master services agreement with the largest client')
+""", 'Master services agreement with the largest client')
+    ds.doc('03-information-memorandum', f"""
+{ds.company} — information memorandum, September 2026 (synthetic demo data).
+
+A diversified book: no client exceeds 15% of fees.
+No partner relationship accounts for more than 40% of fees.
+Most of the work is recurring, under retainers and managed services.
+""", 'Information memorandum with the concentration ceilings')
+    ds.doc('04-covenant-register', f"""
+Restrictive covenant register for {ds.company} (synthetic), as provided by the seller.
+
+P-03: non-solicitation of clients and staff for 12 months after leaving.
+P-04: non-compete within the firm's sectors for 6 months, and non-solicitation of clients for 12 months.
+P-01 and P-02: no non-compete or non-solicitation covenant; their partnership agreements predate the register.
+""", 'Register of the non-compete and non-solicitation covenants binding partners, by pseudonymous reference')
     ds.findings = [
         ('Utilization below the reported level', f'the management pack reports 78%; `timesheets-summary.csv` gives {pct(util)} over the last twelve months.'),
         ('Largest client terminable for convenience', f'{top} is {pct(share)} of September 2026 revenue and can terminate on sixty days\' notice (`documents/02-msa-meridian.pdf` page 2, clause 18.2).'),
         ('Rising attrition in delivery roles', 'monthly delivery leavers rise from 1 to 4 across the year in `headcount-movements.csv`.'),
+        ('Claim contradicted: Client concentration ceiling', f'the information memorandum says no client exceeds 15% of fees; `time-billing.csv` gives {top_client} {pct(top_fees / total)} of fees billed in the twelve months to September 2026.'),
+        ('Claim verified: Partner concentration ceiling', f'the largest partner book ({top_partner}, the clients whose relationship they hold) is {pct(partner_fees / total)} of fees, under the stated 40%.'),
+        ('Realization falling every year, 2023–2025', f'`time-billing.csv` — fees ÷ standard value {", ".join(f"{y} {pct(realization(y))}" for y in years)}. A single year looks unremarkable.'),
+        (f'WIP over 90 days up {wip_factor.quantize(D("0.1"), ROUND_HALF_UP)}× in a year, 2024–2025', f'`wip-ar-ageing.csv` — WIP older than 90 days {money(c, over[("wip", "2024")])} at 2024-12-31, {money(c, over[("wip", "2025")])} at 2025-12-31; the {money(c, wip_increase)} increase is priced into working capital.'),
+        ('Rainmaker with no non-solicit or non-compete on file: P-01', f'P-01\'s book is {pct(by_partner["P-01"] / total)} of fees; `documents/04-covenant-register.pdf` states P-01 has no covenant.'),
+        ('Rainmaker with no non-solicit or non-compete on file: P-02', f'P-02\'s book is {pct(by_partner["P-02"] / total)} of fees; the same register states P-02 has no covenant.'),
+        (f'Revenue quality: {pct(recurring / total)} recurring, twelve months to September 2026', 'retainers and managed services against projects and time and materials, from `time-billing.csv`.'),
+        ('P&L trend, 2023–2025', 'every imported year side by side: revenue, growth, margins and the staff, subcontractor, write-off and recruitment ratios.'),
+        ('Gross margin and Operating margin down across 2023–2025', f'`pnl.csv` — gross margin {pct(gm("2023"))} to {pct(gm("2025"))}, operating margin {pct(om("2023"))} to {pct(om("2025"))}.'),
+        ('WIP and bad-debt write-offs growing faster than revenue, 2023–2025', f'`pnl.csv` — {pct(WO["2023"])} of revenue in FY2023 to {pct(WO["2025"])} in FY2025.'),
     ]
-    ds.notes = ['People data is aggregate only — no names, no individual records.']
+    ds.notes = ['People data is aggregate or pseudonymous only — fee-earners are P- and C- references, never names, emails or pay; no person is assessed.',
+                '`time-billing.csv` runs January 2023 to September 2026, so each of FY2023–FY2025 is a complete year; the fees in it tie to the P&L year by year.',
+                'The P&L (`pnl.csv`) imports through Sources like any extract; the multi-year checks read every year it holds. A single year still imports: the trend then reports that year alone.']
 
 def pharma(ds):
     ds.kind, ds.kind_label = 'royalty', 'partner royalty and supply payment'

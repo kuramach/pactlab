@@ -78,6 +78,16 @@ export const FEATURE_CARDS: readonly FeatureCardDefinition[] = [
     icon: 'check',
   },
   {
+    id: 'professional-services-pack',
+    version: 1,
+    addedOn: '2026-11-26',
+    title: 'IT & professional services: utilization, realization and the people the fees depend on',
+    body: 'On a professional services pact, Pactlab recomputes fees, realization and collection from the time-and-billing export and reconciles them to the P&L by year, checks the deck’s client and partner concentration ceilings against fees by client and by partner book, reads the covenant register for every rainmaker and flags one with no non-solicit on file, prices WIP and debtor ageing drift into working capital, and records the recurring and project split. Documents and arithmetic only, fee-earners by pseudonymous reference; a person decides every finding.',
+    href: '/pacts/new',
+    linkLabel: 'Start a services pact',
+    icon: 'layers',
+  },
+  {
     id: 'ecommerce-dtc-pack',
     version: 1,
     addedOn: '2026-11-26',

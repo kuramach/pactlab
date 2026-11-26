@@ -93,6 +93,8 @@ The source plan then adds **Industry data** (`pack_upload` connections) automati
 
 - **One draft per independent signal (T-164).** A trend that reads two imports (the orders export and the P&L) drafts each part on its own key: rules run after every import, and a combined draft keyed on what was present at the time is left stale when the second import arrives.
 
+- **Pseudonymous people, reused helpers (T-167).** A target that carries people by reference declares `people: 'PSEUDONYMOUS'`; whole-token matching of a reference in a document reuses `refPattern` (healthcare). A sentence that names the person with "no" covenant is shown as stated, never read as cover.
+
 ## 9. Extending a parent pack (small clinics on healthcare, T-161)
 
 - **By reference:** list the parent's import targets and rule ids in the child's registry entry; never copy a rule. The parent's tab may open for the child too (`DEAL_SECTION_RULES`), with only what differs (e.g. the P&L key expenses) chosen per pack.

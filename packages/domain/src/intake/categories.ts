@@ -95,8 +95,16 @@ export type PharmaCategory = (typeof PHARMA_CATEGORIES)[number];
  */
 export const ECOMMERCE_CATEGORIES = ['PLATFORM_ACCOUNT_RECORD', 'MARKETPLACE_AGREEMENT'] as const;
 export type EcommerceCategory = (typeof ECOMMERCE_CATEGORIES)[number];
+/**
+ * An IT or professional services firm (T-167) is diligenced for the people its fees depend on: the
+ * register of non-compete and non-solicitation covenants that bind its partners and other revenue-carrying
+ * staff, by pseudonymous reference. The Practice page reads it against each rainmaker's book; absence is
+ * shown as absence. The covenants' pay terms are not part of it.
+ */
+export const SERVICES_CATEGORIES = ['COVENANT_REGISTER'] as const;
+export type ServicesCategory = (typeof SERVICES_CATEGORIES)[number];
 /** Every category a pack may add on top of the common ones. */
-export type PackDocumentCategory = OfferingCategory | MusicCategory | EnergyCategory | SpvCategory | FintechCategory | HealthcareCategory | PharmaCategory | EcommerceCategory;
+export type PackDocumentCategory = OfferingCategory | MusicCategory | EnergyCategory | SpvCategory | FintechCategory | HealthcareCategory | PharmaCategory | EcommerceCategory | ServicesCategory;
 
 export type DocumentCategory = (typeof DOCUMENT_CATEGORIES)[number] | PackDocumentCategory;
 
@@ -357,6 +365,14 @@ const DOCUMENT_DEFINITIONS: Readonly<Record<DocumentCategory, CategoryDefinition
     id: 'REGULATORY_EXAM',
     label: 'Exam report or consent order',
     description: 'A regulator\'s examination report, a matter requiring attention, a consent order or another enforcement action.',
+    route: { kind: 'FILE' },
+    people: false,
+  },
+  // Professional services documents (T-167): kept and listed; the Practice page and the pack's checks read them.
+  COVENANT_REGISTER: {
+    id: 'COVENANT_REGISTER',
+    label: 'Restrictive covenant register',
+    description: 'A register of the partners and other revenue-carrying staff, by pseudonymous fee-earner reference, bound by a non-compete or non-solicitation covenant, with each term. Not the agreements\' pay terms.',
     route: { kind: 'FILE' },
     people: false,
   },

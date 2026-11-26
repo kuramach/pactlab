@@ -169,36 +169,38 @@ export const INDUSTRY_STORIES: Readonly<Record<string, IndustryStory>> = {
   },
 
   'professional-services': {
-    headline: 'In a services business, the people are the product.',
+    headline: 'Services firms are priced on the people the fees depend on.',
     subhead:
-      'Utilization, attrition and client concentration decide what an agency or consultancy is worth. The services pack measures them from timesheets and contracts — in aggregate, with people data protected.',
+      'Utilization, realization and how much of the book walks out if two partners leave decide what a services firm is worth. Pactlab reads the time-and-billing exports, ageing reports and covenant register you supply, recomputes the fee-earner economics and checks them against the deck — documents and arithmetic, never an assessment of a person.',
     illustrationAlt: 'Illustration of a briefcase, a utilization chart and a small team shown in aggregate.',
     pains: [
-      { icon: 'Activity', title: 'Utilization measured by optimism', body: 'Billable hours in the management pack rarely match the timesheets.' },
-      { icon: 'UserMinus', title: 'Attrition after the announcement', body: 'Key people leave when a deal closes, and revenue follows them.' },
-      { icon: 'ChartPie', title: 'Two clients, most of the revenue', body: 'Concentration and contract terms decide how durable revenue really is.' },
+      { icon: 'ChartPie', title: 'One client above the ceiling', body: 'The deck says no client exceeds 15% of fees; the billing export says the largest is 27%.' },
+      { icon: 'Activity', title: 'Realization that slips every year', body: 'Each hour bills for less than the year before, and a single year hides it.' },
+      { icon: 'UserMinus', title: 'Rainmakers free to leave', body: 'The partners who carry the book have no non-solicit on file.' },
     ],
     walkthrough: [
-      { step: 'Evidence', text: 'Timesheet and professional-services data, client contracts and the financials.' },
-      { step: 'Finding', text: 'Utilization, bench cost, attrition and concentration findings — reported in aggregate, never as rankings of people.' },
-      { step: 'Review', text: 'Reviewers decide each with its evidence in front of them.' },
-      { step: 'Valuation', text: 'Earnings-quality adjustments for people-driven revenue run in the same engine.' },
-      { step: 'Deal terms', text: 'Earn-outs, retention arrangements and price adjustments tied to the findings.' },
+      { step: 'Evidence', text: 'Time and billing by client and fee-earner, timesheets and headcount in aggregate, the WIP and debtor ageing reports and the P&L by year arrive as imports; the covenant register, client agreements and memorandum are read with their source. Fee-earners appear only by pseudonymous reference; absence is shown as absence.' },
+      { step: 'Finding', text: 'Deterministic checks mark the deck’s client and partner ceilings verified, contradicted or unverified, read realization by year and reconcile fees to the P&L, draft a rainmaker with no covenant on file, ageing drift priced into working capital, utilization below the reported level and the recurring split, each cited to the rows or the page.' },
+      { step: 'Review', text: 'A named reviewer accepts, rejects or asks for support on every finding; nothing is decided by the software, and no person is assessed.' },
+      { step: 'Valuation', text: 'Valuation methods apply unchanged, with realization and concentration as scenario inputs and the ageing drift on the purchase-price bridge.' },
+      { step: 'Deal terms', text: 'Signed covenants as a closing condition, retention holdbacks or earn-outs tied to the book staying, and price adjustments linked to the findings.' },
     ],
     findings: [
-      { title: 'Utilization below the level the plan assumes', severity: 'High', evidence: 'Timesheets against reported utilization', term: 'Earnings-quality adjustment' },
-      { title: 'Largest client terminable for convenience', severity: 'High', evidence: 'Clause cited from the master services agreement', term: 'Earn-out linked to renewal' },
-      { title: 'Rising attrition in delivery roles', severity: 'Medium', evidence: 'Aggregate headcount movements', term: 'Retention plan in the first 100 days' },
+      { title: 'The top client is 27% of fees; the deck says none exceeds 15%', severity: 'High', evidence: 'Fees by client from the billing export against the memorandum', term: 'The recomputed concentration in the scenarios' },
+      { title: 'Realization falling across three years', severity: 'Medium', evidence: 'Fees against standard value, year by year', term: 'The latest year’s realization in the scenarios' },
+      { title: 'Two rainmakers with no non-solicit on file', severity: 'High', evidence: 'Partner books against the covenant register', term: 'Signed covenants at closing, or a retention holdback' },
+      { title: 'WIP over 90 days doubled in a year', severity: 'High', evidence: 'The year-end ageing reports', term: 'A working-capital reduction off the price' },
     ],
     deliverables: [
-      { icon: 'Activity', title: 'Utilization you can defend', body: 'From timesheets, not from the management pack.' },
-      { icon: 'ChartPie', title: 'Client concentration and terms', body: 'Who the revenue depends on, and how it can end.' },
-      { icon: 'Award', title: 'Quality-of-earnings adjustments', body: 'Applied to the valuation with their basis stated.' },
+      { icon: 'Activity', title: 'Fee-earner economics from the exports', body: 'Utilization, realization and collection with the rows behind them, reconciled to the P&L.' },
+      { icon: 'ChartPie', title: 'Who the fees depend on', body: 'Fees by client and by partner book, against the ceilings the deck states.' },
+      { icon: 'UserRound', title: 'A covenant register you can rely on', body: 'Each rainmaker’s cover, cited to the document, or shown as missing.' },
     ],
     faq: [
-      { q: 'What does the services pack measure?', a: 'Utilization, attrition, bench cost and client concentration, from timesheet and professional-services records and the client contracts.' },
-      { q: 'How is people data handled?', a: 'In aggregate by default. Named and compensation data stay gated and audited, and are never sent to a model — the same rules as the rest of Pactlab.' },
-      { q: 'How do the findings reach the deal?', a: 'As earnings-quality adjustments in the valuation, and as earn-outs, retention arrangements or price adjustments in the terms, each linked to its finding.' },
+      { q: 'What does the services pack read?', a: 'Time-and-billing exports by month, client, engagement and fee-earner; timesheet summaries and headcount movements in aggregate; WIP and debtor ageing reports; the P&L by year; and the covenant register, client agreements and information memorandum. It checks what is supplied, and shows what is missing as missing.' },
+      { q: 'How is people data handled?', a: 'Fee-earners appear only by pseudonymous reference — never a name, email or pay — and nothing about them reaches a model. The pack reports documents, coverage and arithmetic; it never ranks or assesses a person, and never says whether a covenant is enforceable.' },
+      { q: 'How is realization measured?', a: 'Fees billed against the standard value of the time worked, for every calendar year the export covers in full, never a partial year scaled up. The fees are reconciled to the imported P&L year by year.' },
+      { q: 'How do the findings reach the deal?', a: 'As scenario inputs and adjustments in the valuation, and as covenants at closing, retention holdbacks, earn-outs or price adjustments in the terms, each linked to its finding and accepted by a person.' },
     ],
   },
 
@@ -622,10 +624,10 @@ export const WRITTEN_INDUSTRIES = INDUSTRIES.filter((industry) => industry.slug 
  * The packs on sale (Kumar, 2026-11-01): Software & SaaS and Multifamily, then
  * Venture Raise (2026-11-09), with the others released one at a time after testing (Fintech with its
  * payments and licence checks, T-159, 2026-11-26; Healthcare, T-160; Small clinics with its owner, referral and
- * lease checks, T-161, 2026-11-26). Same list as the
+ * lease checks, T-161, 2026-11-26; IT & professional services with its realization, concentration and covenant checks, T-167). Same list as the
  * app's RELEASED_COMPANY_TYPES (packages/domain/src/packs/release.ts).
  */
-export const RELEASED_INDUSTRY_SLUGS: readonly string[] = ['software-saas', 'multifamily', 'venture-raise', 'music-rights', 'energy-generation', 'startup-spv', 'fintech', 'healthcare', 'small-clinics', 'pharma-biotech', 'ecommerce-dtc'];
+export const RELEASED_INDUSTRY_SLUGS: readonly string[] = ['software-saas', 'multifamily', 'venture-raise', 'music-rights', 'energy-generation', 'startup-spv', 'fintech', 'healthcare', 'small-clinics', 'pharma-biotech', 'ecommerce-dtc', 'professional-services'];
 
 /** An environment's copy of the site (dev, qa) previews every written pack, for testing before release. */
 export const PACK_PREVIEW = process.env['NEXT_PUBLIC_PACK_PREVIEW'] === 'true';

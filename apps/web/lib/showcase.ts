@@ -139,6 +139,11 @@ export const SHOWCASE: Readonly<Record<string, ShowcaseEntry>> = {
     why: 'Revenue by channel reconciled to the P&L; lifetime value on a contribution basis against the deck; who holds each storefront, marketplace and ad account; stock age; acquisition cost and contribution by year. Exports and documents only, never a scrape.',
     lookFor: ['The deck’s LTV computed on gross revenue, contradicted by the contribution recompute', '64% of revenue through a marketplace account the founder holds personally', '22% of stock older than 180 days, priced on the bridge', 'Acquisition cost rising and contribution compressing across three years'],
   },
+  '/services': {
+    title: 'Realization, concentration and the people the fees depend on',
+    why: 'Realization from the time-and-billing export, reconciled to the P&L; fees by client and partner book against the deck’s ceilings; covenant cover for every rainmaker; WIP and debtor ageing by year. Never an assessment of a person.',
+    lookFor: ['The top client at 27% of fees while the deck says no client exceeds 15%', 'Realization falling across three years', 'Two rainmakers with no non-solicit on file', 'WIP over 90 days doubled in a year, priced into working capital'],
+  },
   '/valuation': {
     title: 'Sextant: what to pay, and why',
     why: 'Scenarios from stored inputs, accepted risks priced in, comparables and negotiation anchors: a price you can defend line by line.',

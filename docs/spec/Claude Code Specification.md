@@ -1433,6 +1433,14 @@ Five further packs in two clusters. Hotels, multifamily and commercial property 
 - **Valuation:** DCF first, ARR multiple for retainer revenue; earnings-quality adjustments arrive as reviewer-priced findings on the purchase-price bridge.
 - **Fixtures and acceptance:** `pactlab-demo-data/professional-services/{USD,EUR,GBP}` — the three planted findings surface as cited drafts once, and the reviewer-priced utilization gap reaches a valuation run (`apps/api/src/packs/services.acceptance.api.test.ts`).
 
+**4b. IT & professional services — utilization, realization and the people the fees depend on amendment (T-167, ADR 0055, 2026-11-26)**
+
+- **Import targets (CSV, ADR 0010):** `SERVICES_TIME_BILLING` (month, client, engagement, fee_earner, grade, relationship_partner, hours_worked, hours_billed, standard_value, billed, collected → `services.billing_month`, fee-earners by pseudonymous reference only) and `SERVICES_AGEING` (as_of, ledger, band, amount → `services.ageing_band`), alongside the T-063 targets. Document category: restrictive covenant register.
+- **Calculator (`services-practice-1`):** trailing fees, utilization, realization, collection, the largest client, fee-earner and partner book as shares of fees, the recurring share and the latest WIP and debtor balances over 90 days.
+- **Finding rules (deterministic, versioned, drafts only, cited):** `services-concentration-claims` — the deck's client and partner ceilings VERIFIED (+1), CONTRADICTED (−1) or UNVERIFIED (0) against fees by client and by partner book, in the claims register; `services-realization-trend` — billed ÷ standard value falling every complete year (−1); `services-fee-reconciliation` — export fees against P&L revenue by year beyond 2% (−1); `services-ageing-drift` — WIP or debtors over 90 days 1.5× the year before, priced into working capital (−1); `services-rainmaker-coverage` — a partner whose book is 10%+ of fees with no non-compete or non-solicit in the covenant documents (−1, PEOPLE); `services-revenue-quality` — the recurring and project split (0); and the shared `services-pnl-trend` (0), `-margin-drift` (−1) and `-expense-outpacing` (−1). The T-063 rules stay first and unchanged.
+- **Guardrail:** documents, coverage and arithmetic only; never an assessment of a person or a view on enforceability.
+- **Fixtures and acceptance:** `pactlab-demo-data/professional-services/{USD,EUR,GBP}` — planted (a) the top client at 27% of fees against the deck's 15% ceiling, (b) realization falling across FY2023–FY2025, (c) two rainmakers with no non-solicit on file, (d) WIP over 90 days doubled in a year surface as cited drafts once (`apps/api/src/packs/services.acceptance.api.test.ts`).
+
 **5. Pharma / biotech**
 
 - Largest deal values of any pack, but diligence is the most specialized: clinical-trial evidence, FDA/EMA regulatory pathway and approval risk, patent-cliff and exclusivity analysis, and GMP/manufacturing quality.

@@ -61,6 +61,8 @@ export const DEAL_SECTION_RULES: Readonly<Record<string, (context: SectionContex
   '/pharma': (context) => context.companyType === 'PHARMA_BIOTECH',
   // An e-commerce or DTC brand (T-164): channel revenue, unit economics on a contribution basis, platform-account ownership, returns and stock age.
   '/ecommerce': (context) => context.companyType === 'ECOMMERCE_DTC',
+  // An IT or professional services firm (T-167): realization, fees by client and partner, WIP and debtor ageing, covenant cover and recurring revenue.
+  '/services': (context) => context.companyType === 'PROFESSIONAL_SERVICES',
   // A pooled vehicle (T-141): the round checks, the vehicle economics, side letters, investor seats and the published investor view.
   '/spv': (context) => context.companyType === 'STARTUP_SPV',
   '/valuation': everywhere,

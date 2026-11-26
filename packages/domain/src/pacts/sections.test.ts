@@ -36,6 +36,8 @@ describe('deal sections per pact (batch 2)', () => {
     expect(sectionCompanyTypes('/pharma')).toEqual(['PHARMA_BIOTECH']);
     // An e-commerce brand's channel, unit-economics, platform and stock checks (T-164): only on an e-commerce pact.
     expect(sectionCompanyTypes('/ecommerce')).toEqual(['ECOMMERCE_DTC']);
+    // A services firm's realization, concentration, ageing and covenant checks (T-167): only on a professional services pact.
+    expect(sectionCompanyTypes('/services')).toEqual(['PROFESSIONAL_SERVICES']);
     // A pooled vehicle's seats, economics and investor view (T-141): only on a startup equity SPV, which has no acquisition close.
     expect(sectionCompanyTypes('/spv')).toEqual(['STARTUP_SPV']);
     expect(sectionApplies('/closing', { companyType: 'STARTUP_SPV', initiatedBy: 'BUYER' })).toBe(false);
