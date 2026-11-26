@@ -89,7 +89,7 @@ describe('dev: the running application (ADR 0019)', () => {
     // Dev: new organizations are active at once, so sign-up can be tested end to end.
     expect(environment['SIGNUP_REQUIRES_APPROVAL']).toBe('false');
     expect(Object.keys(environment).some((name) => /PASSWORD|SECRET/.test(name))).toBe(false);
-    expect(api?.Secrets?.map((secret) => secret.Name).sort()).toEqual(['ANTHROPIC_API_KEY', 'AUTH_TOKEN_SECRET', 'BOLDSIGN_API_KEY', 'BOLDSIGN_WEBHOOK_SECRET', 'DB_PASSWORD', 'GOOGLE_API_KEY', 'GOOGLE_OAUTH_CLIENT_ID', 'GOOGLE_OAUTH_CLIENT_SECRET', 'GOOGLE_PICKER_API_KEY', 'GOOGLE_PROJECT_NUMBER', 'MICROSOFT_OAUTH_CLIENT_ID', 'MICROSOFT_OAUTH_CLIENT_SECRET', 'OPENAI_API_KEY', 'SIGNING_TEST_RECIPIENTS']);
+    expect(api?.Secrets?.map((secret) => secret.Name).sort()).toEqual(['ANTHROPIC_API_KEY', 'AUTH_TOKEN_SECRET', 'BOLDSIGN_API_KEY', 'BOLDSIGN_WEBHOOK_SECRET', 'DB_PASSWORD', 'GOOGLE_API_KEY', 'GOOGLE_OAUTH_CLIENT_ID', 'GOOGLE_OAUTH_CLIENT_SECRET', 'GOOGLE_PICKER_API_KEY', 'GOOGLE_PROJECT_NUMBER', 'MICROSOFT_OAUTH_CLIENT_ID', 'MICROSOFT_OAUTH_CLIENT_SECRET', 'OPENAI_API_KEY', 'RENTCAST_API_KEY', 'SIGNING_TEST_RECIPIENTS']);
     // Pactlab signing (T-136): BoldSign preferred once its key is set, test signing until then; its secrets start `unset`.
     expect(environment['SIGNING_PROVIDER']).toBe('boldsign,fixture');
     for (const name of ['boldsign-api-key', 'boldsign-webhook-secret', 'test-recipients']) {
@@ -97,6 +97,20 @@ describe('dev: the running application (ADR 0019)', () => {
     }
     const migrate = definitions.flatMap((definition) => definition.Properties.ContainerDefinitions).find((container) => container.Name === 'migrate');
     expect(migrate?.Secrets?.map((secret) => secret.Name).sort()).toEqual(['DB_OWNER_PASSWORD', 'DB_OWNER_USER', 'DB_PASSWORD']);
+  });
+
+  it('passes the RentCast key (T-158) from its one secret, readable only by the API on that one ARN', () => {
+    template.hasResourceProperties('AWS::SecretsManager::Secret', { Name: 'pactlab/dev/credentials/rentcast-api-key', SecretString: 'unset' });
+    const [secretId] = Object.keys(template.findResources('AWS::SecretsManager::Secret', { Properties: { Name: 'pactlab/dev/credentials/rentcast-api-key' } }));
+    const grants = Object.entries(template.findResources('AWS::IAM::Policy')).flatMap(([, policy]) => {
+      const properties = (policy as { Properties: { Roles: unknown; PolicyDocument: { Statement: Statement[] } } }).Properties;
+      return properties.PolicyDocument.Statement.filter((statement) => JSON.stringify(statement.Resource).includes(secretId ?? 'none')).map((statement) => ({ roles: JSON.stringify(properties.Roles), statement }));
+    });
+    // One statement, on the API task's execution role, naming exactly that secret: never a wildcard, never another role.
+    expect(grants).toHaveLength(1);
+    expect(grants[0]?.roles).toContain('ApiTaskExecutionRole');
+    expect(grants[0]?.statement.Resource).toEqual({ Ref: secretId });
+    expect([grants[0]?.statement.Action].flat().sort()).toEqual(['secretsmanager:DescribeSecret', 'secretsmanager:GetSecretValue']);
   });
 
   it('runs dev on the Claude models this account can call, and lets the role call only Claude', () => {

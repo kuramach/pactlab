@@ -26,6 +26,11 @@ import {
 } from '../../../metrics/_lib/format';
 import { approveDifference, recordReconciliation } from './actions';
 import { DebtAndCashCard } from './debt-and-cash';
+import { can, dealViewer } from '../../_lib/viewer';
+import { marketRentsOffer, type MarketRentsOffer } from '../../_lib/market-rents';
+import { marketRentsStatus } from '../../_lib/market-rents-actions';
+import { MarketRentsButton } from '../../_lib/market-rents-button';
+import { MetricSource } from '../../_lib/property-metrics';
 import { hasSubscriptionMetrics, type CompanyType } from '@pactlab/domain';
 import { apiGet, dealsApi } from '../../_lib/api';
 import type { BalanceSheetView } from '@pactlab/contracts';
@@ -300,7 +305,7 @@ function Reconciliation({ dealId, data, pageAsOf }: { dealId: string; data: Metr
 }
 
 /** The industry pack's figures (e.g. property metrics), each with its formula and source count. */
-function PackMetricsCard({ report }: { report: PackMetricsView }) {
+function PackMetricsCard({ dealId, report, marketRents }: { dealId: string; report: PackMetricsView; marketRents: MarketRentsOffer | null }) {
   const shown = (metric: PackMetricsView['metrics'][number]) =>
     metric.value === null
       ? '—'
@@ -311,11 +316,14 @@ function PackMetricsCard({ report }: { report: PackMetricsView }) {
           : formatDecimal(metric.value);
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
+        <div className="flex flex-col gap-1">
         <CardTitle>{report.calculator === 'multifamily-metrics' ? 'Property metrics' : report.calculator === 'music-royalties' ? 'Royalty income' : report.calculator === 'energy-assets' ? 'Assets and interests' : 'Industry metrics'}</CardTitle>
         <CardDescription>
           From the imported industry extracts, in {report.currency}. Deterministic ({report.version}); each figure shows its formula.
         </CardDescription>
+        </div>
+        {marketRents ? <MarketRentsButton dealId={dealId} offer={marketRents} /> : null}
       </CardHeader>
       <CardContent>
         <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -328,6 +336,7 @@ function PackMetricsCard({ report }: { report: PackMetricsView }) {
               <dd className="text-xs text-muted-foreground">
                 {metric.value === null ? metric.unavailableReason : `${metric.formula} · ${metric.sourceCount} records`}
               </dd>
+              {metric.value === null ? null : <MetricSource dealId={dealId} metric={metric} />}
             </div>
           ))}
         </dl>
@@ -357,6 +366,10 @@ export default async function DealFinancesPage({
     dealsApi.parties(dealId),
   ]);
   const packMetrics = pack.kind === 'ok' ? pack.data : null;
+  // Market rents (T-158): offered on a multifamily pact's metrics to the buyer team's writers; the API re-checks.
+  const viewerRole = packMetrics?.metrics.some((metric) => metric.key === 'market_rent_annual') ? (await dealViewer(dealId)).role : null;
+  const marketStatus = can.draft(viewerRole) ? await marketRentsStatus(dealId) : null;
+  const marketRents = marketStatus?.kind === 'ok' ? marketRentsOffer(marketStatus.data) : null;
   // Subscription metrics (ARR, retention, churn) only for subscription businesses (batch 2).
   const companyType = parties.kind === 'ok' ? ((parties.data.items.find((party) => party.role === 'SELLER')?.companyType as CompanyType | null | undefined) ?? null) : null;
   const subscription = hasSubscriptionMetrics(companyType);
@@ -370,7 +383,7 @@ export default async function DealFinancesPage({
         </p>
       </div>
 
-      {packMetrics && packMetrics.metrics.length > 0 ? <PackMetricsCard report={packMetrics} /> : null}
+      {packMetrics && packMetrics.metrics.length > 0 ? <PackMetricsCard dealId={dealId} report={packMetrics} marketRents={marketRents} /> : null}
 
       {/* Buyer-side only: the API refuses roles without analysis access, and then nothing shows. */}
       {balanceSheet.kind === 'ok' ? <DebtAndCashCard dealId={dealId} view={balanceSheet.data} /> : null}

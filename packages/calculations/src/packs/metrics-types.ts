@@ -20,6 +20,10 @@ export interface PackMetric {
    * (Kumar, 2026-11-25: "if some data is needed, u need to ask the seller"). Absent when nothing is missing.
    */
   readonly needs?: readonly string[];
+  /** Where the figure's inputs come from when a pack has more than one source for it, e.g. "Rent roll", "RentCast" (T-158). */
+  readonly source?: string;
+  /** Evidence the figure cites beyond its rows, e.g. the market estimates it uses (T-158); each opens on its citation view. */
+  readonly evidenceIds?: readonly string[];
 }
 
 export interface PackMetricsReport {

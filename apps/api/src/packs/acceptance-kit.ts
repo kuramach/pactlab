@@ -7,6 +7,7 @@ import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { addSyntheticDealMember, createSyntheticTenant, startTestDatabase, type SyntheticTenant, type TestDatabase } from '@pactlab/db/testing';
 import { IMPORT_TARGET_DEFINITIONS, newId, PACK_IDS, PACKS, type PackId } from '@pactlab/domain';
 import type { ClaudeGateway } from '@pactlab/ai';
+import type { MarketRentProvider } from '@pactlab/connectors';
 import { createLogger } from '@pactlab/observability';
 import { createLocalJWKSet, exportJWK, generateKeyPair, SignJWT, type CryptoKey } from 'jose';
 import { expect } from 'vitest';
@@ -37,6 +38,8 @@ export interface AcceptanceDeal {
   /** Uploaded documents by PDF file name. */
   readonly documents: Readonly<Record<string, string>>;
   call(method: 'GET' | 'POST' | 'PATCH' | 'PUT', url: string, who: string, payload?: unknown): Promise<{ status: number; body: Body }>;
+  /** POST a CSV file as `who` (an upload). */
+  upload(url: string, who: string, csv: string): Promise<{ status: number; body: Body }>;
   /**
    * Seat one more person on the pact under `name` (an investor names their seat, T-141). Like the
    * bidder tests, an organization member holding only that deal role: RLS for real guests is proven in
@@ -65,7 +68,7 @@ export function pdfOf(markdown: string): Buffer {
   return Buffer.from(syntheticPdf(markdown.split(/^---page---$/m).map((page) => wrap(page.trim()))));
 }
 
-export async function startAcceptanceDeal(packId: PackId, currency: string, options: { dataClasses?: Record<string, string>; gateway?: ClaudeGateway } = {}): Promise<AcceptanceDeal> {
+export async function startAcceptanceDeal(packId: PackId, currency: string, options: { dataClasses?: Record<string, string>; gateway?: ClaudeGateway; marketRents?: MarketRentProvider | null } = {}): Promise<AcceptanceDeal> {
   const repo = resolve(import.meta.dirname, '../../../..');
   const out = mkdtempSync(join(tmpdir(), `pactlab-${packId.toLowerCase()}-`));
   const run = spawnSync('python3', [join(repo, 'scripts/demo-data/generate.py'), out], { encoding: 'utf8' });
@@ -86,6 +89,7 @@ export async function startAcceptanceDeal(packId: PackId, currency: string, opti
     logger: createLogger('api-test', { level: process.env['TEST_LOG'] ? 'error' : 'silent' }),
     uploads: { objectStore: new FileSystemObjectStore(storeDir), malwareScanner: new SignatureMalwareScanner() },
     documents: { objectStore: new InMemoryObjectStore(), malwareScanner: new SignatureMalwareScanner(), ...(options.gateway ? { gateway: options.gateway } : {}) },
+    ...(options.marketRents !== undefined ? { marketRents: options.marketRents } : {}),
   });
   const token = (subject: string, org: string) =>
     new SignJWT({ org_id: org }).setProtectedHeader({ alg: 'RS256', kid: 'test' }).setSubject(subject).setIssuer(ISSUER).setAudience(AUDIENCE).setIssuedAt().setExpirationTime('5m').sign(key);
@@ -93,6 +97,11 @@ export async function startAcceptanceDeal(packId: PackId, currency: string, opti
 
   const call: AcceptanceDeal['call'] = async (method, url, who, payload) => {
     const response = await app.inject({ method, url, headers: { authorization: `Bearer ${tokens[who] ?? ''}` }, ...(payload !== undefined ? { payload: payload as Body } : {}) });
+    return { status: response.statusCode, body: (response.body ? response.json() : null) as Body };
+  };
+
+  const upload: AcceptanceDeal['upload'] = async (url, who, csv) => {
+    const response = await app.inject({ method: 'POST', url, headers: { authorization: `Bearer ${tokens[who] ?? ''}`, 'content-type': 'text/csv' }, payload: Buffer.from(csv) });
     return { status: response.statusCode, body: (response.body ? response.json() : null) as Body };
   };
 
@@ -155,6 +164,7 @@ export async function startAcceptanceDeal(packId: PackId, currency: string, opti
     readme: readFileSync(join(folder, 'README.md'), 'utf8'),
     documents,
     call,
+    upload,
     close: async () => {
       await app.close();
       await db.stop();

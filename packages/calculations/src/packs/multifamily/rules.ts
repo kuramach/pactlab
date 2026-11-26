@@ -1,5 +1,6 @@
 import { D } from '../../metrics/decimal';
 import { findMatch, MAX_CITED, type PackRule } from '../rule-types';
+import { MARKET_RENT, marketComparison } from './market-rents';
 import { amount, DELINQUENCY, grouped, INSPECTION, lossToLease, of, pct, T12, total, UNIT } from './shared';
 
 /**
@@ -136,4 +137,48 @@ export const MULTIFAMILY_LOSS_TO_LEASE: PackRule = {
   },
 };
 
-export const MULTIFAMILY_RULES: readonly PackRule[] = [MULTIFAMILY_OM_NOI, MULTIFAMILY_DEFERRED_MAINTENANCE, MULTIFAMILY_DELINQUENCY_CONCENTRATION, MULTIFAMILY_LOSS_TO_LEASE];
+/** The rule drafts when at least this share of occupied units with an estimate rent below the RentCast range (T-158). */
+export const BELOW_MARKET_RANGE_SHARE = '0.25';
+/** …and at least this many units: one cheap unit is not a pattern. */
+export const BELOW_MARKET_RANGE_MIN_UNITS = 2;
+
+/**
+ * In-place rents below the market range (T-158): occupied units whose rent is under the low end of the RentCast
+ * estimate range for their floor plan. Upside, like loss-to-lease: confirmed value, never a reason to pay more.
+ * Cites the estimates first (so they always survive the cap) and then the units.
+ */
+export const MULTIFAMILY_BELOW_MARKET_RANGE: PackRule = {
+  id: 'multifamily-below-market-range',
+  version: '1',
+  evidenceTypes: [UNIT, MARKET_RENT],
+  detect: ({ evidence }) => {
+    const { covered } = marketComparison(of(evidence, UNIT), evidence);
+    const below = covered.filter(({ unit, estimate }) => amount(unit, 'in_place_rent').lessThan(amount(estimate, 'rent_range_low')));
+    if (covered.length === 0 || below.length < BELOW_MARKET_RANGE_MIN_UNITS) return [];
+    const share = new D(below.length).div(covered.length);
+    if (share.lessThan(BELOW_MARKET_RANGE_SHARE)) return [];
+    const gap = below.reduce((sum, { unit, estimate }) => sum.plus(amount(estimate, 'rent')).minus(amount(unit, 'in_place_rent')), new D(0));
+    const estimates = [...new Set(below.map(({ estimate }) => estimate.id))];
+    const plans = [...new Set(below.map(({ estimate }) => estimate.canonical['floor_plan_label'] ?? estimate.canonical['floor_plan'] ?? ''))].join(', ');
+    const retrieved = [...new Set(below.map(({ estimate }) => estimate.canonical['retrieved_on'] ?? ''))].sort().join(', ');
+    return [
+      {
+        key: 'occupied-units-vs-rentcast',
+        domain: 'PROPERTY',
+        title: 'In-place rents below the market range (RentCast)',
+        description: `${below.length} of ${covered.length} occupied units with a market estimate (${pct(share)}) rent below the low end of the RentCast range for their floor plan (${plans}; retrieved ${retrieved}). The rule drafts at ${pct(new D(BELOW_MARKET_RANGE_SHARE))} of units or more. Leased up to the estimates they would add ${grouped(gap.times(12))} a year in the deal's currency. Market data, not a price: confirm with a local rent survey.`,
+        severity: 'LOW',
+        confidence: 'MEDIUM',
+        direction: 1,
+        valueConfirmation: {
+          valueDriver: 'In-place rents below the market range (RentCast)',
+          impliedValue: null,
+          basis: `RentCast estimates: ${below.length} of ${covered.length} occupied units (${pct(share)}) below the low end of the range; ${grouped(gap.times(12))} a year to the estimates.`,
+        },
+        evidenceIds: [...estimates, ...below.map(({ unit }) => unit.id)].slice(0, MAX_CITED),
+      },
+    ];
+  },
+};
+
+export const MULTIFAMILY_RULES: readonly PackRule[] = [MULTIFAMILY_OM_NOI, MULTIFAMILY_DEFERRED_MAINTENANCE, MULTIFAMILY_DELINQUENCY_CONCENTRATION, MULTIFAMILY_LOSS_TO_LEASE, MULTIFAMILY_BELOW_MARKET_RANGE];

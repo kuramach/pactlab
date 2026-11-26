@@ -601,6 +601,8 @@ model Deal {
   closedBySeller       String?         @map("closed_by_seller") @db.Uuid
   /// The buyer persona this pact prices under (T-105); null follows the organization default. Buyer-confidential.
   persona              String?
+  /// The property's address for market rents (T-158) when no listing names one; asked once, audited.
+  propertyAddress      String?         @map("property_address")
   /// Set when the deal lead deletes the deal (status DELETED); one-way.
   deletedAt            DateTime?       @map("deleted_at") @db.Timestamptz(3)
   deletedBy            String?         @map("deleted_by") @db.Uuid

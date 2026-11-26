@@ -11,7 +11,7 @@ import { AiModule } from './ai/ai.module';
 import { BalanceSheetModule } from './balance-sheet/balance-sheet.module';
 import { PhasesModule } from './phases/phases.module';
 import { CloseModule } from './close/close.module';
-import { FixturePropertyProvider, FixtureSigningProvider, type DocuSignOAuth, type PropertyDataProvider, type SigningProvider, type SigningWebhook } from '@pactlab/connectors';
+import { FixtureMarketRentProvider, FixturePropertyProvider, FixtureSigningProvider, type DocuSignOAuth, type MarketRentProvider, type PropertyDataProvider, type SigningProvider, type SigningWebhook } from '@pactlab/connectors';
 import { VentureModule } from './venture/venture.module';
 import { AdminModule } from './admin/admin.module';
 import { SourceHealthModule } from './sources/source-health.module';
@@ -36,6 +36,7 @@ import { MeModule } from './me/me.module';
 import { OrganizationModule } from './organization/organization.module';
 import { ImportsModule, type ImportsModuleDependencies } from './imports/imports.module';
 import { UnavailableUploadStore } from './imports/upload-store';
+import { MarketRentsModule } from './market-rents/market-rents.module';
 import { MetricsModule } from './metrics/metrics.module';
 import { PactsModule } from './pacts/pacts.module';
 import { PrismaValuationRepository } from './valuation/prisma-valuation.repository';
@@ -120,6 +121,8 @@ export interface AppDependencies {
   };
   /** Property data for teaser pages (batch 2): RentCast with a key; the fixture outside production; null hides the lookup. */
   property?: PropertyDataProvider | null;
+  /** Market rents for a rent roll (T-158): RentCast with its key; the fixture outside production; null turns the check off. */
+  marketRents?: MarketRentProvider | null;
   /**
    * Billing (T-087): the provider (Stripe with a key; otherwise the fixture outside production),
    * whether pact creation is gated (BILLING_ENFORCEMENT, default off) and Stripe Tax.
@@ -247,6 +250,8 @@ export class AppModule {
         DealsModule,
         MeModule,
         MetricsModule,
+        // Market rents (T-158); the fixture unless an environment says otherwise.
+        MarketRentsModule.register(deps.marketRents === undefined ? new FixtureMarketRentProvider() : deps.marketRents),
         PactsModule,
         BalanceSheetModule,
         PhasesModule,

@@ -24,6 +24,11 @@ tokens or personal data. Cassettes arrive with the first live adapter.
   `pnpm --filter @pactlab/api exec tsx ../../packages/connectors/scripts/record-cassettes.ts`
   (anonymous; `GITHUB_TOKEN` optional) and review the diff before committing.
 
+- `rentcast/rent-long-term-synthetic.json` — hand-built from RentCast's API
+  reference for `GET /v1/avm/rent/long-term` (read 2026-11-25; T-158): a
+  fictional address, synthetic figures and comparables, a 404 (no estimate)
+  and a 429. No live recording: CI never calls RentCast.
+
 Live smoke tests against the same targets run only with `pnpm test:live`
 (`INTEGRATION_LIVE=1`), nightly in `.github/workflows/integration-live.yml`.
 
