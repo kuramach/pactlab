@@ -92,6 +92,8 @@ export interface PactlabComputeProps {
  */
 export class PactlabCompute extends Construct {
   readonly cluster: ecs.Cluster;
+  /** Every service's log group (streams api/, worker/, web/, migrate/, seed/); live log triage reads it (T-150). */
+  readonly logGroup: logs.LogGroup;
   readonly loadBalancer: elbv2.ApplicationLoadBalancer;
   /** For the idle pause (ADR 0019): the HTTPS listener, the app's target groups and services with their running counts. */
   readonly httpsListener: elbv2.ApplicationListener;
@@ -191,11 +193,11 @@ export class PactlabCompute extends Construct {
     const desired = (size: TaskSize) => (firstDeploy ? 0 : size.desiredCount);
 
     this.cluster = new ecs.Cluster(this, 'Cluster', { vpc, clusterName: `pactlab-${config.name}` });
-    const logGroup = new logs.LogGroup(this, 'Logs', {
+    const logGroup = (this.logGroup = new logs.LogGroup(this, 'Logs', {
       logGroupName: `/pactlab/${config.name}/app`,
       retention: config.protectedState ? logs.RetentionDays.ONE_YEAR : logs.RetentionDays.ONE_MONTH,
       removalPolicy: config.protectedState ? RemovalPolicy.RETAIN : RemovalPolicy.DESTROY,
-    });
+    }));
 
     // --- Configuration every server task shares. Credentials arrive as separate secret fields (applyDatabaseUrls).
     const serverEnvironment: Record<string, string> = {

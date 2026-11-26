@@ -10,6 +10,7 @@ import type { Construct } from 'constructs';
 import type { EnvironmentConfig } from '../config';
 import { PactlabCompute } from './compute';
 import { IdlePause } from './idle-pause';
+import { LogTriage } from './log-triage';
 import { pactlabVpc, type PactlabNonliveBaseStack } from './nonlive-base-stack';
 import { StatefulProtectionAspect } from './protection';
 
@@ -259,6 +260,20 @@ export class PactlabPlatformStack extends Stack {
           ...(this.compute.ruleScope ? { ruleScope: this.compute.ruleScope } : {}),
         });
       }
+    }
+
+    // Live log triage (T-150): detection runs in the live account itself, never on a developer's machine.
+    if (config.logTriage && config.service && this.compute) {
+      new LogTriage(this, 'LogTriage', {
+        env: config.name,
+        config: config.logTriage,
+        logGroup: this.compute.logGroup,
+        cluster: this.compute.cluster,
+        services: this.compute.services.map(({ service }) => service),
+        email: { from: config.service.email.from, identityDomain: config.service.email.identityDomain },
+        dataKey: this.dataKey,
+        protectedState: config.protectedState,
+      });
     }
 
     if (config.protectedState) Aspects.of(this).add(new StatefulProtectionAspect());

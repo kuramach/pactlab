@@ -35,9 +35,10 @@ describe.each(ENVIRONMENT_NAMES.filter((name) => ENVIRONMENTS[name].service))('%
   });
 
   it('Bedrock: invoke any model in the account region (Kumar, 2026-11-20), list models; never bedrock:*, manage or provision', () => {
-    const statements = Object.values(template.findResources('AWS::IAM::Policy')).flatMap(
-      (policy) => (policy as { Properties: { PolicyDocument: { Statement: Statement[] } } }).Properties.PolicyDocument.Statement,
-    );
+    // The app's task roles; live log triage's narrower grant (one model) is tested in log-triage.test.ts.
+    const statements = Object.entries(template.findResources('AWS::IAM::Policy'))
+      .filter(([id]) => !id.startsWith('LogTriage'))
+      .flatMap(([, policy]) => (policy as { Properties: { PolicyDocument: { Statement: Statement[] } } }).Properties.PolicyDocument.Statement);
     const bedrock = statements.filter((statement) => [statement.Action].flat().some((action) => action.startsWith('bedrock:')));
     expect(bedrock.length).toBeGreaterThan(0);
     const invoke = /^bedrock:(InvokeModel|InvokeModelWithResponseStream|Converse|ConverseStream)$/;

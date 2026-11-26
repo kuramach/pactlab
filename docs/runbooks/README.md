@@ -29,6 +29,7 @@ of what a pilot partner gets, which controls protect them, and how we roll back.
 | [withdrawn-imports.md](withdrawn-imports.md)                         | A customer asks where their numbers went (withdrawn import) |
 | [rentcast.md](rentcast.md)                                           | Setting, rotating or turning off the RentCast key (market rents) |
 | [notifications.md](notifications.md)                                 | Someone was not told of a pact change, or emails failed |
+| [log-triage.md](log-triage.md)                                       | The live triage digest, an approved issue, or pausing triage |
 
 ## Conventions
 
