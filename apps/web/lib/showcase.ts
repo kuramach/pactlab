@@ -114,6 +114,11 @@ export const SHOWCASE: Readonly<Record<string, ShowcaseEntry>> = {
     why: 'The startup’s cap table recomputed with every SAFE converted, each deck claim against its evidence, and your vehicle’s fee and carry against what investors were told. Investors see only the view you publish. Diligence support, not legal advice.',
     lookFor: ['A post-round share count that misses a conversion', 'Carry in the operating agreement that differs from the summary', 'A side letter or an accreditation gap only you should see'],
   },
+  '/fintech': {
+    title: 'Payments and licences, checked against the processor and the documents',
+    why: 'Volume, take rate and loss rates recomputed from the processor exports; the deck’s claims checked against them; each licence’s status and expiry; the P&L across every year. Diligence support, not legal advice.',
+    lookFor: ['A deck TPV that counts one processor month twice', 'A state licence that lapsed months ago', 'A chargeback rate over the sponsor agreement’s threshold', 'Fraud losses growing faster than revenue across three years'],
+  },
   '/valuation': {
     title: 'Sextant: what to pay, and why',
     why: 'Scenarios from stored inputs, accepted risks priced in, comparables and negotiation anchors: a price you can defend line by line.',

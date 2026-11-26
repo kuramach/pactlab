@@ -189,7 +189,8 @@ describe('industry stories', () => {
   });
 
   it('publishes only the released packs: Software & SaaS, Multifamily and Venture Raise (Kumar, 2026-11-01 and 2026-11-09)', () => {
-    expect(PUBLISHED_INDUSTRIES.map((industry) => industry.slug)).toEqual(['software-saas', 'multifamily', 'venture-raise', 'music-rights', 'energy-generation', 'startup-spv']);
+    expect(PUBLISHED_INDUSTRIES.map((industry) => industry.slug)).toEqual(['software-saas', 'fintech', 'multifamily', 'venture-raise', 'music-rights', 'energy-generation', 'startup-spv']);
+    expect(isPublishedHref('/industries/fintech')).toBe(true);
     expect(isPublishedHref('/industries/hospitals')).toBe(false);
     expect(isPublishedHref('/industries/multifamily')).toBe(true);
     expect(isPublishedHref('/product')).toBe(true);

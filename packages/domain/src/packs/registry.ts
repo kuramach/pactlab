@@ -17,7 +17,7 @@ export const PACK_IDS = COMPANY_TYPES.filter((type): type is PackId => type !== 
 export type PackCluster = 'technology' | 'healthcare' | 'real-estate' | 'services' | 'life-sciences' | 'consumer' | 'capital' | 'media-rights' | 'energy';
 
 /** Calculator ids in `@pactlab/calculations` (`metricCalculator`). */
-export const METRIC_CALCULATOR_IDS = ['saas-metrics', 'multifamily-metrics', 'music-royalties', 'energy-assets', 'spv-round'] as const;
+export const METRIC_CALCULATOR_IDS = ['saas-metrics', 'multifamily-metrics', 'music-royalties', 'energy-assets', 'spv-round', 'fintech-payments'] as const;
 export type MetricCalculatorId = (typeof METRIC_CALCULATOR_IDS)[number];
 
 /** Valuation method ids in `@pactlab/calculations` (`VALUATION_METHODS`). */
@@ -98,10 +98,27 @@ export const PACKS: Readonly<Record<PackId, PackDefinition>> = {
     ...pack('SOFTWARE_SAAS', 'software-saas', 'technology', true),
     findingRules: ['saas-reported-arr', 'saas-revenue-concentration', 'saas-customer-change-of-control', 'saas-hidden-contraction'],
   },
+  // Payments and lending (T-058, extended by T-159, ADR 0050): the software path runs as it is; the
+  // pack adds the loan tape and AML alerts, the processor export (volume, take rate and loss rates
+  // recomputed), the licence and sponsor register, the compliance evidence and the multi-year P&L trend.
   FINTECH: {
     ...pack('FINTECH', 'fintech', 'technology', true),
-    importTargets: ['BILLING_INVOICE_LINE', 'FINTECH_LOAN_TAPE', 'FINTECH_AML_ALERT'],
-    findingRules: ['fintech-credit-loss', 'fintech-aml-unreviewed', 'fintech-partner-bank-coc'],
+    importTargets: ['BILLING_INVOICE_LINE', 'FINTECH_LOAN_TAPE', 'FINTECH_AML_ALERT', 'FINTECH_PROCESSOR_VOLUME', 'FINTECH_LICENCES'],
+    metricCalculator: 'fintech-payments',
+    findingRules: [
+      'fintech-credit-loss',
+      'fintech-aml-unreviewed',
+      'fintech-partner-bank-coc',
+      'fintech-volume-claims',
+      'fintech-revenue-reconciliation',
+      'fintech-licence-status',
+      'fintech-loss-thresholds',
+      'fintech-compliance-evidence',
+      'fintech-pnl-trend',
+      'fintech-pnl-margin-drift',
+      'fintech-pnl-expense-outpacing',
+    ],
+    documentCategories: ['REGULATORY_LICENCE', 'SPONSOR_BANK_AGREEMENT', 'PCI_ATTESTATION', 'AML_PROGRAM', 'REGULATORY_EXAM'],
   },
   HEALTHCARE: {
     ...pack('HEALTHCARE', 'healthcare', 'healthcare', true),

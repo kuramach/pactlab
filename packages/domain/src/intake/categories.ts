@@ -63,8 +63,15 @@ export type SpvCategory = (typeof SPV_CATEGORIES)[number];
  */
 export const ENERGY_CATEGORIES = ['TITLE_OPINION', 'OIL_GAS_LEASE', 'DIVISION_ORDER', 'RESERVE_REPORT', 'POWER_PURCHASE_AGREEMENT', 'ENVIRONMENTAL_REPORT'] as const;
 export type EnergyCategory = (typeof ENERGY_CATEGORIES)[number];
+/**
+ * A fintech target (T-159) is diligenced from its licences and sponsor-bank agreements and from its
+ * compliance evidence: the PCI attestation, the KYC/AML programme and regulatory exam reports or
+ * consent orders. The Payments page reads their status and dates; absence is shown as absence.
+ */
+export const FINTECH_CATEGORIES = ['REGULATORY_LICENCE', 'SPONSOR_BANK_AGREEMENT', 'PCI_ATTESTATION', 'AML_PROGRAM', 'REGULATORY_EXAM'] as const;
+export type FintechCategory = (typeof FINTECH_CATEGORIES)[number];
 /** Every category a pack may add on top of the common ones. */
-export type PackDocumentCategory = OfferingCategory | MusicCategory | EnergyCategory | SpvCategory;
+export type PackDocumentCategory = OfferingCategory | MusicCategory | EnergyCategory | SpvCategory | FintechCategory;
 
 export type DocumentCategory = (typeof DOCUMENT_CATEGORIES)[number] | PackDocumentCategory;
 
@@ -289,6 +296,42 @@ const DOCUMENT_DEFINITIONS: Readonly<Record<DocumentCategory, CategoryDefinition
     id: 'SIDE_LETTER',
     label: 'Side letter',
     description: 'A side letter granting one investor different terms: a fee waiver, a different carry, information or co-investment rights.',
+    route: { kind: 'FILE' },
+    people: false,
+  },
+  // Fintech documents (T-159): kept and listed; the Payments page reads their status and dates.
+  REGULATORY_LICENCE: {
+    id: 'REGULATORY_LICENCE',
+    label: 'Licence',
+    description: 'A money-transmitter, lending, payment-institution or other licence or registration, or its renewal notice.',
+    route: { kind: 'FILE' },
+    people: false,
+  },
+  SPONSOR_BANK_AGREEMENT: {
+    id: 'SPONSOR_BANK_AGREEMENT',
+    label: 'Sponsor-bank agreement',
+    description: 'A sponsor-bank or partner-bank program agreement: its term, covenants and monitoring thresholds.',
+    route: { kind: 'FILE' },
+    people: false,
+  },
+  PCI_ATTESTATION: {
+    id: 'PCI_ATTESTATION',
+    label: 'PCI attestation',
+    description: 'A PCI DSS attestation of compliance or report on compliance, with its date.',
+    route: { kind: 'FILE' },
+    people: false,
+  },
+  AML_PROGRAM: {
+    id: 'AML_PROGRAM',
+    label: 'KYC/AML programme',
+    description: 'The BSA/AML or KYC programme, its procedures and its independent test.',
+    route: { kind: 'FILE' },
+    people: false,
+  },
+  REGULATORY_EXAM: {
+    id: 'REGULATORY_EXAM',
+    label: 'Exam report or consent order',
+    description: 'A regulator\'s examination report, a matter requiring attention, a consent order or another enforcement action.',
     route: { kind: 'FILE' },
     people: false,
   },

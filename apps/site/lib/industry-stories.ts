@@ -66,36 +66,37 @@ export const INDUSTRY_STORIES: Readonly<Record<string, IndustryStory>> = {
   },
 
   fintech: {
-    headline: 'Fintech is a software deal with a regulator in the room.',
+    headline: 'Test the volume and the licences before you pay for them.',
     subhead:
-      'The technology diligence is the software baseline. The fintech pack adds what decides the price in financial services: the compliance programme, the regulators and the quality of the book.',
+      'Fintech deals are priced on volume and growth claims that live in processor exports, and on licences that can lapse quietly. Pactlab recomputes the volume, take rate and loss rates from the exports, checks the deck against them, reads every licence’s status and expiry, and runs the software baseline as it is.',
     illustrationAlt: 'Illustration of a payment card, a bank building and a shield, connected by a transaction flow.',
     pains: [
-      { icon: 'ShieldAlert', title: 'A compliance programme that is better on paper', body: 'AML controls described in policy are not the controls that run every day.' },
-      { icon: 'Landmark', title: 'Regulators you inherit at closing', body: 'Open matters with banking regulators travel with the business.' },
-      { icon: 'Wallet', title: 'A loan book priced on its best month', body: 'Credit quality and the allowance behind it move value more than any multiple.' },
+      { icon: 'ChartLine', title: 'A volume claim the exports do not support', body: 'The deck’s TPV counts a processor month twice, and the price is set on it.' },
+      { icon: 'Landmark', title: 'A licence that lapsed quietly', body: 'One state licence expired months ago, and the register still says active.' },
+      { icon: 'ShieldAlert', title: 'Loss rates near a covenant', body: 'Chargebacks climb past the threshold the sponsor bank wrote into the agreement.' },
     ],
     walkthrough: [
-      { step: 'Evidence', text: 'Core-banking and payment records, compliance artefacts and partner-bank agreements join the usual software sources.' },
-      { step: 'Finding', text: 'Regulatory, AML and loan-book findings are drafted next to the technology findings — each citing its records.' },
-      { step: 'Review', text: 'Compliance and credit reviewers decide them in the same workflow as the technology team.' },
-      { step: 'Valuation', text: 'Regulatory-capital and credit-quality adjustments sit alongside the ARR and DCF scenarios.' },
-      { step: 'Deal terms', text: 'Escrows, indemnities and conditions precedent tied to the exact findings that justified them.' },
+      { step: 'Evidence', text: 'Processor exports, the licence register, the loan tape, AML alerts and the P&L by year arrive as imports; the deck, licences, the sponsor agreement and compliance documents are read with their source.' },
+      { step: 'Finding', text: 'Deterministic checks draft contradicted claims, lapsed or expiring licences, loss-threshold breaches, unreconciled revenue, costs outpacing revenue and missing compliance evidence, each cited.' },
+      { step: 'Review', text: 'A named reviewer accepts, rejects or asks for support on every finding; nothing is decided by the software.' },
+      { step: 'Valuation', text: 'ARR-multiple and DCF scenarios as for any software deal, with accepted findings on the purchase-price bridge.' },
+      { step: 'Deal terms', text: 'A lapsed licence priced as an escrow or indemnity, or reinstatement as a closing condition; a breach priced as a holdback, each traced to its source.' },
     ],
     findings: [
-      { title: 'Transaction-monitoring alerts closed without review evidence', severity: 'High', evidence: 'Alert records against the written AML procedure', term: 'Remediation covenant and special indemnity' },
-      { title: 'Allowance below observed loss experience', severity: 'High', evidence: 'Loan-level performance data', term: 'Credit-quality price adjustment' },
-      { title: 'Partner-bank agreement terminable on change of control', severity: 'Medium', evidence: 'Clause cited from the agreement', term: 'Consent as a closing condition' },
+      { title: 'Deck TPV double-counts one processor month', severity: 'High', evidence: 'The deck’s figure against the processor exports', term: 'A haircut on the volume the price assumes' },
+      { title: 'State money-transmitter licence lapsed four months ago', severity: 'High', evidence: 'The licence’s stated expiry against the register', term: 'Reinstatement as a closing condition, or an escrow' },
+      { title: 'Chargeback rate over the sponsor agreement’s threshold', severity: 'High', evidence: 'Quarterly rates from the exports against the clause', term: 'A reserve holdback' },
     ],
     deliverables: [
-      { icon: 'ShieldCheck', title: 'A compliance view with evidence', body: 'Findings tied to records, not to policy documents alone.' },
-      { icon: 'Wallet', title: 'A credit view of the book', body: 'Quality and allowance analysis feeding the valuation.' },
-      { icon: 'Handshake', title: 'Terms that match the risk', body: 'Each protection traceable to a reviewed finding.' },
+      { icon: 'ChartLine', title: 'Volume and take rate you can trace', body: 'TPV, transactions and take rate recomputed from the exports, with the rows behind each figure.' },
+      { icon: 'Landmark', title: 'A licence register, checked', body: 'Every licence and sponsor agreement with its status and expiry, from the register and the documents.' },
+      { icon: 'TrendingUp', title: 'The P&L across every year', body: 'Revenue, margins and fraud, credit and processing costs against revenue, year by year.' },
     ],
     faq: [
-      { q: 'Does the software diligence still run on a fintech target?', a: 'Yes. Fintech targets are technology companies, so revenue, code, delivery, security and contract review run as they do for any software deal. The fintech pack adds regulatory, AML and loan-book findings on top.' },
-      { q: 'What evidence does the fintech pack read?', a: 'Core-banking and payment records alongside the usual software sources. Findings cite the records they rest on, and a named reviewer decides each one.' },
-      { q: 'How do regulatory and credit findings reach the price?', a: 'An accepted finding becomes a priced risk: a regulatory-capital or credit-quality adjustment in the scenario, or an escrow, indemnity or closing condition in the terms.' },
+      { q: 'Does the software diligence still run on a fintech target?', a: 'Yes. Fintech targets are technology companies, so revenue, code, delivery, security and contract review run as they do for any software deal. The fintech pack adds the payments, licence, loss-rate and compliance checks on top.' },
+      { q: 'What evidence does the fintech pack read?', a: 'Processor or bank settlement exports, the licence and sponsor register, the loan tape, AML alerts and the P&L by year, plus the deck, the licences, the sponsor agreement and compliance documents. Every finding cites the rows or the page it rests on.' },
+      { q: 'Does it tell me whether a licence is required, or whether a programme is compliant?', a: 'No. It reports licence status and dates as the register and the documents state them, and compliance evidence as present or absent. Whether a licence is needed, and what a lapse means, is for your counsel.' },
+      { q: 'Where do the thresholds come from?', a: 'Only from the documents themselves, such as the sponsor agreement’s monitoring clause. With no stated threshold, rates are shown as computed and nothing is compared.' },
     ],
   },
 
@@ -611,10 +612,11 @@ export const WRITTEN_INDUSTRIES = INDUSTRIES.filter((industry) => industry.slug 
 
 /**
  * The packs on sale (Kumar, 2026-11-01): Software & SaaS and Multifamily, then
- * Venture Raise (2026-11-09), with the others released one at a time after testing. Same list as the
+ * Venture Raise (2026-11-09), with the others released one at a time after testing (Fintech with its
+ * payments and licence checks, T-159, 2026-11-26). Same list as the
  * app's RELEASED_COMPANY_TYPES (packages/domain/src/packs/release.ts).
  */
-export const RELEASED_INDUSTRY_SLUGS: readonly string[] = ['software-saas', 'multifamily', 'venture-raise', 'music-rights', 'energy-generation', 'startup-spv'];
+export const RELEASED_INDUSTRY_SLUGS: readonly string[] = ['software-saas', 'multifamily', 'venture-raise', 'music-rights', 'energy-generation', 'startup-spv', 'fintech'];
 
 /** An environment's copy of the site (dev, qa) previews every written pack, for testing before release. */
 export const PACK_PREVIEW = process.env['NEXT_PUBLIC_PACK_PREVIEW'] === 'true';
