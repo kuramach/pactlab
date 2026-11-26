@@ -101,36 +101,37 @@ export const INDUSTRY_STORIES: Readonly<Record<string, IndustryStory>> = {
   },
 
   healthcare: {
-    headline: 'In healthcare roll-ups, reimbursement is the revenue.',
+    headline: 'Test the collections and the credentials before you buy the practice.',
     subhead:
-      'Payer mix, coding and referral arrangements decide what a practice is worth. The healthcare pack brings that evidence into the same review and valuation loop the software baseline uses.',
+      'Provider-services deals are priced on collections that depend on payer contracts, denial behaviour and clinicians staying credentialed. Pactlab recomputes collections, denials and the payer mix from the remittances, checks the deck against them, reads every clinician’s licence, and checks the documents, dates and arithmetic — never the quality of care.',
     illustrationAlt: 'Illustration of a clinic building, a heartbeat line and a claims checklist.',
     pains: [
-      { icon: 'Stethoscope', title: 'Revenue that depends on a rate schedule', body: 'A shift in payer mix or a government rate change reprices the whole roll-up.' },
-      { icon: 'Scale', title: 'Referral arrangements that need a second look', body: 'Compensation and referral relationships carry legal risk long after closing.' },
-      { icon: 'UserRound', title: 'Clinicians who are the business', body: 'A practice can depend on a few providers — and their credentials.' },
+      { icon: 'Stethoscope', title: 'A denial rate the deck says is falling', body: 'The remittances show denials rising three years running, and the write-offs with them.' },
+      { icon: 'BadgeCheck', title: 'A licence that expired quietly', body: 'The register says active; the board says expired, and the clinician kept billing.' },
+      { icon: 'UserRound', title: 'One clinician who is the business', body: 'A third of collections from one clinician, with no non-compete on file.' },
     ],
     walkthrough: [
-      { step: 'Evidence', text: 'Reimbursement and claims data, payer contracts, compliance artefacts and provider credentials, alongside the financials.' },
-      { step: 'Finding', text: 'Reimbursement, coding, referral and privacy findings are drafted with citations to the records behind them.' },
-      { step: 'Review', text: 'Clinical, compliance and financial reviewers decide in one workflow, each decision recorded.' },
-      { step: 'Valuation', text: 'Payer-mix and reimbursement-rate sensitivities run against the same scenario engine.' },
-      { step: 'Deal terms', text: 'Indemnities, escrows and earn-out conditions tied to the reimbursement and compliance findings.' },
+      { step: 'Evidence', text: 'Remittances by payer, collections by clinician, the roster, the credentialing and payer contract registers and the P&L by year arrive as imports; the deck, licence verifications, the non-compete schedule, audits and agreements are read with their source.' },
+      { step: 'Finding', text: 'Deterministic checks draft contradicted claims, rising denials, payer-mix drift, expired licences, clinician concentration, expiring payer contracts and costs outpacing revenue, each cited to the rows or the page.' },
+      { step: 'Review', text: 'A named reviewer accepts, rejects or asks for support on every finding; nothing is decided by the software.' },
+      { step: 'Valuation', text: 'DCF scenarios, with ARR multiple for healthtech, and accepted findings on the purchase-price bridge; payer mix and rates as scenario sensitivities.' },
+      { step: 'Deal terms', text: 'An expired licence priced as an escrow or special indemnity, or reinstatement as a closing condition; a retention holdback for a clinician without a non-compete; each traced to its source.' },
     ],
     findings: [
-      { title: 'Revenue concentrated in one government programme', severity: 'High', evidence: 'Claims and remittance data by payer', term: 'Rate-sensitivity case in the valuation' },
-      { title: 'Medical-director arrangement above documented duties', severity: 'High', evidence: 'Agreement cited against time records', term: 'Specific indemnity; restructure before closing' },
-      { title: 'Privacy risk assessment out of date', severity: 'Medium', evidence: 'Most recent assessment and system inventory', term: 'Pre-closing remediation covenant' },
+      { title: 'Denial rate rising three years running; the deck says it fell', severity: 'High', evidence: 'Denied ÷ adjudicated claims from the remittances, against the deck', term: 'A haircut on the collections the price assumes' },
+      { title: 'Two clinicians collecting after their licences expired', severity: 'High', evidence: 'The verification document’s expiry against the register and the collections export', term: 'Reinstatement as a closing condition, or an escrow' },
+      { title: 'One clinician carries 31% of collections, no non-compete on file', severity: 'High', evidence: 'Collections by clinician against the non-compete schedule', term: 'A retention holdback or an earn-out' },
     ],
     deliverables: [
-      { icon: 'Stethoscope', title: 'A reimbursement picture', body: 'Payer mix and rate exposure, from claims data.' },
-      { icon: 'ShieldPlus', title: 'A compliance register', body: 'Referral, coding and privacy findings with their evidence.' },
-      { icon: 'Percent', title: 'Rate-aware valuation', body: 'Scenarios that show what a rate change does to price.' },
+      { icon: 'Stethoscope', title: 'Collections you can trace', body: 'Collections, denials, days in receivable and the payer mix by year, with the rows behind each figure.' },
+      { icon: 'BadgeCheck', title: 'A credentialing register, checked', body: 'Every clinician’s licence and expiry from the register and the verification documents.' },
+      { icon: 'TrendingUp', title: 'The P&L across every year', body: 'Revenue, margins and denial write-offs, clinical staff, supplies and billing costs against revenue, year by year.' },
     ],
     faq: [
-      { q: 'Does this involve patient data?', a: 'The pack works from reimbursement, contract and compliance evidence, in aggregate by default. Sensitive personal data is gated and never sent to a model.' },
-      { q: 'Which risks does the healthcare pack check?', a: 'Reimbursement risk from payer mix and coding, Stark Law and anti-kickback exposure, and HIPAA privacy and security posture — each a finding with its evidence and a named reviewer.' },
-      { q: 'Does it cover healthtech software targets?', a: 'Yes. A healthtech target runs the software diligence as well, so revenue, code and contract findings sit next to the reimbursement and compliance ones.' },
+      { q: 'Does this involve patient data?', a: 'No. The pack reads payer-level remittances and clinician-level collections by pseudonymous reference — never a patient, a claim line or a diagnosis. Clinician data stays in deterministic code and is never sent to a model.' },
+      { q: 'Does it judge quality of care, or whether billing or referrals are lawful?', a: 'No. It checks documents, dates and arithmetic: licence status and expiry as the register and the verification documents state them, and compliance evidence as present or absent. Clinical and legal judgment is for your clinicians and counsel.' },
+      { q: 'What evidence does the healthcare pack read?', a: 'Remittance or billing exports by payer, collections by clinician, the roster, the credentialing and payer contract registers and the P&L by year, plus the deck, licence verifications, the non-compete and retention schedule, coding audits, the HIPAA risk assessment and agreements. Every finding cites the rows or the page it rests on.' },
+      { q: 'Does it cover healthtech software targets?', a: 'Yes. A healthtech target runs the software diligence as well, so revenue, code and contract findings sit next to the provider ones.' },
     ],
   },
 
@@ -616,7 +617,7 @@ export const WRITTEN_INDUSTRIES = INDUSTRIES.filter((industry) => industry.slug 
  * payments and licence checks, T-159, 2026-11-26). Same list as the
  * app's RELEASED_COMPANY_TYPES (packages/domain/src/packs/release.ts).
  */
-export const RELEASED_INDUSTRY_SLUGS: readonly string[] = ['software-saas', 'multifamily', 'venture-raise', 'music-rights', 'energy-generation', 'startup-spv', 'fintech'];
+export const RELEASED_INDUSTRY_SLUGS: readonly string[] = ['software-saas', 'multifamily', 'venture-raise', 'music-rights', 'energy-generation', 'startup-spv', 'fintech', 'healthcare'];
 
 /** An environment's copy of the site (dev, qa) previews every written pack, for testing before release. */
 export const PACK_PREVIEW = process.env['NEXT_PUBLIC_PACK_PREVIEW'] === 'true';

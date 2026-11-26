@@ -75,6 +75,24 @@ describe('pack registry', () => {
     expect(peopleColumnProblems(IMPORT_TARGET_DEFINITIONS.FINTECH_LICENCES, ['licence_id', 'kind', 'email'])).toHaveLength(1);
   });
 
+  it('Healthcare reads remittances, collections by clinician and the credentialing and payer contract registers, and its compliance documents (T-160)', () => {
+    const healthcare = PACKS.HEALTHCARE;
+    expect(healthcare).toMatchObject({ slug: 'healthcare', cluster: 'healthcare', metricCalculator: 'healthcare-collections', built: true });
+    expect(healthcare.importTargets.slice(0, 3)).toEqual(['BILLING_INVOICE_LINE', 'HEALTHCARE_CLAIMS_SUMMARY', 'HEALTHCARE_PROVIDER_ROSTER']);
+    // The T-061 rules stay, first and unchanged (the clinics and hospitals packs reuse them); the T-160 rules follow.
+    expect(healthcare.findingRules.slice(0, 4)).toEqual(['healthcare-government-concentration', 'healthcare-director-fee', 'healthcare-privacy-assessment', 'healthcare-credentials-expiring']);
+    expect(healthcare.findingRules).toHaveLength(15);
+    expect(healthcare.documentCategories).toEqual(['LICENCE_VERIFICATION', 'CODING_AUDIT', 'HIPAA_RISK_ASSESSMENT', 'PAYER_CONTRACT', 'RESTRICTIVE_COVENANTS']);
+    for (const target of healthcare.importTargets.slice(1)) expect(IMPORT_TARGET_DEFINITIONS[target].refusesPeopleColumns, target).toBe(true);
+    // Clinicians only as pseudonymous references: a name or a pay column is refused.
+    expect(peopleColumnProblems(IMPORT_TARGET_DEFINITIONS.HEALTHCARE_CLINICIAN_COLLECTIONS, ['month', 'provider_ref', 'collected'])).toEqual([]);
+    expect(peopleColumnProblems(IMPORT_TARGET_DEFINITIONS.HEALTHCARE_CLINICIAN_COLLECTIONS, ['month', 'provider_ref', 'full_name', 'salary'])).toHaveLength(2);
+    expect(peopleColumnProblems(IMPORT_TARGET_DEFINITIONS.HEALTHCARE_REMITTANCES, ['month', 'payer', 'patient_id'])).toHaveLength(1);
+    // The extensions are untouched.
+    expect(PACKS.SMALL_CLINICS.metricCalculator).toBe('saas-metrics');
+    expect(PACKS.HOSPITALS.findingRules).not.toContain('healthcare-credentialing');
+  });
+
   it('every pack offers billing first, and only targets that exist (rule ids resolve in the API test)', () => {
     for (const id of PACK_IDS) {
       const pack = PACKS[id];

@@ -25,7 +25,7 @@ describe('demo organization (batch 2)', () => {
   let first: string[] = [];
   const demoData = generatedDemoData();
   const rows = async (sql: string, params: unknown[] = []) => ((await db.owner.query(sql, params)) as { rows: Row[] }).rows;
-  const types = ['SOFTWARE_SAAS', 'MULTIFAMILY', 'VENTURE_RAISE', 'MULTIFAMILY_SYNDICATION', 'MUSIC_RIGHTS', 'ENERGY_GENERATION', 'STARTUP_SPV', 'FINTECH'] as const;
+  const types = ['SOFTWARE_SAAS', 'MULTIFAMILY', 'VENTURE_RAISE', 'MULTIFAMILY_SYNDICATION', 'MUSIC_RIGHTS', 'ENERGY_GENERATION', 'STARTUP_SPV', 'FINTECH', 'HEALTHCARE'] as const;
   const run = (reset = false, only: readonly (typeof types)[number][] = types) => runDemoOrg(app as never, db.owner as never, db.prisma, { types: only, reset, data: demoData.source });
 
   beforeAll(async () => {
@@ -114,7 +114,7 @@ describe('demo organization (batch 2)', () => {
     expect(await count('deal_memberships', teaser.id, `AND role = 'BIDDER'`)).toBe(3);
     expect(await rows(`SELECT scope, status FROM report_versions WHERE organization_id = $1 AND scope <> 'IC' ORDER BY scope`, [DEMO_ORG.id])).toEqual([{ scope: 'EXECUTIVE', status: 'READY' }, { scope: 'PACT', status: 'READY' }]);
     // Each buyer-led acquisition pact has its committee pack (T-124 demo coverage).
-    expect((await rows(`SELECT count(*)::int AS n FROM report_versions WHERE organization_id = $1 AND scope = 'IC'`, [DEMO_ORG.id]))[0]).toEqual({ n: 12 });
+    expect((await rows(`SELECT count(*)::int AS n FROM report_versions WHERE organization_id = $1 AND scope = 'IC'`, [DEMO_ORG.id]))[0]).toEqual({ n: 14 });
     // The syndication pact reads its offering, and the seller sees none of the sponsor's offering documents (T-106).
     const syndication = await deal(pactName('MULTIFAMILY_SYNDICATION'));
     expect(await count('syndication_offerings', syndication.id)).toBe(1);
@@ -136,6 +136,13 @@ describe('demo organization (batch 2)', () => {
       expect(await count('findings', fintech.id, `AND title = '${title}'`), title).toBe(1);
     }
     expect(await count('findings', fintech.id, `AND title LIKE 'Lapsed: %'`)).toBe(1);
+    // The healthcare pact imports its remittances, collections by clinician, registers and three years of P&L; the planted defects are drafted (T-160).
+    const healthcare = await deal(pactName('HEALTHCARE'));
+    expect(await count('evidence_items', healthcare.id, `AND evidence_type = 'finance.pnl_line'`)).toBe(24);
+    for (const title of ['Claim contradicted: Denial rate', 'Denial rate rising, 2023–2025', 'Claim contradicted: Commercial payer share', 'Payer mix shifted toward Medicaid, the lowest-paying payer class, 2023–2025', '31.0% of collections from one clinician, no non-compete on file: PR-03', 'Denial write-offs and bad debt growing faster than revenue, 2023–2025']) {
+      expect(await count('findings', healthcare.id, `AND title = '${title}'`), title).toBe(1);
+    }
+    expect(await count('findings', healthcare.id, `AND title LIKE 'Practising on an expired licence: %'`)).toBe(2);
     // The SPV seats its investors, runs its checks and publishes the investor view; the startup sees none of the vehicle's papers (T-141).
     const spv = await deal(pactName('STARTUP_SPV'));
     expect(await count('pact_investors', spv.id)).toBe(5);

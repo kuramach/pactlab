@@ -15,6 +15,10 @@ export const IMPORT_TARGETS = [
   'MULTIFAMILY_INSPECTION',
   'HEALTHCARE_CLAIMS_SUMMARY',
   'HEALTHCARE_PROVIDER_ROSTER',
+  'HEALTHCARE_REMITTANCES',
+  'HEALTHCARE_CLINICIAN_COLLECTIONS',
+  'HEALTHCARE_CREDENTIALS',
+  'HEALTHCARE_PAYER_CONTRACTS',
   'TELECOM_SUBSCRIBERS',
   'SERVICES_TIMESHEETS',
   'SERVICES_HEADCOUNT',
@@ -330,6 +334,102 @@ export const HEALTHCARE_PROVIDER_ROSTER: TargetDefinition = {
     { name: 'specialty', label: 'Specialty', kind: 'text', required: true, hint: 'e.g. Primary care.' },
     { name: 'fte', label: 'FTE', kind: 'decimal', required: true, hint: 'Full-time equivalent, e.g. 0.6.' },
     { name: 'credential_expiry', label: 'Credential expiry', kind: 'date', required: true, hint: 'When the provider’s licence or credential lapses.' },
+  ],
+};
+
+/**
+ * Healthcare (T-160): the remittance or billing export by month and payer — charges billed, cash
+ * collected, claims and denied claims, and the receivables still open at month end. Payers and
+ * programmes only: never a patient, a claim line or a diagnosis.
+ */
+export const HEALTHCARE_REMITTANCES: TargetDefinition = {
+  target: 'HEALTHCARE_REMITTANCES',
+  label: 'Remittances by payer',
+  fileName: 'remittances.csv',
+  people: 'NONE',
+  refusesPeopleColumns: true,
+  evidenceType: 'healthcare.remittance_month',
+  recordIdField: 'month',
+  recordIdFields: ['month', 'payer'],
+  observedAtFields: [],
+  fields: [
+    { name: 'month', label: 'Month', kind: 'text', required: true, hint: 'YYYY-MM.' },
+    { name: 'payer', label: 'Payer', kind: 'text', required: true, hint: 'Payer or programme name; never a patient.' },
+    { name: 'payer_class', label: 'Payer class', kind: 'code', required: true, hint: 'commercial, medicare, medicaid, other_government or self_pay.' },
+    { name: 'claims', label: 'Claims', kind: 'decimal', required: true, hint: 'Claims adjudicated in the month (a count).' },
+    { name: 'denied_claims', label: 'Denied claims', kind: 'decimal', required: true, hint: 'Of those, claims the payer denied (a count).' },
+    { name: 'billed', label: 'Charges billed', kind: 'money', required: true, hint: `Gross charges on those claims. ${IN_BASE_CURRENCY}` },
+    { name: 'collected', label: 'Collected', kind: 'money', required: true, hint: `Cash the payer remitted in the month. ${IN_BASE_CURRENCY}` },
+    { name: 'ar_balance', label: 'Receivables at month end', kind: 'money', required: false, hint: `Charges still open with this payer at month end. ${IN_BASE_CURRENCY}` },
+  ],
+};
+
+/**
+ * Healthcare (T-160): collections by clinician and month from the practice-management system.
+ * Clinicians appear only as pseudonymous references (rule 7); the figures stay in deterministic code
+ * and never reach a model.
+ */
+export const HEALTHCARE_CLINICIAN_COLLECTIONS: TargetDefinition = {
+  target: 'HEALTHCARE_CLINICIAN_COLLECTIONS',
+  label: 'Collections by clinician',
+  fileName: 'clinician-collections.csv',
+  people: 'PSEUDONYMOUS',
+  refusesPeopleColumns: true,
+  evidenceType: 'healthcare.clinician_month',
+  recordIdField: 'month',
+  recordIdFields: ['month', 'provider_ref'],
+  observedAtFields: [],
+  fields: [
+    { name: 'month', label: 'Month', kind: 'text', required: true, hint: 'YYYY-MM.' },
+    { name: 'provider_ref', label: 'Provider reference', kind: 'text', required: true, hint: 'The roster’s pseudonymous reference such as PR-07 — never a name or licence number.' },
+    { name: 'site', label: 'Site', kind: 'text', required: false, hint: 'The practice the clinician works from.' },
+    { name: 'visits', label: 'Visits', kind: 'decimal', required: false, hint: 'Visits in the month (a count; no patient detail).' },
+    { name: 'collected', label: 'Collected', kind: 'money', required: true, hint: `Cash collected on the clinician’s claims in the month. ${IN_BASE_CURRENCY}` },
+  ],
+};
+
+/**
+ * Healthcare (T-160): the credentialing register — each clinician's licences and credentials, by the
+ * roster's pseudonymous reference, with status and expiry as the practice keeps them. A licence
+ * verification document that states an expiry for the clinician governs over the register.
+ */
+export const HEALTHCARE_CREDENTIALS: TargetDefinition = {
+  target: 'HEALTHCARE_CREDENTIALS',
+  label: 'Credentialing register',
+  fileName: 'credentialing-register.csv',
+  people: 'PSEUDONYMOUS',
+  refusesPeopleColumns: true,
+  evidenceType: 'healthcare.credential',
+  recordIdField: 'credential_ref',
+  observedAtFields: [],
+  fields: [
+    { name: 'credential_ref', label: 'Credential reference', kind: 'text', required: true, hint: 'The register’s own reference for the row, such as CR-0701 — never the licence number.' },
+    { name: 'provider_ref', label: 'Provider reference', kind: 'text', required: true, hint: 'The roster’s pseudonymous reference such as PR-07.' },
+    { name: 'kind', label: 'Kind', kind: 'code', required: true, hint: 'state_licence, controlled_substance, board_certification or payer_enrollment.' },
+    { name: 'jurisdiction', label: 'Jurisdiction', kind: 'text', required: true, hint: 'The state or country it covers.' },
+    { name: 'issuer', label: 'Issued by', kind: 'text', required: true, hint: 'The board, agency or payer that issued it.' },
+    { name: 'status', label: 'Status', kind: 'code', required: true, hint: 'active, pending, expired, suspended or revoked, as the register records it.' },
+    { name: 'expires_on', label: 'Expires', kind: 'date', required: false, hint: 'When it expires or must be renewed.' },
+  ],
+};
+
+/** Healthcare (T-160): the payer contract register — who the practice is contracted with, and until when. */
+export const HEALTHCARE_PAYER_CONTRACTS: TargetDefinition = {
+  target: 'HEALTHCARE_PAYER_CONTRACTS',
+  label: 'Payer contract register',
+  fileName: 'payer-contracts.csv',
+  people: 'NONE',
+  refusesPeopleColumns: true,
+  evidenceType: 'healthcare.payer_contract',
+  recordIdField: 'contract_id',
+  observedAtFields: [],
+  fields: [
+    { name: 'contract_id', label: 'Contract id', kind: 'text', required: true, hint: 'The contract or enrolment reference.' },
+    { name: 'payer', label: 'Payer', kind: 'text', required: true, hint: 'As named in the remittance export.' },
+    { name: 'payer_class', label: 'Payer class', kind: 'code', required: true, hint: 'commercial, medicare, medicaid, other_government or self_pay.' },
+    { name: 'effective_on', label: 'Effective', kind: 'date', required: false, hint: 'When the contract took effect.' },
+    { name: 'expires_on', label: 'Expires', kind: 'date', required: false, hint: 'When it ends; blank when it runs until terminated.' },
+    { name: 'auto_renews', label: 'Renews automatically', kind: 'code', required: false, hint: 'yes or no.' },
   ],
 };
 
@@ -1021,6 +1121,10 @@ export const IMPORT_TARGET_DEFINITIONS: Readonly<Record<ImportTarget, TargetDefi
   MULTIFAMILY_INSPECTION,
   HEALTHCARE_CLAIMS_SUMMARY,
   HEALTHCARE_PROVIDER_ROSTER,
+  HEALTHCARE_REMITTANCES,
+  HEALTHCARE_CLINICIAN_COLLECTIONS,
+  HEALTHCARE_CREDENTIALS,
+  HEALTHCARE_PAYER_CONTRACTS,
   TELECOM_SUBSCRIBERS,
   SERVICES_TIMESHEETS,
   SERVICES_HEADCOUNT,
