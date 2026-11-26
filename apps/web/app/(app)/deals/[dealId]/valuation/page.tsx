@@ -8,6 +8,7 @@ import { BENCHMARK_OUTCOMES, MultipleContext, MultipleContextLine } from '../../
 import { ANCHOR_OUTCOMES, NegotiationAnchors } from '../../_lib/negotiation-anchors';
 import type { AnchorsView, BalanceSheetItemView, BalanceSheetView, BenchmarkView } from '@pactlab/contracts';
 import { BALANCE_SHEET_OUTCOMES, BalanceSheetCard } from './balance-sheet-card';
+import { PnlBasisCard, type PnlBasisView } from './pnl-basis-card';
 import { citationHref } from '../../../documents/_lib/view';
 import { ApiState } from '../../_lib/states';
 import { ConfirmedValue } from '../../_lib/confirmed-value';
@@ -591,13 +592,14 @@ export default async function ValuationPage({
   }
   const lead = runs.find((view) => view.scenario.status === 'APPROVED') ?? runs[0];
   const leadBenchmark = lead ? benchmarks.get(lead.scenario.id) : undefined;
-  const [anchors, sheet] =
+  const [anchors, sheet, pnl] =
     dealId && result?.kind === 'ok'
       ? await Promise.all([
           apiGet<AnchorsView>(`/v1/deals/${encodeURIComponent(dealId)}/anchors`),
           apiGet<BalanceSheetView>(`/v1/deals/${encodeURIComponent(dealId)}/balance-sheet-items`),
+          apiGet<PnlBasisView>(`/v1/deals/${encodeURIComponent(dealId)}/valuation/pnl-basis`),
         ])
-      : [null, null];
+      : [null, null, null];
   const items = new Map((sheet?.kind === 'ok' ? sheet.data.items : []).map((item) => [item.id, item]));
 
   return (
@@ -619,6 +621,8 @@ export default async function ValuationPage({
       <OutcomeBanner outcome={typeof outcome === 'string' ? outcome : undefined} messages={{ ...BENCHMARK_OUTCOMES, ...ANCHOR_OUTCOMES, ...BALANCE_SHEET_OUTCOMES, ...OUTCOMES, 'ok-case': 'Scenario case saved.' }} />
 
       {dealId && viewer ? <AskingPanel dealId={dealId} viewer={viewer} currency={currency} /> : null}
+
+      {dealId && pnl?.kind === 'ok' ? <PnlBasisCard dealId={dealId} view={pnl.data} /> : null}
 
       {dealId && sheet?.kind === 'ok' ? <BalanceSheetCard dealId={dealId} view={sheet.data} currency={currency} /> : null}
 

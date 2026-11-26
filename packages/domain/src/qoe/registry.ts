@@ -91,6 +91,10 @@ export const QOE_COMPONENT_REGISTRY = {
 export const QOE_ADJUSTMENT_EVIDENCE_TYPE = 'qoe.adjustment';
 export const QOE_ADD_BACK_EVIDENCE_TYPE = 'qoe.add_back';
 export const QOE_WORKING_CAPITAL_EVIDENCE_TYPE = 'qoe.working_capital';
+/** An imported P&L and a filed statement disagree on a period's EBITDA (T-149). */
+export const QOE_PNL_CONFLICT_EVIDENCE_TYPE = 'qoe.pnl_conflict';
+/** The evidence type an imported P&L line is stored as (ADR 0038, `FINANCIAL_PNL`). */
+export const PNL_LINE_EVIDENCE_TYPE = 'finance.pnl_line';
 
 /** The same shape as the connectors' VALUATION_DIRECTION_MAP rules. */
 export interface QoeDirectionRule {
@@ -116,6 +120,15 @@ export const QOE_DIRECTION_MAP: Readonly<Record<string, readonly QoeDirectionRul
     { signal: 'UNVERIFIED', findingDomain: 'FINANCIAL', defaultDirection: -1, channel: 'ASSUMPTION' },
     { signal: 'PARTIALLY_VERIFIED', findingDomain: 'FINANCIAL', defaultDirection: -1, channel: 'ASSUMPTION' },
     { signal: 'VERIFIED', findingDomain: 'FINANCIAL', defaultDirection: 1, channel: 'CONFIRMATION' },
+  ],
+  [QOE_PNL_CONFLICT_EVIDENCE_TYPE]: [
+    {
+      signal: 'disagrees',
+      findingDomain: 'FINANCIAL',
+      defaultDirection: -1,
+      channel: 'ASSUMPTION',
+      rationale: 'Two sources state different EBITDA for the period; until a person settles which holds, the earnings base is an open assumption. Neither figure is picked silently.',
+    },
   ],
   [QOE_WORKING_CAPITAL_EVIDENCE_TYPE]: [
     {

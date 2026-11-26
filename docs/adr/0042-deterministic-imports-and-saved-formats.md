@@ -15,7 +15,7 @@ The import assistant (ADR 0038) reads that shape, and a person confirms it. That
 
 1. **A confirmed format was forgotten.** The next file from the same seller, laid out the same way, went through the AI and the person again. Only "import again" (ADR 0039) reused an earlier mapping.
 2. **Most packs turn imports into no metrics.** Only Software & SaaS, Multifamily and Music rights have a metric calculator.
-3. **An imported P&L feeds neither quality of earnings nor valuation yet** (T-149).
+3. **An imported P&L fed neither quality of earnings nor valuation** (since T-149 it feeds both; ADR 0035 amendment).
 
 ## Decision
 
@@ -74,5 +74,4 @@ The import assistant (ADR 0038) reads that shape, and a person confirms it. That
 - **Rollback:** drop `import_formats` (expand only). Uploads keep their own mappings, so nothing is lost.
 - **Follow-up tasks:**
   - a metric calculator for each pack without one: fintech, healthcare, telecom, services, pharma, e-commerce, commercial property, hotels, hospitals, clinics, venture;
-  - T-149 (P&L into quality of earnings and valuation);
   - an organization-wide format library.

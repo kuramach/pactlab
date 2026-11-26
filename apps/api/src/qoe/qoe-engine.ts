@@ -1,4 +1,4 @@
-import { D } from '@pactlab/calculations';
+import { comparePnlFigure, D, PNL_EBITDA_BASIS, pnlForPeriod, type PnlPeriod } from '@pactlab/calculations';
 import {
   addBackCounts,
   QOE_COMPONENT_REGISTRY,
@@ -13,8 +13,13 @@ import {
  * The quality-of-earnings arithmetic (T-135), deterministic and decimal-only: the same entries
  * always give the same schedule. Models never compute anything here; every figure out traces to
  * the cited entries in. Changing a rule is a new QOE_ENGINE_VERSION, never a silent edit.
+ *
+ * qoe-2 (T-149): reported revenue, cost of revenue, operating expenses and EBITDA per period come
+ * from the imported P&L where it covers the period, each citing its source rows. A cited filed
+ * figure that agrees (within one unit) is shown beside it; one that disagrees is a conflict, and
+ * adjusted EBITDA waits for a person to settle it — neither figure is picked silently.
  */
-export const QOE_ENGINE_VERSION = 'qoe-1';
+export const QOE_ENGINE_VERSION = 'qoe-2';
 
 /** How many of the latest month-ends the peg averages, and the fewest it needs. */
 export const PEG_TRAILING_PERIODS = 12;
@@ -75,14 +80,33 @@ export interface AddBackLine extends AddBackInput {
   treatment: string;
 }
 
+/** Where a period's reported EBITDA comes from. */
+export type ReportedSource = 'IMPORTED_PNL' | 'FILED_STATEMENT' | 'BOTH';
+
+/** An imported P&L and a cited filed statement stating different EBITDA for the same period. */
+export interface PnlConflict {
+  period: string;
+  imported: string;
+  filed: string;
+  /** Imported less filed. */
+  difference: string;
+  filedEntry: Cited;
+}
+
 export interface PeriodSchedule {
   period: string;
   currency: string;
+  /** The imported P&L for this period, with every row it adds up (null when no import covers it). */
+  pnl: PnlPeriod | null;
+  /** The cited filed figure (a REPORTED_EBITDA entry), shown even when the import supplies the figure. */
   reported: ReportedEbitdaInput | null;
+  /** The EBITDA the schedule starts from and where it comes from; null when there is none or the sources disagree. */
+  reportedEbitda: { amount: string; source: ReportedSource } | null;
+  conflict: PnlConflict | null;
   adjustments: AdjustmentInput[];
   addBacks: AddBackLine[];
   totals: { adjustments: string; addBacksCounted: string; addBacksClaimed: string; addBacksExcluded: string };
-  /** Reported + adjustments + counted add-backs. Null without a cited reported figure. */
+  /** Reported + adjustments + counted add-backs. Null without a reported figure, or while the sources disagree. */
   adjustedEbitda: string | null;
   /** What the seller's own claim adds up to: reported + every add-back at its claimed amount. Never merged with the above. */
   sellerAdjustedEbitda: string | null;
@@ -103,30 +127,55 @@ function treatment(line: AddBackInput): { counts: boolean; counted: string; trea
   return { counts: true, counted: money(amount), treatment: why };
 }
 
-export function adjustedEbitdaSchedule(input: { reported: ReportedEbitdaInput[]; adjustments: AdjustmentInput[]; addBacks: AddBackInput[] }): PeriodSchedule[] {
-  const periods = [...new Set([...input.reported, ...input.adjustments, ...input.addBacks].map((row) => row.period))].sort();
+export function adjustedEbitdaSchedule(input: { reported: ReportedEbitdaInput[]; adjustments: AdjustmentInput[]; addBacks: AddBackInput[]; pnl?: readonly PnlPeriod[]; currency?: string }): PeriodSchedule[] {
+  const imported = input.pnl ?? [];
+  const written = [...new Set([...input.reported, ...input.adjustments, ...input.addBacks].map((row) => row.period))];
+  const matched = new Map(written.map((period) => [period, pnlForPeriod(imported, period)]));
+  const covered = new Set([...matched.values()].flatMap((pnl) => (pnl && !pnl.rolledUpFrom ? [pnl.period] : [])));
+  // Imported periods no entry names are scheduled too: the statement is read in full, per period.
+  for (const pnl of imported) if (!covered.has(pnl.period) && !matched.has(pnl.period)) matched.set(pnl.period, pnl);
+  const periods = [...matched.keys()].sort();
   return periods.map((period) => {
+    const pnl = matched.get(period) ?? null;
     const reported = input.reported.filter((row) => row.period === period).at(-1) ?? null;
     const adjustments = input.adjustments.filter((row) => row.period === period);
     const addBacks = input.addBacks.filter((row) => row.period === period).map((row) => ({ ...row, ...treatment(row) }));
-    const currency = reported?.currency ?? adjustments[0]?.currency ?? addBacks[0]?.currency ?? '';
+    const currency = reported?.currency ?? adjustments[0]?.currency ?? addBacks[0]?.currency ?? input.currency ?? '';
     const sum = (values: string[]) => values.reduce((total, value) => total.plus(value), new D(0));
     const adjustmentsTotal = sum(adjustments.map((row) => row.amount));
     const counted = sum(addBacks.map((row) => row.counted));
     const claimed = sum(addBacks.map((row) => row.claimed));
     const flags: string[] = [];
-    if (!reported) flags.push('No cited reported EBITDA for this period: adjusted EBITDA is not computed.');
+
+    let reportedEbitda: PeriodSchedule['reportedEbitda'] = null;
+    let conflict: PnlConflict | null = null;
+    if (pnl && reported) {
+      const compared = comparePnlFigure(pnl.ebitda, reported.amount);
+      if (compared.agrees) reportedEbitda = { amount: pnl.ebitda, source: 'BOTH' };
+      else {
+        conflict = { period, imported: pnl.ebitda, filed: money(new D(reported.amount)), difference: compared.difference, filedEntry: { entryKey: reported.entryKey, version: reported.version, citation: reported.citation } };
+        flags.push(`The imported P&L (${pnl.ebitda}) and the filed statement (${money(new D(reported.amount))}) disagree by ${compared.difference}: a finding to review. Adjusted EBITDA waits until one is corrected or withdrawn.`);
+      }
+    } else if (pnl) reportedEbitda = { amount: pnl.ebitda, source: 'IMPORTED_PNL' };
+    else if (reported) reportedEbitda = { amount: money(new D(reported.amount)), source: 'FILED_STATEMENT' };
+    if (!pnl && !reported) flags.push('No reported EBITDA for this period (no imported P&L covers it and none is cited): adjusted EBITDA is not computed.');
+    if (pnl?.rolledUpFrom) flags.push(`Read from the imported P&L's twelve months ${pnl.rolledUpFrom[0]} to ${pnl.rolledUpFrom.at(-1)}.`);
+    if (pnl && reportedEbitda) flags.push(`Imported EBITDA: ${PNL_EBITDA_BASIS}`);
     const unverified = addBacks.filter((row) => row.status === 'UNVERIFIED');
     if (unverified.length) flags.push(`${unverified.length} unverified add-back${unverified.length === 1 ? '' : 's'}: ${unverified.filter((row) => row.counts).length} included by reviewer decision, ${unverified.filter((row) => !row.counts).length} excluded.`);
+    const base = reportedEbitda ? new D(reportedEbitda.amount) : null;
     return {
       period,
       currency,
+      pnl,
       reported,
+      reportedEbitda,
+      conflict,
       adjustments,
       addBacks,
       totals: { adjustments: money(adjustmentsTotal), addBacksCounted: money(counted), addBacksClaimed: money(claimed), addBacksExcluded: money(claimed.minus(counted)) },
-      adjustedEbitda: reported ? money(new D(reported.amount).plus(adjustmentsTotal).plus(counted)) : null,
-      sellerAdjustedEbitda: reported ? money(new D(reported.amount).plus(claimed)) : null,
+      adjustedEbitda: base ? money(base.plus(adjustmentsTotal).plus(counted)) : null,
+      sellerAdjustedEbitda: base ? money(base.plus(claimed)) : null,
       flags,
     };
   });

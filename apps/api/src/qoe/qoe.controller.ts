@@ -54,6 +54,13 @@ export class QoeController {
     return this.service.decide(tenant, params.dealId, params.entryKey, body, requestId);
   }
 
+  /** Draft a finding for each period where the imported P&L and a filed statement disagree (T-149). */
+  @Post('pnl-conflicts')
+  @HttpCode(200)
+  raisePnlConflicts(@Tenant() tenant: TenantContext, @RequestId() requestId: string, @Param(new ZodValidationPipe(dealParamsSchema)) params: DealParams) {
+    return this.service.raisePnlConflicts(tenant, params.dealId, requestId);
+  }
+
   /** The proposed peg onto the buyer's open draft terms. */
   @Post('peg-term')
   @HttpCode(201)

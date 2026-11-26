@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { VALUATION_DIRECTIONS } from '../findings/types';
+import { FINANCIAL_PNL } from '../imports/targets';
 import {
   addBackCounts,
   QOE_ADD_BACK_EVIDENCE_TYPE,
@@ -7,6 +8,8 @@ import {
   QOE_CATEGORY_REGISTRY,
   QOE_COMPONENT_REGISTRY,
   QOE_DIRECTION_MAP,
+  QOE_PNL_CONFLICT_EVIDENCE_TYPE,
+  PNL_LINE_EVIDENCE_TYPE,
   QOE_VERIFICATION_STATUSES,
   QOE_WORKING_CAPITAL_COMPONENTS,
   qoeDirectionFor,
@@ -31,6 +34,11 @@ describe('QoE registry (T-135)', () => {
       }
     }
     expect(() => qoeDirectionFor(QOE_ADD_BACK_EVIDENCE_TYPE, 'SELLER_SAYS_SO')).toThrow(/no direction rule/);
+  });
+
+  it('makes an imported P&L disagreeing with a filed statement an unpriced drag to review (T-149)', () => {
+    expect(qoeDirectionFor(QOE_PNL_CONFLICT_EVIDENCE_TYPE, 'disagrees')).toMatchObject({ defaultDirection: -1, channel: 'ASSUMPTION' });
+    expect(PNL_LINE_EVIDENCE_TYPE).toBe(FINANCIAL_PNL.evidenceType);
   });
 
   it('keeps unverified add-backs out unless a reviewer includes them', () => {

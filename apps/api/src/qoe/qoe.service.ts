@@ -1,4 +1,5 @@
 import { ConflictException, Inject, Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
+import { PNL_EBITDA_BASIS, PNL_READER_VERSION } from '@pactlab/calculations';
 import { citationStillValid, PROHIBITED_CLASSIFICATIONS, SourceIndex, type CitableSource } from '@pactlab/ai';
 import { appendAuditEvent, withTenant, type PrismaClient, type TransactionClient } from '@pactlab/db';
 import {
@@ -9,6 +10,7 @@ import {
   QOE_ADJUSTMENT_EVIDENCE_TYPE,
   QOE_CATEGORY_REGISTRY,
   QOE_DISCLAIMER,
+  QOE_PNL_CONFLICT_EVIDENCE_TYPE,
   QOE_VERIFICATION_LABELS,
   qoeDirectionFor,
   type DealRole,
@@ -26,6 +28,7 @@ import { DealAccess } from '../deals/deal-access';
 import { FindingsService } from '../findings/findings.service';
 import { PricingService } from '../pricing/pricing.service';
 import { PRISMA } from '../tokens';
+import { filesOf, loadImportedPnl, type PnlSourceFile } from './pnl-evidence';
 import {
   adjustedEbitdaSchedule,
   QOE_ENGINE_VERSION,
@@ -33,6 +36,7 @@ import {
   type AddBackInput,
   type AdjustmentInput,
   type PeriodSchedule,
+  type PnlConflict,
   type ReportedEbitdaInput,
   type WorkingCapitalAnalysis,
   type WorkingCapitalInput,
@@ -68,19 +72,34 @@ export interface QoeEntryMeta {
   updatedAt: string;
 }
 
+/** A period of the schedule, with the files its imported figures were read from. */
+export type QoeSchedulePeriod = PeriodSchedule & { pnlFiles: PnlSourceFile[] };
+
+/** A disagreement between the imported P&L and a filed statement, and the finding it became (if raised). */
+export type QoeConflictView = PnlConflict & { fingerprint: string; findingId: string | null };
+
 export interface QoeView {
   disclaimer: string;
   engineVersion: string;
   currency: string;
   canEdit: boolean;
   canDecide: boolean;
-  schedule: PeriodSchedule[];
+  schedule: QoeSchedulePeriod[];
+  /** The imported P&L the schedule reads (T-149): its reader version, how EBITDA is read, and its files. */
+  importedPnl: { readerVersion: string; ebitdaBasis: string; periods: number; files: PnlSourceFile[] };
+  /** Every period where the imported P&L and a filed statement disagree: findings to review, never a silent pick. */
+  conflicts: QoeConflictView[];
   /** Every seller-claimed add-back, across periods: the register. */
   register: PeriodSchedule['addBacks'];
   workingCapital: WorkingCapitalAnalysis;
   /** Per entry: its version, citation state and the finding it became. */
   entries: QoeEntryMeta[];
 }
+
+/** Idempotent: the same disagreement (same filed version, same imported figure) drafts one finding. */
+const conflictFingerprint = (conflict: PnlConflict) => `qoe:pnl-conflict:${conflict.filedEntry.entryKey}:v${conflict.filedEntry.version}:${conflict.imported}`;
+/** How many of a conflicting period's imported rows the finding links; the description gives the full count. */
+const CONFLICT_ROW_LINKS = 25;
 
 const amountString = (value: { toFixed(digits: number): string }) => value.toFixed(4).replace(/\.?0+$/, '') || '0';
 
@@ -183,14 +202,25 @@ export class QoeService {
       const lines: WorkingCapitalInput[] = rows
         .filter((row) => row.kind === 'WORKING_CAPITAL')
         .map((row) => ({ ...cite(row), periodEnd: row.periodEnd?.toISOString().slice(0, 10) ?? '', component: row.category as QoeWorkingCapitalComponent, label: row.label, amount: amountString(row.amount), currency: row.currency }));
-      const schedule = adjustedEbitdaSchedule({ reported, adjustments, addBacks });
+      const imported = await loadImportedPnl(tx, dealId);
+      const schedule = adjustedEbitdaSchedule({ reported, adjustments, addBacks, pnl: imported.periods, currency: deal.baseCurrency });
+      const conflicts = schedule.flatMap((period) => (period.conflict ? [{ ...period.conflict, fingerprint: conflictFingerprint(period.conflict) }] : []));
+      // bounded: one finding per conflicting period
+      const raised = conflicts.length ? await tx.finding.findMany({ where: { dealId, fingerprint: { in: conflicts.map((conflict) => conflict.fingerprint) } }, select: { id: true, fingerprint: true } }) : [];
       return {
         disclaimer: QOE_DISCLAIMER,
         engineVersion: QOE_ENGINE_VERSION,
         currency: deal.baseCurrency,
         canEdit: canWrite(role),
         canDecide: canReviewFindings(role),
-        schedule,
+        schedule: schedule.map((period) => ({ ...period, pnlFiles: period.pnl ? filesOf(imported, period.pnl.sources.map((row) => row.evidenceId)) : [] })),
+        importedPnl: {
+          readerVersion: PNL_READER_VERSION,
+          ebitdaBasis: PNL_EBITDA_BASIS,
+          periods: imported.periods.length,
+          files: filesOf(imported, imported.periods.flatMap((period) => period.sources.map((row) => row.evidenceId))),
+        },
+        conflicts: conflicts.map((conflict) => ({ ...conflict, findingId: raised.find((finding) => finding.fingerprint === conflict.fingerprint)?.id ?? null })),
         register: schedule.flatMap((period) => period.addBacks),
         workingCapital: { ...workingCapitalAnalysis(lines), currency: deal.baseCurrency },
         entries: rows.map((row) => ({
@@ -336,6 +366,7 @@ export class QoeService {
   async record(tenant: TenantContext, dealId: string, body: QoeEntryBody, requestId: string): Promise<QoeView> {
     await this.access.require(tenant, dealId, canWrite, { action: 'qoe.entry_recorded', requestId });
     await this.write(tenant, dealId, newId(), 1, body, { reason: 'Recorded' }, 'qoe.entry_recorded', requestId);
+    if (body.kind === 'REPORTED_EBITDA') await this.raisePnlConflicts(tenant, dealId, requestId);
     return this.view(tenant, dealId, requestId);
   }
 
@@ -347,6 +378,7 @@ export class QoeService {
     if (current.version !== body.expectedVersion) throw new ConflictException('The entry changed in the meantime');
     if (current.kind !== body.entry.kind) throw new UnprocessableEntityException({ code: 'KIND_CHANGED', message: 'A revision keeps the entry’s kind' });
     await this.write(tenant, dealId, entryKey, current.version + 1, body.entry, { reason: body.reason }, 'qoe.entry_revised', requestId);
+    if (body.entry.kind === 'REPORTED_EBITDA') await this.raisePnlConflicts(tenant, dealId, requestId);
     return this.view(tenant, dealId, requestId);
   }
 
@@ -376,6 +408,48 @@ export class QoeService {
     if (current.version !== body.expectedVersion) throw new ConflictException('The add-back changed in the meantime');
     await this.write(tenant, dealId, entryKey, current.version + 1, this.bodyOf(current), { reason: `Reviewer decision: ${body.decision}`, inclusion: body.decision, decisionReason: body.reason, findingId: current.findingId, citations: this.storedCitations(current) }, action, requestId);
     return this.view(tenant, dealId, requestId);
+  }
+
+  /**
+   * Draft a finding for every period where the imported P&L and a filed statement disagree
+   * (T-149), idempotently by fingerprint. It cites both sides: the filed page and the imported
+   * rows. Nothing is picked, priced or accepted here; a person settles it by correcting or
+   * withdrawing one source. Runs after a filed figure is recorded, and on request after an import.
+   */
+  async raisePnlConflicts(tenant: TenantContext, dealId: string, requestId: string): Promise<{ created: number; existing: number }> {
+    await this.access.require(tenant, dealId, canWrite, { action: 'qoe.pnl_conflicts_raised', requestId });
+    const { schedule, conflicts } = await this.view(tenant, dealId, requestId);
+    const open = conflicts.filter((conflict) => !conflict.findingId);
+    if (open.length === 0) return { created: 0, existing: conflicts.length };
+    const rows = await withTenant(this.prisma, tenant, (tx) => this.current(tx, dealId));
+    const rule = qoeDirectionFor(QOE_PNL_CONFLICT_EVIDENCE_TYPE, 'disagrees');
+    const proposals: ProposedFinding[] = [];
+    for (const conflict of open) {
+      const filed = rows.find((row) => row.entryKey === conflict.filedEntry.entryKey);
+      const period = schedule.find((candidate) => candidate.conflict?.filedEntry.entryKey === conflict.filedEntry.entryKey && candidate.period === conflict.period);
+      if (!filed || !period?.pnl) continue;
+      const ebitdaRows = period.pnl.sources.filter((row) => row.kind === 'REVENUE' || row.kind === 'COGS' || row.kind === 'OPEX');
+      const files = period.pnlFiles.map((file) => file.fileName).join(', ') || 'the imported P&L';
+      const tool = { commitSha: null, toolName: 'pactlab-qoe', toolVersion: `${QOE_ENGINE_VERSION}+${PNL_READER_VERSION}`, rulesetVersion: null, path: null, lineStart: null, lineEnd: null };
+      proposals.push({
+        domain: rule.findingDomain,
+        title: `P&L conflict (${conflict.period}): imported EBITDA ${conflict.imported} vs filed ${conflict.filed}`.slice(0, 160),
+        description: `The imported P&L (${files}) gives ${conflict.period} EBITDA of ${period.currency} ${conflict.imported}; the filed statement cited for “${filed.label}” gives ${period.currency} ${conflict.filed}, a difference of ${period.currency} ${conflict.difference}. Imported EBITDA is ${PNL_EBITDA_BASIS.charAt(0).toLowerCase()}${PNL_EBITDA_BASIS.slice(1)} Adjusted EBITDA for the period is not computed until a person corrects or withdraws one of them. ${ebitdaRows.length} imported rows make up the figure${ebitdaRows.length > CONFLICT_ROW_LINKS ? `; the first ${CONFLICT_ROW_LINKS} are linked` : ''}.`,
+        severity: 'MEDIUM',
+        confidence: 'HIGH',
+        origin: 'HEURISTIC',
+        fingerprint: conflict.fingerprint,
+        evidence: [
+          { ...tool, evidenceItemId: null, documentCitation: filed.citation as unknown as StoredCitation },
+          ...ebitdaRows.slice(0, CONFLICT_ROW_LINKS).map((row) => ({ ...tool, evidenceItemId: row.evidenceId, documentCitation: null })),
+        ],
+        pricedRisk: null,
+        direction: rule.defaultDirection,
+        valueConfirmation: null,
+      });
+    }
+    const { created, existing } = await this.findings.recordProposals(tenant, dealId, proposals, { kind: 'SYSTEM', component: `qoe@${QOE_ENGINE_VERSION}` }, requestId);
+    return { created: created.length, existing: existing + conflicts.length - open.length };
   }
 
   /** Put the proposed peg on the buyer's open draft terms (a true-up mechanic, never a bridge line). */
