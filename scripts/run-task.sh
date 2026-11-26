@@ -191,6 +191,11 @@ if ! $CHECKS_OK; then
   echo "### $TASK_ID BLOCKED: checks failed" | tee -a "$LOG"
   finish blocked "$TASK_ID"; exit 1
 fi
+# An agent that changed nothing (it stopped, e.g. on an unmerged prerequisite) never opens a PR: its report says why.
+if [[ -z "$(cd "$WT" && git diff --name-only origin/main...HEAD -- . ':!tasks')" ]]; then
+  echo "### $TASK_ID BLOCKED: the agent changed nothing (see its report in $LOG)" | tee -a "$LOG"
+  finish blocked "$TASK_ID"; exit 1
+fi
 if ! $PUSHED; then
   echo "### $TASK_ID BLOCKED: branch push failed" | tee -a "$LOG"
   finish blocked "$TASK_ID"; exit 1
