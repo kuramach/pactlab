@@ -211,6 +211,7 @@ export class AppModule {
       objectStore: deps.documents?.objectStore ?? new UnavailableObjectStore(),
       malwareScanner: deps.documents?.malwareScanner ?? new UnavailableMalwareScanner(),
       gateway: deps.documents?.gateway ?? new NotConfiguredClaudeGateway(),
+      ...(deps.documents?.contextBudgetChars !== undefined ? { contextBudgetChars: deps.documents.contextBudgetChars } : {}),
     });
     const valuationModule = ValuationModule.register({ valuation, findings, pricing: { gateway: deps.documents?.gateway ?? new NotConfiguredClaudeGateway() } });
     // Reports (T-110), shared with the investment committee (T-118): an IC pack is a report.

@@ -1,4 +1,5 @@
 import { newId } from '@pactlab/domain';
+import type { RetrievalRecord } from './retrieval';
 import type { z } from 'zod';
 import type { CitableSource } from './context';
 import { sha256Hex } from './hash';
@@ -84,6 +85,8 @@ export interface AiRunRecord {
   readonly outputTokens: number;
   readonly latencyMs: number;
   readonly createdAt: string;
+  /** Pact-wide runs (T-139): how the pages sent were chosen; set by the caller, never by the gateway. */
+  readonly retrieval?: RetrievalRecord | null;
 }
 
 export interface GatewayResponse<TOutput = unknown> {

@@ -23,7 +23,10 @@ import {
   extractEnergyItems,
   extractMusicItems,
   extractOfferingItems,
+  retrievalRecord,
   scrubContract,
+  selectPages,
+  type PageSelection,
   GatewayPolicyError,
   PROHIBITED_CLASSIFICATIONS,
   type CitableSource,
@@ -75,6 +78,7 @@ import {
 } from './document-findings';
 import {
   CLAUDE_GATEWAY,
+  CONTEXT_BUDGET_CHARS,
   DOCUMENT_OBJECT_STORE,
   DOCUMENTS_REPOSITORY,
   MALWARE_SCANNER,
@@ -102,8 +106,47 @@ import {
   type MalwareScanner,
 } from './upload-policy';
 
-/** Direct long-context budget; larger corpora need retrieval (not in this slice). */
+/**
+ * The direct long-context budget (about 150k tokens). One document over it is refused; a pact-wide job over it
+ * reads the pages keyword retrieval ranks highest for the question (T-139, ADR 0045).
+ */
 export const MAX_CONTEXT_CHARS = 600_000;
+
+/** `AI_CONTEXT_BUDGET_CHARS` (optional): the budget in characters, 1,000 to 2,000,000; read once at startup. */
+export function contextBudgetChars(env: Readonly<Record<string, string | undefined>>): number {
+  const raw = env['AI_CONTEXT_BUDGET_CHARS']?.trim();
+  if (!raw) return MAX_CONTEXT_CHARS;
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value < 1_000 || value > 2_000_000) {
+    throw new Error('AI_CONTEXT_BUDGET_CHARS must be a whole number of characters from 1000 to 2000000');
+  }
+  return value;
+}
+
+/** At most this many documents are named in an answer's coverage (the rest are counted). */
+const COVERAGE_DOCUMENTS = 10;
+
+function coverageView(selection: PageSelection, names: ReadonlyMap<string, DocumentRecord>) {
+  const read = new Map<string, number[]>();
+  for (const page of selection.pages) read.set(page.documentId, [...(read.get(page.documentId) ?? []), page.pageNumber]);
+  // bounded: at most COVERAGE_DOCUMENTS documents, each with the pages read (which fit the budget)
+  const documents = [...read.entries()]
+    .map(([documentId, pageNumbers]) => ({ documentId, documentName: names.get(documentId)?.fileName ?? 'document', pageNumbers }))
+    .sort((a, b) => b.pageNumbers.length - a.pageNumbers.length || a.documentName.localeCompare(b.documentName) || a.documentId.localeCompare(b.documentId));
+  return {
+    strategy: selection.strategy,
+    partial: selection.partial,
+    documentsSearched: selection.documentsSearched,
+    pagesSearched: selection.pagesSearched,
+    documentsRead: selection.documentsRead,
+    pagesRead: selection.pagesRead,
+    summary: selection.partial
+      ? `Searched ${selection.documentsSearched} documents (${selection.pagesSearched} pages); read the ${selection.pagesRead} most relevant pages.`
+      : `Read all ${selection.pagesRead} pages of ${selection.documentsSearched} documents.`,
+    documents: documents.slice(0, COVERAGE_DOCUMENTS),
+    moreDocuments: Math.max(0, documents.length - COVERAGE_DOCUMENTS),
+  };
+}
 
 const has = (role: DealRole, permission: Permission) =>
   permissionsForDealRole(role).has(permission);
@@ -128,6 +171,24 @@ function refuseTable(document: DocumentRecord): void {
 
 const modelEligible = (document: DocumentRecord) =>
   document.status === 'AVAILABLE' && !document.aiExcluded && !PROHIBITED.has(document.dataClass);
+
+/** Pages with text, as citable sources (the page id is the citation id). */
+function citable(pages: readonly DocumentPageRecord[], byId: ReadonlyMap<string, DocumentRecord>): CitableSource[] {
+  return pages.flatMap((page) =>
+    page.text === null
+      ? []
+      : [
+          {
+            citationId: page.id,
+            documentId: page.documentId,
+            documentName: byId.get(page.documentId)?.fileName ?? 'document',
+            pageNumber: page.pageNumber,
+            text: page.text,
+            classification: byId.get(page.documentId)?.dataClass ?? 'BUSINESS',
+          },
+        ],
+  );
+}
 
 function uploadError(error: UploadRejectedError | ExtractionError): never {
   if (error instanceof ExtractionError) throw new UnprocessableEntityException();
@@ -208,6 +269,7 @@ export class DocumentsService {
     @Inject(MALWARE_SCANNER) private readonly scanner: MalwareScanner,
     @Inject(CLAUDE_GATEWAY) private readonly gateway: ClaudeGateway,
     @Inject(VisionPass) private readonly vision: VisionPass,
+    @Inject(CONTEXT_BUDGET_CHARS) private readonly budgetChars: number,
   ) {}
 
   private audit(
@@ -555,24 +617,30 @@ export class DocumentsService {
   ) {
     const byId = new Map(documents.map((d) => [d.id, d]));
     const pages = await this.documents.listPages(tenant, dealId, [...byId.keys()]);
-    const sources: CitableSource[] = pages.flatMap((page) =>
-      page.text === null
-        ? []
-        : [
-            {
-              citationId: page.id,
-              documentId: page.documentId,
-              documentName: byId.get(page.documentId)?.fileName ?? 'document',
-              pageNumber: page.pageNumber,
-              text: page.text,
-              classification: byId.get(page.documentId)?.dataClass ?? 'BUSINESS',
-            },
-          ],
-    );
-    if (sources.reduce((n, s) => n + s.text.length, 0) > MAX_CONTEXT_CHARS) {
+    const sources = citable(pages, byId);
+    if (sources.reduce((n, s) => n + s.text.length, 0) > this.budgetChars) {
       throw new UnprocessableEntityException();
     }
     return { sources, names: byId };
+  }
+
+  /**
+   * A pact-wide job's sources (T-139). Under the budget, every page, exactly as before (FULL). Over it, the pages
+   * keyword search ranks highest for the question, plus the neighbours of strong hits, until the budget is full
+   * (KEYWORD). Only the documents passed in are searched, so exclusions and visibility apply as they always have.
+   */
+  private async pactSources(tenant: TenantContext, dealId: string, documents: readonly DocumentRecord[], question: string) {
+    const byId = new Map(documents.map((d) => [d.id, d]));
+    const ids = [...byId.keys()];
+    const candidates = await this.documents.pageSizes(tenant, dealId, ids);
+    const fits = candidates.reduce((n, page) => n + page.chars, 0) <= this.budgetChars;
+    const hits = fits ? [] : await this.documents.rankPages(tenant, dealId, ids, question);
+    const selection = selectPages(candidates, hits, this.budgetChars);
+    const pages =
+      selection.strategy === 'FULL'
+        ? await this.documents.listPages(tenant, dealId, ids)
+        : await this.documents.pagesById(tenant, dealId, selection.pages.map((page) => page.pageId));
+    return { sources: citable(pages, byId), names: byId, selection };
   }
 
   private citationView(citation: ResolvedCitation, names: ReadonlyMap<string, DocumentRecord>) {
@@ -599,7 +667,24 @@ export class DocumentsService {
       throw new NotFoundException();
     const eligible = requested.filter(modelEligible);
     if (eligible.length === 0) throw new UnprocessableEntityException();
-    const { sources, names } = await this.sources(tenant, dealId, eligible);
+    const { sources, names, selection } = await this.pactSources(tenant, dealId, eligible, body.question);
+    const coverage = coverageView(selection, names);
+    if (selection.strategy === 'KEYWORD' && sources.length === 0) {
+      // Nothing in the data room matched the question's words: no model call, and the reader is told what was searched.
+      await withTenant(this.prisma, tenant, (tx) =>
+        appendAuditEvent(tx, this.audit(tenant, dealId, 'document.question.asked', { type: 'deal', id: dealId }, requestId)),
+      );
+      return {
+        aiRunId: null,
+        status: 'UNANSWERABLE' as const,
+        answer: null,
+        claims: [],
+        rejectedClaims: [],
+        generatedBy: null,
+        documentIds: eligible.map((d) => d.id),
+        coverage,
+      };
+    }
 
     let outcome;
     try {
@@ -612,7 +697,8 @@ export class DocumentsService {
     } catch (error) {
       gatewayError(error);
     }
-    const { run, result, providerError } = outcome;
+    const { result, providerError } = outcome;
+    const run = { ...outcome.run, retrieval: retrievalRecord(selection) };
     await this.documents.recordAiRun(
       tenant,
       run,
@@ -643,6 +729,7 @@ export class DocumentsService {
         resolvedModelId: run.resolvedModelId,
       },
       documentIds: eligible.map((d) => d.id),
+      coverage,
     };
   }
 
