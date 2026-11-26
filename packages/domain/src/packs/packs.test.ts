@@ -141,6 +141,19 @@ describe('pack registry', () => {
     expect(peopleColumnProblems(IMPORT_TARGET_DEFINITIONS.ECOMMERCE_CHANNEL_ORDERS, ['month', 'channel', 'customer_email'])).toHaveLength(1);
   });
 
+  it('IT & professional services reads time and billing, the ageing reports and the covenant register (T-167)', () => {
+    const services = PACKS.PROFESSIONAL_SERVICES;
+    expect(services).toMatchObject({ slug: 'professional-services', cluster: 'services', metricCalculator: 'services-practice', built: true, valuationMethods: ['DCF', 'ARR_MULTIPLE'] });
+    expect(services.importTargets).toEqual(['BILLING_INVOICE_LINE', 'SERVICES_TIMESHEETS', 'SERVICES_HEADCOUNT', 'SERVICES_TIME_BILLING', 'SERVICES_AGEING']);
+    // The T-063 rules stay, first and unchanged.
+    expect(services.findingRules.slice(0, 3)).toEqual(['services-utilization-gap', 'services-client-termination', 'services-delivery-attrition']);
+    expect(services.findingRules).toHaveLength(12);
+    expect(services.documentCategories).toEqual(['COVENANT_REGISTER']);
+    expect(IMPORT_TARGET_DEFINITIONS.SERVICES_TIME_BILLING).toMatchObject({ people: 'PSEUDONYMOUS', refusesPeopleColumns: true });
+    expect(IMPORT_TARGET_DEFINITIONS.SERVICES_AGEING).toMatchObject({ people: 'NONE', refusesPeopleColumns: true });
+    expect(peopleColumnProblems(IMPORT_TARGET_DEFINITIONS.SERVICES_TIME_BILLING, ['month', 'fee_earner', 'full_name', 'salary'])).toHaveLength(2);
+  });
+
   it('every pack offers billing first, and only targets that exist (rule ids resolve in the API test)', () => {
     for (const id of PACK_IDS) {
       const pack = PACKS[id];

@@ -57,6 +57,11 @@ export const ECOMMERCE_COHORT_MONTH_EVIDENCE_TYPE = 'ecommerce.cohort_month';
 export const ECOMMERCE_AD_SPEND_MONTH_EVIDENCE_TYPE = 'ecommerce.ad_spend_month';
 export const ECOMMERCE_CHANNEL_MONTH_EVIDENCE_TYPE = 'ecommerce.channel_month';
 export const ECOMMERCE_STOCK_LOT_EVIDENCE_TYPE = 'ecommerce.stock_lot';
+/** IT and professional services (T-063, T-167): timesheets, headcount movements, time and billing, and the WIP and debtor ageing reports. */
+export const SERVICES_TIMESHEET_MONTH_EVIDENCE_TYPE = 'services.timesheet_month';
+export const SERVICES_HEADCOUNT_MONTH_EVIDENCE_TYPE = 'services.headcount_month';
+export const SERVICES_BILLING_MONTH_EVIDENCE_TYPE = 'services.billing_month';
+export const SERVICES_AGEING_BAND_EVIDENCE_TYPE = 'services.ageing_band';
 
 /**
  * Every evidence type the adapters and engines emit, with the direction each
@@ -338,6 +343,33 @@ export const VALUATION_DIRECTION_MAP: Readonly<Record<string, readonly Direction
     { signal: 'contribution-compressing', findingDomain: 'COMMERCIAL', defaultDirection: -1, channel: 'ASSUMPTION' },
   ],
   [ECOMMERCE_STOCK_LOT_EVIDENCE_TYPE]: [{ signal: 'aged-inventory', findingDomain: 'OPERATIONAL', defaultDirection: -1, channel: 'PRICED_TERM' }],
+  // IT and professional services (T-063, T-167, ADR 0055): utilization, realization and fees by client and by partner
+  // recomputed from the exports, ageing drift from the reports, covenant cover read from the documents. Arithmetic and
+  // documents only; people appear only by pseudonymous reference and are never assessed.
+  [SERVICES_TIMESHEET_MONTH_EVIDENCE_TYPE]: [{ signal: 'utilization-gap', findingDomain: 'FINANCIAL', defaultDirection: -1, channel: 'ASSUMPTION' }],
+  [SERVICES_HEADCOUNT_MONTH_EVIDENCE_TYPE]: [{ signal: 'delivery-attrition', findingDomain: 'PEOPLE', defaultDirection: -1, channel: 'ASSUMPTION' }],
+  [SERVICES_BILLING_MONTH_EVIDENCE_TYPE]: [
+    { signal: 'claim-contradicted', findingDomain: 'COMMERCIAL', defaultDirection: -1, channel: 'ASSUMPTION' },
+    { signal: 'claim-verified', findingDomain: 'COMMERCIAL', defaultDirection: 1, channel: 'CONFIRMATION' },
+    {
+      signal: 'claim-unverified',
+      findingDomain: 'COMMERCIAL',
+      defaultDirection: 0,
+      channel: 'INFORMATIONAL',
+      rationale: 'A concentration ceiling the export cannot check is a gap to close, neither priced nor relied on.',
+    },
+    { signal: 'realization-falling', findingDomain: 'FINANCIAL', defaultDirection: -1, channel: 'ASSUMPTION' },
+    { signal: 'fees-unreconciled', findingDomain: 'FINANCIAL', defaultDirection: -1, channel: 'ASSUMPTION' },
+    { signal: 'rainmaker-uncovered', findingDomain: 'PEOPLE', defaultDirection: -1, channel: 'PRICED_TERM' },
+    {
+      signal: 'revenue-quality',
+      findingDomain: 'FINANCIAL',
+      defaultDirection: 0,
+      channel: 'INFORMATIONAL',
+      rationale: 'The recurring and project split of fees is a record for the scenarios, not a defect.',
+    },
+  ],
+  [SERVICES_AGEING_BAND_EVIDENCE_TYPE]: [{ signal: 'ageing-drift', findingDomain: 'FINANCIAL', defaultDirection: -1, channel: 'PRICED_TERM' }],
   [DOCUMENT_FINDING_EVIDENCE_TYPE]: [
     // A product one manufacturer makes, with no second source described (T-163).
     {
@@ -406,6 +438,10 @@ export const ADAPTER_EVIDENCE_TYPES = [
   ECOMMERCE_AD_SPEND_MONTH_EVIDENCE_TYPE,
   ECOMMERCE_CHANNEL_MONTH_EVIDENCE_TYPE,
   ECOMMERCE_STOCK_LOT_EVIDENCE_TYPE,
+  SERVICES_TIMESHEET_MONTH_EVIDENCE_TYPE,
+  SERVICES_HEADCOUNT_MONTH_EVIDENCE_TYPE,
+  SERVICES_BILLING_MONTH_EVIDENCE_TYPE,
+  SERVICES_AGEING_BAND_EVIDENCE_TYPE,
 ] as const;
 
 /** The default direction for one signal, or null when the map does not know it. */

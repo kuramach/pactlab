@@ -1,5 +1,7 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { ACCEPTANCE_CURRENCIES, acceptAndValue, startAcceptanceDeal, type AcceptanceDeal } from './acceptance-kit';
+import { ACCEPTANCE_CURRENCIES, acceptAndValue, startAcceptanceDeal, type AcceptanceDeal, type Body } from './acceptance-kit';
 
 type FindingView = {
   id: string;
@@ -12,52 +14,148 @@ type FindingView = {
   evidence: { evidenceItemId: string | null; documentCitation: { pageNumber: number; quote: string } | null }[];
 };
 
+/** Line kinds a person confirms for the demo P&L: revenue lines, "cost of" lines, the rest operating costs. */
+const lineKind = (account: string) => (/revenue/i.test(account) ? 'REVENUE' : /^cost of/i.test(account) ? 'COGS' : 'OPEX');
+
 /**
- * T-063 acceptance: pactlab-demo-data/professional-services/<CURRENCY> loaded
- * into a fresh deal surfaces the three planted findings as cited drafts; the
- * utilization gap, priced by the reviewer, reaches a valuation run.
+ * T-063 and T-167 acceptance: pactlab-demo-data/professional-services/<CURRENCY> loaded into a fresh deal
+ * through the real APIs — billing, timesheets, headcount movements, time and billing, the WIP and debtor
+ * ageing reports, the three-year P&L and every document — surfaces the folder's planted findings as cited
+ * drafts: the T-063 three, and (a) the top client at 27% of fees against the deck's 15% ceiling, a
+ * contradicted claim; (b) realization falling across the three P&L years, which a single year misses; (c)
+ * two rainmakers with no non-solicit on file; and (d) WIP over 90 days doubled in a year, priced into
+ * working capital. The priced WIP drift reaches a valuation run; the Practice view is the buyer's.
  */
-describe.each(ACCEPTANCE_CURRENCIES)('professional services pack acceptance (%s)', { timeout: 60_000 }, (currency) => {
+describe.each(ACCEPTANCE_CURRENCIES)('professional services pack acceptance (%s)', { timeout: 90_000 }, (currency) => {
   let deal: AcceptanceDeal;
-  const findings = async () => (await deal.call('GET', `/v1/deals/${deal.dealId}/findings`, 'lead')).body['items'] as FindingView[];
+  let pnlUploadId = '';
+  const findings = async () => (await deal.call('GET', `/v1/deals/${deal.dealId}/findings?limit=100`, 'lead')).body['items'] as FindingView[];
+  const runRules = () => deal.call('POST', `/v1/deals/${deal.dealId}/findings/pack-rules/run`, 'lead');
 
   beforeAll(async () => {
     deal = await startAcceptanceDeal('PROFESSIONAL_SERVICES', currency);
-  }, 120_000);
+    // The P&L by year (FY2023–FY2025), years across the columns, line kinds confirmed by a person.
+    const csv = readFileSync(join(deal.folder, 'pnl.csv'), 'utf8');
+    const uploaded = await deal.upload(`/v1/deals/${deal.dealId}/uploads?target=FINANCIAL_PNL&system=pactlab_standard&fileName=pnl.csv`, 'lead', csv);
+    expect(uploaded.status, JSON.stringify(uploaded.body)).toBe(201);
+    pnlUploadId = uploaded.body['id'] as string;
+    const accounts = csv.trim().split('\n').slice(1).map((row) => row.split(',')[0] ?? '');
+    const mapping = { ...(uploaded.body['suggestedMapping'] as Body), lineKinds: Object.fromEntries(accounts.map((account) => [account, lineKind(account)])) };
+    const imported = await deal.call('POST', `/v1/deals/${deal.dealId}/uploads/${pnlUploadId}/import`, 'lead', { mapping });
+    expect(imported.body, JSON.stringify(imported.body)).toMatchObject({ syncRun: { status: 'SUCCEEDED', recordsCreated: accounts.length * 3 } });
+  }, 180_000);
   afterAll(async () => deal?.close());
 
-  it('the three planted findings surface as cited drafts; a re-run adds nothing', async () => {
-    const run = await deal.call('POST', `/v1/deals/${deal.dealId}/findings/pack-rules/run`, 'lead');
+  it('every planted finding surfaces as a cited draft; a re-run adds nothing', async () => {
+    const run = await runRules();
     expect(run.status, JSON.stringify(run.body)).toBe(200);
     expect(run.body).toMatchObject({ pack: 'PROFESSIONAL_SERVICES', unresolvedQuotes: 0 });
-    expect(Number(run.body['created']) + Number(run.body['existing'])).toBe(3);
-    expect((await deal.call('POST', `/v1/deals/${deal.dealId}/findings/pack-rules/run`, 'lead')).body).toMatchObject({ created: 0, existing: 3 });
+    const promised = Number(/You should see exactly these (\d+) findings/.exec(deal.readme)?.[1]);
+    expect(promised).toBe(13);
+    expect(Number(run.body['created']) + Number(run.body['existing'])).toBe(promised);
+    expect((await runRules()).body).toMatchObject({ created: 0, existing: promised });
 
     const byTitle = Object.fromEntries((await findings()).map((finding) => [finding.title, finding]));
-    // The README's figures for this folder: "reports 78%; … gives 64.7%".
+    // The README's list is exactly what the checks draft.
+    const listed = [...(deal.readme.split('You should see exactly these')[1]?.split('\n3. ')[0] ?? '').matchAll(/^ {3}\d+\. \*\*(.+?)\*\* — /gm)].map((match) => match[1]);
+    expect(listed.sort()).toEqual(Object.keys(byTitle).sort());
+
+    // T-063, unchanged.
     const [, reported, measured] = deal.readme.match(/reports ([0-9.]+%); `timesheets-summary.csv` gives ([0-9.]+%)/) ?? [];
     const utilization = byTitle['Utilization below the reported level'];
     expect(utilization).toMatchObject({ domain: 'FINANCIAL', direction: -1, pricedRisk: null });
     expect(utilization?.description).toContain(`reports ${reported} utilization; timesheets give ${measured} billable`);
-    expect(utilization?.evidence.filter((link) => link.documentCitation)).toHaveLength(1);
-
     const [, client, share] = deal.readme.match(/\*\* — (.+?) is ([0-9.]+%) of September 2026 revenue/) ?? [];
     const termination = byTitle['Largest client terminable for convenience'];
     expect(termination).toMatchObject({ domain: 'COMMERCIAL', direction: -1 });
     expect(termination?.description).toContain(`${client} is ${share} of September 2026 revenue`);
     expect(termination?.evidence.find((link) => link.documentCitation)?.documentCitation).toMatchObject({ pageNumber: 2, quote: expect.stringMatching(/sixty days. written notice/) });
+    expect(byTitle['Rising attrition in delivery roles']?.description).toMatch(/^Monthly delivery leavers rose from 1 in October 2025 to 4 in September 2026/);
 
-    const attrition = byTitle['Rising attrition in delivery roles'];
-    expect(attrition).toMatchObject({ domain: 'PEOPLE', direction: -1 });
-    expect(attrition?.description).toMatch(/^Monthly delivery leavers rose from 1 in October 2025 to 4 in September 2026/);
+    // (a) The top client at 27% of fees against the deck's 15% ceiling: contradicted, cited to the memorandum and the export.
+    const ceiling = byTitle['Claim contradicted: Client concentration ceiling'];
+    expect(ceiling).toMatchObject({ domain: 'COMMERCIAL', direction: -1, pricedRisk: null });
+    expect(ceiling?.description).toMatch(/Meridian Retail Group \(synthetic\), the largest client, carried 2[67]\.[0-9]% of the fees billed/);
+    expect(ceiling?.evidence.find((link) => link.documentCitation)?.documentCitation?.quote).toBe('A diversified book: no client exceeds 15% of fees.');
+    expect(ceiling?.evidence.filter((link) => link.evidenceItemId).length).toBeGreaterThan(0);
+    expect(byTitle['Claim verified: Partner concentration ceiling']?.direction).toBe(1);
+    const claims = (await deal.call('GET', `/v1/deals/${deal.dealId}/claims`, 'lead')).body['items'] as { status: string; origin: string }[];
+    expect(claims.filter((entry) => entry.origin === 'PACK_RULE').map((entry) => entry.status).sort()).toEqual(['CONTRADICTED', 'VERIFIED']);
+
+    // (b) Realization falling across the three years.
+    const realization = byTitle['Realization falling every year, 2023–2025'];
+    expect(realization).toMatchObject({ domain: 'FINANCIAL', direction: -1 });
+    expect(realization?.description).toMatch(/2023 92\.0% .*2024 87\.0% .*2025 81\.0%/);
+
+    // (c) Two rainmakers with no non-solicit on file, cited to the covenant register's sentence.
+    for (const ref of ['P-01', 'P-02']) {
+      const rainmaker = byTitle[`Rainmaker with no non-solicit or non-compete on file: ${ref}`];
+      expect(rainmaker, ref).toMatchObject({ domain: 'PEOPLE', direction: -1, pricedRisk: null });
+      expect(rainmaker?.evidence.find((link) => link.documentCitation)?.documentCitation?.quote).toMatch(/^P-01 and P-02: no non-compete or non-solicitation covenant/);
+    }
+    expect(Object.keys(byTitle).some((title) => /: P-0[345]$/.test(title))).toBe(false);
+
+    // (d) WIP over 90 days doubled in a year, priced into working capital in the pact's currency.
+    const wip = byTitle['WIP over 90 days up 2.1× in a year, 2024–2025'];
+    expect(wip).toMatchObject({ domain: 'FINANCIAL', direction: -1 });
+    expect(wip?.pricedRisk).toMatchObject({ type: 'PRICE_REDUCTION', currency });
+    expect(Object.keys(byTitle).some((title) => title.startsWith('Debtors over 90 days'))).toBe(false);
+
+    expect(Object.values(byTitle).find((finding) => finding.title.startsWith('Revenue quality: '))).toMatchObject({ direction: 0 });
+    expect(byTitle['P&L trend, 2023–2025']).toMatchObject({ direction: 0 });
+    expect(byTitle['WIP and bad-debt write-offs growing faster than revenue, 2023–2025']).toMatchObject({ direction: -1 });
   });
 
-  it('the reviewer prices the utilization gap; accepted, it reaches a valuation run', async () => {
-    const utilization = (await findings()).find((finding) => finding.title === 'Utilization below the reported level');
-    const lines = await acceptAndValue(deal, { id: utilization?.id ?? '', version: utilization?.version ?? 1 }, {
-      pricedRisk: { type: 'PRICE_REDUCTION', currency, low: '200000.00', high: '500000.00', basis: 'Normalised margin at measured utilization (synthetic).' },
-    });
-    expect(lines.find((line) => line.kind === 'FINDING_ADJUSTMENT')).toMatchObject({ findingId: utilization?.id, amount: { amount: '-200000.00' } });
+  it('the Practice view recomputes fees, realization, books and ageing, reads the covenant register and every P&L year with its file', async () => {
+    const view = await deal.call('GET', `/v1/deals/${deal.dealId}/services`, 'lead');
+    expect(view.status, JSON.stringify(view.body)).toBe(200);
+    const body = view.body as Body & {
+      fees: { trailing: Body; utilization: Body | null };
+      partners: { key: string; rainmaker: boolean; coverage: string }[];
+      years: { year: string; realization: string }[];
+      reconciliation: { years: { year: string; reconciles: boolean }[] };
+      ageing: { ledger: string; years: { year: string }[] }[];
+      trend: { years: { year: string; files: { fileName: string }[] }[] };
+    };
+    expect(body).toMatchObject({ version: 'services-practice-1', currency, canRunChecks: true, partnerBasis: 'RELATIONSHIP_PARTNER', documentsRead: true });
+    expect(body.fees.trailing).toMatchObject({ from: '2025-10', to: '2026-09', missing: [] });
+    expect(body.fees.utilization).toMatchObject({ months: 12 });
+    expect(body.partners.map((partner) => [partner.key, partner.rainmaker, partner.coverage])).toEqual([
+      ['P-01', true, 'STATED_NONE'],
+      ['P-02', true, 'STATED_NONE'],
+      ['P-03', true, 'COVERED'],
+      ['P-04', true, 'COVERED'],
+      ['P-05', false, 'NOT_IN_EVIDENCE'],
+    ]);
+    expect(body.years.map((year) => [year.year, year.realization])).toEqual([['2023', '0.9200'], ['2024', '0.8700'], ['2025', '0.8100']]);
+    expect(body.reconciliation.years.map((year) => [year.year, year.reconciles])).toEqual([['2023', true], ['2024', true], ['2025', true]]);
+    expect(body.ageing.map((ledger) => [ledger.ledger, ledger.years.map((year) => year.year)])).toEqual([['ar', ['2023', '2024', '2025']], ['wip', ['2023', '2024', '2025']]]);
+    expect(body.trend.years.map((year) => [year.year, year.files.map((file) => file.fileName)])).toEqual([['2023', ['pnl.csv']], ['2024', ['pnl.csv']], ['2025', ['pnl.csv']]]);
+    // The pack's own figures on Finances.
+    const metrics = (await deal.call('GET', `/v1/deals/${deal.dealId}/metrics/pack`, 'lead')).body as { calculator: string; metrics: { key: string; value: string | null }[] };
+    expect(metrics.calculator).toBe('services-practice');
+    expect(Number(metrics.metrics.find((metric) => metric.key === 'largest_client_share')?.value)).toBeCloseTo(0.27, 1);
+    expect(Number(metrics.metrics.find((metric) => metric.key === 'realization')?.value)).toBeCloseTo(0.8, 1);
+    // The buyer's own side only; another tenant sees nothing.
+    expect((await deal.call('GET', `/v1/deals/${deal.dealId}/services`, 'target_contributor')).status).toBe(403);
+    expect((await deal.call('GET', `/v1/deals/${deal.dealId}/services`, 'other')).status).toBe(404);
+  });
+
+  it('accepted, the priced WIP drift reaches a valuation run', async () => {
+    const wip = (await findings()).find((finding) => finding.title.startsWith('WIP over 90 days'));
+    const lines = await acceptAndValue(deal, { id: wip?.id ?? '', version: wip?.version ?? 1 });
+    const [whole = '0', fraction = ''] = (wip?.pricedRisk?.low ?? '').split('.');
+    expect(lines.find((line) => line.kind === 'FINDING_ADJUSTMENT')).toMatchObject({ findingId: wip?.id, amount: { amount: `-${whole}.${fraction.padEnd(2, '0')}` } });
+  });
+
+  it('a withdrawn P&L leaves the trend: the view reads no years and the reconciliation reads none', async () => {
+    const withdrawn = await deal.call('POST', `/v1/deals/${deal.dealId}/uploads/${pnlUploadId}/withdraw`, 'lead', { reason: 'Wrong version of the statement (synthetic)' });
+    expect(withdrawn.status, JSON.stringify(withdrawn.body)).toBe(200);
+    const after = (await deal.call('GET', `/v1/deals/${deal.dealId}/services`, 'lead')).body as { trend: { years: unknown[] }; reconciliation: { years: unknown[] }; years: unknown[] };
+    expect(after.trend.years).toEqual([]);
+    expect(after.reconciliation.years).toEqual([]);
+    // Realization by year still reads from the billing export.
+    expect(after.years).toHaveLength(3);
   });
 
   it('is refused to a target contributor and invisible to another tenant', async () => {

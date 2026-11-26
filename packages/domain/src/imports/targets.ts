@@ -22,6 +22,8 @@ export const IMPORT_TARGETS = [
   'TELECOM_SUBSCRIBERS',
   'SERVICES_TIMESHEETS',
   'SERVICES_HEADCOUNT',
+  'SERVICES_TIME_BILLING',
+  'SERVICES_AGEING',
   'PHARMA_PATENTS',
   'PHARMA_PIPELINE',
   'PHARMA_TRIAL_REGISTRY',
@@ -497,6 +499,60 @@ export const SERVICES_HEADCOUNT: TargetDefinition = {
     { name: 'starters', label: 'Starters', kind: 'decimal', required: true, hint: 'People who joined in the month.' },
     { name: 'leavers', label: 'Leavers', kind: 'decimal', required: true, hint: 'People who left in the month.' },
     { name: 'headcount', label: 'Headcount', kind: 'decimal', required: true, hint: 'At the end of the month.' },
+  ],
+};
+
+/**
+ * Professional services (T-167): the time-and-billing export — hours worked and billed, the standard value
+ * of the time and the amounts billed and collected, by month, client, engagement and fee-earner. Fee-earners
+ * appear only by pseudonymous reference (e.g. P-01), never by name or pay; their rate is in the standard
+ * value, never a column of its own. Utilization, realization, fees by client and by fee-earner and the
+ * recurring share are recomputed from these rows.
+ */
+export const SERVICES_TIME_BILLING: TargetDefinition = {
+  target: 'SERVICES_TIME_BILLING',
+  label: 'Time and billing',
+  fileName: 'time-billing.csv',
+  people: 'PSEUDONYMOUS',
+  refusesPeopleColumns: true,
+  evidenceType: 'services.billing_month',
+  recordIdField: 'month',
+  recordIdFields: ['month', 'client', 'engagement', 'fee_earner'],
+  observedAtFields: [],
+  fields: [
+    { name: 'month', label: 'Month', kind: 'text', required: true, hint: 'YYYY-MM.' },
+    { name: 'client', label: 'Client', kind: 'text', required: true, hint: 'The client billed (a business).' },
+    { name: 'engagement', label: 'Engagement type', kind: 'code', required: true, hint: 'retainer, managed_service, project or time_and_materials.' },
+    { name: 'fee_earner', label: 'Fee-earner reference', kind: 'text', required: true, hint: 'A pseudonymous reference such as P-01 — never a name, email or pay.' },
+    { name: 'grade', label: 'Grade', kind: 'text', required: false, hint: 'e.g. Partner, Director, Consultant.' },
+    { name: 'relationship_partner', label: 'Relationship partner reference', kind: 'text', required: false, hint: 'The pseudonymous reference of the partner who holds the client relationship.' },
+    { name: 'hours_worked', label: 'Hours worked', kind: 'decimal', required: true, hint: 'Hours recorded to the client in the month.' },
+    { name: 'hours_billed', label: 'Hours billed', kind: 'decimal', required: false, hint: 'Hours charged to the client in the month.' },
+    { name: 'standard_value', label: 'Standard value', kind: 'money', required: true, hint: `Hours worked at the firm’s standard rates. ${IN_BASE_CURRENCY}` },
+    { name: 'billed', label: 'Billed', kind: 'money', required: true, hint: `Fees invoiced for the time. ${IN_BASE_CURRENCY}` },
+    { name: 'collected', label: 'Collected', kind: 'money', required: false, hint: `Cash received against those fees. ${IN_BASE_CURRENCY}` },
+  ],
+};
+
+/**
+ * Professional services (T-167): the work-in-progress and debtor ageing reports — the balance in each age
+ * band of each ledger at a report date, usually each year end. Ageing drift by year is read from them.
+ */
+export const SERVICES_AGEING: TargetDefinition = {
+  target: 'SERVICES_AGEING',
+  label: 'WIP and debtor ageing',
+  fileName: 'wip-ar-ageing.csv',
+  people: 'NONE',
+  refusesPeopleColumns: true,
+  evidenceType: 'services.ageing_band',
+  recordIdField: 'as_of',
+  recordIdFields: ['as_of', 'ledger', 'band'],
+  observedAtFields: [],
+  fields: [
+    { name: 'as_of', label: 'Report date', kind: 'date', required: true, hint: 'The date the ageing report was taken, YYYY-MM-DD.' },
+    { name: 'ledger', label: 'Ledger', kind: 'code', required: true, hint: 'wip (unbilled work in progress) or ar (billed debtors).' },
+    { name: 'band', label: 'Age band', kind: 'code', required: true, hint: '0-30, 31-60, 61-90, 91-180 or 181+ days.' },
+    { name: 'amount', label: 'Balance', kind: 'money', required: true, hint: IN_BASE_CURRENCY },
   ],
 };
 
@@ -1312,6 +1368,8 @@ export const IMPORT_TARGET_DEFINITIONS: Readonly<Record<ImportTarget, TargetDefi
   TELECOM_SUBSCRIBERS,
   SERVICES_TIMESHEETS,
   SERVICES_HEADCOUNT,
+  SERVICES_TIME_BILLING,
+  SERVICES_AGEING,
   PHARMA_PATENTS,
   PHARMA_PIPELINE,
   PHARMA_TRIAL_REGISTRY,

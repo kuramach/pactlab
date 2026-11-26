@@ -17,7 +17,7 @@ export const PACK_IDS = COMPANY_TYPES.filter((type): type is PackId => type !== 
 export type PackCluster = 'technology' | 'healthcare' | 'real-estate' | 'services' | 'life-sciences' | 'consumer' | 'capital' | 'media-rights' | 'energy';
 
 /** Calculator ids in `@pactlab/calculations` (`metricCalculator`). */
-export const METRIC_CALCULATOR_IDS = ['saas-metrics', 'multifamily-metrics', 'music-royalties', 'energy-assets', 'spv-round', 'fintech-payments', 'healthcare-collections', 'clinics-practice', 'pharma-pipeline', 'ecommerce-channels'] as const;
+export const METRIC_CALCULATOR_IDS = ['saas-metrics', 'multifamily-metrics', 'music-royalties', 'energy-assets', 'spv-round', 'fintech-payments', 'healthcare-collections', 'clinics-practice', 'pharma-pipeline', 'ecommerce-channels', 'services-practice'] as const;
 export type MetricCalculatorId = (typeof METRIC_CALCULATOR_IDS)[number];
 
 /** Valuation method ids in `@pactlab/calculations` (`VALUATION_METHODS`). */
@@ -165,10 +165,29 @@ export const PACKS: Readonly<Record<PackId, PackDefinition>> = {
     findingRules: ['telecom-reported-subscribers', 'telecom-churn-turning', 'telecom-regional-concentration', 'telecom-wholesale-review'],
     // Subscriber revenue runs the SaaS metrics as they are (ARPU ≈ MRR per account, churn ≈ logo churn).
   },
+  // Utilization, realization and the people the fees depend on (T-063, extended by T-167, ADR 0055). The
+  // T-063 rules stay first; the pack adds the concentration claims register (fees by client and by partner
+  // against the deck's ceilings), the realization trend by year, fees reconciled to the P&L, the WIP and
+  // debtor ageing drift, the covenant register for rainmakers, the recurring revenue split and the P&L trend.
   PROFESSIONAL_SERVICES: {
     ...pack('PROFESSIONAL_SERVICES', 'professional-services', 'services', true),
-    importTargets: ['BILLING_INVOICE_LINE', 'SERVICES_TIMESHEETS', 'SERVICES_HEADCOUNT'],
-    findingRules: ['services-utilization-gap', 'services-client-termination', 'services-delivery-attrition'],
+    importTargets: ['BILLING_INVOICE_LINE', 'SERVICES_TIMESHEETS', 'SERVICES_HEADCOUNT', 'SERVICES_TIME_BILLING', 'SERVICES_AGEING'],
+    metricCalculator: 'services-practice',
+    findingRules: [
+      'services-utilization-gap',
+      'services-client-termination',
+      'services-delivery-attrition',
+      'services-concentration-claims',
+      'services-realization-trend',
+      'services-fee-reconciliation',
+      'services-ageing-drift',
+      'services-rainmaker-coverage',
+      'services-revenue-quality',
+      'services-pnl-trend',
+      'services-pnl-margin-drift',
+      'services-pnl-expense-outpacing',
+    ],
+    documentCategories: ['COVENANT_REGISTER'],
     // People-driven earnings value on DCF; retainer revenue also reads as recurring.
     valuationMethods: ['DCF', 'ARR_MULTIPLE'],
   },
