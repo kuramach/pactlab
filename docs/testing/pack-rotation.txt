@@ -1,0 +1,15 @@
+# Pack rotation order, one per line. Tue takes the next pack, Thu the one after; the list wraps.
+# Unbuilt packs are added here when they merge.
+software-saas
+healthcare
+small-clinics
+hospitals
+fintech
+ecommerce-dtc
+commercial-property
+multifamily
+hotels
+pharma-biotech
+professional-services
+telecom-media
+venture-raise
