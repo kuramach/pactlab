@@ -68,6 +68,8 @@ export function serverEnv(): Record<string, string> {
     AI_FIXTURE_LOG: AI_LOG,
     // Published macro forecasts come from invented fixture series: browser tests never call out.
     MACRO_FORECAST_SOURCE: 'fixture',
+    // Market rents (T-158) come from the fixture provider: blank, so a developer's .env key never reaches RentCast.
+    RENTCAST_API_KEY: '',
     NEXT_PUBLIC_APP_ENV: 'local',
     NEXT_PUBLIC_API_ORIGIN: API_ORIGIN,
     NEXT_TELEMETRY_DISABLED: '1',

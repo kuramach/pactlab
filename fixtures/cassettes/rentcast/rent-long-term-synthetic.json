@@ -1,0 +1,162 @@
+{
+  "cassetteVersion": 1,
+  "provider": "rentcast",
+  "source": "Hand-built from RentCast's API reference (GET /v1/avm/rent/long-term, read 2026-11-25); synthetic address, figures and comparables",
+  "recordedAt": "2026-11-25T00:00:00.000Z",
+  "interactions": [
+    {
+      "request": {
+        "method": "GET",
+        "path": "/v1/avm/rent/long-term",
+        "query": "address=500 Example Ave, Austin, TX 78701&bedrooms=1&compCount=15&propertyType=Apartment&squareFootage=690"
+      },
+      "response": {
+        "status": 200,
+        "headers": {},
+        "body": {
+          "rent": 1620,
+          "rentRangeLow": 1550,
+          "rentRangeHigh": 1690,
+          "subjectProperty": {
+            "formattedAddress": "500 Example Ave, Austin, TX 78701",
+            "propertyType": "Apartment",
+            "bedrooms": 1,
+            "squareFootage": 690,
+            "yearBuilt": 1987
+          },
+          "comparables": [
+            {
+              "formattedAddress": "1200 Sample St, Austin, TX 78702",
+              "propertyType": "Apartment",
+              "bedrooms": 1,
+              "bathrooms": 1,
+              "squareFootage": 690,
+              "price": 1580,
+              "distance": 0.31,
+              "daysOld": 3,
+              "correlation": 0.981,
+              "status": "Active"
+            },
+            {
+              "formattedAddress": "1216 Sample St, Austin, TX 78702",
+              "propertyType": "Apartment",
+              "bedrooms": 1,
+              "bathrooms": 1,
+              "squareFootage": 700,
+              "price": 1605,
+              "distance": 0.53,
+              "daysOld": 4,
+              "correlation": 0.969,
+              "status": "Active"
+            },
+            {
+              "formattedAddress": "1232 Sample St, Austin, TX 78702",
+              "propertyType": "Apartment",
+              "bedrooms": 1,
+              "bathrooms": 1,
+              "squareFootage": 710,
+              "price": 1630,
+              "distance": 0.75,
+              "daysOld": 5,
+              "correlation": 0.957,
+              "status": "Active"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/v1/avm/rent/long-term",
+        "query": "address=500 Example Ave, Austin, TX 78701&bedrooms=2&compCount=15&propertyType=Apartment&squareFootage=960"
+      },
+      "response": {
+        "status": 200,
+        "headers": {},
+        "body": {
+          "rent": 1985.5,
+          "rentRangeLow": 1890,
+          "rentRangeHigh": 2081,
+          "subjectProperty": {
+            "formattedAddress": "500 Example Ave, Austin, TX 78701",
+            "propertyType": "Apartment",
+            "bedrooms": 2,
+            "squareFootage": 960,
+            "yearBuilt": 1987
+          },
+          "comparables": [
+            {
+              "formattedAddress": "1200 Sample St, Austin, TX 78702",
+              "propertyType": "Apartment",
+              "bedrooms": 2,
+              "bathrooms": 1,
+              "squareFootage": 960,
+              "price": 1940,
+              "distance": 0.31,
+              "daysOld": 3,
+              "correlation": 0.981,
+              "status": "Active"
+            },
+            {
+              "formattedAddress": "1216 Sample St, Austin, TX 78702",
+              "propertyType": "Apartment",
+              "bedrooms": 2,
+              "bathrooms": 1,
+              "squareFootage": 970,
+              "price": 1965,
+              "distance": 0.53,
+              "daysOld": 4,
+              "correlation": 0.969,
+              "status": "Active"
+            },
+            {
+              "formattedAddress": "1232 Sample St, Austin, TX 78702",
+              "propertyType": "Apartment",
+              "bedrooms": 2,
+              "bathrooms": 1,
+              "squareFootage": 980,
+              "price": 1990,
+              "distance": 0.75,
+              "daysOld": 5,
+              "correlation": 0.957,
+              "status": "Active"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/v1/avm/rent/long-term",
+        "query": "address=500 Example Ave, Austin, TX 78701&bedrooms=4&compCount=15&propertyType=Apartment&squareFootage=1500"
+      },
+      "response": {
+        "status": 404,
+        "headers": {},
+        "body": {
+          "status": 404,
+          "error": "resource/not-found",
+          "message": "No comparables found for the specified property"
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/v1/avm/rent/long-term",
+        "query": "address=500 Example Ave, Austin, TX 78701&bedrooms=3&compCount=15&propertyType=Apartment&squareFootage=1180"
+      },
+      "response": {
+        "status": 429,
+        "headers": {},
+        "body": {
+          "status": 429,
+          "error": "auth/rate-limit-exceeded",
+          "message": "The rate limit of 20 requests per second has been exceeded"
+        }
+      }
+    }
+  ]
+}

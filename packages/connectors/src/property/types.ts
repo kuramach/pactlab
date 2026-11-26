@@ -36,3 +36,51 @@ export class PropertyDataError extends Error {
     this.name = 'PropertyDataError';
   }
 }
+
+/**
+ * A long-term rent estimate for one floor plan of a property (T-158): what one unit of these attributes
+ * rents for nearby, with the comparables it rests on. Amounts are decimal strings in USD (RentCast is US-only).
+ */
+export interface RentEstimateRequest {
+  /** "Street, City, State, Zip". */
+  readonly address: string;
+  readonly propertyType: 'Apartment' | 'Multi-Family';
+  /** 0 is a studio. */
+  readonly bedrooms: number;
+  readonly bathrooms: number | null;
+  readonly squareFootage: number | null;
+  /** 5–25 comparables. */
+  readonly compCount: number;
+}
+
+export interface RentComparable {
+  /** As the provider returns it; shown only on the citation view, never sent anywhere. */
+  readonly formattedAddress: string | null;
+  /** Monthly listed rent. */
+  readonly price: string;
+  /** Miles from the subject property. */
+  readonly distance: string | null;
+  /** Similarity to the subject, 0 to 1. */
+  readonly correlation: string | null;
+  readonly bedrooms: number | null;
+  readonly bathrooms: number | null;
+  readonly squareFootage: number | null;
+}
+
+export interface RentEstimate {
+  readonly currency: 'USD';
+  readonly rent: string;
+  readonly rentRangeLow: string;
+  readonly rentRangeHigh: string;
+  readonly comparables: readonly RentComparable[];
+}
+
+export interface MarketRentProvider {
+  /** Shown as the figure's source, e.g. "RentCast". */
+  readonly name: string;
+  /** Stored as the connector version of each retrieval. */
+  readonly version: string;
+  readonly mode: 'LIVE' | 'FIXTURE';
+  /** The estimate for one floor plan, or null when the provider has none for it (unknown address, too few comparables). */
+  estimateRent(request: RentEstimateRequest): Promise<RentEstimate | null>;
+}

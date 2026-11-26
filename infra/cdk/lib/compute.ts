@@ -168,6 +168,15 @@ export class PactlabCompute extends Construct {
     // Google's file picker (Google Drive files are chosen in it): a browser API key and the Cloud project number.
     const googlePickerKey = documentSecret('DocumentsGooglePickerKey', 'google-picker-api-key', 'Google Picker API key (browser, restricted to the web origin)');
     const googleProjectNumber = documentSecret('DocumentsGoogleProjectNumber', 'google-project-number', 'Google Cloud project number (the picker app id)');
+    // Market rents (T-158, ADR 0045): Pactlab's RentCast API key, a platform credential. Created `unset` (market rents
+    // off; the Check rents against the market button says so); scripts/rentcast-key.sh sets it. Only the API reads it.
+    const rentcastKey = new secretsmanager.Secret(this, 'RentCastApiKey', {
+      secretName: `pactlab/${config.name}/credentials/rentcast-api-key`,
+      description: `Pactlab ${config.name}: RentCast API key for market rents and property facts (unset: off)`,
+      encryptionKey: dataKey,
+      secretStringValue: SecretValue.unsafePlainText('unset'),
+      removalPolicy: statefulRemoval,
+    });
 
     // --- Images by commit SHA: the slim server image (api, worker), its "-tools" variant (migrate, seed) and the web image.
     const repositories = {
@@ -343,6 +352,7 @@ export class PactlabCompute extends Construct {
         MICROSOFT_OAUTH_CLIENT_SECRET: ecs.Secret.fromSecretsManager(microsoftOauthSecret),
         GOOGLE_PICKER_API_KEY: ecs.Secret.fromSecretsManager(googlePickerKey),
         GOOGLE_PROJECT_NUMBER: ecs.Secret.fromSecretsManager(googleProjectNumber),
+        RENTCAST_API_KEY: ecs.Secret.fromSecretsManager(rentcastKey),
       },
       portMappings: [{ containerPort: 4000 }],
       logging: logging('api'),

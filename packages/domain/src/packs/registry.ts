@@ -71,7 +71,7 @@ const MULTIFAMILY: PackDefinition = {
   ...pack('MULTIFAMILY', 'multifamily', 'real-estate', true),
   importTargets: ['BILLING_INVOICE_LINE', 'MULTIFAMILY_RENT_ROLL', 'MULTIFAMILY_T12', 'MULTIFAMILY_DELINQUENCY', 'MULTIFAMILY_INSPECTION'],
   metricCalculator: 'multifamily-metrics',
-  findingRules: ['multifamily-om-noi', 'multifamily-deferred-maintenance', 'multifamily-delinquency-concentration', 'multifamily-loss-to-lease'],
+  findingRules: ['multifamily-om-noi', 'multifamily-deferred-maintenance', 'multifamily-delinquency-concentration', 'multifamily-loss-to-lease', 'multifamily-below-market-range'],
   valuationMethods: ['NOI_CAP_RATE', 'DCF'],
 };
 

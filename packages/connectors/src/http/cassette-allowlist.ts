@@ -20,4 +20,10 @@ export const CASSETTE_KEYS: Readonly<Record<string, ReadonlySet<string>>> = {
     'nextPageToken', 'isLast', 'values', 'type', 'state', 'boardId', 'startDate', 'endDate',
     'customfield_12310293', 'customfield_12310921', 'customfield_12310940', 'customfield_10016', 'customfield_10020',
   ]),
+  // RentCast long-term rent estimates (T-158): the figures, the subject's building attributes and each comparable's
+  // listing; never owner or tax data. Hand-built from the API reference with synthetic values.
+  rentcast: new Set([
+    'rent', 'rentRangeLow', 'rentRangeHigh', 'subjectProperty', 'comparables', 'formattedAddress', 'propertyType', 'bedrooms',
+    'bathrooms', 'squareFootage', 'yearBuilt', 'price', 'distance', 'daysOld', 'correlation', 'status', 'error', 'message',
+  ]),
 };

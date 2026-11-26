@@ -1,7 +1,7 @@
 import { apiEnvSchema, applyDatabaseUrls, loadConfig, packPreviewEnabled } from '@pactlab/config';
 import { assertRuntimeRoleIsolation, createPrismaClient, S3ObjectStore } from '@pactlab/db';
 import { readFileSync } from 'node:fs';
-import { BoldSignSigningProvider, BoldSignWebhook, DocuSignOAuth, FixturePropertyProvider, LocalEncryptedSecretStore, parseSelfHostedHosts, RentCastPropertyProvider, StripeBillingProvider, UnconfiguredBillingProvider } from '@pactlab/connectors';
+import { BoldSignSigningProvider, BoldSignWebhook, DocuSignOAuth, FixtureMarketRentProvider, FixturePropertyProvider, LocalEncryptedSecretStore, parseSelfHostedHosts, RentCastMarketRentProvider, RentCastPropertyProvider, StripeBillingProvider, UnconfiguredBillingProvider } from '@pactlab/connectors';
 import { createLogger } from '@pactlab/observability';
 import { S3Client } from '@aws-sdk/client-s3';
 import { SecretsManagerClient } from '@aws-sdk/client-secrets-manager';
@@ -31,6 +31,8 @@ applyDatabaseUrls();
 // Fail closed: invalid configuration or an RLS-bypassing role stops startup.
 const config = loadConfig(apiEnvSchema);
 const logger = createLogger('api', { level: config.LOG_LEVEL });
+// RentCast (T-158): deployed environments pass the secret, created holding `unset` until scripts/rentcast-key.sh sets it.
+const rentcastKey = config.RENTCAST_API_KEY === 'unset' ? undefined : config.RENTCAST_API_KEY;
 const prisma = createPrismaClient({ connectionString: config.DATABASE_URL });
 // SES delivery events (T-109): SNS signing certificates are fetched through the SSRF-safe fetcher.
 const webFetcher = new HttpsWebFetcher();
@@ -151,7 +153,9 @@ const app = await createApp(
       enforce: config.BILLING_ENFORCEMENT,
       automaticTax: config.STRIPE_AUTOMATIC_TAX,
     },
-    property: config.RENTCAST_API_KEY ? new RentCastPropertyProvider(config.RENTCAST_API_KEY) : config.APP_ENV === 'production' ? null : new FixturePropertyProvider(),
+    property: rentcastKey ? new RentCastPropertyProvider(rentcastKey) : config.APP_ENV === 'production' ? null : new FixturePropertyProvider(),
+    // Market rents for a rent roll (T-158, docs/runbooks/rentcast.md): the same key; the fixture outside production; off in production without it.
+    marketRents: rentcastKey ? new RentCastMarketRentProvider(rentcastKey) : config.APP_ENV === 'production' ? null : new FixtureMarketRentProvider(),
     // E-signature (T-107) on the signing seam (T-136): SIGNING_PROVIDER lists the adapters Pactlab
     // signing may use here, the first being the default (unset: the fixture outside production).
     // Organizations may instead send from their own DocuSign, connected to Pactlab's registration.

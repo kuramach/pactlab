@@ -25,6 +25,8 @@ import { formatMoney } from '../../metrics/_lib/format';
 import { metricsApi } from '../../metrics/_lib/api';
 import type { DocumentRequestView } from './documents/requests-card';
 import { PropertyMetricsCard } from '../_lib/property-metrics';
+import { marketRentsOffer } from '../_lib/market-rents';
+import { marketRentsStatus } from '../_lib/market-rents-actions';
 import { BASIS_LABELS, describeGap, type ScenarioView } from '../../valuation/_lib/view';
 import type { Finding } from '@pactlab/domain';
 import type { AnchorsView, BenchmarkView } from '@pactlab/contracts';
@@ -86,6 +88,9 @@ export default async function DealOverviewPage({
   // the API refuses a counterparty, and the card is then left out.
   const [packMetrics, requests] = await Promise.all([metricsApi.pack(dealId), apiGet<{ items: DocumentRequestView[] }>(`/v1/deals/${dealId}/document-requests`)]);
   const requested = new Set(requests.kind === 'ok' ? requests.data.items.filter((request) => request.status === 'OPEN').flatMap((request) => request.items.filter((item) => !item.received).map((item) => item.id)) : []);
+  // Market rents (T-158): offered on a multifamily pact's metrics to the buyer team's writers; the API re-checks.
+  const marketStatus = packMetrics.kind === 'ok' && packMetrics.data.metrics.some((metric) => metric.key === 'market_rent_annual') && can.draft(viewer.role) ? await marketRentsStatus(dealId) : null;
+  const marketRents = marketStatus?.kind === 'ok' ? marketRentsOffer(marketStatus.data) : null;
   const hasSeller = viewer.members.some((member) => member.role === 'TARGET_CONTRIBUTOR' && member.status === 'ACTIVE');
   const scenarioItems = scenarios.kind === 'ok' ? scenarios.data.items : [];
   const pipeline = pipelineSteps(dealId, {
@@ -142,7 +147,7 @@ export default async function DealOverviewPage({
         </form>
       ) : null}
       <PipelineCard steps={pipeline} />
-      {packMetrics.kind === 'ok' ? <PropertyMetricsCard dealId={dealId} report={packMetrics.data} canAsk={can.draft(viewer.role) && hasSeller} requested={requested} /> : null}
+      {packMetrics.kind === 'ok' ? <PropertyMetricsCard dealId={dealId} report={packMetrics.data} canAsk={can.draft(viewer.role) && hasSeller} requested={requested} marketRents={marketRents} /> : null}
       {/* Certainty of close (T-117): how the buyer funds the deal, as attested; the seller's first question. */}
       {financing.kind === 'ok' && financing.data.side && financing.data.plans.some((entry) => entry.tranches.length > 0 || entry.escrow) ? (
         <Card>

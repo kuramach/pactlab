@@ -4,6 +4,11 @@ import Link from 'next/link';
 import { formatDecimal, formatMoney, formatRatio } from '../../metrics/_lib/format';
 import type { PackMetricsView } from '../../metrics/_lib/api';
 import { AskSellerButton } from './ask-seller';
+import type { MarketRentsOffer } from './market-rents';
+import { MarketRentsButton } from './market-rents-button';
+
+/** A figure that waits on market rents (T-158): the card offers the retrieval, never an ask of the seller. */
+export const MARKET_RENTS_NEED = 'MARKET_RENTS';
 
 type Metric = PackMetricsView['metrics'][number];
 
@@ -18,7 +23,7 @@ export function missingImports(metrics: readonly { label: string; value: string 
   const byImport = new Map<string, string[]>();
   for (const metric of metrics) {
     if (metric.value !== null) continue;
-    for (const id of metric.needs ?? []) byImport.set(id, [...(byImport.get(id) ?? []), metric.label]);
+    for (const id of (metric.needs ?? []).filter((need) => need !== MARKET_RENTS_NEED)) byImport.set(id, [...(byImport.get(id) ?? []), metric.label]);
   }
   return [...byImport.entries()].map(([id, labels]) => ({ id, metrics: labels }));
 }
@@ -26,6 +31,22 @@ export function missingImports(metrics: readonly { label: string; value: string 
 /** The note sent with a request: which file, and which figures it fills in. */
 export function requestNote(needs: readonly string[], metrics: readonly string[]): string {
   return `Pactlab needs ${needsLabel(needs)} to work out ${metrics.map((label) => label.toLowerCase()).join(', ')}. Please share it here.`;
+}
+
+/** Where a figure's inputs come from, when the pack has more than one source for it, with its cited records (T-158). */
+export function MetricSource({ dealId, metric }: { dealId: string; metric: Pick<Metric, 'source' | 'evidenceIds'> }) {
+  if (!metric.source) return null;
+  const cited = metric.evidenceIds ?? [];
+  return (
+    <dd className="flex flex-wrap gap-x-2 text-xs text-muted-foreground">
+      <span>Source: {metric.source}</span>
+      {cited.map((id, index) => (
+        <Link key={id} href={`/deals/${dealId}/evidence/${id}`} className="underline">
+          {cited.length === 1 ? 'open estimate' : `estimate ${index + 1}`}
+        </Link>
+      ))}
+    </dd>
+  );
 }
 
 const shown = (metric: Metric, currency: string) =>
@@ -41,6 +62,7 @@ export function PropertyMetricsCard({
   report,
   canAsk,
   requested,
+  marketRents = null,
 }: {
   dealId: string;
   report: PackMetricsView;
@@ -48,6 +70,8 @@ export function PropertyMetricsCard({
   canAsk: boolean;
   /** Import ids already asked for in an open request. */
   requested: ReadonlySet<string>;
+  /** Market rents (T-158) when this viewer may check them: the card offers the retrieval. */
+  marketRents?: MarketRentsOffer | null;
 }) {
   if (report.metrics.length === 0) return null;
   const missing = missingImports(report.metrics);
@@ -64,6 +88,7 @@ export function PropertyMetricsCard({
             </Link>
           </CardDescription>
         </div>
+        {marketRents ? <MarketRentsButton dealId={dealId} offer={marketRents} /> : null}
         {canAsk && unasked.length > 1 ? (
           <AskSellerButton
             dealId={dealId}
@@ -76,7 +101,8 @@ export function PropertyMetricsCard({
       <CardContent>
         <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {report.metrics.map((metric) => {
-            const needs = metric.value === null ? (metric.needs ?? []) : [];
+            const needsMarket = metric.value === null && (metric.needs ?? []).includes(MARKET_RENTS_NEED);
+            const needs = metric.value === null ? (metric.needs ?? []).filter((need) => need !== MARKET_RENTS_NEED) : [];
             const asked = needs.length > 0 && needs.every((id) => requested.has(id));
             return (
               <div key={metric.key} className={`flex flex-col gap-1 rounded-xl border p-4 ${metric.value === null ? 'border-dashed border-amber/40 bg-amber/5' : 'border-navy/10'}`}>
@@ -86,7 +112,7 @@ export function PropertyMetricsCard({
                 </dd>
                 {metric.value === null ? (
                   <dd className="flex flex-col gap-1.5 text-xs">
-                    <span>{needs.length > 0 ? `Needs ${needsLabel(needs)}.` : metric.unavailableReason}</span>
+                    <span>{needs.length > 0 ? `Needs ${needsLabel(needs)}.` : needsMarket ? 'Needs market rents: Check rents against the market.' : metric.unavailableReason}</span>
                     {asked ? (
                       <span className="font-medium text-muted-foreground">Requested from the seller</span>
                     ) : canAsk && needs.length > 0 ? (
@@ -98,9 +124,12 @@ export function PropertyMetricsCard({
                     ) : null}
                   </dd>
                 ) : (
-                  <dd className="text-xs text-muted-foreground">
-                    {metric.formula} · {metric.sourceCount} records
-                  </dd>
+                  <>
+                    <dd className="text-xs text-muted-foreground">
+                      {metric.formula} · {metric.sourceCount} records
+                    </dd>
+                    <MetricSource dealId={dealId} metric={metric} />
+                  </>
                 )}
               </div>
             );
