@@ -8,13 +8,14 @@ import { COMPANY_TYPES, type CompanyType } from '../pacts/types';
  * Startup equity SPV released with its pack (T-141, Kumar 2026-11-19).
  * Fintech released with its payments and licence checks (T-159, Kumar 2026-11-26).
  * Healthcare released with its payer-mix, denial and credentialing checks (T-160, Kumar 2026-11-26).
+ * Small clinics released with its owner-operator, referral and premises checks (T-161, Kumar 2026-11-26).
  * Releasing a pack is adding it here, in a reviewed change. The public site
  * keeps the same list (apps/site/lib/industry-stories.ts, RELEASED_INDUSTRY_SLUGS).
  *
  * Preview (dev, qa, local and tests) shows every company type, so the next
  * pack can be tested before release; stage and production show only these.
  */
-export const RELEASED_COMPANY_TYPES: readonly CompanyType[] = ['SOFTWARE_SAAS', 'MULTIFAMILY', 'VENTURE_RAISE', 'MUSIC_RIGHTS', 'ENERGY_GENERATION', 'STARTUP_SPV', 'FINTECH', 'HEALTHCARE'];
+export const RELEASED_COMPANY_TYPES: readonly CompanyType[] = ['SOFTWARE_SAAS', 'MULTIFAMILY', 'VENTURE_RAISE', 'MUSIC_RIGHTS', 'ENERGY_GENERATION', 'STARTUP_SPV', 'FINTECH', 'HEALTHCARE', 'SMALL_CLINICS'];
 
 export function isReleasedCompanyType(type: CompanyType): boolean {
   return RELEASED_COMPANY_TYPES.includes(type);

@@ -33,6 +33,8 @@ export const IMPORT_TARGETS = [
   'CLINICS_PATIENT_VOLUME',
   'CLINICS_EQUIPMENT',
   'CLINICS_CODING_SUMMARY',
+  'CLINICS_SERVICE_LINES',
+  'CLINICS_REFERRALS',
   'HOSPITALS_CENSUS',
   'HOSPITALS_PAYER_MIX',
   'VENTURE_CAP_TABLE',
@@ -708,6 +710,55 @@ export const CLINICS_CODING_SUMMARY: TargetDefinition = {
   ],
 };
 
+/**
+ * Small clinics (T-161): collections and direct costs by month, service line and pseudonymous provider,
+ * from the schedule and billing exports — the owner-operator's share and each line's margin are
+ * recomputed from it. Providers never by name (rule 7); the figures stay in deterministic code.
+ */
+export const CLINICS_SERVICE_LINES: TargetDefinition = {
+  target: 'CLINICS_SERVICE_LINES',
+  label: 'Service lines by provider',
+  fileName: 'service-lines.csv',
+  people: 'PSEUDONYMOUS',
+  refusesPeopleColumns: true,
+  evidenceType: 'clinics.service_line_month',
+  recordIdField: 'month',
+  recordIdFields: ['month', 'service_line', 'provider_ref'],
+  observedAtFields: [],
+  fields: [
+    { name: 'month', label: 'Month', kind: 'text', required: true, hint: 'YYYY-MM.' },
+    { name: 'service_line', label: 'Service line', kind: 'text', required: true, hint: 'e.g. Implants, Hygiene, Physiotherapy.' },
+    { name: 'provider_ref', label: 'Provider reference', kind: 'text', required: true, hint: 'A pseudonymous reference such as P01 — never a name or licence number.' },
+    { name: 'visits', label: 'Visits', kind: 'decimal', required: true, hint: 'Visits in the month (a count; no patient detail).' },
+    { name: 'collected', label: 'Collected', kind: 'money', required: true, hint: `Cash collected on those visits. ${IN_BASE_CURRENCY}` },
+    { name: 'direct_cost', label: 'Direct cost', kind: 'money', required: false, hint: `Supplies, lab fees and other costs of those visits, before overheads. ${IN_BASE_CURRENCY}` },
+  ],
+};
+
+/**
+ * Small clinics (T-161): visits by referral source and month, from the schedule export. Sources are
+ * organisations or channels (a hospital, a physician group, a plan, walk-in); a referring clinician
+ * appears only by pseudonymous reference.
+ */
+export const CLINICS_REFERRALS: TargetDefinition = {
+  target: 'CLINICS_REFERRALS',
+  label: 'Visits by referral source',
+  fileName: 'referrals.csv',
+  people: 'NONE',
+  refusesPeopleColumns: true,
+  evidenceType: 'clinics.referral_month',
+  recordIdField: 'month',
+  recordIdFields: ['month', 'referral_source'],
+  observedAtFields: [],
+  fields: [
+    { name: 'month', label: 'Month', kind: 'text', required: true, hint: 'YYYY-MM.' },
+    { name: 'referral_source', label: 'Referral source', kind: 'text', required: true, hint: 'The referring organisation or channel; never a patient.' },
+    { name: 'source_type', label: 'Source type', kind: 'text', required: false, hint: 'e.g. hospital, physician group, plan, self-referral.' },
+    { name: 'visits', label: 'Visits', kind: 'decimal', required: true, hint: 'Visits in the month from this source (a count).' },
+    { name: 'new_patients', label: 'New patients', kind: 'decimal', required: false, hint: 'Of those, first visits (a count).' },
+  ],
+};
+
 /** Hospitals (T-069): admissions, patient days and average daily census by month and service line — aggregates. */
 export const HOSPITALS_CENSUS: TargetDefinition = {
   target: 'HOSPITALS_CENSUS',
@@ -1139,6 +1190,8 @@ export const IMPORT_TARGET_DEFINITIONS: Readonly<Record<ImportTarget, TargetDefi
   CLINICS_PATIENT_VOLUME,
   CLINICS_EQUIPMENT,
   CLINICS_CODING_SUMMARY,
+  CLINICS_SERVICE_LINES,
+  CLINICS_REFERRALS,
   HOSPITALS_CENSUS,
   HOSPITALS_PAYER_MIX,
   VENTURE_CAP_TABLE,

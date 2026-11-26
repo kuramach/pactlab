@@ -1,6 +1,24 @@
 import { D } from '../../metrics/decimal';
-import { amountOf, INVOICE_LINE, monthName, percent, rowMonth } from '../common';
-import { findSentence, MAX_CITED, type PackRule, type PackRuleEvidence } from '../rule-types';
+import type { KeyExpense } from '../../pnl/trend';
+import { amountOf, grouped, INVOICE_LINE, monthName, percent, rowMonth } from '../common';
+import { CLINICIAN_MONTH } from '../healthcare/practice';
+import { pnlTrendRules } from '../pnl-trend';
+import { findSentence, MAX_CITED, type PackRule, type PackRuleEvidence, type PackRuleProposal, type PackRuleQuote } from '../rule-types';
+import {
+  clinicsAnalysisDate,
+  ownerOnlyLines,
+  ownerShare,
+  PREMISES_SHORT_TERM_MONTHS,
+  premisesStatuses,
+  REFERRAL_MONTH,
+  referralMonths,
+  referralWindow,
+  sellingOwner,
+  SERVICE_LINE_MONTH,
+  serviceLineMonths,
+  serviceLineWindow,
+  successionEvidence,
+} from './practice';
 
 /**
  * Small clinics pack rules (T-068, spec §19; extends healthcare, T-061).
@@ -115,5 +133,212 @@ export const CLINICS_EQUIPMENT_PAST_LIFE: PackRule = {
   },
 };
 
-export const CLINICS_RULES: readonly PackRule[] = [CLINICS_PROVIDER_CARRIES_SITE, CLINICS_CODING_ABOVE_POLICY, CLINICS_EQUIPMENT_PAST_LIFE];
-export const CLINICS_EVIDENCE = { VOLUME, EQUIPMENT, CODING } as const;
+// ---------------------------------------------------------------- owner, referrals, premises (T-161, ADR 0052)
+
+const cite = (rows: readonly { id: string }[]) => rows.slice(0, MAX_CITED).map((row) => row.id);
+const pct1 = (value: Decimal | null) => (value === null ? 'n/a' : percent(value));
+
+/** The selling owner's share of collections (or visits) at or above this, with no succession on file, is a finding. */
+export const OWNER_SHARE_THRESHOLD = '0.3';
+
+/**
+ * Owner-operator dependence: the selling owner (named by pseudonymous reference in a document) and
+ * their share of visits and collections over the trailing twelve months, recomputed from the service
+ * lines (or, without them, collections by clinician). Two drafts, each a retention risk the reviewer
+ * prices or makes a term (a transition agreement, an earnout, a non-compete): a service line only the
+ * owner delivers, with no associate collecting on it — HIGH when it is the highest-margin line; and an
+ * owner carrying 30% or more with no succession or associate coverage on file. With no document naming
+ * the owner, nothing is drafted: the Clinic page shows the absence.
+ */
+export const CLINICS_OWNER_DEPENDENCE: PackRule = {
+  id: 'clinics-owner-dependence',
+  version: '1',
+  evidenceTypes: [SERVICE_LINE_MONTH, CLINICIAN_MONTH],
+  readsDocuments: true,
+  detect: ({ evidence, pages }) => {
+    const owner = sellingOwner(pages);
+    if (!owner) return [];
+    const ref = owner.providerRef;
+    const out: PackRuleProposal[] = [];
+    const window = serviceLineWindow(serviceLineMonths(evidence));
+    if (window) {
+      const best = window.lines.find((line) => line.margin !== null) ?? null;
+      for (const line of ownerOnlyLines(window, ref)) {
+        const isBest = best?.serviceLine === line.serviceLine;
+        const rank = line.margin ? window.lines.filter((other) => other.margin?.gt(line.margin as Decimal)).length + 1 : null;
+        out.push({
+          key: `${ref}:${line.serviceLine}:sole`,
+          domain: 'PEOPLE',
+          title: isBest ? `The selling owner is the only provider of the highest-margin service line: ${line.serviceLine}` : `The selling owner is the only provider of ${line.serviceLine}`,
+          description:
+            `${owner.quote.quote} In the service-line export, ${window.from} to ${window.to}, ${line.serviceLine} collected ${grouped(line.collected)} (${pct1(line.share)} of all collections)` +
+            (line.margin ? ` at a ${pct1(line.margin)} margin after direct costs${rank ? `, ${isBest ? 'the highest' : `number ${rank}`} of ${window.lines.filter((other) => other.margin).length} lines` : ''}` : '') +
+            `, and ${ref} is the only provider who collected on it: no associate covers it. ` +
+            'A retention risk after closing, never a ranking: price it, or make a transition agreement or an earnout tied to the line a term.',
+          severity: isBest || (line.share?.gte('0.2') ?? false) ? 'HIGH' : 'MEDIUM',
+          confidence: 'HIGH',
+          direction: -1,
+          pricedRisk: null,
+          directionRationale: 'The line’s earnings depend on one person who is selling; price the risk or make a transition agreement a closing condition.',
+          evidenceIds: cite(line.rows),
+          quotes: [owner.quote],
+        });
+      }
+    }
+    const share = ownerShare(evidence, ref);
+    const succession = successionEvidence(pages);
+    const carried = [share?.collectionShare, share?.visitShare].some((value) => value?.gte(OWNER_SHARE_THRESHOLD));
+    if (share && carried && !succession?.inPlace) {
+      const source = share.source === 'SERVICE_LINES' ? 'service-line export' : 'collections-by-clinician export';
+      const quotes: PackRuleQuote[] = [owner.quote, ...(succession ? [succession.quote] : [])];
+      out.push({
+        key: `${ref}:${share.from}:${share.to}:no-succession`,
+        domain: 'PEOPLE',
+        title: `The selling owner delivers ${pct1(share.collectionShare)} of collections, with no succession or associate coverage on file`,
+        description:
+          `${owner.quote.quote} In the ${source}, ${share.from} to ${share.to}, ${ref} collected ${grouped(share.collected)} (${pct1(share.collectionShare)} of collections)` +
+          (share.visits && share.visitShare ? ` across ${share.visits.toFixed(0)} visits (${pct1(share.visitShare)} of visits)` : '') +
+          '. ' +
+          (succession ? `The documents say: “${succession.quote.quote}” ` : 'No document describes a succession plan, a transition period or associate coverage. ') +
+          'Collections may follow the owner out of the door; price it, or make a transition agreement and associate coverage terms of the deal.',
+        severity: (share.collectionShare?.gte('0.5') ?? false) ? 'HIGH' : 'MEDIUM',
+        confidence: 'HIGH',
+        direction: -1,
+        pricedRisk: null,
+        directionRationale: 'Earnings that leave with the seller: a haircut on the collections the scenarios assume, or an earnout and transition terms.',
+        evidenceIds: cite(share.rows),
+        quotes,
+      });
+    }
+    return out;
+  },
+};
+
+/** Self-referrals, walk-ins and direct bookings: patients choosing the clinic themselves, never one referrer. */
+const SELF_REFERRAL = /\b(?:self[- ]?referr\w*|walk[- ]?ins?|direct (?:booking|access)|online booking)\b/i;
+export const isSelfReferral = (source: { readonly source: string; readonly sourceType: string }) => SELF_REFERRAL.test(source.sourceType) || SELF_REFERRAL.test(source.source);
+
+/** One referral source at or above this share of visits is a finding. */
+export const REFERRAL_CONCENTRATION_THRESHOLD = '0.4';
+
+/**
+ * Referral concentration: visits by referral source over the trailing twelve months, recomputed from
+ * the referral export. A single dominant source (40% or more of visits; patients who refer themselves are
+ * not one source) is a drag: if it stops
+ * referring, volume falls. Arithmetic only: whether a referral arrangement is lawful is for counsel.
+ */
+export const CLINICS_REFERRAL_CONCENTRATION: PackRule = {
+  id: 'clinics-referral-concentration',
+  version: '1',
+  evidenceTypes: [REFERRAL_MONTH],
+  detect: ({ evidence }) => {
+    const window = referralWindow(referralMonths(evidence));
+    // Patients who come on their own are many people, not one source.
+    const top = window?.sources.find((source) => !isSelfReferral(source));
+    if (!window || !top?.share || top.share.lt(REFERRAL_CONCENTRATION_THRESHOLD)) return [];
+    const next = window.sources.find((source) => source !== top);
+    return [
+      {
+        key: `${top.source}:${window.from}:${window.to}`,
+        domain: 'COMMERCIAL',
+        title: `${pct1(top.share)} of visits come from one referral source: ${top.source}`,
+        description:
+          `Recomputed from the referral export, ${window.from} to ${window.to}: ${top.source}${top.sourceType ? ` (${top.sourceType})` : ''} referred ${top.visits.toFixed(0)} of ${window.visits.toFixed(0)} visits, ${pct1(top.share)}` +
+          (next ? `; the next largest, ${next.source}, ${pct1(next.share)}` : '') +
+          ` across ${window.sources.length} source${window.sources.length === 1 ? '' : 's'}.${window.missing.length ? ` Months missing from the export: ${window.missing.join(', ')}.` : ''} ` +
+          'If it stops referring, volume falls; price it as a haircut on the visits the scenarios assume. Pactlab reports arithmetic only: whether a referral arrangement is lawful is for counsel.',
+        severity: top.share.gte('0.5') ? 'HIGH' : 'MEDIUM',
+        confidence: 'HIGH',
+        direction: -1,
+        pricedRisk: null,
+        directionRationale: 'Volume that depends on one referrer: a haircut on visits, or a closing condition on the referral relationship.',
+        evidenceIds: cite(top.rows),
+      },
+    ];
+  },
+};
+
+const RENEWAL_TEXT = { GRANTED: 'the lease grants a renewal option', NONE: 'the lease states there is no renewal option', NOT_STATED: 'no sentence in the lease grants a renewal option' } as const;
+const ASSIGNMENT_TEXT = {
+  FREE: 'it may be assigned on a sale',
+  CONSENT: 'assigning it on a sale needs the landlord’s consent',
+  PROHIBITED: 'it may not be assigned',
+  NOT_STATED: 'it says nothing on assignment or a change of control',
+} as const;
+
+/**
+ * The clinic's premises, read from the lease: the term left after the expected closing (a document's
+ * stated closing date, else the analysis date), whether it can be renewed, and whether it can be
+ * assigned on a sale. A term ending within 24 months with no renewal option is a drag the reviewer
+ * prices as relocation or renegotiation risk; an assignment that needs the landlord's consent, or is
+ * barred, is a closing condition. Dates and sentences only, never a reading of the lease in law.
+ */
+export const CLINICS_PREMISES: PackRule = {
+  id: 'clinics-premises',
+  version: '1',
+  evidenceTypes: [SERVICE_LINE_MONTH, REFERRAL_MONTH, CLINICIAN_MONTH],
+  readsDocuments: true,
+  detect: ({ evidence, pages }) =>
+    premisesStatuses(pages, clinicsAnalysisDate(evidence)).flatMap((status): PackRuleProposal[] => {
+      const { lease, from } = status;
+      const quotes = [lease.heading, lease.expiry, lease.renewalQuote, lease.assignmentQuote].filter((quote): quote is PackRuleQuote => quote !== null);
+      const unique = quotes.filter((quote, index) => quotes.findIndex((other) => other.quote === quote.quote && other.pageNumber === quote.pageNumber) === index);
+      const measured = from ? (from.basis === 'EXPECTED_CLOSING' ? `the expected closing on ${from.date}` : `${from.date}, the end of the latest month in the exports (no document states a closing date)`) : '';
+      const out: PackRuleProposal[] = [];
+      if (status.short && lease.renewal !== 'GRANTED' && lease.expiresOn) {
+        out.push({
+          key: `${lease.documentId}:${lease.expiresOn}:short-term`,
+          domain: 'PROPERTY',
+          title: `Clinic lease ends ${status.monthsRemaining} month${status.monthsRemaining === 1 ? '' : 's'} after closing, with no renewal option`,
+          description:
+            `The lease term ends on ${lease.expiresOn}, ${status.monthsRemaining} whole month${status.monthsRemaining === 1 ? '' : 's'} after ${measured}; ${RENEWAL_TEXT[lease.renewal]}, and ${ASSIGNMENT_TEXT[lease.assignment]}. ` +
+            `Within ${PREMISES_SHORT_TERM_MONTHS} months the clinic must renegotiate on the landlord’s terms or relocate. Price it as relocation or renegotiation risk (a holdback or a price reduction the reviewer sets), or make a new lease a closing condition.`,
+          severity: (status.monthsRemaining ?? 0) <= 18 ? 'HIGH' : 'MEDIUM',
+          confidence: 'HIGH',
+          direction: -1,
+          pricedRisk: null,
+          directionRationale: 'Relocation or renegotiation cost after closing, priced by the reviewer from quotes or a rent survey.',
+          evidenceIds: [],
+          quotes: unique,
+        });
+      }
+      if (lease.assignment === 'CONSENT' || lease.assignment === 'PROHIBITED') {
+        out.push({
+          key: `${lease.documentId}:assignment:${lease.assignment}`,
+          domain: 'PROPERTY',
+          title: lease.assignment === 'CONSENT' ? 'Clinic lease: assignment on a sale needs the landlord’s consent' : 'Clinic lease may not be assigned',
+          description: `“${lease.assignmentQuote?.quote ?? ''}” Make the landlord’s written consent (or a new lease) a closing condition. A reading of the sentence, not legal advice.`,
+          severity: lease.assignment === 'PROHIBITED' ? 'HIGH' : 'MEDIUM',
+          confidence: 'HIGH',
+          direction: 0,
+          directionRationale: 'A closing condition, not a price term.',
+          evidenceIds: [],
+          quotes: lease.assignmentQuote ? [lease.assignmentQuote] : [],
+        });
+      }
+      return out;
+    }),
+};
+
+/** A clinic's key expenses for the multi-year P&L trend: supplies, lab fees, clinical staff and occupancy. */
+export const CLINICS_KEY_EXPENSES: readonly KeyExpense[] = [
+  { key: 'supplies', label: 'Clinical and dental supplies', pattern: /\bsuppl(?:y|ies)\b/i },
+  { key: 'lab', label: 'Laboratory fees', pattern: /\blab(?:oratory)? (?:fees?|costs?)\b/i },
+  { key: 'clinical', label: 'Clinical staff costs', pattern: /\bclinical (?:staff|labou?r)\b|\bassociate (?:pay|costs?)\b/i },
+  { key: 'occupancy', label: 'Rent and occupancy', pattern: /\b(?:rent|occupancy)\b/i },
+];
+
+export const [CLINICS_PNL_TREND, CLINICS_PNL_MARGIN_DRIFT, CLINICS_PNL_EXPENSE_OUTPACING] = pnlTrendRules('clinics', CLINICS_KEY_EXPENSES) as [PackRule, PackRule, PackRule];
+
+export const CLINICS_RULES: readonly PackRule[] = [
+  CLINICS_PROVIDER_CARRIES_SITE,
+  CLINICS_CODING_ABOVE_POLICY,
+  CLINICS_EQUIPMENT_PAST_LIFE,
+  CLINICS_OWNER_DEPENDENCE,
+  CLINICS_REFERRAL_CONCENTRATION,
+  CLINICS_PREMISES,
+  CLINICS_PNL_TREND,
+  CLINICS_PNL_MARGIN_DRIFT,
+  CLINICS_PNL_EXPENSE_OUTPACING,
+];
+export const CLINICS_EVIDENCE = { VOLUME, EQUIPMENT, CODING, SERVICE_LINE_MONTH, REFERRAL_MONTH } as const;

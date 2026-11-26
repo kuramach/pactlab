@@ -1,5 +1,6 @@
 import { Inject, Injectable, NotFoundException, PayloadTooLargeException, UnprocessableEntityException } from '@nestjs/common';
 import {
+  CLINICS_KEY_EXPENSES,
   CLINICIAN_CONCENTRATION_THRESHOLD,
   CLINICIAN_MONTH,
   clinicianMonths,
@@ -110,11 +111,13 @@ export class HealthcareService {
     @Inject(DealAccess) private readonly access: DealAccess,
   ) {}
 
+  /** A healthcare services pact, or its few-site clinic variant (T-161), which reuses this view as it is. */
   private async requireHealthcare(tx: TransactionClient, dealId: string) {
     const deal = await tx.deal.findUnique({ where: { id: dealId }, select: { baseCurrency: true, parties: { where: { role: 'SELLER' }, select: { companyType: true } } } });
     if (!deal) throw new NotFoundException();
-    if (deal.parties[0]?.companyType !== 'HEALTHCARE') throw new UnprocessableEntityException({ code: 'NOT_A_HEALTHCARE_PACT', message: 'This pact is not a healthcare services pact' });
-    return deal;
+    const type = deal.parties[0]?.companyType;
+    if (type !== 'HEALTHCARE' && type !== 'SMALL_CLINICS') throw new UnprocessableEntityException({ code: 'NOT_A_HEALTHCARE_PACT', message: 'This pact is not a healthcare services pact' });
+    return { ...deal, keyExpenses: type === 'SMALL_CLINICS' ? CLINICS_KEY_EXPENSES : HEALTHCARE_KEY_EXPENSES };
   }
 
   async view(tenant: TenantContext, dealId: string, requestId: string) {
@@ -160,7 +163,7 @@ export class HealthcareService {
       const statuses = credentialStatuses(credentialList, pages, asOf, collections);
       const exceptions = statuses.filter((status) => status.state !== 'ACTIVE' && status.state !== 'NO_EXPIRY');
       const recognised = healthcareComplianceDocuments(pages);
-      const trend = pnlTrend(imported.periods, HEALTHCARE_KEY_EXPENSES);
+      const trend = pnlTrend(imported.periods, deal.keyExpenses);
 
       return {
         guardrail: HEALTHCARE_GUARDRAIL,

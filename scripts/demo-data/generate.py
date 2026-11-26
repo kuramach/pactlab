@@ -427,7 +427,9 @@ PACK_IMPORTS = {
     'ecommerce-dtc': {'orders-by-cohort': 'Orders by cohort', 'ad-spend': 'Ad spend'},
     'commercial-property': {'rent-roll': 'Commercial rent roll', 'cam-reconciliation': 'CAM reconciliation'},
     'hotels': {'operating-history': 'Operating history', 'str-benchmark': 'STR benchmark'},
-    'small-clinics': {'patient-volume': 'Patient volume', 'equipment-schedule': 'Equipment schedule', 'coding-summary': 'Coding summary'},
+    'small-clinics': {'patient-volume': 'Patient volume', 'equipment-schedule': 'Equipment schedule', 'coding-summary': 'Coding summary', 'remittances': 'Remittances by payer',
+                      'clinician-collections': 'Collections by clinician', 'credentialing-register': 'Credentialing register', 'payer-contracts': 'Payer contract register',
+                      'service-lines': 'Service lines by provider', 'referrals': 'Visits by referral source'},
     'hospitals': {'census': 'Census', 'payer-mix': 'Payer mix'},
     'venture-raise': {'cap-table': 'Cap table', 'monthly-financials': 'Monthly financials'},
     'multifamily-syndication': {'rent-roll': 'Rent roll', 't12': 'T-12 operating statement', 'delinquency': 'Delinquency report', 'unit-inspections': 'Unit inspections', 'track-record': 'Sponsor track record'},
@@ -1294,12 +1296,173 @@ def clinics(ds):
 
 Highest-complexity codes are expected for about 15% of visits. Higher shares require a documented clinical review.
 ''', 'Coding and billing policy')
+
+    # --- T-161: the healthcare evidence set, scaled to the clinic, and what concentrates in one: the owner, a referrer, a lease.
+    rng = ds.rng
+    klass = {'Insurer Bluepoint': 'commercial', 'Insurer Harrowgate': 'commercial', 'Government scheme': 'medicaid', 'Patients — self-pay': 'self_pay'}
+    yield_usd = {'commercial': D('118'), 'medicaid': D('74'), 'self_pay': D('96')}
+    r_months, (yy, mm) = [], (2023, 1)
+    while (yy, mm) <= (2026, 9):
+        r_months.append(f'{yy}-{mm:02d}'); mm += 1
+        if mm == 13: yy, mm = yy + 1, 1
+    first_billed = MONTHS[0]
+    pre = [mo for mo in r_months if mo < first_billed]
+    remit = []   # [month, payer, class, claims, denied, billed, collected, ar] — a steady mix, flat denials and days in AR
+    for k, mo in enumerate(r_months):
+        for _, name, monthly in ds.customers:
+            payer = name.replace(' (synthetic)', '')
+            collected = q(monthly[mo]) if mo >= first_billed else q(monthly[first_billed] / (D('1.005') ** (len(pre) - k)))
+            cl = klass[payer]
+            claims = whole(collected / (ds.amt(yield_usd[cl]) * (D(1) + D(rng.randint(-10, 10)) / 1000)))
+            denied = whole(claims * D('0.048') * (D(1) + D(rng.randint(-30, 30)) / 1000))
+            billed = q(collected * D('1.31'))
+            ar = q(billed * D(36) / D('30.4') * (D(1) + D(rng.randint(-15, 15)) / 1000))
+            remit.append([mo, name, cl, claims, denied, billed, collected, ar])
+    ds.ext('remittances', ['month', 'payer', 'payer_class', 'claims', 'denied_claims', 'billed', 'collected', 'ar_balance'],
+           [[r[0], r[1], r[2], f'{r[3]:.0f}', f'{r[4]:.0f}', f'{r[5]:.2f}', f'{r[6]:.2f}', f'{r[7]:.2f}'] for r in remit],
+           'Remittances by month and payer: claims, denials, charges billed, cash collected and receivables at month end')
+    def year_of(y): return [r for r in remit if r[0].startswith(y)]
+    def days_in_ar(y):
+        rows = year_of(y)
+        return sum(r[7] for r in rows if r[0] == f'{y}-12') / (sum(r[5] for r in rows) / 365)
+
+    # Service lines by provider, the last twelve months. P01 is the selling owner and the only provider of
+    # implants, the highest-margin line (planted (c)); associates share every other line.
+    lines = [  # line, share of collections, direct-cost ratio, providers (owner first when the owner works the line)
+        ('Implants', D('0.17'), D('0.34'), ['P01']),
+        ('Restorative dentistry', D('0.29'), D('0.46'), ['P01', 'P02', 'P05', 'P06']),
+        ('Hygiene', D('0.22'), D('0.52'), ['P03', 'P04', 'P09']),
+        ('Physiotherapy', D('0.32'), D('0.55'), ['P13', 'P14', 'P17', 'P18', 'P21']),
+    ]
+    site_of = {'P01': 'Site 1', 'P02': 'Site 1', 'P03': 'Site 1', 'P04': 'Site 2', 'P05': 'Site 2', 'P06': 'Site 4', 'P09': 'Site 3',
+               'P13': 'Site 4', 'P14': 'Site 5', 'P17': 'Site 5', 'P18': 'Site 6', 'P21': 'Site 6'}
+    sl, by_provider = [], {}
+    for mo in LAST12:
+        total = sum(r[6] for r in remit if r[0] == mo)
+        allotted = D(0)
+        for li, (line, share, cost, refs) in enumerate(lines):
+            line_total = total - allotted if li == len(lines) - 1 else q(total * share)
+            allotted += line_total
+            weights = [D(3) if ref == 'P01' and line != 'Implants' else D(rng.randint(8, 12)) for ref in refs]
+            given = D(0)
+            for i, ref in enumerate(refs):
+                amount = line_total - given if i == len(refs) - 1 else q(line_total * weights[i] / sum(weights))
+                given += amount
+                visits = whole(amount / ds.amt(310 if line == 'Implants' else 120 if line == 'Restorative dentistry' else 85))
+                sl.append([mo, line, ref, f'{visits:.0f}', f'{amount:.2f}', f'{q(amount * cost):.2f}'])
+                v, c_ = by_provider.get((mo, ref), (D(0), D(0)))
+                by_provider[(mo, ref)] = (v + visits, c_ + amount)
+    ds.ext('service-lines', ['month', 'service_line', 'provider_ref', 'visits', 'collected', 'direct_cost'], sl,
+           'Collections and direct costs by month, service line and pseudonymous provider, from the schedule and billing exports')
+    owner_total = sum(D(r[4]) for r in sl if r[2] == 'P01')
+    sl_total = sum(D(r[4]) for r in sl)
+    margin = {line: 1 - cost for line, _, cost, _ in lines}
+    implants_share = sum(D(r[4]) for r in sl if r[1] == 'Implants') / sl_total
+    ds.ext('clinician-collections', ['month', 'provider_ref', 'site', 'visits', 'collected'],
+           [[mo, ref, f'{site_of[ref]} (synthetic)', f'{v:.0f}', f'{c_:.2f}'] for (mo, ref), (v, c_) in sorted(by_provider.items())],
+           'Collections by clinician and month, pseudonymous, from the practice-management system')
+
+    # Visits by referral source: Harbourside Hospital refers 58% of visits (planted (a)).
+    sources = [('Harbourside Hospital orthopaedics (synthetic)', 'hospital', D('0.58')), ('Northgate Physician Group (synthetic)', 'physician group', D('0.13')),
+               ('Bluepoint plan network (synthetic)', 'plan', D('0.09')), ('Self-referral', 'self-referral', None)]
+    refs_rows = []
+    for mo in LAST12:
+        visits = 1180 + rng.randint(-40, 40)
+        given = 0
+        for name, kind, share in sources:
+            n = visits - given if share is None else int(whole(visits * share))
+            given += n
+            refs_rows.append([mo, name, kind, n, int(whole(n * D('0.22')))])
+    ds.ext('referrals', ['month', 'referral_source', 'source_type', 'visits', 'new_patients'], refs_rows, 'Visits by referral source and month, from the schedule export')
+    top_share = D(sum(r[3] for r in refs_rows if r[1].startswith('Harbourside'))) / D(sum(r[3] for r in refs_rows))
+
+    # The credentialing register and the payer contracts: all current (the T-160 checks run and stay quiet).
+    juris = {'USD': 'Ohio', 'EUR': 'Netherlands', 'GBP': 'England'}[c]
+    month_names = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+    providers = sorted({r[2] for r in sl})
+    creds, verify = [], []
+    for i, ref in enumerate(providers):
+        board = 'physiotherapy' if ref >= 'P13' else 'dental'
+        expiry = f'{2027 + i % 2}-{(i % 12) + 1:02d}-28'
+        creds.append([f'CR-{i + 1:02d}01', ref, 'state_licence', juris, f'{juris} {board} board (synthetic)', 'active', expiry])
+        y_, m_, d_ = expiry.split('-')
+        verify.append(f'{ref}: {board} licence, {juris} — active, expires on {int(d_)} {month_names[int(m_) - 1]} {y_}.')
+    ds.ext('credentialing-register', ['credential_ref', 'provider_ref', 'kind', 'jurisdiction', 'issuer', 'status', 'expires_on'], creds, 'Credentialing register: a licence per pseudonymous provider')
+    ds.ext('payer-contracts', ['contract_id', 'payer', 'payer_class', 'effective_on', 'expires_on', 'auto_renews'], [
+        ['BP-2023', 'Insurer Bluepoint (synthetic)', 'commercial', '2023-01-01', '2028-12-31', 'yes'],
+        ['HG-2024', 'Insurer Harrowgate (synthetic)', 'commercial', '2024-07-01', '2029-06-30', 'no'],
+        ['GS-ENR-118', 'Government scheme (synthetic)', 'medicaid', '2019-04-01', '', 'no']], 'Payer contract and enrolment register')
+
+    # Three fiscal years of P&L. Patient revenue is the cash collected; supplies outpace revenue every year,
+    # which FY2025 alone does not show (planted (d)); falling administration keeps the operating margin level.
+    years = ['FY2023', 'FY2024', 'FY2025']
+    patient = [sum((r[6] for r in year_of(y[2:])), D(0)) for y in years]
+    other = [q(ds.amt(9000) * D(f)) for f in ('1', '1.03', '1.06')]
+    rev = [patient[i] + other[i] for i in range(3)]
+    ratios = {
+        'Cost of care: clinical staff': [D('0.41'), D('0.41'), D('0.41')],
+        'Clinical and dental supplies': [D('0.068'), D('0.084'), D('0.103')],
+        'Laboratory fees': [D('0.031'), D('0.031'), D('0.030')],
+        'Rent and occupancy': [D('0.074'), D('0.073'), D('0.072')],
+        'General and administrative': [D('0.118'), D('0.103'), D('0.085')],
+    }
+    pnl_rows = [['Net patient service revenue'] + [f'{x:.2f}' for x in patient], ['Other operating revenue'] + [f'{x:.2f}' for x in other]]
+    for name, rs in ratios.items():
+        pnl_rows.append([name] + [f'{q(rev[i] * rs[i]):.2f}' for i in range(3)])
+    supplies = [q(rev[i] * ratios['Clinical and dental supplies'][i]) for i in range(3)]
+    ds.ext('pnl', ['Line'] + years, pnl_rows, 'Profit and loss by fiscal year, FY2023 to FY2025')
+    ds.pnl_step = ['Open the **Sources** tab, scroll to **Industry data** and click **Upload profit and loss (p&l)**.', '',
+                   '1. Choose `pnl.csv` → **Upload and map columns**. Pactlab reads the three years across the columns (FY2023, FY2024, FY2025).',
+                   '2. Say what each line is: the two lines ending in *revenue* are **Revenue**, `Cost of care: clinical staff` is **Cost of revenue**, and the rest are **Operating expenses**.',
+                   f'3. **Check every row**, then **Import {len(pnl_rows) * 3} rows**.', '',
+                   '**You should see:** the import succeed. The **Practice** tab shows the P&L year by year, and the checks in the next step read every year.', '']
+
+    deck_ar = days_in_ar('2025').quantize(D('1'), ROUND_HALF_UP)
+    ds.doc('02-confidential-information-memorandum', f"""
+{ds.company} — confidential information memorandum, September 2026 (synthetic demo data).
+
+Six dental and physiotherapy clinics across {juris}, founded and still run by their owner.
+P01 is the selling owner and principal dentist, and performs every implant procedure.
+There is no succession plan in place for the owner's patients.
+Days in accounts receivable at 31 December 2025: {deck_ar} days.
+The parties have agreed a target closing date of 30 November 2026.
+""", 'Confidential information memorandum, with the owner, the closing date and a days-in-AR claim')
+    ds.doc('03-lease-harbour-street', f"""
+Lease of premises at 12 Harbour Street, Site 1 (synthetic), between Harbour Street Holdings (synthetic) as landlord and {ds.company} as tenant.
+
+The term began on 1 February 2018 and ends on 31 January 2028.
+There is no option to renew or extend the term.
+The tenant may not assign this lease, or undergo a change of control, without the landlord's prior written consent.
+---page---
+Rent: {money(c, ds.amt(14500))} per month, reviewed every three years.
+""", 'Lease of the flagship clinic at 12 Harbour Street')
+    verified = '\n'.join(verify)
+    ds.doc('04-licence-verification', f"""
+Licence verification report for {ds.company} (synthetic).
+
+Verified on 28 September 2026 against the issuing boards' public registers. Providers are listed by pseudonymous reference.
+---page---
+{verified}
+""", "Primary-source verification of every provider's licence, by pseudonymous reference")
+
     ds.findings = [
         ('One provider carries Site 3', f'P07 earns {pct(site3_p07 / site3_total)} of Site 3 revenue in `patient-volume.csv` — a retention risk after closing.'),
         ('High-complexity coding above policy', '`coding-summary.csv` shows 31–36% of visits at the highest code against the 15% expected by `documents/01-coding-policy.pdf`.'),
         ('Imaging equipment past its useful life', 'two panoramic X-ray units in `equipment-schedule.csv` (2014 and 2015, ten-year lives). Price as remediation.'),
+        (f'{pct(top_share)} of visits come from one referral source: Harbourside Hospital orthopaedics (synthetic)', f'recomputed from `referrals.csv`: Harbourside Hospital referred {pct(top_share)} of visits in the twelve months to September 2026.'),
+        ('Clinic lease ends 14 months after closing, with no renewal option', '`documents/03-lease-harbour-street.pdf` — the term ends on 31 January 2028, 14 months after the 30 November 2026 target closing in `documents/02-confidential-information-memorandum.pdf`; no option to renew. Price as relocation or renegotiation risk.'),
+        ('Clinic lease: assignment on a sale needs the landlord’s consent', '`documents/03-lease-harbour-street.pdf` — assignment or a change of control needs the landlord’s written consent: a closing condition.'),
+        ('The selling owner is the only provider of the highest-margin service line: Implants', f'`service-lines.csv` — implants are {pct(implants_share)} of collections at a {pct(margin["Implants"])} margin after direct costs, and only P01, the selling owner, collects on them. P01 delivers {pct(owner_total / sl_total)} of collections overall.'),
+        ('Claim verified: Days in accounts receivable', f'{deck_ar} days at 31 December 2025, recomputed from `remittances.csv` ({days_in_ar("2025").quantize(D("0.1"), ROUND_HALF_UP)}).'),
+        ('P&L trend, 2023–2025', 'every imported year side by side: revenue, growth, margins and the supplies, laboratory, clinical staff and occupancy ratios.'),
+        ('Clinical and dental supplies growing faster than revenue, 2023–2025', f'`pnl.csv` — from {pct(ratios["Clinical and dental supplies"][0])} of revenue in FY2023 to {pct(ratios["Clinical and dental supplies"][2])} in FY2025 ({money(c, supplies[0])} to {money(c, supplies[2])}); FY2025 alone looks ordinary.'),
     ]
-    ds.notes = ['Providers are pseudonymous (P01, P02, …); Pactlab never sends people data to a model.']
+    assert D('0.575') < top_share < D('0.585'), top_share
+    assert owner_total / sl_total < D('0.3'), 'the owner share stays under the no-succession threshold'
+    ds.notes = ['Providers are pseudonymous (P01, P02, …); P01, the selling owner, is named only by that reference. Pactlab never sends people data to a model.',
+                'The remittances, collections by clinician, credentialing register and payer contracts are the healthcare pack’s own imports, reused as they are; the clinic adds service lines, referrals and the lease.',
+                'The P&L (`pnl.csv`) imports through Sources like any extract; the multi-year checks read every year it holds. A single year still imports: the trend then reports that year alone.',
+                'Diligence support only: the pack checks documents, dates and arithmetic. It does not assess the quality of care, whether the referral arrangement is lawful, or what the lease means in law.']
 
 def venture(ds):
     """Founder-side (T-083): a seed-stage SaaS startup preparing to raise; the founder is the user."""

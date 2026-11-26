@@ -61,7 +61,7 @@ export function expectedInputs(pack: PackDefinition): readonly ExpectedInput[] {
       need: target === 'BILLING_INVOICE_LINE' && !technology ? 'OPTIONAL' : 'REQUIRED',
     })),
     { id: 'CUSTOMER_CONTRACT', need: technology || pack.cluster === 'services' ? 'REQUIRED' : 'OPTIONAL' },
-    { id: 'LEASE', need: realEstate ? 'REQUIRED' : 'OPTIONAL' },
+    { id: 'LEASE', need: realEstate || pack.requiredInputs?.includes('LEASE') ? 'REQUIRED' : 'OPTIONAL' },
     { id: 'LOAN_AGREEMENT', need: 'OPTIONAL' },
     { id: 'CASH_FLOW_STATEMENT', need: 'OPTIONAL' },
     ...(pack.documentCategories ?? []).map((id): ExpectedInput => ({ id, need: 'REQUIRED' })),

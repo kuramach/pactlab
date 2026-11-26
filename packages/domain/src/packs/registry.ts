@@ -17,7 +17,7 @@ export const PACK_IDS = COMPANY_TYPES.filter((type): type is PackId => type !== 
 export type PackCluster = 'technology' | 'healthcare' | 'real-estate' | 'services' | 'life-sciences' | 'consumer' | 'capital' | 'media-rights' | 'energy';
 
 /** Calculator ids in `@pactlab/calculations` (`metricCalculator`). */
-export const METRIC_CALCULATOR_IDS = ['saas-metrics', 'multifamily-metrics', 'music-royalties', 'energy-assets', 'spv-round', 'fintech-payments', 'healthcare-collections'] as const;
+export const METRIC_CALCULATOR_IDS = ['saas-metrics', 'multifamily-metrics', 'music-royalties', 'energy-assets', 'spv-round', 'fintech-payments', 'healthcare-collections', 'clinics-practice'] as const;
 export type MetricCalculatorId = (typeof METRIC_CALCULATOR_IDS)[number];
 
 /** Valuation method ids in `@pactlab/calculations` (`VALUATION_METHODS`). */
@@ -40,6 +40,8 @@ export interface PackDefinition {
   readonly built: boolean;
   /** What intake expects to receive (T-098); absent → derived by `expectedInputs`. */
   readonly expectedInputs?: readonly ExpectedInput[];
+  /** Common inputs this pack needs where its cluster leaves them optional (a clinic's lease, T-161). */
+  readonly requiredInputs?: readonly ExpectedInput['id'][];
   /** Document categories only this pack offers at intake (e.g. a syndication's PPM), on top of the common ones. */
   readonly documentCategories?: readonly PackDocumentCategory[];
   /**
@@ -199,11 +201,51 @@ export const PACKS: Readonly<Record<PackId, PackDefinition>> = {
     // Hotels value on NOI ÷ cap rate (T-059) with a DCF of RevPAR and GOP-margin trends.
     valuationMethods: ['NOI_CAP_RATE', 'DCF'],
   },
+  // Few-site clinics (T-068, extended by T-161, ADR 0052): the healthcare pack scaled down. The T-068 rules
+  // stay first; the T-160 evidence set is reused by reference (its targets and rules, never copied); the pack
+  // adds the owner-operator's share by service line, referral concentration, the clinic lease and the
+  // multi-year P&L trend.
   SMALL_CLINICS: {
     ...pack('SMALL_CLINICS', 'small-clinics', 'healthcare', true),
-    importTargets: ['BILLING_INVOICE_LINE', 'CLINICS_PATIENT_VOLUME', 'CLINICS_EQUIPMENT', 'CLINICS_CODING_SUMMARY'],
-    // Extends healthcare (T-061): its reimbursement and compliance rules run here too.
-    findingRules: ['clinics-provider-carries-site', 'clinics-coding-above-policy', 'clinics-equipment-past-life', 'healthcare-government-concentration', 'healthcare-director-fee', 'healthcare-privacy-assessment'],
+    importTargets: [
+      'BILLING_INVOICE_LINE',
+      'CLINICS_PATIENT_VOLUME',
+      'CLINICS_EQUIPMENT',
+      'CLINICS_CODING_SUMMARY',
+      'HEALTHCARE_REMITTANCES',
+      'HEALTHCARE_CLINICIAN_COLLECTIONS',
+      'HEALTHCARE_CREDENTIALS',
+      'HEALTHCARE_PAYER_CONTRACTS',
+      'CLINICS_SERVICE_LINES',
+      'CLINICS_REFERRALS',
+    ],
+    metricCalculator: 'clinics-practice',
+    // Extends healthcare (T-061, T-160): its reimbursement, credentialing and compliance rules run here too.
+    // Clinician concentration is left to the owner-operator check: in a clinic the largest clinician is the seller.
+    findingRules: [
+      'clinics-provider-carries-site',
+      'clinics-coding-above-policy',
+      'clinics-equipment-past-life',
+      'healthcare-government-concentration',
+      'healthcare-director-fee',
+      'healthcare-privacy-assessment',
+      'healthcare-practice-claims',
+      'healthcare-collections-reconciliation',
+      'healthcare-collections-trend',
+      'healthcare-payer-mix-shift',
+      'healthcare-credentialing',
+      'healthcare-payer-contracts',
+      'healthcare-compliance-evidence',
+      'clinics-owner-dependence',
+      'clinics-referral-concentration',
+      'clinics-premises',
+      'clinics-pnl-trend',
+      'clinics-pnl-margin-drift',
+      'clinics-pnl-expense-outpacing',
+    ],
+    documentCategories: ['LICENCE_VERIFICATION', 'CODING_AUDIT', 'HIPAA_RISK_ASSESSMENT', 'PAYER_CONTRACT'],
+    // The premises check reads the clinic lease, so intake asks for it.
+    requiredInputs: ['LEASE'],
     valuationMethods: ['DCF'],
   },
   HOSPITALS: {

@@ -43,6 +43,9 @@ export const HEALTHCARE_REMITTANCE_MONTH_EVIDENCE_TYPE = 'healthcare.remittance_
 export const HEALTHCARE_CLINICIAN_MONTH_EVIDENCE_TYPE = 'healthcare.clinician_month';
 export const HEALTHCARE_CREDENTIAL_EVIDENCE_TYPE = 'healthcare.credential';
 export const HEALTHCARE_PAYER_CONTRACT_EVIDENCE_TYPE = 'healthcare.payer_contract';
+/** Small clinics (T-161): collections and direct costs by service line and provider, and visits by referral source. */
+export const CLINICS_SERVICE_LINE_MONTH_EVIDENCE_TYPE = 'clinics.service_line_month';
+export const CLINICS_REFERRAL_MONTH_EVIDENCE_TYPE = 'clinics.referral_month';
 
 /**
  * Every evidence type the adapters and engines emit, with the direction each
@@ -266,7 +269,24 @@ export const VALUATION_DIRECTION_MAP: Readonly<Record<string, readonly Direction
       rationale: 'A payer remitting with no contract on the register: evidence to request, not a defect to price.',
     },
   ],
+  // Small clinics (T-161, ADR 0052): the owner-operator's share and each service line's providers recomputed from the
+  // schedule and billing exports; visits by referral source. Retention and volume risks, never a ranking or a legal view.
+  [CLINICS_SERVICE_LINE_MONTH_EVIDENCE_TYPE]: [
+    { signal: 'owner-sole-provider', findingDomain: 'PEOPLE', defaultDirection: -1, channel: 'PRICED_TERM' },
+    { signal: 'owner-no-succession', findingDomain: 'PEOPLE', defaultDirection: -1, channel: 'PRICED_TERM' },
+  ],
+  [CLINICS_REFERRAL_MONTH_EVIDENCE_TYPE]: [{ signal: 'referral-concentration', findingDomain: 'COMMERCIAL', defaultDirection: -1, channel: 'ASSUMPTION' }],
   [DOCUMENT_FINDING_EVIDENCE_TYPE]: [
+    // The clinic lease as read sentence by sentence (T-161): a short term with no renewal is relocation or
+    // renegotiation risk the reviewer prices; consent to assign is a closing condition.
+    { signal: 'lease-short-term', findingDomain: 'PROPERTY', defaultDirection: -1, channel: 'PRICED_TERM' },
+    {
+      signal: 'lease-assignment-consent',
+      findingDomain: 'PROPERTY',
+      defaultDirection: 0,
+      channel: 'INFORMATIONAL',
+      rationale: 'The landlord’s consent to assign (or a new lease) is a closing condition, not a price adjustment.',
+    },
     { signal: 'CHANGE_OF_CONTROL', findingDomain: 'CONTRACT', defaultDirection: -1, channel: 'PRICED_TERM' },
     { signal: 'ASSIGNMENT', findingDomain: 'CONTRACT', defaultDirection: -1, channel: 'PRICED_TERM' },
     { signal: 'EXCLUSIVITY', findingDomain: 'CONTRACT', defaultDirection: -1, channel: 'PRICED_TERM' },
@@ -305,6 +325,8 @@ export const ADAPTER_EVIDENCE_TYPES = [
   HEALTHCARE_CLINICIAN_MONTH_EVIDENCE_TYPE,
   HEALTHCARE_CREDENTIAL_EVIDENCE_TYPE,
   HEALTHCARE_PAYER_CONTRACT_EVIDENCE_TYPE,
+  CLINICS_SERVICE_LINE_MONTH_EVIDENCE_TYPE,
+  CLINICS_REFERRAL_MONTH_EVIDENCE_TYPE,
 ] as const;
 
 /** The default direction for one signal, or null when the map does not know it. */

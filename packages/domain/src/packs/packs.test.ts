@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { parseCsv } from '../evidence';
 import { applyMapping, mappedEvidence } from '../imports/mapping';
 import { BILLING_INVOICE_LINE, IMPORT_TARGET_DEFINITIONS, peopleColumnProblems, targetTemplateCsv, type TargetDefinition } from '../imports/targets';
+import { expectedInputs } from '../intake/checklist';
 import { COMPANY_TYPES } from '../pacts/types';
 import { sourceKindForProvider, sourcesFor } from '../pacts/catalog';
 import { PACK_IDS, PACKS, packFor } from './registry';
@@ -88,9 +89,30 @@ describe('pack registry', () => {
     expect(peopleColumnProblems(IMPORT_TARGET_DEFINITIONS.HEALTHCARE_CLINICIAN_COLLECTIONS, ['month', 'provider_ref', 'collected'])).toEqual([]);
     expect(peopleColumnProblems(IMPORT_TARGET_DEFINITIONS.HEALTHCARE_CLINICIAN_COLLECTIONS, ['month', 'provider_ref', 'full_name', 'salary'])).toHaveLength(2);
     expect(peopleColumnProblems(IMPORT_TARGET_DEFINITIONS.HEALTHCARE_REMITTANCES, ['month', 'payer', 'patient_id'])).toHaveLength(1);
-    // The extensions are untouched.
-    expect(PACKS.SMALL_CLINICS.metricCalculator).toBe('saas-metrics');
+    // Hospitals is untouched; small clinics reuses the T-160 set by reference (below).
     expect(PACKS.HOSPITALS.findingRules).not.toContain('healthcare-credentialing');
+  });
+
+  it('Small clinics reuses the T-160 evidence set and adds service lines, referrals and the lease (T-161)', () => {
+    const clinics = PACKS.SMALL_CLINICS;
+    expect(clinics).toMatchObject({ slug: 'small-clinics', cluster: 'healthcare', metricCalculator: 'clinics-practice', built: true });
+    // The T-068 targets and rules stay first and unchanged.
+    expect(clinics.importTargets.slice(0, 4)).toEqual(['BILLING_INVOICE_LINE', 'CLINICS_PATIENT_VOLUME', 'CLINICS_EQUIPMENT', 'CLINICS_CODING_SUMMARY']);
+    expect(clinics.findingRules.slice(0, 3)).toEqual(['clinics-provider-carries-site', 'clinics-coding-above-policy', 'clinics-equipment-past-life']);
+    // The T-160 targets and rules by reference: the same ids, never copies.
+    for (const target of ['HEALTHCARE_REMITTANCES', 'HEALTHCARE_CLINICIAN_COLLECTIONS', 'HEALTHCARE_CREDENTIALS', 'HEALTHCARE_PAYER_CONTRACTS'] as const) expect(clinics.importTargets).toContain(target);
+    for (const rule of ['healthcare-practice-claims', 'healthcare-collections-trend', 'healthcare-payer-mix-shift', 'healthcare-credentialing', 'healthcare-payer-contracts']) {
+      expect(PACKS.HEALTHCARE.findingRules).toContain(rule);
+      expect(clinics.findingRules).toContain(rule);
+    }
+    expect(clinics.findingRules).not.toContain('healthcare-clinician-concentration');
+    expect(clinics.findingRules.slice(-6)).toEqual(['clinics-owner-dependence', 'clinics-referral-concentration', 'clinics-premises', 'clinics-pnl-trend', 'clinics-pnl-margin-drift', 'clinics-pnl-expense-outpacing']);
+    expect(expectedInputs(clinics).find((input) => input.id === 'LEASE')).toEqual({ id: 'LEASE', need: 'REQUIRED' });
+    expect(expectedInputs(PACKS.HEALTHCARE).find((input) => input.id === 'LEASE')).toEqual({ id: 'LEASE', need: 'OPTIONAL' });
+    // Providers and referral sources: pseudonymous references and organisations only.
+    expect(peopleColumnProblems(IMPORT_TARGET_DEFINITIONS.CLINICS_SERVICE_LINES, ['month', 'service_line', 'provider_ref', 'collected'])).toEqual([]);
+    expect(peopleColumnProblems(IMPORT_TARGET_DEFINITIONS.CLINICS_SERVICE_LINES, ['month', 'provider_ref', 'full_name', 'salary'])).toHaveLength(2);
+    expect(peopleColumnProblems(IMPORT_TARGET_DEFINITIONS.CLINICS_REFERRALS, ['month', 'referral_source', 'patient_name'])).toHaveLength(1);
   });
 
   it('every pack offers billing first, and only targets that exist (rule ids resolve in the API test)', () => {

@@ -53,7 +53,10 @@ export const DEAL_SECTION_RULES: Readonly<Record<string, (context: SectionContex
   // A fintech target's payments and licence checks (T-159): volume and take rate recomputed, the claims, licences, loss rates and compliance evidence.
   '/fintech': (context) => context.companyType === 'FINTECH',
   // A healthcare services target's practice checks (T-160): payer mix and collections, denials and days in AR, credentialing, clinician concentration and compliance evidence.
-  '/healthcare': (context) => context.companyType === 'HEALTHCARE',
+  // Small clinics reuse it as it is (T-161): the same evidence set, scaled to a few sites.
+  '/healthcare': (context) => context.companyType === 'HEALTHCARE' || context.companyType === 'SMALL_CLINICS',
+  // A few-site clinic's own checks (T-161): the owner-operator's share by service line, referral concentration and the clinic lease.
+  '/clinics': (context) => context.companyType === 'SMALL_CLINICS',
   // A pooled vehicle (T-141): the round checks, the vehicle economics, side letters, investor seats and the published investor view.
   '/spv': (context) => context.companyType === 'STARTUP_SPV',
   '/valuation': everywhere,

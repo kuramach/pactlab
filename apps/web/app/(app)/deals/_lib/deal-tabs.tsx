@@ -58,6 +58,8 @@ export const DEAL_GROUPS: readonly DealGroup[] = [
       { path: '/fintech', label: 'Payments' },
       // A healthcare services target (T-160): collections and payer mix, denials and days in AR, credentials, clinician concentration, payer contracts and the P&L by year.
       { path: '/healthcare', label: 'Practice' },
+      // A few-site clinic (T-161): the owner-operator's share by service line, referral concentration and the clinic lease.
+      { path: '/clinics', label: 'Clinic' },
       // A pooled vehicle (T-141): round checks, vehicle economics, side letters, investor seats and the investor view.
       { path: '/spv', label: 'SPV' },
       { path: '/engineering', label: 'Engineering' },
@@ -113,7 +115,7 @@ const visible = (sections: readonly DealSection[], companyType: CompanyType | nu
 
 /** Four tabs across the deal, and the open tab's sections beneath them; sub-pages keep their section highlighted. */
 /** Sections only the pact's own side ever sees, not even as a tab name (T-118). */
-const OWN_SIDE_ONLY = new Set(['/ic', '/suggestions', '/qoe', '/syndication', '/catalog', '/energy', '/fintech', '/healthcare', '/spv']);
+const OWN_SIDE_ONLY = new Set(['/ic', '/suggestions', '/qoe', '/syndication', '/catalog', '/energy', '/fintech', '/healthcare', '/clinics', '/spv']);
 
 export function DealTabs({
   dealId,
