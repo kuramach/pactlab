@@ -47,4 +47,20 @@ export const signingOutcomes = {
     );
     return row?.recorded === true;
   },
+
+  /** One keyset page of open envelopes not checked since `staleBefore`, across organizations (the worker sweep, T-144). */
+  async openPage(prisma: PrismaClient, input: { staleBefore: Date; after: string | null; limit: number }) {
+    const rows = await asApp(prisma, (tx) =>
+      tx.$queryRaw<{ envelope_row_id: string; organization_id: string; deal_id: string; provider: string; provider_envelope_id: string }[]>`
+        SELECT envelope_row_id::text, organization_id::text, deal_id::text, provider, provider_envelope_id
+          FROM app_signing_open_page(${input.staleBefore}::timestamptz, ${input.after}::uuid, ${input.limit}::int)`,
+    );
+    return rows.map((row) => ({ envelopeRowId: row.envelope_row_id, organizationId: row.organization_id, dealId: row.deal_id, provider: row.provider as Provider, providerEnvelopeId: row.provider_envelope_id }));
+  },
+
+  /** A poll that could not reach a verdict: stamps the envelope as checked and audits it on the pact (once a day). True when audited now. */
+  async pollFailed(prisma: PrismaClient, envelopeRowId: string) {
+    const [row] = await asApp(prisma, (tx) => tx.$queryRaw<{ audited: boolean }[]>`SELECT app_signing_poll_failed(${envelopeRowId}::uuid) AS audited`);
+    return row?.audited === true;
+  },
 };

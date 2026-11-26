@@ -3,6 +3,7 @@ import { operatorOps, prismaExecutor, UPLOAD_IMPORT_JOB_TYPE } from '@pactlab/db
 import { bugFingerprint, scrubContext } from '@pactlab/domain';
 import { Queue, Worker, type ConnectionOptions, type Job } from 'bullmq';
 import { processNoopJob, type JobDependencies, type JobOutcome } from './jobs/noop';
+import { processSigningPollSweep, SIGNING_POLL_SWEEP_EVERY_MS, SIGNING_POLL_SWEEP_JOB_TYPE } from './jobs/signing-poll-sweep';
 import { processUploadImportJob } from './jobs/upload-import';
 
 export const DEFAULT_QUEUE = DEFAULT_JOB_QUEUE;
@@ -14,6 +15,10 @@ type Handler = (deps: JobDependencies, data: unknown, report: (progress: object)
 export const HANDLERS: Readonly<Record<string, Handler>> = {
   [NOOP_JOB_TYPE]: processNoopJob,
   [UPLOAD_IMPORT_JOB_TYPE]: processUploadImportJob,
+  [SIGNING_POLL_SWEEP_JOB_TYPE]: async (deps) => {
+    await processSigningPollSweep(deps);
+    return { jobRunId: SIGNING_POLL_SWEEP_JOB_TYPE, replayed: false };
+  },
 };
 
 /**
@@ -68,6 +73,11 @@ export function createQueue(connection: ConnectionOptions, name = DEFAULT_QUEUE)
 export async function enqueueJob(queue: Queue, input: JobEnvelopeInput): Promise<Job> {
   const envelope = jobEnvelopeSchema.parse(input);
   return queue.add(envelope.type, envelope, { jobId: queueJobId(envelope) });
+}
+
+/** Registers the repeatable signing sweep (T-144). Idempotent: the scheduler id is fixed, so a restart replaces rather than adds. */
+export async function scheduleSigningPollSweep(queue: Queue): Promise<void> {
+  await queue.upsertJobScheduler('signing-poll-sweep', { every: SIGNING_POLL_SWEEP_EVERY_MS }, { name: SIGNING_POLL_SWEEP_JOB_TYPE, opts: { attempts: 1, removeOnFail: { count: 50 } } });
 }
 
 export function createWorker(

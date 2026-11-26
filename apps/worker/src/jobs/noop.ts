@@ -1,10 +1,13 @@
 import { jobEnvelopeSchema, NOOP_JOB_TYPE, type JobEnvelope } from '@pactlab/contracts';
+import type { SigningProvider, SigningProviderName } from '@pactlab/connectors';
 import { jobRuns, resolveJobContext, withTenant, type PrismaClient, type TenantObjectStore } from '@pactlab/db';
 
 export interface JobDependencies {
   prisma: PrismaClient;
   /** Uploaded originals (background imports). Fails closed where none is configured. */
   objectStore?: TenantObjectStore;
+  /** The adapters the signing sweep polls through (T-144), by the provider an envelope was sent with. */
+  signingProviders?: Partial<Record<SigningProviderName, SigningProvider>>;
 }
 
 export interface JobOutcome {

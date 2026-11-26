@@ -302,6 +302,9 @@ export const workerEnvSchema = baseEnvSchema.extend({
   /** Local-only directory of uploaded originals, shared with the API (background imports read it). */
   DOCUMENT_STORE_DIR: nonEmpty.optional(),
   WORKER_CONCURRENCY: z.coerce.number().int().min(1).max(64).default(4),
+  /** The signing sweep (T-144) polls BoldSign with the API's key. Unset: the sweep skips BoldSign envelopes. */
+  BOLDSIGN_API_KEY: unsetIfBlank(z.string().min(1).optional()).transform((value) => (value === 'unset' ? undefined : value)),
+  BOLDSIGN_API_BASE_URL: unsetIfBlank(z.url({ protocol: /^https$/ }).default('https://api.boldsign.com')),
   AWS_REGION: unsetIfBlank(z.string().regex(/^[a-z]{2}(-gov)?-[a-z]+-\d$/, 'an AWS Region such as us-east-1').optional()),
   ...deployedStorageFields,
 }).superRefine(deployedStorageRules);
