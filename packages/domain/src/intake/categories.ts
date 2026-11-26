@@ -87,8 +87,16 @@ export type HealthcareCategory = (typeof HEALTHCARE_CATEGORIES)[number];
  */
 export const PHARMA_CATEGORIES = ['REGULATORY_CORRESPONDENCE', 'PATENT_RECORD', 'LICENCE_AGREEMENT', 'SUPPLY_AGREEMENT'] as const;
 export type PharmaCategory = (typeof PHARMA_CATEGORIES)[number];
+/**
+ * An e-commerce or DTC brand (T-164) is diligenced from its platform account records (who the storefront,
+ * marketplace and ad accounts are registered to), its marketplace and channel agreements, and the
+ * investor presentation whose unit-economics claims are checked against the exports. The Channels page
+ * reads them; absence is shown as absence.
+ */
+export const ECOMMERCE_CATEGORIES = ['PLATFORM_ACCOUNT_RECORD', 'MARKETPLACE_AGREEMENT'] as const;
+export type EcommerceCategory = (typeof ECOMMERCE_CATEGORIES)[number];
 /** Every category a pack may add on top of the common ones. */
-export type PackDocumentCategory = OfferingCategory | MusicCategory | EnergyCategory | SpvCategory | FintechCategory | HealthcareCategory | PharmaCategory;
+export type PackDocumentCategory = OfferingCategory | MusicCategory | EnergyCategory | SpvCategory | FintechCategory | HealthcareCategory | PharmaCategory | EcommerceCategory;
 
 export type DocumentCategory = (typeof DOCUMENT_CATEGORIES)[number] | PackDocumentCategory;
 
@@ -349,6 +357,21 @@ const DOCUMENT_DEFINITIONS: Readonly<Record<DocumentCategory, CategoryDefinition
     id: 'REGULATORY_EXAM',
     label: 'Exam report or consent order',
     description: 'A regulator\'s examination report, a matter requiring attention, a consent order or another enforcement action.',
+    route: { kind: 'FILE' },
+    people: false,
+  },
+  // E-commerce documents (T-164): kept and listed; the Channels page and the pack's checks read them.
+  PLATFORM_ACCOUNT_RECORD: {
+    id: 'PLATFORM_ACCOUNT_RECORD',
+    label: 'Platform account record',
+    description: 'A storefront, marketplace or ad-platform account registration, or a schedule of the accounts and who each is registered to.',
+    route: { kind: 'FILE' },
+    people: false,
+  },
+  MARKETPLACE_AGREEMENT: {
+    id: 'MARKETPLACE_AGREEMENT',
+    label: 'Marketplace or channel agreement',
+    description: 'Marketplace seller terms, a storefront platform agreement or a wholesale channel agreement: fees, delisting and change terms.',
     route: { kind: 'FILE' },
     people: false,
   },

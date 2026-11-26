@@ -134,6 +134,11 @@ export const SHOWCASE: Readonly<Record<string, ShowcaseEntry>> = {
     why: 'Claimed phases and readouts against the registry records and correspondence; patent expiries against the hold; the agreements’ payments against the seller’s model; dependence and R&D by year. Documents, dates and consistency, never the science.',
     lookFor: ['The lead asset claimed Phase 2 while the registry record says Phase 1', 'The key patent expiring 18 months after closing, priced on the bridge', 'A milestone due at the next phase start missing from the seller’s model', 'R&D flat across three years while the readout is brought forward'],
   },
+  '/ecommerce': {
+    title: 'Channels, unit economics and platform accounts, from the exports',
+    why: 'Revenue by channel reconciled to the P&L; lifetime value on a contribution basis against the deck; who holds each storefront, marketplace and ad account; stock age; acquisition cost and contribution by year. Exports and documents only, never a scrape.',
+    lookFor: ['The deck’s LTV computed on gross revenue, contradicted by the contribution recompute', '64% of revenue through a marketplace account the founder holds personally', '22% of stock older than 180 days, priced on the bridge', 'Acquisition cost rising and contribution compressing across three years'],
+  },
   '/valuation': {
     title: 'Sextant: what to pay, and why',
     why: 'Scenarios from stored inputs, accepted risks priced in, comparables and negotiation anchors: a price you can defend line by line.',

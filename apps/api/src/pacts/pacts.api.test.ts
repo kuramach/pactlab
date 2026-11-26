@@ -128,7 +128,7 @@ describe('Start a Pact through the API', () => {
         expect(refused.statusCode, companyType).toBe(422);
         expect(refused.json()).toMatchObject({ code: 'PACK_NOT_RELEASED' });
       }
-      for (const companyType of ['SOFTWARE_SAAS', 'MULTIFAMILY', 'VENTURE_RAISE', 'FINTECH', 'HEALTHCARE', 'SMALL_CLINICS', 'PHARMA_BIOTECH']) expect((await start(companyType)).statusCode, companyType).toBe(201);
+      for (const companyType of ['SOFTWARE_SAAS', 'MULTIFAMILY', 'VENTURE_RAISE', 'FINTECH', 'HEALTHCARE', 'SMALL_CLINICS', 'PHARMA_BIOTECH', 'ECOMMERCE_DTC']) expect((await start(companyType)).statusCode, companyType).toBe(201);
     } finally {
       await live.close();
     }

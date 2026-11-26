@@ -17,7 +17,7 @@ export const PACK_IDS = COMPANY_TYPES.filter((type): type is PackId => type !== 
 export type PackCluster = 'technology' | 'healthcare' | 'real-estate' | 'services' | 'life-sciences' | 'consumer' | 'capital' | 'media-rights' | 'energy';
 
 /** Calculator ids in `@pactlab/calculations` (`metricCalculator`). */
-export const METRIC_CALCULATOR_IDS = ['saas-metrics', 'multifamily-metrics', 'music-royalties', 'energy-assets', 'spv-round', 'fintech-payments', 'healthcare-collections', 'clinics-practice', 'pharma-pipeline'] as const;
+export const METRIC_CALCULATOR_IDS = ['saas-metrics', 'multifamily-metrics', 'music-royalties', 'energy-assets', 'spv-round', 'fintech-payments', 'healthcare-collections', 'clinics-practice', 'pharma-pipeline', 'ecommerce-channels'] as const;
 export type MetricCalculatorId = (typeof METRIC_CALCULATOR_IDS)[number];
 
 /** Valuation method ids in `@pactlab/calculations` (`VALUATION_METHODS`). */
@@ -199,10 +199,29 @@ export const PACKS: Readonly<Record<PackId, PackDefinition>> = {
     // Royalty and product revenue value on DCF, with exclusivity and approval timing as scenario inputs.
     valuationMethods: ['DCF'],
   },
+  // Channel economics, cohort value and platform dependence (T-065, extended by T-164, ADR 0054). The
+  // T-065 rules stay first; the pack adds the unit-economics claims register (LTV on a contribution basis,
+  // CAC), channel revenue reconciled to the P&L by year, platform-account ownership from the documents,
+  // the return-rate trend, inventory ageing, the CAC and contribution trend by year and the P&L trend.
   ECOMMERCE_DTC: {
     ...pack('ECOMMERCE_DTC', 'ecommerce-dtc', 'consumer', true),
-    importTargets: ['BILLING_INVOICE_LINE', 'ECOMMERCE_COHORTS', 'ECOMMERCE_AD_SPEND'],
-    findingRules: ['ecommerce-marketplace-majority', 'ecommerce-cohort-repeat-decline', 'ecommerce-channel-cac-rising'],
+    importTargets: ['BILLING_INVOICE_LINE', 'ECOMMERCE_COHORTS', 'ECOMMERCE_AD_SPEND', 'ECOMMERCE_CHANNEL_ORDERS', 'ECOMMERCE_INVENTORY'],
+    metricCalculator: 'ecommerce-channels',
+    findingRules: [
+      'ecommerce-marketplace-majority',
+      'ecommerce-cohort-repeat-decline',
+      'ecommerce-channel-cac-rising',
+      'ecommerce-unit-economics-claims',
+      'ecommerce-channel-reconciliation',
+      'ecommerce-platform-ownership',
+      'ecommerce-return-rate-trend',
+      'ecommerce-inventory-ageing',
+      'ecommerce-unit-economics-trend',
+      'ecommerce-pnl-trend',
+      'ecommerce-pnl-margin-drift',
+      'ecommerce-pnl-expense-outpacing',
+    ],
+    documentCategories: ['PLATFORM_ACCOUNT_RECORD', 'MARKETPLACE_AGREEMENT'],
     // Valuation methods unchanged; unit economics arrive as scenario inputs and channel risk as findings.
     valuationMethods: ['DCF', 'ARR_MULTIPLE'],
   },

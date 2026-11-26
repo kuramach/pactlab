@@ -29,6 +29,8 @@ export const IMPORT_TARGETS = [
   'PHARMA_RD_ROSTER',
   'ECOMMERCE_COHORTS',
   'ECOMMERCE_AD_SPEND',
+  'ECOMMERCE_CHANNEL_ORDERS',
+  'ECOMMERCE_INVENTORY',
   'CRE_RENT_ROLL',
   'CRE_CAM_RECONCILIATION',
   'HOTELS_OPERATING_HISTORY',
@@ -647,6 +649,62 @@ export const ECOMMERCE_AD_SPEND: TargetDefinition = {
   ],
 };
 
+/**
+ * E-commerce and DTC (T-164): orders by month, channel and platform account, from the storefront and
+ * marketplace exports — counts and amounts only, never a customer. Revenue by channel, the contribution
+ * margin, returns and new customers are recomputed from these rows; the account each row ran through is
+ * how platform dependence is measured.
+ */
+export const ECOMMERCE_CHANNEL_ORDERS: TargetDefinition = {
+  target: 'ECOMMERCE_CHANNEL_ORDERS',
+  label: 'Orders by channel',
+  fileName: 'channel-orders.csv',
+  people: 'NONE',
+  refusesPeopleColumns: true,
+  evidenceType: 'ecommerce.channel_month',
+  recordIdField: 'month',
+  recordIdFields: ['month', 'channel', 'account'],
+  observedAtFields: [],
+  fields: [
+    { name: 'month', label: 'Month', kind: 'text', required: true, hint: 'YYYY-MM.' },
+    { name: 'channel', label: 'Channel', kind: 'text', required: true, hint: 'e.g. Own web store, Marketvale marketplace, Wholesale.' },
+    { name: 'platform', label: 'Platform type', kind: 'code', required: true, hint: 'storefront, marketplace or wholesale.' },
+    { name: 'account', label: 'Platform account', kind: 'text', required: true, hint: 'The store or seller account the orders ran through, as the platform identifies it, e.g. MV-20417.' },
+    { name: 'orders', label: 'Orders', kind: 'decimal', required: true, hint: 'Orders placed in the month (a count).' },
+    { name: 'new_customers', label: 'New customers', kind: 'decimal', required: false, hint: 'First-time customers in the month (a count).' },
+    { name: 'gross_sales', label: 'Gross sales', kind: 'money', required: true, hint: `Before discounts and returns. ${IN_BASE_CURRENCY}` },
+    { name: 'discounts', label: 'Discounts', kind: 'money', required: false, hint: IN_BASE_CURRENCY },
+    { name: 'returns', label: 'Returns refunded', kind: 'money', required: false, hint: IN_BASE_CURRENCY },
+    { name: 'cogs', label: 'Cost of goods sold', kind: 'money', required: false, hint: IN_BASE_CURRENCY },
+    { name: 'fulfilment', label: 'Fulfilment and shipping', kind: 'money', required: false, hint: IN_BASE_CURRENCY },
+    { name: 'channel_fees', label: 'Marketplace and payment fees', kind: 'money', required: false, hint: IN_BASE_CURRENCY },
+  ],
+};
+
+/**
+ * E-commerce and DTC (T-164): the stock report — units on hand by SKU and location at a snapshot date,
+ * with the unit cost and the date the stock was received. Inventory ageing is computed from it.
+ */
+export const ECOMMERCE_INVENTORY: TargetDefinition = {
+  target: 'ECOMMERCE_INVENTORY',
+  label: 'Stock report',
+  fileName: 'inventory.csv',
+  people: 'NONE',
+  refusesPeopleColumns: true,
+  evidenceType: 'ecommerce.stock_lot',
+  recordIdField: 'sku',
+  recordIdFields: ['sku', 'location', 'received_on'],
+  observedAtFields: [],
+  fields: [
+    { name: 'sku', label: 'SKU', kind: 'text', required: true, hint: 'The stock-keeping unit code.' },
+    { name: 'location', label: 'Location', kind: 'text', required: false, hint: 'The warehouse or fulfilment centre.' },
+    { name: 'units', label: 'Units on hand', kind: 'decimal', required: true, hint: 'A count.' },
+    { name: 'unit_cost', label: 'Unit cost', kind: 'money', required: true, hint: `Landed cost per unit. ${IN_BASE_CURRENCY}` },
+    { name: 'received_on', label: 'Received on', kind: 'date', required: true, hint: 'When this stock was received, YYYY-MM-DD.' },
+    { name: 'as_of', label: 'Report date', kind: 'date', required: true, hint: 'The date the stock report was taken, YYYY-MM-DD.' },
+  ],
+};
+
 /** Commercial property (T-066): leases by suite with expiry, base and market rent — tenants are businesses. */
 export const CRE_RENT_ROLL: TargetDefinition = {
   target: 'CRE_RENT_ROLL',
@@ -1261,6 +1319,8 @@ export const IMPORT_TARGET_DEFINITIONS: Readonly<Record<ImportTarget, TargetDefi
   PHARMA_RD_ROSTER,
   ECOMMERCE_COHORTS,
   ECOMMERCE_AD_SPEND,
+  ECOMMERCE_CHANNEL_ORDERS,
+  ECOMMERCE_INVENTORY,
   CRE_RENT_ROLL,
   CRE_CAM_RECONCILIATION,
   HOTELS_OPERATING_HISTORY,

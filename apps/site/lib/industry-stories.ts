@@ -239,35 +239,38 @@ export const INDUSTRY_STORIES: Readonly<Record<string, IndustryStory>> = {
   },
 
   'ecommerce-dtc': {
-    headline: 'Brands are worth what their customers come back for.',
+    headline: 'Brands are priced on lifetime value. Recompute it on contribution.',
     subhead:
-      'Acquisition cost, repeat purchase and channel dependence decide what a consumer brand is worth. Pactlab’s cohort and concentration engine already measures them — the pack adds storefront and ad-platform sources.',
+      'DTC deals are priced on LTV claims and on revenue that may run through accounts the seller owns personally. Pactlab reads the storefront, marketplace and ad-platform exports and the account records you supply, recomputes the unit economics on a contribution basis and checks them against the deck — exports and documents only, never a scrape.',
     illustrationAlt: 'Illustration of a storefront, a shopping bag with a repeat arrow and repeat purchase by cohort.',
     pains: [
-      { icon: 'Megaphone', title: 'Acquisition cost that keeps rising', body: 'Blended CAC hides channels that no longer pay back.' },
-      { icon: 'Repeat', title: 'Repeat purchase that fades by cohort', body: 'Lifetime value built on early cohorts may not hold for later ones.' },
-      { icon: 'Store', title: 'One marketplace holding the brand', body: 'Channel concentration is platform risk you inherit.' },
+      { icon: 'Target', title: 'A lifetime value on gross revenue', body: 'The deck’s LTV counts gross sales; on contribution, after cost of goods, fulfilment and fees, it is a fraction of that.' },
+      { icon: 'KeyRound', title: 'The marketplace account is the founder’s', body: 'Most of the revenue runs through a seller account registered to the founder personally, not the company.' },
+      { icon: 'Warehouse', title: 'Stock that will not sell', body: 'A fifth of the inventory value was received more than six months ago.' },
     ],
     walkthrough: [
-      { step: 'Evidence', text: 'Storefront and marketplace orders, ad-platform spend and supplier terms.' },
-      { step: 'Finding', text: 'CAC, LTV, repeat-purchase and channel findings are drafted from the order and spend data.' },
-      { step: 'Review', text: 'Reviewers decide each with the cohort rows in view.' },
-      { step: 'Valuation', text: 'Valuation methods apply unchanged, with unit-economics inputs.' },
-      { step: 'Deal terms', text: 'Price adjustments and earn-outs linked to the unit economics.' },
+      { step: 'Evidence', text: 'Orders by channel and account, cohorts, ad spend, the stock report and the P&L by year arrive as imports; the platform account records, marketplace terms and the investor presentation are read with their source. Absence of an export is shown as absence.' },
+      { step: 'Finding', text: 'Deterministic checks mark the deck’s LTV and CAC verified, contradicted or unverified, reconcile channel revenue to the P&L by year, draft a material account held personally, aged stock priced as a write-down, a rising return rate, and acquisition cost rising and contribution compressing across years, each cited to the rows or the page.' },
+      { step: 'Review', text: 'A named reviewer accepts, rejects or asks for support on every finding; nothing is decided by the software.' },
+      { step: 'Valuation', text: 'Valuation methods apply unchanged, with unit economics on a contribution basis as scenario inputs and the aged-stock write-down on the purchase-price bridge.' },
+      { step: 'Deal terms', text: 'The account’s transfer to the company as a closing condition, an escrow until it is done, and price adjustments linked to the unit economics.' },
     ],
     findings: [
-      { title: 'Repeat purchase declining in recent cohorts', severity: 'High', evidence: 'Order history by first-purchase month', term: 'Lifetime-value case in the valuation' },
-      { title: 'Majority of revenue through one marketplace', severity: 'Medium', evidence: 'Orders by channel', term: 'Channel-risk adjustment' },
+      { title: 'The deck’s lifetime value is computed on gross revenue', severity: 'High', evidence: 'The deck against cohorts, orders and contribution from the exports', term: 'The contribution-basis LTV in the scenarios' },
+      { title: '64% of revenue runs through a marketplace account the founder holds personally', severity: 'High', evidence: 'Orders by account against the platform account records', term: 'Transfer as a closing condition, an escrow until done' },
+      { title: '22% of stock is older than 180 days', severity: 'High', evidence: 'The stock report, aged to its date', term: 'A write-down off the price' },
+      { title: 'Acquisition cost rising and contribution compressing across three years', severity: 'High', evidence: 'Orders by year against advertising in every imported P&L year', term: 'The latest year’s unit economics in the scenarios' },
     ],
     deliverables: [
-      { icon: 'Target', title: 'Unit economics from the source', body: 'CAC and LTV from orders and spend, not from a summary.' },
-      { icon: 'CalendarRange', title: 'Cohorts that show the trend', body: 'Repeat purchase by first-purchase month.' },
-      { icon: 'ChartPie', title: 'Channel dependence', body: 'Where the revenue comes from, and how concentrated it is.' },
+      { icon: 'Target', title: 'Unit economics from the exports', body: 'Lifetime value on contribution, and paid acquisition cost, with the rows behind them.' },
+      { icon: 'KeyRound', title: 'Platform dependence', body: 'Each account’s share of revenue and who it is registered to, cited to the record.' },
+      { icon: 'Store', title: 'Channel revenue that ties', body: 'Net sales by channel, reconciled to the P&L year by year.' },
     ],
     faq: [
-      { q: 'What does the e-commerce pack read?', a: 'Storefront and marketplace orders, and ad-platform spend. Acquisition cost and lifetime value come from those records, not from a summary.' },
-      { q: 'Does it change how the brand is valued?', a: 'No. The valuation methods are the same; unit-economics findings feed them as inputs and adjustments.' },
-      { q: 'How is channel risk handled?', a: 'Channel and marketplace concentration uses the same concentration analysis as revenue, and an accepted finding becomes a channel-risk adjustment in the terms.' },
+      { q: 'What does the e-commerce pack read?', a: 'Storefront and marketplace order exports by month, channel and account, repeat purchase by cohort, ad-platform spend exports, the stock report, the P&L by year, and the platform account records, marketplace terms and investor presentation. Pactlab never logs in to or scrapes a marketplace, storefront or ad platform; it checks what is supplied, and shows what is missing as missing.' },
+      { q: 'How is lifetime value recomputed?', a: 'Orders per customer over the first twelve months come from the cohorts; contribution per order comes from the consumer orders, after discounts, returns, cost of goods, fulfilment and channel fees. The product is set against the deck’s figure; if the deck matches the same orders at gross sales, the finding says so.' },
+      { q: 'Does it change how the brand is valued?', a: 'No. The valuation methods are the same; unit-economics findings feed them as inputs and adjustments, and aged stock is priced as a write-down a person accepts.' },
+      { q: 'What happens when an account is held personally?', a: 'A storefront, marketplace or ad account carrying a material share of revenue and registered to an individual is drafted for review, with its share and the record’s sentence. Its transfer to the company is a closing condition the reviewer can price as an escrow.' },
     ],
   },
 
@@ -622,7 +625,7 @@ export const WRITTEN_INDUSTRIES = INDUSTRIES.filter((industry) => industry.slug 
  * lease checks, T-161, 2026-11-26). Same list as the
  * app's RELEASED_COMPANY_TYPES (packages/domain/src/packs/release.ts).
  */
-export const RELEASED_INDUSTRY_SLUGS: readonly string[] = ['software-saas', 'multifamily', 'venture-raise', 'music-rights', 'energy-generation', 'startup-spv', 'fintech', 'healthcare', 'small-clinics', 'pharma-biotech'];
+export const RELEASED_INDUSTRY_SLUGS: readonly string[] = ['software-saas', 'multifamily', 'venture-raise', 'music-rights', 'energy-generation', 'startup-spv', 'fintech', 'healthcare', 'small-clinics', 'pharma-biotech', 'ecommerce-dtc'];
 
 /** An environment's copy of the site (dev, qa) previews every written pack, for testing before release. */
 export const PACK_PREVIEW = process.env['NEXT_PUBLIC_PACK_PREVIEW'] === 'true';

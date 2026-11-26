@@ -78,6 +78,16 @@ export const FEATURE_CARDS: readonly FeatureCardDefinition[] = [
     icon: 'check',
   },
   {
+    id: 'ecommerce-dtc-pack',
+    version: 1,
+    addedOn: '2026-11-26',
+    title: 'E-commerce & DTC: channel economics, cohort value and platform dependence, from the exports',
+    body: 'On an e-commerce and DTC pact, Pactlab recomputes revenue by channel from the storefront and marketplace exports and reconciles it to the P&L by year, recomputes lifetime value on a contribution-margin basis and checks the deck’s LTV and CAC against it, reads who each storefront, marketplace and ad account is registered to and flags a material one held personally, prices stock older than 180 days, and reads acquisition cost and contribution across every imported year. Exports and documents only, never a scrape; a person decides every finding.',
+    href: '/pacts/new',
+    linkLabel: 'Start an e-commerce pact',
+    icon: 'layers',
+  },
+  {
     id: 'pharma-biotech-pack',
     version: 1,
     addedOn: '2026-11-26',

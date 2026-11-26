@@ -129,6 +129,18 @@ describe('pack registry', () => {
     expect(peopleColumnProblems(IMPORT_TARGET_DEFINITIONS.PHARMA_RD_ROSTER, ['scientist_ref', 'full_name', 'salary'])).toHaveLength(2);
   });
 
+  it('E-commerce & DTC reads orders by channel, the stock report and the platform-account documents (T-164)', () => {
+    const ecommerce = PACKS.ECOMMERCE_DTC;
+    expect(ecommerce).toMatchObject({ slug: 'ecommerce-dtc', cluster: 'consumer', metricCalculator: 'ecommerce-channels', built: true, valuationMethods: ['DCF', 'ARR_MULTIPLE'] });
+    expect(ecommerce.importTargets).toEqual(['BILLING_INVOICE_LINE', 'ECOMMERCE_COHORTS', 'ECOMMERCE_AD_SPEND', 'ECOMMERCE_CHANNEL_ORDERS', 'ECOMMERCE_INVENTORY']);
+    // The T-065 rules stay, first and unchanged.
+    expect(ecommerce.findingRules.slice(0, 3)).toEqual(['ecommerce-marketplace-majority', 'ecommerce-cohort-repeat-decline', 'ecommerce-channel-cac-rising']);
+    expect(ecommerce.findingRules).toHaveLength(12);
+    expect(ecommerce.documentCategories).toEqual(['PLATFORM_ACCOUNT_RECORD', 'MARKETPLACE_AGREEMENT']);
+    for (const target of ecommerce.importTargets.slice(1)) expect(IMPORT_TARGET_DEFINITIONS[target]).toMatchObject({ people: 'NONE', refusesPeopleColumns: true });
+    expect(peopleColumnProblems(IMPORT_TARGET_DEFINITIONS.ECOMMERCE_CHANNEL_ORDERS, ['month', 'channel', 'customer_email'])).toHaveLength(1);
+  });
+
   it('every pack offers billing first, and only targets that exist (rule ids resolve in the API test)', () => {
     for (const id of PACK_IDS) {
       const pack = PACKS[id];
