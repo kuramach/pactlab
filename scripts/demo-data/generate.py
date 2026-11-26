@@ -421,7 +421,8 @@ PACK_IMPORTS = {
     'fintech': {'loan-tape': 'Loan tape', 'aml-alerts': 'AML alerts', 'processor-volume': 'Processor volume', 'licence-register': 'Licence and sponsor register'},
     'multifamily': {'rent-roll': 'Rent roll', 't12': 'T-12 operating statement', 'delinquency': 'Delinquency report', 'unit-inspections': 'Unit inspections'},
     'healthcare': {'claims-summary': 'Claims summary', 'provider-roster': 'Provider roster', 'remittances': 'Remittances by payer', 'clinician-collections': 'Collections by clinician', 'credentialing-register': 'Credentialing register', 'payer-contracts': 'Payer contract register'},
-    'telecom-media': {'subscribers-by-month': 'Subscribers by month'},
+    'telecom-media': {'subscribers-by-month': 'Subscribers by month', 'subscriber-movements': 'Subscriber movements', 'rights-register': 'Rights and carriage register',
+                      'revenue-by-counterparty': 'Advertising and affiliate revenue', 'capex-by-year': 'Capital expenditure by year'},
     'professional-services': {'timesheets-summary': 'Timesheets summary', 'headcount-movements': 'Headcount movements', 'time-billing': 'Time and billing', 'wip-ar-ageing': 'WIP and debtor ageing'},
     'pharma-biotech': {'patent-schedule': 'Patent schedule', 'trial-registry': 'Trial registry records', 'pipeline': 'Pipeline', 'obligations-model': 'Payment obligations model', 'rd-roster': 'R&D roster'},
     'ecommerce-dtc': {'orders-by-cohort': 'Orders by cohort', 'ad-spend': 'Ad spend', 'channel-orders': 'Orders by channel', 'inventory': 'Stock report'},
@@ -939,28 +940,132 @@ Reimbursement: 118% of the government programme fee schedule, reviewed annually.
 
 def telecom(ds):
     ds.kind, ds.kind_label = 'subscriber_plan', 'region-and-plan subscriber billing'
-    ds.summary = f'{ds.company} is a regional fibre broadband and streaming-TV provider selling residential and small-business plans in four regions.'
+    ds.summary = f'{ds.company} is a regional fibre broadband and streaming-TV provider selling residential and small-business plans in four regions, with a regional sports channel carried by other distributors.'
+    c = ds.cur
     regions = [('North', 5200), ('Central', 3100), ('Lakes', 1900), ('Valley', 1450)]
     plans = [('Fibre 500', 42), ('Fibre 1000', 58), ('Fibre + TV', 79)]
-    subs_rows, billed_last = [], 0
+    # Subscriber movements (T-168) run January 2023 to September 2026, so FY2023–FY2025 are complete years.
+    OM = []
+    yy, mm = 2023, 1
+    while (yy, mm) <= (2026, 9):
+        OM.append(f'{yy}-{mm:02d}'); mm += 1
+        if mm == 13: yy, mm = yy + 1, 1
+    def churn_of(mo): return D('0.009') if mo < '2026-01' else D('0.017')
+    subs_rows, move_rows, billed_last = [], [], 0
     for r, (reg, n0) in enumerate(regions):
         for p, (plan, arpu) in enumerate(plans):
             cid = f'{ds.prefix}-{reg[:3].lower()}-{p + 1}'
-            monthly = {}
-            n = D(n0) * D([0.5, 0.3, 0.2][p])
+            monthly, closing = {}, {}
+            base = D(n0) * D([0.5, 0.3, 0.2][p])
+            n = base
             for i, mo in enumerate(MONTHS):
-                churn = D('0.009') if mo < '2026-01' else D('0.017')
-                n = n * (D(1) + D('0.012') - churn)
+                n = n * (D(1) + D('0.012') - churn_of(mo))
                 subs = int(n)
+                closing[mo] = subs
                 monthly[mo] = ds.amt(arpu) * subs
                 if mo in LAST12: subs_rows.append([mo, reg, plan, subs, f'{ds.amt(arpu):.2f}'])
                 if mo == LAST: billed_last += subs
             ds.customer(cid, f'{reg} region — {plan} subscribers (synthetic)', monthly)
+            # Before October 2024 the base grew 0.3% a month (1.2% added, 0.9% lost): the same series, run back.
+            first = OM.index(MONTHS[0])
+            for j, mo in enumerate(OM[:first]):
+                closing[mo] = int(base / (D('1.003') ** (first - 1 - j)))
+            opening = int(base / (D('1.003') ** first))
+            for mo in OM:
+                close = closing[mo]
+                disc = int((D(opening) * churn_of(mo)).quantize(D('1'), ROUND_HALF_UP))
+                move_rows.append([mo, reg, plan, opening, close - opening + disc, disc, close, f'{q(ds.amt(arpu) * close):.2f}'])
+                opening = close
+    move_rows.sort(key=lambda row: (row[0], row[1], row[2]))
     ds.ext('subscribers-by-month', ['month', 'region', 'plan', 'billed_subscribers', 'arpu'], subs_rows, 'Billed subscribers and ARPU by region and plan')
+    ds.ext('subscriber-movements', ['month', 'region', 'plan', 'opening_subscribers', 'gross_adds', 'disconnects', 'closing_subscribers', 'service_revenue'], move_rows,
+           'Subscriber movements by month, region and plan from the billing system: opening, gross additions, disconnects, closing and service revenue')
     reported = int(billed_last * 1.064)
-    top, share = ds.share_top()
     north = sum(mo[LAST] for _, n, mo in ds.customers if n.startswith('North')) / (ds.billed_arr() / 12)
-    c = ds.cur
+
+    # What the movements give, as the checks read them (trailing twelve months to September 2026).
+    trail = [row for row in move_rows if row[0] in LAST12]
+    t_open = sum(row[3] for row in trail); t_disc = sum(row[5] for row in trail)
+    t_rev = sum((D(row[7]) for row in trail), D(0)); t_sm = sum((D(row[3] + row[6]) / 2 for row in trail), D(0))
+    churn = D(t_disc) / D(t_open)
+    arpu = (t_rev / t_sm).quantize(CENT, ROUND_HALF_UP)
+
+    # Advertising and affiliate revenue by counterparty. One advertiser is 34% of ad revenue (planted (c)); the
+    # four distributors carrying the sports channel are spread, the largest Rivermark Cable at 27%.
+    advertisers = [('Brightline Motors', D('0.34')), ('Harbour Home Furnishings', D('0.15')), ('Quarry Lane Insurance', D('0.13')), ('Tallgrass Grocers', D('0.11')),
+                   ('Northbank Credit Union', D('0.10')), ('Cedar Point Auto Group', D('0.09')), ('Lakeshore Health', D('0.08'))]
+    distributors = [('Rivermark Cable', D('0.27')), ('Harborview Cable', D('0.26')), ('Lakeshore Telecom', D('0.24')), ('Summit Fibre', D('0.23'))]
+    ad_total, aff_total, stream_rows, by_counterparty = {}, {}, [], {}
+    for i, mo in enumerate(OM):
+        back = len(OM) - 1 - i
+        ad_total[mo] = D(0); aff_total[mo] = D(0)
+        for stream, total, parties in (('advertising', ds.amt(D(118000) / (D('1.004') ** back)), advertisers), ('affiliate', ds.amt(D(250000) / (D('1.002') ** back)), distributors)):
+            for name, weight in parties:
+                amount = q(total * weight)
+                (ad_total if stream == 'advertising' else aff_total)[mo] += amount
+                if mo in MONTHS: stream_rows.append([mo, stream, f'{name} (synthetic)', f'{amount:.2f}'])
+                if mo in LAST12: by_counterparty[(stream, name)] = by_counterparty.get((stream, name), D(0)) + amount
+    ds.ext('revenue-by-counterparty', ['month', 'stream', 'counterparty', 'amount'], stream_rows, 'Advertising and affiliate revenue by month and counterparty, from the ad-sales and affiliate statements')
+    ad_trailing = sum((v for (st, _n), v in by_counterparty.items() if st == 'advertising'), D(0))
+    bright = by_counterparty[('advertising', 'Brightline Motors')]
+    billed_trailing = sum((mo[m] for _, _, mo in ds.customers for m in LAST12 if m in mo), D(0))
+    base_revenue = billed_trailing + sum(by_counterparty.values(), D(0))
+
+    # The rights and carriage register. The seller's register says AF-01 runs to 2028; the agreement itself
+    # says it expires on 30 September 2027, nine months after the expected closing (planted (b)).
+    rivermark = by_counterparty[('affiliate', 'Rivermark Cable')]
+    register = [
+        ['AF-01', 'Rivermark Cable (synthetic)', 'affiliate', 'receivable', f'{rivermark:.2f}', '2022-10-01', '2028-09-30', 'no'],
+        ['AF-02', 'Harborview Cable (synthetic)', 'affiliate', 'receivable', f'{by_counterparty[("affiliate", "Harborview Cable")]:.2f}', '2023-01-01', '2029-12-31', 'no'],
+        ['AF-03', 'Lakeshore Telecom (synthetic)', 'affiliate', 'receivable', f'{by_counterparty[("affiliate", "Lakeshore Telecom")]:.2f}', '2022-07-01', '2027-08-31', 'yes'],
+        ['AF-04', 'Summit Fibre (synthetic)', 'affiliate', 'receivable', f'{by_counterparty[("affiliate", "Summit Fibre")]:.2f}', '2024-04-01', '2028-03-31', 'no'],
+        ['CA-01', 'Summit Entertainment Networks (synthetic)', 'carriage', 'payable', f'{ds.amt(1100000):.2f}', '2023-01-01', '2028-12-31', 'no'],
+        ['SR-01', 'Northern Lakes Hockey League (synthetic)', 'sports_rights', 'payable', f'{ds.amt(650000):.2f}', '2024-07-01', '2029-06-30', 'no'],
+        ['CL-01', 'Lakeview Studios (synthetic)', 'content_licence', 'payable', f'{ds.amt(180000):.2f}', '2025-05-01', '2027-04-30', 'no'],
+    ]
+    ds.ext('rights-register', ['agreement_id', 'counterparty', 'kind', 'flow', 'annual_value', 'starts_on', 'ends_on', 'auto_renews'], register,
+           'Rights and carriage register: content, affiliate, carriage and sports-rights agreements with their annual value and dates')
+
+    # Three fiscal years of P&L. Revenue ties to the movements and the statements; content costs climb while ARPU
+    # stays flat (planted (d)).
+    years = ['2023', '2024', '2025']
+    sub_rev = {y: sum((D(row[7]) for row in move_rows if row[0].startswith(y)), D(0)) for y in years}
+    ad_rev = {y: sum((v for mo, v in ad_total.items() if mo.startswith(y)), D(0)) for y in years}
+    aff_rev = {y: sum((v for mo, v in aff_total.items() if mo.startswith(y)), D(0)) for y in years}
+    rev = {y: sub_rev[y] + ad_rev[y] + aff_rev[y] for y in years}
+    CONTENT = {'2023': D('0.20'), '2024': D('0.245'), '2025': D('0.29')}
+    content = {y: q(rev[y] * CONTENT[y]) for y in years}
+    network = {y: q(rev[y] * D('0.17')) for y in years}
+    carriage = {y: q(rev[y] * D('0.08')) for y in years}
+    marketing = {y: q(rev[y] * D('0.06')) for y in years}
+    general = {y: q(rev[y] * D('0.09')) for y in years}
+    pnl_rows = [['Subscription revenue'] + [f'{sub_rev[y]:.2f}' for y in years],
+                ['Advertising revenue'] + [f'{ad_rev[y]:.2f}' for y in years],
+                ['Affiliate fee revenue'] + [f'{aff_rev[y]:.2f}' for y in years],
+                ['Cost of content and programming'] + [f'{content[y]:.2f}' for y in years],
+                ['Cost of network operations'] + [f'{network[y]:.2f}' for y in years],
+                ['Cost of carriage and retransmission fees'] + [f'{carriage[y]:.2f}' for y in years],
+                ['Marketing and subscriber acquisition'] + [f'{marketing[y]:.2f}' for y in years],
+                ['General and administrative'] + [f'{general[y]:.2f}' for y in years]]
+    ds.ext('pnl', ['Line'] + [f'FY{y}' for y in years], pnl_rows, 'Profit and loss by fiscal year, FY2023 to FY2025')
+    def gm(y): return (rev[y] - content[y] - network[y] - carriage[y]) / rev[y]
+    def om(y): return (rev[y] - content[y] - network[y] - carriage[y] - marketing[y] - general[y]) / rev[y]
+    def year_rows(y): return [row for row in move_rows if row[0].startswith(y)]
+    def sub_months(y): return sum((D(row[3] + row[6]) / 2 for row in year_rows(y)), D(0))
+    def year_arpu(y): return sum((D(row[7]) for row in year_rows(y)), D(0)) / sub_months(y)
+    def content_per_sub(y): return content[y] / sub_months(y)
+    # Capital expenditure by year, steady against revenue (no planted defect).
+    capex_rows = []
+    for y in years:
+        for category, part in (('network', D('0.14')), ('customer_premises', D('0.04')), ('it', D('0.015')), ('content', D('0.01'))):
+            capex_rows.append([y, category, f'{q(rev[y] * part):.2f}'])
+    ds.ext('capex-by-year', ['year', 'category', 'amount'], capex_rows, 'Capital expenditure by fiscal year and category, FY2023 to FY2025')
+    ds.pnl_step = ['Open the **Sources** tab, scroll to **Industry data** and click **Upload profit and loss (p&l)**.', '',
+                   '1. Choose `pnl.csv` → **Upload and map columns**. Pactlab reads the three years across the columns (FY2023, FY2024, FY2025).',
+                   '2. Say what each line is: the three lines ending in *revenue* are **Revenue**, the three lines starting *Cost of* are **Cost of revenue**, and the rest are **Operating expenses**.',
+                   f'3. **Check every row**, then **Import {len(pnl_rows) * 3} rows**.', '',
+                   '**You should see:** the import succeed. The **Subscribers** tab now shows the P&L year by year and content cost per subscriber against ARPU, and the checks in the next step read every year.', '']
+
     ds.doc('01-kpi-pack-2026-09', f'''
 {ds.company} — investor KPI pack, September 2026 (synthetic)
 
@@ -972,12 +1077,40 @@ Wholesale network access agreement — {ds.company} and Valleyline Networks (syn
 ---page---
 9. Pricing review. Wholesale access charges are re-priced every 24 months; the next review is 1 January 2027.
 ''', 'Wholesale network access agreement')
+    ds.doc('03-investor-presentation', f'''
+{ds.company} — investor presentation, September 2026 (synthetic demo data).
+
+We billed {billed_last:,} subscribers on 30 September 2026.
+Average monthly churn was 0.9% over the twelve months to September 2026.
+ARPU was {c} {arpu:.2f} a month over the same twelve months, with prices unchanged since 2023.
+Northlake Sports Network is carried by four distributors under long-term affiliation agreements.
+The expected closing date is 31 December 2026.
+''', 'Investor presentation with the subscriber, churn and ARPU claims and the expected closing date')
+    ds.doc('04-affiliation-agreement-rivermark', f'''
+Affiliation agreement AF-01 — Northlake Sports Network ({ds.company}) and Rivermark Cable (synthetic).
+---page---
+14.1 Term. Agreement AF-01 expires on 30 September 2027.
+14.2 Renewal. Agreement AF-01 does not renew automatically; any renewal needs a new written agreement signed by both parties.
+''', 'Affiliation agreement with Rivermark Cable, the largest distributor of the sports channel')
     ds.findings = [
         ('Reported subscribers exceed billed subscribers', f'the KPI pack reports {reported:,}; `subscribers-by-month.csv` bills {billed_last:,} in September 2026.'),
-        ('Churn rising in 2026', 'billed subscribers grow about 0.3% a month until December 2025, then shrink about 0.5% a month from January 2026 (`invoice-lines.csv`, `subscribers-by-month.csv`); the KPI pack still reports 0.9% churn.'),
+        ('Churn rising against the reported rate', 'billed subscribers grow about 0.3% a month until December 2025, then shrink about 0.5% a month from January 2026 (`invoice-lines.csv`, `subscribers-by-month.csv`); the KPI pack still reports 0.9% churn.'),
         ('Regional concentration', f'the North region is {pct(north)} of September 2026 revenue.'),
         ('Wholesale price review ahead', '`documents/02-wholesale-network-agreement.pdf` page 2, clause 9 — next re-pricing 1 January 2027.'),
+        ('Claim verified: Subscribers', f'the investor presentation says {billed_last:,} billed subscribers; `subscriber-movements.csv` closes September 2026 at {billed_last:,}.'),
+        ('Claim contradicted: Monthly churn', f'the investor presentation says 0.9% a month; `subscriber-movements.csv` gives {pct(churn)} a month over the twelve months to September 2026 (disconnects ÷ opening subscribers).'),
+        ('Claim verified: ARPU', f'the investor presentation says {c} {arpu:.2f} a month; `subscriber-movements.csv` gives the same over the twelve months to September 2026.'),
+        ('Material agreement ends within 12 months of the closing: AF-01', f'`documents/04-affiliation-agreement-rivermark.pdf` page 2 — AF-01 expires on 30 September 2027 and does not renew automatically, nine months after the 31 December 2026 closing (the register says 2028). It is {pct(rivermark / base_revenue)} of trailing revenue.'),
+        ('Advertising revenue concentrated in one counterparty: Brightline Motors (synthetic)', f'`revenue-by-counterparty.csv` — Brightline Motors is {pct(bright / ad_trailing)} of advertising revenue over the twelve months to September 2026.'),
+        ('Content costs rising against flat ARPU, 2023–2025', f'`pnl.csv` and `subscriber-movements.csv` — content cost per subscriber a month {", ".join(f"{y} {content_per_sub(y):.2f}" for y in years)} against ARPU {", ".join(f"{y} {year_arpu(y):.2f}" for y in years)}. A single year shows only that year.'),
+        ('P&L trend, 2023–2025', 'every imported year side by side: revenue, growth, margins and the content, network, carriage and marketing ratios.'),
+        ('Gross margin and Operating margin down across 2023–2025', f'`pnl.csv` — gross margin {pct(gm("2023"))} to {pct(gm("2025"))}, operating margin {pct(om("2023"))} to {pct(om("2025"))}.'),
+        ('Content and programming costs growing faster than revenue, 2023–2025', f'`pnl.csv` — {pct(CONTENT["2023"])} of revenue in FY2023 to {pct(CONTENT["2025"])} in FY2025.'),
     ]
+    ds.notes = ['Subscribers appear only as counts by region and plan, never as people; advertisers and distributors are businesses.',
+                '`subscriber-movements.csv` runs January 2023 to September 2026, so each of FY2023–FY2025 is a complete year; its service revenue ties to the P&L\'s subscription revenue year by year.',
+                'The agreement governs over the register: `rights-register.csv` gives AF-01 an end of 2028-09-30, the agreement itself 30 September 2027.',
+                'The P&L (`pnl.csv`) imports through Sources like any extract; the multi-year checks read every year it holds. A single year still imports: the trend then reports that year alone.']
 
 def services(ds):
     ds.kind, ds.kind_label = 'retainer', 'client fee'

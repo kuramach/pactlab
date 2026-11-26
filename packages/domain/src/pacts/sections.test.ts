@@ -38,6 +38,8 @@ describe('deal sections per pact (batch 2)', () => {
     expect(sectionCompanyTypes('/ecommerce')).toEqual(['ECOMMERCE_DTC']);
     // A services firm's realization, concentration, ageing and covenant checks (T-167): only on a professional services pact.
     expect(sectionCompanyTypes('/services')).toEqual(['PROFESSIONAL_SERVICES']);
+    // A telecom or media business's subscriber, rights, concentration and squeeze checks (T-168): only on a telecom pact.
+    expect(sectionCompanyTypes('/telecom')).toEqual(['TELECOM_MEDIA']);
     // A pooled vehicle's seats, economics and investor view (T-141): only on a startup equity SPV, which has no acquisition close.
     expect(sectionCompanyTypes('/spv')).toEqual(['STARTUP_SPV']);
     expect(sectionApplies('/closing', { companyType: 'STARTUP_SPV', initiatedBy: 'BUYER' })).toBe(false);

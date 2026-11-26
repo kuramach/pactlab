@@ -103,8 +103,15 @@ export type EcommerceCategory = (typeof ECOMMERCE_CATEGORIES)[number];
  */
 export const SERVICES_CATEGORIES = ['COVENANT_REGISTER'] as const;
 export type ServicesCategory = (typeof SERVICES_CATEGORIES)[number];
+/**
+ * A telecom or media business (T-168) is diligenced on the agreements its content and distribution run on:
+ * content licences, affiliate, carriage and sports-rights agreements, each read for its end date and
+ * renewal against the expected closing. Absence is shown as absence.
+ */
+export const TELECOM_CATEGORIES = ['RIGHTS_AGREEMENT'] as const;
+export type TelecomCategory = (typeof TELECOM_CATEGORIES)[number];
 /** Every category a pack may add on top of the common ones. */
-export type PackDocumentCategory = OfferingCategory | MusicCategory | EnergyCategory | SpvCategory | FintechCategory | HealthcareCategory | PharmaCategory | EcommerceCategory | ServicesCategory;
+export type PackDocumentCategory = OfferingCategory | MusicCategory | EnergyCategory | SpvCategory | FintechCategory | HealthcareCategory | PharmaCategory | EcommerceCategory | ServicesCategory | TelecomCategory;
 
 export type DocumentCategory = (typeof DOCUMENT_CATEGORIES)[number] | PackDocumentCategory;
 
@@ -365,6 +372,14 @@ const DOCUMENT_DEFINITIONS: Readonly<Record<DocumentCategory, CategoryDefinition
     id: 'REGULATORY_EXAM',
     label: 'Exam report or consent order',
     description: 'A regulator\'s examination report, a matter requiring attention, a consent order or another enforcement action.',
+    route: { kind: 'FILE' },
+    people: false,
+  },
+  // Telecom and media documents (T-168): kept and listed; the Subscribers page and the pack's checks read them.
+  RIGHTS_AGREEMENT: {
+    id: 'RIGHTS_AGREEMENT',
+    label: 'Content, affiliate or carriage agreement',
+    description: 'A content licence, affiliate, carriage or sports-rights agreement between the company and a network, distributor, studio or league, with its term and renewal.',
     route: { kind: 'FILE' },
     people: false,
   },
