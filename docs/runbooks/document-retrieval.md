@@ -21,7 +21,7 @@ took a different path. Design: ADR 0047 (T-139).
 3. If a page is missing from the index altogether: `SELECT count(*) FILTER (WHERE search_vector IS NULL AND text IS
    NOT NULL) FROM document_pages WHERE document_id = '<doc>';`. Non-zero for an AVAILABLE, not AI-excluded document
    means the trigger did not run (for example, rows written before the migration and missed by the backfill). Re-run
-   the backfill statement from `20270109000000_page_search` for that document; never edit page text to fix it.
+   the backfill statement from `20270107000000_page_search` for that document; never edit page text to fix it.
 
 ## Changing the budget
 - `AI_CONTEXT_BUDGET_CHARS` is read at startup (1,000 to 2,000,000). Raising it sends more per question (cost and
