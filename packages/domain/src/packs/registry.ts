@@ -17,7 +17,7 @@ export const PACK_IDS = COMPANY_TYPES.filter((type): type is PackId => type !== 
 export type PackCluster = 'technology' | 'healthcare' | 'real-estate' | 'services' | 'life-sciences' | 'consumer' | 'capital' | 'media-rights' | 'energy';
 
 /** Calculator ids in `@pactlab/calculations` (`metricCalculator`). */
-export const METRIC_CALCULATOR_IDS = ['saas-metrics', 'multifamily-metrics', 'music-royalties', 'energy-assets', 'spv-round', 'fintech-payments', 'healthcare-collections', 'clinics-practice'] as const;
+export const METRIC_CALCULATOR_IDS = ['saas-metrics', 'multifamily-metrics', 'music-royalties', 'energy-assets', 'spv-round', 'fintech-payments', 'healthcare-collections', 'clinics-practice', 'hospitals-operations'] as const;
 export type MetricCalculatorId = (typeof METRIC_CALCULATOR_IDS)[number];
 
 /** Valuation method ids in `@pactlab/calculations` (`VALUATION_METHODS`). */
@@ -248,13 +248,35 @@ export const PACKS: Readonly<Record<PackId, PackDefinition>> = {
     requiredInputs: ['LEASE'],
     valuationMethods: ['DCF'],
   },
+  // Acute-care and specialty hospitals (T-069, extended by T-162, ADR 0053). The T-069 targets and rules stay
+  // first; the pack adds the medical-staff register, cost-report reconciliation, the payer contract register
+  // read from the agreements, the plant and capex trend, quality-reporting claims and the multi-year P&L trend.
   HOSPITALS: {
     ...pack('HOSPITALS', 'hospitals', 'healthcare', true),
-    importTargets: ['BILLING_INVOICE_LINE', 'HOSPITALS_CENSUS', 'HOSPITALS_PAYER_MIX'],
+    importTargets: ['BILLING_INVOICE_LINE', 'HOSPITALS_CENSUS', 'HOSPITALS_PAYER_MIX', 'HOSPITALS_MEDICAL_STAFF'],
+    metricCalculator: 'hospitals-operations',
     // Extends healthcare (T-061): its compliance rules run too; payer concentration reads the payer mix instead of billing.
-    findingRules: ['hospitals-payer-concentration', 'hospitals-accreditation-transfer', 'hospitals-physician-dependence', 'hospitals-regulatory-capex', 'healthcare-director-fee', 'healthcare-privacy-assessment'],
+    findingRules: [
+      'hospitals-payer-concentration',
+      'hospitals-accreditation-transfer',
+      'hospitals-physician-dependence',
+      'hospitals-regulatory-capex',
+      'healthcare-director-fee',
+      'healthcare-privacy-assessment',
+      'hospitals-cost-report-reconciliation',
+      'hospitals-payer-contracts',
+      'hospitals-medical-staff',
+      'hospitals-plant-capex',
+      'hospitals-quality-claims',
+      'hospitals-pnl-trend',
+      'hospitals-pnl-margin-drift',
+      'hospitals-pnl-expense-outpacing',
+    ],
+    // The agreements, cost reports, condition assessments and quality reporting the checks read; intake asks for each.
+    documentCategories: ['COST_REPORT', 'PAYER_CONTRACT', 'PROPERTY_CONDITION_ASSESSMENT', 'QUALITY_REPORT', 'LICENCE_VERIFICATION'],
     valuationMethods: ['PAYER_MIX_EBITDA', 'DCF'],
   },
+
   VENTURE_RAISE,
   // Sponsor-side (T-106): the Multifamily pack by reference — its targets, calculator, rules and
   // methods flow through unchanged — plus the offering: the sponsor's track record and the PPM,

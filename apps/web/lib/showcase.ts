@@ -129,6 +129,11 @@ export const SHOWCASE: Readonly<Record<string, ShowcaseEntry>> = {
     why: 'The selling owner’s share by service line, referral sources recomputed from the schedule, and the lease’s end date, renewal and assignment; collections and credentials on the Practice tab. Documents, dates and arithmetic, not legal advice.',
     lookFor: ['58% of visits from one referral source', 'A lease ending 14 months after closing with no renewal option', 'The selling owner as the only provider of the highest-margin service line', 'Supplies outpacing revenue across three years'],
   },
+  '/hospitals': {
+    title: 'The cost report, the payer contracts, the medical staff and the plant, checked against each other',
+    why: 'The deck against the filed cost report, the cost report against the P&L, payer agreements against the closing, privileges by department, and capital spend across every P&L year. Documents, dates and arithmetic, not clinical or legal advice.',
+    lookFor: ['The largest payer contract ending seven months after closing', 'Cost-report occupancy far below the deck’s', 'Capital spend falling three years running against a “modern plant” claim', 'One department whose privileges lapsed together'],
+  },
   '/valuation': {
     title: 'Sextant: what to pay, and why',
     why: 'Scenarios from stored inputs, accepted risks priced in, comparables and negotiation anchors: a price you can defend line by line.',

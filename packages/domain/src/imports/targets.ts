@@ -37,6 +37,7 @@ export const IMPORT_TARGETS = [
   'CLINICS_REFERRALS',
   'HOSPITALS_CENSUS',
   'HOSPITALS_PAYER_MIX',
+  'HOSPITALS_MEDICAL_STAFF',
   'VENTURE_CAP_TABLE',
   'VENTURE_FINANCIALS',
   'SYNDICATION_TRACK_RECORD',
@@ -799,6 +800,32 @@ export const HOSPITALS_PAYER_MIX: TargetDefinition = {
 };
 
 /**
+ * Hospitals (T-162): the medical-staff register at hospital scale — one row per physician or advanced
+ * practitioner by pseudonymous reference, with the department, the licence and the clinical privileges
+ * (status and the reappointment date they lapse on), from the medical staff office. Never a name or a
+ * licence number (rule 7); the rows stay in deterministic code.
+ */
+export const HOSPITALS_MEDICAL_STAFF: TargetDefinition = {
+  target: 'HOSPITALS_MEDICAL_STAFF',
+  label: 'Medical-staff register',
+  fileName: 'medical-staff.csv',
+  people: 'PSEUDONYMOUS',
+  refusesPeopleColumns: true,
+  evidenceType: 'hospitals.medical_staff',
+  recordIdField: 'staff_ref',
+  observedAtFields: [],
+  fields: [
+    { name: 'staff_ref', label: 'Staff reference', kind: 'text', required: true, hint: 'A pseudonymous reference such as MS-014 — never a name or licence number.' },
+    { name: 'department', label: 'Department', kind: 'text', required: true, hint: 'The clinical department or service line, e.g. Cardiology.' },
+    { name: 'role', label: 'Role', kind: 'text', required: false, hint: 'e.g. physician, surgeon, advanced practitioner.' },
+    { name: 'licence_status', label: 'Licence status', kind: 'text', required: false, hint: 'The register’s status: active, pending, expired, suspended or revoked.' },
+    { name: 'licence_expires_on', label: 'Licence expires on', kind: 'date', required: false, hint: 'YYYY-MM-DD.' },
+    { name: 'privilege_status', label: 'Privilege status', kind: 'text', required: false, hint: 'active, provisional, reappointed, lapsed, suspended or relinquished.' },
+    { name: 'privileges_expire_on', label: 'Privileges expire on', kind: 'date', required: false, hint: 'The reappointment date the clinical privileges lapse on, YYYY-MM-DD.' },
+  ],
+};
+
+/**
  * Venture Raise (T-083): the cap table in a Carta/Pulley-like export shape,
  * one row per security. Holders are pseudonymous references and a holder
  * type — never names (rule 7).
@@ -1194,6 +1221,7 @@ export const IMPORT_TARGET_DEFINITIONS: Readonly<Record<ImportTarget, TargetDefi
   CLINICS_REFERRALS,
   HOSPITALS_CENSUS,
   HOSPITALS_PAYER_MIX,
+  HOSPITALS_MEDICAL_STAFF,
   VENTURE_CAP_TABLE,
   VENTURE_FINANCIALS,
   SYNDICATION_TRACK_RECORD,

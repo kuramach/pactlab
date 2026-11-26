@@ -6,6 +6,7 @@ import { ENERGY_METRICS_CALCULATOR } from './energy/metrics';
 import { FINTECH_METRICS_CALCULATOR } from './fintech/metrics';
 import { HEALTHCARE_METRICS_CALCULATOR } from './healthcare/metrics';
 import { CLINICS_METRICS_CALCULATOR } from './clinics/metrics';
+import { HOSPITALS_METRICS_CALCULATOR } from './hospitals/metrics';
 import { SPV_METRICS_CALCULATOR } from './spv/metrics';
 
 /**
@@ -38,4 +39,5 @@ export const METRIC_CALCULATORS: Readonly<Record<string, MetricCalculator<never,
   [FINTECH_METRICS_CALCULATOR.id]: FINTECH_METRICS_CALCULATOR as MetricCalculator<never, unknown>,
   [HEALTHCARE_METRICS_CALCULATOR.id]: HEALTHCARE_METRICS_CALCULATOR as MetricCalculator<never, unknown>,
   [CLINICS_METRICS_CALCULATOR.id]: CLINICS_METRICS_CALCULATOR as MetricCalculator<never, unknown>,
+  [HOSPITALS_METRICS_CALCULATOR.id]: HOSPITALS_METRICS_CALCULATOR as MetricCalculator<never, unknown>,
 };

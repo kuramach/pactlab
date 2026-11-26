@@ -3,15 +3,16 @@ import { COMPANY_TYPES } from '../pacts/types';
 import { isReleasedCompanyType, RELEASED_COMPANY_TYPES, selectableCompanyTypes } from './release';
 
 describe('released packs', () => {
-  it('sells Software & SaaS, Multifamily, Venture Raise, Music rights, Energy generation & rights, Startup equity SPV, Fintech, Healthcare and Small clinics only', () => {
-    expect([...RELEASED_COMPANY_TYPES]).toEqual(['SOFTWARE_SAAS', 'MULTIFAMILY', 'VENTURE_RAISE', 'MUSIC_RIGHTS', 'ENERGY_GENERATION', 'STARTUP_SPV', 'FINTECH', 'HEALTHCARE', 'SMALL_CLINICS']);
-    expect(isReleasedCompanyType('HOSPITALS')).toBe(false);
+  it('sells Software & SaaS, Multifamily, Venture Raise, Music rights, Energy generation & rights, Startup equity SPV, Fintech, Healthcare, Small clinics and Hospitals only', () => {
+    expect([...RELEASED_COMPANY_TYPES]).toEqual(['SOFTWARE_SAAS', 'MULTIFAMILY', 'VENTURE_RAISE', 'MUSIC_RIGHTS', 'ENERGY_GENERATION', 'STARTUP_SPV', 'FINTECH', 'HEALTHCARE', 'SMALL_CLINICS', 'HOSPITALS']);
+    expect(isReleasedCompanyType('HOSPITALS')).toBe(true);
+    expect(isReleasedCompanyType('HOTELS')).toBe(false);
     expect(isReleasedCompanyType('OTHER')).toBe(false);
     expect(isReleasedCompanyType('VENTURE_RAISE')).toBe(true);
   });
 
   it('offers every type in preview, and only released ones otherwise', () => {
     expect(selectableCompanyTypes(true)).toEqual(COMPANY_TYPES);
-    expect(selectableCompanyTypes(false)).toEqual(['SOFTWARE_SAAS', 'MULTIFAMILY', 'VENTURE_RAISE', 'MUSIC_RIGHTS', 'ENERGY_GENERATION', 'STARTUP_SPV', 'FINTECH', 'HEALTHCARE', 'SMALL_CLINICS']);
+    expect(selectableCompanyTypes(false)).toEqual(['SOFTWARE_SAAS', 'MULTIFAMILY', 'VENTURE_RAISE', 'MUSIC_RIGHTS', 'ENERGY_GENERATION', 'STARTUP_SPV', 'FINTECH', 'HEALTHCARE', 'SMALL_CLINICS', 'HOSPITALS']);
   });
 });

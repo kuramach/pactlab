@@ -430,7 +430,7 @@ PACK_IMPORTS = {
     'small-clinics': {'patient-volume': 'Patient volume', 'equipment-schedule': 'Equipment schedule', 'coding-summary': 'Coding summary', 'remittances': 'Remittances by payer',
                       'clinician-collections': 'Collections by clinician', 'credentialing-register': 'Credentialing register', 'payer-contracts': 'Payer contract register',
                       'service-lines': 'Service lines by provider', 'referrals': 'Visits by referral source'},
-    'hospitals': {'census': 'Census', 'payer-mix': 'Payer mix'},
+    'hospitals': {'census': 'Census', 'payer-mix': 'Payer mix', 'medical-staff': 'Medical-staff register'},
     'venture-raise': {'cap-table': 'Cap table', 'monthly-financials': 'Monthly financials'},
     'multifamily-syndication': {'rent-roll': 'Rent roll', 't12': 'T-12 operating statement', 'delinquency': 'Delinquency report', 'unit-inspections': 'Unit inspections', 'track-record': 'Sponsor track record'},
     'music-rights': {'works-register': 'Works register', 'writer-splits': 'Writer splits', 'chain-of-title': 'Chain of title', 'royalty-statements': 'Royalty statements'},
@@ -1243,6 +1243,58 @@ def hospitals(ds):
     ds.ext('payer-mix', ['month', 'payer', 'gross_charges', 'net_revenue'], pm, 'Gross charges and net revenue by payer')
     top, share = ds.share_top()
     c = ds.cur
+
+    # --- T-162: the medical staff at hospital scale. Every department's reappointments are spread over the
+    # two-year cycle, except orthopaedics: all seven share 30 June 2026, which passed unrenewed (planted (d)).
+    departments = [('Cardiology', 8, 'physician'), ('Orthopaedics', 7, 'surgeon'), ('Maternity', 6, 'physician'), ('General medicine', 14, 'physician'),
+                   ('Emergency', 9, 'physician'), ('Anaesthesia', 6, 'physician'), ('Radiology', 5, 'physician')]
+    staff, n = [], 0
+    for dept, size, role in departments:
+        for k in range(size):
+            n += 1
+            ref = f'MS-{n:03d}'
+            licence = f'{2027 + n % 3}-{(n % 12) + 1:02d}-{(n % 3) * 9 + 10:02d}'
+            privileges = '2026-06-30' if dept == 'Orthopaedics' else f'{2027 + k % 2}-{(k % 12) + 1:02d}-{(k % 3) * 9 + 1:02d}'
+            staff.append([ref, dept, role, 'active', licence, 'active', privileges])
+    ds.ext('medical-staff', ['staff_ref', 'department', 'role', 'licence_status', 'licence_expires_on', 'privilege_status', 'privileges_expire_on'], staff,
+           'Medical-staff register: department, licence and clinical privileges by pseudonymous staff reference')
+    ortho = [r for r in staff if r[1] == 'Orthopaedics']
+
+    # Three fiscal years of P&L. Capital spend on plant and equipment falls from 6.1% to 2.6% of revenue while
+    # the deck claims a modern plant (planted (c)); FY2025 alone looks like a lean year. FY2025 costs equal
+    # the cost report's total operating costs, so the reconciliation agrees.
+    years = ['FY2023', 'FY2024', 'FY2025']
+    patient = [ds.amt(33700000), ds.amt(35700000), ds.amt(37900000)]
+    other = [ds.amt(1300000), ds.amt(1400000), ds.amt(1500000)]
+    rev = [patient[i] + other[i] for i in range(3)]
+    ratios = {
+        'Cost of care: staff salaries and benefits': [D('0.50')] * 3,
+        'Medical supplies and drugs': [D('0.16')] * 3,
+        'Contract labour (agency nursing)': [D('0.035')] * 3,
+        'Purchased services': [D('0.06')] * 3,
+        'Repairs and maintenance': [D('0.022')] * 3,
+        'Capital-related costs: plant and equipment': [D('0.061'), D('0.043'), D('0.026')],
+    }
+    lines = {name: [q(rev[i] * rs[i]) for i in range(3)] for name, rs in ratios.items()}
+    total_costs = ds.amt(36200000)
+    ga_2025 = total_costs - sum(v[2] for v in lines.values())
+    ga_ratio = ga_2025 / rev[2]
+    lines['General and administrative'] = [q(rev[0] * ga_ratio), q(rev[1] * ga_ratio), ga_2025]
+    pnl_rows = [['Net patient service revenue'] + [f'{x:.2f}' for x in patient], ['Other operating revenue'] + [f'{x:.2f}' for x in other]]
+    for name, vals in lines.items():
+        pnl_rows.append([name] + [f'{x:.2f}' for x in vals])
+    capex = lines['Capital-related costs: plant and equipment']
+    capex_ratio = [capex[i] / rev[i] for i in range(3)]
+    ds.ext('pnl', ['Line'] + years, pnl_rows, 'Profit and loss by fiscal year, FY2023 to FY2025')
+    ds.pnl_step = ['Open the **Sources** tab, scroll to **Industry data** and click **Upload profit and loss (p&l)**.', '',
+                   '1. Choose `pnl.csv` → **Upload and map columns**. Pactlab reads the three years across the columns (FY2023, FY2024, FY2025).',
+                   '2. Say what each line is: the two lines ending in *revenue* are **Revenue**, `Cost of care: staff salaries and benefits` is **Cost of revenue**, and the rest are **Operating expenses**.',
+                   f'3. **Check every row**, then **Import {len(pnl_rows) * 3} rows**.', '',
+                   '**You should see:** the import succeed. The **Hospital** tab shows capital spend year by year, and the checks in the next step read every year.', '']
+
+    # The cost report: occupancy and payer shares of inpatient days, and its total costs. The deck overstates occupancy (planted (b)).
+    days_fy25 = 53290
+    occupancy = (D(days_fy25) / D(220 * 365) * 100).quantize(D('0.1'), ROUND_HALF_UP)
     ds.doc('01-accreditation-record', f'''
 St. Brennan Regional Medical Center — accreditation status (synthetic)
 
@@ -1251,23 +1303,76 @@ Accredited through 31 May 2028.
 Condition: accreditation does not transfer automatically on a change of ownership; a new owner must apply within 30 days and undergo a focused survey.
 ''', 'Accreditation record and transfer condition')
     ds.doc('02-medicare-cost-report-summary', f'''
-Cost report summary, fiscal year 2025 (synthetic)
+Medicare cost report summary, fiscal year 2025 (synthetic).
 
-Total operating expenses: {money(c, ds.amt(36200000))}
-Committed regulatory capital expenditure (fire-safety and seismic upgrades): {money(c, ds.amt(4100000))}
-''', 'Cost report summary with committed regulatory capex', 'Financial')
+Licensed beds: 220.
+Inpatient days: {days_fy25:,}.
+Occupancy of licensed beds: {occupancy}%.
+Medicare share of inpatient days: 41.0%.
+Medicaid share of inpatient days: 17.0%.
+Total operating costs: {money(c, total_costs)}.
+Committed regulatory capital expenditure (fire-safety and seismic upgrades): {money(c, ds.amt(4100000))}.
+''', 'Filed cost report summary: beds, inpatient days, occupancy, payer shares, costs and committed regulatory capex', 'Financial')
     ds.doc('03-service-line-dependence', f'''
 Service-line staffing summary (synthetic, aggregate)
 
 Cardiology: two interventional cardiologists perform about 80% of procedures.
 ''', 'Aggregate physician dependence by service line')
+    ds.doc('04-management-presentation', f'''
+{ds.company} — management presentation, September 2026 (synthetic demo data).
+
+The hospital has 220 licensed beds across cardiology, orthopaedics, maternity and general medicine.
+Occupancy averaged 82% of licensed beds in fiscal year 2025.
+Medicare accounts for 41% of inpatient days.
+The hospital runs a modern plant, with the main building fully renovated in 2016.
+The hospital holds a four-star overall rating from the national hospital quality rating programme (synthetic).
+The parties have agreed a target closing date of 31 December 2026.
+''', 'Management presentation: occupancy, payer mix, plant, quality rating and the target closing date')
+    ds.doc('05-payer-agreement-keystone', f'''
+Hospital services agreement between Commercial plan Keystone (synthetic) and the hospital operator (synthetic).
+
+The term began on 1 August 2022 and ends on 31 July 2027.
+Keystone pays inpatient stays at a case rate per DRG and outpatient services at 118% of the Medicare fee schedule.
+Rates are renegotiated on renewal; either party may give notice of non-renewal 180 days before the term ends.
+''', 'Payer agreement with Commercial plan Keystone: rate basis, term and renewal')
+    ds.doc('06-payer-agreement-riverbend', f'''
+Hospital services agreement between Commercial plan Riverbend (synthetic) and the hospital operator (synthetic).
+
+The term began on 1 July 2024 and ends on 30 June 2029.
+Riverbend pays a per diem for inpatient days and 112% of the Medicare fee schedule for outpatient services.
+The agreement renews automatically for one-year terms unless either party gives notice of non-renewal.
+''', 'Payer agreement with Commercial plan Riverbend: rate basis, term and renewal')
+    ds.doc('07-property-condition-assessment', f'''
+Property condition assessment of the main hospital campus, August 2026 (synthetic).
+
+The central plant chillers and the main electrical switchgear are past their expected service life.
+Roof membranes over the surgical wing are in poor condition.
+Deferred maintenance is estimated at {money(c, ds.amt(6800000))} over the next three years.
+''', 'Property condition assessment of the hospital plant')
+    ds.doc('08-quality-reporting', f'''
+Hospital quality reporting summary, 2026 release (synthetic).
+
+Overall star rating: 4 stars.
+Measures are as published by the national hospital quality rating programme (synthetic).
+''', 'Published quality reporting: the overall star rating')
+
     ds.findings = [
         ('Earnings concentrated in one payer', f'{top} is {pct(share)} of September 2026 net revenue.'),
         ('Accreditation does not transfer automatically', '`documents/01-accreditation-record.pdf` page 2 — make it a closing condition.'),
         ('Key-physician dependence in cardiology', '`documents/03-service-line-dependence.pdf` — two physicians perform about 80% of cardiology procedures (aggregate data only).'),
         ('Committed regulatory capex', f'`documents/02-medicare-cost-report-summary.pdf` — {money(c, ds.amt(4100000))} committed. Price as remediation.'),
+        ('The cost report contradicts the deck: Occupancy of licensed beds', f'`documents/04-management-presentation.pdf` says 82%; the filed cost report for fiscal year 2025 says {occupancy}% (`documents/02-medicare-cost-report-summary.pdf`).'),
+        ('Claim verified against the cost report: Medicare share of inpatient days', '41% in the deck, 41.0% in the cost report.'),
+        ('Largest payer contract ends 7 months after closing: Commercial plan Keystone (synthetic)', '`documents/05-payer-agreement-keystone.pdf` — the term ends on 31 July 2027, seven months after the 31 December 2026 target closing in the deck; Keystone is the largest contracted payer in `payer-mix.csv`.'),
+        (f'Orthopaedics: clinical privileges lapsed together for {len(ortho)} medical staff on 2026-06-30', f'`medical-staff.csv` — all {len(ortho)} orthopaedic surgeons share the 30 June 2026 reappointment date, passed with no reappointment recorded.'),
+        (f'Capital spend fell from {pct(capex_ratio[0])} to {pct(capex_ratio[2])} of revenue, 2023–2025, against a “modern plant” claim', f'`pnl.csv` — capital-related costs fall every year ({money(c, capex[0])} to {money(c, capex[2])}) while the deck claims a modern plant; `documents/07-property-condition-assessment.pdf` puts deferred maintenance at {money(c, ds.amt(6800000))}. One year alone misses it.'),
+        ('Quality claim verified: overall star rating', 'four stars in the deck, 4 stars in `documents/08-quality-reporting.pdf` — the stated rating only.'),
+        ('P&L trend, 2023–2025', 'every imported year side by side: revenue, growth, margins and the labour, contract labour, supplies, capital and repairs ratios.'),
     ]
-    ds.notes = ['Physician data is aggregate only; Pactlab never sends people data to a model.']
+    assert capex_ratio[2] <= capex_ratio[0] * D('0.75')
+    ds.notes = ['Physician data is aggregate only; the medical-staff register names staff by pseudonymous reference (MS-001, …). Pactlab never sends people data to a model.',
+                'The P&L (`pnl.csv`) imports through Sources like any extract; the multi-year checks read every year it holds. A single year still imports: the trend then reports that year alone.',
+                'Diligence support only: the pack reconciles documents, dates and arithmetic. It does not predict a survey outcome, assess the quality of care or read a contract in law.']
 
 def clinics(ds):
     ds.kind, ds.kind_label = 'clinic_revenue', 'payer remittance'

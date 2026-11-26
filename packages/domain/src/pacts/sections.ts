@@ -57,6 +57,8 @@ export const DEAL_SECTION_RULES: Readonly<Record<string, (context: SectionContex
   '/healthcare': (context) => context.companyType === 'HEALTHCARE' || context.companyType === 'SMALL_CLINICS',
   // A few-site clinic's own checks (T-161): the owner-operator's share by service line, referral concentration and the clinic lease.
   '/clinics': (context) => context.companyType === 'SMALL_CLINICS',
+  // A hospital's own checks (T-162): cost-report reconciliation, the payer contract register, the medical staff, the plant and capex trend and quality claims.
+  '/hospitals': (context) => context.companyType === 'HOSPITALS',
   // A pooled vehicle (T-141): the round checks, the vehicle economics, side letters, investor seats and the published investor view.
   '/spv': (context) => context.companyType === 'STARTUP_SPV',
   '/valuation': everywhere,

@@ -78,8 +78,15 @@ export type FintechCategory = (typeof FINTECH_CATEGORIES)[number];
  */
 export const HEALTHCARE_CATEGORIES = ['LICENCE_VERIFICATION', 'CODING_AUDIT', 'HIPAA_RISK_ASSESSMENT', 'PAYER_CONTRACT', 'RESTRICTIVE_COVENANTS'] as const;
 export type HealthcareCategory = (typeof HEALTHCARE_CATEGORIES)[number];
+/**
+ * A hospital (T-162) is diligenced from its filed cost reports, its property condition assessments and
+ * the quality reporting it publishes, beside the healthcare payer contracts and licence verifications.
+ * The Hospital page reads their figures, dates and stated ratings; absence is shown as absence.
+ */
+export const HOSPITALS_CATEGORIES = ['COST_REPORT', 'PROPERTY_CONDITION_ASSESSMENT', 'QUALITY_REPORT'] as const;
+export type HospitalsCategory = (typeof HOSPITALS_CATEGORIES)[number];
 /** Every category a pack may add on top of the common ones. */
-export type PackDocumentCategory = OfferingCategory | MusicCategory | EnergyCategory | SpvCategory | FintechCategory | HealthcareCategory;
+export type PackDocumentCategory = OfferingCategory | MusicCategory | EnergyCategory | SpvCategory | FintechCategory | HealthcareCategory | HospitalsCategory;
 
 export type DocumentCategory = (typeof DOCUMENT_CATEGORIES)[number] | PackDocumentCategory;
 
@@ -376,6 +383,28 @@ const DOCUMENT_DEFINITIONS: Readonly<Record<DocumentCategory, CategoryDefinition
     id: 'RESTRICTIVE_COVENANTS',
     label: 'Non-compete and retention schedule',
     description: 'A schedule of the clinicians, by pseudonymous provider reference, bound by a non-compete, non-solicitation or retention agreement, with each term. Not the agreements\' pay terms.',
+    route: { kind: 'FILE' },
+    people: false,
+  },
+  // Hospital documents (T-162): kept and listed; the Hospital page reads their figures, dates and stated ratings.
+  COST_REPORT: {
+    id: 'COST_REPORT',
+    label: 'Cost report',
+    description: 'A filed hospital cost report or its summary (for example the Medicare cost report): beds, patient days, occupancy, payer shares and costs for a fiscal year.',
+    route: { kind: 'FILE' },
+    people: false,
+  },
+  PROPERTY_CONDITION_ASSESSMENT: {
+    id: 'PROPERTY_CONDITION_ASSESSMENT',
+    label: 'Property condition assessment',
+    description: 'A property or facility condition assessment of the hospital plant: building systems, deferred maintenance and replacement needs.',
+    route: { kind: 'FILE' },
+    people: false,
+  },
+  QUALITY_REPORT: {
+    id: 'QUALITY_REPORT',
+    label: 'Quality reporting',
+    description: 'A published quality-reporting record for the hospital: its overall star rating or the measures a regulator or rating programme reports.',
     route: { kind: 'FILE' },
     people: false,
   },

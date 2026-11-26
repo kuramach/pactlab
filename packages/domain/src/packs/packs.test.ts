@@ -89,7 +89,7 @@ describe('pack registry', () => {
     expect(peopleColumnProblems(IMPORT_TARGET_DEFINITIONS.HEALTHCARE_CLINICIAN_COLLECTIONS, ['month', 'provider_ref', 'collected'])).toEqual([]);
     expect(peopleColumnProblems(IMPORT_TARGET_DEFINITIONS.HEALTHCARE_CLINICIAN_COLLECTIONS, ['month', 'provider_ref', 'full_name', 'salary'])).toHaveLength(2);
     expect(peopleColumnProblems(IMPORT_TARGET_DEFINITIONS.HEALTHCARE_REMITTANCES, ['month', 'payer', 'patient_id'])).toHaveLength(1);
-    // Hospitals is untouched; small clinics reuses the T-160 set by reference (below).
+    // Hospitals keeps its own checks (below); small clinics reuses the T-160 set by reference.
     expect(PACKS.HOSPITALS.findingRules).not.toContain('healthcare-credentialing');
   });
 
@@ -113,6 +113,29 @@ describe('pack registry', () => {
     expect(peopleColumnProblems(IMPORT_TARGET_DEFINITIONS.CLINICS_SERVICE_LINES, ['month', 'service_line', 'provider_ref', 'collected'])).toEqual([]);
     expect(peopleColumnProblems(IMPORT_TARGET_DEFINITIONS.CLINICS_SERVICE_LINES, ['month', 'provider_ref', 'full_name', 'salary'])).toHaveLength(2);
     expect(peopleColumnProblems(IMPORT_TARGET_DEFINITIONS.CLINICS_REFERRALS, ['month', 'referral_source', 'patient_name'])).toHaveLength(1);
+  });
+
+  it('Hospitals keeps the T-069 checks first and adds the medical staff, cost report, contracts, plant and quality (T-162)', () => {
+    const hospitals = PACKS.HOSPITALS;
+    expect(hospitals).toMatchObject({ slug: 'hospitals', cluster: 'healthcare', metricCalculator: 'hospitals-operations', built: true, valuationMethods: ['PAYER_MIX_EBITDA', 'DCF'] });
+    expect(hospitals.importTargets).toEqual(['BILLING_INVOICE_LINE', 'HOSPITALS_CENSUS', 'HOSPITALS_PAYER_MIX', 'HOSPITALS_MEDICAL_STAFF']);
+    expect(hospitals.findingRules.slice(0, 6)).toEqual(['hospitals-payer-concentration', 'hospitals-accreditation-transfer', 'hospitals-physician-dependence', 'hospitals-regulatory-capex', 'healthcare-director-fee', 'healthcare-privacy-assessment']);
+    expect(hospitals.findingRules.slice(6)).toEqual([
+      'hospitals-cost-report-reconciliation',
+      'hospitals-payer-contracts',
+      'hospitals-medical-staff',
+      'hospitals-plant-capex',
+      'hospitals-quality-claims',
+      'hospitals-pnl-trend',
+      'hospitals-pnl-margin-drift',
+      'hospitals-pnl-expense-outpacing',
+    ]);
+    for (const category of ['COST_REPORT', 'PAYER_CONTRACT', 'PROPERTY_CONDITION_ASSESSMENT', 'QUALITY_REPORT'] as const) {
+      expect(expectedInputs(hospitals).find((input) => input.id === category)).toEqual({ id: category, need: 'REQUIRED' });
+    }
+    // Medical staff: pseudonymous references only.
+    expect(peopleColumnProblems(IMPORT_TARGET_DEFINITIONS.HOSPITALS_MEDICAL_STAFF, ['staff_ref', 'department', 'privileges_expire_on'])).toEqual([]);
+    expect(peopleColumnProblems(IMPORT_TARGET_DEFINITIONS.HOSPITALS_MEDICAL_STAFF, ['staff_ref', 'full_name', 'salary'])).toHaveLength(2);
   });
 
   it('every pack offers billing first, and only targets that exist (rule ids resolve in the API test)', () => {

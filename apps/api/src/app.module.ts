@@ -58,6 +58,7 @@ import { EnergyModule } from './energy/energy.module';
 import { FintechModule } from './fintech/fintech.module';
 import { HealthcareModule } from './healthcare/healthcare.module';
 import { ClinicsModule } from './clinics/clinics.module';
+import { HospitalsModule } from './hospitals/hospitals.module';
 import { SpvModule } from './spv/spv.module';
 import { BrandModule } from './brand/brand.module';
 import { FeatureCardsModule } from './feature-cards/feature-cards.module';
@@ -330,6 +331,8 @@ export class AppModule {
         HealthcareModule,
         // Small clinics (T-161): the read-only Clinic page; its checks run through Findings.
         ClinicsModule,
+        // Hospitals (T-162): the read-only Hospital page; its checks run through Findings.
+        HospitalsModule,
         // Startup equity SPV (T-141): investors are invited to their seats through the invitations module.
         SpvModule.register(invitations),
         reportsModule,

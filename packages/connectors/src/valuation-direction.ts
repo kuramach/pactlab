@@ -46,6 +46,9 @@ export const HEALTHCARE_PAYER_CONTRACT_EVIDENCE_TYPE = 'healthcare.payer_contrac
 /** Small clinics (T-161): collections and direct costs by service line and provider, and visits by referral source. */
 export const CLINICS_SERVICE_LINE_MONTH_EVIDENCE_TYPE = 'clinics.service_line_month';
 export const CLINICS_REFERRAL_MONTH_EVIDENCE_TYPE = 'clinics.referral_month';
+/** Hospitals (T-069, T-162): net revenue by payer, and the medical-staff register by pseudonymous reference. */
+export const HOSPITALS_PAYER_MONTH_EVIDENCE_TYPE = 'hospitals.payer_month';
+export const HOSPITALS_MEDICAL_STAFF_EVIDENCE_TYPE = 'hospitals.medical_staff';
 
 /**
  * Every evidence type the adapters and engines emit, with the direction each
@@ -202,6 +205,10 @@ export const VALUATION_DIRECTION_MAP: Readonly<Record<string, readonly Direction
     },
     { signal: 'margin-drift', findingDomain: 'FINANCIAL', defaultDirection: -1, channel: 'ASSUMPTION' },
     { signal: 'expense-outpacing', findingDomain: 'FINANCIAL', defaultDirection: -1, channel: 'ASSUMPTION' },
+    // Hospitals (T-162): the filed cost report's costs against the P&L for the same fiscal year, and capital
+    // spend falling as a share of revenue across the imported years (deferred capex the reviewer prices).
+    { signal: 'cost-report-unreconciled', findingDomain: 'FINANCIAL', defaultDirection: -1, channel: 'ASSUMPTION' },
+    { signal: 'capex-ratio-falling', findingDomain: 'PROPERTY', defaultDirection: -1, channel: 'PRICED_TERM' },
   ],
   // Healthcare services (T-160, ADR 0051). Payer mix, denials and days in AR are recomputed from the remittances;
   // credentials and payer contracts are read at the analysis date. Dates and arithmetic only, never a clinical or legal judgment.
@@ -276,7 +283,45 @@ export const VALUATION_DIRECTION_MAP: Readonly<Record<string, readonly Direction
     { signal: 'owner-no-succession', findingDomain: 'PEOPLE', defaultDirection: -1, channel: 'PRICED_TERM' },
   ],
   [CLINICS_REFERRAL_MONTH_EVIDENCE_TYPE]: [{ signal: 'referral-concentration', findingDomain: 'COMMERCIAL', defaultDirection: -1, channel: 'ASSUMPTION' }],
+  // Hospitals (T-162, ADR 0053): net revenue by payer read with the payer agreements — the largest contracted
+  // payers' terms ending inside a year of closing — and the medical-staff register at the analysis date.
+  // Documents, dates and arithmetic only, never a survey, clinical or legal judgment.
+  [HOSPITALS_PAYER_MONTH_EVIDENCE_TYPE]: [
+    { signal: 'payer-contract-expiring', findingDomain: 'COMMERCIAL', defaultDirection: -1, channel: 'ASSUMPTION' },
+    { signal: 'payer-contract-expired', findingDomain: 'COMMERCIAL', defaultDirection: -1, channel: 'ASSUMPTION' },
+  ],
+  [HOSPITALS_MEDICAL_STAFF_EVIDENCE_TYPE]: [
+    { signal: 'department-privileges-lapsed', findingDomain: 'REGULATORY', defaultDirection: -1, channel: 'PRICED_TERM' },
+    {
+      signal: 'department-privileges-due',
+      findingDomain: 'REGULATORY',
+      defaultDirection: 0,
+      channel: 'INFORMATIONAL',
+      rationale: 'A department’s reappointments falling due together before closing: a closing deliverable, not a price adjustment.',
+    },
+    { signal: 'licence-expired', findingDomain: 'REGULATORY', defaultDirection: -1, channel: 'PRICED_TERM' },
+  ],
   [DOCUMENT_FINDING_EVIDENCE_TYPE]: [
+    // The hospital deck's figures against the filed cost report, and its quality claims against the reporting
+    // documents supplied (T-162): contradicted is a drag, verified is confirmed value, unverified a gap.
+    { signal: 'cost-report-claim-contradicted', findingDomain: 'FINANCIAL', defaultDirection: -1, channel: 'ASSUMPTION' },
+    { signal: 'cost-report-claim-verified', findingDomain: 'FINANCIAL', defaultDirection: 1, channel: 'CONFIRMATION' },
+    {
+      signal: 'cost-report-claim-unverified',
+      findingDomain: 'FINANCIAL',
+      defaultDirection: 0,
+      channel: 'INFORMATIONAL',
+      rationale: 'A figure no filed cost report states is a gap to close, neither priced nor relied on.',
+    },
+    { signal: 'quality-claim-contradicted', findingDomain: 'REGULATORY', defaultDirection: -1, channel: 'ASSUMPTION' },
+    { signal: 'quality-claim-verified', findingDomain: 'REGULATORY', defaultDirection: 1, channel: 'CONFIRMATION' },
+    {
+      signal: 'quality-claim-unverified',
+      findingDomain: 'REGULATORY',
+      defaultDirection: 0,
+      channel: 'INFORMATIONAL',
+      rationale: 'A quality claim with no reporting document behind it is a gap to close, never a view on the quality of care.',
+    },
     // The clinic lease as read sentence by sentence (T-161): a short term with no renewal is relocation or
     // renegotiation risk the reviewer prices; consent to assign is a closing condition.
     { signal: 'lease-short-term', findingDomain: 'PROPERTY', defaultDirection: -1, channel: 'PRICED_TERM' },
@@ -327,6 +372,8 @@ export const ADAPTER_EVIDENCE_TYPES = [
   HEALTHCARE_PAYER_CONTRACT_EVIDENCE_TYPE,
   CLINICS_SERVICE_LINE_MONTH_EVIDENCE_TYPE,
   CLINICS_REFERRAL_MONTH_EVIDENCE_TYPE,
+  HOSPITALS_PAYER_MONTH_EVIDENCE_TYPE,
+  HOSPITALS_MEDICAL_STAFF_EVIDENCE_TYPE,
 ] as const;
 
 /** The default direction for one signal, or null when the map does not know it. */

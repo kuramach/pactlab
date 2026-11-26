@@ -53,7 +53,7 @@ The source plan then adds **Industry data** (`pack_upload` connections) automati
 
 ## 4b. Multi-year P&L trend (every pack, Kumar 2026-11-26)
 
-- **Reuse, never fork:** `pnlTrendRules('<pack>', KEY_EXPENSES)` (`packages/calculations/src/packs/pnl-trend.ts`) gives three rules over the imported P&L (`finance.pnl_line`): the trend record (0), margin drift (−1) and a key expense outpacing revenue (−1). Name the vertical's key expenses (label and line-name pattern); list the three rule ids in the registry (fintech: `fintech-pnl-trend`, `-margin-drift`, `-expense-outpacing`; healthcare: `healthcare-pnl-…`; small clinics: `clinics-pnl-…`).
+- **Reuse, never fork:** `pnlTrendRules('<pack>', KEY_EXPENSES)` (`packages/calculations/src/packs/pnl-trend.ts`) gives three rules over the imported P&L (`finance.pnl_line`): the trend record (0), margin drift (−1) and a key expense outpacing revenue (−1). Name the vertical's key expenses (label and line-name pattern); list the three rule ids in the registry (fintech: `fintech-pnl-trend`, `-margin-drift`, `-expense-outpacing`; healthcare: `healthcare-pnl-…`; small clinics: `clinics-pnl-…`; hospitals: `hospitals-pnl-…`).
 - **Years:** a year the file states, or all twelve of its months; partial years are left out, never scaled up. One year still reads as one year.
 - **Demo data:** at least three years of P&L with one planted trend defect a single year misses; the acceptance test imports it through `FINANCIAL_PNL` with the line kinds a person confirms.
 
@@ -89,3 +89,4 @@ The source plan then adds **Industry data** (`pack_upload` connections) automati
 
 - **By reference:** list the parent's import targets and rule ids in the child's registry entry; never copy a rule. The parent's tab may open for the child too (`DEAL_SECTION_RULES`), with only what differs (e.g. the P&L key expenses) chosen per pack.
 - **Required inputs:** a common document the child's rules need (a clinic's lease) goes in `requiredInputs`, so the intake checklist asks for it.
+- **Its own tab when the evidence differs** (hospitals on healthcare, T-162): a child whose evidence is not the parent's (cost reports, agreements and a medical-staff register, not remittances) keeps the parent's rules it can use by id and gets its own tab, never a fork of the parent's.

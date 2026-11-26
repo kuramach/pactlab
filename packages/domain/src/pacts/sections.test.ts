@@ -32,6 +32,8 @@ describe('deal sections per pact (batch 2)', () => {
     expect(sectionCompanyTypes('/healthcare')).toEqual(['HEALTHCARE', 'SMALL_CLINICS']);
     // A clinic's owner-operator, referral and premises checks (T-161): only on a small clinics pact.
     expect(sectionCompanyTypes('/clinics')).toEqual(['SMALL_CLINICS']);
+    // A hospital's cost-report, payer contract, medical-staff, plant and quality checks (T-162): only on a hospitals pact.
+    expect(sectionCompanyTypes('/hospitals')).toEqual(['HOSPITALS']);
     // A pooled vehicle's seats, economics and investor view (T-141): only on a startup equity SPV, which has no acquisition close.
     expect(sectionCompanyTypes('/spv')).toEqual(['STARTUP_SPV']);
     expect(sectionApplies('/closing', { companyType: 'STARTUP_SPV', initiatedBy: 'BUYER' })).toBe(false);
