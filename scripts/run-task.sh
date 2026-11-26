@@ -7,6 +7,9 @@
 #
 # Task states: tasks/ready/ → tasks/active/ → tasks/review/ → tasks/done/
 #                                                 └→ tasks/blocked/ (on failure)
+# Every state change is a commit on the task's branch (agent/<T-ID>), never on main: the task starts
+# from origin/main, main is merged in before the checks (a conflict blocks the task), and main records
+# the task's state when its PR is merged. Logs and the last outcome stay local in tasks/.runs/.
 #
 set -euo pipefail
 
@@ -20,19 +23,19 @@ cd "$REPO_ROOT"
 ACTIVE="tasks/active/${TASK_ID}.md"
 READY="tasks/ready/${TASK_ID}.md"
 
-# --- start from the latest main, so the worktree and the claim are current ---
-git pull -q --ff-only origin main || echo "warn: could not fast-forward main (local changes?)"
-
-# --- claim (no-op if the scheduler already claimed it) ---
-if [[ -f "$READY" ]]; then
-  git mv "$READY" "$ACTIVE"
-  git commit -qm "chore: claim $TASK_ID"
-  git push -q origin HEAD || echo "warn: claim push failed (offline?)"
-elif [[ ! -f "$ACTIVE" ]]; then
-  echo "task not found: $TASK_ID"; exit 1
+# --- start from GitHub's main, never a local copy that may have drifted (2026-11-25: a task branched from a
+#     diverged local main carried copies of other tasks' commits into its PR). Nothing here commits to main:
+#     the claim and every state change are commits on the task's own branch, so they arrive with its PR.
+git fetch -q origin main
+git pull -q --ff-only origin main || echo "warn: could not fast-forward local main (the task starts from origin/main regardless)"
+if ! git cat-file -e "origin/main:$READY" 2>/dev/null && ! git cat-file -e "origin/main:$ACTIVE" 2>/dev/null; then
+  echo "task not found in tasks/ready or tasks/active on origin/main: $TASK_ID"; exit 1
 fi
 
-LOG="$REPO_ROOT/tasks/active/${TASK_ID}.log"
+# Logs and the run's outcome stay local (tasks/.runs is ignored): never committed to main.
+RUNS="$REPO_ROOT/tasks/.runs"
+mkdir -p "$RUNS"
+LOG="$RUNS/${TASK_ID}.log"
 : > "$LOG"
 : > "${LOG%.log}.stream.log"
 
@@ -48,8 +51,14 @@ if git log -1 --format=%s "origin/$BRANCH" 2>/dev/null | grep -q '^WIP (usage li
   echo "resuming $TASK_ID from its unfinished work on origin/$BRANCH" | tee -a "$LOG"
   RESUMING=true
 else
-  git worktree add -B "$BRANCH" "$WT" HEAD >>"$LOG" 2>&1
+  git worktree add -B "$BRANCH" "$WT" origin/main >>"$LOG" 2>&1
 fi
+
+# --- claim, on the task's branch (no-op when resuming, or when the task is already in tasks/active) ---
+if [[ -f "$WT/$READY" ]]; then
+  (cd "$WT" && git mv "$READY" "$ACTIVE" && git commit -qm "chore: claim $TASK_ID") >>"$LOG" 2>&1
+fi
+ACTIVE="$WT/$ACTIVE"
 
 RESUMING="${RESUMING:-false}"
 
@@ -76,7 +85,7 @@ trap 'rm -f "$CTX" "$OUT"' EXIT
 
 run_attempt() { # run_attempt <tier> — build context, run the agent, install, check. Sets CHECKS_OK, STARVED.
   local tier="$1" core ctx_chars prompt
-  ./scripts/context.sh "$ACTIVE" "$tier" "$REPO_ROOT" >"$CTX" 2> >(tee -a "$LOG" >&2)
+  ./scripts/context.sh "$ACTIVE" "$tier" "$WT" >"$CTX" 2> >(tee -a "$LOG" >&2)
   prompt="You are an engineer on the Pactlab repo, working in this worktree: $WT (branch $BRANCH).
 CLAUDE.md at the repo root is loaded; follow it exactly, including the Autonomous multi-agent operation section.
 Your task file is $ACTIVE — implement ONLY that task, touching ONLY its Touches: paths.
@@ -116,6 +125,12 @@ $(cat "$CTX")"
   fi
   STARVED="$(grep -m1 -E '^CONTEXT-STARVED:' "$OUT" || true)"
 
+  # --- bring the branch up to date with main before checking, so the PR it opens merges cleanly ---
+  MERGE_CONFLICT=false
+  (cd "$WT" && git add -A && { git diff --cached --quiet || git commit -qm "$TASK_ID: agent work"; } \
+    && git fetch -q origin main && git merge -q --no-edit origin/main) >>"$LOG" 2>&1 \
+    || { (cd "$WT" && git merge --abort) >/dev/null 2>&1; MERGE_CONFLICT=true; echo "### $TASK_ID: conflicts with main (resolve on $BRANCH)" | tee -a "$LOG"; }
+
   # --- install deps before checks (agent may not have run it) ---
   echo "=== pnpm install ===" | tee -a "$LOG"
   (cd "$WT" && pnpm install 2>&1 | tee -a "$LOG") || echo "warn: pnpm install failed" | tee -a "$LOG"
@@ -127,6 +142,7 @@ $(cat "$CTX")"
     (cd "$WT" && bash -lc "$CHECKS" 2>&1 | tee -a "$LOG") || CHECKS_OK=false
   fi
   [[ -z "$STARVED" ]] || CHECKS_OK=false
+  ! $MERGE_CONFLICT || CHECKS_OK=false
 }
 
 # A usage or spend limit is not the task's fault: hand the task back to ready and stop (exit 75), so
@@ -141,7 +157,8 @@ release_on_limit() {
     echo "### unfinished work saved on origin/$BRANCH" | tee -a "$LOG"
   fi
   git worktree remove --force "$WT" 2>/dev/null || true
-  git mv "$ACTIVE" "$READY" && git commit -qm "chore: $TASK_ID → ready (usage limit; unfinished work on $BRANCH)" && { git push -q origin HEAD || true; }
+  # The task is still in tasks/ready on main: nothing to move back.
+  echo ready > "$RUNS/$TASK_ID.state"
   exit 75
 }
 
@@ -163,13 +180,11 @@ PUSHED=false
 (cd "$WT" && git push -q -u origin "$BRANCH" 2>&1 | tee -a "$LOG") && PUSHED=true \
   || echo "warn: branch push failed" | tee -a "$LOG"
 
-finish() { # finish <state> — move task file, commit, push
+finish() { # finish <state> <id> — record the state on the task's branch (never on main) and push the branch
   local state="$1" id="$2"
-  mkdir -p "tasks/$state"
-  git mv "tasks/active/$id.md" "tasks/$state/$id.md"
-  if [[ -f "tasks/active/$id.log" ]]; then git add -f -q "tasks/active/$id.log" 2>/dev/null || true; git mv "tasks/active/$id.log" "tasks/$state/$id.log" || true; fi
-  git commit -qm "chore: $id → $state"
-  git push -q origin HEAD || true
+  (cd "$WT" && mkdir -p "tasks/$state" && git mv "tasks/active/$id.md" "tasks/$state/$id.md" \
+    && git commit -qm "chore: $id → $state" && git push -q origin "$BRANCH") >>"$LOG" 2>&1 || true
+  echo "$state" > "$RUNS/$id.state"
 }
 
 if ! $CHECKS_OK; then
@@ -183,10 +198,13 @@ fi
 
 # --- PR (retries on transient GitHub API failures) ---
 TITLE="$(head -1 "$ACTIVE" | sed 's/^# //')"
+TOUCHES="$(grep -E '^Touches:' "$ACTIVE" | head -1 | sed 's/^Touches:[[:space:]]*//')"
+# The PR carries the task's move to review (on its branch), so main records it only when merged.
+finish review "$TASK_ID"
 PR_URL=""
 for attempt in 1 2 3; do
   PR_URL="$(gh pr create --title "$TITLE" \
-    --body "Agent-built. Task: $ACTIVE. Checks: \`$CHECKS\`" \
+    --body "Agent-built. Task: tasks/review/$TASK_ID.md. Checks: \`$CHECKS\`" \
     --head "$BRANCH" 2>&1 | tee -a "$LOG" | grep -oE 'https://[^ ]+/pull/[0-9]+' | head -1)" || PR_URL=""
   if [[ -z "$PR_URL" ]]; then
     PR_URL="$(gh pr list --head "$BRANCH" --json url -q '.[0].url' 2>/dev/null)"
@@ -195,12 +213,11 @@ for attempt in 1 2 3; do
   echo "### PR create attempt $attempt failed; retrying in 15s..." | tee -a "$LOG"
   sleep 15
 done
-[[ -z "$PR_URL" ]] && { echo "### $TASK_ID BLOCKED: PR creation failed" | tee -a "$LOG"; finish blocked "$TASK_ID"; exit 1; }
+[[ -z "$PR_URL" ]] && { echo "### $TASK_ID BLOCKED: PR creation failed (branch $BRANCH is pushed)" | tee -a "$LOG"; echo blocked > "$RUNS/$TASK_ID.state"; exit 1; }
 echo "### PR: $PR_URL" | tee -a "$LOG"
 
 # --- merge (auto mode only, and only if the diff stays in scope) ---
 if $AUTO_MERGE; then
-  TOUCHES="$(grep -E '^Touches:' "$ACTIVE" | head -1 | sed 's/^Touches:[[:space:]]*//')"
   OUT_OF_SCOPE=false
   while read -r f; do
     [[ -z "$f" ]] && continue
@@ -213,19 +230,18 @@ if $AUTO_MERGE; then
 
   if $OUT_OF_SCOPE; then
     echo "### $TASK_ID → review (diff left task scope; needs human)" | tee -a "$LOG"
-    finish review "$TASK_ID"; exit 0
+    exit 0
   fi
   if gh pr checks "$PR_URL" --watch --interval 30 >>"$LOG" 2>&1; then
     if gh pr merge "$PR_URL" --squash --delete-branch >>"$LOG" 2>&1; then
       git worktree remove --force "$WT" 2>/dev/null || true
       git pull -q --ff-only origin main 2>/dev/null || true
-      echo "### $TASK_ID DONE (merged)" | tee -a "$LOG"
-      finish done "$TASK_ID"; exit 0
+      echo "### $TASK_ID DONE (merged; the task file moves to done in the next sweep)" | tee -a "$LOG"
+      echo done > "$RUNS/$TASK_ID.state"; exit 0
     fi
   fi
   echo "### $TASK_ID BLOCKED: CI failed on $PR_URL" | tee -a "$LOG"
-  finish blocked "$TASK_ID"; exit 1
+  echo blocked > "$RUNS/$TASK_ID.state"; exit 1
 fi
 
 echo "### $TASK_ID → review (awaiting merge: $PR_URL)" | tee -a "$LOG"
-finish review "$TASK_ID"

@@ -22,3 +22,6 @@ apps/site/out/
 # Browser tests (apps/e2e)
 playwright-report/
 test-results/
+
+# The task runner's local logs and outcomes (scripts/run-task.sh); never committed.
+tasks/.runs/
