@@ -1,7 +1,7 @@
 # Document Q&A over a large data room (retrieval)
 
 Use when a deal team says an answer missed something, read "only the most relevant pages", or asks why a question
-took a different path. Design: ADR 0045 (T-139).
+took a different path. Design: ADR 0047 (T-139).
 
 ## How it works
 - A question across the pact reads every eligible page when they fit the budget (`AI_CONTEXT_BUDGET_CHARS`, default
@@ -27,7 +27,7 @@ took a different path. Design: ADR 0045 (T-139).
 - `AI_CONTEXT_BUDGET_CHARS` is read at startup (1,000 to 2,000,000). Raising it sends more per question (cost and
   latency; check Hosting cost) and must stay inside the routed model's context window. Lowering it reads fewer pages:
   run `pnpm --filter @pactlab/api exec vitest run src/documents/retrieval.api.test.ts` and compare the recall table
-  with ADR 0045 first.
+  with ADR 0047 first.
 
 ## Never
 - Never paste page text, questions or answers into tickets: reference run ids and page ids.

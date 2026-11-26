@@ -219,6 +219,18 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
 
       <GuideCard hidden={await guideHidden()} />
 
+      <Card id="notifications">
+        <CardHeader>
+          <CardTitle>Notifications</CardTitle>
+          <CardDescription>What is emailed to you when a pact changes, your digest, quiet hours, and overrides for one pact.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Link href="/settings/notifications" className={buttonVariants({ variant: 'outline', size: 'sm' })}>
+            Notification settings <ArrowRight aria-hidden className="h-4 w-4" />
+          </Link>
+        </CardContent>
+      </Card>
+
       {organization?.authMethod === 'EMAIL_CODE' ? <PasskeysCard /> : null}
 
       {organization?.authMethod === 'EMAIL_CODE' ? <DevicesCard /> : null}

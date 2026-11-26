@@ -20,6 +20,7 @@ of what a pilot partner gets, which controls protect them, and how we roll back.
 | [retention.md](retention.md)                                         | Retention questions, purge requests, legal hold       |
 | [metering.md](metering.md)                                           | Per-deal AI usage questions                           |
 | [connector-outage.md](connector-outage.md)                           | A provider (Stripe, GitHub, VDR) is failing           |
+| [mcp-evidence-servers.md](mcp-evidence-servers.md)                   | Approving, connecting or adding an MCP evidence server |
 | [stuck-queue.md](stuck-queue.md)                                     | Jobs not progressing or piling into dead-letter       |
 | [failed-scan-cleanup.md](failed-scan-cleanup.md)                     | A scan workspace may not have been destroyed          |
 | [suspected-cross-tenant-access.md](suspected-cross-tenant-access.md) | Any hint that one tenant saw another's data           |
@@ -28,6 +29,8 @@ of what a pilot partner gets, which controls protect them, and how we roll back.
 | [object-store-exposure.md](object-store-exposure.md)                 | A bucket policy, ACL or presigned URL may expose data |
 | [withdrawn-imports.md](withdrawn-imports.md)                         | A customer asks where their numbers went (withdrawn import) |
 | [rentcast.md](rentcast.md)                                           | Setting, rotating or turning off the RentCast key (market rents) |
+| [notifications.md](notifications.md)                                 | Someone was not told of a pact change, or emails failed |
+| [log-triage.md](log-triage.md)                                       | The live triage digest, an approved issue, or pausing triage |
 
 ## Conventions
 

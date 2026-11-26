@@ -98,6 +98,7 @@ import type {
 import { NO_VISION, UNCLASSIFIED_INTAKE, XLSX_CONTENT_TYPE, type DocumentIntake, type DocumentPageRecord, type DocumentRecord, type DocumentSourceLink, type DocumentVisionState } from './documents.types';
 import { documentPages } from './document-text';
 import { ExtractionError, type ExtractedPage } from './extraction';
+import { documentAddedNotice } from '../notifications/notices';
 import { VisionPass } from './vision-pass';
 import {
   retainUntil,
@@ -108,7 +109,7 @@ import {
 
 /**
  * The direct long-context budget (about 150k tokens). One document over it is refused; a pact-wide job over it
- * reads the pages keyword retrieval ranks highest for the question (T-139, ADR 0045).
+ * reads the pages keyword retrieval ranks highest for the question (T-139, ADR 0046).
  */
 export const MAX_CONTEXT_CHARS = 600_000;
 
@@ -388,13 +389,17 @@ export class DocumentsService {
         tenant,
         document,
         pageRecords,
-        this.audit(
-          tenant,
-          dealId,
-          body.shared && role !== 'TARGET_CONTRIBUTOR' ? 'document.uploaded_shared' : 'document.uploaded',
-          { type: 'document', id: documentId },
-          requestId,
-        ),
+        {
+          ...this.audit(
+            tenant,
+            dealId,
+            body.shared && role !== 'TARGET_CONTRIBUTOR' ? 'document.uploaded_shared' : 'document.uploaded',
+            { type: 'document', id: documentId },
+            requestId,
+          ),
+          // T-145: the other side hears of it in its digest.
+          notify: documentAddedNotice(document, role),
+        },
       );
     } catch (error) {
       await this.objects.delete(objectKey);

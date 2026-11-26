@@ -45,6 +45,18 @@ export const prodConfig: EnvironmentConfig = {
   evidenceNoncurrentVersionDays: 90,
   // Compliance mode: no identity, including root, can shorten or remove retention.
   auditArchive: { mode: 'COMPLIANCE', days: 2555 },
+  // Live log triage (T-150): dry run until Kumar approves the draft digest; then `dryRun: false` and deploy.
+  logTriage: {
+    recipient: 'kumar@pactlab.ai',
+    githubRepo: 'kuramach/pactlab',
+    githubTokenSecretName: 'pactlab/live/github-triage',
+    // The account's default Claude route (the API's `balanced`).
+    modelId: 'us.anthropic.claude-sonnet-5-5',
+    dryRun: true,
+    // 07:00 Chicago in winter.
+    hourUtc: 13,
+    maxClusters: 20,
+  },
   // Design-partner pilot: LIVE connectors stay off until each adapter is verified.
   featureFlags: { pilotMode: true, liveConnectors: false },
   // The live app. The live site (pactlab.ai) is its own stack and workflow (site.yml), not part of this one.

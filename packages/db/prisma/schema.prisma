@@ -3831,3 +3831,86 @@ model InvestorViewVersion {
   @@unique([organizationId, dealId, version], map: "investor_view_versions_deal_version_key")
   @@map("investor_view_versions")
 }
+
+/// One meaningful change on a pact (T-145, ADR 0046), recorded through `app_notify` in the change's
+/// own transaction; deduplicated by a stable key. Readable only through a notification of one's own.
+model NotificationEvent {
+  id             String   @id @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  dealId         String   @map("deal_id") @db.Uuid
+  type           String
+  urgency        String
+  dedupeKey      String   @map("dedupe_key")
+  /// The exact place in the pact the item links to, e.g. /deals/<id>/terms.
+  linkPath       String   @map("link_path")
+  /// SHARED | BUYER_ONLY
+  visibility     String
+  actorUserId    String?  @map("actor_user_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  notifications Notification[]
+
+  @@unique([organizationId, dealId, dedupeKey], map: "notification_events_dedupe_key")
+  @@map("notification_events")
+}
+
+/// One person's item for one event: the in-app inbox row and its email state.
+model Notification {
+  id             String    @id @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  dealId         String    @map("deal_id") @db.Uuid
+  eventId        String    @map("event_id") @db.Uuid
+  userId         String    @map("user_id") @db.Uuid
+  urgency        String
+  visibility     String
+  readAt         DateTime? @map("read_at") @db.Timestamptz(3)
+  /// PENDING | SENDING | SENT | IN_APP_ONLY | SUPPRESSED | NO_ADDRESS | FAILED
+  emailStatus    String    @default("PENDING") @map("email_status")
+  deliveryId     String?   @map("delivery_id") @db.Uuid
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  event    NotificationEvent     @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  delivery NotificationDelivery? @relation(fields: [deliveryId], references: [id], onDelete: Restrict)
+
+  @@unique([eventId, userId], map: "notifications_event_user_key")
+  @@index([userId, organizationId, createdAt(sort: Desc), id(sort: Desc)], map: "notifications_inbox_idx")
+  @@index([deliveryId], map: "notifications_delivery_idx")
+  @@map("notifications")
+}
+
+/// The send record: one email (immediate or digest) to one person, and its outcome. No bodies.
+model NotificationDelivery {
+  id         String    @id @db.Uuid
+  userId     String    @map("user_id") @db.Uuid
+  /// IMMEDIATE | DIGEST
+  kind       String
+  /// CLAIMED | SENT | SUPPRESSED | FAILED
+  status     String    @default("CLAIMED")
+  items      Int
+  errorClass String?   @map("error_class")
+  claimedAt  DateTime  @default(now()) @map("claimed_at") @db.Timestamptz(3)
+  finishedAt DateTime? @map("finished_at") @db.Timestamptz(3)
+
+  notifications Notification[]
+
+  @@index([userId, kind, claimedAt], map: "notification_deliveries_user_kind_idx")
+  @@map("notification_deliveries")
+}
+
+/// A person's notification settings (deal null), or their override on one pact.
+model NotificationPreference {
+  id                 String   @id @db.Uuid
+  userId             String   @map("user_id") @db.Uuid
+  organizationId     String?  @map("organization_id") @db.Uuid
+  dealId             String?  @map("deal_id") @db.Uuid
+  actNow             String?  @map("act_now")
+  fyi                String?
+  digest             String?
+  timeZone           String?  @map("time_zone")
+  quietStart         Int?     @map("quiet_start") @db.SmallInt
+  quietEnd           Int?     @map("quiet_end") @db.SmallInt
+  actNowThroughQuiet Boolean? @map("act_now_through_quiet")
+  updatedAt          DateTime @default(now()) @map("updated_at") @db.Timestamptz(3)
+
+  @@map("notification_preferences")
+}

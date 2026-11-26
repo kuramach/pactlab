@@ -640,7 +640,7 @@ authorized user request
 ### Context strategy
 
 1. Use direct long-context review for a contract or bounded diligence pack that fits the configured budget.
-2. Use retrieval only for larger corpora. Chunk by page and semantic section; retain document, page and offsets. As built (T-139, ADR 0045): pact-wide Q&A over the budget (`AI_CONTEXT_BUDGET_CHARS`) reads the pages Postgres keyword search ranks highest, says what it searched and read on every answer, and records the pages sent on the run; vectors follow only where the retrieval eval shows keyword search misses.
+2. Use retrieval only for larger corpora. Chunk by page and semantic section; retain document, page and offsets. As built (T-139, ADR 0047): pact-wide Q&A over the budget (`AI_CONTEXT_BUDGET_CHARS`) reads the pages Postgres keyword search ranks highest, says what it searched and read on every answer, and records the pages sent on the run; vectors follow only where the retrieval eval shows keyword search misses.
 3. Apply tenant and deal filters before retrieval. Similarity search must never become an authorization boundary.
 4. Cache stable evidence prefixes for repeated questions over the same document set. Invalidate when evidence version or access changes.
 5. Treat Model Context Protocol (MCP) and VDR content as untrusted evidence, never as instructions to the model or application.

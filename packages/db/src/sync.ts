@@ -248,6 +248,8 @@ export async function executeSyncRun(
         targetId: run.id,
         outcome: 'SUCCEEDED',
         requestId: run.correlationId,
+        // T-145: the person who started the sync hears it finished, in their digest.
+        notify: { type: 'SYNC_FINISHED', dedupeKey: `sync:${run.id}:finished`, visibility: 'SHARED', audience: 'USERS', users: [job.requestedBy], includeActor: true },
       });
       await enqueueOutboxEvent(tx, {
         organizationId: run.organizationId,
@@ -279,6 +281,8 @@ export async function executeSyncRun(
         targetId: run.id,
         outcome: 'FAILED',
         requestId: run.correlationId,
+        // T-125, T-145: a failed sync is never silent; its starter hears of it.
+        notify: { type: 'SYNC_FAILED', dedupeKey: `sync:${run.id}:failed`, visibility: 'SHARED', audience: 'USERS', users: [job.requestedBy], includeActor: true },
       });
     });
     throw error;

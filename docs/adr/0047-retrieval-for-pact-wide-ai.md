@@ -1,4 +1,4 @@
-# ADR 0045: Retrieval for pact-wide AI: keyword search over pages first, vectors only if the evaluation says so (T-139)
+# ADR 0047: Retrieval for pact-wide AI: keyword search over pages first, vectors only if the evaluation says so (T-139)
 
 **Status:** accepted (Kumar, 2026-11-17: "Do we need RAG for this project?" Not yet, but for one feature.)
 

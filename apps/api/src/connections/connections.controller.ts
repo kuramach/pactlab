@@ -18,6 +18,7 @@ import { RequestId } from '../deals/request-id.decorator';
 import {
   connectGitHubSchema,
   connectJiraSchema,
+  connectMcpSchema,
   connectionParamsSchema,
   createConnectionSchema,
   dryRunSchema,
@@ -27,6 +28,7 @@ import {
   syncRunParamsSchema,
   type ConnectGitHubCommand,
   type ConnectJiraCommand,
+  type ConnectMcpCommand,
   type CreateConnectionCommand,
   type SetModeCommand,
 } from './connections.schemas';
@@ -83,6 +85,19 @@ export class ConnectionsController {
     @Body(new ZodValidationPipe(connectJiraSchema)) body: ConnectJiraCommand,
   ) {
     return this.service.connectJira(tenant, params.dealId, body, requestId);
+  }
+
+  /** Connect an operator-approved MCP server as a read-only evidence source (T-084c); returns the checks. */
+  @NoDemo()
+  @Post('connections/mcp')
+  @HttpCode(201)
+  async connectMcp(
+    @Tenant() tenant: TenantContext,
+    @RequestId() requestId: string,
+    @Param(new ZodValidationPipe(dealParamsSchema)) params: { dealId: string },
+    @Body(new ZodValidationPipe(connectMcpSchema)) body: ConnectMcpCommand,
+  ) {
+    return this.service.connectMcp(tenant, params.dealId, body, requestId);
   }
 
   @Put('connections/:connectionId/mode')
@@ -149,6 +164,17 @@ export class GitHubAppController {
   @Get('app')
   app() {
     return this.service.githubApp();
+  }
+}
+
+/** The MCP evidence servers this deployment's operator approved (T-084c), for the connect screen. */
+@Controller('v1/mcp-evidence-servers')
+export class McpEvidenceServersController {
+  constructor(@Inject(ConnectionsService) private readonly service: ConnectionsService) {}
+
+  @Get()
+  list() {
+    return this.service.mcpServers();
   }
 }
 

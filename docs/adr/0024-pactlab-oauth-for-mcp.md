@@ -42,7 +42,7 @@ T-084 puts Pactlab inside the AI tools deal teams already use (Claude, Copilot a
 - **Organizations covered:** only email-code organizations can connect apps for now. Auth0 (company SSO) organizations will need T-104 to issue MCP tokens from Auth0, or federate.
 - **Signing key:** rotating `AUTH_TOKEN_SECRET` invalidates MCP access tokens along with sessions. Clients recover by refreshing; refresh tokens are hashes keyed by the same secret, so after a rotation clients must reconnect.
 - **Rollback:** the migration is expand-only. Turning the switch off for every organization, or removing the `mcp` dependency in `main.ts`, takes MCP offline. The stored rows are harmless.
-- **Follow-ups:** T-084b covers proposal tools (Part 2); T-084c covers client mode (Part 3).
+- **Follow-ups:** T-084b covers proposal tools (Part 2); T-084c covers client mode (Part 3, ADR 0049).
 
 ## Addendum (2026-11-14): suggestions from connected apps (T-084b)
 

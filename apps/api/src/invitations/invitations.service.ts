@@ -2,6 +2,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { EmailSuppressedError } from '../email-login/ses-email-sender';
 import { emailBrand } from '../brand/email-brand';
 import { ConflictException, Inject, Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
+import { memberAddedNotice } from '../notifications/notices';
 import { appendAuditEvent, invitationLinks, withTenant, type PrismaClient } from '@pactlab/db';
 import type { TenantContext } from '@pactlab/domain';
 import type { Logger } from '@pactlab/observability';
@@ -89,7 +90,7 @@ export class InvitationsService {
           create: { organizationId: tenant.organizationId, dealId, userId: colleague.userId, role: body.role },
           update: { role: body.role, status: 'ACTIVE' },
         });
-        await appendAuditEvent(tx, { organizationId: tenant.organizationId, dealId, actorUserId: tenant.userId, action: 'deal.member.added', targetType: 'user', targetId: colleague.userId, outcome: 'SUCCEEDED', requestId });
+        await appendAuditEvent(tx, { organizationId: tenant.organizationId, dealId, actorUserId: tenant.userId, action: 'deal.member.added', targetType: 'user', targetId: colleague.userId, outcome: 'SUCCEEDED', requestId, notify: memberAddedNotice({ userId: colleague.userId, role: body.role }, requestId) });
         return { kind: 'ADDED' as const };
       }
       const pending = await tx.dealInvitation.findFirst({ where: { dealId, email: body.email, status: 'PENDING', expiresAt: { gt: new Date() } } });
@@ -152,9 +153,12 @@ export class InvitationsService {
     if (!accepted) throw new UnprocessableEntityException({ code: 'INVITATION_NOT_ACCEPTED' });
     // Audited in the pact's own chain, as the new guest on it.
     const guest: TenantContext = { organizationId: accepted.organizationId as TenantContext['organizationId'], userId: tenant.userId, organizationRole: 'GUEST', dealIds: [accepted.dealId as TenantContext['dealIds'][number]] };
-    await withTenant(this.prisma, guest, (tx) =>
-      appendAuditEvent(tx, { organizationId: accepted.organizationId, dealId: accepted.dealId, actorUserId: tenant.userId, action: 'deal.invitation_accepted', targetType: 'deal_invitation', targetId: accepted.invitationId, outcome: 'SUCCEEDED', requestId }),
-    );
+    await withTenant(this.prisma, guest, async (tx) => {
+      // T-145: the pact hears who joined, as far as each person may see them (a bidder only by their own bid's colleagues).
+      const membership = await tx.dealMembership.findFirst({ where: { dealId: accepted.dealId, userId: tenant.userId, status: 'ACTIVE' }, select: { role: true, bidId: true } });
+      const notify = membership ? memberAddedNotice({ userId: tenant.userId, role: membership.role, bidId: membership.bidId }, accepted.invitationId) : null;
+      return appendAuditEvent(tx, { organizationId: accepted.organizationId, dealId: accepted.dealId, actorUserId: tenant.userId, action: 'deal.invitation_accepted', targetType: 'deal_invitation', targetId: accepted.invitationId, outcome: 'SUCCEEDED', requestId, notify });
+    });
     return { organizationId: accepted.organizationId, dealId: accepted.dealId };
   }
 }

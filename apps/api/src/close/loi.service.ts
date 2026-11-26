@@ -1,6 +1,6 @@
 import { ConflictException, ForbiddenException, Inject, Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import type { LoiView } from '@pactlab/contracts';
-import { appendAuditEvent, withTenant, type PrismaClient, type TransactionClient } from '@pactlab/db';
+import { appendAuditEvent, withTenant, type PactEventInput, type PrismaClient, type TransactionClient } from '@pactlab/db';
 import { newId, permissionsForDealRole, type DealRole, type TenantContext } from '@pactlab/domain';
 import { DealAccess } from '../deals/deal-access';
 import { DOCUMENT_OBJECT_STORE, type DocumentObjectStore } from '../documents/documents.repository';
@@ -37,8 +37,8 @@ export class LoiService {
     @Inject(SigningService) private readonly signing: SigningService,
   ) {}
 
-  private audit(tx: TransactionClient, tenant: TenantContext, dealId: string, action: string, targetId: string, requestId: string) {
-    return appendAuditEvent(tx, { organizationId: tenant.organizationId, dealId, actorUserId: tenant.userId, action, targetType: 'loi_version', targetId, outcome: 'SUCCEEDED', requestId });
+  private audit(tx: TransactionClient, tenant: TenantContext, dealId: string, action: string, targetId: string, requestId: string, notify?: PactEventInput) {
+    return appendAuditEvent(tx, { organizationId: tenant.organizationId, dealId, actorUserId: tenant.userId, action, targetType: 'loi_version', targetId, outcome: 'SUCCEEDED', requestId, notify: notify ?? null });
   }
 
   /** A sent letter past its answer date, not countersigned, has expired. */
@@ -212,7 +212,8 @@ export class LoiService {
         where: { id: row.id },
         data: { status: 'SENT', snapshot: content as never, method, objectKey, sha256: pdf.sha256, sentBy: tenant.userId, sentAt, respondBy: new Date(sentAt.getTime() + fields.responseDays * DAY) },
       });
-      await this.audit(tx, tenant, dealId, 'loi.sent', row.id, requestId);
+      // T-145: both signatories are asked to sign the letter, at once.
+      await this.audit(tx, tenant, dealId, 'loi.sent', row.id, requestId, { type: 'SIGNATURE_REQUESTED', dedupeKey: `loi:${row.id}:sent`, visibility: 'SHARED', audience: 'USERS', users: [buyer.userId, seller.userId], section: 'loi' });
     });
     return this.view(tenant, dealId, requestId);
   }

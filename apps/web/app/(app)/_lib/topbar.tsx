@@ -1,5 +1,5 @@
 import { buttonVariants, PactlabLockup } from '@pactlab/ui';
-import { ArrowLeftRight, Bug, LogOut, Menu, Plus, Settings } from 'lucide-react';
+import { ArrowLeftRight, Bell, Bug, LogOut, Menu, Plus, Settings } from 'lucide-react';
 import Link from 'next/link';
 import type { NavSection } from '../../../lib/navigation';
 import type { SessionContext } from '../../../lib/session';
@@ -14,11 +14,26 @@ function initials(name: string): string {
   return ((parts[0]?.[0] ?? '') + (parts.length > 1 ? (parts.at(-1)?.[0] ?? '') : '')).toUpperCase() || '?';
 }
 
+/** The bell (T-145): the inbox, with the unread count. */
+function NotificationsBell({ unread }: { unread: number }) {
+  const label = unread > 0 ? `Notifications, ${unread} unread` : 'Notifications';
+  return (
+    <Link href="/notifications" aria-label={label} title={label} className={`${buttonVariants({ variant: 'ghost', size: 'sm' })} relative`}>
+      <Bell aria-hidden className="h-5 w-5" />
+      {unread > 0 ? (
+        <span aria-hidden className="absolute -right-0.5 -top-0.5 min-w-[1.25rem] rounded-full bg-navy px-1 text-center text-[0.65rem] font-bold leading-5 text-white" data-numeric>
+          {unread > 99 ? '99+' : unread}
+        </span>
+      ) : null}
+    </Link>
+  );
+}
+
 /**
- * Global actions, always top right: Start a Pact, Settings and the account
+ * Global actions, always top right: Start a Pact, notifications, Settings and the account
  * menu. On small screens the main menu folds into a button here.
  */
-export function Topbar({ session, sections, brand = null }: { session: SessionContext; sections: readonly NavSection[]; brand?: ShellBrand | null }) {
+export function Topbar({ session, sections, brand = null, unread = null }: { session: SessionContext; sections: readonly NavSection[]; brand?: ShellBrand | null; unread?: number | null }) {
   return (
     <div className="flex h-16 items-center justify-between gap-3 px-4 sm:px-6 lg:px-10">
       <div className="flex items-center gap-3 lg:hidden">
@@ -46,6 +61,7 @@ export function Topbar({ session, sections, brand = null }: { session: SessionCo
               Start a Pact
             </Link>
           )}
+          {unread === null ? null : <NotificationsBell unread={unread} />}
           <Link href="/settings" aria-label="Settings" title="Settings" className={buttonVariants({ variant: 'ghost', size: 'sm' })}>
             <Settings aria-hidden className="h-5 w-5" />
           </Link>

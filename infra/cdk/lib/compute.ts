@@ -92,6 +92,8 @@ export interface PactlabComputeProps {
  */
 export class PactlabCompute extends Construct {
   readonly cluster: ecs.Cluster;
+  /** Every service's log group (streams api/, worker/, web/, migrate/, seed/); live log triage reads it (T-150). */
+  readonly logGroup: logs.LogGroup;
   readonly loadBalancer: elbv2.ApplicationLoadBalancer;
   /** For the idle pause (ADR 0019): the HTTPS listener, the app's target groups and services with their running counts. */
   readonly httpsListener: elbv2.ApplicationListener;
@@ -168,7 +170,7 @@ export class PactlabCompute extends Construct {
     // Google's file picker (Google Drive files are chosen in it): a browser API key and the Cloud project number.
     const googlePickerKey = documentSecret('DocumentsGooglePickerKey', 'google-picker-api-key', 'Google Picker API key (browser, restricted to the web origin)');
     const googleProjectNumber = documentSecret('DocumentsGoogleProjectNumber', 'google-project-number', 'Google Cloud project number (the picker app id)');
-    // Market rents (T-158, ADR 0045): Pactlab's RentCast API key, a platform credential. Created `unset` (market rents
+    // Market rents (T-158, ADR 0048): Pactlab's RentCast API key, a platform credential. Created `unset` (market rents
     // off; the Check rents against the market button says so); scripts/rentcast-key.sh sets it. Only the API reads it.
     const rentcastKey = new secretsmanager.Secret(this, 'RentCastApiKey', {
       secretName: `pactlab/${config.name}/credentials/rentcast-api-key`,
@@ -191,11 +193,11 @@ export class PactlabCompute extends Construct {
     const desired = (size: TaskSize) => (firstDeploy ? 0 : size.desiredCount);
 
     this.cluster = new ecs.Cluster(this, 'Cluster', { vpc, clusterName: `pactlab-${config.name}` });
-    const logGroup = new logs.LogGroup(this, 'Logs', {
+    const logGroup = (this.logGroup = new logs.LogGroup(this, 'Logs', {
       logGroupName: `/pactlab/${config.name}/app`,
       retention: config.protectedState ? logs.RetentionDays.ONE_YEAR : logs.RetentionDays.ONE_MONTH,
       removalPolicy: config.protectedState ? RemovalPolicy.RETAIN : RemovalPolicy.DESTROY,
-    });
+    }));
 
     // --- Configuration every server task shares. Credentials arrive as separate secret fields (applyDatabaseUrls).
     const serverEnvironment: Record<string, string> = {
