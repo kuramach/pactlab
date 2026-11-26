@@ -287,7 +287,11 @@ export class ValuationService {
   ) {
     const audit =
       change.kind === 'SUBMISSION'
-        ? this.audit(tenant, next, action, requestId, 'valuation_submission', change.submission.id)
+        ? {
+            ...this.audit(tenant, next, action, requestId, 'valuation_submission', change.submission.id),
+            // T-145: the deal team hears of a submitted scenario in its digest; buyer-only analysis, never the other side.
+            notify: { type: 'VALUATION_SUBMITTED' as const, dedupeKey: `valuation:${change.submission.id}:submitted`, visibility: 'BUYER_ONLY' as const, audience: 'OWN_SIDE' as const },
+          }
         : this.audit(tenant, next, action, requestId);
     if (!(await this.scenarios.commit(tenant, next, current.version, change, audit))) {
       throw new ConflictException();

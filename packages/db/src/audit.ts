@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import type { Prisma, TransactionClient } from './client';
+import { recordPactEvent, type PactEventInput } from './notifications';
 
 export type AuditOutcome = 'ALLOWED' | 'DENIED' | 'SUCCEEDED' | 'FAILED';
 
@@ -13,11 +14,16 @@ export interface AuditEventInput {
   outcome: AuditOutcome;
   requestId?: string | null;
   ipAddress?: string | null;
+  /**
+   * Pact activity notifications for this change (T-145): recorded in the same transaction as the
+   * change and its audit event, on the event's deal. Never stored on the audit row.
+   */
+  notify?: PactEventInput | readonly PactEventInput[] | null;
 }
 
 /** Append an audit event. Chain fields are assigned by the database trigger. */
 export async function appendAuditEvent(tx: TransactionClient, event: AuditEventInput) {
-  return tx.auditEvent.create({
+  const row = await tx.auditEvent.create({
     data: {
       organizationId: event.organizationId,
       dealId: event.dealId ?? null,
@@ -30,6 +36,10 @@ export async function appendAuditEvent(tx: TransactionClient, event: AuditEventI
       ipAddress: event.ipAddress ?? null,
     },
   });
+  if (event.notify && event.dealId) {
+    for (const notice of Array.isArray(event.notify) ? event.notify : [event.notify]) await recordPactEvent(tx, event.dealId, notice as PactEventInput);
+  }
+  return row;
 }
 
 interface ChainedEvent {

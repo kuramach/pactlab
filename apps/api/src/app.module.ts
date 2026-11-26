@@ -69,6 +69,8 @@ import { AgentProposalsModule } from './agent-proposals/agent-proposals.module';
 import { ApiAccessTokens, McpAccessTokens } from './oauth/access-tokens';
 import { HttpsClientMetadataFetcher, type ClientMetadataFetcher } from './oauth/client-metadata';
 import { OAuthModule } from './oauth/oauth.module';
+import { NotificationsModule } from './notifications/notifications.module';
+import { DatabaseSuppressionList } from './email-events/email-events.service';
 
 export interface AppDependencies {
   /** Real AWS spend for the hosting-cost console: Cost Explorer in the payer account (live only). */
@@ -150,6 +152,11 @@ export interface AppDependencies {
    * metadata live) and the MCP server's canonical URI. Omitted: neither is mounted.
    */
   mcp?: { issuer: string; resource: string; clientMetadata?: ClientMetadataFetcher };
+  /**
+   * Pact activity notifications (T-145): run the email dispatcher on a timer in this process (deployed and
+   * local runs). Omitted (tests): the inbox works and nothing is sent until the dispatcher is run directly.
+   */
+  notifications?: { dispatch: boolean; intervalMs?: number };
   /** Pack and finding-rule registries. Omitted: the domain registries (tests inject a test-only rule). */
   packs?: PackRegistry;
 }
@@ -314,6 +321,13 @@ export class AppModule {
         IcModule.register({ reports: reportsModule }),
         BrandModule.register({ store: deps.documents?.objectStore ?? new UnavailableObjectStore(), fetcher: deps.webFetcher ?? new HttpsWebFetcher() }),
         FeatureCardsModule,
+        NotificationsModule.register({
+          emailSender: deps.emailLogin?.emailSender ?? null,
+          suppression: deps.emailLogin?.tokenSecret ? new DatabaseSuppressionList(deps.prisma, deps.emailLogin.tokenSecret) : null,
+          appOrigin: webOrigin,
+          scheduled: deps.notifications?.dispatch ?? false,
+          intervalMs: deps.notifications?.intervalMs ?? 60_000,
+        }),
         EmailEventsModule.register({ verifier: deps.emailEvents?.verifier ?? null, fetcher: deps.webFetcher ?? new HttpsWebFetcher(), hashSecret: deps.emailLogin?.tokenSecret ?? randomBytes(32).toString('hex') }),
         ...(tokens && deps.emailLogin
           ? [

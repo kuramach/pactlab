@@ -1,7 +1,7 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { ConflictException, ForbiddenException, Inject, Injectable, NotFoundException, Optional, ServiceUnavailableException, UnprocessableEntityException } from '@nestjs/common';
 import { SIGNING_PROVIDERS, SigningProviderError, type DocuSignTokens, type SigningProviderName } from '@pactlab/connectors';
-import { appendAuditEvent, withTenant, type PrismaClient, type TransactionClient } from '@pactlab/db';
+import { appendAuditEvent, withTenant, type PactEventInput, type PrismaClient, type TransactionClient } from '@pactlab/db';
 import { newId, permissionsForDealRole, type DealRole, type EnvelopeStatus, type TenantContext } from '@pactlab/domain';
 import { DealAccess } from '../deals/deal-access';
 import { DOCUMENT_OBJECT_STORE, type DocumentObjectStore } from '../documents/documents.repository';
@@ -79,8 +79,8 @@ export class CloseService {
     @Optional() @Inject(PhasesService) private readonly phases: PhasesService | null,
   ) {}
 
-  private audit(tx: TransactionClient, tenant: TenantContext, dealId: string, action: string, targetType: string, targetId: string, requestId: string) {
-    return appendAuditEvent(tx, { organizationId: tenant.organizationId, dealId, actorUserId: tenant.userId, action, targetType, targetId, outcome: 'SUCCEEDED', requestId });
+  private audit(tx: TransactionClient, tenant: TenantContext, dealId: string, action: string, targetType: string, targetId: string, requestId: string, notify?: PactEventInput) {
+    return appendAuditEvent(tx, { organizationId: tenant.organizationId, dealId, actorUserId: tenant.userId, action, targetType, targetId, outcome: 'SUCCEEDED', requestId, notify: notify ?? null });
   }
 
   /** The side's current named signatory (also used by the letter of intent, T-119). */
@@ -332,7 +332,8 @@ export class CloseService {
           },
         },
       );
-      await this.audit(tx, tenant, dealId, 'terms.esign_sent', 'signature_envelope', row.id, requestId);
+      // T-145: both signatories are asked to sign, at once (the sender is never told of their own envelope).
+      await this.audit(tx, tenant, dealId, 'terms.esign_sent', 'signature_envelope', row.id, requestId, { type: 'SIGNATURE_REQUESTED', dedupeKey: `envelope:${row.id}:sent`, visibility: 'SHARED', audience: 'USERS', users: [buyer.userId, seller.userId] });
     });
     return this.view(tenant, dealId, requestId);
   }

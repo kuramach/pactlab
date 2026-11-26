@@ -16,6 +16,7 @@ import {
 import { phaseOf, stagesOf, type DealPhase, type TenantContext } from '@pactlab/domain';
 import { PRISMA } from '../tokens';
 import { PhasesService } from '../phases/phases.service';
+import { memberAddedNotice } from '../notifications/notices';
 import { DealAccess } from './deal-access';
 import type {
   AddMemberCommand,
@@ -179,6 +180,7 @@ export class DealsService {
           targetId: command.userId,
           outcome: 'SUCCEEDED',
           requestId,
+          notify: memberAddedNotice({ userId: command.userId, role: command.role }, requestId),
         });
       }
       return added;

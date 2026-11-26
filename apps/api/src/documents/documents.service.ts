@@ -94,6 +94,7 @@ import type {
 import { NO_VISION, UNCLASSIFIED_INTAKE, XLSX_CONTENT_TYPE, type DocumentIntake, type DocumentPageRecord, type DocumentRecord, type DocumentSourceLink, type DocumentVisionState } from './documents.types';
 import { documentPages } from './document-text';
 import { ExtractionError, type ExtractedPage } from './extraction';
+import { documentAddedNotice } from '../notifications/notices';
 import { VisionPass } from './vision-pass';
 import {
   retainUntil,
@@ -326,13 +327,17 @@ export class DocumentsService {
         tenant,
         document,
         pageRecords,
-        this.audit(
-          tenant,
-          dealId,
-          body.shared && role !== 'TARGET_CONTRIBUTOR' ? 'document.uploaded_shared' : 'document.uploaded',
-          { type: 'document', id: documentId },
-          requestId,
-        ),
+        {
+          ...this.audit(
+            tenant,
+            dealId,
+            body.shared && role !== 'TARGET_CONTRIBUTOR' ? 'document.uploaded_shared' : 'document.uploaded',
+            { type: 'document', id: documentId },
+            requestId,
+          ),
+          // T-145: the other side hears of it in its digest.
+          notify: documentAddedNotice(document, role),
+        },
       );
     } catch (error) {
       await this.objects.delete(objectKey);

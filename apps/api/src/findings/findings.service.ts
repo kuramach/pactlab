@@ -9,7 +9,7 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { citationStillValid, SourceIndex } from '@pactlab/ai';
-import { ACTIVE_EVIDENCE, appendAuditEvent, evidence, withdrawals, withTenant, type PrismaClient } from '@pactlab/db';
+import { ACTIVE_EVIDENCE, appendAuditEvent, evidence, withdrawals, withTenant, type PactEventInput, type PrismaClient } from '@pactlab/db';
 import {
   auditActionFor,
   canDraftFindings,
@@ -69,6 +69,17 @@ function translate(error: unknown): never {
 /** The register fingerprint of an accepted document-review finding. */
 export const documentReviewFingerprint = (documentFindingId: string) => `document:${documentFindingId}`;
 
+/**
+ * T-145: the deal team hears, in its digest, of a finding drafted or decided. Findings are buyer-side
+ * analysis: never a counterparty, whatever the finding says.
+ */
+function findingNotice(finding: Finding, action: string): PactEventInput | null {
+  const base = { visibility: 'BUYER_ONLY' as const, audience: 'OWN_SIDE' as const, recordId: finding.id };
+  if (action === 'finding.created' || action === 'finding.drafted') return { ...base, type: 'FINDING_DRAFTED', dedupeKey: `finding:${finding.id}:drafted` };
+  if (action === 'finding.updated') return null;
+  return { ...base, type: 'FINDING_DECIDED', dedupeKey: `finding:${finding.id}:v${finding.version}:decided` };
+}
+
 @Injectable()
 export class FindingsService {
   constructor(
@@ -92,6 +103,7 @@ export class FindingsService {
       targetId: finding.id,
       outcome: 'SUCCEEDED' as const,
       requestId,
+      notify: findingNotice(finding, action),
     };
   }
 

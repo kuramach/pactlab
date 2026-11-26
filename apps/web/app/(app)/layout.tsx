@@ -47,11 +47,13 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   // What's new (T-155): the cards dismissed from the home, behind an icon beside the bug icon. Not for guests.
   const featureCards = session.kind === 'signed-in' && !session.guest ? await loadFeatureCards() : null;
   const css = brand ? themeCss(brand.variables) : null;
+  // The bell's unread count (T-145); hidden when it cannot be read.
+  const unread = session.kind === 'signed-in' ? await apiGet<{ count: number }>('/v1/notifications/unread-count') : null;
   return (
     <AppShell
       environmentLabel={env.NEXT_PUBLIC_APP_ENV === 'production' ? undefined : env.NEXT_PUBLIC_APP_ENV}
       sidebar={<Sidebar sections={sections} organizationName={session.kind === 'signed-in' ? (session.organization?.name ?? null) : null} brand={brand} />}
-      topbar={<Topbar session={session} sections={sections} brand={brand} />}
+      topbar={<Topbar session={session} sections={sections} brand={brand} unread={unread?.kind === 'ok' ? unread.data.count : null} />}
     >
       {/* The organization's accent and font over Pactlab's theme (T-123): hex colors and fixed font stacks only. */}
       {css ? <style>{css}</style> : null}

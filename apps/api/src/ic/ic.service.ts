@@ -1,6 +1,6 @@
 import { ConflictException, ForbiddenException, Inject, Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import type { IcSettingsView, IcSubmissionView, IcView } from '@pactlab/contracts';
-import { appendAuditEvent, withTenant, type PrismaClient, type TransactionClient, afterCursor, toPage} from '@pactlab/db';
+import { appendAuditEvent, withTenant, type PactEventInput, type PrismaClient, type TransactionClient, afterCursor, toPage} from '@pactlab/db';
 import { newId, permissionsForDealRole, type DealRole, type TenantContext } from '@pactlab/domain';
 import { DealAccess } from '../deals/deal-access';
 import { ReportsService } from '../reports/reports.service';
@@ -30,8 +30,8 @@ export class IcService {
     @Inject(ReportsService) private readonly reports: ReportsService,
   ) {}
 
-  private audit(tx: TransactionClient, tenant: TenantContext, dealId: string | null, action: string, targetType: string, targetId: string, requestId: string) {
-    return appendAuditEvent(tx, { organizationId: tenant.organizationId, dealId, actorUserId: tenant.userId, action, targetType, targetId, outcome: 'SUCCEEDED', requestId });
+  private audit(tx: TransactionClient, tenant: TenantContext, dealId: string | null, action: string, targetType: string, targetId: string, requestId: string, notify?: PactEventInput) {
+    return appendAuditEvent(tx, { organizationId: tenant.organizationId, dealId, actorUserId: tenant.userId, action, targetType, targetId, outcome: 'SUCCEEDED', requestId, notify: notify ?? null });
   }
 
   async view(tenant: TenantContext, dealId: string, requestId: string): Promise<IcView> {
@@ -165,7 +165,8 @@ export class IcService {
       for (const [ordinal, text] of input.conditions.entries()) {
         await tx.icCondition.create({ data: { id: newId(), organizationId: tenant.organizationId, dealId, decisionId: decision.id, ordinal, text } });
       }
-      await this.audit(tx, tenant, dealId, 'ic.decided', 'ic_decision', decision.id, requestId);
+      // T-145: the deal team hears the committee's decision at once; never the other side (buyer-only).
+      await this.audit(tx, tenant, dealId, 'ic.decided', 'ic_decision', decision.id, requestId, { type: 'IC_DECIDED', dedupeKey: `ic:${decision.id}:decided`, visibility: 'BUYER_ONLY', audience: 'OWN_SIDE' });
     });
     return this.view(tenant, dealId, requestId);
   }

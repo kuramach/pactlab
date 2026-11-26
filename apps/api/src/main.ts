@@ -185,6 +185,8 @@ const app = await createApp(
       resource: `${new URL(config.API_PUBLIC_ORIGIN ?? (config.APP_ENV === 'local' ? `http://localhost:${config.API_PORT}` : config.APP_WEB_ORIGIN)).origin}/v1/mcp`,
     },
     emailEvents: { verifier: snsVerifier },
+    // Pact activity notifications (T-145): the dispatcher sends due emails every minute (claims keep it at most once across tasks).
+    notifications: { dispatch: true },
     webFetcher,
     emailLogin: {
       tokenSecret: config.AUTH_TOKEN_SECRET,
