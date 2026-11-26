@@ -1,6 +1,6 @@
 name: triage-to-task
-# Live log triage (T-150, docs/runbooks/log-triage.md): when Kumar labels a live-triage issue
-# `triage-approved`, write a house-format task file into tasks/ready/, commit it to main, comment
+# Log triage (T-150 live, T-157 dev, qa and stage; docs/runbooks/log-triage.md): when Kumar labels a
+# live-triage or env-triage issue `triage-approved`, write a house-format task file into tasks/ready/, commit it to main, comment
 # the task id on the issue and label it `task-filed`. The agent loop picks the task up the next time
 # it runs; this workflow never opens a fix PR. It uses this repository's own GITHUB_TOKEN, never the
 # triage Lambda's token. The issue's text is untrusted: it reaches only scripts/triage-to-task.cjs
@@ -20,7 +20,8 @@ concurrency:
 
 jobs:
   file-task:
-    if: github.event.label.name == 'triage-approved' && contains(github.event.issue.labels.*.name, 'live-triage') && !contains(github.event.issue.labels.*.name, 'task-filed')
+    # One workflow, both label families: live-triage (production) and env-triage (dev, qa, stage).
+    if: github.event.label.name == 'triage-approved' && (contains(github.event.issue.labels.*.name, 'live-triage') || contains(github.event.issue.labels.*.name, 'env-triage')) && !contains(github.event.issue.labels.*.name, 'task-filed')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -53,7 +54,7 @@ jobs:
             read -r TASK_ID STATE TASK_FILE < <(node scripts/triage-to-task.cjs)
             if [ "$STATE" = exists ]; then echo "Already filed as ${TASK_ID}."; break; fi
             git add "$TASK_FILE"
-            git commit -m "${TASK_ID}: file live-triage issue #${ISSUE_NUMBER} as a task"
+            git commit -m "${TASK_ID}: file triage issue #${ISSUE_NUMBER} as a task"
             if git push origin HEAD:main; then break; fi
             # Someone else pushed first: start again from the new main, with a fresh T-number.
             if [ "$attempt" = 3 ]; then echo "::error::Could not push the task file to main."; exit 1; fi
@@ -67,6 +68,6 @@ jobs:
           TASK_ID: ${{ steps.task.outputs.id }}
           TASK_FILE: ${{ steps.task.outputs.file }}
         run: |
-          gh label create task-filed --color 0e8a16 --description 'Live triage: filed as a task in tasks/ready/' 2>/dev/null || true
+          gh label create task-filed --color 0e8a16 --description 'Log triage: filed as a task in tasks/ready/' 2>/dev/null || true
           gh issue comment "$ISSUE_NUMBER" --body "Filed as task **${TASK_ID}**: [\`${TASK_FILE}\`](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/blob/main/${TASK_FILE}). The agent loop builds it through its normal gates; it opens its own PR."
           gh issue edit "$ISSUE_NUMBER" --add-label task-filed

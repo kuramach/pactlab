@@ -65,8 +65,9 @@ export interface EnvironmentConfig {
    */
   readonly idlePause?: { readonly idleMinutes: number };
   /**
-   * Live log triage (T-150, ADR 0048): a daily Lambda sweeps the app's logs, triages error
-   * clusters with Bedrock, emails one digest and opens deduplicated GitHub issues. Live only.
+   * Log triage (T-150 live, T-157 pre-production; ADR 0048): a daily Lambda sweeps the app's logs,
+   * triages error clusters with Bedrock, emails one digest and opens deduplicated GitHub issues.
+   * One deployment per account: live's; dev's, sweeping dev and qa; stage's.
    */
   readonly logTriage?: LogTriageConfig;
   /** Approved feature flags, published to SSM for the application to read. */
@@ -154,12 +155,23 @@ export interface LogTriageConfig {
   readonly githubRepo: string;
   /** The Secrets Manager name of the fine-grained token (Issues read/write on `githubRepo` only); scripts/github-triage-key.sh sets it. */
   readonly githubTokenSecretName: string;
-  /** The Bedrock inference profile the triage calls (the account's default Claude route). */
-  readonly modelId: string;
+  /**
+   * The Bedrock inference profile the triage calls (the account's default Claude route). Absent:
+   * cluster-only mode (T-157), for an account whose Bedrock access is not enabled yet: no model
+   * permission, no model call, every verdict shown as unclassified. Setting it is the whole flip.
+   */
+  readonly modelId?: string;
   /** Run the queries and the triage, but send, open and store nothing: drafts go to the Lambda's log. */
   readonly dryRun: boolean;
   /** UTC hour of the daily run. */
   readonly hourUtc: number;
-  /** At most this many clusters go to Bedrock per run. */
+  /** At most this many clusters go to Bedrock per run (per environment, for a pre-production deployment). */
   readonly maxClusters: number;
+  /**
+   * Pre-production (T-157): the environments this account's deployment sweeps, each with its own
+   * log group, triage state, issue labels (`env-triage`, `env:<name>`) and digest section. This
+   * environment and others on its shared base only (the dev account: dev and qa). Absent: live,
+   * as T-150 built it (`live-triage` labels and state).
+   */
+  readonly environments?: readonly EnvironmentName[];
 }

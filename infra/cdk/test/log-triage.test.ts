@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Match } from 'aws-cdk-lib/assertions';
 import { describe, expect, it } from 'vitest';
-import { devConfig, ENVIRONMENT_NAMES, ENVIRONMENTS, prodConfig } from '../config';
+import { ENVIRONMENT_NAMES, ENVIRONMENTS, prodConfig } from '../config';
 import { platformStack } from './helpers';
 
 const require = createRequire(import.meta.url);
@@ -282,11 +282,12 @@ describe('the CDK resources', () => {
       .filter(([id]) => id.includes('LogTriage'))
       .flatMap(([, policy]) => (policy as { Properties: { PolicyDocument: { Statement: { Sid?: string; Action: string | string[]; Resource: unknown; Condition?: unknown }[] } } }).Properties.PolicyDocument.Statement);
 
-  it('exists in live only', () => {
-    for (const name of ENVIRONMENT_NAMES) expect(Boolean(ENVIRONMENTS[name].logTriage), name).toBe(name === 'prod');
-    const dev = platformStack(devConfig, { imageTag: 'abc1234' }).template;
-    dev.resourceCountIs('AWS::DynamoDB::Table', 0);
-    expect(JSON.stringify(dev.toJSON())).not.toContain('log-triage');
+  it('is one deployment per account: live, dev (sweeping qa too) and stage; live’s keeps T-150’s shape', () => {
+    for (const name of ENVIRONMENT_NAMES) expect(Boolean(ENVIRONMENTS[name].logTriage), name).toBe(name !== 'qa');
+    expect(prodConfig.logTriage?.environments).toBeUndefined();
+    const lambda = Object.values(live.findResources('AWS::Lambda::Function')).find((f: any) => f.Properties.Handler === 'index.handler') as any;
+    expect(Object.keys(lambda.Properties.Environment.Variables)).not.toContain('TRIAGE_ENVIRONMENTS');
+    expect(lambda.Properties.Environment.Variables).toMatchObject({ LOG_GROUP_PREFIX: '/pactlab/prod/' });
   });
 
   it('keeps the live app logs at least 30 days', () => {

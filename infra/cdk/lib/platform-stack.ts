@@ -10,7 +10,7 @@ import type { Construct } from 'constructs';
 import type { EnvironmentConfig } from '../config';
 import { PactlabCompute } from './compute';
 import { IdlePause } from './idle-pause';
-import { LogTriage } from './log-triage';
+import { LogTriage, triageEnvironments } from './log-triage';
 import { pactlabVpc, type PactlabNonliveBaseStack } from './nonlive-base-stack';
 import { StatefulProtectionAspect } from './protection';
 
@@ -262,9 +262,11 @@ export class PactlabPlatformStack extends Stack {
       }
     }
 
-    // Live log triage (T-150): detection runs in the live account itself, never on a developer's machine.
+    // Log triage (T-150 live, T-157 pre-production): detection runs in each account itself, never on a developer's machine.
     if (config.logTriage && config.service && this.compute) {
+      const environments = triageEnvironments(config);
       new LogTriage(this, 'LogTriage', {
+        ...(environments ? { environments } : {}),
         env: config.name,
         config: config.logTriage,
         logGroup: this.compute.logGroup,

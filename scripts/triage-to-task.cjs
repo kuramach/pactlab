@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 'use strict';
 /**
- * Turn an approved live-triage issue into a house-format task file in tasks/ready/
- * (T-150; .github/workflows/triage-to-task.yml). Run from the repository root with
+ * Turn an approved live-triage (T-150) or env-triage (T-157) issue into a house-format
+ * task file in tasks/ready/ (.github/workflows/triage-to-task.yml). Run from the repository root with
  * GITHUB_EVENT_PATH pointing at the `issues` event. Prints `<task id> <created|exists> <path>`.
  *
  * The issue's text is untrusted (log-derived, and editable on GitHub): it is quoted
@@ -49,8 +49,8 @@ function existingTaskFor(tasksDir, issueUrl) {
 /** The cluster detail block the triage Lambda wrote, without HTML comments; the whole body when the markers are gone. */
 function clusterDetail(body) {
   const text = String(body ?? '').replace(/\r\n/g, '\n');
-  const match = /<!-- live-triage-detail:start -->([\s\S]*?)<!-- live-triage-detail:end -->/.exec(text);
-  const detail = (match ? match[1] : text).replace(/<!--[\s\S]*?-->/g, '').trim();
+  const match = /<!-- (live|env)-triage-detail:start -->([\s\S]*?)<!-- \1-triage-detail:end -->/.exec(text);
+  const detail = (match ? match[2] : text).replace(/<!--[\s\S]*?-->/g, '').trim();
   return detail.length > MAX_DETAIL_CHARS ? `${detail.slice(0, MAX_DETAIL_CHARS)}\n… (truncated; see the issue)` : detail;
 }
 
@@ -60,10 +60,24 @@ function servicesOf(detail) {
   return row ? row[1].split(',').map((s) => s.trim()).filter((s) => Object.hasOwn(SERVICE_PATHS, s)) : [];
 }
 
+const ENV_NAME_RE = /^[a-z][a-z0-9-]{0,15}$/;
+
+/**
+ * The pre-production environment an env-triage issue is about (T-157): the detail table's
+ * `| Environment | qa |` row, else the `[env-triage:qa]` title tag. Null for a live-triage
+ * issue, or when what is written there is not an environment name.
+ */
+function environmentOf(issue) {
+  const row = /^\|\s*Environment\s*\|\s*([^|]*)\|/m.exec(clusterDetail(issue.body));
+  const tag = /^\s*\[env-triage:([^\]]*)\]/i.exec(String(issue.title ?? ''));
+  const name = (row ? row[1] : tag ? tag[1] : '').trim();
+  return ENV_NAME_RE.test(name) ? name : null;
+}
+
 /** The issue title as a task title: one line, no prefix, nothing that could break the heading. */
 function taskTitle(title) {
   const clean = String(title ?? '')
-    .replace(/^\s*\[live-triage\]\s*/i, '')
+    .replace(/^\s*\[(live-triage|env-triage:[^\]]*)\]\s*/i, '')
     .replace(/[\r\n\t]+/g, ' ')
     .replace(/[`<>]/g, '')
     .trim();
@@ -79,8 +93,12 @@ function renderTask({ id, issue }) {
   const touches = [...new Set([...services.map((s) => SERVICE_PATHS[s]), 'packages'])];
   if (!services.length) touches.unshift('apps');
   const lane = SERVICE_LANES[services[0]] ?? 'api';
+  const env = environmentOf(issue);
+  const found = env
+    ? `Pre-production log triage (T-157) found this failing in the **${env}** environment, before it reached live,`
+    : 'Live log triage (T-150) found this failing in production';
   return [
-    `# ${id} — Live triage: ${taskTitle(issue.title)}`,
+    env ? `# ${id} — Pre-production triage (${env}): ${taskTitle(issue.title)}` : `# ${id} — Live triage: ${taskTitle(issue.title)}`,
     '',
     'Engine: claude',
     'Model: opus',
@@ -89,10 +107,11 @@ function renderTask({ id, issue }) {
     `Touches: ${touches.join(' ')}`,
     'Needs: none',
     `Issue: ${issue.html_url}`,
+    env ? `Environment: ${env}` : null,
     '',
     '## Why',
     '',
-    `Live log triage (T-150) found this failing in production and Kumar approved it for a fix with the \`triage-approved\` label on issue #${issue.number} (${issue.html_url}). \`Touches:\` is a first guess from the failing service; if the root cause lies elsewhere, stop and report rather than widen it.`,
+    `${found} and Kumar approved it for a fix with the \`triage-approved\` label on issue #${issue.number} (${issue.html_url}). \`Touches:\` is a first guess from the failing service; if the root cause lies elsewhere, stop and report rather than widen it.`,
     '',
     '## Cluster detail',
     '',
@@ -114,9 +133,13 @@ function renderTask({ id, issue }) {
     '',
     '## Acceptance',
     '',
-    `- After the fix is deployed, signature in issue #${issue.number} stops appearing in the daily live-triage digest.`,
+    env
+      ? `- After the fix is deployed to ${env}, the signature in issue #${issue.number} stops appearing in the daily ${env} triage digest.`
+      : `- After the fix is deployed, signature in issue #${issue.number} stops appearing in the daily live-triage digest.`,
     '',
-  ].join('\n');
+  ]
+    .filter((line) => line !== null)
+    .join('\n');
 }
 
 function main() {
@@ -138,4 +161,4 @@ function main() {
 
 if (require.main === module) main();
 
-module.exports = { taskFileNames, nextTaskId, existingTaskFor, clusterDetail, servicesOf, taskTitle, renderTask };
+module.exports = { taskFileNames, nextTaskId, existingTaskFor, clusterDetail, servicesOf, environmentOf, taskTitle, renderTask };
