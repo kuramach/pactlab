@@ -56,7 +56,9 @@ fi
 
 # --- claim, on the task's branch (no-op when resuming, or when the task is already in tasks/active) ---
 if [[ -f "$WT/$READY" ]]; then
-  (cd "$WT" && git mv "$READY" "$ACTIVE" && git commit -qm "chore: claim $TASK_ID") >>"$LOG" 2>&1
+  # tasks/active may not exist on main (git keeps no empty folders once every task has moved on).
+  (cd "$WT" && mkdir -p "$(dirname "$ACTIVE")" && git mv "$READY" "$ACTIVE" && git commit -qm "chore: claim $TASK_ID") >>"$LOG" 2>&1 \
+    || { echo "### $TASK_ID: could not claim the task on its branch (see $LOG)" | tee -a "$LOG"; exit 1; }
 fi
 ACTIVE="$WT/$ACTIVE"
 
