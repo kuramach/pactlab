@@ -84,6 +84,8 @@ export const REGULATORY_PROFILES: Readonly<Record<PackId, RegulatoryProfile>> = 
       { name: 'Environmental agencies (EPA and state)', scope: 'Transfer of air, water and coal-ash (CCR) permits; consent decrees and remediation orders', theoryOfHarm: 'Not a merger authority: permit conditions and open obligations travel with the asset' },
       { name: 'State oil & gas commissions and land offices', scope: 'Operator transfers, plugging bonds and approval of lease assignments on state and federal land', theoryOfHarm: 'Not a merger authority: bonding and well-plugging obligations' },
       ...ANTITRUST,
+    ],
+  },
   // A pooled vehicle buying into one round (T-141): no merger review; the vehicle's own offering is exempt-offering law.
   STARTUP_SPV: {
     depth: 'LIGHT',

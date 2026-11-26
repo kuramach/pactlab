@@ -56,6 +56,7 @@ export type MusicCategory = (typeof MUSIC_CATEGORIES)[number];
  */
 export const SPV_CATEGORIES = ['ROUND_SUMMARY', 'CONVERTIBLE_INSTRUMENT', 'SPV_OPERATING_AGREEMENT', 'SPV_INVESTOR_SUMMARY', 'SIDE_LETTER', 'FORM_D'] as const;
 export type SpvCategory = (typeof SPV_CATEGORIES)[number];
+/**
  * An energy package (T-142) is diligenced from its title opinions, leases, division orders,
  * third-party reserve reports, power purchase agreements and environmental reports and permits.
  * Their entries are read on the Assets page for a person to confirm.
@@ -252,6 +253,9 @@ const DOCUMENT_DEFINITIONS: Readonly<Record<DocumentCategory, CategoryDefinition
     id: 'ENVIRONMENTAL_REPORT',
     label: 'Environmental report or permit',
     description: 'An environmental site assessment, closure or remediation plan, decommissioning study, permit, consent decree or emissions compliance record.',
+    route: { kind: 'FILE' },
+    people: false,
+  },
   // Startup equity SPV documents (T-141): kept and listed; the SPV checks read their pages.
   ROUND_SUMMARY: {
     id: 'ROUND_SUMMARY',

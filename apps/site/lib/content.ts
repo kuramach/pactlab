@@ -876,6 +876,9 @@ export const INDUSTRIES: readonly Industry[] = [
       { icon: 'ChartLine', title: 'A production and reserves model', body: 'Decline from the production history against the third-party report, in decimals.' },
       { icon: 'ShieldAlert', title: 'A liability model', body: 'Remediation, coal ash and decommissioning estimates against what the seller booked.' },
       { icon: 'FileSearch', title: 'Reports read for you', body: 'Reserve reports and environmental reports proposed as entries with their quotes; you confirm them.' },
+    ],
+  },
+  {
     slug: 'startup-spv',
     icon: 'Users',
     name: 'Startup equity SPV',
@@ -999,6 +1002,7 @@ const PACT_SLIDE_COPY: Readonly<Record<string, Pick<Slide, 'short' | 'title' | '
     points: ['Unbooked remediation and ARO shortfalls priced', 'Lease expiry and decimal errors quantified', 'Reserves as the third-party report states them'],
     imageAlt: 'Energy generation and rights: a power plant, a well site and a liability schedule',
     linkLabel: 'Run an energy pact',
+  },
   'startup-spv': {
     short: 'Startup SPV',
     icon: 'Users',

@@ -203,6 +203,9 @@ async function energy(app: App, buyer: TenantContext, dealId: string, uploaded: 
   for (const item of proposed.items) await service.decide(buyer, dealId, item.id, { decision: 'CONFIRM' }, REQUEST_ID);
   const checks = await service.runChecks(buyer, dealId, REQUEST_ID);
   return `energy: ${proposed.items.length} register entries confirmed, ${checks.created} energy drafts`;
+}
+
+/**
  * A startup equity SPV (T-141): the vehicle and its exit paths, five investor seats (one only
  * self-certified in a 506(c) vehicle, the planted accreditation gap), the SPV checks, and version 1
  * of the published investor view. The seats are the demo data's, by pseudonymous reference.

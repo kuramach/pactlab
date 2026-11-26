@@ -52,6 +52,8 @@ describe('pack registry', () => {
     for (const target of energy.importTargets.slice(1)) expect(IMPORT_TARGET_DEFINITIONS[target].refusesPeopleColumns, target).toBe(true);
     expect(peopleColumnProblems(IMPORT_TARGET_DEFINITIONS.ENERGY_LEASES, ['lease_id', 'lessor_ref', 'net_acres', 'royalty_rate', 'held_by_production'])).toEqual([]);
     expect(peopleColumnProblems(IMPORT_TARGET_DEFINITIONS.ENERGY_LEASES, ['lease_id', 'full_name', 'net_acres'])).toHaveLength(1);
+  });
+
   it('Startup equity SPV reads the startup by reference to Venture Raise and adds the vehicle checks (T-141)', () => {
     const spv = PACKS.STARTUP_SPV;
     expect(spv).toMatchObject({ slug: 'startup-spv', label: 'Startup equity SPV', cluster: 'capital', metricCalculator: 'spv-round', built: true });

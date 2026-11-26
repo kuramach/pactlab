@@ -108,6 +108,7 @@ export const SHOWCASE: Readonly<Record<string, ShowcaseEntry>> = {
     title: 'The plants and the wells, checked against their evidence',
     why: 'Plant capacity and contract coverage; well production, decline, decimals and leases; every environmental and retirement obligation against what was booked. Reserves are the engineers’. Diligence support, not legal or engineering advice.',
     lookFor: ['An ash-pond closure estimate the liability schedule leaves out', 'An ARO booked well below the decommissioning study', 'Acreage not held by production expiring inside the hold', 'A division-order decimal the lease chain does not support'],
+  },
   '/spv': {
     title: 'The round and your vehicle, both checked',
     why: 'The startup’s cap table recomputed with every SAFE converted, each deck claim against its evidence, and your vehicle’s fee and carry against what investors were told. Investors see only the view you publish. Diligence support, not legal advice.',

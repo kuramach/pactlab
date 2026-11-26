@@ -239,6 +239,7 @@ export const PACKS: Readonly<Record<PackId, PackDefinition>> = {
       },
     },
     documentCategories: ['TITLE_OPINION', 'OIL_GAS_LEASE', 'DIVISION_ORDER', 'RESERVE_REPORT', 'POWER_PURCHASE_AGREEMENT', 'ENVIRONMENTAL_REPORT'],
+  },
   // An organizer pools investors into one vehicle for one startup round (T-141, ADR 0044). The
   // startup's evidence is Venture Raise's by reference (billing, the cap table with its SAFEs and
   // notes, monthly cash and burn); the pack adds the round-math, claims, vehicle-economics,

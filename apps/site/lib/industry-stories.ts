@@ -501,6 +501,8 @@ export const INDUSTRY_STORIES: Readonly<Record<string, IndustryStory>> = {
       { q: 'Does it tell me whether title is good?', a: 'No. It is diligence support, not legal, engineering or regulatory advice: it organises the evidence and flags breaks in the chain of title for you and your counsel. It makes no title determination.' },
       { q: 'Where do the liability figures come from?', a: 'Only from reports, permits and the seller’s schedule. Pactlab compares the evidence’s estimate with what was booked; it never estimates a liability itself.' },
       { q: 'Does clean title or an over-booked ARO raise the price?', a: 'No. Verified cushions are recorded as confirmed value, never as a price increase.' },
+    ],
+  },
   'startup-spv': {
     headline: 'Pool the money on a round that adds up.',
     subhead:

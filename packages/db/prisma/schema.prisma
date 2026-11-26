@@ -3762,6 +3762,8 @@ model EnergyRegisterItem {
   @@unique([organizationId, dealId, id])
   @@index([organizationId, dealId, status, createdAt], map: "energy_register_items_org_deal_idx")
   @@map("energy_register_items")
+}
+
 /// A startup equity SPV's vehicle (T-141, ADR 0044): its name and the organizer's stated exit paths. Own side only.
 model SpvVehicle {
   organizationId   String   @map("organization_id") @db.Uuid
