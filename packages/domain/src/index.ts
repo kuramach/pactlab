@@ -22,5 +22,6 @@ export * from './music/registry';
 export * from './energy/registry';
 export * from './fintech/registry';
 export * from './healthcare/registry';
+export * from './clinics/registry';
 export * from './spv/registry';
 export * from './notifications';

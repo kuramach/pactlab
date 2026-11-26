@@ -78,6 +78,16 @@ export const FEATURE_CARDS: readonly FeatureCardDefinition[] = [
     icon: 'check',
   },
   {
+    id: 'small-clinics-pack',
+    version: 1,
+    addedOn: '2026-11-26',
+    title: 'Small clinics: the owner, the referrer and the lease, checked against the evidence',
+    body: 'On a small clinics pact, Pactlab reads the healthcare collections, credentials and payer contracts as on a healthcare pact, then recomputes the selling owner’s share of collections by service line, flags a line only the owner delivers, works out how many visits come from each referral source, reads the clinic lease for its end date, renewal option and assignment on a sale, and reads every imported year of the P&L for trends. A person decides every finding.',
+    href: '/pacts/new',
+    linkLabel: 'Start a clinics pact',
+    icon: 'layers',
+  },
+  {
     id: 'healthcare-services-pack',
     version: 1,
     addedOn: '2026-11-26',

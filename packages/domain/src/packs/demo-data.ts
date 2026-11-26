@@ -8,7 +8,7 @@ import { packFor } from './registry';
  * Every name and figure in it is invented.
  */
 export const DEMO_DATA_REPOSITORY = 'kuramach/pactlab-demo-data';
-export const DEMO_DATA_COMMIT = 'fed21dc21873ef96a3162173ee0b937321ac71b5';
+export const DEMO_DATA_COMMIT = '496343a50f59b4180e0de4be5a4f129895b190e2';
 
 /** A file of a pack's demo data, at the pinned commit. */
 export function demoDataUrl(type: CompanyType, path: string): string {

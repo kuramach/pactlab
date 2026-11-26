@@ -124,6 +124,11 @@ export const SHOWCASE: Readonly<Record<string, ShowcaseEntry>> = {
     why: 'Collections, denials and payer mix recomputed from the remittances; the deck checked against them; every clinician’s licence; concentration without a non-compete; the P&L by year. Documents, dates and arithmetic, not legal advice.',
     lookFor: ['A denial rate that rose for three years while the deck says it fell', 'Two clinicians still collecting after their licences expired', 'A payer mix drifting toward the lowest-paying payer', 'One clinician carrying 31% of collections with no non-compete on file'],
   },
+  '/clinics': {
+    title: 'The owner, the referrer and the lease, checked against the exports and the documents',
+    why: 'The selling owner’s share by service line, referral sources recomputed from the schedule, and the lease’s end date, renewal and assignment; collections and credentials on the Practice tab. Documents, dates and arithmetic, not legal advice.',
+    lookFor: ['58% of visits from one referral source', 'A lease ending 14 months after closing with no renewal option', 'The selling owner as the only provider of the highest-margin service line', 'Supplies outpacing revenue across three years'],
+  },
   '/valuation': {
     title: 'Sextant: what to pay, and why',
     why: 'Scenarios from stored inputs, accepted risks priced in, comparables and negotiation anchors: a price you can defend line by line.',

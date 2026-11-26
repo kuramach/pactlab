@@ -28,8 +28,10 @@ describe('deal sections per pact (batch 2)', () => {
     expect(sectionCompanyTypes('/energy')).toEqual(['ENERGY_GENERATION']);
     // A fintech target's payments and licence checks (T-159): only on a fintech pact.
     expect(sectionCompanyTypes('/fintech')).toEqual(['FINTECH']);
-    // A healthcare services target's practice checks (T-160): only on a healthcare pact, never its clinics or hospitals extensions.
-    expect(sectionCompanyTypes('/healthcare')).toEqual(['HEALTHCARE']);
+    // A healthcare services target's practice checks (T-160): on a healthcare pact and its few-site clinic variant (T-161), never hospitals.
+    expect(sectionCompanyTypes('/healthcare')).toEqual(['HEALTHCARE', 'SMALL_CLINICS']);
+    // A clinic's owner-operator, referral and premises checks (T-161): only on a small clinics pact.
+    expect(sectionCompanyTypes('/clinics')).toEqual(['SMALL_CLINICS']);
     // A pooled vehicle's seats, economics and investor view (T-141): only on a startup equity SPV, which has no acquisition close.
     expect(sectionCompanyTypes('/spv')).toEqual(['STARTUP_SPV']);
     expect(sectionApplies('/closing', { companyType: 'STARTUP_SPV', initiatedBy: 'BUYER' })).toBe(false);

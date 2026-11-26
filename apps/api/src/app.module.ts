@@ -57,6 +57,7 @@ import { MusicModule } from './music/music.module';
 import { EnergyModule } from './energy/energy.module';
 import { FintechModule } from './fintech/fintech.module';
 import { HealthcareModule } from './healthcare/healthcare.module';
+import { ClinicsModule } from './clinics/clinics.module';
 import { SpvModule } from './spv/spv.module';
 import { BrandModule } from './brand/brand.module';
 import { FeatureCardsModule } from './feature-cards/feature-cards.module';
@@ -327,6 +328,8 @@ export class AppModule {
         FintechModule,
         // Healthcare services (T-160): the read-only Practice page; its checks run through Findings.
         HealthcareModule,
+        // Small clinics (T-161): the read-only Clinic page; its checks run through Findings.
+        ClinicsModule,
         // Startup equity SPV (T-141): investors are invited to their seats through the invitations module.
         SpvModule.register(invitations),
         reportsModule,

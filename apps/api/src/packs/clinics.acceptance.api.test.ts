@@ -1,5 +1,7 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { ACCEPTANCE_CURRENCIES, acceptAndValue, startAcceptanceDeal, type AcceptanceDeal } from './acceptance-kit';
+import { ACCEPTANCE_CURRENCIES, acceptAndValue, pdfOf, startAcceptanceDeal, type AcceptanceDeal, type Body } from './acceptance-kit';
 
 type FindingView = {
   id: string;
@@ -12,44 +14,135 @@ type FindingView = {
   evidence: { evidenceItemId: string | null; documentCitation: { pageNumber: number; quote: string } | null }[];
 };
 
+/** Line kinds a person confirms for the demo P&L: revenue lines, "cost of" lines, the rest operating costs. */
+const lineKind = (account: string) => (/revenue/i.test(account) ? 'REVENUE' : /^cost of/i.test(account) ? 'COGS' : 'OPEX');
+
 /**
- * T-068 acceptance: pactlab-demo-data/small-clinics/<CURRENCY> loaded into a
- * fresh deal surfaces the three planted findings as cited drafts; the
- * equipment replacement, priced by the reviewer, reaches a DCF run.
+ * T-068 and T-161 acceptance: pactlab-demo-data/small-clinics/<CURRENCY> loaded into a fresh deal through
+ * the real APIs — billing, the T-068 extracts, the healthcare evidence set reused as it is (remittances,
+ * collections by clinician, the credentialing and payer contract registers), the service lines, the
+ * referrals, the three-year P&L and every document — surfaces the T-068 three and the planted (a) 58% of
+ * visits from one referral source, (b) a lease ending 14 months after closing with no renewal option,
+ * (c) the selling owner as the only provider of the highest-margin service line and (d) supplies
+ * outpacing revenue across three years, as cited drafts; the reviewer-priced replacement reaches a DCF
+ * run; the Clinic and Practice views are the buyer's.
  */
-describe.each(ACCEPTANCE_CURRENCIES)('small clinics pack acceptance (%s)', { timeout: 60_000 }, (currency) => {
+describe.each(ACCEPTANCE_CURRENCIES)('small clinics pack acceptance (%s)', { timeout: 90_000 }, (currency) => {
   let deal: AcceptanceDeal;
-  const findings = async () => (await deal.call('GET', `/v1/deals/${deal.dealId}/findings`, 'lead')).body['items'] as FindingView[];
+  let pnlUploadId = '';
+  const findings = async () => (await deal.call('GET', `/v1/deals/${deal.dealId}/findings?limit=100`, 'lead')).body['items'] as FindingView[];
+  const runRules = () => deal.call('POST', `/v1/deals/${deal.dealId}/findings/pack-rules/run`, 'lead');
 
   beforeAll(async () => {
     deal = await startAcceptanceDeal('SMALL_CLINICS', currency);
-  }, 120_000);
+    // An HR file naming another provider as the owner, with a succession plan, must never be read by a rule (rule 7).
+    const hr = await deal.call('POST', `/v1/deals/${deal.dealId}/documents`, 'lead', {
+      fileName: 'hr-notes.pdf',
+      contentType: 'application/pdf',
+      contentBase64: pdfOf('P02 is the selling owner. P02 has agreed a twelve-month transition period after closing.').toString('base64'),
+      dataClass: 'HR',
+    });
+    expect(hr.status).toBe(201);
+    // The P&L by year (FY2023–FY2025), years across the columns, line kinds confirmed by a person.
+    const csv = readFileSync(join(deal.folder, 'pnl.csv'), 'utf8');
+    const uploaded = await deal.upload(`/v1/deals/${deal.dealId}/uploads?target=FINANCIAL_PNL&system=pactlab_standard&fileName=pnl.csv`, 'lead', csv);
+    expect(uploaded.status, JSON.stringify(uploaded.body)).toBe(201);
+    pnlUploadId = uploaded.body['id'] as string;
+    const accounts = csv.trim().split('\n').slice(1).map((row) => row.split(',')[0] ?? '');
+    const mapping = { ...(uploaded.body['suggestedMapping'] as Body), lineKinds: Object.fromEntries(accounts.map((account) => [account, lineKind(account)])) };
+    const imported = await deal.call('POST', `/v1/deals/${deal.dealId}/uploads/${pnlUploadId}/import`, 'lead', { mapping });
+    expect(imported.body, JSON.stringify(imported.body)).toMatchObject({ syncRun: { status: 'SUCCEEDED', recordsCreated: accounts.length * 3 } });
+  }, 180_000);
   afterAll(async () => deal?.close());
 
-  it('the three planted findings surface as cited drafts; a re-run adds nothing', async () => {
-    const run = await deal.call('POST', `/v1/deals/${deal.dealId}/findings/pack-rules/run`, 'lead');
+  it('every planted finding surfaces as a cited draft; a re-run adds nothing', async () => {
+    const run = await runRules();
     expect(run.status, JSON.stringify(run.body)).toBe(200);
     expect(run.body).toMatchObject({ pack: 'SMALL_CLINICS', unresolvedQuotes: 0 });
-    expect(Number(run.body['created']) + Number(run.body['existing'])).toBe(3);
-    expect((await deal.call('POST', `/v1/deals/${deal.dealId}/findings/pack-rules/run`, 'lead')).body).toMatchObject({ created: 0, existing: 3 });
+    const promised = Number(/You should see exactly these (\d+) findings/.exec(deal.readme)?.[1]);
+    expect(promised).toBe(10);
+    expect(Number(run.body['created']) + Number(run.body['existing'])).toBe(promised);
+    expect((await runRules()).body).toMatchObject({ created: 0, existing: promised });
 
     const byTitle = Object.fromEntries((await findings()).map((finding) => [finding.title, finding]));
-    // The README's figures for this folder: "P07 earns 73.8% of Site 3 revenue".
+    // The README's list is exactly what the checks draft.
+    const listed = [...(deal.readme.split('You should see exactly these')[1]?.split('\n3. ')[0] ?? '').matchAll(/^ {3}\d+\. \*\*(.+?)\*\* — /gm)].map((match) => match[1]);
+    expect(listed.sort()).toEqual(Object.keys(byTitle).sort());
+
+    // T-068, unchanged. The README's figures for this folder: "P07 earns 73.8% of Site 3 revenue".
     const [, provider, share, site] = deal.readme.match(/— (P[0-9]+) earns ([0-9.]+%) of (Site [0-9]+) revenue/) ?? [];
     const carries = byTitle[`One provider carries ${site}`];
     expect(carries).toMatchObject({ domain: 'PEOPLE', direction: -1 });
     expect(carries?.description).toContain(`${provider} earns ${share} of ${site} revenue`);
     expect(carries?.evidence.filter((link) => link.evidenceItemId)).toHaveLength(12);
-
     const coding = byTitle['High-complexity coding above policy'];
     expect(coding).toMatchObject({ domain: 'REGULATORY', direction: -1 });
     expect(coding?.description).toMatch(/^From 2025-Q4 to 2026-Q3, 31\.0%–36\.0% of visits are coded at the highest complexity against the 15\.0%/);
     expect(coding?.evidence.find((link) => link.documentCitation)?.documentCitation?.quote).toMatch(/about 15% of visits/);
-
     const equipment = byTitle['Imaging equipment past its useful life'];
     expect(equipment).toMatchObject({ domain: 'OPERATIONAL', direction: -1, pricedRisk: null });
     expect(equipment?.evidence).toHaveLength(2);
-    expect(equipment?.description).toMatch(/^2 items are in service past their useful life at 2026-09-30: Panoramic X-ray unit at Site 1 \(acquired 2014-05-01/);
+
+    // (a) 58% of visits from one referral source, recomputed from the referral export.
+    const referral = byTitle['58.0% of visits come from one referral source: Harbourside Hospital orthopaedics (synthetic)'];
+    expect(referral).toMatchObject({ domain: 'COMMERCIAL', direction: -1, pricedRisk: null });
+    expect(referral?.evidence.filter((link) => link.evidenceItemId)).toHaveLength(12);
+
+    // (b) The lease ends 14 months after the stated closing with no renewal option; consent to assign is a closing condition.
+    const lease = byTitle['Clinic lease ends 14 months after closing, with no renewal option'];
+    expect(lease).toMatchObject({ domain: 'PROPERTY', direction: -1, pricedRisk: null });
+    expect(lease?.evidence.map((link) => link.documentCitation?.quote)).toEqual(expect.arrayContaining(['The term began on 1 February 2018 and ends on 31 January 2028.', 'There is no option to renew or extend the term.']));
+    expect(lease?.description).toContain('14 whole months after the expected closing on 2026-11-30');
+    expect(byTitle['Clinic lease: assignment on a sale needs the landlord’s consent']).toMatchObject({ domain: 'PROPERTY', direction: 0 });
+
+    // (c) The selling owner is the only provider of the highest-margin service line; the HR look-alike was never read.
+    const owner = byTitle['The selling owner is the only provider of the highest-margin service line: Implants'];
+    expect(owner).toMatchObject({ domain: 'PEOPLE', direction: -1, pricedRisk: null });
+    expect(owner?.evidence.find((link) => link.documentCitation)?.documentCitation?.quote).toBe('P01 is the selling owner and principal dentist, and performs every implant procedure.');
+    expect(owner?.evidence.filter((link) => link.evidenceItemId)).toHaveLength(12);
+    expect(Object.keys(byTitle).some((title) => title.includes('P02'))).toBe(false);
+
+    // (d) Supplies outpacing revenue, which one year alone misses, cited to the three imported rows.
+    const supplies = byTitle['Clinical and dental supplies growing faster than revenue, 2023–2025'];
+    expect(supplies).toMatchObject({ direction: -1 });
+    expect(supplies?.evidence.filter((link) => link.evidenceItemId)).toHaveLength(3);
+    expect(byTitle['P&L trend, 2023–2025']).toMatchObject({ direction: 0 });
+
+    // The healthcare checks, reused by id, ran too: the deck's days in AR is verified against the remittances.
+    expect(byTitle['Claim verified: Days in accounts receivable']?.direction).toBe(1);
+  });
+
+  it('the Clinic view reads the owner, the service lines, the referrals and the lease; the Practice view is the healthcare one, reused', async () => {
+    const view = await deal.call('GET', `/v1/deals/${deal.dealId}/clinics`, 'lead');
+    expect(view.status, JSON.stringify(view.body)).toBe(200);
+    const body = view.body as Body & {
+      owner: { providerRef: string; share: { source: string; collectionShare: string }; succession: { inPlace: boolean } };
+      serviceLines: { lines: { serviceLine: string; ownerOnly: boolean; margin: string }[] };
+      referrals: { sources: { source: string; share: string; selfReferral: boolean }[] };
+      premises: { measuredFrom: { date: string; basis: string }; leases: { expiresOn: string; monthsRemaining: number; renewal: string; assignment: string }[] };
+    };
+    expect(body).toMatchObject({ version: 'clinics-practice-1', currency, analysisDate: '2026-09-30', canRunChecks: true });
+    expect(body.owner).toMatchObject({ providerRef: 'P01', share: { source: 'SERVICE_LINES' }, succession: { inPlace: false } });
+    expect(body.serviceLines.lines[0]).toMatchObject({ serviceLine: 'Implants', ownerOnly: true });
+    expect(body.serviceLines.lines.filter((line) => line.ownerOnly).map((line) => line.serviceLine)).toEqual(['Implants']);
+    expect(body.referrals.sources[0]?.source).toBe('Harbourside Hospital orthopaedics (synthetic)');
+    expect(body.referrals.sources.find((entry) => entry.source === 'Self-referral')?.selfReferral).toBe(true);
+    expect(body.premises.measuredFrom).toMatchObject({ date: '2026-11-30', basis: 'EXPECTED_CLOSING' });
+    expect(body.premises.leases).toMatchObject([{ expiresOn: '2028-01-31', monthsRemaining: 14, renewal: 'NONE', assignment: 'CONSENT' }]);
+
+    const practice = (await deal.call('GET', `/v1/deals/${deal.dealId}/healthcare`, 'lead')).body as { version: string; trend: { years: { year: string; ratios: { key: string }[] }[] }; credentials: { exceptions: unknown[] } };
+    expect(practice.version).toBe('healthcare-collections-1');
+    expect(practice.credentials.exceptions).toEqual([]);
+    expect(practice.trend.years.map((year) => year.year)).toEqual(['2023', '2024', '2025']);
+    expect(practice.trend.years[0]?.ratios.map((ratio) => ratio.key)).toEqual(['supplies', 'lab', 'clinical', 'occupancy']);
+    // The pack's own figures on Finances: the healthcare ones, then the clinic's.
+    const metrics = (await deal.call('GET', `/v1/deals/${deal.dealId}/metrics/pack`, 'lead')).body as { calculator: string; metrics: { key: string; value: string | null }[] };
+    expect(metrics.calculator).toBe('clinics-practice');
+    expect(Number(metrics.metrics.find((metric) => metric.key === 'top_referral_share')?.value)).toBeCloseTo(Number(body.referrals.sources[0]?.share), 3);
+    expect(metrics.metrics.find((metric) => metric.key === 'collected')?.value).not.toBeNull();
+    // The buyer's own side only; another tenant sees nothing.
+    expect((await deal.call('GET', `/v1/deals/${deal.dealId}/clinics`, 'target_contributor')).status).toBe(403);
+    expect((await deal.call('GET', `/v1/deals/${deal.dealId}/clinics`, 'other')).status).toBe(404);
   });
 
   it('the reviewer prices the replacements as remediation; accepted, they reach a DCF run', async () => {
@@ -65,6 +158,22 @@ describe.each(ACCEPTANCE_CURRENCIES)('small clinics pack acceptance (%s)', { tim
       },
     });
     expect(lines.find((line) => line.kind === 'FINDING_ADJUSTMENT')).toMatchObject({ findingId: equipment?.id, amount: { amount: '-180000.00' } });
+  });
+
+  it('a withdrawn P&L leaves the trend; a single-year re-import reads one year', async () => {
+    const withdrawn = await deal.call('POST', `/v1/deals/${deal.dealId}/uploads/${pnlUploadId}/withdraw`, 'lead', { reason: 'Wrong version of the statement (synthetic)' });
+    expect(withdrawn.status, JSON.stringify(withdrawn.body)).toBe(200);
+    const after = (await deal.call('GET', `/v1/deals/${deal.dealId}/healthcare`, 'lead')).body as { trend: { years: unknown[] } };
+    expect(after.trend.years).toEqual([]);
+    const single = 'Line,FY2025\nNet patient service revenue,100000.00\nClinical and dental supplies,10000.00\n';
+    const uploaded = await deal.upload(`/v1/deals/${deal.dealId}/uploads?target=FINANCIAL_PNL&system=pactlab_standard&fileName=pnl-fy2025.csv`, 'lead', single);
+    expect(uploaded.status, JSON.stringify(uploaded.body)).toBe(201);
+    const mapping = { ...(uploaded.body['suggestedMapping'] as Body), lineKinds: { 'Net patient service revenue': 'REVENUE', 'Clinical and dental supplies': 'OPEX' } };
+    expect((await deal.call('POST', `/v1/deals/${deal.dealId}/uploads/${uploaded.body['id'] as string}/import`, 'lead', { mapping })).status).toBe(200);
+    expect((await runRules()).status).toBe(200);
+    const titles = (await findings()).map((finding) => finding.title);
+    expect(titles).toContain('P&L for 2025: one year imported');
+    expect(titles.filter((title) => title.startsWith('Clinical and dental supplies growing faster'))).toHaveLength(1);
   });
 
   it('is refused to a target contributor and invisible to another tenant', async () => {
