@@ -53,7 +53,7 @@ The source plan then adds **Industry data** (`pack_upload` connections) automati
 
 ## 4b. Multi-year P&L trend (every pack, Kumar 2026-11-26)
 
-- **Reuse, never fork:** `pnlTrendRules('<pack>', KEY_EXPENSES)` (`packages/calculations/src/packs/pnl-trend.ts`) gives three rules over the imported P&L (`finance.pnl_line`): the trend record (0), margin drift (−1) and a key expense outpacing revenue (−1). Name the vertical's key expenses (label and line-name pattern); list the three rule ids in the registry (fintech: `fintech-pnl-trend`, `-margin-drift`, `-expense-outpacing`).
+- **Reuse, never fork:** `pnlTrendRules('<pack>', KEY_EXPENSES)` (`packages/calculations/src/packs/pnl-trend.ts`) gives three rules over the imported P&L (`finance.pnl_line`): the trend record (0), margin drift (−1) and a key expense outpacing revenue (−1). Name the vertical's key expenses (label and line-name pattern); list the three rule ids in the registry (fintech: `fintech-pnl-trend`, `-margin-drift`, `-expense-outpacing`; healthcare: `healthcare-pnl-…`).
 - **Years:** a year the file states, or all twelve of its months; partial years are left out, never scaled up. One year still reads as one year.
 - **Demo data:** at least three years of P&L with one planted trend defect a single year misses; the acceptance test imports it through `FINANCIAL_PNL` with the line kinds a person confirms.
 

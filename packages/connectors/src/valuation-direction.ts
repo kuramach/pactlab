@@ -38,6 +38,11 @@ export const FINTECH_PROCESSOR_MONTH_EVIDENCE_TYPE = 'fintech.processor_month';
 export const FINTECH_LICENCE_EVIDENCE_TYPE = 'fintech.licence';
 /** The imported P&L (ADR 0038), read across years by the trend rules (Kumar, 2026-11-26 — every pack). */
 export const PNL_LINE_EVIDENCE_TYPE = 'finance.pnl_line';
+/** Healthcare services (T-160): remittances, collections by clinician and the credentialing and payer contract registers. */
+export const HEALTHCARE_REMITTANCE_MONTH_EVIDENCE_TYPE = 'healthcare.remittance_month';
+export const HEALTHCARE_CLINICIAN_MONTH_EVIDENCE_TYPE = 'healthcare.clinician_month';
+export const HEALTHCARE_CREDENTIAL_EVIDENCE_TYPE = 'healthcare.credential';
+export const HEALTHCARE_PAYER_CONTRACT_EVIDENCE_TYPE = 'healthcare.payer_contract';
 
 /**
  * Every evidence type the adapters and engines emit, with the direction each
@@ -195,6 +200,72 @@ export const VALUATION_DIRECTION_MAP: Readonly<Record<string, readonly Direction
     { signal: 'margin-drift', findingDomain: 'FINANCIAL', defaultDirection: -1, channel: 'ASSUMPTION' },
     { signal: 'expense-outpacing', findingDomain: 'FINANCIAL', defaultDirection: -1, channel: 'ASSUMPTION' },
   ],
+  // Healthcare services (T-160, ADR 0051). Payer mix, denials and days in AR are recomputed from the remittances;
+  // credentials and payer contracts are read at the analysis date. Dates and arithmetic only, never a clinical or legal judgment.
+  [HEALTHCARE_REMITTANCE_MONTH_EVIDENCE_TYPE]: [
+    { signal: 'claim-contradicted', findingDomain: 'FINANCIAL', defaultDirection: -1, channel: 'ASSUMPTION' },
+    { signal: 'claim-verified', findingDomain: 'FINANCIAL', defaultDirection: 1, channel: 'CONFIRMATION' },
+    {
+      signal: 'claim-unverified',
+      findingDomain: 'FINANCIAL',
+      defaultDirection: 0,
+      channel: 'INFORMATIONAL',
+      rationale: 'A claim nothing in the evidence checks is a gap to close, neither priced nor relied on.',
+    },
+    { signal: 'collections-unreconciled', findingDomain: 'FINANCIAL', defaultDirection: -1, channel: 'ASSUMPTION' },
+    { signal: 'denial-rate-rising', findingDomain: 'FINANCIAL', defaultDirection: -1, channel: 'ASSUMPTION' },
+    { signal: 'days-in-ar-rising', findingDomain: 'FINANCIAL', defaultDirection: -1, channel: 'ASSUMPTION' },
+    { signal: 'payer-mix-shift', findingDomain: 'COMMERCIAL', defaultDirection: -1, channel: 'ASSUMPTION' },
+    {
+      signal: 'compliance-gap',
+      findingDomain: 'REGULATORY',
+      defaultDirection: 0,
+      channel: 'INFORMATIONAL',
+      rationale: 'Stale or absent compliance evidence is requested and reviewed before close, never priced as if its contents were known.',
+    },
+  ],
+  [HEALTHCARE_CREDENTIAL_EVIDENCE_TYPE]: [
+    { signal: 'practising-expired', findingDomain: 'REGULATORY', defaultDirection: -1, channel: 'PRICED_TERM' },
+    {
+      signal: 'credential-lapsed',
+      findingDomain: 'REGULATORY',
+      defaultDirection: 0,
+      channel: 'INFORMATIONAL',
+      rationale: 'An expired credential with no collections after its expiry: renewal or removal from the roster as a closing condition, not a price adjustment.',
+    },
+    {
+      signal: 'credential-near-expiry',
+      findingDomain: 'REGULATORY',
+      defaultDirection: 0,
+      channel: 'INFORMATIONAL',
+      rationale: 'A closing condition (renewal before close), not a price adjustment.',
+    },
+    {
+      signal: 'credential-missing',
+      findingDomain: 'REGULATORY',
+      defaultDirection: 0,
+      channel: 'INFORMATIONAL',
+      rationale: 'No licence on file for a rostered clinician: evidence to request, not a defect to price.',
+    },
+  ],
+  [HEALTHCARE_CLINICIAN_MONTH_EVIDENCE_TYPE]: [{ signal: 'clinician-concentration', findingDomain: 'PEOPLE', defaultDirection: -1, channel: 'PRICED_TERM' }],
+  [HEALTHCARE_PAYER_CONTRACT_EVIDENCE_TYPE]: [
+    { signal: 'contract-expired', findingDomain: 'COMMERCIAL', defaultDirection: -1, channel: 'ASSUMPTION' },
+    {
+      signal: 'contract-expiring',
+      findingDomain: 'COMMERCIAL',
+      defaultDirection: 0,
+      channel: 'INFORMATIONAL',
+      rationale: 'A renegotiation inside the hold: a scenario sensitivity and a closing deliverable, not a price adjustment.',
+    },
+    {
+      signal: 'contract-missing',
+      findingDomain: 'COMMERCIAL',
+      defaultDirection: 0,
+      channel: 'INFORMATIONAL',
+      rationale: 'A payer remitting with no contract on the register: evidence to request, not a defect to price.',
+    },
+  ],
   [DOCUMENT_FINDING_EVIDENCE_TYPE]: [
     { signal: 'CHANGE_OF_CONTROL', findingDomain: 'CONTRACT', defaultDirection: -1, channel: 'PRICED_TERM' },
     { signal: 'ASSIGNMENT', findingDomain: 'CONTRACT', defaultDirection: -1, channel: 'PRICED_TERM' },
@@ -230,6 +301,10 @@ export const ADAPTER_EVIDENCE_TYPES = [
   FINTECH_PROCESSOR_MONTH_EVIDENCE_TYPE,
   FINTECH_LICENCE_EVIDENCE_TYPE,
   PNL_LINE_EVIDENCE_TYPE,
+  HEALTHCARE_REMITTANCE_MONTH_EVIDENCE_TYPE,
+  HEALTHCARE_CLINICIAN_MONTH_EVIDENCE_TYPE,
+  HEALTHCARE_CREDENTIAL_EVIDENCE_TYPE,
+  HEALTHCARE_PAYER_CONTRACT_EVIDENCE_TYPE,
 ] as const;
 
 /** The default direction for one signal, or null when the map does not know it. */

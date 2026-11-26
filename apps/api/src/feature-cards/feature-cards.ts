@@ -78,6 +78,16 @@ export const FEATURE_CARDS: readonly FeatureCardDefinition[] = [
     icon: 'check',
   },
   {
+    id: 'healthcare-services-pack',
+    version: 1,
+    addedOn: '2026-11-26',
+    title: 'Healthcare: payer mix, denials and credentials checked against the evidence',
+    body: 'On a healthcare services pact, Pactlab recomputes collections, payer mix, denial rate and days in receivable from the remittance export, checks the deck’s claims against them, reads every clinician’s licence and expiry from the register and the verification documents, flags a clinician carrying a large share of collections with no non-compete on file, and reads every imported year of the P&L for trends. A person decides every finding.',
+    href: '/pacts/new',
+    linkLabel: 'Start a healthcare pact',
+    icon: 'layers',
+  },
+  {
     id: 'fintech-payments-pack',
     version: 1,
     addedOn: '2026-11-26',

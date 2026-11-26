@@ -119,6 +119,11 @@ export const SHOWCASE: Readonly<Record<string, ShowcaseEntry>> = {
     why: 'Volume, take rate and loss rates recomputed from the processor exports; the deck’s claims checked against them; each licence’s status and expiry; the P&L across every year. Diligence support, not legal advice.',
     lookFor: ['A deck TPV that counts one processor month twice', 'A state licence that lapsed months ago', 'A chargeback rate over the sponsor agreement’s threshold', 'Fraud losses growing faster than revenue across three years'],
   },
+  '/healthcare': {
+    title: 'Collections, payer mix and credentials, checked against the remittances and the documents',
+    why: 'Collections, denials and payer mix recomputed from the remittances; the deck checked against them; every clinician’s licence; concentration without a non-compete; the P&L by year. Documents, dates and arithmetic, not legal advice.',
+    lookFor: ['A denial rate that rose for three years while the deck says it fell', 'Two clinicians still collecting after their licences expired', 'A payer mix drifting toward the lowest-paying payer', 'One clinician carrying 31% of collections with no non-compete on file'],
+  },
   '/valuation': {
     title: 'Sextant: what to pay, and why',
     why: 'Scenarios from stored inputs, accepted risks priced in, comparables and negotiation anchors: a price you can defend line by line.',

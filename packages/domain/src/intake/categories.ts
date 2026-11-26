@@ -70,8 +70,16 @@ export type EnergyCategory = (typeof ENERGY_CATEGORIES)[number];
  */
 export const FINTECH_CATEGORIES = ['REGULATORY_LICENCE', 'SPONSOR_BANK_AGREEMENT', 'PCI_ATTESTATION', 'AML_PROGRAM', 'REGULATORY_EXAM'] as const;
 export type FintechCategory = (typeof FINTECH_CATEGORIES)[number];
+/**
+ * A healthcare services target (T-160) is diligenced from its licence verifications, its coding and
+ * billing audits, its HIPAA risk assessment, its payer contracts and the schedule of clinicians bound by
+ * a non-compete or retention agreement. The Practice page reads their presence and dates; absence is
+ * shown as absence.
+ */
+export const HEALTHCARE_CATEGORIES = ['LICENCE_VERIFICATION', 'CODING_AUDIT', 'HIPAA_RISK_ASSESSMENT', 'PAYER_CONTRACT', 'RESTRICTIVE_COVENANTS'] as const;
+export type HealthcareCategory = (typeof HEALTHCARE_CATEGORIES)[number];
 /** Every category a pack may add on top of the common ones. */
-export type PackDocumentCategory = OfferingCategory | MusicCategory | EnergyCategory | SpvCategory | FintechCategory;
+export type PackDocumentCategory = OfferingCategory | MusicCategory | EnergyCategory | SpvCategory | FintechCategory | HealthcareCategory;
 
 export type DocumentCategory = (typeof DOCUMENT_CATEGORIES)[number] | PackDocumentCategory;
 
@@ -332,6 +340,42 @@ const DOCUMENT_DEFINITIONS: Readonly<Record<DocumentCategory, CategoryDefinition
     id: 'REGULATORY_EXAM',
     label: 'Exam report or consent order',
     description: 'A regulator\'s examination report, a matter requiring attention, a consent order or another enforcement action.',
+    route: { kind: 'FILE' },
+    people: false,
+  },
+  // Healthcare documents (T-160): kept and listed; the Practice page reads their presence and dates.
+  LICENCE_VERIFICATION: {
+    id: 'LICENCE_VERIFICATION',
+    label: 'Licence verification',
+    description: 'A primary-source verification of clinicians\' licences or credentials from the issuing board, by pseudonymous provider reference, with status and expiry.',
+    route: { kind: 'FILE' },
+    people: false,
+  },
+  CODING_AUDIT: {
+    id: 'CODING_AUDIT',
+    label: 'Coding or billing audit',
+    description: 'An internal or external coding, billing or claims audit report, with its date and findings.',
+    route: { kind: 'FILE' },
+    people: false,
+  },
+  HIPAA_RISK_ASSESSMENT: {
+    id: 'HIPAA_RISK_ASSESSMENT',
+    label: 'HIPAA risk assessment',
+    description: 'A HIPAA security or privacy risk assessment of the practice\'s systems, with its date.',
+    route: { kind: 'FILE' },
+    people: false,
+  },
+  PAYER_CONTRACT: {
+    id: 'PAYER_CONTRACT',
+    label: 'Payer contract',
+    description: 'A contract or enrolment with a commercial insurer or government programme: its term, renewal and rate basis.',
+    route: { kind: 'FILE' },
+    people: false,
+  },
+  RESTRICTIVE_COVENANTS: {
+    id: 'RESTRICTIVE_COVENANTS',
+    label: 'Non-compete and retention schedule',
+    description: 'A schedule of the clinicians, by pseudonymous provider reference, bound by a non-compete, non-solicitation or retention agreement, with each term. Not the agreements\' pay terms.',
     route: { kind: 'FILE' },
     people: false,
   },

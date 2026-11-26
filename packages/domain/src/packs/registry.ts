@@ -17,7 +17,7 @@ export const PACK_IDS = COMPANY_TYPES.filter((type): type is PackId => type !== 
 export type PackCluster = 'technology' | 'healthcare' | 'real-estate' | 'services' | 'life-sciences' | 'consumer' | 'capital' | 'media-rights' | 'energy';
 
 /** Calculator ids in `@pactlab/calculations` (`metricCalculator`). */
-export const METRIC_CALCULATOR_IDS = ['saas-metrics', 'multifamily-metrics', 'music-royalties', 'energy-assets', 'spv-round', 'fintech-payments'] as const;
+export const METRIC_CALCULATOR_IDS = ['saas-metrics', 'multifamily-metrics', 'music-royalties', 'energy-assets', 'spv-round', 'fintech-payments', 'healthcare-collections'] as const;
 export type MetricCalculatorId = (typeof METRIC_CALCULATOR_IDS)[number];
 
 /** Valuation method ids in `@pactlab/calculations` (`VALUATION_METHODS`). */
@@ -120,10 +120,40 @@ export const PACKS: Readonly<Record<PackId, PackDefinition>> = {
     ],
     documentCategories: ['REGULATORY_LICENCE', 'SPONSOR_BANK_AGREEMENT', 'PCI_ATTESTATION', 'AML_PROGRAM', 'REGULATORY_EXAM'],
   },
+  // Provider services (T-061, extended by T-160, ADR 0051): the parent pack for clinics and hospitals. The T-061
+  // rules stay first; the pack adds remittances and collections by clinician (payer mix, denials, days in AR,
+  // the deck's claims, the P&L reconciled by year), the credentialing and payer contract registers, clinician
+  // concentration, compliance evidence and the multi-year P&L trend.
   HEALTHCARE: {
     ...pack('HEALTHCARE', 'healthcare', 'healthcare', true),
-    importTargets: ['BILLING_INVOICE_LINE', 'HEALTHCARE_CLAIMS_SUMMARY', 'HEALTHCARE_PROVIDER_ROSTER'],
-    findingRules: ['healthcare-government-concentration', 'healthcare-director-fee', 'healthcare-privacy-assessment', 'healthcare-credentials-expiring'],
+    importTargets: [
+      'BILLING_INVOICE_LINE',
+      'HEALTHCARE_CLAIMS_SUMMARY',
+      'HEALTHCARE_PROVIDER_ROSTER',
+      'HEALTHCARE_REMITTANCES',
+      'HEALTHCARE_CLINICIAN_COLLECTIONS',
+      'HEALTHCARE_CREDENTIALS',
+      'HEALTHCARE_PAYER_CONTRACTS',
+    ],
+    metricCalculator: 'healthcare-collections',
+    findingRules: [
+      'healthcare-government-concentration',
+      'healthcare-director-fee',
+      'healthcare-privacy-assessment',
+      'healthcare-credentials-expiring',
+      'healthcare-practice-claims',
+      'healthcare-collections-reconciliation',
+      'healthcare-collections-trend',
+      'healthcare-payer-mix-shift',
+      'healthcare-credentialing',
+      'healthcare-clinician-concentration',
+      'healthcare-payer-contracts',
+      'healthcare-compliance-evidence',
+      'healthcare-pnl-trend',
+      'healthcare-pnl-margin-drift',
+      'healthcare-pnl-expense-outpacing',
+    ],
+    documentCategories: ['LICENCE_VERIFICATION', 'CODING_AUDIT', 'HIPAA_RISK_ASSESSMENT', 'PAYER_CONTRACT', 'RESTRICTIVE_COVENANTS'],
     // Healthtech targets also run the software path (ARR multiple); services value on DCF.
     valuationMethods: ['DCF', 'ARR_MULTIPLE'],
   },
