@@ -1,13 +1,13 @@
 import { ANONYMOUS_CREDENTIAL_REF, AnonymousAuth, GITHUB_APP_CREDENTIAL_REF, TokenAuth } from '@pactlab/connectors';
 import type { ConnectionRecord } from '@pactlab/db';
 import { CsvFixtureAdapter } from './adapters/csv-fixture.adapter';
-import { githubSyncAdapter, jiraSyncAdapter, type ProviderSyncAdapter } from './adapters/provider-sync.adapter';
+import { githubSyncAdapter, jiraSyncAdapter, mcpSyncAdapter, type ProviderSyncAdapter } from './adapters/provider-sync.adapter';
 import type { ProviderDependencies } from './provider-dependencies';
 
 export type ResolvedAdapter = CsvFixtureAdapter | ProviderSyncAdapter;
 
 /** Providers a connection may be created for. */
-export const SUPPORTED_PROVIDERS = ['csv', 'github', 'jira'] as const;
+export const SUPPORTED_PROVIDERS = ['csv', 'github', 'jira', 'mcp'] as const;
 
 function datasetsOf(config: unknown): string[] {
   const datasets = (config as { datasets?: unknown } | null)?.datasets;
@@ -19,7 +19,8 @@ function datasetsOf(config: unknown): string[] {
 /**
  * The only place that looks at (provider, mode). Everything downstream sees
  * the normalized adapter contract. Live CSV (uploaded files) is not built
- * yet; live GitHub and Jira read the providers (T-082).
+ * yet; live GitHub and Jira read the providers (T-082); MCP reads an
+ * operator-approved MCP server (T-084c).
  */
 export function resolveAdapter(
   connection: Pick<ConnectionRecord, 'provider' | 'mode' | 'config'>,
@@ -43,6 +44,8 @@ export function resolveAdapter(
       });
     case 'jira':
       return jiraSyncAdapter(connection.mode, connection.config, { fetch: providers.fetch, secrets: providers.secrets, policy: providers.jiraSitePolicy });
+    case 'mcp':
+      return mcpSyncAdapter(connection.mode, connection.config, { policy: providers.mcpServerPolicy, sessions: providers.mcpSessions, secrets: providers.secrets });
     default:
       return null;
   }

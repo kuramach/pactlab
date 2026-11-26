@@ -4,6 +4,7 @@ import {
   createGitHubEvidenceSource,
   createJiraAdapter,
   createJiraEvidenceSource,
+  createMcpAdapter,
   JiraFixtureAdapter,
   readAllCommits,
   type ConnectionMode,
@@ -12,6 +13,7 @@ import {
   type FetchLike,
   type GitHubAuthResolver,
   type JiraLiveOptions,
+  type McpAdapterOptions,
   type ValidationResult,
 } from '@pactlab/connectors';
 import type { CommitMetadata, ContributorIdentity, EvidenceSource } from '@pactlab/domain';
@@ -94,4 +96,10 @@ export function jiraSyncAdapter(mode: ConnectionMode, config: unknown, live: Jir
   // Live reads report unreadable projects themselves, as source issues.
   const unreadable = adapter instanceof JiraFixtureAdapter ? adapter.unreadableProjects() : [];
   return new ProviderSyncAdapter(adapter, (scope) => createJiraEvidenceSource(adapter, scope, unreadable), true);
+}
+
+/** An operator-approved MCP server as an evidence source (T-084c): the same sync path as every provider. */
+export function mcpSyncAdapter(mode: ConnectionMode, config: unknown, live: McpAdapterOptions): ProviderSyncAdapter | null {
+  const adapter = createMcpAdapter(mode, config, live);
+  return adapter ? new ProviderSyncAdapter(adapter, (scope) => adapter.evidenceSource(scope), true) : null;
 }

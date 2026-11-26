@@ -4,15 +4,22 @@ import {
   CLOUD_ONLY,
   FIXTURE_ROOMS,
   GoogleDriveOAuth,
+  MCP_RESPONSE_MAX_BYTES,
+  MCP_REQUEST_TIMEOUT_MS,
   MicrosoftDriveOAuth,
+  NO_MCP_SERVERS,
+  SdkMcpSessionFactory,
   UnavailableSecretStore,
   type DocumentOAuthClient,
   type DocumentOAuthProvider,
   type FetchLike,
   type FixtureRoom,
   type JiraSitePolicy,
+  type McpServerPolicy,
+  type McpSessionFactory,
   type SecretStore,
 } from '@pactlab/connectors';
+import { pinnedHttpsFetch } from '../common/pinned-fetch';
 
 /** Live-provider plumbing shared by every connection: secrets, Pactlab's GitHub App and the HTTP client. */
 export interface ProviderDependencies {
@@ -24,6 +31,10 @@ export interface ProviderDependencies {
   readonly allowFixtureConnections: boolean;
   /** Which Jira hosts live connections may reach (Cloud always; self-hosted by operator list). */
   readonly jiraSitePolicy: JiraSitePolicy;
+  /** Which MCP servers live MCP evidence connections may reach (T-084c): the operator's list only. */
+  readonly mcpServerPolicy: McpServerPolicy;
+  /** Live MCP sessions: the SDK client over a fetch that pins every checked address. */
+  readonly mcpSessions: McpSessionFactory;
   /** Synthetic data rooms for fixture document sources (T-098). */
   readonly fixtureRooms: Readonly<Record<string, FixtureRoom>>;
   /** Pactlab's OAuth clients for document sources (T-147), per provider configured here. */
@@ -46,6 +57,10 @@ export interface ProviderSettings {
   readonly allowFixtureConnections?: boolean;
   /** From JIRA_SELF_HOSTED_HOSTS; defaults to Atlassian Cloud only. */
   readonly jiraSitePolicy?: JiraSitePolicy;
+  /** From MCP_EVIDENCE_SERVERS; defaults to none. */
+  readonly mcpServerPolicy?: McpServerPolicy;
+  /** Tests answer MCP sessions in process. */
+  readonly mcpSessions?: McpSessionFactory;
   /** Tests replace the synthetic rooms to simulate changes at the source. */
   readonly fixtureRooms?: Readonly<Record<string, FixtureRoom>>;
   /** From GOOGLE_OAUTH_* and MICROSOFT_OAUTH_*: each provider's client id and secret. */
@@ -70,6 +85,9 @@ export function providerDependencies(settings: ProviderSettings = {}): ProviderD
     fetch: http,
     allowFixtureConnections: settings.allowFixtureConnections ?? true,
     jiraSitePolicy: settings.jiraSitePolicy ?? CLOUD_ONLY,
+    mcpServerPolicy: settings.mcpServerPolicy ?? NO_MCP_SERVERS,
+    // Never the platform fetch: MCP servers are reached only at checked, pinned addresses.
+    mcpSessions: settings.mcpSessions ?? new SdkMcpSessionFactory(pinnedHttpsFetch({ maxBytes: MCP_RESPONSE_MAX_BYTES, timeoutMs: MCP_REQUEST_TIMEOUT_MS })),
     fixtureRooms: settings.fixtureRooms ?? FIXTURE_ROOMS,
     documentOAuth: {
       ...(settings.documentOAuth?.['google-drive'] ? { 'google-drive': new GoogleDriveOAuth({ ...settings.documentOAuth['google-drive'], fetch: http }) } : {}),

@@ -1,7 +1,7 @@
 import { apiEnvSchema, applyDatabaseUrls, loadConfig, packPreviewEnabled } from '@pactlab/config';
 import { assertRuntimeRoleIsolation, createPrismaClient, S3ObjectStore } from '@pactlab/db';
 import { readFileSync } from 'node:fs';
-import { BoldSignSigningProvider, BoldSignWebhook, DocuSignOAuth, FixtureMarketRentProvider, FixturePropertyProvider, LocalEncryptedSecretStore, parseSelfHostedHosts, RentCastMarketRentProvider, RentCastPropertyProvider, StripeBillingProvider, UnconfiguredBillingProvider } from '@pactlab/connectors';
+import { BoldSignSigningProvider, BoldSignWebhook, DocuSignOAuth, FixtureMarketRentProvider, FixturePropertyProvider, LocalEncryptedSecretStore, MCP_EVIDENCE_PROFILES, parseMcpEvidenceServers, parseSelfHostedHosts, RentCastMarketRentProvider, RentCastPropertyProvider, StripeBillingProvider, UnconfiguredBillingProvider } from '@pactlab/connectors';
 import { createLogger } from '@pactlab/observability';
 import { S3Client } from '@aws-sdk/client-s3';
 import { SecretsManagerClient } from '@aws-sdk/client-secrets-manager';
@@ -67,6 +67,9 @@ const ai = await createAiGateway(config, prisma);
 const providers = {
   // Operator-approved self-hosted Jira servers; Atlassian Cloud is always allowed.
   jiraSitePolicy: { selfHostedHosts: parseSelfHostedHosts(config.JIRA_SELF_HOSTED_HOSTS) },
+  // Operator-approved MCP evidence servers (T-084c), `<profile>=<https url>`; none unless listed.
+  // Parsed here and fail-closed: a bad entry stops startup. (Read directly until packages/config lists it.)
+  mcpServerPolicy: parseMcpEvidenceServers(process.env['MCP_EVIDENCE_SERVERS'], Object.keys(MCP_EVIDENCE_PROFILES)),
   allowFixtureConnections: config.ALLOW_FIXTURE_CONNECTIONS
     ? config.ALLOW_FIXTURE_CONNECTIONS === 'true'
     : ['local', 'test', 'dev', 'qa'].includes(config.APP_ENV),

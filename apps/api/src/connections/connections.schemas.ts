@@ -1,6 +1,6 @@
 import { CONNECTION_MODES } from '@pactlab/domain';
 import { z } from 'zod';
-import { githubConnectionConfigSchema, jiraConnectionConfigSchema } from '@pactlab/connectors';
+import { githubConnectionConfigSchema, jiraConnectionConfigSchema, mcpConnectionConfigSchema } from '@pactlab/connectors';
 import type { SUPPORTED_PROVIDERS } from './adapter-registry';
 
 /** Every supported provider has a create schema below. */
@@ -26,6 +26,7 @@ export const createConnectionSchema = z.discriminatedUnion('provider', [
   }),
   z.strictObject({ provider: z.literal('github'), ...common, config: githubConnectionConfigSchema }),
   z.strictObject({ provider: z.literal('jira'), ...common, config: jiraConnectionConfigSchema }),
+  z.strictObject({ provider: z.literal('mcp'), ...common, config: mcpConnectionConfigSchema }),
 ]);
 export type CreateConnectionCommand = z.infer<typeof createConnectionSchema>;
 
@@ -80,3 +81,15 @@ export const connectJiraSchema = z.discriminatedUnion('method', [
   z.strictObject({ method: z.literal('TOKEN'), ...jiraTarget, token: z.string().trim().regex(/^\S{8,500}$/, 'A Jira API token or personal access token') }),
 ]);
 export type ConnectJiraCommand = z.infer<typeof connectJiraSchema>;
+
+/**
+ * Connect an external MCP server as a read-only evidence source (T-084c): a server the
+ * operator approved, named by id (never a URL), and what to read there. With a token, it is
+ * stored once and never returned; without one, the server is read anonymously.
+ */
+const mcpTarget = { server: mcpConnectionConfigSchema.shape.server, target: mcpConnectionConfigSchema.shape.target };
+export const connectMcpSchema = z.discriminatedUnion('method', [
+  z.strictObject({ method: z.literal('PUBLIC'), ...mcpTarget }),
+  z.strictObject({ method: z.literal('TOKEN'), ...mcpTarget, token: z.string().trim().regex(/^\S{8,500}$/, 'An access token for the MCP server') }),
+]);
+export type ConnectMcpCommand = z.infer<typeof connectMcpSchema>;

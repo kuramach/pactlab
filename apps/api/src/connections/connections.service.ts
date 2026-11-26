@@ -7,7 +7,7 @@ import {
   ServiceUnavailableException,
   UnprocessableEntityException,
 } from '@nestjs/common';
-import { ANONYMOUS_CREDENTIAL_REF, GITHUB_APP_CREDENTIAL_REF, jiraSiteProblem, type ValidationResult } from '@pactlab/connectors';
+import { ANONYMOUS_CREDENTIAL_REF, GITHUB_APP_CREDENTIAL_REF, GITHUB_MCP_FIXTURE_REPOSITORIES, jiraSiteProblem, MCP_EVIDENCE_PROFILES, mcpServerFor, type ValidationResult } from '@pactlab/connectors';
 import {
   appendAuditEvent,
   connections,
@@ -41,7 +41,7 @@ const CODE_SIGNAL_ACTOR = { kind: 'SYSTEM', component: 'sync:code-signals' } as 
 import { GITHUB_FIXTURES, JIRA_FIXTURES } from '@pactlab/connectors';
 import { PROVIDER_DEPENDENCIES, type ProviderDependencies } from './provider-dependencies';
 import type { EvidenceSample } from './adapters/evidence-sample';
-import type { ConnectGitHubCommand, ConnectJiraCommand, CreateConnectionCommand, SetModeCommand } from './connections.schemas';
+import type { ConnectGitHubCommand, ConnectJiraCommand, ConnectMcpCommand, CreateConnectionCommand, SetModeCommand } from './connections.schemas';
 
 export interface ConnectionView {
   id: string;
@@ -233,6 +233,7 @@ export class ConnectionsService {
     if (command.mode === 'LIVE') await this.requireLiveConnectors(tenant);
     // The allowlist bounds where a live connection may reach; a fixture replays recorded data and reaches nothing (T-127).
     if (command.provider === 'jira' && command.mode === 'LIVE') this.requireAllowedJiraSite(command.config.site);
+    if (command.provider === 'mcp') this.requireMcpTarget(command.config.server, command.config.target, command.mode === 'LIVE');
     // Synthetic repositories and Jira sites are for local and test environments only.
     if (command.mode === 'FIXTURE' && command.provider !== 'csv' && !this.providers.allowFixtureConnections)
       throw new ForbiddenException('Synthetic test connections are not available in this environment');
@@ -255,14 +256,95 @@ export class ConnectionsService {
     return toConnectionView(row);
   }
 
-  /** Synthetic repositories and Jira sites a deal may connect to here (local and test environments only). */
-  syntheticSources(): { allowed: boolean; repositories: string[]; jiraSites: { site: string; projectKeys: string[] }[] } {
-    if (!this.providers.allowFixtureConnections) return { allowed: false, repositories: [], jiraSites: [] };
+  /** Synthetic repositories, Jira sites and MCP targets a deal may connect to here (local and test environments only). */
+  syntheticSources(): {
+    allowed: boolean;
+    repositories: string[];
+    jiraSites: { site: string; projectKeys: string[] }[];
+    mcpServers: { server: string; repositories: string[] }[];
+  } {
+    if (!this.providers.allowFixtureConnections) return { allowed: false, repositories: [], jiraSites: [], mcpServers: [] };
     return {
       allowed: true,
       repositories: Object.keys(GITHUB_FIXTURES).sort(),
       jiraSites: Object.values(JIRA_FIXTURES).map((site) => ({ site: site.site, projectKeys: [...site.readableProjects] })),
+      mcpServers: [{ server: 'github', repositories: [...GITHUB_MCP_FIXTURE_REPOSITORIES] }],
     };
+  }
+
+  /**
+   * The MCP servers this deployment's operator approved (T-084c): id, what it reads and its
+   * host. A connection picks one of these by id; there is nowhere to type a URL.
+   */
+  mcpServers(): { items: { id: string; label: string; host: string; requiredGrant: string }[] } {
+    return {
+      items: this.providers.mcpServerPolicy.servers.flatMap((server) => {
+        const profile = MCP_EVIDENCE_PROFILES[server.profile];
+        return profile ? [{ id: server.id, label: profile.label, host: server.host, requiredGrant: profile.requiredGrant }] : [];
+      }),
+    };
+  }
+
+  /** A known profile with a valid target; live, also on the operator's list. */
+  private requireMcpTarget(server: string, target: Readonly<Record<string, string>>, live: boolean): void {
+    const profile = MCP_EVIDENCE_PROFILES[server];
+    if (!profile || !profile.targetSchema.safeParse(target).success) throw new UnprocessableEntityException({ code: 'MCP_TARGET_INVALID' });
+    if (live && !mcpServerFor(server, this.providers.mcpServerPolicy)) throw new UnprocessableEntityException({ code: 'MCP_SERVER_NOT_ALLOWED' });
+  }
+
+  /**
+   * Create a LIVE MCP evidence connection and check it at once (T-084c). Token connections
+   * store the credential under a reference scoped to this deal; public ones read anonymously.
+   */
+  async connectMcp(
+    tenant: TenantContext,
+    dealId: string,
+    command: ConnectMcpCommand,
+    requestId: string,
+  ): Promise<{ connection: ConnectionView; validation: ValidationResult }> {
+    const role = await this.access.require(tenant, dealId, canSupplyConnections, {
+      action: 'connection.created',
+      requestId,
+    });
+    this.requireMcpTarget(command.server, command.target, true);
+    await this.requireLiveConnectors(tenant);
+    const profile = MCP_EVIDENCE_PROFILES[command.server];
+    const connectionId = newId();
+    let credentialRef = ANONYMOUS_CREDENTIAL_REF;
+    if (command.method === 'TOKEN') {
+      credentialRef = `secretref:${tenant.organizationId}/${dealId}/mcp/${connectionId}`;
+      try {
+        await this.providers.secrets.put(credentialRef, command.token);
+      } catch {
+        throw new ServiceUnavailableException();
+      }
+    }
+    const row = await withTenant(this.prisma, tenant, async (tx) => {
+      const created = await tx.connection.create({
+        data: {
+          id: connectionId,
+          organizationId: tenant.organizationId,
+          dealId,
+          provider: 'mcp',
+          displayName: `${profile?.describeTarget(command.target) ?? command.server} (${profile?.label ?? 'MCP server'}${command.method === 'TOKEN' ? '' : ', public'})`.slice(0, 200),
+          mode: 'LIVE',
+          credentialRef,
+          config: { server: command.server, target: command.target },
+          evidenceVisibility: isBuyerSideRole(role) ? 'BUYER_ONLY' : 'SHARED',
+          createdBy: tenant.userId,
+        },
+      });
+      await this.audit(tx, tenant, dealId, 'connection.created', created.id, requestId);
+      if (command.method === 'TOKEN') await this.audit(tx, tenant, dealId, 'connection.credential_stored', created.id, requestId);
+      return created;
+    });
+    const adapter = resolveAdapter(row, this.providers);
+    if (!adapter) throw new ConflictException();
+    const validation = await adapter.validateConnection(this.scope(row));
+    await withTenant(this.prisma, tenant, (tx) =>
+      this.audit(tx, tenant, dealId, 'connection.validated', row.id, requestId, validation.ok ? 'SUCCEEDED' : 'FAILED'),
+    );
+    return { connection: toConnectionView(row), validation };
   }
 
   /** Where sellers install Pactlab's GitHub App, or null when this deployment has none. */
@@ -408,6 +490,9 @@ export class ConnectionsService {
     const existing = await this.load(tenant, dealId, connectionId);
     const site = (existing.config as { site?: unknown } | null)?.site;
     if (command.mode === 'LIVE' && existing.provider === 'jira' && typeof site === 'string') this.requireAllowedJiraSite(site);
+    const mcp = existing.config as { server?: unknown; target?: unknown } | null;
+    if (command.mode === 'LIVE' && existing.provider === 'mcp')
+      this.requireMcpTarget(typeof mcp?.server === 'string' ? mcp.server : '', (mcp?.target ?? {}) as Record<string, string>, true);
     const row = await withTenant(this.prisma, tenant, async (tx) => {
       const updated = await connections.setMode(tx, connectionId, {
         mode: command.mode,

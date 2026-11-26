@@ -15,6 +15,7 @@
     "cassettes:record:github": "node scripts/record-github-cassette.mjs"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.2",
     "@pactlab/domain": "workspace:*",
     "decimal.js": "10.6.0",
     "fflate": "0.8.3",
