@@ -23,6 +23,19 @@ export const stageConfig: EnvironmentConfig = {
   // Stage runs read-only vendor-sandbox dry runs before production promotion.
   // Only production runs all the time: this environment pauses after an hour without use.
   idlePause: { idleMinutes: 60 },
+  // Pre-production log triage (T-157): verdicts like live (stage Bedrock verified 2026-11-20).
+  // Dry run until Kumar approves the dry-run digest.
+  logTriage: {
+    environments: ['stage'],
+    recipient: 'kumar@pactlab.ai',
+    githubRepo: 'kuramach/pactlab',
+    githubTokenSecretName: 'pactlab/stage/github-triage',
+    // The account's default Claude route (the API's `balanced`).
+    modelId: 'us.anthropic.claude-sonnet-5-5',
+    dryRun: true,
+    hourUtc: 13,
+    maxClusters: 10,
+  },
   featureFlags: { pilotMode: true, liveConnectors: true },
   // Customer testing before live (ADR 0019): live's behaviour on its own account, at the skinny tier.
   // Customers may test with real documents here, so stage is protected like live and never shares

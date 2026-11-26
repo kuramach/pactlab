@@ -1,8 +1,8 @@
 'use strict';
 /**
- * Live log triage (T-150, ADR 0048): the pure parts, with no AWS or network
- * calls, so every rule here is unit-tested. index.js wires them to Logs
- * Insights, DynamoDB, Bedrock, SES and GitHub.
+ * Log triage (T-150 live, T-157 dev, qa and stage; ADR 0048): the pure parts,
+ * with no AWS or network calls, so every rule here is unit-tested. index.js
+ * wires them to Logs Insights, DynamoDB, Bedrock, SES and GitHub.
  *
  * Nothing in this file decides anything about a fix: it groups errors, scrubs
  * what may leave AWS, decides what is worth a person's attention, and renders
@@ -29,13 +29,58 @@ const VERDICTS = ['likely_bug', 'likely_noise', 'needs_human_eyes'];
 /** The prompt is versioned like every other Pactlab prompt; a change bumps this. */
 const PROMPT_VERSION = 'log-triage@1';
 
+/** A model-free verdict: the deployment's account has no Bedrock access yet (T-157 cluster-only mode). */
+const UNCLASSIFIED = 'unclassified';
+const ENV_NAME_RE = /^[a-z][a-z0-9-]{0,15}$/;
+
+/**
+ * How one environment's findings are titled, labelled, marked and stored. Live keeps
+ * T-150's exact names; a pre-production environment carries its name in every one,
+ * so the same signature in dev and in live stays two separate issues and two states.
+ */
+function envProfile(name, scope = 'env') {
+  if (scope === 'live') return Object.freeze({ name, scope, tag: '[live-triage]', labels: ['live-triage'], statePrefix: '', detail: 'live-triage-detail' });
+  if (!ENV_NAME_RE.test(String(name))) throw new Error(`Not an environment name: ${name}`);
+  return Object.freeze({ name, scope: 'env', tag: `[env-triage:${name}]`, labels: ['env-triage', `env:${name}`], statePrefix: `${name}#`, detail: 'env-triage-detail' });
+}
+const LIVE = envProfile('prod', 'live');
+
 const MARKER_PREFIX = 'live-triage-signature:';
-const marker = (signature) => `<!-- ${MARKER_PREFIX} ${signature} -->`;
+/** The dedupe marker an issue body carries: live's as in T-150, an environment's with its name. */
+const marker = (signature, profile = LIVE) =>
+  profile.scope === 'live' ? `<!-- ${MARKER_PREFIX} ${signature} -->` : `<!-- env-triage-signature: ${profile.name} ${signature} -->`;
 const MARKER_RE = /<!--\s*live-triage-signature:\s*([0-9a-f]{16})\s*-->/;
-/** The signature an issue body carries, or null. */
-function signatureFromBody(body) {
-  const match = MARKER_RE.exec(String(body ?? ''));
-  return match ? match[1] : null;
+const ENV_MARKER_RE = /<!--\s*env-triage-signature:\s*([a-z][a-z0-9-]*)\s+([0-9a-f]{16})\s*-->/;
+/** The signature an issue body carries for this environment, or null (another environment's marker never matches). */
+function signatureFromBody(body, profile = LIVE) {
+  const text = String(body ?? '');
+  if (profile.scope === 'live') {
+    const match = MARKER_RE.exec(text);
+    return match ? match[1] : null;
+  }
+  const match = ENV_MARKER_RE.exec(text);
+  return match && match[1] === profile.name ? match[2] : null;
+}
+
+/**
+ * The environments one run sweeps, from the function's configuration. `TRIAGE_ENVIRONMENTS`
+ * (T-157): one entry per environment in the account (the dev account: dev and qa), each with
+ * its own log groups and state. Without it, live as T-150 built it.
+ */
+function environmentsFrom(env) {
+  if (env.TRIAGE_ENVIRONMENTS) {
+    const list = JSON.parse(env.TRIAGE_ENVIRONMENTS);
+    if (!Array.isArray(list) || !list.length) throw new Error('TRIAGE_ENVIRONMENTS names no environment');
+    const names = new Set();
+    return list.map((entry) => {
+      const profile = envProfile(entry.name, 'env');
+      if (names.has(profile.name)) throw new Error(`Environment ${profile.name} listed twice`);
+      names.add(profile.name);
+      if (!Array.isArray(entry.logGroups) || !entry.logGroups.length) throw new Error(`Environment ${profile.name} names no log group`);
+      return { profile, logGroups: entry.logGroups, logGroupPrefix: entry.logGroupPrefix ?? `/pactlab/${profile.name}/`, cluster: entry.cluster ?? null, services: entry.services ?? [] };
+    });
+  }
+  return [{ profile: LIVE, logGroups: JSON.parse(env.LOG_GROUPS), logGroupPrefix: env.LOG_GROUP_PREFIX, cluster: env.CLUSTER ?? null, services: env.SERVICES ? JSON.parse(env.SERVICES) : [] }];
 }
 
 // --- Logs Insights ------------------------------------------------------------------------------
@@ -271,10 +316,10 @@ function rank(items) {
 }
 
 /** The state each cluster leaves behind. Reported clusters reset their report baseline; others only accumulate. */
-function nextState(cluster, state, outcome, nowMs) {
+function nextState(cluster, state, outcome, nowMs, prefix = '') {
   const total = Number(state?.totalCount ?? 0) + cluster.count;
   const base = {
-    pk: `SIG#${cluster.signature}`,
+    pk: `${prefix}SIG#${cluster.signature}`,
     signature: cluster.signature,
     firstSeen: state?.firstSeen ?? cluster.firstSeen ?? nowMs,
     lastSeen: Math.max(Number(state?.lastSeen ?? 0), Number(cluster.lastSeen ?? 0)) || nowMs,
@@ -371,19 +416,31 @@ function parseVerdict(response, item, options = {}) {
   };
 }
 
+/** Cluster-only mode (T-157): no model call; clusters, counts and samples, with the verdict said to be missing. */
+function unclassified(item) {
+  return {
+    verdict: UNCLASSIFIED,
+    headline: truncate(`${item.kind} in ${item.services.join(', ')}: ${item.normalized}`, 90),
+    summary: `Not classified: Bedrock is not enabled in this account. ${item.count} occurrences in this window (${item.total} total).`,
+    fixSketch: '',
+    triaged: false,
+  };
+}
+
 // --- Rendering ----------------------------------------------------------------------------------
 
-const VERDICT_LABEL = { likely_bug: 'Likely bug', likely_noise: 'Likely noise', needs_human_eyes: 'Needs human eyes' };
+const VERDICT_LABEL = { likely_bug: 'Likely bug', likely_noise: 'Likely noise', needs_human_eyes: 'Needs human eyes', [UNCLASSIFIED]: 'Unclassified — Bedrock not enabled in this account' };
 
-function issueTitle(item) {
-  return truncate(`[live-triage] ${item.headline.replace(/[\r\n]+/g, ' ')}`, 120);
+function issueTitle(item, profile = LIVE) {
+  return truncate(`${profile.tag} ${item.headline.replace(/[\r\n]+/g, ' ')}`, 120);
 }
 
 /** The issue body: everything needed to reproduce, and the marker that dedupes later runs. */
-function issueBody(item, context) {
+function issueBody(item, context, profile = LIVE) {
+  const env = profile.scope === 'env';
   return [
-    marker(item.signature),
-    '<!-- live-triage-detail:start -->',
+    marker(item.signature, profile),
+    `<!-- ${profile.detail}:start -->`,
     `**Verdict:** ${VERDICT_LABEL[item.verdict]}`,
     '',
     item.summary,
@@ -391,6 +448,7 @@ function issueBody(item, context) {
     item.fixSketch ? `**Fix sketch:** ${item.fixSketch}\n` : null,
     '| | |',
     '|---|---|',
+    env ? `| Environment | ${profile.name} |` : null,
     `| Signature | \`${item.signature}\` |`,
     `| Kind | ${item.kind} |`,
     `| Services | ${item.services.join(', ')} |`,
@@ -412,9 +470,11 @@ function issueBody(item, context) {
     '```text',
     reproductionQuery(item),
     '```',
-    '<!-- live-triage-detail:end -->',
+    `<!-- ${profile.detail}:end -->`,
     '',
-    `Filed by live log triage (${PROMPT_VERSION}). Label \`triage-approved\` to file it as a task; close it as noise otherwise.`,
+    env
+      ? `Filed by pre-production log triage for ${profile.name} (${PROMPT_VERSION}). Label \`triage-approved\` to file it as a task; close it as noise otherwise.`
+      : `Filed by live log triage (${PROMPT_VERSION}). Label \`triage-approved\` to file it as a task; close it as noise otherwise.`,
   ]
     .filter((line) => line !== null)
     .join('\n');
@@ -471,6 +531,66 @@ function renderDigest(items, context) {
   return { subject, text: lines.filter((line) => line !== null).join('\n') };
 }
 
+/** One digest item's lines (pre-production digest). */
+function itemLines(item, index) {
+  return [
+    `${index + 1}. ${item.isNew ? '[NEW] ' : ''}${item.headline}`,
+    `   Verdict: ${VERDICT_LABEL[item.verdict]}${item.triaged || item.verdict === UNCLASSIFIED ? '' : ' (automatic triage unavailable)'}`,
+    `   Count: ${item.count} this window (${item.total} total); first seen ${iso(item.everFirstSeen ?? item.firstSeen)}; last seen ${iso(item.lastSeen)}; services: ${item.services.join(', ')}`,
+    `   ${item.summary}`,
+    item.fixSketch ? `   Fix sketch: ${item.fixSketch}` : null,
+    item.verdict === UNCLASSIFIED ? `   Sample: ${item.samples[0] ?? 'none'}` : null,
+    `   Issue: ${item.issueUrl ?? 'none'}`,
+    '',
+  ].filter((line) => line !== null);
+}
+
+/**
+ * The one digest for an account's environments (T-157): a section per environment, never
+ * mixed. Null when no environment has anything reportable: silence is healthy, and a paused
+ * environment simply has nothing to say.
+ */
+function renderAccountDigest(sections, context) {
+  if (!sections.some((section) => section.items.length)) return null;
+  const date = iso(context.end * 1000).slice(0, 10);
+  const counts = sections.map((section) => `${section.profile.name} ${section.items.filter((i) => i.verdict !== 'likely_noise').length}`);
+  const subject = `${context.dryRun ? '[dry run] ' : ''}Pactlab pre-production triage ${date}: to look at ${counts.join(', ')}`;
+  const lines = [
+    context.dryRun ? 'DRY RUN: nothing was sent or opened; this is the digest that would be sent.' : null,
+    `Pre-production log triage for the ${context.account}: ${sections.map((s) => s.profile.name).join(', ')}.`,
+    context.classify ? null : 'Bedrock is not enabled in this account: clusters, counts and samples only, each verdict shown as unclassified.',
+    '',
+  ];
+  for (const section of sections) {
+    const ordered = rank(section.items);
+    const attention = ordered.filter((i) => i.verdict === 'likely_bug' || i.verdict === 'needs_human_eyes');
+    const open = ordered.filter((i) => i.verdict === UNCLASSIFIED);
+    const noise = ordered.filter((i) => i.verdict === 'likely_noise');
+    const c = section.context;
+    lines.push(`=== ${section.profile.name} ===`);
+    lines.push(`Window ${iso(c.window.start * 1000)} to ${iso(c.window.end * 1000)}; log groups: ${c.logGroups.join(', ')}.`);
+    if (c.truncated.length) lines.push(`Query results were capped at ${QUERY_LIMIT} rows for: ${c.truncated.join(', ')}. Counts there are a floor.`);
+    if (c.deferred) lines.push(`${c.deferred} more reportable clusters were over the per-run cap of ${c.maxClusters}; they come up next run.`);
+    lines.push('');
+    if (!ordered.length) lines.push('Nothing new or growing.', '');
+    if (attention.length) {
+      lines.push('To look at:');
+      attention.forEach((item, index) => lines.push(...itemLines(item, index)));
+    }
+    if (open.length) {
+      lines.push('Unclassified (Bedrock not enabled in this account):');
+      open.forEach((item, index) => lines.push(...itemLines(item, index)));
+    }
+    if (noise.length) {
+      lines.push('Classified as noise (check the classifier):');
+      for (const item of noise) lines.push(`- ${item.isNew ? '[NEW] ' : ''}${item.headline} — ${item.count} this window, first seen ${iso(item.everFirstSeen ?? item.firstSeen)}`);
+      lines.push('');
+    }
+  }
+  lines.push('Label an issue triage-approved to file it as a task; close it as noise otherwise. Runbook: docs/runbooks/log-triage.md');
+  return { subject, text: lines.filter((line) => line !== null).join('\n') };
+}
+
 module.exports = {
   THRESHOLDS,
   DEFAULT_MAX_CLUSTERS,
@@ -479,7 +599,11 @@ module.exports = {
   QUERIES,
   QUERY_LIMIT,
   VERDICTS,
+  UNCLASSIFIED,
   PROMPT_VERSION,
+  LIVE,
+  envProfile,
+  environmentsFrom,
   SYSTEM_PROMPT,
   marker,
   signatureFromBody,
@@ -497,9 +621,11 @@ module.exports = {
   nextState,
   triageRequest,
   parseVerdict,
+  unclassified,
   issueTitle,
   issueBody,
   issueComment,
   reproductionQuery,
   renderDigest,
+  renderAccountDigest,
 };
