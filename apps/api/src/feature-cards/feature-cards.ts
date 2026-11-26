@@ -78,6 +78,16 @@ export const FEATURE_CARDS: readonly FeatureCardDefinition[] = [
     icon: 'check',
   },
   {
+    id: 'pharma-biotech-pack',
+    version: 1,
+    addedOn: '2026-11-26',
+    title: 'Pharma & biotech: pipeline claims, patent cliffs and licence obligations, checked against the documents',
+    body: 'On a pharma and biotech pact, Pactlab checks each programme’s claimed phase and timeline against the trial-registry records and regulatory correspondence you supply, reads each patent’s expiry against the hold after closing and prices a cliff inside it, recomputes the milestones, royalties and fees in the licence agreements and finds the ones the seller’s model leaves out, flags single-source manufacturing and key-scientist concentration, and sets R&D spend across every imported P&L year against a timeline brought forward. Documents, dates and consistency only; a person decides every finding.',
+    href: '/pacts/new',
+    linkLabel: 'Start a pharma pact',
+    icon: 'layers',
+  },
+  {
     id: 'small-clinics-pack',
     version: 1,
     addedOn: '2026-11-26',

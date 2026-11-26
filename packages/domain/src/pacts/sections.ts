@@ -57,6 +57,8 @@ export const DEAL_SECTION_RULES: Readonly<Record<string, (context: SectionContex
   '/healthcare': (context) => context.companyType === 'HEALTHCARE' || context.companyType === 'SMALL_CLINICS',
   // A few-site clinic's own checks (T-161): the owner-operator's share by service line, referral concentration and the clinic lease.
   '/clinics': (context) => context.companyType === 'SMALL_CLINICS',
+  // A pharma or biotech target (T-163): pipeline claims, the patent estate, licence obligations, dependence and burn against the timeline.
+  '/pharma': (context) => context.companyType === 'PHARMA_BIOTECH',
   // A pooled vehicle (T-141): the round checks, the vehicle economics, side letters, investor seats and the published investor view.
   '/spv': (context) => context.companyType === 'STARTUP_SPV',
   '/valuation': everywhere,

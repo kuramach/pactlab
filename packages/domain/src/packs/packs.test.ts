@@ -115,6 +115,20 @@ describe('pack registry', () => {
     expect(peopleColumnProblems(IMPORT_TARGET_DEFINITIONS.CLINICS_REFERRALS, ['month', 'referral_source', 'patient_name'])).toHaveLength(1);
   });
 
+  it('Pharma & biotech reads the pipeline against the registry records, the patent estate, the obligations model and the R&D roster (T-163)', () => {
+    const pharma = PACKS.PHARMA_BIOTECH;
+    expect(pharma).toMatchObject({ slug: 'pharma-biotech', cluster: 'life-sciences', metricCalculator: 'pharma-pipeline', built: true, valuationMethods: ['DCF'] });
+    expect(pharma.importTargets).toEqual(['BILLING_INVOICE_LINE', 'PHARMA_PATENTS', 'PHARMA_TRIAL_REGISTRY', 'PHARMA_PIPELINE', 'PHARMA_OBLIGATIONS', 'PHARMA_RD_ROSTER']);
+    // The T-064 rules stay, first and unchanged.
+    expect(pharma.findingRules.slice(0, 3)).toEqual(['pharma-patent-before-forecast', 'pharma-supplier-observations', 'pharma-partner-concentration']);
+    expect(pharma.findingRules).toHaveLength(12);
+    expect(pharma.documentCategories).toEqual(['REGULATORY_CORRESPONDENCE', 'PATENT_RECORD', 'LICENCE_AGREEMENT', 'SUPPLY_AGREEMENT']);
+    for (const target of pharma.importTargets.slice(1)) expect(IMPORT_TARGET_DEFINITIONS[target].refusesPeopleColumns, target).toBe(true);
+    expect(IMPORT_TARGET_DEFINITIONS.PHARMA_RD_ROSTER.people).toBe('PSEUDONYMOUS');
+    expect(peopleColumnProblems(IMPORT_TARGET_DEFINITIONS.PHARMA_RD_ROSTER, ['scientist_ref', 'function', 'programmes_led', 'patent_families'])).toEqual([]);
+    expect(peopleColumnProblems(IMPORT_TARGET_DEFINITIONS.PHARMA_RD_ROSTER, ['scientist_ref', 'full_name', 'salary'])).toHaveLength(2);
+  });
+
   it('every pack offers billing first, and only targets that exist (rule ids resolve in the API test)', () => {
     for (const id of PACK_IDS) {
       const pack = PACKS[id];

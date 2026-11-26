@@ -129,6 +129,11 @@ export const SHOWCASE: Readonly<Record<string, ShowcaseEntry>> = {
     why: 'The selling owner’s share by service line, referral sources recomputed from the schedule, and the lease’s end date, renewal and assignment; collections and credentials on the Practice tab. Documents, dates and arithmetic, not legal advice.',
     lookFor: ['58% of visits from one referral source', 'A lease ending 14 months after closing with no renewal option', 'The selling owner as the only provider of the highest-margin service line', 'Supplies outpacing revenue across three years'],
   },
+  '/pharma': {
+    title: 'The pipeline, the patents and the payments, checked against the documents',
+    why: 'Claimed phases and readouts against the registry records and correspondence; patent expiries against the hold; the agreements’ payments against the seller’s model; dependence and R&D by year. Documents, dates and consistency, never the science.',
+    lookFor: ['The lead asset claimed Phase 2 while the registry record says Phase 1', 'The key patent expiring 18 months after closing, priced on the bridge', 'A milestone due at the next phase start missing from the seller’s model', 'R&D flat across three years while the readout is brought forward'],
+  },
   '/valuation': {
     title: 'Sextant: what to pay, and why',
     why: 'Scenarios from stored inputs, accepted risks priced in, comparables and negotiation anchors: a price you can defend line by line.',

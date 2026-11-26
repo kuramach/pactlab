@@ -17,7 +17,7 @@ export const PACK_IDS = COMPANY_TYPES.filter((type): type is PackId => type !== 
 export type PackCluster = 'technology' | 'healthcare' | 'real-estate' | 'services' | 'life-sciences' | 'consumer' | 'capital' | 'media-rights' | 'energy';
 
 /** Calculator ids in `@pactlab/calculations` (`metricCalculator`). */
-export const METRIC_CALCULATOR_IDS = ['saas-metrics', 'multifamily-metrics', 'music-royalties', 'energy-assets', 'spv-round', 'fintech-payments', 'healthcare-collections', 'clinics-practice'] as const;
+export const METRIC_CALCULATOR_IDS = ['saas-metrics', 'multifamily-metrics', 'music-royalties', 'energy-assets', 'spv-round', 'fintech-payments', 'healthcare-collections', 'clinics-practice', 'pharma-pipeline'] as const;
 export type MetricCalculatorId = (typeof METRIC_CALCULATOR_IDS)[number];
 
 /** Valuation method ids in `@pactlab/calculations` (`VALUATION_METHODS`). */
@@ -172,10 +172,30 @@ export const PACKS: Readonly<Record<PackId, PackDefinition>> = {
     // People-driven earnings value on DCF; retainer revenue also reads as recurring.
     valuationMethods: ['DCF', 'ARR_MULTIPLE'],
   },
+  // Pipeline claims, patent cliffs and licence obligations, checked against documents (T-064, extended by
+  // T-163, ADR 0053). The T-064 rules stay first; the pack adds the pipeline claims register (the registry
+  // records and correspondence), the patent estate against the hold, the obligations recomputed from the
+  // agreements, manufacturing and key-scientist dependence, R&D burn against the timeline and the P&L trend.
   PHARMA_BIOTECH: {
     ...pack('PHARMA_BIOTECH', 'pharma-biotech', 'life-sciences', true),
-    importTargets: ['BILLING_INVOICE_LINE', 'PHARMA_PATENTS', 'PHARMA_PIPELINE'],
-    findingRules: ['pharma-patent-before-forecast', 'pharma-supplier-observations', 'pharma-partner-concentration'],
+    importTargets: ['BILLING_INVOICE_LINE', 'PHARMA_PATENTS', 'PHARMA_TRIAL_REGISTRY', 'PHARMA_PIPELINE', 'PHARMA_OBLIGATIONS', 'PHARMA_RD_ROSTER'],
+    metricCalculator: 'pharma-pipeline',
+    findingRules: [
+      'pharma-patent-before-forecast',
+      'pharma-supplier-observations',
+      'pharma-partner-concentration',
+      'pharma-pipeline-claims',
+      'pharma-patent-cliff',
+      'pharma-obligations',
+      'pharma-manufacturing-dependence',
+      'pharma-key-scientist',
+      'pharma-burn-vs-timeline',
+      'pharma-pnl-trend',
+      'pharma-pnl-margin-drift',
+      'pharma-pnl-expense-outpacing',
+    ],
+    documentCategories: ['REGULATORY_CORRESPONDENCE', 'PATENT_RECORD', 'LICENCE_AGREEMENT', 'SUPPLY_AGREEMENT'],
+    // The registry records import before the pipeline, so the claims the pipeline's import checks read them.
     // Royalty and product revenue value on DCF, with exclusivity and approval timing as scenario inputs.
     valuationMethods: ['DCF'],
   },

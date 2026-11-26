@@ -24,6 +24,9 @@ export const IMPORT_TARGETS = [
   'SERVICES_HEADCOUNT',
   'PHARMA_PATENTS',
   'PHARMA_PIPELINE',
+  'PHARMA_TRIAL_REGISTRY',
+  'PHARMA_OBLIGATIONS',
+  'PHARMA_RD_ROSTER',
   'ECOMMERCE_COHORTS',
   'ECOMMERCE_AD_SPEND',
   'CRE_RENT_ROLL',
@@ -531,6 +534,78 @@ export const PHARMA_PIPELINE: TargetDefinition = {
     { name: 'phase', label: 'Phase', kind: 'text', required: true, hint: 'e.g. Phase 3.' },
     { name: 'next_milestone', label: 'Next milestone', kind: 'text', required: true, hint: 'e.g. Top-line data.' },
     { name: 'expected', label: 'Expected', kind: 'text', required: true, hint: 'When, e.g. 2027-Q2.' },
+  ],
+};
+
+/**
+ * Pharma and biotech (T-163): the trial-registry records the seller supplies as evidence (an export of
+ * the public registry entries for its programmes) — the phase, status and dates each trial is filed
+ * with. The pipeline's phase and timeline claims are checked against them; Pactlab never looks a
+ * registry up itself and never judges a trial's design or prospects.
+ */
+export const PHARMA_TRIAL_REGISTRY: TargetDefinition = {
+  target: 'PHARMA_TRIAL_REGISTRY',
+  label: 'Trial registry records',
+  fileName: 'trial-registry.csv',
+  people: 'NONE',
+  refusesPeopleColumns: true,
+  evidenceType: 'pharma.registry_trial',
+  recordIdField: 'registry_id',
+  observedAtFields: [],
+  fields: [
+    { name: 'registry_id', label: 'Registry id', kind: 'text', required: true, hint: 'The trial\'s registry identifier, as filed.' },
+    { name: 'programme', label: 'Programme', kind: 'text', required: true, hint: 'The pipeline programme code the trial belongs to, e.g. PX-210.' },
+    { name: 'phase', label: 'Phase', kind: 'text', required: true, hint: 'The phase the trial is registered as, e.g. Phase 1 or Phase 2/3.' },
+    { name: 'status', label: 'Status', kind: 'text', required: true, hint: 'As the registry records it: not yet recruiting, recruiting, active not recruiting, completed, suspended, terminated or withdrawn.' },
+    { name: 'start_date', label: 'Start date', kind: 'date', required: false, hint: 'The trial\'s start date as registered.' },
+    { name: 'primary_completion', label: 'Primary completion', kind: 'date', required: false, hint: 'The registered primary completion date (when the primary outcome data are expected).' },
+  ],
+};
+
+/**
+ * Pharma and biotech (T-163): the seller's model of the payments it owes under its licence and
+ * collaboration agreements — milestones, royalties and licence fees. The agreements govern: each
+ * obligation an agreement states is recomputed and looked for here.
+ */
+export const PHARMA_OBLIGATIONS: TargetDefinition = {
+  target: 'PHARMA_OBLIGATIONS',
+  label: 'Payment obligations model',
+  fileName: 'obligations-model.csv',
+  people: 'NONE',
+  refusesPeopleColumns: true,
+  evidenceType: 'pharma.obligation',
+  recordIdField: 'obligation_id',
+  observedAtFields: [],
+  fields: [
+    { name: 'obligation_id', label: 'Obligation id', kind: 'text', required: true, hint: 'The model\'s own reference for the line.' },
+    { name: 'counterparty', label: 'Counterparty', kind: 'text', required: true, hint: 'Who the payment is owed to, as the agreement names them.' },
+    { name: 'kind', label: 'Kind', kind: 'code', required: true, hint: 'milestone, royalty or licence_fee.' },
+    { name: 'trigger', label: 'Trigger', kind: 'text', required: false, hint: 'For a milestone, the event that makes it due, e.g. Phase 3 start (PX-330).' },
+    { name: 'amount', label: 'Amount', kind: 'money', required: false, hint: 'For a milestone or a fee, the amount the model carries. In the deal\'s base currency.' },
+    { name: 'rate', label: 'Royalty rate', kind: 'decimal', required: false, hint: 'For a royalty, the rate the model carries as a fraction of net sales, e.g. 0.06.' },
+    { name: 'expected', label: 'Expected', kind: 'text', required: false, hint: 'When the model expects it, e.g. 2027-Q3.' },
+  ],
+};
+
+/**
+ * Pharma and biotech (T-163): the R&D roster by pseudonymous reference — how many programmes each
+ * scientist leads and on how many patent families they are a named inventor. Counts only: no names,
+ * no pay, never sent to a model (rule 7).
+ */
+export const PHARMA_RD_ROSTER: TargetDefinition = {
+  target: 'PHARMA_RD_ROSTER',
+  label: 'R&D roster',
+  fileName: 'rd-roster.csv',
+  people: 'PSEUDONYMOUS',
+  refusesPeopleColumns: true,
+  evidenceType: 'pharma.scientist',
+  recordIdField: 'scientist_ref',
+  observedAtFields: [],
+  fields: [
+    { name: 'scientist_ref', label: 'Scientist reference', kind: 'text', required: true, hint: 'A pseudonymous reference such as S-01 — never a name.' },
+    { name: 'function', label: 'Function', kind: 'text', required: true, hint: 'e.g. Discovery chemistry; never a title held by one person.' },
+    { name: 'programmes_led', label: 'Programmes led', kind: 'decimal', required: true, hint: 'Pipeline programmes the scientist leads (a count).' },
+    { name: 'patent_families', label: 'Patent families as inventor', kind: 'decimal', required: true, hint: 'Patent families naming the scientist as an inventor (a count).' },
   ],
 };
 
@@ -1181,6 +1256,9 @@ export const IMPORT_TARGET_DEFINITIONS: Readonly<Record<ImportTarget, TargetDefi
   SERVICES_HEADCOUNT,
   PHARMA_PATENTS,
   PHARMA_PIPELINE,
+  PHARMA_TRIAL_REGISTRY,
+  PHARMA_OBLIGATIONS,
+  PHARMA_RD_ROSTER,
   ECOMMERCE_COHORTS,
   ECOMMERCE_AD_SPEND,
   CRE_RENT_ROLL,
