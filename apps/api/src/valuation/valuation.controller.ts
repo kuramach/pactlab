@@ -148,3 +148,19 @@ export class ValuationController {
     );
   }
 }
+
+/** What valuation reads from the pact's evidence rather than a typed assumption (T-149). */
+@Controller('v1/deals/:dealId/valuation')
+export class ValuationBasisController {
+  constructor(@Inject(ValuationService) private readonly service: ValuationService) {}
+
+  /** Trailing revenue and EBITDA from the imported P&L, with the files and rows they rest on. */
+  @Get('pnl-basis')
+  async pnlBasis(
+    @Tenant() tenant: TenantContext,
+    @RequestId() requestId: string,
+    @Param(new ZodValidationPipe(dealParamsSchema)) params: { dealId: string },
+  ) {
+    return this.service.pnlBasis(tenant, params.dealId, requestId);
+  }
+}

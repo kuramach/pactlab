@@ -5,7 +5,7 @@ import type { ReactNode } from 'react';
 import { apiGet } from '../../_lib/api';
 import { OutcomeBanner } from '../../_lib/outcome';
 import { ApiState } from '../../_lib/states';
-import { addEntry, addPegTerm, decideAddBack } from './actions';
+import { addEntry, addPegTerm, decideAddBack, raisePnlConflicts } from './actions';
 
 interface Cite {
   documentId: string;
@@ -32,14 +32,24 @@ interface AddBack {
   counted: string;
   treatment: string;
 }
+interface PnlFile {
+  uploadId: string;
+  fileName: string;
+}
 interface QoeView {
   disclaimer: string;
   engineVersion: string;
   currency: string;
   canEdit: boolean;
   canDecide: boolean;
+  importedPnl: { readerVersion: string; ebitdaBasis: string; periods: number; files: PnlFile[] };
+  conflicts: { period: string; imported: string; filed: string; difference: string; findingId: string | null }[];
   schedule: {
     period: string;
+    pnl: { revenue: string; costOfRevenue: string; operatingExpenses: string; ebitda: string; rolledUpFrom: string[] | null; sources: { evidenceId: string }[] } | null;
+    pnlFiles: PnlFile[];
+    reportedEbitda: { amount: string; source: 'IMPORTED_PNL' | 'FILED_STATEMENT' | 'BOTH' } | null;
+    conflict: { imported: string; filed: string; difference: string } | null;
     reported: { label: string; amount: string; citation: Cite } | null;
     adjustments: { entryKey: string; category: string; label: string; amount: string; rationale: string | null; findingId: string | null; citation: Cite }[];
     addBacks: AddBack[];
@@ -74,7 +84,9 @@ const OUTCOMES: Record<string, string> = {
   'no-peg': 'A peg needs at least three balance-sheet dates.',
   'peg-conflict': 'Draft terms first (Proposed terms), or this version already has a peg.',
   'decision-invalid': 'Give a reason for the decision.',
+  'ok-conflicts': 'Each disagreement between the imported P&L and a filed statement is now a draft finding to review.',
 };
+const REPORTED_FROM = { IMPORTED_PNL: 'Imported EBITDA', FILED_STATEMENT: 'Filed EBITDA', BOTH: 'Imported EBITDA (the filed figure agrees)' } as const;
 const STATUS_TONE = { VERIFIED: 'reviewed', PARTIALLY_VERIFIED: 'draft', UNVERIFIED: 'danger' } as const;
 /** Thousands separators on a decimal string, without passing money through a float. */
 const grouped = (value: string) => {
@@ -112,6 +124,22 @@ export default async function QoePage({ params, searchParams }: { params: Promis
     );
   };
   const finding = (id: string | null) => (id ? <Link className="text-xs underline" href={`/deals/${dealId}/findings/${id}`}>finding</Link> : null);
+  const imported = (period: QoeView['schedule'][number]) => (
+    <span className="text-muted-foreground">
+      <Badge variant="evidence">Imported P&L</Badge>{' '}
+      {period.pnlFiles.map((file, index) => (
+        <span key={file.uploadId}>
+          {index ? ', ' : ''}
+          <Link className="underline" href={`/deals/${dealId}/sources/upload/${file.uploadId}`}>
+            {file.fileName}
+          </Link>
+        </span>
+      ))}
+      {` · ${period.pnl?.sources.length ?? 0} rows`}
+      {period.pnl?.rolledUpFrom ? ` · ${period.pnl.rolledUpFrom[0]} to ${period.pnl.rolledUpFrom.at(-1)}` : ''}
+    </span>
+  );
+  const unraised = view.conflicts.filter((conflict) => !conflict.findingId);
 
   return (
     <div className="flex max-w-7xl flex-col gap-6">
@@ -121,7 +149,22 @@ export default async function QoePage({ params, searchParams }: { params: Promis
       </p>
 
       <Section title="Adjusted-EBITDA schedule">
-        {view.schedule.length === 0 ? <p className="text-muted-foreground">Nothing recorded yet. Start with the reported EBITDA, cited from the income statement.</p> : null}
+        {view.schedule.length === 0 ? <p className="text-muted-foreground">Nothing recorded yet. Import the P&L on <Link className="underline" href={`/deals/${dealId}/sources/upload`}>Sources</Link>, or record the reported EBITDA cited from the income statement.</p> : null}
+        {view.importedPnl.periods > 0 ? <p className="text-muted-foreground">Revenue, costs and EBITDA come from the imported P&L where it covers a period ({view.importedPnl.readerVersion}). {view.importedPnl.ebitdaBasis}</p> : null}
+        {view.conflicts.length > 0 ? (
+          <div role="alert" className="flex flex-col gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-amber-900">
+            <p>
+              <strong>The imported P&L and a filed statement disagree</strong> for {view.conflicts.map((conflict) => conflict.period).join(', ')}. Pactlab picks neither: adjusted EBITDA for those periods waits until one is corrected or withdrawn.
+            </p>
+            {unraised.length > 0 && view.canEdit ? (
+              <form action={raisePnlConflicts.bind(null, dealId)}>
+                <Button type="submit" size="sm" variant="outline">
+                  Raise {unraised.length === 1 ? 'it' : 'them'} as findings to review
+                </Button>
+              </form>
+            ) : null}
+          </div>
+        ) : null}
         {view.schedule.map((period) => (
           <div key={period.period} className="flex flex-col gap-2">
             <h3 className="font-medium">{period.period}</h3>
@@ -134,14 +177,33 @@ export default async function QoePage({ params, searchParams }: { params: Promis
                 </tr>
               </thead>
               <tbody>
-                {period.reported ? <Row cells={['Reported EBITDA', money(period.reported.amount), source(period.reported.citation)]} /> : null}
+                {period.pnl ? (
+                  <>
+                    <Row cells={['Revenue', money(period.pnl.revenue), imported(period)]} />
+                    <Row cells={['Cost of revenue', money(period.pnl.costOfRevenue), imported(period)]} />
+                    <Row cells={['Operating expenses', money(period.pnl.operatingExpenses), imported(period)]} />
+                    <Row cells={[<>EBITDA (imported) <Badge variant="calculation">calculated</Badge></>, money(period.pnl.ebitda), imported(period)]} />
+                  </>
+                ) : null}
+                {period.reported ? (
+                  <Row
+                    cells={[
+                      <>
+                        Reported EBITDA (filed) {period.conflict ? <Badge variant="danger">disagrees by {money(period.conflict.difference)}</Badge> : null}{' '}
+                        {period.conflict ? finding(view.conflicts.find((conflict) => conflict.period === period.period)?.findingId ?? null) : null}
+                      </>,
+                      money(period.reported.amount),
+                      source(period.reported.citation),
+                    ]}
+                  />
+                ) : null}
                 {period.adjustments.map((line) => (
                   <Row key={line.entryKey} cells={[<>{QOE_CATEGORY_REGISTRY[line.category as keyof typeof QOE_CATEGORY_REGISTRY]?.label ?? line.category}: {line.label} {finding(line.findingId)}</>, money(line.amount), source(line.citation)]} />
                 ))}
                 {period.addBacks.map((line) => (
                   <Row key={line.entryKey} cells={[<>Add-back: {line.label} <Badge variant={STATUS_TONE[line.status]}>{QOE_VERIFICATION_LABELS[line.status]}</Badge> <span className="text-xs text-muted-foreground">{line.treatment}</span></>, money(line.counted), source(line.citation)]} />
                 ))}
-                <Row cells={[<strong key="a">Adjusted EBITDA (as analysed)</strong>, <strong key="b">{money(period.adjustedEbitda)}</strong>, 'Reported + adjustments + counted add-backs']} />
+                <Row cells={[<strong key="a">Adjusted EBITDA (as analysed)</strong>, <strong key="b">{money(period.adjustedEbitda)}</strong>, period.reportedEbitda ? `${REPORTED_FROM[period.reportedEbitda.source]} + adjustments + counted add-backs` : 'Reported + adjustments + counted add-backs']} />
                 <Row cells={['Seller-adjusted EBITDA (as claimed)', money(period.sellerAdjustedEbitda), 'Every add-back at the seller’s figure; shown apart, never merged']} />
               </tbody>
             </table>

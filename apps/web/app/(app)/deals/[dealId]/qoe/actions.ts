@@ -51,3 +51,10 @@ export async function addPegTerm(dealId: string): Promise<void> {
   const result = await apiPost(`/v1/deals/${dealId}/qoe/peg-term`, {});
   back(dealId, result.kind === 'ok' ? 'ok-peg' : result.kind === 'conflict' ? 'peg-conflict' : result.kind === 'invalid' ? (CODES[result.code ?? ''] ?? 'invalid') : result.kind);
 }
+
+/** Draft a finding for each period where the imported P&L and a filed statement disagree (T-149). */
+export async function raisePnlConflicts(dealId: string): Promise<void> {
+  if (!uuid.safeParse(dealId).success) redirect('/deals');
+  const result = await apiPost(`/v1/deals/${dealId}/qoe/pnl-conflicts`, {});
+  back(dealId, result.kind === 'ok' ? 'ok-conflicts' : result.kind);
+}

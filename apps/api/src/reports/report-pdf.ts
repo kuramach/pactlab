@@ -387,7 +387,18 @@ export async function pactReportPdf(
       w.table(
         [{ label: 'Line', width: 0.34 }, { label: 'Amount', width: 0.2, align: 'right' }, { label: 'Source', width: 0.46 }],
         [
-          ...(period.reported ? [['Reported EBITDA', cur(period.reported.amount), cite(period.reported.citation)]] : []),
+          ...(period.pnl
+            ? (() => {
+                const imported = `Imported P&L (${period.pnlFiles.map((file) => file.fileName).join(', ') || 'import'}), ${period.pnl.sources.length} rows${period.pnl.rolledUpFrom ? `, ${period.pnl.rolledUpFrom[0]} to ${period.pnl.rolledUpFrom.at(-1)}` : ''}`;
+                return [
+                  ['Revenue (imported)', cur(period.pnl.revenue), imported],
+                  ['Cost of revenue (imported)', cur(period.pnl.costOfRevenue), imported],
+                  ['Operating expenses (imported)', cur(period.pnl.operatingExpenses), imported],
+                  ['EBITDA (imported)', cur(period.pnl.ebitda), qoe.importedPnl.ebitdaBasis],
+                ];
+              })()
+            : []),
+          ...(period.reported ? [[period.conflict ? 'Reported EBITDA (filed; disagrees with the import)' : 'Reported EBITDA (filed)', cur(period.reported.amount), cite(period.reported.citation)]] : []),
           ...period.adjustments.map((line) => [`Adjustment: ${line.label} (${line.category.replace(/_/g, ' ').toLowerCase()})`, cur(line.amount), cite(line.citation)]),
           ...period.addBacks.map((line) => [`Add-back: ${line.label} [${line.status.replace(/_/g, ' ').toLowerCase()}] — ${line.treatment}`, cur(line.counted), cite(line.citation)]),
           ['Adjusted EBITDA (as analysed)', cur(period.adjustedEbitda), 'Reported + adjustments + counted add-backs'],

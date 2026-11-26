@@ -3,7 +3,7 @@ import { PricingController, ProposedTermsController } from '../pricing/pricing.c
 import { PRICING_DEPENDENCIES, PricingService, type PricingDependencies } from '../pricing/pricing.service';
 import { DealAccess } from '../deals/deal-access';
 import { FINDINGS_REPOSITORY, type FindingsRepository } from '../findings/findings.repository';
-import { ValuationController } from './valuation.controller';
+import { ValuationBasisController, ValuationController } from './valuation.controller';
 import { VALUATION_REPOSITORY, type ValuationRepository } from './valuation.repository';
 import { ValuationService } from './valuation.service';
 
@@ -21,7 +21,7 @@ export class ValuationModule {
   }): DynamicModule {
     return {
       module: ValuationModule,
-      controllers: [ValuationController, PricingController, ProposedTermsController],
+      controllers: [ValuationController, ValuationBasisController, PricingController, ProposedTermsController],
       providers: [
         ValuationService,
         PricingService,
