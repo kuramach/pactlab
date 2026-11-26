@@ -195,6 +195,8 @@ export interface DealSource {
   displayName: string;
   mode: 'FIXTURE' | 'LIVE';
   status: string;
+  /** History a GitHub or Jira source reads: months (24 unless chosen) or `ALL`; null for other providers (T-169). */
+  lookbackMonths: number | 'ALL' | null;
   evidenceVisibility: 'BUYER_ONLY' | 'SHARED';
   lastSyncRun: {
     id: string;
@@ -215,8 +217,8 @@ export interface ValidationView {
 }
 
 export type ConnectGitHubBody =
-  | { method: 'APP'; repository: string }
-  | { method: 'TOKEN'; repository: string; token: string };
+  | { method: 'APP'; repository: string; lookbackMonths?: number | 'ALL' }
+  | { method: 'TOKEN'; repository: string; token: string; lookbackMonths?: number | 'ALL' };
 
 export interface DealMember {
   id: string;

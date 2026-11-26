@@ -1,6 +1,7 @@
 import type { CommitMetadata, EvidenceSource, NormalizedEvidence, ObservedPerson, SourceIssue } from '@pactlab/domain';
 import type { ConnectionScope } from '../contract';
 import { issueKeysIn, type IssueLink } from '../cross-links';
+import { ALL_HISTORY, lookbackOf, type LookbackMonths } from '../lookback';
 import { contributorKey, monthOf } from '../people';
 import { GITHUB_PROVIDER, GitHubAdapterError, type CheckSummary, type GitHubAdapter, type PullRequestMetadata, type ReviewSummary } from './types';
 
@@ -14,9 +15,8 @@ export const MAX_PULL_REQUESTS = 2_000;
 /** Of those, the newest this many get their reviews and check runs read (two calls each). */
 export const MAX_PR_DETAILS = 200;
 
-/** History read for contributor activity: two years, at most this many commits. */
+/** History read for contributor activity: the connection's window (24 months unless set), at most this many commits. */
 export const MAX_ACTIVITY_COMMITS = 50_000;
-const HISTORY_MONTHS = 24;
 
 /** Top-level area of a repository-relative path (`api/x.ts` → `api`; root files → `(root)`). */
 const areaOf = (path: string) => (path.includes('/') ? (path.split('/')[0] ?? '(root)') : '(root)');
@@ -32,7 +32,7 @@ function monthsBefore(iso: string, months: number): string {
  * go to the gated directory only. No file contents; messages appear only
  * on head and link evidence, sanitized.
  */
-function contributorActivity(repository: string, dealId: string, commits: readonly CommitMetadata[]): NormalizedEvidence[] {
+function contributorActivity(repository: string, dealId: string, commits: readonly CommitMetadata[], lookback: LookbackMonths): NormalizedEvidence[] {
   const buckets = new Map<string, { key: string; month: string; commits: number; additions: number; deletions: number; areas: Map<string, number>; first: string; last: string }>();
   for (const commit of commits) {
     const key = contributorKey(dealId, commit.authorIdentity);
@@ -60,6 +60,8 @@ function contributorActivity(repository: string, dealId: string, commits: readon
         areas: JSON.stringify(Object.fromEntries([...bucket.areas.entries()].sort(([a], [b]) => a.localeCompare(b)))),
         firstCommitAt: bucket.first,
         lastCommitAt: bucket.last,
+        // The window this aggregate rests on, so a 24-month figure is never compared with an all-history one.
+        lookbackMonths: String(lookback),
       };
       return {
         evidenceType: CODE_CONTRIBUTOR_ACTIVITY_EVIDENCE_TYPE,
@@ -214,7 +216,8 @@ export function createGitHubEvidenceSource(
       const commit = (await adapter.listCommits(scope, { cursor: null, limit: 1 })).commits[0];
 
       // Commit history for contributor activity, bounded in time and size.
-      const since = commit ? monthsBefore(commit.authoredAt, HISTORY_MONTHS) : null;
+      const lookback = lookbackOf(adapter.lookbackMonths);
+      const since = commit && lookback !== ALL_HISTORY ? monthsBefore(commit.authoredAt, lookback) : null;
       const commits: CommitMetadata[] = [];
       let cursor: string | null = null;
       let truncated = false;
@@ -274,7 +277,7 @@ export function createGitHubEvidenceSource(
       return {
         records: [
           record,
-          ...contributorActivity(head.repository, scope.dealId, commits),
+          ...contributorActivity(head.repository, scope.dealId, commits, lookback),
           ...pullRecords,
           ...linkEvidence(head.repository, issueLinksOf(commits, pullRequests.pulls, head.repository)),
         ],

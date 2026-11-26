@@ -60,7 +60,7 @@ export interface EngineeringView {
   completeness: { complete: boolean; notes: string[] };
   people: PeopleAccessView;
   canManageNames: boolean;
-  sources: { id: string; provider: string; displayName: string; mode: 'FIXTURE' | 'LIVE' }[];
+  sources: { id: string; provider: string; displayName: string; mode: 'FIXTURE' | 'LIVE'; lookbackMonths: number | 'ALL' }[];
   keyPersonFindings: { id: string; title: string; status: string; direction: number | null }[];
 }
 

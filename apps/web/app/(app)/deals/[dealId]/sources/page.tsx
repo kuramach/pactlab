@@ -8,6 +8,9 @@ import { notFound } from 'next/navigation';
 import { apiGet, dealsApi } from '../../_lib/api';
 import { EmptyMarkIcon } from '../../_lib/empty-marks';
 import { isUuidParam } from '../../_lib/filters';
+import { describeLookback } from '../../_lib/lookback';
+import { LookbackField } from './lookback-field';
+import { setLookback } from './lookback-actions';
 import { failureHint, HEALTH_TEXT, PROVIDER_LABELS, sourceHealth } from '../../_lib/sources';
 import { ApiState } from '../../_lib/states';
 import { keepParams, Pager, pagerLinks, readPage } from '../../../../_components/pager';
@@ -318,6 +321,21 @@ export default async function DealSourcesPage({
                     <p className="text-muted-foreground">
                       Gaps were reported, not filled: missing estimates, dates or unreadable projects.
                     </p>
+                  ) : null}
+                  {source.lookbackMonths !== null ? (
+                    <div className="flex flex-col gap-2">
+                      <p>
+                        <span className="text-muted-foreground">History window: </span>
+                        <span className="font-medium">{describeLookback(source.lookbackMonths)}</span>
+                        <span className="text-muted-foreground"> — findings from this source rest on it. Takes effect on the next sync.</span>
+                      </p>
+                      <form action={setLookback.bind(null, dealId, source.id)} className="flex flex-col gap-2">
+                        <LookbackField current={source.lookbackMonths} />
+                        <Button type="submit" variant="outline">
+                          Change window
+                        </Button>
+                      </form>
+                    </div>
                   ) : null}
                   <p className="text-xs text-muted-foreground">
                     {run?.completedAt ? `Last synced ${new Date(run.completedAt).toUTCString()}` : 'No completed sync'}

@@ -42,7 +42,7 @@ describe('connecting GitHub live through the API', () => {
       .setExpirationTime('5m')
       .sign(signingKey);
 
-  async function call(method: 'GET' | 'POST', url: string, bearer: string, payload?: Body) {
+  async function call(method: 'GET' | 'POST' | 'PUT', url: string, bearer: string, payload?: Body) {
     const response = await app.inject({ method, url, headers: { authorization: `Bearer ${bearer}` }, ...(payload ? { payload } : {}) });
     return { status: response.statusCode, body: (response.body ? response.json() : null) as Body, raw: response.body };
   }
@@ -103,11 +103,13 @@ describe('connecting GitHub live through the API', () => {
     const connected = await call('POST', `/v1/deals/${a.dealId}/connections/github`, lead, {
       method: 'TOKEN',
       repository: 'octocat/Hello-World',
+      // The recorded cassette is years old: read it whole, as an explicit choice (T-169).
+      lookbackMonths: 'ALL',
       token: TOKEN,
     });
     expect(connected.status).toBe(201);
     expect(connected.body['validation']).toMatchObject({ ok: true });
-    expect(connected.body['connection']).toMatchObject({ provider: 'github', mode: 'LIVE', hasCredential: true });
+    expect(connected.body['connection']).toMatchObject({ provider: 'github', mode: 'LIVE', hasCredential: true, lookbackMonths: 'ALL' });
     expect(connected.raw).not.toContain(TOKEN);
     expect(seenAuth).toContain(`Bearer ${TOKEN}`);
 
@@ -171,6 +173,33 @@ describe('connecting GitHub live through the API', () => {
     const id = (connected.body['connection'] as { id: string }).id;
     const stored = (await db.owner.query(`SELECT credential_ref, display_name FROM connections WHERE id = $1`, [id])) as { rows: { credential_ref: string; display_name: string }[] };
     expect(stored.rows[0]).toEqual({ credential_ref: 'secretref:pactlab/anonymous', display_name: 'octocat/Hello-World (GitHub, public)' });
+  });
+
+  it('defaults the history window to 24 months and round-trips an edit (T-169)', async () => {
+    const lead = await token(a.subject, a);
+    const connected = await call('POST', `/v1/deals/${a.dealId}/connections/github`, lead, { method: 'PUBLIC', repository: 'octocat/Hello-World' });
+    const created = connected.body['connection'] as { id: string; lookbackMonths: unknown };
+    expect(created.lookbackMonths).toBe(24);
+    const stored = async () =>
+      ((await db.owner.query(`SELECT config FROM connections WHERE id = $1`, [created.id])) as { rows: { config: Body }[] }).rows[0]!.config;
+    expect(await stored()).toEqual({ repository: 'octocat/Hello-World' });
+
+    const url = `/v1/deals/${a.dealId}/connections/${created.id}/lookback`;
+    const longer = await call('PUT', url, lead, { lookbackMonths: 36 });
+    expect(longer.status).toBe(200);
+    expect(longer.body).toMatchObject({ id: created.id, lookbackMonths: 36 });
+    expect(await stored()).toEqual({ repository: 'octocat/Hello-World', lookbackMonths: 36 });
+    const all = await call('PUT', url, lead, { lookbackMonths: 'ALL' });
+    expect(all.body).toMatchObject({ lookbackMonths: 'ALL' });
+    const listed = await call('GET', `/v1/deals/${a.dealId}/connections`, lead);
+    expect((listed.body as unknown as { items: { id: string; lookbackMonths: unknown }[] }).items.find((entry) => entry.id === created.id)?.lookbackMonths).toBe('ALL');
+
+    for (const bad of [{ lookbackMonths: 0 }, { lookbackMonths: 'forever' }, { lookbackMonths: null }, {}]) expect((await call('PUT', url, lead, bad)).status, JSON.stringify(bad)).toBe(400);
+    const viewer = await addSyntheticDealMember(db.owner, a, 'VIEWER');
+    expect((await call('PUT', url, await token(viewer.subject, a), { lookbackMonths: 12 })).status).toBe(403);
+    expect((await call('PUT', url, await token(b.subject, b), { lookbackMonths: 12 })).status).toBe(404);
+    const audits = (await db.owner.query(`SELECT action FROM audit_events WHERE target_id = $1`, [created.id])) as { rows: { action: string }[] };
+    expect(audits.rows.filter((row) => row.action === 'connection.lookback_changed')).toHaveLength(2);
   });
 
   it('reports a repository the credential cannot see without failing the request', async () => {

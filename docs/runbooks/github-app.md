@@ -78,3 +78,26 @@ personal data, and CI replays them offline:
 pnpm --filter @pactlab/connectors cassettes:record:github
 pnpm --filter @pactlab/connectors test   # the sanitizer test must pass
 ```
+
+## How much history a GitHub or Jira source reads (T-169)
+
+GitHub and Jira pulls read **the last 24 months** by default: commits, pull
+requests, Jira issues touched in the window and sprints that started in it.
+The window is computed at sync time, not stored per record. Older history often
+describes people who have left, so it misleads key-person, bus-factor and
+activity analysis.
+
+- A longer window (12, 24, 36 or 60 months) or **All history** is a deliberate
+  choice: set it when connecting (`lookbackMonths` on `POST
+  /v1/deals/:id/connections/github|jira`) or edit it on the source card in
+  **Sources → Change window** (`PUT /v1/deals/:id/connections/:id/lookback`,
+  audited as `connection.lookback_changed`). It takes effect on the next sync.
+  Unset means 24, never all history.
+- The window is shown on each source card and on Engineering, and every
+  contributor-activity evidence record carries `lookbackMonths`
+  (`24`, `36`, … or `ALL`), so a 24-month figure is never silently compared
+  with an all-history one.
+- Not affected: the frozen T-127 Kafka pack and its cassettes (the Kafka pair
+  and `record-cassettes.ts` pin `ALL`), fixture adapters, and demo data.
+- Re-recording a cassette with a live adapter needs `lookbackMonths: 'ALL'` for
+  an old repository, or the query will no longer match the recording.

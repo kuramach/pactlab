@@ -7,7 +7,7 @@ import {
   ServiceUnavailableException,
   UnprocessableEntityException,
 } from '@nestjs/common';
-import { ANONYMOUS_CREDENTIAL_REF, GITHUB_APP_CREDENTIAL_REF, GITHUB_MCP_FIXTURE_REPOSITORIES, jiraSiteProblem, MCP_EVIDENCE_PROFILES, mcpServerFor, type ValidationResult } from '@pactlab/connectors';
+import { ANONYMOUS_CREDENTIAL_REF, DEFAULT_LOOKBACK_MONTHS, type LookbackMonths, GITHUB_APP_CREDENTIAL_REF, GITHUB_MCP_FIXTURE_REPOSITORIES, jiraSiteProblem, MCP_EVIDENCE_PROFILES, mcpServerFor, type ValidationResult } from '@pactlab/connectors';
 import {
   appendAuditEvent,
   connections,
@@ -41,7 +41,7 @@ const CODE_SIGNAL_ACTOR = { kind: 'SYSTEM', component: 'sync:code-signals' } as 
 import { GITHUB_FIXTURES, JIRA_FIXTURES } from '@pactlab/connectors';
 import { PROVIDER_DEPENDENCIES, type ProviderDependencies } from './provider-dependencies';
 import type { EvidenceSample } from './adapters/evidence-sample';
-import type { ConnectGitHubCommand, ConnectJiraCommand, ConnectMcpCommand, CreateConnectionCommand, SetModeCommand } from './connections.schemas';
+import type { ConnectGitHubCommand, ConnectJiraCommand, ConnectMcpCommand, CreateConnectionCommand, SetLookbackCommand, SetModeCommand } from './connections.schemas';
 
 export interface ConnectionView {
   id: string;
@@ -51,6 +51,8 @@ export interface ConnectionView {
   mode: 'FIXTURE' | 'LIVE';
   hasCredential: boolean;
   status: string;
+  /** Months of history a GitHub or Jira source reads (24 unless chosen), or `ALL`; null for other providers (T-169). */
+  lookbackMonths: LookbackMonths | null;
   evidenceVisibility: 'BUYER_ONLY' | 'SHARED';
   createdAt: string;
   updatedAt: string;
@@ -88,6 +90,14 @@ export interface SyncRunView {
   completedAt: string | null;
 }
 
+const ENGINEERING_PROVIDERS = ['github', 'jira'];
+
+function lookbackOfRow(row: ConnectionRecord): LookbackMonths | null {
+  if (!ENGINEERING_PROVIDERS.includes(row.provider)) return null;
+  const set = (row.config as { lookbackMonths?: LookbackMonths } | null)?.lookbackMonths;
+  return set ?? DEFAULT_LOOKBACK_MONTHS;
+}
+
 function toConnectionView(row: ConnectionRecord): ConnectionView {
   // The credential reference itself is never returned.
   return {
@@ -98,6 +108,7 @@ function toConnectionView(row: ConnectionRecord): ConnectionView {
     mode: row.mode,
     hasCredential: row.credentialRef !== null,
     status: row.status,
+    lookbackMonths: lookbackOfRow(row),
     evidenceVisibility: row.evidenceVisibility,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
@@ -390,7 +401,7 @@ export class ConnectionsService {
           displayName: `${command.repository} (GitHub${command.method === 'APP' ? ' App' : command.method === 'TOKEN' ? ' token' : ', public'})`,
           mode: 'LIVE',
           credentialRef,
-          config: { repository: command.repository },
+          config: { repository: command.repository, ...(command.lookbackMonths === undefined ? {} : { lookbackMonths: command.lookbackMonths }) },
           evidenceVisibility: isBuyerSideRole(role) ? 'BUYER_ONLY' : 'SHARED',
           createdBy: tenant.userId,
         },
@@ -443,7 +454,7 @@ export class ConnectionsService {
         throw new ServiceUnavailableException();
       }
     }
-    const config = { site: command.site, ...(command.basePath ? { basePath: command.basePath } : {}), projectKeys: command.projectKeys };
+    const config = { site: command.site, ...(command.basePath ? { basePath: command.basePath } : {}), projectKeys: command.projectKeys, ...(command.lookbackMonths === undefined ? {} : { lookbackMonths: command.lookbackMonths }) };
     const row = await withTenant(this.prisma, tenant, async (tx) => {
       const created = await tx.connection.create({
         data: {
@@ -499,6 +510,30 @@ export class ConnectionsService {
         credentialRef: command.credentialRef ?? null,
       });
       await this.audit(tx, tenant, dealId, 'connection.mode_changed', connectionId, requestId);
+      return updated;
+    });
+    return toConnectionView(row);
+  }
+
+  /** Change the history window of a GitHub or Jira source; the next sync reads it (T-169). */
+  async setLookback(
+    tenant: TenantContext,
+    dealId: string,
+    connectionId: string,
+    command: SetLookbackCommand,
+    requestId: string,
+  ): Promise<ConnectionView> {
+    const role = await this.access.require(tenant, dealId, canSupplyConnections, {
+      action: 'connection.lookback_changed',
+      requestId,
+    });
+    const existing = await this.load(tenant, dealId, connectionId);
+    this.assertConnectionAccess(role, existing);
+    if (!ENGINEERING_PROVIDERS.includes(existing.provider)) throw new ConflictException();
+    const config = { ...((existing.config as Record<string, unknown> | null) ?? {}), lookbackMonths: command.lookbackMonths };
+    const row = await withTenant(this.prisma, tenant, async (tx) => {
+      const updated = await tx.connection.update({ where: { id: connectionId }, data: { config } });
+      await this.audit(tx, tenant, dealId, 'connection.lookback_changed', connectionId, requestId);
       return updated;
     });
     return toConnectionView(row);

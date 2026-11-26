@@ -11,7 +11,7 @@ const APACHE = { selfHostedHosts: ['issues.apache.org'] };
 
 async function apache(projectKeys = ['KAFKA']) {
   const replay = cassetteFetch(await cassette('apache-kafka-datacenter'));
-  return { replay, live: new JiraLiveAdapter({ site: 'issues.apache.org', basePath: '/jira', projectKeys }, { fetch: replay, policy: APACHE }) };
+  return { replay, live: new JiraLiveAdapter({ site: 'issues.apache.org', basePath: '/jira', lookbackMonths: 'ALL', projectKeys }, { fetch: replay, policy: APACHE }) };
 }
 
 async function cloud() {
@@ -23,7 +23,7 @@ async function cloud() {
     calls.push(init?.headers ?? {});
     return replay(input, init);
   };
-  return { calls, live: new JiraLiveAdapter({ site: 'pactlab-synthetic.atlassian.net', projectKeys: ['SYN'] }, { fetch: recording, secrets }) };
+  return { calls, live: new JiraLiveAdapter({ site: 'pactlab-synthetic.atlassian.net', lookbackMonths: 'ALL', projectKeys: ['SYN'] }, { fetch: recording, secrets }) };
 }
 
 describe('Jira site allowlist (T-082)', () => {
@@ -37,7 +37,7 @@ describe('Jira site allowlist (T-082)', () => {
 
   it('refuses a host that is not allowlisted before any request, with the specific reason', async () => {
     const calls: string[] = [];
-    const live = new JiraLiveAdapter({ site: 'issues.apache.org', basePath: '/jira', projectKeys: ['KAFKA'] }, { fetch: async (url) => (calls.push(url), new Response('{}')) });
+    const live = new JiraLiveAdapter({ site: 'issues.apache.org', basePath: '/jira', lookbackMonths: 'ALL', projectKeys: ['KAFKA'] }, { fetch: async (url) => (calls.push(url), new Response('{}')) });
     const validation = await live.validateConnection(scope());
     expect(validation.ok).toBe(false);
     expect(validation.checks[0]).toMatchObject({ name: 'reachability', status: 'FAIL', detail: expect.stringContaining('not on this deployment') });
@@ -47,7 +47,7 @@ describe('Jira site allowlist (T-082)', () => {
 
   it('never follows a redirect', async () => {
     const seen: (string | undefined)[] = [];
-    const live = new JiraLiveAdapter({ site: 'issues.apache.org', projectKeys: ['KAFKA'] }, {
+    const live = new JiraLiveAdapter({ site: 'issues.apache.org', lookbackMonths: 'ALL', projectKeys: ['KAFKA'] }, {
       policy: APACHE,
       fetch: async (_url, init) => (seen.push(init?.redirect), new Response(null, { status: 302, headers: { location: 'https://169.254.169.254/' } })),
     });
@@ -114,7 +114,7 @@ describe('Jira Cloud with an API token (enhanced search)', () => {
   it('refuses a Cloud credential that is not email:token', async () => {
     const secrets = new MemorySecretStore();
     await secrets.put('secretref:jira/bad', 'just-a-token');
-    const live = new JiraLiveAdapter({ site: 'pactlab-synthetic.atlassian.net', projectKeys: ['SYN'] }, { fetch: async () => new Response('{}'), secrets });
+    const live = new JiraLiveAdapter({ site: 'pactlab-synthetic.atlassian.net', lookbackMonths: 'ALL', projectKeys: ['SYN'] }, { fetch: async () => new Response('{}'), secrets });
     await expect(live.listIssues(scope('secretref:jira/bad'), { cursor: null, limit: 1 })).rejects.toMatchObject({ code: 'NO_CREDENTIAL' });
   });
 });

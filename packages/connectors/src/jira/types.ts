@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { ConnectionScope, ProviderAdapter } from '../contract';
+import { lookbackMonthsSchema, type LookbackMonths } from '../lookback';
 
 export const JIRA_PROVIDER = 'jira';
 
@@ -22,6 +23,8 @@ export const jiraConnectionConfigSchema = z.strictObject({
     .refine((value) => !value.split('/').some((part) => part === '.' || part === '..'), 'Not a path')
     .optional(),
   projectKeys: z.array(z.string().regex(/^[A-Z][A-Z0-9]{1,9}$/)).min(1).max(20),
+  /** Months of history to read; unset is 24 and `ALL` is an explicit choice (T-169). */
+  lookbackMonths: lookbackMonthsSchema.optional(),
 });
 export type JiraConnectionConfig = z.infer<typeof jiraConnectionConfigSchema>;
 
@@ -87,6 +90,8 @@ export interface JiraGap {
 /** Normalized read-only Jira interface. */
 export interface JiraAdapter extends ProviderAdapter<JiraIssue> {
   readonly version: string;
+  /** Months of history this connection reads; unset means the 24-month default. */
+  readonly lookbackMonths?: LookbackMonths;
   listIssues(scope: ConnectionScope, options: { cursor: string | null; limit: number }): Promise<JiraIssuePage>;
   listSprints(scope: ConnectionScope): Promise<readonly JiraSprint[]>;
   /**

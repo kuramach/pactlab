@@ -1,3 +1,4 @@
+import type { LookbackMonths } from '../lookback';
 import { boundedLimit, type ConnectionScope, type DryRunResult, type ValidationCheck, type ValidationResult } from '../contract';
 import { JIRA_FIXTURES, type JiraFixtureSite } from './fixture-data';
 import {
@@ -22,6 +23,10 @@ export class JiraFixtureAdapter implements JiraAdapter {
   readonly version = JIRA_FIXTURE_VERSION;
 
   constructor(readonly config: JiraConnectionConfig) {}
+
+  get lookbackMonths(): LookbackMonths | undefined {
+    return this.config.lookbackMonths;
+  }
 
   private fixture(): JiraFixtureSite | undefined {
     return Object.hasOwn(JIRA_FIXTURES, this.config.site) ? JIRA_FIXTURES[this.config.site] : undefined;

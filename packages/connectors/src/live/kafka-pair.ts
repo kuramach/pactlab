@@ -16,8 +16,8 @@ export const scope = { organizationId: 'kafka-pair', dealId: 'kafka-pair', conne
 
 export function kafkaAdapters(fetchFor: { github: FetchLike; jira: FetchLike }, auth: GitHubAuth = new AnonymousAuth()) {
   return {
-    github: new GitHubLiveAdapter({ repository: KAFKA_REPOSITORY }, () => auth, fetchFor.github),
-    jira: new JiraLiveAdapter({ ...APACHE_JIRA, projectKeys: [...APACHE_JIRA.projectKeys] }, { fetch: fetchFor.jira, policy: APACHE_POLICY }),
+    github: new GitHubLiveAdapter({ repository: KAFKA_REPOSITORY, lookbackMonths: 'ALL' }, () => auth, fetchFor.github),
+    jira: new JiraLiveAdapter({ ...APACHE_JIRA, lookbackMonths: 'ALL', projectKeys: [...APACHE_JIRA.projectKeys] }, { fetch: fetchFor.jira, policy: APACHE_POLICY }),
   };
 }
 

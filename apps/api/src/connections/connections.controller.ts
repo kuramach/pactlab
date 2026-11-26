@@ -24,12 +24,14 @@ import {
   dryRunSchema,
   idempotencyKeySchema,
   requestSyncRunSchema,
+  setLookbackSchema,
   setModeSchema,
   syncRunParamsSchema,
   type ConnectGitHubCommand,
   type ConnectJiraCommand,
   type ConnectMcpCommand,
   type CreateConnectionCommand,
+  type SetLookbackCommand,
   type SetModeCommand,
 } from './connections.schemas';
 import { ConnectionsService } from './connections.service';
@@ -108,6 +110,16 @@ export class ConnectionsController {
     @Body(new ZodValidationPipe(setModeSchema)) body: SetModeCommand,
   ) {
     return this.service.setMode(tenant, params.dealId, params.connectionId, body, requestId);
+  }
+
+  @Put('connections/:connectionId/lookback')
+  async setLookback(
+    @Tenant() tenant: TenantContext,
+    @RequestId() requestId: string,
+    @Param(new ZodValidationPipe(connectionParamsSchema)) params: ConnectionParams,
+    @Body(new ZodValidationPipe(setLookbackSchema)) body: SetLookbackCommand,
+  ) {
+    return this.service.setLookback(tenant, params.dealId, params.connectionId, body, requestId);
   }
 
   @Post('connections/:connectionId/validate')

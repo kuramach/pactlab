@@ -141,7 +141,7 @@ export class EngineeringService {
       // bounded: one pact's own records of this kind (tens: a checklist, versions, entries, its sources)
       const sources = await tx.connection.findMany({
         where: { dealId, provider: { in: ['github', 'jira'] } },
-        select: { id: true, provider: true, displayName: true, mode: true },
+        select: { id: true, provider: true, displayName: true, mode: true, config: true },
         orderBy: { createdAt: 'asc' },
       });
       const completeness = await this.completeness(tx, dealId, sources, activity);
@@ -214,7 +214,8 @@ export class EngineeringService {
       completeness,
       people: access,
       canManageNames: isLead(role),
-      sources: sources.map((source) => ({ ...source, mode: source.mode })),
+      // The history window each source reads (T-169), so a 24-month view is never mistaken for all history.
+      sources: sources.map(({ config, ...source }) => ({ ...source, mode: source.mode, lookbackMonths: (config as { lookbackMonths?: number | 'ALL' } | null)?.lookbackMonths ?? 24 })),
       keyPersonFindings,
     };
   }

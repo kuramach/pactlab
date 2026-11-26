@@ -29,7 +29,7 @@ describe('GitHub adapters', () => {
     await expect(checkAdapterContract(new GitHubFixtureAdapter(config), scope())).resolves.toEqual(
       [],
     );
-    const live = new GitHubLiveAdapter({ repository: 'octocat/Hello-World' }, () => STATIC_AUTH, cassetteFetch(await helloWorld()));
+    const live = new GitHubLiveAdapter({ repository: 'octocat/Hello-World', lookbackMonths: 'ALL' }, () => STATIC_AUTH, cassetteFetch(await helloWorld()));
     await expect(checkAdapterContract(live, scope())).resolves.toEqual([]);
   });
 
@@ -48,7 +48,7 @@ describe('GitHub adapters', () => {
 
   it('live adapter without a credential fails closed and calls nothing', async () => {
     const replay = cassetteFetch(await helloWorld());
-    const live = new GitHubLiveAdapter({ repository: 'octocat/Hello-World' }, () => null, replay);
+    const live = new GitHubLiveAdapter({ repository: 'octocat/Hello-World', lookbackMonths: 'ALL' }, () => null, replay);
     const validation = await live.validateConnection(scope());
     expect(validation.ok).toBe(false);
     expect(validation.checks.find((check) => check.name === 'credentials')?.status).toBe('FAIL');

@@ -1,5 +1,6 @@
 import type { EvidenceSource, NormalizedEvidence, ObservedPerson, SourceIssue } from '@pactlab/domain';
 import type { ConnectionScope } from '../contract';
+import { lookbackOf, type LookbackMonths } from '../lookback';
 import { contributorKey, monthOf } from '../people';
 import { JIRA_PROVIDER, JiraAdapterError, type JiraAdapter, type JiraGap, type JiraIssue, type JiraSprint } from './types';
 
@@ -23,7 +24,7 @@ interface DeliveryBucket {
  * (with story points and reopens), issues created as reporter, and comment
  * counts. Identities become pseudonymous keys; no issue text is carried.
  */
-function contributorActivity(site: string, dealId: string, issues: readonly JiraIssue[]): NormalizedEvidence[] {
+function contributorActivity(site: string, dealId: string, issues: readonly JiraIssue[], lookback: LookbackMonths): NormalizedEvidence[] {
   const buckets = new Map<string, DeliveryBucket>();
   const bucket = (accountId: string, month: string) => {
     const key = contributorKey(dealId, accountId);
@@ -60,6 +61,8 @@ function contributorActivity(site: string, dealId: string, issues: readonly Jira
         comments: String(entry.comments),
         resolvedReopened: String(entry.reopened),
         sprints: String(entry.sprints.size),
+        // The window this aggregate rests on, so a 24-month figure is never compared with an all-history one.
+        lookbackMonths: String(lookback),
       };
       return {
         evidenceType: DELIVERY_CONTRIBUTOR_ACTIVITY_EVIDENCE_TYPE,
@@ -203,7 +206,7 @@ export function createJiraEvidenceSource(
         records: [
           ...sprints.map((sprint) => sprintEvidence(site, sprint)),
           ...issues.map((issue) => issueEvidence(site, issue)),
-          ...contributorActivity(site, scope.dealId, issues),
+          ...contributorActivity(site, scope.dealId, issues, lookbackOf(adapter.lookbackMonths)),
         ],
         issues: sourceIssues,
         people: peopleOf(scope.dealId, issues),

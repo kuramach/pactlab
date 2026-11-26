@@ -9,6 +9,7 @@ const KNOWN: Readonly<Record<string, string>> = {
   'connection.credential_stored': 'Stored a source credential',
   'connection.validated': 'Checked a connection',
   'connection.mode_changed': 'Changed a connection mode',
+  'connection.lookback_changed': 'Changed how much history a source reads',
   'sync_run.requested': 'Synced a source',
   'source_upload.created': 'Uploaded a billing export',
   'source_upload.imported': 'Imported a billing export',

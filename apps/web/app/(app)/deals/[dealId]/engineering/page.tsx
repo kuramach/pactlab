@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { BarChart, CHART_COLORS, LineChart } from '../../../_lib/charts';
 import { COMPANY_TYPE_LABELS, sectionApplies, type CompanyType } from '@pactlab/domain';
 import { apiGet, dealsApi } from '../../_lib/api';
+import { describeLookback } from '../../_lib/lookback';
 import { OutcomeBanner } from '../../_lib/outcome';
 import { ApiState } from '../../_lib/states';
 import { setPeopleAccess } from './actions';
@@ -440,7 +441,7 @@ export default async function EngineeringPage({
 
           <p className="text-xs text-muted-foreground">
             Profiles describe activity in these tools only — reviews, design, mentoring and work elsewhere don’t appear. They are never sent to AI and are
-            visible only to the buyer’s deal team. Sources: {view.sources.map((source) => `${source.displayName}${source.mode === 'FIXTURE' ? ' (synthetic)' : ''}`).join(', ')}.
+            visible only to the buyer’s deal team. Sources: {view.sources.map((source) => `${source.displayName}${source.mode === 'FIXTURE' ? ' (synthetic)' : ''}, ${describeLookback(source.lookbackMonths)}`).join(', ')}.
           </p>
         </>
       )}
