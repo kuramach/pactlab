@@ -41,6 +41,17 @@ describe('pack registry', () => {
     expect(peopleColumnProblems(IMPORT_TARGET_DEFINITIONS.MUSIC_SPLITS, ['work_id', 'full_name', 'share_pct'])).toHaveLength(1);
   });
 
+  it('Energy generation & rights reads plants, interests, leases, production and the liability schedule, and names its methods (T-142)', () => {
+    const energy = PACKS.ENERGY_GENERATION;
+    expect(energy).toMatchObject({ slug: 'energy-generation', label: 'Energy generation & rights', cluster: 'energy', metricCalculator: 'energy-assets', built: true });
+    expect(energy.importTargets).toEqual(['BILLING_INVOICE_LINE', 'ENERGY_PLANTS', 'ENERGY_INTERESTS', 'ENERGY_LEASES', 'ENERGY_PRODUCTION', 'ENERGY_LIABILITIES']);
+    expect(energy.findingRules).toHaveLength(9);
+    expect(energy.methodLabels?.DCF?.label).toBe('Reserve-based DCF');
+    expect(energy.methodLabels?.ARR_MULTIPLE?.label).toBe('Capacity value ($/kW)');
+    expect(energy.documentCategories).toContain('RESERVE_REPORT');
+    for (const target of energy.importTargets.slice(1)) expect(IMPORT_TARGET_DEFINITIONS[target].refusesPeopleColumns, target).toBe(true);
+    expect(peopleColumnProblems(IMPORT_TARGET_DEFINITIONS.ENERGY_LEASES, ['lease_id', 'lessor_ref', 'net_acres', 'royalty_rate', 'held_by_production'])).toEqual([]);
+    expect(peopleColumnProblems(IMPORT_TARGET_DEFINITIONS.ENERGY_LEASES, ['lease_id', 'full_name', 'net_acres'])).toHaveLength(1);
   it('Startup equity SPV reads the startup by reference to Venture Raise and adds the vehicle checks (T-141)', () => {
     const spv = PACKS.STARTUP_SPV;
     expect(spv).toMatchObject({ slug: 'startup-spv', label: 'Startup equity SPV', cluster: 'capital', metricCalculator: 'spv-round', built: true });

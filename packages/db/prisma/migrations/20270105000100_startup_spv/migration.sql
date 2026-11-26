@@ -1,4 +1,4 @@
--- T-141 Startup equity SPV (ADR 0043). Expand only.
+-- T-141 Startup equity SPV (ADR 0044). Expand only.
 -- One pact, three parties, two walled directions: the organizer (the pact's own side) diligences the
 -- startup's round, and pools investors into one vehicle. Investors are seated as guests with the new
 -- deal role INVESTOR, one seat each (the BIDDER/bid_id pattern of ADR 0015): an investor reads only

@@ -7,7 +7,7 @@ import { spvEconomics } from './economics';
 import { spvRoundCheck } from './round';
 
 /**
- * Startup equity SPV pack rules (T-141, ADR 0043). Two directions of diligence: the round the
+ * Startup equity SPV pack rules (T-141, ADR 0044). Two directions of diligence: the round the
  * vehicle buys into (cap-table math, instrument terms, the startup's claims) and the vehicle itself
  * (fee and carry, side letters, the Form D). Deterministic, cited, drafts only: an organizer's
  * reviewer decides. Round defects that change what the vehicle pays for are drags (−1); vehicle

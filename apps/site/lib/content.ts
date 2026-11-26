@@ -325,7 +325,7 @@ export type IndustryStatus = 'AVAILABLE' | 'PLANNED';
 /** What a pack adds to the unchanged core: the only three things that vary (spec §19). */
 export interface PackDefinition {
   /** Real estate packs form their own cluster; hospitals and clinics extend healthcare services. */
-  readonly cluster: 'technology' | 'healthcare' | 'real-estate' | 'services' | 'life-sciences' | 'consumer' | 'capital' | 'media-rights';
+  readonly cluster: 'technology' | 'healthcare' | 'real-estate' | 'services' | 'life-sciences' | 'consumer' | 'capital' | 'media-rights' | 'energy';
   readonly evidence: readonly string[];
   readonly findings: readonly string[];
   readonly valuation: readonly string[];
@@ -847,11 +847,40 @@ export const INDUSTRIES: readonly Industry[] = [
     ],
   },
   {
+    slug: 'energy-generation',
+    icon: 'Signal',
+    name: 'Energy generation & rights',
+    status: 'AVAILABLE',
+    order: 15,
+    pack: {
+      cluster: 'energy',
+      evidence: ['Plant register: capacity, fuel, age, capacity factor and power purchase agreements', 'Interest register: mineral, royalty and working interests, leases and division-order decimals', 'Production history for plants and wells', 'Third-party reserve reports, cited as the engineers state them', 'Title opinions, leases, permits, closure plans and decommissioning studies', 'The seller’s liability schedule'],
+      findings: ['Remediation or coal-ash obligations in the evidence but missing from the liability schedule', 'An asset-retirement obligation booked well below the decommissioning estimate', 'Production falling faster than the reserve report assumes', 'Acreage not held by production expiring inside the hold', 'A division-order decimal the lease royalty chain does not support', 'A PPA ending inside the hold, leaving merchant exposure', 'A break in the chain of title, and required controls missing from the capex plan'],
+      valuation: ['A reserve-based DCF for the interests, from the third-party report’s categories', '$/kW of capacity plus contract coverage for the plants', 'Unbooked remediation and the ARO shortfall priced as remediation costs and escrows; clean title and over-booked ARO recorded as confirmed value only'],
+    },
+    summary: 'A buyer acquiring power plants, energy businesses and oil & gas interests: title, production, reserves and every environmental and retirement obligation traced to its evidence.',
+    dealShape: 'Funds, utilities, independent power producers and mineral buyers acquiring plants and oil & gas interests from utilities, IPPs, E&P companies and mineral owners.',
+    questions: [
+      'Is every environmental and retirement obligation on the seller’s schedule, at the right size?',
+      'Does production support the reserve report’s decline?',
+      'How much acreage could lapse before the hold ends?',
+      'Do the division orders pay what the leases support?',
+    ],
+    transfers: [
+      { icon: 'ListChecks', title: 'Findings and review', body: 'Every gap drafted with its evidence; a named reviewer decides.' },
+      { icon: 'FileText', title: 'Exact citations', body: 'Closure plans, studies, title opinions and division orders quoted to the page.' },
+      { icon: 'Calculator', title: 'The purchase-price bridge', body: 'Accepted liabilities priced line by line, as remediation costs and escrows.' },
+    ],
+    adds: [
+      { icon: 'ClipboardList', title: 'An asset and interest register', body: 'Plants and interests with capacity, contracts, leases, decimals and production.' },
+      { icon: 'ChartLine', title: 'A production and reserves model', body: 'Decline from the production history against the third-party report, in decimals.' },
+      { icon: 'ShieldAlert', title: 'A liability model', body: 'Remediation, coal ash and decommissioning estimates against what the seller booked.' },
+      { icon: 'FileSearch', title: 'Reports read for you', body: 'Reserve reports and environmental reports proposed as entries with their quotes; you confirm them.' },
     slug: 'startup-spv',
     icon: 'Users',
     name: 'Startup equity SPV',
     status: 'AVAILABLE',
-    order: 15,
+    order: 16,
     pack: {
       cluster: 'capital',
       evidence: ['The startup’s billing, cap table and monthly cash and burn', 'The round summary or deck, the term sheet and the signed SAFEs and notes', 'The vehicle’s operating agreement and the investor summary', 'Side letters and the Form D filing', 'Each investor’s commitment and accreditation status, from a verification specialist'],
@@ -931,6 +960,7 @@ export const PACT_CARDS: readonly PactCard[] = [
   packCard('hospitals', 'Value on payer-mix-adjusted EBITDA, with census and accreditation in view.'),
   packCard('multifamily-syndication', 'Check the property and the offering: returns, fees and track record.'),
   packCard('music-rights', 'Trace each work’s income, title and termination windows before you buy the catalog.'),
+  packCard('energy-generation', 'Check title, reserves and every environmental liability before you buy the assets.'),
   packCard('startup-spv', 'Check the round and your own vehicle before you pool the money.'),
   packCard('venture-raise', 'You are the one being diligenced. See what the investor will find, first.'),
 ];
@@ -959,6 +989,16 @@ const PACT_SLIDE_COPY: Readonly<Record<string, Pick<Slide, 'short' | 'title' | '
     imageAlt: 'Multifamily: apartment buildings, the rent roll and net operating income',
     linkLabel: 'Run a multifamily pact',
   },
+  'energy-generation': {
+    short: 'Energy',
+    icon: 'Signal',
+    title: 'Price the liabilities before you inherit them.',
+    body:
+      'Pactlab sets every remediation, coal-ash and decommissioning estimate against what the seller booked, checks ' +
+      'production against the reserve report and the division orders against the leases, before you sign.',
+    points: ['Unbooked remediation and ARO shortfalls priced', 'Lease expiry and decimal errors quantified', 'Reserves as the third-party report states them'],
+    imageAlt: 'Energy generation and rights: a power plant, a well site and a liability schedule',
+    linkLabel: 'Run an energy pact',
   'startup-spv': {
     short: 'Startup SPV',
     icon: 'Users',

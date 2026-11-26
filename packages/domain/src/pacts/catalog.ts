@@ -113,6 +113,7 @@ const SOURCES_BY_TYPE: Readonly<Record<CompanyType, readonly SourceKind[]>> = {
   MULTIFAMILY: ['BILLING', 'DOCUMENTS'],
   MULTIFAMILY_SYNDICATION: ['BILLING', 'DOCUMENTS'],
   MUSIC_RIGHTS: ['BILLING', 'DOCUMENTS'],
+  ENERGY_GENERATION: ['BILLING', 'DOCUMENTS'],
   // The startup's billing and the round's documents; the vehicle's own documents are the organizer's.
   STARTUP_SPV: ['BILLING', 'DOCUMENTS'],
   COMMERCIAL_PROPERTY: ['BILLING', 'DOCUMENTS'],

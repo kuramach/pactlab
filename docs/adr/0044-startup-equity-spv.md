@@ -1,4 +1,4 @@
-# ADR 0043: Startup equity SPV: a pooled-vehicle pack, investor seats behind a data-layer wall, accreditation tracked not built (T-141)
+# ADR 0044: Startup equity SPV: a pooled-vehicle pack, investor seats behind a data-layer wall, accreditation tracked not built (T-141)
 
 **Status:** accepted (Kumar directed the pack, 2026-11-19; scope widened 2026-11-20).
 
@@ -27,5 +27,5 @@
 - The SPV tab (`/deals/:id/spv`) is the organizer's; an investor's pact opens on the same path as their own seat and the latest published view, with no deal tabs. Seats and published versions are keyset-paged (T-126).
 - Investor guests in API tests are organization members holding only the INVESTOR deal role (as bidders are in the sale tests); real guest isolation under RLS is proven in `packages/db/src/spv.test.ts`.
 - Demo data: `pactlab-demo-data/startup-spv/{USD,EUR,GBP}` (Halyard Syndicate pooling five investors into a ~$2M vehicle for Lumen Labs' seed round) with planted defects (a) the cap table off by the SAFE conversion, (b) carry 20% against 15%, (c) an undisclosed side letter waiving one investor's fee, (d) one 506(c) investor only self-certified. `apps/api/src/packs/startup-spv.acceptance.api.test.ts` runs it end to end with the wall tests.
-- **Migrations** `20270104000000_investor_role` (enum values, on their own) and `20270104000100_startup_spv` are expand-only. Rollback: drop `investor_view_versions`, `pact_investors`, `spv_vehicles`, the `investor_id` columns and the new functions and policies, and restore `app_is_own_side`, `app_is_buyer_side`, `app_is_buyer_analyst`, `deal_memberships_select`, the `deal_invitations` checks and `app_accept_deal_invitation` from `20261114000100_seller_led_sale`. The enum values stay unused.
+- **Migrations** `20270105000000_investor_role` (enum values, on their own) and `20270105000100_startup_spv` are expand-only. Rollback: drop `investor_view_versions`, `pact_investors`, `spv_vehicles`, the `investor_id` columns and the new functions and policies, and restore `app_is_own_side`, `app_is_buyer_side`, `app_is_buyer_analyst`, `deal_memberships_select`, the `deal_invitations` checks and `app_accept_deal_invitation` from `20261114000100_seller_led_sale`. The enum values stay unused.
 - Follow-ups: T-106's investor side can reuse `INVESTOR`, `pact_investors` and the published-view table as they are; a model-proposed register for SPV documents the patterns do not read.

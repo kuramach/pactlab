@@ -7,7 +7,7 @@ import type { TransactionClient } from './client';
 import { withTenant } from './tenant';
 import { addSyntheticDealMember, createSyntheticTenant, startTestDatabase, type SyntheticTenant, type TestDatabase } from './testing';
 
-const MIGRATION = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../prisma/migrations/20270104000100_startup_spv/migration.sql'), 'utf8');
+const MIGRATION = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../prisma/migrations/20270105000100_startup_spv/migration.sql'), 'utf8');
 
 describe('startup SPV: the database lists match the domain registry (T-141)', () => {
   it('accreditation statuses and the investor view allow-list', () => {
@@ -19,7 +19,7 @@ describe('startup SPV: the database lists match the domain registry (T-141)', ()
 });
 
 /**
- * The investor wall in the data layer (T-141, ADR 0043): an investor reads their own seat and the
+ * The investor wall in the data layer (T-141, ADR 0044): an investor reads their own seat and the
  * published views, never another investor's seat or membership, and none of the pact's evidence or
  * documents; the startup (a target contributor) never sees the investor list.
  */

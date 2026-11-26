@@ -53,6 +53,7 @@ import { ReportsModule } from './reports/reports.module';
 import { QoeModule } from './qoe/qoe.module';
 import { SyndicationModule } from './syndication/syndication.module';
 import { MusicModule } from './music/music.module';
+import { EnergyModule } from './energy/energy.module';
 import { SpvModule } from './spv/spv.module';
 import { BrandModule } from './brand/brand.module';
 import { FeatureCardsModule } from './feature-cards/feature-cards.module';
@@ -305,6 +306,8 @@ export class AppModule {
         SyndicationModule.register({ documents: documentsModule }),
         // Music rights (T-140): register extraction runs through the documents module.
         MusicModule.register({ documents: documentsModule }),
+        // Energy generation & rights (T-142): report extraction runs through the documents module.
+        EnergyModule.register({ documents: documentsModule }),
         // Startup equity SPV (T-141): investors are invited to their seats through the invitations module.
         SpvModule.register(invitations),
         reportsModule,

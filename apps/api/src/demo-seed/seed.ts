@@ -232,6 +232,28 @@ function understanding(request: ModelRequest) {
 }
 
 /**
+ * Energy extraction (T-142): the entries a model would propose from the demo's reserve report and
+ * environmental reports — reserves by category, the decline the report assumes and the liability
+ * estimates — each quoting its sentence.
+ */
+function energyExtraction(request: ModelRequest) {
+  const prompt = request.messages[0]?.content ?? '';
+  const items = [];
+  const plain = (figure: string) => figure.replaceAll(',', '');
+  for (const block of prompt.split('<untrusted_source ').slice(1)) {
+    const citationId = /citation_id="([^"]+)"/.exec(block)?.[1] ?? '';
+    const text = block.slice(block.indexOf('>') + 1, block.indexOf('</untrusted_source>')).replace(/\s+/g, ' ');
+    for (const match of text.matchAll(/Net (PDP|PDNP|PUD) reserves: ([\d,]+) MBOE\./g)) items.push({ kind: 'RESERVES', asset: null, detail: match[1] ?? null, value: plain(match[2] ?? ''), citations: [{ citationId, quote: match[0] }] });
+    for (const match of text.matchAll(/(PDP|PDNP|PUD) discounted at 10%: [A-Z]{3} ([\d,]+)\./g)) items.push({ kind: 'RESERVE_VALUE', asset: null, detail: match[1] ?? null, value: plain(match[2] ?? ''), citations: [{ citationId, quote: match[0] }] });
+    for (const match of text.matchAll(/[^.]*assumes an annual decline of (\d+)%[^.]*\./g)) items.push({ kind: 'DECLINE_ASSUMPTION', asset: null, detail: null, value: match[1] ?? '', citations: [{ citationId, quote: match[0].trim() }] });
+    for (const match of text.matchAll(/The (closure plan|decommissioning study) for ([^.]+?\(synthetic\))[^.]*? [A-Z]{3} ([\d,]+)\./g)) {
+      items.push({ kind: 'LIABILITY_ESTIMATE', asset: match[2] ?? null, detail: match[1] === 'closure plan' ? 'ccr' : 'aro', value: plain(match[3] ?? ''), citations: [{ citationId, quote: match[0].trim() }] });
+    }
+  }
+  return { items };
+}
+
+/**
  * Scripted model responses for the demo contracts: the extraction a model
  * would propose, cited to the exact text. Runs are recorded under the model
  * id `synthetic-fixture`, never as a real model.
@@ -239,6 +261,7 @@ function understanding(request: ModelRequest) {
 export function demoModelResponse(request: ModelRequest): string {
   if (request.system.includes('offering documents of a multifamily real-estate syndication')) return JSON.stringify(offeringExtraction(request));
   if (request.system.includes('rights documents of a music catalog')) return JSON.stringify(musicExtraction(request));
+  if (request.system.includes('documents of an energy acquisition')) return JSON.stringify(energyExtraction(request));
   // The mapping assistant (import.map@1): rule-based, from the grid the prompt shows.
   if (request.system.includes('You help import a spreadsheet')) return importMapFixtureResponse(request.messages[0]?.content ?? '');
   // Negotiation brief (T-105): one synthetic, grounded section per finding carried by the terms.

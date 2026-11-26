@@ -48,6 +48,8 @@ export const DEAL_SECTION_RULES: Readonly<Record<string, (context: SectionContex
   '/syndication': (context) => context.companyType === 'MULTIFAMILY_SYNDICATION',
   // A music catalog's works and rights register, royalty income and termination exposure (T-140).
   '/catalog': (context) => context.companyType === 'MUSIC_RIGHTS',
+  // An energy package's asset and interest register, reserves and production, and liabilities (T-142).
+  '/energy': (context) => context.companyType === 'ENERGY_GENERATION',
   // A pooled vehicle (T-141): the round checks, the vehicle economics, side letters, investor seats and the published investor view.
   '/spv': (context) => context.companyType === 'STARTUP_SPV',
   '/valuation': everywhere,

@@ -20,6 +20,7 @@ import {
   classifyDocument,
   extractContractTerms,
   understandDocument,
+  extractEnergyItems,
   extractMusicItems,
   extractOfferingItems,
   scrubContract,
@@ -1160,6 +1161,29 @@ export class DocumentsService {
     }
     const { run, items, rejected, providerError } = outcome;
     await this.documents.recordAiRun(tenant, run, this.audit(tenant, dealId, 'music.extraction.completed', { type: 'ai_run', id: run.id }, requestId));
+    if (run.status === 'PROVIDER_ERROR') throw providerUnavailable(providerError);
+    return { document: { id: document.id, fileName: document.fileName, category: document.intake.category }, runId: run.id, items, rejected };
+  }
+
+  /**
+   * Energy extraction (T-142): read a reserve report or an environmental report or permit with
+   * `energy.extract`. Only grounded entries come back (quote on the page, figure in the quote); the
+   * energy service stores them as PROPOSED for a person to confirm. The AI run is recorded either way.
+   */
+  async extractEnergy(tenant: TenantContext, dealId: string, documentId: string, requestId: string) {
+    await this.access.require(tenant, dealId, canExtract, { action: 'energy.extraction.requested', requestId });
+    const document = await this.documents.getDocument(tenant, dealId, documentId);
+    if (!document) throw new NotFoundException();
+    if (!modelEligible(document)) throw new UnprocessableEntityException({ code: 'NOT_FOR_AI', message: 'This document is kept away from AI' });
+    const { sources } = await this.sources(tenant, dealId, [document]);
+    let outcome;
+    try {
+      outcome = await extractEnergyItems(this.gateway, { organizationId: tenant.organizationId, dealId, sources });
+    } catch (error) {
+      gatewayError(error);
+    }
+    const { run, items, rejected, providerError } = outcome;
+    await this.documents.recordAiRun(tenant, run, this.audit(tenant, dealId, 'energy.extraction.completed', { type: 'ai_run', id: run.id }, requestId));
     if (run.status === 'PROVIDER_ERROR') throw providerUnavailable(providerError);
     return { document: { id: document.id, fileName: document.fileName, category: document.intake.category }, runId: run.id, items, rejected };
   }

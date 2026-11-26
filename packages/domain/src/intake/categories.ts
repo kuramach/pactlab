@@ -56,8 +56,14 @@ export type MusicCategory = (typeof MUSIC_CATEGORIES)[number];
  */
 export const SPV_CATEGORIES = ['ROUND_SUMMARY', 'CONVERTIBLE_INSTRUMENT', 'SPV_OPERATING_AGREEMENT', 'SPV_INVESTOR_SUMMARY', 'SIDE_LETTER', 'FORM_D'] as const;
 export type SpvCategory = (typeof SPV_CATEGORIES)[number];
+ * An energy package (T-142) is diligenced from its title opinions, leases, division orders,
+ * third-party reserve reports, power purchase agreements and environmental reports and permits.
+ * Their entries are read on the Assets page for a person to confirm.
+ */
+export const ENERGY_CATEGORIES = ['TITLE_OPINION', 'OIL_GAS_LEASE', 'DIVISION_ORDER', 'RESERVE_REPORT', 'POWER_PURCHASE_AGREEMENT', 'ENVIRONMENTAL_REPORT'] as const;
+export type EnergyCategory = (typeof ENERGY_CATEGORIES)[number];
 /** Every category a pack may add on top of the common ones. */
-export type PackDocumentCategory = OfferingCategory | MusicCategory | SpvCategory;
+export type PackDocumentCategory = OfferingCategory | MusicCategory | EnergyCategory | SpvCategory;
 
 export type DocumentCategory = (typeof DOCUMENT_CATEGORIES)[number] | PackDocumentCategory;
 
@@ -206,6 +212,46 @@ const DOCUMENT_DEFINITIONS: Readonly<Record<DocumentCategory, CategoryDefinition
     route: { kind: 'FILE' },
     people: false,
   },
+  // Energy documents (T-142): kept and listed here; their entries are read on the Assets page.
+  TITLE_OPINION: {
+    id: 'TITLE_OPINION',
+    label: 'Title opinion',
+    description: 'A drilling or division-order title opinion, or a title report on a plant site: the chain of title and its requirements.',
+    route: { kind: 'FILE' },
+    people: false,
+  },
+  OIL_GAS_LEASE: {
+    id: 'OIL_GAS_LEASE',
+    label: 'Oil and gas lease',
+    description: 'An oil and gas lease, assignment or memorandum: the royalty, primary term and habendum clause.',
+    route: { kind: 'FILE' },
+    people: false,
+  },
+  DIVISION_ORDER: {
+    id: 'DIVISION_ORDER',
+    label: 'Division order',
+    description: 'A division order or check-stub decimal schedule from an operator: the decimal interest paid on each well.',
+    route: { kind: 'FILE' },
+    people: false,
+  },
+  RESERVE_REPORT: {
+    id: 'RESERVE_REPORT',
+    label: 'Reserve report',
+    description: 'A third-party petroleum engineering reserve report: reserves by category, decline assumptions and discounted values.',
+    route: { kind: 'FILE' },
+    people: false,
+  },
+  POWER_PURCHASE_AGREEMENT: {
+    id: 'POWER_PURCHASE_AGREEMENT',
+    label: 'Power purchase agreement',
+    description: 'A power purchase, tolling, capacity or offtake agreement, or an interconnection agreement for a plant.',
+    route: { kind: 'FILE' },
+    people: false,
+  },
+  ENVIRONMENTAL_REPORT: {
+    id: 'ENVIRONMENTAL_REPORT',
+    label: 'Environmental report or permit',
+    description: 'An environmental site assessment, closure or remediation plan, decommissioning study, permit, consent decree or emissions compliance record.',
   // Startup equity SPV documents (T-141): kept and listed; the SPV checks read their pages.
   ROUND_SUMMARY: {
     id: 'ROUND_SUMMARY',

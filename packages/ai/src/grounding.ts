@@ -3,7 +3,7 @@ import type { CitableSource } from './context';
 import type { ModelProviderErrorKind } from './bedrock';
 import type { AiRunRecord, ClaudeGateway, GatewayInput } from './gateway';
 import type { ModelAlias } from './models';
-import { contractExtractionPrompt, contractScrubPrompt, documentQaPrompt, documentUnderstandingPrompt, musicExtractionPrompt, offeringExtractionPrompt, type ContractExtraction, type DocumentUnderstanding, type MusicExtraction, type OfferingExtraction } from './prompts';
+import { contractExtractionPrompt, contractScrubPrompt, documentQaPrompt, documentUnderstandingPrompt, energyExtractionPrompt, musicExtractionPrompt, offeringExtractionPrompt, type ContractExtraction, type DocumentUnderstanding, type EnergyExtraction, type MusicExtraction, type OfferingExtraction } from './prompts';
 
 interface Scope {
   readonly organizationId: string;
@@ -330,6 +330,52 @@ export async function extractMusicItems(
     const [citation] = citations;
     if (!citation) continue;
     items.push({ kind: item.kind, work: item.work, detail: item.detail, value: item.value, date: item.date, citation });
+  }
+  return { run: response.run, items, rejected: dropped, providerError: null };
+}
+
+export interface ExtractedEnergyItem {
+  readonly kind: EnergyExtraction['items'][number]['kind'];
+  readonly asset: string | null;
+  readonly detail: string | null;
+  readonly value: string;
+  readonly citation: ResolvedCitation;
+}
+
+/**
+ * Energy extraction (T-142): the model proposes reserve, decline and liability entries; code keeps
+ * one only when its quote is on the cited page and its figure is written in that quote. Everything
+ * kept is a draft for a person to confirm.
+ */
+export async function extractEnergyItems(
+  gateway: ClaudeGateway,
+  request: Scope & { readonly sources: readonly CitableSource[] },
+): Promise<{
+  run: AiRunRecord;
+  items: ExtractedEnergyItem[];
+  rejected: { kind: string; reasons: readonly OfferingRejection[] }[];
+  providerError: ModelProviderErrorKind | null;
+}> {
+  const response = await gateway.invoke(energyExtractionPrompt, {
+    organizationId: request.organizationId,
+    dealId: request.dealId,
+    modelAlias: request.modelAlias,
+    inputs: [],
+    sources: request.sources,
+  });
+  if (!response.output) return { run: response.run, items: [], rejected: [], providerError: response.providerError };
+  const { grounded, rejected } = groundItems(response.output.items, new SourceIndex(request.sources));
+  const items: ExtractedEnergyItem[] = [];
+  const dropped: { kind: string; reasons: readonly OfferingRejection[] }[] = rejected.map(({ item, reasons }) => ({ kind: item.kind, reasons }));
+  for (const { item, citations } of grounded) {
+    const written = new Set(citations.flatMap((citation) => [...figuresIn(citation.quote)]));
+    if (!written.has(canonicalFigure(item.value))) {
+      dropped.push({ kind: item.kind, reasons: ['FIGURE_NOT_IN_QUOTE'] });
+      continue;
+    }
+    const [citation] = citations;
+    if (!citation) continue;
+    items.push({ kind: item.kind, asset: item.asset, detail: item.detail, value: item.value, citation });
   }
   return { run: response.run, items, rejected: dropped, providerError: null };
 }

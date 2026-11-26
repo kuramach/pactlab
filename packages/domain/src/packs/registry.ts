@@ -14,10 +14,10 @@ import { COMPANY_TYPES, COMPANY_TYPE_LABELS, type CompanyType } from '../pacts/t
 export type PackId = Exclude<CompanyType, 'OTHER'>;
 export const PACK_IDS = COMPANY_TYPES.filter((type): type is PackId => type !== 'OTHER');
 
-export type PackCluster = 'technology' | 'healthcare' | 'real-estate' | 'services' | 'life-sciences' | 'consumer' | 'capital' | 'media-rights';
+export type PackCluster = 'technology' | 'healthcare' | 'real-estate' | 'services' | 'life-sciences' | 'consumer' | 'capital' | 'media-rights' | 'energy';
 
 /** Calculator ids in `@pactlab/calculations` (`metricCalculator`). */
-export const METRIC_CALCULATOR_IDS = ['saas-metrics', 'multifamily-metrics', 'music-royalties', 'spv-round'] as const;
+export const METRIC_CALCULATOR_IDS = ['saas-metrics', 'multifamily-metrics', 'music-royalties', 'energy-assets', 'spv-round'] as const;
 export type MetricCalculatorId = (typeof METRIC_CALCULATOR_IDS)[number];
 
 /** Valuation method ids in `@pactlab/calculations` (`VALUATION_METHODS`). */
@@ -207,7 +207,39 @@ export const PACKS: Readonly<Record<PackId, PackDefinition>> = {
     },
     documentCategories: ['ROYALTY_STATEMENT', 'SPLIT_SHEET', 'PUBLISHING_AGREEMENT', 'COPYRIGHT_RECORD', 'LIEN_SEARCH'],
   },
-  // An organizer pools investors into one vehicle for one startup round (T-141, ADR 0043). The
+  // A buyer acquiring energy assets (T-142, ADR 0043): power plants and oil & gas mineral, royalty and
+  // working interests, two evidence families sharing one title and liability core. Interests value on
+  // a reserve-based DCF from the third-party report; plants on $/kW of capacity plus contract coverage.
+  ENERGY_GENERATION: {
+    ...pack('ENERGY_GENERATION', 'energy-generation', 'energy', true),
+    importTargets: ['BILLING_INVOICE_LINE', 'ENERGY_PLANTS', 'ENERGY_INTERESTS', 'ENERGY_LEASES', 'ENERGY_PRODUCTION', 'ENERGY_LIABILITIES'],
+    metricCalculator: 'energy-assets',
+    findingRules: [
+      'energy-unbooked-environmental',
+      'energy-aro-shortfall',
+      'energy-decline-mismatch',
+      'energy-lease-expiry',
+      'energy-royalty-decimal',
+      'energy-ppa-cliff',
+      'energy-title-defect',
+      'energy-compliance-capex-gap',
+      'energy-reserve-report-missing',
+    ],
+    valuationMethods: ['DCF', 'ARR_MULTIPLE'],
+    methodLabels: {
+      DCF: {
+        label: 'Reserve-based DCF',
+        help: 'Discounted cash flows from the third-party reserve report’s categories and the production history (the Assets tab shows both). Pactlab never estimates reserves.',
+        input: 'Revenue',
+      },
+      ARR_MULTIPLE: {
+        label: 'Capacity value ($/kW)',
+        help: 'Enterprise value = net capacity in kW × a price per kW, for the plants; contract coverage on the Assets tab says how much of their revenue is under PPA.',
+        input: 'Net capacity (kW)',
+      },
+    },
+    documentCategories: ['TITLE_OPINION', 'OIL_GAS_LEASE', 'DIVISION_ORDER', 'RESERVE_REPORT', 'POWER_PURCHASE_AGREEMENT', 'ENVIRONMENTAL_REPORT'],
+  // An organizer pools investors into one vehicle for one startup round (T-141, ADR 0044). The
   // startup's evidence is Venture Raise's by reference (billing, the cap table with its SAFEs and
   // notes, monthly cash and burn); the pack adds the round-math, claims, vehicle-economics,
   // side-letter and Form D checks, and the vehicle's documents. Seats, accreditation and the

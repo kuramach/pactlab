@@ -24,6 +24,8 @@ describe('deal sections per pact (batch 2)', () => {
     expect(sectionCompanyTypes('/syndication')).toEqual(['MULTIFAMILY_SYNDICATION']);
     // A music catalog's register (T-140): only on a music rights pact.
     expect(sectionCompanyTypes('/catalog')).toEqual(['MUSIC_RIGHTS']);
+    // An energy package's register (T-142): only on an energy generation & rights pact.
+    expect(sectionCompanyTypes('/energy')).toEqual(['ENERGY_GENERATION']);
     // A pooled vehicle's seats, economics and investor view (T-141): only on a startup equity SPV, which has no acquisition close.
     expect(sectionCompanyTypes('/spv')).toEqual(['STARTUP_SPV']);
     expect(sectionApplies('/closing', { companyType: 'STARTUP_SPV', initiatedBy: 'BUYER' })).toBe(false);

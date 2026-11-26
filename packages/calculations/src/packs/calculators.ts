@@ -2,6 +2,7 @@ import { computeSaasMetrics, prepareWorkspace, type MetricsInput } from '../metr
 import { METRICS_ENGINE_VERSION } from '../metrics/types';
 import { MULTIFAMILY_METRICS_CALCULATOR } from './multifamily/metrics';
 import { MUSIC_METRICS_CALCULATOR } from './music/metrics';
+import { ENERGY_METRICS_CALCULATOR } from './energy/metrics';
 import { SPV_METRICS_CALCULATOR } from './spv/metrics';
 
 /**
@@ -29,5 +30,6 @@ export const METRIC_CALCULATORS: Readonly<Record<string, MetricCalculator<never,
   [SAAS_METRICS_CALCULATOR.id]: SAAS_METRICS_CALCULATOR as MetricCalculator<never, unknown>,
   [MULTIFAMILY_METRICS_CALCULATOR.id]: MULTIFAMILY_METRICS_CALCULATOR as MetricCalculator<never, unknown>,
   [MUSIC_METRICS_CALCULATOR.id]: MUSIC_METRICS_CALCULATOR as MetricCalculator<never, unknown>,
+  [ENERGY_METRICS_CALCULATOR.id]: ENERGY_METRICS_CALCULATOR as MetricCalculator<never, unknown>,
   [SPV_METRICS_CALCULATOR.id]: SPV_METRICS_CALCULATOR as MetricCalculator<never, unknown>,
 };

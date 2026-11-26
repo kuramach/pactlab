@@ -21,7 +21,7 @@ export const DEAL_ROLES = [
   /** The buyer organization's investment committee on this pact (T-118, ADR 0029): reads, and decides the IC pack. */
   'INVESTMENT_COMMITTEE',
   /**
-   * An investor seated in a pooled vehicle (T-141, ADR 0043): reads their own seat and the
+   * An investor seated in a pooled vehicle (T-141, ADR 0044): reads their own seat and the
    * organizer's published investor view, nothing else; never sees another investor.
    */
   'INVESTOR',

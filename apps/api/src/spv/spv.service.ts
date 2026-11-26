@@ -89,7 +89,7 @@ const text = (value: { toFixed(): string } | null | undefined) => (value === nul
 const sha256 = (value: string) => createHash('sha256').update(value).digest('hex');
 
 /**
- * Startup equity SPV (T-141, ADR 0043). One pact, three parties, two walled directions: the
+ * Startup equity SPV (T-141, ADR 0044). One pact, three parties, two walled directions: the
  * organizer (the pact's own side) diligences the startup's round and runs the vehicle; investors
  * are seated as guests (deal role INVESTOR, one seat each) and read only their own seat and the
  * organizer's published, frozen investor view; the startup sees the vehicle as a single investor

@@ -104,6 +104,10 @@ export const SHOWCASE: Readonly<Record<string, ShowcaseEntry>> = {
     why: 'The works register, royalty income by source and catalog age, and the income whose grants become terminable inside your hold: every figure from statements and the chain of title. Diligence support, not legal advice.',
     lookFor: ['A hit with no assignment behind it', 'Termination windows inside the hold, quantified', 'Splits that do not add up to 100%'],
   },
+  '/energy': {
+    title: 'The plants and the wells, checked against their evidence',
+    why: 'Plant capacity and contract coverage; well production, decline, decimals and leases; every environmental and retirement obligation against what was booked. Reserves are the engineers’. Diligence support, not legal or engineering advice.',
+    lookFor: ['An ash-pond closure estimate the liability schedule leaves out', 'An ARO booked well below the decommissioning study', 'Acreage not held by production expiring inside the hold', 'A division-order decimal the lease chain does not support'],
   '/spv': {
     title: 'The round and your vehicle, both checked',
     why: 'The startup’s cap table recomputed with every SAFE converted, each deck claim against its evidence, and your vehicle’s fee and carry against what investors were told. Investors see only the view you publish. Diligence support, not legal advice.',
