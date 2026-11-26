@@ -20,6 +20,10 @@ export const IMPORT_TARGETS = [
   'HEALTHCARE_CREDENTIALS',
   'HEALTHCARE_PAYER_CONTRACTS',
   'TELECOM_SUBSCRIBERS',
+  'TELECOM_SUBSCRIBER_MOVEMENTS',
+  'TELECOM_AGREEMENTS',
+  'TELECOM_REVENUE_STREAMS',
+  'TELECOM_CAPEX',
   'SERVICES_TIMESHEETS',
   'SERVICES_HEADCOUNT',
   'SERVICES_TIME_BILLING',
@@ -459,6 +463,101 @@ export const TELECOM_SUBSCRIBERS: TargetDefinition = {
     { name: 'plan', label: 'Plan', kind: 'text', required: true, hint: 'Plan or product.' },
     { name: 'billed_subscribers', label: 'Billed subscribers', kind: 'decimal', required: true, hint: 'Subscribers billed in the month (a count, not a reported figure).' },
     { name: 'arpu', label: 'ARPU', kind: 'money', required: true, hint: IN_BASE_CURRENCY },
+  ],
+};
+
+/**
+ * Telecom and media (T-168): subscriber movements from the billing or CRM system — opening and closing
+ * subscribers, gross additions, disconnects and service revenue by month, region and plan. Counts and
+ * amounts only, never a subscriber. Churn (disconnects ÷ opening subscribers) and ARPU (service revenue ÷
+ * average subscribers) are recomputed from these rows, never taken from a deck.
+ */
+export const TELECOM_SUBSCRIBER_MOVEMENTS: TargetDefinition = {
+  target: 'TELECOM_SUBSCRIBER_MOVEMENTS',
+  label: 'Subscriber movements',
+  fileName: 'subscriber-movements.csv',
+  people: 'NONE',
+  refusesPeopleColumns: true,
+  evidenceType: 'telecom.subscriber_movement',
+  recordIdField: 'month',
+  recordIdFields: ['month', 'region', 'plan'],
+  observedAtFields: [],
+  fields: [
+    { name: 'month', label: 'Month', kind: 'text', required: true, hint: 'YYYY-MM.' },
+    { name: 'region', label: 'Region', kind: 'text', required: true, hint: 'Region or market.' },
+    { name: 'plan', label: 'Plan', kind: 'text', required: true, hint: 'Plan or product.' },
+    { name: 'opening_subscribers', label: 'Opening subscribers', kind: 'decimal', required: true, hint: 'Billed subscribers at the start of the month.' },
+    { name: 'gross_adds', label: 'Gross additions', kind: 'decimal', required: true, hint: 'Subscribers connected in the month.' },
+    { name: 'disconnects', label: 'Disconnects', kind: 'decimal', required: true, hint: 'Subscribers who left in the month, voluntary or not.' },
+    { name: 'closing_subscribers', label: 'Closing subscribers', kind: 'decimal', required: true, hint: 'Billed subscribers at the end of the month.' },
+    { name: 'service_revenue', label: 'Service revenue', kind: 'money', required: true, hint: `Subscription revenue billed in the month. ${IN_BASE_CURRENCY}` },
+  ],
+};
+
+/**
+ * Telecom and media (T-168): the rights and carriage register — content licences, affiliate, carriage and
+ * sports-rights agreements, with the counterparty, whether the company receives or pays the fees, the annual
+ * value and the dates. A document that states an agreement's end date governs over the register.
+ */
+export const TELECOM_AGREEMENTS: TargetDefinition = {
+  target: 'TELECOM_AGREEMENTS',
+  label: 'Rights and carriage register',
+  fileName: 'rights-register.csv',
+  people: 'NONE',
+  refusesPeopleColumns: true,
+  evidenceType: 'telecom.agreement',
+  recordIdField: 'agreement_id',
+  observedAtFields: [],
+  fields: [
+    { name: 'agreement_id', label: 'Agreement id', kind: 'text', required: true, hint: 'The register’s reference, e.g. AF-01.' },
+    { name: 'counterparty', label: 'Counterparty', kind: 'text', required: true, hint: 'The distributor, network, studio or league (a business).' },
+    { name: 'kind', label: 'Kind', kind: 'code', required: true, hint: 'affiliate, carriage, content_licence, sports_rights or other.' },
+    { name: 'flow', label: 'Fees', kind: 'code', required: true, hint: 'receivable (the company is paid) or payable (the company pays).' },
+    { name: 'annual_value', label: 'Annual value', kind: 'money', required: true, hint: `The agreement’s fees a year. ${IN_BASE_CURRENCY}` },
+    { name: 'starts_on', label: 'Starts', kind: 'date', required: false, hint: 'YYYY-MM-DD.' },
+    { name: 'ends_on', label: 'Ends', kind: 'date', required: false, hint: 'When the term ends, YYYY-MM-DD; blank when it runs until terminated.' },
+    { name: 'auto_renews', label: 'Renews automatically', kind: 'code', required: false, hint: 'yes or no.' },
+  ],
+};
+
+/**
+ * Telecom and media (T-168): advertising and affiliate revenue by month and counterparty, from the ad-sales
+ * and affiliate statements. Advertisers and distributors are businesses. Concentration by counterparty is
+ * read from these rows.
+ */
+export const TELECOM_REVENUE_STREAMS: TargetDefinition = {
+  target: 'TELECOM_REVENUE_STREAMS',
+  label: 'Advertising and affiliate revenue',
+  fileName: 'revenue-by-counterparty.csv',
+  people: 'NONE',
+  refusesPeopleColumns: true,
+  evidenceType: 'telecom.revenue_month',
+  recordIdField: 'month',
+  recordIdFields: ['month', 'stream', 'counterparty'],
+  observedAtFields: [],
+  fields: [
+    { name: 'month', label: 'Month', kind: 'text', required: true, hint: 'YYYY-MM.' },
+    { name: 'stream', label: 'Revenue stream', kind: 'code', required: true, hint: 'advertising or affiliate.' },
+    { name: 'counterparty', label: 'Counterparty', kind: 'text', required: true, hint: 'The advertiser or distributor (a business).' },
+    { name: 'amount', label: 'Revenue', kind: 'money', required: true, hint: IN_BASE_CURRENCY },
+  ],
+};
+
+/** Telecom and media (T-168): capital expenditure by fiscal year and category, from the fixed-asset register or cash-flow statement. */
+export const TELECOM_CAPEX: TargetDefinition = {
+  target: 'TELECOM_CAPEX',
+  label: 'Capital expenditure by year',
+  fileName: 'capex-by-year.csv',
+  people: 'NONE',
+  refusesPeopleColumns: true,
+  evidenceType: 'telecom.capex_year',
+  recordIdField: 'year',
+  recordIdFields: ['year', 'category'],
+  observedAtFields: [],
+  fields: [
+    { name: 'year', label: 'Fiscal year', kind: 'text', required: true, hint: 'YYYY, the same years as the P&L.' },
+    { name: 'category', label: 'Category', kind: 'code', required: true, hint: 'network, customer_premises, it, content or other.' },
+    { name: 'amount', label: 'Capital expenditure', kind: 'money', required: true, hint: IN_BASE_CURRENCY },
   ],
 };
 
@@ -1366,6 +1465,10 @@ export const IMPORT_TARGET_DEFINITIONS: Readonly<Record<ImportTarget, TargetDefi
   HEALTHCARE_CREDENTIALS,
   HEALTHCARE_PAYER_CONTRACTS,
   TELECOM_SUBSCRIBERS,
+  TELECOM_SUBSCRIBER_MOVEMENTS,
+  TELECOM_AGREEMENTS,
+  TELECOM_REVENUE_STREAMS,
+  TELECOM_CAPEX,
   SERVICES_TIMESHEETS,
   SERVICES_HEADCOUNT,
   SERVICES_TIME_BILLING,

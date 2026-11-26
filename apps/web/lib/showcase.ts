@@ -144,6 +144,11 @@ export const SHOWCASE: Readonly<Record<string, ShowcaseEntry>> = {
     why: 'Realization from the time-and-billing export, reconciled to the P&L; fees by client and partner book against the deck’s ceilings; covenant cover for every rainmaker; WIP and debtor ageing by year. Never an assessment of a person.',
     lookFor: ['The top client at 27% of fees while the deck says no client exceeds 15%', 'Realization falling across three years', 'Two rainmakers with no non-solicit on file', 'WIP over 90 days doubled in a year, priced into working capital'],
   },
+  '/telecom': {
+    title: 'Subscriber claims, rights windows and revenue concentration',
+    why: 'Churn and ARPU recomputed from the billing export against the deck; each agreement’s end date against the closing; ad and affiliate revenue by counterparty; content cost per subscriber against ARPU. Never a content or market judgment.',
+    lookFor: ['The deck’s 0.9% churn contradicted by the billing export', 'The largest affiliate agreement ending nine months after the closing', 'One advertiser at 34% of ad revenue', 'Content cost per subscriber rising across three years while ARPU stays flat'],
+  },
   '/valuation': {
     title: 'Sextant: what to pay, and why',
     why: 'Scenarios from stored inputs, accepted risks priced in, comparables and negotiation anchors: a price you can defend line by line.',
