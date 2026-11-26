@@ -59,6 +59,7 @@ import { FintechModule } from './fintech/fintech.module';
 import { HealthcareModule } from './healthcare/healthcare.module';
 import { ClinicsModule } from './clinics/clinics.module';
 import { PharmaModule } from './pharma/pharma.module';
+import { EcommerceModule } from './ecommerce/ecommerce.module';
 import { SpvModule } from './spv/spv.module';
 import { BrandModule } from './brand/brand.module';
 import { FeatureCardsModule } from './feature-cards/feature-cards.module';
@@ -333,6 +334,8 @@ export class AppModule {
         ClinicsModule,
         // Pharma & biotech (T-163): the read-only Pipeline page; its checks run through Findings.
         PharmaModule,
+        // E-commerce and DTC (T-164): the read-only Channels page; its checks run through Findings.
+        EcommerceModule,
         // Startup equity SPV (T-141): investors are invited to their seats through the invitations module.
         SpvModule.register(invitations),
         reportsModule,

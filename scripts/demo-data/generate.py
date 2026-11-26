@@ -424,7 +424,7 @@ PACK_IMPORTS = {
     'telecom-media': {'subscribers-by-month': 'Subscribers by month'},
     'professional-services': {'timesheets-summary': 'Timesheets summary', 'headcount-movements': 'Headcount movements'},
     'pharma-biotech': {'patent-schedule': 'Patent schedule', 'trial-registry': 'Trial registry records', 'pipeline': 'Pipeline', 'obligations-model': 'Payment obligations model', 'rd-roster': 'R&D roster'},
-    'ecommerce-dtc': {'orders-by-cohort': 'Orders by cohort', 'ad-spend': 'Ad spend'},
+    'ecommerce-dtc': {'orders-by-cohort': 'Orders by cohort', 'ad-spend': 'Ad spend', 'channel-orders': 'Orders by channel', 'inventory': 'Stock report'},
     'commercial-property': {'rent-roll': 'Commercial rent roll', 'cam-reconciliation': 'CAM reconciliation'},
     'hotels': {'operating-history': 'Operating history', 'str-benchmark': 'STR benchmark'},
     'small-clinics': {'patient-volume': 'Patient volume', 'equipment-schedule': 'Equipment schedule', 'coding-summary': 'Coding summary', 'remittances': 'Remittances by payer',
@@ -1136,14 +1136,57 @@ No second source for Product A has been qualified.
 def ecommerce(ds):
     ds.kind, ds.kind_label = 'channel_payout', 'sales-channel payout'
     ds.summary = f'{ds.company} sells outdoor apparel direct to consumers through its own store, one large marketplace and a few wholesale retailers.'
-    channels = [('Marketvale marketplace payouts', 148000), ('Own web store', 82000), ('Wholesale — Trailhead Stores', 21000), ('Wholesale — Fjord & Pine', 12000)]
-    for i, (n, base) in enumerate(channels):
-        ds.customer(f'{ds.prefix}-chn-{i + 1:03d}', f'{n} (synthetic)', ramp(ds.rng, ds.amt(base), '0.01', noise=D('0.06')))
+    rng = ds.rng
+    c = ds.cur
+    # --- Orders by channel (T-164): January 2023 to September 2026, one row per month and channel.
+    # Net sales grow about 1.2% a month; the marketplace carries about 64% of them (planted (b)).
+    # Cost of goods and fulfilment rise each year, so contribution compresses (planted (d)).
+    OM = []
+    yy, mm = 2023, 1
+    while (yy, mm) <= (2026, 9):
+        OM.append(f'{yy}-{mm:02d}'); mm += 1
+        if mm == 13: yy, mm = yy + 1, 1
+    chans = [  # name, platform, account, Sep-2026 net (USD), gross order value, fee rate
+        ('Marketvale marketplace', 'marketplace', 'MV-20417', 160000, D('74'), D('0.15')),
+        ('Own web store', 'storefront', 'SHOP-5531', 62000, D('92'), D('0.03')),
+        ('Wholesale — Trailhead Stores', 'wholesale', 'WH-TRAIL', 18000, D('1800'), D('0')),
+        ('Wholesale — Fjord & Pine', 'wholesale', 'WH-FJORD', 10000, D('1500'), D('0')),
+    ]
+    COGS = {'2023': D('0.40'), '2024': D('0.42'), '2025': D('0.44'), '2026': D('0.45')}
+    FUL = {'2023': D('0.100'), '2024': D('0.110'), '2025': D('0.118'), '2026': D('0.120')}
+    NEWSHARE = {'2023': D('0.40'), '2024': D('0.36'), '2025': D('0.32'), '2026': D('0.30')}
+    DISC, RET = D('0.06'), D('0.08')
+    order_rows, by = [], {}
+    for name, platform, account, base, aov, fee in chans:
+        for i, mo in enumerate(OM):
+            back = len(OM) - 1 - i
+            net_target = ds.amt(D(base) / (D('1.012') ** back)) * (D(1) + D(rng.randint(-30, 30)) / 1000)
+            gross = q(net_target / (D(1) - DISC - RET))
+            disc, ret = q(gross * DISC), q(gross * RET)
+            net = gross - disc - ret
+            yr = mo[:4]
+            orders = max(1, int(whole(gross / ds.amt(aov))))
+            newc = '' if platform == 'wholesale' else str(int(whole(D(orders) * NEWSHARE[yr])))
+            cogs = q(net * COGS[yr])
+            ful = q(net * (FUL[yr] if platform != 'wholesale' else D('0.03')))
+            fees = q(net * fee)
+            order_rows.append([mo, name, platform, account, orders, newc, f'{gross:.2f}', f'{disc:.2f}', f'{ret:.2f}', f'{cogs:.2f}', f'{ful:.2f}', f'{fees:.2f}'])
+            by[(mo, name)] = dict(platform=platform, orders=D(orders), newc=D(newc or 0), gross=gross, net=net, cogs=cogs, ful=ful, fees=fees)
+    ds.ext('channel-orders', ['month', 'channel', 'platform', 'account', 'orders', 'new_customers', 'gross_sales', 'discounts', 'returns', 'cogs', 'fulfilment', 'channel_fees'], order_rows,
+           'Storefront and marketplace orders by month, channel and platform account: sales, returns, costs and new customers')
+    # Billing is the channel payouts: each channel's net sales, October 2024 to September 2026.
+    for i, (name, _, _, _, _, _) in enumerate(chans):
+        ds.customer(f'{ds.prefix}-chn-{i + 1:03d}', f'{name} (synthetic)', {mo: by[(mo, name)]['net'] for mo in MONTHS})
+    trailing_net = sum((by[(mo, n)]['net'] for mo in LAST12 for n, *_ in chans), D(0))
+    mv_net = sum((by[(mo, chans[0][0])]['net'] for mo in LAST12), D(0))
+    mv_share = mv_net / trailing_net
+
+    # Cohorts: active customers by first-purchase cohort, twelve months each. Recent cohorts repeat less (T-065).
     rows = []
     for ci, cohort in enumerate(MONTHS[:18:3]):
         size = 2400 - ci * 60
         for k, mo in enumerate(m for m in MONTHS if m >= cohort):
-            if k > 9: break
+            if k > 11: break
             decay = D('0.42') if ci < 3 else D('0.29')
             active = size if k == 0 else int(D(size) * decay * (D('0.93') ** k))
             rows.append([cohort, mo, k, active])
@@ -1153,18 +1196,114 @@ def ecommerce(ds):
         spend.append([mo, 'paid social', f'{ds.amt(30000 + i * 900):.2f}', 820 - i * 25])
         spend.append([mo, 'search', f'{ds.amt(18000):.2f}', 610])
     ds.ext('ad-spend', ['month', 'channel', 'spend', 'new_customers'], spend, 'Advertising spend and new customers by channel')
-    top, share = ds.share_top()
-    c = ds.cur
+
+    # Cohort value: orders per customer over the first 12 months, from every cohort observed for all 12.
+    full = [ch for ch in sorted({r[0] for r in rows}) if len([r for r in rows if r[0] == ch]) >= 12]
+    size = sum((D(r[3]) for r in rows if r[0] in full and r[2] == 0), D(0))
+    active = sum((D(r[3]) for r in rows if r[0] in full and r[2] < 12), D(0))
+    per = active / size
+    cons = [by[(mo, n)] for mo in LAST12 for n, plat, *_ in chans if plat != 'wholesale']
+    c_orders = sum((x['orders'] for x in cons), D(0))
+    c_gross = sum((x['gross'] for x in cons), D(0))
+    c_net = sum((x['net'] for x in cons), D(0))
+    c_contrib = sum((x['net'] - x['cogs'] - x['ful'] - x['fees'] for x in cons), D(0))
+    ltv_gross = per * c_gross / c_orders
+    ltv_contrib = per * c_contrib / c_orders
+    deck_ltv = whole(ltv_gross)
+    paid_spend = sum((D(r[2]) for r in spend), D(0))
+    paid_new = sum((D(r[3]) for r in spend), D(0))
+    deck_cac = q(paid_spend / paid_new)
+
+    # Stock report at 30 September 2026: 22% of value received more than 180 days earlier (planted (c)).
+    from datetime import date, timedelta
+    as_of = date(2026, 9, 30)
+    lots, fresh_value = [], D(0)
+    for i in range(30):
+        cost = ds.amt(rng.choice([18, 24, 31, 42, 55, 68]))
+        units = rng.randint(120, 900)
+        received = as_of - timedelta(days=rng.randint(10, 170))
+        lots.append([f'RO-{["JKT", "FLC", "TRS", "BAS", "HAT", "PCK"][i % 6]}-{i + 1:03d}', 'Main warehouse' if i % 3 else '3PL East', units, cost, received.isoformat()])
+        fresh_value += D(units) * cost
+    aged_target = fresh_value * D('0.22') / D('0.78')
+    aged_ages = [195, 230, 260, 310, 390, 455]
+    for j, age in enumerate(aged_ages):
+        cost = ds.amt([42, 55, 68, 31, 24, 55][j])
+        units = int(whole(aged_target / len(aged_ages) / cost))
+        lots.append([f'RO-{["JKT", "FLC", "TRS", "BAS", "HAT", "PCK"][j]}-{31 + j:03d}', 'Main warehouse', units, cost, (as_of - timedelta(days=age)).isoformat()])
+    inv_rows = [[sku, loc, units, f'{cost:.2f}', rec, as_of.isoformat()] for sku, loc, units, cost, rec in lots]
+    ds.ext('inventory', ['sku', 'location', 'units', 'unit_cost', 'received_on', 'as_of'], inv_rows, 'Stock report at 30 September 2026: units, landed cost and date received by SKU and location')
+    inv_total = sum((D(r[2]) * D(r[3]) for r in inv_rows), D(0))
+    inv_aged = sum((D(r[2]) * D(r[3]) for r in inv_rows if (as_of - date.fromisoformat(r[4])).days > 180), D(0))
+    aged_share = inv_aged / inv_total
+
+    # Three fiscal years of P&L. Revenue ties to the orders export; advertising grows faster than revenue (planted (d)).
+    years = ['2023', '2024', '2025']
+    def ysum(y, key, platform=None):
+        return sum((by[(mo, n)][key] for mo in OM if mo.startswith(y) for n, plat, *_ in chans if platform is None or plat == platform), D(0))
+    MKT = {'2023': D('0.12'), '2024': D('0.145'), '2025': D('0.17')}
+    rev = {y: ysum(y, 'net') for y in years}
+    pnl_rows = [['Marketplace revenue'] + [f'{ysum(y, "net", "marketplace"):.2f}' for y in years],
+                ['Own store revenue'] + [f'{ysum(y, "net", "storefront"):.2f}' for y in years],
+                ['Wholesale revenue'] + [f'{ysum(y, "net", "wholesale"):.2f}' for y in years],
+                ['Cost of goods sold'] + [f'{ysum(y, "cogs"):.2f}' for y in years],
+                ['Cost of fulfilment and shipping'] + [f'{ysum(y, "ful"):.2f}' for y in years],
+                ['Cost of marketplace and payment fees'] + [f'{ysum(y, "fees"):.2f}' for y in years],
+                ['Advertising and marketing'] + [f'{q(rev[y] * MKT[y]):.2f}' for y in years],
+                ['Staff costs'] + [f'{q(rev[y] * D("0.11")):.2f}' for y in years],
+                ['Warehouse rent and general'] + [f'{q(rev[y] * D("0.05")):.2f}' for y in years]]
+    ds.ext('pnl', ['Line'] + [f'FY{y}' for y in years], pnl_rows, 'Profit and loss by fiscal year, FY2023 to FY2025')
+    cac_y = {y: q(rev[y] * MKT[y]) / ysum(y, 'newc') for y in years}
+    def cm(y):
+        cn = [by[(mo, n)] for mo in OM if mo.startswith(y) for n, plat, *_ in chans if plat != 'wholesale']
+        net = sum((x['net'] for x in cn), D(0))
+        return sum((x['net'] - x['cogs'] - x['ful'] - x['fees'] for x in cn), D(0)) / net
+    def gm(y): return (rev[y] - ysum(y, 'cogs') - ysum(y, 'ful') - ysum(y, 'fees')) / rev[y]
+    def om(y): return (rev[y] * (1 - MKT[y] - D('0.16')) - ysum(y, 'cogs') - ysum(y, 'ful') - ysum(y, 'fees')) / rev[y]
+    ds.pnl_step = ['Open the **Sources** tab, scroll to **Industry data** and click **Upload profit and loss (p&l)**.', '',
+                   '1. Choose `pnl.csv` → **Upload and map columns**. Pactlab reads the three years across the columns (FY2023, FY2024, FY2025).',
+                   '2. Say what each line is: the three lines ending in *revenue* are **Revenue**, the three lines starting *Cost of* are **Cost of revenue**, and the rest are **Operating expenses**.',
+                   f'3. **Check every row**, then **Import {len(pnl_rows) * 3} rows**.', '',
+                   '**You should see:** the import succeed. The **Channels** tab now shows the P&L year by year, reconciled to the channel exports, and the checks in the next step read every year.', '']
+
     ds.doc('01-marketplace-seller-terms', f'''
 Marketvale seller terms — summary as accepted by {ds.company} (synthetic)
 ---page---
 7. Marketvale may change fees, ranking or delist products on thirty days' notice.
 ''', 'Marketplace seller terms')
+    ds.doc('02-platform-accounts', f'''
+Platform accounts schedule for {ds.company} (synthetic), as provided by the seller.
+
+Account MV-20417, the Marketvale seller account, is registered to the founder personally, not to the company.
+Account SHOP-5531, the own web store on Storefront Cloud, is registered to the company.
+Account AD-7702, the paid social ad account, is registered to the company.
+Account AD-7715, the search ad account, is registered to the company.
+''', 'Schedule of storefront, marketplace and ad accounts and who each is registered to')
+    ds.doc('03-investor-presentation', f'''
+{ds.company} — investor presentation, September 2026 (synthetic demo data).
+
+12-month customer lifetime value (LTV): {c} {deck_ltv:.0f}.
+Paid customer acquisition cost (CAC): {c} {deck_cac:.2f}.
+LTV to CAC ratio of {(deck_ltv / deck_cac).quantize(D("0.1"), ROUND_HALF_UP)}x, among the best in outdoor apparel.
+Revenue is diversified across our own web store, the Marketvale marketplace and wholesale partners.
+''', 'Investor presentation with lifetime-value and acquisition-cost claims')
+    top, share = ds.share_top()
     ds.findings = [
         ('Majority of revenue through one marketplace', f'{top} is {pct(share)} of September 2026 revenue.'),
         ('Repeat purchase declining in recent cohorts', '`orders-by-cohort.csv` — cohorts from 2025-07 keep about 27% of customers in their second month, against about 39% for earlier cohorts.'),
         ('Acquisition cost rising on paid social', '`ad-spend.csv` — paid-social spend rises every month while new customers fall.'),
+        ('Claim contradicted: Customer lifetime value', f'the investor presentation states a 12-month LTV of {c} {deck_ltv:.0f}; on a contribution-margin basis the exports give {c} {q(ltv_contrib)} ({per.quantize(D("0.01"), ROUND_HALF_UP)} orders per customer × {c} {q(c_contrib / c_orders)} contribution per order). The stated figure is the same orders valued at gross sales ({c} {q(ltv_gross)}).'),
+        ('Claim verified: Paid customer acquisition cost', f'{c} {deck_cac:.2f}: ad spend ÷ attributed new customers, `ad-spend.csv`, twelve months to September 2026.'),
+        ('Platform account held personally: Marketvale marketplace (MV-20417)', f'{pct(mv_share)} of net sales in the twelve months to September 2026 ran through it (`channel-orders.csv`); `documents/02-platform-accounts.pdf` says it is registered to the founder personally.'),
+        (f'Aged inventory: {pct(aged_share)} of stock older than 180 days', f'`inventory.csv` — {money(c, inv_aged)} of {money(c, inv_total)} at landed cost was received more than 180 days before 30 September 2026; priced as a write-down.'),
+        ('Acquisition cost rising every year, 2023–2025', f'blended CAC — advertising (`pnl.csv`) ÷ new customers (`channel-orders.csv`) — {", ".join(f"{y} {c} {q(cac_y[y])}" for y in years)}. A single year looks unremarkable.'),
+        ('Contribution margin compressing every year, 2023–2025', f'`channel-orders.csv` — consumer contribution margin {", ".join(f"{y} {pct(cm(y))}" for y in years)}.'),
+        ('P&L trend, 2023–2025', 'every imported year side by side: revenue, growth, margins and the advertising, fulfilment and fee ratios.'),
+        ('Gross margin and Operating margin down across 2023–2025', f'`pnl.csv` — gross margin {pct(gm("2023"))} to {pct(gm("2025"))}, operating margin {pct(om("2023"))} to {pct(om("2025"))}.'),
+        ('Advertising and marketing growing faster than revenue, 2023–2025', f'`pnl.csv` — {pct(MKT["2023"])} of revenue in FY2023 to {pct(MKT["2025"])} in FY2025.'),
     ]
+    ds.notes = ds.notes + ['`channel-orders.csv` runs January 2023 to September 2026, so each of FY2023–FY2025 is a complete year; the channel revenue in it ties to the P&L year by year.',
+                           'The P&L (`pnl.csv`) imports through Sources like any extract; the multi-year checks read every year it holds. A single year still imports: the trend then reports that year alone.',
+                           'Pactlab reads exports and documents only: it never logs in to the marketplace, storefront or ad platforms.']
 
 def property_units(ds, buildings, per_building, arrears_building):
     """The units of a garden-style community: rent roll, inspections and delinquency. Shared by the

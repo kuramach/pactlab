@@ -52,6 +52,11 @@ export const PHARMA_REGISTRY_TRIAL_EVIDENCE_TYPE = 'pharma.registry_trial';
 export const PHARMA_PATENT_EVIDENCE_TYPE = 'pharma.patent';
 export const PHARMA_OBLIGATION_EVIDENCE_TYPE = 'pharma.obligation';
 export const PHARMA_SCIENTIST_EVIDENCE_TYPE = 'pharma.scientist';
+/** E-commerce and DTC (T-065, T-164): cohorts, ad spend, orders by channel and platform account, and the stock report. */
+export const ECOMMERCE_COHORT_MONTH_EVIDENCE_TYPE = 'ecommerce.cohort_month';
+export const ECOMMERCE_AD_SPEND_MONTH_EVIDENCE_TYPE = 'ecommerce.ad_spend_month';
+export const ECOMMERCE_CHANNEL_MONTH_EVIDENCE_TYPE = 'ecommerce.channel_month';
+export const ECOMMERCE_STOCK_LOT_EVIDENCE_TYPE = 'ecommerce.stock_lot';
 
 /**
  * Every evidence type the adapters and engines emit, with the direction each
@@ -305,6 +310,34 @@ export const VALUATION_DIRECTION_MAP: Readonly<Record<string, readonly Direction
     { signal: 'royalty-rate-understated', findingDomain: 'LEGAL', defaultDirection: -1, channel: 'ASSUMPTION' },
   ],
   [PHARMA_SCIENTIST_EVIDENCE_TYPE]: [{ signal: 'key-scientist-concentration', findingDomain: 'PEOPLE', defaultDirection: -1, channel: 'PRICED_TERM' }],
+  // E-commerce and DTC (T-065, T-164, ADR 0054): unit economics recomputed from the exports on a contribution basis,
+  // platform accounts read against who the documents say holds them, stock aged from the stock report. Exports and documents only.
+  [ECOMMERCE_COHORT_MONTH_EVIDENCE_TYPE]: [{ signal: 'repeat-decline', findingDomain: 'COMMERCIAL', defaultDirection: -1, channel: 'ASSUMPTION' }],
+  [ECOMMERCE_AD_SPEND_MONTH_EVIDENCE_TYPE]: [{ signal: 'channel-cac-rising', findingDomain: 'COMMERCIAL', defaultDirection: -1, channel: 'ASSUMPTION' }],
+  [ECOMMERCE_CHANNEL_MONTH_EVIDENCE_TYPE]: [
+    { signal: 'claim-contradicted', findingDomain: 'COMMERCIAL', defaultDirection: -1, channel: 'ASSUMPTION' },
+    { signal: 'claim-verified', findingDomain: 'COMMERCIAL', defaultDirection: 1, channel: 'CONFIRMATION' },
+    {
+      signal: 'claim-unverified',
+      findingDomain: 'COMMERCIAL',
+      defaultDirection: 0,
+      channel: 'INFORMATIONAL',
+      rationale: 'A unit-economics claim the exports cannot check is a gap to close, neither priced nor relied on.',
+    },
+    { signal: 'revenue-unreconciled', findingDomain: 'FINANCIAL', defaultDirection: -1, channel: 'ASSUMPTION' },
+    { signal: 'account-held-personally', findingDomain: 'LEGAL', defaultDirection: -1, channel: 'PRICED_TERM' },
+    {
+      signal: 'account-held-personally-minor',
+      findingDomain: 'LEGAL',
+      defaultDirection: 0,
+      channel: 'INFORMATIONAL',
+      rationale: 'A small or non-selling account registered to an individual: a closing deliverable (moved to the company), not a price adjustment.',
+    },
+    { signal: 'return-rate-rising', findingDomain: 'COMMERCIAL', defaultDirection: -1, channel: 'ASSUMPTION' },
+    { signal: 'cac-rising-by-year', findingDomain: 'COMMERCIAL', defaultDirection: -1, channel: 'ASSUMPTION' },
+    { signal: 'contribution-compressing', findingDomain: 'COMMERCIAL', defaultDirection: -1, channel: 'ASSUMPTION' },
+  ],
+  [ECOMMERCE_STOCK_LOT_EVIDENCE_TYPE]: [{ signal: 'aged-inventory', findingDomain: 'OPERATIONAL', defaultDirection: -1, channel: 'PRICED_TERM' }],
   [DOCUMENT_FINDING_EVIDENCE_TYPE]: [
     // A product one manufacturer makes, with no second source described (T-163).
     {
@@ -369,6 +402,10 @@ export const ADAPTER_EVIDENCE_TYPES = [
   PHARMA_PATENT_EVIDENCE_TYPE,
   PHARMA_OBLIGATION_EVIDENCE_TYPE,
   PHARMA_SCIENTIST_EVIDENCE_TYPE,
+  ECOMMERCE_COHORT_MONTH_EVIDENCE_TYPE,
+  ECOMMERCE_AD_SPEND_MONTH_EVIDENCE_TYPE,
+  ECOMMERCE_CHANNEL_MONTH_EVIDENCE_TYPE,
+  ECOMMERCE_STOCK_LOT_EVIDENCE_TYPE,
 ] as const;
 
 /** The default direction for one signal, or null when the map does not know it. */

@@ -91,6 +91,8 @@ The source plan then adds **Industry data** (`pack_upload` connections) automati
 - **Order imports by dependency.** When one extract checks another (pharma's registry records against the pipeline), list the evidence first in `importTargets`.
 - **Read the right documents.** Recognise a document by its heading (a patent record, regulator correspondence) before reading its sentences: the paged extracts PDF repeats every CSV row and must never verify itself.
 
+- **One draft per independent signal (T-164).** A trend that reads two imports (the orders export and the P&L) drafts each part on its own key: rules run after every import, and a combined draft keyed on what was present at the time is left stale when the second import arrives.
+
 ## 9. Extending a parent pack (small clinics on healthcare, T-161)
 
 - **By reference:** list the parent's import targets and rule ids in the child's registry entry; never copy a rule. The parent's tab may open for the child too (`DEAL_SECTION_RULES`), with only what differs (e.g. the P&L key expenses) chosen per pack.
