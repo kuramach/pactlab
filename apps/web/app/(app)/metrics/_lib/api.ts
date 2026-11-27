@@ -131,7 +131,35 @@ export interface PackMetricsView {
   calculator: string;
   version: string;
   currency: string;
-  metrics: { key: string; label: string; unit: 'MONEY' | 'RATIO' | 'COUNT'; value: string | null; formula: string; sourceCount: number; unavailableReason?: string; needs?: string[]; source?: string; evidenceIds?: string[] }[];
+  metrics: {
+    key: string;
+    label: string;
+    unit: 'MONEY' | 'RATIO' | 'COUNT';
+    value: string | null;
+    formula: string;
+    sourceCount: number;
+    unavailableReason?: string;
+    needs?: string[];
+    source?: string;
+    evidenceIds?: string[];
+    /** The figure year by year (T-183), for the History strip. */
+    history?: { period: string; value: string | null }[];
+    /** e.g. "FY2022–FY2026 (5 of 5 years)". */
+    coverage?: string;
+  }[];
+  /** Five years side by side (T-183). */
+  history?: PackHistoryView;
+}
+
+/** The years side by side (T-183, ADR 0057), with coverage and what to ask the seller for. */
+export interface PackHistoryView {
+  version: string;
+  expectedYears: number;
+  years: string[];
+  rows: { key: string; label: string; unit: 'MONEY' | 'RATIO' | 'COUNT'; values: (string | null)[] }[];
+  coverage: { key: string; label: string; present: string[]; missing: string[]; summary: string }[];
+  asks: { needs: string[]; note: string }[];
+  conventions: string[];
 }
 
 export const metricsApi = {

@@ -419,7 +419,8 @@ class Dataset:
 # pack registry by apps/api/src/ops/demo-data.test.ts.
 PACK_IMPORTS = {
     'fintech': {'loan-tape': 'Loan tape', 'aml-alerts': 'AML alerts', 'processor-volume': 'Processor volume', 'licence-register': 'Licence and sponsor register'},
-    'multifamily': {'rent-roll': 'Rent roll', 't12': 'T-12 operating statement', 'delinquency': 'Delinquency report', 'unit-inspections': 'Unit inspections'},
+    'multifamily': {'rent-roll': 'Rent roll', 't12': 'T-12 operating statement', 'delinquency': 'Delinquency report', 'unit-inspections': 'Unit inspections',
+                    'occupancy-history': 'Occupancy and rent history', 'rent-roll-history': 'Rent roll snapshots'},
     'healthcare': {'claims-summary': 'Claims summary', 'provider-roster': 'Provider roster', 'remittances': 'Remittances by payer', 'clinician-collections': 'Collections by clinician', 'credentialing-register': 'Credentialing register', 'payer-contracts': 'Payer contract register'},
     'telecom-media': {'subscribers-by-month': 'Subscribers by month', 'subscriber-movements': 'Subscriber movements', 'rights-register': 'Rights and carriage register',
                       'revenue-by-counterparty': 'Advertising and affiliate revenue', 'capex-by-year': 'Capital expenditure by year'},
@@ -433,7 +434,8 @@ PACK_IMPORTS = {
                       'service-lines': 'Service lines by provider', 'referrals': 'Visits by referral source'},
     'hospitals': {'census': 'Census', 'payer-mix': 'Payer mix'},
     'venture-raise': {'cap-table': 'Cap table', 'monthly-financials': 'Monthly financials'},
-    'multifamily-syndication': {'rent-roll': 'Rent roll', 't12': 'T-12 operating statement', 'delinquency': 'Delinquency report', 'unit-inspections': 'Unit inspections', 'track-record': 'Sponsor track record'},
+    'multifamily-syndication': {'rent-roll': 'Rent roll', 't12': 'T-12 operating statement', 'delinquency': 'Delinquency report', 'unit-inspections': 'Unit inspections',
+                                'occupancy-history': 'Occupancy and rent history', 'rent-roll-history': 'Rent roll snapshots', 'track-record': 'Sponsor track record'},
     'music-rights': {'works-register': 'Works register', 'writer-splits': 'Writer splits', 'chain-of-title': 'Chain of title', 'royalty-statements': 'Royalty statements'},
     'energy-generation': {'plant-register': 'Plant register', 'interest-register': 'Interest register', 'lease-schedule': 'Lease schedule', 'production-history': 'Production history', 'liability-schedule': 'Liability schedule'},
     'startup-spv': {'cap-table': 'Cap table', 'monthly-financials': 'Monthly financials'},
@@ -1561,7 +1563,7 @@ Revenue is diversified across our own web store, the Marketvale marketplace and 
                            'The P&L (`pnl.csv`) imports through Sources like any extract; the multi-year checks read every year it holds. A single year still imports: the trend then reports that year alone.',
                            'Pactlab reads exports and documents only: it never logs in to the marketplace, storefront or ad platforms.']
 
-def property_units(ds, buildings, per_building, arrears_building):
+def property_units(ds, buildings, per_building, arrears_building, occupied_share=None):
     """The units of a garden-style community: rent roll, inspections and delinquency. Shared by the
     Multifamily pack and the Multifamily syndication pack (T-106); the random draws are in a fixed
     order, so each pack's data is reproduced byte for byte."""
@@ -1587,6 +1589,19 @@ def property_units(ds, buildings, per_building, arrears_building):
             cost = ds.amt({'good': 0, 'fair': 2800, 'poor': 9500}[cond])
             repair += cost
             inspect.append([unit, b, cond, f'{cost:.2f}'])
+    if occupied_share is not None:
+        # Five years of history (T-183): occupancy has slipped to this share by September 2026. The units
+        # vacated are drawn from their own generator, so every draw above is unchanged.
+        live = [r for r in rows if r[4] == 'occupied']
+        target = int(whole(D(len(rows)) * occupied_share))
+        vacated = set(r[0] for r in random.Random(f'{ds.pack}:{ds.cur}:history').sample(live, max(len(live) - target, 0)))
+        for r in rows:
+            if r[0] in vacated:
+                r[4:8] = ['vacant', '', '', '0.00']; r[9] = '0.00'
+        ds.customers = [cu for cu in ds.customers if cu[0].rsplit('-', 1)[-1] not in vacated]
+        delinq = [d for d in delinq if d[0] not in vacated]
+        ltl_sum = sum((D(r[8]) - D(r[7]) for r in rows if r[4] == 'occupied'), D(0))
+        mkt_sum = sum((D(r[8]) for r in rows if r[4] == 'occupied'), D(0))
     ds.ext('rent-roll', ['unit', 'building', 'type', 'sqft', 'status', 'lease_start', 'lease_end', 'in_place_rent', 'market_rent', 'balance_due'], rows, 'Rent roll at 30 September 2026')
     ds.ext('delinquency', ['unit', 'building', 'balance_due', 'days_past_due'], delinq, 'Delinquent balances at 30 September 2026')
     ds.ext('unit-inspections', ['unit', 'building', 'condition', 'estimated_repair_cost'], inspect, 'Unit-condition inspections with repair estimates')
@@ -1601,16 +1616,166 @@ def property_t12(ds):
     ds.ext('t12', ['month', 'rental_income', 'other_income', 'operating_expenses', 'net_operating_income'], t12, 'Trailing-twelve-month operating statement (T-12)')
     return t12, sum(D(r[4]) for r in t12)
 
+# Five years of history (T-183): October 2021 to September 2026, fiscal years ending in September, so
+# FY2026 is the T-12. Every figure is derived, not drawn, so the published files stay reproducible.
+HIST = []
+y, m = 2021, 10
+while (y, m) <= (2026, 9):
+    HIST.append(f'{y}-{m:02d}'); m += 1
+    if m == 13: y, m = y + 1, 1
+HIST_YEARS = ['2022', '2023', '2024', '2025', '2026']
+def fy_of(mo): return str(int(mo[:4]) + (1 if int(mo[5:]) >= 10 else 0))
+# Planted (T-183): occupancy slips from about 95% to about 89% over three years; FY2026 holds at the rent roll's.
+HIST_OCCUPANCY = {'2022': D('0.955'), '2023': D('0.950'), '2024': D('0.930'), '2025': D('0.910')}
+HIST_SEASON = [D(x) for x in ['-0.004', '-0.006', '-0.008', '-0.008', '-0.006', '-0.002', '0.002', '0.006', '0.008', '0.008', '0.006', '0.004']]
+RENT_STEP = D('1.032')  # the rent-growth step each lease year, every October
+# FY2026 line shares of revenue; earlier years deflate at each line's growth. Repairs and maintenance grow 20%
+# a year to FY2025 (planted: outpacing rent), then are deferred by a fifth in FY2026 (planted: the NOI jump).
+HIST_LINES = [('Payroll and on-site staff', D('0.110'), D('1.035')), ('Utilities', D('0.060'), D('1.035')), ('Insurance', D('0.050'), D('1.035')),
+              ('Property taxes', D('0.100'), D('1.030')), ('Administrative and marketing', D('0.025'), D('1.030'))]
+RM_FY2025_SHARE, RM_GROWTH, RM_DEFERRED = D('0.107'), D('1.20'), D('0.80')
+MGMT_FEE, REFUND_SHARE, REFUND_MONTH = D('0.035'), D('0.012'), '2026-06'
+UTIL_SEASON = [D(x) for x in ['0.9', '1.1', '1.3', '1.4', '1.3', '1.1', '0.9', '0.8', '0.8', '0.8', '0.8', '0.8']]
+RM_SEASON = [D(x) for x in ['0.8', '0.8', '0.7', '0.7', '0.8', '0.9', '1.0', '1.2', '1.3', '1.3', '1.3', '1.2']]
+
+def spread(total, weights):
+    """A year's amount over its twelve months by weight, the last month taking the rounding."""
+    out, acc, wsum = [], D(0), sum(weights)
+    for w in weights[:-1]:
+        v = q(total * w / wsum); out.append(v); acc += v
+    return out + [q(total - acc)]
+
+def property_history(ds, rows):
+    """Five fiscal years of operating statements, occupancy and rent, and rent-roll snapshots, ending with
+    the T-12, which is the last twelve months of it (so `t12.csv` still equals what it always meant)."""
+    n = len(rows)
+    occ26 = sum(1 for r in rows if r[4] == 'occupied')
+    rent26 = sum((mo.get(LAST, D(0)) for _, _, mo in ds.customers), D(0))   # the billed rent of every occupied unit, a month
+    avg26 = rent26 / occ26
+    other26 = ds.amt(4200)
+    occupied, rent, other, avg_rent = {}, {}, {}, {}
+    for i, mo in enumerate(HIST):
+        fy = fy_of(mo)
+        if fy == '2026':
+            occupied[mo], rent[mo] = occ26, rent26
+        else:
+            occupied[mo] = int(whole(D(n) * (HIST_OCCUPANCY[fy] + HIST_SEASON[i % 12])))
+            rent[mo] = q(occupied[mo] * avg26 / RENT_STEP ** (2026 - int(fy)))
+        other[mo] = q(other26 / D('1.03') ** (2026 - int(fy)))
+        avg_rent[mo] = q(rent[mo] / occupied[mo])
+    revenue = {fy: sum((rent[mo] + other[mo] for mo in HIST if fy_of(mo) == fy), D(0)) for fy in HIST_YEARS}
+    rev26 = revenue['2026']
+    annual = {}
+    for name, share, growth in HIST_LINES:
+        for fy in HIST_YEARS:
+            annual[(name, fy)] = q(rev26 * share / growth ** (2026 - int(fy)))
+    rm25 = rev26 * RM_FY2025_SHARE
+    for fy in HIST_YEARS:
+        annual[('Repairs and maintenance', fy)] = q(rm25 * RM_DEFERRED if fy == '2026' else rm25 / RM_GROWTH ** (2025 - int(fy)))
+    lines = {}   # (line, month) -> amount
+    for fy in HIST_YEARS:
+        months = [mo for mo in HIST if fy_of(mo) == fy]
+        for name, _, _ in HIST_LINES + [('Repairs and maintenance', None, None)]:
+            weights = UTIL_SEASON if name == 'Utilities' else RM_SEASON if name == 'Repairs and maintenance' else [D(1)] * 12
+            for mo, v in zip(months, spread(annual[(name, fy)], weights)):
+                lines[(name, mo)] = v
+        for mo in months:
+            lines[('Management fee', mo)] = q((rent[mo] + other[mo]) * MGMT_FEE)
+            lines[('Insurance premium refund (one-off)', mo)] = -q(rev26 * REFUND_SHARE) if mo == REFUND_MONTH else D('0.00')
+    names = ['Payroll and on-site staff', 'Repairs and maintenance', 'Utilities', 'Insurance', 'Insurance premium refund (one-off)', 'Property taxes', 'Management fee', 'Administrative and marketing']
+    opex = {mo: sum((lines[(nm, mo)] for nm in names), D(0)) for mo in HIST}
+    # The monthly operating statements (a long file: one row per line per month) and the same by year (years as columns).
+    monthly = []
+    for mo in HIST:
+        monthly.append(['Rental revenue', mo, f'{rent[mo]:.2f}'])
+        monthly.append(['Other property revenue (fees and parking)', mo, f'{other[mo]:.2f}'])
+        for nm in names:
+            monthly.append([nm, mo, f'{lines[(nm, mo)]:.2f}'])
+    ds.ext('operating-statements-monthly', ['account', 'month', 'amount'], monthly, 'Operating statements by month, October 2021 to September 2026 (one row per line per month)')
+    by_year = lambda f: [f'{sum((f(mo) for mo in HIST if fy_of(mo) == fy), D(0)):.2f}' for fy in HIST_YEARS]
+    pnl_rows = [['Rental revenue'] + by_year(lambda mo: rent[mo]), ['Other property revenue (fees and parking)'] + by_year(lambda mo: other[mo])]
+    pnl_rows += [[nm] + by_year(lambda mo, nm=nm: lines[(nm, mo)]) for nm in names]
+    ds.ext('pnl', ['Line'] + [f'FY{fy}' for fy in HIST_YEARS], pnl_rows, 'Operating statement by fiscal year (October to September), FY2022 to FY2026')
+    # Occupancy and rent by month, the whole property; concessions rise in FY2026.
+    concessions = {mo: q(occupied[mo] * ds.amt(14 if fy_of(mo) == '2026' else 6)) for mo in HIST}
+    ds.ext('occupancy-history', ['period', 'unit_type', 'units', 'occupied_units', 'average_rent', 'concessions'],
+           [[mo, 'All', n, occupied[mo], f'{avg_rent[mo]:.2f}', f'{concessions[mo]:.2f}'] for mo in HIST], 'Occupancy and average in-place rent by month, October 2021 to September 2026')
+    # Quarterly rent-roll snapshots for the last two years; the last is today's rent roll.
+    hrng = random.Random(f'{ds.pack}:{ds.cur}:snapshots')
+    vacant_now = [r for r in rows if r[4] != 'occupied']
+    hrng.shuffle(vacant_now)
+    snaps = []
+    for as_of in ['2024-12-31', '2025-03-31', '2025-06-30', '2025-09-30', '2025-12-31', '2026-03-31', '2026-06-30', '2026-09-30']:
+        mo, fy = as_of[:7], fy_of(as_of[:7])
+        back = set(r[0] for r in vacant_now[:occupied[mo] - occ26])
+        for r in rows:
+            live = r[4] == 'occupied' or r[0] in back
+            base = D(r[7]) if r[4] == 'occupied' else q(D(r[8]) * D('0.93'))
+            snaps.append([as_of, r[0], r[2], 'occupied' if live else 'vacant', f'{q(base / RENT_STEP ** (2026 - int(fy))) if live else D("0.00"):.2f}'])
+    ds.ext('rent-roll-history', ['as_of', 'unit', 'type', 'status', 'in_place_rent'], snaps, 'Rent-roll snapshots at each quarter end, December 2024 to September 2026')
+    # The T-12: the last twelve months of the history.
+    t12 = [[mo, f'{rent[mo]:.2f}', f'{other[mo]:.2f}', f'{opex[mo]:.2f}', f'{(rent[mo] + other[mo] - opex[mo]):.2f}'] for mo in LAST12]
+    ds.ext('t12', ['month', 'rental_income', 'other_income', 'operating_expenses', 'net_operating_income'], t12, 'Trailing-twelve-month operating statement (T-12)')
+    # The figures the checks read, computed the way the calculator does (decimal, four places), for the README.
+    def fy_sum(f, fy): return sum((f(mo) for mo in HIST if fy_of(mo) == fy), D(0))
+    noi = {fy: revenue[fy] - fy_sum(lambda mo: opex[mo], fy) for fy in HIST_YEARS}
+    expenses = {fy: fy_sum(lambda mo: opex[mo], fy) for fy in HIST_YEARS}
+    occ_avg = {fy: (D(fy_sum(lambda mo: D(occupied[mo]), fy)) / (n * 12)).quantize(D('0.0001')) for fy in HIST_YEARS}
+    occ_low = {fy: min(D(occupied[mo]) / n for mo in HIST if fy_of(mo) == fy).quantize(D('0.0001')) for fy in HIST_YEARS}
+    rent_avg = {fy: (fy_sum(lambda mo: avg_rent[mo] * occupied[mo], fy) / fy_sum(lambda mo: D(occupied[mo]), fy)).quantize(D('0.01')) for fy in HIST_YEARS}
+    cagr = lambda a, b: ((D(b) / D(a)) ** (D(1) / 4) - 1).quantize(D('0.0001'))
+    rm = {fy: fy_sum(lambda mo: lines[('Repairs and maintenance', mo)], fy) for fy in HIST_YEARS}
+    margin = {fy: (noi[fy] / revenue[fy]).quantize(D('0.0001')) for fy in HIST_YEARS}
+    growth = [noi[HIST_YEARS[i]] / noi[HIST_YEARS[i - 1]] - 1 for i in range(1, 5)]
+    spike = growth[-1] - sum(growth[:-1]) / 3
+    h = dict(t12=t12, t12_noi=sum(D(r[4]) for r in t12), revenue=revenue, noi=noi, expenses=expenses, occ_avg=occ_avg, occ_low=occ_low, rent_avg=rent_avg,
+             noi_cagr=cagr(noi['2022'], noi['2026']), revenue_cagr=cagr(revenue['2022'], revenue['2026']), rent_cagr=cagr(rent_avg['2022'], rent_avg['2026']),
+             rm_cagr=cagr(rm['2022'], rm['2026']), opex_cagr=cagr(expenses['2022'], expenses['2026']), rm=rm, margin=margin, growth=growth, spike=spike,
+             expense_ratio=(expenses['2026'] / revenue['2026']).quantize(D('0.0001')), refund=q(rev26 * REFUND_SHARE),
+             vacancy_3y=(1 - sum(occ_avg[fy] for fy in HIST_YEARS[-3:]) / 3).quantize(D('0.0001')),
+             monthly_rows=len(monthly), pnl_lines=len(pnl_rows))
+    # The planted defects must fire, or the README would promise findings the checks never draft.
+    assert occ_avg['2022'] - occ_avg['2026'] >= D('0.03') and occ_avg['2026'] < D('0.90'), (ds.pack, ds.cur, occ_avg)
+    assert h['rm_cagr'] - h['rent_cagr'] >= D('0.02') and h['opex_cagr'] - h['rent_cagr'] < D('0.02'), (ds.pack, ds.cur, h['rm_cagr'], h['opex_cagr'], h['rent_cagr'])
+    assert spike >= D('0.05') and growth[-1] > 0, (ds.pack, ds.cur, growth)
+    h['margin_drift'] = margin['2026'] - margin['2022'] <= D('-0.03')
+    return h
+
+def history_readme(ds, h):
+    """The P&L step, the planted findings and the hand-computed figures the history checks must reproduce."""
+    c = ds.cur
+    fy = lambda y: f'FY{y}'
+    ds.pnl_step = ['Open the **Sources** tab, scroll to **Industry data** and click **Upload profit and loss (p&l)**.', '',
+                   '1. Choose `pnl.csv` → **Upload and map columns**. Pactlab reads the five years across the columns (FY2022 to FY2026).',
+                   '2. Under **What each line is**, keep the two revenue lines as **Revenue** and every other line as **Operating expense** (the insurance refund is a credit, entered negative).',
+                   f'3. **Check every row**, then **Import {h["pnl_lines"] * 5} rows**.', '',
+                   '**You should see:** on **Home → Property metrics**, a **History** strip under net operating income, occupancy and average rent, each with five points and "FY2022–FY2026 (5 of 5 years)"; on **Finances**, the five years side by side.', '']
+    occ = ', '.join(f'{fy(y)} {pct(h["occ_avg"][y])}' for y in HIST_YEARS)
+    found = [
+        (f'Occupancy eroding, FY2022–FY2026', f'planted: `occupancy-history.csv` — average occupancy {occ}; below 90% in FY2026. The rent roll alone shows only today.'),
+        (f'Repairs and maintenance growing faster than rent, FY2022–FY2026', f'planted: `pnl.csv` and `occupancy-history.csv` — repairs and maintenance {pct(h["rm_cagr"])} a year ({money(c, h["rm"]["2022"])} to {money(c, h["rm"]["2026"])}) against average rent {pct(h["rent_cagr"])} a year.'),
+        (f'NOI jump in FY2026 above the history\'s trend', f'planted: `pnl.csv` — NOI up {pct(h["growth"][-1])} in FY2026 against an average of {pct(sum(h["growth"][:-1]) / 3)} a year before it, from deferred repairs and a one-off insurance refund of {money(c, h["refund"])}; concessions rose too. The "dressed for sale" pattern.'),
+        ('P&L trend, 2022–2026', '`pnl.csv` — the five years side by side, a record for review.'),
+    ]
+    if h['margin_drift']:
+        found.append(('Operating margin down across 2022–2026', f'`pnl.csv` — NOI margin {pct(h["margin"]["2022"])} in FY2022 to {pct(h["margin"]["2026"])} in FY2026.'))
+    ds.findings = ds.findings + found
+    ds.notes = ds.notes + [
+        'History (T-183): five fiscal years, October to September, FY2022 to FY2026; FY2026 is the T-12, so `t12.csv` equals the last twelve months of `operating-statements-monthly.csv` and of `pnl.csv`\'s FY2026 column, and the September 2026 month of `occupancy-history.csv` matches `rent-roll.csv`.',
+        f'Figures the history checks reproduce: NOI growth {pct(h["noi_cagr"])} a year and revenue growth {pct(h["revenue_cagr"])} a year (FY2022–FY2026); average in-place rent {", ".join(f"{fy(y)} {money(c, h["rent_avg"][y], True)}" for y in HIST_YEARS)} ({pct(h["rent_cagr"])} a year); occupancy {occ}; expense ratio {pct(h["expense_ratio"])} in FY2026; trailing three-year vacancy {pct(h["vacancy_3y"])}.',
+        '`operating-statements-monthly.csv` is the same statement as a long file (one row per line per month); it imports through the same P&L import. `rent-roll-history.csv` holds quarterly rent-roll snapshots for the last two years.',
+    ]
+
 def multifamily(ds):
     ds.kind, ds.kind_label = 'rent', 'unit rent charge'
     ds.summary = f'{ds.company} owns Larkfield Commons, a 96-unit garden-style apartment community in three buildings (A, B, C).'
-    rows, delinq, ltl_sum, mkt_sum, repair = property_units(ds, 'ABC', 32, 'C')
-    t12, noi = property_t12(ds)
+    rows, delinq, ltl_sum, mkt_sum, repair = property_units(ds, 'ABC', 32, 'C', occupied_share=D('0.885'))
+    history = property_history(ds, rows)
+    noi = history['t12_noi']
     om_noi = whole(noi * D('1.11'))
     budget = ds.amt(1500) * 96
     c_share = D(sum(1 for d in delinq if d[1] == 'C')) / max(len(delinq), 1)
     c = ds.cur
-    ds.ext('t12', ['month', 'rental_income', 'other_income', 'operating_expenses', 'net_operating_income'], t12, 'Trailing-twelve-month operating statement (T-12)')
     ds.doc('01-offering-memorandum', f'''
 Larkfield Commons — offering memorandum (synthetic)
 
@@ -1626,6 +1791,7 @@ Rents are shown at pro-forma market levels.
         ('Loss-to-lease (upside, not price)', f'occupied units are {pct(ltl_sum / mkt_sum)} below market rent in `rent-roll.csv`. Record it as confirmed value — never as a reason to pay more.'),
     ]
     ds.notes = ['Residents are referred to by unit only; there are no personal names.', 'The rent roll maps onto the billing import: each occupied unit is a customer billed monthly.']
+    history_readme(ds, history)
 
 def commercial(ds):
     ds.kind, ds.kind_label = 'base_rent', 'tenant base-rent charge'
@@ -2090,8 +2256,9 @@ def syndication(ds):
                   f'and raising the equity from accredited investors under Rule 506(c). The seller is {ds.seller}.')
     # The seller's own pitch: it never mentions the sponsor's raise (the wall holds in the demo too).
     ds.sale_summary = f'{ds.seller} is selling Briarwood Commons, a 204-unit garden-style apartment community in six buildings (A–F).'
-    rows, delinq, ltl_sum, mkt_sum, repair = property_units(ds, 'ABCDEF', 34, 'C')
-    t12, noi = property_t12(ds)
+    rows, delinq, ltl_sum, mkt_sum, repair = property_units(ds, 'ABCDEF', 34, 'C', occupied_share=D('0.885'))
+    history = property_history(ds, rows)
+    noi = history['t12_noi']
     c = ds.cur
     hundred_k = lambda x: (D(x) / 100000).quantize(D('1'), ROUND_HALF_UP) * 100000
     price = hundred_k(noi / D('0.06'))
@@ -2211,6 +2378,7 @@ Stonebridge Flats delivered a 19.2% investor IRR.
         'Planted defect (d), a property finding the sponsor does not publish to investors, arrives with the investor view (T-106 PR 2).',
         'Diligence support only: not legal advice, no accreditation determination, no securities-offering or broker-dealer function.',
     ]
+    history_readme(ds, history)
 
 def music(ds):
     """Music rights (T-140): a publishing and masters catalog of 120 works with four semi-annual statements and planted defects."""

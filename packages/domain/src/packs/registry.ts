@@ -42,6 +42,8 @@ export interface PackDefinition {
   readonly expectedInputs?: readonly ExpectedInput[];
   /** Common inputs this pack needs where its cluster leaves them optional (a clinic's lease, T-161). */
   readonly requiredInputs?: readonly ExpectedInput['id'][];
+  /** Imports this pack offers as an alternative form of another, so intake never asks for them (rent-roll snapshots beside the occupancy history, T-183). */
+  readonly optionalInputs?: readonly ExpectedInput['id'][];
   /** Document categories only this pack offers at intake (e.g. a syndication's PPM), on top of the common ones. */
   readonly documentCategories?: readonly PackDocumentCategory[];
   /**
@@ -71,9 +73,25 @@ const pack = (id: PackId, slug: string, cluster: PackCluster, built = false): Pa
 
 const MULTIFAMILY: PackDefinition = {
   ...pack('MULTIFAMILY', 'multifamily', 'real-estate', true),
-  importTargets: ['BILLING_INVOICE_LINE', 'MULTIFAMILY_RENT_ROLL', 'MULTIFAMILY_T12', 'MULTIFAMILY_DELINQUENCY', 'MULTIFAMILY_INSPECTION'],
+  // Five years of history (T-183, ADR 0057): the P&L by year (a core import), occupancy and rent by month or
+  // year, and rent-roll snapshots, read beside the T-12 and the current rent roll.
+  importTargets: ['BILLING_INVOICE_LINE', 'MULTIFAMILY_RENT_ROLL', 'MULTIFAMILY_T12', 'MULTIFAMILY_DELINQUENCY', 'MULTIFAMILY_INSPECTION', 'MULTIFAMILY_OCCUPANCY', 'MULTIFAMILY_RENT_ROLL_HISTORY'],
+  // Snapshots are another form of the occupancy history: offered, never asked for.
+  optionalInputs: ['MULTIFAMILY_RENT_ROLL_HISTORY'],
   metricCalculator: 'multifamily-metrics',
-  findingRules: ['multifamily-om-noi', 'multifamily-deferred-maintenance', 'multifamily-delinquency-concentration', 'multifamily-loss-to-lease', 'multifamily-below-market-range'],
+  findingRules: [
+    'multifamily-om-noi',
+    'multifamily-deferred-maintenance',
+    'multifamily-delinquency-concentration',
+    'multifamily-loss-to-lease',
+    'multifamily-below-market-range',
+    'multifamily-occupancy-erosion',
+    'multifamily-rent-below-expense-growth',
+    'multifamily-noi-spike',
+    'multifamily-pnl-trend',
+    'multifamily-pnl-margin-drift',
+    'multifamily-pnl-expense-outpacing',
+  ],
   valuationMethods: ['NOI_CAP_RATE', 'DCF'],
 };
 

@@ -290,8 +290,8 @@ export const INDUSTRY_STORIES: Readonly<Record<string, IndustryStory>> = {
       { icon: 'Percent', title: 'Delinquency in a few buildings', body: 'A blended collection rate can hide where the arrears really sit.' },
     ],
     walkthrough: [
-      { step: 'Evidence', text: 'The rent roll, T-12, lease files, delinquency reports, utility bills and unit inspections are connected for the deal and kept with their source.' },
-      { step: 'Finding', text: 'Loss-to-lease, deferred maintenance per door and delinquency concentration are drafted with the rows and inspections behind them.' },
+      { step: 'Evidence', text: 'The rent roll, T-12, up to five years of income, expenses, rent and occupancy, lease files, delinquency reports, utility bills and unit inspections are connected for the deal and kept with their source.' },
+      { step: 'Finding', text: 'Loss-to-lease, deferred maintenance per door, delinquency concentration, occupancy erosion, expenses outpacing rent and a last-year NOI spike are drafted with the rows and inspections behind them.' },
       { step: 'Review', text: 'A reviewer accepts the maintenance finding with its cost range and asks for support on the delinquency trend.' },
       { step: 'Valuation', text: 'Net operating income and the cap rate run in the scenario engine; capex per door lands as remediation.' },
       { step: 'Deal terms', text: 'Deferred maintenance becomes a price adjustment or a repair escrow. Loss-to-lease upside is recorded as confirmed value, never added to the price.' },
@@ -300,6 +300,8 @@ export const INDUSTRY_STORIES: Readonly<Record<string, IndustryStory>> = {
       { title: 'Deferred maintenance above the capex budget', severity: 'High', evidence: 'Unit-condition inspections against the capital plan', term: 'Repair escrow or price adjustment' },
       { title: 'Delinquency concentrated in one building', severity: 'Medium', evidence: 'Delinquency reports reconciled to the rent roll', term: 'Collections covenant and downside case' },
       { title: 'In-place rents below market across the property', severity: 'Medium', evidence: 'Rent roll against current lease files', term: 'Confirmed value in the ledger, not price paid' },
+      { title: 'Occupancy eroding over three years', severity: 'High', evidence: 'Five years of occupancy by month', term: 'A haircut on the occupancy the scenarios assume' },
+      { title: 'A last-year NOI jump', severity: 'Medium', evidence: 'Five years of operating statements', term: 'Check one-off items and deferred repairs before pricing on the latest year' },
     ],
     deliverables: [
       { icon: 'ArrowLeftRight', title: 'An income bridge', body: 'From the memorandum to the rent roll, with the difference signed off.' },
@@ -308,6 +310,7 @@ export const INDUSTRY_STORIES: Readonly<Record<string, IndustryStory>> = {
     ],
     faq: [
       { q: 'What does the multifamily pack read?', a: 'The rent roll and T-12, lease files, delinquency reports, utility bills and unit-condition inspections. The rent roll maps onto the same revenue ledger Pactlab uses for recurring revenue.' },
+      { q: 'How much history does it read?', a: 'Up to five years of income, expenses, rent and occupancy, plus the T-12. Less is accepted: each figure says how many years it rests on, and a missing year is asked of the seller, never estimated. It flags occupancy erosion, expenses outpacing rent, and a last-year spike in NOI.' },
       { q: 'Does loss-to-lease raise the price we pay?', a: 'No. Upside from below-market rents is recorded as confirmed value — evidence that supports the price — and never as a reason to pay more.' },
       { q: 'How is capex handled?', a: 'Deferred maintenance per door is a priced finding. Once a reviewer accepts it, it becomes remediation in the valuation and a price adjustment or escrow in the terms.' },
     ],

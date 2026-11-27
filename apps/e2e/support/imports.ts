@@ -3,7 +3,7 @@ import { expect, type Page } from '@playwright/test';
 /** Upload a pack extract from Sources and import it with the suggested mapping. */
 export async function importPackExtract(page: Page, dealId: string, label: string, file: string, rows: number): Promise<void> {
   await page.goto(`/deals/${dealId}/sources`);
-  await page.getByRole('link', { name: `Upload ${label.toLowerCase()}` }).click();
+  await page.getByRole('link', { name: `Upload ${label.toLowerCase()}`, exact: true }).click();
   await page.locator('input[type="file"]').setInputFiles(file);
   await page.getByRole('button', { name: 'Upload and map columns' }).click();
   await expect(page.getByText(`2. Map columns to the ${label.toLowerCase()}`)).toBeVisible();
