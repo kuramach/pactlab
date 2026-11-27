@@ -134,3 +134,13 @@ The new tables are reached only through `pactlab_billing` SECURITY DEFINER funct
 
 ## Out of scope
 The console screen (T-177b), Stripe checkout from a quote and refunds (T-177c), reseller codes and commissions (T-093), and any true-up of the variable after purchase (a T-177 non-goal).
+
+## As built (T-177a, 2026-11-27)
+- **Migration** `20270120000000_pricing_storage` (the planned `20270119000000` was taken by T-178b). Expand-only: the seven tables, their guard triggers, the functions and the USD v1 seed, published at migration time. It adds one trigger to an existing table, `promo_codes` (`promo_codes_shared_namespace`), so the shared code namespace holds in both directions under one advisory lock; T-087's functions are unchanged.
+- **Engine helpers** (`packages/domain/src/pricing/stored.ts`): `quoteLines` turns a quote and its checkout price into the stored lines, `reshowQuote` rebuilds both exactly from them, `checkoutPromo` reads a stored promo, and `PRICING_ENGINE_VERSION` (`pricing-1`) is stored on every quote. A discount that lost to the other is kept as an unapplied line, so a quote re-shows exactly.
+- **API** in `apps/api/src/pact-pricing` (`apps/api/src/pricing` already holds the buyer-persona pricing). Named refusals answer **422** with their code (`VERSION_PUBLISHED`, `DRAFT_EXISTS`, `BACKDATED`, `NO_PRICE_BOOK`, `PROMO_<reason>` …), not 409: only rule-failure statuses carry a code through the API's problem-details filter. A market with no book reads as 404 on `GET /v1/pricing/books/:currency`.
+- **Promo refusals:** a code that is unknown, paused, not yet valid, expired, used up, already used by the organization or out of its scope refuses the quote (`PROMO_<reason>`). A code valid but for another market is the engine's to judge: the quote is stored without it and shows `refusal: WRONG_MARKET`. An amount-off or pilot-flat code must name exactly its own currency as its market.
+- **Row-level security:** each table's only policy admits `pactlab_billing`, as T-087's billing tables do; which organization may read which quote is decided by the functions' organization argument, and the API passes the tenant's. The runtime role has no table privileges (tested).
+- **Consuming a quote** (`app_pricing_quote_consume`, `pactQuotes.consume`) exists and is tested (cap, per-organization cap, expiry); T-177c calls it from checkout.
+- **Partner codes** are stored as typed with no discount until T-093.
+

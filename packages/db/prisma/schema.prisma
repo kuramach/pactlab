@@ -552,6 +552,9 @@ model Organization {
   aiModels    OrganizationAiModel[]
   aiRoutes    OrganizationAiRoute[]
 
+  pactQuotes              PactQuote[]
+  pricingPromoRedemptions PricingPromoRedemption[]
+
   @@map("organizations")
 }
 
@@ -3227,6 +3230,168 @@ model PromoAttempt {
 
   @@index([ipHash, createdAt])
   @@map("promo_attempts")
+}
+
+/// A per-deal price book version for one market (T-177a, ADR 0061): frozen at publish. Reached only through pactlab_billing functions.
+model PriceBookVersion {
+  id               String    @id @default(uuid(7)) @db.Uuid
+  currency         String    @db.Char(3)
+  version          Int
+  status           String    @default("DRAFT")
+  effectiveFrom    DateTime? @map("effective_from") @db.Timestamptz(3)
+  fixedFee         Decimal   @map("fixed_fee") @db.Decimal(21, 6)
+  variableCap      Decimal   @map("variable_cap") @db.Decimal(21, 6)
+  pilotFlat        Decimal   @map("pilot_flat") @db.Decimal(21, 6)
+  rounding         Decimal   @db.Decimal(21, 6)
+  baseDocuments    Int       @map("base_documents")
+  baseAiBudget     Decimal   @map("base_ai_budget") @db.Decimal(21, 6)
+  basedOnVersionId String?   @map("based_on_version_id") @db.Uuid
+  suggestedFrom    Json?     @map("suggested_from")
+  createdBy        String?   @map("created_by") @db.Uuid
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  publishedBy      String?   @map("published_by") @db.Uuid
+  publishedAt      DateTime? @map("published_at") @db.Timestamptz(3)
+  firstQuotedAt    DateTime? @map("first_quoted_at") @db.Timestamptz(3)
+
+  basedOn PriceBookVersion?  @relation("PriceBookLineage", fields: [basedOnVersionId], references: [id], onDelete: Restrict, map: "price_book_versions_based_on_fkey")
+  derived PriceBookVersion[] @relation("PriceBookLineage")
+  bands   PriceBookBand[]
+  quotes  PactQuote[]
+
+  @@unique([currency, version], map: "price_book_versions_currency_version_key")
+  @@index([createdAt(sort: Desc), id(sort: Desc)], map: "price_book_versions_history_idx")
+  @@map("price_book_versions")
+}
+
+model PriceBookBand {
+  versionId String   @map("version_id") @db.Uuid
+  position  Int
+  upTo      Decimal? @map("up_to") @db.Decimal(21, 6)
+  bps       Decimal  @db.Decimal(5, 2)
+  documents Int
+  aiBudget  Decimal  @map("ai_budget") @db.Decimal(21, 6)
+
+  version PriceBookVersion @relation(fields: [versionId], references: [id], onDelete: Cascade, map: "price_book_bands_version_fkey")
+
+  @@id([versionId, position])
+  @@map("price_book_bands")
+}
+
+/// A promo code that changes a pact's price (T-177a): one namespace with promo_codes.
+model PricingPromo {
+  id                 String    @id @default(uuid(7)) @db.Uuid
+  code               String    @unique(map: "pricing_promos_code_key")
+  description        String
+  effect             String
+  percent            Decimal?  @db.Decimal(5, 2)
+  amount             Decimal?  @db.Decimal(21, 6)
+  pilotFlat          Decimal?  @map("pilot_flat") @db.Decimal(21, 6)
+  currency           String?   @db.Char(3)
+  markets            String[]  @default([]) @db.Char(3)
+  stackable          Boolean   @default(false)
+  scope              String    @default("ANY")
+  organizationIds    String[]  @default([]) @map("organization_ids") @db.Uuid
+  validFrom          DateTime  @default(now()) @map("valid_from") @db.Timestamptz(3)
+  validUntil         DateTime? @map("valid_until") @db.Timestamptz(3)
+  maxRedemptions     Int?      @map("max_redemptions")
+  maxPerOrganization Int       @default(1) @map("max_per_organization")
+  status             String    @default("ACTIVE")
+  createdBy          String    @map("created_by") @db.Uuid
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  changes     PricingPromoChange[]
+  quotes      PactQuote[]
+  redemptions PricingPromoRedemption[]
+
+  @@index([createdAt(sort: Desc), id(sort: Desc)], map: "pricing_promos_history_idx")
+  @@map("pricing_promos")
+}
+
+model PricingPromoChange {
+  id          String   @id @default(uuid(7)) @db.Uuid
+  promoId     String   @map("promo_id") @db.Uuid
+  actorUserId String   @map("actor_user_id") @db.Uuid
+  changedAt   DateTime @default(now()) @map("changed_at") @db.Timestamptz(3)
+  before      Json
+  after       Json
+
+  promo PricingPromo @relation(fields: [promoId], references: [id], onDelete: Restrict, map: "pricing_promo_changes_promo_fkey")
+
+  @@index([promoId, changedAt], map: "pricing_promo_changes_promo_idx")
+  @@map("pricing_promo_changes")
+}
+
+/// A stored pact quote (T-177a): its inputs, its book version and its lines, so it re-shows exactly.
+model PactQuote {
+  id              String    @id @default(uuid(7)) @db.Uuid
+  organizationId  String    @map("organization_id") @db.Uuid
+  dealId          String?   @map("deal_id") @db.Uuid
+  currency        String    @db.Char(3)
+  bookVersionId   String    @map("book_version_id") @db.Uuid
+  enterpriseValue Decimal?  @map("enterprise_value") @db.Decimal(21, 6)
+  pilot           Boolean
+  promoCode       String?   @map("promo_code")
+  promoId         String?   @map("promo_id") @db.Uuid
+  promoRefusal    String?   @map("promo_refusal")
+  partnerCode     String?   @map("partner_code")
+  resellerPercent Decimal?  @map("reseller_percent") @db.Decimal(5, 2)
+  subtotal        Decimal   @db.Decimal(21, 6)
+  total           Decimal   @db.Decimal(21, 6)
+  applied         String
+  includes        Json
+  engineVersion   String    @map("engine_version")
+  createdBy       String    @map("created_by") @db.Uuid
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  expiresAt       DateTime  @map("expires_at") @db.Timestamptz(3)
+  status          String    @default("OPEN")
+  consumedAt      DateTime? @map("consumed_at") @db.Timestamptz(3)
+
+  organization Organization            @relation(fields: [organizationId], references: [id], onDelete: Restrict, map: "pact_quotes_organization_fkey")
+  bookVersion  PriceBookVersion        @relation(fields: [bookVersionId], references: [id], onDelete: Restrict, map: "pact_quotes_version_fkey")
+  promo        PricingPromo?           @relation(fields: [promoId], references: [id], onDelete: Restrict, map: "pact_quotes_promo_fkey")
+  lines        PactQuoteLine[]
+  redemption   PricingPromoRedemption?
+
+  @@index([organizationId, createdAt(sort: Desc)], map: "pact_quotes_organization_idx")
+  @@map("pact_quotes")
+}
+
+model PactQuoteLine {
+  quoteId  String   @map("quote_id") @db.Uuid
+  position Int
+  kind     String
+  from     Decimal? @db.Decimal(21, 6)
+  upTo     Decimal? @map("up_to") @db.Decimal(21, 6)
+  bps      Decimal? @db.Decimal(5, 2)
+  slice    Decimal? @db.Decimal(21, 6)
+  percent  Decimal? @db.Decimal(5, 2)
+  amount   Decimal  @db.Decimal(21, 6)
+  applied  Boolean  @default(true)
+
+  quote PactQuote @relation(fields: [quoteId], references: [id], onDelete: Restrict, map: "pact_quote_lines_quote_fkey")
+
+  @@id([quoteId, position])
+  @@map("pact_quote_lines")
+}
+
+/// A promo use, counted when its quote is bought (T-177a, Kumar's decision 6).
+model PricingPromoRedemption {
+  id             String    @id @default(uuid(7)) @db.Uuid
+  promoId        String    @map("promo_id") @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  quoteId        String    @unique(map: "pricing_promo_redemptions_quote_key") @map("quote_id") @db.Uuid
+  dealId         String    @map("deal_id") @db.Uuid
+  currency       String    @db.Char(3)
+  amountForgone  Decimal   @map("amount_forgone") @db.Decimal(21, 6)
+  redeemedAt     DateTime  @default(now()) @map("redeemed_at") @db.Timestamptz(3)
+  voidedAt       DateTime? @map("voided_at") @db.Timestamptz(3)
+
+  promo        PricingPromo @relation(fields: [promoId], references: [id], onDelete: Restrict, map: "pricing_promo_redemptions_promo_fkey")
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, map: "pricing_promo_redemptions_organization_fkey")
+  quote        PactQuote    @relation(fields: [quoteId], references: [id], onDelete: Restrict, map: "pricing_promo_redemptions_quote_fkey")
+
+  @@index([promoId, redeemedAt(sort: Desc), id(sort: Desc)], map: "pricing_promo_redemptions_promo_idx")
+  @@map("pricing_promo_redemptions")
 }
 
 /// A report version (T-110): an immutable PDF snapshot, executive (whole organization) or one pact.

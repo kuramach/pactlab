@@ -30,6 +30,14 @@ Stripe is the source of truth for money. Pactlab mirrors it to decide whether a 
 - **Guessing:** wrong codes are limited to 20 an hour per address.
 - **To stop a code:** Admin → Promo codes → Deactivate.
 
+## Per-deal price books and pact promos (T-177a, ADR 0061)
+There is no console screen yet (T-177b); operators use the API under `/v1/admin/pricing`.
+- **Markets:** USD v1 is seeded ($5,000 fixed; 5, 2 and 1 bps; $50,000 cap; $5,000 pilot). GBP, EUR, JPY and INR refuse quotes until a book is published for them.
+- **Change a price:** `POST /v1/admin/pricing/books/drafts` with `fromVersionId` (or `suggest` to start a new market from a converted book, rate and date kept), edit it with `PUT …/drafts/:id`, compare with `POST …/drafts/:id/preview`, then `POST …/drafts/:id/publish` (now, or a later `effectiveFrom`; never earlier). A published version never changes: an edit answers 422 `VERSION_PUBLISHED`. Fresh quotes use the new version from its effective time, with no deploy.
+- **Quotes:** owners and admins quote with `POST /v1/pricing/quotes`; a quote keeps its version's price for 30 days and re-shows from its stored lines (`GET /v1/pricing/quotes/:id`).
+- **Pact promos** (`/v1/admin/pricing/promos`): percent off the total or the fixed fee, an amount off, the variable waived, or a pilot flat price; markets (empty is global; an amount is valid only in its own currency), a window, a total cap and a per-organization cap, stackable or not, any organization, pilots only or named organizations. Pause, resume or expire with `PATCH …/promos/:id`; the effect is frozen once a code has been used. A use is counted when the pact is bought (`…/promos/:id/redemptions`, by market). Codes share one namespace with the organization promo codes above.
+- **Audit events:** `pricing.book_drafted`, `pricing.book_draft_updated`, `pricing.book_draft_discarded`, `pricing.book_published`, `pricing.promo_created`, `pricing.promo_updated`, `pricing.promo_paused`, `pricing.promo_resumed`, `pricing.promo_expired` (under the operator's organization), `pricing.quote_created` and `pricing.quote_consumed` (under the buyer's). Each promo change is also kept field by field in `pricing_promo_changes`.
+
 ## Support
 - **Give a free pact:** Admin → Organizations → Comp a pact (audited as `billing.credit_comped`).
 - **A payment didn't show up:** Admin → Organizations → Resync, which re-reads the subscription from Stripe. Check the Stripe dashboard's webhook log for failed deliveries.
