@@ -55,7 +55,7 @@ export function watchFolder(root: string, onFile: (path: string, bytes: Uint8Arr
 /**
  * Where the finished set goes. The destination is the seller's own: a local or network folder, or their
  * own OneDrive, Google Drive or Box through their own sign-in in the app (a separate auth from the
- * Pactlab login). Pactlab needs no write access to anyone's cloud on this path.
+ * Pactlab login; `cloud.ts`, T-178d). Pactlab needs no write access to anyone's cloud on this path.
  */
 export interface RinseDestination {
   readonly kind: 'FOLDER' | 'ONEDRIVE' | 'GOOGLE_DRIVE' | 'BOX';

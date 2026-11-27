@@ -41,7 +41,7 @@ import {
   directionText,
   directionVariant,
 } from '../../../findings/_lib/view';
-import { ClaimVerdictBadge, claimsFor } from '../../_lib/seller-claims';
+import { ClaimVerdictBadge, claimsFor, HandSourcedBadge } from '../../_lib/seller-claims';
 import { SourceWithdrawnBadge } from '../../_lib/source-withdrawn';
 
 /**
@@ -331,6 +331,7 @@ export default async function FindingsPage({
                             </div>
                             <div className="mt-1">
                               <ClaimVerdictBadge claims={claimsFor(claims, finding.id)} />
+                              <HandSourcedBadge claims={claimsFor(claims, finding.id)} />
                               <SourceWithdrawnBadge flags={withdrawnFlags.get(finding.id)} />
                             </div>
                             {fromDocumentReview(finding) ? (

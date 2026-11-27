@@ -78,6 +78,21 @@ export const uploadArchiveBodySchema = z.strictObject({
 });
 export type UploadArchiveBody = z.infer<typeof uploadArchiveBodySchema>;
 
+/** A folder finished in Pactlab Rinse, zipped with its manifest, imported once (T-178d). */
+export const importRinsedArchiveBodySchema = z.strictObject({
+  fileName: z.string().trim().min(1).max(255).regex(/\.zip$/i),
+  /** Base64 of up to 10 MB of archive. */
+  contentBase64: z.string().min(1).max(14_000_000),
+  /** The deal team may share the set with the seller; a seller's import is always shared. */
+  shared: z.boolean().default(false),
+});
+export type ImportRinsedArchiveBody = z.infer<typeof importRinsedArchiveBodySchema>;
+
+/** Which documents' Rinse provenance to read: one document, or the citations on one page. */
+export const provenanceQuerySchema = z.strictObject({
+  documentId: z.preprocess((value) => (typeof value === 'string' ? [value] : value), z.array(z.uuid()).min(1).max(50)),
+});
+
 /** A person files a document: answers the AI's question or corrects its category. */
 export const categorizeDocumentBodySchema = z.strictObject({
   category: z.string().regex(/^[A-Z][A-Z0-9_]{1,59}$/),

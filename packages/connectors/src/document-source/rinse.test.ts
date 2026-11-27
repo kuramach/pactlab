@@ -1,7 +1,7 @@
 import { parseRinseManifest, rinseManifestSchema } from '@pactlab/contracts';
 import { describe, expect, it } from 'vitest';
 import { FixtureDocumentSourceAdapter } from './adapters';
-import { matchRinsedFile, readRinsedFolder, sourcePathOf } from './rinse';
+import { matchRinsedFile, readRinsedArchive, readRinsedFolder, rinseDisposition, sourcePathOf } from './rinse';
 import { RINSED_FIXTURE_MANIFEST, RINSED_FIXTURE_ROOM } from './rinse-room';
 
 const rooms = { [RINSED_FIXTURE_ROOM.id]: RINSED_FIXTURE_ROOM, plain: { ...RINSED_FIXTURE_ROOM, id: 'plain', files: RINSED_FIXTURE_ROOM.files.slice(1) } };
@@ -53,5 +53,31 @@ describe('a folder finished in Pactlab Rinse (T-178)', () => {
     const open = structuredClone(RINSED_FIXTURE_MANIFEST);
     (open.gaps.find((gap) => gap.input === 'MULTIFAMILY_DELINQUENCY') as { state: string }).state = 'MISSING';
     expect(parseRinseManifest(encode(open)).problem).toBe('INVALID');
+  });
+
+  it('decides each file the same way for a sync and an archive: manifest, original, hand entry, copy, stray', async () => {
+    const config = { folder: RINSED_FIXTURE_ROOM.id };
+    const listing = await adapter.list(scope, config);
+    const folder = await readRinsedFolder(adapter, scope, config, listing);
+    expect(rinseDisposition(folder, { folder: '', name: 'pactlab-manifest.json' })).toEqual({ kind: 'MANIFEST' });
+    expect(rinseDisposition(folder, { folder: 'Financials', name: 'Income statement FY2026.md' })).toEqual({ kind: 'SKIP', reason: 'RINSE_ORIGINAL' });
+    expect(rinseDisposition(folder, { folder: 'hand-sourced', name: 'Vacancy and occupancy schedule.md' })).toEqual({ kind: 'SKIP', reason: 'HAND_SOURCED_CLAIM' });
+    expect(rinseDisposition(folder, { folder: 'rinsed/Financials', name: 'Income statement FY2026.md' })).toMatchObject({ kind: 'READ', match: { role: 'CONVERTED' } });
+    expect(rinseDisposition(folder, { folder: 'Rent roll', name: 'Rent roll Sept 2026.csv' })).toMatchObject({ kind: 'READ', match: { role: 'AS_IS' } });
+    expect(rinseDisposition(folder, { folder: '', name: 'stray.md' })).toEqual({ kind: 'REFUSE', reason: 'NOT_IN_RINSE_MANIFEST' });
+    expect(rinseDisposition({ status: 'NONE' }, { folder: '', name: 'stray.md' })).toEqual({ kind: 'ORDINARY' });
+  });
+
+  it('reads an archive of the set, at its root or wrapped in one top folder', () => {
+    const encode = (text: string) => new TextEncoder().encode(text);
+    const entries = RINSED_FIXTURE_ROOM.files.map((file) => ({ path: file.folder ? `${file.folder}/${file.name}` : file.name, bytes: encode(file.text) }));
+    const root = readRinsedArchive(entries);
+    expect(root.folder.status).toBe('READ');
+    const wrapped = readRinsedArchive(entries.map((entry) => ({ ...entry, path: `Harbour Lane/${entry.path}` })));
+    expect(wrapped.folder.status).toBe('READ');
+    expect(wrapped.files.find((file) => file.name === 'Income statement FY2026.md')?.folder).toBe('Financials');
+    if (wrapped.folder.status === 'READ') expect(wrapped.folder.manifestSha256).toMatch(/^[a-f0-9]{64}$/);
+    expect(readRinsedArchive(entries.slice(1)).folder.status).toBe('NONE');
+    expect(readRinsedArchive([{ path: 'pactlab-manifest.json', bytes: encode('{nope') }]).folder).toEqual({ status: 'INVALID', problem: 'NOT_JSON' });
   });
 });

@@ -54,7 +54,7 @@ export function readsWith(source: DocumentSourceView): string | null {
   return null;
 }
 
-const OUTCOME: Record<SourceSyncFile['outcome'], string> = {
+export const OUTCOME: Record<SourceSyncFile['outcome'], string> = {
   NEW: 'New',
   UPDATED: 'New version',
   UNCHANGED: 'Unchanged',
@@ -80,7 +80,7 @@ export function rinseLines(rinse: RinseSyncSummary): string[] {
   const lines = [
     `Finished in Pactlab Rinse by ${rinse.set?.preparedBy ?? 'the seller'}: ${rinse.documents} document${rinse.documents === 1 ? '' : 's'}, ${rinse.audited} conversion${rinse.audited === 1 ? '' : 's'} checked against the originals.`,
     ...rinse.notedGaps.map((gap) => `${gap.label}: ${gap.state === 'NOT_APPLICABLE' ? 'marked not applicable' : 'noted'} by the seller${gap.note ? `: “${gap.note}”` : ''}`),
-    ...rinse.sourceDiscrepancies.map((item) => `${item.document} doesn’t add up in the seller’s own original. ${item.label} on page ${item.page} says ${item.stated}, but its lines sum to ${item.computed}.`),
+    ...rinse.sourceDiscrepancies.map((item) => `${item.document} doesn’t add up in the seller’s own original. ${item.label} on page ${item.page} says ${item.stated}, but its lines sum to ${item.computed}. ${rinse.claimsWaitForDealTeam ? 'The deal team reviews it.' : 'Drafted as a finding for a person to decide.'}`),
     ...rinse.handSourced.map((entry) => `${entry.title}: entered by hand, ${entry.claimId ? 'in the claims register as a hand-sourced seller claim' : 'becomes a seller claim when the deal team syncs'}.`),
   ];
   return lines;

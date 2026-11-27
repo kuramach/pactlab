@@ -121,3 +121,18 @@ export function unpackArchive(bytes: Uint8Array): ArchiveEntry[] {
   if (entries.length === 0) throw new ArchiveError('EMPTY');
   return entries;
 }
+
+/**
+ * Every file in an archive as it is, by its exact path (T-178d: a folder finished in Pactlab Rinse,
+ * whose manifest names each file by path and SHA-256). The same bounds as zip intake; nothing is
+ * filtered by type here and nested archives are not opened — the manifest decides what comes in.
+ */
+export function unpackArchiveFiles(bytes: Uint8Array): { path: string; bytes: Uint8Array }[] {
+  if (bytes.length > MAX_ARCHIVE_BYTES) throw new ArchiveError('TOO_LARGE');
+  const files = inflate(bytes, { entries: 0, expanded: 0 });
+  const entries = Object.keys(files)
+    .sort()
+    .map((path) => ({ path, bytes: files[path] as Uint8Array }));
+  if (entries.length === 0) throw new ArchiveError('EMPTY');
+  return entries;
+}

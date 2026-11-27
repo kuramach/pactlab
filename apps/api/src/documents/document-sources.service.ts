@@ -4,6 +4,7 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  PayloadTooLargeException,
   ServiceUnavailableException,
   UnprocessableEntityException,
 } from '@nestjs/common';
@@ -20,15 +21,17 @@ import {
   MAX_SOURCE_FILES,
   MAX_SOURCE_READS,
   matchRinsedFile,
+  readRinsedArchive,
   readRinsedFolder,
+  rinseDisposition,
   sourcePathOf,
+  type RinsedFolder,
   type DocumentOAuthProvider,
   type DocumentSourceProvider,
   type SourceFile,
 } from '@pactlab/connectors';
-import { RINSE_MANIFEST_FILE } from '@pactlab/contracts';
 import { appendAuditEvent, withTenant, type AuditEventInput, type PrismaClient } from '@pactlab/db';
-import { isBuyerSideRole, newId, permissionsForDealRole, type DealRole, type TenantContext } from '@pactlab/domain';
+import { isBuyerSideRole, isCounterpartyRole, newId, permissionsForDealRole, type DealRole, type TenantContext } from '@pactlab/domain';
 import { PROVIDER_DEPENDENCIES, type ProviderDependencies } from '../connections/provider-dependencies';
 import { DealAccess } from '../deals/deal-access';
 import { PRISMA } from '../tokens';
@@ -37,7 +40,10 @@ import type { ConnectDocumentSourceBody, DocumentSignInBody } from './documents.
 import type { SignInState } from './oauth-state';
 import { DocumentsService } from './documents.service';
 import { DOCX_CONTENT_TYPE, XLSX_CONTENT_TYPE, type AcceptedContentType } from './documents.types';
-import { handSourcedClaimSource, handSourcedClaimStatement, rinseIntakeReason, rinseSummary, type RinseSyncSummary } from './rinse-injection';
+import { ArchiveError, unpackArchiveFiles } from './archive';
+import type { ImportRinsedArchiveBody } from './documents.schemas';
+import { rinseIntakeReason, type RinseSyncSummary } from './rinse-injection';
+import { RinseProvenanceService, type RinseInjection } from './rinse-provenance.service';
 
 /** Buyers who may add documents read them from a source; sources are buyer-side configuration. */
 const canManage = (role: DealRole) => {
@@ -45,14 +51,15 @@ const canManage = (role: DealRole) => {
   return permissions.has('DEAL_WRITE') && permissions.has('BUYER_ANALYSIS_READ');
 };
 
+/** Counterparties read only what is shared with them (RLS), as with the documents themselves. */
+const canReadDocuments = (role: DealRole) => permissionsForDealRole(role).has('EVIDENCE_READ') || isCounterpartyRole(role);
+
 /**
  * Who may connect a drive folder from the pact itself with their own sign-in: the deal team, and the
  * seller, whose folder comes in shared with the deal (Kumar, 2026-11-21). RLS keeps a seller to the
  * sources they connected.
  */
 const canSupply = (role: DealRole) => canManage(role) || role === 'TARGET_CONTRIBUTOR';
-/** Who may record claims: the deal team (hand-sourced entries from a rinsed folder become seller claims). */
-const canRecordClaims = (role: DealRole) => permissionsForDealRole(role).has('DEAL_WRITE') && isBuyerSideRole(role);
 
 const CONTENT_TYPES: Readonly<Record<string, AcceptedContentType>> = {
   txt: 'text/plain',
@@ -103,6 +110,7 @@ export class DocumentSourcesService {
     @Inject(DocumentsService) private readonly documents: DocumentsService,
     @Inject(PROVIDER_DEPENDENCIES) private readonly providers: ProviderDependencies,
     @Inject(DocumentConnectionsService) private readonly accounts: DocumentConnectionsService,
+    @Inject(RinseProvenanceService) private readonly rinseProvenance: RinseProvenanceService,
   ) {}
 
   private audit(tenant: TenantContext, dealId: string, action: string, id: string, requestId: string): AuditEventInput {
@@ -424,34 +432,30 @@ export class DocumentSourcesService {
     const rinsed = await readRinsedFolder(adapter, scope, config, listed);
     const rinseFiled: { documentId: string; proposal: { category: string; by: 'AI' | 'PERSON'; confidence: number | null; reason: string } }[] = [];
 
+    const rinseDocuments = new Map<string, string>();
+
     for (const file of listed) {
       seen.add(file.externalId);
       const path = sourcePathOf(file);
       const previous = current.get(file.externalId);
-      if (rinsed.status !== 'NONE' && file.folder === '' && file.name === RINSE_MANIFEST_FILE) {
+      // The same decisions as an archive import (T-178d): manifest, original, hand entry, stray, copy.
+      const disposition = rinseDisposition(rinsed, file);
+      if (disposition.kind === 'MANIFEST') {
         files.push({ path, outcome: 'SKIPPED', reason: 'RINSE_MANIFEST', documentId: null });
         continue;
       }
-      const entry = rinsed.status === 'READ' ? rinsed.byPath.get(path) : undefined;
-      if (rinsed.status === 'READ') {
-        // Nothing half-clean comes in: a file the manifest does not name was added after the rinse.
-        if (!entry) {
-          files.push({ path, outcome: 'REJECTED', reason: 'NOT_IN_RINSE_MANIFEST', documentId: null });
-          continue;
-        }
-        // The canonical copy is read and cited; its original stays at the source, named in the copy's provenance.
-        if (entry.role === 'ORIGINAL') {
-          files.push({ path, outcome: 'SKIPPED', reason: 'RINSE_ORIGINAL', documentId: null });
-          continue;
-        }
-        // Hand-sourced entries are never documents a finding could cite: they become labelled seller claims.
-        if (entry.document.source === 'HAND_ENTRY') {
-          files.push({ path, outcome: 'SKIPPED', reason: 'HAND_SOURCED_CLAIM', documentId: null });
-          continue;
-        }
+      if (disposition.kind === 'REFUSE') {
+        files.push({ path, outcome: 'REJECTED', reason: disposition.reason, documentId: null });
+        continue;
       }
+      if (disposition.kind === 'SKIP') {
+        files.push({ path, outcome: 'SKIPPED', reason: disposition.reason, documentId: null });
+        continue;
+      }
+      const entry = disposition.kind === 'READ' ? disposition.match : undefined;
       if (previous && previous.sourceVersion === file.version) {
         files.push({ path, outcome: 'UNCHANGED', reason: null, documentId: previous.id });
+        if (entry) rinseDocuments.set(entry.document.id, previous.id);
         // A seller's sync brought it in unsorted: the deal team's sync files it from the manifest.
         const classification = entry?.document.classification;
         if (entry && classification && previous.intakeState === 'UNCLASSIFIED') {
@@ -494,6 +498,7 @@ export class DocumentSourcesService {
           requestId,
           { sourceId, externalId: file.externalId, version: file.version },
         );
+        if (entry) rinseDocuments.set(entry.document.id, uploaded.id);
         if (uploaded.duplicate) {
           files.push({ path, outcome: 'DUPLICATE', reason: null, documentId: uploaded.id });
           continue;
@@ -518,7 +523,7 @@ export class DocumentSourcesService {
     if (canManage(role)) {
       for (const filed of rinseFiled) await this.documents.fileFromRinseManifest(tenant, dealId, filed.documentId, filed.proposal, requestId);
     }
-    const rinse = await this.injectRinse(tenant, dealId, role, rinsed, canManage(role) ? rinseFiled.map((filed) => filed.documentId) : [], requestId);
+    const rinse = await this.injectRinse(tenant, dealId, role, rinsed, { origin: 'SYNC', sourceId, visibility: source.visibility, documents: rinseDocuments, filed: canManage(role) ? rinseFiled.map((filed) => filed.documentId) : [] }, requestId);
 
     const summary = Object.fromEntries(
       (['NEW', 'UPDATED', 'UNCHANGED', 'DUPLICATE', 'REMOVED', 'SKIPPED', 'REJECTED', 'WAITING'] as const).map((outcome) => [outcome, files.filter((file) => file.outcome === outcome).length]),
@@ -536,36 +541,97 @@ export class DocumentSourcesService {
   }
 
   /**
-   * What a rinsed folder's manifest brings beyond its files (T-178): hand-sourced entries recorded once as
-   * seller claims labelled hand-sourced (by the deal team's sync; a seller's sync leaves them waiting),
-   * and the gap notes and source discrepancies, returned for the page.
+   * What a rinsed set's manifest brings beyond its files: its provenance, hand-sourced entries as
+   * HAND_SOURCED seller claims (the deal team's pass; a seller's leaves them waiting), and its gap notes
+   * and source discrepancies, stored on the set (T-178d).
    */
-  private async injectRinse(tenant: TenantContext, dealId: string, role: DealRole, rinsed: Awaited<ReturnType<typeof readRinsedFolder>>, filed: readonly string[], requestId: string): Promise<RinseSyncSummary | null> {
+  private async injectRinse(tenant: TenantContext, dealId: string, role: DealRole, rinsed: RinsedFolder, context: RinseInjection, requestId: string): Promise<RinseSyncSummary | null> {
     if (rinsed.status === 'NONE') return null;
     if (rinsed.status === 'INVALID') {
       return { status: 'INVALID', problem: rinsed.problem, set: null, documents: 0, audited: 0, handSourced: [], notedGaps: [], sourceDiscrepancies: [], claimsWaitForDealTeam: false, filed: [] };
     }
-    const claims = new Map<string, string>();
-    const recordClaims = canRecordClaims(role);
-    const hand = rinsed.manifest.documents.filter((document) => document.source === 'HAND_ENTRY');
-    if (recordClaims && hand.length > 0) {
-      await withTenant(this.prisma, tenant, async (tx) => {
-        for (const document of hand) {
-          const statement = handSourcedClaimStatement(document);
-          const source = handSourcedClaimSource(document);
-          if (!statement || !source) continue;
-          // Idempotent: the same entry and revision is recorded once, however often the folder syncs.
-          const existing = await tx.dealClaim.findFirst({ where: { dealId, origin: 'MANUAL', statement, source }, select: { id: true } });
-          if (existing) {
-            claims.set(document.id, existing.id);
-            continue;
-          }
-          const claim = await tx.dealClaim.create({ data: { organizationId: tenant.organizationId, dealId, statement, source, origin: 'MANUAL', createdBy: tenant.userId, updatedBy: tenant.userId } });
-          claims.set(document.id, claim.id);
-          await appendAuditEvent(tx, { organizationId: tenant.organizationId, dealId, actorUserId: tenant.userId, action: 'claim.created', targetType: 'deal_claim', targetId: claim.id, outcome: 'SUCCEEDED', requestId });
-        }
-      });
+    return this.rinseProvenance.inject(tenant, dealId, role, rinsed, context, requestId);
+  }
+
+  /**
+   * Injection path (b), T-178d: a folder finished in Pactlab Rinse, uploaded once as a zip with its
+   * manifest. The same manifest reader, the same per-file decisions and the same SHA-256 checks as a
+   * sync; nothing the manifest does not name comes in. A seller's import is shared with the deal.
+   */
+  async importRinsedArchive(tenant: TenantContext, dealId: string, body: ImportRinsedArchiveBody, requestId: string) {
+    const role = await this.access.require(tenant, dealId, canSupply, { action: 'document.rinse_archive.imported', requestId });
+    let entries;
+    try {
+      entries = unpackArchiveFiles(Buffer.from(body.contentBase64, 'base64'));
+    } catch (error) {
+      if (!(error instanceof ArchiveError)) throw error;
+      if (error.reason === 'TOO_LARGE' || error.reason === 'EXPANDS_TOO_FAR' || error.reason === 'TOO_MANY_FILES') throw new PayloadTooLargeException({ code: `ARCHIVE_${error.reason}` });
+      throw new UnprocessableEntityException({ code: `ARCHIVE_${error.reason}` });
     }
-    return rinseSummary(rinsed.manifest, claims, hand.length > 0 && !recordClaims, filed);
+    const { folder: rinsed, files: archived } = readRinsedArchive(entries);
+    if (rinsed.status === 'NONE') throw new UnprocessableEntityException({ code: 'RINSE_MANIFEST_MISSING', message: 'The archive has no pactlab-manifest.json at its top' });
+    if (rinsed.status === 'INVALID') throw new UnprocessableEntityException({ code: 'RINSE_MANIFEST_INVALID', message: `The manifest cannot be read (${rinsed.problem})` });
+    const shared = isCounterpartyRole(role) || body.shared;
+    const files: SourceSyncFile[] = [];
+    const documents = new Map<string, string>();
+    const filed: { documentId: string; proposal: { category: string; by: 'AI' | 'PERSON'; confidence: number | null; reason: string } }[] = [];
+    for (const file of archived) {
+      const path = sourcePathOf(file);
+      const disposition = rinseDisposition(rinsed, file);
+      if (disposition.kind === 'MANIFEST') {
+        files.push({ path, outcome: 'SKIPPED', reason: 'RINSE_MANIFEST', documentId: null });
+        continue;
+      }
+      if (disposition.kind === 'REFUSE' || disposition.kind === 'ORDINARY') {
+        files.push({ path, outcome: 'REJECTED', reason: 'NOT_IN_RINSE_MANIFEST', documentId: null });
+        continue;
+      }
+      if (disposition.kind === 'SKIP') {
+        files.push({ path, outcome: 'SKIPPED', reason: disposition.reason, documentId: null });
+        continue;
+      }
+      if (matchRinsedFile(rinsed, file, file.bytes) === 'CHANGED_SINCE_RINSE') {
+        files.push({ path, outcome: 'REJECTED', reason: 'CHANGED_SINCE_RINSE', documentId: null });
+        continue;
+      }
+      const contentType = contentTypeOf(file.name);
+      if (!contentType) {
+        files.push({ path, outcome: 'SKIPPED', reason: 'UNSUPPORTED_TYPE', documentId: null });
+        continue;
+      }
+      try {
+        const uploaded = await this.documents.ingest(
+          tenant,
+          dealId,
+          role,
+          { fileName: file.name, contentType, contentBase64: Buffer.from(file.bytes).toString('base64'), retentionClass: 'DEAL_TERM', dataClass: 'BUSINESS', aiExcluded: false, shared },
+          file.folder || null,
+          requestId,
+        );
+        documents.set(disposition.match.document.id, uploaded.id);
+        files.push({ path, outcome: uploaded.duplicate ? 'DUPLICATE' : 'NEW', reason: null, documentId: uploaded.id });
+        const classification = disposition.match.document.classification;
+        if (classification) filed.push({ documentId: uploaded.id, proposal: { category: classification.category, by: classification.by, confidence: classification.confidence, reason: rinseIntakeReason(disposition.match.document) } });
+      } catch (error) {
+        if (error instanceof ServiceUnavailableException) throw error;
+        files.push({ path, outcome: 'REJECTED', reason: 'UNREADABLE_OR_INFECTED', documentId: null });
+      }
+    }
+    if (canManage(role)) for (const item of filed) await this.documents.fileFromRinseManifest(tenant, dealId, item.documentId, item.proposal, requestId);
+    const rinse = await this.rinseProvenance.inject(tenant, dealId, role, rinsed, { origin: 'ARCHIVE', sourceId: null, visibility: shared ? 'SHARED' : 'BUYER_ONLY', documents, filed: canManage(role) ? filed.map((item) => item.documentId) : [] }, requestId);
+    await withTenant(this.prisma, tenant, (tx) => appendAuditEvent(tx, { organizationId: tenant.organizationId, dealId, actorUserId: tenant.userId, action: 'document.rinse_archive.imported', targetType: 'deal', targetId: dealId, outcome: 'SUCCEEDED', requestId }));
+    return { fileName: body.fileName, files, rinse };
+  }
+
+  /** Where documents read from a rinsed set came from (T-178d); RLS shows only documents the caller can see. */
+  async documentProvenance(tenant: TenantContext, dealId: string, documentIds: readonly string[], requestId: string) {
+    await this.access.require(tenant, dealId, canReadDocuments, { action: 'document.provenance.read', requestId });
+    return { items: await this.rinseProvenance.forDocuments(tenant, dealId, documentIds) };
+  }
+
+  /** The rinsed sets that reached the pact, with their gap notes and source discrepancies (T-178d). */
+  async rinseSets(tenant: TenantContext, dealId: string, page: { cursor?: string | undefined; limit: number }, requestId: string) {
+    await this.access.require(tenant, dealId, canReadDocuments, { action: 'rinse_set.read', requestId });
+    return this.rinseProvenance.sets(tenant, dealId, page);
   }
 }

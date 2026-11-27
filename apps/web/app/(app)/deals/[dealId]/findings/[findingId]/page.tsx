@@ -20,7 +20,9 @@ import { ApiState } from '../../../_lib/states';
 import { FindingEvidenceChip } from '../../../_lib/finding-evidence';
 import { can, dealViewer } from '../../../_lib/viewer';
 import { decideFinding, priceFinding, setFindingDirection } from '../actions';
-import { claimsFor, SellerClaims } from '../../../_lib/seller-claims';
+import { claimsFor, HandSourcedBadge, SellerClaims } from '../../../_lib/seller-claims';
+import { provenanceLine } from '../../documents/rinse-provenance';
+import type { DocumentProvenanceView } from '@pactlab/contracts';
 import { SourceWithdrawnBadge, SourceWithdrawnNotice } from '../../../_lib/source-withdrawn';
 import { pactCurrency } from '../../../_lib/pact-currency';
 
@@ -74,6 +76,12 @@ export default async function FindingPage({
   const linkedClaims = claimsResult.kind === 'ok' ? claimsFor(claimsResult.data.items, findingId) : [];
   if (result.kind !== 'ok') return <ApiState result={result} />;
   const { finding, reviews, sourceWithdrawn } = result.data;
+  // A cited page from a set finished in Pactlab Rinse names the seller's original it reproduces (T-178d).
+  const citedDocuments = [...new Set(finding.evidence.flatMap((link) => (link.documentCitation ? [link.documentCitation.documentId] : [])))];
+  const provenance = citedDocuments.length
+    ? await apiGet<{ items: DocumentProvenanceView[] }>(`/v1/deals/${dealId}/document-provenance?${citedDocuments.map((id) => `documentId=${encodeURIComponent(id)}`).join('&')}`)
+    : null;
+  const provenanceOf = (documentId: string) => (provenance?.kind === 'ok' ? provenance.data.items.find((item) => item.documentId === documentId) : undefined);
   const decide = decideFinding.bind(null, dealId, findingId);
   const price = priceFinding.bind(null, dealId, findingId);
   const setDirection = setFindingDirection.bind(null, dealId, findingId);
@@ -96,6 +104,7 @@ export default async function FindingPage({
           </Badge>
           <Badge variant="draft">{finding.origin.toLowerCase()} draft</Badge>
           <SourceWithdrawnBadge flags={sourceWithdrawn} />
+          <HandSourcedBadge claims={linkedClaims} />
           <Badge variant={directionVariant(finding.direction)} title={finding.direction === null ? undefined : DIRECTION_LABELS[String(finding.direction)]?.help}>
             {finding.status === 'ACCEPTED' ? '' : 'proposed '}
             {directionText(finding.direction)}
@@ -133,6 +142,9 @@ export default async function FindingPage({
                         {link.toolName}@{link.toolVersion}
                         {link.path ? ` · ${link.path}` : ''}
                       </span>
+                      {link.documentCitation && provenanceOf(link.documentCitation.documentId) ? (
+                        <span className="w-full text-xs text-muted-foreground">{provenanceLine(provenanceOf(link.documentCitation.documentId) as DocumentProvenanceView)}</span>
+                      ) : null}
                     </li>
                   ))}
                 </ul>
