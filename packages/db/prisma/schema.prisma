@@ -654,6 +654,7 @@ model Deal {
   valuationDecisions       ValuationSubmissionDecision[]
   documents                Document[]
   documentSources          DocumentSource[]
+  rinseSets                RinseSet[]
   documentRequests         DocumentRequest[]
   agentProposals           AgentProposal[]
   documentPages            DocumentPage[]
@@ -1302,6 +1303,7 @@ model Document {
   source       DocumentSource?   @relation(fields: [organizationId, dealId, sourceId], references: [organizationId, dealId, id], onDelete: Restrict, map: "documents_source_fkey")
   pages        DocumentPage[]
   findings     DocumentFinding[]
+  provenance   DocumentProvenance[]
 
   @@unique([organizationId, dealId, id])
   @@unique([objectKey])
@@ -1341,10 +1343,73 @@ model DocumentSource {
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   deal         Deal         @relation(fields: [organizationId, dealId], references: [organizationId, id], onDelete: Restrict, map: "document_sources_deal_fkey")
   documents    Document[]
+  rinseSets    RinseSet[]
 
   @@unique([organizationId, dealId, id], map: "document_sources_org_deal_id_key")
   @@index([organizationId, dealId, createdAt], map: "document_sources_org_deal_created_idx")
   @@map("document_sources")
+}
+
+/// A set finished in Pactlab Rinse as it reached the pact (T-178d): preparer, gap notes, source discrepancies. Append-only.
+model RinseSet {
+  id                  String             @id @db.Uuid
+  organizationId      String             @map("organization_id") @db.Uuid
+  dealId              String             @map("deal_id") @db.Uuid
+  manifestSetId       String             @map("manifest_set_id") @db.Uuid
+  manifestSha256      String             @map("manifest_sha256") @db.Char(64)
+  name                String
+  pack                String
+  /// The preparer's verified identity: { userId, name, organization }.
+  preparedBy          Json               @map("prepared_by")
+  readyAt             DateTime           @map("ready_at") @db.Timestamptz(3)
+  generatorVersion    String             @map("generator_version")
+  /// SYNC (a connected folder) | ARCHIVE (a one-time zip import)
+  origin              String
+  documentSourceId    String?            @map("document_source_id") @db.Uuid
+  visibility          EvidenceVisibility
+  documents           Int
+  /// The manifest's gaps: input, label, need, state and the seller's note.
+  gaps                Json
+  /// Originals that do not foot: { manifestDocumentId, documentId, title, label, page, stated, computed }.
+  sourceDiscrepancies Json               @map("source_discrepancies")
+  createdBy           String             @map("created_by") @db.Uuid
+  createdAt           DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  deal       Deal                 @relation(fields: [organizationId, dealId], references: [organizationId, id], onDelete: Restrict, map: "rinse_sets_deal_fkey")
+  source     DocumentSource?      @relation(fields: [organizationId, dealId, documentSourceId], references: [organizationId, dealId, id], onDelete: Restrict, map: "rinse_sets_source_fkey")
+  provenance DocumentProvenance[]
+
+  @@unique([organizationId, dealId, id], map: "rinse_sets_org_deal_id_key")
+  @@unique([organizationId, dealId, manifestSha256, visibility], map: "rinse_sets_manifest_key")
+  @@map("rinse_sets")
+}
+
+/// Where a document read from a rinsed set came from (T-178d): its canonical copy, the seller's original and the manifest entry. Append-only.
+model DocumentProvenance {
+  id                 String   @id @db.Uuid
+  organizationId     String   @map("organization_id") @db.Uuid
+  dealId             String   @map("deal_id") @db.Uuid
+  documentId         String   @map("document_id") @db.Uuid
+  rinseSetId         String   @map("rinse_set_id") @db.Uuid
+  manifestDocumentId String   @map("manifest_document_id") @db.Uuid
+  /// CONVERTED (a canonical copy of an original) | AS_IS (a spreadsheet carried as it is)
+  role               String
+  canonicalPath      String   @map("canonical_path")
+  canonicalSha256    String   @map("canonical_sha256") @db.Char(64)
+  originalPath       String?  @map("original_path")
+  originalSha256     String?  @map("original_sha256") @db.Char(64)
+  originalSizeBytes  BigInt?  @map("original_size_bytes")
+  originalMediaType  String?  @map("original_media_type")
+  /// The manifest entry: route, classification, checks, conversion log and audit.
+  entry              Json
+  createdBy          String   @map("created_by") @db.Uuid
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  document Document @relation(fields: [organizationId, dealId, documentId], references: [organizationId, dealId, id], onDelete: Restrict, map: "document_provenance_document_fkey")
+  set      RinseSet @relation(fields: [organizationId, dealId, rinseSetId], references: [organizationId, dealId, id], onDelete: Restrict, map: "document_provenance_set_fkey")
+
+  @@unique([organizationId, dealId, documentId, rinseSetId], map: "document_provenance_document_set_key")
+  @@map("document_provenance")
 }
 
 /// A suggestion from a connected AI app (T-084b): pending until a person approves or rejects it in the app.
@@ -1993,7 +2058,7 @@ model DealClaim {
   dealId          String   @map("deal_id") @db.Uuid
   statement       String
   source          String?
-  /// SCREENING_RED_FLAG | MANUAL | PACK_RULE
+  /// SCREENING_RED_FLAG | MANUAL | PACK_RULE | HAND_SOURCED (entered by hand in Pactlab Rinse; never documentary evidence)
   origin          String
   /// UNVERIFIED | VERIFIED | CONTRADICTED
   status          String   @default("UNVERIFIED")

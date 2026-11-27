@@ -2121,9 +2121,12 @@ Most of the time the seller has the documents. **Pactlab Rinse** is a desktop ap
 - **At sync,** the pact reads the manifest:
   - files are matched by path and hash; anything unnamed or changed is refused;
   - seller classifications are proposals filed through intake;
-  - hand entries become claims;
+  - hand entries become HAND_SOURCED claims;
   - gap notes and discrepancies are shown.
 - **AI on the machine** runs only under a signed-in preparer account, metered under ADR 0034; offline it queues.
 - **Destinations** are the seller's own folder or their own cloud account.
-- **Follow-ups:** T-178b (accounts, invites, AI jobs, signed builds), T-178c (`pactlab.ai/rinse`), T-178d (cloud destinations, one-time import, provenance records).
+- **Destinations** also include the seller's own OneDrive, Google Drive or Box, through the seller's own PKCE sign-in in the app; the token never reaches Pactlab (T-178d).
+- **Injection path (b):** the finished folder uploaded once as a zip with its manifest, under the same manifest reader and SHA-256 checks as the sync (T-178d).
+- **Provenance (T-178d):** `document_provenance` links each document's canonical copy, the seller's original and its manifest entry. It is shown on the document and its citations. `rinse_sets` stores each set's gap notes and source discrepancies; discrepancies are drafted as cited findings for a person to decide. Hand entries are claims of origin `HAND_SOURCED`, and a finding that rests on one shows it.
+- **Follow-ups:** T-178b (accounts, invites, AI jobs, signed builds), T-178c (`pactlab.ai/rinse`).
 

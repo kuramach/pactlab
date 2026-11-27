@@ -13,7 +13,7 @@ import {
   Res,
 } from '@nestjs/common';
 import type { FastifyReply } from 'fastify';
-import { dealParamsSchema } from '@pactlab/contracts';
+import { dealParamsSchema, pageQuerySchema } from '@pactlab/contracts';
 import type { TenantContext } from '@pactlab/domain';
 import { Tenant } from '../auth/tenant.decorator';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
@@ -39,6 +39,9 @@ import {
   reviewFindingBodySchema,
   sourceParamsSchema,
   uploadArchiveBodySchema,
+  importRinsedArchiveBodySchema,
+  provenanceQuerySchema,
+  type ImportRinsedArchiveBody,
   uploadDocumentBodySchema,
   type AskQuestionBody,
   type CategorizeDocumentBody,
@@ -171,6 +174,39 @@ export class DocumentsController {
     @Body(new ZodValidationPipe(uploadDocumentBodySchema)) body: UploadDocumentBody,
   ) {
     return this.service.upload(tenant, params.dealId, body, requestId);
+  }
+
+  /** A folder finished in Pactlab Rinse, zipped with its manifest: imported once (T-178d, injection path b). */
+  @Post('rinse-archives')
+  async importRinsedArchive(
+    @Tenant() tenant: TenantContext,
+    @RequestId() requestId: string,
+    @Param(new ZodValidationPipe(dealParamsSchema)) params: DealParams,
+    @Body(new ZodValidationPipe(importRinsedArchiveBodySchema)) body: ImportRinsedArchiveBody,
+  ) {
+    return this.sources.importRinsedArchive(tenant, params.dealId, body, requestId);
+  }
+
+  /** The rinsed sets that reached the pact: gap notes and source discrepancies (T-178d). */
+  @Get('rinse-sets')
+  async listRinseSets(
+    @Tenant() tenant: TenantContext,
+    @RequestId() requestId: string,
+    @Param(new ZodValidationPipe(dealParamsSchema)) params: DealParams,
+    @Query(new ZodValidationPipe(pageQuerySchema)) query: { cursor?: string; limit: number },
+  ) {
+    return this.sources.rinseSets(tenant, params.dealId, query, requestId);
+  }
+
+  /** Where documents came from when they arrived in a rinsed set: the original and the manifest entry (T-178d). */
+  @Get('document-provenance')
+  async provenance(
+    @Tenant() tenant: TenantContext,
+    @RequestId() requestId: string,
+    @Param(new ZodValidationPipe(dealParamsSchema)) params: DealParams,
+    @Query(new ZodValidationPipe(provenanceQuerySchema)) query: { documentId: string[] },
+  ) {
+    return this.sources.documentProvenance(tenant, params.dealId, query.documentId, requestId);
   }
 
   /** A zip of deal files, unpacked on the server (T-098). */

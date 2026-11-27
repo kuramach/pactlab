@@ -5,7 +5,7 @@ import { HAND_ENTRY_FORMS, handSourcedStamp } from '@pactlab/domain';
  * Injection of a folder finished in Pactlab Rinse (T-178, ADR 0058), pact side. What a manifest brings
  * with its files: the seller's classifications (a proposal, filed through the same intake rules as the
  * AI's), the audit and conversion results, the gap notes, and hand-sourced entries — which arrive as
- * seller claims labelled hand-sourced, never as documents a finding could cite as evidence.
+ * HAND_SOURCED seller claims, never as documents a finding could cite as evidence.
  */
 export const RINSE_CLAIM_SOURCE_SUFFIX = ' (Pactlab Rinse; not documentary evidence)';
 
@@ -30,12 +30,12 @@ export function handSourcedClaimStatement(document: RinseManifestDocument): stri
   return text.length > 1000 ? `${text.slice(0, 997)}...` : text;
 }
 
-/** Why the seller's classification is shown on the intake row, with the file's provenance. */
+/**
+ * Why the seller's classification is shown on the intake row. The file's provenance (its original, the
+ * checks and the conversion audit) is its own record now (T-178d), shown on the document.
+ */
 export function rinseIntakeReason(document: RinseManifestDocument): string {
-  const by = document.classification?.by === 'PERSON' ? 'the seller chose it' : 'classified on the seller’s machine';
-  const from = document.original ? `; from the seller’s original ${document.original.path} (SHA-256 ${document.original.sha256.slice(0, 12)}…)` : '';
-  const audited = document.audit ? `; conversion audited: ${document.audit.figuresMatched} of ${document.audit.figuresCompared} figures matched` : '';
-  return `From the Pactlab Rinse manifest: ${by}${from}${audited}.`.slice(0, 1000);
+  return document.classification?.by === 'PERSON' ? 'Filed as the seller chose it in Pactlab Rinse.' : 'Filed as classified on the seller’s machine in Pactlab Rinse.';
 }
 
 export interface RinseSyncSummary {

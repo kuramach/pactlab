@@ -15,6 +15,7 @@ import { DocumentConnectionsController } from './document-connections.controller
 import { DocumentConnectionsService } from './document-connections.service';
 import { DocumentSourcesService } from './document-sources.service';
 import { contextBudgetChars, DocumentsService } from './documents.service';
+import { RinseProvenanceService } from './rinse-provenance.service';
 import { VisionPass } from './vision-pass';
 import type { MalwareScanner } from './upload-policy';
 
@@ -41,6 +42,7 @@ export class DocumentsModule {
       providers: [
         DocumentsService,
         DocumentSourcesService,
+        RinseProvenanceService,
         DocumentConnectionsService,
         VisionPass,
         DealAccess,
