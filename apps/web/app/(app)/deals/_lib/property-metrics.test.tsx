@@ -135,4 +135,21 @@ describe('five years of history (T-183)', () => {
     expect((html.match(/>—</g) ?? []).length).toBe(6);
     expect(html).toContain('Operating statements: FY2025–FY2026 (2 of 5 years)');
   });
+
+  it('shows the strip on any pack figure that carries one (T-184), and not on one that does not', () => {
+    const tpv = { key: 'tpv', label: 'Processed volume (TPV), trailing', unit: 'MONEY' as const, value: '1000.00', formula: 'Σ volume', sourceCount: 24 };
+    const fintech = {
+      ...report,
+      calculator: 'fintech-payments',
+      metrics: [
+        { ...tpv, historyStrip: true, coverage: 'FY2021–FY2025 (5 of 5 years)', history: history.years.map((period) => ({ period, value: '900.00' })) },
+        { ...tpv, key: 'transactions', label: 'Transactions, trailing', unit: 'COUNT' as const },
+      ],
+    };
+    const html = renderToStaticMarkup(<PropertyMetricsCard dealId="d" report={fintech} canAsk requested={new Set()} />);
+    expect(html).toContain('Industry metrics');
+    expect(html).toContain('aria-label="Processed volume (TPV), trailing, by year"');
+    expect(html).toContain('FY2021–FY2025 (5 of 5 years)');
+    expect(html).not.toContain('aria-label="Transactions, trailing, by year"');
+  });
 });

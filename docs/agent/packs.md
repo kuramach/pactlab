@@ -74,6 +74,18 @@ The source plan then adds **Industry data** (`pack_upload` connections) automati
 
 - **Demo data:** five years with seasonality, a rent step each lease year, expense inflation and the planted defects; the 12-month files stay equal to the last twelve months of the history. Draw the history from its own random generator so the pack's other files are unchanged.
 
+## 4d. History for any pack (T-184)
+
+- **Name drivers, don't write a reader.** Declare the pack's operating drivers as `DriverSpec`s over a monthly import it already has (`packs/history.ts`), with its key expenses, in a `PackHistorySpec`. `packHistory(spec, evidence)` gives the years side by side (`report.history`), coverage and asks; `withHistory(metric, result, driverKey)` puts a History strip under a figure on Home.
+- **Trend rules:** `driverTrendRule({ id, driver, adverse, threshold, domain, advice }, spec)`, one per driver that matters; thresholds are named constants in the pack's rules.
+
+  | Pack | Constant | Value | Drafts when |
+  |---|---|---|---|
+  | Fintech | `TAKE_RATE_COMPRESSION_POINTS` | 0.001 | take rate falls every year, 0.10 points or more first to last |
+  | Fintech | `LOSS_RATE_CLIMB_POINTS` | 0.0005 | (chargebacks + fraud) ÷ volume rises every year, 0.05 points or more |
+
+- **Demo data:** extend the existing monthly export back five years from its own random generator, keep the P&L's revenue lines equal to the export where a rule reconciles them, and plant one driver defect.
+
 ## 5. Metrics
 
 - **Calculator:** in `packages/calculations/src/packs/calculators.ts`. It returns the generic `PackMetricsReport` (`packs/metrics-types.ts`): label, value as a decimal string, unit, formula and source count.
