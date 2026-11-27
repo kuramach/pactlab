@@ -2106,3 +2106,24 @@ The AI baseline is generated on demand (prompt `foresight.trends`, balanced tier
 - Where voice isn't configured, typing works.
 
 All Foresight data is buyer-side (RLS).
+
+## 31. Pactlab Rinse: the seller's desktop bench (T-178, ADR 0058)
+
+Most of the time the seller has the documents. **Pactlab Rinse** is a desktop app (Tauri 2: macOS, Windows, Linux) the seller runs on their own machine. Its line: "Rinse your deal documents clean before they go in the room."
+
+- **The loop:** rinse → gaps → fix → re-rinse until clean.
+  - **Deterministic checks,** offline: corruption, legacy formats, exact and near duplicates, pages with no text layer.
+  - **The conversion audit:** every canonical copy is checked against an independent reading of the original (`rinse-audit-1`), comparing figures, totals, dates, parties, page parity and tables, and footing each table.
+  - **The gap list:** the pack's expected inputs.
+- **Ready rule:** errors block ready. A conversion mismatch is an error; a source discrepancy (the original does not foot) is a warning that travels as a noted gap.
+- **Hand-sourced entries:** typed forms generate a stamped canonical file. At injection they become seller claims labelled hand-sourced, never documentary evidence.
+- **The manifest:** `pactlab-manifest.json` (`pactlab-rinse-manifest` v1) describes the finished folder: every file by SHA-256, classifications, checks, audit, gap notes, conversion log and the preparer's identity.
+- **At sync,** the pact reads the manifest:
+  - files are matched by path and hash; anything unnamed or changed is refused;
+  - seller classifications are proposals filed through intake;
+  - hand entries become claims;
+  - gap notes and discrepancies are shown.
+- **AI on the machine** runs only under a signed-in preparer account, metered under ADR 0034; offline it queues.
+- **Destinations** are the seller's own folder or their own cloud account.
+- **Follow-ups:** T-178b (accounts, invites, AI jobs, signed builds), T-178c (`pactlab.ai/rinse`), T-178d (cloud destinations, one-time import, provenance records).
+

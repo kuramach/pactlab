@@ -306,6 +306,58 @@ importers:
         specifier: 5.0.3
         version: 5.0.3(@types/node@22.20.5)(vite@8.3.2(@types/node@22.20.5)(jiti@2.7.0))
 
+  apps/desktop:
+    dependencies:
+      '@pactlab/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@pactlab/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
+      '@pactlab/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+      fflate:
+        specifier: 0.8.2
+        version: 0.8.2
+      pdf-lib:
+        specifier: 1.17.1
+        version: 1.17.1
+      pdfjs-dist:
+        specifier: 6.4.299
+        version: 6.4.299
+      react:
+        specifier: 19.3.0
+        version: 19.3.0
+      react-dom:
+        specifier: 19.3.0
+        version: 19.3.0(react@19.3.0)
+    devDependencies:
+      '@pactlab/config':
+        specifier: workspace:*
+        version: link:../../packages/config
+      '@pactlab/connectors':
+        specifier: workspace:*
+        version: link:../../packages/connectors
+      '@types/node':
+        specifier: 22.20.5
+        version: 22.20.5
+      '@types/react':
+        specifier: 19.3.0
+        version: 19.3.0
+      '@types/react-dom':
+        specifier: 19.3.0
+        version: 19.3.0(@types/react@19.3.0)
+      eslint:
+        specifier: 10.12.0
+        version: 10.12.0(jiti@2.7.0)
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: 5.0.3
+        version: 5.0.3(@types/node@22.20.5)(vite@8.3.2(@types/node@22.20.5)(jiti@2.7.0))
+
   apps/e2e:
     devDependencies:
       '@pactlab/config':
@@ -682,6 +734,9 @@ importers:
       '@modelcontextprotocol/sdk':
         specifier: 1.32.2
         version: 1.32.2(zod@4.6.5)
+      '@pactlab/contracts':
+        specifier: workspace:*
+        version: link:../contracts
       '@pactlab/domain':
         specifier: workspace:*
         version: link:../domain

@@ -19,10 +19,14 @@ import {
   documentSourceAdapter,
   MAX_SOURCE_FILES,
   MAX_SOURCE_READS,
+  matchRinsedFile,
+  readRinsedFolder,
+  sourcePathOf,
   type DocumentOAuthProvider,
   type DocumentSourceProvider,
   type SourceFile,
 } from '@pactlab/connectors';
+import { RINSE_MANIFEST_FILE } from '@pactlab/contracts';
 import { appendAuditEvent, withTenant, type AuditEventInput, type PrismaClient } from '@pactlab/db';
 import { isBuyerSideRole, newId, permissionsForDealRole, type DealRole, type TenantContext } from '@pactlab/domain';
 import { PROVIDER_DEPENDENCIES, type ProviderDependencies } from '../connections/provider-dependencies';
@@ -33,6 +37,7 @@ import type { ConnectDocumentSourceBody, DocumentSignInBody } from './documents.
 import type { SignInState } from './oauth-state';
 import { DocumentsService } from './documents.service';
 import { DOCX_CONTENT_TYPE, XLSX_CONTENT_TYPE, type AcceptedContentType } from './documents.types';
+import { handSourcedClaimSource, handSourcedClaimStatement, rinseIntakeReason, rinseSummary, type RinseSyncSummary } from './rinse-injection';
 
 /** Buyers who may add documents read them from a source; sources are buyer-side configuration. */
 const canManage = (role: DealRole) => {
@@ -46,6 +51,8 @@ const canManage = (role: DealRole) => {
  * sources they connected.
  */
 const canSupply = (role: DealRole) => canManage(role) || role === 'TARGET_CONTRIBUTOR';
+/** Who may record claims: the deal team (hand-sourced entries from a rinsed folder become seller claims). */
+const canRecordClaims = (role: DealRole) => permissionsForDealRole(role).has('DEAL_WRITE') && isBuyerSideRole(role);
 
 const CONTENT_TYPES: Readonly<Record<string, AcceptedContentType>> = {
   txt: 'text/plain',
@@ -404,7 +411,7 @@ export class DocumentSourcesService {
       // whole-set: a sync compares the source against every file it brought in
       tx.document.findMany({
         where: { dealId, sourceId, sourceState: 'CURRENT' },
-        select: { id: true, sourceExternalId: true, sourceVersion: true, fileName: true, sourcePath: true },
+        select: { id: true, sourceExternalId: true, sourceVersion: true, fileName: true, sourcePath: true, intakeState: true },
       }),
     );
     const current = new Map(known.map((document) => [document.sourceExternalId ?? '', document]));
@@ -412,12 +419,44 @@ export class DocumentSourcesService {
     const files: SourceSyncFile[] = [];
     const replaced: string[] = [];
 
+    // A folder finished in Pactlab Rinse carries its manifest (T-178): read it first, so classifications,
+    // provenance and hand-sourced entries arrive with the files. Without one, the folder syncs as before.
+    const rinsed = await readRinsedFolder(adapter, scope, config, listed);
+    const rinseFiled: { documentId: string; proposal: { category: string; by: 'AI' | 'PERSON'; confidence: number | null; reason: string } }[] = [];
+
     for (const file of listed) {
       seen.add(file.externalId);
-      const path = file.folder ? `${file.folder}/${file.name}` : file.name;
+      const path = sourcePathOf(file);
       const previous = current.get(file.externalId);
+      if (rinsed.status !== 'NONE' && file.folder === '' && file.name === RINSE_MANIFEST_FILE) {
+        files.push({ path, outcome: 'SKIPPED', reason: 'RINSE_MANIFEST', documentId: null });
+        continue;
+      }
+      const entry = rinsed.status === 'READ' ? rinsed.byPath.get(path) : undefined;
+      if (rinsed.status === 'READ') {
+        // Nothing half-clean comes in: a file the manifest does not name was added after the rinse.
+        if (!entry) {
+          files.push({ path, outcome: 'REJECTED', reason: 'NOT_IN_RINSE_MANIFEST', documentId: null });
+          continue;
+        }
+        // The canonical copy is read and cited; its original stays at the source, named in the copy's provenance.
+        if (entry.role === 'ORIGINAL') {
+          files.push({ path, outcome: 'SKIPPED', reason: 'RINSE_ORIGINAL', documentId: null });
+          continue;
+        }
+        // Hand-sourced entries are never documents a finding could cite: they become labelled seller claims.
+        if (entry.document.source === 'HAND_ENTRY') {
+          files.push({ path, outcome: 'SKIPPED', reason: 'HAND_SOURCED_CLAIM', documentId: null });
+          continue;
+        }
+      }
       if (previous && previous.sourceVersion === file.version) {
         files.push({ path, outcome: 'UNCHANGED', reason: null, documentId: previous.id });
+        // A seller's sync brought it in unsorted: the deal team's sync files it from the manifest.
+        const classification = entry?.document.classification;
+        if (entry && classification && previous.intakeState === 'UNCLASSIFIED') {
+          rinseFiled.push({ documentId: previous.id, proposal: { category: classification.category, by: classification.by, confidence: classification.confidence, reason: rinseIntakeReason(entry.document) } });
+        }
         continue;
       }
       const contentType = contentTypeOf(file.name);
@@ -441,6 +480,10 @@ export class DocumentSourcesService {
         }
         sourceError(error);
       }
+      if (entry && matchRinsedFile(rinsed, file, bytes) === 'CHANGED_SINCE_RINSE') {
+        files.push({ path, outcome: 'REJECTED', reason: 'CHANGED_SINCE_RINSE', documentId: null });
+        continue;
+      }
       try {
         const uploaded = await this.documents.ingest(
           tenant,
@@ -457,6 +500,10 @@ export class DocumentSourcesService {
         }
         if (previous) replaced.push(previous.id);
         files.push({ path, outcome: previous ? 'UPDATED' : 'NEW', reason: null, documentId: uploaded.id });
+        const classification = entry?.document.classification;
+        if (entry && classification) {
+          rinseFiled.push({ documentId: uploaded.id, proposal: { category: classification.category, by: classification.by, confidence: classification.confidence, reason: rinseIntakeReason(entry.document) } });
+        }
       } catch (error) {
         if (error instanceof ServiceUnavailableException) throw error;
         files.push({ path, outcome: 'REJECTED', reason: 'UNREADABLE_OR_INFECTED', documentId: null });
@@ -467,6 +514,12 @@ export class DocumentSourcesService {
       files.push({ path: document.sourcePath ? `${document.sourcePath}/${document.fileName}` : document.fileName, outcome: 'REMOVED', reason: null, documentId: document.id });
     }
 
+    // Seller classifications are filed only for the deal team, who settle intake (as with seller uploads).
+    if (canManage(role)) {
+      for (const filed of rinseFiled) await this.documents.fileFromRinseManifest(tenant, dealId, filed.documentId, filed.proposal, requestId);
+    }
+    const rinse = await this.injectRinse(tenant, dealId, role, rinsed, canManage(role) ? rinseFiled.map((filed) => filed.documentId) : [], requestId);
+
     const summary = Object.fromEntries(
       (['NEW', 'UPDATED', 'UNCHANGED', 'DUPLICATE', 'REMOVED', 'SKIPPED', 'REJECTED', 'WAITING'] as const).map((outcome) => [outcome, files.filter((file) => file.outcome === outcome).length]),
     );
@@ -475,10 +528,44 @@ export class DocumentSourcesService {
     await withTenant(this.prisma, tenant, async (tx) => {
       if (replaced.length > 0) await tx.document.updateMany({ where: { dealId, id: { in: replaced } }, data: { sourceState: 'REPLACED' } });
       if (removed.length > 0) await tx.document.updateMany({ where: { dealId, id: { in: removed.map((document) => document.id) } }, data: { sourceState: 'REMOVED' } });
-      await tx.documentSource.update({ where: { id: sourceId }, data: { lastSyncedAt: new Date(), lastSyncSummary: { ...summary, LISTING_COMPLETE: complete ? 1 : 0 } } });
+      await tx.documentSource.update({ where: { id: sourceId }, data: { lastSyncedAt: new Date(), lastSyncSummary: { ...summary, LISTING_COMPLETE: complete ? 1 : 0, ...(rinse ? { RINSE_MANIFEST: rinse.status === 'READ' ? 1 : 0, RINSE_HAND_SOURCED: rinse.handSourced.length, RINSE_NOTED_GAPS: rinse.notedGaps.length, RINSE_SOURCE_DISCREPANCIES: rinse.sourceDiscrepancies.length } : {}) } } });
       await appendAuditEvent(tx, this.audit(tenant, dealId, 'document_source.synced', sourceId, requestId));
     });
     // Unchanged and waiting files are counted in the summary, not listed: a large room would send thousands of rows.
-    return { sourceId, summary, files: files.filter((file) => file.outcome !== 'UNCHANGED' && file.outcome !== 'WAITING'), ...progress };
+    return { sourceId, summary, files: files.filter((file) => file.outcome !== 'UNCHANGED' && file.outcome !== 'WAITING'), ...progress, rinse };
+  }
+
+  /**
+   * What a rinsed folder's manifest brings beyond its files (T-178): hand-sourced entries recorded once as
+   * seller claims labelled hand-sourced (by the deal team's sync; a seller's sync leaves them waiting),
+   * and the gap notes and source discrepancies, returned for the page.
+   */
+  private async injectRinse(tenant: TenantContext, dealId: string, role: DealRole, rinsed: Awaited<ReturnType<typeof readRinsedFolder>>, filed: readonly string[], requestId: string): Promise<RinseSyncSummary | null> {
+    if (rinsed.status === 'NONE') return null;
+    if (rinsed.status === 'INVALID') {
+      return { status: 'INVALID', problem: rinsed.problem, set: null, documents: 0, audited: 0, handSourced: [], notedGaps: [], sourceDiscrepancies: [], claimsWaitForDealTeam: false, filed: [] };
+    }
+    const claims = new Map<string, string>();
+    const recordClaims = canRecordClaims(role);
+    const hand = rinsed.manifest.documents.filter((document) => document.source === 'HAND_ENTRY');
+    if (recordClaims && hand.length > 0) {
+      await withTenant(this.prisma, tenant, async (tx) => {
+        for (const document of hand) {
+          const statement = handSourcedClaimStatement(document);
+          const source = handSourcedClaimSource(document);
+          if (!statement || !source) continue;
+          // Idempotent: the same entry and revision is recorded once, however often the folder syncs.
+          const existing = await tx.dealClaim.findFirst({ where: { dealId, origin: 'MANUAL', statement, source }, select: { id: true } });
+          if (existing) {
+            claims.set(document.id, existing.id);
+            continue;
+          }
+          const claim = await tx.dealClaim.create({ data: { organizationId: tenant.organizationId, dealId, statement, source, origin: 'MANUAL', createdBy: tenant.userId, updatedBy: tenant.userId } });
+          claims.set(document.id, claim.id);
+          await appendAuditEvent(tx, { organizationId: tenant.organizationId, dealId, actorUserId: tenant.userId, action: 'claim.created', targetType: 'deal_claim', targetId: claim.id, outcome: 'SUCCEEDED', requestId });
+        }
+      });
+    }
+    return rinseSummary(rinsed.manifest, claims, hand.length > 0 && !recordClaims, filed);
   }
 }

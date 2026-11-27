@@ -901,6 +901,39 @@ export class DocumentsService {
     return this.intakeView({ ...document, aiExcluded: document.aiExcluded || excludeFromAi, intake });
   }
 
+  /**
+   * A document from a folder finished in Pactlab Rinse (T-178): the seller's classification is a proposal,
+   * filed through the same intake rules as the AI's (an offered category, the route's confidence bar); a
+   * pact-side person's category is never overwritten. The reason names the seller's original and the audit.
+   */
+  async fileFromRinseManifest(
+    tenant: TenantContext,
+    dealId: string,
+    documentId: string,
+    proposal: { readonly category: string; readonly by: 'AI' | 'PERSON'; readonly confidence: number | null; readonly reason: string },
+    requestId: string,
+  ) {
+    const document = await this.documents.getDocument(tenant, dealId, documentId);
+    if (!document || document.status === 'PURGED' || document.intake.source === 'PERSON') return;
+    const pack = await this.packOf(tenant, dealId);
+    const confidence = proposal.by === 'PERSON' ? 1 : (proposal.confidence ?? 0);
+    const decision = decideIntake(pack, { category: proposal.category, confidence, alternatives: [], question: null });
+    const intake: DocumentIntake = {
+      ...document.intake,
+      state: decision.state,
+      category: decision.category,
+      source: decision.category ? 'AI' : null,
+      confidence,
+      reason: proposal.reason,
+      question: decision.state === 'NEEDS_YOU' ? decision.question : null,
+      classifiedRunId: null,
+      categorizedBy: null,
+      categorizedAt: new Date().toISOString(),
+    };
+    const excludeFromAi = intake.state === 'FILED' && intake.category !== null && categoryDefinition(intake.category as IntakeCategory).people;
+    await this.documents.updateIntake(tenant, dealId, documentId, intake, { excludeFromAi, run: null }, this.audit(tenant, dealId, 'document.classified', { type: 'document', id: documentId }, requestId));
+  }
+
   /** A person answers the AI's question, or corrects a category. Their answer is final until they change it. */
   async categorize(tenant: TenantContext, dealId: string, documentId: string, body: CategorizeDocumentBody, requestId: string) {
     await this.access.require(tenant, dealId, canExtract, { action: 'document.categorized', requestId });
