@@ -175,6 +175,25 @@ export async function startAcceptanceDeal(packId: PackId, currency: string, opti
 
 /** Every built pack with rules has an acceptance folder per currency (guards the harness inputs). */
 export const ACCEPTANCE_CURRENCIES = ['USD', 'EUR', 'GBP'] as const;
+
+/** GET …/metrics/pack as the history checks read it (T-184, T-184b). */
+export type PackMetricsBody = {
+  calculator: string;
+  metrics: { key: string; value: string | null; history?: { period: string; value: string | null }[] }[];
+  history?: { years: string[]; rows: { key: string; values: (string | null)[] }[]; coverage: { key: string; summary: string }[]; asks: { needs: string[]; note: string }[] };
+};
+/** The five calendar years of history the demo data holds (T-184b). */
+export const HISTORY_YEARS = ['2021', '2022', '2023', '2024', '2025'] as const;
+/** A ratio of two integer sums as the history reads it: rounded half up to `digits` places. */
+export function ratioOf(numerator: bigint, denominator: bigint, digits = 4): string {
+  const scale = 10n ** BigInt(digits);
+  const scaled = (numerator * scale * 2n + denominator) / (2n * denominator);
+  return (Number(scaled) / Number(scale)).toFixed(digits);
+}
+/** Σ a column of a CSV's rows as integer hundredths (money and hours with up to two decimals). */
+export const centsOf = (rows: readonly string[][], index: number) => rows.reduce((total, row) => total + BigInt(Math.round(Number(row[index] ?? '0') * 100)), 0n);
+/** A demo CSV's rows, header dropped (no quoted commas in the history files). */
+export const csvRows = (folder: string, file: string) => readFileSync(join(folder, file), 'utf8').trim().split('\n').slice(1).map((line) => line.split(','));
 export const BUILT_PACKS = PACK_IDS.filter((id) => PACKS[id].built && PACKS[id].findingRules.length > 0);
 
 export type BridgeLine = { kind: string; findingId?: string; amount: { amount: string } };

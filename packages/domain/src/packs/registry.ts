@@ -226,6 +226,7 @@ export const PACKS: Readonly<Record<PackId, PackDefinition>> = {
       'services-pnl-trend',
       'services-pnl-margin-drift',
       'services-pnl-expense-outpacing',
+      'services-utilization-trend',
     ],
     documentCategories: ['COVENANT_REGISTER'],
     // People-driven earnings value on DCF; retainer revenue also reads as recurring.

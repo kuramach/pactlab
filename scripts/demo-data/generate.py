@@ -1153,11 +1153,13 @@ def services(ds):
     ds.summary = f'{ds.company} is a 140-person digital and data consultancy working on retainers and projects for enterprise clients.'
     rng = ds.rng
     c = ds.cur
-    # --- Time and billing (T-167): January 2023 to September 2026, one row per month, client and fee-earner.
+    # --- Time and billing (T-167): January 2021 to September 2026 (five years, T-184b), one row per month, client and fee-earner.
+    # Months before 2023 come from their own random generator, so the later rows are unchanged.
     # Fee-earners are pseudonymous references (P- partners, C- consultants); each client's relationship
     # partner bills 40% of its fees. Meridian is about 27% of fees against the deck's 15% ceiling (planted (a)).
+    hrng = random.Random(f'services-history:{ds.cur}')
     OM = []
-    yy, mm = 2023, 1
+    yy, mm = 2021, 1
     while (yy, mm) <= (2026, 9):
         OM.append(f'{yy}-{mm:02d}'); mm += 1
         if mm == 13: yy, mm = yy + 1, 1
@@ -1173,13 +1175,13 @@ def services(ds):
         ('Northwind Councils', 'P-05', 'C-09', 'project', 21000),
     ]
     # Realization (fees ÷ standard value) falls every year (planted (b)); a single year looks unremarkable.
-    REAL = {'2023': D('0.92'), '2024': D('0.87'), '2025': D('0.81'), '2026': D('0.80')}
+    REAL = {'2021': D('0.95'), '2022': D('0.935'), '2023': D('0.92'), '2024': D('0.87'), '2025': D('0.81'), '2026': D('0.80')}
     RATE = {'Partner': ds.amt(350), 'Consultant': ds.amt(160)}
     tb_rows, fees = [], {}
     for name, partner, consultant, engagement, base in clients:
         for i, mo in enumerate(OM):
             back = len(OM) - 1 - i
-            month_fees = ds.amt(D(base) / (D('1.008') ** back)) * (D(1) + D(rng.randint(-20, 20)) / 1000)
+            month_fees = ds.amt(D(base) / (D('1.008') ** back)) * (D(1) + D((rng if mo >= '2023-01' else hrng).randint(-20, 20)) / 1000)
             yr = mo[:4]
             for ref, grade, part in ((partner, 'Partner', D('0.4')), (consultant, 'Consultant', D('0.6'))):
                 billed = q(month_fees * part)
@@ -1194,13 +1196,24 @@ def services(ds):
     # Billing is the clients' fees, October 2024 to September 2026.
     for i, (name, *_rest) in enumerate(clients):
         ds.customer(f'{ds.prefix}-cli-{i + 1:03d}', f'{name} (synthetic)', {mo: fees[(mo, name)] for mo in MONTHS})
+    # Timesheets: five years (T-184b). Before October 2025 they come from their own generator; utilization
+    # falls every year (planted (e)), and the last twelve months are unchanged.
+    UTIL = {'2021': D('0.74'), '2022': D('0.715'), '2023': D('0.69'), '2024': D('0.67'), '2025': D('0.65')}
+    HC = {'2021': (52, 28, 18), '2022': (55, 30, 19), '2023': (58, 31, 20), '2024': (60, 33, 21), '2025': (62, 34, 22)}
     rows = []
+    for mo in OM:
+        if mo in LAST12: continue
+        for (team, _hc), hc in zip((('Engineering', 62), ('Data', 34), ('Design', 22)), HC[mo[:4]]):
+            avail = hc * 140; billable = int(avail * (UTIL[mo[:4]] + D(hrng.randint(-5, 5)) / 1000))
+            rows.append([mo, team, hc, avail, billable])
     for mo in LAST12:
         for team, hc in (('Engineering', 62), ('Data', 34), ('Design', 22)):
             avail = hc * 140; billable = int(avail * (0.62 + rng.randint(0, 5) / 100))
             rows.append([mo, team, hc, avail, billable])
-    util = D(sum(r[4] for r in rows)) / D(sum(r[3] for r in rows))
-    ds.ext('timesheets-summary', ['month', 'team', 'headcount', 'available_hours', 'billable_hours'], rows, 'Available and billable hours by team (aggregate)')
+    trail_ts = [r for r in rows if r[0] in LAST12]
+    util = D(sum(r[4] for r in trail_ts)) / D(sum(r[3] for r in trail_ts))
+    def year_util(y): return D(sum(r[4] for r in rows if r[0].startswith(y))) / D(sum(r[3] for r in rows if r[0].startswith(y)))
+    ds.ext('timesheets-summary', ['month', 'team', 'headcount', 'available_hours', 'billable_hours'], rows, 'Available and billable hours by team (aggregate), January 2021 to September 2026')
     hm = []
     for i, mo in enumerate(LAST12):
         hm.append([mo, 'Delivery', 2 + i % 2, 1 + (i // 3), 118 + i % 3])
@@ -1239,12 +1252,12 @@ def services(ds):
     wip_factor = over[('wip', '2025')] / over[('wip', '2024')]
     wip_increase = over[('wip', '2025')] - over[('wip', '2024')]
 
-    # Three fiscal years of P&L. Fees tie to the export; staff cost follows the time worked, so the margin falls as
-    # realization does, and write-offs outpace revenue.
-    years = ['2023', '2024', '2025']
+    # Five fiscal years of P&L (T-184b). Fees tie to the export; staff cost follows the time worked, so the margin
+    # falls as realization does, and write-offs outpace revenue.
+    years = ['2021', '2022', '2023', '2024', '2025']
     def ysum(y, kinds=None, col=9): return sum((D(r[col]) for r in year_rows(y) if kinds is None or r[2] in kinds), D(0))
     rev = {y: ysum(y) for y in years}
-    WO = {'2023': D('0.010'), '2024': D('0.016'), '2025': D('0.026')}
+    WO = {'2021': D('0.006'), '2022': D('0.008'), '2023': D('0.010'), '2024': D('0.016'), '2025': D('0.026')}
     staff = {y: q(ysum(y, col=8) * D('0.48')) for y in years}
     subs = {y: q(rev[y] * D('0.08')) for y in years}
     other = {y: q(rev[y] * D('0.015')) + q(rev[y] * D('0.07')) + q(rev[y] * D('0.05')) + q(rev[y] * WO[y]) for y in years}
@@ -1256,14 +1269,14 @@ def services(ds):
                 ['Recruitment'] + [f'{q(rev[y] * D("0.015")):.2f}' for y in years],
                 ['Rent and office'] + [f'{q(rev[y] * D("0.07")):.2f}' for y in years],
                 ['Business development and general'] + [f'{q(rev[y] * D("0.05")):.2f}' for y in years]]
-    ds.ext('pnl', ['Line'] + [f'FY{y}' for y in years], pnl_rows, 'Profit and loss by fiscal year, FY2023 to FY2025')
+    ds.ext('pnl', ['Line'] + [f'FY{y}' for y in years], pnl_rows, 'Profit and loss by fiscal year, FY2021 to FY2025')
     def gm(y): return (rev[y] - staff[y] - subs[y]) / rev[y]
     def om(y): return (rev[y] - staff[y] - subs[y] - other[y]) / rev[y]
     ds.pnl_step = ['Open the **Sources** tab, scroll to **Industry data** and click **Upload profit and loss (p&l)**.', '',
-                   '1. Choose `pnl.csv` → **Upload and map columns**. Pactlab reads the three years across the columns (FY2023, FY2024, FY2025).',
+                   '1. Choose `pnl.csv` → **Upload and map columns**. Pactlab reads the five years across the columns (FY2021 to FY2025).',
                    '2. Say what each line is: the two lines ending in *revenue* are **Revenue**, the two lines starting *Cost of* are **Cost of revenue**, and the rest are **Operating expenses**.',
-                   f'3. **Check every row**, then **Import {len(pnl_rows) * 3} rows**.', '',
-                   '**You should see:** the import succeed. The **Practice** tab now shows the P&L year by year, reconciled to the billing export, and the checks in the next step read every year.', '']
+                   f'3. **Check every row**, then **Import {len(pnl_rows) * 5} rows**.', '',
+                   '**You should see:** the import succeed. The **Practice** tab now shows the P&L year by year, reconciled to the billing export; **Finances** shows the five years side by side with utilization, realization and headcount, and the checks in the next step read every year.', '']
 
     top, share = ds.share_top()
     ds.doc('01-management-pack-2026-09', f"""
@@ -1297,17 +1310,18 @@ P-01 and P-02: no non-compete or non-solicitation covenant; their partnership ag
         ('Rising attrition in delivery roles', 'monthly delivery leavers rise from 1 to 4 across the year in `headcount-movements.csv`.'),
         ('Claim contradicted: Client concentration ceiling', f'the information memorandum says no client exceeds 15% of fees; `time-billing.csv` gives {top_client} {pct(top_fees / total)} of fees billed in the twelve months to September 2026.'),
         ('Claim verified: Partner concentration ceiling', f'the largest partner book ({top_partner}, the clients whose relationship they hold) is {pct(partner_fees / total)} of fees, under the stated 40%.'),
-        ('Realization falling every year, 2023–2025', f'`time-billing.csv` — fees ÷ standard value {", ".join(f"{y} {pct(realization(y))}" for y in years)}. A single year looks unremarkable.'),
+        ('Realization falling every year, 2021–2025', f'`time-billing.csv` — fees ÷ standard value {", ".join(f"{y} {pct(realization(y))}" for y in years)}. A single year looks unremarkable.'),
         (f'WIP over 90 days up {wip_factor.quantize(D("0.1"), ROUND_HALF_UP)}× in a year, 2024–2025', f'`wip-ar-ageing.csv` — WIP older than 90 days {money(c, over[("wip", "2024")])} at 2024-12-31, {money(c, over[("wip", "2025")])} at 2025-12-31; the {money(c, wip_increase)} increase is priced into working capital.'),
         ('Rainmaker with no non-solicit or non-compete on file: P-01', f'P-01\'s book is {pct(by_partner["P-01"] / total)} of fees; `documents/04-covenant-register.pdf` states P-01 has no covenant.'),
         ('Rainmaker with no non-solicit or non-compete on file: P-02', f'P-02\'s book is {pct(by_partner["P-02"] / total)} of fees; the same register states P-02 has no covenant.'),
         (f'Revenue quality: {pct(recurring / total)} recurring, twelve months to September 2026', 'retainers and managed services against projects and time and materials, from `time-billing.csv`.'),
-        ('P&L trend, 2023–2025', 'every imported year side by side: revenue, growth, margins and the staff, subcontractor, write-off and recruitment ratios.'),
-        ('Gross margin and Operating margin down across 2023–2025', f'`pnl.csv` — gross margin {pct(gm("2023"))} to {pct(gm("2025"))}, operating margin {pct(om("2023"))} to {pct(om("2025"))}.'),
-        ('WIP and bad-debt write-offs growing faster than revenue, 2023–2025', f'`pnl.csv` — {pct(WO["2023"])} of revenue in FY2023 to {pct(WO["2025"])} in FY2025.'),
+        ('Utilization falling every year, FY2021–FY2025', f'`timesheets-summary.csv` — billable ÷ available hours by calendar year: {", ".join(f"FY{y} {year_util(y) * 100:.2f}%" for y in years)}. The trailing twelve months alone do not show it.'),
+        ('P&L trend, 2021–2025', 'every imported year side by side: revenue, growth, margins and the staff, subcontractor, write-off and recruitment ratios.'),
+        ('Gross margin and Operating margin down across 2021–2025', f'`pnl.csv` — gross margin {pct(gm("2021"))} to {pct(gm("2025"))}, operating margin {pct(om("2021"))} to {pct(om("2025"))}.'),
+        ('WIP and bad-debt write-offs growing faster than revenue, 2021–2025', f'`pnl.csv` — {pct(WO["2021"])} of revenue in FY2021 to {pct(WO["2025"])} in FY2025.'),
     ]
     ds.notes = ['People data is aggregate or pseudonymous only — fee-earners are P- and C- references, never names, emails or pay; no person is assessed.',
-                '`time-billing.csv` runs January 2023 to September 2026, so each of FY2023–FY2025 is a complete year; the fees in it tie to the P&L year by year.',
+                '`time-billing.csv` and `timesheets-summary.csv` run January 2021 to September 2026, so each of FY2021–FY2025 is a complete year (five years of history, read side by side on **Finances**); the fees tie to the P&L year by year.',
                 'The P&L (`pnl.csv`) imports through Sources like any extract; the multi-year checks read every year it holds. A single year still imports: the trend then reports that year alone.']
 
 def pharma(ds):

@@ -361,7 +361,7 @@ export const VALUATION_DIRECTION_MAP: Readonly<Record<string, readonly Direction
   // IT and professional services (T-063, T-167, ADR 0055): utilization, realization and fees by client and by partner
   // recomputed from the exports, ageing drift from the reports, covenant cover read from the documents. Arithmetic and
   // documents only; people appear only by pseudonymous reference and are never assessed.
-  [SERVICES_TIMESHEET_MONTH_EVIDENCE_TYPE]: [{ signal: 'utilization-gap', findingDomain: 'FINANCIAL', defaultDirection: -1, channel: 'ASSUMPTION' }],
+  [SERVICES_TIMESHEET_MONTH_EVIDENCE_TYPE]: [{ signal: 'utilization-gap', findingDomain: 'FINANCIAL', defaultDirection: -1, channel: 'ASSUMPTION' }, driverTrend('FINANCIAL')],
   [SERVICES_HEADCOUNT_MONTH_EVIDENCE_TYPE]: [{ signal: 'delivery-attrition', findingDomain: 'PEOPLE', defaultDirection: -1, channel: 'ASSUMPTION' }],
   [SERVICES_BILLING_MONTH_EVIDENCE_TYPE]: [
     { signal: 'claim-contradicted', findingDomain: 'COMMERCIAL', defaultDirection: -1, channel: 'ASSUMPTION' },

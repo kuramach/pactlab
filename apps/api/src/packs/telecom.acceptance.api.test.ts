@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { ACCEPTANCE_CURRENCIES, startAcceptanceDeal, type AcceptanceDeal, type Body } from './acceptance-kit';
+import { ACCEPTANCE_CURRENCIES, csvRows, HISTORY_YEARS as YEARS, ratioOf, startAcceptanceDeal, type AcceptanceDeal, type Body, type PackMetricsBody } from './acceptance-kit';
 
 type FindingView = {
   id: string;
@@ -13,13 +13,6 @@ type FindingView = {
   pricedRisk: { type: string; low: string; high: string; currency: string } | null;
   evidence: { evidenceItemId: string | null; documentCitation: { pageNumber: number; quote: string } | null }[];
 };
-
-type PackMetricsBody = {
-  calculator: string;
-  metrics: { key: string; value: string | null; history?: { period: string; value: string | null }[] }[];
-  history?: { years: string[]; rows: { key: string; values: (string | null)[] }[]; coverage: { key: string; summary: string }[]; asks: { needs: string[]; note: string }[] };
-};
-const YEARS = ['2021', '2022', '2023', '2024', '2025'];
 
 /** Line kinds a person confirms for the demo P&L: revenue lines, "cost of" lines, the rest operating costs. */
 const lineKind = (account: string) => (/revenue/i.test(account) ? 'REVENUE' : /^cost of/i.test(account) ? 'COGS' : 'OPEX');
@@ -150,12 +143,11 @@ describe.each(ACCEPTANCE_CURRENCIES)('telecom and media pack acceptance (%s)', {
     const metrics = (await deal.call('GET', `/v1/deals/${deal.dealId}/metrics/pack`, 'lead')).body as PackMetricsBody;
     expect(metrics.calculator).toBe('telecom-subscribers');
     // Five years side by side (T-184b), hand-computed from the export: Σ disconnects ÷ Σ opening subscribers by year.
-    const rows = readFileSync(join(deal.folder, 'subscriber-movements.csv'), 'utf8').trim().split('\n').slice(1).map((line) => line.split(','));
+    const rows = csvRows(deal.folder, 'subscriber-movements.csv');
     const churnOf = (year: string) => {
       const inYear = rows.filter((row) => row[0]?.startsWith(year));
       const sum = (index: number) => inYear.reduce((total, row) => total + BigInt(row[index] ?? '0'), 0n);
-      const [disconnects, opening] = [sum(5), sum(3)];
-      return (Number((disconnects * 2_000_000n + opening) / (2n * opening)) / 1_000_000).toFixed(6);
+      return ratioOf(sum(5), sum(3), 6);
     };
     expect(metrics.history?.years).toEqual(YEARS.map((year) => `FY${year}`));
     expect(metrics.history?.rows.find((row) => row.key === 'monthly_churn')?.values).toEqual(YEARS.map(churnOf));

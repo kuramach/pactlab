@@ -63,8 +63,8 @@ export interface DriverSpec {
 export interface PackHistorySpec {
   readonly drivers: readonly DriverSpec[];
   readonly keyExpenses: readonly KeyExpense[];
-  /** The import that holds the drivers, asked of the seller for missing years. */
-  readonly driverImport: string;
+  /** The import (or imports) that hold the drivers, asked of the seller for missing years. */
+  readonly driverImport: string | readonly string[];
   /** e.g. "Processor volume" → coverage label; and "processor volume history" in the ask. */
   readonly driverLabel: string;
   readonly driverWhat: string;
@@ -165,7 +165,7 @@ export function packHistory(spec: PackHistorySpec, evidence: readonly PackRuleEv
     asks: cover
       .filter((entry) => entry.missingYears.length > 0)
       .map((entry) => ({
-        needs: [entry.key === 'operating' ? 'INCOME_STATEMENT' : spec.driverImport],
+        needs: entry.key === 'operating' ? ['INCOME_STATEMENT'] : [spec.driverImport].flat(),
         note: `Ask the seller for ${yearRanges(entry.missingYears)} ${entry.key === 'operating' ? 'income statements' : spec.driverWhat}.`,
       })),
     conventions: PACK_HISTORY_CONVENTIONS,

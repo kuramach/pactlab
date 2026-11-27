@@ -149,7 +149,7 @@ describe('pack registry', () => {
     expect(services.importTargets).toEqual(['BILLING_INVOICE_LINE', 'SERVICES_TIMESHEETS', 'SERVICES_HEADCOUNT', 'SERVICES_TIME_BILLING', 'SERVICES_AGEING']);
     // The T-063 rules stay, first and unchanged.
     expect(services.findingRules.slice(0, 3)).toEqual(['services-utilization-gap', 'services-client-termination', 'services-delivery-attrition']);
-    expect(services.findingRules).toHaveLength(12);
+    expect(services.findingRules).toHaveLength(13);
     expect(services.documentCategories).toEqual(['COVENANT_REGISTER']);
     expect(IMPORT_TARGET_DEFINITIONS.SERVICES_TIME_BILLING).toMatchObject({ people: 'PSEUDONYMOUS', refusesPeopleColumns: true });
     expect(IMPORT_TARGET_DEFINITIONS.SERVICES_AGEING).toMatchObject({ people: 'NONE', refusesPeopleColumns: true });
