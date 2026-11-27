@@ -1,5 +1,5 @@
 import { D, parseDecimal } from '../../metrics/decimal';
-import { driverTrendRule, type DriverSpec, type DriverYear, type PackHistorySpec } from '../history';
+import { driverTrendRule, recentRunRule, type DriverSpec, type DriverYear, type PackHistorySpec } from '../history';
 import { MAX_CITED, type PackRuleEvidence } from '../rule-types';
 import { MUSIC_EVIDENCE } from './catalog';
 
@@ -63,3 +63,6 @@ export const MUSIC_INCOME_TREND = driverTrendRule(
   },
   MUSIC_HISTORY,
 );
+
+/** The recent run against the long run (T-185). */
+export const MUSIC_RECENT_RUN = recentRunRule('music', MUSIC_HISTORY);

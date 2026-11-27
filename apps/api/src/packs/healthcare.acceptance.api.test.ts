@@ -159,7 +159,7 @@ describe.each(ACCEPTANCE_CURRENCIES)('healthcare pack acceptance (%s)', { timeou
     expect(metrics.history?.years).toEqual(YEARS.map((year) => `FY${year}`));
     expect(metrics.history?.rows.find((row) => row.key === 'denial_rate')?.values).toEqual(YEARS.map(denialOf));
     expect(metrics.history?.rows.find((row) => row.key === 'commercial_share')?.values).toEqual(YEARS.map(commercialOf));
-    expect(metrics.history?.coverage.map((entry) => entry.summary)).toEqual(['FY2021–FY2025 (5 of 5 years)', 'FY2021–FY2025 (5 of 5 years)']);
+    expect(metrics.history?.coverage.map((entry) => entry.summary)).toEqual(['FY2021–FY2025 (5 years; earlier years not provided)', 'FY2021–FY2025 (5 years; earlier years not provided)']);
     expect(metrics.history?.asks).toEqual([]);
     expect(metrics.metrics.find((metric) => metric.key === 'denial_rate')?.history?.map((point) => point.period)).toEqual(YEARS.map((year) => `FY${year}`));
     expect(metrics.metrics.find((metric) => metric.key === 'top_clinician_share')?.value).toBe('0.3100');
@@ -214,8 +214,8 @@ describe.each(ACCEPTANCE_CURRENCIES)('healthcare pack acceptance (%s)', { timeou
     expect(titles.filter((title) => title.startsWith('Denial write-offs and bad debt growing faster'))).toHaveLength(1);
     // Partial history (T-184b): one year of income and expenses states its coverage and asks the seller for the rest.
     const partial = (await deal.call('GET', `/v1/deals/${deal.dealId}/metrics/pack`, 'lead')).body as PackMetricsBody;
-    expect(partial.history?.coverage.find((entry) => entry.key === 'operating')?.summary).toBe('FY2025 (1 of 5 years): ask the seller for FY2021–FY2024 income statements');
-    expect(partial.history?.asks).toEqual([{ needs: ['INCOME_STATEMENT'], note: 'Ask the seller for FY2021–FY2024 income statements.' }]);
+    expect(partial.history?.coverage.find((entry) => entry.key === 'operating')?.summary).toBe('FY2025 (1 of 5 years): ask the seller for FY2021–FY2024 income statements, or tell us the business started later');
+    expect(partial.history?.asks).toEqual([{ needs: ['INCOME_STATEMENT'], note: 'Ask the seller for FY2021–FY2024 income statements, or tell us the business started later.' }]);
   });
 
   it('is refused to a target contributor and invisible to another tenant', async () => {

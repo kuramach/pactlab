@@ -98,6 +98,21 @@ The source plan then adds **Industry data** (`pack_upload` connections) automati
 - **Where history does not apply:** *Venture Raise* is a founder's pre-seed to Series A round: there are rarely five years of anything, the round is priced on traction since launch, and the cap table and runway are point-in-time; its billing and P&L still import and read as they do. A *startup SPV* is a vehicle with no operating business: it is checked on the round's math and the vehicle's terms, so it has no history to expect. Neither pack asks for five years.
 - **Demo data:** extend the existing monthly export back five years from its own random generator (so the last 24 months, and every planted finding read from them, are unchanged), keep the P&L's revenue lines equal to the export where a rule reconciles them, and plant one driver defect. Billing that runs back sets `ds.billing_months = HIST_MONTHS + MONTHS`.
 
+## 4e. History of any length (T-185)
+
+- **Every complete year is read**, up to `MAX_HISTORY_YEARS` (30); the trend rules and five-year figures keep reading the latest `RECENT_YEARS` (5). Pass the calculator input to `packHistory(spec, evidence, input)` / `multifamilyHistory(evidence, currency, input)` so the pact's history start applies.
+- **Expected years:** max(latest − 4, `historyStartYear`) … latest. A missing year before the first read, with no start set, is asked "…or tell us the business started later"; a gap inside the history is asked for alone; years before the start never are.
+- **Long-run figures** (`longRunMetrics`, on `PackHistory.longRun`): ten-year and full-history growth, the worst year and its recovery, through-cycle averages. Name the pack's key ratio driver with `keyDriver` when the first ratio driver is not it.
+- **The recent run against the long run:** add `recentRunRule('<prefix>', SPEC)` to the pack's rules and `'<prefix>-recent-run'` to its registry entry.
+
+  | Constant | Value | Drafts when |
+  |---|---|---|
+  | `RECENT_RUN_MIN_YEARS` | 10 | only over ten years or more |
+  | `RECENT_RUN_WINDOW`, `RECENT_RUN_MIN_RECENT` | 5, 3 | the last five years (three at least) |
+  | `RECENT_RUN_POINTS` | 0.03 | their average margin or key ratio driver is 3 points or more above the full history's |
+  | `LONG_RUN_YEARS` | 10 | the ten-year growth rate (FY2017 ÷ FY2026 ^ 1/9) needs ten years read |
+
+
 ## 5. Metrics
 
 - **Calculator:** in `packages/calculations/src/packs/calculators.ts`. It returns the generic `PackMetricsReport` (`packs/metrics-types.ts`): label, value as a decimal string, unit, formula and source count.

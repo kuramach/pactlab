@@ -9,8 +9,9 @@ import { DELINQUENCY, INSPECTION, lossToLease, occupied, of, T12, total, UNIT } 
 /**
  * 2 (T-158): market rent and loss-to-lease vs market from RentCast estimates; the rent roll's own loss-to-lease is labelled apart.
  * 3 (T-183): five years of history — income, NOI, the expense ratio, occupancy and rent by year, growth rates and coverage.
+ * 4 (T-185): every year provided (up to 30), never asking for years before the history start; long-run figures over the full history.
  */
-export const MULTIFAMILY_METRICS_VERSION = 'multifamily-metrics-3';
+export const MULTIFAMILY_METRICS_VERSION = 'multifamily-metrics-4';
 
 /** The history figures (T-183): each by year where it has one, with its coverage; a missing figure names the import it needs. */
 function historyMetrics(history: MultifamilyHistory): PackMetric[] {
@@ -20,7 +21,7 @@ function historyMetrics(history: MultifamilyHistory): PackMetric[] {
   const occCoverage = history.coverage.occupancy.summary;
   // Each year names the rows it rests on (T-179), so a critical rated on the year can cite them.
   const series = <T extends { year: string; evidenceIds: readonly string[] }>(years: readonly T[], value: (year: T) => string | null) =>
-    history.expected.map((year) => {
+    history.years.map((year) => {
       const found = years.find((entry) => entry.year === year);
       return { period: `FY${year}`, value: found ? value(found) : null, ...(found ? { evidenceIds: found.evidenceIds } : {}) };
     });
@@ -39,7 +40,7 @@ function historyMetrics(history: MultifamilyHistory): PackMetric[] {
       unit: 'MONEY',
       formula: `Revenue on the P&L for ${lastOp ? `FY${lastOp.year}` : 'the latest year'}: rent net of vacancy and concessions, plus other income`,
       sourceCount: lastOp?.evidenceIds.length ?? 0,
-      history: series(op, (year) => year.revenue),
+      history: series(history.operatingAll, (year) => year.revenue),
       coverage: opCoverage,
       ...(lastOp ? { value: lastOp.revenue } : need('operating', 'Import the operating statements (P&L) by year.')),
     },
@@ -49,7 +50,7 @@ function historyMetrics(history: MultifamilyHistory): PackMetric[] {
       unit: 'MONEY',
       formula: `Revenue less operating expenses for ${lastOp ? `FY${lastOp.year}${lastOp.basis === 'T12' ? ' (the T-12)' : ''}` : 'the latest year'}`,
       sourceCount: lastOp?.evidenceIds.length ?? 0,
-      history: series(op, (year) => year.noi),
+      history: series(history.operatingAll, (year) => year.noi),
       coverage: opCoverage,
       ...(lastOp ? { value: lastOp.noi } : need('operating', 'Import the operating statements (P&L) by year.')),
     },
@@ -59,7 +60,7 @@ function historyMetrics(history: MultifamilyHistory): PackMetric[] {
       unit: 'RATIO',
       formula: 'Operating expenses ÷ revenue',
       sourceCount: lastOp?.evidenceIds.length ?? 0,
-      history: series(op, (year) => year.expenseRatio),
+      history: series(history.operatingAll, (year) => year.expenseRatio),
       coverage: opCoverage,
       ...(lastOp?.expenseRatio ? { value: lastOp.expenseRatio } : need('operating', 'Import the operating statements (P&L) by year.')),
     },
@@ -87,7 +88,7 @@ function historyMetrics(history: MultifamilyHistory): PackMetric[] {
       unit: 'RATIO',
       formula: 'Occupied units ÷ units across the year\'s months',
       sourceCount: lastOcc?.evidenceIds.length ?? 0,
-      history: series(occ, (year) => year.average),
+      history: series(history.occupancyAll, (year) => year.average),
       coverage: occCoverage,
       ...(lastOcc ? { value: lastOcc.average } : need('occupancy', 'Import the occupancy and rent history.')),
     },
@@ -97,7 +98,7 @@ function historyMetrics(history: MultifamilyHistory): PackMetric[] {
       unit: 'RATIO',
       formula: `The year's lowest month${lastOcc ? ` (${lastOcc.lowPeriod})` : ''}`,
       sourceCount: lastOcc?.evidenceIds.length ?? 0,
-      history: series(occ, (year) => year.low),
+      history: series(history.occupancyAll, (year) => year.low),
       coverage: occCoverage,
       ...(lastOcc ? { value: lastOcc.low } : need('occupancy', 'Import the occupancy and rent history.')),
     },
@@ -116,7 +117,7 @@ function historyMetrics(history: MultifamilyHistory): PackMetric[] {
       unit: 'MONEY',
       formula: 'Monthly in-place rent of occupied units, weighted by occupied units across the year',
       sourceCount: rented.at(-1)?.evidenceIds.length ?? 0,
-      history: series(occ, (year) => year.averageRent),
+      history: series(history.occupancyAll, (year) => year.averageRent),
       coverage: occCoverage,
       ...(rented.at(-1)?.averageRent ? { value: rented.at(-1)?.averageRent ?? null } : need('occupancy', 'Import the occupancy and rent history with average rents.')),
     },
@@ -160,7 +161,7 @@ export function multifamilyMetrics(input: PackMetricsInput): PackMetricsReport {
             ? { value: null, unavailableReason: 'No occupied unit\'s floor plan has a market estimate yet: check rents against the market again.', needs: [MARKET_RENTS_NEED] }
             : { value: value() };
   const cited = { source: 'RentCast', evidenceIds: vsMarket.estimates.map((row) => row.id), sourceCount: vsMarket.covered.length + vsMarket.estimates.length };
-  const history = multifamilyHistory(input.evidence, input.currency);
+  const history = multifamilyHistory(input.evidence, input.currency, input);
   const metrics: PackMetric[] = [
     {
       key: 'occupancy',

@@ -85,7 +85,7 @@ export function ecommerceMetrics(input: PackMetricsInput): PackMetricsReport {
     },
   ];
   // Five years (T-184b): the P&L, orders, order value, repeat orders and the discount rate by year; order value carries a History strip.
-  const history = packHistory(ECOMMERCE_HISTORY, input.evidence);
+  const history = packHistory(ECOMMERCE_HISTORY, input.evidence, input);
   return {
     calculator: 'ecommerce-channels',
     version: ECOMMERCE_CHANNELS_VERSION,

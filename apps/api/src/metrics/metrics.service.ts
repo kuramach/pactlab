@@ -71,6 +71,14 @@ export interface ReconciliationApproval {
   note: string | null;
 }
 
+/** The history start the pack report was computed with (T-185), and a year to prefill it with when none is set. */
+export interface HistoryStartView {
+  readonly year: number | null;
+  readonly suggested: { readonly year: number; readonly from: string } | null;
+}
+
+export type PackMetricsView = PackMetricsReport & { readonly historyStart: HistoryStartView };
+
 export interface MetricsSummary {
   report: SaasMetricsReport;
   reconciliation: ArrReconciliation;
@@ -145,27 +153,53 @@ export class MetricsService {
    * extracts, as labelled figures with formulas. The software pack's SaaS
    * metrics stay on `summary`; for it this returns an empty list.
    */
-  async packMetrics(tenant: TenantContext, dealId: string, requestId: string): Promise<PackMetricsReport> {
+  async packMetrics(tenant: TenantContext, dealId: string, requestId: string): Promise<PackMetricsView> {
     await this.access.require(tenant, dealId, canReadMetrics, { action: 'metrics.viewed', requestId });
     return withTenant(this.prisma, tenant, async (tx) => {
-      const deal = await tx.deal.findFirst({ where: { id: dealId }, select: { baseCurrency: true } });
+      const deal = await tx.deal.findFirst({ where: { id: dealId }, select: { baseCurrency: true, historyStartYear: true } });
       if (!deal) throw new NotFoundException();
       const seller = await tx.dealParty.findFirst({ where: { dealId, role: 'SELLER' }, select: { companyType: true } });
       const calculator = METRIC_CALCULATORS[packFor(seller?.companyType ?? null).metricCalculator];
-      // Software (T-184b): the SaaS engine's figures are on their own screen; the pack report carries the five years.
+      const historyStart = await this.historyStartOf(tx, dealId, deal.historyStartYear);
+      // Software (T-184b): the SaaS engine's figures are on their own screen; the pack report carries the years.
       const saas = !calculator || calculator.id === SAAS_METRICS_CALCULATOR.id;
       let evidence;
       try {
         evidence = await loadPackEvidence(tx, dealId, saas ? SOFTWARE_HISTORY_EVIDENCE : calculator.evidenceTypes);
       } catch (error) {
         // A billing ledger too large for one read keeps the SaaS screen; the years are left out rather than failing it.
-        if (error instanceof TooMuchPackEvidenceError && saas) return { calculator: SAAS_METRICS_CALCULATOR.id, version: SAAS_METRICS_CALCULATOR.version, currency: deal.baseCurrency, metrics: [] };
+        if (error instanceof TooMuchPackEvidenceError && saas) return { calculator: SAAS_METRICS_CALCULATOR.id, version: SAAS_METRICS_CALCULATOR.version, currency: deal.baseCurrency, metrics: [], historyStart };
         if (error instanceof TooMuchPackEvidenceError) throw new PayloadTooLargeException('Too much evidence for one metrics run');
         throw error;
       }
       await this.audit(tx, tenant, dealId, 'metrics.viewed', 'deal', dealId, requestId);
-      if (saas) return softwareHistoryReport({ currency: deal.baseCurrency, evidence }, SAAS_METRICS_CALCULATOR);
-      return (calculator as unknown as MetricCalculator<PackMetricsInput, PackMetricsReport>).compute({ currency: deal.baseCurrency, evidence });
+      const input: PackMetricsInput = { currency: deal.baseCurrency, evidence, historyStartYear: deal.historyStartYear };
+      const report = saas ? softwareHistoryReport(input, SAAS_METRICS_CALCULATOR) : (calculator as unknown as MetricCalculator<PackMetricsInput, PackMetricsReport>).compute(input);
+      return { ...report, historyStart };
+    });
+  }
+
+  /**
+   * The pact's history start (T-185) and, while none is set, a year a pack field already holds to prefill it with:
+   * the year built from an accepted property profile. The suggestion is never applied until a person saves it.
+   */
+  private async historyStartOf(tx: TransactionClient, dealId: string, year: number | null): Promise<HistoryStartView> {
+    if (year !== null) return { year, suggested: null };
+    const profile = await tx.dealPropertyProfile.findFirst({ where: { dealId }, select: { accepted: true } });
+    const built = (profile?.accepted as Record<string, { value?: unknown } | undefined> | null)?.['year_built']?.value;
+    const suggested = typeof built === 'number' ? built : typeof built === 'string' && /^\d{4}$/.test(built) ? Number(built) : null;
+    return { year: null, suggested: suggested !== null ? { year: suggested, from: 'Year built, from the property profile' } : null };
+  }
+
+  /** Sets or clears the history start (T-185): the deal lead or an analyst; audited. */
+  async setHistoryStart(tenant: TenantContext, dealId: string, year: number | null, requestId: string): Promise<{ historyStartYear: number | null }> {
+    const action = year === null ? 'deal.history_start_cleared' : 'deal.history_start_set';
+    await this.access.require(tenant, dealId, canRunReconciliation, { action, requestId });
+    return withTenant(this.prisma, tenant, async (tx) => {
+      const updated = await tx.deal.updateMany({ where: { id: dealId }, data: { historyStartYear: year } });
+      if (updated.count === 0) throw new NotFoundException();
+      await this.audit(tx, tenant, dealId, action, 'deal', dealId, requestId);
+      return { historyStartYear: year };
     });
   }
 

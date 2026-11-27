@@ -2,7 +2,7 @@ import { D, parseDecimal } from '../../metrics/decimal';
 import { pnlForPeriod, pnlPeriods } from '../../pnl/pnl';
 import { pnlLinesFromRecords, type KeyExpense } from '../../pnl/trend';
 import { amountOf, documentClauseRule, grouped, INVOICE_LINE, monthName, rowMonth, percent, revenueConcentrationRule } from '../common';
-import { driverTrendRule, type DriverSpec, type PackHistorySpec } from '../history';
+import { driverTrendRule, recentRunRule, type DriverSpec, type PackHistorySpec } from '../history';
 import { PNL_LINE, pnlTrendRules } from '../pnl-trend';
 import { findSentence, MAX_CITED, type PackRule, type PackRuleEvidence, type PackRuleProposal, type PackRuleQuote } from '../rule-types';
 import {
@@ -733,5 +733,7 @@ export const HEALTHCARE_RULES: readonly PackRule[] = [
   HEALTHCARE_PNL_MARGIN_DRIFT,
   HEALTHCARE_PNL_EXPENSE_OUTPACING,
   HEALTHCARE_VISITS_TREND,
+  // The recent run against the long run (T-185): quiet until ten years or more are read.
+  recentRunRule('healthcare', HEALTHCARE_HISTORY),
 ];
 export const HEALTHCARE_EVIDENCE = { PROVIDER, CLAIMS, REMITTANCE, CLINICIAN_MONTH, CREDENTIAL, PAYER_CONTRACT } as const;

@@ -36,6 +36,7 @@ const SIGNALS: Readonly<Record<string, (key: string) => readonly [string, string
   'pharma-pnl-trend': () => [PNL_LINE_EVIDENCE_TYPE, 'trend'],
   'pharma-pnl-margin-drift': () => [PNL_LINE_EVIDENCE_TYPE, 'margin-drift'],
   'pharma-pnl-expense-outpacing': () => [PNL_LINE_EVIDENCE_TYPE, 'expense-outpacing'],
+  'pharma-recent-run': () => [PNL_LINE_EVIDENCE_TYPE, 'recent-run'],
   'pharma-product-revenue-trend': () => [INVOICE_LINE_EVIDENCE_TYPE, DRIVER_TREND_SIGNAL],
 };
 const RULES = new Map(PHARMA_RULES.map((rule) => [rule.id, rule]));

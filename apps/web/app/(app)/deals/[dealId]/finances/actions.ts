@@ -51,3 +51,20 @@ export async function approveDifference(
     result.kind === 'ok' ? 'approved' : result.kind,
   );
 }
+
+const historyStart = z.strictObject({ dealId: z.uuid(), year: z.union([z.coerce.number().int().min(1800).max(new Date().getUTCFullYear()), z.null()]) });
+
+/**
+ * The year the business started (T-185): the pact never asks for years before it. Saved by the deal lead or an
+ * analyst; the API re-checks the role and audits it. An empty year (or Clear) removes it.
+ */
+export async function saveHistoryStart(dealId: string, formData: FormData): Promise<void> {
+  const raw = formData.get('intent') === 'clear' ? null : String(formData.get('year') ?? '').trim();
+  const parsed = historyStart.safeParse({ dealId, year: raw === null || raw === '' ? null : raw });
+  if (!parsed.success) {
+    if (!z.uuid().safeParse(dealId).success) redirect('/deals');
+    redirect(`/deals/${dealId}/finances?outcome=history-start-invalid`);
+  }
+  const result = await metricsApi.historyStart(parsed.data.dealId, parsed.data.year);
+  redirect(`/deals/${parsed.data.dealId}/finances?outcome=${result.kind === 'ok' ? (parsed.data.year === null ? 'history-start-cleared' : 'history-start-saved') : result.kind === 'invalid' ? 'history-start-invalid' : result.kind}`);
+}

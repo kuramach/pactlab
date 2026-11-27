@@ -102,14 +102,16 @@ describe('demo organization (batch 2)', () => {
     expect(await count('negotiation_anchors', (await deal(pactName('MULTIFAMILY'))).id), 'property anchors').toBeGreaterThan(0);
     expect((await rows(`SELECT 1 FROM evidence_items WHERE deal_id = $1 AND connection_id IS NOT NULL LIMIT 1`, [saas.id])).length, 'synced code and delivery evidence').toBe(1);
     expect(await count('connections', (await deal(pactName('MULTIFAMILY'))).id, `AND provider IN ('github', 'jira')`), 'no code sources for property').toBe(0);
-    // Five years of history (T-183): the P&L by year (ten lines × five years) and the occupancy history import; the planted history defects are found.
+    // Twenty years of history (T-183, T-185): the P&L by year (ten lines × twenty years) and the occupancy history import; the planted history defects are found.
     const multifamily = await deal(pactName('MULTIFAMILY'));
-    expect(await count('evidence_items', multifamily.id, `AND evidence_type = 'finance.pnl_line'`)).toBe(50);
-    expect(await count('evidence_items', multifamily.id, `AND evidence_type = 'property.occupancy_period'`)).toBe(60);
-    for (const title of ['Occupancy eroding, FY2022–FY2026', 'Repairs and maintenance growing faster than rent, FY2022–FY2026', "NOI jump in FY2026 above the history's trend"]) {
+    expect(await count('evidence_items', multifamily.id, `AND evidence_type = 'finance.pnl_line'`)).toBe(200);
+    expect(await count('evidence_items', multifamily.id, `AND evidence_type = 'property.occupancy_period'`)).toBe(240);
+    for (const title of ['Occupancy eroding, FY2022–FY2026', 'Repairs and maintenance growing faster than rent, FY2022–FY2026', "NOI jump in FY2026 above the history's trend", 'The recent run is better than the long run: NOI margin, FY2022–FY2026 against FY2007–FY2026']) {
       expect(await count('findings', multifamily.id, `AND title = '${title.replaceAll("'", "''")}'`), title).toBe(1);
     }
     const venture = await deal(pactName('VENTURE_RAISE'));
+    // A young business (T-185): the raise's history start is set, so its two years are complete.
+    expect((await rows(`SELECT history_start_year FROM deals WHERE id = $1`, [venture.id]))[0]?.['history_start_year']).toBe(2024);
     expect(await count('venture_offers', venture.id)).toBe(3);
     expect((await deal(pactName('VENTURE_RAISE', true))).id, 'a raise has no closed variant').toBeUndefined();
     for (const type of ['SOFTWARE_SAAS', 'MULTIFAMILY'] as const) {

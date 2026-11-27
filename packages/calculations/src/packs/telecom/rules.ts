@@ -1,6 +1,6 @@
 import { D, parseDecimal } from '../../metrics/decimal';
 import { amountOf, documentClauseRule, grouped, INVOICE_LINE, monthName, percent, revenueConcentrationRule } from '../common';
-import { driverTrendRule, type DriverSpec, type PackHistorySpec } from '../history';
+import { driverTrendRule, recentRunRule, type DriverSpec, type PackHistorySpec } from '../history';
 import { PNL_LINE, pnlTrendRules } from '../pnl-trend';
 import { findSentence, MAX_CITED, type PackRule, type PackRuleEvidence, type PackRuleProposal } from '../rule-types';
 import {
@@ -442,5 +442,7 @@ export const TELECOM_RULES: readonly PackRule[] = [
   TELECOM_PNL_MARGIN_DRIFT,
   TELECOM_PNL_EXPENSE_OUTPACING,
   TELECOM_CHURN_TREND,
+  // The recent run against the long run (T-185): quiet until ten years or more are read.
+  recentRunRule('telecom', TELECOM_HISTORY),
 ];
 export const TELECOM_EVIDENCE = { SUBSCRIBERS, MOVEMENT, AGREEMENT, REVENUE_MONTH, CAPEX_YEAR } as const;

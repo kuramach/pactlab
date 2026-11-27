@@ -78,7 +78,7 @@ export function energyMetrics(input: PackMetricsInput): PackMetricsReport {
     { key: 'booked_aro', label: 'Booked asset-retirement obligation', unit: 'MONEY', formula: 'Σ schedule lines of kind aro', sourceCount: rows.liabilities.length, ...(rows.liabilities.length ? { value: cash(bookedAro) } : missing('liability schedule', ['ENERGY_LIABILITIES'])) },
   ];
   // Five years (T-184b): production by year beside any imported P&L; generation_mwh carries a History strip.
-  const history = packHistory(ENERGY_HISTORY, input.evidence);
+  const history = packHistory(ENERGY_HISTORY, input.evidence, input);
   return {
     calculator: 'energy-assets',
     version: ENERGY_METRICS_VERSION,

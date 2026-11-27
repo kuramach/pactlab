@@ -1,7 +1,7 @@
 import { D } from '../../metrics/decimal';
 import type { KeyExpense } from '../../pnl/trend';
 import { INVOICE_LINE } from '../common';
-import { driverTrendRule, packHistory, type DriverSpec, type DriverYear, type PackHistorySpec } from '../history';
+import { driverTrendRule, packHistory, recentRunRule, type DriverSpec, type DriverYear, type PackHistorySpec } from '../history';
 import type { PackMetricsInput, PackMetricsReport } from '../metrics-types';
 import { PNL_LINE, pnlTrendRules } from '../pnl-trend';
 import { MAX_CITED, type PackRule, type PackRuleEvidence } from '../rule-types';
@@ -119,7 +119,10 @@ export const SAAS_NRR_TREND = driverTrendRule(
 
 export const [SAAS_PNL_TREND, SAAS_PNL_MARGIN_DRIFT, SAAS_PNL_EXPENSE_OUTPACING] = pnlTrendRules('saas', SOFTWARE_KEY_EXPENSES) as [PackRule, PackRule, PackRule];
 
-export const SOFTWARE_HISTORY_RULES: readonly PackRule[] = [SAAS_PNL_TREND, SAAS_PNL_MARGIN_DRIFT, SAAS_PNL_EXPENSE_OUTPACING, SAAS_NRR_TREND];
+/** The recent run against the long run (T-185): quiet until ten years or more are read. */
+export const SAAS_RECENT_RUN = recentRunRule('saas', SOFTWARE_HISTORY);
+
+export const SOFTWARE_HISTORY_RULES: readonly PackRule[] = [SAAS_PNL_TREND, SAAS_PNL_MARGIN_DRIFT, SAAS_PNL_EXPENSE_OUTPACING, SAAS_NRR_TREND, SAAS_RECENT_RUN];
 
 export const SOFTWARE_RULES: readonly PackRule[] = [...SOFTWARE_BASE_RULES, ...SOFTWARE_HISTORY_RULES];
 
@@ -128,5 +131,5 @@ export const SOFTWARE_HISTORY_EVIDENCE = [INVOICE_LINE, PNL_LINE] as const;
 
 /** GET …/metrics/pack for a software pact: the SaaS engine's figures live on their own screen; this adds the years. */
 export function softwareHistoryReport(input: PackMetricsInput, calculator: { readonly id: string; readonly version: string }): PackMetricsReport {
-  return { calculator: calculator.id, version: calculator.version, currency: input.currency, metrics: [], history: packHistory(SOFTWARE_HISTORY, input.evidence).table };
+  return { calculator: calculator.id, version: calculator.version, currency: input.currency, metrics: [], history: packHistory(SOFTWARE_HISTORY, input.evidence, input).table };
 }

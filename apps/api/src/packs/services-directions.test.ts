@@ -34,6 +34,7 @@ const SIGNALS: Readonly<Record<string, (key: string) => readonly [string, string
   'services-pnl-trend': () => [PNL_LINE_EVIDENCE_TYPE, 'trend'],
   'services-pnl-margin-drift': () => [PNL_LINE_EVIDENCE_TYPE, 'margin-drift'],
   'services-pnl-expense-outpacing': () => [PNL_LINE_EVIDENCE_TYPE, 'expense-outpacing'],
+  'services-recent-run': () => [PNL_LINE_EVIDENCE_TYPE, 'recent-run'],
   'services-utilization-trend': () => [SERVICES_TIMESHEET_MONTH_EVIDENCE_TYPE, DRIVER_TREND_SIGNAL],
 };
 

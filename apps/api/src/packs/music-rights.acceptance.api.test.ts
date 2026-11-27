@@ -101,9 +101,9 @@ describe.each(ACCEPTANCE_CURRENCIES)('music rights pack acceptance (%s)', { time
     };
     expect(metrics.history?.years).toEqual(YEARS.map((year) => `FY${year}`));
     expect(metrics.history?.rows.find((row) => row.key === 'income')?.values).toEqual(YEARS.map(incomeOf));
-    expect(metrics.history?.coverage.find((entry) => entry.key === 'drivers')?.summary).toBe('FY2021–FY2025 (5 of 5 years)');
+    expect(metrics.history?.coverage.find((entry) => entry.key === 'drivers')?.summary).toBe('FY2021–FY2025 (5 years; earlier years not provided)');
     // A catalog has no P&L in the data room: the income statements are asked of the seller, the statements are not.
-    expect(metrics.history?.asks).toEqual([{ needs: ['INCOME_STATEMENT'], note: 'Ask the seller for FY2021–FY2025 income statements.' }]);
+    expect(metrics.history?.asks).toEqual([{ needs: ['INCOME_STATEMENT'], note: 'Ask the seller for FY2021–FY2025 income statements, or tell us the business started later.' }]);
     const trend = (await findings()).find((finding) => finding.title === 'Royalty income falling every year, FY2021–FY2025');
     expect(trend).toMatchObject({ domain: 'FINANCIAL', direction: -1 });
   });

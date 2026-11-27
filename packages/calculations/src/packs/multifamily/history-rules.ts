@@ -2,6 +2,7 @@ import { D } from '../../metrics/decimal';
 import { grouped, percent } from '../common';
 import { PNL_LINE, pnlTrendRules } from '../pnl-trend';
 import { MAX_CITED, type PackRule, type PackRuleProposal } from '../rule-types';
+import { recentRunCheck } from '../history-span';
 import { cagr, MULTIFAMILY_KEY_EXPENSES, multifamilyHistory, OCCUPANCY, UNIT_SNAPSHOT, yearRanges, type OccupancyYear, type OperatingYear } from './history';
 import { T12, type Decimal } from './shared';
 
@@ -173,10 +174,27 @@ export const MULTIFAMILY_NOI_SPIKE: PackRule = {
   },
 };
 
+/**
+ * The recent run better than the long run (T-185): the last five years' NOI margin or average occupancy well above
+ * the full history's (`RECENT_RUN_POINTS`, over ten years or more). The reviewer asks whether the price assumes the peak lasts.
+ */
+export const MULTIFAMILY_RECENT_RUN: PackRule = {
+  id: 'multifamily-recent-run',
+  version: '1',
+  evidenceTypes: HISTORY_TYPES,
+  detect: ({ evidence }) => {
+    const history = multifamilyHistory(evidence, currencyOf(evidence));
+    const margin = recentRunCheck('noi_margin', 'NOI margin', history.operatingAll.map((year) => ({ year: year.year, value: year.margin, evidenceIds: year.evidenceIds })), 'FINANCIAL');
+    const occupancy = recentRunCheck('occupancy', 'Occupancy (average)', history.occupancyAll.map((year) => ({ year: year.year, value: year.average, evidenceIds: year.evidenceIds })), 'PROPERTY');
+    return [margin, occupancy].filter((proposal): proposal is PackRuleProposal => proposal !== null);
+  },
+};
+
 export const MULTIFAMILY_HISTORY_RULES: readonly PackRule[] = [
   MULTIFAMILY_OCCUPANCY_EROSION,
   MULTIFAMILY_RENT_BELOW_EXPENSE_GROWTH,
   MULTIFAMILY_NOI_SPIKE,
+  MULTIFAMILY_RECENT_RUN,
   // Expenses outpacing income, margin drift and the trend record: the shared multi-year rules (ADR 0050).
   ...pnlTrendRules('multifamily', MULTIFAMILY_KEY_EXPENSES),
 ];

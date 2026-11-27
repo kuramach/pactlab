@@ -6,7 +6,7 @@ import { MAX_CITED, type PackRule, type PackRuleEvidence, type PackRuleProposal 
 
 /**
  * Multi-year P&L trend rules, one factory for every pack (Kumar, 2026-11-26): a pack names its key
- * expenses and gets three rules over the imported P&L (`finance.pnl_line`), whatever years it holds.
+ * expenses and gets three rules over the imported P&L (`finance.pnl_line`): its latest five years (T-185).
  * - `<prefix>-pnl-trend` (0): the years side by side — revenue, growth, margins and the key ratios —
  *   so the trend is a reviewable record even when nothing is wrong; one year reads as one year.
  * - `<prefix>-pnl-margin-drift` (−1): gross or operating margin down 3 points or more, first year to last.
@@ -30,6 +30,16 @@ export function trendOf(evidence: readonly PackRuleEvidence[], keyExpenses: read
   return pnlTrend(pnlPeriods(pnlLinesFromRecords(rows)), keyExpenses, pnlLineCurrencies(rows));
 }
 
+/**
+ * The latest five years of the trend (T-185): the rules read the period a buyer prices on, however long the
+ * history; long-run figures read the full history elsewhere.
+ */
+export function recentTrendOf(evidence: readonly PackRuleEvidence[], keyExpenses: readonly KeyExpense[]): PnlTrend {
+  const trend = trendOf(evidence, keyExpenses);
+  const latest = Number(trend.years.at(-1)?.year);
+  return Number.isFinite(latest) ? { ...trend, years: trend.years.filter((year) => Number(year.year) > latest - 5) } : trend;
+}
+
 const cited = (years: readonly TrendYear[], ids?: readonly string[]) => [...new Set(ids ?? years.flatMap((year) => year.evidenceIds))].slice(0, MAX_CITED);
 const span = (years: readonly TrendYear[]) => (years.length === 1 ? years[0]?.year ?? '' : `${years[0]?.year ?? ''}–${years.at(-1)?.year ?? ''}`);
 
@@ -39,7 +49,7 @@ export function pnlTrendRules(prefix: string, keyExpenses: readonly KeyExpense[]
     version: '1',
     evidenceTypes: [PNL_LINE],
     detect: ({ evidence }) => {
-      const { years, partialYears, mixedCurrencyYears, currencyBreaks } = trendOf(evidence, keyExpenses);
+      const { years, partialYears, mixedCurrencyYears, currencyBreaks } = recentTrendOf(evidence, keyExpenses);
       if (years.length === 0) return [];
       const lines = years.map((year) => {
         const ratios = year.ratios.filter((ratio) => new D(ratio.amount).gt(0)).map((ratio) => `${ratio.label.toLowerCase()} ${share(ratio.ratio)}`);
@@ -71,7 +81,7 @@ export function pnlTrendRules(prefix: string, keyExpenses: readonly KeyExpense[]
     version: '1',
     evidenceTypes: [PNL_LINE],
     detect: ({ evidence }) => {
-      const { years } = trendOf(evidence, keyExpenses);
+      const { years } = recentTrendOf(evidence, keyExpenses);
       const first = years[0];
       const last = years.at(-1);
       if (!first || !last || years.length < 2) return [];
@@ -107,7 +117,7 @@ export function pnlTrendRules(prefix: string, keyExpenses: readonly KeyExpense[]
     version: '1',
     evidenceTypes: [PNL_LINE],
     detect: ({ evidence }) => {
-      const { years } = trendOf(evidence, keyExpenses);
+      const { years } = recentTrendOf(evidence, keyExpenses);
       if (years.length < 2) return [];
       const first = years[0] as TrendYear;
       const last = years.at(-1) as TrendYear;

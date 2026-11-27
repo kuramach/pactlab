@@ -24,6 +24,8 @@ y, m = 2021, 1
 while (y, m) < (2024, 10):
     HIST_MONTHS.append(f'{y}-{m:02d}'); m += 1
     if m == 13: y, m = y + 1, 1
+# A young business (T-185): the venture raise traded from January 2024, nine months before MONTHS.
+VENTURE_EARLY = [f'2024-{m:02d}' for m in range(1, 10)]
 MONTH_LABEL = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 MONTH_NAME = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 D = Decimal
@@ -1772,6 +1774,21 @@ MGMT_FEE, REFUND_SHARE, REFUND_MONTH = D('0.035'), D('0.012'), '2026-06'
 UTIL_SEASON = [D(x) for x in ['0.9', '1.1', '1.3', '1.4', '1.3', '1.1', '0.9', '0.8', '0.8', '0.8', '0.8', '0.8']]
 RM_SEASON = [D(x) for x in ['0.8', '0.8', '0.7', '0.7', '0.8', '0.9', '1.0', '1.2', '1.3', '1.3', '1.3', '1.2']]
 
+# Twenty years of history (T-185), multifamily only: October 2006 to September 2021 (FY2007–FY2021) before the
+# five above, which stay as they are. Planted: a 2009 downturn (occupancy and rents fall, the margin compresses)
+# with a multi-year recovery, and a recent run whose NOI margin sits well above the long-run average.
+EARLY_HIST = []
+y, m = 2006, 10
+while (y, m) <= (2021, 9):
+    EARLY_HIST.append(f'{y}-{m:02d}'); m += 1
+    if m == 13: y, m = y + 1, 1
+EARLY_YEARS = [str(fy) for fy in range(2007, 2022)]
+EARLY_OCCUPANCY = {fy: D(v) for fy, v in zip(EARLY_YEARS, ['0.925', '0.915', '0.845', '0.855', '0.875', '0.895', '0.905', '0.910', '0.915', '0.920', '0.920', '0.925', '0.930', '0.910', '0.935'])}
+# The in-place rent's growth into each year (into FY2022 it is the usual step).
+EARLY_RENT_GROWTH = {fy: D(v) for fy, v in zip(EARLY_YEARS[1:] + ['2022'], ['1.030', '0.940', '0.980', '1.020', '1.025', '1.030', '1.030', '1.030', '1.030', '1.030', '1.030', '1.030', '1.000', '1.020', '1.032'])}
+# NOI margin each early year: the downturn compresses it, and the long run sits well below the recent five.
+EARLY_MARGIN = {fy: D(v) for fy, v in zip(EARLY_YEARS, ['0.440', '0.450', '0.360', '0.370', '0.400', '0.420', '0.430', '0.440', '0.450', '0.450', '0.460', '0.460', '0.470', '0.440', '0.470'])}
+
 def spread(total, weights):
     """A year's amount over its twelve months by weight, the last month taking the rounding."""
     out, acc, wsum = [], D(0), sum(weights)
@@ -1779,9 +1796,10 @@ def spread(total, weights):
         v = q(total * w / wsum); out.append(v); acc += v
     return out + [q(total - acc)]
 
-def property_history(ds, rows):
+def property_history(ds, rows, long=False):
     """Five fiscal years of operating statements, occupancy and rent, and rent-roll snapshots, ending with
-    the T-12, which is the last twelve months of it (so `t12.csv` still equals what it always meant)."""
+    the T-12, which is the last twelve months of it (so `t12.csv` still equals what it always meant). With
+    `long`, fifteen earlier years (FY2007–FY2021) come before them in the P&L and the occupancy history (T-185)."""
     n = len(rows)
     occ26 = sum(1 for r in rows if r[4] == 'occupied')
     rent26 = sum((mo.get(LAST, D(0)) for _, _, mo in ds.customers), D(0))   # the billed rent of every occupied unit, a month
@@ -1818,22 +1836,28 @@ def property_history(ds, rows):
             lines[('Insurance premium refund (one-off)', mo)] = -q(rev26 * REFUND_SHARE) if mo == REFUND_MONTH else D('0.00')
     names = ['Payroll and on-site staff', 'Repairs and maintenance', 'Utilities', 'Insurance', 'Insurance premium refund (one-off)', 'Property taxes', 'Management fee', 'Administrative and marketing']
     opex = {mo: sum((lines[(nm, mo)] for nm in names), D(0)) for mo in HIST}
+    early = early_property_history(ds, n, occupied, rent, other, annual, names) if long else None
+    if early:
+        for d, e in [(occupied, early['occupied']), (rent, early['rent']), (other, early['other']), (avg_rent, early['avg_rent']), (lines, early['lines']), (opex, early['opex'])]:
+            d.update(e)
+    months_all = (EARLY_HIST if long else []) + HIST
+    years_all = (EARLY_YEARS if long else []) + HIST_YEARS
     # The monthly operating statements (a long file: one row per line per month) and the same by year (years as columns).
     monthly = []
-    for mo in HIST:
+    for mo in months_all:
         monthly.append(['Rental revenue', mo, f'{rent[mo]:.2f}'])
         monthly.append(['Other property revenue (fees and parking)', mo, f'{other[mo]:.2f}'])
         for nm in names:
             monthly.append([nm, mo, f'{lines[(nm, mo)]:.2f}'])
-    ds.ext('operating-statements-monthly', ['account', 'month', 'amount'], monthly, 'Operating statements by month, October 2021 to September 2026 (one row per line per month)')
-    by_year = lambda f: [f'{sum((f(mo) for mo in HIST if fy_of(mo) == fy), D(0)):.2f}' for fy in HIST_YEARS]
+    ds.ext('operating-statements-monthly', ['account', 'month', 'amount'], monthly, f'Operating statements by month, October {int(months_all[0][:4])} to September 2026 (one row per line per month)')
+    by_year = lambda f: [f'{sum((f(mo) for mo in months_all if fy_of(mo) == fy), D(0)):.2f}' for fy in years_all]
     pnl_rows = [['Rental revenue'] + by_year(lambda mo: rent[mo]), ['Other property revenue (fees and parking)'] + by_year(lambda mo: other[mo])]
     pnl_rows += [[nm] + by_year(lambda mo, nm=nm: lines[(nm, mo)]) for nm in names]
-    ds.ext('pnl', ['Line'] + [f'FY{fy}' for fy in HIST_YEARS], pnl_rows, 'Operating statement by fiscal year (October to September), FY2022 to FY2026')
-    # Occupancy and rent by month, the whole property; concessions rise in FY2026.
-    concessions = {mo: q(occupied[mo] * ds.amt(14 if fy_of(mo) == '2026' else 6)) for mo in HIST}
+    ds.ext('pnl', ['Line'] + [f'FY{fy}' for fy in years_all], pnl_rows, f'Operating statement by fiscal year (October to September), FY{years_all[0]} to FY2026')
+    # Occupancy and rent by month, the whole property; concessions rise in FY2026 (and in the 2009 downturn).
+    concessions = {mo: q(occupied[mo] * ds.amt(14 if fy_of(mo) == '2026' else 18 if fy_of(mo) in ('2009', '2010') else 6)) for mo in months_all}
     ds.ext('occupancy-history', ['period', 'unit_type', 'units', 'occupied_units', 'average_rent', 'concessions'],
-           [[mo, 'All', n, occupied[mo], f'{avg_rent[mo]:.2f}', f'{concessions[mo]:.2f}'] for mo in HIST], 'Occupancy and average in-place rent by month, October 2021 to September 2026')
+           [[mo, 'All', n, occupied[mo], f'{avg_rent[mo]:.2f}', f'{concessions[mo]:.2f}'] for mo in months_all], f'Occupancy and average in-place rent by month, October {int(months_all[0][:4])} to September 2026')
     # Quarterly rent-roll snapshots for the last two years; the last is today's rent roll.
     hrng = random.Random(f'{ds.pack}:{ds.cur}:snapshots')
     vacant_now = [r for r in rows if r[4] != 'occupied']
@@ -1873,17 +1897,91 @@ def property_history(ds, rows):
     assert h['rm_cagr'] - h['rent_cagr'] >= D('0.02') and h['opex_cagr'] - h['rent_cagr'] < D('0.02'), (ds.pack, ds.cur, h['rm_cagr'], h['opex_cagr'], h['rent_cagr'])
     assert spike >= D('0.05') and growth[-1] > 0, (ds.pack, ds.cur, growth)
     h['margin_drift'] = margin['2026'] - margin['2022'] <= D('-0.03')
+    h['long'] = long_run_figures(n, years_all, months_all, occupied, rent, other, opex) if long else None
+    if long:
+        lr = h['long']
+        # The planted long-run defects must show, or the README would promise what the checks never find.
+        assert lr['revenue_worst']['year'] == '2009' and lr['revenue_worst']['years'] and lr['revenue_worst']['years'] >= 3, (ds.pack, ds.cur, lr['revenue_worst'])
+        assert lr['margin_recent'] - lr['margin_full'] >= D('0.03'), (ds.pack, ds.cur, lr['margin_recent'], lr['margin_full'])
+    h['pnl_years'] = len(years_all)
     return h
+
+def early_property_history(ds, n, occupied22, rent22, other22, annual, names):
+    """FY2007–FY2021 (T-185): occupancy and rent from their own schedules, deflated back from FY2022's levels, and
+    each year's expenses set by its planted NOI margin, split across the lines in FY2022's mix. Derived, never drawn."""
+    months22 = [mo for mo in HIST if fy_of(mo) == '2022']
+    level = {'2022': sum((rent22[mo] for mo in months22), D(0)) / sum((D(occupied22[mo]) for mo in months22), D(0))}
+    for fy in reversed(EARLY_YEARS):
+        level[fy] = level[str(int(fy) + 1)] / EARLY_RENT_GROWTH[str(int(fy) + 1)]
+    other_level = other22[months22[0]]
+    out = dict(occupied={}, rent={}, other={}, avg_rent={}, lines={}, opex={})
+    for i, mo in enumerate(EARLY_HIST):
+        fy = fy_of(mo)
+        out['occupied'][mo] = int(whole(D(n) * (EARLY_OCCUPANCY[fy] + HIST_SEASON[i % 12])))
+        out['rent'][mo] = q(out['occupied'][mo] * level[fy])
+        out['other'][mo] = q(other_level / D('1.03') ** (2022 - int(fy)))
+        out['avg_rent'][mo] = q(out['rent'][mo] / out['occupied'][mo])
+    mix = [nm for nm in names if nm not in ('Insurance premium refund (one-off)', 'Management fee')]
+    mix22 = {nm: annual[(nm, '2022')] for nm in mix}
+    total22 = sum(mix22.values(), D(0))
+    for fy in EARLY_YEARS:
+        months = [mo for mo in EARLY_HIST if fy_of(mo) == fy]
+        rev = sum((out['rent'][mo] + out['other'][mo] for mo in months), D(0))
+        fees = {mo: q((out['rent'][mo] + out['other'][mo]) * MGMT_FEE) for mo in months}
+        rest = rev * (1 - EARLY_MARGIN[fy]) - sum(fees.values(), D(0))
+        for nm in mix:
+            weights = UTIL_SEASON if nm == 'Utilities' else RM_SEASON if nm == 'Repairs and maintenance' else [D(1)] * 12
+            for mo, v in zip(months, spread(q(rest * mix22[nm] / total22), weights)):
+                out['lines'][(nm, mo)] = v
+        for mo in months:
+            out['lines'][('Management fee', mo)] = fees[mo]
+            out['lines'][('Insurance premium refund (one-off)', mo)] = D('0.00')
+            out['opex'][mo] = sum((out['lines'][(nm, mo)] for nm in names), D(0))
+    return out
+
+def long_run_figures(n, years, months, occupied, rent, other, opex):
+    """The long-run figures the history checks reproduce (T-185), computed as the calculator does: decimal, four
+    places, banker's rounding; growth between the first and last year read, the worst fall year on year and the years
+    to regain the peak before it, and averages of each year's four-place figure."""
+    E = lambda x: D(x).quantize(D('0.0001'), rounding='ROUND_HALF_EVEN')
+    fy_sum = lambda f, fy: sum((f(mo) for mo in months if fy_of(mo) == fy), D(0))
+    revenue = {fy: fy_sum(lambda mo: rent[mo] + other[mo], fy) for fy in years}
+    noi = {fy: revenue[fy] - fy_sum(lambda mo: opex[mo], fy) for fy in years}
+    margin = {fy: E(noi[fy] / revenue[fy]) for fy in years}
+    occ = {fy: E(D(fy_sum(lambda mo: D(occupied[mo]), fy)) / (n * 12)) for fy in years}
+    cagr = lambda a, b, k: E((D(b) / D(a)) ** (D(1) / k) - 1)
+    def worst(series, ratio):
+        best = None
+        for a, b in zip(years, years[1:]):
+            drop = series[a] - series[b]
+            if drop > 0:
+                fall = drop if ratio else drop / series[a]
+                if best is None or fall > best[1]: best = (b, fall)
+        fy, fall = best
+        prior = [y for y in years if y < fy]
+        peak = max(prior, key=lambda y: (series[y], -int(y)))
+        back = next((y for y in years if y > fy and series[y] >= series[peak]), None)
+        return dict(year=fy, fall=E(fall), peak=peak, recovered=back, years=(int(back) - int(fy)) if back else None)
+    recent = years[-5:]
+    avg = lambda d, ys: E(sum((d[y] for y in ys), D(0)) / len(ys))
+    first, last = years[0], years[-1]
+    ten = years[-10]
+    return dict(first=first, last=last, count=len(years), revenue=revenue, noi=noi, margin=margin, occ=occ,
+                revenue_cagr_10y=cagr(revenue[ten], revenue[last], 9), revenue_cagr_full=cagr(revenue[first], revenue[last], len(years) - 1),
+                noi_cagr_10y=cagr(noi[ten], noi[last], 9), noi_cagr_full=cagr(noi[first], noi[last], len(years) - 1),
+                revenue_worst=worst(revenue, False), noi_worst=worst(noi, False), occ_worst=worst(occ, True),
+                margin_full=avg(margin, years), margin_recent=avg(margin, recent), occ_full=avg(occ, years), occ_recent=avg(occ, recent))
 
 def history_readme(ds, h):
     """The P&L step, the planted findings and the hand-computed figures the history checks must reproduce."""
     c = ds.cur
     fy = lambda y: f'FY{y}'
     ds.pnl_step = ['Open the **Sources** tab, scroll to **Industry data** and click **Upload profit and loss (p&l)**.', '',
-                   '1. Choose `pnl.csv` → **Upload and map columns**. Pactlab reads the five years across the columns (FY2022 to FY2026).',
+                   f'1. Choose `pnl.csv` → **Upload and map columns**. Pactlab reads the {"twenty" if h["long"] else "five"} years across the columns (FY{2027 - h["pnl_years"]} to FY2026).',
                    '2. Under **What each line is**, keep the two revenue lines as **Revenue** and every other line as **Operating expense** (the insurance refund is a credit, entered negative).',
-                   f'3. **Check every row**, then **Import {h["pnl_lines"] * 5} rows**.', '',
-                   '**You should see:** on **Home → Property metrics**, a **History** strip under net operating income, occupancy and average rent, each with five points and "FY2022–FY2026 (5 of 5 years)"; on **Finances**, the five years side by side.', '']
+                   f'3. **Check every row**, then **Import {h["pnl_lines"] * h["pnl_years"]} rows**.', '',
+                   (f'**You should see:** on **Home → Property metrics**, a **History** strip under net operating income, occupancy and average rent, each with the last ten years and "FY2007–FY2026 (20 years)"; on **Finances**, every year side by side (the table scrolls), with the long-run figures beside the five-year ones.'
+                    if h['long'] else '**You should see:** on **Home → Property metrics**, a **History** strip under net operating income, occupancy and average rent, each with five points and "FY2022–FY2026 (5 years; earlier years not provided)"; on **Finances**, the five years side by side.'), '']
     occ = ', '.join(f'{fy(y)} {pct(h["occ_avg"][y])}' for y in HIST_YEARS)
     found = [
         (f'Occupancy eroding, FY2022–FY2026', f'planted: `occupancy-history.csv` — average occupancy {occ}; below 90% in FY2026. The rent roll alone shows only today.'),
@@ -1893,18 +1991,31 @@ def history_readme(ds, h):
     ]
     if h['margin_drift']:
         found.append(('Operating margin down across 2022–2026', f'`pnl.csv` — NOI margin {pct(h["margin"]["2022"])} in FY2022 to {pct(h["margin"]["2026"])} in FY2026.'))
+    lr = h['long']
+    if lr:
+        found.append(('The recent run is better than the long run: NOI margin, FY2022–FY2026 against FY2007–FY2026',
+                      f'planted (T-185): `pnl.csv` — the NOI margin averaged {pct(lr["margin_recent"])} across FY2022–FY2026, against {pct(lr["margin_full"])} across the twenty years. Ask whether the price assumes the recent run will last.'))
     ds.findings = ds.findings + found
     ds.notes = ds.notes + [
         'History (T-183): five fiscal years, October to September, FY2022 to FY2026; FY2026 is the T-12, so `t12.csv` equals the last twelve months of `operating-statements-monthly.csv` and of `pnl.csv`\'s FY2026 column, and the September 2026 month of `occupancy-history.csv` matches `rent-roll.csv`.',
         f'Figures the history checks reproduce: NOI growth {pct(h["noi_cagr"])} a year and revenue growth {pct(h["revenue_cagr"])} a year (FY2022–FY2026); average in-place rent {", ".join(f"{fy(y)} {money(c, h["rent_avg"][y], True)}" for y in HIST_YEARS)} ({pct(h["rent_cagr"])} a year); occupancy {occ}; expense ratio {pct(h["expense_ratio"])} in FY2026; trailing three-year vacancy {pct(h["vacancy_3y"])}.',
         '`operating-statements-monthly.csv` is the same statement as a long file (one row per line per month); it imports through the same P&L import. `rent-roll-history.csv` holds quarterly rent-roll snapshots for the last two years.',
     ]
+    if lr:
+        rec = lambda w: f'recovered to the FY{w["peak"]} peak in FY{w["recovered"]} ({w["years"]} years)' if w['recovered'] else f'not yet recovered to the FY{w["peak"]} peak'
+        ds.notes = ds.notes + [
+            'Twenty years (T-185): `pnl.csv`, `operating-statements-monthly.csv` and `occupancy-history.csv` run back to FY2007 (October 2006). Planted: a 2009 downturn (occupancy and rents fall, the margin compresses) with a multi-year recovery, and a recent run above the long-run average. The five-year figures above are unchanged: the trend checks read the latest five years.',
+            f'Long-run figures the history checks reproduce: revenue growth {pct(lr["revenue_cagr_10y"])} a year over ten years (FY2017–FY2026) and {pct(lr["revenue_cagr_full"])} over the full history; NOI growth {pct(lr["noi_cagr_10y"])} and {pct(lr["noi_cagr_full"])}; '
+            f'revenue\'s worst year FY{lr["revenue_worst"]["year"]}, down {pct(lr["revenue_worst"]["fall"])}, {rec(lr["revenue_worst"])}; NOI\'s worst year FY{lr["noi_worst"]["year"]}, down {pct(lr["noi_worst"]["fall"])}, {rec(lr["noi_worst"])}; '
+            f'occupancy\'s worst year FY{lr["occ_worst"]["year"]}, down {(lr["occ_worst"]["fall"] * 100).quantize(D("0.1"), ROUND_HALF_UP)} points, {rec(lr["occ_worst"])}; '
+            f'NOI margin through the cycle {pct(lr["margin_full"])} (last five years {pct(lr["margin_recent"])}); occupancy through the cycle {pct(lr["occ_full"])} (last five years {pct(lr["occ_recent"])}).',
+        ]
 
 def multifamily(ds):
     ds.kind, ds.kind_label = 'rent', 'unit rent charge'
     ds.summary = f'{ds.company} owns Larkfield Commons, a 96-unit garden-style apartment community in three buildings (A, B, C).'
     rows, delinq, ltl_sum, mkt_sum, repair = property_units(ds, 'ABC', 32, 'C', occupied_share=D('0.885'))
-    history = property_history(ds, rows)
+    history = property_history(ds, rows, long=True)
     noi = history['t12_noi']
     om_noi = whole(noi * D('1.11'))
     budget = ds.amt(1500) * 96
@@ -2274,6 +2385,14 @@ def venture(ds):
              ('Wrenfield Joinery', 4500), ('Halden Solar', 4200), ('Pembury Paving', 4100), ('Quarry Lane Movers', 4000)]
     for i, (n, base) in enumerate(teams):
         ds.customer(f'{ds.prefix}-cus-{i + 1:03d}', f'{n} (synthetic)', ramp(ds.rng, ds.amt(base), '0.012', noise=D('0.02')))
+    # A young business (T-185): Loopwise began trading in January 2024, its history start. The first six teams were
+    # billed from then, at the same 1.2% a month back from October 2024 (derived, never drawn), so FY2024 and FY2025
+    # are its whole history: "2 of 2 years since the business started" once the start is set. October 2024 onward is unchanged.
+    ds.billing_months = VENTURE_EARLY + MONTHS
+    for _, _, monthly in ds.customers[:6]:
+        first = monthly[MONTHS[0]]
+        for k, mo in enumerate(VENTURE_EARLY):
+            monthly[mo] = q(first / D('1.012') ** (len(VENTURE_EARLY) - k))
     c = ds.cur
     billed = ds.billed_arr()
     deck_arr = (billed * D('1.05') / 10000).quantize(D('1'), ROUND_HALF_UP) * 10000
@@ -2351,7 +2470,19 @@ Board: two founder directors and one investor director.
     ds.notes = [
         'Founder-side pack: the founder is the Pactlab user and investors are the counterparty. Drags are what an investor will find; cushions stay confidential until the founder shares them.',
         'Holders in the cap table are pseudonymous references (F-1, E-02, I-3); no names.',
+        f'A young business (T-185): Loopwise began trading in January 2024, so its history start is **2024**. `invoice-lines.csv` runs January 2024 to September 2026 and `pnl.csv` holds FY2024 and FY2025, its whole history: with the start set on **Finances**, the years read "FY2024–FY2025 (2 of 2 years since the business started)" and nothing is asked of the seller; without it, Pactlab asks for FY2021–FY2023 "or tell us the business started later".',
     ]
+    # Two fiscal years of P&L (T-185): subscription revenue is the billing export's, year by year; a seed-stage loss.
+    years = ['2024', '2025']
+    sub = [sum((mo.get(m, D(0)) for _, _, mo in ds.customers for m in ds.billing_months if m.startswith(y)), D(0)) for y in years]
+    costs = [('Hosting and infrastructure', D('0.12')), ('Research and development', D('0.85')), ('Sales and marketing', D('0.45')), ('General and administrative', D('0.30'))]
+    pnl_rows = [['Subscription revenue'] + [f'{x:.2f}' for x in sub]] + [[name] + [f'{q(x * r):.2f}' for x in sub] for name, r in costs]
+    ds.ext('pnl', ['Line'] + [f'FY{y}' for y in years], pnl_rows, 'Profit and loss by fiscal year, FY2024 to FY2025 (the business began trading in January 2024)')
+    ds.pnl_step = ['Open the **Sources** tab, scroll to **Industry data** and click **Upload profit and loss (p&l)**.', '',
+                   '1. Choose `pnl.csv` → **Upload and map columns**. Pactlab reads the two years across the columns (FY2024 and FY2025).',
+                   '2. Say what each line is: `Subscription revenue` is **Revenue**, `Hosting and infrastructure` is **Cost of revenue**, and the rest are **Operating expenses**.',
+                   f'3. **Check every row**, then **Import {len(pnl_rows) * 2} rows**.', '',
+                   '**You should see:** on **Finances**, the two years side by side and "FY2024–FY2025 (2 of 5 years): ask the seller for FY2021–FY2023 …, or tell us the business started later". Enter **2024** as the year the business started: the years then read "2 of 2 years since the business started" and nothing is asked.', '']
 
 def waterfall(price, loan, rate, equity, hold, noi1, growth, cap, selling, pref, tiers, acq, am, disp):
     """The investor waterfall, as Pactlab recomputes it (packages/calculations syndication/waterfall.ts,
