@@ -25,3 +25,4 @@ export * from './pagination';
 export * from './notifications';
 export * from './support-chat';
 export * from './rinse';
+export * from './pricing';
