@@ -26,6 +26,7 @@ of what a pilot partner gets, which controls protect them, and how we roll back.
 | [failed-scan-cleanup.md](failed-scan-cleanup.md)                     | A scan workspace may not have been destroyed          |
 | [suspected-cross-tenant-access.md](suspected-cross-tenant-access.md) | Any hint that one tenant saw another's data           |
 | [invalid-ai-citations.md](invalid-ai-citations.md)                   | AI output cites something that does not resolve       |
+| [rinse.md](rinse.md)                                                 | Pactlab Rinse: status, connecting a rinsed folder, a refused manifest |
 | [document-retrieval.md](document-retrieval.md)                       | A question across a large data room missed or read only part of it |
 | [object-store-exposure.md](object-store-exposure.md)                 | A bucket policy, ACL or presigned URL may expose data |
 | [withdrawn-imports.md](withdrawn-imports.md)                         | A customer asks where their numbers went (withdrawn import) |

@@ -3,7 +3,7 @@
 import { Badge, Button } from '@pactlab/ui';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
-import { addChosenFiles, connectSource, disconnectSource, pickerFor, signInForFolder, syncSource, type SourceSyncFile } from './actions';
+import { addChosenFiles, connectSource, disconnectSource, pickerFor, signInForFolder, syncSource, type RinseSyncSummary, type SourceSyncFile } from './actions';
 import { FolderChooser } from './folder-chooser';
 import { chooseDriveFiles } from './google-picker';
 import { sortDocument } from './sorting';
@@ -65,6 +65,27 @@ const OUTCOME: Record<SourceSyncFile['outcome'], string> = {
   WAITING: 'Waiting for the next sync',
 };
 
+/** Why a file of a folder finished in Pactlab Rinse was handled as it was (T-178). */
+export const RINSE_REASONS: Readonly<Record<string, string>> = {
+  RINSE_MANIFEST: 'The Pactlab Rinse manifest: read for provenance, not kept as a document.',
+  RINSE_ORIGINAL: 'The seller’s original: kept at the source. Its rinsed copy is read, and names it.',
+  HAND_SOURCED_CLAIM: 'Hand-sourced: recorded as a seller claim, labelled hand-sourced. It is not documentary evidence.',
+  NOT_IN_RINSE_MANIFEST: 'Added after the rinse. It isn’t in the manifest, so it wasn’t read. Ask the seller to rinse it.',
+  CHANGED_SINCE_RINSE: 'Changed since the rinse, so it no longer matches the manifest. Ask the seller to rinse it again.',
+};
+
+/** The manifest's account of the set, in a few lines: who prepared it, what was audited, what travels as a note. */
+export function rinseLines(rinse: RinseSyncSummary): string[] {
+  if (rinse.status === 'INVALID') return ['This folder has a Pactlab Rinse manifest that Pactlab cannot read, so its files came in as an ordinary folder. Ask the seller to rinse it again.'];
+  const lines = [
+    `Finished in Pactlab Rinse by ${rinse.set?.preparedBy ?? 'the seller'}: ${rinse.documents} document${rinse.documents === 1 ? '' : 's'}, ${rinse.audited} conversion${rinse.audited === 1 ? '' : 's'} checked against the originals.`,
+    ...rinse.notedGaps.map((gap) => `${gap.label}: ${gap.state === 'NOT_APPLICABLE' ? 'marked not applicable' : 'noted'} by the seller${gap.note ? `: “${gap.note}”` : ''}`),
+    ...rinse.sourceDiscrepancies.map((item) => `${item.document} doesn’t add up in the seller’s own original. ${item.label} on page ${item.page} says ${item.stated}, but its lines sum to ${item.computed}.`),
+    ...rinse.handSourced.map((entry) => `${entry.title}: entered by hand, ${entry.claimId ? 'in the claims register as a hand-sourced seller claim' : 'becomes a seller claim when the deal team syncs'}.`),
+  ];
+  return lines;
+}
+
 const PROVIDERS = [
   { id: 'google-drive', label: 'Google Drive', folderHint: '' },
   { id: 'onedrive', label: 'OneDrive / SharePoint', folderHint: '<drive-id>/<folder-item-id>' },
@@ -97,6 +118,8 @@ export function folderFromInput(provider: string, text: string): string {
 interface Row {
   readonly path: string;
   readonly outcome: SourceSyncFile['outcome'];
+  /** A Rinse manifest settled what happened to it (kept at the source, a claim): not a refusal. */
+  readonly settledByRinse?: boolean;
   message?: string;
   sorting?: boolean;
 }
@@ -112,6 +135,7 @@ export function SourcesPanel({ dealId, sources, aiOn, justConnected = null }: { 
   const [rows, setRows] = useState<Row[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState<string | null>(null);
+  const [rinse, setRinse] = useState<RinseSyncSummary | null>(null);
   const [adding, setAdding] = useState(sources.items.length === 0);
   // The OneDrive source whose folder is being chosen in Pactlab's chooser.
   const [choosingFolder, setChoosingFolder] = useState<string | null>(null);
@@ -122,6 +146,7 @@ export function SourcesPanel({ dealId, sources, aiOn, justConnected = null }: { 
     setSyncing(sourceId);
     setError(null);
     setRows([]);
+    setRinse(null);
     const result = await syncSource(dealId, sourceId).catch(() => ({ kind: 'error' as const, message: 'The data room could not be read. Try again.' }));
     if (result.kind === 'error') {
       setError(result.message);
@@ -138,11 +163,14 @@ export function SourcesPanel({ dealId, sources, aiOn, justConnected = null }: { 
         .join(' ') || null,
     );
     const changed = result.files.filter((file) => file.outcome !== 'UNCHANGED' && file.outcome !== 'WAITING');
-    setRows(changed.map((file) => ({ path: file.path, outcome: file.outcome })));
+    setRows(changed.map((file) => ({ path: file.path, outcome: file.outcome, ...(file.reason && RINSE_REASONS[file.reason] ? { message: RINSE_REASONS[file.reason], settledByRinse: file.outcome === 'SKIPPED' } : {}) })));
+    setRinse(result.rinse);
     router.refresh();
+    // Files the Rinse manifest filed keep the seller's classification; only the rest are sorted by the AI.
+    const filed = new Set(result.rinse?.filed ?? []);
     if (sorting) {
       for (const file of changed) {
-        if ((file.outcome !== 'NEW' && file.outcome !== 'UPDATED') || !file.documentId) continue;
+        if ((file.outcome !== 'NEW' && file.outcome !== 'UPDATED') || !file.documentId || filed.has(file.documentId)) continue;
         setRows((current) => current.map((row) => (row.path === file.path ? { ...row, sorting: true } : row)));
         const outcome = await sortDocument(dealId, file.documentId);
         setRows((current) => current.map((row) => (row.path === file.path ? { ...row, sorting: false, message: outcome.message } : row)));
@@ -260,14 +288,22 @@ export function SourcesPanel({ dealId, sources, aiOn, justConnected = null }: { 
         </p>
       ) : null}
 
+      {rinse ? (
+        <ul role="status" aria-label="From the Pactlab Rinse manifest" className="flex flex-col gap-1 rounded-md border border-border px-3 py-2 text-xs">
+          {rinseLines(rinse).map((line) => (
+            <li key={line}>{line}</li>
+          ))}
+        </ul>
+      ) : null}
+
       {rows.length > 0 ? (
         <ul className="flex flex-col divide-y divide-border rounded-md border border-border" aria-label="What the sync found" aria-live="polite">
           {rows.map((row) => (
             <li key={row.path} className="flex flex-col gap-1 px-3 py-2">
               <span className="flex flex-wrap items-center justify-between gap-2">
                 <span className="font-medium">{row.path}</span>
-                <Badge variant={row.outcome === 'REJECTED' || row.outcome === 'SKIPPED' ? 'danger' : row.outcome === 'REMOVED' ? 'draft' : 'reviewed'}>
-                  {row.sorting ? 'Reading what it is…' : OUTCOME[row.outcome]}
+                <Badge variant={row.settledByRinse ? 'reviewed' : row.outcome === 'REJECTED' || row.outcome === 'SKIPPED' ? 'danger' : row.outcome === 'REMOVED' ? 'draft' : 'reviewed'}>
+                  {row.sorting ? 'Reading what it is…' : row.settledByRinse ? 'Handled by the manifest' : OUTCOME[row.outcome]}
                 </Badge>
               </span>
               {row.message ? <span className="text-xs text-muted-foreground">{row.message}</span> : null}

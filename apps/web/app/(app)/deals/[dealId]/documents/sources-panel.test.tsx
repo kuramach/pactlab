@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
-import { folderFromInput, GOOGLE_LIMIT, readsWhat, readsWith, SourcesPanel, type SourcesView } from './sources-panel';
+import { folderFromInput, GOOGLE_LIMIT, readsWhat, readsWith, RINSE_REASONS, rinseLines, SourcesPanel, type SourcesView } from './sources-panel';
 
 vi.mock('./actions', () => ({ addChosenFiles: vi.fn(), connectSource: vi.fn(), disconnectSource: vi.fn(), pickerFor: vi.fn(), signInForFolder: vi.fn(), syncSource: vi.fn() }));
 vi.mock('./google-picker', () => ({ chooseDriveFiles: vi.fn() }));
@@ -107,5 +107,28 @@ describe('connecting a drive folder from the pact', () => {
 
   it('says so when no drive can be connected here', () => {
     expect(renderToStaticMarkup(<SourcesPanel dealId="d" aiOn={false} sources={{ items: [], fixtureRooms: [], providers: [], seller: true }} />)).toContain('You can upload files instead');
+  });
+});
+
+describe('a folder finished in Pactlab Rinse (T-178)', () => {
+  it('says who prepared the set, what travels as a note, and that hand-sourced entries are claims, not evidence', () => {
+    const lines = rinseLines({
+      status: 'READ',
+      problem: null,
+      set: { name: 'Harbour Lane', pack: 'MULTIFAMILY', preparedBy: 'Dana Whitlow, Harbour Lane Apartments LLC (synthetic)', readyAt: '2026-11-20T09:00:00.000Z' },
+      documents: 6,
+      audited: 3,
+      handSourced: [{ title: 'Vacancy and occupancy schedule', claimId: 'c1' }],
+      notedGaps: [{ label: 'Delinquency report', state: 'NOTED', note: 'Follows next week.' }],
+      sourceDiscrepancies: [{ document: 'Balance sheet', label: 'Total current assets', page: 1, stated: '468000', computed: '458000' }],
+      claimsWaitForDealTeam: false,
+      filed: [],
+    });
+    expect(lines[0]).toContain('Dana Whitlow');
+    expect(lines.join(' ')).toContain('noted by the seller: “Follows next week.”');
+    expect(lines.join(' ')).toContain('lines sum to 458000');
+    expect(lines.join(' ')).toContain('hand-sourced seller claim');
+    expect(RINSE_REASONS['HAND_SOURCED_CLAIM']).toContain('not documentary evidence');
+    expect(rinseLines({ status: 'INVALID', problem: 'INVALID', set: null, documents: 0, audited: 0, handSourced: [], notedGaps: [], sourceDiscrepancies: [], claimsWaitForDealTeam: false, filed: [] })[0]).toContain('cannot read');
   });
 });

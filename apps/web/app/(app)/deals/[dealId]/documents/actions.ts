@@ -314,6 +314,20 @@ export interface SourceSyncFile {
   readonly documentId: string | null;
 }
 
+/** What a folder finished in Pactlab Rinse brought with its files (T-178). */
+export interface RinseSyncSummary {
+  readonly status: 'READ' | 'INVALID';
+  readonly problem: string | null;
+  readonly set: { readonly name: string; readonly pack: string; readonly preparedBy: string; readonly readyAt: string } | null;
+  readonly documents: number;
+  readonly audited: number;
+  readonly handSourced: readonly { readonly title: string; readonly claimId: string | null }[];
+  readonly notedGaps: readonly { readonly label: string; readonly state: string; readonly note: string | null }[];
+  readonly sourceDiscrepancies: readonly { readonly document: string; readonly label: string; readonly page: number; readonly stated: string; readonly computed: string }[];
+  readonly claimsWaitForDealTeam: boolean;
+  readonly filed: readonly string[];
+}
+
 const SOURCE_PROBLEMS: Readonly<Record<string, string>> = {
   SOURCE_ACCESS: 'Pactlab could not sign in to this source. Reconnect it in Settings → Document sources (an organization owner or admin), or check the folder is shared with that account.',
   SOURCE_NOT_CONNECTED: 'Your organization has not signed in to this provider yet. An owner or admin connects it once in Settings → Document sources.',
@@ -412,10 +426,13 @@ export async function disconnectSource(dealId: string, sourceId: string): Promis
 }
 
 /** Read new and changed files from a connected source. */
-export async function syncSource(dealId: string, sourceId: string): Promise<{ kind: 'ok'; files: SourceSyncFile[]; waiting: number; complete: boolean; listedLimit: number } | { kind: 'error'; message: string }> {
+export async function syncSource(
+  dealId: string,
+  sourceId: string,
+): Promise<{ kind: 'ok'; files: SourceSyncFile[]; waiting: number; complete: boolean; listedLimit: number; rinse: RinseSyncSummary | null } | { kind: 'error'; message: string }> {
   if (!uuid.safeParse(dealId).success || !uuid.safeParse(sourceId).success) return { kind: 'error', message: 'Unknown source.' };
-  const result = await apiSend<{ files: SourceSyncFile[]; waiting: number; complete: boolean; listedLimit: number }>('POST', `/v1/deals/${dealId}/document-sources/${sourceId}/sync`, {});
-  if (result.kind === 'ok') return { kind: 'ok', files: result.data.files, waiting: result.data.waiting, complete: result.data.complete, listedLimit: result.data.listedLimit };
+  const result = await apiSend<{ files: SourceSyncFile[]; waiting: number; complete: boolean; listedLimit: number; rinse?: RinseSyncSummary | null }>('POST', `/v1/deals/${dealId}/document-sources/${sourceId}/sync`, {});
+  if (result.kind === 'ok') return { kind: 'ok', files: result.data.files, waiting: result.data.waiting, complete: result.data.complete, listedLimit: result.data.listedLimit, rinse: result.data.rinse ?? null };
   return { kind: 'error', message: sourceProblem(result) };
 }
 

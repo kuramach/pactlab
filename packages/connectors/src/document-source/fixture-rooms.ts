@@ -1,3 +1,5 @@
+import { RINSED_FIXTURE_ROOM } from './rinse-room';
+
 /**
  * Synthetic data rooms for fixture document sources (T-098). Shaped like what
  * a seller actually hands over: inconsistent names, folders that do not match
@@ -252,4 +254,6 @@ export const FIXTURE_ROOMS: Readonly<Record<string, FixtureRoom>> = {
       gaps: ['INCOME_STATEMENT'],
     },
   },
+  // A folder finished in Pactlab Rinse (T-178): files, canonical copies and the manifest.
+  [RINSED_FIXTURE_ROOM.id]: RINSED_FIXTURE_ROOM,
 };
