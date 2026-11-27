@@ -1,0 +1,17 @@
+{
+  "schema": "pactlab-rinse-releases",
+  "version": 1,
+  "releases": [
+    {
+      "version": "0.1.0",
+      "publishedAt": "2026-12-01T09:00:00.000Z",
+      "notes": ["First release of Pactlab Rinse.", "Rinses a folder, checks each conversion against the original, and writes the manifest."],
+      "installers": [
+        { "platform": "macos-arm64", "url": "https://downloads.example.test/rinse/0.1.0/Pactlab-Rinse-0.1.0-arm64.dmg", "sha256": "1111111111111111111111111111111111111111111111111111111111111111" },
+        { "platform": "macos-x64", "url": "https://downloads.example.test/rinse/0.1.0/Pactlab-Rinse-0.1.0-x64.dmg", "sha256": "2222222222222222222222222222222222222222222222222222222222222222" },
+        { "platform": "windows-x64", "url": "https://downloads.example.test/rinse/0.1.0/Pactlab-Rinse-0.1.0-x64.msi", "sha256": "3333333333333333333333333333333333333333333333333333333333333333" },
+        { "platform": "linux-x64", "url": "https://downloads.example.test/rinse/0.1.0/Pactlab-Rinse-0.1.0-x64.AppImage", "sha256": "4444444444444444444444444444444444444444444444444444444444444444" }
+      ]
+    }
+  ]
+}

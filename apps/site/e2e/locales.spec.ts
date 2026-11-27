@@ -122,3 +122,23 @@ test.describe('layout in every language @regression', () => {
     }
   }
 });
+
+test.describe('Pactlab Rinse download page (T-178c) @smoke', () => {
+  for (const { path, lang, heading, platforms } of [
+    { path: '/rinse/', lang: 'en', heading: 'Rinse your deal documents clean before they go in the room.', platforms: ['macOS (Apple Silicon)', 'macOS (Intel)', 'Windows', 'Linux'] },
+    { path: '/de/rinse/', lang: 'de', heading: 'Bereinigen Sie Ihre Deal-Dokumente, bevor sie in den Datenraum gehen.', platforms: ['macOS (Apple Silicon)', 'macOS (Intel)', 'Windows', 'Linux'] },
+    { path: '/fr/rinse/', lang: 'fr', heading: 'Nettoyez vos documents de transaction avant qu’ils n’entrent dans la salle.', platforms: ['macOS (Apple Silicon)', 'macOS (Intel)', 'Windows', 'Linux'] },
+    { path: '/ja/rinse/', lang: 'ja', heading: '案件の書類は、データルームに入れる前にきれいに整えましょう。', platforms: ['macOS（Apple Silicon）', 'macOS（Intel）', 'Windows', 'Linux'] },
+  ]) {
+    test(`${lang}: lists the current release, its installers and checksums`, async ({ page }) => {
+      await page.goto(path);
+      await expectLanguage(page, lang);
+      await expect(page.getByRole('heading', { level: 1, name: heading })).toBeVisible();
+      await expect(page.getByText('0.1.0').first()).toBeVisible();
+      await expect(page.getByRole('link', { name: /(Download|herunterladen|Télécharger|ダウンロード)/ })).toHaveCount(4);
+      for (const platform of platforms) await expect(page.getByRole('heading', { name: platform, level: 3 })).toBeVisible();
+      await expect(page.getByText('1'.repeat(64))).toBeVisible();
+      await expect(page.getByRole('status')).toHaveCount(0);
+    });
+  }
+});

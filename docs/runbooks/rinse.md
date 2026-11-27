@@ -16,7 +16,7 @@ The seller's desktop bench (T-178, ADR 0058). The seller rinses the set, closes 
 | Auto-update (Tauri updater) | Configured; the update signing key **is not generated** (the `pubkey` is a placeholder) |
 | Bundled office-to-PDF and OCR tools | Converter seam built (`LocalToolConverter`, LibreOffice headless); **not bundled**, and fails closed (`TOOL_MISSING`) |
 | Preparer accounts, prep invites, desktop sign-in, AI rinse job endpoint, hosted deal-room upload | T-178b |
-| Download page `pactlab.ai/rinse` (all site locales), trademark-clearance entry | T-178c |
+| Download page `pactlab.ai/rinse` (all site locales), reading the release feed at build time; trademark-clearance entry | Built (T-178c). Shows "not published" until T-178b publishes a feed; see `website.md` |
 | OneDrive / Google Drive / Box destinations; one-time folder import (injection path b); first-class provenance records | T-178d |
 
 ## Connecting a rinsed folder (pact side)

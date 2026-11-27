@@ -1,3 +1,4 @@
+import { pathToFileURL } from 'node:url';
 import { defineConfig, devices } from '@playwright/test';
 
 /**
@@ -31,7 +32,7 @@ export default defineConfig({
     command: `sh -c "next build && node e2e/edge-server.ts ${PORT}"`,
     cwd: '..',
     url: `http://localhost:${PORT}/locales.json`,
-    env: { NEXT_PUBLIC_LOCALE_PREVIEW: 'true', NEXT_PUBLIC_CONTACT_EMAIL: 'pilots@example.test', NEXT_PUBLIC_SITE_INDEXING: 'none' },
+    env: { NEXT_PUBLIC_LOCALE_PREVIEW: 'true', NEXT_PUBLIC_CONTACT_EMAIL: 'pilots@example.test', NEXT_PUBLIC_SITE_INDEXING: 'none', RINSE_RELEASE_FEED_URL: pathToFileURL(`${import.meta.dirname}/fixtures/rinse-releases.json`).toString() },
     timeout: 300_000,
     reuseExistingServer: false,
   },

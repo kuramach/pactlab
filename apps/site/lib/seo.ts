@@ -38,6 +38,7 @@ export const SITE_ROUTES: readonly string[] = [
   '/try',
   ...TRY_PACKS.map((pack) => `/try/${pack.slug}`),
   '/pilot',
+  '/rinse',
   '/about',
   '/about/story',
   '/about/vision',
@@ -212,6 +213,7 @@ export function llmsText(): string {
     `- [Try it with synthetic data](${absolute('/try')}): pick a pact (${TRY_PACKS.map((pack) => pack.name).join(', ')}), download a synthetic data room and extracts, and follow the steps.`,
     `- [Pricing](${absolute('/pricing')}): ${PRICING.title} ${PLANS.map((plan) => `${plan.name}: ${plan.price ? `${plan.price} ${plan.cadence}` : 'talk to us'}`).join('; ')}. Counterparty guests are free.`,
     `- [Pilot](${absolute('/pilot')}): ${PILOT.body}`,
+    `- [Pactlab Rinse](${absolute('/rinse')}): ${site('en').ui.rinse.metaDescription}`,
     `- [About](${absolute('/about')}): why the company is called Pactlab, its story and its vision.`,
     '',
   ];

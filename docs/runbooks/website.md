@@ -44,6 +44,16 @@ for that commit → Re-run all jobs), and approve.
 | `SITE_APP_URL` | App origin for Log in / Sign up links (optional) |
 | `SITE_CONTACT_EMAIL` | Address for "Request a pilot" (optional) |
 
+## Pactlab Rinse download page (T-178c)
+
+`/rinse` (every site language) reads the Rinse release feed **at build time** from `RINSE_RELEASE_FEED_URL` (https; `file:` for local and end-to-end builds only). The feed is `{ schema: 'pactlab-rinse-releases', version: 1, releases: [...] }`, newest first, each with `version`, `publishedAt`, `notes`, and one installer per platform (`macos-arm64`, `macos-x64`, `windows-x64`, `linux-x64`) with an https `url` and a lowercase hex `sha256`. The contract is `apps/site/lib/rinse.ts`.
+
+- Unset or no release yet: the page says installers are not published. It never links a placeholder.
+- Set but unreachable or malformed: the build fails, so a wrong download is never published.
+- The deploy workflow does not pass this variable yet, and the feed is not yet published (T-178b: the release pipeline). Wire both in the same change that publishes the first signed build.
+- Release notes come from the feed in English in every language.
+- The name "Pactlab Rinse" is on the open list in `trademark-clearance.md`.
+
 ## Accounts and region
 
 - Site account: **PactLab Dev** (`379959319207`). The CLI reaches it from the

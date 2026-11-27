@@ -22,6 +22,7 @@ export function SiteFooter({ locale = 'en' }: { locale?: Locale }) {
       links: [
         ...content.nav.filter((n) => n.href !== '/product' && n.href !== '/industries').map((n) => ({ href: href(n.href), label: n.label })),
         { href: href('/guides'), label: words.guides },
+        { href: href('/rinse'), label: ui.rinse.eyebrow },
         { href: href('/faq'), label: words.faq },
         { href: href('/compare/valuation-software'), label: words.compare },
         ...account,

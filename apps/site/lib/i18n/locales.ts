@@ -61,7 +61,7 @@ export const LOCALE_COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
  * pricing, trust, try, pilot, case-study bodies, legal) is English only, and
  * links to it from a translated page go to the English page.
  */
-const LOCALIZED = [/^\/$/, /^\/how-it-works$/, /^\/guides(\/[^/]+)?$/, /^\/faq(\/[^/]+)?$/, /^\/compare\/[^/]+$/, /^\/about(\/(story|vision))?$/, /^\/case-studies$/, /^\/industries(\/[^/]+)?$/];
+const LOCALIZED = [/^\/$/, /^\/how-it-works$/, /^\/rinse$/, /^\/guides(\/[^/]+)?$/, /^\/faq(\/[^/]+)?$/, /^\/compare\/[^/]+$/, /^\/about(\/(story|vision))?$/, /^\/case-studies$/, /^\/industries(\/[^/]+)?$/];
 
 /** Strip a trailing slash (except the root) so `/faq/` and `/faq` compare equal. */
 const normalize = (path: string) => (path.length > 1 ? path.replace(/\/+$/, '') : path);
