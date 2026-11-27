@@ -1,26 +1,29 @@
 import Link from 'next/link';
-import { MODULES, NAV } from '../lib/content';
-import { PUBLISHED_INDUSTRIES } from '../lib/industry-stories';
 import { siteConfig } from '../lib/config';
+import { site } from '../lib/i18n/catalog';
+import { localeHref, type Locale } from '../lib/i18n/locales';
 import { LEGAL_ENTITY } from '../lib/legal';
 import { Lockup } from './lockup';
 
-export function SiteFooter() {
+export function SiteFooter({ locale = 'en' }: { locale?: Locale }) {
   const { loginUrl, signUpUrl } = siteConfig();
+  const { content, ui, modules, industries } = site(locale);
+  const words = ui.footer;
+  const href = (path: string) => localeHref(locale, path);
   const account = [
-    ...(loginUrl ? [{ href: loginUrl, label: 'Log in' }] : []),
-    ...(signUpUrl ? [{ href: signUpUrl, label: 'Sign up' }] : []),
+    ...(loginUrl ? [{ href: loginUrl, label: ui.shell.logIn }] : []),
+    ...(signUpUrl ? [{ href: signUpUrl, label: ui.shell.signUp }] : []),
   ];
   const columns = [
-    { title: 'Product', links: MODULES.map((m) => ({ href: `/product/${m.slug}`, label: m.name })) },
-    { title: 'Industries', links: PUBLISHED_INDUSTRIES.map((i) => ({ href: `/industries/${i.slug}`, label: i.name })) },
+    { title: words.product, links: modules.map((m) => ({ href: `/product/${m.slug}`, label: m.name })) },
+    { title: words.industries, links: industries.map((i) => ({ href: href(`/industries/${i.slug}`), label: i.name })) },
     {
-      title: 'Pactlab',
+      title: words.pactlab,
       links: [
-        ...NAV.filter((n) => n.href !== '/product' && n.href !== '/industries').map((n) => ({ href: n.href, label: n.label })),
-        { href: '/guides', label: 'Guides' },
-        { href: '/faq', label: 'Questions and answers' },
-        { href: '/compare/valuation-software', label: 'Compared with valuation software' },
+        ...content.nav.filter((n) => n.href !== '/product' && n.href !== '/industries').map((n) => ({ href: href(n.href), label: n.label })),
+        { href: href('/guides'), label: words.guides },
+        { href: href('/faq'), label: words.faq },
+        { href: href('/compare/valuation-software'), label: words.compare },
         ...account,
       ],
     },
@@ -29,8 +32,8 @@ export function SiteFooter() {
     <footer className="bg-navy text-white/75">
       <div className="mx-auto grid max-w-6xl gap-10 px-6 py-14 md:grid-cols-[1.3fr_1fr_1fr_0.7fr]">
         <div className="flex flex-col gap-4">
-          <Lockup tone="onDark" size="sm" withTagline />
-          <p className="max-w-xs text-sm">The deal platform for private equity and corporate development, built on AWS.</p>
+          <Lockup tone="onDark" size="sm" withTagline tagline={content.tagline} />
+          <p className="max-w-xs text-sm">{words.blurb}</p>
         </div>
         {columns.map((column) => (
           <nav key={column.title} aria-label={column.title} className="flex flex-col gap-2 text-sm">
@@ -52,15 +55,15 @@ export function SiteFooter() {
       <div className="border-t border-white/10">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-6 py-6 text-xs">
           <p>© {new Date().getFullYear()} {LEGAL_ENTITY}</p>
-          <nav aria-label="Legal" className="flex flex-wrap gap-4">
+          <nav aria-label={words.legal} className="flex flex-wrap gap-4">
             <Link href="/trust" className="hover:text-white">
-              Security and trust
+              {words.trust}
             </Link>
             <Link href="/privacy" className="hover:text-white">
-              Privacy policy
+              {words.privacy}
             </Link>
             <Link href="/terms" className="hover:text-white">
-              Terms of service
+              {words.terms}
             </Link>
           </nav>
         </div>

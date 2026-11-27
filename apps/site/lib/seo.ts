@@ -4,6 +4,8 @@ import { DESCRIPTOR, HOME, INDUSTRY_CORE, MODULES, PILOT, PLANS, PRICING, TAGLIN
 import { COMPARISONS, FAQS, GUIDES } from './answers';
 import { CASE_STUDIES } from './cases';
 import { INDUSTRY_STORIES, PUBLISHED_INDUSTRIES } from './industry-stories';
+import { site } from './i18n/catalog';
+import { HTML_LANG, isLocalizedPath, isPublishedLocale, localeHref, OG_LOCALE, PUBLISHED_LOCALES, type Locale } from './i18n/locales';
 
 /**
  * Machine-readable surfaces for search engines and AI assistants (T-085
@@ -65,44 +67,79 @@ export const AI_CRAWLERS = [
   'Amazonbot',
 ] as const;
 
-/** Title, description, canonical URL and OpenGraph for one page. */
-export function pageMetadata({ title, description, path, image }: { title?: string; description: string; path: string; image?: { url: string; alt: string } }): Metadata {
+/**
+ * hreflang for a page (T-171): every published language it exists in, plus
+ * x-default (English). Search engines index from these links; country
+ * detection never decides what is canonical.
+ */
+export function languageAlternates(path: string): Record<string, string> | undefined {
+  if (!isLocalizedPath(path)) return undefined;
+  const languages: Record<string, string> = {};
+  for (const locale of PUBLISHED_LOCALES) languages[HTML_LANG[locale]] = absolute(localeHref(locale, path));
+  if (Object.keys(languages).length < 2) return undefined;
+  return { ...languages, 'x-default': absolute(path) };
+}
+
+/** Title, description, canonical URL, hreflang and OpenGraph for one page, in one language. */
+export function pageMetadata({
+  title,
+  description,
+  path,
+  image,
+  locale = 'en',
+}: {
+  title?: string;
+  description: string;
+  /** The page's English (unprefixed) path. */
+  path: string;
+  image?: { url: string; alt: string };
+  locale?: Locale;
+}): Metadata {
+  const url = absolute(localeHref(locale, path));
+  const languages = isPublishedLocale(locale) ? languageAlternates(path) : undefined;
   return {
     ...(title ? { title } : {}),
     description,
-    alternates: { canonical: absolute(path) },
+    alternates: { canonical: url, ...(languages ? { languages } : {}) },
+    // A translation awaiting its native review is reachable by URL only, never indexed.
+    ...(isPublishedLocale(locale) ? {} : { robots: { index: false, follow: false } }),
     openGraph: {
-      title: title ? `${title} · Pactlab` : `Pactlab — ${TAGLINE}`,
+      title: title ? `${title} · Pactlab` : `Pactlab — ${site(locale).content.tagline}`,
       description,
-      url: absolute(path),
+      url,
       siteName: 'Pactlab',
       type: 'website',
+      locale: OG_LOCALE[locale],
       images: [image ?? { url: '/brand/icon-512.png', width: 512, height: 512, alt: 'Pactlab' }],
     },
   };
 }
 
-export const organizationJsonLd = () => ({
+export const organizationJsonLd = (locale: Locale = 'en') => ({
   '@context': 'https://schema.org',
   '@type': 'Organization',
   name: 'Pactlab',
   url: SITE_URL,
   logo: absolute('/brand/pactlab-logo.svg').replace(/\/$/, ''),
-  slogan: TAGLINE,
-  description: HOME.body,
+  slogan: locale === 'en' ? TAGLINE : site(locale).content.tagline,
+  description: locale === 'en' ? HOME.body : site(locale).content.home.body,
 });
 
-export const softwareApplicationJsonLd = () => ({
-  '@context': 'https://schema.org',
-  '@type': 'SoftwareApplication',
-  name: 'Pactlab',
-  url: SITE_URL,
-  applicationCategory: 'BusinessApplication',
-  applicationSubCategory: DESCRIPTOR,
-  operatingSystem: 'Web',
-  description: HOME.body,
-  featureList: MODULES.map((module) => `${module.name}: ${module.summary}`),
-});
+export const softwareApplicationJsonLd = (locale: Locale = 'en') => {
+  const { content, modules } = locale === 'en' ? { content: { descriptor: DESCRIPTOR, home: HOME }, modules: MODULES } : site(locale);
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'SoftwareApplication',
+    name: 'Pactlab',
+    url: SITE_URL,
+    applicationCategory: 'BusinessApplication',
+    applicationSubCategory: content.descriptor,
+    operatingSystem: 'Web',
+    inLanguage: HTML_LANG[locale],
+    description: content.home.body,
+    featureList: modules.map((module) => `${module.name}: ${module.summary}`),
+  };
+};
 
 export const faqPageJsonLd = (faq: readonly { readonly q: string; readonly a: string }[]) => ({
   '@context': 'https://schema.org',

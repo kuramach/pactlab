@@ -58,7 +58,7 @@ export function expectedInputs(pack: PackDefinition): readonly ExpectedInput[] {
     ...pack.importTargets.map((target): ExpectedInput => ({
       id: target,
       // Every pack inherits the billing import from the software core; only software-like packs need it.
-      need: target === 'BILLING_INVOICE_LINE' && !technology ? 'OPTIONAL' : 'REQUIRED',
+      need: (target === 'BILLING_INVOICE_LINE' && !technology) || pack.optionalInputs?.includes(target) ? 'OPTIONAL' : 'REQUIRED',
     })),
     { id: 'CUSTOMER_CONTRACT', need: technology || pack.cluster === 'services' ? 'REQUIRED' : 'OPTIONAL' },
     { id: 'LEASE', need: realEstate || pack.requiredInputs?.includes('LEASE') ? 'REQUIRED' : 'OPTIONAL' },

@@ -7,7 +7,8 @@ import * as content from './content';
 import { ICONS } from './icons';
 import { INDUSTRY_STORIES, isPublishedHref, PUBLISHED_INDUSTRIES, WRITTEN_INDUSTRIES } from './industry-stories';
 
-const APP = join(dirname(fileURLToPath(import.meta.url)), '../app');
+/** English routes; /de, /fr and /ja mirror the translated ones under app/[locale] (T-171). */
+const APP = join(dirname(fileURLToPath(import.meta.url)), '../app/(en)');
 const copy = JSON.stringify({ ...content, BANNED_WORDS: [] }).toLowerCase();
 
 /** Static route for an href, e.g. /industries/fintech -> app/industries/[slug]/page.tsx. */
@@ -243,7 +244,7 @@ describe('industry stories', () => {
 });
 
 describe('pacts carousel (T-086)', () => {
-  const publicDir = join(APP, '../public');
+  const publicDir = join(APP, '../../public');
 
   it('shows 16 pacts in order: the core deal first, every pack, the founder side last', () => {
     expect(content.PACT_CARDS.map((card) => card.id)).toEqual([
@@ -306,7 +307,7 @@ describe('new features and pricing (2026-11-09)', () => {
   it('presents close, reports and the AI assistant as product modules', () => {
     expect(content.MODULES.map((module) => module.slug)).toEqual(['revenue', 'technology', 'delivery', 'documents', 'findings', 'valuation', 'close', 'reports', 'assistant']);
     expect(content.CAROUSEL.map((slide) => slide.id)).toContain('assistant');
-    expect(existsSync(join(APP, '../public/illustrations/slide-assistant.svg'))).toBe(true);
+    expect(existsSync(join(APP, '../../public/illustrations/slide-assistant.svg'))).toBe(true);
     expect(content.TRUST.items.map((item) => item.title)).toContain('Passkeys');
   });
 

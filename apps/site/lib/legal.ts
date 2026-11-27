@@ -99,7 +99,7 @@ export const PRIVACY: LegalDocument = {
     },
     {
       heading: 'Cookies',
-      paragraphs: ['The platform uses cookies only to keep you signed in and to keep the service secure. The website uses no advertising or analytics cookies.'],
+      paragraphs: ['The platform uses cookies only to keep you signed in and to keep the service secure. The website uses no advertising or analytics cookies. It sets two functional cookies: the language you choose in the language menu, kept for a year, and the two-letter country our content delivery network reports for your connection, kept for a day so a pilot request can pre-fill it. Neither identifies you.'],
     },
     {
       heading: 'Your choices and rights',

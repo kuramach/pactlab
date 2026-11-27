@@ -4,15 +4,14 @@ import { ChevronLeft, ChevronRight, Pause, Play } from 'lucide-react';
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import type { Slide } from '../lib/content';
+import { fill } from '../lib/i18n/localize';
+import type { Messages } from '../messages/en/ui';
 import { HeroVideo } from './hero-video';
 import { Icon } from './icon';
+import { viewerCountry, withCountry } from './pilot-request';
 
 const INTERVAL_MS = 6000;
 
-const GROUPS = [
-  { group: 'platform', label: 'Platform' },
-  { group: 'pact', label: 'Pacts you can run' },
-] as const;
 
 /**
  * Home page hero carousel: platform messages and runnable pacts, with the
@@ -25,20 +24,32 @@ export function HeroCarousel({
   cta,
   allPacts,
   positioning,
+  words,
 }: {
+  /** Slide links are already in the page's language. */
   slides: readonly Slide[];
-  cta: { href: string; label: string } | null;
+  /** The pilot request, with the visitor's country pre-filled when the edge saw it. */
+  cta: { href: string; label: string; countryLabel: string; language: string } | null;
   /** Ends the pact buttons: the slider features a few pacts, this link reaches the rest. */
   allPacts?: { href: string; label: string };
   /** Who it is for and what it does (T-120): fixed above the slides, so the first screen always says it. */
   positioning?: { eyebrow: string; line: string };
+  words: Messages['carousel'];
 }) {
+  const groups = [
+    { group: 'platform', label: words.platform },
+    { group: 'pact', label: words.pacts },
+  ] as const;
   const [index, setIndex] = useState(0);
   const [playing, setPlaying] = useState(true);
   const [held, setHeld] = useState(false);
   // The first slide shows at once (no fade), so it paints as early as possible (LCP); later slides fade in.
   const [moved, setMoved] = useState(false);
   const count = slides.length;
+  const [ctaHref, setCtaHref] = useState(cta?.href ?? '');
+  useEffect(() => {
+    if (cta) setCtaHref(withCountry(cta.href, viewerCountry(document.cookie), { label: cta.countryLabel, language: cta.language }));
+  }, [cta]);
   const go = useCallback(
     (next: number) => {
       setMoved(true);
@@ -65,7 +76,7 @@ export function HeroCarousel({
   return (
     <section
       aria-roledescription="carousel"
-      aria-label="Why Pactlab"
+      aria-label={words.label}
       className="relative overflow-hidden bg-navy text-white"
       onFocus={() => setHeld(true)}
       onBlur={(event) => {
@@ -94,7 +105,7 @@ export function HeroCarousel({
                 key={slide.id}
                 role="group"
                 aria-roledescription="slide"
-                aria-label={`${position + 1} of ${count}: ${slide.eyebrow}`}
+                aria-label={fill(words.position, { position: position + 1, count, eyebrow: slide.eyebrow })}
                 aria-hidden={!active}
                 inert={!active}
                 className={`grid items-center gap-12 md:grid-cols-[1.15fr_1fr] ${active ? (moved ? 'animate-[fade_600ms_ease-out]' : '') : 'hidden'}`}
@@ -105,7 +116,7 @@ export function HeroCarousel({
                     <p className="flex items-center gap-3 text-sm font-bold uppercase tracking-widest text-indigo">
                       <span className="inline-flex items-center gap-1.5 rounded-full bg-indigo px-3 py-1 text-xs text-navy">
                         {slide.icon ? <Icon name={slide.icon} className="h-4 w-4" /> : null}
-                        Pact
+                        {words.pactTag}
                       </span>
                       {slide.eyebrow}
                     </p>
@@ -128,7 +139,7 @@ export function HeroCarousel({
                   </ul>
                   <div className="flex flex-wrap items-center gap-4 pt-2">
                     {cta ? (
-                      <a href={cta.href} className="inline-flex items-center rounded-lg bg-indigo px-5 py-3 font-bold text-navy hover:bg-white">
+                      <a href={ctaHref} className="inline-flex items-center rounded-lg bg-indigo px-5 py-3 font-bold text-navy hover:bg-white">
                         {cta.label}
                       </a>
                     ) : null}
@@ -147,7 +158,7 @@ export function HeroCarousel({
 
         <div {...hold} className="mt-10 flex flex-wrap items-center justify-between gap-4 border-t border-white/10 pt-6">
           <div className="flex flex-wrap gap-x-8 gap-y-4">
-            {GROUPS.map(({ group, label }) => {
+            {groups.map(({ group, label }) => {
               const members = slides.map((slide, position) => ({ slide, position })).filter(({ slide }) => slide.group === group);
               if (members.length === 0) return null;
               return (
@@ -180,18 +191,18 @@ export function HeroCarousel({
             })}
           </div>
           <div className="flex items-center gap-2">
-            <button type="button" onClick={() => go(index - 1)} aria-label="Previous slide" className="rounded-full border border-white/25 p-2 hover:border-white">
+            <button type="button" onClick={() => go(index - 1)} aria-label={words.previous} className="rounded-full border border-white/25 p-2 hover:border-white">
               <ChevronLeft aria-hidden className="h-5 w-5" />
             </button>
             <button
               type="button"
               onClick={() => setPlaying((value) => !value)}
-              aria-label={playing ? 'Pause rotation' : 'Play rotation'}
+              aria-label={playing ? words.pause : words.play}
               className="rounded-full border border-white/25 p-2 hover:border-white"
             >
               {playing ? <Pause aria-hidden className="h-5 w-5" /> : <Play aria-hidden className="h-5 w-5" />}
             </button>
-            <button type="button" onClick={() => go(index + 1)} aria-label="Next slide" className="rounded-full border border-white/25 p-2 hover:border-white">
+            <button type="button" onClick={() => go(index + 1)} aria-label={words.next} className="rounded-full border border-white/25 p-2 hover:border-white">
               <ChevronRight aria-hidden className="h-5 w-5" />
             </button>
           </div>
