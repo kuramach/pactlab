@@ -3,7 +3,7 @@ import type { CitableSource } from './context';
 import type { ModelProviderErrorKind } from './bedrock';
 import type { AiRunRecord, ClaudeGateway, GatewayInput } from './gateway';
 import type { ModelAlias } from './models';
-import { contractExtractionPrompt, contractScrubPrompt, documentQaPrompt, documentUnderstandingPrompt, energyExtractionPrompt, musicExtractionPrompt, offeringExtractionPrompt, type ContractExtraction, type DocumentUnderstanding, type EnergyExtraction, type MusicExtraction, type OfferingExtraction } from './prompts';
+import { contractExtractionPrompt, contractScrubPrompt, criticalExtractionPrompt, criticalStructurePrompt, documentQaPrompt, documentUnderstandingPrompt, energyExtractionPrompt, musicExtractionPrompt, offeringExtractionPrompt, type ContractExtraction, type CriticalStructureProposal, type DocumentUnderstanding, type EnergyExtraction, type MusicExtraction, type OfferingExtraction } from './prompts';
 
 interface Scope {
   readonly organizationId: string;
@@ -378,4 +378,60 @@ export async function extractEnergyItems(
     items.push({ kind: item.kind, asset: item.asset, detail: item.detail, value: item.value, citation });
   }
   return { run: response.run, items, rejected: dropped, providerError: null };
+}
+
+export interface ExtractedCriticalFigure {
+  readonly value: string;
+  readonly period: string | null;
+  readonly citation: ResolvedCitation;
+}
+
+/**
+ * Deal Criticals (T-179): the model proposes the structured form of a red line written in words.
+ * The result is a proposal only: the caller checks it against the vocabulary and a person confirms it.
+ */
+export async function proposeCriticalStructure(
+  gateway: ClaudeGateway,
+  request: Scope & { readonly words: string; readonly companyType: string },
+): Promise<{ run: AiRunRecord; proposal: CriticalStructureProposal | null; providerError: ModelProviderErrorKind | null }> {
+  const response = await gateway.invoke(criticalStructurePrompt, {
+    organizationId: request.organizationId,
+    dealId: request.dealId,
+    modelAlias: request.modelAlias,
+    inputs: [
+      { name: 'words', classification: 'BUSINESS', text: request.words },
+      { name: 'companyType', classification: 'BUSINESS', text: request.companyType },
+    ],
+  });
+  return { run: response.run, proposal: response.output ?? null, providerError: response.providerError };
+}
+
+/**
+ * Deal Criticals (T-179): figures a metric's documents state. Code keeps a figure only when its quote
+ * is on the cited page and the figure is written in that quote; the rest are dropped and counted.
+ */
+export async function extractCriticalFigures(
+  gateway: ClaudeGateway,
+  request: Scope & { readonly metric: string; readonly sources: readonly CitableSource[] },
+): Promise<{ run: AiRunRecord; figures: ExtractedCriticalFigure[]; dropped: number; providerError: ModelProviderErrorKind | null }> {
+  const response = await gateway.invoke(criticalExtractionPrompt, {
+    organizationId: request.organizationId,
+    dealId: request.dealId,
+    modelAlias: request.modelAlias,
+    inputs: [{ name: 'metric', classification: 'BUSINESS', text: request.metric }],
+    sources: request.sources,
+  });
+  if (!response.output) return { run: response.run, figures: [], dropped: 0, providerError: response.providerError };
+  const { grounded, rejected } = groundItems(response.output.figures, new SourceIndex(request.sources));
+  const figures: ExtractedCriticalFigure[] = [];
+  let dropped = rejected.length;
+  for (const { item, citations } of grounded) {
+    const [citation] = citations;
+    if (!citation || !figuresIn(citation.quote).has(canonicalFigure(item.value))) {
+      dropped += 1;
+      continue;
+    }
+    figures.push({ value: item.value, period: item.period, citation });
+  }
+  return { run: response.run, figures, dropped, providerError: null };
 }

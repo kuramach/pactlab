@@ -51,6 +51,7 @@ import { DealDeletionModule } from './deals/deletion/deal-deletion.module';
 import { InvitationsModule } from './invitations/invitations.module';
 import { FinancingModule } from './financing/financing.module';
 import { ReportsModule } from './reports/reports.module';
+import { CriticalsModule } from './criticals/criticals.module';
 import { QoeModule } from './qoe/qoe.module';
 import { SyndicationModule } from './syndication/syndication.module';
 import { MusicModule } from './music/music.module';
@@ -329,6 +330,8 @@ export class AppModule {
         documentsModule,
         // Reports (T-110): the same service instances the app reads through.
         qoeModule,
+        // Deal Criticals (T-179): the org's red lines rated on every pact; words and document metrics read by AI.
+        CriticalsModule.register({ gateway: deps.documents?.gateway ?? new NotConfiguredClaudeGateway() }),
         // Multifamily syndication (T-106): offering extraction runs through the documents module.
         SyndicationModule.register({ documents: documentsModule }),
         // Music rights (T-140): register extraction runs through the documents module.
