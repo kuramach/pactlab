@@ -26,6 +26,26 @@ export interface CachedSession {
   readonly token: string;
   readonly expiresAt: string;
   readonly bindings: readonly PreparerBindingView[];
+  /** How the preparer is named on every set and hand entry (T-178e): typed at sign-in, kept with the session. */
+  readonly name?: string;
+  readonly organization?: string;
+}
+
+/**
+ * The preparer's Pactlab user id, from the session's own token: Pactlab signs its sessions with the
+ * subject `pactlab|<user id>` (ADR 0001). The app reads its own token only to name the preparer on the
+ * manifest; the server verifies the token, and the binding, on every request and at sync.
+ */
+export function preparerUserId(token: string): string | null {
+  const payload = token.split('.')[1];
+  if (!payload) return null;
+  try {
+    const claims = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as { sub?: unknown };
+    const match = typeof claims.sub === 'string' ? /^pactlab\|([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i.exec(claims.sub) : null;
+    return match?.[1]?.toLowerCase() ?? null;
+  } catch {
+    return null;
+  }
 }
 
 type Fetch = (url: string, init: RequestInit) => Promise<Response>;

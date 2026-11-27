@@ -1,23 +1,49 @@
 {
-  "$comment": "T-178b (Kumar's decision 3): the converters bundled into the installer, pinned per target. Each entry is filled only from the project's own release page, with the SHA-256 the build verifies before unpacking. An entry left null is not bundled, and the build says so (the app then fails closed with TOOL_MISSING). Licences: LibreOffice MPL-2.0, Tesseract Apache-2.0, carried in the app's licence notices.",
+  "$comment": "T-178b (Kumar's decision 3): the converters bundled into the installer, pinned per target. Each entry is filled only from the project's own release page or download mirror, with the SHA-256 the project publishes for that file, which the build verifies before unpacking. An entry left null is not bundled, and the build says so (the app then fails closed with TOOL_MISSING for formats only that tool reads; Word, PDF and text still convert with the deterministic writer). Licences: LibreOffice MPL-2.0, Tesseract Apache-2.0; their own licence files are copied from each archive into the app's notices.",
   "libreoffice": {
     "version": null,
     "licence": "MPL-2.0",
+    "source": "https://www.libreoffice.org/download/download-libreoffice/ (download.documentfoundation.org): .dmg per Mac architecture, .msi for Windows x64, the Linux x64 .deb tarball. Unpacked by scripts/fetch-converters.mjs; never installed on the build machine.",
     "targets": {
-      "aarch64-apple-darwin": { "url": null, "sha256": null },
-      "x86_64-apple-darwin": { "url": null, "sha256": null },
-      "x86_64-pc-windows-msvc": { "url": null, "sha256": null },
-      "x86_64-unknown-linux-gnu": { "url": null, "sha256": null }
+      "aarch64-apple-darwin": {
+        "url": null,
+        "sha256": null
+      },
+      "x86_64-apple-darwin": {
+        "url": null,
+        "sha256": null
+      },
+      "x86_64-pc-windows-msvc": {
+        "url": null,
+        "sha256": null
+      },
+      "x86_64-unknown-linux-gnu": {
+        "url": null,
+        "sha256": null
+      }
     }
   },
   "tesseract": {
     "version": null,
     "licence": "Apache-2.0",
+    "source": "https://github.com/tesseract-ocr/tesseract/releases publishes source only. The binaries its documentation points to are third parties' (Homebrew, UB Mannheim, distributions), not the project's own release, so none is pinned: bundling Tesseract means building it from that source in CI (docs/runbooks/rinse.md).",
     "targets": {
-      "aarch64-apple-darwin": { "url": null, "sha256": null },
-      "x86_64-apple-darwin": { "url": null, "sha256": null },
-      "x86_64-pc-windows-msvc": { "url": null, "sha256": null },
-      "x86_64-unknown-linux-gnu": { "url": null, "sha256": null }
+      "aarch64-apple-darwin": {
+        "url": null,
+        "sha256": null
+      },
+      "x86_64-apple-darwin": {
+        "url": null,
+        "sha256": null
+      },
+      "x86_64-pc-windows-msvc": {
+        "url": null,
+        "sha256": null
+      },
+      "x86_64-unknown-linux-gnu": {
+        "url": null,
+        "sha256": null
+      }
     }
   }
 }

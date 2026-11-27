@@ -25,7 +25,7 @@ describe('the engine sidecar (T-178b)', () => {
     await context.queue.enqueue({ kind: 'CLASSIFY', sha256: 'a', fileName: 'Lease.pdf', pageTexts: ['Lease'], categories: [] });
     expect(await ask({ command: 'ai.drain', bindingId: binding.bindingId, pack: 'MULTIFAMILY', online: true })).toMatchObject({ ok: true, result: { ran: 0, waiting: 1 } });
     expect(await ask({ command: 'session.start', token: 'i'.repeat(43), email: 'dana@harbour.example', displayName: 'Dana' })).toMatchObject({ ok: true });
-    expect(await ask({ command: 'session.verify', token: 'i'.repeat(43), email: 'dana@harbour.example', code: '123456' })).toMatchObject({ ok: true, result: { signedIn: true, bindings: [binding], waiting: 1 } });
+    expect(await ask({ command: 'session.verify', token: 'i'.repeat(43), email: 'dana@harbour.example', code: '123456', name: 'Dana Whitlow', organization: 'Harbour Lane Apartments LLC (synthetic)' })).toMatchObject({ ok: true, result: { signedIn: true, bindings: [binding], waiting: 1 } });
 
     // A restart: a new context on the same files is still signed in, offline too.
     const restarted = { ...context, sessions: new SessionStore(join(dir, 'session.json')) };

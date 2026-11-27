@@ -19,7 +19,8 @@
     ],
     "security": {
       "csp": "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; connect-src 'self' https://app.pactlab.ai"
-    }
+    },
+    "withGlobalTauri": true
   },
   "bundle": {
     "active": true,
@@ -39,11 +40,14 @@
     ],
     "resources": {
       "resources/rinse-engine.cjs": "rinse-engine.cjs",
-      "vendor/": "vendor/"
+      "vendor/": "vendor/",
+      "../THIRD-PARTY-NOTICES.md": "THIRD-PARTY-NOTICES.md",
+      "resources/rinse-engine.cjs.LEGAL.txt": "rinse-engine.cjs.LEGAL.txt"
     },
     "macOS": {
       "minimumSystemVersion": "12.0",
-      "hardenedRuntime": true
+      "hardenedRuntime": true,
+      "entitlements": "Entitlements.plist"
     }
   },
   "plugins": {

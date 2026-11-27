@@ -71,6 +71,9 @@ function menus(locale: Locale): Menus {
 }
 
 /** The document for one language: `<html lang>`, header with the language switcher, footer and organization JSON-LD. */
+/** The top bar keeps the main sections only; everything else (case studies, trust, pilot, about, try it…) is in the footer (Kumar, 2026-11-27). */
+const TOP_NAV: readonly string[] = ['/product', '/industries', '/how-it-works', '/pricing'];
+
 export function SiteShell({ locale, children }: { locale: Locale; children: ReactNode }) {
   const { loginUrl, signUpUrl, contactHref, assistantUrl } = siteConfig();
   const { content, ui } = site(locale);
@@ -89,7 +92,7 @@ export function SiteShell({ locale, children }: { locale: Locale; children: Reac
           contactHref={contactHref}
           locale={locale}
           words={ui.shell}
-          nav={content.nav}
+          nav={content.nav.filter((item) => TOP_NAV.includes(item.href))}
           menus={menus(locale)}
           announcement={content.announcement}
           tagline={content.tagline}

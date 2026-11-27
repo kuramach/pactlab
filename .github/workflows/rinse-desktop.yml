@@ -4,8 +4,20 @@ name: rinse-desktop
 # built in CI, never from a laptop. Dispatched by a person. Each signing step runs only when its
 # identity is configured in the `rinse-release` GitHub Environment, and every build records what was
 # signed (SIGNING.json beside the installers). docs/runbooks/rinse.md says what is signed today.
+# T-178e adds the release feed (`pactlab-rinse-releases` v1, what pactlab.ai/rinse reads): built on
+# every run as an artifact, and published with the installers as a GitHub prerelease only when the
+# person dispatching asks (`publish`). Assets are `signed: false` until a build is code-signed.
 on:
   workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish the installers and the release feed as a GitHub prerelease (rinse-v<version>)
+        type: boolean
+        default: false
+      notes:
+        description: One line of release notes
+        type: string
+        default: First release. Not yet code-signed.
 
 permissions:
   contents: read
@@ -22,8 +34,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { label: macOS (Apple Silicon), os: macos-14, target: aarch64-apple-darwin }
-          - { label: macOS (Intel), os: macos-13, target: x86_64-apple-darwin }
+          - { label: macOS (Apple Silicon), os: macos-15, target: aarch64-apple-darwin }
+          - { label: macOS (Intel), os: macos-15-intel, target: x86_64-apple-darwin }
           - { label: Windows, os: windows-2022, target: x86_64-pc-windows-msvc }
           - { label: Linux, os: ubuntu-24.04, target: x86_64-unknown-linux-gnu }
     runs-on: ${{ matrix.os }}
@@ -43,10 +55,16 @@ jobs:
 
       - name: Window, engine sidecar and converters
         working-directory: apps/desktop
+        env:
+          # The Rinse app's public client ids with each drive, once registered (not secrets).
+          RINSE_ONEDRIVE_CLIENT_ID: ${{ vars.RINSE_ONEDRIVE_CLIENT_ID }}
+          RINSE_GOOGLE_CLIENT_ID: ${{ vars.RINSE_GOOGLE_CLIENT_ID }}
         run: |
           node scripts/build-renderer.mjs
           node scripts/build-sidecar.mjs ${{ matrix.target }}
           node scripts/fetch-converters.mjs ${{ matrix.target }} --allow-missing
+          # The app icons, generated from the Pactlab mark the site ships (never committed).
+          npx --yes @tauri-apps/cli@2 icon ../site/public/brand/icon-512.png
 
       # Updater key and Windows signing are passed as config at build time, never committed.
       - name: Release config
@@ -125,3 +143,52 @@ jobs:
             apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/SIGNING.json
             apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/SHA256SUMS.txt
           if-no-files-found: error
+
+  feed:
+    name: Release feed
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          pattern: pactlab-rinse-*
+      - name: Build the feed
+        id: feed
+        shell: bash
+        env:
+          NOTES: ${{ inputs.notes }}
+        run: |
+          VERSION=$(node -p 'require("./apps/desktop/src-tauri/tauri.conf.json").version')
+          BASE="https://github.com/${{ github.repository }}/releases/download/rinse-v$VERSION"
+          node apps/desktop/scripts/release-feed.mjs artifacts "$VERSION" "$BASE" "$NOTES" > releases.json
+          cat releases.json
+          cat artifacts/*/SHA256SUMS.txt > SHA256SUMS.txt
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pactlab-rinse-releases
+          path: |
+            releases.json
+            SHA256SUMS.txt
+          if-no-files-found: error
+      - name: Publish the prerelease
+        if: inputs.publish
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.feed.outputs.version }}
+          NOTES: ${{ inputs.notes }}
+        run: |
+          mkdir release
+          RINSE_LIST_INSTALLERS=1 node apps/desktop/scripts/release-feed.mjs artifacts x https://x | while IFS=$'\t' read -r path name; do cp "$path" "release/$name"; done
+          cp releases.json SHA256SUMS.txt release/
+          for f in artifacts/*/SIGNING.json; do cp "$f" "release/SIGNING-$(basename "$(dirname "$f")").json"; done
+          gh release create "rinse-v$VERSION" release/* --prerelease --target "${{ github.sha }}" \
+            --title "Pactlab Rinse $VERSION (unsigned)" --notes "$NOTES Installers are not code-signed: on macOS open with right-click → Open; on Windows choose More info → Run anyway. Checksums: SHA256SUMS.txt."
