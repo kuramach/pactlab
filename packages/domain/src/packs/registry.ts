@@ -116,7 +116,7 @@ const VENTURE_RAISE: PackDefinition = {
 export const PACKS: Readonly<Record<PackId, PackDefinition>> = {
   SOFTWARE_SAAS: {
     ...pack('SOFTWARE_SAAS', 'software-saas', 'technology', true),
-    findingRules: ['saas-reported-arr', 'saas-revenue-concentration', 'saas-customer-change-of-control', 'saas-hidden-contraction'],
+    findingRules: ['saas-reported-arr', 'saas-revenue-concentration', 'saas-customer-change-of-control', 'saas-hidden-contraction', 'saas-pnl-trend', 'saas-pnl-margin-drift', 'saas-pnl-expense-outpacing', 'saas-nrr-trend'],
   },
   // Payments and lending (T-058, extended by T-159, ADR 0050): the software path runs as it is; the
   // pack adds the loan tape and AML alerts, the processor export (volume, take rate and loss rates

@@ -66,6 +66,8 @@ export interface DriverSpec {
   /** Digits kept: money 2, ratios 4 (6 for rates under a percent), counts 0. */
   readonly scale?: number;
   readonly formula: string;
+  /** A driver no sum expresses (ARR and retention from recurring revenue, T-184b): its years, computed. */
+  readonly compute?: (evidence: readonly PackRuleEvidence[]) => readonly DriverYear[];
 }
 
 export interface PackHistorySpec {
@@ -85,6 +87,7 @@ export interface DriverYear {
 }
 
 function driverYears(spec: DriverSpec, evidence: readonly PackRuleEvidence[]): { years: DriverYear[]; partial: string[] } {
+  if (spec.compute) return { years: [...spec.compute(evidence)], partial: [] };
   const field = spec.monthField ?? 'month';
   const byMonth = new Map<string, PackRuleEvidence[]>();
   for (const row of evidence) {

@@ -508,6 +508,38 @@ def software(ds):
         end = '2026-06' if i == 3 else None              # churned before as-of
         change, changed = (('2025-10', p * 1.2) if i in (2, 6, 12) else ('2026-04', p * 0.7) if i == 9 else (None, None))
         ds.customer(cid, f'{n} (synthetic)', flat(ds.amt(p), start, end, change, changed and ds.amt(changed)))
+    # Five years of billing (T-184b): January 2021 onward. The three customers billed from October 2024 were
+    # customers before it, expanding each January; four earlier customers left before October 2024. Net revenue
+    # retention falls every year (planted (e)); the last 24 months are unchanged.
+    ds.billing_months = HIST_MONTHS + MONTHS
+    steps = {'2021': D('1.25') * D('1.30') * D('1.35'), '2022': D('1.25') * D('1.30'), '2023': D('1.25'), '2024': D('1')}
+    for (cid, name, monthly), (i, p) in zip(ds.customers, enumerate(plans)):
+        if MONTHS[i % 6] != MONTHS[0]: continue
+        for mo in HIST_MONTHS:
+            monthly[mo] = q(ds.amt(p) / steps[mo[:4]])
+    former = [('Lantern Bay Media', 1300, '2024-06'), ('Ridgefield Dairy', 980, '2024-07'), ('Marlow Print Works', 1100, '2023-05'), ('Brook & Vale Florists', 190, '2022-08')]
+    for j, (n, p, last) in enumerate(former):
+        ds.customer(f'{ds.prefix}-cus-{len(names) + j + 1:04d}', f'{n} (synthetic)', {mo: ds.amt(p) for mo in HIST_MONTHS if mo <= last})
+    def dec(y): return {cid: mo.get(f'{y}-12', D(0)) for cid, _, mo in ds.customers}
+    def nrr(y):
+        before, now = dec(int(y) - 1), dec(y)
+        cohort = [cid for cid, v in before.items() if v > 0]
+        return sum((now[cid] for cid in cohort), D(0)) / sum((before[cid] for cid in cohort), D(0))
+    nrr_years = ['2022', '2023', '2024', '2025']
+    assert all(nrr(a) > nrr(b) for a, b in zip(nrr_years, nrr_years[1:])), [nrr(y) for y in nrr_years]
+    # Five fiscal years of P&L (T-184b): subscription revenue is the billing export's, year by year; costs hold
+    # steady against it (the retention trend is the history's defect).
+    pnl_years = ['2021', '2022', '2023', '2024', '2025']
+    sub_rev = {y: sum((mo.get(m, D(0)) for _, _, mo in ds.customers for m in ds.billing_months if m.startswith(y)), D(0)) for y in pnl_years}
+    COSTS = [('Cost of hosting and infrastructure', ['0.140', '0.135', '0.130', '0.125', '0.120']), ('Research and development', ['0.34', '0.33', '0.32', '0.31', '0.30']),
+             ('Sales and marketing', ['0.30', '0.29', '0.29', '0.28', '0.28']), ('General and administrative', ['0.17', '0.16', '0.16', '0.15', '0.15'])]
+    pnl_rows = [['Subscription revenue'] + [f'{sub_rev[y]:.2f}' for y in pnl_years]] + [[line] + [f'{q(sub_rev[y] * D(r)):.2f}' for y, r in zip(pnl_years, ratios)] for line, ratios in COSTS]
+    ds.ext('pnl', ['Line'] + [f'FY{y}' for y in pnl_years], pnl_rows, 'Profit and loss by fiscal year, FY2021 to FY2025')
+    ds.pnl_step = ['Open the **Sources** tab, scroll to **Industry data** and click **Upload profit and loss (p&l)**.', '',
+                   '1. Choose `pnl.csv` → **Upload and map columns**. Pactlab reads the five years across the columns (FY2021 to FY2025).',
+                   '2. Say what each line is: `Subscription revenue` is **Revenue**, `Cost of hosting and infrastructure` is **Cost of revenue**, and the rest are **Operating expenses**.',
+                   f'3. **Check every row**, then **Import {len(pnl_rows) * 5} rows**.', '',
+                   '**You should see:** the import succeed. **Finances** shows the five years side by side: ARR at each December, net and gross retention and logo churn beside the P&L, and the checks in the next step read every year.', '']
     arr = ds.billed_arr()
     churned = ds.amt(650) * 12
     deck = whole(arr + churned + ds.amt(18000))
@@ -547,8 +579,11 @@ Deferred revenue on annual subscriptions billed in advance: {money(c, ds.amt(960
         (f'Revenue concentration', f'{top} is {pct(share)} of September 2026 billed revenue.'),
         ('Customer can terminate on change of control', f'`documents/02-master-services-agreement-northgate.pdf` page 2, clause 14 — Northgate Logistics ({pct(northgate)} of September 2026 billed revenue) may leave if the company is sold.'),
         ('Contraction hidden in the logo count', 'Amberline Hotels (synthetic) pays 30.0% less from April 2026; the KPI pack reports 14 active customers, billing has 13 in September 2026.'),
+        ('Net revenue retention falling every year, FY2022–FY2025', f'`invoice-lines.csv` — December\'s revenue from the customers billed the December before ÷ their revenue then: {", ".join(f"FY{y} {pct(nrr(y))}" for y in nrr_years)}. The KPI pack\'s trailing 118% is one year.'),
+        ('P&L trend, 2021–2025', 'every imported year side by side: revenue, growth, margins and the hosting, R&D and sales and marketing ratios.'),
     ]
-    ds.notes = ['Code and delivery data (GitHub, Jira) connect through their APIs, never files. The synthetic Brightwave repository and Jira site in the Engineering step are built into local and dev Pactlab; production connects the real ones.']
+    ds.notes = ['`invoice-lines.csv` runs January 2021 to September 2026, so each of FY2021–FY2025 is a complete year (five years of history, read side by side on **Finances**); the P&L\'s subscription revenue ties to it year by year.',
+                'Code and delivery data (GitHub, Jira) connect through their APIs, never files. The synthetic Brightwave repository and Jira site in the Engineering step are built into local and dev Pactlab; production connects the real ones.']
     ds.engineering = True
 
 KIND_TITLE = {'money_transmitter': 'money-transmitter licence', 'payment_institution': 'payment-institution licence', 'e_money': 'e-money licence', 'lending': 'lending licence'}
