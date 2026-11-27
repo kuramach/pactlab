@@ -18,6 +18,14 @@ while (y, m) <= (2026, 9):
     if m == 13: y, m = y + 1, 1
 LAST = MONTHS[-1]
 LAST12 = MONTHS[-12:]
+# Five years of history (T-184b): the months before MONTHS back to January 2021, for packs whose billing runs back.
+HIST_MONTHS = []
+y, m = 2021, 1
+while (y, m) < (2024, 10):
+    HIST_MONTHS.append(f'{y}-{m:02d}'); m += 1
+    if m == 13: y, m = y + 1, 1
+MONTH_LABEL = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+MONTH_NAME = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 D = Decimal
 CENT = D('0.01')
 
@@ -65,6 +73,7 @@ class Dataset:
         self.brand, self.kind = brand, kind
         self.rng = random.Random(f'{pack}:{cur}')
         self.customers = []   # (id, name, {month: Decimal})
+        self.billing_months = MONTHS   # HIST_MONTHS + MONTHS when the billing export runs back five years (T-184b)
         self.extracts = {}    # name -> (header, rows, description)
         self.docs = {}        # name -> (markdown, description, data_class)
         self.findings = []    # (title, where to look)
@@ -155,7 +164,7 @@ class Dataset:
                 'interval_count', 'period_start', 'period_end', 'invoice_status', 'created']
         buf = io.StringIO(); w = csv.writer(buf, lineterminator='\n'); w.writerow(cols)
         seq = 0
-        for month in MONTHS:
+        for month in self.billing_months:
             for cid, name, mo in self.customers:
                 if month not in mo: continue
                 seq += 1
@@ -181,7 +190,8 @@ class Dataset:
         # VDR index
         b = io.StringIO(); ww = csv.writer(b, lineterminator='\n')
         ww.writerow(['doc_id', 'title', 'file', 'data_class', 'as_of'])
-        ww.writerow([f'{self.prefix.upper()}-001', 'Invoice lines, Oct 2024 – Sep 2026', 'invoice-lines.csv', 'Financial', '2026-09-30'])
+        first = self.billing_months[0]
+        ww.writerow([f'{self.prefix.upper()}-001', f'Invoice lines, {MONTH_LABEL[int(first[5:]) - 1]} {first[:4]} – Sep 2026', 'invoice-lines.csv', 'Financial', '2026-09-30'])
         i = 1
         for name, (_, _, desc) in self.extracts.items():
             i += 1; ww.writerow([f'{self.prefix.upper()}-{i:03d}', desc, f'{name}.csv', 'Financial', '2026-09-30'])
@@ -277,7 +287,7 @@ class Dataset:
         pdfs = [(name, desc, dc) for name, (_, desc, dc) in self.docs.items()]
         venture = self.pack == 'venture-raise'
         out = [f'# {self.company} — {PACK_TITLES[self.pack]} ({c})', '',
-               f'**Fictional target.** {self.summary}', f'Based in {self.c["city"]}, {self.c["country"]}; reports in {c}. Data runs October 2024 to September 2026.', '',
+               f'**Fictional target.** {self.summary}', f'Based in {self.c["city"]}, {self.c["country"]}; reports in {c}. Data runs {MONTH_NAME[int(self.billing_months[0][5:]) - 1]} {self.billing_months[0][:4]} to September 2026.', '',
                '> Synthetic demo data. Every company, person, address, account and figure here is invented.', '',
                '## Before you start', '',
                '- Download this whole folder (on GitHub: **Code → Download ZIP** at the top of the repository, then unzip).',
@@ -1348,6 +1358,18 @@ def pharma(ds):
     partners = [('Aldermoor Therapeutics — royalties on Product A', 410000), ('Aldermoor Therapeutics — supply of Product A', 160000), ('Kingsway Health — royalties on Product B', 95000), ('Tessaly Pharma — licence fee', 40000)]
     for i, (n, base) in enumerate(partners):
         ds.customer(f'{ds.prefix}-par-{i + 1:03d}', f'{n} (synthetic)', ramp(ds.rng, ds.amt(base), '0.005', noise=D('0.05')))
+    # Five years of billing (T-184b): January 2021 onward, from their own random generator, so the last 24 months are
+    # unchanged. Product B royalties fall every year until a step down in October 2024 (planted (e)).
+    ds.billing_months = HIST_MONTHS + MONTHS
+    hrng = random.Random(f'pharma-history:{ds.cur}')
+    for (cid, name, monthly), (_, base) in zip(ds.customers, partners):
+        for k, mo in enumerate(HIST_MONTHS):
+            jitter = D(1) + D(hrng.randint(-30, 30)) / 1000
+            if 'Product B' in name:
+                level = D('1.75') - D('0.5') * D(k) / D(len(HIST_MONTHS) - 1)
+                monthly[mo] = q(ds.amt(base) * level * jitter)
+            else:
+                monthly[mo] = q(ds.amt(base) / (D('1.005') ** (len(HIST_MONTHS) - k)) * jitter)
     ds.ext('patent-schedule', ['family', 'product', 'jurisdiction', 'type', 'expiry'], [
         ['PF-01', 'Product A', 'US', 'composition of matter', '2028-03-31'], ['PF-01', 'Product A', 'EP', 'composition of matter', '2028-06-30'],
         ['PF-02', 'Product A', 'US', 'formulation', '2033-11-30'], ['PF-03', 'Product B', 'US', 'method of use', '2033-08-31']], 'Patent families, products and expiry dates')
@@ -1371,27 +1393,28 @@ def pharma(ds):
     top, share = ds.share_top()
     c = ds.cur
 
-    # Three fiscal years of P&L. R&D is flat across the years while the deck brings the PX-410 readout forward (planted (d)).
+    # Five fiscal years of P&L (T-184b); revenue is the billing export's, year by year. R&D is flat across the
+    # years while the deck brings the PX-410 readout forward (planted (d)).
     def billed(year, word):
-        return sum((mo.get(m, D(0)) for _, n, mo in ds.customers for m in MONTHS if m.startswith(year) and word in n), D(0))
-    years = ['FY2023', 'FY2024', 'FY2025']
-    growth = [D('0.86'), D('0.93'), D('1')]
-    royalty = [q(billed('2025', 'royalties') * g) for g in growth]
-    supply = [q(billed('2025', 'supply') * g) for g in growth]
-    licence = [q(billed('2025', 'licence fee') * g) for g in growth]
-    rev = [royalty[i] + supply[i] + licence[i] for i in range(3)]
-    rd = [ds.amt(22000000), ds.amt(22300000), ds.amt(22100000)]
+        return sum((mo.get(m, D(0)) for _, n, mo in ds.customers for m in ds.billing_months if m.startswith(year) and word in n), D(0))
+    years = ['FY2021', 'FY2022', 'FY2023', 'FY2024', 'FY2025']
+    royalty = [q(billed(y[2:], 'royalties')) for y in years]
+    supply = [q(billed(y[2:], 'supply')) for y in years]
+    licence = [q(billed(y[2:], 'licence fee')) for y in years]
+    rev = [royalty[i] + supply[i] + licence[i] for i in range(5)]
+    product_b = {y[2:]: billed(y[2:], 'Product B') for y in years}
+    rd = [ds.amt(22200000), ds.amt(21900000), ds.amt(22000000), ds.amt(22300000), ds.amt(22100000)]
     pnl_rows = [['Royalty revenue'] + [f'{x:.2f}' for x in royalty], ['Product supply revenue'] + [f'{x:.2f}' for x in supply], ['Licence fee revenue'] + [f'{x:.2f}' for x in licence],
-                ['Cost of product supply'] + [f'{q(supply[i] * D(r)):.2f}' for i, r in enumerate(('0.42', '0.42', '0.41'))],
+                ['Cost of product supply'] + [f'{q(supply[i] * D(r)):.2f}' for i, r in enumerate(('0.43', '0.43', '0.42', '0.42', '0.41'))],
                 ['Research and development'] + [f'{x:.2f}' for x in rd],
-                ['Royalties paid to licensors'] + [f'{q(rev[i] * D(r)):.2f}' for i, r in enumerate(('0.021', '0.020', '0.020'))],
-                ['General and administrative'] + [f'{q(rev[i] * D(r)):.2f}' for i, r in enumerate(('0.19', '0.18', '0.17'))]]
-    ds.ext('pnl', ['Line'] + years, pnl_rows, 'Profit and loss by fiscal year, FY2023 to FY2025')
+                ['Royalties paid to licensors'] + [f'{q(rev[i] * D(r)):.2f}' for i, r in enumerate(('0.022', '0.021', '0.021', '0.020', '0.020'))],
+                ['General and administrative'] + [f'{q(rev[i] * D(r)):.2f}' for i, r in enumerate(('0.21', '0.20', '0.19', '0.18', '0.17'))]]
+    ds.ext('pnl', ['Line'] + years, pnl_rows, 'Profit and loss by fiscal year, FY2021 to FY2025')
     ds.pnl_step = ['Open the **Sources** tab, scroll to **Industry data** and click **Upload profit and loss (p&l)**.', '',
-                   '1. Choose `pnl.csv` → **Upload and map columns**. Pactlab reads the three years across the columns (FY2023, FY2024, FY2025).',
+                   '1. Choose `pnl.csv` → **Upload and map columns**. Pactlab reads the five years across the columns (FY2021 to FY2025).',
                    '2. Say what each line is: the three lines ending in *revenue* are **Revenue**, `Cost of product supply` is **Cost of revenue**, and the rest are **Operating expenses**.',
-                   f'3. **Check every row**, then **Import {len(pnl_rows) * 3} rows**.', '',
-                   '**You should see:** the import succeed. The **Pipeline** tab shows R&D year by year, and the checks in the next step read every year.', '']
+                   f'3. **Check every row**, then **Import {len(pnl_rows) * 5} rows**.', '',
+                   '**You should see:** the import succeed. The **Pipeline** tab shows R&D year by year, **Finances** the five years side by side with revenue by product, and the checks in the next step read every year.', '']
 
     ds.doc('01-revenue-forecast', f'''
 {ds.company} — five-year revenue forecast (synthetic)
@@ -1451,10 +1474,12 @@ No second source for Product A has been qualified.
         (f'Milestone payment omitted from the seller\'s model: {licensor}', f'clause 7.1 of `documents/06-licence-agreement-brennick.pdf` — {money(c, phase2)} on the first Phase 2 dosing of PX-330, which the pipeline expects in 2027-Q3; `obligations-model.csv` has no such line.'),
         ('Single-source manufacturing: Product A', '`documents/07-supply-agreement-halvorsen.pdf` — one manufacturer, no second source qualified.'),
         ('Key-scientist concentration: S-01', '`rd-roster.csv` — S-01 leads both programmes and is an inventor on all 3 patent families; no retention agreement is on file.'),
-        ('R&D spend flat while the timeline is brought forward, 2023–2025', f'`pnl.csv` — R&D of {money(c, rd[0])}, {money(c, rd[1])} and {money(c, rd[2])} across FY2023–FY2025, while the investor presentation brings the PX-410 readout forward a year; FY2025 alone shows nothing.'),
-        ('P&L trend, 2023–2025', 'every imported year side by side: revenue, growth, margins and the R&D, supply and royalties-paid ratios.'),
+        ('R&D spend flat while the timeline is brought forward, 2021–2025', f'`pnl.csv` — R&D of {", ".join(money(c, x) for x in rd)} across FY2021–FY2025, while the investor presentation brings the PX-410 readout forward a year; FY2025 alone shows nothing.'),
+        ('Product B revenue falling every year, FY2021–FY2025', f'`invoice-lines.csv` — the Kingsway Health royalties on Product B by calendar year: {", ".join(f"FY{y} {money(c, v)}" for y, v in product_b.items())}. The last twelve months alone show it growing.'),
+        ('P&L trend, 2021–2025', 'every imported year side by side: revenue, growth, margins and the R&D, supply and royalties-paid ratios.'),
     ]
-    ds.notes = ds.notes + ['The P&L (`pnl.csv`) imports through Sources like any extract; the multi-year checks read every year it holds. A single year still imports: the trend then reports that year alone.',
+    ds.notes = ds.notes + ['`invoice-lines.csv` runs January 2021 to September 2026, so each of FY2021–FY2025 is a complete year (five years of history, read side by side on **Finances**); the P&L\'s revenue lines tie to it year by year.',
+                           'The P&L (`pnl.csv`) imports through Sources like any extract; the multi-year checks read every year it holds. A single year still imports: the trend then reports that year alone.',
                            'Pactlab checks documents, dates and consistency only: it never opines on efficacy, approvability or trial design.']
 
 def ecommerce(ds):

@@ -28,14 +28,18 @@ type Decimal = InstanceType<typeof D>;
 const MONTH = /^(\d{4})-(0[1-9]|1[0-2])$/;
 const fiscal = (year: string) => `FY${year}`;
 
-/** Rows whose field (trimmed, case-insensitive) is one of the values. */
+/** Rows whose field (trimmed, case-insensitive) is one of the values, or contains one when `contains` is set. */
 export interface RowFilter {
   readonly field: string;
   readonly values: readonly string[];
+  readonly contains?: boolean;
 }
 
-const matches = (filter: RowFilter | undefined) => (row: PackRuleEvidence) =>
-  !filter || filter.values.some((value) => value.toLowerCase() === (row.canonical[filter.field] ?? '').trim().toLowerCase());
+const matches = (filter: RowFilter | undefined) => (row: PackRuleEvidence) => {
+  if (!filter) return true;
+  const actual = (row.canonical[filter.field] ?? '').trim().toLowerCase();
+  return filter.values.some((value) => (filter.contains ? actual.includes(value.toLowerCase()) : actual === value.toLowerCase()));
+};
 
 /** One operating driver read by year from a monthly export. */
 export interface DriverSpec {

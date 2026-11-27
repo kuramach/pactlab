@@ -254,6 +254,7 @@ export const PACKS: Readonly<Record<PackId, PackDefinition>> = {
       'pharma-pnl-trend',
       'pharma-pnl-margin-drift',
       'pharma-pnl-expense-outpacing',
+      'pharma-product-revenue-trend',
     ],
     documentCategories: ['REGULATORY_CORRESPONDENCE', 'PATENT_RECORD', 'LICENCE_AGREEMENT', 'SUPPLY_AGREEMENT'],
     // The registry records import before the pipeline, so the claims the pipeline's import checks read them.

@@ -128,6 +128,7 @@ export const VALUATION_DIRECTION_MAP: Readonly<Record<string, readonly Direction
     { signal: 'arr-below-reported', findingDomain: 'FINANCIAL', defaultDirection: -1, channel: 'PRICED_TERM' },
     { signal: 'arr-above-reported', findingDomain: 'FINANCIAL', defaultDirection: 1, channel: 'CONFIRMATION' },
     { signal: 'customer-concentration', findingDomain: 'FINANCIAL', defaultDirection: -1, channel: 'PRICED_TERM' },
+    driverTrend('COMMERCIAL'),
   ],
   [CODE_CONTRIBUTOR_ACTIVITY_EVIDENCE_TYPE]: [
     {

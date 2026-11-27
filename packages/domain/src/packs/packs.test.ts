@@ -123,7 +123,7 @@ describe('pack registry', () => {
     expect(pharma.importTargets).toEqual(['BILLING_INVOICE_LINE', 'PHARMA_PATENTS', 'PHARMA_TRIAL_REGISTRY', 'PHARMA_PIPELINE', 'PHARMA_OBLIGATIONS', 'PHARMA_RD_ROSTER']);
     // The T-064 rules stay, first and unchanged.
     expect(pharma.findingRules.slice(0, 3)).toEqual(['pharma-patent-before-forecast', 'pharma-supplier-observations', 'pharma-partner-concentration']);
-    expect(pharma.findingRules).toHaveLength(12);
+    expect(pharma.findingRules).toHaveLength(13);
     expect(pharma.documentCategories).toEqual(['REGULATORY_CORRESPONDENCE', 'PATENT_RECORD', 'LICENCE_AGREEMENT', 'SUPPLY_AGREEMENT']);
     for (const target of pharma.importTargets.slice(1)) expect(IMPORT_TARGET_DEFINITIONS[target].refusesPeopleColumns, target).toBe(true);
     expect(IMPORT_TARGET_DEFINITIONS.PHARMA_RD_ROSTER.people).toBe('PSEUDONYMOUS');
