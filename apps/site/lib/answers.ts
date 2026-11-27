@@ -21,7 +21,7 @@ export interface FaqPage {
   readonly related: readonly { readonly href: string; readonly label: string }[];
 }
 
-const ALL_FAQS: readonly FaqPage[] = [
+export const ALL_FAQS: readonly FaqPage[] = [
   {
     slug: 'acquirers',
     audience: 'Acquirers',
@@ -147,7 +147,7 @@ export interface Guide {
   readonly related: readonly { readonly href: string; readonly label: string }[];
 }
 
-const ALL_GUIDES: readonly Guide[] = [
+export const ALL_GUIDES: readonly Guide[] = [
   {
     slug: 'saas-acquisition-due-diligence',
     title: 'How do you run due diligence on a SaaS acquisition?',
@@ -307,7 +307,7 @@ export interface Comparison {
  * to unpublished industry pages are dropped everywhere.
  */
 const FOR_PACK: Readonly<Record<string, string>> = { founders: 'venture-raise', 'prepare-for-vc-due-diligence': 'venture-raise' };
-const live = <T extends { slug: string; related: readonly { href: string }[] }>(pages: readonly T[]): T[] =>
+export const live = <T extends { slug: string; related: readonly { href: string }[] }>(pages: readonly T[]): T[] =>
   pages
     .filter((page) => !FOR_PACK[page.slug] || isPublishedHref(`/industries/${FOR_PACK[page.slug]}`))
     .map((page) => ({ ...page, related: page.related.filter((link) => isPublishedHref(link.href)) }));

@@ -11,6 +11,24 @@ Publishing: `.github/workflows/site.yml`.
 3. Approve the `deploy` job in GitHub (Environment `site`).
 4. The job prints the site URL. Check home, a product page, an industry page,
    `/product` (no slash) and a missing page (404).
+5. Languages (T-171): `/locales.json` lists the published languages. Check
+   `/de/` (or any published language) and that the language menu offers it.
+   Writing, reviewing and publishing a language: `docs/runbooks/site-translations.md`.
+
+## Edge functions (T-171)
+
+- **Viewer request** (`infra/cdk/functions/site-viewer-request.js`): a first
+  visit to an entry page with no language prefix is sent (302) to the
+  language chosen in the menu (cookie `pactlab_locale`, always wins) or,
+  without one, to the visitor's market (CloudFront-Viewer-Country: DE/AT/CH →
+  de, FR/BE → fr, JP → ja; everyone else stays on English). Then the
+  directory index rewrite (`/product` → `/product/index.html`).
+- **Viewer response** (`site-viewer-response.js`): sets `pactlab_country`
+  for a day so the pilot request pre-fills the country.
+- Their configuration comes from the export's `/locales.json` at synth; a
+  language is routed to only once its native review is complete.
+- A redirect loop or a wrong language: set `NATIVE_REVIEW.<locale>.complete`
+  back to `false` and republish; the function stops routing to it.
 
 ## Roll back
 

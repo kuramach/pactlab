@@ -1030,7 +1030,7 @@ export const PACT_CARDS: readonly PactCard[] = [
 ];
 
 /** Slide copy for the pacts written up so far; any other published pact falls back to its card's line and its pack's findings. */
-const PACT_SLIDE_COPY: Readonly<Record<string, Pick<Slide, 'short' | 'title' | 'body' | 'points' | 'imageAlt'> & { readonly linkLabel: string; readonly icon: IconName }>> = {
+export const PACT_SLIDE_COPY: Readonly<Record<string, Pick<Slide, 'short' | 'title' | 'body' | 'points' | 'imageAlt'> & { readonly linkLabel: string; readonly icon: IconName }>> = {
   technology: {
     short: 'Technology',
     icon: 'AppWindow',
@@ -1473,10 +1473,10 @@ export const CAROUSEL: readonly Slide[] = [
  * The top slider's rotation: platform and pact slides alternate, so a concrete pact shows within the
  * first two slides; whichever group is longer finishes the rotation. The buttons stay grouped.
  */
-export function heroSlides(pacts: readonly Slide[]): Slide[] {
+export function heroSlides(pacts: readonly Slide[], platforms: readonly Slide[] = CAROUSEL): Slide[] {
   const slides: Slide[] = [];
-  for (let position = 0; position < Math.max(CAROUSEL.length, pacts.length); position += 1) {
-    const platform = CAROUSEL[position];
+  for (let position = 0; position < Math.max(platforms.length, pacts.length); position += 1) {
+    const platform = platforms[position];
     const pact = pacts[position];
     if (platform) slides.push(platform);
     if (pact) slides.push(pact);

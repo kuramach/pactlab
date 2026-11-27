@@ -20,6 +20,32 @@
   html {
     scroll-behavior: smooth;
   }
+  /*
+   * T-171: Japanese uses the system's Japanese typefaces (Manrope has no CJK glyphs) and breaks lines at
+   * phrase boundaries rather than mid-word; German's long compounds may break instead of overflowing.
+   */
+  html:lang(ja) {
+    --font-sans: var(--font-manrope), 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', 'Yu Gothic', Meiryo, sans-serif;
+    line-break: strict;
+    word-break: auto-phrase;
+    /* A phrase longer than its column (a big heading on a phone) may still break rather than overflow. */
+    overflow-wrap: anywhere;
+  }
+  html:lang(ja) h1,
+  html:lang(ja) h2,
+  html:lang(ja) h3 {
+    letter-spacing: 0;
+  }
+  /* German compounds and French labels break only when a word is wider than its column (a card on a phone). */
+  html:lang(de),
+  html:lang(fr) {
+    overflow-wrap: anywhere;
+  }
+  /* Long German compounds in headings ("Angebotsmemorandum") hyphenate; short words ("treffen") never do. */
+  html:lang(de) :is(h1, h2, h3) {
+    hyphens: auto;
+    hyphenate-limit-chars: 14 6 6;
+  }
   :focus-visible {
     outline: 2px solid var(--color-indigo);
     outline-offset: 3px;

@@ -1,12 +1,15 @@
-import { FLOW } from '../lib/content';
+import { site } from '../lib/i18n/catalog';
+import type { Locale } from '../lib/i18n/locales';
 import { Icon } from './icon';
 
 /**
  * The decision loop as a connected sequence: a row on wide screens, a
  * vertical timeline on small ones. `highlight` marks steps a page is about.
  */
-export function Flow({ tone = 'light', highlight = [] }: { tone?: 'light' | 'dark'; highlight?: readonly string[] }) {
+export function Flow({ tone = 'light', highlight = [], locale = 'en' }: { tone?: 'light' | 'dark'; highlight?: readonly string[]; locale?: Locale }) {
   const dark = tone === 'dark';
+  const { content, ui } = site(locale);
+  const FLOW = content.flow;
   return (
     <ol className="grid gap-0 lg:grid-cols-6 lg:gap-3">
       {FLOW.map((step, index) => {
@@ -34,7 +37,7 @@ export function Flow({ tone = 'light', highlight = [] }: { tone?: 'light' | 'dar
             </span>
             <div>
               <p className={`text-xs font-bold uppercase tracking-widest ${dark ? 'text-indigo' : 'text-indigo-ink'}`}>
-                {String(index + 1).padStart(2, '0')} · {step.step}
+                {String(index + 1).padStart(2, '0')} · {ui.steps[step.step as keyof typeof ui.steps]}
               </p>
               <h3 className={`mt-1 font-bold ${dark ? 'text-white' : 'text-navy'}`}>{step.title}</h3>
               <p className={`mt-1 text-sm leading-relaxed ${dark ? 'text-white/75' : 'text-slate-text'}`}>{step.body}</p>
