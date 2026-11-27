@@ -5,3 +5,4 @@ src-tauri/vendor/
 src-tauri/binaries/
 src-tauri/resources/
 src-tauri/release.json
+src-tauri/icons/

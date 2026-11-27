@@ -1,0 +1,5 @@
+/* The Rinse window's styles (T-178e): Tailwind with the Pactlab tokens, built by scripts/build-renderer.mjs. */
+@import 'tailwindcss';
+@import '@pactlab/ui/styles.css';
+@source '.';
+@source '../../../../packages/ui/src';

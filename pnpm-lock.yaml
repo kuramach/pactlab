@@ -339,6 +339,9 @@ importers:
       '@pactlab/connectors':
         specifier: workspace:*
         version: link:../../packages/connectors
+      '@tailwindcss/postcss':
+        specifier: 4.3.3
+        version: 4.3.3
       '@types/node':
         specifier: 22.20.5
         version: 22.20.5
@@ -354,6 +357,12 @@ importers:
       eslint:
         specifier: 10.12.0
         version: 10.12.0(jiti@2.7.0)
+      postcss:
+        specifier: 8.5.28
+        version: 8.5.28
+      tailwindcss:
+        specifier: 4.3.3
+        version: 4.3.3
       typescript:
         specifier: 6.0.3
         version: 6.0.3

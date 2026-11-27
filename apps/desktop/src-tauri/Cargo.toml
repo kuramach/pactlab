@@ -15,3 +15,5 @@ tauri-plugin-updater = "2"
 tauri-plugin-shell = "2"
 # Prep invites open the app: pactlab-rinse://invite?token=… (the pactlab.ai/rinse page hands off, T-178c).
 tauri-plugin-deep-link = "2"
+# The seller chooses the folder to rinse, a file for a gap, and where the finished set goes (T-178e).
+tauri-plugin-dialog = "2"
