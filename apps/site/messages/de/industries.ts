@@ -21,7 +21,9 @@ export const industries: Catalog['industries'] = {
       { title: 'Dokumente und Verträge', body: 'Klauselextraktion und Fragen und Antworten mit exakten Belegen.' },
       { title: 'Bewertung und Deal-Konditionen', body: 'ARR-Multiple-, DCF- und LBO-Szenarien mit einer Kaufpreisbrücke.' },
     ],
-    adds: [],
+    adds: [
+      { title: 'Fünf Jahre Historie', body: 'ARR im Dezember, Netto- und Brutto-Umsatzbindung und Kundenabwanderung aus dem Abrechnungsexport je Jahr neben der GuV, jeweils mit der Zahl der Jahre, auf denen eine Zahl beruht; ein fehlendes Jahr wird beim Verkäufer angefragt.' },
+    ],
   },
   fintech: {
     name: 'Fintech',
@@ -70,6 +72,7 @@ export const industries: Catalog['industries'] = {
       { title: 'Ein Aussagenregister', body: 'Aussagen zu Ablehnungsquote, Kostenträgeranteil und Forderungslaufzeit, gegen die Evidenz als bestätigt, widerlegt oder unbestätigt markiert.' },
       { title: 'Zulassungen, geprüft', body: 'Zulassung und Ablaufdatum jedes geführten Behandlers aus Register und Verifizierungsunterlagen; Einnahmen nach Ablauf werden zur Feststellung.' },
       { title: 'Behandlerkonzentration', body: 'Der Einnahmenanteil jedes Behandlers gegen die Übersicht der Wettbewerbsverbote und Bindungsvereinbarungen.' },
+      { title: 'Fünf Jahre Historie', body: 'Besuche, der Anteil privater Kostenträger und die Ablehnungsquote je Jahr neben der GuV, jeweils mit der Zahl der Jahre, auf denen eine Zahl beruht; ein fehlendes Jahr wird beim Verkäufer angefragt.' },
     ],
   },
   'telecom-media': {
@@ -97,6 +100,7 @@ export const industries: Catalog['industries'] = {
       { title: 'Rechtefenster', body: 'Das Enddatum jedes Content-, Affiliate- und Einspeisungsvertrags gegen das erwartete Closing; das Datum im Vertrag selbst geht dem Register vor.' },
       { title: 'Gegenparteikonzentration', body: 'Werbe- und Affiliate-Umsatz je Gegenpartei über die letzten zwölf Monate.' },
       { title: 'Content-Kosten gegen ARPU', body: 'Content-Kosten je Abonnent und Investitionsintensität je Jahr, gegen den ARPU aus denselben Exporten.' },
+      { title: 'Fünf Jahre Historie', body: 'Abonnenten, Abwanderung und ARPU aus dem Bewegungsexport je Jahr neben der GuV, jeweils mit der Zahl der Jahre, auf denen eine Zahl beruht; ein fehlendes Jahr wird beim Verkäufer angefragt.' },
     ],
   },
   'professional-services': {
@@ -119,6 +123,7 @@ export const industries: Catalog['industries'] = {
       { title: 'Absicherung der Umsatzträger', body: 'Der Bestand jedes umsatztragenden Partners gegen die Wettbewerbs- und Abwerbeverbote, die die Dokumente zeigen, über pseudonyme Kennungen.' },
       { title: 'Alterung von unfertigen Leistungen und Forderungen', body: 'Salden über 90 Tage je Jahresende, die Veränderung im Working Capital bepreist.' },
       { title: 'Umsatzqualität', body: 'Retainer- und Managed-Service-Honorare gegenüber Projektarbeit, aus den Abrechnungsdaten.' },
+      { title: 'Fünf Jahre Historie', body: 'Auslastung, Realisierung und Mitarbeiterzahl je Jahr neben der GuV, jeweils mit der Zahl der Jahre, auf denen eine Zahl beruht; ein fehlendes Jahr wird beim Verkäufer angefragt.' },
     ],
   },
   'pharma-biotech': {
@@ -141,6 +146,7 @@ export const industries: Catalog['industries'] = {
       { title: 'Das Patentportfolio gegen die Haltedauer', body: 'Abläufe aus den Patentunterlagen gelesen und eine Patentklippe innerhalb der Haltedauer auf den Umsatz des Produkts bepreist.' },
       { title: 'Verpflichtungen neu berechnet', body: 'Meilensteine, Lizenzgebühren und Entgelte aus den Verträgen gelesen und im Modell des Verkäufers gesucht.' },
       { title: 'Abhängigkeiten', body: 'Fertigung aus einer einzigen Quelle aus den Lieferverträgen und Konzentration auf Schlüsselwissenschaftler aus der Personalliste.' },
+      { title: 'Fünf Jahre Historie', body: 'Der abgerechnete Umsatz jedes Produkts und die F&E-Ausgaben je Jahr neben der GuV, jeweils mit der Zahl der Jahre, auf denen eine Zahl beruht; ein fehlendes Jahr wird beim Verkäufer angefragt.' },
     ],
   },
   'ecommerce-dtc': {
@@ -164,6 +170,7 @@ export const industries: Catalog['industries'] = {
       { title: 'Kohortenwert auf Deckungsbeitragsbasis', body: 'Lifetime Value und Akquisitionskosten aus Bestellungen, Kohorten und Werbeausgaben neu berechnet, gegen die Angaben der Präsentation.' },
       { title: 'Wer die Konten hält', body: 'Der Umsatzanteil jedes Shop-, Marktplatz- und Werbekontos und auf wen es laut Dokumenten registriert ist.' },
       { title: 'Retouren und Lageralter', body: 'Die Retourenquote je Jahr und Lagerbestand älter als 180 Tage, bepreist aus dem Lagerbericht.' },
+      { title: 'Fünf Jahre Historie', body: 'Bestellungen, Bestellwert, Wiederholungskäufe und die Rabattquote je Jahr neben der GuV, jeweils mit der Zahl der Jahre, auf denen eine Zahl beruht; ein fehlendes Jahr wird beim Verkäufer angefragt.' },
     ],
   },
   multifamily: {
@@ -254,6 +261,7 @@ export const industries: Catalog['industries'] = {
       { title: 'Abhängigkeit vom Inhaber', body: 'Der Anteil des verkaufenden Inhabers an Besuchen und Einnahmen je Leistungsbereich und die Bereiche, die kein angestellter Behandler abdeckt.' },
       { title: 'Zuweiserkonzentration', body: 'Besuche je Zuweiser, neu berechnet aus dem Terminexport.' },
       { title: 'Der Mietvertrag als Evidenz', body: 'Die Restlaufzeit nach dem Closing, die Verlängerungsoption und die Übertragung bei einem Verkauf, jeweils aus dem Mietvertrag zitiert.' },
+      { title: 'Fünf Jahre Historie', body: 'Besuche, der Anteil privater Kostenträger und die Ablehnungsquote je Jahr neben der GuV, jeweils mit der Zahl der Jahre, auf denen eine Zahl beruht; ein fehlendes Jahr wird beim Verkäufer angefragt.' },
     ],
   },
   hospitals: {
@@ -342,6 +350,7 @@ export const industries: Catalog['industries'] = {
       { title: 'Ein Modell der Tantiemeneinnahmen', body: 'Laufende Einnahmen je Werk und Quelle, mit Abschwächung nach Katalogalter, in Dezimalzahlen.' },
       { title: 'Kündigungsrisiko', body: 'Fenster nach Section 203 und 304 aus den Rechteeinräumungsdaten, die betroffenen Einnahmen beziffert.' },
       { title: 'Rechtedokumente für Sie gelesen', body: 'Abrechnungen, Split Sheets und Verträge als Einträge mit ihren Zitaten vorgeschlagen; Sie bestätigen sie.' },
+      { title: 'Fünf Jahre Historie', body: 'Die Einnahmen aus den Abrechnungen je Jahr, jeweils mit der Zahl der Jahre, auf denen eine Zahl beruht; ein fehlendes Jahr wird beim Verkäufer angefragt.' },
     ],
   },
   'energy-generation': {
@@ -364,6 +373,7 @@ export const industries: Catalog['industries'] = {
       { title: 'Ein Förder- und Reservenmodell', body: 'Der Rückgang aus der Förderhistorie gegen das Drittgutachten, in Dezimalzahlen.' },
       { title: 'Ein Verbindlichkeitenmodell', body: 'Schätzungen für Sanierung, Kohleasche und Rückbau gegen das, was der Verkäufer verbucht hat.' },
       { title: 'Berichte für Sie gelesen', body: 'Reservengutachten und Umweltberichte als Einträge mit ihren Zitaten vorgeschlagen; Sie bestätigen sie.' },
+      { title: 'Fünf Jahre Historie', body: 'Die Stromerzeugung der Anlage sowie Öl und Gas der Bohrungen je Jahr, jeweils mit der Zahl der Jahre, auf denen eine Zahl beruht; ein fehlendes Jahr wird beim Verkäufer angefragt.' },
     ],
   },
   'startup-spv': {
