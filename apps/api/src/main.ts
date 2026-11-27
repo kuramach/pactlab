@@ -1,7 +1,7 @@
 import { apiEnvSchema, applyDatabaseUrls, loadConfig, packPreviewEnabled } from '@pactlab/config';
 import { assertRuntimeRoleIsolation, createPrismaClient, S3ObjectStore } from '@pactlab/db';
 import { readFileSync } from 'node:fs';
-import { BoldSignSigningProvider, BoldSignWebhook, DocuSignOAuth, FixtureMarketRentProvider, FixturePropertyProvider, LocalEncryptedSecretStore, MCP_EVIDENCE_PROFILES, parseMcpEvidenceServers, parseSelfHostedHosts, RentCastMarketRentProvider, RentCastPropertyProvider, StripeBillingProvider, UnconfiguredBillingProvider } from '@pactlab/connectors';
+import { BoldSignSigningProvider, BoldSignWebhook, DocuSignOAuth, FixtureMarketRentProvider, FixturePhotoProvider, FixturePropertyProvider, FixturePropertyRecordProvider, GoogleMapsPhotoProvider, LocalEncryptedSecretStore, MCP_EVIDENCE_PROFILES, parseMcpEvidenceServers, parseSelfHostedHosts, RentCastMarketRentProvider, RentCastPropertyProvider, RentCastPropertyRecordProvider, StripeBillingProvider, UnconfiguredBillingProvider } from '@pactlab/connectors';
 import { createLogger } from '@pactlab/observability';
 import { S3Client } from '@aws-sdk/client-s3';
 import { SecretsManagerClient } from '@aws-sdk/client-secrets-manager';
@@ -33,6 +33,8 @@ const config = loadConfig(apiEnvSchema);
 const logger = createLogger('api', { level: config.LOG_LEVEL });
 // RentCast (T-158): deployed environments pass the secret, created holding `unset` until scripts/rentcast-key.sh sets it.
 const rentcastKey = config.RENTCAST_API_KEY === 'unset' ? undefined : config.RENTCAST_API_KEY;
+// Google Maps Platform (T-188): Street View + Places photos with one pay-as-you-go key.
+const mapsKey = config.GOOGLE_MAPS_API_KEY === 'unset' ? undefined : config.GOOGLE_MAPS_API_KEY;
 const prisma = createPrismaClient({ connectionString: config.DATABASE_URL });
 // SES delivery events (T-109): SNS signing certificates are fetched through the SSRF-safe fetcher.
 const webFetcher = new HttpsWebFetcher();
@@ -161,6 +163,9 @@ const app = await createApp(
     property: rentcastKey ? new RentCastPropertyProvider(rentcastKey) : config.APP_ENV === 'production' ? null : new FixturePropertyProvider(),
     // Market rents for a rent roll (T-158, docs/runbooks/rentcast.md): the same key; the fixture outside production; off in production without it.
     marketRents: rentcastKey ? new RentCastMarketRentProvider(rentcastKey) : config.APP_ENV === 'production' ? null : new FixtureMarketRentProvider(),
+    // Multifamily property profile (T-188, docs/runbooks/rentcast.md): RentCast records and Google Maps photos; fixtures outside production; off in production without a key.
+    propertyRecords: rentcastKey ? new RentCastPropertyRecordProvider(rentcastKey) : config.APP_ENV === 'production' ? null : new FixturePropertyRecordProvider(),
+    propertyPhotos: mapsKey ? new GoogleMapsPhotoProvider(mapsKey) : config.APP_ENV === 'production' ? null : new FixturePhotoProvider(),
     // E-signature (T-107) on the signing seam (T-136): SIGNING_PROVIDER lists the adapters Pactlab
     // signing may use here, the first being the default (unset: the fixture outside production).
     // Organizations may instead send from their own DocuSign, connected to Pactlab's registration.

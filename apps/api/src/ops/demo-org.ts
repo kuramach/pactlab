@@ -36,6 +36,7 @@ import { CriticalsService } from '../criticals/criticals.service';
 import { DEFAULT_LOI_FIELDS } from '../close/loi-content';
 import { demoBuildVersion } from './demo-coverage';
 import { LoiService } from '../close/loi.service';
+import { PropertyProfileService } from '../property-profile/property-profile.service';
 import { IcService } from '../ic/ic.service';
 import { DealDeletionService } from '../deals/deletion/deal-deletion.service';
 import { demoModelResponse } from '../demo-seed/seed';
@@ -240,6 +241,20 @@ async function demoCriticals(app: App, buyer: TenantContext, dealId: string): Pr
   }
   const run = await criticals.evaluate(buyer, dealId, REQUEST_ID);
   return `criticals (${run.rated} rated, ${run.panel.summary.policyBreaches} policy breaches)`;
+}
+
+/**
+ * The multifamily demo property's profile (T-188), from the recorded synthetic fixtures of both providers: a Texas
+ * address (so the sale price reads "not published"), the record reviewed and accepted as a person would, and the
+ * photo gallery. The fixtures answer even in a deployed demo org: the demo never spends live provider calls.
+ */
+async function demoPropertyProfile(app: App, buyer: TenantContext, dealId: string): Promise<string> {
+  const service = app.get(PropertyProfileService, { strict: false });
+  const proposed = await service.populate(buyer, dealId, '500 Example Ave, Austin, TX 78701', REQUEST_ID);
+  const kept = proposed.proposed.filter((field) => field.status === 'PRESENT').map((field) => ({ key: field.key as never, value: field.value }));
+  await service.accept(buyer, dealId, { values: kept }, REQUEST_ID);
+  const photos = await service.refreshPhotos(buyer, dealId, REQUEST_ID);
+  return `property profile (${kept.length} values accepted, ${photos.photos.items.length} photos)`;
 }
 
 async function spvVehicle(app: App, buyer: TenantContext, dealId: string): Promise<string> {
@@ -478,6 +493,7 @@ export async function buildPact(app: App, owner: OwnerSession, people: People, t
   if (type === 'MUSIC_RIGHTS') await step('catalog', () => catalog(app, buyer, dealId, uploaded));
   if (type === 'ENERGY_GENERATION') await step('energy', () => energy(app, buyer, dealId, uploaded));
   if (type === 'MULTIFAMILY') await step('criticals', () => demoCriticals(app, buyer, dealId));
+  if (type === 'MULTIFAMILY') await step('property', () => demoPropertyProfile(app, buyer, dealId));
   await step('claims', () => claims(app, buyer, dealId, pricedIds));
   await step('finances', () => finances(app, buyer, dealId));
   await step('regulatory', () => regulatory(app, buyer, dealId));

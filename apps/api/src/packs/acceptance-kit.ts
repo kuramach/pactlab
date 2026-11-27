@@ -7,7 +7,7 @@ import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { addSyntheticDealMember, createSyntheticTenant, startTestDatabase, type SyntheticTenant, type TestDatabase } from '@pactlab/db/testing';
 import { IMPORT_TARGET_DEFINITIONS, newId, PACK_IDS, PACKS, type PackId } from '@pactlab/domain';
 import type { ClaudeGateway } from '@pactlab/ai';
-import type { MarketRentProvider } from '@pactlab/connectors';
+import type { MarketRentProvider, PropertyPhotoProvider, PropertyRecordProvider } from '@pactlab/connectors';
 import { createLogger } from '@pactlab/observability';
 import { createLocalJWKSet, exportJWK, generateKeyPair, SignJWT, type CryptoKey } from 'jose';
 import { expect } from 'vitest';
@@ -38,6 +38,8 @@ export interface AcceptanceDeal {
   /** Uploaded documents by PDF file name. */
   readonly documents: Readonly<Record<string, string>>;
   call(method: 'GET' | 'POST' | 'PATCH' | 'PUT', url: string, who: string, payload?: unknown): Promise<{ status: number; body: Body }>;
+  /** The `Authorization` header value for `who`, for tests that read raw (non-JSON) responses. */
+  bearer(who: string): string;
   /** POST a CSV file as `who` (an upload). */
   upload(url: string, who: string, csv: string): Promise<{ status: number; body: Body }>;
   /**
@@ -68,7 +70,7 @@ export function pdfOf(markdown: string): Buffer {
   return Buffer.from(syntheticPdf(markdown.split(/^---page---$/m).map((page) => wrap(page.trim()))));
 }
 
-export async function startAcceptanceDeal(packId: PackId, currency: string, options: { dataClasses?: Record<string, string>; gateway?: ClaudeGateway; marketRents?: MarketRentProvider | null } = {}): Promise<AcceptanceDeal> {
+export async function startAcceptanceDeal(packId: PackId, currency: string, options: { dataClasses?: Record<string, string>; gateway?: ClaudeGateway; marketRents?: MarketRentProvider | null; propertyRecords?: PropertyRecordProvider | null; propertyPhotos?: PropertyPhotoProvider | null } = {}): Promise<AcceptanceDeal> {
   const repo = resolve(import.meta.dirname, '../../../..');
   const out = mkdtempSync(join(tmpdir(), `pactlab-${packId.toLowerCase()}-`));
   const run = spawnSync('python3', [join(repo, 'scripts/demo-data/generate.py'), out], { encoding: 'utf8' });
@@ -90,6 +92,8 @@ export async function startAcceptanceDeal(packId: PackId, currency: string, opti
     uploads: { objectStore: new FileSystemObjectStore(storeDir), malwareScanner: new SignatureMalwareScanner() },
     documents: { objectStore: new InMemoryObjectStore(), malwareScanner: new SignatureMalwareScanner(), ...(options.gateway ? { gateway: options.gateway } : {}) },
     ...(options.marketRents !== undefined ? { marketRents: options.marketRents } : {}),
+    ...(options.propertyRecords !== undefined ? { propertyRecords: options.propertyRecords } : {}),
+    ...(options.propertyPhotos !== undefined ? { propertyPhotos: options.propertyPhotos } : {}),
   });
   const token = (subject: string, org: string) =>
     new SignJWT({ org_id: org }).setProtectedHeader({ alg: 'RS256', kid: 'test' }).setSubject(subject).setIssuer(ISSUER).setAudience(AUDIENCE).setIssuedAt().setExpirationTime('5m').sign(key);
@@ -164,6 +168,7 @@ export async function startAcceptanceDeal(packId: PackId, currency: string, opti
     readme: readFileSync(join(folder, 'README.md'), 'utf8'),
     documents,
     call,
+    bearer: (who) => `Bearer ${tokens[who] ?? ''}`,
     upload,
     close: async () => {
       await app.close();

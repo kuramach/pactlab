@@ -1,3 +1,5 @@
+import type { PublicRecord } from '@pactlab/domain';
+
 /**
  * Property data for a teaser page (batch 2). A provider proposes facts about a
  * property from its address; the seller approves each one before anything is
@@ -83,4 +85,54 @@ export interface MarketRentProvider {
   readonly mode: 'LIVE' | 'FIXTURE';
   /** The estimate for one floor plan, or null when the provider has none for it (unknown address, too few comparables). */
   estimateRent(request: RentEstimateRequest): Promise<RentEstimate | null>;
+}
+
+/**
+ * The property record behind a multifamily pact's profile (T-188, ADR 0062): RentCast public-record metadata,
+ * fetched by address (US only). Normalized to the domain's `PublicRecord`; every field optional.
+ */
+export interface PropertyRecordProvider {
+  /** Shown as the figures' source, e.g. "RentCast". */
+  readonly name: string;
+  /** Stored with each retrieval. */
+  readonly version: string;
+  readonly mode: 'LIVE' | 'FIXTURE';
+  /** The record for the address, or null when the provider has none. */
+  fetchRecord(address: string): Promise<PublicRecord | null>;
+}
+
+/** One photo shown in the gallery: where it came from, when it was taken, and the attribution Google's terms require. */
+export interface PropertyPhoto {
+  /** Opaque reference the server resolves to bytes (never a URL carrying the API key). */
+  readonly ref: string;
+  readonly kind: 'STREET_VIEW' | 'PLACES';
+  /** "Google Street View" / "Google Maps". */
+  readonly source: string;
+  /** Street View capture month (YYYY-MM) when Google gives it; null for Places photos. */
+  readonly capturedOn: string | null;
+  /** Required author attribution text for Places photos; null for Street View. */
+  readonly attribution: string | null;
+  readonly attributionUri: string | null;
+  readonly alt: string;
+}
+
+export interface PropertyPhotoSet {
+  readonly photos: readonly PropertyPhoto[];
+  /** The Places place the photos match, when one did. */
+  readonly placeName: string | null;
+}
+
+export interface PropertyPhotoImage {
+  readonly contentType: string;
+  readonly bytes: Uint8Array;
+}
+
+/** Street View and Places photos for an address (Google Maps Platform). Reference material only, never evidence. */
+export interface PropertyPhotoProvider {
+  readonly name: string;
+  readonly version: string;
+  readonly mode: 'LIVE' | 'FIXTURE';
+  photos(address: string): Promise<PropertyPhotoSet>;
+  /** The bytes of one photo from `photos`; null when the reference is unknown. Fetched server-side, never cached to disk. */
+  image(ref: string): Promise<PropertyPhotoImage | null>;
 }

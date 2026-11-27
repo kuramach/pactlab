@@ -15,6 +15,7 @@ export const DEMO_SECTION_COVERAGE: Readonly<Record<string, SectionProbe>> = {
   '': { table: 'deals', column: 'id' },
   '/bidders': { table: 'bids' },
   '/listing': { table: 'deal_listings' },
+  '/property': { table: 'deal_property_profiles' },
   '/screening': { table: 'screening_reviews' },
   '/team': { table: 'deal_memberships' },
   '/suggestions': { exempt: 'Suggestions come from AI apps a customer connects over MCP; demo organizations have MCP off, so the tab is hidden there.' },

@@ -1,0 +1,346 @@
+{
+  "cassetteVersion": 1,
+  "provider": "rentcast",
+  "source": "Hand-built from RentCast's API reference for GET /v1/properties and /v1/properties/{id} (read 2026-11-27; T-188): fictional addresses and owners; a Texas record without sale prices (non-disclosure state), a sparse record, and an empty result. No live recording: CI never calls RentCast.",
+  "recordedAt": "2026-11-27T00:00:00.000Z",
+  "interactions": [
+    {
+      "request": {
+        "method": "GET",
+        "path": "/v1/properties",
+        "query": "address=1200 Sample St, Columbus, OH 43215&limit=1"
+      },
+      "response": {
+        "status": 200,
+        "headers": {},
+        "body": [
+          {
+            "id": "1200-Sample-St,-Columbus,-OH-43215",
+            "formattedAddress": "1200 Sample St, Columbus, OH 43215",
+            "state": "OH",
+            "propertyType": "Multi-Family",
+            "bedrooms": 96,
+            "bathrooms": 72,
+            "squareFootage": 42500,
+            "lotSize": 87120,
+            "yearBuilt": 1987,
+            "lastSaleDate": "2019-05-14T00:00:00.000Z",
+            "lastSalePrice": 6200000,
+            "ownerOccupied": false,
+            "features": {
+              "unitCount": 48,
+              "floorCount": 4,
+              "roomCount": 240,
+              "garage": true,
+              "garageType": "Surface lot",
+              "garageSpaces": 60,
+              "exteriorType": "Brick",
+              "roofType": "Flat",
+              "foundationType": "Slab",
+              "heating": true,
+              "heatingType": "Central",
+              "cooling": true,
+              "coolingType": "Central"
+            },
+            "taxAssessments": {
+              "2023": {
+                "year": 2023,
+                "value": 4950000
+              },
+              "2024": {
+                "year": 2024,
+                "value": 5100000
+              }
+            },
+            "propertyTaxes": {
+              "2023": {
+                "year": 2023,
+                "total": 114900
+              },
+              "2024": {
+                "year": 2024,
+                "total": 118400
+              }
+            },
+            "history": {
+              "2019-05-14": {
+                "event": "Sale",
+                "date": "2019-05-14T00:00:00.000Z",
+                "price": 6200000
+              },
+              "2011-02-03": {
+                "event": "Sale",
+                "date": "2011-02-03T00:00:00.000Z",
+                "price": 4350000
+              }
+            },
+            "owner": {
+              "names": [
+                "Example Holdings LLC"
+              ],
+              "type": "Organization",
+              "mailingAddress": {
+                "formattedAddress": "PO Box 100, Columbus, OH 43216"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/v1/properties/1200-Sample-St%2C-Columbus%2C-OH-43215",
+        "query": ""
+      },
+      "response": {
+        "status": 200,
+        "headers": {},
+        "body": {
+          "id": "1200-Sample-St,-Columbus,-OH-43215",
+          "formattedAddress": "1200 Sample St, Columbus, OH 43215",
+          "state": "OH",
+          "propertyType": "Multi-Family",
+          "bedrooms": 96,
+          "bathrooms": 72,
+          "squareFootage": 42500,
+          "lotSize": 87120,
+          "yearBuilt": 1987,
+          "lastSaleDate": "2019-05-14T00:00:00.000Z",
+          "lastSalePrice": 6200000,
+          "ownerOccupied": false,
+          "features": {
+            "unitCount": 48,
+            "floorCount": 4,
+            "roomCount": 240,
+            "garage": true,
+            "garageType": "Surface lot",
+            "garageSpaces": 60,
+            "exteriorType": "Brick",
+            "roofType": "Flat",
+            "foundationType": "Slab",
+            "heating": true,
+            "heatingType": "Central",
+            "cooling": true,
+            "coolingType": "Central"
+          },
+          "taxAssessments": {
+            "2023": {
+              "year": 2023,
+              "value": 4950000
+            },
+            "2024": {
+              "year": 2024,
+              "value": 5100000
+            }
+          },
+          "propertyTaxes": {
+            "2023": {
+              "year": 2023,
+              "total": 114900
+            },
+            "2024": {
+              "year": 2024,
+              "total": 118400
+            }
+          },
+          "history": {
+            "2019-05-14": {
+              "event": "Sale",
+              "date": "2019-05-14T00:00:00.000Z",
+              "price": 6200000
+            },
+            "2011-02-03": {
+              "event": "Sale",
+              "date": "2011-02-03T00:00:00.000Z",
+              "price": 4350000
+            }
+          },
+          "owner": {
+            "names": [
+              "Example Holdings LLC"
+            ],
+            "type": "Organization",
+            "mailingAddress": {
+              "formattedAddress": "PO Box 100, Columbus, OH 43216"
+            }
+          }
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/v1/properties",
+        "query": "address=500 Example Ave, Austin, TX 78701&limit=1"
+      },
+      "response": {
+        "status": 200,
+        "headers": {},
+        "body": [
+          {
+            "id": "500-Example-Ave,-Austin,-TX-78701",
+            "formattedAddress": "500 Example Ave, Austin, TX 78701",
+            "state": "TX",
+            "propertyType": "Multi-Family",
+            "squareFootage": 51200,
+            "lotSize": 65340,
+            "yearBuilt": 1994,
+            "ownerOccupied": false,
+            "features": {
+              "unitCount": 60,
+              "floorCount": 3,
+              "garage": true,
+              "garageType": "Carport",
+              "garageSpaces": 72,
+              "exteriorType": "Stucco",
+              "roofType": "Pitched",
+              "heating": true,
+              "heatingType": "Central",
+              "cooling": true,
+              "coolingType": "Central"
+            },
+            "taxAssessments": {
+              "2024": {
+                "year": 2024,
+                "value": 7200000
+              }
+            },
+            "propertyTaxes": {
+              "2024": {
+                "year": 2024,
+                "total": 161000
+              }
+            },
+            "owner": {
+              "names": [
+                "Sample Apartments LP"
+              ],
+              "type": "Organization",
+              "mailingAddress": {
+                "formattedAddress": "9 Example Plaza, Austin, TX 78701"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/v1/properties/500-Example-Ave%2C-Austin%2C-TX-78701",
+        "query": ""
+      },
+      "response": {
+        "status": 200,
+        "headers": {},
+        "body": {
+          "id": "500-Example-Ave,-Austin,-TX-78701",
+          "formattedAddress": "500 Example Ave, Austin, TX 78701",
+          "state": "TX",
+          "propertyType": "Multi-Family",
+          "squareFootage": 51200,
+          "lotSize": 65340,
+          "yearBuilt": 1994,
+          "ownerOccupied": false,
+          "features": {
+            "unitCount": 60,
+            "floorCount": 3,
+            "garage": true,
+            "garageType": "Carport",
+            "garageSpaces": 72,
+            "exteriorType": "Stucco",
+            "roofType": "Pitched",
+            "heating": true,
+            "heatingType": "Central",
+            "cooling": true,
+            "coolingType": "Central"
+          },
+          "taxAssessments": {
+            "2024": {
+              "year": 2024,
+              "value": 7200000
+            }
+          },
+          "propertyTaxes": {
+            "2024": {
+              "year": 2024,
+              "total": 161000
+            }
+          },
+          "owner": {
+            "names": [
+              "Sample Apartments LP"
+            ],
+            "type": "Organization",
+            "mailingAddress": {
+              "formattedAddress": "9 Example Plaza, Austin, TX 78701"
+            }
+          }
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/v1/properties",
+        "query": "address=77 Thin Record Rd, Smallville, IA 50010&limit=1"
+      },
+      "response": {
+        "status": 200,
+        "headers": {},
+        "body": [
+          {
+            "id": "77-Thin-Record-Rd,-Smallville,-IA-50010",
+            "formattedAddress": "77 Thin Record Rd, Smallville, IA 50010",
+            "state": "IA",
+            "propertyType": "Multi-Family",
+            "yearBuilt": 1962,
+            "owner": {
+              "names": [
+                "Thin Record Partners"
+              ],
+              "type": "Organization"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/v1/properties/77-Thin-Record-Rd%2C-Smallville%2C-IA-50010",
+        "query": ""
+      },
+      "response": {
+        "status": 200,
+        "headers": {},
+        "body": {
+          "id": "77-Thin-Record-Rd,-Smallville,-IA-50010",
+          "formattedAddress": "77 Thin Record Rd, Smallville, IA 50010",
+          "state": "IA",
+          "propertyType": "Multi-Family",
+          "yearBuilt": 1962,
+          "owner": {
+            "names": [
+              "Thin Record Partners"
+            ],
+            "type": "Organization"
+          }
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "path": "/v1/properties",
+        "query": "address=1 Nowhere Rd, Austin, TX 78701&limit=1"
+      },
+      "response": {
+        "status": 200,
+        "headers": {},
+        "body": []
+      }
+    }
+  ]
+}

@@ -50,6 +50,8 @@ export const DEAL_GROUPS: readonly DealGroup[] = [
       { path: '/qoe', label: 'Quality of earnings' },
       // A sponsor's offering (T-106): its terms and claims, the track record and the waterfall check.
       { path: '/syndication', label: 'Syndication' },
+      // A multifamily property's profile (T-188): the public record and photos for the address, reviewed by the buyer team.
+      { path: '/property', label: 'Property' },
       // A music catalog (T-140): the works and rights register, royalty income and termination exposure.
       { path: '/catalog', label: 'Catalog' },
       // An energy package (T-142): plants and interests, production and reserves, decimals, leases and liabilities.
@@ -125,7 +127,7 @@ const visible = (sections: readonly DealSection[], companyType: CompanyType | nu
 
 /** Four tabs across the deal, and the open tab's sections beneath them; sub-pages keep their section highlighted. */
 /** Sections only the pact's own side ever sees, not even as a tab name (T-118). */
-const OWN_SIDE_ONLY = new Set(['/ic', '/criticals', '/suggestions', '/qoe', '/syndication', '/catalog', '/energy', '/fintech', '/healthcare', '/clinics', '/pharma', '/ecommerce', '/services', '/telecom', '/spv']);
+const OWN_SIDE_ONLY = new Set(['/ic', '/criticals', '/suggestions', '/qoe', '/syndication', '/property', '/catalog', '/energy', '/fintech', '/healthcare', '/clinics', '/pharma', '/ecommerce', '/services', '/telecom', '/spv']);
 
 export function DealTabs({
   dealId,

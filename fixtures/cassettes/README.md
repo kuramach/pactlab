@@ -35,3 +35,14 @@ Live smoke tests against the same targets run only with `pnpm test:live`
 `packages/connectors/src/http/cassettes.test.ts` checks every cassette holds
 only allow-listed keys, pseudonymous logins and no credentials.
 
+
+- `rentcast/properties-synthetic.json` — hand-built from RentCast's API
+  reference for `GET /v1/properties` and `/v1/properties/{id}` (read
+  2026-11-27; T-188): fictional addresses and owners; a full record, a Texas
+  record without sale prices (non-disclosure state), a sparse record and an
+  empty result. The fixture provider holds the same bodies (a test keeps them
+  identical). No live recording: CI never calls RentCast.
+- `google-maps/photos-synthetic.json` — hand-built from Google's Street View
+  Static metadata and Places API (New) Text Search references (read
+  2026-11-27; T-188): a fictional place and synthetic photo references. Image
+  bytes are not recorded. No live recording: CI never calls Google.
