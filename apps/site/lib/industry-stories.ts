@@ -136,35 +136,38 @@ export const INDUSTRY_STORIES: Readonly<Record<string, IndustryStory>> = {
   },
 
   'telecom-media': {
-    headline: 'Subscribers are recurring revenue with a different name.',
+    headline: 'Subscriber businesses are priced on claims. Check them against the billing.',
     subhead:
-      'ARPU, churn and subscriber cohorts are the metrics Pactlab already computes for SaaS. The telecom and media pack changes the labels and the sources — not the mathematics.',
+      'Churn, ARPU and the agreements the content and distribution run on decide what a telecom or media business is worth. Pactlab reads the billing exports, rights register, statements and agreements you supply, recomputes the subscriber figures and checks the deck and the dates against them — documents, dates and arithmetic, never a content or market judgment.',
     illustrationAlt: 'Illustration of a broadcast tower, a video player and a row of subscribers.',
     pains: [
-      { icon: 'Signal', title: 'Subscriber counts that do not reconcile', body: 'Reported subscribers and billed subscribers drift apart quietly.' },
-      { icon: 'Repeat', title: 'Churn hidden in the average', body: 'A healthy blended churn rate can hide one plan or region in decline.' },
-      { icon: 'ChartPie', title: 'Concentration by region or channel', body: 'One distribution partner or region can carry more of the base than it seems.' },
+      { icon: 'Repeat', title: 'Churn the billing contradicts', body: 'The deck says 0.9% a month; disconnects over opening subscribers in the billing export say 1.5%.' },
+      { icon: 'CalendarRange', title: 'An agreement ending just after the closing', body: 'The largest affiliate agreement expires nine months in, and the register says 2028.' },
+      { icon: 'ChartPie', title: 'One advertiser carrying the line', body: 'A third of advertising revenue comes from one counterparty.' },
     ],
     walkthrough: [
-      { step: 'Evidence', text: 'Subscriber billing and plan data, plus the KPIs the seller reports.' },
-      { step: 'Finding', text: 'Gaps between reported and billed subscribers, and churn by cohort and plan, are drafted with the rows behind them.' },
-      { step: 'Review', text: 'Reviewers accept or reject each with a rationale.' },
-      { step: 'Valuation', text: 'Churn- and ARPU-driven inputs feed the same scenario and sensitivity engine.' },
-      { step: 'Deal terms', text: 'Price adjustments tied to the reconciled subscriber base.' },
+      { step: 'Evidence', text: 'Subscribers by month and subscriber movements from the billing system, the rights and carriage register, advertising and affiliate revenue by counterparty, capex and the P&L by year arrive as imports; the KPI pack, investor presentation and agreements are read with their source. Subscribers appear only as counts; absence is shown as absence.' },
+      { step: 'Finding', text: 'Deterministic checks mark the deck’s subscribers, churn and ARPU verified, contradicted or unverified, read each agreement’s end date against the expected closing, measure advertising and affiliate revenue by counterparty, set content cost per subscriber and capex against ARPU by year, and keep the reported-against-billed and regional checks, each cited to the rows or the page.' },
+      { step: 'Review', text: 'A named reviewer accepts, rejects or asks for support on every finding; nothing is decided by the software.' },
+      { step: 'Valuation', text: 'Valuation methods apply unchanged, with recomputed churn and ARPU as scenario inputs and the exposures the reviewer prices on the purchase-price bridge.' },
+      { step: 'Deal terms', text: 'A renewal as a closing condition, price adjustments tied to the billed base, and terms linked to the findings.' },
     ],
     findings: [
-      { title: 'Reported subscribers exceed billed subscribers', severity: 'High', evidence: 'Subscriber billing reconciled to reported counts', term: 'Price adjusted to the billed base' },
-      { title: 'Churn rising in the newest cohorts', severity: 'Medium', evidence: 'Cohort retention from billing history', term: 'Downside case in the valuation' },
+      { title: 'Churn of 0.9% in the deck; 1.5% in the billing export', severity: 'High', evidence: 'Disconnects over opening subscribers, trailing twelve months', term: 'The recomputed churn in the scenarios' },
+      { title: 'The largest affiliate agreement ends nine months after the closing', severity: 'Medium', evidence: 'The agreement’s own end date against the stated closing', term: 'A renewal as a closing condition, or a price adjustment' },
+      { title: 'One advertiser is 34% of advertising revenue', severity: 'Medium', evidence: 'Advertising statements by counterparty', term: 'Revenue at risk in the scenarios' },
+      { title: 'Content cost per subscriber rising while ARPU is flat', severity: 'High', evidence: 'The P&L by year over the billing export’s subscriber-months', term: 'The latest year’s margin in the scenarios' },
     ],
     deliverables: [
-      { icon: 'ArrowLeftRight', title: 'A reconciled subscriber base', body: 'Reported against billed, with the difference approved.' },
-      { icon: 'CalendarRange', title: 'Cohorts and churn by plan', body: 'Where the base is strengthening and where it is not.' },
-      { icon: 'SlidersHorizontal', title: 'ARPU and churn scenarios', body: 'Inputs that move price, run deterministically.' },
+      { icon: 'Signal', title: 'Subscriber figures you can defend', body: 'Subscribers, churn and ARPU from the billing exports, against what the deck says.' },
+      { icon: 'CalendarRange', title: 'A rights calendar against the closing', body: 'Every agreement’s end date and renewal, cited to the agreement or shown as the register’s.' },
+      { icon: 'ChartPie', title: 'Who carries the revenue', body: 'By region, by advertiser and by distributor, with the rows behind each share.' },
     ],
     faq: [
-      { q: 'What does the telecom and media pack read?', a: 'Subscriber billing and plan data, set against the KPIs the seller reports. Reported and billed subscribers are reconciled before anything reaches the valuation.' },
-      { q: 'How different is this from SaaS?', a: 'Less than it looks: ARPU is MRR per account, subscriber churn is logo churn, subscriber cohorts are revenue cohorts. The pack adds subscriber-billing sources and sector definitions.' },
-      { q: 'How do churn and ARPU move the price?', a: 'They are scenario inputs. The engine runs them deterministically from stored inputs, so every price change traces back to the subscriber rows behind it.' },
+      { q: 'What does the telecom and media pack read?', a: 'Subscribers by month and subscriber movements from the billing or CRM system, the rights and carriage register, advertising and affiliate revenue by counterparty, capital expenditure and the P&L by year, and the KPI pack, investor presentation and agreements. It checks what is supplied, and shows what is missing as missing.' },
+      { q: 'How are churn and ARPU measured?', a: 'Churn is disconnects over opening subscribers and ARPU is service revenue over the average of opening and closing subscribers, over the trailing twelve months and for every calendar year the export covers in full — never a partial year scaled up.' },
+      { q: 'Does Pactlab judge the content or the market?', a: 'No. It reports what the exports and documents state, the dates they give and the arithmetic. Whether a counterparty will renew, or a programme will keep its audience, is for the people deciding.' },
+      { q: 'How do the findings reach the deal?', a: 'As scenario inputs and adjustments in the valuation, and as closing conditions or price adjustments in the terms, each linked to its finding and accepted by a person.' },
     ],
   },
 
@@ -624,10 +627,10 @@ export const WRITTEN_INDUSTRIES = INDUSTRIES.filter((industry) => industry.slug 
  * The packs on sale (Kumar, 2026-11-01): Software & SaaS and Multifamily, then
  * Venture Raise (2026-11-09), with the others released one at a time after testing (Fintech with its
  * payments and licence checks, T-159, 2026-11-26; Healthcare, T-160; Small clinics with its owner, referral and
- * lease checks, T-161, 2026-11-26; IT & professional services with its realization, concentration and covenant checks, T-167). Same list as the
+ * lease checks, T-161, 2026-11-26; IT & professional services with its realization, concentration and covenant checks, T-167; Telecom & media with its subscriber, rights-window and concentration checks, T-168). Same list as the
  * app's RELEASED_COMPANY_TYPES (packages/domain/src/packs/release.ts).
  */
-export const RELEASED_INDUSTRY_SLUGS: readonly string[] = ['software-saas', 'multifamily', 'venture-raise', 'music-rights', 'energy-generation', 'startup-spv', 'fintech', 'healthcare', 'small-clinics', 'pharma-biotech', 'ecommerce-dtc', 'professional-services'];
+export const RELEASED_INDUSTRY_SLUGS: readonly string[] = ['software-saas', 'multifamily', 'venture-raise', 'music-rights', 'energy-generation', 'startup-spv', 'fintech', 'healthcare', 'small-clinics', 'pharma-biotech', 'ecommerce-dtc', 'professional-services', 'telecom-media'];
 
 /** An environment's copy of the site (dev, qa) previews every written pack, for testing before release. */
 export const PACK_PREVIEW = process.env['NEXT_PUBLIC_PACK_PREVIEW'] === 'true';

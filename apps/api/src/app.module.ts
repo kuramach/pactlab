@@ -61,6 +61,7 @@ import { ClinicsModule } from './clinics/clinics.module';
 import { PharmaModule } from './pharma/pharma.module';
 import { EcommerceModule } from './ecommerce/ecommerce.module';
 import { ProfessionalServicesModule } from './professional-services/professional-services.module';
+import { TelecomModule } from './telecom/telecom.module';
 import { SpvModule } from './spv/spv.module';
 import { BrandModule } from './brand/brand.module';
 import { FeatureCardsModule } from './feature-cards/feature-cards.module';
@@ -339,6 +340,8 @@ export class AppModule {
         EcommerceModule,
         // IT and professional services (T-167): the read-only Practice page; its checks run through Findings.
         ProfessionalServicesModule,
+        // Telecom and media (T-168): the read-only Subscribers page; its checks run through Findings.
+        TelecomModule,
         // Startup equity SPV (T-141): investors are invited to their seats through the invitations module.
         SpvModule.register(invitations),
         reportsModule,

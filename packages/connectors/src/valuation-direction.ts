@@ -62,6 +62,12 @@ export const SERVICES_TIMESHEET_MONTH_EVIDENCE_TYPE = 'services.timesheet_month'
 export const SERVICES_HEADCOUNT_MONTH_EVIDENCE_TYPE = 'services.headcount_month';
 export const SERVICES_BILLING_MONTH_EVIDENCE_TYPE = 'services.billing_month';
 export const SERVICES_AGEING_BAND_EVIDENCE_TYPE = 'services.ageing_band';
+/** Telecom and media (T-062, T-168): subscribers by month, subscriber movements, the rights register, counterparty revenue and capex by year. */
+export const TELECOM_SUBSCRIBERS_MONTH_EVIDENCE_TYPE = 'telecom.subscribers_month';
+export const TELECOM_SUBSCRIBER_MOVEMENT_EVIDENCE_TYPE = 'telecom.subscriber_movement';
+export const TELECOM_AGREEMENT_EVIDENCE_TYPE = 'telecom.agreement';
+export const TELECOM_REVENUE_MONTH_EVIDENCE_TYPE = 'telecom.revenue_month';
+export const TELECOM_CAPEX_YEAR_EVIDENCE_TYPE = 'telecom.capex_year';
 
 /**
  * Every evidence type the adapters and engines emit, with the direction each
@@ -370,6 +376,28 @@ export const VALUATION_DIRECTION_MAP: Readonly<Record<string, readonly Direction
     },
   ],
   [SERVICES_AGEING_BAND_EVIDENCE_TYPE]: [{ signal: 'ageing-drift', findingDomain: 'FINANCIAL', defaultDirection: -1, channel: 'PRICED_TERM' }],
+  // Telecom and media (T-062, T-168, ADR 0056): subscribers, churn and ARPU recomputed from the billing exports, agreement
+  // end dates read against the expected closing, revenue by counterparty, content cost and capex against ARPU by year.
+  // Documents, dates and arithmetic only; never a content or market judgment.
+  [TELECOM_SUBSCRIBERS_MONTH_EVIDENCE_TYPE]: [
+    { signal: 'reported-above-billed', findingDomain: 'FINANCIAL', defaultDirection: -1, channel: 'PRICED_TERM' },
+    { signal: 'churn-turning', findingDomain: 'COMMERCIAL', defaultDirection: -1, channel: 'ASSUMPTION' },
+  ],
+  [TELECOM_SUBSCRIBER_MOVEMENT_EVIDENCE_TYPE]: [
+    { signal: 'claim-contradicted', findingDomain: 'COMMERCIAL', defaultDirection: -1, channel: 'ASSUMPTION' },
+    { signal: 'claim-verified', findingDomain: 'COMMERCIAL', defaultDirection: 1, channel: 'CONFIRMATION' },
+    {
+      signal: 'claim-unverified',
+      findingDomain: 'COMMERCIAL',
+      defaultDirection: 0,
+      channel: 'INFORMATIONAL',
+      rationale: 'A subscriber claim the exports cannot check is a gap to close, neither priced nor relied on.',
+    },
+    { signal: 'content-squeeze', findingDomain: 'FINANCIAL', defaultDirection: -1, channel: 'ASSUMPTION' },
+  ],
+  [TELECOM_AGREEMENT_EVIDENCE_TYPE]: [{ signal: 'agreement-ends-near-closing', findingDomain: 'COMMERCIAL', defaultDirection: -1, channel: 'PRICED_TERM' }],
+  [TELECOM_REVENUE_MONTH_EVIDENCE_TYPE]: [{ signal: 'counterparty-concentration', findingDomain: 'COMMERCIAL', defaultDirection: -1, channel: 'ASSUMPTION' }],
+  [TELECOM_CAPEX_YEAR_EVIDENCE_TYPE]: [{ signal: 'capex-squeeze', findingDomain: 'FINANCIAL', defaultDirection: -1, channel: 'ASSUMPTION' }],
   [DOCUMENT_FINDING_EVIDENCE_TYPE]: [
     // A product one manufacturer makes, with no second source described (T-163).
     {
@@ -442,6 +470,11 @@ export const ADAPTER_EVIDENCE_TYPES = [
   SERVICES_HEADCOUNT_MONTH_EVIDENCE_TYPE,
   SERVICES_BILLING_MONTH_EVIDENCE_TYPE,
   SERVICES_AGEING_BAND_EVIDENCE_TYPE,
+  TELECOM_SUBSCRIBERS_MONTH_EVIDENCE_TYPE,
+  TELECOM_SUBSCRIBER_MOVEMENT_EVIDENCE_TYPE,
+  TELECOM_AGREEMENT_EVIDENCE_TYPE,
+  TELECOM_REVENUE_MONTH_EVIDENCE_TYPE,
+  TELECOM_CAPEX_YEAR_EVIDENCE_TYPE,
 ] as const;
 
 /** The default direction for one signal, or null when the map does not know it. */

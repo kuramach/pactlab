@@ -17,7 +17,7 @@ export const PACK_IDS = COMPANY_TYPES.filter((type): type is PackId => type !== 
 export type PackCluster = 'technology' | 'healthcare' | 'real-estate' | 'services' | 'life-sciences' | 'consumer' | 'capital' | 'media-rights' | 'energy';
 
 /** Calculator ids in `@pactlab/calculations` (`metricCalculator`). */
-export const METRIC_CALCULATOR_IDS = ['saas-metrics', 'multifamily-metrics', 'music-royalties', 'energy-assets', 'spv-round', 'fintech-payments', 'healthcare-collections', 'clinics-practice', 'pharma-pipeline', 'ecommerce-channels', 'services-practice'] as const;
+export const METRIC_CALCULATOR_IDS = ['saas-metrics', 'multifamily-metrics', 'music-royalties', 'energy-assets', 'spv-round', 'fintech-payments', 'healthcare-collections', 'clinics-practice', 'pharma-pipeline', 'ecommerce-channels', 'services-practice', 'telecom-subscribers'] as const;
 export type MetricCalculatorId = (typeof METRIC_CALCULATOR_IDS)[number];
 
 /** Valuation method ids in `@pactlab/calculations` (`VALUATION_METHODS`). */
@@ -159,10 +159,29 @@ export const PACKS: Readonly<Record<PackId, PackDefinition>> = {
     // Healthtech targets also run the software path (ARR multiple); services value on DCF.
     valuationMethods: ['DCF', 'ARR_MULTIPLE'],
   },
+  // Subscriber claims, rights windows and revenue concentration (T-062, extended by T-168, ADR 0056). The T-062
+  // rules stay first; the pack adds the subscriber claims register (subscribers, churn and ARPU recomputed from
+  // the movements export), the rights and carriage register against the expected closing, advertising and
+  // affiliate concentration by counterparty, content cost and capex against flat ARPU, and the P&L trend.
   TELECOM_MEDIA: {
     ...pack('TELECOM_MEDIA', 'telecom-media', 'technology', true),
-    importTargets: ['BILLING_INVOICE_LINE', 'TELECOM_SUBSCRIBERS'],
-    findingRules: ['telecom-reported-subscribers', 'telecom-churn-turning', 'telecom-regional-concentration', 'telecom-wholesale-review'],
+    importTargets: ['BILLING_INVOICE_LINE', 'TELECOM_SUBSCRIBERS', 'TELECOM_SUBSCRIBER_MOVEMENTS', 'TELECOM_AGREEMENTS', 'TELECOM_REVENUE_STREAMS', 'TELECOM_CAPEX'],
+    metricCalculator: 'telecom-subscribers',
+    findingRules: [
+      'telecom-reported-subscribers',
+      'telecom-churn-turning',
+      'telecom-regional-concentration',
+      'telecom-wholesale-review',
+      'telecom-subscriber-claims',
+      'telecom-rights-window',
+      'telecom-counterparty-concentration',
+      'telecom-content-squeeze',
+      'telecom-capex-squeeze',
+      'telecom-pnl-trend',
+      'telecom-pnl-margin-drift',
+      'telecom-pnl-expense-outpacing',
+    ],
+    documentCategories: ['RIGHTS_AGREEMENT'],
     // Subscriber revenue runs the SaaS metrics as they are (ARPU ≈ MRR per account, churn ≈ logo churn).
   },
   // Utilization, realization and the people the fees depend on (T-063, extended by T-167, ADR 0055). The

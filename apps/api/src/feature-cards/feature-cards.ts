@@ -78,6 +78,16 @@ export const FEATURE_CARDS: readonly FeatureCardDefinition[] = [
     icon: 'check',
   },
   {
+    id: 'telecom-media-pack',
+    version: 1,
+    addedOn: '2026-11-26',
+    title: 'Telecom & media: subscriber claims, rights windows and revenue concentration',
+    body: 'On a telecom and media pact, Pactlab recomputes subscribers, churn and ARPU from the subscriber movements export and marks the deck’s figures verified, contradicted or unverified, reads every content, affiliate and carriage agreement’s end date against the expected closing and flags a material one ending within twelve months, measures advertising and affiliate revenue by counterparty, and sets content cost per subscriber and capex against ARPU across every imported P&L year. Documents, dates and arithmetic only; a person decides every finding.',
+    href: '/pacts/new',
+    linkLabel: 'Start a telecom pact',
+    icon: 'layers',
+  },
+  {
     id: 'professional-services-pack',
     version: 1,
     addedOn: '2026-11-26',
