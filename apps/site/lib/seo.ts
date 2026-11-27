@@ -26,6 +26,7 @@ export const SITE_ROUTES: readonly string[] = [
   '/industries',
   ...PUBLISHED_INDUSTRIES.map((industry) => `/industries/${industry.slug}`),
   '/how-it-works',
+  '/rinse',
   '/guides',
   ...GUIDES.map((guide) => `/guides/${guide.slug}`),
   '/case-studies',

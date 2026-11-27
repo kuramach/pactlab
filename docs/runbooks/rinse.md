@@ -16,7 +16,7 @@ The seller's desktop bench (T-178, ADR 0058). The seller rinses the set, closes 
 | Auto-update (Tauri updater) | Configured; the update signing key **is not generated** (the `pubkey` is a placeholder) |
 | Bundled office-to-PDF and OCR tools | Converter seam built (`LocalToolConverter`, LibreOffice headless); **not bundled**, and fails closed (`TOOL_MISSING`) |
 | Preparer accounts, prep invites, desktop sign-in, AI rinse job endpoint, hosted deal-room upload | T-178b |
-| Download page `pactlab.ai/rinse` (all site locales), trademark-clearance entry | T-178c |
+| Download page `pactlab.ai/rinse` (all site locales), trademark-clearance entry | Built (T-178c, `apps/site/views/rinse.tsx`). Shows the empty state until a release feed is set; see "The download page". "Pactlab Rinse" is on `docs/runbooks/trademark-clearance.md`, **not cleared** |
 | Cloud destinations: OneDrive (Graph, app folder), Google Drive (`drive.file`), Box, through the seller's own PKCE sign-in | Engine and screen built and tested against stand-ins of each API (`apps/desktop/src/engine/cloud.test.ts`). **Not run against a live account:** the Rinse app's own OAuth registrations with Microsoft, Google and Box do not exist yet, and the loopback listener and keychain live in the uncompiled shell. Box uploads over 50 MB are refused (its chunked upload is not built) |
 | One-time zip import (injection path b), `POST /v1/deals/:id/rinse-archives` | Built and tested |
 | First-class provenance: `document_provenance` per document, `rinse_sets` per manifest (gap notes, source discrepancies); discrepancies drafted as cited findings | Built and tested (`packages/db/src/rinse-provenance.test.ts`, the API test above) |
@@ -47,3 +47,11 @@ A manifest the schema refuses (malformed, with an unresolved error, or an open r
 - **Builds:** in CI on macOS, Windows and Linux runners, never from a laptop.
 - **Signing:** Apple Developer ID plus notarization; a Windows code-signing certificate; the Tauri updater key. The keys live in GitHub Environment secrets, never in the repo.
 - **Published:** installers, SHA-256 checksums and release notes go to the download page. Record here which builds are signed and which are not.
+
+## The download page (`pactlab.ai/rinse`, T-178c)
+- **Source of releases:** the site reads the release feed at build time from `RINSE_RELEASES_URL` (a build setting, not a secret). With no address, a failed fetch or a feed that fails its schema, the page says "The installers are not published yet". It never shows a placeholder link.
+- **Feed contract** (`apps/site/lib/rinse.ts`, schema `pactlab-rinse-releases` version 1): releases with `version`, `publishedAt`, `notes[]` and `assets[]`; each asset has `platform` (`macos-arm64`, `macos-x64`, `windows-x64`, `linux-x64`), an https `url`, a lower-case `sha256`, `signed`, and optionally `sizeBytes` and `minimumOs`. T-178b's release job must publish exactly this, then rebuild the site. Each platform shows its newest installer, with its SHA-256 and whether it is signed.
+- **Claims on the page** are limited to what T-178 and ADR 0058 ship: on-machine reading, conversion and checks; the audit against the original; the expected-input checklist; hand entries labelled not documentary evidence; AI jobs only when online and signed in. Cloud destinations are not mentioned until they are live-tested. Limits quoted (200 MB a file; 500 files and 500 MB unpacked) come from `apps/desktop/src/engine`. Change the page when those change.
+- **Minimum OS versions** are not invented: each release states its own in the feed.
+- **Languages:** de, fr and ja catalogs carry the page (machine translation; the native review in `site-translations.md` covers it). Release notes stay in English.
+- **Deep links:** prep invites (T-178b) link to `https://pactlab.ai/rinse#download`.

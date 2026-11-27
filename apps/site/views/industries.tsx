@@ -244,6 +244,12 @@ export function IndustryPage({ locale, slug }: { locale: Locale; slug: string })
 
       <Section title={words.walkAway} tone="cloud">
         <FeatureGrid features={story.deliverables} />
+        <p className="mt-8 max-w-3xl text-slate-text">
+          {words.rinseLine}{' '}
+          <Link href={href('/rinse')} className="font-semibold text-indigo-ink underline-offset-4 hover:underline">
+            {words.rinseLink}
+          </Link>
+        </p>
       </Section>
 
       {/* FAQ */}
