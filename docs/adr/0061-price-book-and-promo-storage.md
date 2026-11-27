@@ -1,6 +1,6 @@
 # ADR 0061: Storing the per-deal price books, promo codes and quotes (T-177a)
 
-**Status:** proposed (plan only; 2026-11-27). Kumar approves it, then the next T-177a run builds it. It builds on ADR 0025 and its T-177 addendum.
+**Status:** accepted (2026-11-27), with Kumar's decisions below. It builds on ADR 0025 and its T-177 addendum.
 
 ## Context
 - **What T-177 built:** the deterministic engine in `packages/domain/src/pricing` (`priceBookProblems`, `quotePact`, `liveBook`, `priceCheckout`, `suggestConvertedBook`) and `priceBookSchema` in `packages/contracts`. It has no storage, so the book lives nowhere, quotes aren't kept, and the promo kinds the engine knows have no table.
@@ -123,6 +123,14 @@ The new tables are reached only through `pactlab_billing` SECURITY DEFINER funct
 4. **Seed USD v1** from the T-177 numbers in the migration (proposed), with the other markets refusing quotes until you author their books?
 5. **Who may quote:** owners and admins only (proposed), or every member?
 6. **Count a promo redemption at purchase** (proposed) rather than at quote time?
+
+## Kumar's decisions (2026-11-27)
+1. **A version freezes at publish.** Once published, a version never changes, and any edit makes a new version.
+2. **A separate `pricing_promos` table,** sharing one code namespace with T-087's `promo_codes` (the proposal, accepted).
+3. **A quote is valid for 30 days.**
+4. **Only USD v1 is seeded,** from the T-177 numbers. GBP, EUR, JPY and INR refuse quotes until Kumar authors their books (T-177b).
+5. **Owners and admins only** may quote, the same people who can buy today.
+6. **A redemption counts at purchase,** not at quote time (the proposal, accepted).
 
 ## Out of scope
 The console screen (T-177b), Stripe checkout from a quote and refunds (T-177c), reseller codes and commissions (T-093), and any true-up of the variable after purchase (a T-177 non-goal).
