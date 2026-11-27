@@ -174,6 +174,7 @@ export const industries: Catalog['industries'] = {
       'Wie weit liegen die Bestandsmieten unter dem Markt, und ist dieses Potenzial real?',
       'Wie viel aufgeschobene Instandhaltung hängt an jeder Wohnung?',
       'Sind die Zahlungsrückstände verteilt oder konzentriert?',
+      'Hat sich die Belegung über fünf Jahre gehalten, und sind die Mieten mit den Kosten mitgewachsen?',
     ],
     transfers: [
       { title: 'Umsatzhauptbuch', body: 'Eine Mieterliste und eine T-12 lassen sich fast eins zu eins auf den Abrechnungsimport und das Umsatzhauptbuch abbilden.' },
@@ -182,6 +183,7 @@ export const industries: Catalog['industries'] = {
     ],
     adds: [
       { title: 'Betriebsdaten der Immobilie', body: 'Adapter für Mieterlisten, T-12, Rückstandsberichte, Versorgerrechnungen und Begehungen.' },
+      { title: 'Fünf Jahre Historie', body: 'Erträge, Kosten, Mieten und Belegung je Jahr, jeweils mit der Zahl der Jahre, auf der eine Zahl beruht; ein fehlendes Jahr wird beim Verkäufer angefragt.' },
       { title: 'Feststellungen zu Mietdifferenz und Rückständen', body: 'Bestandsmieten gegen den Markt und wo sich Zahlungsrückstände konzentrieren.' },
       { title: 'Bewertung nach NOI und Cap Rate', body: 'Nettobetriebsergebnis und Kapitalisierungsrate, mit Investitionen je Einheit als Sanierung.' },
     ],

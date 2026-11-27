@@ -174,6 +174,7 @@ export const industries: Catalog['industries'] = {
       'De combien les loyers en place sont-ils inférieurs au marché, et ce potentiel est-il réel ?',
       'Quel entretien différé accompagne chaque logement ?',
       'Les impayés sont-ils dispersés ou concentrés ?',
+      'L’occupation a-t-elle tenu sur cinq ans, et les loyers ont-ils suivi les charges ?',
     ],
     transfers: [
       { title: 'Grand livre des revenus', body: 'Un état locatif et un T-12 se transposent presque à l’identique dans l’import de facturation et le grand livre des revenus.' },
@@ -182,6 +183,7 @@ export const industries: Catalog['industries'] = {
     ],
     adds: [
       { title: 'Données d’exploitation du bien', body: 'Des adaptateurs pour les états locatifs, les T-12, les rapports d’impayés, les factures de fluides et les inspections.' },
+      { title: 'Cinq ans d’historique', body: 'Revenus, charges, loyers et occupation par année, avec le nombre d’années sur lequel repose chaque chiffre ; une année manquante est demandée au vendeur.' },
       { title: 'Constats d’écart aux loyers du marché et d’impayés', body: 'Les loyers en place face au marché, et l’endroit où se concentrent les impayés.' },
       { title: 'Évaluation par le NOI et le taux de capitalisation', body: 'Résultat net d’exploitation et taux de capitalisation, avec les travaux par logement comme remise en état.' },
     ],
