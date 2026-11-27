@@ -74,6 +74,7 @@ import type { SnsVerifier } from './email-events/sns';
 import { HttpsWebFetcher, type WebFetcher } from './common/safe-fetch';
 import { IcModule } from './ic/ic.module';
 import { BillingModule } from './billing/billing.module';
+import { PactPricingModule } from './pact-pricing/pact-pricing.module';
 import { FixtureBillingProvider, type BillingProvider } from '@pactlab/connectors';
 import { McpModule } from './mcp/mcp.module';
 import type { CostSource } from './admin/cost/cost-explorer';
@@ -268,11 +269,14 @@ export class AppModule {
       appOrigin: webOrigin,
       hashSecret: deps.emailLogin?.tokenSecret ?? randomBytes(32).toString('hex'),
     });
+    // Pact pricing storage (T-177a); the same address-hash key as billing's promo checks.
+    const pactPricingModule = PactPricingModule.register({ hashSecret: deps.emailLogin?.tokenSecret ?? randomBytes(32).toString('hex') });
     return {
       module: AppModule,
       imports: [
         InfrastructureModule.register(deps, identityVerifier, apiTokens),
         billingModule,
+        pactPricingModule,
         DealsModule,
         MeModule,
         MetricsModule,

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { liveBook, priceBookProblems, suggestConvertedBook, type PriceBook } from './book';
 import { priceCheckout, type CheckoutPromo } from './discounts';
 import { quotePact } from './quote';
+import { checkoutPromo, quoteLines, reshowQuote } from './stored';
 
 /** Kumar's schedule (2026-11-26) as a stored book would hold it; a test fixture, never a code default. */
 const USD: PriceBook = {
@@ -222,5 +223,34 @@ describe('priceCheckout: two codes, the better single discount', () => {
 
   it('no codes: the quote as it stands', () => {
     expect(priceCheckout(quote, {}, USD.rounding)).toMatchObject({ applied: 'NONE', total: '32500.00', reseller: null, promo: null });
+  });
+});
+
+describe('stored quotes: kept as lines, re-shown exactly (T-177a)', () => {
+  const reshow = (book: PriceBook, ev: string | null, pilot: boolean, promo: CheckoutPromo | null, resellerPercent: string | null = null) => {
+    const quote = quotePact(book, { enterpriseValue: ev, pilot });
+    const price = priceCheckout(quote, { promo, resellerPercent }, book.rounding);
+    const lines = quoteLines(quote, price);
+    const again = reshowQuote({ currency: book.currency, bookVersion: book.version, pilot, enterpriseValue: quote.enterpriseValue, variableCap: book.variableCap, subtotal: quote.total, total: price.total, applied: price.applied, includes: quote.includes, promoCode: promo?.code ?? null, promoRefusal: price.promo?.refusal ?? null, lines });
+    return { quote, price, lines, again };
+  };
+  const cases: [string, PriceBook, string | null, boolean, CheckoutPromo | null, string | null][] = [
+    ['a $100M pact, no codes', USD, '100000000', false, null, null],
+    ['a capped $2B pact with a promo', USD, '2000000000', false, checkoutPromo({ code: 'TEN', effect: 'PERCENT_TOTAL', percent: '10', amount: null, pilotFlat: null, currency: null, markets: [], stackable: false }), null],
+    ['a pilot', USD, null, true, null, null],
+    ['a promo that loses to the reseller', USD, '100000000', false, checkoutPromo({ code: 'HALF', effect: 'PERCENT_FIXED', percent: '50', amount: null, pilotFlat: null, currency: null, markets: [], stackable: false }), '10'],
+    ['a USD-scoped promo on a JPY quote', JPY, '15000000000', false, checkoutPromo({ code: 'US', effect: 'AMOUNT_OFF', percent: null, amount: '100', pilotFlat: null, currency: 'USD', markets: ['USD'], stackable: false }), null],
+  ];
+  for (const [name, book, ev, pilot, promo, reseller] of cases) {
+    it(name, () => {
+      const { quote, price, again } = reshow(book, ev, pilot, promo, reseller);
+      expect(again.quote).toEqual(quote);
+      expect(again.price).toEqual(price);
+    });
+  }
+
+  it('stores one line for the fixed fee, one per band and one per discount', () => {
+    const { lines } = reshow(USD, '100000000', false, checkoutPromo({ code: 'TEN', effect: 'WAIVE_VARIABLE', percent: null, amount: null, pilotFlat: null, currency: null, markets: [], stackable: false }));
+    expect(lines.map((entry) => [entry.kind, entry.amount])).toEqual([['FIXED', '5000.00'], ['BAND', '12500.00'], ['BAND', '15000.00'], ['PROMO', '27500.00']]);
   });
 });

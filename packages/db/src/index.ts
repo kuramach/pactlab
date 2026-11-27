@@ -11,6 +11,7 @@ export * from './login';
 export * from './demo-shares';
 export * from './reports';
 export * from './billing';
+export * from './price-books';
 export * from './oauth';
 export * from './memberships';
 export * from './pacts';
