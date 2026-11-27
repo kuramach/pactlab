@@ -1,6 +1,7 @@
 'use server';
 
 import { redirect } from 'next/navigation';
+import type { CreatedPrepInvite, PrepInviteView } from '@pactlab/contracts';
 import { z } from 'zod';
 import { AI_UNAVAILABLE, aiOutcome } from './ai-messages';
 import { apiGet, apiSend } from '../../_lib/api';
@@ -481,4 +482,28 @@ export async function closeRequest(dealId: string, requestId: string): Promise<{
   if (!uuid.safeParse(dealId).success || !uuid.safeParse(requestId).success) return { kind: 'error', message: 'Unknown request.' };
   const result = await apiSend('POST', `/v1/deals/${dealId}/document-requests/${requestId}/close`, {});
   return result.kind === 'ok' ? { kind: 'ok' } : { kind: 'error', message: 'The request could not be closed.' };
+}
+
+export type PrepInviteResult = { kind: 'ok'; link: string; email: string; emailSent: boolean } | { kind: 'error'; message: string };
+
+/**
+ * A prep invite for a Pactlab Rinse preparer (T-178b): the link creates their free account and binds it
+ * to this pact. The link is shown once, here; only its hash is kept.
+ */
+export async function createPrepInvite(dealId: string, formData: FormData): Promise<PrepInviteResult> {
+  if (!uuid.safeParse(dealId).success) return { kind: 'error', message: 'Unknown deal.' };
+  const email = z.email().max(254).safeParse(String(formData.get('email') ?? '').trim());
+  if (!email.success) return { kind: 'error', message: 'Enter the preparer’s email address.' };
+  const result = await apiSend<CreatedPrepInvite>('POST', `/v1/deals/${dealId}/rinse/prep-invites`, { email: email.data });
+  if (result.kind === 'ok') return { kind: 'ok', link: result.data.link, email: result.data.invite.email, emailSent: result.data.emailStatus === 'SENT' };
+  if (result.kind === 'forbidden') return { kind: 'error', message: 'Only the deal lead and analysts can invite a preparer.' };
+  return { kind: 'error', message: 'The invite could not be created. Nothing was sent; try again.' };
+}
+
+export async function revokePrepInvite(dealId: string, inviteId: string): Promise<{ kind: 'ok' } | { kind: 'error'; message: string }> {
+  if (!uuid.safeParse(dealId).success || !uuid.safeParse(inviteId).success) return { kind: 'error', message: 'Unknown invite.' };
+  const result = await apiSend<PrepInviteView>('POST', `/v1/deals/${dealId}/rinse/prep-invites/${inviteId}/revoke`, {});
+  if (result.kind === 'ok') return { kind: 'ok' };
+  if (result.kind === 'invalid') return { kind: 'error', message: 'This invite is already closed.' };
+  return { kind: 'error', message: 'The invite could not be revoked. Try again.' };
 }

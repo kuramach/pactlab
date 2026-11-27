@@ -11,3 +11,7 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 tauri = { version = "2", features = [] }
 tauri-plugin-updater = "2"
+# The engine runs as a Node sidecar (T-178b); the window talks to it, never to the network itself.
+tauri-plugin-shell = "2"
+# Prep invites open the app: pactlab-rinse://invite?token=… (the pactlab.ai/rinse page hands off, T-178c).
+tauri-plugin-deep-link = "2"

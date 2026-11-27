@@ -136,8 +136,11 @@ export const rinseManifestSchema = z
       readyAt: timestamp,
       /** The preparer's verified Pactlab identity: the login that makes the upload trustworthy. */
       preparedBy: personSchema,
-      /** The pact a prep invite bound the set to, when one did. */
-      intendedPact: z.strictObject({ organizationId: z.uuid(), dealId: z.uuid() }).nullable(),
+      /**
+       * The pact a prep invite bound the set to, when one did. `bindingId` (T-178b) names the preparer's
+       * binding; the sync checks it is live for the pact it syncs into, and refuses a set bound elsewhere.
+       */
+      intendedPact: z.strictObject({ organizationId: z.uuid(), dealId: z.uuid(), bindingId: z.uuid().optional() }).nullable(),
     }),
     documents: z.array(rinseDocumentSchema).max(5000),
     gaps: z.array(rinseGapSchema).max(200),
@@ -212,4 +215,99 @@ export interface RinseSetView {
   gaps: RinseManifestGap[];
   sourceDiscrepancies: (RinseSourceDiscrepancy & { findingId: string | null })[];
   recordedAt: string;
+}
+
+// ---------------------------------------------------------------------------
+// Preparer accounts, prep invites and AI rinse jobs (T-178b, ADR 0059)
+// ---------------------------------------------------------------------------
+
+/** A prep invite token: 32 random bytes, base64url. */
+export const prepInviteTokenSchema = z.string().regex(/^[A-Za-z0-9_-]{43}$/);
+
+export const createPrepInviteSchema = z.strictObject({ email: z.email().max(254) });
+export type CreatePrepInviteBody = z.infer<typeof createPrepInviteSchema>;
+
+export interface PrepInviteView {
+  id: string;
+  email: string;
+  state: 'PENDING' | 'ACCEPTED' | 'EXPIRED' | 'REVOKED';
+  createdAt: string;
+  expiresAt: string;
+  acceptedAt: string | null;
+  /** The preparer's binding once accepted, and whether it still stands. */
+  binding: { id: string; boundAt: string; revokedAt: string | null } | null;
+}
+
+/** Returned once, when the invite is created: the link and QR text are never readable again. */
+export interface CreatedPrepInvite {
+  invite: PrepInviteView;
+  link: string;
+  emailStatus: 'SENT' | 'NOT_SENT';
+}
+
+export const prepInviteTokenBodySchema = z.strictObject({ token: prepInviteTokenSchema });
+
+export const preparerStartSchema = z.strictObject({ token: prepInviteTokenSchema, email: z.email().max(254), displayName: z.string().trim().min(1).max(120) });
+export const preparerVerifySchema = z.strictObject({
+  token: prepInviteTokenSchema,
+  email: z.email().max(254),
+  code: z.string().regex(/^\d{6}$/),
+  /** The desktop keeps the session for offline use: up to 30 days, within the workspace's cap. */
+  trust: z.enum(['8h', '1d', '1w', '30d']).default('1w'),
+  device: z.string().trim().min(1).max(80).optional(),
+});
+
+export interface PrepInvitePreview {
+  pactName: string;
+  invitedBy: string;
+  email: string;
+  expiresAt: string;
+  state: 'PENDING' | 'ACCEPTED' | 'EXPIRED' | 'REVOKED';
+}
+
+export interface PreparerBindingView {
+  bindingId: string;
+  organizationId: string;
+  dealId: string;
+  pactName: string;
+  invitedBy: string;
+  boundAt: string;
+}
+
+export interface PreparerSession {
+  token: string;
+  expiresAt: string;
+  bindings: PreparerBindingView[];
+}
+
+const pageText = z.string().max(12_000);
+export const rinseClassifySchema = z.strictObject({
+  bindingId: z.uuid(),
+  /** The seller's company type the expected-document list comes from (the manifest's `set.pack`). */
+  pack: z.string().min(1).max(60),
+  fileName: z.string().min(1).max(300),
+  folder: z.string().max(500).nullable().default(null),
+  pageTexts: z.array(pageText).min(1).max(3),
+});
+export type RinseClassifyBody = z.infer<typeof rinseClassifySchema>;
+
+export interface RinseClassifyResult {
+  category: string;
+  confidence: number;
+  promptVersion: string;
+  /** A people-data category (HR, compensation): the desktop never sends the file to the vision lane. */
+  aiExcluded: boolean;
+}
+
+export const rinseVisionSchema = z.strictObject({
+  bindingId: z.uuid(),
+  fileName: z.string().min(1).max(300),
+  page: z.number().int().min(1).max(5000),
+  image: z.strictObject({ format: z.enum(['png', 'jpeg']), base64: z.string().min(4).max(7_000_000) }),
+});
+export type RinseVisionBody = z.infer<typeof rinseVisionSchema>;
+
+export interface RinseVisionResult {
+  text: string | null;
+  promptVersion: string;
 }

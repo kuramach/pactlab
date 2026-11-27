@@ -1,0 +1,23 @@
+{
+  "$comment": "T-178b (Kumar's decision 3): the converters bundled into the installer, pinned per target. Each entry is filled only from the project's own release page, with the SHA-256 the build verifies before unpacking. An entry left null is not bundled, and the build says so (the app then fails closed with TOOL_MISSING). Licences: LibreOffice MPL-2.0, Tesseract Apache-2.0, carried in the app's licence notices.",
+  "libreoffice": {
+    "version": null,
+    "licence": "MPL-2.0",
+    "targets": {
+      "aarch64-apple-darwin": { "url": null, "sha256": null },
+      "x86_64-apple-darwin": { "url": null, "sha256": null },
+      "x86_64-pc-windows-msvc": { "url": null, "sha256": null },
+      "x86_64-unknown-linux-gnu": { "url": null, "sha256": null }
+    }
+  },
+  "tesseract": {
+    "version": null,
+    "licence": "Apache-2.0",
+    "targets": {
+      "aarch64-apple-darwin": { "url": null, "sha256": null },
+      "x86_64-apple-darwin": { "url": null, "sha256": null },
+      "x86_64-pc-windows-msvc": { "url": null, "sha256": null },
+      "x86_64-unknown-linux-gnu": { "url": null, "sha256": null }
+    }
+  }
+}

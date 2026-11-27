@@ -13,10 +13,10 @@ const CODES: Record<number, string> = {
 
 /**
  * A 413, 415 or 422 may name the rule it failed (e.g. LEGACY_EXCEL), and a 503
- * the reason a dependency is unavailable (e.g. AI_ACCESS), as a stable
- * upper-case code — never a message.
+ * the reason a dependency is unavailable (e.g. AI_ACCESS), and a 429 which limit it hit
+ * (e.g. RINSE_AI_RATE_LIMITED), as a stable upper-case code — never a message.
  */
-const CODED = new Set([413, 415, 422, 503]);
+const CODED = new Set([413, 415, 422, 429, 503]);
 /** A 403 to an API token says why (T-128): none of these reveals anything about a pact. */
 const API_FORBIDDEN = new Set(['NOT_AVAILABLE_TO_API', 'INSUFFICIENT_SCOPE', 'API_DISABLED']);
 function ruleCode(exception: unknown, status: number): string | null {

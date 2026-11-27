@@ -98,8 +98,8 @@ export interface RinseSetOptions {
   readonly currency: string;
   /** The signed-in preparer: required, it is what makes the finished set trustworthy. */
   readonly preparer: Enterer;
-  /** Set when a prep invite bound the set to its pact. */
-  readonly intendedPact?: { organizationId: string; dealId: string } | null;
+  /** Set when a prep invite bound the set to its pact; the binding is checked again at sync (T-178b). */
+  readonly intendedPact?: { organizationId: string; dealId: string; bindingId?: string } | null;
   readonly converter: Converter;
   readonly queue?: AiQueue;
   readonly clock?: () => Date;

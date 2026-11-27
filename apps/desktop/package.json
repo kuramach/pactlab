@@ -3,11 +3,14 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Pactlab Rinse \u2014 rinse your deal documents clean before they go in the room.",
+  "description": "Pactlab Rinse — rinse your deal documents clean before they go in the room.",
   "scripts": {
     "lint": "eslint .",
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.ui.json",
-    "test": "vitest run"
+    "test": "vitest run",
+    "build:sidecar": "node scripts/build-sidecar.mjs",
+    "fetch:converters": "node scripts/fetch-converters.mjs",
+    "build:renderer": "node scripts/build-renderer.mjs"
   },
   "dependencies": {
     "@pactlab/contracts": "workspace:*",
@@ -25,6 +28,7 @@
     "@types/node": "22.20.5",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
+    "esbuild": "0.28.2",
     "eslint": "10.12.0",
     "typescript": "6.0.3",
     "vitest": "5.0.3"

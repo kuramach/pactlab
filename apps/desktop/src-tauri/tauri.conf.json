@@ -23,15 +23,42 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["dmg", "app", "nsis", "msi", "appimage", "deb"],
+    "targets": [
+      "dmg",
+      "app",
+      "nsis",
+      "msi",
+      "appimage",
+      "deb"
+    ],
     "category": "Business",
     "shortDescription": "Rinse your deal documents clean before they go in the room.",
-    "createUpdaterArtifacts": true
+    "createUpdaterArtifacts": true,
+    "externalBin": [
+      "binaries/rinse-engine"
+    ],
+    "resources": {
+      "resources/rinse-engine.cjs": "rinse-engine.cjs",
+      "vendor/": "vendor/"
+    },
+    "macOS": {
+      "minimumSystemVersion": "12.0",
+      "hardenedRuntime": true
+    }
   },
   "plugins": {
     "updater": {
-      "pubkey": "SET-AT-RELEASE: the minisign public key of the Rinse update signing key (docs/runbooks/rinse.md)",
-      "endpoints": ["https://pactlab.ai/rinse/releases/{{target}}/{{arch}}/{{current_version}}"]
+      "pubkey": "SET-AT-RELEASE: the minisign public key of the Rinse update signing key; CI passes it with --config (docs/runbooks/rinse.md)",
+      "endpoints": [
+        "https://pactlab.ai/rinse/releases/{{target}}/{{arch}}/{{current_version}}"
+      ]
+    },
+    "deep-link": {
+      "desktop": {
+        "schemes": [
+          "pactlab-rinse"
+        ]
+      }
     }
   }
 }
