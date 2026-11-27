@@ -1,0 +1,13 @@
+[package]
+name = "pactlab-rinse"
+version = "0.1.0"
+description = "Pactlab Rinse — rinse your deal documents clean before they go in the room."
+edition = "2021"
+publish = false
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-updater = "2"
