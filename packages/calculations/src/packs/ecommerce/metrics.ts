@@ -1,7 +1,10 @@
 import type { D } from '../../metrics/decimal';
 import type { MetricCalculator } from '../calculators';
 import { monthName } from '../common';
+import { packHistory, withHistory } from '../history';
 import type { PackMetric, PackMetricsInput, PackMetricsReport } from '../metrics-types';
+import { PNL_LINE } from '../pnl-trend';
+import { ECOMMERCE_HISTORY } from './rules';
 import { AD_SPEND_MONTH, AGED_STOCK_DAYS, CHANNEL_MONTH, channelModel, channelMonths, COHORT_MONTH, cohortValue, ECOMMERCE_CHANNELS_VERSION, inventoryAgeing, paidAcquisition, STOCK_LOT, stockLots } from './channels';
 
 type Decimal = InstanceType<typeof D>;
@@ -81,12 +84,20 @@ export function ecommerceMetrics(input: PackMetricsInput): PackMetricsReport {
       ...(ageing?.agedShare ? { value: ratio(ageing.agedShare) } : missing('stock report', ['ECOMMERCE_INVENTORY'])),
     },
   ];
-  return { calculator: 'ecommerce-channels', version: ECOMMERCE_CHANNELS_VERSION, currency: input.currency, metrics };
+  // Five years (T-184b): the P&L, orders, order value, repeat orders and the discount rate by year; order value carries a History strip.
+  const history = packHistory(ECOMMERCE_HISTORY, input.evidence);
+  return {
+    calculator: 'ecommerce-channels',
+    version: ECOMMERCE_CHANNELS_VERSION,
+    currency: input.currency,
+    metrics: metrics.map((metric) => (metric.key === 'net_order_value' ? withHistory(metric, history, 'net_order_value') : metric)),
+    history: history.table,
+  };
 }
 
 export const ECOMMERCE_METRICS_CALCULATOR: MetricCalculator<PackMetricsInput, PackMetricsReport> = {
   id: 'ecommerce-channels',
   version: ECOMMERCE_CHANNELS_VERSION,
-  evidenceTypes: [CHANNEL_MONTH, COHORT_MONTH, AD_SPEND_MONTH, STOCK_LOT],
+  evidenceTypes: [CHANNEL_MONTH, COHORT_MONTH, AD_SPEND_MONTH, STOCK_LOT, PNL_LINE],
   compute: ecommerceMetrics,
 };

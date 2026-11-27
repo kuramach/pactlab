@@ -281,6 +281,7 @@ export const PACKS: Readonly<Record<PackId, PackDefinition>> = {
       'ecommerce-pnl-trend',
       'ecommerce-pnl-margin-drift',
       'ecommerce-pnl-expense-outpacing',
+      'ecommerce-discount-trend',
     ],
     documentCategories: ['PLATFORM_ACCOUNT_RECORD', 'MARKETPLACE_AGREEMENT'],
     // Valuation methods unchanged; unit economics arrive as scenario inputs and channel risk as findings.

@@ -356,6 +356,7 @@ export const VALUATION_DIRECTION_MAP: Readonly<Record<string, readonly Direction
     { signal: 'return-rate-rising', findingDomain: 'COMMERCIAL', defaultDirection: -1, channel: 'ASSUMPTION' },
     { signal: 'cac-rising-by-year', findingDomain: 'COMMERCIAL', defaultDirection: -1, channel: 'ASSUMPTION' },
     { signal: 'contribution-compressing', findingDomain: 'COMMERCIAL', defaultDirection: -1, channel: 'ASSUMPTION' },
+    driverTrend('COMMERCIAL'),
   ],
   [ECOMMERCE_STOCK_LOT_EVIDENCE_TYPE]: [{ signal: 'aged-inventory', findingDomain: 'OPERATIONAL', defaultDirection: -1, channel: 'PRICED_TERM' }],
   // IT and professional services (T-063, T-167, ADR 0055): utilization, realization and fees by client and by partner

@@ -137,7 +137,7 @@ describe('pack registry', () => {
     expect(ecommerce.importTargets).toEqual(['BILLING_INVOICE_LINE', 'ECOMMERCE_COHORTS', 'ECOMMERCE_AD_SPEND', 'ECOMMERCE_CHANNEL_ORDERS', 'ECOMMERCE_INVENTORY']);
     // The T-065 rules stay, first and unchanged.
     expect(ecommerce.findingRules.slice(0, 3)).toEqual(['ecommerce-marketplace-majority', 'ecommerce-cohort-repeat-decline', 'ecommerce-channel-cac-rising']);
-    expect(ecommerce.findingRules).toHaveLength(12);
+    expect(ecommerce.findingRules).toHaveLength(13);
     expect(ecommerce.documentCategories).toEqual(['PLATFORM_ACCOUNT_RECORD', 'MARKETPLACE_AGREEMENT']);
     for (const target of ecommerce.importTargets.slice(1)) expect(IMPORT_TARGET_DEFINITIONS[target]).toMatchObject({ people: 'NONE', refusesPeopleColumns: true });
     expect(peopleColumnProblems(IMPORT_TARGET_DEFINITIONS.ECOMMERCE_CHANNEL_ORDERS, ['month', 'channel', 'customer_email'])).toHaveLength(1);

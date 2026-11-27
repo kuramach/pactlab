@@ -48,6 +48,8 @@ export interface DriverSpec {
   /** SUM: Σ numerator; RATIO: Σ numerator ÷ Σ denominator; LAST: Σ numerator in the year's last month. */
   readonly mode: 'SUM' | 'RATIO' | 'LAST';
   readonly numerator: readonly string[];
+  /** Fields taken off the numerator's sum: net sales are gross sales less discounts and returns. */
+  readonly numeratorLess?: readonly string[];
   readonly denominator?: readonly string[];
   /** Only rows whose field holds one of these values count in the numerator (a payer class's share, T-184b). */
   readonly numeratorWhere?: RowFilter;
@@ -55,6 +57,8 @@ export interface DriverSpec {
   readonly denominatorWhere?: RowFilter;
   /** Multiplies the value: 2 when the denominator sums opening and closing counts for subscriber-months. */
   readonly multiplier?: string;
+  /** The ratio's complement, 1 − ratio: a repeat rate from new customers ÷ orders. */
+  readonly complement?: boolean;
   /** Digits kept: money 2, ratios 4 (6 for rates under a percent), counts 0. */
   readonly scale?: number;
   readonly formula: string;
@@ -97,14 +101,16 @@ function driverYears(spec: DriverSpec, evidence: readonly PackRuleEvidence[]): {
       continue;
     }
     const rows = months.flatMap((month) => byMonth.get(month) ?? []);
+    const top = (counted: readonly PackRuleEvidence[]) => sum(counted, spec.numerator).minus(sum(counted, spec.numeratorLess ?? []));
     const counted = rows.filter(matches(spec.numeratorWhere));
     let value: Decimal | null;
-    if (spec.mode === 'LAST') value = sum((byMonth.get(`${year}-12`) ?? []).filter(matches(spec.numeratorWhere)), spec.numerator);
-    else if (spec.mode === 'SUM') value = sum(counted, spec.numerator);
+    if (spec.mode === 'LAST') value = top((byMonth.get(`${year}-12`) ?? []).filter(matches(spec.numeratorWhere)));
+    else if (spec.mode === 'SUM') value = top(counted);
     else {
       const denominator = sum(rows.filter(matches(spec.denominatorWhere)), spec.denominator ?? []);
-      value = denominator.isZero() ? null : sum(counted, spec.numerator).div(denominator);
+      value = denominator.isZero() ? null : top(counted).div(denominator);
     }
+    if (value && spec.complement) value = new D(1).minus(value);
     if (value && spec.multiplier) value = value.times(spec.multiplier);
     years.push({ year, value: value ? value.toFixed(scale) : null, evidenceIds: rows.map((row) => row.id) });
   }
