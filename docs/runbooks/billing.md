@@ -55,7 +55,7 @@ With no Stripe keys, checkout goes to `/billing/fixture-checkout`, a stand-in th
 
 ## Go-live checklist (Kumar)
 1. A legal entity, its EIN, and a business bank account.
-2. The Stripe account activated, with live-mode products and prices created.
+2. The Stripe account activated, with live-mode products and prices created. Per-pact prices are no longer an open question: they are the price book's values (`docs/pricing-research.md` §6; ADR 0025 addendum T-177), one book per launch currency, each confirmed by Kumar in the console before its market goes live.
 3. Live keys in SSM, and the live webhook endpoint registered with the events above.
 4. `billing-plans.ts set` run for every plan on live.
 5. The tax setting decided with a CPA (`STRIPE_AUTOMATIC_TAX`); VAT numbers are collected at checkout either way.
