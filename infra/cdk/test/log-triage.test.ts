@@ -296,11 +296,11 @@ describe('the CDK resources', () => {
     expect(app?.Properties.RetentionInDays).toBeGreaterThanOrEqual(30);
   });
 
-  it('runs once a day, starts in dry run, and retains its state and token', () => {
+  it('runs once a day, live since Kumar approved it (2026-11-26), and retains its state and token', () => {
     live.hasResourceProperties('AWS::Events::Rule', { Name: 'pactlab-prod-log-triage', ScheduleExpression: 'cron(0 13 * * ? *)' });
     live.hasResourceProperties('AWS::Lambda::Function', {
       Runtime: 'nodejs22.x',
-      Environment: { Variables: Match.objectLike({ DRY_RUN: 'true', RECIPIENT: 'kumar@pactlab.ai', GITHUB_REPO: 'kuramach/pactlab', MODEL_ID: 'us.anthropic.claude-sonnet-5-5' }) },
+      Environment: { Variables: Match.objectLike({ DRY_RUN: 'false', RECIPIENT: 'kumar@pactlab.ai', GITHUB_REPO: 'kuramach/pactlab', MODEL_ID: 'us.anthropic.claude-sonnet-5-5' }) },
       Handler: 'index.handler',
     });
     live.hasResource('AWS::DynamoDB::Table', { DeletionPolicy: 'Retain', Properties: Match.objectLike({ BillingMode: 'PAY_PER_REQUEST', TableName: 'pactlab-prod-log-triage' }) });
