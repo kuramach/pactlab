@@ -151,7 +151,7 @@ describe.each(ACCEPTANCE_CURRENCIES)('telecom and media pack acceptance (%s)', {
     };
     expect(metrics.history?.years).toEqual(YEARS.map((year) => `FY${year}`));
     expect(metrics.history?.rows.find((row) => row.key === 'monthly_churn')?.values).toEqual(YEARS.map(churnOf));
-    expect(metrics.history?.coverage.map((entry) => entry.summary)).toEqual(['FY2021–FY2025 (5 of 5 years)', 'FY2021–FY2025 (5 of 5 years)']);
+    expect(metrics.history?.coverage.map((entry) => entry.summary)).toEqual(['FY2021–FY2025 (5 years; earlier years not provided)', 'FY2021–FY2025 (5 years; earlier years not provided)']);
     expect(metrics.history?.asks).toEqual([]);
     expect(metrics.metrics.find((metric) => metric.key === 'arpu')?.history?.map((point) => point.period)).toEqual(YEARS.map((year) => `FY${year}`));
     expect(Number(metrics.metrics.find((metric) => metric.key === 'monthly_churn')?.value)).toBeCloseTo(0.015, 2);
@@ -202,8 +202,8 @@ describe.each(ACCEPTANCE_CURRENCIES)('telecom and media pack acceptance (%s)', {
     expect(after.subscribers.years).toHaveLength(5);
     // Partial history (T-184b): no income and expenses; the coverage says so and the seller is asked for them.
     const partial = (await deal.call('GET', `/v1/deals/${deal.dealId}/metrics/pack`, 'lead')).body as PackMetricsBody;
-    expect(partial.history?.coverage.find((entry) => entry.key === 'operating')?.summary).toBe('No income and expenses imported yet: ask the seller for FY2021–FY2025 income statements');
-    expect(partial.history?.asks).toEqual([{ needs: ['INCOME_STATEMENT'], note: 'Ask the seller for FY2021–FY2025 income statements.' }]);
+    expect(partial.history?.coverage.find((entry) => entry.key === 'operating')?.summary).toBe('No income and expenses imported yet: ask the seller for FY2021–FY2025 income statements, or tell us the business started later');
+    expect(partial.history?.asks).toEqual([{ needs: ['INCOME_STATEMENT'], note: 'Ask the seller for FY2021–FY2025 income statements, or tell us the business started later.' }]);
   });
 
   it('is refused to a target contributor and invisible to another tenant', async () => {

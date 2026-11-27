@@ -30,6 +30,10 @@ export interface PackMetric {
   readonly coverage?: string;
   /** Show the history as a strip under the figure on Home (T-184); multifamily names its strips on the screen. */
   readonly historyStrip?: boolean;
+  /** A line beside the figure, e.g. "Recovered to the FY2008 peak in FY2012 (3 years)" (T-185). */
+  readonly note?: string;
+  /** A worst-year figure's recovery (T-185): the peak it fell from and the year it was regained, null when not yet. */
+  readonly recovery?: { readonly fallYear: string; readonly peakYear: string; readonly recoveredYear: string | null; readonly years: number | null };
 }
 
 /**
@@ -38,10 +42,16 @@ export interface PackMetric {
  */
 export interface PackHistory {
   readonly version: string;
-  /** Fiscal years every pack expects (5). */
+  /** Fiscal years every pack expects at least (5); fewer when the business started later (T-185). */
   readonly expectedYears: number;
-  /** Year labels, oldest first, e.g. FY2022. */
+  /** Every year read, oldest first, e.g. FY2007 … FY2026: up to 30 (T-185). */
   readonly years: readonly string[];
+  /** The history start applied: the year the business started, or null when none is set (T-185). */
+  readonly historyStartYear?: number | null;
+  /** The latest five years, the period the trend rules and five-year figures read (T-185). */
+  readonly recentYears?: readonly string[];
+  /** Figures over the full history (T-185): long-run growth, the worst year and its recovery, through-cycle averages. */
+  readonly longRun?: readonly PackMetric[];
   readonly rows: readonly { readonly key: string; readonly label: string; readonly unit: 'MONEY' | 'RATIO' | 'COUNT'; readonly values: readonly (string | null)[] }[];
   readonly coverage: readonly { readonly key: string; readonly label: string; readonly present: readonly string[]; readonly missing: readonly string[]; readonly summary: string }[];
   /** An ask of the seller per kind of history with missing years: the imports it needs and the request's words. */
@@ -54,11 +64,13 @@ export interface PackMetricsReport {
   readonly version: string;
   readonly currency: string;
   readonly metrics: readonly PackMetric[];
-  /** Five years side by side, when the pack reads history (T-183). */
+  /** Every year read side by side, when the pack reads history (T-183, T-185). */
   readonly history?: PackHistory;
 }
 
 export interface PackMetricsInput {
   readonly currency: string;
   readonly evidence: readonly PackRuleEvidence[];
+  /** The pact's history start (T-185): never ask for years before it. */
+  readonly historyStartYear?: number | null;
 }

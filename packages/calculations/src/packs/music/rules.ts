@@ -1,5 +1,5 @@
 import { D } from '../../metrics/decimal';
-import { MUSIC_INCOME_TREND } from './history';
+import { MUSIC_INCOME_TREND, MUSIC_RECENT_RUN } from './history';
 import { grouped, moneyIn, percent } from '../common';
 import { collapse, findSentence, MAX_CITED, sentences, type PackRule, type PackRulePage, type PackRuleProposal, type PackRuleQuote } from '../rule-types';
 import { catalogRows, incomeModel, MUSIC_EVIDENCE, MUSIC_EVIDENCE_TYPES, MUSIC_THRESHOLDS, statedHoldYears, statementGaps, terminationExposure, writerIncome, type CatalogRows } from './catalog';
@@ -340,4 +340,5 @@ export const MUSIC_RULES: readonly PackRule[] = [
   MUSIC_STATEMENT_GAP,
   MUSIC_VERIFIED_GROWTH,
   MUSIC_INCOME_TREND,
+  MUSIC_RECENT_RUN,
 ];

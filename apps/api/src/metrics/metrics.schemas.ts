@@ -19,3 +19,9 @@ export const approveSchema = z.strictObject({
   note: z.string().trim().min(3).max(2000),
 });
 export type ApproveCommand = z.infer<typeof approveSchema>;
+
+/** The pact's history start (T-185): a year, or null to clear it. Never after this year. */
+export const historyStartSchema = z.strictObject({
+  year: z.union([z.int().min(1800).refine((year) => year <= new Date().getUTCFullYear(), 'Not after this year'), z.null()]),
+});
+export type HistoryStartCommand = z.infer<typeof historyStartSchema>;

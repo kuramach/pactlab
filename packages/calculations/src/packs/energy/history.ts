@@ -1,4 +1,4 @@
-import { driverTrendRule, type DriverSpec, type PackHistorySpec } from '../history';
+import { driverTrendRule, recentRunRule, type DriverSpec, type PackHistorySpec } from '../history';
 import { ENERGY_EVIDENCE } from './assets';
 
 /**
@@ -37,3 +37,6 @@ export const ENERGY_GENERATION_TREND = driverTrendRule(
   },
   ENERGY_HISTORY,
 );
+
+/** The recent run against the long run (T-185). */
+export const ENERGY_RECENT_RUN = recentRunRule('energy', ENERGY_HISTORY);

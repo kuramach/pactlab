@@ -1,4 +1,4 @@
-import { apiGet, apiPost } from '../../deals/_lib/api';
+import { apiGet, apiPost, apiSend } from '../../deals/_lib/api';
 
 export { apiPost };
 
@@ -148,9 +148,14 @@ export interface PackMetricsView {
     coverage?: string;
     /** Show the history as a strip on Home (T-184). */
     historyStrip?: boolean;
+    /** A line beside the figure, e.g. a worst year's recovery (T-185). */
+    note?: string;
+    recovery?: { fallYear: string; peakYear: string; recoveredYear: string | null; years: number | null };
   }[];
-  /** Five years side by side (T-183). */
+  /** Every year read side by side (T-183, T-185). */
   history?: PackHistoryView;
+  /** The year the business started (T-185), and a year a pack field holds to prefill it with. */
+  historyStart?: { year: number | null; suggested: { year: number; from: string } | null };
 }
 
 /** The years side by side (T-183, ADR 0057), with coverage and what to ask the seller for. */
@@ -161,6 +166,12 @@ export interface PackHistoryView {
   rows: { key: string; label: string; unit: 'MONEY' | 'RATIO' | 'COUNT'; values: (string | null)[] }[];
   coverage: { key: string; label: string; present: string[]; missing: string[]; summary: string }[];
   asks: { needs: string[]; note: string }[];
+  /** The history start applied (T-185). */
+  historyStartYear?: number | null;
+  /** The latest five years: what the trend checks and five-year figures read (T-185). */
+  recentYears?: string[];
+  /** Long-run growth, the worst year and through-cycle averages over every year read (T-185). */
+  longRun?: PackMetricsView['metrics'];
   conventions: string[];
 }
 
@@ -170,6 +181,7 @@ export const metricsApi = {
     apiGet<MetricsSummaryView>(`${base(dealId)}/summary${query(asOf)}`),
   cohorts: (dealId: string, asOf?: string) =>
     apiGet<CohortsView>(`${base(dealId)}/cohorts${query(asOf)}`),
+  historyStart: (dealId: string, year: number | null) => apiSend<{ historyStartYear: number | null }>('PUT', `${base(dealId)}/history-start`, { year }),
   reconcile: (dealId: string, asOf: string) =>
     apiPost<MetricsSummaryView>(`${base(dealId)}/reconcile`, { asOf }),
   approve: (dealId: string, reconciliationId: string, asOf: string, note: string) =>

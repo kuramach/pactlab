@@ -2,7 +2,7 @@ import { D, parseDecimal } from '../../metrics/decimal';
 import type { KeyExpense } from '../../pnl/trend';
 import { amountOf, grouped, INVOICE_LINE, latestMonthRevenue, monthName, percent } from '../common';
 import { billingCurrency } from '../ecommerce/channels';
-import { driverTrendRule, type DriverSpec, type PackHistorySpec } from '../history';
+import { driverTrendRule, recentRunRule, type DriverSpec, type PackHistorySpec } from '../history';
 import { PNL_LINE, pnlTrendRules } from '../pnl-trend';
 import { findSentence, MAX_CITED, type PackRule, type PackRuleEvidence, type PackRuleProposal } from '../rule-types';
 import {
@@ -471,5 +471,7 @@ export const SERVICES_RULES: readonly PackRule[] = [
   SERVICES_PNL_MARGIN_DRIFT,
   SERVICES_PNL_EXPENSE_OUTPACING,
   SERVICES_UTILIZATION_TREND,
+  // The recent run against the long run (T-185): quiet until ten years or more are read.
+  recentRunRule('services', SERVICES_HISTORY),
 ];
 export const SERVICES_EVIDENCE = { TIMESHEETS, HEADCOUNT, BILLING_MONTH, AGEING_BAND } as const;

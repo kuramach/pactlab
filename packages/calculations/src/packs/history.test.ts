@@ -32,7 +32,7 @@ describe('pack history (T-184)', () => {
     expect(result.drivers.get('closing')?.map((year) => year.value)).toEqual(Array(5).fill('120'));
     expect(result.table.rows.find((row) => row.key === 'revenue')?.values).toEqual(Array(5).fill('1000.00'));
     expect(result.table.rows.find((row) => row.key === 'operating_margin')?.values).toEqual(Array(5).fill('0.4000'));
-    expect(result.table.coverage.map((entry) => entry.summary)).toEqual(['FY2021–FY2025 (5 of 5 years)', 'FY2021–FY2025 (5 of 5 years)']);
+    expect(result.table.coverage.map((entry) => entry.summary)).toEqual(['FY2021–FY2025 (5 years; earlier years not provided)', 'FY2021–FY2025 (5 years; earlier years not provided)']);
     expect(result.table.asks).toEqual([]);
   });
 
@@ -41,15 +41,15 @@ describe('pack history (T-184)', () => {
     expect(result.drivers.get('volume')?.map((year) => year.year)).toEqual(['2025']);
     expect(result.table.rows.find((row) => row.key === 'volume')?.values).toEqual([null, null, null, null, '1200.00']);
     expect(result.table.coverage.map((entry) => entry.summary)).toEqual([
-      'FY2025 (1 of 5 years): ask the seller for FY2021–FY2024 income statements',
-      'FY2025 (1 of 5 years): ask the seller for FY2021–FY2024 test export history',
+      'FY2025 (1 of 5 years): ask the seller for FY2021–FY2024 income statements, or tell us the business started later',
+      'FY2025 (1 of 5 years): ask the seller for FY2021–FY2024 test export history, or tell us the business started later',
     ]);
     expect(result.table.asks).toEqual([
-      { needs: ['INCOME_STATEMENT'], note: 'Ask the seller for FY2021–FY2024 income statements.' },
-      { needs: ['TEST_EXPORT'], note: 'Ask the seller for FY2021–FY2024 test export history.' },
+      { needs: ['INCOME_STATEMENT'], note: 'Ask the seller for FY2021–FY2024 income statements, or tell us the business started later.' },
+      { needs: ['TEST_EXPORT'], note: 'Ask the seller for FY2021–FY2024 test export history, or tell us the business started later.' },
     ]);
     const metric = withHistory({ key: 'volume', label: 'Volume', unit: 'MONEY', value: '1200.00', formula: '', sourceCount: 12 }, result, 'volume');
-    expect(metric.coverage).toBe('FY2025 (1 of 5 years): ask the seller for FY2021–FY2024');
+    expect(metric.coverage).toBe('FY2025 (1 of 5 years): ask the seller for FY2021–FY2024 test export history, or tell us the business started later');
     expect(metric.history?.map((point) => point.value)).toEqual([null, null, null, null, '1200.00']);
   });
 

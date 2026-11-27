@@ -629,6 +629,8 @@ model Deal {
   persona              String?
   /// The property's address for market rents (T-158) when no listing names one; asked once, audited.
   propertyAddress      String?         @map("property_address")
+  /// The year the business started (or the property was built or acquired, or the earliest year the seller can provide); never ask for years before it (T-185). Audited.
+  historyStartYear     Int?            @map("history_start_year")
   /// Set when the deal lead deletes the deal (status DELETED); one-way.
   deletedAt            DateTime?       @map("deleted_at") @db.Timestamptz(3)
   deletedBy            String?         @map("deleted_by") @db.Uuid

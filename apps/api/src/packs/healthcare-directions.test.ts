@@ -40,6 +40,7 @@ const SIGNALS: Readonly<Record<string, (key: string) => readonly [string, string
   'healthcare-pnl-trend': () => [PNL_LINE_EVIDENCE_TYPE, 'trend'],
   'healthcare-pnl-margin-drift': () => [PNL_LINE_EVIDENCE_TYPE, 'margin-drift'],
   'healthcare-pnl-expense-outpacing': () => [PNL_LINE_EVIDENCE_TYPE, 'expense-outpacing'],
+  'healthcare-recent-run': () => [PNL_LINE_EVIDENCE_TYPE, 'recent-run'],
   'healthcare-visits-trend': () => [HEALTHCARE_CLINICIAN_MONTH_EVIDENCE_TYPE, DRIVER_TREND_SIGNAL],
 };
 

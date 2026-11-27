@@ -74,7 +74,7 @@ export function telecomMetrics(input: PackMetricsInput): PackMetricsReport {
     },
   ];
   // Five years (T-184b): the P&L and the movements by year; subscribers, churn and ARPU carry a History strip.
-  const history = packHistory(TELECOM_HISTORY, input.evidence);
+  const history = packHistory(TELECOM_HISTORY, input.evidence, input);
   const strips = new Set(['subscribers', 'monthly_churn', 'arpu']);
   return {
     calculator: 'telecom-subscribers',

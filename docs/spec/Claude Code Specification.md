@@ -1528,6 +1528,13 @@ Five further packs in two clusters. Hotels, multifamily and commercial property 
 - **On screen:** a History strip on Home → Property metrics (NOI, occupancy, average rent), and the years side by side on Finances.
 - **Fixtures and acceptance:** `pactlab-demo-data/multifamily/{USD,EUR,GBP}` and `multifamily-syndication` — FY2022–FY2026 (October to September), the T-12 the last twelve months of it; planted (a) occupancy slipping from about 95% to about 89%, (b) repairs and maintenance outpacing rent, (c) an FY2026 NOI jump from deferred repairs and a one-off insurance refund surface as cited drafts once; two years alone read as "2 of 5 years" with an ask (`apps/api/src/packs/multifamily.acceptance.api.test.ts`).
 
+**7c. History of any length (T-185, ADR 0057 addendum, 2026-11-27) — every pack**
+
+- **Every complete year provided is read**, up to 30; five years is the minimum expected. The existing trend rules and five-year figures read the latest five years.
+- **Long-run figures** over the full history: 10-year and full-history growth, the worst year and its recovery, through-cycle margin and key-driver averages; a new draft, `<pack>-recent-run`, when the last five years' average sits 3 points or more above the full history's (over ten years or more).
+- **A history start on the pact** (`deals.history_start_year`, audited): the expected years are max(latest − 4, start) … latest, so a business is never asked for years before it existed; with none set the ask adds "…or tell us the business started later".
+- **Fixtures and acceptance:** `pactlab-demo-data/multifamily/{USD,EUR,GBP}` runs FY2007–FY2026 with a 2009 downturn and a recent run above the long-run average (`apps/api/src/packs/multifamily.acceptance.api.test.ts`); `venture-raise/USD` began trading in 2024 and reads "2 of 2 years since the business started" (`apps/api/src/packs/young-company.acceptance.api.test.ts`).
+
 **8. Commercial property (office, retail, industrial)**
 
 - Acquisitions of single assets and portfolios by real-estate funds and REITs.

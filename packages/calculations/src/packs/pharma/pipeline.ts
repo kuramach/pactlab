@@ -3,7 +3,7 @@ import { expectedClosing, wholeMonths } from '../clinics/practice';
 import { INVOICE_LINE, rowMonth } from '../common';
 import { dateIn, lastDayOfMonth } from '../fintech/payments';
 import { statedHoldYears } from '../music/catalog';
-import { trendOf } from '../pnl-trend';
+import { recentTrendOf } from '../pnl-trend';
 import type { KeyExpense, TrendYear } from '../../pnl/trend';
 import { sentences, type PackRuleEvidence, type PackRulePage, type PackRuleQuote } from '../rule-types';
 
@@ -733,7 +733,7 @@ export interface RdBurn {
 
 /** R&D spend by imported fiscal year, from the P&L lines that name it. */
 export function rdBurn(evidence: readonly PackRuleEvidence[]): RdBurn {
-  const trend = trendOf(evidence, PHARMA_KEY_EXPENSES);
+  const trend = recentTrendOf(evidence, PHARMA_KEY_EXPENSES);
   const years = trend.years.flatMap((year: TrendYear) => {
     const rd = year.ratios.find((ratio) => ratio.key === 'rd');
     return rd && new D(rd.amount).gt(0) ? [{ year: year.year, amount: new D(rd.amount), evidenceIds: rd.evidenceIds }] : [];

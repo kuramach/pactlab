@@ -79,7 +79,7 @@ export function pharmaMetrics(input: PackMetricsInput): PackMetricsReport {
     },
   ];
   // Five years (T-184b): the P&L (R&D among its key expenses) and each product's billed revenue by year.
-  return { calculator: 'pharma-pipeline', version: PHARMA_PIPELINE_VERSION, currency: input.currency, metrics, history: packHistory(pharmaHistory(input.evidence), input.evidence).table };
+  return { calculator: 'pharma-pipeline', version: PHARMA_PIPELINE_VERSION, currency: input.currency, metrics, history: packHistory(pharmaHistory(input.evidence), input.evidence, input).table };
 }
 
 export const PHARMA_METRICS_CALCULATOR: MetricCalculator<PackMetricsInput, PackMetricsReport> = {

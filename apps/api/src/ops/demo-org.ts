@@ -49,6 +49,7 @@ import { FileSystemObjectStore } from '../documents/storage-adapters';
 import { SignatureMalwareScanner } from '../documents/upload-policy';
 import { FindingsService } from '../findings/findings.service';
 import { ImportsService } from '../imports/imports.service';
+import { MetricsService } from '../metrics/metrics.service';
 import { ListingsService } from '../listings/listings.service';
 import { PactsService } from '../pacts/pacts.service';
 import { FinancingService } from '../financing/financing.service';
@@ -273,7 +274,12 @@ async function spvVehicle(app: App, buyer: TenantContext, dealId: string): Promi
  */
 export const FINTECH_PNL_FILE = 'pnl.csv';
 /** The packs whose demo data carries a P&L by year. */
-export const PNL_BY_YEAR_PACKS: readonly CompanyType[] = ['SOFTWARE_SAAS', 'FINTECH', 'HEALTHCARE', 'SMALL_CLINICS', 'PHARMA_BIOTECH', 'ECOMMERCE_DTC', 'PROFESSIONAL_SERVICES', 'TELECOM_MEDIA', 'MULTIFAMILY', 'MULTIFAMILY_SYNDICATION'];
+export const PNL_BY_YEAR_PACKS: readonly CompanyType[] = ['SOFTWARE_SAAS', 'FINTECH', 'HEALTHCARE', 'SMALL_CLINICS', 'PHARMA_BIOTECH', 'ECOMMERCE_DTC', 'PROFESSIONAL_SERVICES', 'TELECOM_MEDIA', 'MULTIFAMILY', 'MULTIFAMILY_SYNDICATION', 'VENTURE_RAISE'];
+/**
+ * The year each demo business started, where its history is shorter than five years (T-185): Loopwise, the venture
+ * raise, began trading in January 2024, so its two years read "2 of 2 years since the business started".
+ */
+export const HISTORY_START_YEARS: Partial<Record<CompanyType, number>> = { VENTURE_RAISE: 2024 };
 export const pnlLineKind = (account: string) => (/revenue/i.test(account) ? 'REVENUE' : /^cost of/i.test(account) ? 'COGS' : 'OPEX');
 async function packPnl(app: App, buyer: TenantContext, dealId: string, data: DemoDataSource, type: CompanyType): Promise<string> {
   const imports = app.get(ImportsService, { strict: false });
@@ -442,6 +448,8 @@ export async function buildPact(app: App, owner: OwnerSession, people: People, t
   }
   // A pack's P&L by year (T-159, T-160, T-161, T-163, T-164, T-167, T-168), before the checks run so the multi-year trend reads every year.
   if (PNL_BY_YEAR_PACKS.includes(type)) await step('pnl', () => packPnl(app, buyer, dealId, data, type));
+  const startYear = HISTORY_START_YEARS[type];
+  if (startYear !== undefined) await step('history start', async () => { await app.get(MetricsService, { strict: false }).setHistoryStart(buyer, dealId, startYear, REQUEST_ID); return `history start: ${startYear}`; });
   // The paged documents some checks cite (PDFs, with the extracts' paged copy kept to the financial class).
   const uploaded: Record<string, string> = {};
   for (const file of (await data.documents(type)).filter((name) => name.endsWith('.pdf'))) {

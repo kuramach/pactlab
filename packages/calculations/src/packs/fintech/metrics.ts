@@ -67,7 +67,7 @@ export function fintechMetrics(input: PackMetricsInput): PackMetricsReport {
     { key: 'aml_unreviewed', label: 'Closed alerts without review evidence', unit: 'RATIO', formula: 'Closed alerts with no review evidence ÷ closed alerts', sourceCount: closed.length, ...(closed.length ? { value: ratio(new D(unreviewed.length).div(closed.length)) } : missing('AML alerts', ['FINTECH_AML_ALERT'])) },
   ];
   // Five years (T-184): the P&L and the export by year; TPV, take rate and loss rate carry a History strip.
-  const history = packHistory(FINTECH_HISTORY, input.evidence);
+  const history = packHistory(FINTECH_HISTORY, input.evidence, input);
   const strips: Readonly<Record<string, string>> = { tpv: 'tpv', take_rate: 'take_rate' };
   return {
     calculator: 'fintech-payments',

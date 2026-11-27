@@ -88,6 +88,7 @@ const MULTIFAMILY: PackDefinition = {
     'multifamily-occupancy-erosion',
     'multifamily-rent-below-expense-growth',
     'multifamily-noi-spike',
+    'multifamily-recent-run',
     'multifamily-pnl-trend',
     'multifamily-pnl-margin-drift',
     'multifamily-pnl-expense-outpacing',
@@ -116,7 +117,7 @@ const VENTURE_RAISE: PackDefinition = {
 export const PACKS: Readonly<Record<PackId, PackDefinition>> = {
   SOFTWARE_SAAS: {
     ...pack('SOFTWARE_SAAS', 'software-saas', 'technology', true),
-    findingRules: ['saas-reported-arr', 'saas-revenue-concentration', 'saas-customer-change-of-control', 'saas-hidden-contraction', 'saas-pnl-trend', 'saas-pnl-margin-drift', 'saas-pnl-expense-outpacing', 'saas-nrr-trend'],
+    findingRules: ['saas-reported-arr', 'saas-revenue-concentration', 'saas-customer-change-of-control', 'saas-hidden-contraction', 'saas-pnl-trend', 'saas-pnl-margin-drift', 'saas-pnl-expense-outpacing', 'saas-nrr-trend', 'saas-recent-run'],
   },
   // Payments and lending (T-058, extended by T-159, ADR 0050): the software path runs as it is; the
   // pack adds the loan tape and AML alerts, the processor export (volume, take rate and loss rates
@@ -139,6 +140,7 @@ export const PACKS: Readonly<Record<PackId, PackDefinition>> = {
       'fintech-pnl-expense-outpacing',
       'fintech-take-rate-trend',
       'fintech-loss-rate-trend',
+      'fintech-recent-run',
     ],
     documentCategories: ['REGULATORY_LICENCE', 'SPONSOR_BANK_AGREEMENT', 'PCI_ATTESTATION', 'AML_PROGRAM', 'REGULATORY_EXAM'],
   },
@@ -175,6 +177,7 @@ export const PACKS: Readonly<Record<PackId, PackDefinition>> = {
       'healthcare-pnl-margin-drift',
       'healthcare-pnl-expense-outpacing',
       'healthcare-visits-trend',
+      'healthcare-recent-run',
     ],
     documentCategories: ['LICENCE_VERIFICATION', 'CODING_AUDIT', 'HIPAA_RISK_ASSESSMENT', 'PAYER_CONTRACT', 'RESTRICTIVE_COVENANTS'],
     // Healthtech targets also run the software path (ARR multiple); services value on DCF.
@@ -202,6 +205,7 @@ export const PACKS: Readonly<Record<PackId, PackDefinition>> = {
       'telecom-pnl-margin-drift',
       'telecom-pnl-expense-outpacing',
       'telecom-churn-trend',
+      'telecom-recent-run',
     ],
     documentCategories: ['RIGHTS_AGREEMENT'],
     // Subscriber revenue runs the SaaS metrics as they are (ARPU ≈ MRR per account, churn ≈ logo churn).
@@ -228,6 +232,7 @@ export const PACKS: Readonly<Record<PackId, PackDefinition>> = {
       'services-pnl-margin-drift',
       'services-pnl-expense-outpacing',
       'services-utilization-trend',
+      'services-recent-run',
     ],
     documentCategories: ['COVENANT_REGISTER'],
     // People-driven earnings value on DCF; retainer revenue also reads as recurring.
@@ -283,6 +288,7 @@ export const PACKS: Readonly<Record<PackId, PackDefinition>> = {
       'ecommerce-pnl-margin-drift',
       'ecommerce-pnl-expense-outpacing',
       'ecommerce-discount-trend',
+      'ecommerce-recent-run',
     ],
     documentCategories: ['PLATFORM_ACCOUNT_RECORD', 'MARKETPLACE_AGREEMENT'],
     // Valuation methods unchanged; unit economics arrive as scenario inputs and channel risk as findings.
@@ -345,6 +351,7 @@ export const PACKS: Readonly<Record<PackId, PackDefinition>> = {
       'clinics-pnl-margin-drift',
       'clinics-pnl-expense-outpacing',
       'healthcare-visits-trend',
+      'healthcare-recent-run',
     ],
     documentCategories: ['LICENCE_VERIFICATION', 'CODING_AUDIT', 'HIPAA_RISK_ASSESSMENT', 'PAYER_CONTRACT'],
     // The premises check reads the clinic lease, so intake asks for it.
@@ -389,6 +396,7 @@ export const PACKS: Readonly<Record<PackId, PackDefinition>> = {
       'music-statement-gap',
       'music-verified-growth',
       'music-income-trend',
+      'music-recent-run',
     ],
     valuationMethods: ['ARR_MULTIPLE', 'DCF'],
     methodLabels: {
@@ -418,6 +426,7 @@ export const PACKS: Readonly<Record<PackId, PackDefinition>> = {
       'energy-compliance-capex-gap',
       'energy-reserve-report-missing',
       'energy-generation-trend',
+      'energy-recent-run',
     ],
     valuationMethods: ['DCF', 'ARR_MULTIPLE'],
     methodLabels: {

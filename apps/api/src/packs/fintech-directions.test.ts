@@ -25,6 +25,7 @@ const SIGNALS: Readonly<Record<string, (key: string) => readonly [string, string
   'fintech-pnl-trend': () => [PNL_LINE_EVIDENCE_TYPE, 'trend'],
   'fintech-pnl-margin-drift': () => [PNL_LINE_EVIDENCE_TYPE, 'margin-drift'],
   'fintech-pnl-expense-outpacing': () => [PNL_LINE_EVIDENCE_TYPE, 'expense-outpacing'],
+  'fintech-recent-run': () => [PNL_LINE_EVIDENCE_TYPE, 'recent-run'],
   // Driver trends over five years (T-184, T-184b): one driver-trend signal per evidence type.
   'fintech-take-rate-trend': () => [FINTECH_PROCESSOR_MONTH_EVIDENCE_TYPE, DRIVER_TREND_SIGNAL],
   'fintech-loss-rate-trend': () => [FINTECH_PROCESSOR_MONTH_EVIDENCE_TYPE, DRIVER_TREND_SIGNAL],

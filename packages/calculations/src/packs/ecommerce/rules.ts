@@ -1,7 +1,7 @@
 import { D } from '../../metrics/decimal';
 import type { KeyExpense } from '../../pnl/trend';
 import { amountOf, grouped, INVOICE_LINE, latestMonthRevenue, monthName, percent } from '../common';
-import { driverTrendRule, type DriverSpec, type PackHistorySpec } from '../history';
+import { driverTrendRule, recentRunRule, type DriverSpec, type PackHistorySpec } from '../history';
 import { PNL_LINE, pnlTrendRules } from '../pnl-trend';
 import { findSentence, MAX_CITED, type PackRule, type PackRuleEvidence, type PackRuleProposal } from '../rule-types';
 import {
@@ -551,5 +551,7 @@ export const ECOMMERCE_RULES: readonly PackRule[] = [
   ECOMMERCE_PNL_MARGIN_DRIFT,
   ECOMMERCE_PNL_EXPENSE_OUTPACING,
   ECOMMERCE_DISCOUNT_TREND,
+  // The recent run against the long run (T-185): quiet until ten years or more are read.
+  recentRunRule('ecommerce', ECOMMERCE_HISTORY),
 ];
 export const ECOMMERCE_EVIDENCE = { COHORT, AD_SPEND, CHANNEL_MONTH, STOCK_LOT } as const;

@@ -98,7 +98,7 @@ describe.each(ACCEPTANCE_CURRENCIES)('software & saas pack acceptance (%s)', { t
     expect(metrics.history?.rows.find((row) => row.key === 'nrr')?.values).toEqual(nrr);
     expect(metrics.history?.rows.find((row) => row.key === 'grr')?.values.slice(1).every((value) => value !== null && Number(value) <= 1)).toBe(true);
     expect(metrics.history?.rows.find((row) => row.key === 'logo_churn')?.values[0]).toBeNull();
-    expect(metrics.history?.coverage.map((entry) => entry.summary)).toEqual(['FY2021–FY2025 (5 of 5 years)', 'FY2021–FY2025 (5 of 5 years)']);
+    expect(metrics.history?.coverage.map((entry) => entry.summary)).toEqual(['FY2021–FY2025 (5 years; earlier years not provided)', 'FY2021–FY2025 (5 years; earlier years not provided)']);
     expect(metrics.history?.asks).toEqual([]);
   });
 
@@ -106,8 +106,8 @@ describe.each(ACCEPTANCE_CURRENCIES)('software & saas pack acceptance (%s)', { t
     const withdrawn = await deal.call('POST', `/v1/deals/${deal.dealId}/uploads/${pnlUploadId}/withdraw`, 'lead', { reason: 'Wrong version of the statement (synthetic)' });
     expect(withdrawn.status, JSON.stringify(withdrawn.body)).toBe(200);
     const partial = (await deal.call('GET', `/v1/deals/${deal.dealId}/metrics/pack`, 'lead')).body as PackMetricsBody;
-    expect(partial.history?.coverage.find((entry) => entry.key === 'operating')?.summary).toBe('No income and expenses imported yet: ask the seller for FY2021–FY2025 income statements');
-    expect(partial.history?.asks).toEqual([{ needs: ['INCOME_STATEMENT'], note: 'Ask the seller for FY2021–FY2025 income statements.' }]);
+    expect(partial.history?.coverage.find((entry) => entry.key === 'operating')?.summary).toBe('No income and expenses imported yet: ask the seller for FY2021–FY2025 income statements, or tell us the business started later');
+    expect(partial.history?.asks).toEqual([{ needs: ['INCOME_STATEMENT'], note: 'Ask the seller for FY2021–FY2025 income statements, or tell us the business started later.' }]);
   });
 
   it('is refused to another tenant', async () => {

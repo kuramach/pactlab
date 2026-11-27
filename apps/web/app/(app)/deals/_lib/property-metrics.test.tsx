@@ -6,7 +6,7 @@ vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 vi.mock('./market-rents-actions', () => ({ checkMarketRents: vi.fn() }));
 
 import { marketRentsOffer, type MarketRentsStatus } from './market-rents';
-import { HistoryTable, missingImports, needsLabel, PropertyMetricsCard, requestNote } from './property-metrics';
+import { HistoryStrip, HistoryTable, missingImports, needsLabel, PropertyMetricsCard, requestNote, START_QUESTION, withStartQuestion } from './property-metrics';
 
 const report = {
   calculator: 'multifamily-metrics',
@@ -151,5 +151,31 @@ describe('five years of history (T-183)', () => {
     expect(html).toContain('aria-label="Processed volume (TPV), trailing, by year"');
     expect(html).toContain('FY2021–FY2025 (5 of 5 years)');
     expect(html).not.toContain('aria-label="Transactions, trailing, by year"');
+  });
+
+  it('shows the last ten years in the strip, every year in a scrolling table, and the long-run figures (T-185)', () => {
+    const years = Array.from({ length: 20 }, (_, index) => `FY${2007 + index}`);
+    const strip = renderToStaticMarkup(
+      <HistoryStrip metric={{ label: 'Occupancy', unit: 'RATIO', coverage: 'FY2007–FY2026 (20 years)', history: years.map((period) => ({ period, value: '0.9000' })) }} currency="USD" />,
+    );
+    expect(strip).toContain('The last 10 years shown; every year is in the years table on Finances.');
+    expect(strip).toContain('FY2007–FY2026 (20 years)');
+    const long = {
+      ...history,
+      years,
+      rows: [{ key: 'noi', label: 'Net operating income', unit: 'MONEY' as const, values: years.map(() => '100.00') }],
+      longRun: [{ key: 'noi_worst_year', label: 'Net operating income, worst year', unit: 'RATIO' as const, value: '0.3010', formula: 'The largest fall year on year', sourceCount: 3, note: 'Recovered to the FY2008 peak in FY2014 (5 years)', coverage: 'FY2007–FY2026 (20 years)' }],
+    };
+    const html = renderToStaticMarkup(<HistoryTable history={long} currency="USD" />);
+    for (const year of years) expect(html).toContain(`>${year}</th>`);
+    expect(html).toContain('overflow-x-auto');
+    expect(html).toContain('min-w-max');
+    expect(html).toContain('Over the full history');
+    expect(html).toContain('Recovered to the FY2008 peak in FY2014 (5 years)');
+  });
+
+  it('asks once when the business began, only when no history start is set (T-185)', () => {
+    expect(withStartQuestion('Ask the seller for FY2022–FY2024 operating statements, or tell us the business started later.')).toBe(`Ask the seller for FY2022–FY2024 operating statements, or tell us the business started later. ${START_QUESTION}`);
+    expect(withStartQuestion('Ask the seller for FY2019 operating statements.')).toBe('Ask the seller for FY2019 operating statements.');
   });
 });
