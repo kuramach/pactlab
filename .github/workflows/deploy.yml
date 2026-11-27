@@ -4,7 +4,8 @@ name: deploy
 # job waits on that environment's GitHub Environment (reviewers, variables).
 # AWS access is short-lived via GitHub OIDC; no stored AWS keys.
 #
-# Order, so code never runs ahead of its schema (a paused environment is woken first):
+# Order, so code never runs ahead of its schema (a paused environment is woken first; a hibernated one is refused:
+# wake it first, ADR 0063):
 #   1. registry stack, then build and push the release images (tag = commit SHA), in
 #      parallel with layers cached between runs
 #   2. app stack with the release on the one-off tasks only; services stay on the
@@ -97,7 +98,14 @@ jobs:
           # Hosting cost (live): the payer account's read-only Cost Explorer role, from the environment's variables.
           COST_CTX=""
           [ -n "${{ vars.COST_EXPLORER_ROLE_ARN }}" ] && COST_CTX=" -c pactlab:${ENV_NAME}:costExplorerRoleArn=${{ vars.COST_EXPLORER_ROLE_ARN }}"
-          echo "CDK=pnpm --filter @pactlab/cdk exec cdk -c pactlab:${ENV_NAME}:account=${{ vars.AWS_ACCOUNT_ID }} -c pactlab:${ENV_NAME}:imageTag=${TAG} -c pactlab:${ENV_NAME}:githubOidc=existing${COST_CTX}" >> "$GITHUB_ENV"
+          # Live's Hosting cost page reads dev, qa and stage's power state (ADR 0063): `dev=<arn>,qa=<arn>,stage=<arn>`.
+          [ -n "${{ vars.POWER_READ_ROLE_ARNS }}" ] && COST_CTX="$COST_CTX -c pactlab:${ENV_NAME}:powerReadRoleArns=${{ vars.POWER_READ_ROLE_ARNS }}"
+          # Hibernation (ADR 0063): each environment's shape and, once its database was restored from a snapshot, that
+          # snapshot. It must be named on every deploy: CloudFormation replaces a restored instance with an empty one
+          # when it is dropped. dev and qa also pass the neighbour's (the shared base).
+          POWER_CTX=$(SLEEP_CERTIFICATE_ARN="${{ vars.SLEEP_CERTIFICATE_ARN }}" scripts/power-context.sh "$ENV_NAME")
+          echo "Shape: ${POWER_CTX:-live (always on)}"
+          echo "CDK=pnpm --filter @pactlab/cdk exec cdk -c pactlab:${ENV_NAME}:account=${{ vars.AWS_ACCOUNT_ID }} -c pactlab:${ENV_NAME}:imageTag=${TAG} -c pactlab:${ENV_NAME}:githubOidc=existing${COST_CTX}${POWER_CTX}" >> "$GITHUB_ENV"
 
       # What this release needs: migrations only if a migration changed, the site only if the site changed,
       # and a new image only for the services whose code changed.
@@ -150,6 +158,7 @@ jobs:
           done
 
       # dev, qa and stage pause when idle (ADR 0019): wake a paused environment before changing it, and keep it awake.
+      # A hibernated one is refused (ADR 0063, Kumar's decision): a merge never starts a 40-minute rebuild by itself.
       - name: 0. Make sure the environment is awake
         # --hold: an awake environment restarts its idle clock, so the idle check cannot pause it mid-deploy.
         run: scripts/wake-environment.sh "$ENV_NAME" --hold

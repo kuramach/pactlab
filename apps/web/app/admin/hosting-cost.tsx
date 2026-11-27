@@ -1,11 +1,11 @@
-import type { Page } from '@pactlab/contracts';
+import type { EnvironmentPower, Page } from '@pactlab/contracts';
 import { Badge, Button, Card, CardContent } from '@pactlab/ui';
 import { Suspense } from 'react';
 import { keepParams, pageApiQuery, Pager, pagerLinks, readPage } from '../_components/pager';
 import { apiGet } from '../(app)/deals/_lib/api';
 import { ApiState } from '../(app)/deals/_lib/states';
 import { deleteCostRate, refreshHostingCost, setCostRate } from './cost-actions';
-import { formatNumber, formatAmount } from '@pactlab/domain';
+import { formatDateTime, formatNumber, formatAmount } from '@pactlab/domain';
 
 interface Row { key: string; label: string; amount: string }
 interface MeteredRow { key: string; label: string; detail?: string | null; ai: string; storage: string; total: string; runs: number; inputTokens: number; outputTokens: number; gbMonths: string }
@@ -19,6 +19,8 @@ interface CostView {
   shared: { environment: string; actual: string; metered: string; unallocated: string } | null;
   bedrockCheck: { actual: string; metered: string } | null;
   rates: Rate[];
+  /** Awake, paused or hibernated per environment (ADR 0063); null where no state is readable. */
+  environmentPower: EnvironmentPower[] | null;
 }
 
 const cell = 'px-3 py-2 align-top';
@@ -71,6 +73,60 @@ function SpendTable({ label, rows }: { label: string; rows: Row[] }) {
               <Bar amount={row.amount} max={max} />
             </td>
             <td className={`${cell} text-right font-mono`}>{usd(row.amount)}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+const POWER_LABELS: Record<NonNullable<EnvironmentPower['power']>, string> = {
+  awake: 'Awake',
+  paused: 'Paused',
+  waking: 'Waking',
+  hibernating: 'Going to sleep',
+  hibernated: 'Hibernated',
+  rebuilding: 'Waking from hibernation',
+};
+
+/** Each environment's state and its cost while hibernated (ADR 0063): live is always on. */
+function EnvironmentPowerTable({ rows }: { rows: EnvironmentPower[] }) {
+  return (
+    <table className="w-full text-left text-sm" aria-label="Environment states">
+      <thead>
+        <tr className="text-xs text-muted-foreground">
+          <th className={cell}>Environment</th>
+          <th className={cell}>State</th>
+          <th className={cell}>Since</th>
+          <th className={`${cell} text-right`}>Cost while hibernated, a month</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((row) => (
+          <tr key={row.environment} className="border-t border-border">
+            <td className={cell}>{envLabel(row.environment)}</td>
+            <td className={cell}>
+              {row.alwaysOn ? (
+                <span className="font-medium">Always on</span>
+              ) : row.power ? (
+                <span className="font-medium">{POWER_LABELS[row.power]}</span>
+              ) : (
+                <span className="text-muted-foreground">{row.unreadable === 'NOT_CONFIGURED' ? 'Not readable from here' : 'Could not read'}</span>
+              )}
+              {row.hibernation ? <div className="text-xs text-muted-foreground">Snapshot {row.hibernation.snapshot}</div> : null}
+            </td>
+            <td className={cell}>{row.since ? formatDateTime(row.since) : '—'}</td>
+            <td className={`${cell} text-right font-mono`}>
+              {row.alwaysOn ? (
+                <span className="text-muted-foreground">Never hibernates</span>
+              ) : row.costWhileHibernated ? (
+                <span title={row.costWhileHibernated.lines.map((line) => `${line.item}: ${usd(line.low)}–${usd(line.high)} (${line.basis})`).join('\n')}>
+                  {usd(row.costWhileHibernated.low)}–{usd(row.costWhileHibernated.high)}
+                </span>
+              ) : (
+                '—'
+              )}
+            </td>
           </tr>
         ))}
       </tbody>
@@ -255,6 +311,11 @@ export async function HostingCost({ preset: asked, from, to, environment, search
         </p>
       ) : null}
 
+      {view.environmentPower ? (
+        <Section title="Environments" note="Awake, paused (after an idle hour) or hibernated (after 3 idle hours: snapshotted, rebuilt on demand). The cost while hibernated is an estimate from AWS's us-east-2 prices; hover for its lines.">
+          <EnvironmentPowerTable rows={view.environmentPower} />
+        </Section>
+      ) : null}
       <Section title="By month" note="AWS billed, every environment stacked. Months still open are AWS's estimate.">
         {months.length === 0 ? (
           <p className="px-4 py-3 text-sm text-muted-foreground">No billed spend stored for this period yet.</p>

@@ -20,13 +20,33 @@ export const wakeMachineName = (env: EnvironmentName) => `pactlab-${env}-wake`;
 export const powerParameterName = (env: EnvironmentName) => `/pactlab/${env}/power`;
 /** Awake, the wake page's rule matches a path nothing uses; paused, it matches everything. */
 export const NEVER_MATCHING_PATH = '/__pactlab-paused/*';
+/** Hibernation (ADR 0063), written by the env-power workflow: the snapshot, the images and the schema the environment slept on. */
+export const hibernationParameterName = (env: EnvironmentName) => `/pactlab/${env}/hibernation`;
+/** The snapshot the database was restored from; every later deploy must name it (CloudFormation's rule for restored instances). */
+export const databaseSourceParameterName = (env: EnvironmentName) => `/pactlab/${env}/database-source`;
+/** What the environment costs while hibernated, itemized (lib/hibernation-cost.ts), for the Hosting cost page. */
+export const hibernatedCostParameterName = (env: EnvironmentName) => `/pactlab/${env}/hibernated-cost`;
+
+/**
+ * The environment's power state: awake, paused, waking (ADR 0019), hibernating, hibernated or
+ * rebuilding (ADR 0063). Kept in both shapes of a hibernatable stack, at the same construct path,
+ * so hibernating never deletes it. The template's value never changes, so CloudFormation never
+ * resets what the steps and workflows write.
+ */
+export function powerParameter(scope: Construct, env: EnvironmentName): ssm.StringParameter {
+  return new ssm.StringParameter(scope, 'Power', {
+    parameterName: powerParameterName(env),
+    description: `Pactlab ${env}: awake, paused or waking (idle pause, ADR 0019)`,
+    stringValue: 'awake',
+  });
+}
 
 export interface IdlePauseProps {
   readonly env: EnvironmentName;
   readonly idleMinutes: number;
   readonly cluster: ecs.ICluster;
   readonly services: readonly { readonly service: ecs.FargateService; readonly desiredCount: number }[];
-  readonly database: rds.DatabaseInstance;
+  readonly database: rds.IDatabaseInstance;
   readonly listener: elbv2.ApplicationListener;
   readonly targetGroups: { readonly web: elbv2.ApplicationTargetGroup; readonly api: elbv2.ApplicationTargetGroup };
   /** For the idle check's request count (the API target group's metric on this load balancer). */
@@ -52,11 +72,7 @@ export class IdlePause extends Construct {
     const stack = Stack.of(this);
     const { env } = props;
 
-    this.powerParameter = new ssm.StringParameter(this, 'Power', {
-      parameterName: powerParameterName(env),
-      description: `Pactlab ${env}: awake, paused or waking (idle pause, ADR 0019)`,
-      stringValue: 'awake',
-    });
+    this.powerParameter = powerParameter(this, env);
 
     // The wake page, behind a top-priority rule that matches nothing while awake.
     const wakePage = new lambda.Function(this, 'WakePage', {

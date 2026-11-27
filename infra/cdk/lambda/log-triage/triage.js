@@ -77,7 +77,7 @@ function environmentsFrom(env) {
       if (names.has(profile.name)) throw new Error(`Environment ${profile.name} listed twice`);
       names.add(profile.name);
       if (!Array.isArray(entry.logGroups) || !entry.logGroups.length) throw new Error(`Environment ${profile.name} names no log group`);
-      return { profile, logGroups: entry.logGroups, logGroupPrefix: entry.logGroupPrefix ?? `/pactlab/${profile.name}/`, cluster: entry.cluster ?? null, services: entry.services ?? [] };
+      return { profile, logGroups: entry.logGroups, logGroupPrefix: entry.logGroupPrefix ?? `/pactlab/${profile.name}/`, cluster: entry.cluster ?? null, services: entry.services ?? [], power: entry.power ?? null };
     });
   }
   return [{ profile: LIVE, logGroups: JSON.parse(env.LOG_GROUPS), logGroupPrefix: env.LOG_GROUP_PREFIX, cluster: env.CLUSTER ?? null, services: env.SERVICES ? JSON.parse(env.SERVICES) : [] }];
@@ -559,6 +559,7 @@ function renderAccountDigest(sections, context) {
     context.dryRun ? 'DRY RUN: nothing was sent or opened; this is the digest that would be sent.' : null,
     `Pre-production log triage for the ${context.account}: ${sections.map((s) => s.profile.name).join(', ')}.`,
     context.classify ? null : 'Bedrock is not enabled in this account: clusters, counts and samples only, each verdict shown as unclassified.',
+    context.asleep && context.asleep.length ? `Hibernated, not swept: ${context.asleep.join(', ')} (ADR 0063).` : null,
     '',
   ];
   for (const section of sections) {

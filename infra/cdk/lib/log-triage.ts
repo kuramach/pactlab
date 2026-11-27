@@ -1,6 +1,5 @@
 import { CfnOutput, Duration, RemovalPolicy, SecretValue, Stack } from 'aws-cdk-lib';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
-import type * as ecs from 'aws-cdk-lib/aws-ecs';
 import * as events from 'aws-cdk-lib/aws-events';
 import * as eventTargets from 'aws-cdk-lib/aws-events-targets';
 import * as iam from 'aws-cdk-lib/aws-iam';
@@ -24,6 +23,8 @@ export interface TriageEnvironment {
   readonly cluster: string;
   /** The environment whose stack holds the deployment: its log group and services are this stack's own. */
   readonly own: boolean;
+  /** Its power state (ADR 0063): a hibernated environment is skipped, and the digest says so. */
+  readonly power?: string;
 }
 
 /**
@@ -45,7 +46,7 @@ export function triageEnvironments(config: EnvironmentConfig): readonly TriageEn
       if (!config.shared || other.shared?.base !== config.shared.base) throw new Error(`${name} is not in ${config.name}'s account; it needs its own deployment`);
       if (other.logTriage) throw new Error(`${name} has its own log triage; ${config.name}'s cannot sweep it too`);
     }
-    return { name, logGroupName: `/pactlab/${name}/app`, cluster: `pactlab-${name}`, own: name === config.name };
+    return { name, logGroupName: `/pactlab/${name}/app`, cluster: `pactlab-${name}`, own: name === config.name, ...(other.hibernate ? { power: `/pactlab/${name}/power` } : {}) };
   });
 }
 
@@ -54,8 +55,9 @@ export interface LogTriageProps {
   readonly config: LogTriageConfig;
   /** The app's log group (api, worker and web streams). */
   readonly logGroup: logs.ILogGroup;
-  readonly cluster: ecs.ICluster;
-  readonly services: readonly ecs.FargateService[];
+  /** Its name only: while hibernated (ADR 0063) the cluster is gone, and the sweep skips the environment. */
+  readonly cluster: { readonly clusterName: string };
+  readonly services: readonly { readonly serviceName: string }[];
   /** The app's sender (`Name <address>`) and its verified SES domain identity. */
   readonly email: { readonly from: string; readonly identityDomain: string };
   readonly dataKey: kms.IKey;
@@ -135,6 +137,7 @@ export class LogTriage extends Construct {
               logGroupPrefix: `/pactlab/${e.name}/`,
               cluster: e.own ? props.cluster.clusterName : e.cluster,
               ...(e.own ? { services: props.services.map((service) => service.serviceName) } : {}),
+              ...(e.power ? { power: e.power } : {}),
             })),
           ),
           ACCOUNT_LABEL: `${env} account`,
@@ -172,6 +175,9 @@ export class LogTriage extends Construct {
     // Logs: queries on the swept app groups only. GetQueryResults and StopQuery have no resource-level permissions.
     const sid = (name: string) => (live ? `${name}LiveLogs` : `${name}EnvironmentLogs`);
     fn.addToRolePolicy(new iam.PolicyStatement({ sid: sid('Query'), actions: ['logs:StartQuery'], resources: swept.map((e) => e.group.logGroupArn) }));
+    // Hibernated environments are skipped (ADR 0063): read each one's power state, nothing more.
+    const powers = swept.flatMap((e) => (e.power ? [`arn:${stack.partition}:ssm:${stack.region}:${stack.account}:parameter${e.power}`] : []));
+    if (powers.length) fn.addToRolePolicy(new iam.PolicyStatement({ sid: 'ReadPowerState', actions: ['ssm:GetParameter'], resources: powers }));
     fn.addToRolePolicy(new iam.PolicyStatement({ sid: 'QueryResults', actions: ['logs:GetQueryResults', 'logs:StopQuery'], resources: ['*'] }));
     fn.addToRolePolicy(
       new iam.PolicyStatement({

@@ -5,6 +5,7 @@ import type { TenantContext } from '@pactlab/domain';
 import type { Logger } from '@pactlab/observability';
 import { LOGGER, PRISMA } from '../../tokens';
 import type { CostSource } from './cost-explorer';
+import type { EnvironmentPowerSource } from './environment-power';
 import { actualSpend, unallocated } from './cost-view';
 
 export const HOSTING_COST_SETTINGS = Symbol('HOSTING_COST_SETTINGS');
@@ -13,6 +14,8 @@ export interface HostingCostSettings {
   readonly source: CostSource | null;
   /** This deployment's `pactlab:environment` tag value (prod, stage, dev, qa): whose spend the metered rows explain. */
   readonly environment: string;
+  /** Each environment's power state and its cost while hibernated (ADR 0063); null where none is readable (local). */
+  readonly power?: EnvironmentPowerSource | null;
   readonly now?: () => Date;
 }
 
@@ -123,6 +126,8 @@ export class HostingCostService {
       const here = all.filter((line) => line.environment === this.settings.environment);
       const hereTotal = here.reduce((sum, line) => sum.plus(line.amount), new D(0)).toFixed(2);
       const bedrockHere = actualSpend(here).bedrock.reduce((sum, line) => sum.plus(line.amount), new D(0)).toFixed(2);
+      // handled: a failed read shows each environment as unreadable on the page, never as a guess.
+      const power = this.settings.power ? await this.settings.power.read().catch(() => null) : null;
       return {
         period: { from: query.from, to: query.to, granularity, environment: query.environment ?? null },
         source: {
@@ -141,6 +146,8 @@ export class HostingCostService {
         shared: here.length > 0 ? { environment: this.settings.environment, actual: hereTotal, metered: metered.total, unallocated: unallocated(hereTotal, metered.total) } : null,
         bedrockCheck: here.length > 0 ? { actual: bedrockHere, metered: metered.ai } : null,
         rates,
+        // Awake, paused or hibernated, and what each costs while hibernated (ADR 0063).
+        environmentPower: power,
       };
     });
   }

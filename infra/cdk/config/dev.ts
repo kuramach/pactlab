@@ -15,13 +15,15 @@ export const devConfig: EnvironmentConfig = {
     multiAz: false,
     allocatedStorageGiB: 20,
     maxAllocatedStorageGiB: 100,
-    backupRetentionDays: 7,
+    backupRetentionDays: 3,
   },
   redis: { nodeType: 'cache.t4g.micro', numCacheClusters: 1, snapshotRetentionDays: 0 },
   evidenceNoncurrentVersionDays: 7,
   auditArchive: { mode: 'GOVERNANCE', days: 1 },
   // Only production runs all the time: this environment pauses after an hour without use.
   idlePause: { idleMinutes: 60 },
+  // Then, after 3 hours without use, hibernate: snapshot, delete what bills by the hour, rebuild on demand (ADR 0063).
+  hibernate: { idleHours: 3, snapshotsKept: 2 },
   // Pre-production log triage (T-157): this account's one deployment sweeps dev AND qa (separate log groups,
   // state, labels and digest sections). Cluster-only: Bedrock access is not enabled in this account yet, so no
   // model is named and no model call is made. The flip, once it is: modelId 'us.anthropic.claude-sonnet-5-5'.

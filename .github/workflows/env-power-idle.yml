@@ -1,0 +1,55 @@
+name: env-power-idle
+
+# Hibernate dev, qa and stage after 3 hours without use (Kumar, 2026-11-27; ADR 0063). The idle pause (ADR 0019) pauses
+# an environment after its idle minutes; this check, every 30 minutes, hibernates one that has then stayed paused for
+# the rest of its idle hours. A paused environment had no API request since it paused, so "paused for long enough"
+# is "unused for idle hours". Never live. Dispatches env-power.yml, which does the work.
+on:
+  schedule:
+    - cron: '7,37 * * * *'
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+  actions: write
+
+env:
+  AWS_REGION: us-east-2
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04-arm
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: [dev, qa, stage]
+    environment: ${{ matrix.environment }}-power
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_POWER_ROLE_ARN }}
+          role-session-name: env-power-idle-${{ matrix.environment }}-${{ github.run_id }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Hibernate if idle long enough
+        env:
+          ENV_NAME: ${{ matrix.environment }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          SETTINGS=$(pnpm --silent --filter @pactlab/cdk exec tsx bin/hibernation.ts config "$ENV_NAME")
+          # Paused after idleMinutes; hibernated once paused for the rest of idleHours.
+          WAIT=$(node -e 'const s = JSON.parse(process.argv[1]); console.log(s.idleHours * 60 - s.idleMinutes)' "$SETTINGS")
+          read -r POWER CHANGED <<<"$(aws ssm get-parameter --name "/pactlab/${ENV_NAME}/power" --query '[Parameter.Value, Parameter.LastModifiedDate]' --output text 2>/dev/null || echo 'none 0')"
+          [ "$POWER" = paused ] || { echo "${ENV_NAME}: ${POWER}; nothing to do"; exit 0; }
+          MINUTES=$(node -e 'console.log(Math.floor((Date.now() - new Date(process.argv[1]).getTime()) / 60000))' "$CHANGED")
+          [ "$MINUTES" -ge "$WAIT" ] || { echo "${ENV_NAME}: paused for ${MINUTES} of ${WAIT} minutes"; exit 0; }
+          echo "${ENV_NAME}: paused for ${MINUTES} minutes; hibernating"
+          gh workflow run env-power.yml --ref main -f environment="$ENV_NAME" -f action=hibernate
+          echo "Hibernate dispatched for ${ENV_NAME} (paused ${MINUTES} minutes)." >> "$GITHUB_STEP_SUMMARY"

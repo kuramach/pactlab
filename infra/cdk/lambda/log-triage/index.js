@@ -20,6 +20,8 @@ const QUERY_POLL_MS = 2000;
 const QUERY_DEADLINE_MS = 8 * 60_000;
 const DEPLOY_LOOKBACK_MS = 14 * 24 * 3600_000;
 const WATERMARK_KEY = 'WATERMARK';
+/** A hibernated environment has no services and few logs: it is not swept until it wakes (ADR 0063). */
+const ASLEEP = new Set(['hibernating', 'hibernated', 'rebuilding']);
 
 /** One run. `deps` holds the side effects; `env` the function's configuration. */
 function makeRun(deps, env) {
@@ -47,6 +49,17 @@ function makeRun(deps, env) {
   /** Sweep one environment: queries, clusters, reportability and verdicts. Writes nothing. */
   async function sweep(environment, nowMs, dryRun) {
     const { profile } = environment;
+    if (environment.power && deps.power) {
+      // handled: an unreadable power state is logged and the environment is swept as usual.
+      const power = await deps.power(environment.power).catch((error) => {
+        log({ level: 'warn', message: 'power state unreadable; sweeping anyway', environment: profile.name, errorName: error?.name });
+        return null;
+      });
+      if (ASLEEP.has(power)) {
+        log({ message: 'skipped: hibernated', environment: profile.name, power });
+        return { environment, asleep: power };
+      }
+    }
     const watermark = await deps.state.getWatermark(profile.statePrefix);
     const window = triage.sweepWindow(watermark, nowMs);
 
@@ -172,8 +185,10 @@ function makeRun(deps, env) {
 
     const swept = [];
     for (const environment of chosen) swept.push(await sweep(environment, nowMs, dryRun));
-    if (swept.every((s) => s.missingAll)) throw new Error('None of the configured log groups exist');
-    const results = swept.filter((s) => !s.missingAll);
+    const asleep = swept.filter((s) => s.asleep).map((s) => s.environment.profile.name);
+    if (swept.every((s) => s.missingAll || s.asleep) && !asleep.length) throw new Error('None of the configured log groups exist');
+    const results = swept.filter((s) => !s.missingAll && !s.asleep);
+    if (!results.length) return { dryRun, asleep, clusters: 0, reportable: 0, triaged: 0, environments: {} };
 
     const token = await deps.github.token();
     for (const result of results) await fileIssues(result, token, dryRun);
@@ -182,7 +197,7 @@ function makeRun(deps, env) {
       ? triage.renderDigest(results[0].triaged, results[0].context)
       : triage.renderAccountDigest(
           results.map((r) => ({ profile: r.environment.profile, items: r.triaged, context: r.context })),
-          { dryRun, classify, end: Math.floor(nowMs / 1000), account: env.ACCOUNT_LABEL || 'account' },
+          { dryRun, classify, asleep, end: Math.floor(nowMs / 1000), account: env.ACCOUNT_LABEL || 'account' },
         );
     const totals = {
       clusters: results.reduce((n, r) => n + r.clusters.length, 0),
@@ -262,6 +277,7 @@ function live(env) {
   const { ECSClient, ListServiceDeploymentsCommand, DescribeServicesCommand } = require('@aws-sdk/client-ecs');
   const { SESv2Client, SendEmailCommand } = require('@aws-sdk/client-sesv2');
   const { SecretsManagerClient, GetSecretValueCommand } = require('@aws-sdk/client-secrets-manager');
+  const { SSMClient, GetParameterCommand } = require('@aws-sdk/client-ssm');
   const { marshall, unmarshall } = require('@aws-sdk/util-dynamodb');
   const logs = new CloudWatchLogsClient({});
   const dynamo = new DynamoDBClient({});
@@ -272,9 +288,11 @@ function live(env) {
   const table = env.TABLE;
   const github = githubClient(env.GITHUB_REPO);
 
+  const ssm = new SSMClient({});
   return {
     now: () => Date.now(),
     sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+    power: async (name) => (await ssm.send(new GetParameterCommand({ Name: name }))).Parameter.Value,
     logs: {
       async listLogGroups(prefix) {
         const names = [];

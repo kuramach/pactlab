@@ -65,6 +65,15 @@ export interface EnvironmentConfig {
    */
   readonly idlePause?: { readonly idleMinutes: number };
   /**
+   * Hibernate when unused (Kumar, 2026-11-27; ADR 0063): dev, qa and stage only, never live. After
+   * `idleHours` without use (the idle pause first, then the rest of the window paused), the
+   * database is snapshotted and deleted with everything that bills by the hour; data, secrets,
+   * keys and names are kept, and the environment is rebuilt on demand. `snapshotsKept`: how many
+   * hibernate snapshots stay per environment. While asleep, `app.<env>` points at the sleep page
+   * (CloudFront, its certificate from `-c pactlab:<env>:sleepCertificateArn`) with its Wake up button.
+   */
+  readonly hibernate?: { readonly idleHours: number; readonly snapshotsKept: number };
+  /**
    * Log triage (T-150 live, T-157 pre-production; ADR 0048): a daily Lambda sweeps the app's logs,
    * triages error clusters with Bedrock, emails one digest and opens deduplicated GitHub issues.
    * One deployment per account: live's; dev's, sweeping dev and qa; stage's.
@@ -80,6 +89,10 @@ export interface EnvironmentConfig {
 }
 
 /** CPU units (1024 = 1 vCPU) and memory for one Fargate task, and how many run. */
+/** The two shapes of a hibernatable environment's stack (ADR 0063), chosen by `-c pactlab:<env>:power`. */
+export const POWER_SHAPES = ['awake', 'hibernated'] as const;
+export type PowerShape = (typeof POWER_SHAPES)[number];
+
 export interface TaskSize {
   readonly cpu: 256 | 512 | 1024 | 2048;
   readonly memoryMiB: 512 | 1024 | 2048 | 4096;

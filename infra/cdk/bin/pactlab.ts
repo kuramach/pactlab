@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { App } from 'aws-cdk-lib';
-import { ENVIRONMENT_NAMES, ENVIRONMENTS } from '../config';
+import { ENVIRONMENT_NAMES, ENVIRONMENTS, POWER_SHAPES, type EnvironmentName, type PowerShape } from '../config';
 import { siteConfig } from '../config/site';
 import { PactlabCostReadStack } from '../lib/cost-read-stack';
 import { PactlabDeployAccessStack, PactlabEnvironmentDeployAccessStack } from '../lib/deploy-access-stack';
@@ -23,6 +23,15 @@ const siteContent = fileURLToPath(new URL('../../../apps/site/out', import.meta.
 // The shared non-live base (ADR 0019): dev and qa's network, NAT instance, load balancer and Redis, in the
 // dev account. An environment on it is bound to the same account (its own context may only repeat it).
 const sharedNames = ENVIRONMENT_NAMES.filter((name) => ENVIRONMENTS[name].shared);
+// Each hibernatable environment's shape (ADR 0063): `-c pactlab:<env>:power=hibernated`, written by the env-power
+// workflow and passed by every deploy (scripts/power-context.sh). Anything else is a mistake, so it fails.
+const powerOf = (name: EnvironmentName): PowerShape => {
+  const value = (app.node.tryGetContext(`pactlab:${name}:power`) as string | undefined) ?? 'awake';
+  if (!(POWER_SHAPES as readonly string[]).includes(value)) throw new Error(`pactlab:${name}:power must be one of ${POWER_SHAPES.join(', ')}`);
+  return value as PowerShape;
+};
+// The base sleeps only when every environment on it is asleep.
+const basePower: PowerShape = sharedNames.length > 0 && sharedNames.every((name) => powerOf(name) === 'hibernated') ? 'hibernated' : 'awake';
 // Whichever shared environment is being deployed names the account (dev's, today; qa's is the same account).
 const baseAccount = sharedNames.map((name) => app.node.tryGetContext(`pactlab:${name}:account`) as string | undefined).find(Boolean);
 assertTargetAccount('nonlive-base', baseAccount, baseAccount ? process.env['CDK_DEFAULT_ACCOUNT'] : undefined);
@@ -30,10 +39,13 @@ const baseEnv = baseAccount ? { env: { account: baseAccount, region: ENVIRONMENT
 const sharedBase = sharedNames.length
   ? new PactlabNonliveBaseStack(app, 'PactlabNonliveBase', {
       hosts: sharedNames.flatMap((name) => (ENVIRONMENTS[name].service ? [ENVIRONMENTS[name].service.domain] : [])),
+      power: basePower,
       ...baseEnv,
     })
   : undefined;
 
+// Live's account, whose API reads the other environments' power state (ADR 0063): `-c pactlab:powerRead:liveAccount=<id>`.
+const powerReadAccount = app.node.tryGetContext('pactlab:powerRead:liveAccount') as string | undefined;
 for (const name of ENVIRONMENT_NAMES) {
   const config = ENVIRONMENTS[name];
   const own = app.node.tryGetContext(`pactlab:${name}:account`) as string | undefined;
@@ -63,6 +75,9 @@ for (const name of ENVIRONMENT_NAMES) {
       // Live deploys from the GitHub Environment `live`; its AWS resources keep the CDK name `prod`.
       ...(name === 'prod' ? { githubEnvironment: 'live', scorecardRefresh: true } : {}),
       ...(existingOidcProviderArn ? { existingOidcProviderArn } : {}),
+      // Hibernation (ADR 0063): the env-power workflows' role, and read access for live's Hosting cost page.
+      ...(config.hibernate ? { hibernate: true } : {}),
+      ...(config.hibernate && powerReadAccount ? { powerReadAccount } : {}),
       ...env,
     });
   }
@@ -77,9 +92,15 @@ for (const name of ENVIRONMENT_NAMES) {
       return tag ? [[image, tag]] : [];
     }),
   );
+  // Hibernation (ADR 0063): the shape, the snapshot a restored database came from, and the sleep page's certificate.
+  const databaseSource = app.node.tryGetContext(`pactlab:${name}:databaseSource`) as string | undefined;
+  const sleepCertificateArn = app.node.tryGetContext(`pactlab:${name}:sleepCertificateArn`) as string | undefined;
   if (!withoutApp) {
     new PactlabPlatformStack(app, stackId, {
       config,
+      power: powerOf(name),
+      ...(databaseSource ? { databaseSource } : {}),
+      ...(sleepCertificateArn ? { sleepCertificateArn } : {}),
       ...(imageTag ? { imageTag } : {}),
       ...(serviceImageTag ? { serviceImageTag } : {}),
       ...(Object.keys(imageTags).length ? { imageTags } : {}),

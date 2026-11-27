@@ -49,3 +49,7 @@ There is also a **Bedrock check**: what AWS billed for Bedrock on live next to t
 - **Per-person figures start 2026-11-15:** `ai_runs.requested_by` began then, so earlier runs show as "Before per-person tracking".
 - **Metered rows cover this environment only:** each environment has its own database, so live's console meters live. AWS billed covers every environment.
 - **Open months are estimates:** months still open are AWS's estimate and are marked "estimate".
+
+## Environment states (ADR 0063)
+
+The page lists dev, qa, stage and live with their state (awake, paused, hibernated; live always on), when it changed, the hibernate snapshot, and the estimated cost while hibernated. Live reads the other accounts through their read-only `pactlab-<env>-power-read` roles (the `live` GitHub Environment's `POWER_READ_ROLE_ARNS`); without them those rows say *Not readable from here*. Setup: [hibernate.md](hibernate.md), step 5.

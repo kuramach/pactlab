@@ -27,10 +27,10 @@ const errorRow = (id: string, message = 'boom', service = 'api') =>
 describe('environment configuration resolution', () => {
   it('resolves the dev account to dev and qa, stage to itself, and live to T-150’s own shape', () => {
     expect(triageEnvironments(devConfig)).toEqual([
-      { name: 'dev', logGroupName: '/pactlab/dev/app', cluster: 'pactlab-dev', own: true },
-      { name: 'qa', logGroupName: '/pactlab/qa/app', cluster: 'pactlab-qa', own: false },
+      { name: 'dev', logGroupName: '/pactlab/dev/app', cluster: 'pactlab-dev', own: true, power: '/pactlab/dev/power' },
+      { name: 'qa', logGroupName: '/pactlab/qa/app', cluster: 'pactlab-qa', own: false, power: '/pactlab/qa/power' },
     ]);
-    expect(triageEnvironments(stageConfig)).toEqual([{ name: 'stage', logGroupName: '/pactlab/stage/app', cluster: 'pactlab-stage', own: true }]);
+    expect(triageEnvironments(stageConfig)).toEqual([{ name: 'stage', logGroupName: '/pactlab/stage/app', cluster: 'pactlab-stage', own: true, power: '/pactlab/stage/power' }]);
     expect(triageEnvironments(ENVIRONMENTS.prod)).toBeUndefined();
   });
 
@@ -88,7 +88,7 @@ describe('per-environment dedupe markers', () => {
 });
 
 /** A whole pre-production run against fakes; rows are per log group, then per query kind. */
-function harness(options: { environments: { name: string; group: string }[]; modelId?: string; dryRun?: boolean; rows?: Record<string, Record<string, unknown[]>>; open?: Record<string, { number: number; html_url: string; body: string }[]> }) {
+function harness(options: { environments: { name: string; group: string }[]; power?: Record<string, string>; modelId?: string; dryRun?: boolean; rows?: Record<string, Record<string, unknown[]>>; open?: Record<string, { number: number; html_url: string; body: string }[]> }) {
   const calls = { emails: [] as any[], created: [] as any[], comments: [] as any[], states: [] as any[], watermarks: [] as [number, string][], logs: [] as any[], converse: 0, openLabels: [] as string[][] };
   const now = Date.parse('2026-11-25T13:00:00Z');
   const queries: { groups: string[]; kind: string }[] = [];
@@ -96,6 +96,7 @@ function harness(options: { environments: { name: string; group: string }[]; mod
     now: () => now,
     sleep: async () => {},
     log: (entry: unknown) => calls.logs.push(entry),
+    power: async (name: string) => options.power?.[name] ?? 'awake',
     logs: {
       listLogGroups: async (prefix: string) => options.environments.map((e) => e.group).filter((g) => g.startsWith(prefix)),
       startQuery: async (input: any) => {
@@ -136,7 +137,7 @@ function harness(options: { environments: { name: string; group: string }[]; mod
     },
   };
   const env = {
-    TRIAGE_ENVIRONMENTS: JSON.stringify(options.environments.map((e) => ({ name: e.name, logGroups: [e.group], logGroupPrefix: `/pactlab/${e.name}/` }))),
+    TRIAGE_ENVIRONMENTS: JSON.stringify(options.environments.map((e) => ({ name: e.name, logGroups: [e.group], logGroupPrefix: `/pactlab/${e.name}/`, power: `/pactlab/${e.name}/power` }))),
     ACCOUNT_LABEL: `${options.environments[0]!.name} account`,
     MODEL_ID: options.modelId ?? '',
     RECIPIENT: 'kumar@pactlab.ai',
@@ -228,6 +229,26 @@ describe('the dev account, cluster-only (no Bedrock)', () => {
     await run({ dryRun: true, environments: ['qa'] });
     expect(new Set(queries.flatMap((q) => q.groups))).toEqual(new Set(['/pactlab/qa/app']));
     await expect(run({ environments: ['prod'] })).rejects.toThrow(/none of this deployment/);
+  });
+});
+
+describe('hibernated environments (ADR 0063)', () => {
+  it('skips a hibernated environment, sweeps the other, and says which slept', async () => {
+    const h = harness({
+      environments: devAccount,
+      power: { '/pactlab/qa/power': 'hibernated' },
+      dryRun: true,
+    });
+    await h.run();
+    expect(h.queries.every((q) => q.groups.every((g) => g.startsWith('/pactlab/dev/')))).toBe(true);
+    expect(h.calls.logs).toEqual(expect.arrayContaining([expect.objectContaining({ message: 'skipped: hibernated', environment: 'qa' })]));
+  });
+
+  it('with every environment asleep, sweeps nothing and does not fail', async () => {
+    const h = harness({ environments: devAccount, power: { '/pactlab/dev/power': 'hibernated', '/pactlab/qa/power': 'rebuilding' } });
+    expect(await h.run()).toMatchObject({ asleep: ['dev', 'qa'], clusters: 0 });
+    expect(h.queries).toEqual([]);
+    expect(h.calls.emails).toEqual([]);
   });
 });
 

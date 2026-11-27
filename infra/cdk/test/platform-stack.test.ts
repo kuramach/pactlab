@@ -35,7 +35,9 @@ describe('environment configs', () => {
     expect(prodConfig.database.multiAz).toBe(false);
     expect(prodConfig.database.backupRetentionDays).toBeGreaterThanOrEqual(35);
     expect(prodConfig.auditArchive.mode).toBe('COMPLIANCE');
-    expect(stageConfig.database.multiAz).toBe(true);
+    // Stage matches live's skinny size (ADR 0063): single-AZ t4g.medium, 3 days of backups, one Redis node.
+    expect(stageConfig.database).toMatchObject({ instanceClass: 't4g', instanceSize: 'medium', multiAz: false, allocatedStorageGiB: 50, backupRetentionDays: 3 });
+    expect(stageConfig.redis.numCacheClusters).toBe(1);
   });
 
   it('keeps pilot guardrails on and LIVE connectors off in production', () => {
@@ -124,7 +126,7 @@ describe('StatefulProtectionAspect', () => {
 
   it('rejects a protected stack whose database lost deletion protection', () => {
     const stack = new PactlabPlatformStack(new App(), 'Weakened', { config: prodConfig });
-    (stack.database.node.defaultChild as rds.CfnDBInstance).deletionProtection = false;
+    (stack.database!.node.defaultChild as rds.CfnDBInstance).deletionProtection = false;
     Annotations.fromStack(stack).hasError(
       '/Weakened/Postgres/Resource',
       Match.stringLikeRegexp('deletion protection'),

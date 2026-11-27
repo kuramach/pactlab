@@ -4,6 +4,8 @@
 # role changes (and once when an environment is first set up).
 # Usage: scripts/deploy-access.sh dev qa      or      scripts/deploy-access.sh stage      or      scripts/deploy-access.sh live
 # Sign in first if needed: aws login --profile pactlab-mgmt
+# Hibernation (ADR 0063): dev, qa and stage also get the env-power workflows' role. With PACTLAB_LIVE_ACCOUNT=<live's
+# account id>, they get the read-only role live's Hosting cost page reads their power state through.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 [ "$#" -gt 0 ] || set -- dev qa
@@ -24,5 +26,6 @@ for ENV_NAME in "$@"; do
   [ "$PROFILE" = pactlab-dev ] && CONTEXT+=(-c "pactlab:${ENV_NAME}:githubOidc=existing")
   STACKS+=("Pactlab$(echo "${ENV_NAME:0:1}" | tr a-z A-Z)${ENV_NAME:1}DeployAccess")
 done
+[ -n "${PACTLAB_LIVE_ACCOUNT:-}" ] && CONTEXT+=(-c "pactlab:powerRead:liveAccount=${PACTLAB_LIVE_ACCOUNT}")
 echo "Deploying ${STACKS[*]} to account ${ACCOUNT} (profile ${PROFILE})"
 pnpm --filter @pactlab/cdk exec cdk --profile "$PROFILE" --no-color "${CONTEXT[@]}" deploy "${STACKS[@]}" --require-approval never

@@ -75,6 +75,11 @@ export function pactlabVpc(scope: Construct, id: string, network: { maxAzs: numb
 export interface NonliveBaseProps extends StackProps {
   /** The app hosts served here (e.g. app.dev.pactlab.ai): each gets a DNS-validated certificate on the shared listener. */
   readonly hosts: readonly string[];
+  /**
+   * `hibernated` only when every environment on the base is hibernated (ADR 0063): then the network, NAT
+   * instance, load balancer and Redis are left out, and only the certificates stay, at the same logical IDs.
+   */
+  readonly power?: 'awake' | 'hibernated';
 }
 
 /**
@@ -85,49 +90,56 @@ export interface NonliveBaseProps extends StackProps {
  * Stage and live keep their own; live is never on shared infrastructure.
  */
 export class PactlabNonliveBaseStack extends Stack {
-  readonly vpc: ec2.Vpc;
-  readonly loadBalancer: elbv2.ApplicationLoadBalancer;
-  readonly loadBalancerSecurityGroup: ec2.SecurityGroup;
-  readonly httpsListener: elbv2.ApplicationListener;
-  readonly redis: elasticache.CfnReplicationGroup;
-  readonly redisSecurityGroup: ec2.SecurityGroup;
+  /** Absent while hibernated (ADR 0063): the network, load balancer and Redis are rebuilt on wake. */
+  readonly vpc?: ec2.Vpc;
+  readonly loadBalancer?: elbv2.ApplicationLoadBalancer;
+  readonly loadBalancerSecurityGroup?: ec2.SecurityGroup;
+  readonly httpsListener?: elbv2.ApplicationListener;
+  readonly redis?: elasticache.CfnReplicationGroup;
+  readonly redisSecurityGroup?: ec2.SecurityGroup;
+  readonly power: 'awake' | 'hibernated';
+  private readonly certificates: ReadonlyMap<string, acm.Certificate>;
 
   constructor(scope: Construct, id: string, props: NonliveBaseProps) {
-    const { hosts, ...stackProps } = props;
+    const { hosts, power = 'awake', ...stackProps } = props;
     super(scope, id, stackProps);
     Tags.of(this).add('pactlab:environment', 'nonlive-shared');
     if (hosts.length === 0) throw new Error('The shared base needs at least one app host');
+    this.power = power;
 
-    this.vpc = pactlabVpc(this, 'Vpc', { maxAzs: 2, nat: 'instance', natGateways: 1 });
+    // DNS-validated, one per environment host; kept while hibernated, so a wake reattaches them (ADR 0063).
+    // Their validation records live in each environment's Route 53 zone (AppDns).
+    this.certificates = new Map(
+      hosts.map((host) => [host, new acm.Certificate(this, `Certificate-${host.split('.').slice(0, -2).join('-')}`, { domainName: host, validation: acm.CertificateValidation.fromDns() })]),
+    );
+    if (power === 'hibernated') return;
 
-    this.loadBalancerSecurityGroup = new ec2.SecurityGroup(this, 'LoadBalancerSecurityGroup', { vpc: this.vpc, description: 'Pactlab non-live public HTTPS' });
-    this.loadBalancerSecurityGroup.addIngressRule(ec2.Peer.anyIpv4(), ec2.Port.tcp(443), 'HTTPS');
-    this.loadBalancerSecurityGroup.addIngressRule(ec2.Peer.anyIpv4(), ec2.Port.tcp(80), 'HTTP, redirected to HTTPS');
-    this.loadBalancer = new elbv2.ApplicationLoadBalancer(this, 'LoadBalancer', {
-      vpc: this.vpc,
+    const vpc = (this.vpc = pactlabVpc(this, 'Vpc', { maxAzs: 2, nat: 'instance', natGateways: 1 }));
+
+    const loadBalancerSecurityGroup = (this.loadBalancerSecurityGroup = new ec2.SecurityGroup(this, 'LoadBalancerSecurityGroup', { vpc, description: 'Pactlab non-live public HTTPS' }));
+    loadBalancerSecurityGroup.addIngressRule(ec2.Peer.anyIpv4(), ec2.Port.tcp(443), 'HTTPS');
+    loadBalancerSecurityGroup.addIngressRule(ec2.Peer.anyIpv4(), ec2.Port.tcp(80), 'HTTP, redirected to HTTPS');
+    const loadBalancer = (this.loadBalancer = new elbv2.ApplicationLoadBalancer(this, 'LoadBalancer', {
+      vpc,
       internetFacing: true,
-      securityGroup: this.loadBalancerSecurityGroup,
+      securityGroup: loadBalancerSecurityGroup,
       vpcSubnets: { subnetType: ec2.SubnetType.PUBLIC },
       dropInvalidHeaderFields: true,
-    });
-    // DNS-validated, one per environment host: the deploy waits until each CNAME (shown in ACM) is added.
-    const certificates = hosts.map(
-      (host) => new acm.Certificate(this, `Certificate-${host.split('.').slice(0, -2).join('-')}`, { domainName: host, validation: acm.CertificateValidation.fromDns() }),
-    );
-    this.loadBalancer.addListener('Http', { port: 80, defaultAction: elbv2.ListenerAction.redirect({ protocol: 'HTTPS', port: '443', permanent: true }) });
-    this.httpsListener = this.loadBalancer.addListener('Https', {
+    }));
+    loadBalancer.addListener('Http', { port: 80, defaultAction: elbv2.ListenerAction.redirect({ protocol: 'HTTPS', port: '443', permanent: true }) });
+    this.httpsListener = loadBalancer.addListener('Https', {
       port: 443,
-      certificates,
+      certificates: [...this.certificates.values()],
       sslPolicy: elbv2.SslPolicy.RECOMMENDED_TLS,
       open: false,
       // Each environment adds rules for its own host; anything else is not served.
       defaultAction: elbv2.ListenerAction.fixedResponse(404, { contentType: 'text/plain', messageBody: 'Not found' }),
     });
 
-    this.redisSecurityGroup = new ec2.SecurityGroup(this, 'RedisSecurityGroup', { vpc: this.vpc, description: 'Pactlab non-live Redis (BullMQ)', allowAllOutbound: false });
+    const redisSecurityGroup = (this.redisSecurityGroup = new ec2.SecurityGroup(this, 'RedisSecurityGroup', { vpc, description: 'Pactlab non-live Redis (BullMQ)', allowAllOutbound: false }));
     const redisSubnets = new elasticache.CfnSubnetGroup(this, 'RedisSubnets', {
       description: 'Pactlab non-live Redis isolated subnets',
-      subnetIds: this.vpc.selectSubnets({ subnetType: ec2.SubnetType.PRIVATE_ISOLATED }).subnetIds,
+      subnetIds: vpc.selectSubnets({ subnetType: ec2.SubnetType.PRIVATE_ISOLATED }).subnetIds,
     });
     // One small node; environments are kept apart by Redis logical database (REDIS_URL …/<n>), cluster mode off.
     this.redis = new elasticache.CfnReplicationGroup(this, 'Redis', {
@@ -142,9 +154,23 @@ export class PactlabNonliveBaseStack extends Stack {
       atRestEncryptionEnabled: true,
       transitEncryptionEnabled: true,
       cacheSubnetGroupName: redisSubnets.ref,
-      securityGroupIds: [this.redisSecurityGroup.securityGroupId],
+      securityGroupIds: [redisSecurityGroup.securityGroupId],
     });
 
-    new CfnOutput(this, 'LoadBalancerDns', { value: this.loadBalancer.loadBalancerDnsName });
+    new CfnOutput(this, 'LoadBalancerDns', { value: loadBalancer.loadBalancerDnsName });
+  }
+
+  /** What only an awake base has; an awake environment on it needs all of it. */
+  awake(): { vpc: ec2.Vpc; loadBalancer: elbv2.ApplicationLoadBalancer; loadBalancerSecurityGroup: ec2.SecurityGroup; httpsListener: elbv2.ApplicationListener; redis: elasticache.CfnReplicationGroup; redisSecurityGroup: ec2.SecurityGroup } {
+    const { vpc, loadBalancer, loadBalancerSecurityGroup, httpsListener, redis, redisSecurityGroup } = this;
+    if (!vpc || !loadBalancer || !loadBalancerSecurityGroup || !httpsListener || !redis || !redisSecurityGroup) throw new Error('An environment is awake: the shared base must be awake too');
+    return { vpc, loadBalancer, loadBalancerSecurityGroup, httpsListener, redis, redisSecurityGroup };
+  }
+
+  /** The certificate this base holds for an environment's host. */
+  certificateFor(host: string): acm.Certificate {
+    const certificate = this.certificates.get(host);
+    if (!certificate) throw new Error(`The shared base holds no certificate for ${host}`);
+    return certificate;
   }
 }

@@ -12,6 +12,7 @@ of what a pilot partner gets, which controls protect them, and how we roll back.
 | [pilot-controls.md](pilot-controls.md)                               | Describing, starting or pausing a pilot               |
 | [deploy.md](deploy.md)                                               | Any stage or production release                       |
 | [rollback.md](rollback.md)                                           | A release, migration, flag or infra change misbehaves |
+| [hibernate.md](hibernate.md)                                         | Hibernating or waking dev, qa or stage (near-zero cost when unused) |
 | [recovery-drill.md](recovery-drill.md)                               | Scheduled backup-restore drill, or real data loss     |
 | [penetration-test-checklist.md](penetration-test-checklist.md)       | Before the pilot opens and after major changes        |
 | [sso-setup.md](sso-setup.md)                                         | Onboarding a pilot organization's identity provider   |
