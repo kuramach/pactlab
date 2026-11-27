@@ -12,7 +12,7 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   images: { unoptimized: true },
   // Pack definitions and the demo-data location come from the domain package (TypeScript source).
-  transpilePackages: ['@pactlab/domain'],
+  transpilePackages: ['@pactlab/domain', '@pactlab/ui'],
   // The dev server would otherwise write AGENTS.md / CLAUDE.md into this app on every start.
   agentRules: false,
   // Each language has its own root layout (T-171), so the 404 page is app/global-not-found.tsx.

@@ -14,6 +14,7 @@
 | **Provenance badges** | Source evidence, deterministic calculations, model drafts and reviewed decisions | `Badge` variants `evidence`, `calculation`, `draft`, `reviewed` | T-006 |
 | **Lists and paging** | Any list that can grow | the shared `Pager`, with the position in the URL (CLAUDE.md, T-126) | T-126 |
 | **Read-back cards** | AI that says how it read a file before acting, then what it picked up | the import reading and results cards, and the document extraction assistant: "Here's how Pactlab read…" with "Yes / Not quite", then "What Pactlab picked up" with "Where it shows" | 2026-11-25 |
+| **Chat icon** | Every chat button or avatar (site and app) | `ChatMark` (`@pactlab/ui`, subpath `@pactlab/ui/chat-mark` for the site): the speaking flask, one SVG drawing. `placement` is where the chat sits; the face looks into the page (right-side placement → left-facing, left-side → right-facing). `compact` is the simplified drawing for 24 px and below. References: `docs/brand/chat-icon*.webp`, never shipped. | 2026-11-27 (T-186) |
 
 The live examples are on `/design-system`.
 
