@@ -47,7 +47,9 @@ describe('demo organization (batch 2)', () => {
       signing: { fixture: false, docusign: null },
     });
     first = await run();
-  }, 600_000);
+    // Seeds every demo pact, each with five years of history (T-183/T-184): ~2.5 min locally, well over
+    // 10 on CI runners, so the hook gets 30.
+  }, 1_800_000);
 
   afterAll(async () => {
     await app?.close();
