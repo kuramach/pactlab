@@ -42,6 +42,8 @@ Both use `gh workflow run …`, so you need `gh auth login` with access to the r
 
 ## One-time setup (Kumar)
 
+**The short way:** after each environment's first deploy with T-189, run `scripts/hibernate-setup.sh stage` (then `dev`, then `qa`). It walks through steps 2–6 below, asks before each change, and can be run again safely.
+
 Agents never run these steps or touch AWS.
 
 1. **Merge and deploy** dev, qa and stage once as usual. That creates the Route 53 zones (`app.dev`, `app.qa`, `app.stage`.pactlab.ai), copies each load balancer certificate's validation record into its zone, and publishes `/pactlab/<env>/hibernated-cost`.
