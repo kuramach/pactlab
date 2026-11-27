@@ -29,3 +29,24 @@ test('a multifamily pact checks its rents against the market and the figures app
   await page.goto(`/deals/${dealId}/findings`);
   await expect(page.getByRole('link', { name: 'In-place rents below the market range (RentCast)' })).toBeVisible();
 });
+
+// T-183: five years of occupancy and rent on Home (the History strip) and on Finances (the years side by side).
+test('a multifamily pact reads five years of occupancy: the History strip and the years table', { tag: '@regression' }, async ({ page }) => {
+  const dealId = await startPact(page, 'Multifamily');
+  await importPackExtract(page, dealId, 'Occupancy and rent history', demoFile('multifamily', 'USD', 'occupancy-history.csv'), 60);
+
+  await page.goto(`/deals/${dealId}`);
+  await expect(page.getByText('Occupancy, average (latest year)')).toBeVisible();
+  await expect(page.getByRole('img', { name: 'Occupancy, average (latest year), by year' })).toBeVisible();
+  await expect(page.getByRole('img', { name: 'Average in-place rent (latest year), by year' })).toBeVisible();
+  await expect(page.getByText('FY2022–FY2026 (5 of 5 years)').first()).toBeVisible();
+  // No operating statements yet: the seller is asked for the years, never a figure filled in.
+  await expect(page.getByText('No operating statements imported yet: ask the seller for FY2022–FY2026 operating statements').first()).toBeVisible();
+
+  await page.goto(`/deals/${dealId}/finances`);
+  await expect(page.getByRole('heading', { name: 'Five years' })).toBeVisible();
+  const table = page.getByRole('table', { name: /The years side by side/ });
+  await expect(table.getByRole('columnheader', { name: 'FY2022' })).toBeVisible();
+  await expect(table.getByRole('columnheader', { name: 'FY2026' })).toBeVisible();
+  await expect(table.getByRole('row', { name: /Occupancy \(average\)/ })).toContainText('%');
+});

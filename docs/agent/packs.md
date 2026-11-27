@@ -57,6 +57,23 @@ The source plan then adds **Industry data** (`pack_upload` connections) automati
 - **Years:** a year the file states, or all twelve of its months; partial years are left out, never scaled up. One year still reads as one year.
 - **Demo data:** at least three years of P&L with one planted trend defect a single year misses; the acceptance test imports it through `FINANCIAL_PNL` with the line kinds a person confirms.
 
+## 4c. Five years of history (every pack, ADR 0057)
+
+- **Expect five fiscal years** of income and expenses (the P&L import) and of the pack's operating drivers, plus the current year or the T-12. Accept less: every history figure carries `coverage` ("FY2025–FY2026 (2 of 5 years): ask the seller for FY2022–FY2024 …") and the report's `history` table lists one ask per kind of history with missing years. Never extrapolate a missing year.
+- **Years** are labelled by the year they end in; monthly data is read in twelve-month years ending with the latest imported month; part years are left out.
+- **Reuse:** the multifamily calculator (`packages/calculations/src/packs/multifamily/history.ts`) and the generic `PackHistory` table; the Home **History** strip and the Finances years table read them unchanged.
+- **Multifamily thresholds** (`history-rules.ts`):
+
+  | Constant | Value | Drafts when |
+  |---|---|---|
+  | `OCCUPANCY_EROSION_POINTS` | 0.03 | average occupancy is down 3 points or more, first year to last |
+  | `OCCUPANCY_FLOOR` | 0.90 | …or a year's average is below 90% in any of the last three years |
+  | `RENT_EXPENSE_GAP_POINTS` | 0.02 | operating expenses or a key expense grow 2 points a year or more faster than average rent |
+  | `NOI_SPIKE_POINTS` | 0.05 | the latest year's NOI growth is 5 points or more above the earlier years' average |
+  | `MARGIN_DRIFT_POINTS`, `EXPENSE_OUTPACING_FACTOR` | 0.03, 1.25 | the shared P&L trend rules (4b) |
+
+- **Demo data:** five years with seasonality, a rent step each lease year, expense inflation and the planted defects; the 12-month files stay equal to the last twelve months of the history. Draw the history from its own random generator so the pack's other files are unchanged.
+
 ## 5. Metrics
 
 - **Calculator:** in `packages/calculations/src/packs/calculators.ts`. It returns the generic `PackMetricsReport` (`packs/metrics-types.ts`): label, value as a decimal string, unit, formula and source count.

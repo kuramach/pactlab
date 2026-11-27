@@ -1,11 +1,15 @@
-import { IMPORT_TARGET_DEFINITIONS, type ImportTarget } from '@pactlab/domain';
+import { expectedInputLabel, type ExpectedInputId } from '@pactlab/domain';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@pactlab/ui';
 import Link from 'next/link';
+import { LineChart } from '../../_lib/charts';
 import { formatDecimal, formatMoney, formatRatio } from '../../metrics/_lib/format';
-import type { PackMetricsView } from '../../metrics/_lib/api';
+import type { PackHistoryView, PackMetricsView } from '../../metrics/_lib/api';
 import { AskSellerButton } from './ask-seller';
 import type { MarketRentsOffer } from './market-rents';
 import { MarketRentsButton } from './market-rents-button';
+
+/** The figures whose five years show as a History strip on Home (T-183): NOI, occupancy and average rent. */
+export const HISTORY_STRIPS: ReadonlySet<string> = new Set(['noi_latest', 'occupancy_average', 'average_rent']);
 
 /** A figure that waits on market rents (T-158): the card offers the retrieval, never an ask of the seller. */
 export const MARKET_RENTS_NEED = 'MARKET_RENTS';
@@ -14,7 +18,14 @@ type Metric = PackMetricsView['metrics'][number];
 
 /** What a missing figure needs, in plain words: "the rent roll and the unit inspections". */
 export function needsLabel(needs: readonly string[]): string {
-  const names = needs.map((id) => (id in IMPORT_TARGET_DEFINITIONS ? IMPORT_TARGET_DEFINITIONS[id as ImportTarget].label : id).toLowerCase());
+  // An import target or a document category (the income statement a P&L import covers).
+  const names = needs.map((id) => {
+    try {
+      return expectedInputLabel(id as ExpectedInputId).toLowerCase();
+    } catch {
+      return id.toLowerCase();
+    }
+  });
   return names.length <= 1 ? `the ${names[0] ?? 'data'}` : `the ${names.slice(0, -1).join(', the ')} and the ${names.at(-1)}`;
 }
 
@@ -49,6 +60,75 @@ export function MetricSource({ dealId, metric }: { dealId: string; metric: Pick<
   );
 }
 
+/**
+ * The History strip (T-183): a figure's five years as a small line under it, with how much of the history it
+ * rests on. Years not imported are gaps, never filled in. Drawn with the shared chart; the card is unchanged.
+ */
+export function HistoryStrip({ metric, currency }: { metric: Pick<Metric, 'label' | 'unit' | 'history' | 'coverage'>; currency: string }) {
+  const points = metric.history ?? [];
+  if (points.length === 0 || points.every((point) => point.value === null)) return metric.coverage ? <dd className="text-xs text-muted-foreground">History: {metric.coverage}</dd> : null;
+  return (
+    <dd className="flex flex-col gap-1">
+      <span className="text-xs font-bold uppercase tracking-wide text-slate-text">History</span>
+      <LineChart
+        label={`${metric.label}, by year`}
+        categories={points.map((point) => point.period)}
+        series={[{ name: metric.label, values: points.map((point) => point.value) }]}
+        format={metric.unit === 'MONEY' ? 'money' : metric.unit === 'RATIO' ? 'percent' : 'count'}
+        currency={currency}
+        height={72}
+      />
+      {metric.coverage ? <span className="text-xs text-muted-foreground">{metric.coverage}</span> : null}
+    </dd>
+  );
+}
+
+const cell = (unit: PackHistoryView['rows'][number]['unit'], value: string | null, currency: string) =>
+  value === null ? '—' : unit === 'MONEY' ? formatMoney({ amount: value, currency }) : unit === 'RATIO' ? formatRatio(value) : formatDecimal(value);
+
+/** The years side by side (T-183, Finances): revenue, expenses, NOI, margin, occupancy and rent; a year not imported shows a dash. */
+export function HistoryTable({ history, currency }: { history: PackHistoryView; currency: string }) {
+  if (history.years.length === 0) return null;
+  return (
+    <div className="flex flex-col gap-2 text-sm">
+      <div className="overflow-x-auto">
+        <table className="w-full">
+          <caption className="text-left text-muted-foreground">The years side by side, in {currency}</caption>
+          <thead className="text-left text-muted-foreground">
+            <tr className="border-b border-border">
+              <th className="py-1 font-medium">Figure</th>
+              {history.years.map((year) => (
+                <th key={year} className="py-1 text-right font-medium">
+                  {year}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border">
+            {history.rows.map((row) => (
+              <tr key={row.key}>
+                <td className="py-1">{row.label}</td>
+                {row.values.map((value, index) => (
+                  <td key={history.years[index] ?? index} className="py-1 text-right" data-numeric>
+                    {cell(row.unit, value, currency)}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <ul className="flex flex-col gap-0.5 text-xs text-muted-foreground">
+        {history.coverage.map((entry) => (
+          <li key={entry.key}>
+            {entry.label}: {entry.summary}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 const shown = (metric: Metric, currency: string) =>
   metric.value === null ? '—' : metric.unit === 'MONEY' ? formatMoney({ amount: metric.value, currency }) : metric.unit === 'RATIO' ? formatRatio(metric.value) : formatDecimal(metric.value);
 
@@ -76,6 +156,8 @@ export function PropertyMetricsCard({
   if (report.metrics.length === 0) return null;
   const missing = missingImports(report.metrics);
   const unasked = missing.filter((entry) => !requested.has(entry.id));
+  // Missing years of history (T-183): one ask per kind, unless a figure already asks for the same import.
+  const historyAsks = (report.history?.asks ?? []).filter((ask) => !ask.needs.every((id) => missing.some((entry) => entry.id === id)));
   return (
     <Card>
       <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
@@ -131,10 +213,26 @@ export function PropertyMetricsCard({
                     <MetricSource dealId={dealId} metric={metric} />
                   </>
                 )}
+                {HISTORY_STRIPS.has(metric.key) ? <HistoryStrip metric={metric} currency={report.currency} /> : null}
               </div>
             );
           })}
         </dl>
+        {canAsk && historyAsks.length > 0 ? (
+          <div className="mt-4 flex flex-col gap-2 rounded-xl border border-dashed border-amber/40 bg-amber/5 p-4 text-sm">
+            <span className="text-xs font-bold uppercase tracking-wide text-slate-text">History</span>
+            {historyAsks.map((ask) => (
+              <div key={ask.note} className="flex flex-wrap items-center justify-between gap-2">
+                <span>{ask.note}</span>
+                {ask.needs.every((id) => requested.has(id)) ? (
+                  <span className="font-medium text-muted-foreground">Requested from the seller</span>
+                ) : (
+                  <AskSellerButton dealId={dealId} items={ask.needs.filter((id) => !requested.has(id))} note={ask.note} label="Ask the seller for them" />
+                )}
+              </div>
+            ))}
+          </div>
+        ) : null}
       </CardContent>
     </Card>
   );

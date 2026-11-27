@@ -13,6 +13,8 @@ export const IMPORT_TARGETS = [
   'MULTIFAMILY_T12',
   'MULTIFAMILY_DELINQUENCY',
   'MULTIFAMILY_INSPECTION',
+  'MULTIFAMILY_OCCUPANCY',
+  'MULTIFAMILY_RENT_ROLL_HISTORY',
   'HEALTHCARE_CLAIMS_SUMMARY',
   'HEALTHCARE_PROVIDER_ROSTER',
   'HEALTHCARE_REMITTANCES',
@@ -308,6 +310,54 @@ export const MULTIFAMILY_INSPECTION: TargetDefinition = {
     { name: 'building', label: 'Building', kind: 'text', required: true, hint: 'Building or block.' },
     { name: 'condition', label: 'Condition', kind: 'code', required: true, hint: 'good, fair or poor.' },
     { name: 'estimated_repair_cost', label: 'Estimated repair cost', kind: 'money', required: true, hint: IN_BASE_CURRENCY },
+  ],
+};
+
+/**
+ * Rent and occupancy over time (T-183, ADR 0057): a monthly summary (month, units, occupied units, average
+ * in-place rent, concessions), overall or by unit type, or annual figures when that is all the seller has.
+ * The history calculator reads it beside the P&L; a missing year is asked of the seller, never filled in.
+ */
+export const MULTIFAMILY_OCCUPANCY: TargetDefinition = {
+  target: 'MULTIFAMILY_OCCUPANCY',
+  label: 'Occupancy and rent history',
+  fileName: 'occupancy-history.csv',
+  people: 'NONE',
+  refusesPeopleColumns: true,
+  evidenceType: 'property.occupancy_period',
+  recordIdField: 'period',
+  recordIdFields: ['period', 'unit_type'],
+  observedAtFields: [],
+  fields: [
+    { name: 'period', label: 'Period', kind: 'text', required: true, hint: 'The month (YYYY-MM) or, for annual figures, the year (YYYY).' },
+    { name: 'unit_type', label: 'Unit type', kind: 'text', required: true, hint: '"All" for the whole property, or a unit type such as 1BR. Use a fixed value when the file has no such column.' },
+    { name: 'units', label: 'Units', kind: 'decimal', required: true, hint: 'Units available in the period.' },
+    { name: 'occupied_units', label: 'Occupied units', kind: 'decimal', required: true, hint: 'Units occupied (for a year, the average across its months).' },
+    { name: 'average_rent', label: 'Average in-place rent', kind: 'money', required: false, hint: `Average monthly rent of the occupied units. ${IN_BASE_CURRENCY}` },
+    { name: 'concessions', label: 'Concessions', kind: 'money', required: false, hint: `Rent given up in concessions in the period. ${IN_BASE_CURRENCY}` },
+  ],
+};
+
+/**
+ * Rent-roll snapshots (T-183): several rent rolls in one file, each row a unit at an as-of date. The history
+ * calculator counts occupancy and averages in-place rent at each date; the current rent roll stays its own import.
+ */
+export const MULTIFAMILY_RENT_ROLL_HISTORY: TargetDefinition = {
+  target: 'MULTIFAMILY_RENT_ROLL_HISTORY',
+  label: 'Rent roll snapshots',
+  fileName: 'rent-roll-history.csv',
+  people: 'NONE',
+  refusesPeopleColumns: true,
+  evidenceType: 'multifamily.unit_snapshot',
+  recordIdField: 'unit',
+  recordIdFields: ['as_of', 'unit'],
+  observedAtFields: ['as_of'],
+  fields: [
+    { name: 'as_of', label: 'As of', kind: 'date', required: true, hint: 'The date of the rent roll the row comes from.' },
+    { name: 'unit', label: 'Unit', kind: 'text', required: true, hint: 'Unit number; never a resident name.' },
+    { name: 'type', label: 'Unit type', kind: 'text', required: false, hint: 'e.g. 1BR, 2BR.' },
+    { name: 'status', label: 'Status', kind: 'code', required: true, hint: 'occupied or vacant.' },
+    { name: 'in_place_rent', label: 'In-place rent', kind: 'money', required: true, hint: `Monthly rent on the lease at that date; 0 when vacant. ${IN_BASE_CURRENCY}` },
   ],
 };
 
@@ -1458,6 +1508,8 @@ export const IMPORT_TARGET_DEFINITIONS: Readonly<Record<ImportTarget, TargetDefi
   MULTIFAMILY_T12,
   MULTIFAMILY_DELINQUENCY,
   MULTIFAMILY_INSPECTION,
+  MULTIFAMILY_OCCUPANCY,
+  MULTIFAMILY_RENT_ROLL_HISTORY,
   HEALTHCARE_CLAIMS_SUMMARY,
   HEALTHCARE_PROVIDER_ROSTER,
   HEALTHCARE_REMITTANCES,

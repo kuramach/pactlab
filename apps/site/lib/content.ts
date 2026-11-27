@@ -653,8 +653,8 @@ export const INDUSTRIES: readonly Industry[] = [
     order: 7,
     pack: {
       cluster: 'real-estate',
-      evidence: ['Rent roll', 'Trailing-twelve-month operating statement (T-12)', 'Lease files', 'Delinquency reports', 'Utility bills', 'Unit-condition inspections'],
-      findings: ['Loss-to-lease', 'Deferred maintenance per door', 'Delinquency concentration'],
+      evidence: ['Rent roll', 'Trailing-twelve-month operating statement (T-12)', 'Five years of income and expenses', 'Five years of rent and occupancy', 'Lease files', 'Delinquency reports', 'Utility bills', 'Unit-condition inspections'],
+      findings: ['Loss-to-lease', 'Deferred maintenance per door', 'Delinquency concentration', 'Occupancy erosion', 'Expenses outpacing rent', 'A last-year NOI spike'],
       valuation: ['Net operating income and capitalization rate', 'Loss-to-lease upside as confirmed value, never a price increase', 'Capital expenditure per door as remediation'],
     },
     summary: 'Apartment acquisitions where the rent roll, not the offering memorandum, sets the income you pay for.',
@@ -664,6 +664,7 @@ export const INDUSTRIES: readonly Industry[] = [
       'How far are in-place rents below market, and is that upside real?',
       'How much deferred maintenance comes with each unit?',
       'Is delinquency spread out or concentrated?',
+      'Has occupancy held over five years, and have rents kept pace with expenses?',
     ],
     transfers: [
       { icon: 'Receipt', title: 'Revenue ledger', body: 'A rent roll and T-12 map almost one to one onto the billing import and revenue ledger.' },
@@ -672,6 +673,7 @@ export const INDUSTRIES: readonly Industry[] = [
     ],
     adds: [
       { icon: 'Layers', title: 'Property operating data', body: 'Adapters for rent rolls, T-12s, delinquency reports, utility bills and inspections.' },
+      { icon: 'TrendingUp', title: 'Five years of history', body: 'Income, expenses, rent and occupancy by year, with how many years each figure rests on; a missing year is asked of the seller.' },
       { icon: 'Percent', title: 'Loss-to-lease and delinquency findings', body: 'In-place rents against market, and where delinquency concentrates.' },
       { icon: 'Calculator', title: 'NOI and cap-rate valuation', body: 'Net operating income and capitalization rate, with capex per door as remediation.' },
     ],

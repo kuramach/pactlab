@@ -1,5 +1,6 @@
 import { D } from '../../metrics/decimal';
 import { findMatch, MAX_CITED, type PackRule } from '../rule-types';
+import { MULTIFAMILY_HISTORY_RULES } from './history-rules';
 import { MARKET_RENT, marketComparison } from './market-rents';
 import { amount, DELINQUENCY, grouped, INSPECTION, lossToLease, of, pct, T12, total, UNIT } from './shared';
 
@@ -181,4 +182,4 @@ export const MULTIFAMILY_BELOW_MARKET_RANGE: PackRule = {
   },
 };
 
-export const MULTIFAMILY_RULES: readonly PackRule[] = [MULTIFAMILY_OM_NOI, MULTIFAMILY_DEFERRED_MAINTENANCE, MULTIFAMILY_DELINQUENCY_CONCENTRATION, MULTIFAMILY_LOSS_TO_LEASE, MULTIFAMILY_BELOW_MARKET_RANGE];
+export const MULTIFAMILY_RULES: readonly PackRule[] = [MULTIFAMILY_OM_NOI, MULTIFAMILY_DEFERRED_MAINTENANCE, MULTIFAMILY_DELINQUENCY_CONCENTRATION, MULTIFAMILY_LOSS_TO_LEASE, MULTIFAMILY_BELOW_MARKET_RANGE, ...MULTIFAMILY_HISTORY_RULES];

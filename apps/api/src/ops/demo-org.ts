@@ -227,13 +227,13 @@ async function spvVehicle(app: App, buyer: TenantContext, dealId: string): Promi
 }
 
 /**
- * A pack's P&L by year (fintech T-159, healthcare T-160, small clinics T-161, pharma T-163, e-commerce T-164, professional services T-167, telecom T-168): the three-year statement imported through the
+ * A pack's P&L by year (fintech T-159, healthcare T-160, small clinics T-161, pharma T-163, e-commerce T-164, professional services T-167, telecom T-168; multifamily and syndication five years, T-183): the statement imported through the
  * P&L target, its line kinds confirmed as a person would (revenue lines as revenue, "cost of" lines as
  * cost of revenue, the rest operating costs), so the multi-year trend checks read every year.
  */
 export const FINTECH_PNL_FILE = 'pnl.csv';
 /** The packs whose demo data carries a P&L by year. */
-export const PNL_BY_YEAR_PACKS: readonly CompanyType[] = ['FINTECH', 'HEALTHCARE', 'SMALL_CLINICS', 'PHARMA_BIOTECH', 'ECOMMERCE_DTC', 'PROFESSIONAL_SERVICES', 'TELECOM_MEDIA'];
+export const PNL_BY_YEAR_PACKS: readonly CompanyType[] = ['FINTECH', 'HEALTHCARE', 'SMALL_CLINICS', 'PHARMA_BIOTECH', 'ECOMMERCE_DTC', 'PROFESSIONAL_SERVICES', 'TELECOM_MEDIA', 'MULTIFAMILY', 'MULTIFAMILY_SYNDICATION'];
 export const pnlLineKind = (account: string) => (/revenue/i.test(account) ? 'REVENUE' : /^cost of/i.test(account) ? 'COGS' : 'OPEX');
 async function packPnl(app: App, buyer: TenantContext, dealId: string, data: DemoDataSource, type: CompanyType): Promise<string> {
   const imports = app.get(ImportsService, { strict: false });

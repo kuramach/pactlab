@@ -25,7 +25,7 @@ describe('multifamily metrics', () => {
   it('computes occupancy, loss-to-lease, NOI, delinquency and repairs per door in decimals', () => {
     const report = multifamilyMetrics({ currency: 'USD', evidence });
     const value = Object.fromEntries(report.metrics.map((metric) => [metric.key, metric.value]));
-    expect(report).toMatchObject({ calculator: 'multifamily-metrics', version: 'multifamily-metrics-2', currency: 'USD' });
+    expect(report).toMatchObject({ calculator: 'multifamily-metrics', version: 'multifamily-metrics-3', currency: 'USD' });
     expect(value).toMatchObject({
       occupancy: '0.7500',
       units: '4',
@@ -50,7 +50,10 @@ describe('multifamily metrics', () => {
     expect(needs).toMatchObject({ occupancy: ['MULTIFAMILY_RENT_ROLL'], t12_noi: ['MULTIFAMILY_T12'], delinquent_balance: ['MULTIFAMILY_DELINQUENCY'], capex_per_door: ['MULTIFAMILY_RENT_ROLL', 'MULTIFAMILY_INSPECTION'] });
     expect(needs).toMatchObject({ market_rent_annual: ['MULTIFAMILY_RENT_ROLL'] });
     const full = multifamilyMetrics({ currency: 'USD', evidence: [...evidence, ...estimates] });
-    expect(full.metrics.every((metric) => metric.needs === undefined)).toBe(true);
+    // The current-year figures are all there; the five-year figures (T-183) still ask for the history.
+    expect(full.metrics.filter((metric) => metric.coverage === undefined).every((metric) => metric.needs === undefined)).toBe(true);
+    expect(full.metrics.find((metric) => metric.key === 'noi_cagr')?.needs).toEqual(['INCOME_STATEMENT']);
+    expect(full.metrics.find((metric) => metric.key === 'occupancy_average')?.needs).toEqual(['MULTIFAMILY_OCCUPANCY']);
   });
 });
 

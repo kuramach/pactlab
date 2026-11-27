@@ -22,6 +22,7 @@ EXPORT_LABELS = {
     'invoice-lines': 'Invoice lines',
     'loan-tape': 'Loan tape', 'aml-alerts': 'AML alerts',
     'rent-roll': 'Rent roll', 't12': 'T-12 operating statement', 'delinquency': 'Delinquency report', 'unit-inspections': 'Unit inspections',
+    'occupancy-history': 'Occupancy and rent history', 'rent-roll-history': 'Rent roll snapshots', 'operating-statements-monthly': 'Profit and loss (P&L)',
     'claims-summary': 'Claims summary', 'provider-roster': 'Provider roster',
     'subscribers-by-month': 'Subscribers by month',
     'timesheets-summary': 'Timesheets summary', 'headcount-movements': 'Headcount movements',

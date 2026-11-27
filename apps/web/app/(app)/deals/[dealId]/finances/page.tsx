@@ -30,7 +30,7 @@ import { can, dealViewer } from '../../_lib/viewer';
 import { marketRentsOffer, type MarketRentsOffer } from '../../_lib/market-rents';
 import { marketRentsStatus } from '../../_lib/market-rents-actions';
 import { MarketRentsButton } from '../../_lib/market-rents-button';
-import { MetricSource } from '../../_lib/property-metrics';
+import { HistoryTable, MetricSource } from '../../_lib/property-metrics';
 import { hasSubscriptionMetrics, type CompanyType } from '@pactlab/domain';
 import { apiGet, dealsApi } from '../../_lib/api';
 import type { BalanceSheetView } from '@pactlab/contracts';
@@ -340,6 +340,12 @@ function PackMetricsCard({ dealId, report, marketRents }: { dealId: string; repo
             </div>
           ))}
         </dl>
+        {report.history && report.history.rows.some((row) => row.values.some((value) => value !== null)) ? (
+          <div className="mt-6 flex flex-col gap-2">
+            <h3 className="text-sm font-semibold">Five years</h3>
+            <HistoryTable history={report.history} currency={report.currency} />
+          </div>
+        ) : null}
       </CardContent>
     </Card>
   );

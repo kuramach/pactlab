@@ -6,7 +6,7 @@ vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 vi.mock('./market-rents-actions', () => ({ checkMarketRents: vi.fn() }));
 
 import { marketRentsOffer, type MarketRentsStatus } from './market-rents';
-import { missingImports, needsLabel, PropertyMetricsCard, requestNote } from './property-metrics';
+import { HistoryTable, missingImports, needsLabel, PropertyMetricsCard, requestNote } from './property-metrics';
 
 const report = {
   calculator: 'multifamily-metrics',
@@ -83,5 +83,56 @@ describe('market rents on the property metrics (T-158)', () => {
     expect(html).not.toContain('Property address');
     expect(marketRentsOffer({ ...status, currencySupported: false }).blocked).toContain('USD only');
     expect(marketRentsOffer({ ...status, available: false }).blocked).toContain('not set up');
+  });
+});
+
+describe('five years of history (T-183)', () => {
+  const history = {
+    version: 'multifamily-history-1',
+    expectedYears: 5,
+    years: ['FY2022', 'FY2023', 'FY2024', 'FY2025', 'FY2026'],
+    rows: [
+      { key: 'noi', label: 'Net operating income', unit: 'MONEY' as const, values: [null, null, null, '133100.00', '146410.00'] },
+      { key: 'occupancy', label: 'Occupancy (average)', unit: 'RATIO' as const, values: [null, null, null, '0.9100', '0.8883'] },
+    ],
+    coverage: [{ key: 'operating', label: 'Operating statements', present: ['FY2025', 'FY2026'], missing: ['FY2022', 'FY2023', 'FY2024'], summary: 'FY2025–FY2026 (2 of 5 years): ask the seller for FY2022–FY2024 operating statements' }],
+    asks: [{ needs: ['INCOME_STATEMENT'], note: 'Ask the seller for FY2022–FY2024 operating statements.' }],
+    conventions: [],
+  };
+  const withHistory = {
+    ...report,
+    history,
+    metrics: [
+      {
+        key: 'noi_latest',
+        label: 'Net operating income (latest year)',
+        unit: 'MONEY' as const,
+        value: '146410.00',
+        formula: 'Revenue less operating expenses for FY2026',
+        sourceCount: 12,
+        coverage: history.coverage[0]?.summary,
+        history: history.years.map((period, index) => ({ period, value: history.rows[0]?.values[index] ?? null })),
+      },
+    ],
+  };
+
+  it('shows a History strip with its coverage, and asks the seller for the missing years', () => {
+    const html = renderToStaticMarkup(<PropertyMetricsCard dealId="d" report={withHistory} canAsk requested={new Set()} />);
+    expect(html).toContain('History');
+    expect(html).toContain('aria-label="Net operating income (latest year), by year"');
+    expect(html).toContain('FY2025–FY2026 (2 of 5 years): ask the seller for FY2022–FY2024 operating statements');
+    expect(html).toContain('Ask the seller for FY2022–FY2024 operating statements.');
+    expect(html).toContain('Ask the seller for them');
+    expect(needsLabel(['INCOME_STATEMENT'])).toBe('the income statement (p&l)');
+    const asked = renderToStaticMarkup(<PropertyMetricsCard dealId="d" report={withHistory} canAsk requested={new Set(['INCOME_STATEMENT'])} />);
+    expect(asked).not.toContain('Ask the seller for them');
+  });
+
+  it('lays the years side by side, a year not imported as a dash', () => {
+    const html = renderToStaticMarkup(<HistoryTable history={history} currency="USD" />);
+    for (const year of history.years) expect(html).toContain(`>${year}</th>`);
+    expect(html).toContain('Occupancy (average)');
+    expect((html.match(/>—</g) ?? []).length).toBe(6);
+    expect(html).toContain('Operating statements: FY2025–FY2026 (2 of 5 years)');
   });
 });
