@@ -25,5 +25,16 @@ export const CASSETTE_KEYS: Readonly<Record<string, ReadonlySet<string>>> = {
   rentcast: new Set([
     'rent', 'rentRangeLow', 'rentRangeHigh', 'subjectProperty', 'comparables', 'formattedAddress', 'propertyType', 'bedrooms',
     'bathrooms', 'squareFootage', 'yearBuilt', 'price', 'distance', 'daysOld', 'correlation', 'status', 'error', 'message',
+     // Property records (T-188): building facts, tax and sale history, and the owner of record (fictional in cassettes).
+    'id', 'state', 'lotSize', 'lastSaleDate', 'lastSalePrice', 'ownerOccupied', 'features', 'unitCount', 'floorCount', 'roomCount',
+    'garage', 'garageType', 'garageSpaces', 'exteriorType', 'roofType', 'foundationType', 'heating', 'heatingType', 'cooling',
+    'coolingType', 'taxAssessments', 'propertyTaxes', 'year', 'value', 'total', 'history', 'event', 'date', 'owner', 'names', 'type',
+    'mailingAddress',
+    // Date keys of the sale history and year keys of the tax maps.
+    '2011-02-03', '2019-05-14', '2023', '2024',
+  ]),
+  // Google Maps Platform photos (T-188): Street View metadata and a Places text-search hit with its photo references.
+  'google-maps': new Set([
+    'status', 'pano_id', 'date', 'places', 'id', 'displayName', 'text', 'formattedAddress', 'photos', 'name', 'authorAttributions', 'uri',
   ]),
 };

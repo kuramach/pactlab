@@ -99,6 +99,11 @@ export const SHOWCASE: Readonly<Record<string, ShowcaseEntry>> = {
     why: 'Fees, the preferred return and the promote read from the PPM and operating agreement, confirmed by you, and the waterfall recomputed. Diligence support, not legal advice.',
     lookFor: ['Projected returns against the recomputed waterfall', 'Track-record claims against prior-deal actuals', 'Fees in the agreement missing from the PPM'],
   },
+  '/property': {
+    title: 'The property, filled in from its address',
+    why: 'Type, area, lot, year built, tax and sale history and the owner of record, proposed from the public record for you to review and accept, with Street View and Places photos. Third-party reference data, never evidence: a seller document always wins.',
+    lookFor: ['A sale price shown as not published in a non-disclosure state', 'A field the record lacks, shown as not in public record', 'A rent roll unit count that contradicts the record'],
+  },
   '/catalog': {
     title: 'The catalog, checked work by work',
     why: 'The works register, royalty income by source and catalog age, and the income whose grants become terminable inside your hold: every figure from statements and the chain of title. Diligence support, not legal advice.',

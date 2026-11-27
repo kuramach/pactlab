@@ -1,0 +1,57 @@
+{
+  "cassetteVersion": 1,
+  "provider": "google-maps",
+  "source": "Hand-built from Google's Street View Static metadata and Places API (New) Text Search references (read 2026-11-27; T-188): fictional place, synthetic photo references. Image bytes are not recorded. No live recording: CI never calls Google.",
+  "recordedAt": "2026-11-27T00:00:00.000Z",
+  "interactions": [
+    {
+      "request": {
+        "method": "GET",
+        "path": "/maps/api/streetview/metadata",
+        "query": "key=test-key&location=1200 Sample St, Columbus, OH 43215"
+      },
+      "response": {
+        "status": 200,
+        "headers": {},
+        "body": {
+          "status": "OK",
+          "pano_id": "FIXTURE_PANO_0001",
+          "date": "2024-06"
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "POST",
+        "path": "/v1/places:searchText",
+        "query": ""
+      },
+      "response": {
+        "status": 200,
+        "headers": {},
+        "body": {
+          "places": [
+            {
+              "id": "FIXTURE_PLACE",
+              "displayName": {
+                "text": "Example Apartments"
+              },
+              "formattedAddress": "1200 Sample St, Columbus, OH 43215, USA",
+              "photos": [
+                {
+                  "name": "places/FIXTURE_PLACE/photos/FIXTURE_PHOTO_1",
+                  "authorAttributions": [
+                    {
+                      "displayName": "Synthetic Photographer",
+                      "uri": "https://maps.google.com/maps/contrib/synthetic"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

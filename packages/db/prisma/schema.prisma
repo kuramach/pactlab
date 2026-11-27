@@ -4242,6 +4242,39 @@ model CriticalEvaluation {
   @@map("critical_evaluations")
 }
 
+/// T-188 (ADR 0062): a multifamily pact's property profile. The public record's proposed fields (third-party
+/// reference data with per-field provenance), the values a person accepted, and photo references (never bytes).
+/// One per pact; buyer-confidential (RLS).
+model DealPropertyProfile {
+  id               String    @id @db.Uuid
+  organizationId   String    @map("organization_id") @db.Uuid
+  dealId           String    @map("deal_id") @db.Uuid
+  address          String
+  /// EMPTY | PROPOSED | ACCEPTED
+  status           String    @default("EMPTY")
+  /// [{ key, label, value, status, provenance }]
+  proposed         Json      @default("[]")
+  recordSource     String?   @map("record_source")
+  recordVersion    String?   @map("record_version")
+  recordFetchedAt  DateTime? @map("record_fetched_at") @db.Timestamptz(3)
+  /// { key: { value, status, edited, provenance } }
+  accepted         Json      @default("{}")
+  acceptedBy       String?   @map("accepted_by") @db.Uuid
+  acceptedAt       DateTime? @map("accepted_at") @db.Timestamptz(3)
+  /// [{ ref, kind, source, capturedOn, attribution, attributionUri, alt }]: references only, never image bytes.
+  photos           Json      @default("[]")
+  photosSource     String?   @map("photos_source")
+  photosPlaceName  String?   @map("photos_place_name")
+  photosFetchedAt  DateTime? @map("photos_fetched_at") @db.Timestamptz(3)
+  version          Int       @default(1)
+  updatedBy        String    @map("updated_by") @db.Uuid
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime  @default(now()) @map("updated_at") @db.Timestamptz(3)
+
+  @@unique([organizationId, dealId], map: "deal_property_profiles_org_deal_key")
+  @@map("deal_property_profiles")
+}
+
 /// T-178b (ADR 0059): a prep invite from a pact's own side to a Pactlab Rinse preparer. The token is
 /// stored only as its SHA-256; 14 days, single use.
 model RinsePrepInvite {

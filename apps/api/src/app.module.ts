@@ -11,7 +11,7 @@ import { AiModule } from './ai/ai.module';
 import { BalanceSheetModule } from './balance-sheet/balance-sheet.module';
 import { PhasesModule } from './phases/phases.module';
 import { CloseModule } from './close/close.module';
-import { FixtureMarketRentProvider, FixturePropertyProvider, FixtureSigningProvider, type DocuSignOAuth, type MarketRentProvider, type PropertyDataProvider, type SigningProvider, type SigningWebhook } from '@pactlab/connectors';
+import { FixtureMarketRentProvider, FixturePhotoProvider, FixturePropertyProvider, FixturePropertyRecordProvider, FixtureSigningProvider, type DocuSignOAuth, type MarketRentProvider, type PropertyDataProvider, type PropertyPhotoProvider, type PropertyRecordProvider, type SigningProvider, type SigningWebhook } from '@pactlab/connectors';
 import { VentureModule } from './venture/venture.module';
 import { AdminModule } from './admin/admin.module';
 import { SourceHealthModule } from './sources/source-health.module';
@@ -38,6 +38,7 @@ import { OrganizationModule } from './organization/organization.module';
 import { ImportsModule, type ImportsModuleDependencies } from './imports/imports.module';
 import { UnavailableUploadStore } from './imports/upload-store';
 import { MarketRentsModule } from './market-rents/market-rents.module';
+import { PropertyProfileModule } from './property-profile/property-profile.module';
 import { MetricsModule } from './metrics/metrics.module';
 import { PactsModule } from './pacts/pacts.module';
 import { PrismaValuationRepository } from './valuation/prisma-valuation.repository';
@@ -139,6 +140,10 @@ export interface AppDependencies {
   property?: PropertyDataProvider | null;
   /** Market rents for a rent roll (T-158): RentCast with its key; the fixture outside production; null turns the check off. */
   marketRents?: MarketRentProvider | null;
+  /** Property profile records (T-188): RentCast with its key; the fixture outside production; null turns population off. */
+  propertyRecords?: PropertyRecordProvider | null;
+  /** Property photos (T-188): Google Maps Platform with its key; the fixture outside production; null turns the gallery off. */
+  propertyPhotos?: PropertyPhotoProvider | null;
   /**
    * Billing (T-087): the provider (Stripe with a key; otherwise the fixture outside production),
    * whether pact creation is gated (BILLING_ENFORCEMENT, default off) and Stripe Tax.
@@ -282,6 +287,10 @@ export class AppModule {
         MetricsModule,
         // Market rents (T-158); the fixture unless an environment says otherwise.
         MarketRentsModule.register(deps.marketRents === undefined ? new FixtureMarketRentProvider() : deps.marketRents),
+        PropertyProfileModule.register({
+          record: deps.propertyRecords === undefined ? new FixturePropertyRecordProvider() : deps.propertyRecords,
+          photos: deps.propertyPhotos === undefined ? new FixturePhotoProvider() : deps.propertyPhotos,
+        }),
         PactsModule,
         BalanceSheetModule,
         PhasesModule,

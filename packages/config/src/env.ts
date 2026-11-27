@@ -150,6 +150,8 @@ export const apiEnvSchema = baseEnvSchema.extend({
   GOOGLE_PROJECT_NUMBER: unsetIfBlank(z.string().min(1).optional()).transform((value) => (value === 'unset' ? undefined : value)),
   /** RentCast API key for US property data on teaser pages (batch 2). Unset: the fixture outside production, no lookup in production. */
   RENTCAST_API_KEY: unsetIfBlank(nonEmpty.optional()),
+  /** Google Maps Platform key (Street View Static + Places) for property photos (T-188, pay-as-you-go). Distinct from the Gemini GOOGLE_API_KEY. Unset: the fixture outside production, no photos in production. */
+  GOOGLE_MAPS_API_KEY: unsetIfBlank(nonEmpty.optional()),
   /** Stripe (T-087): a test (sk_test_) or live key and the webhook signing secret. Unset: the fixture outside production. */
   STRIPE_SECRET_KEY: unsetIfBlank(nonEmpty.optional()),
   STRIPE_WEBHOOK_SECRET: unsetIfBlank(nonEmpty.optional()),
