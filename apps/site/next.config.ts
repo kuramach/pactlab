@@ -15,6 +15,8 @@ const nextConfig: NextConfig = {
   transpilePackages: ['@pactlab/domain'],
   // The dev server would otherwise write AGENTS.md / CLAUDE.md into this app on every start.
   agentRules: false,
+  // Each language has its own root layout (T-171), so the 404 page is app/global-not-found.tsx.
+  experimental: { globalNotFound: true },
 };
 
 export default nextConfig;

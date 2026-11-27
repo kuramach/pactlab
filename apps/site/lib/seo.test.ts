@@ -9,7 +9,8 @@ import { INDUSTRY_STORIES, PUBLISHED_INDUSTRIES } from './industry-stories';
 import { TRY_PACKS } from './try';
 import { AI_CRAWLERS, absolute, faqPageJsonLd, jsonLdScript, llmsText, organizationJsonLd, SITE_ROUTES, softwareApplicationJsonLd } from './seo';
 
-const APP = join(dirname(fileURLToPath(import.meta.url)), '../app');
+/** English routes; /de, /fr and /ja mirror the translated ones under app/[locale] (T-171). */
+const APP = join(dirname(fileURLToPath(import.meta.url)), '../app/(en)');
 
 /** Every page route the app defines, with dynamic segments expanded from the same content the pages use. */
 function appRoutes(dir = APP): string[] {

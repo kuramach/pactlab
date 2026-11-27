@@ -1,3 +1,6 @@
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { CfnOutput, Duration, RemovalPolicy, Stack, Tags, type StackProps } from 'aws-cdk-lib';
 import * as acm from 'aws-cdk-lib/aws-certificatemanager';
 import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
@@ -24,20 +27,43 @@ export interface PactlabSiteStackProps extends StackProps {
   };
 }
 
+/** What the site's language routing needs at the edge: the build publishes it as /locales.json (T-171). */
+export interface EdgeLocales {
+  readonly cookie: string;
+  readonly countryCookie: string;
+  /** Every language prefix: detection never fires under one. */
+  readonly prefixes: readonly string[];
+  /** Languages a visitor may be sent to; empty until a translation passes its native review. */
+  readonly published: readonly string[];
+  /** ISO country → language. */
+  readonly countries: Readonly<Record<string, string>>;
+  readonly entryPaths: readonly string[];
+}
+
+/** A build without /locales.json (or an older one): no language routing, the directory index only. */
+export const NO_LOCALES: EdgeLocales = {
+  cookie: 'pactlab_locale',
+  countryCookie: 'pactlab_country',
+  prefixes: [],
+  published: [],
+  countries: {},
+  entryPaths: [],
+};
+
+/** The language configuration the static export was built with. */
+export function edgeLocales(contentDir: string): EdgeLocales {
+  const file = join(contentDir, 'locales.json');
+  return existsSync(file) ? (JSON.parse(readFileSync(file, 'utf8')) as EdgeLocales) : NO_LOCALES;
+}
+
+const functionSource = (name: string) => readFileSync(fileURLToPath(new URL(`../functions/${name}.js`, import.meta.url)), 'utf8');
+
 /**
- * Directory-style URLs for a static export with trailing slashes:
- * `/product` and `/product/` both serve `/product/index.html`.
+ * A CloudFront Function's code with the build's language configuration prepended. The same
+ * source runs in the site's e2e server, so what the tests prove is what the edge runs.
  */
-export const REWRITE_FUNCTION_CODE = `function handler(event) {
-  var request = event.request;
-  var uri = request.uri;
-  if (uri.endsWith('/')) {
-    request.uri = uri + 'index.html';
-  } else if (uri.split('/').pop().indexOf('.') === -1) {
-    request.uri = uri + '/index.html';
-  }
-  return request;
-}`;
+export const edgeFunctionCode = (name: 'site-viewer-request' | 'site-viewer-response', locales: EdgeLocales) =>
+  `var LOCALES = ${JSON.stringify(locales)};\n${functionSource(name)}`;
 
 /** The site loads only its own assets; Next's inline bootstrap needs inline scripts. */
 export const CONTENT_SECURITY_POLICY = [
@@ -81,10 +107,24 @@ export class PactlabSiteStack extends Stack {
       lifecycleRules: [{ noncurrentVersionExpiration: Duration.days(30) }],
     });
 
+    const locales = edgeLocales(contentDir);
     const rewrite = new cloudfront.Function(this, 'DirectoryIndex', {
-      code: cloudfront.FunctionCode.fromInline(REWRITE_FUNCTION_CODE),
+      code: cloudfront.FunctionCode.fromInline(edgeFunctionCode('site-viewer-request', locales)),
       runtime: cloudfront.FunctionRuntime.JS_2_0,
-      comment: 'Serve /path and /path/ from /path/index.html',
+      comment: 'Language by cookie or country on entry pages; /path from /path/index.html',
+    });
+    const country = new cloudfront.Function(this, 'ViewerCountry', {
+      code: cloudfront.FunctionCode.fromInline(edgeFunctionCode('site-viewer-response', locales)),
+      runtime: cloudfront.FunctionRuntime.JS_2_0,
+      comment: 'Remember the viewer country for the pilot request',
+    });
+    // CloudFront-Viewer-Country reaches a function only when a policy lists it. The origin request
+    // policy (not the cache key) does, so the cache is not split by country; S3 ignores the header.
+    const viewerCountry = new cloudfront.OriginRequestPolicy(this, 'ViewerCountryHeader', {
+      comment: `${label}: CloudFront-Viewer-Country for language routing`,
+      headerBehavior: cloudfront.OriginRequestHeaderBehavior.allowList('CloudFront-Viewer-Country'),
+      queryStringBehavior: cloudfront.OriginRequestQueryStringBehavior.none(),
+      cookieBehavior: cloudfront.OriginRequestCookieBehavior.none(),
     });
 
     const headers = new cloudfront.ResponseHeadersPolicy(this, 'SecurityHeaders', {
@@ -126,9 +166,13 @@ export class PactlabSiteStack extends Stack {
         origin: origins.S3BucketOrigin.withOriginAccessControl(this.bucket),
         viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
         cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
+        originRequestPolicy: viewerCountry,
         responseHeadersPolicy: headers,
         compress: true,
-        functionAssociations: [{ function: rewrite, eventType: cloudfront.FunctionEventType.VIEWER_REQUEST }],
+        functionAssociations: [
+          { function: rewrite, eventType: cloudfront.FunctionEventType.VIEWER_REQUEST },
+          { function: country, eventType: cloudfront.FunctionEventType.VIEWER_RESPONSE },
+        ],
       },
       // Without list permission a missing key returns 403; both show the site's 404 page.
       errorResponses: [403, 404].map((httpStatus) => ({

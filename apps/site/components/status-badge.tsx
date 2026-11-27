@@ -1,9 +1,13 @@
 import type { Industry } from '../lib/content';
+import { site } from '../lib/i18n/catalog';
+import { fill } from '../lib/i18n/localize';
+import type { Locale } from '../lib/i18n/locales';
 
 /** Availability in words, never colour alone. */
-export function StatusBadge({ industry, tone = 'light' }: { industry: Pick<Industry, 'status' | 'order'>; tone?: 'light' | 'dark' }) {
+export function StatusBadge({ industry, tone = 'light', locale = 'en' }: { industry: Pick<Industry, 'status' | 'order'>; tone?: 'light' | 'dark'; locale?: Locale }) {
   const available = industry.status === 'AVAILABLE';
-  const label = available ? 'Available in pilot' : `Planned · pack ${industry.order}`;
+  const words = site(locale).ui.industries;
+  const label = available ? words.available : fill(words.planned, { order: industry.order ?? '' });
   const style = available
     ? 'bg-indigo text-navy'
     : tone === 'dark'
