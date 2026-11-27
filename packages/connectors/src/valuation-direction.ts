@@ -236,6 +236,8 @@ export const VALUATION_DIRECTION_MAP: Readonly<Record<string, readonly Direction
       rationale: 'A record of the multi-year trend for review; drifts and expenses outpacing revenue carry their own direction.',
     },
     { signal: 'margin-drift', findingDomain: 'FINANCIAL', defaultDirection: -1, channel: 'ASSUMPTION' },
+    // The last five years well above the full history's average (T-185): ask whether the price assumes the peak lasts.
+    { signal: 'recent-run', findingDomain: 'FINANCIAL', defaultDirection: -1, channel: 'ASSUMPTION' },
     { signal: 'expense-outpacing', findingDomain: 'FINANCIAL', defaultDirection: -1, channel: 'ASSUMPTION' },
     // R&D flat across the imported years while a document says the timeline was brought forward (T-163).
     { signal: 'rd-flat-timeline-accelerated', findingDomain: 'FINANCIAL', defaultDirection: -1, channel: 'ASSUMPTION' },

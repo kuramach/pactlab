@@ -49,6 +49,9 @@ const SIGNALS: Readonly<Record<string, (key: string) => readonly [string, string
   'clinics-pnl-trend': () => [PNL_LINE_EVIDENCE_TYPE, 'trend'],
   'clinics-pnl-margin-drift': () => [PNL_LINE_EVIDENCE_TYPE, 'margin-drift'],
   'clinics-pnl-expense-outpacing': () => [PNL_LINE_EVIDENCE_TYPE, 'expense-outpacing'],
+  'clinics-recent-run': () => [PNL_LINE_EVIDENCE_TYPE, 'recent-run'],
+  // Small clinics reuse the healthcare history spec (T-161, T-184b), so its recent-run check fires too.
+  'healthcare-recent-run': () => [PNL_LINE_EVIDENCE_TYPE, 'recent-run'],
   'healthcare-visits-trend': () => [HEALTHCARE_CLINICIAN_MONTH_EVIDENCE_TYPE, DRIVER_TREND_SIGNAL],
 };
 const RULES = new Map([...CLINICS_RULES, ...HEALTHCARE_RULES].map((rule) => [rule.id, rule]));

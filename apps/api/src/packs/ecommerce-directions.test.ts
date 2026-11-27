@@ -34,6 +34,7 @@ const SIGNALS: Readonly<Record<string, (key: string) => readonly [string, string
   'ecommerce-pnl-trend': () => [PNL_LINE_EVIDENCE_TYPE, 'trend'],
   'ecommerce-pnl-margin-drift': () => [PNL_LINE_EVIDENCE_TYPE, 'margin-drift'],
   'ecommerce-pnl-expense-outpacing': () => [PNL_LINE_EVIDENCE_TYPE, 'expense-outpacing'],
+  'ecommerce-recent-run': () => [PNL_LINE_EVIDENCE_TYPE, 'recent-run'],
   'ecommerce-discount-trend': () => [ECOMMERCE_CHANNEL_MONTH_EVIDENCE_TYPE, DRIVER_TREND_SIGNAL],
 };
 

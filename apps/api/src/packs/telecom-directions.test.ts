@@ -36,6 +36,7 @@ const SIGNALS: Readonly<Record<string, (key: string) => readonly [string, string
   'telecom-pnl-trend': () => [PNL_LINE_EVIDENCE_TYPE, 'trend'],
   'telecom-pnl-margin-drift': () => [PNL_LINE_EVIDENCE_TYPE, 'margin-drift'],
   'telecom-pnl-expense-outpacing': () => [PNL_LINE_EVIDENCE_TYPE, 'expense-outpacing'],
+  'telecom-recent-run': () => [PNL_LINE_EVIDENCE_TYPE, 'recent-run'],
   'telecom-churn-trend': () => [TELECOM_SUBSCRIBER_MOVEMENT_EVIDENCE_TYPE, DRIVER_TREND_SIGNAL],
 };
 
