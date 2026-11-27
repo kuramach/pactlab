@@ -34,3 +34,4 @@ export * from './rinse';
 export * from './criticals/registry';
 export * from './pricing';
 export * from './property-profile';
+export * from './contacts';

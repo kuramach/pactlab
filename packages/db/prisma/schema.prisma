@@ -4330,3 +4330,75 @@ model RinsePreparerChallenge {
   @@index([ipHash, createdAt])
   @@map("rinse_preparer_challenges")
 }
+
+/// T-180: the verified address Pactlab writes to, one per person. Personal data: never logged or sent
+/// to a model. Read by the person only (RLS); written through SECURITY DEFINER functions (pactlab_auth).
+model UserContactEmail {
+  userId     String   @id @map("user_id") @db.Uuid
+  email      String
+  /// AUTH0_CLAIM (the identity provider's verified email) or CODE (confirmed with a one-time code).
+  source     String
+  verifiedAt DateTime @map("verified_at") @db.Timestamptz(3)
+  updatedAt  DateTime @default(now()) @map("updated_at") @db.Timestamptz(3)
+
+  @@map("user_contact_emails")
+}
+
+/// T-180: one-time codes (email, WhatsApp) and Telegram link tokens, stored only as hashes.
+/// Reached only through SECURITY DEFINER functions owned by pactlab_auth.
+model ContactVerification {
+  id             String    @id @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  userId         String    @map("user_id") @db.Uuid
+  kind           String
+  target         String?
+  secretHash     String    @map("secret_hash") @db.Char(64)
+  consentText    String?   @map("consent_text")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  expiresAt      DateTime  @map("expires_at") @db.Timestamptz(3)
+  attempts       Int       @default(0)
+  consumedAt     DateTime? @map("consumed_at") @db.Timestamptz(3)
+
+  @@index([userId, kind, createdAt], map: "contact_verifications_user_kind_idx")
+  @@index([secretHash], map: "contact_verifications_secret_idx")
+  @@map("contact_verifications")
+}
+
+/// T-180: a verified Telegram chat or WhatsApp number. A row exists only once verified; RLS by user
+/// and organization; an admin sees it masked through `app_contact_admin_list`, which audits the read.
+model UserContactChannel {
+  id             String    @id @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  userId         String    @map("user_id") @db.Uuid
+  /// TELEGRAM or WHATSAPP.
+  kind           String
+  /// The Telegram chat id, or the WhatsApp number in E.164.
+  handle         String
+  verifiedAt     DateTime  @map("verified_at") @db.Timestamptz(3)
+  consentText    String?   @map("consent_text")
+  consentedAt    DateTime? @map("consented_at") @db.Timestamptz(3)
+  revokedAt      DateTime? @map("revoked_at") @db.Timestamptz(3)
+  /// USER, BLOCKED (Telegram), STOP (/stop or WhatsApp STOP) or REPLACED.
+  revokedReason  String?   @map("revoked_reason")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([organizationId, userId], map: "user_contact_channels_org_idx")
+  @@map("user_contact_channels")
+}
+
+/// T-180: each message sent on a channel, claimed before it is sent (at most once per notification).
+model ContactChannelDelivery {
+  id             String    @id @db.Uuid
+  channelId      String    @map("channel_id") @db.Uuid
+  notificationId String?   @map("notification_id") @db.Uuid
+  /// NOTIFICATION or TEST.
+  purpose        String
+  /// CLAIMED, SENT or FAILED.
+  outcome        String    @default("CLAIMED")
+  errorClass     String?   @map("error_class")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  finishedAt     DateTime? @map("finished_at") @db.Timestamptz(3)
+
+  @@index([channelId, createdAt], map: "contact_channel_deliveries_channel_idx")
+  @@map("contact_channel_deliveries")
+}
