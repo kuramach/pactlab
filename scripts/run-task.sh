@@ -182,12 +182,26 @@ PUSHED=false
 (cd "$WT" && git push -q -u origin "$BRANCH" 2>&1 | tee -a "$LOG") && PUSHED=true \
   || echo "warn: branch push failed" | tee -a "$LOG"
 
+# The agent may have moved its own task file on (to review, or to blocked when it stops for a decision):
+# find it wherever it is (T-178b, T-178c, T-186, 2026-11-27: a missing tasks/active file ended the run silently).
+task_file() { local f; for f in "$WT"/tasks/{active,review,blocked,done}/"$TASK_ID".md; do [[ -f "$f" ]] && { echo "$f"; return 0; }; done; return 1; }
+ACTIVE="$(task_file || echo "$ACTIVE")"
+
 finish() { # finish <state> <id> — record the state on the task's branch (never on main) and push the branch
-  local state="$1" id="$2"
-  (cd "$WT" && mkdir -p "tasks/$state" && git mv "tasks/active/$id.md" "tasks/$state/$id.md" \
-    && git commit -qm "chore: $id → $state" && git push -q origin "$BRANCH") >>"$LOG" 2>&1 || true
+  local state="$1" id="$2" from
+  from="$(task_file)" || true
+  from="${from#"$WT"/}"
+  (cd "$WT" && mkdir -p "tasks/$state" \
+    && { [[ -z "$from" || "$from" == "tasks/$state/$id.md" ]] || { git mv "$from" "tasks/$state/$id.md" && git commit -qm "chore: $id → $state"; }; } \
+    && git push -q origin "$BRANCH") >>"$LOG" 2>&1 || true
   echo "$state" > "$RUNS/$id.state"
 }
+
+# An agent that stopped for a decision (its task file in tasks/blocked) gets no PR: its work is pushed for reading.
+if [[ "$ACTIVE" == */tasks/blocked/* ]]; then
+  echo "### $TASK_ID BLOCKED by the agent: it needs a decision (report in $LOG; work on origin/$BRANCH)" | tee -a "$LOG"
+  finish blocked "$TASK_ID"; exit 1
+fi
 
 if ! $CHECKS_OK; then
   echo "### $TASK_ID BLOCKED: checks failed" | tee -a "$LOG"
