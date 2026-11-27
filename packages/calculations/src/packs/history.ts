@@ -4,7 +4,7 @@ import { grouped, percent } from './common';
 import type { PackHistory, PackMetric } from './metrics-types';
 import { trendOf, PNL_LINE } from './pnl-trend';
 import { MAX_CITED, type PackRule, type PackRuleEvidence, type PackRuleProposal } from './rule-types';
-import { HISTORY_YEARS, yearRanges } from './multifamily/history';
+import { historyWindow, kindCoverage, longRunMetrics, recentRunCheck, RECENT_YEARS, type HistoryOptions, type HistoryWindow, type LongRunSeries } from './history-span';
 
 /**
  * Five years of history for any pack (T-184, ADR 0057), the generic form of what T-183 built on multifamily:
@@ -21,7 +21,8 @@ export const PACK_HISTORY_CONVENTIONS = [
   'An operating driver for a year needs all twelve of its months in the export; a part year is left out, never scaled up. The current year shows as the trailing figures beside the history.',
   'A driver is a sum over the year (volume), a ratio of sums over the year (take rate, utilization), or the sum in the year\'s last month (a closing count).',
   'Growth rates are compound annual rates between the first and the last year read; nothing is extrapolated to years not imported.',
-  `Every pack expects ${HISTORY_YEARS} fiscal years; a missing year is asked of the seller.`,
+  `Every complete year provided is read, up to 30 (T-185). Every pack expects ${RECENT_YEARS} fiscal years at least, or every year since the business started when it started later; a missing year, including a gap inside the history, is asked of the seller. Years before the business started are never asked for.`,
+  'The trend checks and five-year figures read the latest five years, the period a buyer prices on; long-run growth, the worst year and through-cycle averages read the full history.',
 ] as const;
 
 type Decimal = InstanceType<typeof D>;
@@ -78,6 +79,8 @@ export interface PackHistorySpec {
   /** e.g. "Processor volume" → coverage label; and "processor volume history" in the ask. */
   readonly driverLabel: string;
   readonly driverWhat: string;
+  /** The driver read over the full history for the worst year and a through-cycle average (T-185); default the first ratio driver. */
+  readonly keyDriver?: string;
 }
 
 export interface DriverYear {
@@ -125,42 +128,52 @@ function driverYears(spec: DriverSpec, evidence: readonly PackRuleEvidence[]): {
 }
 
 export interface PackHistoryResult {
-  /** The expected years, oldest first (the latest year read and the four before it). */
+  /** The years shown, oldest first: every year read (up to 30), and the expected years (T-185). */
+  readonly years: readonly string[];
+  /** The years expected: max(latest − 4, history start) … latest. */
   readonly expected: readonly string[];
+  readonly window: HistoryWindow;
+  /** The latest five years' P&L and drivers: what the trend rules and five-year figures read. */
   readonly operating: readonly TrendYear[];
   readonly drivers: ReadonlyMap<string, readonly DriverYear[]>;
+  /** Every year read (T-185). */
+  readonly allOperating: readonly TrendYear[];
+  readonly allDrivers: ReadonlyMap<string, readonly DriverYear[]>;
+  /** Each driver's coverage summary, for its History strip. */
+  readonly driverCoverage: ReadonlyMap<string, string>;
   readonly table: PackHistory;
 }
 
-function coverage(key: string, label: string, what: string, expected: readonly string[], present: readonly string[]) {
-  const inRange = present.filter((year) => expected.includes(year));
-  const missing = expected.filter((year) => !present.includes(year));
-  const summary =
-    inRange.length === 0
-      ? `No ${label.toLowerCase()} imported yet: ask the seller for ${yearRanges(expected)} ${what}`
-      : `${yearRanges(inRange)} (${inRange.length} of ${expected.length} years)${missing.length ? `: ask the seller for ${yearRanges(missing)} ${what}` : ''}`;
-  return { key, label, present: inRange.map(fiscal), missing: missing.map(fiscal), summary, missingYears: missing };
-}
+const asYearValue = (years: readonly TrendYear[], value: (year: TrendYear) => string | null) => years.map((year) => ({ year: year.year, value: value(year), evidenceIds: year.evidenceIds }));
 
 /** The pack's history: the P&L and the drivers by year, side by side, with coverage and what to ask the seller. */
-export function packHistory(spec: PackHistorySpec, evidence: readonly PackRuleEvidence[]): PackHistoryResult {
+export function packHistory(spec: PackHistorySpec, evidence: readonly PackRuleEvidence[], options: HistoryOptions = {}): PackHistoryResult {
   const trend = trendOf(evidence, spec.keyExpenses);
-  const drivers = new Map(spec.drivers.map((driver) => [driver.key, driverYears(driver, evidence).years] as const));
-  const driverYearsRead = [...new Set([...drivers.values()].flatMap((years) => years.map((year) => year.year)))];
-  const latest = [...trend.years.map((year) => year.year), ...driverYearsRead].sort().at(-1);
-  const expected = latest ? Array.from({ length: HISTORY_YEARS }, (_, index) => String(Number(latest) - (HISTORY_YEARS - 1) + index)) : [];
-  const operating = trend.years.filter((year) => expected.includes(year.year));
-  const inExpected = new Map([...drivers.entries()].map(([key, years]) => [key, years.filter((year) => expected.includes(year.year))] as const));
-  const op = new Map(operating.map((year) => [year.year, year]));
-  const row = (key: string, label: string, unit: 'MONEY' | 'RATIO' | 'COUNT', value: (year: string) => string | null | undefined) => ({ key, label, unit, values: expected.map((year) => value(year) ?? null) });
-  const cover = [
-    coverage('operating', 'Income and expenses', 'income statements', expected, operating.map((year) => year.year)),
-    coverage('drivers', spec.driverLabel, spec.driverWhat, expected, driverYearsRead),
+  const read = new Map(spec.drivers.map((driver) => [driver.key, driverYears(driver, evidence).years] as const));
+  const driverYearsRead = [...new Set([...read.values()].flatMap((years) => years.map((year) => year.year)))];
+  const window = historyWindow([...trend.years.map((year) => year.year), ...driverYearsRead], options);
+  const shownYear = (year: string) => window.years.includes(year);
+  const recentYear = (year: string) => window.recent.includes(year);
+  const allOperating = trend.years.filter((year) => shownYear(year.year));
+  const allDrivers = new Map([...read.entries()].map(([key, years]) => [key, years.filter((year) => shownYear(year.year))] as const));
+  const op = new Map(allOperating.map((year) => [year.year, year]));
+  const row = (key: string, label: string, unit: 'MONEY' | 'RATIO' | 'COUNT', value: (year: string) => string | null | undefined) => ({ key, label, unit, values: window.years.map((year) => value(year) ?? null) });
+  const operatingCover = kindCoverage('operating', 'Income and expenses', 'income statements', window, allOperating.map((year) => year.year));
+  const driversCover = kindCoverage('drivers', spec.driverLabel, spec.driverWhat, window, driverYearsRead);
+  const cover = [operatingCover, driversCover];
+  const keyDriver = spec.drivers.find((driver) => driver.key === spec.keyDriver) ?? spec.drivers.find((driver) => driver.unit === 'RATIO');
+  const longRun: LongRunSeries[] = [
+    { key: 'revenue', label: 'Revenue', unit: 'MONEY', years: asYearValue(allOperating, (year) => year.revenue), figures: ['GROWTH', 'WORST'] },
+    { key: 'ebitda', label: 'EBITDA', unit: 'MONEY', years: asYearValue(allOperating, (year) => year.ebitda), figures: ['GROWTH', 'WORST'] },
+    { key: 'operating_margin', label: 'Operating margin (EBITDA)', unit: 'RATIO', years: asYearValue(allOperating, (year) => year.operatingMargin), figures: ['AVERAGE'] },
+    ...(keyDriver ? [{ key: keyDriver.key, label: keyDriver.label, unit: keyDriver.unit, years: allDrivers.get(keyDriver.key) ?? [], figures: keyDriver.unit === 'RATIO' ? (['WORST', 'AVERAGE'] as const) : (['GROWTH', 'WORST'] as const) }] : []),
   ];
   const table: PackHistory = {
     version: PACK_HISTORY_VERSION,
-    expectedYears: HISTORY_YEARS,
-    years: expected.map(fiscal),
+    expectedYears: window.expected.length || RECENT_YEARS,
+    years: window.years.map(fiscal),
+    historyStartYear: window.start,
+    recentYears: window.recent.map(fiscal),
     rows: [
       row('revenue', 'Revenue', 'MONEY', (year) => op.get(year)?.revenue),
       row('revenue_growth', 'Revenue growth', 'RATIO', (year) => op.get(year)?.revenueGrowth),
@@ -172,31 +185,35 @@ export function packHistory(spec: PackHistorySpec, evidence: readonly PackRuleEv
           return ratio && new D(ratio.amount).gt(0) ? ratio.ratio : null;
         }),
       ),
-      ...spec.drivers.map((driver) => row(driver.key, driver.label, driver.unit, (year) => inExpected.get(driver.key)?.find((entry) => entry.year === year)?.value)),
+      ...spec.drivers.map((driver) => row(driver.key, driver.label, driver.unit, (year) => allDrivers.get(driver.key)?.find((entry) => entry.year === year)?.value)),
     ],
-    coverage: cover.map(({ missingYears: _missing, ...entry }) => entry),
-    asks: cover
-      .filter((entry) => entry.missingYears.length > 0)
-      .map((entry) => ({
-        needs: entry.key === 'operating' ? ['INCOME_STATEMENT'] : [spec.driverImport].flat(),
-        note: `Ask the seller for ${yearRanges(entry.missingYears)} ${entry.key === 'operating' ? 'income statements' : spec.driverWhat}.`,
-      })),
+    coverage: cover.map(({ key, label, present, missing, summary }) => ({ key, label, present, missing, summary })),
+    asks: cover.flatMap((entry) => (entry.ask ? [{ needs: entry.key === 'operating' ? ['INCOME_STATEMENT'] : [spec.driverImport].flat(), note: entry.ask }] : [])),
+    longRun: longRunMetrics(longRun, window),
     conventions: PACK_HISTORY_CONVENTIONS,
   };
-  return { expected, operating, drivers: inExpected, table };
+  const driverCoverage = new Map(spec.drivers.map((driver) => [driver.key, kindCoverage(driver.key, driver.label, spec.driverWhat, window, (allDrivers.get(driver.key) ?? []).map((year) => year.year)).summary] as const));
+  return {
+    years: window.years,
+    expected: window.expected,
+    window,
+    operating: allOperating.filter((year) => recentYear(year.year)),
+    drivers: new Map([...allDrivers.entries()].map(([key, years]) => [key, years.filter((year) => recentYear(year.year))] as const)),
+    allOperating,
+    allDrivers,
+    driverCoverage,
+    table,
+  };
 }
 
-/** A driver's five years as a metric's History strip, with its coverage. */
+/** A driver's years as a metric's History strip (every year read; the screen shows the last ten), with its coverage. */
 export function withHistory(metric: PackMetric, result: PackHistoryResult, driverKey: string): PackMetric {
-  const years = result.drivers.get(driverKey) ?? [];
-  const present = years.map((year) => year.year);
-  const missing = result.expected.filter((year) => !present.includes(year));
-  if (result.expected.length === 0) return metric;
-  const covered = present.length ? `${yearRanges(present)} (${present.length} of ${result.expected.length} years)` : `none of ${yearRanges(result.expected)}`;
+  const years = result.allDrivers.get(driverKey) ?? [];
+  if (result.years.length === 0) return metric;
   return {
     ...metric,
-    history: result.expected.map((year) => ({ period: fiscal(year), value: years.find((entry) => entry.year === year)?.value ?? null })),
-    coverage: missing.length ? `${covered}: ask the seller for ${yearRanges(missing)}` : covered,
+    history: result.years.map((year) => ({ period: fiscal(year), value: years.find((entry) => entry.year === year)?.value ?? null })),
+    coverage: result.driverCoverage.get(driverKey) ?? '',
     historyStrip: true,
   };
 }
@@ -262,6 +279,27 @@ export function driverTrendRule(check: DriverTrendCheck, spec: PackHistorySpec):
           evidenceIds: [...new Set(run.flatMap((year) => year.evidenceIds))].slice(0, MAX_CITED),
         },
       ];
+    },
+  };
+}
+
+// ---- The recent run against the long run (T-185) ----
+
+/**
+ * `<prefix>-recent-run`: the last five years' operating margin, or the pack's key ratio driver, averaging well above
+ * the full history's (RECENT_RUN_POINTS, over RECENT_RUN_MIN_YEARS years or more). A −1 draft a person prices.
+ */
+export function recentRunRule(prefix: string, spec: PackHistorySpec): PackRule {
+  const keyDriver = spec.drivers.find((driver) => driver.key === spec.keyDriver) ?? spec.drivers.find((driver) => driver.unit === 'RATIO');
+  return {
+    id: `${prefix}-recent-run`,
+    version: '1',
+    evidenceTypes: [PNL_LINE, ...new Set(spec.drivers.map((driver) => driver.evidenceType))],
+    detect: ({ evidence }) => {
+      const history = packHistory(spec, evidence);
+      const margin = recentRunCheck('operating_margin', 'Operating margin (EBITDA)', asYearValue(history.allOperating, (year) => year.operatingMargin), 'FINANCIAL');
+      const driver = keyDriver?.unit === 'RATIO' ? recentRunCheck(keyDriver.key, keyDriver.label, history.allDrivers.get(keyDriver.key) ?? [], 'OPERATIONAL') : null;
+      return [margin, driver].filter((proposal): proposal is PackRuleProposal => proposal !== null);
     },
   };
 }

@@ -60,22 +60,29 @@ describe('multifamily history (T-183)', () => {
     ]);
     // 1 − the mean of the last three years' averages: 1 − (0.9300 + 0.9100 + 0.8883) ÷ 3.
     expect(history.trailingVacancy.value).toBe('0.0906');
-    expect(history.coverage.operating.summary).toBe('FY2022–FY2026 (5 of 5 years)');
+    expect(history.coverage.operating.summary).toBe('FY2022–FY2026 (5 years; earlier years not provided)');
   });
 
   it('accepts less history and states it: two years give "2 of 5 years" and an ask of the seller, nothing extrapolated', () => {
     const two = [...fiveYears.filter((line) => ['2025', '2026'].includes(line.canonical['month'] ?? '')), ...occupancy.slice(36)];
     const report = multifamilyMetrics({ currency: 'USD', evidence: two });
     const metric = Object.fromEntries(report.metrics.map((entry) => [entry.key, entry]));
-    expect(metric['noi_latest']?.coverage).toBe('FY2025–FY2026 (2 of 5 years): ask the seller for FY2022–FY2024 operating statements');
+    expect(metric['noi_latest']?.coverage).toBe('FY2025–FY2026 (2 of 5 years): ask the seller for FY2022–FY2024 operating statements, or tell us the business started later');
     expect(metric['noi_latest']?.history?.map((point) => point.value)).toEqual([null, null, null, '133100.00', '146410.00']);
     // Growth over the one year imported, never over five.
     expect(metric['noi_cagr']?.value).toBe('0.1000');
     expect(report.history?.years).toEqual(['FY2022', 'FY2023', 'FY2024', 'FY2025', 'FY2026']);
     expect(report.history?.asks).toEqual([
-      { needs: ['INCOME_STATEMENT'], note: 'Ask the seller for FY2022–FY2024 operating statements.' },
-      { needs: ['MULTIFAMILY_OCCUPANCY'], note: 'Ask the seller for FY2022–FY2024 occupancy and rent history.' },
+      { needs: ['INCOME_STATEMENT'], note: 'Ask the seller for FY2022–FY2024 operating statements, or tell us the business started later.' },
+      { needs: ['MULTIFAMILY_OCCUPANCY'], note: 'Ask the seller for FY2022–FY2024 occupancy and rent history, or tell us the business started later.' },
     ]);
+    // With the property acquired in FY2025 (its history start), two years are the whole history: no ask.
+    const started = multifamilyMetrics({ currency: 'USD', evidence: two, historyStartYear: 2025 });
+    const startedMetric = Object.fromEntries(started.metrics.map((entry) => [entry.key, entry]));
+    expect(startedMetric['noi_latest']?.coverage).toBe('FY2025–FY2026 (2 of 2 years since the business started)');
+    expect(started.history?.years).toEqual(['FY2025', 'FY2026']);
+    expect(started.history?.asks).toEqual([]);
+    expect(started.history?.historyStartYear).toBe(2025);
     expect(report.history?.rows.find((entry) => entry.key === 'noi')?.values).toEqual([null, null, null, '133100.00', '146410.00']);
   });
 

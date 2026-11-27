@@ -3,6 +3,7 @@ import type { KeyExpense } from '../../pnl/trend';
 import { PNL_LINE } from '../pnl-trend';
 import type { PackHistory } from '../metrics-types';
 import type { PackRuleEvidence } from '../rule-types';
+import { historyWindow, kindCoverage, longRunMetrics, RECENT_YEARS, type HistoryOptions, type HistoryWindow } from '../history-span';
 import { of, T12, type Decimal } from './shared';
 
 /**
@@ -12,8 +13,9 @@ import { of, T12, type Decimal } from './shared';
  * seller, never a figure. Changing a rule is a new MULTIFAMILY_HISTORY_VERSION, never a silent edit.
  */
 export const MULTIFAMILY_HISTORY_VERSION = 'multifamily-history-1';
-/** Fiscal years every pack expects, plus the current year or the T-12 (ADR 0057). */
-export const HISTORY_YEARS = 5;
+/** Fiscal years every pack expects at least, plus the current year or the T-12 (ADR 0057); every year provided is read (T-185). */
+export const HISTORY_YEARS = RECENT_YEARS;
+export { yearRanges } from '../history-span';
 
 export const OCCUPANCY = 'property.occupancy_period';
 export const UNIT_SNAPSHOT = 'multifamily.unit_snapshot';
@@ -34,7 +36,8 @@ export const MULTIFAMILY_HISTORY_CONVENTIONS = [
   'Effective gross income is revenue on the P&L (rent less vacancy and concessions as the statement books them, plus other income); NOI is revenue less cost of revenue and operating expenses; the expense ratio is those expenses ÷ revenue.',
   'Occupancy for a year is occupied units ÷ units across its months (its average) and its lowest month (the low point); average in-place rent is weighted by occupied units; the trailing three-year vacancy is 1 − the mean of the last three years\' averages.',
   'Growth rates are compound annual rates between the first and the last year read; nothing is extrapolated to years not imported.',
-  `Every pack expects ${HISTORY_YEARS} fiscal years; a missing year is asked of the seller.`,
+  `Every complete year provided is read, up to 30 (T-185). Every pack expects ${HISTORY_YEARS} fiscal years at least, or every year since the business started (or the property was built or acquired) when that is later; a missing year, including a gap inside the history, is asked of the seller, and years before the start never are.`,
+  'The trend checks and five-year figures read the latest five years; long-run growth, the worst year and through-cycle averages read the full history.',
 ] as const;
 
 const fiscal = (year: string) => `FY${year}`;
@@ -52,18 +55,6 @@ export function monthsBefore(month: string, n: number): string {
 
 /** The twelve months of the window ending in `end`, oldest first. */
 const windowOf = (end: string) => Array.from({ length: 12 }, (_, index) => monthsBefore(end, 11 - index));
-
-/** Years as ranges: ["2022","2023","2025"] → "FY2022–FY2023, FY2025". */
-export function yearRanges(years: readonly string[]): string {
-  const sorted = [...new Set(years)].sort();
-  const ranges: string[][] = [];
-  for (const year of sorted) {
-    const last = ranges.at(-1);
-    if (last && Number(last.at(-1)) === Number(year) - 1) last.push(year);
-    else ranges.push([year]);
-  }
-  return ranges.map((range) => (range.length === 1 ? fiscal(range[0] ?? '') : `${fiscal(range[0] ?? '')}–${fiscal(range.at(-1) ?? '')}`)).join(', ');
-}
 
 // ---- The operating statement by year ----
 
@@ -342,20 +333,28 @@ const yearSpan = (first: string | undefined, last: string | undefined) => (first
 export interface HistoryCoverage {
   readonly key: 'operating' | 'occupancy';
   readonly label: string;
-  readonly expected: readonly string[];
+  /** Years read and years asked of the seller, as plain years. */
   readonly present: readonly string[];
   readonly missing: readonly string[];
-  /** "FY2022–FY2026 (5 of 5 years)" or "FY2025–FY2026 (2 of 5 years): ask the seller for FY2022–FY2024". */
+  /** "FY2007–FY2026 (20 years)", "FY2025–FY2026 (2 of 5 years): ask the seller for FY2022–FY2024 …" (T-185). */
   readonly summary: string;
+  readonly ask: string | null;
 }
 
 export interface MultifamilyHistory {
   readonly version: typeof MULTIFAMILY_HISTORY_VERSION;
   readonly expectedYears: number;
-  /** The expected years, oldest first (the latest year read and the four before it). */
+  /** The years expected: max(latest − 4, history start) … latest (T-185). */
   readonly expected: readonly string[];
+  /** Every year shown, oldest first: every year read up to 30, and the expected years (T-185). */
+  readonly years: readonly string[];
+  readonly window: HistoryWindow;
+  /** The latest five years: what the trend rules and five-year figures read. */
   readonly operating: readonly OperatingYear[];
   readonly occupancy: readonly OccupancyYear[];
+  /** Every year read (T-185). */
+  readonly operatingAll: readonly OperatingYear[];
+  readonly occupancyAll: readonly OccupancyYear[];
   readonly partial: { readonly operating: readonly string[]; readonly occupancy: readonly string[] };
   readonly coverage: { readonly operating: HistoryCoverage; readonly occupancy: HistoryCoverage };
   readonly noiCagr: string | null;
@@ -367,44 +366,43 @@ export interface MultifamilyHistory {
   readonly trailingVacancy: { readonly value: string | null; readonly years: readonly string[] };
 }
 
-function coverageOf(key: HistoryCoverage['key'], label: string, what: string, expected: readonly string[], present: readonly string[]): HistoryCoverage {
-  const inRange = present.filter((year) => expected.includes(year));
-  const missing = expected.filter((year) => !present.includes(year));
-  const count = `${inRange.length} of ${expected.length} years`;
-  const summary =
-    inRange.length === 0
-      ? `No ${label.toLowerCase()} imported yet: ask the seller for ${yearRanges(expected)} ${what}`
-      : `${yearRanges(inRange)} (${count})${missing.length ? `: ask the seller for ${yearRanges(missing)} ${what}` : ''}`;
-  return { key, label, expected, present: inRange, missing, summary };
+function coverageOf(key: HistoryCoverage['key'], label: string, what: string, window: HistoryWindow, present: readonly string[]): HistoryCoverage {
+  const cover = kindCoverage(key, label, what, window, present);
+  return { key, label, present: cover.present.map((year) => year.slice(2)), missing: cover.missingYears, summary: cover.summary, ask: cover.ask };
 }
 
-export function multifamilyHistory(evidence: readonly PackRuleEvidence[], currency: string): MultifamilyHistory {
+export function multifamilyHistory(evidence: readonly PackRuleEvidence[], currency: string, options: HistoryOptions = {}): MultifamilyHistory {
   const operating = operatingYears(evidence, currency);
   const occupancy = occupancyYears(evidence);
-  const latest = [...operating.years.map((year) => year.year), ...occupancy.years.map((year) => year.year)].sort().at(-1);
-  const expected = latest ? Array.from({ length: HISTORY_YEARS }, (_, index) => String(Number(latest) - (HISTORY_YEARS - 1) + index)) : [];
-  const op = operating.years.filter((year) => !latest || expected.includes(year.year));
-  const occ = occupancy.years.filter((year) => !latest || expected.includes(year.year));
+  const window = historyWindow([...operating.years.map((year) => year.year), ...occupancy.years.map((year) => year.year)], options);
+  const opAll = operating.years.filter((year) => window.years.includes(year.year));
+  const occAll = occupancy.years.filter((year) => window.years.includes(year.year));
+  const op = opAll.filter((year) => window.recent.includes(year.year));
+  const occ = occAll.filter((year) => window.recent.includes(year.year));
   const firstOp = op[0];
   const lastOp = op.at(-1);
   const rented = occ.filter((year) => year.averageRent !== null);
   const rentGrowth = new Map<string, string | null>();
-  for (const [index, year] of occ.entries()) {
-    const before = occ[index - 1];
+  for (const [index, year] of occAll.entries()) {
+    const before = occAll[index - 1];
     rentGrowth.set(year.year, before && Number(before.year) === Number(year.year) - 1 && before.averageRent && year.averageRent ? new D(year.averageRent).div(before.averageRent).minus(1).toFixed(4) : null);
   }
   const lastThree = occ.slice(-3);
   const meanOccupancy = lastThree.length ? lastThree.reduce((total, year) => total.plus(year.average), new D(0)).div(lastThree.length) : null;
   return {
     version: MULTIFAMILY_HISTORY_VERSION,
-    expectedYears: HISTORY_YEARS,
-    expected,
+    expectedYears: window.expected.length || HISTORY_YEARS,
+    expected: window.expected,
+    years: window.years,
+    window,
     operating: op,
     occupancy: occ,
+    operatingAll: opAll,
+    occupancyAll: occAll,
     partial: { operating: operating.partial, occupancy: occupancy.partial },
     coverage: {
-      operating: coverageOf('operating', 'Operating statements', 'operating statements', expected, op.map((year) => year.year)),
-      occupancy: coverageOf('occupancy', 'Occupancy and rent', 'occupancy and rent history', expected, occ.map((year) => year.year)),
+      operating: coverageOf('operating', 'Operating statements', 'operating statements', window, opAll.map((year) => year.year)),
+      occupancy: coverageOf('occupancy', 'Occupancy and rent', 'occupancy and rent history', window, occAll.map((year) => year.year)),
     },
     noiCagr: cagr(firstOp?.noi ?? null, lastOp?.noi ?? null, yearSpan(firstOp?.year, lastOp?.year)),
     revenueCagr: cagr(firstOp?.revenue ?? null, lastOp?.revenue ?? null, yearSpan(firstOp?.year, lastOp?.year)),
@@ -414,20 +412,36 @@ export function multifamilyHistory(evidence: readonly PackRuleEvidence[], curren
   };
 }
 
+/** The full history as the long-run series: revenue and NOI growth and worst years, the NOI margin and occupancy through the cycle. */
+export function multifamilyLongRun(history: MultifamilyHistory) {
+  const op = (value: (year: OperatingYear) => string | null) => history.operatingAll.map((year) => ({ year: year.year, value: value(year), evidenceIds: year.evidenceIds }));
+  return longRunMetrics(
+    [
+      { key: 'revenue', label: 'Revenue', unit: 'MONEY', years: op((year) => year.revenue), figures: ['GROWTH', 'WORST'] },
+      { key: 'noi', label: 'Net operating income', unit: 'MONEY', years: op((year) => year.noi), figures: ['GROWTH', 'WORST'] },
+      { key: 'noi_margin', label: 'NOI margin', unit: 'RATIO', years: op((year) => year.margin), figures: ['AVERAGE'] },
+      { key: 'occupancy', label: 'Occupancy (average)', unit: 'RATIO', years: history.occupancyAll.map((year) => ({ year: year.year, value: year.average, evidenceIds: year.evidenceIds })), figures: ['WORST', 'AVERAGE'] },
+    ],
+    history.window,
+  );
+}
+
 /** What a missing operating or occupancy year is asked of the seller as: the income statement (a P&L import covers it) or the occupancy history. */
 export const HISTORY_NEEDS = { operating: 'INCOME_STATEMENT', occupancy: 'MULTIFAMILY_OCCUPANCY' } as const;
 
 /** The history as the generic table every pack's screen reads: years side by side, coverage, and what to ask the seller. */
 export function historyTable(history: MultifamilyHistory): PackHistory {
-  const years = history.expected;
-  const op = new Map(history.operating.map((year) => [year.year, year]));
-  const occ = new Map(history.occupancy.map((year) => [year.year, year]));
+  const years = history.years;
+  const op = new Map(history.operatingAll.map((year) => [year.year, year]));
+  const occ = new Map(history.occupancyAll.map((year) => [year.year, year]));
   const row = (key: string, label: string, unit: 'MONEY' | 'RATIO', value: (year: string) => string | null | undefined) => ({ key, label, unit, values: years.map((year) => value(year) ?? null) });
   const coverage = [history.coverage.operating, history.coverage.occupancy];
   return {
     version: history.version,
     expectedYears: history.expectedYears,
     years: years.map(fiscal),
+    historyStartYear: history.window.start,
+    recentYears: history.window.recent.map(fiscal),
     rows: [
       row('revenue', 'Revenue (effective gross income)', 'MONEY', (year) => op.get(year)?.revenue),
       row('expenses', 'Operating expenses', 'MONEY', (year) => op.get(year)?.expenses),
@@ -440,12 +454,8 @@ export function historyTable(history: MultifamilyHistory): PackHistory {
       row('rent_growth', 'Rent growth', 'RATIO', (year) => history.rentGrowth.get(year)),
     ],
     coverage: coverage.map((entry) => ({ key: entry.key, label: entry.label, present: entry.present.map(fiscal), missing: entry.missing.map(fiscal), summary: entry.summary })),
-    asks: coverage
-      .filter((entry) => entry.missing.length > 0)
-      .map((entry) => ({
-        needs: [HISTORY_NEEDS[entry.key]],
-        note: `Ask the seller for ${yearRanges(entry.missing)} ${entry.key === 'operating' ? 'operating statements' : 'occupancy and rent history'}.`,
-      })),
+    asks: coverage.flatMap((entry) => (entry.ask ? [{ needs: [HISTORY_NEEDS[entry.key]], note: entry.ask }] : [])),
+    longRun: multifamilyLongRun(history),
     conventions: MULTIFAMILY_HISTORY_CONVENTIONS,
   };
 }

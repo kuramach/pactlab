@@ -147,7 +147,7 @@ describe.each(ACCEPTANCE_CURRENCIES)('professional services pack acceptance (%s)
     expect(metrics.history?.years).toEqual(YEARS.map((year) => `FY${year}`));
     expect(metrics.history?.rows.find((row) => row.key === 'utilization')?.values).toEqual(YEARS.map(utilizationOf));
     expect(metrics.history?.rows.find((row) => row.key === 'realization')?.values).toEqual(['0.9500', '0.9350', '0.9200', '0.8700', '0.8100']);
-    expect(metrics.history?.coverage.map((entry) => entry.summary)).toEqual(['FY2021–FY2025 (5 of 5 years)', 'FY2021–FY2025 (5 of 5 years)']);
+    expect(metrics.history?.coverage.map((entry) => entry.summary)).toEqual(['FY2021–FY2025 (5 years; earlier years not provided)', 'FY2021–FY2025 (5 years; earlier years not provided)']);
     expect(metrics.history?.asks).toEqual([]);
     expect(Number(metrics.metrics.find((metric) => metric.key === 'largest_client_share')?.value)).toBeCloseTo(0.27, 1);
     expect(Number(metrics.metrics.find((metric) => metric.key === 'realization')?.value)).toBeCloseTo(0.8, 1);
@@ -173,8 +173,8 @@ describe.each(ACCEPTANCE_CURRENCIES)('professional services pack acceptance (%s)
     expect(after.years).toHaveLength(5);
     // Partial history (T-184b): no income and expenses; the coverage says so and the seller is asked for them.
     const partial = (await deal.call('GET', `/v1/deals/${deal.dealId}/metrics/pack`, 'lead')).body as PackMetricsBody;
-    expect(partial.history?.coverage.find((entry) => entry.key === 'operating')?.summary).toBe('No income and expenses imported yet: ask the seller for FY2021–FY2025 income statements');
-    expect(partial.history?.asks).toEqual([{ needs: ['INCOME_STATEMENT'], note: 'Ask the seller for FY2021–FY2025 income statements.' }]);
+    expect(partial.history?.coverage.find((entry) => entry.key === 'operating')?.summary).toBe('No income and expenses imported yet: ask the seller for FY2021–FY2025 income statements, or tell us the business started later');
+    expect(partial.history?.asks).toEqual([{ needs: ['INCOME_STATEMENT'], note: 'Ask the seller for FY2021–FY2025 income statements, or tell us the business started later.' }]);
   });
 
   it('is refused to a target contributor and invisible to another tenant', async () => {

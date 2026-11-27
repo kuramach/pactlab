@@ -72,7 +72,7 @@ export function servicesMetrics(input: PackMetricsInput): PackMetricsReport {
     over90('ar', 'Debtors'),
   ];
   // Five years (T-184b): the P&L, utilization, realization and headcount by year; utilization and realization carry a History strip.
-  const history = packHistory(SERVICES_HISTORY, input.evidence);
+  const history = packHistory(SERVICES_HISTORY, input.evidence, input);
   const strips = new Set(['utilization', 'realization']);
   return {
     calculator: 'services-practice',

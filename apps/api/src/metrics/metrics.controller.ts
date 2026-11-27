@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Inject, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Inject, Param, Post, Put, Query } from '@nestjs/common';
 import { dealParamsSchema } from '@pactlab/contracts';
 import type { TenantContext } from '@pactlab/domain';
 import { Tenant } from '../auth/tenant.decorator';
@@ -7,9 +7,11 @@ import { RequestId } from '../deals/request-id.decorator';
 import {
   approvalParamsSchema,
   approveSchema,
+  historyStartSchema,
   metricsQuerySchema,
   reconcileSchema,
   type ApproveCommand,
+  type HistoryStartCommand,
   type MetricsQuery,
   type ReconcileCommand,
 } from './metrics.schemas';
@@ -37,6 +39,17 @@ export class MetricsController {
     @Param(new ZodValidationPipe(dealParamsSchema)) params: { dealId: string },
   ) {
     return this.service.packMetrics(tenant, params.dealId, requestId);
+  }
+
+  /** The year the business started (T-185): the pact never asks for years before it. Deal lead or analyst; audited. */
+  @Put('history-start')
+  async historyStart(
+    @Tenant() tenant: TenantContext,
+    @RequestId() requestId: string,
+    @Param(new ZodValidationPipe(dealParamsSchema)) params: { dealId: string },
+    @Body(new ZodValidationPipe(historyStartSchema)) body: HistoryStartCommand,
+  ) {
+    return this.service.setHistoryStart(tenant, params.dealId, body.year, requestId);
   }
 
   @Get('cohorts')

@@ -3,7 +3,7 @@ import type { KeyExpense, TrendYear } from '../../pnl/trend';
 import { expectedClosing, wholeMonths } from '../clinics/practice';
 import { INVOICE_LINE, rowMonth } from '../common';
 import { dateIn, lastDayOfMonth, monthsTo } from '../fintech/payments';
-import { trendOf } from '../pnl-trend';
+import { recentTrendOf } from '../pnl-trend';
 import { sentences, type PackRuleEvidence, type PackRulePage, type PackRuleQuote } from '../rule-types';
 
 /**
@@ -502,7 +502,7 @@ export function capexYears(evidence: readonly PackRuleEvidence[]): { year: strin
  */
 export function squeezeYears(evidence: readonly PackRuleEvidence[]): SqueezeYear[] {
   const subscribers = subscriberYears(movementMonths(evidence));
-  const trend = trendOf(evidence, TELECOM_KEY_EXPENSES);
+  const trend = recentTrendOf(evidence, TELECOM_KEY_EXPENSES);
   const capex = capexYears(evidence);
   return trend.years.flatMap((year: TrendYear): SqueezeYear[] => {
     const subs = subscribers.find((entry) => entry.year === year.year);

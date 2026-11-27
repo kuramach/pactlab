@@ -2,7 +2,7 @@ import { D, parseDecimal, sum } from '../../metrics/decimal';
 import { pnlPeriods, pnlForPeriod } from '../../pnl/pnl';
 import { pnlLinesFromRecords, type KeyExpense } from '../../pnl/trend';
 import { monthName } from '../common';
-import { driverTrendRule, type DriverSpec, type PackHistorySpec } from '../history';
+import { driverTrendRule, recentRunRule, type DriverSpec, type PackHistorySpec } from '../history';
 import { PNL_LINE, pnlTrendRules } from '../pnl-trend';
 import { findMatch, findSentence, MAX_CITED, sentences, type PackRule, type PackRuleEvidence, type PackRuleProposal, type PackRuleQuote } from '../rule-types';
 import {
@@ -594,4 +594,6 @@ export const FINTECH_RULES: readonly PackRule[] = [
   FINTECH_PNL_EXPENSE_OUTPACING,
   FINTECH_TAKE_RATE_TREND,
   FINTECH_LOSS_RATE_TREND,
+  // The recent run against the long run (T-185): quiet until ten years or more are read.
+  recentRunRule('fintech', FINTECH_HISTORY),
 ];

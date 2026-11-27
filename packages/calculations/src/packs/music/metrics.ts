@@ -66,7 +66,7 @@ export function musicMetrics(input: PackMetricsInput): PackMetricsReport {
     { key: 'statement_periods', label: 'Statement periods', unit: 'COUNT', formula: 'Distinct statement period ends', sourceCount: rows.lines.length, value: String(income.periods.length) },
   ];
   // Five years (T-184b): statement income by year beside any imported P&L; trailing_income carries a History strip.
-  const history = packHistory(MUSIC_HISTORY, input.evidence);
+  const history = packHistory(MUSIC_HISTORY, input.evidence, input);
   return {
     calculator: 'music-royalties',
     version: MUSIC_METRICS_VERSION,

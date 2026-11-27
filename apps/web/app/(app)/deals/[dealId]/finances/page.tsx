@@ -24,7 +24,7 @@ import {
   parseMonthParam,
   RECONCILIATION_LABELS,
 } from '../../../metrics/_lib/format';
-import { approveDifference, recordReconciliation } from './actions';
+import { approveDifference, recordReconciliation, saveHistoryStart } from './actions';
 import { DebtAndCashCard } from './debt-and-cash';
 import { can, dealViewer } from '../../_lib/viewer';
 import { marketRentsOffer, type MarketRentsOffer } from '../../_lib/market-rents';
@@ -56,6 +56,9 @@ const OUTCOMES: Record<string, string> = {
   forbidden: 'Your role cannot perform this action.',
   invalid: 'Add a note of at least three characters explaining the decision.',
   'signed-out': 'Sign in to record decisions.',
+  'history-start-saved': 'History start saved. Years before it are no longer asked for.',
+  'history-start-cleared': 'History start cleared. Pactlab expects five years again.',
+  'history-start-invalid': 'Enter a year between 1800 and this year.',
 };
 
 function metricValue(metric: MetricView): string {
@@ -308,7 +311,32 @@ function Reconciliation({ dealId, data, pageAsOf }: { dealId: string; data: Metr
 const hasHistory = (report: PackMetricsView) => Boolean(report.history?.rows.some((row) => row.values.some((value) => value !== null)));
 
 /** The industry pack's figures (e.g. property metrics), each with its formula and source count. */
-function PackMetricsCard({ dealId, report, marketRents }: { dealId: string; report: PackMetricsView; marketRents: MarketRentsOffer | null }) {
+/**
+ * The year the business started (T-185): asked once, here or by the ask of the seller. Prefilled from a pack field that
+ * holds it (the year built) until a person saves it; the API checks the role (deal lead or analyst) and audits it.
+ */
+function HistoryStartForm({ dealId, start }: { dealId: string; start: NonNullable<PackMetricsView['historyStart']> }) {
+  const year = start.year ?? start.suggested?.year;
+  return (
+    <form action={saveHistoryStart.bind(null, dealId)} className="mt-2 flex flex-wrap items-end gap-3 rounded-xl border border-navy/10 p-4 text-sm">
+      <label className="flex flex-col gap-1 font-medium">
+        What’s the first year this business traded?
+        <input name="year" type="number" inputMode="numeric" min={1800} max={new Date().getUTCFullYear()} defaultValue={year ?? ''} className="w-32 rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+        <span className="text-xs font-normal text-muted-foreground">
+          {start.year !== null
+            ? `Set to ${start.year}: years before it are never asked for.`
+            : start.suggested
+              ? `Prefilled from ${start.suggested.from.toLowerCase()}; not saved yet. Or the year the property was acquired, or the earliest year the seller can provide.`
+              : 'Or the year the property was built or acquired, or the earliest year the seller can provide. Until it is set, Pactlab expects five years.'}
+        </span>
+      </label>
+      <Button type="submit" name="intent" value="save" size="sm">Save</Button>
+      {start.year !== null ? <Button type="submit" name="intent" value="clear" size="sm" variant="outline">Clear</Button> : null}
+    </form>
+  );
+}
+
+function PackMetricsCard({ dealId, report, marketRents, canWrite }: { dealId: string; report: PackMetricsView; marketRents: MarketRentsOffer | null; canWrite: boolean }) {
   const shown = (metric: PackMetricsView['metrics'][number]) =>
     metric.value === null
       ? '—'
@@ -347,8 +375,9 @@ function PackMetricsCard({ dealId, report, marketRents }: { dealId: string; repo
         )}
         {hasHistory(report) && report.history ? (
           <div className={report.metrics.length === 0 ? 'flex flex-col gap-2' : 'mt-6 flex flex-col gap-2'}>
-            <h3 className="text-sm font-semibold">Five years</h3>
+            <h3 className="text-sm font-semibold">{report.history.years.length > 5 ? `Every year read (${report.history.years.length})` : 'The years side by side'}</h3>
             <HistoryTable history={report.history} currency={report.currency} />
+            {canWrite ? <HistoryStartForm dealId={dealId} start={report.historyStart ?? { year: null, suggested: null }} /> : null}
           </div>
         ) : null}
       </CardContent>
@@ -378,8 +407,8 @@ export default async function DealFinancesPage({
   ]);
   const packMetrics = pack.kind === 'ok' ? pack.data : null;
   // Market rents (T-158): offered on a multifamily pact's metrics to the buyer team's writers; the API re-checks.
-  const viewerRole = packMetrics?.metrics.some((metric) => metric.key === 'market_rent_annual') ? (await dealViewer(dealId)).role : null;
-  const marketStatus = can.draft(viewerRole) ? await marketRentsStatus(dealId) : null;
+  const viewerRole = packMetrics ? (await dealViewer(dealId)).role : null;
+  const marketStatus = can.draft(viewerRole) && packMetrics?.metrics.some((metric) => metric.key === 'market_rent_annual') ? await marketRentsStatus(dealId) : null;
   const marketRents = marketStatus?.kind === 'ok' ? marketRentsOffer(marketStatus.data) : null;
   // Subscription metrics (ARR, retention, churn) only for subscription businesses (batch 2).
   const companyType = parties.kind === 'ok' ? ((parties.data.items.find((party) => party.role === 'SELLER')?.companyType as CompanyType | null | undefined) ?? null) : null;
@@ -394,7 +423,7 @@ export default async function DealFinancesPage({
         </p>
       </div>
 
-      {packMetrics && (packMetrics.metrics.length > 0 || hasHistory(packMetrics)) ? <PackMetricsCard dealId={dealId} report={packMetrics} marketRents={marketRents} /> : null}
+      {packMetrics && (packMetrics.metrics.length > 0 || hasHistory(packMetrics)) ? <PackMetricsCard dealId={dealId} report={packMetrics} marketRents={marketRents} canWrite={can.draft(viewerRole)} /> : null}
 
       {/* Buyer-side only: the API refuses roles without analysis access, and then nothing shows. */}
       {balanceSheet.kind === 'ok' ? <DebtAndCashCard dealId={dealId} view={balanceSheet.data} /> : null}

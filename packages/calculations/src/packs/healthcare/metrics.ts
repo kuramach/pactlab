@@ -93,7 +93,7 @@ export function healthcareMetrics(input: PackMetricsInput, historySpec: PackHist
     },
   ];
   // Five years (T-184b): the P&L, visits, the commercial share and the denial rate by year; the two rates carry a History strip.
-  const history = packHistory(historySpec, input.evidence);
+  const history = packHistory(historySpec, input.evidence, input);
   const strips = new Set(['commercial_share', 'denial_rate']);
   return {
     calculator: 'healthcare-collections',

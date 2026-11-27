@@ -114,7 +114,7 @@ describe.each(ACCEPTANCE_CURRENCIES)('energy generation & rights pack acceptance
     expect(metrics.history?.years).toEqual(YEARS.map((year) => `FY${year}`));
     expect(metrics.history?.rows.find((row) => row.key === 'power_mwh')?.values).toEqual(YEARS.map(volumeOf('power')));
     expect(metrics.history?.rows.find((row) => row.key === 'oil_bbl')?.values).toEqual(YEARS.map(volumeOf('oil')));
-    expect(metrics.history?.coverage.find((entry) => entry.key === 'drivers')?.summary).toBe('FY2021–FY2025 (5 of 5 years)');
+    expect(metrics.history?.coverage.find((entry) => entry.key === 'drivers')?.summary).toBe('FY2021–FY2025 (5 years; earlier years not provided)');
     expect(metrics.metrics.find((metric) => metric.key === 'generation_mwh')?.history?.map((point) => point.period)).toEqual(YEARS.map((year) => `FY${year}`));
     const trend = (await findings()).find((finding) => finding.title === 'Net generation (MWh) falling every year, FY2021–FY2025');
     expect(trend).toMatchObject({ domain: 'OPERATIONAL', direction: -1 });

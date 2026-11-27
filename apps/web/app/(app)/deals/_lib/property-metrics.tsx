@@ -45,6 +45,12 @@ export function requestNote(needs: readonly string[], metrics: readonly string[]
 }
 
 /** Where a figure's inputs come from, when the pack has more than one source for it, with its cited records (T-158). */
+/** The ask of a history with no start set also asks, once, when the business began (T-185). */
+export const START_QUESTION = 'What’s the first year this business traded?';
+export function withStartQuestion(note: string): string {
+  return /started later\.$/.test(note) ? `${note} ${START_QUESTION}` : note;
+}
+
 export function MetricSource({ dealId, metric }: { dealId: string; metric: Pick<Metric, 'source' | 'evidenceIds'> }) {
   if (!metric.source) return null;
   const cited = metric.evidenceIds ?? [];
@@ -64,8 +70,12 @@ export function MetricSource({ dealId, metric }: { dealId: string; metric: Pick<
  * The History strip (T-183): a figure's five years as a small line under it, with how much of the history it
  * rests on. Years not imported are gaps, never filled in. Drawn with the shared chart; the card is unchanged.
  */
+/** The History strip shows the last ten years; the full history opens in the years table on Finances (T-185). */
+export const STRIP_YEARS = 10;
+
 export function HistoryStrip({ metric, currency }: { metric: Pick<Metric, 'label' | 'unit' | 'history' | 'coverage'>; currency: string }) {
-  const points = metric.history ?? [];
+  const all = metric.history ?? [];
+  const points = all.slice(-STRIP_YEARS);
   if (points.length === 0 || points.every((point) => point.value === null)) return metric.coverage ? <dd className="text-xs text-muted-foreground">History: {metric.coverage}</dd> : null;
   return (
     <dd className="flex flex-col gap-1">
@@ -79,6 +89,7 @@ export function HistoryStrip({ metric, currency }: { metric: Pick<Metric, 'label
         height={72}
       />
       {metric.coverage ? <span className="text-xs text-muted-foreground">{metric.coverage}</span> : null}
+      {all.length > points.length ? <span className="text-xs text-muted-foreground">The last {STRIP_YEARS} years shown; every year is in the years table on Finances.</span> : null}
     </dd>
   );
 }
@@ -86,19 +97,22 @@ export function HistoryStrip({ metric, currency }: { metric: Pick<Metric, 'label
 const cell = (unit: PackHistoryView['rows'][number]['unit'], value: string | null, currency: string) =>
   value === null ? '—' : unit === 'MONEY' ? formatMoney({ amount: value, currency }) : unit === 'RATIO' ? formatRatio(value) : formatDecimal(value);
 
-/** The years side by side (T-183, Finances): revenue, expenses, NOI, margin, occupancy and rent; a year not imported shows a dash. */
+/**
+ * The years side by side (T-183, Finances): revenue, expenses, NOI, margin, occupancy and rent; a year not imported
+ * shows a dash. Every year read (T-185): beyond about ten years the table scrolls sideways, the figure names staying put.
+ */
 export function HistoryTable({ history, currency }: { history: PackHistoryView; currency: string }) {
   if (history.years.length === 0) return null;
   return (
     <div className="flex flex-col gap-2 text-sm">
-      <div className="overflow-x-auto">
-        <table className="w-full">
+      <div className="overflow-x-auto" role="region" aria-label="The years side by side" tabIndex={0}>
+        <table className="w-full min-w-max">
           <caption className="text-left text-muted-foreground">The years side by side, in {currency}</caption>
           <thead className="text-left text-muted-foreground">
             <tr className="border-b border-border">
-              <th className="py-1 font-medium">Figure</th>
+              <th className="sticky left-0 bg-card py-1 pr-3 font-medium">Figure</th>
               {history.years.map((year) => (
-                <th key={year} className="py-1 text-right font-medium">
+                <th key={year} className="py-1 pl-3 text-right font-medium">
                   {year}
                 </th>
               ))}
@@ -107,9 +121,9 @@ export function HistoryTable({ history, currency }: { history: PackHistoryView; 
           <tbody className="divide-y divide-border">
             {history.rows.map((row) => (
               <tr key={row.key}>
-                <td className="py-1">{row.label}</td>
+                <td className="sticky left-0 whitespace-nowrap bg-card py-1 pr-3">{row.label}</td>
                 {row.values.map((value, index) => (
-                  <td key={history.years[index] ?? index} className="py-1 text-right" data-numeric>
+                  <td key={history.years[index] ?? index} className="py-1 pl-3 text-right whitespace-nowrap" data-numeric>
                     {cell(row.unit, value, currency)}
                   </td>
                 ))}
@@ -118,6 +132,7 @@ export function HistoryTable({ history, currency }: { history: PackHistoryView; 
           </tbody>
         </table>
       </div>
+      {history.longRun && history.longRun.length > 0 ? <LongRunFigures figures={history.longRun} /> : null}
       <ul className="flex flex-col gap-0.5 text-xs text-muted-foreground">
         {history.coverage.map((entry) => (
           <li key={entry.key}>
@@ -125,6 +140,31 @@ export function HistoryTable({ history, currency }: { history: PackHistoryView; 
           </li>
         ))}
       </ul>
+    </div>
+  );
+}
+
+/**
+ * Over the full history (T-185): long-run growth, the worst year and how long it took to recover, and through-cycle
+ * averages beside the last five years'. Built as the metric figures are; a figure that needs more years says so.
+ */
+export function LongRunFigures({ figures }: { figures: NonNullable<PackHistoryView['longRun']> }) {
+  return (
+    <div className="flex flex-col gap-2">
+      <h4 className="text-sm font-semibold">Over the full history</h4>
+      <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {figures.map((figure) => (
+          <div key={figure.key} className="flex flex-col gap-1 rounded-xl border border-navy/10 p-3">
+            <dt className="text-xs font-bold uppercase tracking-wide text-slate-text">{figure.label}</dt>
+            <dd className="text-lg font-extrabold tracking-tight" data-numeric>
+              {figure.value === null ? '—' : formatRatio(figure.value)}
+            </dd>
+            <dd className="text-xs text-muted-foreground">{figure.value === null ? figure.unavailableReason : figure.formula}</dd>
+            {figure.note ? <dd className="text-xs">{figure.note}</dd> : null}
+            {figure.coverage ? <dd className="text-xs text-muted-foreground">{figure.coverage}</dd> : null}
+          </div>
+        ))}
+      </dl>
     </div>
   );
 }
@@ -227,7 +267,7 @@ export function PropertyMetricsCard({
                 {ask.needs.every((id) => requested.has(id)) ? (
                   <span className="font-medium text-muted-foreground">Requested from the seller</span>
                 ) : (
-                  <AskSellerButton dealId={dealId} items={ask.needs.filter((id) => !requested.has(id))} note={ask.note} label="Ask the seller for them" />
+                  <AskSellerButton dealId={dealId} items={ask.needs.filter((id) => !requested.has(id))} note={withStartQuestion(ask.note)} label="Ask the seller for them" />
                 )}
               </div>
             ))}

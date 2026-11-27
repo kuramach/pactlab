@@ -25,7 +25,7 @@ describe('multifamily metrics', () => {
   it('computes occupancy, loss-to-lease, NOI, delinquency and repairs per door in decimals', () => {
     const report = multifamilyMetrics({ currency: 'USD', evidence });
     const value = Object.fromEntries(report.metrics.map((metric) => [metric.key, metric.value]));
-    expect(report).toMatchObject({ calculator: 'multifamily-metrics', version: 'multifamily-metrics-3', currency: 'USD' });
+    expect(report).toMatchObject({ calculator: 'multifamily-metrics', version: 'multifamily-metrics-4', currency: 'USD' });
     expect(value).toMatchObject({
       occupancy: '0.7500',
       units: '4',
