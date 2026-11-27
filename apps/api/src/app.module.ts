@@ -23,6 +23,7 @@ import { PACTLAB_TOKEN_ISSUER, PactlabTokens } from './auth/pactlab-token';
 import { DealsModule } from './deals/deals.module';
 import { DocumentsModule, type DocumentsModuleDependencies } from './documents/documents.module';
 import { EmailLoginModule } from './email-login/email-login.module';
+import { RinseModule } from './rinse/rinse.module';
 import { SignupModule } from './signup/signup.module';
 import { UnavailableEmailSender, type EmailSender } from './email-login/email-sender';
 import type { WebAuthnRelyingParty } from './email-login/passkeys.service';
@@ -85,6 +86,8 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { DatabaseSuppressionList } from './email-events/email-events.service';
 
 export interface AppDependencies {
+  /** Pactlab Rinse preparers (T-178b): where invite links point, and per-account AI limits. */
+  rinse?: { siteOrigin?: string; limits?: { perTenMinutes: number; perDay: number } };
   /** Real AWS spend for the hosting-cost console: Cost Explorer in the payer account (live only). */
   hostingCost?: { source?: CostSource | null; now?: () => Date };
   prisma: PrismaClient;
@@ -391,6 +394,19 @@ export class AppModule {
                 hashSecret: deps.emailLogin.tokenSecret,
                 // Passkeys are bound to the web host (T-108); tests and local runs use the sign-in page's origin.
                 webauthn: deps.emailLogin.webauthn ?? relyingParty(deps.signup?.loginUrl ? new URL(deps.signup.loginUrl).origin : 'http://localhost:3000'),
+              }),
+            ]
+          : []),
+        // Pactlab Rinse preparers (T-178b): prep invites, desktop sign-in and AI rinse jobs, with Pactlab sign-in only.
+        ...(tokens && deps.emailLogin
+          ? [
+              RinseModule.register({
+                gateway: deps.documents?.gateway ?? new NotConfiguredClaudeGateway(),
+                tokens,
+                emailSender: deps.emailLogin.emailSender ?? null,
+                hashSecret: deps.emailLogin.tokenSecret,
+                siteOrigin: deps.rinse?.siteOrigin ?? 'https://pactlab.ai',
+                ...(deps.rinse?.limits ? { limits: deps.rinse.limits } : {}),
               }),
             ]
           : []),

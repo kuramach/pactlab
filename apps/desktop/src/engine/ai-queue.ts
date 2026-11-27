@@ -15,6 +15,8 @@ export interface Classification {
   readonly category: string;
   readonly confidence: number;
   readonly promptVersion: string;
+  /** A people-data category (HR, compensation): never sent to the vision lane (rule 7). */
+  readonly aiExcluded?: boolean;
 }
 
 /** The AI gateway, as the desktop reaches it. Every call carries the preparer's session. */
@@ -91,7 +93,17 @@ export class AiQueue {
   async drain(client: RinseAiClient, image: (sha256: string, page: number) => Promise<Uint8Array>): Promise<{ ran: number; waiting: number }> {
     let ran = 0;
     const left: AiJob[] = [];
-    for (const job of this.jobs) {
+    // Classification first: a scan is read by the vision lane only once it is known not to be people data.
+    const ordered = [...this.jobs.filter((job) => job.kind === 'CLASSIFY'), ...this.jobs.filter((job) => job.kind === 'VISION')];
+    for (const job of ordered) {
+      if (job.kind === 'VISION') {
+        const classification = this.cache[job.sha256]?.classification;
+        if (classification?.aiExcluded) continue; // dropped: people data never reaches a model
+        if (!classification) {
+          left.push(job);
+          continue;
+        }
+      }
       try {
         const entry = (this.cache[job.sha256] ??= {});
         if (job.kind === 'CLASSIFY') entry.classification = await client.classify(job);

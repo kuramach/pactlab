@@ -1,8 +1,9 @@
 import { AiBadge, Card, CardContent, CardHeader, CardTitle, EmptyState, Glossed } from '@pactlab/ui';
-import type { DocumentProvenanceView, Page, RinseSetView } from '@pactlab/contracts';
+import type { DocumentProvenanceView, Page, PrepInviteView, RinseSetView } from '@pactlab/contracts';
 import Link from 'next/link';
 import { keepParams, pageApiQuery, Pager, pagerLinks, readPage } from '../../../../_components/pager';
 import { apiGet, dealsApi } from '../../_lib/api';
+import { PrepInvites } from './prep-invites';
 import { RinseImport } from './rinse-import';
 import { RinseProvenance, RinseSets } from './rinse-provenance';
 import { OutcomeBanner } from '../../_lib/outcome';
@@ -74,6 +75,7 @@ export default async function DocumentsPage({
   const docsAt = readPage(search, 'docs');
   const queueAt = readPage(search, 'queue');
   const setsAt = readPage(search, 'sets');
+  const invitesAt = readPage(search, 'invites');
   const decidedTab = search['queue'] === 'decided';
   if (!view.dealId) {
     return (
@@ -105,11 +107,13 @@ export default async function DocumentsPage({
     dealsApi.get(dealId),
   ]);
   // The open document, wherever it sits in the library's pages.
-  const [opened, provenance, rinseSets] = await Promise.all([
+  const [opened, provenance, rinseSets, prepInvites] = await Promise.all([
     view.documentId ? apiGet<DocumentListItem>(`${deal(dealId)}/documents/${encodeURIComponent(view.documentId)}`) : null,
     // Where it came from, when it arrived in a set finished in Pactlab Rinse (T-178d).
     view.documentId ? apiGet<{ items: DocumentProvenanceView[] }>(`${deal(dealId)}/document-provenance?documentId=${encodeURIComponent(view.documentId)}`) : null,
     apiGet<Page<RinseSetView>>(`${deal(dealId)}/rinse-sets?${pageApiQuery(setsAt)}`),
+    // Prep invites for Pactlab Rinse preparers (T-178b): the pact's own side only.
+    sources.kind === 'ok' && !sources.data.seller ? apiGet<Page<PrepInviteView>>(`${deal(dealId)}/rinse/prep-invites?${pageApiQuery(invitesAt)}`) : null,
   ]);
   const hasSeller = viewer.members.some((member) => member.role === 'TARGET_CONTRIBUTOR' && member.status === 'ACTIVE');
   const categoryLabels = intake.kind === 'ok' ? Object.fromEntries(intake.data.categories.map((category) => [category.id, category.label])) : {};
@@ -225,6 +229,13 @@ export default async function DocumentsPage({
               <ApiState result={rinseSets} />
             )}
             <RinseImport dealId={dealId} seller={sources.data.seller ?? false} />
+            {writer && prepInvites?.kind === 'ok' ? (
+              <div className="flex flex-col gap-2 border-t border-border pt-4">
+                <h3 className="text-sm font-semibold">Preparers</h3>
+                <PrepInvites dealId={dealId} invites={prepInvites.data.items} />
+                <Pager label="Prep invite pages" base={`/deals/${dealId}/documents`} links={pagerLinks({ ...prepInvites.data, itemCount: prepInvites.data.items.length }, invitesAt, keepParams(search), 'invites')} />
+              </div>
+            ) : null}
           </CardContent>
         </Card>
       ) : null}

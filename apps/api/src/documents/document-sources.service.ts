@@ -30,7 +30,7 @@ import {
   type DocumentSourceProvider,
   type SourceFile,
 } from '@pactlab/connectors';
-import { appendAuditEvent, withTenant, type AuditEventInput, type PrismaClient } from '@pactlab/db';
+import { appendAuditEvent, rinsePreparers, withTenant, type AuditEventInput, type PrismaClient } from '@pactlab/db';
 import { isBuyerSideRole, isCounterpartyRole, newId, permissionsForDealRole, type DealRole, type TenantContext } from '@pactlab/domain';
 import { PROVIDER_DEPENDENCIES, type ProviderDependencies } from '../connections/provider-dependencies';
 import { DealAccess } from '../deals/deal-access';
@@ -430,6 +430,7 @@ export class DocumentSourcesService {
     // A folder finished in Pactlab Rinse carries its manifest (T-178): read it first, so classifications,
     // provenance and hand-sourced entries arrive with the files. Without one, the folder syncs as before.
     const rinsed = await readRinsedFolder(adapter, scope, config, listed);
+    await this.assertBoundHere(tenant, dealId, rinsed);
     const rinseFiled: { documentId: string; proposal: { category: string; by: 'AI' | 'PERSON'; confidence: number | null; reason: string } }[] = [];
 
     const rinseDocuments = new Map<string, string>();
@@ -554,6 +555,23 @@ export class DocumentSourcesService {
   }
 
   /**
+   * A set a prep invite bound to a pact (T-178b, ADR 0059) comes into that pact only, and only while the
+   * preparer's binding stands. A set bound elsewhere, or naming a binding that is not live here (revoked,
+   * or forged), is refused before any file is read. An unbound set syncs as before.
+   */
+  private async assertBoundHere(tenant: TenantContext, dealId: string, rinsed: RinsedFolder): Promise<void> {
+    if (rinsed.status !== 'READ' || !rinsed.manifest.set.intendedPact) return;
+    const intended = rinsed.manifest.set.intendedPact;
+    if (intended.dealId !== dealId || intended.organizationId !== tenant.organizationId) {
+      throw new UnprocessableEntityException({ code: 'RINSE_MANIFEST_OTHER_PACT', message: 'This set was prepared for another pact. Ask the preparer to rinse it again under this pact’s invite.' });
+    }
+    const bindingId = intended.bindingId;
+    if (bindingId && !(await withTenant(this.prisma, tenant, (tx) => rinsePreparers.bindingLive(tx, dealId, bindingId)))) {
+      throw new UnprocessableEntityException({ code: 'RINSE_PREPARER_NOT_BOUND', message: 'The preparer of this set is no longer bound to this pact. Invite them again if they should be.' });
+    }
+  }
+
+  /**
    * Injection path (b), T-178d: a folder finished in Pactlab Rinse, uploaded once as a zip with its
    * manifest. The same manifest reader, the same per-file decisions and the same SHA-256 checks as a
    * sync; nothing the manifest does not name comes in. A seller's import is shared with the deal.
@@ -571,6 +589,7 @@ export class DocumentSourcesService {
     const { folder: rinsed, files: archived } = readRinsedArchive(entries);
     if (rinsed.status === 'NONE') throw new UnprocessableEntityException({ code: 'RINSE_MANIFEST_MISSING', message: 'The archive has no pactlab-manifest.json at its top' });
     if (rinsed.status === 'INVALID') throw new UnprocessableEntityException({ code: 'RINSE_MANIFEST_INVALID', message: `The manifest cannot be read (${rinsed.problem})` });
+    await this.assertBoundHere(tenant, dealId, rinsed);
     const shared = isCounterpartyRole(role) || body.shared;
     const files: SourceSyncFile[] = [];
     const documents = new Map<string, string>();

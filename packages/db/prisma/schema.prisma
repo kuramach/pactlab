@@ -239,6 +239,8 @@ enum OrganizationOrigin {
   SIGNUP
   /// The one synthetic demo organization per environment (batch 2, ADR 0019 amendment).
   DEMO
+  /// A Pactlab Rinse preparer's one-person workspace (T-178b, ADR 0059): holds no pacts.
+  PREPARER
 
   @@map("organization_origin")
 }
@@ -4106,4 +4108,60 @@ model DealPropertyProfile {
 
   @@unique([organizationId, dealId], map: "deal_property_profiles_org_deal_key")
   @@map("deal_property_profiles")
+}
+
+/// T-178b (ADR 0059): a prep invite from a pact's own side to a Pactlab Rinse preparer. The token is
+/// stored only as its SHA-256; 14 days, single use.
+model RinsePrepInvite {
+  id             String    @id @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  dealId         String    @map("deal_id") @db.Uuid
+  email          String
+  tokenHash      String    @unique @map("token_hash") @db.Char(64)
+  createdBy      String    @map("created_by") @db.Uuid
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  expiresAt      DateTime  @map("expires_at") @db.Timestamptz(3)
+  acceptedAt     DateTime? @map("accepted_at") @db.Timestamptz(3)
+  acceptedBy     String?   @map("accepted_by") @db.Uuid
+  revokedAt      DateTime? @map("revoked_at") @db.Timestamptz(3)
+  revokedBy      String?   @map("revoked_by") @db.Uuid
+
+  @@index([organizationId, dealId, createdAt])
+  @@map("rinse_prep_invites")
+}
+
+/// T-178b: a preparer bound to one pact by an accepted invite. No membership, no read access: the right
+/// to have a rinsed set accepted for the pact, and AI rinse jobs counted against it.
+model RinsePreparerBinding {
+  id             String    @id @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  dealId         String    @map("deal_id") @db.Uuid
+  inviteId       String    @unique @map("invite_id") @db.Uuid
+  preparerUserId String    @map("preparer_user_id") @db.Uuid
+  boundAt        DateTime  @default(now()) @map("bound_at") @db.Timestamptz(3)
+  revokedAt      DateTime? @map("revoked_at") @db.Timestamptz(3)
+  revokedBy      String?   @map("revoked_by") @db.Uuid
+
+  @@index([organizationId, dealId])
+  @@index([preparerUserId])
+  @@map("rinse_preparer_bindings")
+}
+
+/// T-178b: a preparer sign-up from an invite, until its emailed code verifies. Reached only through
+/// SECURITY DEFINER functions owned by pactlab_auth.
+model RinsePreparerChallenge {
+  id          String    @id @db.Uuid
+  email       String
+  displayName String    @map("display_name")
+  inviteId    String    @map("invite_id") @db.Uuid
+  codeHash    String    @map("code_hash") @db.Char(64)
+  ipHash      String    @map("ip_hash") @db.Char(64)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  expiresAt   DateTime  @map("expires_at") @db.Timestamptz(3)
+  attempts    Int       @default(0)
+  consumedAt  DateTime? @map("consumed_at") @db.Timestamptz(3)
+
+  @@index([email, createdAt])
+  @@index([ipHash, createdAt])
+  @@map("rinse_preparer_challenges")
 }

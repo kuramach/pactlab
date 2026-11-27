@@ -1,7 +1,17 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "The Rinse window: core features and update checks only.",
+  "description": "The Rinse window: core features, update checks, prep-invite deep links, and starting the engine sidecar (nothing else may be spawned).",
   "windows": ["main"],
-  "permissions": ["core:default", "updater:default"]
+  "permissions": [
+    "core:default",
+    "updater:default",
+    "deep-link:default",
+    {
+      "identifier": "shell:allow-spawn",
+      "allow": [{ "name": "binaries/rinse-engine", "sidecar": true, "args": true }]
+    },
+    "shell:allow-stdin-write",
+    "shell:allow-kill"
+  ]
 }

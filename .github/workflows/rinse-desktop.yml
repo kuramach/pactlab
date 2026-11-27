@@ -1,0 +1,127 @@
+name: rinse-desktop
+
+# Pactlab Rinse installers (T-178b, ADR 0059): macOS (Apple Silicon and Intel), Windows and Linux,
+# built in CI, never from a laptop. Dispatched by a person. Each signing step runs only when its
+# identity is configured in the `rinse-release` GitHub Environment, and every build records what was
+# signed (SIGNING.json beside the installers). docs/runbooks/rinse.md says what is signed today.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rinse-desktop
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: ${{ matrix.label }}
+    environment: rinse-release
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { label: macOS (Apple Silicon), os: macos-14, target: aarch64-apple-darwin }
+          - { label: macOS (Intel), os: macos-13, target: x86_64-apple-darwin }
+          - { label: Windows, os: windows-2022, target: x86_64-pc-windows-msvc }
+          - { label: Linux, os: ubuntu-24.04, target: x86_64-unknown-linux-gnu }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Rust
+        run: rustup target add ${{ matrix.target }}
+      - name: Linux build libraries
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Window, engine sidecar and converters
+        working-directory: apps/desktop
+        run: |
+          node scripts/build-renderer.mjs
+          node scripts/build-sidecar.mjs ${{ matrix.target }}
+          node scripts/fetch-converters.mjs ${{ matrix.target }} --allow-missing
+
+      # Updater key and Windows signing are passed as config at build time, never committed.
+      - name: Release config
+        id: config
+        shell: bash
+        env:
+          UPDATER_PUBKEY: ${{ vars.RINSE_UPDATER_PUBKEY }}
+          AZURE_ENDPOINT: ${{ vars.AZURE_ARTIFACT_SIGNING_ENDPOINT }}
+          AZURE_ACCOUNT: ${{ vars.AZURE_ARTIFACT_SIGNING_ACCOUNT }}
+          AZURE_PROFILE: ${{ vars.AZURE_ARTIFACT_SIGNING_PROFILE }}
+        run: |
+          node -e '
+            const env = process.env, config = { plugins: {}, bundle: {} };
+            if (env.UPDATER_PUBKEY) config.plugins.updater = { pubkey: env.UPDATER_PUBKEY };
+            else config.bundle.createUpdaterArtifacts = false;
+            if (process.platform === "win32" && env.AZURE_ENDPOINT && env.AZURE_ACCOUNT && env.AZURE_PROFILE)
+              config.bundle.windows = { signCommand: `trusted-signing-cli -e ${env.AZURE_ENDPOINT} -a ${env.AZURE_ACCOUNT} -c ${env.AZURE_PROFILE} -d "Pactlab Rinse" %1` };
+            require("fs").writeFileSync("apps/desktop/src-tauri/release.json", JSON.stringify(config));
+          '
+          cat apps/desktop/src-tauri/release.json
+
+      - name: Azure Artifact Signing tool (Windows)
+        if: runner.os == 'Windows' && vars.AZURE_ARTIFACT_SIGNING_ACCOUNT != ''
+        run: cargo install trusted-signing-cli
+
+      - name: Build
+        working-directory: apps/desktop
+        shell: bash
+        env:
+          # macOS: Developer ID signing and notarization (read by the Tauri CLI when present).
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          # Windows: Azure Artifact Signing through trusted-signing-cli.
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          # The Tauri updater key.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: npx --yes @tauri-apps/cli@2 build --target ${{ matrix.target }} --config src-tauri/release.json
+
+      - name: Record what is signed
+        shell: bash
+        env:
+          MAC_SIGNED: ${{ secrets.APPLE_CERTIFICATE != '' && secrets.APPLE_SIGNING_IDENTITY != '' }}
+          MAC_NOTARIZED: ${{ secrets.APPLE_ID != '' && secrets.APPLE_PASSWORD != '' && secrets.APPLE_TEAM_ID != '' }}
+          WINDOWS_SIGNED: ${{ vars.AZURE_ARTIFACT_SIGNING_ACCOUNT != '' && secrets.AZURE_CLIENT_ID != '' }}
+          UPDATER_SIGNED: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' && vars.RINSE_UPDATER_PUBKEY != '' }}
+        run: |
+          OUT=apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle
+          case "${{ runner.os }}" in
+            macOS) CODE="$MAC_SIGNED"; NOTARIZED="$MAC_NOTARIZED" ;;
+            Windows) CODE="$WINDOWS_SIGNED"; NOTARIZED=false ;;
+            *) CODE=false; NOTARIZED=false ;;
+          esac
+          printf '{"target":"%s","codeSigned":%s,"notarized":%s,"updaterSigned":%s,"converters":%s}\n' \
+            "${{ matrix.target }}" "$CODE" "$NOTARIZED" "$UPDATER_SIGNED" "$(cat apps/desktop/src-tauri/vendor/BUNDLED.json)" > "$OUT/SIGNING.json"
+          [ "$CODE" = true ] || echo "::warning title=Unsigned::${{ matrix.label }} build is not code-signed"
+          cat "$OUT/SIGNING.json"
+          find "$OUT" -maxdepth 2 -type f \( -name '*.dmg' -o -name '*.msi' -o -name '*.exe' -o -name '*.AppImage' -o -name '*.deb' -o -name '*.tar.gz' -o -name '*.sig' \) -exec shasum -a 256 {} \; > "$OUT/SHA256SUMS.txt"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pactlab-rinse-${{ matrix.target }}
+          path: |
+            apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.dmg
+            apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.msi
+            apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.exe
+            apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.AppImage
+            apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.deb
+            apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.sig
+            apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/SIGNING.json
+            apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/SHA256SUMS.txt
+          if-no-files-found: error
