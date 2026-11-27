@@ -140,6 +140,8 @@ const app = await createApp(
       ? { voice: { speechToText: new TranscribeSpeechToText(config.AWS_REGION), textToSpeech: new PollyTextToSpeech(config.AWS_REGION) } }
       : {}),
     // Sign-in codes: Amazon SES when deployed (EMAIL_PROVIDER=ses), a local mail folder on a laptop.
+    // Product-help chat (T-175): handed-off questions go here. (Read directly until packages/config lists it.)
+    supportChat: { teamEmail: process.env['SUPPORT_TEAM_EMAIL']?.trim() || config.OPERATOR_EMAIL || null },
     signup: {
       requiresApproval: config.SIGNUP_REQUIRES_APPROVAL,
       operatorEmail: config.OPERATOR_EMAIL ?? null,

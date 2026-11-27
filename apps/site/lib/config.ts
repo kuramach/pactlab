@@ -23,6 +23,8 @@ export interface SiteConfig {
   contactHref: string | null;
   /** False on an environment's copy of the site: robots.txt disallows everything and pages carry noindex. */
   indexed: boolean;
+  /** The help chat (T-175), served by the app at /assistant; null when the app's address is not set. */
+  assistantUrl: string | null;
 }
 
 export function siteConfig(source: Record<string, string | undefined> = process.env): SiteConfig {
@@ -39,5 +41,6 @@ export function siteConfig(source: Record<string, string | undefined> = process.
       ? `mailto:${parsed.NEXT_PUBLIC_CONTACT_EMAIL}?subject=${encodeURIComponent('Pactlab pilot')}`
       : null,
     indexed: parsed.NEXT_PUBLIC_SITE_INDEXING === 'public',
+    assistantUrl: parsed.NEXT_PUBLIC_APP_URL ? new URL('/assistant', parsed.NEXT_PUBLIC_APP_URL).toString() : null,
   };
 }

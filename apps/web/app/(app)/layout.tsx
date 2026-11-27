@@ -13,6 +13,7 @@ import { apiGet } from './deals/_lib/api';
 import { Sidebar } from './_lib/sidebar';
 import { Topbar } from './_lib/topbar';
 import { BugReporter } from './_lib/bugs/bug-reporter';
+import { HelpChatLauncher } from './_lib/help-chat-launcher';
 import { loadFeatureCards } from './_lib/feature-cards/load';
 import { FeatureCardTrayMount } from './_lib/feature-cards/tray';
 import { DemoBlockedNotice } from './_lib/demo-blocked';
@@ -75,6 +76,8 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
         Pactlab {version}
       </footer>
       <FeatureCardTrayMount cards={featureCards?.tray ?? null} />
+      {/* Product help (T-175): how Pactlab works, from its guides; signed in only, never pact data. */}
+      {session.kind === 'signed-in' ? <HelpChatLauncher /> : null}
       <BugReporter appVersion={version} environment={env.NEXT_PUBLIC_APP_ENV} />
     </AppShell>
   );

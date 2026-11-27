@@ -23,3 +23,4 @@ export * from './brand';
 export * from './financing';
 export * from './pagination';
 export * from './notifications';
+export * from './support-chat';

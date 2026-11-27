@@ -16,3 +16,8 @@
 | **Read-back cards** | AI that says how it read a file before acting, then what it picked up | the import reading and results cards, and the document extraction assistant: "Here's how Pactlab read…" with "Yes / Not quite", then "What Pactlab picked up" with "Where it shows" | 2026-11-25 |
 
 The live examples are on `/design-system`.
+
+## Awaiting approval
+
+- **Help chat panel** (T-175): `HelpChat` (`apps/web/app/_components/help-chat`), the same on the site's `/assistant` window and docked from the app's **?** button. It holds the question box, answers with numbered steps, a deep link and "From:" sources, and the confirm step before anything is emailed or logged. Not yet approved by Kumar; not to be reused for other chat-like screens until it is.
+

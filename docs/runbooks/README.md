@@ -19,6 +19,7 @@ of what a pilot partner gets, which controls protect them, and how we roll back.
 | [audit-export.md](audit-export.md)                                   | A partner or auditor requests audit evidence          |
 | [retention.md](retention.md)                                         | Retention questions, purge requests, legal hold       |
 | [metering.md](metering.md)                                           | Per-deal AI usage questions                           |
+| [support-chat.md](support-chat.md)                                   | The help chat: setup, what it knows, a wrong answer   |
 | [connector-outage.md](connector-outage.md)                           | A provider (Stripe, GitHub, VDR) is failing           |
 | [mcp-evidence-servers.md](mcp-evidence-servers.md)                   | Approving, connecting or adding an MCP evidence server |
 | [stuck-queue.md](stuck-queue.md)                                     | Jobs not progressing or piling into dead-letter       |

@@ -5,10 +5,12 @@ import { describe, expect, it } from 'vitest';
 /**
  * One button style everywhere (batch 1): screens use `Button` / `buttonVariants`
  * from @pactlab/ui. These few controls are deliberately custom — the floating
- * bug button and the What’s new button beside it, filter chips, the quote-line picker, sort headers and menu items.
+ * bug button, the What’s new and help buttons beside it, filter chips, the quote-line picker, sort headers and menu items.
  */
 const ALLOWED: Readonly<Record<string, number>> = {
   'app/(app)/_lib/bugs/bug-reporter.tsx': 1,
+  // The help chat's round launcher, beside What's new (T-175).
+  'app/(app)/_lib/help-chat-launcher.tsx': 1,
   'app/(app)/_lib/feature-cards/tray.tsx': 1,
   'app/(app)/_lib/topbar.tsx': 1,
   'app/(app)/deals/[dealId]/documents/review-queue.tsx': 1,

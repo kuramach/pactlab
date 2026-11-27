@@ -11,6 +11,7 @@ import { energyExtractionPrompt } from './energy-extract';
 import { musicExtractionPrompt } from './music-extract';
 import { offeringExtractionPrompt } from './offering-extract';
 import { PromptRegistry } from './registry';
+import { supportChatPrompt } from './support-chat';
 
 export * from './contract-extract';
 export * from './contract-scrub';
@@ -25,8 +26,9 @@ export * from './energy-extract';
 export * from './music-extract';
 export * from './offering-extract';
 export * from './registry';
+export * from './support-chat';
 
 /** The registry of prompts approved to run. */
 export function defaultPromptRegistry(): PromptRegistry {
-  return new PromptRegistry().register(documentQaPrompt).register(contractExtractionPrompt).register(foresightTrendsPrompt).register(foresightQaPrompt).register(foresightForecastPrompt).register(documentClassificationPrompt).register(negotiationBriefPrompt).register(contractScrubPrompt).register(documentVisionPrompt).register(importMappingPrompt).register(offeringExtractionPrompt).register(musicExtractionPrompt).register(documentUnderstandingPrompt).register(energyExtractionPrompt);
+  return new PromptRegistry().register(documentQaPrompt).register(contractExtractionPrompt).register(foresightTrendsPrompt).register(foresightQaPrompt).register(foresightForecastPrompt).register(documentClassificationPrompt).register(negotiationBriefPrompt).register(contractScrubPrompt).register(documentVisionPrompt).register(importMappingPrompt).register(offeringExtractionPrompt).register(musicExtractionPrompt).register(documentUnderstandingPrompt).register(energyExtractionPrompt).register(supportChatPrompt);
 }

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Manrope } from 'next/font/google';
 import type { ReactNode } from 'react';
+import { HelpLauncher } from '../components/help-launcher';
 import { SiteFooter } from '../components/site-footer';
 import { SiteHeader } from '../components/site-header';
 import { siteConfig } from '../lib/config';
@@ -35,7 +36,7 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
-  const { loginUrl, signUpUrl, contactHref } = siteConfig();
+  const { loginUrl, signUpUrl, contactHref, assistantUrl } = siteConfig();
   return (
     <html lang="en" className={manrope.variable}>
       <body className="bg-white font-sans text-navy antialiased">
@@ -48,6 +49,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <SiteHeader loginUrl={loginUrl} signUpUrl={signUpUrl} contactHref={contactHref} />
         <main id="main">{children}</main>
         <SiteFooter />
+        {assistantUrl ? <HelpLauncher assistantUrl={assistantUrl} /> : null}
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: jsonLdScript(organizationJsonLd()) }}

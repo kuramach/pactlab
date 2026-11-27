@@ -5,6 +5,12 @@ import { aiModels, prismaExecutor, type AiEvaluation, type AiRouteKey, type Pris
 const CACHE_MS = 60_000;
 /** The routing view's platform scope: an id no organization has, so only platform routes apply. */
 const PLATFORM_SCOPE = '00000000-0000-0000-0000-000000000000';
+
+/**
+ * Jobs a console route can be stored for. The product-help chat (T-175) runs on its registry chain only
+ * until the route tables list it (packages/db, follow-up T-185).
+ */
+const storedRouteKey = (jobType: JobType): AiRouteKey | null => (jobType === 'support_chat' ? null : jobType);
 const PROVIDER_NAMES: Partial<Record<ModelProvider, string>> = { bedrock: 'AWS Bedrock', anthropic: 'Anthropic', openai: 'OpenAI', google: 'Google' };
 
 /** Where a choice comes from: this organization, the platform default, or the deployment's own config. */
@@ -96,7 +102,8 @@ export class ModelRouteResolver {
     const add = (route: ModelRoute, tier: 'flagship' | 'economy') => {
       if (!lanes.some((lane) => lane.route.modelId === route.modelId && (lane.route.provider ?? 'bedrock') === (route.provider ?? 'bedrock'))) lanes.push({ route, tier });
     };
-    const job = await this.describe(request.organizationId, request.jobType);
+    const key = storedRouteKey(request.jobType);
+    const job = key ? await this.describe(request.organizationId, key) : null;
     if (job && job !== 'BLOCKED') add(job.route, 'flagship');
     const override = parseJobOverride(this.routing.jobOverrides?.[request.jobType]);
     const firstEffort = JOB_MODEL_MAP[request.jobType].lanes[0]?.kind === 'model' ? (JOB_MODEL_MAP[request.jobType].lanes[0] as { effort: ModelRoute['effort'] }).effort : this.configured[request.alias].effort;
@@ -154,7 +161,8 @@ export class ModelRouteResolver {
         const push = (next: RoutingLane) => {
           if (!lanes.some((l) => l.modelId === next.modelId && l.provider === next.provider)) lanes.push(next);
         };
-        const own = await this.describe(org, jobType);
+        const key = storedRouteKey(jobType);
+        const own = key ? await this.describe(org, key) : null;
         let source: JobSource = 'REGISTRY';
         if (own && own !== 'BLOCKED') {
           push(lane(own.route, own.label, true, null));
