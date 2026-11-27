@@ -284,7 +284,7 @@ export const VALUATION_DIRECTION_MAP: Readonly<Record<string, readonly Direction
       rationale: 'No licence on file for a rostered clinician: evidence to request, not a defect to price.',
     },
   ],
-  [HEALTHCARE_CLINICIAN_MONTH_EVIDENCE_TYPE]: [{ signal: 'clinician-concentration', findingDomain: 'PEOPLE', defaultDirection: -1, channel: 'PRICED_TERM' }],
+  [HEALTHCARE_CLINICIAN_MONTH_EVIDENCE_TYPE]: [{ signal: 'clinician-concentration', findingDomain: 'PEOPLE', defaultDirection: -1, channel: 'PRICED_TERM' }, driverTrend('COMMERCIAL')],
   [HEALTHCARE_PAYER_CONTRACT_EVIDENCE_TYPE]: [
     { signal: 'contract-expired', findingDomain: 'COMMERCIAL', defaultDirection: -1, channel: 'ASSUMPTION' },
     {

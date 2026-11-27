@@ -5,6 +5,7 @@ import { join, resolve } from 'node:path';
 import { HEALTHCARE_RULES, type PackRuleEvidence, type PackRulePage } from '@pactlab/calculations';
 import {
   defaultDirectionFor,
+  DRIVER_TREND_SIGNAL,
   HEALTHCARE_CLINICIAN_MONTH_EVIDENCE_TYPE,
   HEALTHCARE_CREDENTIAL_EVIDENCE_TYPE,
   HEALTHCARE_PAYER_CONTRACT_EVIDENCE_TYPE,
@@ -39,6 +40,7 @@ const SIGNALS: Readonly<Record<string, (key: string) => readonly [string, string
   'healthcare-pnl-trend': () => [PNL_LINE_EVIDENCE_TYPE, 'trend'],
   'healthcare-pnl-margin-drift': () => [PNL_LINE_EVIDENCE_TYPE, 'margin-drift'],
   'healthcare-pnl-expense-outpacing': () => [PNL_LINE_EVIDENCE_TYPE, 'expense-outpacing'],
+  'healthcare-visits-trend': () => [HEALTHCARE_CLINICIAN_MONTH_EVIDENCE_TYPE, DRIVER_TREND_SIGNAL],
 };
 
 describe('healthcare rules and the valuation direction map (T-160)', () => {

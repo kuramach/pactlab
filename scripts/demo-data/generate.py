@@ -759,37 +759,48 @@ def healthcare(ds):
     gov = sum(mo[LAST] for _, n, mo in ds.customers if n.startswith('Government')) / (ds.billed_arr() / 12)
     rng = ds.rng
     c = ds.cur
-    # --- Remittances (T-160): January 2023 to September 2026, by month and payer. From October 2024 the cash
-    # collected is the billed revenue above; before it the mix leans to commercial payers and drifts toward
-    # Government programme B (Medicaid), the lowest-paying class per claim (planted (c)).
-    r_months, (yy, mm) = [], (2023, 1)
+    # --- Remittances (T-160): January 2021 to September 2026 (five years, T-184b), by month and payer. From
+    # October 2024 the cash collected is the billed revenue above; before it the mix leans to commercial payers
+    # and drifts toward Government programme B (Medicaid), the lowest-paying class per claim (planted (c)).
+    # Months before 2023 come from their own random generator, so the later rows are unchanged.
+    hrng = random.Random(f'healthcare-history:{ds.cur}')
+    r_months, (yy, mm) = [], (2021, 1)
     while (yy, mm) <= (2026, 9):
         r_months.append(f'{yy}-{mm:02d}'); mm += 1
         if mm == 13: yy, mm = yy + 1, 1
     klass = {'Government programme A': 'medicare', 'Government programme B': 'medicaid', 'Commercial plan North': 'commercial', 'Commercial plan Central': 'commercial', 'Commercial plan Coast': 'commercial', 'Self-pay and other': 'self_pay'}
     yield_usd = {'medicare': D('96'), 'medicaid': D('61'), 'commercial': D('142'), 'self_pay': D('84')}
     denial_factor = {'medicare': D('1.0'), 'medicaid': D('1.25'), 'commercial': D('0.9'), 'self_pay': D('0.6')}
-    denial_year = {'2023': D('0.062'), '2024': D('0.079'), '2025': D('0.096'), '2026': D('0.104')}   # rising every year (planted (a))
+    denial_year = {'2021': D('0.040'), '2022': D('0.051'), '2023': D('0.062'), '2024': D('0.079'), '2025': D('0.096'), '2026': D('0.104')}   # rising every year (planted (a))
     start_share = {'Government programme A': D('0.44'), 'Government programme B': D('0.09'), 'Commercial plan North': D('0.195'), 'Commercial plan Central': D('0.14'), 'Commercial plan Coast': D('0.095'), 'Self-pay and other': D('0.04')}
     first_billed = MONTHS[0]
     billing_total0 = sum(mo[first_billed] for _, _, mo in ds.customers)
     end_share = {n.replace(' (synthetic)', ''): mo[first_billed] / billing_total0 for _, n, mo in ds.customers}
-    pre = [m for m in r_months if m < first_billed]
+    early_share = {'Government programme A': D('0.43'), 'Government programme B': D('0.06'), 'Commercial plan North': D('0.21'), 'Commercial plan Central': D('0.15'), 'Commercial plan Coast': D('0.105'), 'Self-pay and other': D('0.045')}
+    hist = [m for m in r_months if m < '2023-01']
+    pre = [m for m in r_months if '2023-01' <= m < first_billed]
     remit = []   # [month, payer, class, claims, denied, billed, collected, ar]
-    for k, mo in enumerate(r_months):
+    for mo in r_months:
+        g = rng if mo >= '2023-01' else hrng
         if mo >= first_billed:
             amounts = {n.replace(' (synthetic)', ''): q(m2[mo]) for _, n, m2 in ds.customers}
-        else:
+        elif mo >= '2023-01':
+            k = pre.index(mo)
             t = D(k) / D(len(pre))
             total = billing_total0 / (D('1.006') ** (len(pre) - k))
             amounts = {n: q(total * (start_share[n] + (end_share[n] - start_share[n]) * t)) for n, _ in payers}
+        else:
+            j = hist.index(mo)
+            t = D(j) / D(len(hist))
+            total = billing_total0 / (D('1.006') ** (len(pre) + len(hist) - j))
+            amounts = {n: q(total * (early_share[n] + (start_share[n] - early_share[n]) * t)) for n, _ in payers}
         for n, _ in payers:
             cl = klass[n]
             collected = amounts[n]
-            claims = whole(collected / (ds.amt(yield_usd[cl]) * (D(1) + D(rng.randint(-15, 15)) / 1000)))
+            claims = whole(collected / (ds.amt(yield_usd[cl]) * (D(1) + D(g.randint(-15, 15)) / 1000)))
             denied = whole(claims * denial_year[mo[:4]] * denial_factor[cl])
             billed = q(collected * D('1.38'))
-            ar = q(billed * D(41) / D('30.4') * (D(1) + D(rng.randint(-20, 20)) / 1000))
+            ar = q(billed * D(41) / D('30.4') * (D(1) + D(g.randint(-20, 20)) / 1000))
             remit.append([mo, f'{n} (synthetic)', cl, claims, denied, billed, collected, ar])
     ds.ext('remittances', ['month', 'payer', 'payer_class', 'claims', 'denied_claims', 'billed', 'collected', 'ar_balance'],
            [[r[0], r[1], r[2], f'{r[3]:.0f}', f'{r[4]:.0f}', f'{r[5]:.2f}', f'{r[6]:.2f}', f'{r[7]:.2f}'] for r in remit],
@@ -816,13 +827,16 @@ def healthcare(ds):
     roster = [[f'PR-{i + 1:02d}', ['Physical therapy', 'Primary care', 'Occupational therapy'][i % 3], '1.0' if i % 4 else '0.6', f'2026-{(i % 9) + 10 if (i % 9) + 10 <= 12 else 12}-15' if i in (3, 11) else f'2027-{(i % 12) + 1:02d}-01'] for i in range(18)]
     ds.ext('provider-roster', ['provider_ref', 'specialty', 'fte', 'credential_expiry'], roster, 'Provider roster, pseudonymous, with credential expiry dates')
 
-    # --- Collections by clinician, October 2025 to September 2026. PR-03 carries 31% of them (planted (d)).
+    # --- Collections by clinician, January 2021 to September 2026. PR-03 carries 31% of them (planted (d)).
+    # Before October 2025 (T-184b) the collections follow the remittances, and the collected per visit rises each
+    # year faster than collections grow, so visits fall every year (planted (e)); the last twelve months are unchanged.
+    per_visit = {'2021': D(70), '2022': D(79), '2023': D(88), '2024': D(98), '2025': D(108)}
     sites = ['Northgate', 'Riverside', 'Eastfield', 'Millbrook', 'Westcourt', 'Harbour Road', 'Elmstead', 'Fairview', 'Southpark']
     weights = {r[0]: D(r[2]) * (D(1) + D(rng.randint(-10, 10)) / 100) for r in roster if r[0] != 'PR-03'}
     wsum = sum(weights.values())
     refs = sorted(weights)
     clin = []
-    for mo in LAST12:
+    for mo in r_months:
         total = sum(r[6] for r in remit if r[0] == mo)
         amounts = {'PR-03': q(total * D('0.31'))}
         rest = total - amounts['PR-03']
@@ -831,10 +845,11 @@ def healthcare(ds):
         amounts[refs[-1]] = total - sum(amounts.values())
         for i, r in enumerate(roster):
             ref = r[0]
-            clin.append([mo, ref, f'{sites[i % 9]} practice (synthetic)', f'{whole(amounts[ref] / ds.amt(108)):.0f}', f'{amounts[ref]:.2f}'])
-    ds.ext('clinician-collections', ['month', 'provider_ref', 'site', 'visits', 'collected'], clin, 'Collections by clinician and month, pseudonymous, from the practice-management system')
-    star_total = sum(D(r[4]) for r in clin if r[1] == 'PR-03')
-    clin_total = sum(D(r[4]) for r in clin)
+            clin.append([mo, ref, f'{sites[i % 9]} practice (synthetic)', f'{whole(amounts[ref] / ds.amt(108 if mo in LAST12 else per_visit[mo[:4]])):.0f}', f'{amounts[ref]:.2f}'])
+    ds.ext('clinician-collections', ['month', 'provider_ref', 'site', 'visits', 'collected'], clin, 'Collections by clinician and month, pseudonymous, from the practice-management system, January 2021 to September 2026')
+    star_total = sum(D(r[4]) for r in clin if r[1] == 'PR-03' and r[0] in LAST12)
+    clin_total = sum(D(r[4]) for r in clin if r[0] in LAST12)
+    def year_visits(y): return sum(int(r[3]) for r in clin if r[0].startswith(y))
 
     # --- The credentialing register: a state licence per clinician, controlled-substance registrations for primary care.
     juris = {'USD': 'Ohio', 'EUR': 'Netherlands', 'GBP': 'England'}[c]
@@ -869,30 +884,30 @@ def healthcare(ds):
     trailing_total = sum(r[6] for r in remit if r[0] in LAST12)
     north_share = sum(r[6] for r in remit if r[0] in LAST12 and r[1].startswith('Commercial plan North')) / trailing_total
 
-    # --- Three fiscal years of P&L, by year across the columns. Patient revenue is the cash collected; denial
-    # write-offs grow faster than revenue every year, which a single year misses (planted (a), the P&L side).
-    years = ['FY2023', 'FY2024', 'FY2025']
+    # --- Five fiscal years of P&L (T-184b), by year across the columns. Patient revenue is the cash collected;
+    # denial write-offs grow faster than revenue every year, which a single year misses (planted (a), the P&L side).
+    years = ['FY2021', 'FY2022', 'FY2023', 'FY2024', 'FY2025']
     patient = [sum((r[6] for r in year_of(y[2:])), D(0)) for y in years]
-    other = [q(ds.amt(18000) * D(f)) for f in ('1', '1.04', '1.08')]
-    rev = [patient[i] + other[i] for i in range(3)]
+    other = [q(ds.amt(18000) * D(f)) for f in ('0.92', '0.96', '1', '1.04', '1.08')]
+    rev = [patient[i] + other[i] for i in range(5)]
     ratios = {
-        'Cost of care: clinical staff': [D('0.52'), D('0.515'), D('0.51')],
-        'Cost of care: medical supplies': [D('0.06'), D('0.06'), D('0.059')],
-        'Denial write-offs and bad debt': [D('0.018'), D('0.026'), D('0.039')],
-        'Billing and collection costs': [D('0.040'), D('0.041'), D('0.040')],
-        'Rent and occupancy': [D('0.085'), D('0.082'), D('0.080')],
-        'General and administrative': [D('0.090'), D('0.084'), D('0.076')],
+        'Cost of care: clinical staff': [D('0.53'), D('0.525'), D('0.52'), D('0.515'), D('0.51')],
+        'Cost of care: medical supplies': [D('0.06'), D('0.06'), D('0.06'), D('0.06'), D('0.059')],
+        'Denial write-offs and bad debt': [D('0.010'), D('0.013'), D('0.018'), D('0.026'), D('0.039')],
+        'Billing and collection costs': [D('0.040'), D('0.040'), D('0.040'), D('0.041'), D('0.040')],
+        'Rent and occupancy': [D('0.09'), D('0.088'), D('0.085'), D('0.082'), D('0.080')],
+        'General and administrative': [D('0.098'), D('0.094'), D('0.090'), D('0.084'), D('0.076')],
     }
     pnl_rows = [['Net patient service revenue'] + [f'{x:.2f}' for x in patient], ['Other operating revenue'] + [f'{x:.2f}' for x in other]]
     for name, rs in ratios.items():
-        pnl_rows.append([name] + [f'{q(rev[i] * rs[i]):.2f}' for i in range(3)])
-    writeoffs = [q(rev[i] * ratios['Denial write-offs and bad debt'][i]) for i in range(3)]
-    ds.ext('pnl', ['Line'] + years, pnl_rows, 'Profit and loss by fiscal year, FY2023 to FY2025')
+        pnl_rows.append([name] + [f'{q(rev[i] * rs[i]):.2f}' for i in range(5)])
+    writeoffs = [q(rev[i] * ratios['Denial write-offs and bad debt'][i]) for i in range(5)]
+    ds.ext('pnl', ['Line'] + years, pnl_rows, 'Profit and loss by fiscal year, FY2021 to FY2025')
     ds.pnl_step = ['Open the **Sources** tab, scroll to **Industry data** and click **Upload profit and loss (p&l)**.', '',
-                   '1. Choose `pnl.csv` → **Upload and map columns**. Pactlab reads the three years across the columns (FY2023, FY2024, FY2025).',
+                   '1. Choose `pnl.csv` → **Upload and map columns**. Pactlab reads the five years across the columns (FY2021 to FY2025).',
                    '2. Say what each line is: the two lines ending in *revenue* are **Revenue**, the two `Cost of care` lines are **Cost of revenue**, and the rest are **Operating expenses**.',
-                   f'3. **Check every row**, then **Import {len(pnl_rows) * 3} rows**.', '',
-                   '**You should see:** the import succeed. The **Practice** tab now shows the P&L year by year next to collections, and the checks in the next step read every year.', '']
+                   f'3. **Check every row**, then **Import {len(pnl_rows) * 5} rows**.', '',
+                   '**You should see:** the import succeed. The **Practice** tab now shows the P&L year by year next to collections; **Finances** shows the five years side by side with visits, the commercial share and the denial rate, and the checks in the next step read every year.', '']
 
     ds.doc('01-medical-director-agreement', f'''
 Medical director agreement — {ds.company} (synthetic)
@@ -953,20 +968,23 @@ Reimbursement: 118% of the government programme fee schedule, reviewed annually.
         ('Privacy risk assessment out of date', '`documents/02-privacy-risk-assessment.pdf` — last assessed March 2023, review overdue since March 2024.'),
         ('Provider credentials expiring', 'two providers in `provider-roster.csv` have credentials expiring before the end of 2026.'),
         ('Claim contradicted: Denial rate', f'the management presentation says the denial rate fell from 8.4% to 6.1%; `remittances.csv` shows it rose: {pct(denial("2023"))} in 2023, {pct(denial("2024"))} in 2024, {pct(denial("2025"))} in 2025.'),
-        ('Denial rate rising, 2023–2025', f'denied ÷ adjudicated claims in `remittances.csv`, up every year from {pct(denial("2023"))} to {pct(denial("2025"))}; one year alone looks like one figure.'),
+        ('Denial rate rising, 2021–2025', f'denied ÷ adjudicated claims in `remittances.csv`, up every year from {pct(denial("2021"))} to {pct(denial("2025"))}; one year alone looks like one figure.'),
         ('Claim contradicted: Commercial payer share', f'the presentation says 41% of FY2025 collections came from commercial payers; `remittances.csv` gives {pct(commercial_share("2025"))}.'),
-        ('Payer mix shifted toward Medicaid, the lowest-paying payer class, 2023–2025', f'Government programme B (Medicaid) went from {pct(medicaid_claims("2023"))} of claims in 2023 to {pct(medicaid_claims("2025"))} in 2025, and pays least per claim.'),
+        ('Payer mix shifted toward Medicaid, the lowest-paying payer class, 2021–2025', f'Government programme B (Medicaid) went from {pct(medicaid_claims("2021"))} of claims in 2021 to {pct(medicaid_claims("2025"))} in 2025, and pays least per claim.'),
         ('Claim verified: Days in accounts receivable', f'{deck_ar} days at 31 December 2025, recomputed from the receivables and charges in `remittances.csv` ({days_in_ar("2025").quantize(D("0.1"), ROUND_HALF_UP)}).'),
         ('Practising on an expired licence: PR-07', f'`documents/04-licence-verification.pdf` (page 2) — the licence expired on 30 April 2026; the register still says active to April 2027, and `clinician-collections.csv` records {money(c, after["PR-07"])} collected on PR-07\'s claims since.'),
         ('Practising on an expired licence: PR-15', f'the licence expired on 30 June 2026; {money(c, after["PR-15"])} collected since.'),
         ('31.0% of collections from one clinician, no non-compete on file: PR-03', f'PR-03 collected {money(c, star_total)} of {money(c, clin_total)} in the twelve months to September 2026; `documents/05-restrictive-covenants-schedule.pdf` does not list PR-03.'),
         ('Payer contract ends within a year: Commercial plan North (synthetic)', f'`payer-contracts.csv` — PA-NORTH-2024 ends on 31 March 2027 with no automatic renewal; the payer is {pct(north_share)} of trailing collections.'),
-        ('P&L trend, 2023–2025', 'every imported year side by side: revenue, growth, margins and the denial write-off, clinical staff, supplies and billing ratios.'),
-        ('Denial write-offs and bad debt growing faster than revenue, 2023–2025', f'`pnl.csv` — from {pct(ratios["Denial write-offs and bad debt"][0])} of revenue in FY2023 to {pct(ratios["Denial write-offs and bad debt"][2])} in FY2025 ({money(c, writeoffs[0])} to {money(c, writeoffs[2])}); FY2025 alone looks small.'),
+        ('Visits falling every year, FY2021–FY2025', f'`clinician-collections.csv` — visits by calendar year: {", ".join(f"FY{y} {year_visits(y):,}" for y in ["2021", "2022", "2023", "2024", "2025"])}, while collections grew; the growth is collected per visit, not patients.'),
+        ('P&L trend, 2021–2025', 'every imported year side by side: revenue, growth, margins and the denial write-off, clinical staff, supplies and billing ratios.'),
+        ('Denial write-offs and bad debt growing faster than revenue, 2021–2025', f'`pnl.csv` — from {pct(ratios["Denial write-offs and bad debt"][0])} of revenue in FY2021 to {pct(ratios["Denial write-offs and bad debt"][4])} in FY2025 ({money(c, writeoffs[0])} to {money(c, writeoffs[4])}); FY2025 alone looks small.'),
     ]
-    assert denial('2023') < denial('2024') < denial('2025'), 'denials must rise every year'
-    assert days_in_ar('2025') - days_in_ar('2023') < 5, 'days in AR must not drift'
+    assert denial('2021') < denial('2022') < denial('2023') < denial('2024') < denial('2025'), 'denials must rise every year'
+    assert days_in_ar('2025') - days_in_ar('2021') < 5, 'days in AR must not drift'
+    assert year_visits('2021') > year_visits('2022') > year_visits('2023') > year_visits('2024') > year_visits('2025'), 'visits must fall every year'
     ds.notes = ['Provider data is pseudonymous and aggregate by design; Pactlab never sends people data to a model.',
+                '`remittances.csv` and `clinician-collections.csv` run January 2021 to September 2026, so each of FY2021–FY2025 is a complete year (five years of history, read side by side on **Finances**).',
                 'The P&L (`pnl.csv`) imports through Sources like any extract; the multi-year checks read every year it holds. A single year still imports: the trend then reports that year alone.',
                 'Diligence support only: the pack checks documents, dates and arithmetic. It does not assess the quality of care or whether billing, referrals or the expired licences are lawful.']
 
@@ -1996,22 +2014,28 @@ Highest-complexity codes are expected for about 15% of visits. Higher shares req
     rng = ds.rng
     klass = {'Insurer Bluepoint': 'commercial', 'Insurer Harrowgate': 'commercial', 'Government scheme': 'medicaid', 'Patients — self-pay': 'self_pay'}
     yield_usd = {'commercial': D('118'), 'medicaid': D('74'), 'self_pay': D('96')}
-    r_months, (yy, mm) = [], (2023, 1)
+    # Remittances run January 2021 to September 2026 (five years, T-184b); months before 2023 come from their own
+    # random generator, so the later rows are unchanged.
+    hrng = random.Random(f'clinics-history:{ds.cur}')
+    r_months, (yy, mm) = [], (2021, 1)
     while (yy, mm) <= (2026, 9):
         r_months.append(f'{yy}-{mm:02d}'); mm += 1
         if mm == 13: yy, mm = yy + 1, 1
     first_billed = MONTHS[0]
-    pre = [mo for mo in r_months if mo < first_billed]
+    hist = [mo for mo in r_months if mo < '2023-01']
+    pre = [mo for mo in r_months if '2023-01' <= mo < first_billed]
     remit = []   # [month, payer, class, claims, denied, billed, collected, ar] — a steady mix, flat denials and days in AR
-    for k, mo in enumerate(r_months):
+    for mo in r_months:
+        g = rng if mo >= '2023-01' else hrng
+        back = 0 if mo >= first_billed else len(pre) - pre.index(mo) if mo in pre else len(pre) + len(hist) - hist.index(mo)
         for _, name, monthly in ds.customers:
             payer = name.replace(' (synthetic)', '')
-            collected = q(monthly[mo]) if mo >= first_billed else q(monthly[first_billed] / (D('1.005') ** (len(pre) - k)))
+            collected = q(monthly[mo]) if mo >= first_billed else q(monthly[first_billed] / (D('1.005') ** back))
             cl = klass[payer]
-            claims = whole(collected / (ds.amt(yield_usd[cl]) * (D(1) + D(rng.randint(-10, 10)) / 1000)))
-            denied = whole(claims * D('0.048') * (D(1) + D(rng.randint(-30, 30)) / 1000))
+            claims = whole(collected / (ds.amt(yield_usd[cl]) * (D(1) + D(g.randint(-10, 10)) / 1000)))
+            denied = whole(claims * D('0.048') * (D(1) + D(g.randint(-30, 30)) / 1000))
             billed = q(collected * D('1.31'))
-            ar = q(billed * D(36) / D('30.4') * (D(1) + D(rng.randint(-15, 15)) / 1000))
+            ar = q(billed * D(36) / D('30.4') * (D(1) + D(g.randint(-15, 15)) / 1000))
             remit.append([mo, name, cl, claims, denied, billed, collected, ar])
     ds.ext('remittances', ['month', 'payer', 'payer_class', 'claims', 'denied_claims', 'billed', 'collected', 'ar_balance'],
            [[r[0], r[1], r[2], f'{r[3]:.0f}', f'{r[4]:.0f}', f'{r[5]:.2f}', f'{r[6]:.2f}', f'{r[7]:.2f}'] for r in remit],
@@ -2053,9 +2077,22 @@ Highest-complexity codes are expected for about 15% of visits. Higher shares req
     sl_total = sum(D(r[4]) for r in sl)
     margin = {line: 1 - cost for line, _, cost, _ in lines}
     implants_share = sum(D(r[4]) for r in sl if r[1] == 'Implants') / sl_total
+    # Before October 2025 (T-184b) collections by clinician follow the remittances, split as the last twelve months
+    # split them; visits at the clinic's average collected per visit.
+    prov_share = {}
+    for (mo, ref), (v, c_) in by_provider.items(): prov_share[ref] = prov_share.get(ref, D(0)) + c_
+    prov_total = sum(prov_share.values())
+    for mo in r_months:
+        if mo in LAST12: continue
+        total = sum(r[6] for r in remit if r[0] == mo)
+        given = D(0)
+        for i, ref in enumerate(sorted(prov_share)):
+            amount = total - given if i == len(prov_share) - 1 else q(total * prov_share[ref] / prov_total)
+            given += amount
+            by_provider[(mo, ref)] = (whole(amount / ds.amt(118)), amount)
     ds.ext('clinician-collections', ['month', 'provider_ref', 'site', 'visits', 'collected'],
            [[mo, ref, f'{site_of[ref]} (synthetic)', f'{v:.0f}', f'{c_:.2f}'] for (mo, ref), (v, c_) in sorted(by_provider.items())],
-           'Collections by clinician and month, pseudonymous, from the practice-management system')
+           'Collections by clinician and month, pseudonymous, from the practice-management system, January 2021 to September 2026')
 
     # Visits by referral source: Harbourside Hospital refers 58% of visits (planted (a)).
     sources = [('Harbourside Hospital orthopaedics (synthetic)', 'hospital', D('0.58')), ('Northgate Physician Group (synthetic)', 'physician group', D('0.13')),
@@ -2088,29 +2125,29 @@ Highest-complexity codes are expected for about 15% of visits. Higher shares req
         ['HG-2024', 'Insurer Harrowgate (synthetic)', 'commercial', '2024-07-01', '2029-06-30', 'no'],
         ['GS-ENR-118', 'Government scheme (synthetic)', 'medicaid', '2019-04-01', '', 'no']], 'Payer contract and enrolment register')
 
-    # Three fiscal years of P&L. Patient revenue is the cash collected; supplies outpace revenue every year,
-    # which FY2025 alone does not show (planted (d)); falling administration keeps the operating margin level.
-    years = ['FY2023', 'FY2024', 'FY2025']
+    # Five fiscal years of P&L (T-184b). Patient revenue is the cash collected; supplies outpace revenue every
+    # year, which FY2025 alone does not show (planted (d)); falling administration keeps the operating margin level.
+    years = ['FY2021', 'FY2022', 'FY2023', 'FY2024', 'FY2025']
     patient = [sum((r[6] for r in year_of(y[2:])), D(0)) for y in years]
-    other = [q(ds.amt(9000) * D(f)) for f in ('1', '1.03', '1.06')]
-    rev = [patient[i] + other[i] for i in range(3)]
+    other = [q(ds.amt(9000) * D(f)) for f in ('0.94', '0.97', '1', '1.03', '1.06')]
+    rev = [patient[i] + other[i] for i in range(5)]
     ratios = {
-        'Cost of care: clinical staff': [D('0.41'), D('0.41'), D('0.41')],
-        'Clinical and dental supplies': [D('0.068'), D('0.084'), D('0.103')],
-        'Laboratory fees': [D('0.031'), D('0.031'), D('0.030')],
-        'Rent and occupancy': [D('0.074'), D('0.073'), D('0.072')],
-        'General and administrative': [D('0.118'), D('0.103'), D('0.085')],
+        'Cost of care: clinical staff': [D('0.41'), D('0.41'), D('0.41'), D('0.41'), D('0.41')],
+        'Clinical and dental supplies': [D('0.045'), D('0.056'), D('0.068'), D('0.084'), D('0.103')],
+        'Laboratory fees': [D('0.031'), D('0.031'), D('0.031'), D('0.031'), D('0.030')],
+        'Rent and occupancy': [D('0.076'), D('0.075'), D('0.074'), D('0.073'), D('0.072')],
+        'General and administrative': [D('0.150'), D('0.133'), D('0.118'), D('0.103'), D('0.085')],
     }
     pnl_rows = [['Net patient service revenue'] + [f'{x:.2f}' for x in patient], ['Other operating revenue'] + [f'{x:.2f}' for x in other]]
     for name, rs in ratios.items():
-        pnl_rows.append([name] + [f'{q(rev[i] * rs[i]):.2f}' for i in range(3)])
-    supplies = [q(rev[i] * ratios['Clinical and dental supplies'][i]) for i in range(3)]
-    ds.ext('pnl', ['Line'] + years, pnl_rows, 'Profit and loss by fiscal year, FY2023 to FY2025')
+        pnl_rows.append([name] + [f'{q(rev[i] * rs[i]):.2f}' for i in range(5)])
+    supplies = [q(rev[i] * ratios['Clinical and dental supplies'][i]) for i in range(5)]
+    ds.ext('pnl', ['Line'] + years, pnl_rows, 'Profit and loss by fiscal year, FY2021 to FY2025')
     ds.pnl_step = ['Open the **Sources** tab, scroll to **Industry data** and click **Upload profit and loss (p&l)**.', '',
-                   '1. Choose `pnl.csv` → **Upload and map columns**. Pactlab reads the three years across the columns (FY2023, FY2024, FY2025).',
+                   '1. Choose `pnl.csv` → **Upload and map columns**. Pactlab reads the five years across the columns (FY2021 to FY2025).',
                    '2. Say what each line is: the two lines ending in *revenue* are **Revenue**, `Cost of care: clinical staff` is **Cost of revenue**, and the rest are **Operating expenses**.',
-                   f'3. **Check every row**, then **Import {len(pnl_rows) * 3} rows**.', '',
-                   '**You should see:** the import succeed. The **Practice** tab shows the P&L year by year, and the checks in the next step read every year.', '']
+                   f'3. **Check every row**, then **Import {len(pnl_rows) * 5} rows**.', '',
+                   '**You should see:** the import succeed. The **Practice** tab shows the P&L year by year, **Finances** the five years side by side with visits, the commercial share and the denial rate, and the checks in the next step read every year.', '']
 
     deck_ar = days_in_ar('2025').quantize(D('1'), ROUND_HALF_UP)
     ds.doc('02-confidential-information-memorandum', f"""
@@ -2149,12 +2186,13 @@ Verified on 28 September 2026 against the issuing boards' public registers. Prov
         ('Clinic lease: assignment on a sale needs the landlord’s consent', '`documents/03-lease-harbour-street.pdf` — assignment or a change of control needs the landlord’s written consent: a closing condition.'),
         ('The selling owner is the only provider of the highest-margin service line: Implants', f'`service-lines.csv` — implants are {pct(implants_share)} of collections at a {pct(margin["Implants"])} margin after direct costs, and only P01, the selling owner, collects on them. P01 delivers {pct(owner_total / sl_total)} of collections overall.'),
         ('Claim verified: Days in accounts receivable', f'{deck_ar} days at 31 December 2025, recomputed from `remittances.csv` ({days_in_ar("2025").quantize(D("0.1"), ROUND_HALF_UP)}).'),
-        ('P&L trend, 2023–2025', 'every imported year side by side: revenue, growth, margins and the supplies, laboratory, clinical staff and occupancy ratios.'),
-        ('Clinical and dental supplies growing faster than revenue, 2023–2025', f'`pnl.csv` — from {pct(ratios["Clinical and dental supplies"][0])} of revenue in FY2023 to {pct(ratios["Clinical and dental supplies"][2])} in FY2025 ({money(c, supplies[0])} to {money(c, supplies[2])}); FY2025 alone looks ordinary.'),
+        ('P&L trend, 2021–2025', 'every imported year side by side: revenue, growth, margins and the supplies, laboratory, clinical staff and occupancy ratios.'),
+        ('Clinical and dental supplies growing faster than revenue, 2021–2025', f'`pnl.csv` — from {pct(ratios["Clinical and dental supplies"][0])} of revenue in FY2021 to {pct(ratios["Clinical and dental supplies"][4])} in FY2025 ({money(c, supplies[0])} to {money(c, supplies[4])}); FY2025 alone looks ordinary.'),
     ]
     assert D('0.575') < top_share < D('0.585'), top_share
     assert owner_total / sl_total < D('0.3'), 'the owner share stays under the no-succession threshold'
     ds.notes = ['Providers are pseudonymous (P01, P02, …); P01, the selling owner, is named only by that reference. Pactlab never sends people data to a model.',
+                '`remittances.csv` and `clinician-collections.csv` run January 2021 to September 2026, so each of FY2021–FY2025 is a complete year (five years of history, read side by side on **Finances**); the clinic\'s visits and payer mix stay steady.',
                 'The remittances, collections by clinician, credentialing register and payer contracts are the healthcare pack’s own imports, reused as they are; the clinic adds service lines, referrals and the lease.',
                 'The P&L (`pnl.csv`) imports through Sources like any extract; the multi-year checks read every year it holds. A single year still imports: the trend then reports that year alone.',
                 'Diligence support only: the pack checks documents, dates and arithmetic. It does not assess the quality of care, whether the referral arrangement is lawful, or what the lease means in law.']

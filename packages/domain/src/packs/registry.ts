@@ -174,6 +174,7 @@ export const PACKS: Readonly<Record<PackId, PackDefinition>> = {
       'healthcare-pnl-trend',
       'healthcare-pnl-margin-drift',
       'healthcare-pnl-expense-outpacing',
+      'healthcare-visits-trend',
     ],
     documentCategories: ['LICENCE_VERIFICATION', 'CODING_AUDIT', 'HIPAA_RISK_ASSESSMENT', 'PAYER_CONTRACT', 'RESTRICTIVE_COVENANTS'],
     // Healthtech targets also run the software path (ARR multiple); services value on DCF.
@@ -341,6 +342,7 @@ export const PACKS: Readonly<Record<PackId, PackDefinition>> = {
       'clinics-pnl-trend',
       'clinics-pnl-margin-drift',
       'clinics-pnl-expense-outpacing',
+      'healthcare-visits-trend',
     ],
     documentCategories: ['LICENCE_VERIFICATION', 'CODING_AUDIT', 'HIPAA_RISK_ASSESSMENT', 'PAYER_CONTRACT'],
     // The premises check reads the clinic lease, so intake asks for it.
