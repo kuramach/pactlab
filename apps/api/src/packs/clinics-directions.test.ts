@@ -7,6 +7,7 @@ import {
   CLINICS_REFERRAL_MONTH_EVIDENCE_TYPE,
   CLINICS_SERVICE_LINE_MONTH_EVIDENCE_TYPE,
   defaultDirectionFor,
+  DRIVER_TREND_SIGNAL,
   DOCUMENT_FINDING_EVIDENCE_TYPE,
   HEALTHCARE_CLINICIAN_MONTH_EVIDENCE_TYPE,
   HEALTHCARE_CREDENTIAL_EVIDENCE_TYPE,
@@ -48,6 +49,7 @@ const SIGNALS: Readonly<Record<string, (key: string) => readonly [string, string
   'clinics-pnl-trend': () => [PNL_LINE_EVIDENCE_TYPE, 'trend'],
   'clinics-pnl-margin-drift': () => [PNL_LINE_EVIDENCE_TYPE, 'margin-drift'],
   'clinics-pnl-expense-outpacing': () => [PNL_LINE_EVIDENCE_TYPE, 'expense-outpacing'],
+  'healthcare-visits-trend': () => [HEALTHCARE_CLINICIAN_MONTH_EVIDENCE_TYPE, DRIVER_TREND_SIGNAL],
 };
 const RULES = new Map([...CLINICS_RULES, ...HEALTHCARE_RULES].map((rule) => [rule.id, rule]));
 

@@ -116,7 +116,7 @@ const VENTURE_RAISE: PackDefinition = {
 export const PACKS: Readonly<Record<PackId, PackDefinition>> = {
   SOFTWARE_SAAS: {
     ...pack('SOFTWARE_SAAS', 'software-saas', 'technology', true),
-    findingRules: ['saas-reported-arr', 'saas-revenue-concentration', 'saas-customer-change-of-control', 'saas-hidden-contraction'],
+    findingRules: ['saas-reported-arr', 'saas-revenue-concentration', 'saas-customer-change-of-control', 'saas-hidden-contraction', 'saas-pnl-trend', 'saas-pnl-margin-drift', 'saas-pnl-expense-outpacing', 'saas-nrr-trend'],
   },
   // Payments and lending (T-058, extended by T-159, ADR 0050): the software path runs as it is; the
   // pack adds the loan tape and AML alerts, the processor export (volume, take rate and loss rates
@@ -174,6 +174,7 @@ export const PACKS: Readonly<Record<PackId, PackDefinition>> = {
       'healthcare-pnl-trend',
       'healthcare-pnl-margin-drift',
       'healthcare-pnl-expense-outpacing',
+      'healthcare-visits-trend',
     ],
     documentCategories: ['LICENCE_VERIFICATION', 'CODING_AUDIT', 'HIPAA_RISK_ASSESSMENT', 'PAYER_CONTRACT', 'RESTRICTIVE_COVENANTS'],
     // Healthtech targets also run the software path (ARR multiple); services value on DCF.
@@ -200,6 +201,7 @@ export const PACKS: Readonly<Record<PackId, PackDefinition>> = {
       'telecom-pnl-trend',
       'telecom-pnl-margin-drift',
       'telecom-pnl-expense-outpacing',
+      'telecom-churn-trend',
     ],
     documentCategories: ['RIGHTS_AGREEMENT'],
     // Subscriber revenue runs the SaaS metrics as they are (ARPU ≈ MRR per account, churn ≈ logo churn).
@@ -225,6 +227,7 @@ export const PACKS: Readonly<Record<PackId, PackDefinition>> = {
       'services-pnl-trend',
       'services-pnl-margin-drift',
       'services-pnl-expense-outpacing',
+      'services-utilization-trend',
     ],
     documentCategories: ['COVENANT_REGISTER'],
     // People-driven earnings value on DCF; retainer revenue also reads as recurring.
@@ -251,6 +254,7 @@ export const PACKS: Readonly<Record<PackId, PackDefinition>> = {
       'pharma-pnl-trend',
       'pharma-pnl-margin-drift',
       'pharma-pnl-expense-outpacing',
+      'pharma-product-revenue-trend',
     ],
     documentCategories: ['REGULATORY_CORRESPONDENCE', 'PATENT_RECORD', 'LICENCE_AGREEMENT', 'SUPPLY_AGREEMENT'],
     // The registry records import before the pipeline, so the claims the pipeline's import checks read them.
@@ -278,6 +282,7 @@ export const PACKS: Readonly<Record<PackId, PackDefinition>> = {
       'ecommerce-pnl-trend',
       'ecommerce-pnl-margin-drift',
       'ecommerce-pnl-expense-outpacing',
+      'ecommerce-discount-trend',
     ],
     documentCategories: ['PLATFORM_ACCOUNT_RECORD', 'MARKETPLACE_AGREEMENT'],
     // Valuation methods unchanged; unit economics arrive as scenario inputs and channel risk as findings.
@@ -339,6 +344,7 @@ export const PACKS: Readonly<Record<PackId, PackDefinition>> = {
       'clinics-pnl-trend',
       'clinics-pnl-margin-drift',
       'clinics-pnl-expense-outpacing',
+      'healthcare-visits-trend',
     ],
     documentCategories: ['LICENCE_VERIFICATION', 'CODING_AUDIT', 'HIPAA_RISK_ASSESSMENT', 'PAYER_CONTRACT'],
     // The premises check reads the clinic lease, so intake asks for it.
@@ -382,6 +388,7 @@ export const PACKS: Readonly<Record<PackId, PackDefinition>> = {
       'music-undisclosed-encumbrance',
       'music-statement-gap',
       'music-verified-growth',
+      'music-income-trend',
     ],
     valuationMethods: ['ARR_MULTIPLE', 'DCF'],
     methodLabels: {
@@ -410,6 +417,7 @@ export const PACKS: Readonly<Record<PackId, PackDefinition>> = {
       'energy-title-defect',
       'energy-compliance-capex-gap',
       'energy-reserve-report-missing',
+      'energy-generation-trend',
     ],
     valuationMethods: ['DCF', 'ARR_MULTIPLE'],
     methodLabels: {

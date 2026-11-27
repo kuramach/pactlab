@@ -1,6 +1,7 @@
 import { D } from '../../metrics/decimal';
 import type { KeyExpense } from '../../pnl/trend';
 import { amountOf, grouped, INVOICE_LINE, latestMonthRevenue, monthName, percent } from '../common';
+import { driverTrendRule, type DriverSpec, type PackHistorySpec } from '../history';
 import { PNL_LINE, pnlTrendRules } from '../pnl-trend';
 import { findSentence, MAX_CITED, type PackRule, type PackRuleEvidence, type PackRuleProposal } from '../rule-types';
 import {
@@ -476,6 +477,66 @@ export const ECOMMERCE_KEY_EXPENSES: readonly KeyExpense[] = [
 
 export const [ECOMMERCE_PNL_TREND, ECOMMERCE_PNL_MARGIN_DRIFT, ECOMMERCE_PNL_EXPENSE_OUTPACING] = pnlTrendRules('ecommerce', ECOMMERCE_KEY_EXPENSES) as [PackRule, PackRule, PackRule];
 
+/**
+ * Five years of history (T-184b, ADR 0057): the P&L by year and, from the orders export by calendar year,
+ * orders, consumer order value, the repeat rate and the discount rate. Acquisition cost and contribution by
+ * year are ecommerce-unit-economics-trend's; the discount rate climbing every year is the driver trend below.
+ */
+const CONSUMER = { field: 'platform', values: ['storefront', 'marketplace'] } as const;
+export const ECOMMERCE_DRIVERS = {
+  orders: { key: 'orders', label: 'Orders', unit: 'COUNT', evidenceType: CHANNEL_MONTH, mode: 'SUM', numerator: ['orders'], formula: 'Σ orders in the year, every channel' },
+  orderValue: {
+    key: 'net_order_value',
+    label: 'Net order value, consumer channels',
+    unit: 'MONEY',
+    evidenceType: CHANNEL_MONTH,
+    mode: 'RATIO',
+    numerator: ['gross_sales'],
+    numeratorLess: ['discounts', 'returns'],
+    numeratorWhere: CONSUMER,
+    denominator: ['orders'],
+    denominatorWhere: CONSUMER,
+    formula: 'Σ (gross sales − discounts − returns) ÷ Σ orders in the year, storefront and marketplaces',
+  },
+  repeatRate: {
+    key: 'repeat_rate',
+    label: 'Repeat orders, consumer channels',
+    unit: 'RATIO',
+    evidenceType: CHANNEL_MONTH,
+    mode: 'RATIO',
+    numerator: ['new_customers'],
+    numeratorWhere: CONSUMER,
+    denominator: ['orders'],
+    denominatorWhere: CONSUMER,
+    complement: true,
+    formula: '1 − Σ new customers ÷ Σ orders in the year, storefront and marketplaces',
+  },
+  discountRate: { key: 'discount_rate', label: 'Discount rate', unit: 'RATIO', evidenceType: CHANNEL_MONTH, mode: 'RATIO', numerator: ['discounts'], denominator: ['gross_sales'], formula: 'Σ discounts ÷ Σ gross sales in the year, every channel' },
+} as const satisfies Record<string, DriverSpec>;
+
+export const ECOMMERCE_HISTORY: PackHistorySpec = {
+  drivers: [ECOMMERCE_DRIVERS.orders, ECOMMERCE_DRIVERS.orderValue, ECOMMERCE_DRIVERS.repeatRate, ECOMMERCE_DRIVERS.discountRate],
+  keyExpenses: ECOMMERCE_KEY_EXPENSES,
+  driverImport: 'ECOMMERCE_CHANNEL_ORDERS',
+  driverLabel: 'Orders by channel',
+  driverWhat: 'orders-by-channel history',
+};
+
+/** The discount rate climbing every year by this much or more, first year to last (1 point of gross sales). */
+export const DISCOUNT_CLIMB_POINTS = '0.01';
+
+export const ECOMMERCE_DISCOUNT_TREND = driverTrendRule(
+  {
+    id: 'ecommerce-discount-trend',
+    driver: ECOMMERCE_DRIVERS.discountRate,
+    adverse: 'UP',
+    threshold: DISCOUNT_CLIMB_POINTS,
+    domain: 'COMMERCIAL',
+    advice: 'A growing share of each sale is given away in discounts: growth is being bought. Check promotion calendars and full-price sell-through before carrying today\'s growth into the scenarios.',
+  },
+  ECOMMERCE_HISTORY,
+);
+
 export const ECOMMERCE_RULES: readonly PackRule[] = [
   ECOMMERCE_MARKETPLACE_MAJORITY,
   ECOMMERCE_COHORT_REPEAT_DECLINE,
@@ -489,5 +550,6 @@ export const ECOMMERCE_RULES: readonly PackRule[] = [
   ECOMMERCE_PNL_TREND,
   ECOMMERCE_PNL_MARGIN_DRIFT,
   ECOMMERCE_PNL_EXPENSE_OUTPACING,
+  ECOMMERCE_DISCOUNT_TREND,
 ];
 export const ECOMMERCE_EVIDENCE = { COHORT, AD_SPEND, CHANNEL_MONTH, STOCK_LOT } as const;

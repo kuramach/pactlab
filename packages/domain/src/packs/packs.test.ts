@@ -34,7 +34,7 @@ describe('pack registry', () => {
     const music = PACKS.MUSIC_RIGHTS;
     expect(music).toMatchObject({ slug: 'music-rights', label: 'Music rights', cluster: 'media-rights', metricCalculator: 'music-royalties', built: true });
     expect(music.importTargets).toEqual(['BILLING_INVOICE_LINE', 'MUSIC_WORKS', 'MUSIC_SPLITS', 'MUSIC_TITLE_CHAIN', 'MUSIC_ROYALTY_STATEMENTS']);
-    expect(music.findingRules).toHaveLength(9);
+    expect(music.findingRules).toHaveLength(10);
     expect(music.methodLabels?.ARR_MULTIPLE?.label).toBe('Royalty multiple');
     expect(music.documentCategories).toContain('LIEN_SEARCH');
     for (const target of music.importTargets.slice(1)) expect(IMPORT_TARGET_DEFINITIONS[target].refusesPeopleColumns, target).toBe(true);
@@ -46,7 +46,7 @@ describe('pack registry', () => {
     const energy = PACKS.ENERGY_GENERATION;
     expect(energy).toMatchObject({ slug: 'energy-generation', label: 'Energy generation & rights', cluster: 'energy', metricCalculator: 'energy-assets', built: true });
     expect(energy.importTargets).toEqual(['BILLING_INVOICE_LINE', 'ENERGY_PLANTS', 'ENERGY_INTERESTS', 'ENERGY_LEASES', 'ENERGY_PRODUCTION', 'ENERGY_LIABILITIES']);
-    expect(energy.findingRules).toHaveLength(9);
+    expect(energy.findingRules).toHaveLength(10);
     expect(energy.methodLabels?.DCF?.label).toBe('Reserve-based DCF');
     expect(energy.methodLabels?.ARR_MULTIPLE?.label).toBe('Capacity value ($/kW)');
     expect(energy.documentCategories).toContain('RESERVE_REPORT');
@@ -84,7 +84,7 @@ describe('pack registry', () => {
     expect(healthcare.importTargets.slice(0, 3)).toEqual(['BILLING_INVOICE_LINE', 'HEALTHCARE_CLAIMS_SUMMARY', 'HEALTHCARE_PROVIDER_ROSTER']);
     // The T-061 rules stay, first and unchanged (the clinics and hospitals packs reuse them); the T-160 rules follow.
     expect(healthcare.findingRules.slice(0, 4)).toEqual(['healthcare-government-concentration', 'healthcare-director-fee', 'healthcare-privacy-assessment', 'healthcare-credentials-expiring']);
-    expect(healthcare.findingRules).toHaveLength(15);
+    expect(healthcare.findingRules).toHaveLength(16);
     expect(healthcare.documentCategories).toEqual(['LICENCE_VERIFICATION', 'CODING_AUDIT', 'HIPAA_RISK_ASSESSMENT', 'PAYER_CONTRACT', 'RESTRICTIVE_COVENANTS']);
     for (const target of healthcare.importTargets.slice(1)) expect(IMPORT_TARGET_DEFINITIONS[target].refusesPeopleColumns, target).toBe(true);
     // Clinicians only as pseudonymous references: a name or a pay column is refused.
@@ -108,7 +108,7 @@ describe('pack registry', () => {
       expect(clinics.findingRules).toContain(rule);
     }
     expect(clinics.findingRules).not.toContain('healthcare-clinician-concentration');
-    expect(clinics.findingRules.slice(-6)).toEqual(['clinics-owner-dependence', 'clinics-referral-concentration', 'clinics-premises', 'clinics-pnl-trend', 'clinics-pnl-margin-drift', 'clinics-pnl-expense-outpacing']);
+    expect(clinics.findingRules.slice(-7)).toEqual(['clinics-owner-dependence', 'clinics-referral-concentration', 'clinics-premises', 'clinics-pnl-trend', 'clinics-pnl-margin-drift', 'clinics-pnl-expense-outpacing', 'healthcare-visits-trend']);
     expect(expectedInputs(clinics).find((input) => input.id === 'LEASE')).toEqual({ id: 'LEASE', need: 'REQUIRED' });
     expect(expectedInputs(PACKS.HEALTHCARE).find((input) => input.id === 'LEASE')).toEqual({ id: 'LEASE', need: 'OPTIONAL' });
     // Providers and referral sources: pseudonymous references and organisations only.
@@ -123,7 +123,7 @@ describe('pack registry', () => {
     expect(pharma.importTargets).toEqual(['BILLING_INVOICE_LINE', 'PHARMA_PATENTS', 'PHARMA_TRIAL_REGISTRY', 'PHARMA_PIPELINE', 'PHARMA_OBLIGATIONS', 'PHARMA_RD_ROSTER']);
     // The T-064 rules stay, first and unchanged.
     expect(pharma.findingRules.slice(0, 3)).toEqual(['pharma-patent-before-forecast', 'pharma-supplier-observations', 'pharma-partner-concentration']);
-    expect(pharma.findingRules).toHaveLength(12);
+    expect(pharma.findingRules).toHaveLength(13);
     expect(pharma.documentCategories).toEqual(['REGULATORY_CORRESPONDENCE', 'PATENT_RECORD', 'LICENCE_AGREEMENT', 'SUPPLY_AGREEMENT']);
     for (const target of pharma.importTargets.slice(1)) expect(IMPORT_TARGET_DEFINITIONS[target].refusesPeopleColumns, target).toBe(true);
     expect(IMPORT_TARGET_DEFINITIONS.PHARMA_RD_ROSTER.people).toBe('PSEUDONYMOUS');
@@ -137,7 +137,7 @@ describe('pack registry', () => {
     expect(ecommerce.importTargets).toEqual(['BILLING_INVOICE_LINE', 'ECOMMERCE_COHORTS', 'ECOMMERCE_AD_SPEND', 'ECOMMERCE_CHANNEL_ORDERS', 'ECOMMERCE_INVENTORY']);
     // The T-065 rules stay, first and unchanged.
     expect(ecommerce.findingRules.slice(0, 3)).toEqual(['ecommerce-marketplace-majority', 'ecommerce-cohort-repeat-decline', 'ecommerce-channel-cac-rising']);
-    expect(ecommerce.findingRules).toHaveLength(12);
+    expect(ecommerce.findingRules).toHaveLength(13);
     expect(ecommerce.documentCategories).toEqual(['PLATFORM_ACCOUNT_RECORD', 'MARKETPLACE_AGREEMENT']);
     for (const target of ecommerce.importTargets.slice(1)) expect(IMPORT_TARGET_DEFINITIONS[target]).toMatchObject({ people: 'NONE', refusesPeopleColumns: true });
     expect(peopleColumnProblems(IMPORT_TARGET_DEFINITIONS.ECOMMERCE_CHANNEL_ORDERS, ['month', 'channel', 'customer_email'])).toHaveLength(1);
@@ -149,7 +149,7 @@ describe('pack registry', () => {
     expect(services.importTargets).toEqual(['BILLING_INVOICE_LINE', 'SERVICES_TIMESHEETS', 'SERVICES_HEADCOUNT', 'SERVICES_TIME_BILLING', 'SERVICES_AGEING']);
     // The T-063 rules stay, first and unchanged.
     expect(services.findingRules.slice(0, 3)).toEqual(['services-utilization-gap', 'services-client-termination', 'services-delivery-attrition']);
-    expect(services.findingRules).toHaveLength(12);
+    expect(services.findingRules).toHaveLength(13);
     expect(services.documentCategories).toEqual(['COVENANT_REGISTER']);
     expect(IMPORT_TARGET_DEFINITIONS.SERVICES_TIME_BILLING).toMatchObject({ people: 'PSEUDONYMOUS', refusesPeopleColumns: true });
     expect(IMPORT_TARGET_DEFINITIONS.SERVICES_AGEING).toMatchObject({ people: 'NONE', refusesPeopleColumns: true });
@@ -162,7 +162,7 @@ describe('pack registry', () => {
     expect(telecom.importTargets).toEqual(['BILLING_INVOICE_LINE', 'TELECOM_SUBSCRIBERS', 'TELECOM_SUBSCRIBER_MOVEMENTS', 'TELECOM_AGREEMENTS', 'TELECOM_REVENUE_STREAMS', 'TELECOM_CAPEX']);
     // The T-062 rules stay, first and unchanged.
     expect(telecom.findingRules.slice(0, 4)).toEqual(['telecom-reported-subscribers', 'telecom-churn-turning', 'telecom-regional-concentration', 'telecom-wholesale-review']);
-    expect(telecom.findingRules).toHaveLength(12);
+    expect(telecom.findingRules).toHaveLength(13);
     expect(telecom.documentCategories).toEqual(['RIGHTS_AGREEMENT']);
     for (const target of ['TELECOM_SUBSCRIBER_MOVEMENTS', 'TELECOM_AGREEMENTS', 'TELECOM_REVENUE_STREAMS', 'TELECOM_CAPEX'] as const) expect(IMPORT_TARGET_DEFINITIONS[target]).toMatchObject({ people: 'NONE', refusesPeopleColumns: true });
     expect(peopleColumnProblems(IMPORT_TARGET_DEFINITIONS.TELECOM_SUBSCRIBER_MOVEMENTS, ['month', 'region', 'subscriber_email', 'full_name'])).toHaveLength(2);

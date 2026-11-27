@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { ACCEPTANCE_CURRENCIES, pdfOf, startAcceptanceDeal, type AcceptanceDeal, type Body } from './acceptance-kit';
+import { ACCEPTANCE_CURRENCIES, type AcceptanceDeal, type Body, centsOf, csvRows, HISTORY_YEARS as YEARS, type PackMetricsBody, pdfOf, ratioOf, startAcceptanceDeal } from './acceptance-kit';
 
 type FindingView = {
   id: string;
@@ -19,9 +19,9 @@ const lineKind = (account: string) => (/revenue/i.test(account) ? 'REVENUE' : /^
 /**
  * T-061 and T-160 acceptance: pactlab-demo-data/healthcare/<CURRENCY> loaded into a fresh healthcare
  * deal through the real APIs — billing, the claims summary and roster, the remittances, collections by
- * clinician, the credentialing and payer contract registers, the three-year P&L and every document —
+ * clinician, the credentialing and payer contract registers, the five-year P&L and every document —
  * surfaces the folder's planted findings as cited drafts: the T-061 four, and (a) a denial rate that
- * rises across the three years while the deck claims it fell, (b) two clinicians practising on expired
+ * rises across the five years while the deck claims it fell, (b) two clinicians practising on expired
  * licences, (c) a payer mix shifted toward the lowest-paying payer against the deck's share, and (d) one
  * clinician carrying 31% of collections with no non-compete on file. The priced exposure reaches a
  * valuation run; the Practice view is the buyer's.
@@ -42,7 +42,7 @@ describe.each(ACCEPTANCE_CURRENCIES)('healthcare pack acceptance (%s)', { timeou
       dataClass: 'HR',
     });
     expect(hr.status).toBe(201);
-    // The P&L by year (FY2023–FY2025), years across the columns, line kinds confirmed by a person.
+    // The P&L by year (FY2021–FY2025, T-184b), years across the columns, line kinds confirmed by a person.
     const csv = readFileSync(join(deal.folder, 'pnl.csv'), 'utf8');
     const uploaded = await deal.upload(`/v1/deals/${deal.dealId}/uploads?target=FINANCIAL_PNL&system=pactlab_standard&fileName=pnl.csv`, 'lead', csv);
     expect(uploaded.status, JSON.stringify(uploaded.body)).toBe(201);
@@ -50,7 +50,7 @@ describe.each(ACCEPTANCE_CURRENCIES)('healthcare pack acceptance (%s)', { timeou
     const accounts = csv.trim().split('\n').slice(1).map((row) => row.split(',')[0] ?? '');
     const mapping = { ...(uploaded.body['suggestedMapping'] as Body), lineKinds: Object.fromEntries(accounts.map((account) => [account, lineKind(account)])) };
     const imported = await deal.call('POST', `/v1/deals/${deal.dealId}/uploads/${pnlUploadId}/import`, 'lead', { mapping });
-    expect(imported.body, JSON.stringify(imported.body)).toMatchObject({ syncRun: { status: 'SUCCEEDED', recordsCreated: accounts.length * 3 } });
+    expect(imported.body, JSON.stringify(imported.body)).toMatchObject({ syncRun: { status: 'SUCCEEDED', recordsCreated: accounts.length * 5 } });
   }, 180_000);
   afterAll(async () => deal?.close());
 
@@ -59,7 +59,7 @@ describe.each(ACCEPTANCE_CURRENCIES)('healthcare pack acceptance (%s)', { timeou
     expect(run.status, JSON.stringify(run.body)).toBe(200);
     expect(run.body).toMatchObject({ pack: 'HEALTHCARE', unresolvedQuotes: 0 });
     const promised = Number(/You should see exactly these (\d+) findings/.exec(deal.readme)?.[1]);
-    expect(promised).toBe(15);
+    expect(promised).toBe(16);
     expect(Number(run.body['created']) + Number(run.body['existing'])).toBe(promised);
     expect((await runRules()).body).toMatchObject({ created: 0, existing: promised });
 
@@ -79,17 +79,21 @@ describe.each(ACCEPTANCE_CURRENCIES)('healthcare pack acceptance (%s)', { timeou
     expect(byTitle['Privacy risk assessment out of date']?.evidence[0]?.documentCitation?.quote).toMatch(/Assessment date: 14 March 2023/);
     expect(byTitle['Provider credentials expiring']?.evidence.filter((link) => link.evidenceItemId)).toHaveLength(2);
 
-    // (a) The denial rate rises across the three years; the deck says it fell. Cited to the deck and the remittances.
+    // (a) The denial rate rises across the five years; the deck says it fell. Cited to the deck and the remittances.
     const denialClaim = byTitle['Claim contradicted: Denial rate'];
     expect(denialClaim).toMatchObject({ domain: 'FINANCIAL', direction: -1 });
     expect(denialClaim?.evidence.find((link) => link.documentCitation)?.documentCitation?.quote).toBe('Claim denial rate fell from 8.4% in FY2023 to 6.1% in FY2025.');
     expect(denialClaim?.evidence.filter((link) => link.evidenceItemId).length).toBeGreaterThan(0);
-    expect(byTitle['Denial rate rising, 2023–2025']).toMatchObject({ domain: 'FINANCIAL', direction: -1 });
-    // …and its P&L side, which one year alone misses: write-offs outpacing revenue, cited to the three imported rows.
-    const writeoffs = byTitle['Denial write-offs and bad debt growing faster than revenue, 2023–2025'];
+    expect(byTitle['Denial rate rising, 2021–2025']).toMatchObject({ domain: 'FINANCIAL', direction: -1 });
+    // …and its P&L side, which one year alone misses: write-offs outpacing revenue, cited to the five imported rows.
+    const writeoffs = byTitle['Denial write-offs and bad debt growing faster than revenue, 2021–2025'];
     expect(writeoffs).toMatchObject({ direction: -1 });
-    expect(writeoffs?.evidence.filter((link) => link.evidenceItemId)).toHaveLength(3);
-    expect(byTitle['P&L trend, 2023–2025']).toMatchObject({ direction: 0 });
+    expect(writeoffs?.evidence.filter((link) => link.evidenceItemId)).toHaveLength(5);
+    expect(byTitle['P&L trend, 2021–2025']).toMatchObject({ direction: 0 });
+    // (e) Five years of collections by clinician (T-184b): visits fall every year while collections grow.
+    const visits = byTitle['Visits falling every year, FY2021–FY2025'];
+    expect(visits).toMatchObject({ domain: 'COMMERCIAL', direction: -1, pricedRisk: null });
+    expect(visits?.evidence.filter((link) => link.evidenceItemId).length).toBeGreaterThan(0);
 
     // (b) Two clinicians practising on expired licences: the register says active; the verification document governs.
     const practising = Object.values(byTitle).filter((finding) => finding.title.startsWith('Practising on an expired licence: '));
@@ -101,7 +105,7 @@ describe.each(ACCEPTANCE_CURRENCIES)('healthcare pack acceptance (%s)', { timeou
     }
 
     // (c) The payer mix shifted toward Medicaid, the lowest-paying class; the deck's commercial share is contradicted.
-    expect(byTitle['Payer mix shifted toward Medicaid, the lowest-paying payer class, 2023–2025']).toMatchObject({ domain: 'COMMERCIAL', direction: -1 });
+    expect(byTitle['Payer mix shifted toward Medicaid, the lowest-paying payer class, 2021–2025']).toMatchObject({ domain: 'COMMERCIAL', direction: -1 });
     expect(byTitle['Claim contradicted: Commercial payer share']?.evidence.find((link) => link.documentCitation)?.documentCitation?.quote).toBe('Commercial payers were 41% of collections in FY2025.');
     expect(byTitle['Claim verified: Days in accounts receivable']?.direction).toBe(1);
     const claims = (await deal.call('GET', `/v1/deals/${deal.dealId}/claims`, 'lead')).body['items'] as { statement: string; status: string; origin: string }[];
@@ -129,7 +133,7 @@ describe.each(ACCEPTANCE_CURRENCIES)('healthcare pack acceptance (%s)', { timeou
     };
     expect(body).toMatchObject({ version: 'healthcare-collections-1', currency, analysisDate: '2026-09-30', canRunChecks: true });
     expect(body.collections.trailing).toMatchObject({ from: '2025-10', to: '2026-09', missing: [] });
-    expect(body.collections.years.map((year) => year.label)).toEqual(['2023', '2024', '2025']);
+    expect(body.collections.years.map((year) => year.label)).toEqual([...YEARS]);
     expect(body.collections.partialYears).toEqual(['2026']);
     expect(body.credentials.exceptions.map((entry) => [entry.providerRef, entry.state, entry.registerDiffers])).toEqual([['PR-07', 'EXPIRED', true], ['PR-15', 'EXPIRED', true]]);
     expect(body.credentials.unlicensed).toEqual([]);
@@ -137,11 +141,27 @@ describe.each(ACCEPTANCE_CURRENCIES)('healthcare pack acceptance (%s)', { timeou
     expect(body.clinicians.items.find((item) => item.providerRef === 'PR-01')?.covenant).toMatchObject({ pageNumber: 1 });
     expect(body.contracts.payers.find((payer) => payer.payer.startsWith('Commercial plan North'))?.state).toBe('EXPIRING');
     expect(body.compliance.kinds.map((entry) => [entry.kind, entry.present])).toEqual([['HIPAA_RISK_ASSESSMENT', true], ['CODING_AUDIT', true], ['LICENCE_VERIFICATION', true], ['RESTRICTIVE_COVENANTS', true]]);
-    expect(body.reconciliation.years.map((year) => [year.year, year.reconciles])).toEqual([['2023', true], ['2024', true], ['2025', true]]);
-    expect(body.trend.years.map((year) => [year.year, year.files.map((file) => file.fileName)])).toEqual([['2023', ['pnl.csv']], ['2024', ['pnl.csv']], ['2025', ['pnl.csv']]]);
+    expect(body.reconciliation.years.map((year) => [year.year, year.reconciles])).toEqual(YEARS.map((year) => [year, true]));
+    expect(body.trend.years.map((year) => [year.year, year.files.map((file) => file.fileName)])).toEqual(YEARS.map((year) => [year, ['pnl.csv']]));
     // The pack's own figures on Finances.
-    const metrics = (await deal.call('GET', `/v1/deals/${deal.dealId}/metrics/pack`, 'lead')).body as { calculator: string; metrics: { key: string; value: string | null }[] };
+    const metrics = (await deal.call('GET', `/v1/deals/${deal.dealId}/metrics/pack`, 'lead')).body as PackMetricsBody;
     expect(metrics.calculator).toBe('healthcare-collections');
+    // Five years side by side (T-184b), hand-computed from the remittances: Σ denied ÷ Σ claims, and the commercial share of collections, by year.
+    const remittances = csvRows(deal.folder, 'remittances.csv');
+    const denialOf = (year: string) => {
+      const inYear = remittances.filter((row) => row[0]?.startsWith(year));
+      return ratioOf(centsOf(inYear, 4), centsOf(inYear, 3));
+    };
+    const commercialOf = (year: string) => {
+      const inYear = remittances.filter((row) => row[0]?.startsWith(year));
+      return ratioOf(centsOf(inYear.filter((row) => row[2] === 'commercial'), 6), centsOf(inYear, 6));
+    };
+    expect(metrics.history?.years).toEqual(YEARS.map((year) => `FY${year}`));
+    expect(metrics.history?.rows.find((row) => row.key === 'denial_rate')?.values).toEqual(YEARS.map(denialOf));
+    expect(metrics.history?.rows.find((row) => row.key === 'commercial_share')?.values).toEqual(YEARS.map(commercialOf));
+    expect(metrics.history?.coverage.map((entry) => entry.summary)).toEqual(['FY2021–FY2025 (5 of 5 years)', 'FY2021–FY2025 (5 of 5 years)']);
+    expect(metrics.history?.asks).toEqual([]);
+    expect(metrics.metrics.find((metric) => metric.key === 'denial_rate')?.history?.map((point) => point.period)).toEqual(YEARS.map((year) => `FY${year}`));
     expect(metrics.metrics.find((metric) => metric.key === 'top_clinician_share')?.value).toBe('0.3100');
     // The buyer's own side only; another tenant sees nothing.
     expect((await deal.call('GET', `/v1/deals/${deal.dealId}/healthcare`, 'target_contributor')).status).toBe(403);
@@ -192,6 +212,10 @@ describe.each(ACCEPTANCE_CURRENCIES)('healthcare pack acceptance (%s)', { timeou
     const titles = (await findings()).map((finding) => finding.title);
     expect(titles).toContain('P&L for 2025: one year imported');
     expect(titles.filter((title) => title.startsWith('Denial write-offs and bad debt growing faster'))).toHaveLength(1);
+    // Partial history (T-184b): one year of income and expenses states its coverage and asks the seller for the rest.
+    const partial = (await deal.call('GET', `/v1/deals/${deal.dealId}/metrics/pack`, 'lead')).body as PackMetricsBody;
+    expect(partial.history?.coverage.find((entry) => entry.key === 'operating')?.summary).toBe('FY2025 (1 of 5 years): ask the seller for FY2021–FY2024 income statements');
+    expect(partial.history?.asks).toEqual([{ needs: ['INCOME_STATEMENT'], note: 'Ask the seller for FY2021–FY2024 income statements.' }]);
   });
 
   it('is refused to a target contributor and invisible to another tenant', async () => {

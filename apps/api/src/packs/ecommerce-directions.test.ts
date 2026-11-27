@@ -5,6 +5,7 @@ import { join, resolve } from 'node:path';
 import { ECOMMERCE_RULES, type PackRuleEvidence, type PackRulePage } from '@pactlab/calculations';
 import {
   defaultDirectionFor,
+  DRIVER_TREND_SIGNAL,
   ECOMMERCE_AD_SPEND_MONTH_EVIDENCE_TYPE,
   ECOMMERCE_CHANNEL_MONTH_EVIDENCE_TYPE,
   ECOMMERCE_COHORT_MONTH_EVIDENCE_TYPE,
@@ -33,6 +34,7 @@ const SIGNALS: Readonly<Record<string, (key: string) => readonly [string, string
   'ecommerce-pnl-trend': () => [PNL_LINE_EVIDENCE_TYPE, 'trend'],
   'ecommerce-pnl-margin-drift': () => [PNL_LINE_EVIDENCE_TYPE, 'margin-drift'],
   'ecommerce-pnl-expense-outpacing': () => [PNL_LINE_EVIDENCE_TYPE, 'expense-outpacing'],
+  'ecommerce-discount-trend': () => [ECOMMERCE_CHANNEL_MONTH_EVIDENCE_TYPE, DRIVER_TREND_SIGNAL],
 };
 
 describe('e-commerce rules and the valuation direction map (T-164)', () => {

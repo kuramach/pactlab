@@ -83,8 +83,20 @@ The source plan then adds **Industry data** (`pack_upload` connections) automati
   |---|---|---|---|
   | Fintech | `TAKE_RATE_COMPRESSION_POINTS` | 0.001 | take rate falls every year, 0.10 points or more first to last |
   | Fintech | `LOSS_RATE_CLIMB_POINTS` | 0.0005 | (chargebacks + fraud) ÷ volume rises every year, 0.05 points or more |
+  | Telecom & media | `CHURN_CLIMB_POINTS` | 0.001 | disconnects ÷ opening subscribers rises every year, 0.10 points a month or more |
+  | Professional services | `UTILIZATION_DECLINE_POINTS` | 0.03 | billable ÷ available hours falls every year, 3 points or more |
+  | Healthcare, small clinics | `VISITS_DECLINE_SHARE` | 0.05 | visits fall every year, 5% or more first to last |
+  | E-commerce | `DISCOUNT_CLIMB_POINTS` | 0.01 | discounts ÷ gross sales rises every year, 1 point or more |
+  | Pharma | `PRODUCT_DECLINE_SHARE` | 0.1 | a product's billed revenue falls every year, 10% or more |
+  | Software & SaaS | `NRR_DECLINE_POINTS` | 0.05 | net revenue retention falls every year, 5 points or more |
+  | Music rights | `INCOME_DECLINE_SHARE` | 0.1 | statement income falls every year, 10% or more |
+  | Energy | `GENERATION_DECLINE_SHARE` | 0.1 | a plant's net generation falls every year, 10% or more |
 
-- **Demo data:** extend the existing monthly export back five years from its own random generator, keep the P&L's revenue lines equal to the export where a rule reconciles them, and plant one driver defect.
+- **Driver options (T-184b):** `numeratorWhere` / `denominatorWhere` (a field's value, or `contains`: a payer class's share, consumer channels, a product's billing lines), `numeratorLess` (net = gross − discounts − returns), `multiplier` (subscriber-months from opening + closing), `complement` (repeat orders = 1 − new ÷ orders), and `compute` for a driver no sum expresses (ARR and retention from recurring revenue; income from half-year statements). A pack may build its spec from its evidence (pharma: one driver per product the patent schedule names).
+- **Software:** the SaaS engine keeps 36 months, so ARR at each December, NRR, GRR and logo churn by year come from the month-by-month recurring revenue the pack's rules read (`software/history.ts`); `GET …/metrics/pack` returns them as the history beside the P&L, and Finances shows the years card.
+- **Direction map:** every evidence type a driver trend reads carries the `driver-trend` signal (−1, ASSUMPTION) in `VALUATION_DIRECTION_MAP`; the pack's `*-directions.test.ts` points its trend rules at it.
+- **Where history does not apply:** *Venture Raise* is a founder's pre-seed to Series A round: there are rarely five years of anything, the round is priced on traction since launch, and the cap table and runway are point-in-time; its billing and P&L still import and read as they do. A *startup SPV* is a vehicle with no operating business: it is checked on the round's math and the vehicle's terms, so it has no history to expect. Neither pack asks for five years.
+- **Demo data:** extend the existing monthly export back five years from its own random generator (so the last 24 months, and every planted finding read from them, are unchanged), keep the P&L's revenue lines equal to the export where a rule reconciles them, and plant one driver defect. Billing that runs back sets `ds.billing_months = HIST_MONTHS + MONTHS`.
 
 ## 5. Metrics
 

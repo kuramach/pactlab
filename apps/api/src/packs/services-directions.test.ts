@@ -5,6 +5,7 @@ import { join, resolve } from 'node:path';
 import { SERVICES_RULES, type PackRuleEvidence, type PackRulePage } from '@pactlab/calculations';
 import {
   defaultDirectionFor,
+  DRIVER_TREND_SIGNAL,
   PNL_LINE_EVIDENCE_TYPE,
   SERVICES_AGEING_BAND_EVIDENCE_TYPE,
   SERVICES_BILLING_MONTH_EVIDENCE_TYPE,
@@ -33,6 +34,7 @@ const SIGNALS: Readonly<Record<string, (key: string) => readonly [string, string
   'services-pnl-trend': () => [PNL_LINE_EVIDENCE_TYPE, 'trend'],
   'services-pnl-margin-drift': () => [PNL_LINE_EVIDENCE_TYPE, 'margin-drift'],
   'services-pnl-expense-outpacing': () => [PNL_LINE_EVIDENCE_TYPE, 'expense-outpacing'],
+  'services-utilization-trend': () => [SERVICES_TIMESHEET_MONTH_EVIDENCE_TYPE, DRIVER_TREND_SIGNAL],
 };
 
 describe('professional services rules and the valuation direction map (T-167)', () => {

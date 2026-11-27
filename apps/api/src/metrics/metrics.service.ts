@@ -11,6 +11,8 @@ import {
   computeSaasMetrics,
   METRIC_CALCULATORS,
   SAAS_METRICS_CALCULATOR,
+  SOFTWARE_HISTORY_EVIDENCE,
+  softwareHistoryReport,
   type MetricCalculator,
   type PackMetricsInput,
   type PackMetricsReport,
@@ -150,17 +152,19 @@ export class MetricsService {
       if (!deal) throw new NotFoundException();
       const seller = await tx.dealParty.findFirst({ where: { dealId, role: 'SELLER' }, select: { companyType: true } });
       const calculator = METRIC_CALCULATORS[packFor(seller?.companyType ?? null).metricCalculator];
-      if (!calculator || calculator.id === SAAS_METRICS_CALCULATOR.id) {
-        return { calculator: SAAS_METRICS_CALCULATOR.id, version: SAAS_METRICS_CALCULATOR.version, currency: deal.baseCurrency, metrics: [] };
-      }
+      // Software (T-184b): the SaaS engine's figures are on their own screen; the pack report carries the five years.
+      const saas = !calculator || calculator.id === SAAS_METRICS_CALCULATOR.id;
       let evidence;
       try {
-        evidence = await loadPackEvidence(tx, dealId, calculator.evidenceTypes);
+        evidence = await loadPackEvidence(tx, dealId, saas ? SOFTWARE_HISTORY_EVIDENCE : calculator.evidenceTypes);
       } catch (error) {
+        // A billing ledger too large for one read keeps the SaaS screen; the years are left out rather than failing it.
+        if (error instanceof TooMuchPackEvidenceError && saas) return { calculator: SAAS_METRICS_CALCULATOR.id, version: SAAS_METRICS_CALCULATOR.version, currency: deal.baseCurrency, metrics: [] };
         if (error instanceof TooMuchPackEvidenceError) throw new PayloadTooLargeException('Too much evidence for one metrics run');
         throw error;
       }
       await this.audit(tx, tenant, dealId, 'metrics.viewed', 'deal', dealId, requestId);
+      if (saas) return softwareHistoryReport({ currency: deal.baseCurrency, evidence }, SAAS_METRICS_CALCULATOR);
       return (calculator as unknown as MetricCalculator<PackMetricsInput, PackMetricsReport>).compute({ currency: deal.baseCurrency, evidence });
     });
   }

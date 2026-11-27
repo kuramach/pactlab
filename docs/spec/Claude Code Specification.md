@@ -1390,6 +1390,12 @@ Five further packs in two clusters. Hotels, multifamily and commercial property 
 - **Finding rules (drafts only, cited):** `fintech-take-rate-trend` (−1, take rate falling every year by 0.10 points or more) and `fintech-loss-rate-trend` (−1, chargebacks and fraud ÷ volume rising every year by 0.05 points or more).
 - **Fixtures and acceptance:** `pactlab-demo-data/fintech/{USD,EUR,GBP}` — the export from January 2021 and FY2021–FY2025 P&L; planted (e) the take rate falling from about 1.10% to 0.85% surfaces as a cited draft once; one year of P&L reads as "1 of 5 years" with an ask (`apps/api/src/packs/fintech.acceptance.api.test.ts`).
 
+**1d. Five years of history for every other pack (T-184b, ADR 0057 addendum, 2026-11-27)**
+
+- **History:** each pack's operating drivers by calendar year beside the P&L (`pack-history-1`), coverage stated and a missing year an ask of the seller: telecom & media (subscribers, churn, ARPU), professional services (utilization, realization, headcount), healthcare services and small clinics (visits, commercial share, denial rate), e-commerce (orders, net order value, repeat orders, discount rate), pharma (billed revenue by product; R&D in the P&L), software & SaaS (ARR at December, NRR, GRR, logo churn, from billing back five years; joins the P&L trend rules), music rights (statement income), energy (plant generation, oil, gas). Not applied: Venture Raise and startup SPV, with the reason in `docs/agent/packs.md`.
+- **Finding rules (drafts only, cited, −1 through the `driver-trend` signal):** `telecom-churn-trend`, `services-utilization-trend`, `healthcare-visits-trend` (clinics by reference), `ecommerce-discount-trend`, `pharma-product-revenue-trend`, `saas-nrr-trend`, `music-income-trend`, `energy-generation-trend`; thresholds in `docs/agent/packs.md` §4d.
+- **Fixtures and acceptance:** each pack's demo data runs back to January 2021 with FY2021–FY2025 P&L and one planted trend; each acceptance test checks the history against hand-computed values, the planted trend as a cited draft, and partial history stating its coverage with an ask.
+
 **2. Healthcare services / healthtech**
 
 - PE roll-ups of practices, clinics, and payer-adjacent services are the dominant deal shape; healthtech software targets reuse the baseline tech path.

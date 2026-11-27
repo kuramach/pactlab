@@ -1,4 +1,5 @@
 import { D } from '../../metrics/decimal';
+import { ENERGY_GENERATION_TREND } from './history';
 import { grouped, moneyIn, percent } from '../common';
 import { collapse, MAX_CITED, sentences, type PackRule, type PackRulePage, type PackRuleProposal, type PackRuleQuote } from '../rule-types';
 import {
@@ -322,5 +323,6 @@ export const ENERGY_RULES: readonly PackRule[] = [
   ENERGY_TITLE_DEFECT,
   ENERGY_COMPLIANCE_CAPEX_GAP,
   ENERGY_RESERVE_REPORT_MISSING,
+  ENERGY_GENERATION_TREND,
 ];
 

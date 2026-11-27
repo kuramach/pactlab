@@ -394,7 +394,9 @@ export const INDUSTRIES: readonly Industry[] = [
       { icon: 'FileText', title: 'Documents and contracts', body: 'Clause extraction and Q&A with exact citations.' },
       { icon: 'Calculator', title: 'Valuation and deal terms', body: 'ARR-multiple, DCF and LBO scenarios with a purchase-price bridge.' },
     ],
-    adds: [],
+    adds: [
+      { icon: 'TrendingUp', title: 'Five years of history', body: 'December ARR, net and gross revenue retention and logo churn by year from the billing export, beside the P&L, with how many years each figure rests on; a missing year is asked of the seller.' },
+    ],
   },
   {
     slug: 'fintech',
@@ -463,6 +465,7 @@ export const INDUSTRIES: readonly Industry[] = [
       { icon: 'ClipboardList', title: 'A claims register', body: 'Denial-rate, payer-share and days-in-receivable claims marked verified, contradicted or unverified against the evidence.' },
       { icon: 'BadgeCheck', title: 'Credentialing, checked', body: 'Every rostered clinician’s licence and expiry from the register and the verification documents; collections after an expiry become a finding.' },
       { icon: 'UserRound', title: 'Clinician concentration', body: 'Each clinician’s share of collections against the non-compete and retention schedule.' },
+      { icon: 'TrendingUp', title: 'Five years of history', body: 'Visits, the commercial share and the denial rate by year, beside the P&L, with how many years each figure rests on; a missing year is asked of the seller.' },
     ],
   },
   {
@@ -511,6 +514,7 @@ export const INDUSTRIES: readonly Industry[] = [
       { icon: 'CalendarRange', title: 'Rights windows', body: 'Every content, affiliate and carriage agreement’s end date against the expected closing; the agreement’s own date governs over the register.' },
       { icon: 'Tv', title: 'Counterparty concentration', body: 'Advertising and affiliate revenue by counterparty over the trailing twelve months.' },
       { icon: 'SlidersHorizontal', title: 'Content cost against ARPU', body: 'Content cost per subscriber and capex intensity by year, against ARPU from the same exports.' },
+      { icon: 'TrendingUp', title: 'Five years of history', body: 'Subscribers, churn and ARPU by year from the movements export, beside the P&L, with how many years each figure rests on; a missing year is asked of the seller.' },
     ],
   },
   {
@@ -555,6 +559,7 @@ export const INDUSTRIES: readonly Industry[] = [
       { icon: 'UserRound', title: 'Rainmaker cover', body: 'Each revenue-carrying partner’s book against the non-compete and non-solicit cover the documents show, by pseudonymous reference.' },
       { icon: 'Hourglass', title: 'WIP and debtor ageing', body: 'Balances over 90 days by year end, with the drift priced into working capital.' },
       { icon: 'Repeat', title: 'Revenue quality', body: 'Retainer and managed-service fees against project work, from the billing data.' },
+      { icon: 'TrendingUp', title: 'Five years of history', body: 'Utilization, realization and headcount by year, beside the P&L, with how many years each figure rests on; a missing year is asked of the seller.' },
     ],
   },
   {
@@ -599,6 +604,7 @@ export const INDUSTRIES: readonly Industry[] = [
       { icon: 'Pill', title: 'The patent estate against the hold', body: 'Expiries read from the patent records, and a cliff inside the hold priced on the product’s revenue.' },
       { icon: 'Calculator', title: 'Obligations recomputed', body: 'Milestones, royalties and fees read from the agreements and looked for in the seller’s model.' },
       { icon: 'Link2', title: 'Dependence', body: 'Single-source manufacturing from the supply agreements, and key-scientist concentration from the roster.' },
+      { icon: 'TrendingUp', title: 'Five years of history', body: 'Each product’s billed revenue and R&D by year, beside the P&L, with how many years each figure rests on; a missing year is asked of the seller.' },
     ],
   },
   {
@@ -644,6 +650,7 @@ export const INDUSTRIES: readonly Industry[] = [
       { icon: 'Target', title: 'Cohort value on contribution', body: 'Lifetime value and acquisition cost recomputed from the orders, cohorts and ad spend, against the deck’s claims.' },
       { icon: 'KeyRound', title: 'Who holds the accounts', body: 'Each storefront, marketplace and ad account’s share of revenue, and who the documents say it is registered to.' },
       { icon: 'Warehouse', title: 'Returns and stock age', body: 'The return rate by year, and stock older than 180 days priced from the stock report.' },
+      { icon: 'TrendingUp', title: 'Five years of history', body: 'Orders, order value, repeat orders and the discount rate by year, beside the P&L, with how many years each figure rests on; a missing year is asked of the seller.' },
     ],
   },
   {
@@ -780,6 +787,7 @@ export const INDUSTRIES: readonly Industry[] = [
       { icon: 'Users', title: 'Owner-operator dependence', body: 'The selling owner’s share of visits and collections by service line, and the lines no associate covers.' },
       { icon: 'Link2', title: 'Referral concentration', body: 'Visits by referral source recomputed from the schedule export.' },
       { icon: 'KeyRound', title: 'The lease as evidence', body: 'The term left after closing, the renewal option and assignment on a sale, each quoted from the lease.' },
+      { icon: 'TrendingUp', title: 'Five years of history', body: 'Visits, the commercial share and the denial rate by year, beside the P&L, with how many years each figure rests on; a missing year is asked of the seller.' },
     ],
   },
   {
@@ -908,6 +916,7 @@ export const INDUSTRIES: readonly Industry[] = [
       { icon: 'ChartLine', title: 'A royalty income model', body: 'Trailing income by work and source, with decay by catalog age, in decimals.' },
       { icon: 'Hourglass', title: 'Termination exposure', body: 'Section 203 and 304 windows from the grant dates, the exposed income quantified.' },
       { icon: 'FileSearch', title: 'Rights documents read for you', body: 'Statements, split sheets and agreements proposed as entries with their quotes; you confirm them.' },
+      { icon: 'TrendingUp', title: 'Five years of history', body: 'Statement income by year, with how many years each figure rests on; a missing year is asked of the seller.' },
     ],
   },
   {
@@ -940,6 +949,7 @@ export const INDUSTRIES: readonly Industry[] = [
       { icon: 'ChartLine', title: 'A production and reserves model', body: 'Decline from the production history against the third-party report, in decimals.' },
       { icon: 'ShieldAlert', title: 'A liability model', body: 'Remediation, coal ash and decommissioning estimates against what the seller booked.' },
       { icon: 'FileSearch', title: 'Reports read for you', body: 'Reserve reports and environmental reports proposed as entries with their quotes; you confirm them.' },
+      { icon: 'TrendingUp', title: 'Five years of history', body: 'Plant generation and the wells’ oil and gas by year, with how many years each figure rests on; a missing year is asked of the seller.' },
     ],
   },
   {

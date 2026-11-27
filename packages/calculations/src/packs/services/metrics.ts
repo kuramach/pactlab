@@ -1,7 +1,10 @@
 import type { D } from '../../metrics/decimal';
 import type { MetricCalculator } from '../calculators';
 import { monthName } from '../common';
+import { packHistory, withHistory } from '../history';
 import type { PackMetric, PackMetricsInput, PackMetricsReport } from '../metrics-types';
+import { PNL_LINE } from '../pnl-trend';
+import { SERVICES_HISTORY } from './rules';
 import { AGEING_BAND, ageingByYear, ageingReports, BILLING_MONTH, billingRows, practiceModel, SERVICES_PRACTICE_VERSION, servicesUtilization, TIMESHEET_MONTH } from './practice';
 
 type Decimal = InstanceType<typeof D>;
@@ -68,12 +71,21 @@ export function servicesMetrics(input: PackMetricsInput): PackMetricsReport {
     over90('wip', 'WIP'),
     over90('ar', 'Debtors'),
   ];
-  return { calculator: 'services-practice', version: SERVICES_PRACTICE_VERSION, currency: input.currency, metrics };
+  // Five years (T-184b): the P&L, utilization, realization and headcount by year; utilization and realization carry a History strip.
+  const history = packHistory(SERVICES_HISTORY, input.evidence);
+  const strips = new Set(['utilization', 'realization']);
+  return {
+    calculator: 'services-practice',
+    version: SERVICES_PRACTICE_VERSION,
+    currency: input.currency,
+    metrics: metrics.map((metric) => (strips.has(metric.key) ? withHistory(metric, history, metric.key) : metric)),
+    history: history.table,
+  };
 }
 
 export const SERVICES_METRICS_CALCULATOR: MetricCalculator<PackMetricsInput, PackMetricsReport> = {
   id: 'services-practice',
   version: SERVICES_PRACTICE_VERSION,
-  evidenceTypes: [BILLING_MONTH, TIMESHEET_MONTH, AGEING_BAND],
+  evidenceTypes: [BILLING_MONTH, TIMESHEET_MONTH, AGEING_BAND, PNL_LINE],
   compute: servicesMetrics,
 };

@@ -3,6 +3,8 @@ import type { MetricCalculator } from '../calculators';
 import { CLINICIAN_MONTH, CREDENTIAL, PAYER_CONTRACT, REMITTANCE } from '../healthcare/practice';
 import { healthcareMetrics } from '../healthcare/metrics';
 import type { PackMetric, PackMetricsInput, PackMetricsReport } from '../metrics-types';
+import { PNL_LINE } from '../pnl-trend';
+import { CLINICS_HISTORY } from './rules';
 import { CLINICS_PRACTICE_VERSION, REFERRAL_MONTH, referralMonths, referralWindow, SERVICE_LINE_MONTH, serviceLineMonths, serviceLineWindow } from './practice';
 
 type Decimal = InstanceType<typeof D>;
@@ -49,12 +51,13 @@ export function clinicsMetrics(input: PackMetricsInput): PackMetricsReport {
       ...(top?.share ? { value: ratio(top.share) } : missing('visits by referral source (twelve complete months)', ['CLINICS_REFERRALS'])),
     },
   ];
-  return { calculator: 'clinics-practice', version: CLINICS_PRACTICE_VERSION, currency: input.currency, metrics: [...healthcareMetrics(input).metrics, ...clinic] };
+  const healthcare = healthcareMetrics(input, CLINICS_HISTORY);
+  return { calculator: 'clinics-practice', version: CLINICS_PRACTICE_VERSION, currency: input.currency, metrics: [...healthcare.metrics, ...clinic], ...(healthcare.history ? { history: healthcare.history } : {}) };
 }
 
 export const CLINICS_METRICS_CALCULATOR: MetricCalculator<PackMetricsInput, PackMetricsReport> = {
   id: 'clinics-practice',
   version: CLINICS_PRACTICE_VERSION,
-  evidenceTypes: [REMITTANCE, CLINICIAN_MONTH, CREDENTIAL, PAYER_CONTRACT, SERVICE_LINE_MONTH, REFERRAL_MONTH],
+  evidenceTypes: [REMITTANCE, CLINICIAN_MONTH, CREDENTIAL, PAYER_CONTRACT, SERVICE_LINE_MONTH, REFERRAL_MONTH, PNL_LINE],
   compute: clinicsMetrics,
 };

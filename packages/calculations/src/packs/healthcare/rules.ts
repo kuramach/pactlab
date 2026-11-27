@@ -2,6 +2,7 @@ import { D, parseDecimal } from '../../metrics/decimal';
 import { pnlForPeriod, pnlPeriods } from '../../pnl/pnl';
 import { pnlLinesFromRecords, type KeyExpense } from '../../pnl/trend';
 import { amountOf, documentClauseRule, grouped, INVOICE_LINE, monthName, rowMonth, percent, revenueConcentrationRule } from '../common';
+import { driverTrendRule, type DriverSpec, type PackHistorySpec } from '../history';
 import { PNL_LINE, pnlTrendRules } from '../pnl-trend';
 import { findSentence, MAX_CITED, type PackRule, type PackRuleEvidence, type PackRuleProposal, type PackRuleQuote } from '../rule-types';
 import {
@@ -670,6 +671,51 @@ export const HEALTHCARE_KEY_EXPENSES: readonly KeyExpense[] = [
 
 export const [HEALTHCARE_PNL_TREND, HEALTHCARE_PNL_MARGIN_DRIFT, HEALTHCARE_PNL_EXPENSE_OUTPACING] = pnlTrendRules('healthcare', HEALTHCARE_KEY_EXPENSES) as [PackRule, PackRule, PackRule];
 
+/**
+ * Five years of history (T-184b, ADR 0057): the P&L by year, visits from the collections export and the
+ * commercial share and denial rate from the remittances, by calendar year. Small clinics read the same
+ * drivers with their own key expenses. The denial rate rising every year is healthcare-collections-trend's;
+ * visits falling every year is the driver trend below.
+ */
+export const HEALTHCARE_DRIVERS = {
+  visits: { key: 'visits', label: 'Visits', unit: 'COUNT', evidenceType: CLINICIAN_MONTH, mode: 'SUM', numerator: ['visits'], formula: 'Σ visits in the year, every clinician' },
+  commercialShare: {
+    key: 'commercial_share',
+    label: 'Commercial share of collections',
+    unit: 'RATIO',
+    evidenceType: REMITTANCE,
+    mode: 'RATIO',
+    numerator: ['collected'],
+    numeratorWhere: { field: 'payer_class', values: ['commercial'] },
+    denominator: ['collected'],
+    formula: 'Σ collected from commercial payers ÷ Σ collected in the year',
+  },
+  denialRate: { key: 'denial_rate', label: 'Denial rate', unit: 'RATIO', evidenceType: REMITTANCE, mode: 'RATIO', numerator: ['denied_claims'], denominator: ['claims'], formula: 'Σ denied ÷ Σ adjudicated claims in the year' },
+} as const satisfies Record<string, DriverSpec>;
+
+export const HEALTHCARE_HISTORY: PackHistorySpec = {
+  drivers: [HEALTHCARE_DRIVERS.visits, HEALTHCARE_DRIVERS.commercialShare, HEALTHCARE_DRIVERS.denialRate],
+  keyExpenses: HEALTHCARE_KEY_EXPENSES,
+  driverImport: ['HEALTHCARE_REMITTANCES', 'HEALTHCARE_CLINICIAN_COLLECTIONS'],
+  driverLabel: 'Remittances and collections',
+  driverWhat: 'remittance and collections history',
+};
+
+/** Visits falling every year by this share or more, first year to last (5%). */
+export const VISITS_DECLINE_SHARE = '0.05';
+
+export const HEALTHCARE_VISITS_TREND = driverTrendRule(
+  {
+    id: 'healthcare-visits-trend',
+    driver: HEALTHCARE_DRIVERS.visits,
+    adverse: 'DOWN',
+    threshold: VISITS_DECLINE_SHARE,
+    domain: 'COMMERCIAL',
+    advice: 'Fewer patients are seen each year: growth in collections is coming from price and mix, not volume. Check referrals, clinician capacity and the payer contracts before projecting volume forward.',
+  },
+  HEALTHCARE_HISTORY,
+);
+
 export const HEALTHCARE_RULES: readonly PackRule[] = [
   HEALTHCARE_GOVERNMENT_CONCENTRATION,
   HEALTHCARE_DIRECTOR_FEE,
@@ -686,5 +732,6 @@ export const HEALTHCARE_RULES: readonly PackRule[] = [
   HEALTHCARE_PNL_TREND,
   HEALTHCARE_PNL_MARGIN_DRIFT,
   HEALTHCARE_PNL_EXPENSE_OUTPACING,
+  HEALTHCARE_VISITS_TREND,
 ];
 export const HEALTHCARE_EVIDENCE = { PROVIDER, CLAIMS, REMITTANCE, CLINICIAN_MONTH, CREDENTIAL, PAYER_CONTRACT } as const;

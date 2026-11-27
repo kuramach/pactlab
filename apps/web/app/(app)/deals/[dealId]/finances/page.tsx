@@ -304,6 +304,9 @@ function Reconciliation({ dealId, data, pageAsOf }: { dealId: string; data: Metr
   );
 }
 
+/** Any year of the five holds a figure (T-184b: a software pact's card is its years alone). */
+const hasHistory = (report: PackMetricsView) => Boolean(report.history?.rows.some((row) => row.values.some((value) => value !== null)));
+
 /** The industry pack's figures (e.g. property metrics), each with its formula and source count. */
 function PackMetricsCard({ dealId, report, marketRents }: { dealId: string; report: PackMetricsView; marketRents: MarketRentsOffer | null }) {
   const shown = (metric: PackMetricsView['metrics'][number]) =>
@@ -318,14 +321,15 @@ function PackMetricsCard({ dealId, report, marketRents }: { dealId: string; repo
     <Card>
       <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
         <div className="flex flex-col gap-1">
-        <CardTitle>{report.calculator === 'multifamily-metrics' ? 'Property metrics' : report.calculator === 'music-royalties' ? 'Royalty income' : report.calculator === 'energy-assets' ? 'Assets and interests' : report.calculator === 'fintech-payments' ? 'Payments and lending' : report.calculator === 'healthcare-collections' ? 'Collections and credentials' : report.calculator === 'clinics-practice' ? 'Collections, service lines and referrals' : report.calculator === 'pharma-pipeline' ? 'Pipeline, patents and R&D' : report.calculator === 'ecommerce-channels' ? 'Channels, unit economics and stock' : report.calculator === 'services-practice' ? 'Fees, realization and concentration' : report.calculator === 'telecom-subscribers' ? 'Subscribers, churn and ARPU' : 'Industry metrics'}</CardTitle>
+        <CardTitle>{report.calculator === 'multifamily-metrics' ? 'Property metrics' : report.calculator === 'music-royalties' ? 'Royalty income' : report.calculator === 'energy-assets' ? 'Assets and interests' : report.calculator === 'fintech-payments' ? 'Payments and lending' : report.calculator === 'healthcare-collections' ? 'Collections and credentials' : report.calculator === 'clinics-practice' ? 'Collections, service lines and referrals' : report.calculator === 'pharma-pipeline' ? 'Pipeline, patents and R&D' : report.calculator === 'ecommerce-channels' ? 'Channels, unit economics and stock' : report.calculator === 'services-practice' ? 'Fees, realization and concentration' : report.calculator === 'telecom-subscribers' ? 'Subscribers, churn and ARPU' : report.calculator === 'saas-metrics' ? 'Recurring revenue by year' : 'Industry metrics'}</CardTitle>
         <CardDescription>
-          From the imported industry extracts, in {report.currency}. Deterministic ({report.version}); each figure shows its formula.
+          From {report.calculator === 'saas-metrics' ? 'the billing export and the imported P&L' : 'the imported industry extracts'}, in {report.currency}. Deterministic ({report.version}); each figure shows its formula.
         </CardDescription>
         </div>
         {marketRents ? <MarketRentsButton dealId={dealId} offer={marketRents} /> : null}
       </CardHeader>
       <CardContent>
+        {report.metrics.length === 0 ? null : (
         <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {report.metrics.map((metric) => (
             <div key={metric.key} className="flex flex-col gap-1 rounded-xl border border-navy/10 p-4">
@@ -340,8 +344,9 @@ function PackMetricsCard({ dealId, report, marketRents }: { dealId: string; repo
             </div>
           ))}
         </dl>
-        {report.history && report.history.rows.some((row) => row.values.some((value) => value !== null)) ? (
-          <div className="mt-6 flex flex-col gap-2">
+        )}
+        {hasHistory(report) && report.history ? (
+          <div className={report.metrics.length === 0 ? 'flex flex-col gap-2' : 'mt-6 flex flex-col gap-2'}>
             <h3 className="text-sm font-semibold">Five years</h3>
             <HistoryTable history={report.history} currency={report.currency} />
           </div>
@@ -389,7 +394,7 @@ export default async function DealFinancesPage({
         </p>
       </div>
 
-      {packMetrics && packMetrics.metrics.length > 0 ? <PackMetricsCard dealId={dealId} report={packMetrics} marketRents={marketRents} /> : null}
+      {packMetrics && (packMetrics.metrics.length > 0 || hasHistory(packMetrics)) ? <PackMetricsCard dealId={dealId} report={packMetrics} marketRents={marketRents} /> : null}
 
       {/* Buyer-side only: the API refuses roles without analysis access, and then nothing shows. */}
       {balanceSheet.kind === 'ok' ? <DebtAndCashCard dealId={dealId} view={balanceSheet.data} /> : null}

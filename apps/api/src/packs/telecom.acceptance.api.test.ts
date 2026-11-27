@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { ACCEPTANCE_CURRENCIES, startAcceptanceDeal, type AcceptanceDeal, type Body } from './acceptance-kit';
+import { ACCEPTANCE_CURRENCIES, csvRows, HISTORY_YEARS as YEARS, ratioOf, startAcceptanceDeal, type AcceptanceDeal, type Body, type PackMetricsBody } from './acceptance-kit';
 
 type FindingView = {
   id: string;
@@ -20,11 +20,12 @@ const lineKind = (account: string) => (/revenue/i.test(account) ? 'REVENUE' : /^
 /**
  * T-062 and T-168 acceptance: pactlab-demo-data/telecom-media/<CURRENCY> loaded into a fresh telecom deal
  * through the real APIs — billing, subscribers by month, subscriber movements, the rights register,
- * advertising and affiliate revenue, capex, the three-year P&L and every document — surfaces the folder's
+ * advertising and affiliate revenue, capex, the five-year P&L and every document — surfaces the folder's
  * planted findings as cited drafts: the T-062 four, and (a) the movements export's churn contradicting the
  * deck's lower figure; (b) the largest affiliate agreement expiring nine months after the closing; (c) one
  * advertiser at 34% of ad revenue; and (d) content cost per subscriber rising while ARPU stays flat across the
- * three P&L years, which a single year misses. The subscriber gap, priced by the reviewer, reaches a
+ * five P&L years, which a single year misses; and (e) monthly churn rising every year across the five years
+ * of the movements export. The subscriber gap, priced by the reviewer, reaches a
  * valuation run; the Subscribers view is the buyer's.
  */
 describe.each(ACCEPTANCE_CURRENCIES)('telecom and media pack acceptance (%s)', { timeout: 90_000 }, (currency) => {
@@ -35,7 +36,7 @@ describe.each(ACCEPTANCE_CURRENCIES)('telecom and media pack acceptance (%s)', {
 
   beforeAll(async () => {
     deal = await startAcceptanceDeal('TELECOM_MEDIA', currency);
-    // The P&L by year (FY2023–FY2025), years across the columns, line kinds confirmed by a person.
+    // The P&L by year (FY2021–FY2025, T-184b), years across the columns, line kinds confirmed by a person.
     const csv = readFileSync(join(deal.folder, 'pnl.csv'), 'utf8');
     const uploaded = await deal.upload(`/v1/deals/${deal.dealId}/uploads?target=FINANCIAL_PNL&system=pactlab_standard&fileName=pnl.csv`, 'lead', csv);
     expect(uploaded.status, JSON.stringify(uploaded.body)).toBe(201);
@@ -43,7 +44,7 @@ describe.each(ACCEPTANCE_CURRENCIES)('telecom and media pack acceptance (%s)', {
     const accounts = csv.trim().split('\n').slice(1).map((row) => row.split(',')[0] ?? '');
     const mapping = { ...(uploaded.body['suggestedMapping'] as Body), lineKinds: Object.fromEntries(accounts.map((account) => [account, lineKind(account)])) };
     const imported = await deal.call('POST', `/v1/deals/${deal.dealId}/uploads/${pnlUploadId}/import`, 'lead', { mapping });
-    expect(imported.body, JSON.stringify(imported.body)).toMatchObject({ syncRun: { status: 'SUCCEEDED', recordsCreated: accounts.length * 3 } });
+    expect(imported.body, JSON.stringify(imported.body)).toMatchObject({ syncRun: { status: 'SUCCEEDED', recordsCreated: accounts.length * 5 } });
   }, 180_000);
   afterAll(async () => deal?.close());
 
@@ -52,7 +53,7 @@ describe.each(ACCEPTANCE_CURRENCIES)('telecom and media pack acceptance (%s)', {
     expect(run.status, JSON.stringify(run.body)).toBe(200);
     expect(run.body).toMatchObject({ pack: 'TELECOM_MEDIA', unresolvedQuotes: 0 });
     const promised = Number(/You should see exactly these (\d+) findings/.exec(deal.readme)?.[1]);
-    expect(promised).toBe(13);
+    expect(promised).toBe(14);
     expect(Number(run.body['created']) + Number(run.body['existing'])).toBe(promised);
     expect((await runRules()).body).toMatchObject({ created: 0, existing: promised });
 
@@ -102,13 +103,17 @@ describe.each(ACCEPTANCE_CURRENCIES)('telecom and media pack acceptance (%s)', {
     expect(advertiser?.description).toMatch(/advertising revenue for October 2025 to September 2026, 34\.0%/);
     expect(Object.keys(byTitle).some((title) => title.startsWith('Affiliate revenue concentrated'))).toBe(false);
 
-    // (d) Content cost per subscriber rising across the three years while ARPU stays flat.
-    const squeeze = byTitle['Content costs rising against flat ARPU, 2023–2025'];
+    // (d) Content cost per subscriber rising across the five years while ARPU stays flat.
+    const squeeze = byTitle['Content costs rising against flat ARPU, 2021–2025'];
     expect(squeeze).toMatchObject({ domain: 'FINANCIAL', direction: -1 });
-    expect(squeeze?.description).toMatch(/^Content and programming cost per subscriber a month rose every year — 2023 [0-9.]+, 2024 [0-9.]+, 2025 [0-9.]+, 1\.4[0-9]×/);
+    expect(squeeze?.description).toMatch(/^Content and programming cost per subscriber a month rose every year — 2021 [0-9.]+, 2022 [0-9.]+, 2023 [0-9.]+, 2024 [0-9.]+, 2025 [0-9.]+, 1\.[0-9]+×/);
     expect(Object.keys(byTitle).some((title) => title.startsWith('Capex intensity rising'))).toBe(false);
-    expect(byTitle['P&L trend, 2023–2025']).toMatchObject({ direction: 0 });
-    expect(byTitle['Content and programming costs growing faster than revenue, 2023–2025']).toMatchObject({ direction: -1 });
+    expect(byTitle['P&L trend, 2021–2025']).toMatchObject({ direction: 0 });
+    expect(byTitle['Content and programming costs growing faster than revenue, 2021–2025']).toMatchObject({ direction: -1 });
+    // (e) Five years of the movements export (T-184b): churn rises every year, cited to the export's rows.
+    const churnTrend = byTitle['Monthly churn rising every year, FY2021–FY2025'];
+    expect(churnTrend).toMatchObject({ domain: 'COMMERCIAL', direction: -1, pricedRisk: null });
+    expect(churnTrend?.evidence.filter((link) => link.evidenceItemId).length).toBeGreaterThan(0);
   });
 
   it('the Subscribers view recomputes churn and ARPU, reads the claims, the rights window, counterparties and every P&L year with its file', async () => {
@@ -124,7 +129,7 @@ describe.each(ACCEPTANCE_CURRENCIES)('telecom and media pack acceptance (%s)', {
     };
     expect(body).toMatchObject({ version: 'telecom-subscribers-1', currency, canRunChecks: true, documentsRead: true });
     expect(body.subscribers.trailing).toMatchObject({ from: '2025-10', to: '2026-09', missing: [] });
-    expect(body.subscribers.years.map((year) => year.year)).toEqual(['2023', '2024', '2025']);
+    expect(body.subscribers.years.map((year) => year.year)).toEqual(YEARS);
     expect(body.claims.map((claim) => [claim.key, claim.status])).toEqual([['SUBSCRIBERS', 'VERIFIED'], ['CHURN', 'CONTRADICTED'], ['ARPU', 'VERIFIED']]);
     expect(body.rights.from).toMatchObject({ date: '2026-12-31', basis: 'EXPECTED_CLOSING' });
     expect(body.rights.agreements.find((entry) => entry.agreementId === 'AF-01')).toMatchObject({ state: 'ENDS_IN_WINDOW', material: true, endsOn: '2027-09-30', registerEndsOn: '2028-09-30', endBasis: 'DOCUMENT' });
@@ -132,11 +137,23 @@ describe.each(ACCEPTANCE_CURRENCIES)('telecom and media pack acceptance (%s)', {
     expect(body.rights.agreements.find((entry) => entry.agreementId === 'CL-01')).toMatchObject({ state: 'ENDS_IN_WINDOW', material: false });
     expect(body.concentration.streams.map((stream) => [stream.stream, stream.counterparties[0]?.counterparty])).toEqual([['advertising', 'Brightline Motors (synthetic)'], ['affiliate', 'Rivermark Cable (synthetic)']]);
     expect(body.squeeze).toMatchObject({ arpuFlat: true });
-    expect(body.squeeze.years.map((year) => year.year)).toEqual(['2023', '2024', '2025']);
-    expect(body.trend.years.map((year) => [year.year, year.files.map((file) => file.fileName)])).toEqual([['2023', ['pnl.csv']], ['2024', ['pnl.csv']], ['2025', ['pnl.csv']]]);
+    expect(body.squeeze.years.map((year) => year.year)).toEqual(YEARS);
+    expect(body.trend.years.map((year) => [year.year, year.files.map((file) => file.fileName)])).toEqual(YEARS.map((year) => [year, ['pnl.csv']]));
     // The pack's own figures on Finances.
-    const metrics = (await deal.call('GET', `/v1/deals/${deal.dealId}/metrics/pack`, 'lead')).body as { calculator: string; metrics: { key: string; value: string | null }[] };
+    const metrics = (await deal.call('GET', `/v1/deals/${deal.dealId}/metrics/pack`, 'lead')).body as PackMetricsBody;
     expect(metrics.calculator).toBe('telecom-subscribers');
+    // Five years side by side (T-184b), hand-computed from the export: Σ disconnects ÷ Σ opening subscribers by year.
+    const rows = csvRows(deal.folder, 'subscriber-movements.csv');
+    const churnOf = (year: string) => {
+      const inYear = rows.filter((row) => row[0]?.startsWith(year));
+      const sum = (index: number) => inYear.reduce((total, row) => total + BigInt(row[index] ?? '0'), 0n);
+      return ratioOf(sum(5), sum(3), 6);
+    };
+    expect(metrics.history?.years).toEqual(YEARS.map((year) => `FY${year}`));
+    expect(metrics.history?.rows.find((row) => row.key === 'monthly_churn')?.values).toEqual(YEARS.map(churnOf));
+    expect(metrics.history?.coverage.map((entry) => entry.summary)).toEqual(['FY2021–FY2025 (5 of 5 years)', 'FY2021–FY2025 (5 of 5 years)']);
+    expect(metrics.history?.asks).toEqual([]);
+    expect(metrics.metrics.find((metric) => metric.key === 'arpu')?.history?.map((point) => point.period)).toEqual(YEARS.map((year) => `FY${year}`));
     expect(Number(metrics.metrics.find((metric) => metric.key === 'monthly_churn')?.value)).toBeCloseTo(0.015, 2);
     expect(Number(metrics.metrics.find((metric) => metric.key === 'largest_advertising_share')?.value)).toBeCloseTo(0.34, 2);
     // The buyer's own side only; another tenant sees nothing.
@@ -182,7 +199,11 @@ describe.each(ACCEPTANCE_CURRENCIES)('telecom and media pack acceptance (%s)', {
     expect(after.trend.years).toEqual([]);
     expect(after.squeeze.years).toEqual([]);
     // ARPU and churn by year still read from the movements export.
-    expect(after.subscribers.years).toHaveLength(3);
+    expect(after.subscribers.years).toHaveLength(5);
+    // Partial history (T-184b): no income and expenses; the coverage says so and the seller is asked for them.
+    const partial = (await deal.call('GET', `/v1/deals/${deal.dealId}/metrics/pack`, 'lead')).body as PackMetricsBody;
+    expect(partial.history?.coverage.find((entry) => entry.key === 'operating')?.summary).toBe('No income and expenses imported yet: ask the seller for FY2021–FY2025 income statements');
+    expect(partial.history?.asks).toEqual([{ needs: ['INCOME_STATEMENT'], note: 'Ask the seller for FY2021–FY2025 income statements.' }]);
   });
 
   it('is refused to a target contributor and invisible to another tenant', async () => {

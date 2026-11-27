@@ -163,4 +163,5 @@ export const SAAS_HIDDEN_CONTRACTION: PackRule = {
   },
 };
 
-export const SOFTWARE_RULES: readonly PackRule[] = [SAAS_REPORTED_ARR, SAAS_REVENUE_CONCENTRATION, SAAS_CUSTOMER_CHANGE_OF_CONTROL, SAAS_HIDDEN_CONTRACTION];
+/** The pack's rules before history; SOFTWARE_RULES (history.ts) adds the P&L trend and the retention trend (T-184b). */
+export const SOFTWARE_BASE_RULES: readonly PackRule[] = [SAAS_REPORTED_ARR, SAAS_REVENUE_CONCENTRATION, SAAS_CUSTOMER_CHANGE_OF_CONTROL, SAAS_HIDDEN_CONTRACTION];

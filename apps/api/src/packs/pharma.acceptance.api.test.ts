@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { ACCEPTANCE_CURRENCIES, acceptAndValue, pdfOf, startAcceptanceDeal, type AcceptanceDeal, type Body } from './acceptance-kit';
+import { ACCEPTANCE_CURRENCIES, type AcceptanceDeal, acceptAndValue, type Body, centsOf, csvRows, HISTORY_YEARS as YEARS, type PackMetricsBody, pdfOf, startAcceptanceDeal } from './acceptance-kit';
 
 type FindingView = {
   id: string;
@@ -22,7 +22,7 @@ const lineKind = (account: string) => (/revenue/i.test(account) ? 'REVENUE' : /^
 /**
  * T-064 and T-163 acceptance: pactlab-demo-data/pharma-biotech/<CURRENCY> loaded into a fresh deal through the
  * real APIs — billing, the patent schedule, the pipeline, the trial-registry records, the obligations model,
- * the R&D roster, the three-year P&L and every document — surfaces the T-064 three and the planted (a) the
+ * the R&D roster, the five-year P&L and every document — surfaces the T-064 three and the planted (a) the
  * lead asset claimed Phase 2 against a Phase 1 registry filing, (b) the key patent expiring 18 months after
  * closing, priced into the bridge, (c) a milestone due at the next phase start missing from the seller's
  * model and (d) R&D flat across the years while the timeline is brought forward, as cited drafts; the claims
@@ -44,7 +44,7 @@ describe.each(ACCEPTANCE_CURRENCIES)('pharma and biotech pack acceptance (%s)', 
       dataClass: 'HR',
     });
     expect(hr.status).toBe(201);
-    // The P&L by year (FY2023–FY2025), years across the columns, line kinds confirmed by a person.
+    // The P&L by year (FY2021–FY2025, T-184b), years across the columns, line kinds confirmed by a person.
     const csv = readFileSync(join(deal.folder, 'pnl.csv'), 'utf8');
     const uploaded = await deal.upload(`/v1/deals/${deal.dealId}/uploads?target=FINANCIAL_PNL&system=pactlab_standard&fileName=pnl.csv`, 'lead', csv);
     expect(uploaded.status, JSON.stringify(uploaded.body)).toBe(201);
@@ -52,7 +52,7 @@ describe.each(ACCEPTANCE_CURRENCIES)('pharma and biotech pack acceptance (%s)', 
     const accounts = csv.trim().split('\n').slice(1).map((row) => row.split(',')[0] ?? '');
     const mapping = { ...(uploaded.body['suggestedMapping'] as Body), lineKinds: Object.fromEntries(accounts.map((account) => [account, lineKind(account)])) };
     const imported = await deal.call('POST', `/v1/deals/${deal.dealId}/uploads/${pnlUploadId}/import`, 'lead', { mapping });
-    expect(imported.body, JSON.stringify(imported.body)).toMatchObject({ syncRun: { status: 'SUCCEEDED', recordsCreated: accounts.length * 3 } });
+    expect(imported.body, JSON.stringify(imported.body)).toMatchObject({ syncRun: { status: 'SUCCEEDED', recordsCreated: accounts.length * 5 } });
   }, 180_000);
   afterAll(async () => deal?.close());
 
@@ -61,7 +61,7 @@ describe.each(ACCEPTANCE_CURRENCIES)('pharma and biotech pack acceptance (%s)', 
     expect(run.status, JSON.stringify(run.body)).toBe(200);
     expect(run.body).toMatchObject({ pack: 'PHARMA_BIOTECH', unresolvedQuotes: 0 });
     const promised = Number(/You should see exactly these (\d+) findings/.exec(deal.readme)?.[1]);
-    expect(promised).toBe(12);
+    expect(promised).toBe(13);
     expect(Number(run.body['created']) + Number(run.body['existing'])).toBe(promised);
     expect((await runRules()).body).toMatchObject({ created: 0, existing: promised });
 
@@ -103,12 +103,17 @@ describe.each(ACCEPTANCE_CURRENCIES)('pharma and biotech pack acceptance (%s)', 
     expect(milestone?.description).toContain("The pipeline schedule expects PX-330's Phase 2 start in 2027-Q3.");
     expect(flat(milestone?.evidence.find((link) => link.documentCitation)?.documentCitation?.quote)).toMatch(/^7\.1 .* shall pay Brennick Biologics \(synthetic\) a milestone payment of /);
 
-    // (d) R&D flat across FY2023–FY2025 while the deck brings the readout forward, cited to the three imported rows.
-    const burn = byTitle['R&D spend flat while the timeline is brought forward, 2023–2025'];
+    // (d) R&D flat across FY2021–FY2025 while the deck brings the readout forward, cited to the five imported rows.
+    const burn = byTitle['R&D spend flat while the timeline is brought forward, 2021–2025'];
     expect(burn).toMatchObject({ domain: 'FINANCIAL', direction: -1, pricedRisk: null });
-    expect(burn?.evidence.filter((link) => link.evidenceItemId)).toHaveLength(3);
+    expect(burn?.evidence.filter((link) => link.evidenceItemId)).toHaveLength(5);
     expect(flat(burn?.evidence.find((link) => link.documentCitation)?.documentCitation?.quote)).toBe('We have brought forward the PX-410 Phase 2 readout from 2028-Q4 to 2027-Q4.');
-    expect(byTitle['P&L trend, 2023–2025']).toMatchObject({ direction: 0 });
+    expect(byTitle['P&L trend, 2021–2025']).toMatchObject({ direction: 0 });
+    // (e) Five years of billing (T-184b): Product B's billed revenue falls every year, cited to the billing lines.
+    const productB = byTitle['Product B revenue falling every year, FY2021–FY2025'];
+    expect(productB).toMatchObject({ domain: 'COMMERCIAL', direction: -1, pricedRisk: null });
+    expect(productB?.evidence.filter((link) => link.evidenceItemId).length).toBeGreaterThan(0);
+    expect(Object.keys(byTitle).some((title) => title.startsWith('Product A revenue falling'))).toBe(false);
 
     // Dependence: one manufacturer, and a key scientist the HR file (never read) would have cleared.
     expect(byTitle['Single-source manufacturing: Product A']).toMatchObject({ domain: 'OPERATIONAL', direction: 0 });
@@ -144,11 +149,21 @@ describe.each(ACCEPTANCE_CURRENCIES)('pharma and biotech pack acceptance (%s)', 
     expect(body.dependence.manufacturing).toMatchObject([{ product: 'Product A', singleSource: true }]);
     expect(body.dependence.concentrated.map((entry) => entry.scientistRef)).toEqual(['S-01']);
     expect(body.burn).toMatchObject({ flat: true, accelerations: [{ from: '2028-Q4', to: '2027-Q4' }] });
-    expect(body.burn.years.map((year) => year.year)).toEqual(['2023', '2024', '2025']);
+    expect(body.burn.years.map((year) => year.year)).toEqual([...YEARS]);
     expect(body.burn.years[0]?.files.map((file) => file.fileName)).toEqual(['pnl.csv']);
     // The pack's own figures on Finances.
-    const metrics = (await deal.call('GET', `/v1/deals/${deal.dealId}/metrics/pack`, 'lead')).body as { calculator: string; metrics: { key: string; value: string | null }[] };
+    const metrics = (await deal.call('GET', `/v1/deals/${deal.dealId}/metrics/pack`, 'lead')).body as PackMetricsBody;
     expect(metrics.calculator).toBe('pharma-pipeline');
+    // Five years side by side (T-184b), hand-computed from the billing export: Σ billed on Product B's lines by year.
+    const lines = csvRows(deal.folder, 'invoice-lines.csv');
+    const productBOf = (year: string) => {
+      const cents = centsOf(lines.filter((row) => row[10]?.startsWith(year) && row[3]?.includes('Product B')), 7);
+      return `${cents / 100n}.${String(cents % 100n).padStart(2, '0')}`;
+    };
+    expect(metrics.history?.years).toEqual(YEARS.map((year) => `FY${year}`));
+    expect(metrics.history?.rows.find((row) => row.key === 'product_product_b')?.values).toEqual(YEARS.map(productBOf));
+    expect(metrics.history?.coverage.map((entry) => entry.summary)).toEqual(['FY2021–FY2025 (5 of 5 years)', 'FY2021–FY2025 (5 of 5 years)']);
+    expect(metrics.history?.asks).toEqual([]);
     expect(metrics.metrics.find((metric) => metric.key === 'programmes_registered')?.value).toBe('2');
     expect(metrics.metrics.find((metric) => metric.key === 'rd_latest_year')?.value).not.toBeNull();
     // The buyer's own side only; another tenant sees nothing.
@@ -200,6 +215,10 @@ describe.each(ACCEPTANCE_CURRENCIES)('pharma and biotech pack acceptance (%s)', 
     const titles = (await findings()).map((finding) => finding.title);
     expect(titles).toContain('P&L for 2025: one year imported');
     expect(titles.filter((title) => title.startsWith('R&D spend flat'))).toHaveLength(1);
+    // Partial history (T-184b): one year of income and expenses states its coverage and asks the seller for the rest.
+    const partial = (await deal.call('GET', `/v1/deals/${deal.dealId}/metrics/pack`, 'lead')).body as PackMetricsBody;
+    expect(partial.history?.coverage.find((entry) => entry.key === 'operating')?.summary).toBe('FY2025 (1 of 5 years): ask the seller for FY2021–FY2024 income statements');
+    expect(partial.history?.asks).toEqual([{ needs: ['INCOME_STATEMENT'], note: 'Ask the seller for FY2021–FY2024 income statements.' }]);
   });
 
   it('is refused to a target contributor and invisible to another tenant', async () => {

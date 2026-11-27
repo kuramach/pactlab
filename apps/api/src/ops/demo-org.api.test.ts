@@ -145,73 +145,83 @@ describe('demo organization (batch 2)', () => {
       expect(await count('findings', fintech.id, `AND title = '${title}'`), title).toBe(1);
     }
     expect(await count('findings', fintech.id, `AND title LIKE 'Lapsed: %'`)).toBe(1);
-    // The healthcare pact imports its remittances, collections by clinician, registers and three years of P&L; the planted defects are drafted (T-160).
+    // The healthcare pact imports its remittances, collections by clinician, registers and five years of P&L; the planted defects are drafted (T-160, T-184b).
     const healthcare = await deal(pactName('HEALTHCARE'));
-    expect(await count('evidence_items', healthcare.id, `AND evidence_type = 'finance.pnl_line'`)).toBe(24);
-    for (const title of ['Claim contradicted: Denial rate', 'Denial rate rising, 2023–2025', 'Claim contradicted: Commercial payer share', 'Payer mix shifted toward Medicaid, the lowest-paying payer class, 2023–2025', '31.0% of collections from one clinician, no non-compete on file: PR-03', 'Denial write-offs and bad debt growing faster than revenue, 2023–2025']) {
+    expect(await count('evidence_items', healthcare.id, `AND evidence_type = 'finance.pnl_line'`)).toBe(40);
+    for (const title of ['Claim contradicted: Denial rate', 'Denial rate rising, 2021–2025', 'Claim contradicted: Commercial payer share', 'Payer mix shifted toward Medicaid, the lowest-paying payer class, 2021–2025', '31.0% of collections from one clinician, no non-compete on file: PR-03', 'Denial write-offs and bad debt growing faster than revenue, 2021–2025', 'Visits falling every year, FY2021–FY2025']) {
       expect(await count('findings', healthcare.id, `AND title = '${title}'`), title).toBe(1);
     }
     expect(await count('findings', healthcare.id, `AND title LIKE 'Practising on an expired licence: %'`)).toBe(2);
-    // The small clinics pact imports the reused healthcare set, its service lines, referrals and three years of P&L; the planted defects are drafted (T-161).
+    // The small clinics pact imports the reused healthcare set, its service lines, referrals and five years of P&L; the planted defects are drafted (T-161, T-184b).
     const clinics = await deal(pactName('SMALL_CLINICS'));
-    expect(await count('evidence_items', clinics.id, `AND evidence_type = 'finance.pnl_line'`)).toBe(21);
+    expect(await count('evidence_items', clinics.id, `AND evidence_type = 'finance.pnl_line'`)).toBe(35);
     for (const title of [
       '58.0% of visits come from one referral source: Harbourside Hospital orthopaedics (synthetic)',
       'Clinic lease ends 14 months after closing, with no renewal option',
       'The selling owner is the only provider of the highest-margin service line: Implants',
-      'Clinical and dental supplies growing faster than revenue, 2023–2025',
+      'Clinical and dental supplies growing faster than revenue, 2021–2025',
     ]) {
       expect(await count('findings', clinics.id, `AND title = '${title}'`), title).toBe(1);
     }
-    // The pharma pact imports the registry records, the obligations model, the R&D roster and three years of P&L; the planted defects are drafted (T-163).
+    // The pharma pact imports the registry records, the obligations model, the R&D roster and five years of P&L; the planted defects are drafted (T-163, T-184b).
     const pharma = await deal(pactName('PHARMA_BIOTECH'));
     expect(await count('evidence_items', pharma.id, `AND evidence_type = 'pharma.registry_trial'`)).toBe(2);
-    expect(await count('evidence_items', pharma.id, `AND evidence_type = 'finance.pnl_line'`)).toBe(21);
+    expect(await count('evidence_items', pharma.id, `AND evidence_type = 'finance.pnl_line'`)).toBe(35);
     for (const title of [
       'Claim contradicted: PX-410 phase',
       'Key patent expires 18 months after closing: Product A',
       "Milestone payment omitted from the seller''s model: Brennick Biologics (synthetic)",
-      'R&D spend flat while the timeline is brought forward, 2023–2025',
+      'R&D spend flat while the timeline is brought forward, 2021–2025',
+      'Product B revenue falling every year, FY2021–FY2025',
     ]) {
       expect(await count('findings', pharma.id, `AND title = '${title}'`), title).toBe(1);
     }
-    // The e-commerce pact imports orders by channel, the stock report and three years of P&L; the planted defects are drafted (T-164).
+    // The e-commerce pact imports orders by channel, the stock report and five years of P&L; the planted defects are drafted (T-164, T-184b).
     const ecommerce = await deal(pactName('ECOMMERCE_DTC'));
-    expect(await count('evidence_items', ecommerce.id, `AND evidence_type = 'ecommerce.channel_month'`)).toBe(180);
-    expect(await count('evidence_items', ecommerce.id, `AND evidence_type = 'finance.pnl_line'`)).toBe(27);
+    expect(await count('evidence_items', ecommerce.id, `AND evidence_type = 'ecommerce.channel_month'`)).toBe(276);
+    expect(await count('evidence_items', ecommerce.id, `AND evidence_type = 'finance.pnl_line'`)).toBe(45);
     for (const title of [
       'Claim contradicted: Customer lifetime value',
       'Platform account held personally: Marketvale marketplace (MV-20417)',
       'Aged inventory: 22.0% of stock older than 180 days',
-      'Acquisition cost rising every year, 2023–2025',
-      'Contribution margin compressing every year, 2023–2025',
+      'Acquisition cost rising every year, 2021–2025',
+      'Contribution margin compressing every year, 2021–2025',
+      'Discount rate rising every year, FY2021–FY2025',
     ]) {
       expect(await count('findings', ecommerce.id, `AND title = '${title}'`), title).toBe(1);
     }
-    // The professional services pact imports time and billing, the ageing reports and three years of P&L; the planted defects are drafted (T-167).
+    // The professional services pact imports time and billing, the ageing reports and five years of P&L; the planted defects are drafted (T-167, T-184b).
     const services = await deal(pactName('PROFESSIONAL_SERVICES'));
-    expect(await count('evidence_items', services.id, `AND evidence_type = 'services.billing_month'`)).toBe(810);
-    expect(await count('evidence_items', services.id, `AND evidence_type = 'finance.pnl_line'`)).toBe(24);
+    expect(await count('evidence_items', services.id, `AND evidence_type = 'services.billing_month'`)).toBe(1242);
+    expect(await count('evidence_items', services.id, `AND evidence_type = 'finance.pnl_line'`)).toBe(40);
     for (const title of [
       'Claim contradicted: Client concentration ceiling',
-      'Realization falling every year, 2023–2025',
+      'Realization falling every year, 2021–2025',
+      'Utilization falling every year, FY2021–FY2025',
       'Rainmaker with no non-solicit or non-compete on file: P-01',
       'Rainmaker with no non-solicit or non-compete on file: P-02',
       'WIP over 90 days up 2.1× in a year, 2024–2025',
     ]) {
       expect(await count('findings', services.id, `AND title = '${title}'`), title).toBe(1);
     }
-    // The telecom pact imports subscriber movements, the rights register, counterparty revenue, capex and three years of P&L; the planted defects are drafted (T-168).
+    // The telecom pact imports subscriber movements, the rights register, counterparty revenue, capex and five years of P&L; the planted defects are drafted (T-168, T-184b).
     const telecom = await deal(pactName('TELECOM_MEDIA'));
-    expect(await count('evidence_items', telecom.id, `AND evidence_type = 'telecom.subscriber_movement'`)).toBe(540);
-    expect(await count('evidence_items', telecom.id, `AND evidence_type = 'finance.pnl_line'`)).toBe(24);
+    expect(await count('evidence_items', telecom.id, `AND evidence_type = 'telecom.subscriber_movement'`)).toBe(828);
+    expect(await count('evidence_items', telecom.id, `AND evidence_type = 'finance.pnl_line'`)).toBe(40);
     for (const title of [
       'Claim contradicted: Monthly churn',
       'Material agreement ends within 12 months of the closing: AF-01',
       'Advertising revenue concentrated in one counterparty: Brightline Motors (synthetic)',
-      'Content costs rising against flat ARPU, 2023–2025',
+      'Content costs rising against flat ARPU, 2021–2025',
+      'Monthly churn rising every year, FY2021–FY2025',
     ]) {
       expect(await count('findings', telecom.id, `AND title = '${title}'`), title).toBe(1);
+    }
+    // The software pact imports five years of billing and of P&L; net revenue retention falling every year is drafted (T-184b).
+    const software = await deal(pactName('SOFTWARE_SAAS'));
+    expect(await count('evidence_items', software.id, `AND evidence_type = 'finance.pnl_line'`)).toBe(25);
+    for (const title of ['Net revenue retention falling every year, FY2022–FY2025', 'P&L trend, 2021–2025']) {
+      expect(await count('findings', software.id, `AND title = '${title}'`), title).toBe(1);
     }
     // The SPV seats its investors, runs its checks and publishes the investor view; the startup sees none of the vehicle's papers (T-141).
     const spv = await deal(pactName('STARTUP_SPV'));

@@ -21,7 +21,9 @@ export const industries: Catalog['industries'] = {
       { title: 'Documents et contrats', body: 'Extraction de clauses et questions-réponses avec des citations exactes.' },
       { title: 'Évaluation et conditions du deal', body: 'Scénarios de multiple d’ARR, DCF et LBO avec un pont de prix d’acquisition.' },
     ],
-    adds: [],
+    adds: [
+      { title: 'Cinq ans d’historique', body: 'L’ARR de décembre, la rétention nette et brute du revenu et l’attrition des clients issues de l’export de facturation par année, à côté du compte de résultat, avec le nombre d’années sur lequel repose chaque chiffre ; une année manquante est demandée au vendeur.' },
+    ],
   },
   fintech: {
     name: 'Fintech',
@@ -70,6 +72,7 @@ export const industries: Catalog['industries'] = {
       { title: 'Un registre des affirmations', body: 'Les affirmations sur le taux de refus, la part des payeurs et le délai d’encaissement, marquées vérifiées, contredites ou non vérifiées au regard des preuves.' },
       { title: 'Autorisations d’exercer contrôlées', body: 'L’autorisation et l’échéance de chaque praticien inscrit, tirées du registre et des pièces de vérification ; des encaissements après une expiration deviennent un constat.' },
       { title: 'Concentration des praticiens', body: 'La part des encaissements de chaque praticien face au tableau des clauses de non-concurrence et de rétention.' },
+      { title: 'Cinq ans d’historique', body: 'Les visites, la part des payeurs commerciaux et le taux de refus par année, à côté du compte de résultat, avec le nombre d’années sur lequel repose chaque chiffre ; une année manquante est demandée au vendeur.' },
     ],
   },
   'telecom-media': {
@@ -97,6 +100,7 @@ export const industries: Catalog['industries'] = {
       { title: 'Fenêtres de droits', body: 'La date de fin de chaque contrat de contenu, d’affiliation et de distribution face au closing attendu ; la date du contrat lui-même prime sur le registre.' },
       { title: 'Concentration des contreparties', body: 'Revenus publicitaires et d’affiliation par contrepartie sur les douze derniers mois.' },
       { title: 'Coût des contenus face à l’ARPU', body: 'Coût des contenus par abonné et intensité des investissements par année, face à l’ARPU tiré des mêmes exports.' },
+      { title: 'Cinq ans d’historique', body: 'Les abonnés, le churn et l’ARPU issus de l’export des mouvements par année, à côté du compte de résultat, avec le nombre d’années sur lequel repose chaque chiffre ; une année manquante est demandée au vendeur.' },
     ],
   },
   'professional-services': {
@@ -119,6 +123,7 @@ export const industries: Catalog['industries'] = {
       { title: 'Couverture des apporteurs d’affaires', body: 'Le portefeuille de chaque associé porteur de revenus face aux clauses de non-concurrence et de non-sollicitation que montrent les documents, par référence pseudonyme.' },
       { title: 'Ancienneté des encours et des créances', body: 'Les soldes de plus de 90 jours à chaque clôture, avec la dérive chiffrée dans le besoin en fonds de roulement.' },
       { title: 'Qualité des revenus', body: 'Honoraires d’abonnement et de services managés face au travail en mode projet, à partir des données de facturation.' },
+      { title: 'Cinq ans d’historique', body: 'L’utilisation, la réalisation et les effectifs par année, à côté du compte de résultat, avec le nombre d’années sur lequel repose chaque chiffre ; une année manquante est demandée au vendeur.' },
     ],
   },
   'pharma-biotech': {
@@ -141,6 +146,7 @@ export const industries: Catalog['industries'] = {
       { title: 'Le portefeuille de brevets face à la détention', body: 'Les échéances lues dans les titres de brevet, et une falaise pendant la détention chiffrée sur les revenus du produit.' },
       { title: 'Obligations recalculées', body: 'Jalons, redevances et frais lus dans les accords et recherchés dans le modèle du vendeur.' },
       { title: 'Dépendances', body: 'La fabrication à source unique d’après les contrats d’approvisionnement, et la concentration sur des scientifiques clés d’après l’effectif.' },
+      { title: 'Cinq ans d’historique', body: 'Le chiffre d’affaires facturé de chaque produit et la R&D par année, à côté du compte de résultat, avec le nombre d’années sur lequel repose chaque chiffre ; une année manquante est demandée au vendeur.' },
     ],
   },
   'ecommerce-dtc': {
@@ -164,6 +170,7 @@ export const industries: Catalog['industries'] = {
       { title: 'Valeur des cohortes sur la contribution', body: 'Valeur vie client et coût d’acquisition recalculés à partir des commandes, des cohortes et des dépenses publicitaires, face aux affirmations de la présentation.' },
       { title: 'Qui détient les comptes', body: 'La part des revenus de chaque compte de boutique, de marketplace et publicitaire, et la personne au nom de laquelle les documents l’enregistrent.' },
       { title: 'Retours et ancienneté du stock', body: 'Le taux de retour par année, et le stock de plus de 180 jours chiffré à partir du rapport de stock.' },
+      { title: 'Cinq ans d’historique', body: 'Les commandes, la valeur des commandes, les commandes répétées et le taux de remise par année, à côté du compte de résultat, avec le nombre d’années sur lequel repose chaque chiffre ; une année manquante est demandée au vendeur.' },
     ],
   },
   multifamily: {
@@ -254,6 +261,7 @@ export const industries: Catalog['industries'] = {
       { title: 'Dépendance au propriétaire exploitant', body: 'La part du propriétaire vendeur dans les consultations et les encaissements par ligne de service, et les lignes qu’aucun praticien salarié ne couvre.' },
       { title: 'Concentration des prescripteurs', body: 'Les consultations par prescripteur, recalculées à partir de l’export de l’agenda.' },
       { title: 'Le bail comme preuve', body: 'La durée restante après le closing, l’option de renouvellement et la cession en cas de vente, chacune citée à partir du bail.' },
+      { title: 'Cinq ans d’historique', body: 'Les visites, la part des payeurs commerciaux et le taux de refus par année, à côté du compte de résultat, avec le nombre d’années sur lequel repose chaque chiffre ; une année manquante est demandée au vendeur.' },
     ],
   },
   hospitals: {
@@ -342,6 +350,7 @@ export const industries: Catalog['industries'] = {
       { title: 'Un modèle de revenus de redevances', body: 'Revenus récents par œuvre et par source, avec une érosion selon l’ancienneté du catalogue, en décimales.' },
       { title: 'Exposition à la résiliation', body: 'Les fenêtres des sections 203 et 304 à partir des dates de cession, avec les revenus exposés quantifiés.' },
       { title: 'Les documents de droits lus pour vous', body: 'Relevés, split sheets et contrats proposés comme entrées avec leurs citations ; vous les confirmez.' },
+      { title: 'Cinq ans d’historique', body: 'Les revenus des relevés par année, avec le nombre d’années sur lequel repose chaque chiffre ; une année manquante est demandée au vendeur.' },
     ],
   },
   'energy-generation': {
@@ -364,6 +373,7 @@ export const industries: Catalog['industries'] = {
       { title: 'Un modèle de production et de réserves', body: 'Le déclin tiré de l’historique de production face au rapport indépendant, en décimales.' },
       { title: 'Un modèle des passifs', body: 'Estimations de dépollution, de cendres de charbon et de démantèlement face à ce que le vendeur a comptabilisé.' },
       { title: 'Les rapports lus pour vous', body: 'Rapports sur les réserves et rapports environnementaux proposés comme entrées avec leurs citations ; vous les confirmez.' },
+      { title: 'Cinq ans d’historique', body: 'La production d’électricité de la centrale et le pétrole et le gaz des puits par année, avec le nombre d’années sur lequel repose chaque chiffre ; une année manquante est demandée au vendeur.' },
     ],
   },
   'startup-spv': {
