@@ -252,5 +252,5 @@ Rule 7 keeps the seed task to dev and qa. One exception: **"Pactlab Demo (synthe
 - **Who runs it:** production ops are the owner's to run; stage may be run by an agent.
 
 
-## Amendment (2026-11-27, proposed): hibernate when unused (T-189)
-ADR 0063 proposes that dev, qa and stage go a step past the idle pause. After N paused days, or when Kumar asks, the environment is **hibernated**: the database is snapshotted, then deleted, along with compute, the load balancer, the NAT and Redis. Data, secrets, keys and names are kept, and the environment is rebuilt on demand in about 30–40 minutes. It also proposes that stage's database become single-AZ `t4g.medium` with one Redis node, and that dev, qa and stage keep 3 days of backups. Live is unchanged. This amendment is proposed until Kumar approves ADR 0063.
+## Amendment (2026-11-27, accepted): hibernate when unused (T-189)
+ADR 0063 proposes that dev, qa and stage go a step past the idle pause. After N paused days, or when Kumar asks, the environment is **hibernated**: the database is snapshotted, then deleted, along with compute, the load balancer, the NAT and Redis. Data, secrets, keys and names are kept, and the environment is rebuilt on demand in about 30–40 minutes. It also proposes that stage's database become single-AZ `t4g.medium` with one Redis node, and that dev, qa and stage keep 3 days of backups. Live is unchanged. Kumar accepted ADR 0063 on 2026-11-27: hibernate after 3 idle hours. It is built; see ADR 0063's "As built" and `docs/runbooks/hibernate.md`.

@@ -9,6 +9,10 @@ HOLD="${2:-}"
 POWER=$(aws ssm get-parameter --name "/pactlab/${ENV_NAME}/power" --query Parameter.Value --output text 2>/dev/null || echo none)
 case "$POWER" in
   none) echo "${ENV_NAME}: no idle pause here yet (first deploy, or production)"; exit 0 ;;
+  # Hibernated (ADR 0063): rebuilt only on purpose, by the env-power workflow (or the sleep page's button).
+  hibernated | hibernating | rebuilding)
+    echo "::error title=${ENV_NAME} is asleep::${ENV_NAME} is ${POWER}. Wake it first: scripts/env-wake.sh ${ENV_NAME} (about 30–40 minutes), then deploy again." >&2
+    exit 1 ;;
   awake) [ "$HOLD" = "--hold" ] || { echo "${ENV_NAME}: awake"; exit 0; } ;;
 esac
 ACCOUNT=$(aws sts get-caller-identity --query Account --output text)

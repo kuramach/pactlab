@@ -10,6 +10,7 @@ import { PollyTextToSpeech, TranscribeSpeechToText } from '@pactlab/ai';
 import { createAiGateway } from './ai/ai-provider';
 import { createApp } from './app';
 import { AwsCostExplorerSource } from './admin/cost/cost-explorer';
+import { powerRolesFrom, SsmEnvironmentPowerSource } from './admin/cost/environment-power';
 import { relyingParty } from './app.module';
 import { createAuth0Verifier, DisabledIdentityVerifier } from './auth/identity';
 import { FileSystemObjectStore } from './documents/storage-adapters';
@@ -131,7 +132,17 @@ const app = await createApp(
     aiModels: ai.models,
     environment: config.APP_ENV,
     // Hosting cost: real spend from Cost Explorer in the payer account, where the role is configured (live).
-    ...(config.COST_EXPLORER_ROLE_ARN ? { hostingCost: { source: new AwsCostExplorerSource(config.COST_EXPLORER_ROLE_ARN) } } : {}),
+    // Each environment's power state on the same page (ADR 0063): live reads dev, qa and stage through their read-only
+    // roles (ENVIRONMENT_POWER_ROLES); a hibernatable environment reads its own (POWER_ENVIRONMENT). Read directly until
+    // packages/config lists them.
+    ...(() => {
+      const powerRoles = powerRolesFrom(process.env['ENVIRONMENT_POWER_ROLES']);
+      const own = process.env['POWER_ENVIRONMENT'];
+      const self = config.APP_ENV === 'production' ? 'prod' : (own ?? '');
+      const power = config.AWS_REGION && (Object.keys(powerRoles).length || own) ? new SsmEnvironmentPowerSource({ region: config.AWS_REGION, self, roles: powerRoles }) : null;
+      const source = config.COST_EXPLORER_ROLE_ARN ? new AwsCostExplorerSource(config.COST_EXPLORER_ROLE_ARN) : null;
+      return source || power ? { hostingCost: { source, power } } : {};
+    })(),
     // Packs launch one at a time: unreleased ones are previewable in dev and qa only (or by PACK_PREVIEW).
     packPreview: packPreviewEnabled(config.APP_ENV, config.PACK_PREVIEW),
     macroForecasts: config.MACRO_FORECAST_SOURCE === 'fixture' ? new FixtureMacroForecastProvider() : new ImfMacroForecastProvider(),

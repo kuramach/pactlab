@@ -1,0 +1,110 @@
+name: env-power
+
+# Hibernate or wake dev, qa or stage (Kumar, 2026-11-27; ADR 0063). Never live: it is not an option, the scripts
+# refuse it, and no power role exists in live's account.
+#
+#   hibernate: pause if awake, check the queues, snapshot the database (a failed or unverified snapshot stops here,
+#              before anything is deleted), record and pin what it sleeps on, delete the database with a final
+#              snapshot, then deploy the hibernated shape: no network, NAT, load balancer, ECS, database or Redis;
+#              data, secrets, keys, the DNS zone and the sleep page kept. dev and qa share a base, torn down only
+#              when both are asleep.
+#   wake:      restore the database from the hibernate snapshot and redeploy on the images it slept on (about
+#              30–40 minutes). Data and DNS names come back unchanged.
+#   dry_run:   list exactly what hibernating would delete and keep, with the CloudFormation diff; changes nothing.
+#
+# Dispatched by Kumar (scripts/env-hibernate.sh, scripts/env-wake.sh), by the sleep page's Wake up button (no approval,
+# Kumar's decision), by wake.yml, or by env-power-idle.yml after 3 idle hours. Runs in the GitHub Environment
+# `<env>-power`, whose deployment branch is main and whose role trusts only that Environment.
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Environment (never live)
+        type: choice
+        options: [dev, qa, stage]
+        required: true
+      action:
+        type: choice
+        options: [hibernate, wake]
+        required: true
+      dry_run:
+        description: Hibernate only - list what would be deleted and kept, change nothing
+        type: boolean
+        default: false
+      drop_queues:
+        description: Hibernate even with jobs still queued (they are lost)
+        type: boolean
+        default: false
+
+permissions:
+  id-token: write
+  contents: read
+
+# One power change at a time per base: dev and qa share theirs.
+concurrency:
+  group: env-power-${{ inputs.environment == 'stage' && 'stage' || 'nonlive' }}
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: us-east-2
+  ENV_NAME: ${{ inputs.environment }}
+
+jobs:
+  power:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 90
+    environment: ${{ inputs.environment }}-power
+    steps:
+      - name: Never live, and main only
+        env:
+          REF: ${{ github.ref_name }}
+        run: |
+          case "$ENV_NAME" in dev | qa | stage) ;; *) echo "::error::Only dev, qa and stage hibernate (ADR 0063)."; exit 1 ;; esac
+          [ "$REF" = main ] || { echo "::error::env-power runs from main only (this run is on $REF)."; exit 1; }
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      - name: Dry run - what hibernating deletes and keeps (no AWS)
+        if: inputs.action == 'hibernate' && inputs.dry_run
+        run: |
+          pnpm --silent --filter @pactlab/cdk exec tsx bin/hibernation.ts plan "$ENV_NAME" | tee "$RUNNER_TEMP/plan.txt"
+          { echo "## Dry run: hibernate ${ENV_NAME}"; echo; echo '```'; cat "$RUNNER_TEMP/plan.txt"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_POWER_ROLE_ARN }}
+          role-session-name: env-power-${{ inputs.environment }}-${{ github.run_id }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Names
+        run: |
+          echo "STACK=Pactlab$(echo "${ENV_NAME:0:1}" | tr a-z A-Z)${ENV_NAME:1}" >> "$GITHUB_ENV"
+          echo "CDK=pnpm --filter @pactlab/cdk exec cdk -c pactlab:${ENV_NAME}:account=${{ vars.AWS_ACCOUNT_ID }} -c pactlab:${ENV_NAME}:githubOidc=existing" >> "$GITHUB_ENV"
+          echo "SLEEP_CERTIFICATE_ARN=${{ vars.SLEEP_CERTIFICATE_ARN }}" >> "$GITHUB_ENV"
+
+      - name: Dry run - the CloudFormation diff (changes nothing)
+        if: inputs.action == 'hibernate' && inputs.dry_run
+        run: |
+          CTX=$(scripts/power-context.sh "$ENV_NAME" "${ENV_NAME}=hibernated")
+          # The deployed images stay what they are; the diff is about shape, not code.
+          OUTPUTS=$(aws cloudformation describe-stacks --stack-name "$STACK" --query "Stacks[0].Outputs" --output json)
+          TAG=$(node -e 'const o = JSON.parse(process.argv[1]).find((x) => x.OutputKey === "ToolsImageTag"); console.log(o ? o.OutputValue : "unset")' "$OUTPUTS")
+          $CDK diff "$STACK" --exclusively -c pactlab:${ENV_NAME}:imageTag="$TAG" $CTX 2>&1 | tee "$RUNNER_TEMP/diff.txt" || true
+          { echo; echo "### CloudFormation diff"; echo; echo '```'; tail -n 400 "$RUNNER_TEMP/diff.txt"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Hibernate
+        if: inputs.action == 'hibernate' && !inputs.dry_run
+        run: |
+          OUTPUTS=$(aws cloudformation describe-stacks --stack-name "$STACK" --query "Stacks[0].Outputs" --output json)
+          TAG=$(node -e 'const o = JSON.parse(process.argv[1]).find((x) => x.OutputKey === "ToolsImageTag"); console.log(o ? o.OutputValue : "unset")' "$OUTPUTS")
+          export CDK="$CDK -c pactlab:${ENV_NAME}:imageTag=$TAG"
+          scripts/hibernate-environment.sh "$ENV_NAME" ${{ inputs.drop_queues && '--drop-queues' || '' }}
+
+      - name: Wake
+        if: inputs.action == 'wake'
+        run: scripts/wake-hibernated.sh "$ENV_NAME"

@@ -11,18 +11,23 @@ export const stageConfig: EnvironmentConfig = {
   network: { maxAzs: 2, natGateways: 1, nat: 'instance' },
   database: {
     instanceClass: 't4g',
-    instanceSize: 'large',
-    multiAz: true,
+    // live's own size (ADR 0063): stage is live's rehearsal and carries less load. Storage stays at 50 GiB:
+    // RDS can't shrink allocated storage, or restore a snapshot into less.
+    instanceSize: 'medium',
+    multiAz: false,
     allocatedStorageGiB: 50,
     maxAllocatedStorageGiB: 200,
-    backupRetentionDays: 14,
+    backupRetentionDays: 3,
   },
-  redis: { nodeType: 'cache.t4g.small', numCacheClusters: 2, snapshotRetentionDays: 1 },
+  // One node (ADR 0063): the queues are rebuildable; a lost node means a restart, not lost data.
+  redis: { nodeType: 'cache.t4g.small', numCacheClusters: 1, snapshotRetentionDays: 1 },
   evidenceNoncurrentVersionDays: 30,
   auditArchive: { mode: 'GOVERNANCE', days: 30 },
   // Stage runs read-only vendor-sandbox dry runs before production promotion.
   // Only production runs all the time: this environment pauses after an hour without use.
   idlePause: { idleMinutes: 60 },
+  // Then, after 3 hours without use, hibernate: snapshot, delete what bills by the hour, rebuild on demand (ADR 0063).
+  hibernate: { idleHours: 3, snapshotsKept: 2 },
   // Pre-production log triage (T-157): verdicts like live (stage Bedrock verified 2026-11-20).
   // Dry run until Kumar approves the dry-run digest.
   logTriage: {

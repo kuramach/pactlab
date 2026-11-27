@@ -297,3 +297,41 @@
   - the Route 53 delegation can stay, or Namecheap can go back to a CNAME pointing at the load balancer.
 
   Every CDK change in PR 1 is additive or keeps logical IDs, so the awake shape is today's stack plus the zone, the sleep page and the moved secret.
+
+## As built (T-189, 2026-11-27)
+- **Two shapes, one stack.**
+  - `-c pactlab:<env>:power=awake|hibernated` selects the shape (`POWER_SHAPES`); the base is hibernated exactly when every environment on it is (`bin/pactlab.ts`).
+  - Kept resources keep their logical IDs and properties. `test/hibernate.test.ts` allows three differences, each with its reason:
+    - the app log group's retention (7 days while hibernated);
+    - log triage's service list;
+    - the alias target.
+  - The data key's policy also drops its grants to task execution roles that no longer exist.
+  - Live's template is byte-identical to before. That was checked by synthesizing against HEAD and is covered by tests (no zone, no sleep page, no hibernated cost).
+- **The owner secret** is a stack resource (`DatabaseOwnerSecret`) under its old logical IDs: the secret is `Pactlab<Env>PostgresSecret…3fdaad7e…`, and the attachment is `PostgresSecretAttachment75CD6F6F`. Both are computed by `legacyOwnerSecretIds`, so the secret, its password and its attachment are unchanged.
+  - The instance uses `Credentials.fromSecret(secret, 'pactlab_owner')`.
+  - A restored instance uses `SnapshotCredentials.fromSecret`.
+- **Database.**
+  - RETAIN in every hibernatable environment.
+  - Its subnet and parameter groups are DESTROY, so they never hold the network's subnets.
+  - Restored instances (`-c pactlab:<env>:databaseSource=<snapshot>`) are `DatabaseInstanceFromSnapshot` at the same logical ID.
+  - Each gets a log group with one month's retention.
+- **DNS.** `AppDns` holds the zone, the apex alias (load balancer or sleep page), and the load balancer certificate's validation record. That record is read from ACM by a custom resource, so the existing certificates are not replaced.
+- **Sleep page.** `SleepPage` is CloudFront in front of a function URL (`lambda/sleep-page`). It stores a GitHub token in `pactlab/<env>/github-power`. The page's POST claims the wake (`hibernated` → `rebuilding`) before dispatching, so a second press starts nothing.
+- **Workflows.**
+  - `env-power.yml` hibernates and wakes.
+  - `env-power-idle.yml` runs every 30 minutes and hibernates an environment paused for `idleHours × 60 − idleMinutes` minutes (2 hours).
+  - `wake.yml` dispatches the rebuild when the environment is hibernated.
+  - `deploy.yml` passes every environment's shape and restored snapshot through `scripts/power-context.sh`, and refuses a hibernated environment.
+- **Scripts.**
+  - `scripts/hibernate-environment.sh` and `scripts/wake-hibernated.sh` run in CI.
+  - `scripts/env-hibernate.sh` and `scripts/env-wake.sh` are Kumar's one-liners; `--dry-run` is offline through `infra/cdk/bin/hibernation.ts plan`.
+  - `scripts/github-power-key.sh` sets the button's token.
+- **Queue check.** `apps/api/src/ops/queue-check.ts` runs on the migrate task definition. It counts waiting, active and delayed jobs, but not a job scheduler's next run, which the worker re-registers on start.
+- **Hosting cost.**
+  - CDK publishes `/pactlab/<env>/hibernated-cost`, computed from the secrets the stack really keeps.
+  - The API reads each environment's state (`SsmEnvironmentPowerSource`): live through `pactlab-<env>-power-read` (`ENVIRONMENT_POWER_ROLES`), and a hibernatable environment its own (`POWER_ENVIRONMENT`).
+  - The page shows it in an *Environments* section, as a plain table with no new pattern.
+- **Deviations.**
+  - The power role trusts the GitHub Environment `<env>-power` only. AWS can't condition on `job_workflow_ref` without changing the repository's OIDC subject template, which would change every existing role's subject. The Environment's `main`-only deployment branch carries that check instead.
+  - **Decision 5 (one secret per environment) isn't built yet.** It needs a value copy, changes to the key helpers, and manual deletion of stage's retained secrets, so it's left for its own change.
+

@@ -16,13 +16,15 @@ export const qaConfig: EnvironmentConfig = {
     multiAz: false,
     allocatedStorageGiB: 20,
     maxAllocatedStorageGiB: 100,
-    backupRetentionDays: 7,
+    backupRetentionDays: 3,
   },
   redis: { nodeType: 'cache.t4g.micro', numCacheClusters: 1, snapshotRetentionDays: 0 },
   evidenceNoncurrentVersionDays: 7,
   auditArchive: { mode: 'GOVERNANCE', days: 1 },
   // Only production runs all the time: this environment pauses after an hour without use.
   idlePause: { idleMinutes: 60 },
+  // Then, after 3 hours without use, hibernate: snapshot, delete what bills by the hour, rebuild on demand (ADR 0063).
+  hibernate: { idleHours: 3, snapshotsKept: 2 },
   featureFlags: { pilotMode: true, liveConnectors: false },
   // Same shape as dev and live: site at qa.pactlab.ai, app at app.qa.pactlab.ai, on the shared non-live base.
   service: {

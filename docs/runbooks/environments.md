@@ -127,6 +127,8 @@ Sign-up in dev is approved automatically: a new organization is active once its 
 
 ## Idle pause (dev, qa, stage)
 
+After 3 idle hours a paused environment **hibernates**: its database is snapshotted and everything that bills by the hour is deleted, then rebuilt on demand in about 30–40 minutes. See [hibernate.md](hibernate.md) (ADR 0063).
+
 Only production runs all the time. Every other environment pauses after **an hour with no API request**:
 - its services scale to zero and its database stops;
 - its addresses, DNS, Redis and site stay as they are.

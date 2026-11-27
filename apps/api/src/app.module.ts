@@ -79,6 +79,7 @@ import { PactPricingModule } from './pact-pricing/pact-pricing.module';
 import { FixtureBillingProvider, type BillingProvider } from '@pactlab/connectors';
 import { McpModule } from './mcp/mcp.module';
 import type { CostSource } from './admin/cost/cost-explorer';
+import type { EnvironmentPowerSource } from './admin/cost/environment-power';
 import { AgentProposalsModule } from './agent-proposals/agent-proposals.module';
 import { ApiAccessTokens, McpAccessTokens } from './oauth/access-tokens';
 import { HttpsClientMetadataFetcher, type ClientMetadataFetcher } from './oauth/client-metadata';
@@ -90,7 +91,7 @@ export interface AppDependencies {
   /** Pactlab Rinse preparers (T-178b): where invite links point, and per-account AI limits. */
   rinse?: { siteOrigin?: string; limits?: { perTenMinutes: number; perDay: number } };
   /** Real AWS spend for the hosting-cost console: Cost Explorer in the payer account (live only). */
-  hostingCost?: { source?: CostSource | null; now?: () => Date };
+  hostingCost?: { source?: CostSource | null; power?: EnvironmentPowerSource | null; now?: () => Date };
   prisma: PrismaClient;
   identityVerifier: IdentityVerifier;
   logger: Logger;
@@ -324,6 +325,7 @@ export class AppModule {
           linkSealSecret: deps.emailLogin?.tokenSecret ?? null,
         }, {
           source: deps.hostingCost?.source ?? null,
+          power: deps.hostingCost?.power ?? null,
           // The pactlab:environment tag the stacks carry: APP_ENV, except production is "prod".
           environment: deps.environment === 'production' ? 'prod' : (deps.environment ?? 'local'),
           ...(deps.hostingCost?.now ? { now: deps.hostingCost.now } : {}),

@@ -36,7 +36,12 @@ export class PactlabRegistryStack extends Stack {
         imageScanOnPush: true,
         imageTagMutability: ecr.TagMutability.IMMUTABLE,
         encryption: ecr.RepositoryEncryption.KMS,
-        lifecycleRules: [{ description: 'Keep the last 20 images', maxImageCount: 20 }],
+        // A hibernated environment's images are tagged keep-… (ADR 0063) and survive the count rule, so a long sleep
+        // never expires what it wakes on.
+        lifecycleRules: [
+          { rulePriority: 1, description: 'Keep the images hibernated environments wake on', tagPrefixList: ['keep-'], maxImageCount: 50 },
+          { rulePriority: 2, description: 'Keep the last 20 images', maxImageCount: 20 },
+        ],
         removalPolicy: config.protectedState ? RemovalPolicy.RETAIN : RemovalPolicy.DESTROY,
         emptyOnDelete: !config.protectedState,
       });
@@ -61,10 +66,27 @@ export interface PactlabComputeProps {
    * alone. `tools` is the migrate and seed image (pushed as `<tag>-tools`).
    */
   readonly imageTags?: Partial<Record<'web' | 'api' | 'worker' | 'tools', string>>;
+  /**
+   * What only an awake environment has (ADR 0063): network, database, Redis and, on dev and qa, the
+   * shared load balancer. Absent: hibernated, and only what is kept is built (secrets, roles, email,
+   * logs, the load balancer's certificate), at the same construct paths as when awake.
+   */
+  readonly runtime?: PactlabRuntimeNetwork;
+  readonly dataKey: kms.Key;
+  readonly evidenceBucket: s3.Bucket;
+  readonly featureFlagsParameterArn: string;
+  /** The release the services run (T-100), read by the API for /health and the app's version line. */
+  readonly releaseParameter: { readonly name: string; readonly arn: string };
+  /** The state the Hosting cost page reads (ADR 0063): power, hibernation and the cost while hibernated. */
+  readonly powerParameterArns?: readonly string[];
+}
+
+export interface PactlabRuntimeNetwork {
   readonly vpc: ec2.IVpc;
   readonly appSecurityGroup: ec2.SecurityGroup;
-  readonly dataKey: kms.Key;
-  readonly database: rds.DatabaseInstance;
+  readonly database: rds.IDatabaseInstance;
+  /** The owner's login as the instance attached it (host and port filled in). */
+  readonly databaseOwnerSecret: secretsmanager.ISecret;
   /** `rediss://host:port[/db]` — on shared infrastructure, the environment's own logical database. */
   readonly redisUrl: string;
   /**
@@ -77,10 +99,18 @@ export interface PactlabComputeProps {
     readonly httpsListener: elbv2.ApplicationListener;
     readonly priorityBase: number;
   };
-  readonly evidenceBucket: s3.Bucket;
-  readonly featureFlagsParameterArn: string;
-  /** The release the services run (T-100), read by the API for /health and the app's version line. */
-  readonly releaseParameter: { readonly name: string; readonly arn: string };
+}
+
+/** What runs, only while awake: for the idle pause and log triage. */
+export interface PactlabRuntime {
+  readonly cluster: ecs.Cluster;
+  readonly loadBalancer: elbv2.ApplicationLoadBalancer;
+  /** For the idle pause (ADR 0019): the HTTPS listener, the app's target groups and services with their running counts. */
+  readonly httpsListener: elbv2.ApplicationListener;
+  readonly targetGroups: { readonly web: elbv2.ApplicationTargetGroup; readonly api: elbv2.ApplicationTargetGroup };
+  readonly services: readonly { readonly service: ecs.FargateService; readonly desiredCount: number }[];
+  /** On a shared listener: the host and priority block this environment's rules use (the pause's wake rule too). */
+  readonly ruleScope: { readonly host: string; readonly priorityBase: number } | null;
 }
 
 /**
@@ -91,28 +121,22 @@ export interface PactlabComputeProps {
  * Every task runs with its own least-privilege role: no human credentials.
  */
 export class PactlabCompute extends Construct {
-  readonly cluster: ecs.Cluster;
-  /** Every service's log group (streams api/, worker/, web/, migrate/, seed/); live log triage reads it (T-150). */
+  /** Every service's log group (streams api/, worker/, web/, migrate/, seed/); log triage reads it (T-150). Kept while hibernated, at 7 days' retention. */
   readonly logGroup: logs.LogGroup;
-  readonly loadBalancer: elbv2.ApplicationLoadBalancer;
-  /** For the idle pause (ADR 0019): the HTTPS listener, the app's target groups and services with their running counts. */
-  readonly httpsListener: elbv2.ApplicationListener;
-  readonly targetGroups: { readonly web: elbv2.ApplicationTargetGroup; readonly api: elbv2.ApplicationTargetGroup };
-  readonly services: readonly { readonly service: ecs.FargateService; readonly desiredCount: number }[];
-  /** On a shared listener: the host and priority block this environment's rules use (the pause's wake rule too). */
-  readonly ruleScope: { readonly host: string; readonly priorityBase: number } | null;
+  /** The load balancer's certificate when the environment has its own (stage, live); dev and qa's is the shared base's. */
+  readonly certificate?: acm.Certificate;
+  /** Absent while hibernated. */
+  readonly runtime?: PactlabRuntime;
   readonly roles: { readonly api: iam.Role; readonly worker: iam.Role; readonly web: iam.Role; readonly migrate: iam.Role; readonly seed: iam.Role };
 
   constructor(scope: Construct, id: string, props: PactlabComputeProps) {
     super(scope, id);
-    const { config, service, vpc, dataKey, database, evidenceBucket } = props;
+    const { config, service, dataKey, evidenceBucket } = props;
     const stack = Stack.of(this);
     const statefulRemoval = config.protectedState ? RemovalPolicy.RETAIN : RemovalPolicy.DESTROY;
     const origin = `https://${service.domain}`;
 
-    // --- Secrets: the RDS-generated owner secret, plus the runtime login and the token key, generated here.
-    if (!database.secret) throw new Error('The database must have a generated owner secret');
-    const ownerSecret = database.secret;
+    // --- Secrets: the database owner's is the stack's (ADR 0063); the runtime login and the token key are generated here.
     const runtimeSecret = new secretsmanager.Secret(this, 'RuntimeDatabaseSecret', {
       description: `Pactlab ${config.name}: runtime database login (pactlab_api)`,
       encryptionKey: dataKey,
@@ -179,72 +203,30 @@ export class PactlabCompute extends Construct {
       secretStringValue: SecretValue.unsafePlainText('unset'),
       removalPolicy: statefulRemoval,
     });
-
-    // --- Images by commit SHA: the slim server image (api, worker), its "-tools" variant (migrate, seed) and the web image.
-    const repositories = {
-      server: ecr.Repository.fromRepositoryName(this, 'ServerRepository', repositoryName(config.name, 'server')),
-      web: ecr.Repository.fromRepositoryName(this, 'WebRepository', repositoryName(config.name, 'web')),
-    };
-    const image = (kind: 'server' | 'web', tag = props.imageTag) => ecs.ContainerImage.fromEcrRepository(repositories[kind], tag);
-    const firstDeploy = props.serviceImageTag === 'none';
-    const serviceTag = (name: 'web' | 'api' | 'worker') => props.imageTags?.[name] ?? (firstDeploy ? props.imageTag : props.serviceImageTag);
-    const toolsTag = props.imageTags?.tools ?? props.imageTag;
-    const serviceImage = (name: 'web' | 'api' | 'worker') => image(name === 'web' ? 'web' : 'server', serviceTag(name));
-    const desired = (size: TaskSize) => (firstDeploy ? 0 : size.desiredCount);
-
-    this.cluster = new ecs.Cluster(this, 'Cluster', { vpc, clusterName: `pactlab-${config.name}` });
     const logGroup = (this.logGroup = new logs.LogGroup(this, 'Logs', {
       logGroupName: `/pactlab/${config.name}/app`,
-      retention: config.protectedState ? logs.RetentionDays.ONE_YEAR : logs.RetentionDays.ONE_MONTH,
+      // Hibernated: 7 days, and back to the usual retention on wake (ADR 0063).
+      retention: !props.runtime ? logs.RetentionDays.ONE_WEEK : config.protectedState ? logs.RetentionDays.ONE_YEAR : logs.RetentionDays.ONE_MONTH,
       removalPolicy: config.protectedState ? RemovalPolicy.RETAIN : RemovalPolicy.DESTROY,
     }));
 
-    // --- Configuration every server task shares. Credentials arrive as separate secret fields (applyDatabaseUrls).
-    const serverEnvironment: Record<string, string> = {
-      APP_ENV: APP_ENV[config.name],
-      LOG_LEVEL: 'info',
-      DB_HOST: database.dbInstanceEndpointAddress,
-      DB_PORT: database.dbInstanceEndpointPort,
-      DB_NAME: 'pactlab',
-      DB_USER: 'pactlab_api',
-      REDIS_URL: props.redisUrl,
-      AWS_REGION: stack.region,
-      DOCUMENT_STORE: 's3',
-      DOCUMENT_BUCKET: evidenceBucket.bucketName,
-      DOCUMENT_KMS_KEY_ID: dataKey.keyArn,
-      MALWARE_SCANNER: service.malwareScanner,
-      AI_PROVIDER: service.bedrock.provider ?? 'bedrock',
-      ...(service.bedrock.modelOverrides
-        ? {
-            BEDROCK_MODEL_BALANCED: service.bedrock.modelOverrides.balanced,
-            BEDROCK_MODEL_DEEP_REVIEW: service.bedrock.modelOverrides.deep_review,
-            BEDROCK_MODEL_FAST: service.bedrock.modelOverrides.fast,
-          }
-        : {}),
-    };
     // Hosting cost (admin console): live reads Cost Explorer through the payer account's read-only role
     // (`cost-read-stack.ts`). Its ARN comes from deploy context, never from code.
     const costRoleContext = config.name === 'prod' ? (this.node.tryGetContext('pactlab:prod:costExplorerRoleArn') as string | undefined) : undefined;
     if (costRoleContext && !/^arn:aws[a-z-]*:iam::\d{12}:role\/PactlabCostRead$/.test(costRoleContext)) throw new Error(`pactlab:prod:costExplorerRoleArn must be the payer account's PactlabCostRead role, got ${costRoleContext}`);
     const costRoleArn = costRoleContext || undefined;
-    const apiEnvironment: Record<string, string> = {
-      ...serverEnvironment,
-      API_PORT: '4000',
-      RELEASE_PARAMETER: props.releaseParameter.name,
-      APP_WEB_ORIGIN: origin,
-      EMAIL_PROVIDER: 'ses',
-      EMAIL_FROM: service.email.from,
-      SIGNUP_REQUIRES_APPROVAL: String(service.signupRequiresApproval),
-      SIGNING_PROVIDER: service.signing.providers.join(','),
-      ...(service.operatorEmail ? { OPERATOR_EMAIL: service.operatorEmail } : {}),
-      ...(costRoleArn ? { COST_EXPLORER_ROLE_ARN: costRoleArn } : {}),
-      // Connection credentials (T-007, T-147): organizations' OAuth refresh tokens and connection tokens.
-      CREDENTIAL_STORE: 'secretsmanager',
-      CREDENTIAL_STORE_PREFIX: `pactlab/${config.name}/credentials`,
-      CREDENTIAL_STORE_KMS_KEY_ID: dataKey.keyArn,
-    };
-    const runtimePassword = ecs.Secret.fromSecretsManager(runtimeSecret, 'password');
-    const ownerFields = { DB_OWNER_USER: ecs.Secret.fromSecretsManager(ownerSecret, 'username'), DB_OWNER_PASSWORD: ecs.Secret.fromSecretsManager(ownerSecret, 'password') };
+    // The Hosting cost page's environment states (ADR 0063): each hibernatable environment's read-only power role,
+    // `dev=<arn>,qa=<arn>,stage=<arn>`, from deploy context; absent, the page shows only this environment.
+    const powerRoles = config.name === 'prod' ? ((this.node.tryGetContext('pactlab:prod:powerReadRoleArns') as string | undefined) ?? '') : '';
+    const powerRoleArns = powerRoles
+      .split(',')
+      .filter(Boolean)
+      .map((entry) => {
+        const [env, roleArn] = entry.split('=');
+        if (!env || !['dev', 'qa', 'stage'].includes(env) || !roleArn || !/^arn:aws[a-z-]*:iam::\d{12}:role\/pactlab-(dev|qa|stage)-power-read$/.test(roleArn))
+          throw new Error(`pactlab:prod:powerReadRoleArns must be env=<pactlab-<env>-power-read role ARN>, comma-separated; got ${entry}`);
+        return roleArn;
+      });
 
     // --- Roles: each task gets exactly what it uses.
     const role = (name: string, description: string) => new iam.Role(this, `${name}TaskRole`, { assumedBy: new iam.ServicePrincipal('ecs-tasks.amazonaws.com'), description });
@@ -302,8 +284,6 @@ export class PactlabCompute extends Construct {
       destination: ses.EventDestination.snsTopic(mailEvents),
       events: [ses.EmailSendingEvent.BOUNCE, ses.EmailSendingEvent.COMPLAINT, ses.EmailSendingEvent.DELIVERY, ses.EmailSendingEvent.REJECT, ses.EmailSendingEvent.RENDERING_FAILURE],
     });
-    apiEnvironment['EMAIL_CONFIGURATION_SET'] = mailConfigurationSet.configurationSetName;
-    apiEnvironment['EMAIL_EVENTS_TOPIC_ARN'] = mailEvents.topicArn;
     this.roles.api.addToPolicy(
       new iam.PolicyStatement({
         sid: 'SendSignInEmail',
@@ -320,6 +300,129 @@ export class PactlabCompute extends Construct {
       this.roles[name].addToPolicy(new iam.PolicyStatement({ sid: 'FeatureFlags', actions: ['ssm:GetParameter'], resources: [props.featureFlagsParameterArn] }));
     }
     this.roles.api.addToPolicy(new iam.PolicyStatement({ sid: 'Release', actions: ['ssm:GetParameter'], resources: [props.releaseParameter.arn] }));
+    // The Hosting cost page (ADR 0063) shows this environment's power state and its cost while hibernated.
+    if (powerRoleArns.length) this.roles.api.addToPolicy(new iam.PolicyStatement({ sid: 'ReadEnvironmentPower', actions: ['sts:AssumeRole'], resources: powerRoleArns }));
+    if (props.powerParameterArns?.length) this.roles.api.addToPolicy(new iam.PolicyStatement({ sid: 'PowerState', actions: ['ssm:GetParameter'], resources: [...props.powerParameterArns] }));
+
+
+    // The load balancer's certificate, kept while hibernated so a wake reattaches it (dev and qa: the shared base's).
+    // DNS-validated: its validation record lives in the app's Route 53 zone (AppDns).
+    if (!props.runtime?.shared && !config.shared) this.certificate = new acm.Certificate(this, 'Certificate', { domainName: service.domain, validation: acm.CertificateValidation.fromDns() });
+
+    if (props.runtime) {
+      this.runtime = this.buildRuntime(props, props.runtime, {
+        origin,
+        runtimeSecret,
+        tokenSecret,
+        logGroup,
+        costRoleArn,
+        powerRoles,
+        mail: { configurationSet: mailConfigurationSet.configurationSetName, topicArn: mailEvents.topicArn },
+        apiSecrets: {
+          OPENAI_API_KEY: ecs.Secret.fromSecretsManager(openaiKey),
+          GOOGLE_API_KEY: ecs.Secret.fromSecretsManager(googleKey),
+          ANTHROPIC_API_KEY: ecs.Secret.fromSecretsManager(anthropicKey),
+          BOLDSIGN_API_KEY: ecs.Secret.fromSecretsManager(boldsignKey),
+          BOLDSIGN_WEBHOOK_SECRET: ecs.Secret.fromSecretsManager(boldsignWebhookSecret),
+          SIGNING_TEST_RECIPIENTS: ecs.Secret.fromSecretsManager(signingTestRecipients),
+          GOOGLE_OAUTH_CLIENT_ID: ecs.Secret.fromSecretsManager(googleOauthId),
+          GOOGLE_OAUTH_CLIENT_SECRET: ecs.Secret.fromSecretsManager(googleOauthSecret),
+          MICROSOFT_OAUTH_CLIENT_ID: ecs.Secret.fromSecretsManager(microsoftOauthId),
+          MICROSOFT_OAUTH_CLIENT_SECRET: ecs.Secret.fromSecretsManager(microsoftOauthSecret),
+          GOOGLE_PICKER_API_KEY: ecs.Secret.fromSecretsManager(googlePickerKey),
+          GOOGLE_PROJECT_NUMBER: ecs.Secret.fromSecretsManager(googleProjectNumber),
+          RENTCAST_API_KEY: ecs.Secret.fromSecretsManager(rentcastKey),
+        },
+      });
+    }
+
+    identity?.dkimRecords.forEach((record, index) => new CfnOutput(stack, `SesDkimRecord${index + 1}`, { value: `${record.name} CNAME ${record.value}` }));
+    if (identity) {
+      // The two records the MAIL FROM domain needs (the same in every account of this region).
+      new CfnOutput(stack, 'SesMailFromMx', { value: `${mailFromDomain} MX 10 feedback-smtp.${stack.region}.amazonses.com` });
+      new CfnOutput(stack, 'SesMailFromSpf', { value: `${mailFromDomain} TXT "v=spf1 include:amazonses.com ~all"` });
+    }
+  }
+
+  /** Everything that runs (ADR 0019); only built while awake (ADR 0063). */
+  private buildRuntime(
+    props: PactlabComputeProps,
+    net: PactlabRuntimeNetwork,
+    kept: {
+      readonly origin: string;
+      readonly runtimeSecret: secretsmanager.ISecret;
+      readonly tokenSecret: secretsmanager.ISecret;
+      readonly logGroup: logs.LogGroup;
+      readonly costRoleArn: string | undefined;
+      readonly powerRoles: string;
+      readonly mail: { readonly configurationSet: string; readonly topicArn: string };
+      readonly apiSecrets: Record<string, ecs.Secret>;
+    },
+  ): PactlabRuntime {
+    const { config, service, dataKey, evidenceBucket } = props;
+    const { vpc, database } = net;
+    const stack = Stack.of(this);
+    const { origin, runtimeSecret, tokenSecret, logGroup, costRoleArn } = kept;
+    const ownerSecret = net.databaseOwnerSecret;
+    // --- Images by commit SHA: the slim server image (api, worker), its "-tools" variant (migrate, seed) and the web image.
+    const repositories = {
+      server: ecr.Repository.fromRepositoryName(this, 'ServerRepository', repositoryName(config.name, 'server')),
+      web: ecr.Repository.fromRepositoryName(this, 'WebRepository', repositoryName(config.name, 'web')),
+    };
+    const image = (kind: 'server' | 'web', tag = props.imageTag) => ecs.ContainerImage.fromEcrRepository(repositories[kind], tag);
+    const firstDeploy = props.serviceImageTag === 'none';
+    const serviceTag = (name: 'web' | 'api' | 'worker') => props.imageTags?.[name] ?? (firstDeploy ? props.imageTag : props.serviceImageTag);
+    const toolsTag = props.imageTags?.tools ?? props.imageTag;
+    const serviceImage = (name: 'web' | 'api' | 'worker') => image(name === 'web' ? 'web' : 'server', serviceTag(name));
+    const desired = (size: TaskSize) => (firstDeploy ? 0 : size.desiredCount);
+
+    const cluster = new ecs.Cluster(this, 'Cluster', { vpc, clusterName: `pactlab-${config.name}` });
+    // --- Configuration every server task shares. Credentials arrive as separate secret fields (applyDatabaseUrls).
+    const serverEnvironment: Record<string, string> = {
+      APP_ENV: APP_ENV[config.name],
+      LOG_LEVEL: 'info',
+      DB_HOST: database.dbInstanceEndpointAddress,
+      DB_PORT: database.dbInstanceEndpointPort,
+      DB_NAME: 'pactlab',
+      DB_USER: 'pactlab_api',
+      REDIS_URL: net.redisUrl,
+      AWS_REGION: stack.region,
+      DOCUMENT_STORE: 's3',
+      DOCUMENT_BUCKET: evidenceBucket.bucketName,
+      DOCUMENT_KMS_KEY_ID: dataKey.keyArn,
+      MALWARE_SCANNER: service.malwareScanner,
+      AI_PROVIDER: service.bedrock.provider ?? 'bedrock',
+      ...(service.bedrock.modelOverrides
+        ? {
+            BEDROCK_MODEL_BALANCED: service.bedrock.modelOverrides.balanced,
+            BEDROCK_MODEL_DEEP_REVIEW: service.bedrock.modelOverrides.deep_review,
+            BEDROCK_MODEL_FAST: service.bedrock.modelOverrides.fast,
+          }
+        : {}),
+    };
+    const apiEnvironment: Record<string, string> = {
+      ...serverEnvironment,
+      API_PORT: '4000',
+      RELEASE_PARAMETER: props.releaseParameter.name,
+      APP_WEB_ORIGIN: origin,
+      EMAIL_PROVIDER: 'ses',
+      EMAIL_FROM: service.email.from,
+      SIGNUP_REQUIRES_APPROVAL: String(service.signupRequiresApproval),
+      SIGNING_PROVIDER: service.signing.providers.join(','),
+      ...(service.operatorEmail ? { OPERATOR_EMAIL: service.operatorEmail } : {}),
+      ...(costRoleArn ? { COST_EXPLORER_ROLE_ARN: costRoleArn } : {}),
+      ...(kept.powerRoles ? { ENVIRONMENT_POWER_ROLES: kept.powerRoles } : {}),
+      // The Hosting cost page reads this environment's own power state directly (ADR 0063).
+      ...(config.hibernate ? { POWER_ENVIRONMENT: config.name } : {}),
+      // Connection credentials (T-007, T-147): organizations' OAuth refresh tokens and connection tokens.
+      CREDENTIAL_STORE: 'secretsmanager',
+      CREDENTIAL_STORE_PREFIX: `pactlab/${config.name}/credentials`,
+      CREDENTIAL_STORE_KMS_KEY_ID: dataKey.keyArn,
+      EMAIL_CONFIGURATION_SET: kept.mail.configurationSet,
+      EMAIL_EVENTS_TOPIC_ARN: kept.mail.topicArn,
+    };
+    const runtimePassword = ecs.Secret.fromSecretsManager(runtimeSecret, 'password');
+    const ownerFields = { DB_OWNER_USER: ecs.Secret.fromSecretsManager(ownerSecret, 'username'), DB_OWNER_PASSWORD: ecs.Secret.fromSecretsManager(ownerSecret, 'password') };
 
     // --- Task definitions.
     // Programs start with their own tsx, not through pnpm: pnpm checks and reinstalls dependencies
@@ -339,23 +442,7 @@ export class PactlabCompute extends Construct {
       image: serviceImage('api'),
       ...run('apps/api', 'src/main.ts'),
       environment: apiEnvironment,
-      secrets: {
-        DB_PASSWORD: runtimePassword,
-        AUTH_TOKEN_SECRET: ecs.Secret.fromSecretsManager(tokenSecret),
-        OPENAI_API_KEY: ecs.Secret.fromSecretsManager(openaiKey),
-        GOOGLE_API_KEY: ecs.Secret.fromSecretsManager(googleKey),
-        ANTHROPIC_API_KEY: ecs.Secret.fromSecretsManager(anthropicKey),
-        BOLDSIGN_API_KEY: ecs.Secret.fromSecretsManager(boldsignKey),
-        BOLDSIGN_WEBHOOK_SECRET: ecs.Secret.fromSecretsManager(boldsignWebhookSecret),
-        SIGNING_TEST_RECIPIENTS: ecs.Secret.fromSecretsManager(signingTestRecipients),
-        GOOGLE_OAUTH_CLIENT_ID: ecs.Secret.fromSecretsManager(googleOauthId),
-        GOOGLE_OAUTH_CLIENT_SECRET: ecs.Secret.fromSecretsManager(googleOauthSecret),
-        MICROSOFT_OAUTH_CLIENT_ID: ecs.Secret.fromSecretsManager(microsoftOauthId),
-        MICROSOFT_OAUTH_CLIENT_SECRET: ecs.Secret.fromSecretsManager(microsoftOauthSecret),
-        GOOGLE_PICKER_API_KEY: ecs.Secret.fromSecretsManager(googlePickerKey),
-        GOOGLE_PROJECT_NUMBER: ecs.Secret.fromSecretsManager(googleProjectNumber),
-        RENTCAST_API_KEY: ecs.Secret.fromSecretsManager(rentcastKey),
-      },
+      secrets: { DB_PASSWORD: runtimePassword, AUTH_TOKEN_SECRET: ecs.Secret.fromSecretsManager(tokenSecret), ...kept.apiSecrets },
       portMappings: [{ containerPort: 4000 }],
       logging: logging('api'),
     });
@@ -396,7 +483,7 @@ export class PactlabCompute extends Construct {
     });
 
     // --- Network: the load balancer is the only way in; web reaches nothing internal but the API through it.
-    const { shared } = props;
+    const { shared } = net;
     let albSecurityGroup: ec2.ISecurityGroup;
     if (shared) {
       albSecurityGroup = shared.loadBalancerSecurityGroup;
@@ -408,25 +495,26 @@ export class PactlabCompute extends Construct {
     }
     const webSecurityGroup = new ec2.SecurityGroup(this, 'WebSecurityGroup', { vpc, description: 'Pactlab web tasks' });
     webSecurityGroup.addIngressRule(albSecurityGroup, ec2.Port.tcp(3000), 'load balancer to web');
-    props.appSecurityGroup.addIngressRule(albSecurityGroup, ec2.Port.tcp(4000), 'load balancer to api');
+    net.appSecurityGroup.addIngressRule(albSecurityGroup, ec2.Port.tcp(4000), 'load balancer to api');
 
     let https: elbv2.ApplicationListener;
+    let loadBalancer: elbv2.ApplicationLoadBalancer;
     if (shared) {
       // The shared listener carries this host's certificate (the base stack).
-      this.loadBalancer = shared.loadBalancer;
+      loadBalancer = shared.loadBalancer;
       https = shared.httpsListener;
     } else {
-      this.loadBalancer = new elbv2.ApplicationLoadBalancer(this, 'LoadBalancer', {
+      loadBalancer = new elbv2.ApplicationLoadBalancer(this, 'LoadBalancer', {
         vpc,
         internetFacing: true,
         securityGroup: albSecurityGroup,
         vpcSubnets: { subnetType: ec2.SubnetType.PUBLIC },
         dropInvalidHeaderFields: true,
       });
-      // DNS-validated: the deploy waits until the CNAME (shown in ACM) is added at the registrar.
-      const certificate = new acm.Certificate(this, 'Certificate', { domainName: service.domain, validation: acm.CertificateValidation.fromDns() });
-      this.loadBalancer.addListener('Http', { port: 80, defaultAction: elbv2.ListenerAction.redirect({ protocol: 'HTTPS', port: '443', permanent: true }) });
-      https = this.loadBalancer.addListener('Https', { port: 443, certificates: [certificate], sslPolicy: elbv2.SslPolicy.RECOMMENDED_TLS, open: false });
+      if (!this.certificate) throw new Error('An environment with its own load balancer has its own certificate');
+      const certificate = this.certificate;
+      loadBalancer.addListener('Http', { port: 80, defaultAction: elbv2.ListenerAction.redirect({ protocol: 'HTTPS', port: '443', permanent: true }) });
+      https = loadBalancer.addListener('Https', { port: 443, certificates: [certificate], sslPolicy: elbv2.SslPolicy.RECOMMENDED_TLS, open: false });
     }
 
     const appSubnets = { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS };
@@ -439,23 +527,23 @@ export class PactlabCompute extends Construct {
         schedule: events.Schedule.rate(Duration.minutes(15)),
         targets: [
           new eventTargets.EcsTask({
-            cluster: this.cluster,
+            cluster: cluster,
             taskDefinition: seedTask,
             subnetSelection: appSubnets,
-            securityGroups: [props.appSecurityGroup],
+            securityGroups: [net.appSecurityGroup],
             containerOverrides: [{ containerName: 'seed', command: ['./node_modules/.bin/tsx', 'src/ops/demo-pool.ts', 'sweep'] }],
           }),
         ],
       });
     }
-    const serviceProps = { cluster: this.cluster, vpcSubnets: appSubnets, circuitBreaker: { enable: true, rollback: true }, minHealthyPercent: 100, maxHealthyPercent: 200 };
+    const serviceProps = { cluster: cluster, vpcSubnets: appSubnets, circuitBreaker: { enable: true, rollback: true }, minHealthyPercent: 100, maxHealthyPercent: 200 };
     const web = new ecs.FargateService(this, 'WebService', { ...serviceProps, taskDefinition: webTask, desiredCount: desired(service.web), securityGroups: [webSecurityGroup] });
-    const api = new ecs.FargateService(this, 'ApiService', { ...serviceProps, taskDefinition: apiTask, desiredCount: desired(service.api), securityGroups: [props.appSecurityGroup] });
+    const api = new ecs.FargateService(this, 'ApiService', { ...serviceProps, taskDefinition: apiTask, desiredCount: desired(service.api), securityGroups: [net.appSecurityGroup] });
     // The worker serves no traffic and its jobs wait in Redis, so in fast rollout the old task stops before
     // the new one starts, instead of both running until ECS sees the new one stable. ECS allows that only
     // without Availability Zone rebalancing (which needs room above 100%); one worker task has nothing to rebalance.
     const workerRollout = fast ? { minHealthyPercent: 0, maxHealthyPercent: 100, availabilityZoneRebalancing: ecs.AvailabilityZoneRebalancing.DISABLED } : {};
-    const worker = new ecs.FargateService(this, 'WorkerService', { ...serviceProps, ...workerRollout, taskDefinition: workerTask, desiredCount: desired(service.worker), securityGroups: [props.appSecurityGroup] });
+    const worker = new ecs.FargateService(this, 'WorkerService', { ...serviceProps, ...workerRollout, taskDefinition: workerTask, desiredCount: desired(service.worker), securityGroups: [net.appSecurityGroup] });
     if (fast) {
       // The deploy moves the worker itself (scripts/roll-worker.sh), alongside the stack update, so CloudFormation
       // does not wait minutes for ECS to call it steady. The service names its task family ("latest active
@@ -464,8 +552,7 @@ export class PactlabCompute extends Construct {
       cfnWorker.addPropertyOverride('TaskDefinition', workerTask.family);
       cfnWorker.addDependency(workerTask.node.defaultChild as ecs.CfnTaskDefinition);
     }
-    this.httpsListener = https;
-    this.services = [
+    const services = [
       { service: web, desiredCount: service.web.desiredCount },
       { service: api, desiredCount: service.api.desiredCount },
       { service: worker, desiredCount: service.worker.desiredCount },
@@ -504,17 +591,15 @@ export class PactlabCompute extends Construct {
       https.addTargetGroups('Web', { targetGroups: [webTargets] });
       https.addTargetGroups('Api', { priority: 10, conditions: [apiPaths], targetGroups: [apiTargets] });
     }
-    this.targetGroups = { web: webTargets, api: apiTargets };
-    this.ruleScope = shared ? { host: service.domain, priorityBase: shared.priorityBase } : null;
 
     // --- What the deploy workflow and the operator need (no secrets).
     const outputs: Record<string, string> = {
-      ClusterName: this.cluster.clusterName,
-      LoadBalancerDns: this.loadBalancer.loadBalancerDnsName,
+      ClusterName: cluster.clusterName,
+      LoadBalancerDns: loadBalancer.loadBalancerDnsName,
       MigrateTaskDefinition: migrateTask.family,
       SeedTaskDefinition: seedTask.family,
       AppSubnets: vpc.selectSubnets(appSubnets).subnetIds.join(','),
-      AppTaskSecurityGroupId: props.appSecurityGroup.securityGroupId,
+      AppTaskSecurityGroupId: net.appSecurityGroup.securityGroupId,
       Origin: origin,
       ServiceImageTag: firstDeploy ? 'none' : props.serviceImageTag,
       ReleaseImageTag: props.imageTag,
@@ -530,11 +615,6 @@ export class PactlabCompute extends Construct {
     };
     // Stack-level outputs with fixed names, read by the deploy workflow.
     for (const [name, value] of Object.entries(outputs)) new CfnOutput(stack, name, { value });
-    identity?.dkimRecords.forEach((record, index) => new CfnOutput(stack, `SesDkimRecord${index + 1}`, { value: `${record.name} CNAME ${record.value}` }));
-    if (identity) {
-      // The two records the MAIL FROM domain needs (the same in every account of this region).
-      new CfnOutput(stack, 'SesMailFromMx', { value: `${mailFromDomain} MX 10 feedback-smtp.${stack.region}.amazonses.com` });
-      new CfnOutput(stack, 'SesMailFromSpf', { value: `${mailFromDomain} TXT "v=spf1 include:amazonses.com ~all"` });
-    }
+    return { cluster, loadBalancer, httpsListener: https, targetGroups: { web: webTargets, api: apiTargets }, services, ruleScope: shared ? { host: service.domain, priorityBase: shared.priorityBase } : null };
   }
 }

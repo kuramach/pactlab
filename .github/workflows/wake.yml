@@ -1,19 +1,21 @@
 name: wake
 
-# Wakes a paused environment (dev, qa and stage pause after an hour idle; ADR 0019).
-# The wake page at app.<env>.pactlab.ai does the same with its button, from any browser.
+# Wakes dev, qa or stage (ADR 0019, ADR 0063). Paused (after an idle hour): the quick wake, about 5–8 minutes.
+# Hibernated (after 3 idle hours): dispatches env-power.yml to rebuild it from its snapshot, about 30–40 minutes.
+# The page at app.<env>.pactlab.ai does the same with its button, from any browser. Live is always on.
 on:
   workflow_dispatch:
     inputs:
       environment:
         description: Environment to wake
         type: choice
-        options: [dev, qa]
+        options: [dev, qa, stage]
         required: true
 
 permissions:
   id-token: write
   contents: read
+  actions: write
 
 env:
   AWS_REGION: us-east-2
@@ -29,4 +31,16 @@ jobs:
           role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
           role-session-name: wake-${{ inputs.environment }}-${{ github.run_id }}
           aws-region: ${{ env.AWS_REGION }}
-      - run: scripts/wake-environment.sh "${{ inputs.environment }}"
+      - name: Wake
+        env:
+          ENV_NAME: ${{ inputs.environment }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          POWER=$(aws ssm get-parameter --name "/pactlab/${ENV_NAME}/power" --query Parameter.Value --output text 2>/dev/null || echo none)
+          case "$POWER" in
+            hibernated)
+              gh workflow run env-power.yml --ref main -f environment="$ENV_NAME" -f action=wake
+              echo "${ENV_NAME} is hibernated: rebuilding it from its snapshot (about 30–40 minutes; see the env-power run)." | tee -a "$GITHUB_STEP_SUMMARY" ;;
+            rebuilding | hibernating) echo "${ENV_NAME} is ${POWER}; see the env-power run." | tee -a "$GITHUB_STEP_SUMMARY" ;;
+            *) scripts/wake-environment.sh "$ENV_NAME" ;;
+          esac
