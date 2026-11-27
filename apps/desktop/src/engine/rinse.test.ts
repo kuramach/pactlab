@@ -5,7 +5,7 @@ import { parseRinseManifest, RINSE_MANIFEST_FILE, rinseManifestSchema } from '@p
 import { matchRinsedFile, readRinsedFolder, type DocumentSourceAdapter, type SourceFile } from '@pactlab/connectors';
 import { afterEach, describe, expect, it } from 'vitest';
 import { AiQueue, OFFLINE_AI } from './ai-queue';
-import { ConversionError, LinesConverter, LocalToolConverter } from './converter';
+import { bundledTools, ConversionError, LinesConverter, LocalToolConverter } from './converter';
 import { goodLease, messySet, OPERATING_SCAN_MISREAD, OPERATING_SCAN_TRUE, scriptedAi, sha, docx } from './fixture-set';
 import { FolderDestination, readFolder } from './folders';
 import { readPdfText } from './pdf';
@@ -175,5 +175,13 @@ describe('offline', () => {
 describe('the manifest is untrusted on the pact side', () => {
   it('refuses a tampered manifest', () => {
     expect(parseRinseManifest(new TextEncoder().encode('[]')).problem).toBe('INVALID');
+  });
+});
+
+describe('bundled converters (T-178b)', () => {
+  it('finds LibreOffice and Tesseract under the app’s resources on every platform', () => {
+    expect(bundledTools('/R', 'darwin').soffice).toBe('/R/vendor/libreoffice/LibreOffice.app/Contents/MacOS/soffice');
+    expect(bundledTools('C:/R', 'win32')).toMatchObject({ soffice: 'C:/R/vendor/libreoffice/program/soffice.exe', tesseract: 'C:/R/vendor/tesseract/bin/tesseract.exe' });
+    expect(bundledTools('/R', 'linux').tessdata).toBe('/R/vendor/tesseract/tessdata');
   });
 });

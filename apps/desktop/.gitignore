@@ -1,3 +1,7 @@
 dist/
 src-tauri/target/
 src-tauri/gen/
+src-tauri/vendor/
+src-tauri/binaries/
+src-tauri/resources/
+src-tauri/release.json

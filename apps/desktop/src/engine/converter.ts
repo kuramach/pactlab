@@ -91,3 +91,15 @@ export class LocalToolConverter implements Converter {
     }
   }
 }
+
+/**
+ * Where the converters bundled into the installer live (T-178b, Kumar's decision 3): LibreOffice
+ * (headless, office to PDF) and Tesseract (OCR), under the app's resources, fetched at build time and
+ * pinned by SHA-256 (`apps/desktop/converters.lock.json`). A build without them fails closed with
+ * TOOL_MISSING, as before.
+ */
+export function bundledTools(resources: string, os: NodeJS.Platform = process.platform): { soffice: string; tesseract: string; tessdata: string } {
+  const exe = os === 'win32' ? '.exe' : '';
+  const soffice = os === 'darwin' ? `${resources}/vendor/libreoffice/LibreOffice.app/Contents/MacOS/soffice` : `${resources}/vendor/libreoffice/program/soffice${exe}`;
+  return { soffice, tesseract: `${resources}/vendor/tesseract/bin/tesseract${exe}`, tessdata: `${resources}/vendor/tesseract/tessdata` };
+}
