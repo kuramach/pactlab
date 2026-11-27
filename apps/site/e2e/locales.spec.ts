@@ -15,6 +15,8 @@ test.describe('one page per language @smoke', () => {
     { path: '/', lang: 'en', heading: 'The machine does the diligence. You make the call.' },
     { path: '/de/how-it-works/', lang: 'de', heading: 'Evidenz rein. Belastbare Konditionen raus.' },
     { path: '/fr/faq/', lang: 'fr', heading: 'Les questions sur Pactlab, selon qui les pose' },
+    { path: '/rinse/', lang: 'en', heading: 'Rinse your deal documents clean before they go in the room.' },
+    { path: '/de/rinse/', lang: 'de', heading: 'Bereinigen Sie Ihre Deal-Unterlagen, bevor sie in den Raum gehen.' },
     { path: '/ja/industries/software-saas/', lang: 'ja', heading: 'マルチプルを払う前に、そのARRが本物かを確かめる。' },
   ]) {
     test(`${lang}: ${path}`, async ({ page }) => {
