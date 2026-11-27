@@ -14,6 +14,11 @@ type FindingView = {
 };
 
 /** Line kinds a person confirms for the demo P&L: revenue lines, "cost of" lines, the rest operating costs. */
+type PackMetricsBody = {
+  calculator: string;
+  metrics: { key: string; value: string | null; history?: { period: string; value: string | null }[] }[];
+  history?: { years: string[]; rows: { key: string; values: (string | null)[] }[]; coverage: { key: string; summary: string }[]; asks: { needs: string[]; note: string }[] };
+};
 const lineKind = (account: string) => (/revenue/i.test(account) ? 'REVENUE' : /^cost of/i.test(account) ? 'COGS' : 'OPEX');
 
 /**
@@ -41,7 +46,7 @@ describe.each(ACCEPTANCE_CURRENCIES)('fintech pack acceptance (%s)', { timeout: 
       dataClass: 'HR',
     });
     expect(hr.status).toBe(201);
-    // The P&L by year (FY2023–FY2025), years across the columns, line kinds confirmed by a person.
+    // The P&L by year (FY2021–FY2025, T-184), years across the columns, line kinds confirmed by a person.
     const csv = readFileSync(join(deal.folder, 'pnl.csv'), 'utf8');
     const uploaded = await deal.upload(`/v1/deals/${deal.dealId}/uploads?target=FINANCIAL_PNL&system=pactlab_standard&fileName=pnl.csv`, 'lead', csv);
     expect(uploaded.status, JSON.stringify(uploaded.body)).toBe(201);
@@ -49,7 +54,7 @@ describe.each(ACCEPTANCE_CURRENCIES)('fintech pack acceptance (%s)', { timeout: 
     const accounts = csv.trim().split('\n').slice(1).map((row) => row.split(',')[0] ?? '');
     const mapping = { ...(uploaded.body['suggestedMapping'] as Body), lineKinds: Object.fromEntries(accounts.map((account) => [account, lineKind(account)])) };
     const imported = await deal.call('POST', `/v1/deals/${deal.dealId}/uploads/${pnlUploadId}/import`, 'lead', { mapping });
-    expect(imported.body, JSON.stringify(imported.body)).toMatchObject({ syncRun: { status: 'SUCCEEDED', recordsCreated: accounts.length * 3 } });
+    expect(imported.body, JSON.stringify(imported.body)).toMatchObject({ syncRun: { status: 'SUCCEEDED', recordsCreated: accounts.length * 5 } });
   }, 180_000);
   afterAll(async () => deal?.close());
 
@@ -58,7 +63,7 @@ describe.each(ACCEPTANCE_CURRENCIES)('fintech pack acceptance (%s)', { timeout: 
     expect(run.status, JSON.stringify(run.body)).toBe(200);
     expect(run.body).toMatchObject({ pack: 'FINTECH', unresolvedQuotes: 0 });
     const promised = Number(/You should see exactly these (\d+) findings/.exec(deal.readme)?.[1]);
-    expect(promised).toBe(11);
+    expect(promised).toBe(12);
     expect(Number(run.body['created']) + Number(run.body['existing'])).toBe(promised);
     expect((await runRules()).body).toMatchObject({ created: 0, existing: promised });
 
@@ -103,11 +108,15 @@ describe.each(ACCEPTANCE_CURRENCIES)('fintech pack acceptance (%s)', { timeout: 
     expect(chargebacks?.evidence.find((link) => link.documentCitation)?.documentCitation).toMatchObject({ pageNumber: 3 });
     expect(chargebacks?.evidence.find((link) => link.documentCitation)?.documentCitation?.quote).toMatch(/^8\.2 The Program Manager shall keep the chargeback ratio/);
 
-    // (d) Fraud losses outpace revenue across FY2023–FY2025, cited to the imported P&L rows.
-    const fraud = byTitle['Fraud losses growing faster than revenue, 2023–2025'];
+    // (d) Fraud losses outpace revenue across FY2021–FY2025, cited to the imported P&L rows.
+    const fraud = byTitle['Fraud losses growing faster than revenue, 2021–2025'];
     expect(fraud).toMatchObject({ domain: 'FINANCIAL', direction: -1 });
-    expect(fraud?.evidence.filter((link) => link.evidenceItemId)).toHaveLength(3);
-    expect(byTitle['P&L trend, 2023–2025']).toMatchObject({ direction: 0 });
+    expect(fraud?.evidence.filter((link) => link.evidenceItemId)).toHaveLength(5);
+    expect(byTitle['P&L trend, 2021–2025']).toMatchObject({ direction: 0 });
+    // (e) Five years of the processor export (T-184): the take rate falls every year, cited to the export's rows.
+    const take = byTitle['Effective take rate falling every year, FY2021–FY2025'];
+    expect(take).toMatchObject({ domain: 'FINANCIAL', status: 'DRAFT', direction: -1, pricedRisk: null });
+    expect(take?.evidence.filter((link) => link.evidenceItemId).length).toBeGreaterThan(0);
     // The HR look-alike was never read.
     expect(Object.keys(byTitle).filter((title) => title.startsWith('Partner bank'))).toHaveLength(1);
   });
@@ -121,12 +130,25 @@ describe.each(ACCEPTANCE_CURRENCIES)('fintech pack acceptance (%s)', { timeout: 
     expect(body.licences.filter((licence) => licence.state === 'LAPSED')).toHaveLength(1);
     expect(body.compliance.map((entry) => [entry.kind, entry.present])).toEqual([['PCI_ATTESTATION', true], ['AML_PROGRAM', true], ['REGULATORY_EXAM', true]]);
     expect(body.thresholds.map((entry) => [entry.measure, entry.breached])).toEqual([['CHARGEBACK', true], ['FRAUD', false]]);
-    expect(body.trend.years.map((year) => [year.year, year.files.map((file) => file.fileName)])).toEqual([['2023', ['pnl.csv']], ['2024', ['pnl.csv']], ['2025', ['pnl.csv']]]);
-    expect(body.reconciliation.years).toEqual([expect.objectContaining({ year: '2025', reconciles: true })]);
+    expect(body.trend.years.map((year) => [year.year, year.files.map((file) => file.fileName)])).toEqual(['2021', '2022', '2023', '2024', '2025'].map((year) => [year, ['pnl.csv']]));
+    // Every calendar year of the export reconciles to the P&L's payments revenue.
+    expect(body.reconciliation.years.map((year) => [year.year, year.reconciles])).toEqual(['2021', '2022', '2023', '2024', '2025'].map((year) => [year, true]));
     // The pack's own figures on Finances.
-    const metrics = (await deal.call('GET', `/v1/deals/${deal.dealId}/metrics/pack`, 'lead')).body as { calculator: string; metrics: { key: string; value: string | null }[] };
+    const metrics = (await deal.call('GET', `/v1/deals/${deal.dealId}/metrics/pack`, 'lead')).body as PackMetricsBody;
     expect(metrics.calculator).toBe('fintech-payments');
     expect(metrics.metrics.find((metric) => metric.key === 'licences_lapsed')?.value).toBe('1');
+    // Five years side by side (T-184), hand-computed from the export: Σ net revenue ÷ Σ volume for each calendar year.
+    const rows = readFileSync(join(deal.folder, 'processor-volume.csv'), 'utf8').trim().split('\n').slice(1).map((line) => line.split(','));
+    const takeOf = (year: string) => {
+      const inYear = rows.filter((row) => row[0]?.startsWith(year));
+      const sum = (index: number) => inYear.reduce((total, row) => total + BigInt(Math.round(Number(row[index]) * 100)), 0n);
+      return (Math.round(Number((sum(4) * 100_000_000n) / sum(2)) / 100) / 1_000_000).toFixed(6);
+    };
+    expect(metrics.history?.years).toEqual(['FY2021', 'FY2022', 'FY2023', 'FY2024', 'FY2025']);
+    expect(metrics.history?.rows.find((row) => row.key === 'take_rate')?.values).toEqual(['2021', '2022', '2023', '2024', '2025'].map(takeOf));
+    expect(metrics.history?.coverage.map((entry) => entry.summary)).toEqual(['FY2021–FY2025 (5 of 5 years)', 'FY2021–FY2025 (5 of 5 years)']);
+    expect(metrics.history?.asks).toEqual([]);
+    expect(metrics.metrics.find((metric) => metric.key === 'take_rate')?.history?.map((point) => point.period)).toEqual(['FY2021', 'FY2022', 'FY2023', 'FY2024', 'FY2025']);
     // The buyer's own side only; another tenant sees nothing.
     expect((await deal.call('GET', `/v1/deals/${deal.dealId}/fintech`, 'target_contributor')).status).toBe(403);
     expect((await deal.call('GET', `/v1/deals/${deal.dealId}/fintech`, 'other')).status).toBe(404);
@@ -178,6 +200,10 @@ describe.each(ACCEPTANCE_CURRENCIES)('fintech pack acceptance (%s)', { timeout: 
     const titles = (await findings()).map((finding) => finding.title);
     expect(titles).toContain('P&L for 2025: one year imported');
     expect(titles.filter((title) => title.startsWith('Fraud losses growing faster'))).toHaveLength(1);
+    // Partial history (T-184): one year of income and expenses states its coverage and asks the seller for the rest.
+    const partial = (await deal.call('GET', `/v1/deals/${deal.dealId}/metrics/pack`, 'lead')).body as PackMetricsBody;
+    expect(partial.history?.coverage.find((entry) => entry.key === 'operating')?.summary).toBe('FY2025 (1 of 5 years): ask the seller for FY2021–FY2024 income statements');
+    expect(partial.history?.asks).toEqual([{ needs: ['INCOME_STATEMENT'], note: 'Ask the seller for FY2021–FY2024 income statements.' }]);
   });
 
   it('is refused to a target contributor and invisible to another tenant', async () => {

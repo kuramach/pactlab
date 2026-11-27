@@ -8,7 +8,7 @@ import { AskSellerButton } from './ask-seller';
 import type { MarketRentsOffer } from './market-rents';
 import { MarketRentsButton } from './market-rents-button';
 
-/** The figures whose five years show as a History strip on Home (T-183): NOI, occupancy and average rent. */
+/** Multifamily's figures whose five years show as a History strip on Home (T-183); other packs mark theirs (`historyStrip`, T-184). */
 export const HISTORY_STRIPS: ReadonlySet<string> = new Set(['noi_latest', 'occupancy_average', 'average_rent']);
 
 /** A figure that waits on market rents (T-158): the card offers the retrieval, never an ask of the seller. */
@@ -213,7 +213,7 @@ export function PropertyMetricsCard({
                     <MetricSource dealId={dealId} metric={metric} />
                   </>
                 )}
-                {HISTORY_STRIPS.has(metric.key) ? <HistoryStrip metric={metric} currency={report.currency} /> : null}
+                {HISTORY_STRIPS.has(metric.key) || metric.historyStrip ? <HistoryStrip metric={metric} currency={report.currency} /> : null}
               </div>
             );
           })}

@@ -2,6 +2,9 @@ import { D } from '../../metrics/decimal';
 import type { MetricCalculator } from '../calculators';
 import type { PackMetric, PackMetricsInput, PackMetricsReport } from '../metrics-types';
 import { monthName } from '../common';
+import { packHistory, withHistory } from '../history';
+import { PNL_LINE } from '../pnl-trend';
+import { FINTECH_HISTORY } from './rules';
 import { ALERT, FINTECH_PAYMENTS_VERSION, fintechAnalysisDate, LICENCE, licenceRows, licenceStatuses, LOAN, PROCESSOR_MONTH, processorMonths, quarterlyRates, volumeModel } from './payments';
 
 type Decimal = InstanceType<typeof D>;
@@ -63,12 +66,21 @@ export function fintechMetrics(input: PackMetricsInput): PackMetricsReport {
     { key: 'loan_loss_rate', label: 'Charged-off share of originated principal', unit: 'RATIO', formula: 'Σ principal of charged-off loans ÷ Σ originated principal, loan tape', sourceCount: loans.length, ...(originated.gt(0) ? { value: ratio(chargedOff.div(originated)) } : missing('loan tape', ['FINTECH_LOAN_TAPE'])) },
     { key: 'aml_unreviewed', label: 'Closed alerts without review evidence', unit: 'RATIO', formula: 'Closed alerts with no review evidence ÷ closed alerts', sourceCount: closed.length, ...(closed.length ? { value: ratio(new D(unreviewed.length).div(closed.length)) } : missing('AML alerts', ['FINTECH_AML_ALERT'])) },
   ];
-  return { calculator: 'fintech-payments', version: FINTECH_PAYMENTS_VERSION, currency: input.currency, metrics };
+  // Five years (T-184): the P&L and the export by year; TPV, take rate and loss rate carry a History strip.
+  const history = packHistory(FINTECH_HISTORY, input.evidence);
+  const strips: Readonly<Record<string, string>> = { tpv: 'tpv', take_rate: 'take_rate' };
+  return {
+    calculator: 'fintech-payments',
+    version: FINTECH_PAYMENTS_VERSION,
+    currency: input.currency,
+    metrics: metrics.map((metric) => (strips[metric.key] ? withHistory(metric, history, strips[metric.key] as string) : metric)),
+    history: history.table,
+  };
 }
 
 export const FINTECH_METRICS_CALCULATOR: MetricCalculator<PackMetricsInput, PackMetricsReport> = {
   id: 'fintech-payments',
   version: FINTECH_PAYMENTS_VERSION,
-  evidenceTypes: [PROCESSOR_MONTH, LICENCE, LOAN, ALERT],
+  evidenceTypes: [PROCESSOR_MONTH, LICENCE, LOAN, ALERT, PNL_LINE],
   compute: fintechMetrics,
 };

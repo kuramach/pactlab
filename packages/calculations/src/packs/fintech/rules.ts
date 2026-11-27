@@ -2,6 +2,7 @@ import { D, parseDecimal, sum } from '../../metrics/decimal';
 import { pnlPeriods, pnlForPeriod } from '../../pnl/pnl';
 import { pnlLinesFromRecords, type KeyExpense } from '../../pnl/trend';
 import { monthName } from '../common';
+import { driverTrendRule, type DriverSpec, type PackHistorySpec } from '../history';
 import { PNL_LINE, pnlTrendRules } from '../pnl-trend';
 import { findMatch, findSentence, MAX_CITED, sentences, type PackRule, type PackRuleEvidence, type PackRuleProposal, type PackRuleQuote } from '../rule-types';
 import {
@@ -522,6 +523,63 @@ export const FINTECH_KEY_EXPENSES: readonly KeyExpense[] = [
 
 export const [FINTECH_PNL_TREND, FINTECH_PNL_MARGIN_DRIFT, FINTECH_PNL_EXPENSE_OUTPACING] = pnlTrendRules('fintech', FINTECH_KEY_EXPENSES) as [PackRule, PackRule, PackRule];
 
+/**
+ * Five years of history (T-184, ADR 0057): the P&L by year and the processor export's volume, take rate and
+ * loss rates by calendar year. The export is a period series already, so more months is more history.
+ */
+export const FINTECH_DRIVERS = {
+  tpv: { key: 'tpv', label: 'Processed volume (TPV)', unit: 'MONEY', evidenceType: PROCESSOR_MONTH, mode: 'SUM', numerator: ['gross_volume'], formula: 'Σ processed volume in the year, every processor' },
+  takeRate: { key: 'take_rate', label: 'Effective take rate', unit: 'RATIO', evidenceType: PROCESSOR_MONTH, mode: 'RATIO', numerator: ['net_revenue'], denominator: ['gross_volume'], scale: 6, formula: 'Σ net revenue ÷ Σ processed volume in the year' },
+  lossRate: {
+    key: 'loss_rate',
+    label: 'Loss rate (chargebacks and fraud)',
+    unit: 'RATIO',
+    evidenceType: PROCESSOR_MONTH,
+    mode: 'RATIO',
+    numerator: ['chargeback_amount', 'fraud_losses'],
+    denominator: ['gross_volume'],
+    scale: 6,
+    formula: '(Σ chargeback amounts + Σ fraud losses) ÷ Σ processed volume in the year',
+  },
+} as const satisfies Record<string, DriverSpec>;
+
+export const FINTECH_HISTORY: PackHistorySpec = {
+  drivers: [FINTECH_DRIVERS.tpv, FINTECH_DRIVERS.takeRate, FINTECH_DRIVERS.lossRate],
+  keyExpenses: FINTECH_KEY_EXPENSES,
+  driverImport: 'FINTECH_PROCESSOR_VOLUME',
+  driverLabel: 'Processor volume',
+  driverWhat: 'processor volume history',
+};
+
+/** Take rate compressing every year by this much or more, first year to last (0.10 points). */
+export const TAKE_RATE_COMPRESSION_POINTS = '0.001';
+/** Loss rate climbing every year by this much or more, first year to last (0.05 points of volume). */
+export const LOSS_RATE_CLIMB_POINTS = '0.0005';
+
+export const FINTECH_TAKE_RATE_TREND = driverTrendRule(
+  {
+    id: 'fintech-take-rate-trend',
+    driver: FINTECH_DRIVERS.takeRate,
+    adverse: 'DOWN',
+    threshold: TAKE_RATE_COMPRESSION_POINTS,
+    domain: 'FINANCIAL',
+    advice: 'Net revenue is growing slower than volume: check pricing concessions to large merchants and the mix by processor before projecting today\'s take rate forward.',
+  },
+  FINTECH_HISTORY,
+);
+
+export const FINTECH_LOSS_RATE_TREND = driverTrendRule(
+  {
+    id: 'fintech-loss-rate-trend',
+    driver: FINTECH_DRIVERS.lossRate,
+    adverse: 'UP',
+    threshold: LOSS_RATE_CLIMB_POINTS,
+    domain: 'REGULATORY',
+    advice: 'Losses are claiming a growing share of volume: check underwriting of new merchants and the sponsor bank\'s monitoring thresholds.',
+  },
+  FINTECH_HISTORY,
+);
+
 export const FINTECH_RULES: readonly PackRule[] = [
   FINTECH_CREDIT_LOSS,
   FINTECH_AML_UNREVIEWED,
@@ -534,4 +592,6 @@ export const FINTECH_RULES: readonly PackRule[] = [
   FINTECH_PNL_TREND,
   FINTECH_PNL_MARGIN_DRIFT,
   FINTECH_PNL_EXPENSE_OUTPACING,
+  FINTECH_TAKE_RATE_TREND,
+  FINTECH_LOSS_RATE_TREND,
 ];

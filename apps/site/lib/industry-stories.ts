@@ -86,6 +86,7 @@ export const INDUSTRY_STORIES: Readonly<Record<string, IndustryStory>> = {
       { title: 'Deck TPV double-counts one processor month', severity: 'High', evidence: 'The deck’s figure against the processor exports', term: 'A haircut on the volume the price assumes' },
       { title: 'State money-transmitter licence lapsed four months ago', severity: 'High', evidence: 'The licence’s stated expiry against the register', term: 'Reinstatement as a closing condition, or an escrow' },
       { title: 'Chargeback rate over the sponsor agreement’s threshold', severity: 'High', evidence: 'Quarterly rates from the exports against the clause', term: 'A reserve holdback' },
+      { title: 'Take rate falling every year for five years', severity: 'Medium', evidence: 'Net revenue ÷ volume by year from the processor exports', term: 'A lower take rate in the scenarios, not today’s' },
     ],
     deliverables: [
       { icon: 'ChartLine', title: 'Volume and take rate you can trace', body: 'TPV, transactions and take rate recomputed from the exports, with the rows behind each figure.' },
@@ -95,6 +96,7 @@ export const INDUSTRY_STORIES: Readonly<Record<string, IndustryStory>> = {
     faq: [
       { q: 'Does the software diligence still run on a fintech target?', a: 'Yes. Fintech targets are technology companies, so revenue, code, delivery, security and contract review run as they do for any software deal. The fintech pack adds the payments, licence, loss-rate and compliance checks on top.' },
       { q: 'What evidence does the fintech pack read?', a: 'Processor or bank settlement exports, the licence and sponsor register, the loan tape, AML alerts and the P&L by year, plus the deck, the licences, the sponsor agreement and compliance documents. Every finding cites the rows or the page it rests on.' },
+      { q: 'How much history does it read?', a: 'Up to five years of the P&L and of the processor exports, plus the latest twelve months. Less is accepted: each figure says how many years it rests on, and a missing year is asked of the seller, never estimated. It flags a take rate falling, or a loss rate rising, every year.' },
       { q: 'Does it tell me whether a licence is required, or whether a programme is compliant?', a: 'No. It reports licence status and dates as the register and the documents state them, and compliance evidence as present or absent. Whether a licence is needed, and what a lapse means, is for your counsel.' },
       { q: 'Where do the thresholds come from?', a: 'Only from the documents themselves, such as the sponsor agreement’s monitoring clause. With no stated threshold, rates are shown as computed and nothing is compared.' },
     ],

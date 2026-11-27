@@ -45,6 +45,7 @@ export const industries: Catalog['industries'] = {
       { title: 'Un registre des affirmations', body: 'Les affirmations sur le TPV, la croissance, le taux de commission et la rétention, marquées vérifiées, contredites ou non vérifiées au regard des preuves.' },
       { title: 'Agréments et accords de partenariat', body: 'Chacun avec son statut et son échéance, tirés du registre et des documents ; une expiration ou une échéance proche devient un constat.' },
       { title: 'Taux de pertes et preuves de conformité', body: 'Taux de rétrofacturation et de pertes pour fraude par trimestre face aux seuils stipulés ; preuves PCI, LCB-FT et d’inspection présentées comme présentes ou absentes.' },
+      { title: 'Cinq ans d’historique', body: 'Le compte de résultat, le volume, le take rate et le taux de pertes par année, avec le nombre d’années sur lequel repose chaque chiffre ; une année manquante est demandée au vendeur.' },
     ],
   },
   healthcare: {

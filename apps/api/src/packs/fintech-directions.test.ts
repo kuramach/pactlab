@@ -25,6 +25,10 @@ const SIGNALS: Readonly<Record<string, (key: string) => readonly [string, string
   'fintech-pnl-trend': () => [PNL_LINE_EVIDENCE_TYPE, 'trend'],
   'fintech-pnl-margin-drift': () => [PNL_LINE_EVIDENCE_TYPE, 'margin-drift'],
   'fintech-pnl-expense-outpacing': () => [PNL_LINE_EVIDENCE_TYPE, 'expense-outpacing'],
+  // Driver trends over five years (T-184): the direction map (packages/connectors) has no driver-trend signal yet,
+  // so these are checked by their own tests (−1, a drag a person prices); the map entry is T-184b's.
+  'fintech-take-rate-trend': () => null,
+  'fintech-loss-rate-trend': () => null,
 };
 
 describe('fintech rules and the valuation direction map (T-159)', () => {

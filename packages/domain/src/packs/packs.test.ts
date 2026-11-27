@@ -69,7 +69,9 @@ describe('pack registry', () => {
     expect(fintech.importTargets).toEqual(['BILLING_INVOICE_LINE', 'FINTECH_LOAN_TAPE', 'FINTECH_AML_ALERT', 'FINTECH_PROCESSOR_VOLUME', 'FINTECH_LICENCES']);
     // The T-058 rules stay, first and unchanged; the payments, licence, compliance and trend rules follow.
     expect(fintech.findingRules.slice(0, 3)).toEqual(['fintech-credit-loss', 'fintech-aml-unreviewed', 'fintech-partner-bank-coc']);
-    expect(fintech.findingRules).toHaveLength(11);
+    expect(fintech.findingRules).toHaveLength(13);
+    // Five years of history (T-184): the driver trends come last.
+    expect(fintech.findingRules.slice(-2)).toEqual(['fintech-take-rate-trend', 'fintech-loss-rate-trend']);
     expect(fintech.documentCategories).toEqual(['REGULATORY_LICENCE', 'SPONSOR_BANK_AGREEMENT', 'PCI_ATTESTATION', 'AML_PROGRAM', 'REGULATORY_EXAM']);
     for (const target of fintech.importTargets.slice(1)) expect(IMPORT_TARGET_DEFINITIONS[target].refusesPeopleColumns, target).toBe(true);
     expect(peopleColumnProblems(IMPORT_TARGET_DEFINITIONS.FINTECH_PROCESSOR_VOLUME, ['month', 'processor', 'gross_volume', 'transactions', 'net_revenue', 'chargeback_count'])).toEqual([]);
