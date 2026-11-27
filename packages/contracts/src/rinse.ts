@@ -168,3 +168,48 @@ export function parseRinseManifest(bytes: Uint8Array): { manifest: RinseManifest
   const parsed = rinseManifestSchema.safeParse(raw);
   return parsed.success ? { manifest: parsed.data, problem: null } : { manifest: null, problem: 'INVALID' };
 }
+
+/** The parts of a manifest entry the pact keeps as the document's provenance (T-178d): never metadata read from the content. */
+export function rinseProvenanceEntry(document: RinseManifestDocument) {
+  return { route: document.route, classification: document.classification, checks: document.checks, conversionLog: document.conversionLog, audit: document.audit, duplicateOf: document.duplicateOf };
+}
+export type RinseProvenanceEntry = ReturnType<typeof rinseProvenanceEntry>;
+
+/** A document's provenance from a rinsed set, as the pact shows it on the document and its citations. */
+export interface DocumentProvenanceView {
+  documentId: string;
+  set: { id: string; name: string; preparedBy: { name: string; organization: string }; readyAt: string; origin: 'SYNC' | 'ARCHIVE' };
+  role: 'CONVERTED' | 'AS_IS';
+  manifestDocumentId: string;
+  canonical: { path: string; sha256: string };
+  /** The seller's original, left at the source; null for a file carried as it is. */
+  original: { path: string; sha256: string; sizeBytes: number | null; mediaType: string | null } | null;
+  entry: RinseProvenanceEntry;
+  recordedAt: string;
+}
+
+/** A source discrepancy as stored on its set: the original does not foot. */
+export interface RinseSourceDiscrepancy {
+  manifestDocumentId: string;
+  /** The pact document of its canonical copy, when one came in. */
+  documentId: string | null;
+  title: string;
+  label: string;
+  page: number;
+  stated: string;
+  computed: string;
+}
+
+/** A rinsed set as it reached the pact: the gap notes and source discrepancies, with the drafts they became. */
+export interface RinseSetView {
+  id: string;
+  name: string;
+  pack: string;
+  preparedBy: { name: string; organization: string };
+  readyAt: string;
+  origin: 'SYNC' | 'ARCHIVE';
+  documents: number;
+  gaps: RinseManifestGap[];
+  sourceDiscrepancies: (RinseSourceDiscrepancy & { findingId: string | null })[];
+  recordedAt: string;
+}

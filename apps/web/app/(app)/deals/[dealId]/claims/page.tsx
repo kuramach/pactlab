@@ -8,7 +8,7 @@ import { isUuidParam } from '../../_lib/filters';
 import { OutcomeBanner } from '../../_lib/outcome';
 import { ApiState } from '../../_lib/states';
 import { createClaim, updateClaim } from './actions';
-import { CLAIM_VERDICT } from '../../_lib/seller-claims';
+import { CLAIM_VERDICT, HAND_SOURCED_HELP } from '../../_lib/seller-claims';
 
 export const dynamic = 'force-dynamic';
 
@@ -102,6 +102,11 @@ export default async function ClaimsPage({ params, searchParams }: { params: Pro
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge variant={STATUS_LOOK[claim.status].variant}>{STATUS_LOOK[claim.status].label}</Badge>
                     {claim.origin === 'SCREENING_RED_FLAG' ? <Badge>From screening</Badge> : null}
+                    {claim.origin === 'HAND_SOURCED' ? (
+                      <Badge variant="draft" title={HAND_SOURCED_HELP}>
+                        Hand-sourced
+                      </Badge>
+                    ) : null}
                     <CardTitle className="text-base">{claim.statement}</CardTitle>
                   </div>
                   <CardDescription>

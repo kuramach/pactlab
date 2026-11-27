@@ -69,11 +69,16 @@ export const updateClaimSchema = z.strictObject({
 export type CreateClaimInput = z.infer<typeof createClaimSchema>;
 export type UpdateClaimInput = z.infer<typeof updateClaimSchema>;
 
+export const CLAIM_ORIGINS = ['SCREENING_RED_FLAG', 'MANUAL', 'PACK_RULE', 'HAND_SOURCED'] as const;
+/** Claims a finding rests on that no document supports: entered by hand, and labelled as such wherever they are used. */
+export const isHandSourcedOrigin = (origin: string): boolean => origin === 'HAND_SOURCED';
+
 export interface ClaimView {
   id: string;
   statement: string;
   source: string | null;
-  origin: 'SCREENING_RED_FLAG' | 'MANUAL' | 'PACK_RULE';
+  /** HAND_SOURCED: entered by hand in Pactlab Rinse (T-178d) — the seller's word, never documentary evidence. */
+  origin: (typeof CLAIM_ORIGINS)[number];
   status: (typeof CLAIM_STATUSES)[number];
   rationale: string | null;
   evidenceItemIds: string[];

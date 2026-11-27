@@ -61,3 +61,12 @@ Per-deal pricing is the core unit, with subscriptions for repeat buyers. Every p
   - checks are rate-limited per address.
 - **Provider adapters:** `StripeBillingProvider` and `FixtureBillingProvider`. The fixture signs events with Stripe's own scheme. Production without keys uses an unconfigured provider that refuses everything.
 - **Runbook:** `docs/runbooks/billing.md`, including the go-live checklist.
+
+## Addendum: per-deal pricing is a fixed fee plus a size variable (T-177, Kumar, 2026-11-26)
+- **Supersedes** the single $2,500 Pact price and the "one pact price for every pack" line above, and the research guardrail against pricing as a percentage of deal value (`docs/pricing-research.md` §6 records why).
+- **The model:** a fixed fee per pact plus basis points on the deal's enterprise value in declining bands, capped. USD book at launch: $5,000 fixed; 5 bps on the first $25M, 2 bps to $100M, 1 bp above; variable capped at $50,000; pilot $5,000 flat. A $100M pact quotes $32,500 ($5,000 + $27,500).
+- **The basis:** the enterprise value declared when the pact is purchased; no post-hoc true-up.
+- **One book per market currency** (USD, EUR, GBP, JPY, INR), versioned and audited independently, each rounded in its own currency; the pact's currency selects the book. A new book may start from a suggested conversion of the USD book, shown with its rate and date, which Kumar edits and confirms; no book is ever derived by silent conversion.
+- **The engine** is deterministic and decimal-only (`packages/domain/src/pricing`): `quotePact` itemizes the fixed line and each band's line, rounded once per line so they foot; `liveBook` picks the version live at quote time; `priceCheckout` applies a partner (reseller) code and a promo code, the single better discount unless the promo is stackable. The book's shape and checks are `priceBookSchema` (`packages/contracts`).
+- **Not yet built** (see `tasks/blocked/T-177.md`): storing book versions and promo campaigns (a migration in `packages/db`), the admin pricing screen, quote-to-Stripe checkout, and the T-093 and T-087b interactions.
+

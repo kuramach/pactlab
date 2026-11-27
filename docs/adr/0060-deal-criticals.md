@@ -35,7 +35,7 @@
 10. **Who may.** Org owners and admins change the library and promote; the deal lead and analysts add, confirm and rate pact criticals; only the deal lead overrides or removes an override.
 
 ## Consequences
-- **Migration** `20270117000000_deal_criticals` is expand-only: two tables. Rollback: drop `critical_evaluations`, then `deal_criticals`.
+- **Migration** `20270118000000_deal_criticals` is expand-only: two tables. Rollback: drop `critical_evaluations`, then `deal_criticals`.
 - The multifamily history now carries each year's evidence ids (`PackMetric.history[].evidenceIds`, optional), so a rating cites its rows.
 - **Demo:** the demo organization writes three Multifamily standards (cap rate ≥ 5%, occupancy ≥ 90% in each of the last 3 years, expense ratio ≤ 55% in each of the last 3 years) and rates the Multifamily pact.
 - **Not in this slice:** the IC pack PDF carrying the breaches (the IC page shows them); calculated retention for SaaS (NRR is read from documents for now); document metrics per period with a lookback; a first-class link from a rating to the document request it raised.

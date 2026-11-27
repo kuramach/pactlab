@@ -32,3 +32,4 @@ export * from './notifications';
 export * from './money';
 export * from './rinse';
 export * from './criticals/registry';
+export * from './pricing';

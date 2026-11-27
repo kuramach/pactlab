@@ -7,7 +7,7 @@ import type { TransactionClient } from './client';
 import { withTenant } from './tenant';
 import { addSyntheticDealMember, createSyntheticTenant, startTestDatabase, type SyntheticTenant, type TestDatabase } from './testing';
 
-const MIGRATION = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../prisma/migrations/20270117000000_deal_criticals/migration.sql'), 'utf8');
+const MIGRATION = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../prisma/migrations/20270118000000_deal_criticals/migration.sql'), 'utf8');
 const listed = (marker: string) => [...(new RegExp(`${marker}[^(]*\\(([^)]*)\\)`).exec(MIGRATION)?.[1] ?? '').matchAll(/'([A-Z_]+)'/g)].map((match) => match[1]);
 
 /** Registry pattern (T-179): the database accepts exactly what the domain registry lists. */

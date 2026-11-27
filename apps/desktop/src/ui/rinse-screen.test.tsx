@@ -4,7 +4,7 @@ import { LinesConverter } from '../engine/converter';
 import { docx } from '../engine/fixture-set';
 import { RinseSet } from '../engine/rinse-set';
 import { FlaskMark } from './flask-mark';
-import { RINSE_TAGLINE, RinseScreen } from './rinse-screen';
+import { canUpload, RINSE_TAGLINE, RinseScreen } from './rinse-screen';
 
 const PREPARER = { userId: '0193a1b2-0000-7000-8000-00000000a001', name: 'Dana Whitlow', organization: 'Harbour Lane Apartments LLC (synthetic)' };
 
@@ -30,5 +30,20 @@ describe('the Rinse screens (T-178)', () => {
     expect(html).toContain('Enter by hand');
     expect(html).toMatch(/<button[^>]*disabled=""[^>]*>Upload the finished set<\/button>/);
     expect(html).toContain('wait until you are online and signed in');
+  });
+
+  it('offers the seller’s own drive as a destination, signed in separately from Pactlab, and waits for that sign-in', async () => {
+    const set = new RinseSet({ name: 'Harbour Lane (synthetic)', companyType: 'MULTIFAMILY', currency: 'USD', preparer: PREPARER, converter: new LinesConverter() });
+    const html = renderToStaticMarkup(<RinseScreen name="Harbour Lane (synthetic)" view={set.view()} running={false} destination={{ kind: 'GOOGLE_DRIVE', signedInAs: null }} />);
+    expect(html).toContain('Where it goes');
+    expect(html).toContain('Sign in to Google Drive');
+    expect(html).toContain('not your Pactlab login');
+    expect(html).toContain('Pactlab never gets access to your drive');
+    expect(canUpload(true, { kind: 'BOX', signedInAs: null })).toBe(false);
+    expect(canUpload(true, { kind: 'BOX', signedInAs: 'dana@harbourlane.example' })).toBe(true);
+    expect(canUpload(true, { kind: 'FOLDER', signedInAs: null })).toBe(true);
+    const signedIn = renderToStaticMarkup(<RinseScreen name="Harbour Lane (synthetic)" view={set.view()} running={false} destination={{ kind: 'ONEDRIVE', signedInAs: 'dana@harbourlane.example' }} />);
+    expect(signedIn).toContain('Signed in to OneDrive as dana@harbourlane.example');
+    expect(signedIn).toContain('Upload the finished set to OneDrive');
   });
 });

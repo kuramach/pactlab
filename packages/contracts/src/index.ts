@@ -26,3 +26,4 @@ export * from './notifications';
 export * from './support-chat';
 export * from './rinse';
 export * from './criticals';
+export * from './pricing';
