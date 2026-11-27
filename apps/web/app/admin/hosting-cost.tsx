@@ -5,6 +5,7 @@ import { keepParams, pageApiQuery, Pager, pagerLinks, readPage } from '../_compo
 import { apiGet } from '../(app)/deals/_lib/api';
 import { ApiState } from '../(app)/deals/_lib/states';
 import { deleteCostRate, refreshHostingCost, setCostRate } from './cost-actions';
+import { formatNumber, formatAmount } from '@pactlab/domain';
 
 interface Row { key: string; label: string; amount: string }
 interface MeteredRow { key: string; label: string; detail?: string | null; ai: string; storage: string; total: string; runs: number; inputTokens: number; outputTokens: number; gbMonths: string }
@@ -21,8 +22,9 @@ interface CostView {
 }
 
 const cell = 'px-3 py-2 align-top';
-const number = new Intl.NumberFormat('en-US');
-const usd = (amount: string) => `$${Number(amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const number = { format: (value: number | bigint) => formatNumber(value) };
+/** AWS bills in US dollars: `$1,234.50`, through the shared formatter (T-170). */
+const usd = (amount: string) => formatAmount(amount, 'USD', { display: 'symbol', fraction: 'minor' });
 const iso = (date: Date) => date.toISOString().slice(0, 10);
 const month = (date: Date, offset: number) => new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + offset, 1));
 const field = 'rounded-md border border-border bg-background px-2 py-1 text-sm';

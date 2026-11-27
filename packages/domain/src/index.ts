@@ -29,3 +29,4 @@ export * from './services/registry';
 export * from './telecom/registry';
 export * from './spv/registry';
 export * from './notifications';
+export * from './money';

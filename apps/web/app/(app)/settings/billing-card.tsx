@@ -1,7 +1,7 @@
 import type { BillingView } from '@pactlab/contracts';
 import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle } from '@pactlab/ui';
 import { CreditCard } from 'lucide-react';
-import { COMPANY_TYPE_LABELS, type CompanyType } from '@pactlab/domain';
+import { COMPANY_TYPE_LABELS, type CompanyType, formatAmount } from '@pactlab/domain';
 import { apiGet } from '../deals/_lib/api';
 import { openPortal, redeemPromo, startCheckout } from './billing-actions';
 
@@ -27,7 +27,8 @@ const STATUS: Record<BillingView['status'], { label: string; variant: 'calculati
   CANCELED: { label: 'Canceled', variant: 'draft' },
 };
 const KIND: Record<string, string> = { PACT: 'pact', VENTURE_ROUND: 'Venture Raise round', SELL_SIDE: 'sale' };
-const usd = (amount: string, currency: string) => new Intl.NumberFormat('en-US', { style: 'currency', currency, maximumFractionDigits: 0 }).format(Number(amount));
+/** Pactlab's own price book, in its currency, by symbol: `$2,500` (shared formatter, T-170). */
+const usd = (amount: string, currency: string) => formatAmount(amount, currency, { display: 'symbol', fraction: 'none' });
 
 /** Settings → Billing (T-087): plan, what's left, and the ways to pay. Stripe hosts every payment page. */
 export async function BillingCard({ outcome }: { outcome?: string }) {

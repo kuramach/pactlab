@@ -2,7 +2,7 @@ import type { SourcePlanResponse } from '@pactlab/contracts';
 import { Glossed, IconTile, Term, type Accent } from '@pactlab/ui';
 import { Factory, FileText, GitBranch, ListChecks, Receipt } from 'lucide-react';
 import { Badge, Button, buttonVariants, Card, CardContent, CardDescription, CardHeader, CardTitle, EmptyState } from '@pactlab/ui';
-import { COMPANY_TYPE_LABELS, IMPORT_TARGET_DEFINITIONS, type ImportTarget } from '@pactlab/domain';
+import { COMPANY_TYPE_LABELS, IMPORT_TARGET_DEFINITIONS, type ImportTarget, formatNumber } from '@pactlab/domain';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { apiGet, dealsApi } from '../../_lib/api';
@@ -20,7 +20,7 @@ export const dynamic = 'force-dynamic';
 
 const HEALTH_VARIANT = { synced: 'calculation', issues: 'draft', failed: 'danger', never: 'neutral' } as const;
 
-const number = new Intl.NumberFormat('en-US');
+const number = { format: (value: number | bigint) => formatNumber(value) };
 
 /** Connect screens for sources whose live API is available. */
 const API_ROUTES: Partial<Record<SourcePlanResponse['sources'][number]['kind'], string>> = { CODE: 'github' };

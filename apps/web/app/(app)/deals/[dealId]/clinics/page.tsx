@@ -6,6 +6,7 @@ import { OutcomeBanner } from '../../_lib/outcome';
 import { ApiState } from '../../_lib/states';
 import { percentOf } from '../fintech/format';
 import { runChecks } from './actions';
+import { formatAmount } from '@pactlab/domain';
 
 interface Source {
   documentId: string;
@@ -73,7 +74,7 @@ export default async function ClinicsPage({ params, searchParams }: { params: Pr
   const result = await apiGet<ClinicsView>(`/v1/deals/${dealId}/clinics`);
   if (result.kind !== 'ok') return <ApiState result={result} />;
   const view = result.data;
-  const money = (value: string | null) => (value === null ? '—' : `${view.currency} ${grouped(value)}`);
+  const money = (value: string | null) => (value === null ? '—' : formatAmount(value, view.currency, { fraction: 'trim' }));
   const cite = (source: Source) => (
     <Link className="underline" href={`/deals/${dealId}/documents?documentId=${source.documentId}&page=${source.pageNumber}`}>
       {source.documentName ?? 'Document'} p.{source.pageNumber}

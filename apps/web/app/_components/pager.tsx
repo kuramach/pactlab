@@ -1,5 +1,6 @@
 import { PAGE_CURSOR_PATTERN, type Page } from '@pactlab/contracts';
 import Link from 'next/link';
+import { formatNumber } from '@pactlab/domain';
 
 /**
  * The one pager for every list (T-126, CLAUDE.md "Lists are paginated"): "51–100 of 342" with
@@ -50,7 +51,7 @@ export interface PagerLinks {
 export function pagerLinks(page: Pick<Page<unknown>, 'nextCursor' | 'total' | 'limit'> & { itemCount: number }, position: PagePosition, keep: Record<string, string>, prefix = ''): PagerLinks {
   const before = position.cursor ? position.trail.length + 1 : 0;
   const start = before * page.limit + 1;
-  const count = new Intl.NumberFormat('en-US');
+  const count = { format: (value: number | bigint) => formatNumber(value) };
   const at = (cursor: string | undefined, trail: readonly string[]) => {
     const query = new URLSearchParams(Object.entries(keep).filter(([key]) => key !== keyOf(prefix, 'cursor') && key !== keyOf(prefix, 'trail')));
     if (cursor) {

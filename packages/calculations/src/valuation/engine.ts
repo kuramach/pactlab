@@ -1,6 +1,7 @@
 import Decimal from 'decimal.js';
 import { D, money, RATIO_SCALE, sum } from '../metrics/decimal';
 import type { MoneyValue } from '../metrics/types';
+import { currencyScale } from '../money';
 import { canonicalJson, sha256Hex } from './canonical';
 import {
   VALUATION_ENGINE_VERSION,
@@ -274,29 +275,41 @@ function purchasePriceBridge(inputs: ValuationInputs, enterpriseValue: Decimal):
     adjustmentType: adjustment?.type ?? null,
   });
 
-  const totals = effectiveBridge(inputs);
-  const equityValue = enterpriseValue
-    .plus(totals.cash)
-    .minus(totals.debt)
-    .minus(totals.debtLikeItems)
-    .plus(totals.workingCapitalAdjustment);
+  // Round each line once, at the currency's minor unit (JPY whole yen), and total the rounded lines:
+  // the bridge then foots exactly as shown, in every currency.
+  const scale = currencyScale(currency);
+  const round = (value: Decimal) => value.toDecimalPlaces(scale, Decimal.ROUND_HALF_EVEN);
+  const items = [...(inputs.balanceSheetItems ?? [])].sort((a, b) => (a.itemId < b.itemId ? -1 : a.itemId > b.itemId ? 1 : 0));
+  const itemTotal = (kind: LinkedBalanceSheetItem['kind']) => sum(items.filter((item) => item.kind === kind).map((item) => round(new D(item.amount))));
+  const ev = round(enterpriseValue);
+  const cash = round(new D(inputs.bridge.cash));
+  const debt = round(new D(inputs.bridge.debt));
+  const debtLike = round(new D(inputs.bridge.debtLikeItems));
+  const workingCapital = round(new D(inputs.bridge.workingCapitalAdjustment));
+  const equityValue = ev
+    .plus(cash)
+    .plus(itemTotal('CASH'))
+    .minus(debt)
+    .minus(itemTotal('DEBT'))
+    .minus(debtLike)
+    .minus(itemTotal('DEBT_LIKE'))
+    .plus(workingCapital);
 
   // Entered amounts first (no evidence behind them), then each cited item by kind, in id order.
-  const items = [...(inputs.balanceSheetItems ?? [])].sort((a, b) => (a.itemId < b.itemId ? -1 : a.itemId > b.itemId ? 1 : 0));
   const itemLines = (kind: LinkedBalanceSheetItem['kind'], lineKind: BridgeLine['kind'], sign: 1 | -1) =>
     items
       .filter((item) => item.kind === kind)
-      .map((item) => ({ ...line(lineKind, item.label, new D(item.amount).times(sign)), balanceSheetItemId: item.itemId }));
+      .map((item) => ({ ...line(lineKind, item.label, round(new D(item.amount)).times(sign)), balanceSheetItemId: item.itemId }));
 
   const lines: BridgeLine[] = [
-    line('ENTERPRISE_VALUE', 'Enterprise value', enterpriseValue),
-    line('CASH', 'Plus cash', new D(inputs.bridge.cash)),
+    line('ENTERPRISE_VALUE', 'Enterprise value', ev),
+    line('CASH', 'Plus cash', cash),
     ...itemLines('CASH', 'CASH_ITEM', 1),
-    line('DEBT', 'Less debt', new D(inputs.bridge.debt).negated()),
+    line('DEBT', 'Less debt', debt.negated()),
     ...itemLines('DEBT', 'DEBT_ITEM', -1),
-    line('DEBT_LIKE_ITEMS', 'Less debt-like items', new D(inputs.bridge.debtLikeItems).negated()),
+    line('DEBT_LIKE_ITEMS', 'Less debt-like items', debtLike.negated()),
     ...itemLines('DEBT_LIKE', 'DEBT_LIKE_ITEM', -1),
-    line('WORKING_CAPITAL', 'Working-capital adjustment', totals.workingCapitalAdjustment),
+    line('WORKING_CAPITAL', 'Working-capital adjustment', workingCapital),
     line('EQUITY_VALUE', 'Equity value', equityValue),
   ];
 
@@ -306,7 +319,7 @@ function purchasePriceBridge(inputs: ValuationInputs, enterpriseValue: Decimal):
   );
   let priceReductions = new D(0);
   for (const adjustment of adjustments.filter((a) => PRICE_REDUCING.has(a.type))) {
-    const amount = adjustmentAmount(adjustment);
+    const amount = round(adjustmentAmount(adjustment));
     priceReductions = priceReductions.plus(amount);
     lines.push(
       line('FINDING_ADJUSTMENT', ADJUSTMENT_LABELS[adjustment.type], amount.negated(), adjustment),
@@ -317,7 +330,7 @@ function purchasePriceBridge(inputs: ValuationInputs, enterpriseValue: Decimal):
 
   let holdbacks = new D(0);
   for (const adjustment of adjustments.filter((a) => !PRICE_REDUCING.has(a.type))) {
-    const amount = adjustmentAmount(adjustment);
+    const amount = round(adjustmentAmount(adjustment));
     holdbacks = holdbacks.plus(amount);
     lines.push(line('HOLDBACK', ADJUSTMENT_LABELS[adjustment.type], amount.negated(), adjustment));
   }
@@ -327,7 +340,7 @@ function purchasePriceBridge(inputs: ValuationInputs, enterpriseValue: Decimal):
   return {
     bridge: {
       lines,
-      enterpriseValue: money(enterpriseValue, currency),
+      enterpriseValue: money(ev, currency),
       equityValue: money(equityValue, currency),
       equityPurchasePrice: money(equityPurchasePrice, currency),
       holdbacks: money(holdbacks, currency),

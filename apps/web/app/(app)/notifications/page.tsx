@@ -6,6 +6,7 @@ import { keepParams, Pager, pagerLinks, pageApiQuery, readPage } from '../../_co
 import { apiGet } from '../deals/_lib/api';
 import { ApiState } from '../deals/_lib/states';
 import { markAllNotificationsRead, markNotificationRead, openNotification } from './actions';
+import { formatDateTime } from '@pactlab/domain';
 
 // Per-user data: never prerender.
 export const dynamic = 'force-dynamic';
@@ -28,7 +29,7 @@ const EMAIL_NOTES: Record<string, string> = {
   FAILED: 'The email could not be delivered',
   NO_ADDRESS: 'Not emailed: no email address on your sign-in',
 };
-const when = (iso: string) => new Date(iso).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'UTC' }) + ' UTC';
+const when = (iso: string) => formatDateTime(iso, { locale: 'en-GB' }) + ' UTC';
 
 /**
  * The inbox behind the bell (T-145): what changed on your pacts, newest first. Each item opens the

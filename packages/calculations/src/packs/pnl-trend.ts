@@ -1,6 +1,6 @@
 import { D } from '../metrics/decimal';
 import { pnlPeriods } from '../pnl/pnl';
-import { pnlLinesFromRecords, pnlTrend, type KeyExpense, type PnlTrend, type TrendYear } from '../pnl/trend';
+import { pnlLineCurrencies, pnlLinesFromRecords, pnlTrend, type KeyExpense, type PnlTrend, type TrendYear } from '../pnl/trend';
 import { grouped, percent } from './common';
 import { MAX_CITED, type PackRule, type PackRuleEvidence, type PackRuleProposal } from './rule-types';
 
@@ -26,7 +26,8 @@ const share = (value: string | null) => (value === null ? 'n/a' : percent(new D(
 const points = (value: Decimal) => `${value.times(100).abs().toFixed(1)} points`;
 
 export function trendOf(evidence: readonly PackRuleEvidence[], keyExpenses: readonly KeyExpense[]): PnlTrend {
-  return pnlTrend(pnlPeriods(pnlLinesFromRecords(evidence.filter((row) => row.evidenceType === PNL_LINE))), keyExpenses);
+  const rows = evidence.filter((row) => row.evidenceType === PNL_LINE);
+  return pnlTrend(pnlPeriods(pnlLinesFromRecords(rows)), keyExpenses, pnlLineCurrencies(rows));
 }
 
 const cited = (years: readonly TrendYear[], ids?: readonly string[]) => [...new Set(ids ?? years.flatMap((year) => year.evidenceIds))].slice(0, MAX_CITED);
@@ -38,7 +39,7 @@ export function pnlTrendRules(prefix: string, keyExpenses: readonly KeyExpense[]
     version: '1',
     evidenceTypes: [PNL_LINE],
     detect: ({ evidence }) => {
-      const { years, partialYears } = trendOf(evidence, keyExpenses);
+      const { years, partialYears, mixedCurrencyYears, currencyBreaks } = trendOf(evidence, keyExpenses);
       if (years.length === 0) return [];
       const lines = years.map((year) => {
         const ratios = year.ratios.filter((ratio) => new D(ratio.amount).gt(0)).map((ratio) => `${ratio.label.toLowerCase()} ${share(ratio.ratio)}`);
@@ -52,7 +53,9 @@ export function pnlTrendRules(prefix: string, keyExpenses: readonly KeyExpense[]
           description:
             `From the imported P&L, year by year. ${lines.join('. ')}.` +
             (years.length === 1 ? ' One fiscal year is imported, so there is no trend yet; import earlier years to read one.' : '') +
-            (partialYears.length ? ` Left out because not every month is imported: ${partialYears.join(', ')}.` : ''),
+            (partialYears.length ? ` Left out because not every month is imported: ${partialYears.join(', ')}.` : '') +
+            (mixedCurrencyYears.length ? ` Left out because their lines are in more than one currency: ${mixedCurrencyYears.join(', ')}.` : '') +
+            currencyBreaks.map((change) => ` The currency changes from ${change.from} to ${change.to} in ${change.year}: nothing is converted, so growth into ${change.year} is not computed.`).join(''),
           severity: 'INFO',
           confidence: 'HIGH',
           direction: 0,

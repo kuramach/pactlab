@@ -1,4 +1,4 @@
-import { QOE_ADJUSTMENT_CATEGORIES, QOE_CATEGORY_REGISTRY, QOE_COMPONENT_REGISTRY, QOE_VERIFICATION_LABELS, QOE_WORKING_CAPITAL_COMPONENTS, type QoeVerificationStatus } from '@pactlab/domain';
+import { QOE_ADJUSTMENT_CATEGORIES, QOE_CATEGORY_REGISTRY, QOE_COMPONENT_REGISTRY, QOE_VERIFICATION_LABELS, QOE_WORKING_CAPITAL_COMPONENTS, type QoeVerificationStatus, formatAmount } from '@pactlab/domain';
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from '@pactlab/ui';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
@@ -89,11 +89,6 @@ const OUTCOMES: Record<string, string> = {
 const REPORTED_FROM = { IMPORTED_PNL: 'Imported EBITDA', FILED_STATEMENT: 'Filed EBITDA', BOTH: 'Imported EBITDA (the filed figure agrees)' } as const;
 const STATUS_TONE = { VERIFIED: 'reviewed', PARTIALLY_VERIFIED: 'draft', UNVERIFIED: 'danger' } as const;
 /** Thousands separators on a decimal string, without passing money through a float. */
-const grouped = (value: string) => {
-  const negative = value.startsWith('-');
-  const [whole = '', fraction] = value.replace('-', '').split('.');
-  return `${negative ? '−' : ''}${whole.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}${fraction && /[1-9]/.test(fraction) ? `.${fraction}` : ''}`;
-};
 const inputClass = 'rounded-md border border-border bg-background px-2 py-1 text-sm';
 
 /**
@@ -110,7 +105,7 @@ export default async function QoePage({ params, searchParams }: { params: Promis
   ]);
   if (result.kind !== 'ok') return <ApiState result={result} />;
   const view = result.data;
-  const money = (value: string | null) => (value === null ? '—' : `${view.currency} ${grouped(value)}`);
+  const money = (value: string | null) => (value === null ? '—' : formatAmount(value, view.currency, { fraction: 'trim' }));
   const docs = documents.kind === 'ok' ? documents.data.items : [];
   const source = (citation: Cite) => {
     const entry = view.entries.find((candidate) => candidate.citation.documentId === citation.documentId);

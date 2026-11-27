@@ -133,7 +133,7 @@ describe('balance-sheet items through the API', () => {
     const id = (created.body['scenario'] as Body)['id'] as string;
     const ran = await call('lead', 'POST', scenarios(`/${id}/runs`), { expectedVersion: 1 });
     const result = (ran.body['latestRun'] as { result: { engineVersion: string; bridge: { equityValue: { amount: string }; lines: Body[] } } }).result;
-    expect(result.engineVersion).toBe('valuation-2');
+    expect(result.engineVersion).toBe('valuation-3');
     // 1,072,000 + 90,000 − 120,000 − 22,000 − 20,000
     expect(result.bridge.equityValue.amount).toBe('1000000.00');
     expect(result.bridge.lines.filter((line) => line['balanceSheetItemId']).map((line) => line['kind'])).toEqual(['CASH_ITEM', 'DEBT_ITEM', 'DEBT_LIKE_ITEM']);

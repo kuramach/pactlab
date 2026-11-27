@@ -1,3 +1,4 @@
+import { currencyMinorUnits } from '@pactlab/domain/money';
 import Decimal from 'decimal.js';
 
 /**
@@ -6,14 +7,6 @@ import Decimal from 'decimal.js';
  */
 const D = Decimal.clone({ precision: 40, rounding: Decimal.ROUND_HALF_EVEN });
 
-/** Minor-unit scale per ISO 4217 currency; default is 2. */
-const CURRENCY_SCALE: Readonly<Record<string, number>> = {
-  JPY: 0,
-  KRW: 0,
-  BHD: 3,
-  KWD: 3,
-  JOD: 3,
-};
 
 const DECIMAL_STRING = /^-?\d+(\.\d+)?$/;
 const CURRENCY_CODE = /^[A-Z]{3}$/;
@@ -25,8 +18,9 @@ export class MoneyError extends Error {
   }
 }
 
+/** Minor-unit scale per ISO 4217 currency (JPY 0, KWD 3, otherwise 2): the one table in `@pactlab/domain`. */
 export function currencyScale(currency: string): number {
-  return CURRENCY_SCALE[currency] ?? 2;
+  return currencyMinorUnits(currency);
 }
 
 function toDecimal(value: string): Decimal {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { pnlPeriods } from './pnl';
-import { fiscalYears, pnlLinesFromRecords, pnlTrend } from './trend';
+import { fiscalYears, pnlLineCurrencies, pnlLinesFromRecords, pnlTrend } from './trend';
 
 const line = (id: string, account: string, period: string, amount: string, kind: string) => ({ id, canonical: { account, month: period, amount, line_kind: kind } });
 const FRAUD = [{ key: 'fraud', label: 'Fraud losses', pattern: /fraud/i }];
@@ -34,5 +34,33 @@ describe('the multi-year P&L trend (pnl-trend-1)', () => {
   it('reads the newer row when two imports hold the same line, so a re-sent statement never doubles a year', () => {
     const lines = pnlLinesFromRecords([line('0190-a', 'Revenue', '2025', '100.00', 'REVENUE'), line('0190-b', 'Revenue', '2025', '110.00', 'REVENUE'), line('0190-c', 'Unclassified', '2025', '5.00', '')]);
     expect(lines).toEqual([{ evidenceId: '0190-b', account: 'Revenue', period: '2025', amount: '110.00', kind: 'REVENUE' }]);
+  });
+
+  it('compares like with like: no growth across a currency change, and a mixed year is left out (T-170)', () => {
+    const declared = (id: string, account: string, period: string, amount: string, kind: string, currency: string) => ({ id, canonical: { account, month: period, amount, line_kind: kind, currency } });
+    const records = [
+      declared('a1', 'Revenue', '2023', '1000', 'REVENUE', 'JPY'),
+      declared('b1', 'Revenue', '2024', '1100', 'REVENUE', 'JPY'),
+      declared('c1', 'Revenue', '2025', '9.00', 'REVENUE', 'USD'),
+      declared('d1', 'Revenue', '2026', '5.00', 'REVENUE', 'USD'),
+      declared('d2', 'Other revenue', '2026', '500', 'REVENUE', 'JPY'),
+      line('e1', 'Revenue', '2027', '12.00', 'REVENUE'),
+    ];
+    const trend = pnlTrend(pnlPeriods(pnlLinesFromRecords(records)), FRAUD, pnlLineCurrencies(records));
+    expect(trend.years.map((year) => [year.year, year.currency, year.revenueGrowth])).toEqual([
+      ['2023', 'JPY', null],
+      ['2024', 'JPY', '0.1000'],
+      ['2025', 'USD', null],
+      ['2027', null, null],
+    ]);
+    expect(trend.currencyBreaks).toEqual([{ year: '2025', from: 'JPY', to: 'USD' }]);
+    expect(trend.mixedCurrencyYears).toEqual(['2026']);
+  });
+
+  it('reads undeclared lines as the pact’s own, as before', () => {
+    const records = [line('a1', 'Revenue', '2024', '100.00', 'REVENUE'), line('b1', 'Revenue', '2025', '150.00', 'REVENUE')];
+    const trend = pnlTrend(pnlPeriods(pnlLinesFromRecords(records)), FRAUD, pnlLineCurrencies(records));
+    expect(trend.years[1]).toMatchObject({ currency: null, revenueGrowth: '0.5000' });
+    expect(trend.currencyBreaks).toEqual([]);
   });
 });

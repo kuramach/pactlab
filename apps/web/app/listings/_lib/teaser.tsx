@@ -1,6 +1,7 @@
 import type { ListingMediaView, PublicListingView } from '@pactlab/contracts';
 import { Badge } from '@pactlab/ui';
 import { Check } from 'lucide-react';
+import { formatAmount, formatMoneyRange } from '@pactlab/domain';
 
 /** "40000000.00" → "40,000,000": display only, from the decimal string (never a float). */
 export function grouped(amount: string): string {
@@ -11,7 +12,7 @@ export function grouped(amount: string): string {
 
 export function askingLabel(asking: PublicListingView['asking']): string | null {
   if (!asking) return null;
-  return asking.high ? `${asking.currency} ${grouped(asking.low)} – ${grouped(asking.high)}` : `From ${asking.currency} ${grouped(asking.low)}`;
+  return asking.high ? formatMoneyRange(asking.low, asking.high, asking.currency, { fraction: 'trim' }) : `From ${formatAmount(asking.low, asking.currency, { fraction: 'trim' })}`;
 }
 
 /** The title a visitor sees: the company only when the seller chose to name it. */

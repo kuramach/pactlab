@@ -92,6 +92,7 @@ import {
   applySavedFormat,
   formatAssist,
   formatSignatureText,
+  importCurrencyCheck,
 } from '@pactlab/domain';
 import { DealAccess } from '../deals/deal-access';
 import { CLAUDE_GATEWAY, DOCUMENT_OBJECT_STORE, type DocumentObjectStore } from '../documents/documents.repository';
@@ -121,14 +122,16 @@ const definitionOf = (target: ImportTarget): TargetDefinition => IMPORT_TARGET_D
 const isBilling = (target: ImportTarget) => target === 'BILLING_INVOICE_LINE';
 
 /**
- * Problems that stop a mapping: refused people columns (rule 7), the mapping itself, and for a
- * statement, accounts with no kind and (unless a person accepted them) subtotals that do not tie out.
+ * Problems that stop a mapping: refused people columns (rule 7), the mapping itself, a file in another
+ * currency than the pact's or mixing currencies (T-170: nothing converts), and for a statement,
+ * accounts with no kind and (unless a person accepted them) subtotals that do not tie out.
  */
-function blockingProblems(definition: TargetDefinition, table: CsvTable, mapping: ImportMapping): string[] {
+function blockingProblems(definition: TargetDefinition, table: CsvTable, mapping: ImportMapping, pactCurrency: string): string[] {
   const problems = [
     ...peopleColumnProblems(definition, table.header),
     ...(mapping.target === definition.target ? [] : [`This file is imported as ${definition.label}, not ${mapping.target}`]),
     ...mappingProblems(definition, table.header, mapping, table.rows),
+    ...importCurrencyCheck(definition, table, mapping, pactCurrency).problems,
   ];
   if (problems.length > 0 || !definition.lineItems) return problems;
   const { unclassified, gaps } = statementCheck(table, mapping, definition);
@@ -399,6 +402,13 @@ export class ImportsService {
     return null;
   }
 
+  /** The pact's own currency: every import is read in it, and must be in it (T-170). */
+  private async pactCurrency(tenant: TenantContext, dealId: string): Promise<string> {
+    const deal = await withTenant(this.prisma, tenant, (tx) => tx.deal.findFirst({ where: { id: dealId }, select: { baseCurrency: true } }));
+    if (!deal) throw new NotFoundException();
+    return deal.baseCurrency;
+  }
+
   /** The assistant's run (cost, audit trail), for buyer and seller uploads alike (`app_import_record_run`). */
   private async recordRun(tx: TransactionClient, dealId: string, run: AiRunRecord | null): Promise<void> {
     if (!run) return;
@@ -580,7 +590,7 @@ export class ImportsService {
     // The stored mapping is canonical JSON with its schema version; the screen gets the mapping alone.
     const { version: _version, ...mapping } = (previous?.mapping ?? {}) as unknown as ImportMapping & { version?: string };
     if (!previous?.mapping || mapping.target !== row.target) return null;
-    return blockingProblems(definitionOf(row.target), table, mapping).length === 0 ? mapping : null;
+    return blockingProblems(definitionOf(row.target), table, mapping, await this.pactCurrency(tenant, dealId)).length === 0 ? mapping : null;
   }
 
   /**
@@ -745,7 +755,9 @@ export class ImportsService {
     const row = await this.load(tenant, dealId, uploadId, canSupply, 'source_upload.previewed', requestId);
     const table = await this.table(row);
     const definition = definitionOf(row.target);
-    const problems = blockingProblems(definition, table, mapping as ImportMapping);
+    const pactCurrency = await this.pactCurrency(tenant, dealId);
+    const problems = blockingProblems(definition, table, mapping as ImportMapping, pactCurrency);
+    const currency = importCurrencyCheck(definition, table, mapping as ImportMapping, pactCurrency);
     const unblocked = problems.filter((problem) => !problem.includes('not add up'));
     const result = unblocked.length > 0 ? { rows: [], issues: [] } : applyMapping(table, mapping as ImportMapping, uploadDataset(row), definition);
     const statement = definition.lineItems ? statementCheck(table, mapping as ImportMapping, definition) : { unclassified: [], gaps: [] };
@@ -780,6 +792,7 @@ export class ImportsService {
       emptyFields,
       tieOut: tieOut.slice(0, 50).map((gap) => ({ ...gap })),
       unclassified: statement.unclassified.slice(0, 300),
+      currency: { pact: currency.pact, declared: currency.declared, detected: [...currency.detected], readAs: currency.readAs, question: currency.question },
     };
   }
 
@@ -800,7 +813,7 @@ export class ImportsService {
     if (row.status === 'WITHDRAWN') throw new ConflictException({ code: 'ALREADY_WITHDRAWN' });
     const table = await this.table(row);
     const definition = definitionOf(row.target);
-    if (blockingProblems(definition, table, mapping as ImportMapping).length > 0) throw new UnprocessableEntityException();
+    if (blockingProblems(definition, table, mapping as ImportMapping, await this.pactCurrency(tenant, dealId)).length > 0) throw new UnprocessableEntityException();
     const mappingJson = canonicalMappingJson(mapping as ImportMapping);
     const template = templateFor(row.system);
 

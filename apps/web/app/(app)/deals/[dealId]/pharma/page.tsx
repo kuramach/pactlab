@@ -6,6 +6,7 @@ import { OutcomeBanner } from '../../_lib/outcome';
 import { ApiState } from '../../_lib/states';
 import { percentOf } from '../fintech/format';
 import { runChecks } from './actions';
+import { formatAmount } from '@pactlab/domain';
 
 interface Source {
   documentId: string;
@@ -61,12 +62,6 @@ interface PharmaView {
   trend: { years: { year: string; revenue: string; revenueGrowth: string | null; grossMargin: string | null; operatingMargin: string | null; ratios: { key: string; label: string; amount: string; ratio: string | null }[] }[]; partialYears: string[] };
 }
 
-const grouped = (value: string | null) => {
-  if (value === null) return '—';
-  const negative = value.startsWith('-');
-  const [whole = ''] = value.replace('-', '').split('.');
-  return `${negative ? '−' : ''}${whole.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
-};
 const STATUS = {
   VERIFIED: <Badge variant="evidence">Verified</Badge>,
   CONTRADICTED: <Badge variant="danger">Contradicted</Badge>,
@@ -92,7 +87,7 @@ export default async function PharmaPage({ params, searchParams }: { params: Pro
   const result = await apiGet<PharmaView>(`/v1/deals/${dealId}/pharma`);
   if (result.kind !== 'ok') return <ApiState result={result} />;
   const view = result.data;
-  const money = (value: string | null, currency: string | null = view.currency) => (value === null ? '—' : `${currency ?? view.currency} ${grouped(value)}`);
+  const money = (value: string | null, currency: string | null = view.currency) => (value === null ? '—' : formatAmount(value, currency ?? view.currency, { fraction: 'trim' }));
   const cite = (source: Source | null) =>
     source ? (
       <Link className="underline" href={`/deals/${dealId}/documents?documentId=${source.documentId}&page=${source.pageNumber}`}>

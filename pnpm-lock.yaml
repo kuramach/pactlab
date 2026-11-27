@@ -623,6 +623,9 @@ importers:
 
   packages/calculations:
     dependencies:
+      '@pactlab/domain':
+        specifier: workspace:*
+        version: link:../domain
       decimal.js:
         specifier: 10.6.0
         version: 10.6.0

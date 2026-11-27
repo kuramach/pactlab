@@ -1,4 +1,4 @@
-import { IMPORT_TARGET_DEFINITIONS } from '@pactlab/domain';
+import { IMPORT_TARGET_DEFINITIONS, formatNumber } from '@pactlab/domain';
 import { Badge } from '@pactlab/ui';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
@@ -15,7 +15,7 @@ import { ImportHistory, withdrawalFailure, WithdrawnPanel, WithdrawPanel } from 
 // Per-user data: never prerender.
 export const dynamic = 'force-dynamic';
 
-const number = new Intl.NumberFormat('en-US');
+const number = { format: (value: number | bigint) => formatNumber(value) };
 
 /** Steps 2–3 of an import — billing or a pack extract (ADR 0010): map, check, import. */
 export default async function MapUploadPage({

@@ -10,6 +10,7 @@ import { OutcomeBanner } from '../../_lib/outcome';
 import { ApiState } from '../../_lib/states';
 import { decideSuggestion } from './actions';
 import { LEVER_LABELS, STATUS_LOOK, type SuggestionView } from './labels';
+import { formatDateTime } from '@pactlab/domain';
 
 export const dynamic = 'force-dynamic';
 
@@ -112,7 +113,7 @@ function Suggestion({ dealId, item }: { dealId: string; item: SuggestionView }) 
           <Badge variant={STATUS_LOOK[item.status].variant}>{STATUS_LOOK[item.status].label}</Badge>
         </div>
         <CardDescription>
-          From {item.clientName} · {new Date(item.createdAt).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'UTC' })} UTC
+          From {item.clientName} · {formatDateTime(item.createdAt)} UTC
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-3 text-sm">

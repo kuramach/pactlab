@@ -35,6 +35,11 @@ export interface ImportMapping {
   readonly lineKinds?: Readonly<Record<string, PnlKind>>;
   /** A person accepted the subtotal gaps the preview showed (the file's own totals do not tie). */
   readonly acceptTieOutGaps?: boolean;
+  /**
+   * The currency the file's amounts are in, as a person declared it (T-170). Absent means the pact's
+   * own currency. It must equal the pact's (`importCurrencyCheck`): nothing is converted.
+   */
+  readonly currency?: string;
 }
 
 export interface MappedRow {
@@ -132,7 +137,7 @@ export function applyMapping(
       return value.trim() === '' ? null : value.trim();
     };
     const currencyRaw = raw('currency');
-    const currency = currencyRaw === null ? null : parseCurrencyValue(currencyRaw);
+    const currency = currencyRaw === null ? (mapping.currency ?? null) : parseCurrencyValue(currencyRaw);
     const canonical: Record<string, string | null> = {};
     const rowIssues: SourceIssue[] = [];
 
@@ -191,6 +196,8 @@ export function applyMapping(
         return;
       }
       canonical['line_kind'] = kind ?? null;
+      // A statement carries the currency it was declared in, so a multi-year trend compares like with like.
+      if (mapping.currency) canonical['currency'] = mapping.currency.toUpperCase();
     }
     const recordId = recordIdOf(definition, canonical);
     if (recordId && seen.has(recordId)) {

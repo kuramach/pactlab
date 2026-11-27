@@ -1,5 +1,6 @@
 import type { FinancingView } from '@pactlab/contracts';
 import { HttpException } from '@nestjs/common';
+import { D } from '@pactlab/calculations';
 import { DEAL_PHASE_LABELS, type DealPhase, type TenantContext } from '@pactlab/domain';
 import type { QoeView } from '../qoe/qoe.service';
 
@@ -7,7 +8,7 @@ import type { QoeView } from '../qoe/qoe.service';
  * The report read models (T-110). Every section is built from the same application services the
  * app uses, called as the generating user: what their organization may not see is a refusal
  * (403/404), and a refused section is left out of the report, never filled in from elsewhere.
- * Money stays as decimal strings; totals are summed in integer cents.
+ * Money stays as decimal strings and is summed exactly, per currency: never across currencies.
  */
 
 export interface Money {
@@ -142,18 +143,9 @@ export interface ExecutiveReportModel {
 
 // --- Decimal sums without floating point -----------------------------------------------------
 
-const cents = (amount: string): bigint => {
-  const negative = amount.trim().startsWith('-');
-  const [whole = '0', fraction = ''] = amount.replace('-', '').trim().split('.');
-  const value = BigInt(whole || '0') * 100n + BigInt((fraction + '00').slice(0, 2));
-  return negative ? -value : value;
-};
-const fromCents = (value: bigint): string => {
-  const negative = value < 0n;
-  const abs = negative ? -value : value;
-  return `${negative ? '-' : ''}${abs / 100n}.${(abs % 100n).toString().padStart(2, '0')}`;
-};
-export const addMoney = (a: string, b: string): string => fromCents(cents(a) + cents(b));
+/** Exact decimal sum of two amounts in one currency, whatever its minor unit (JPY 0, KWD 3). */
+export const addMoney = (a: string, b: string): string => new D(a).plus(new D(b)).toFixed();
+const compareAmounts = (a: string, b: string): number => new D(a).comparedTo(new D(b));
 
 /** A section the caller may not see is left out (null); anything else is a real failure. */
 async function visible<T>(read: () => Promise<T>): Promise<T | null> {
@@ -241,7 +233,7 @@ export async function executiveReportModel(sources: ReportSources, tenant: Tenan
         undecided: items.filter((finding) => finding.direction === null && finding.status !== 'REJECTED').length,
       },
       topDrags: [...drags]
-        .sort((a, b) => Number(cents(b.risk.high) - cents(a.risk.high)))
+        .sort((a, b) => compareAmounts(b.risk.high, a.risk.high))
         .slice(0, 3)
         .map(({ title, risk }) => ({ title, low: risk.low, high: risk.high, currency: risk.currency })),
       dragExposure,

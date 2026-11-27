@@ -1,11 +1,4 @@
-import {
-  FINDING_DOMAINS,
-  FINDING_STATUSES,
-  type Finding,
-  type FindingDomain,
-  type FindingStatus,
-  type PricedRisk,
-} from '@pactlab/domain';
+import { FINDING_DOMAINS, FINDING_STATUSES, type Finding, type FindingDomain, type FindingStatus, type PricedRisk, formatMoneyRange } from '@pactlab/domain';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -92,17 +85,9 @@ export function groupByDomain(findings: readonly Finding[]): [FindingDomain, Fin
 }
 
 /** Thousands separators on a decimal string, without converting to a number. */
-function group(amount: string): string {
-  const [whole = '0', fraction] = amount.split('.');
-  const grouped = whole.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-  return fraction ? `${grouped}.${fraction}` : grouped;
-}
-
 export function formatPricedRisk(risk: PricedRisk | null): string {
   if (!risk) return 'Not priced';
-  const range =
-    risk.low === risk.high ? group(risk.low) : `${group(risk.low)} – ${group(risk.high)}`;
-  return `${risk.currency} ${range}`;
+  return formatMoneyRange(risk.low, risk.high, risk.currency);
 }
 
 export const PRICED_RISK_LABELS: Readonly<Record<PricedRisk['type'], string>> = {

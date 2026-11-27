@@ -1,7 +1,7 @@
 import type { MoneyValue } from '../metrics/types';
 
 /** Bumped whenever a formula, bridge rule, rounding rule or output shape changes. */
-export const VALUATION_ENGINE_VERSION = 'valuation-2';
+export const VALUATION_ENGINE_VERSION = 'valuation-3';
 
 export const VALUATION_METHODS = ['ARR_MULTIPLE', 'DCF', 'NOI_CAP_RATE', 'PAYER_MIX_EBITDA', 'ROUND_PRE_MONEY'] as const;
 export type ValuationMethod = (typeof VALUATION_METHODS)[number];

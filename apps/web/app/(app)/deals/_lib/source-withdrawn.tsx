@@ -1,8 +1,9 @@
 import type { SourceWithdrawnFlag } from '@pactlab/domain';
 import { Badge } from '@pactlab/ui';
 import Link from 'next/link';
+import { formatDate } from '@pactlab/domain';
 
-const when = new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium', timeZone: 'UTC' });
+const when = { format: (value: Date | string) => formatDate(value, { locale: 'en-GB' }) };
 
 /** The short "source withdrawn" mark beside an artefact built on a withdrawn import (T-154). */
 export function SourceWithdrawnBadge({ flags }: { flags: readonly SourceWithdrawnFlag[] | undefined }) {

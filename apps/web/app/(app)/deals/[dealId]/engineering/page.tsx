@@ -2,7 +2,7 @@ import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitl
 import { EyeOff, GitBranch, HeartHandshake, ListChecks, Users } from 'lucide-react';
 import Link from 'next/link';
 import { BarChart, CHART_COLORS, LineChart } from '../../../_lib/charts';
-import { COMPANY_TYPE_LABELS, sectionApplies, type CompanyType } from '@pactlab/domain';
+import { COMPANY_TYPE_LABELS, sectionApplies, type CompanyType, formatMonth } from '@pactlab/domain';
 import { apiGet, dealsApi } from '../../_lib/api';
 import { describeLookback } from '../../_lib/lookback';
 import { OutcomeBanner } from '../../_lib/outcome';
@@ -40,7 +40,7 @@ const OUTCOMES: Record<string, string> = {
 };
 
 const inputClass = 'w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring';
-const month = (value: string) => new Date(`${value}-01T00:00:00Z`).toLocaleString('en-US', { month: 'short', year: '2-digit', timeZone: 'UTC' });
+const month = (value: string) => formatMonth(value, { style: '2-digit' });
 
 /**
  * Engineering: how the team works and who the business depends on, from

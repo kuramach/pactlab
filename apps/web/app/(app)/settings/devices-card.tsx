@@ -3,6 +3,7 @@ import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitl
 import { MonitorSmartphone } from 'lucide-react';
 import { apiGet } from '../deals/_lib/api';
 import { setSessionPolicy, signOutDevice, signOutOtherDevices } from './devices-actions';
+import { formatDateTime } from '@pactlab/domain';
 
 const POLICY_LABELS: Record<SessionPolicyView['maxTrustedHours'], string> = {
   0: 'Off: every sign-in lasts 8 hours',
@@ -10,7 +11,7 @@ const POLICY_LABELS: Record<SessionPolicyView['maxTrustedHours'], string> = {
   168: 'Up to 1 week',
   720: 'Up to 30 days',
 };
-const when = (iso: string) => new Date(iso).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'UTC' }) + ' UTC';
+const when = (iso: string) => formatDateTime(iso, { locale: 'en-GB' }) + ' UTC';
 const selectClass = 'rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring';
 
 /**

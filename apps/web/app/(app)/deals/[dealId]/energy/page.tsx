@@ -1,5 +1,5 @@
 import type { Page } from '@pactlab/contracts';
-import { ENERGY_ITEM_KINDS, ENERGY_ITEM_REGISTRY, type EnergyItemKind } from '@pactlab/domain';
+import { ENERGY_ITEM_KINDS, ENERGY_ITEM_REGISTRY, type EnergyItemKind, formatAmount } from '@pactlab/domain';
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from '@pactlab/ui';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
@@ -111,7 +111,7 @@ export default async function EnergyPage({ params, searchParams }: { params: Pro
   ]);
   if (result.kind !== 'ok') return <ApiState result={result} />;
   const view = result.data;
-  const money = (value: string | null) => (value === null ? '—' : `${view.currency} ${grouped(value)}`);
+  const money = (value: string | null) => (value === null ? '—' : formatAmount(value, view.currency, { fraction: 'trim' }));
   const base = `/deals/${dealId}/energy`;
   const proposed = proposedResult.kind === 'ok' ? proposedResult.data.items : [];
   const cite = (source: Source) => (

@@ -365,7 +365,7 @@ describe('evidence-backed balance-sheet items', () => {
 
   it('adds each cited item to the bridge next to the entered amounts', () => {
     const result = runValuation({ ...base, balanceSheetItems: items });
-    expect(result.engineVersion).toBe('valuation-2');
+    expect(result.engineVersion).toBe('valuation-3');
     // 1,072,000 + 90,000 − (10,000 + 120,000) − 35,000 − 20,000
     expect(result.bridge.equityValue.amount).toBe('977000.00');
     expect(result.bridge.lines.slice(0, 9).map((line) => [line.kind, line.amount.amount, line.balanceSheetItemId ?? null])).toEqual([

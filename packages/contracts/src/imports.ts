@@ -13,6 +13,7 @@ import {
   type ImportTarget,
 } from '@pactlab/domain';
 import { z } from 'zod';
+import { isoCurrencySchema } from './common';
 
 /** Every canonical field of every import target (billing and pack extracts). */
 const FIELD_NAMES = [...new Set(Object.values(IMPORT_TARGET_DEFINITIONS).flatMap((definition) => definition.fields.map((field) => field.name)))] as [string, ...string[]];
@@ -47,6 +48,8 @@ export const importMappingSchema = z.strictObject({
   lineKinds: z.record(z.string().min(1).max(200), z.enum(PNL_KINDS)).optional(),
   /** The person accepted subtotals that do not add up to their lines. */
   acceptTieOutGaps: z.boolean().optional(),
+  /** The currency the file's amounts are in (T-170); absent: the pact's. It must be the pact's: nothing converts. */
+  currency: isoCurrencySchema.optional(),
 });
 export type ImportMappingBody = z.infer<typeof importMappingSchema>;
 
@@ -170,6 +173,8 @@ export interface ImportPreviewView {
   tieOut: { account: string; month: string; kind: string; stated: string; computed: string }[];
   /** A P&L: every account still without a line kind. */
   unclassified: string[];
+  /** The currency the amounts are read in (T-170): the pact's, what was declared and what the file shows. */
+  currency: { pact: string; declared: string | null; detected: string[]; readAs: string; question: string | null };
 }
 
 export interface ImportResultView {

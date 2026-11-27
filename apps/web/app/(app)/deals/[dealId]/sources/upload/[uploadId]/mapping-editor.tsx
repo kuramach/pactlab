@@ -1,20 +1,7 @@
 'use client';
 
 import type { ImportMappingBody, ImportPreviewView, ImportProgressView, UploadDetailView } from '@pactlab/contracts';
-import {
-  AMOUNT_UNITS,
-  DATE_FORMATS,
-  guessLayout,
-  layoutProblems,
-  namesOnly,
-  NUMBER_FORMATS,
-  PERIOD_COLUMN,
-  PNL_KINDS,
-  reshapeTable,
-  VALUE_COLUMN,
-  type ImportMapping,
-  type PnlKind,
-} from '@pactlab/domain';
+import { AMOUNT_UNITS, DATE_FORMATS, guessLayout, layoutProblems, namesOnly, NUMBER_FORMATS, PERIOD_COLUMN, PNL_KINDS, reshapeTable, VALUE_COLUMN, type ImportMapping, type PnlKind, formatDate, formatNumber } from '@pactlab/domain';
 import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle } from '@pactlab/ui';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState, useTransition } from 'react';
@@ -332,7 +319,7 @@ export function MappingEditor({
               {assist.source === 'FORMAT' && assist.format ? (
                 <span className="flex flex-wrap items-center gap-2">
                   <span>
-                    Read the same way as <span className="font-medium">{assist.format.fileName}</span>, confirmed {new Date(assist.format.confirmedAt).toLocaleDateString('en-GB', { dateStyle: 'medium', timeZone: 'UTC' })}. Nothing was sent to AI.
+                    Read the same way as <span className="font-medium">{assist.format.fileName}</span>, confirmed {formatDate(assist.format.confirmedAt, { locale: 'en-GB' })}. Nothing was sent to AI.
                     {assist.unsureLines.length > 0 ? ` ${assist.unsureLines.length === 1 ? 'One line is' : `${assist.unsureLines.length} lines are`} new: say what ${assist.unsureLines.length === 1 ? 'it is' : 'they are'} below.` : ''}
                   </span>
                   <Button
@@ -587,6 +574,33 @@ export function MappingEditor({
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-4 text-sm">
+            {/* T-170: a pact's amounts live in its own currency; nothing is converted, so the file must be in it. */}
+            {!billing && preview.currency ? (
+              <div className="flex flex-col gap-2">
+                <p>
+                  Amounts are read in <span className="font-medium">{preview.currency.pact}</span>, the pact’s currency
+                  {preview.currency.detected.length > 0 ? ` · the file shows ${preview.currency.detected.join(' and ')}` : ''}. Pactlab never converts amounts.
+                </p>
+                {preview.currency.question || preview.currency.declared ? (
+                  <label className="flex flex-wrap items-center gap-2">
+                    <span>{preview.currency.question ?? 'The amounts in this file are in'}</span>
+                    <select
+                      aria-label="Currency of the amounts"
+                      className="rounded-md border border-border bg-background px-2 py-1"
+                      value={mapping.currency ?? ''}
+                      onChange={(event) => update({ ...mapping, ...(event.target.value ? { currency: event.target.value } : { currency: undefined }) })}
+                    >
+                      <option value="">Choose…</option>
+                      {[...new Set([preview.currency.pact, ...preview.currency.detected])].map((code) => (
+                        <option key={code} value={code}>
+                          {code}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ) : null}
+              </div>
+            ) : null}
             {preview.problems.length > 0 ? (
               <ul role="alert" className="list-disc pl-5 text-red-800">
                 {preview.problems.map((problem) => (
@@ -675,7 +689,7 @@ export function MappingEditor({
                 <span className="font-medium">{PHASE_LABELS[progress?.phase ?? 'QUEUED']}</span>
                 <progress className="h-2 w-full" max={progress?.total ?? preview.validRows} value={progress?.processed ?? 0} />
                 <span className="text-xs text-muted-foreground" data-numeric>
-                  {(progress?.processed ?? 0).toLocaleString('en-US')} of {(progress?.total ?? preview.validRows).toLocaleString('en-US')} {billing ? 'lines' : 'rows'} · large files import in the background, so you can leave this page and check Sources later.
+                  {formatNumber((progress?.processed ?? 0))} of {formatNumber((progress?.total ?? preview.validRows))} {billing ? 'lines' : 'rows'} · large files import in the background, so you can leave this page and check Sources later.
                 </span>
               </div>
             ) : (

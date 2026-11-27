@@ -6,6 +6,7 @@ import { keepParams, pageApiQuery, Pager, pagerLinks, readPage } from '../../../
 import { apiGet } from '../../../_lib/api';
 import { ApiState } from '../../../_lib/states';
 import { activityHref, peoplePageHref } from '../view';
+import { formatMonth } from '@pactlab/domain';
 
 export const dynamic = 'force-dynamic';
 
@@ -46,7 +47,7 @@ interface ActivityView {
 }
 
 const MONTH = /^\d{4}-(0[1-9]|1[0-2])$/;
-const monthLabel = (value: string) => new Date(`${value}-01T00:00:00Z`).toLocaleString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+const monthLabel = (value: string) => formatMonth(value, { style: 'long' });
 const day = (iso: string | null) => (iso ? iso.slice(0, 10) : '—');
 const STATUS: Record<string, string> = { TO_DO: 'To do', IN_PROGRESS: 'In progress', DONE: 'Done' };
 const shift = (value: string, months: number) => {

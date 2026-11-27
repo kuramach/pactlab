@@ -12,7 +12,7 @@ import { HostingCost } from './hosting-cost';
 import { compPact, createPromoCode, deactivatePromoCode, decideOrganization, resyncBilling, setMemberStatus, setOrganizationFlags, setOrganizationStatus, setOrganizationMcp } from './actions';
 import { SourceStatusTable, type SourceStatus } from './source-status';
 import type { AdminBillingAccountView, PromoCodeView } from '@pactlab/contracts';
-import { COMPANY_TYPES, COMPANY_TYPE_LABELS } from '@pactlab/domain';
+import { COMPANY_TYPES, COMPANY_TYPE_LABELS, formatNumber } from '@pactlab/domain';
 
 export const dynamic = 'force-dynamic';
 
@@ -87,7 +87,7 @@ const listQuery = (search: Search, filters: Record<string, string | undefined>) 
 function ConsolePager({ label, page, search }: { label: string; page: Page<unknown>; search: Search }) {
   return <Pager label={label} base="/admin" links={pagerLinks({ ...page, itemCount: page.items.length }, readPage(search), keepParams(search))} />;
 }
-const number = new Intl.NumberFormat('en-US');
+const number = { format: (value: number | bigint) => formatNumber(value) };
 
 export default async function AdminPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const search = await searchParams;

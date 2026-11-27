@@ -31,6 +31,7 @@ of what a pilot partner gets, which controls protect them, and how we roll back.
 | [rentcast.md](rentcast.md)                                           | Setting, rotating or turning off the RentCast key (market rents) |
 | [notifications.md](notifications.md)                                 | Someone was not told of a pact change, or emails failed |
 | [log-triage.md](log-triage.md)                                       | A triage digest (live, dev, qa, stage), an approved issue, the dev Bedrock flip, or pausing triage |
+| [currencies.md](currencies.md)                                       | Adding a currency, or an import refused for its currency |
 
 ## Conventions
 
