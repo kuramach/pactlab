@@ -3,6 +3,7 @@
 import type { ECharts } from 'echarts';
 import { useEffect, useRef } from 'react';
 import { labelRows } from './label-rows';
+import { formatAmount, formatNumber } from '@pactlab/domain';
 
 /**
  * Brand charts on ECharts (the project's settled visual library), rendered
@@ -25,10 +26,13 @@ const SERIES = [CHART_COLORS.indigo, CHART_COLORS.teal, CHART_COLORS.amber, CHAR
 export type ValueFormat = 'money' | 'percent' | 'count';
 
 function formatter(format: ValueFormat, currency: string) {
-  const money = new Intl.NumberFormat('en-US', { style: 'currency', currency, notation: 'compact', maximumFractionDigits: 2 });
-  const count = new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 });
+  // Axis labels only: ECharts plots numbers; the figures themselves stay decimal strings everywhere else.
   return (value: number) =>
-    format === 'money' ? money.format(value) : format === 'percent' ? `${(value * 100).toFixed(1)}%` : count.format(value);
+    format === 'money'
+      ? formatAmount(String(value), currency, { compact: true })
+      : format === 'percent'
+        ? `${(value * 100).toFixed(1)}%`
+        : formatNumber(value, { compact: true, maximumFractionDigits: 1 });
 }
 
 const toNumber = (value: string | number | null) => (value === null ? null : typeof value === 'number' ? value : Number(value));

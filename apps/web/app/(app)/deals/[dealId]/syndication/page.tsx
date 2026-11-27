@@ -1,4 +1,4 @@
-import { OFFERING_EXEMPTION_LABELS, OFFERING_EXEMPTIONS, OFFERING_ITEM_KINDS, OFFERING_KIND_REGISTRY, OFFERING_SOURCE_LABELS, OFFERING_SOURCES, type OfferingItemKind, type OfferingSource } from '@pactlab/domain';
+import { OFFERING_EXEMPTION_LABELS, OFFERING_EXEMPTIONS, OFFERING_ITEM_KINDS, OFFERING_KIND_REGISTRY, OFFERING_SOURCE_LABELS, OFFERING_SOURCES, type OfferingItemKind, type OfferingSource, formatAmount } from '@pactlab/domain';
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from '@pactlab/ui';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
@@ -81,11 +81,6 @@ const outcomeMessage = (outcome: string | undefined): Record<string, string> => 
 };
 const CLAIM_TONE = { VERIFIED: 'reviewed', CONTRADICTED: 'danger', UNVERIFIED: 'draft' } as const;
 const SCENARIO_NAMES = { DOWNSIDE: 'Downside', BASE: 'Base', UPSIDE: 'Upside' } as const;
-const grouped = (value: string) => {
-  const negative = value.startsWith('-');
-  const [whole = '', fraction] = value.replace('-', '').split('.');
-  return `${negative ? '−' : ''}${whole.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}${fraction && /[1-9]/.test(fraction) ? `.${fraction}` : ''}`;
-};
 const inputClass = 'rounded-md border border-border bg-background px-2 py-1 text-sm';
 const figure = (item: Pick<Item, 'kind' | 'value' | 'hurdle'>) => {
   if (item.value === null) return '—';
@@ -105,7 +100,7 @@ export default async function SyndicationPage({ params, searchParams }: { params
   const result = await apiGet<SyndicationView>(`/v1/deals/${dealId}/syndication`);
   if (result.kind !== 'ok') return <ApiState result={result} />;
   const view = result.data;
-  const money = (value: string | null) => (value === null ? '—' : `${view.currency} ${grouped(value)}`);
+  const money = (value: string | null) => (value === null ? '—' : formatAmount(value, view.currency, { fraction: 'trim' }));
   const proposed = view.items.filter((item) => item.status === 'PROPOSED');
   const decided = view.items.filter((item) => item.status !== 'PROPOSED');
   const base = view.waterfall.scenarios.find((scenario) => scenario.scenario === 'BASE');

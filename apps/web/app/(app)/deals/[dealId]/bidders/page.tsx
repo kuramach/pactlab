@@ -4,6 +4,7 @@ import { OutcomeBanner } from '../../_lib/outcome';
 import { ApiState } from '../../_lib/states';
 import { BidFiles, CommentThreads, type BidFileView, type CommentView } from '../bid/threads';
 import { addBidder, answerQuestion, bidAction, inviteBidder, nextRound, replyToComment, saveProcess } from './actions';
+import { formatAmount } from '@pactlab/domain';
 
 interface OfferView {
   id: string;
@@ -71,7 +72,7 @@ const OUTCOMES: Record<string, string> = {
   forbidden: 'Only the seller’s deal lead or analysts can run the bid process.',
 };
 
-const money = (offer: OfferView) => `${offer.currency} ${Number(offer.price).toLocaleString('en-US', { maximumFractionDigits: 2 })}`;
+const money = (offer: OfferView) => formatAmount(offer.price, offer.currency, { fraction: 'trim' });
 const inputClass = 'w-full rounded-md border border-border bg-background px-2 py-1 text-sm';
 
 /**
@@ -226,7 +227,7 @@ export default async function BiddersPage({ params, searchParams }: { params: Pr
                   {(
                     [
                       ['Price', (offer: OfferView) => money(offer)],
-                      ...(venture ? ([['Pre-money', (offer: OfferView) => (offer.preMoney ? `${offer.currency} ${Number(offer.preMoney).toLocaleString('en-US')}` : '—')]] as const) : []),
+                      ...(venture ? ([['Pre-money', (offer: OfferView) => (offer.preMoney ? formatAmount(offer.preMoney, offer.currency, { fraction: 'trim' }) : '—')]] as const) : []),
                       ['Structure', (offer: OfferView) => offer.structure],
                       ['Conditions', (offer: OfferView) => offer.conditions ?? '—'],
                       ['Valid until', (offer: OfferView) => offer.validUntil ?? '—'],

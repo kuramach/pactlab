@@ -1,5 +1,5 @@
 import type { Page } from '@pactlab/contracts';
-import { ACCREDITATION_STATUS_LABELS, ACCREDITATION_STATUSES, type AccreditationStatus } from '@pactlab/domain';
+import { ACCREDITATION_STATUS_LABELS, ACCREDITATION_STATUSES, type AccreditationStatus, formatAmount } from '@pactlab/domain';
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from '@pactlab/ui';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
@@ -150,7 +150,7 @@ export default async function SpvPage({ params, searchParams }: { params: Promis
   ]);
   if (result.kind !== 'ok') return <ApiState result={result} />;
   const view = result.data;
-  const money = (value: string | null) => (value === null ? '—' : `${view.currency} ${grouped(value)}`);
+  const money = (value: string | null) => (value === null ? '—' : formatAmount(value, view.currency, { fraction: 'trim' }));
   const base = `/deals/${dealId}/spv`;
   const cite = (citation: Citation | null) =>
     citation ? (
@@ -272,7 +272,7 @@ export default async function SpvPage({ params, searchParams }: { params: Promis
                     <td>
                       {seat.label} <span className="text-xs text-muted-foreground">{seat.reference}</span> {seat.status === 'WITHDRAWN' ? <Badge variant="draft">withdrawn</Badge> : null}
                     </td>
-                    <td className="text-right" data-numeric>{seat.commitment ? `${seat.currency} ${grouped(seat.commitment)}` : '—'}</td>
+                    <td className="text-right" data-numeric>{seat.commitment ? formatAmount(seat.commitment, seat.currency, { fraction: 'trim' }) : '—'}</td>
                     <td>
                       {seat.accreditationLabel} {seat.sufficient === false ? <Badge variant="danger">not enough for the exemption</Badge> : null}
                       {seat.accreditationUrl ? (
@@ -391,7 +391,7 @@ async function InvestorPage({ dealId }: { dealId: string }) {
       </p>
       <Section title="Your seat">
         <p>
-          {seat.label} <span className="text-xs text-muted-foreground">{seat.reference}</span> — commitment {seat.commitment ? `${seat.currency} ${grouped(seat.commitment)}` : 'not recorded'}; accreditation: {seat.accreditationLabel}
+          {seat.label} <span className="text-xs text-muted-foreground">{seat.reference}</span> — commitment {seat.commitment ? formatAmount(seat.commitment, seat.currency, { fraction: 'trim' }) : 'not recorded'}; accreditation: {seat.accreditationLabel}
           {seat.accreditationProvider ? ` (${seat.accreditationProvider})` : ''}.
         </p>
       </Section>
@@ -410,7 +410,7 @@ async function InvestorPage({ dealId }: { dealId: string }) {
 }
 
 function InvestorSections({ content }: { content: InvestorContent }) {
-  const money = (value: string | null) => (value === null ? '—' : `${content.meta.currency} ${grouped(value)}`);
+  const money = (value: string | null) => (value === null ? '—' : formatAmount(value, content.meta.currency, { fraction: 'trim' }));
   return (
     <div className="flex flex-col gap-4">
       <ClaimsSection claims={content.claims} />

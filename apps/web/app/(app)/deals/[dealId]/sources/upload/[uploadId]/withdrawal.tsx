@@ -1,11 +1,11 @@
-import { WITHDRAWAL_CONSEQUENCES, WITHDRAWAL_REASON_MAX, WITHDRAWAL_REASON_MIN, type ImportLineageEntry } from '@pactlab/domain';
+import { WITHDRAWAL_CONSEQUENCES, WITHDRAWAL_REASON_MAX, WITHDRAWAL_REASON_MIN, type ImportLineageEntry, formatDateTime, formatNumber } from '@pactlab/domain';
 import { Badge, Button } from '@pactlab/ui';
 import Link from 'next/link';
 import { reimportImport, withdrawImport } from '../withdrawal-actions';
 
 const inputClass = 'w-full rounded-md border border-border bg-background px-2 py-1 text-sm';
-const when = (iso: string) => new Date(iso).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'UTC' }) + ' UTC';
-const count = new Intl.NumberFormat('en-US');
+const when = (iso: string) => formatDateTime(iso, { locale: 'en-GB' }) + ' UTC';
+const count = { format: (value: number | bigint) => formatNumber(value) };
 
 /** What failed, in words (T-125): never a code. */
 const FAILURES: Record<string, string> = {

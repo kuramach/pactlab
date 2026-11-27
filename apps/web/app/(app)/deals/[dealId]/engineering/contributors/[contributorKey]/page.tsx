@@ -4,6 +4,7 @@ import { BarChart, CHART_COLORS } from '../../../../../_lib/charts';
 import { apiGet } from '../../../../_lib/api';
 import { ApiState } from '../../../../_lib/states';
 import { displayName, percentLabel, TAG_LABELS, type PeopleAccessView, type ProfileView } from '../../view';
+import { formatMonth } from '@pactlab/domain';
 
 // Per-user data: never prerender.
 export const dynamic = 'force-dynamic';
@@ -15,7 +16,7 @@ interface ContributorResponse {
   areas: { area: string; commits: number; contributors: number; busFactor: number }[];
 }
 
-const month = (value: string) => new Date(`${value}-01T00:00:00Z`).toLocaleString('en-US', { month: 'short', year: '2-digit', timeZone: 'UTC' });
+const month = (value: string) => formatMonth(value, { style: '2-digit' });
 
 /** One contributor: code and delivery side by side, with the tags explained. Activity, not performance. */
 export default async function ContributorPage({ params }: { params: Promise<{ dealId: string; contributorKey: string }> }) {

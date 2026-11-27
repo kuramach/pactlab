@@ -39,8 +39,10 @@ export interface TrendYear {
   readonly grossMargin: string | null;
   /** EBITDA ÷ revenue (the P&L reader's EBITDA: revenue less cost of revenue less operating expenses). */
   readonly operatingMargin: string | null;
-  /** Revenue ÷ the previous year's revenue − 1; null for the first year or after a gap. */
+  /** Revenue ÷ the previous year's revenue − 1; null for the first year, after a gap, or across a currency break. */
   readonly revenueGrowth: string | null;
+  /** The currency the year's lines were declared in (T-170); null when undeclared (the pact's own). */
+  readonly currency: string | null;
   readonly ratios: readonly TrendRatio[];
   readonly evidenceIds: readonly string[];
 }
@@ -50,6 +52,10 @@ export interface PnlTrend {
   readonly years: readonly TrendYear[];
   /** Years with some imported months but not all twelve: left out, never scaled up. */
   readonly partialYears: readonly string[];
+  /** Years whose lines were declared in more than one currency: left out, never summed across currencies. */
+  readonly mixedCurrencyYears: readonly string[];
+  /** Where the declared currency changes between years: growth is not computed across it (T-170). */
+  readonly currencyBreaks: readonly { readonly year: string; readonly from: string; readonly to: string }[];
   readonly conventions: readonly string[];
 }
 
@@ -58,6 +64,7 @@ export const PNL_TREND_CONVENTIONS = [
   'A year with only some months imported is left out of the trend, never scaled up.',
   'Operating margin is EBITDA ÷ revenue, EBITDA being revenue less cost of revenue less operating expenses (other income and expense left out).',
   'A key expense is the sum of the imported cost lines whose names match it, as positive amounts.',
+  'Years are compared like with like: nothing is converted between currencies; a year mixing currencies is left out, and growth is not computed across a change of currency.',
 ] as const;
 
 type Decimal = InstanceType<typeof D>;
@@ -84,13 +91,29 @@ export function fiscalYears(periods: readonly PnlPeriod[]): { years: PnlPeriod[]
   return { years, partial };
 }
 
-export function pnlTrend(periods: readonly PnlPeriod[], keyExpenses: readonly KeyExpense[]): PnlTrend {
-  const { years, partial } = fiscalYears(periods);
+export function pnlTrend(
+  periods: readonly PnlPeriod[],
+  keyExpenses: readonly KeyExpense[],
+  /** The declared currency of each imported line (evidence id → ISO code); undeclared lines are the pact's. */
+  currencyOf: ReadonlyMap<string, string> = new Map(),
+): PnlTrend {
+  const { years: read, partial } = fiscalYears(periods);
+  const mixed: string[] = [];
+  const years: { year: PnlPeriod; currency: string | null }[] = [];
+  for (const year of read) {
+    const declared = [...new Set(year.sources.flatMap((row) => (currencyOf.has(row.evidenceId) ? [currencyOf.get(row.evidenceId) as string] : [])))];
+    if (declared.length > 1) mixed.push(year.period);
+    else years.push({ year, currency: declared[0] ?? null });
+  }
+  const breaks: { year: string; from: string; to: string }[] = [];
   const out: TrendYear[] = [];
-  for (const [index, year] of years.entries()) {
+  for (const [index, { year, currency }] of years.entries()) {
     const revenue = new D(year.revenue);
-    const previous = index > 0 ? years[index - 1] : undefined;
-    const consecutive = previous && Number(previous.period) === Number(year.period) - 1;
+    const before = index > 0 ? years[index - 1] : undefined;
+    const previous = before?.year;
+    const broken = before !== undefined && before.currency !== null && currency !== null && before.currency !== currency;
+    if (broken) breaks.push({ year: year.period, from: before.currency as string, to: currency as string });
+    const consecutive = !broken && previous && Number(previous.period) === Number(year.period) - 1;
     const ratios = keyExpenses.map((expense) => {
       const rows = year.sources.filter((row) => row.kind !== 'REVENUE' && row.kind !== 'OTHER_INCOME' && expense.pattern.test(row.account));
       const amount = rows.reduce((total, row) => total.plus(new D(row.amount).abs()), new D(0));
@@ -106,14 +129,25 @@ export function pnlTrend(periods: readonly PnlPeriod[], keyExpenses: readonly Ke
       grossMargin: ratioOf(revenue.minus(year.costOfRevenue), revenue),
       operatingMargin: ratioOf(new D(year.ebitda), revenue),
       revenueGrowth: consecutive && previous && !new D(previous.revenue).isZero() ? revenue.div(previous.revenue).minus(1).toFixed(4) : null,
+      currency,
       ratios,
       evidenceIds: year.sources.map((row) => row.evidenceId),
     });
   }
-  return { version: PNL_TREND_VERSION, years: out, partialYears: partial, conventions: PNL_TREND_CONVENTIONS };
+  return { version: PNL_TREND_VERSION, years: out, partialYears: partial, mixedCurrencyYears: mixed, currencyBreaks: breaks, conventions: PNL_TREND_CONVENTIONS };
 }
 
 const LINE_KINDS = new Set<string>(['REVENUE', 'COGS', 'OPEX', 'OTHER_INCOME', 'OTHER_EXPENSE']);
+
+/** The currency each imported line was declared in (T-170), for `pnlTrend`. */
+export function pnlLineCurrencies(rows: readonly { readonly id: string; readonly canonical: Readonly<Record<string, string | null>> }[]): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const row of rows) {
+    const currency = row.canonical['currency'];
+    if (currency && /^[A-Z]{3}$/.test(currency)) out.set(row.id, currency);
+  }
+  return out;
+}
 
 /**
  * Imported P&L lines (`finance.pnl_line` canonical records) as the reader's input. When two imports

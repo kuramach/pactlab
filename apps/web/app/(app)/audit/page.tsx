@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { apiGet } from '../deals/_lib/api';
 import { ApiState } from '../deals/_lib/states';
 import { describeAction } from './_lib/actions';
+import { formatDateTime } from '@pactlab/domain';
 
 // Per-user data: never prerender.
 export const dynamic = 'force-dynamic';
@@ -27,7 +28,7 @@ const OUTCOME_VARIANT: Record<string, 'calculation' | 'danger' | 'draft' | 'neut
   FAILED: 'draft',
 };
 
-const when = new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'UTC' });
+const when = { format: (value: Date | string) => formatDateTime(value, { locale: 'en-GB' }) };
 
 /** The organization's tamper-evident audit trail, newest first. Reading it is itself audited. */
 export default async function AuditPage({ searchParams }: { searchParams: Promise<{ before?: string }> }) {

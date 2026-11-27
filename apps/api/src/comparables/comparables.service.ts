@@ -44,7 +44,7 @@ import {
   type PrismaClient,
   type TransactionClient,
 } from '@pactlab/db';
-import { isCounterpartyRole, permissionsForDealRole, type DealRole, type TenantContext } from '@pactlab/domain';
+import { formatAmount as formatSharedAmount, isCounterpartyRole, permissionsForDealRole, type DealRole, type TenantContext } from '@pactlab/domain';
 import { DealAccess } from '../deals/deal-access';
 import { defaultAsOfMonth, loadMetricsEvidence } from '../metrics/metrics.inputs';
 import { PRISMA } from '../tokens';
@@ -85,10 +85,9 @@ function withinYears(announcedOn: string | null, years: number, today: Date): bo
   return announcedOn >= since.toISOString().slice(0, 10);
 }
 
-/** "1350000.0000" → "USD 1,350,000". Grouping on the decimal string; no floating point. */
+/** "1350000.0000" → "USD 1,350,000": whole units, through the shared formatter (T-170). */
 export function formatAmount(amount: string, currency: string): string {
-  const [whole = '0'] = amount.replace('-', '').split('.');
-  return `${amount.startsWith('-') ? '-' : ''}${currency} ${whole.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
+  return formatSharedAmount(amount, currency, { fraction: 'none' });
 }
 
 /** "-0.3250" → "32.5%" (magnitude only). */

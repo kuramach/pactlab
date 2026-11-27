@@ -1,16 +1,16 @@
 'use client';
 
 import type { UploadDetailView } from '@pactlab/contracts';
-import { isPnlLine, type ImportLayout, type PnlKind, type TargetDefinition } from '@pactlab/domain';
+import { isPnlLine, type ImportLayout, type PnlKind, type TargetDefinition, formatNumber, formatMonth } from '@pactlab/domain';
 import { Button } from '@pactlab/ui';
 import { useState } from 'react';
 
 type Reading = NonNullable<NonNullable<UploadDetailView['assist']>['reading']>;
 
-const count = new Intl.NumberFormat('en-US');
+const count = { format: (value: number | bigint) => formatNumber(value) };
 const plural = (n: number, one: string, many = `${one}s`) => `${count.format(n)} ${n === 1 ? one : many}`;
 /** A month as "Jan 2026"; a year (a statement by year) as itself. */
-const monthName = (period: string) => (/^\d{4}$/.test(period) ? period : new Date(`${period}-01T00:00:00Z`).toLocaleString('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' }));
+const monthName = (period: string) => (/^\d{4}$/.test(period) ? period : formatMonth(period));
 
 const GROUP_LABELS: Record<Reading['rowGroups'][number]['kind'], string> = {
   TITLE: 'Titles',

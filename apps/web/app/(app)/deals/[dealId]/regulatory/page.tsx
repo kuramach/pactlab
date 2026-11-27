@@ -5,6 +5,7 @@ import { apiGet } from '../../_lib/api';
 import { OutcomeBanner } from '../../_lib/outcome';
 import { ApiState } from '../../_lib/states';
 import { addEntry, addScenario, proposeFindings } from './actions';
+import { formatAmount, formatNumber } from '@pactlab/domain';
 
 interface RegFinding {
   check: string;
@@ -85,7 +86,7 @@ const grouped = (value: string) => {
   const [whole = '', fraction] = value.split('.');
   return `${whole.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}${fraction ? `.${fraction}` : ''}`;
 };
-const money = (currency: string, value: string) => `${currency} ${grouped(value)}`;
+const money = (currency: string, value: string) => formatAmount(value, currency, { fraction: 'trim' });
 const inputClass = 'rounded-md border border-border bg-background px-2 py-1 text-sm';
 
 /**
@@ -165,7 +166,7 @@ export default async function RegulatoryPage({ params, searchParams }: { params:
 
       <Section title="Inputs">
         <ul className="grid gap-1 sm:grid-cols-2">
-          <Input done={view.inputs.sites > 0} label={`Site footprint: ${view.inputs.sites.toLocaleString('en-US')} sites`} hint={<Link href={`/deals/${dealId}/sources`} className="underline">Import on Sources → Site footprint</Link>} />
+          <Input done={view.inputs.sites > 0} label={`Site footprint: ${formatNumber(view.inputs.sites)} sites`} hint={<Link href={`/deals/${dealId}/sources`} className="underline">Import on Sources → Site footprint</Link>} />
           <Input done={view.inputs.packageSites > 0} label={`Divestiture package: ${view.inputs.packageSites} sites${view.inputs.packageRevision ? ` (revision ${view.inputs.packageRevision})` : ''}`} hint={<Link href={`/deals/${dealId}/sources`} className="underline">Import on Sources → Divestiture package</Link>} />
           <Input done={view.inputs.terms} label="Agreement certainty terms" hint="Add below, citing the agreement" />
           <Input done={view.inputs.buyer} label="Remedy buyer" hint="Add below" />
@@ -195,9 +196,9 @@ export default async function RegulatoryPage({ params, searchParams }: { params:
                     <tr key={market.market} className="border-t border-border">
                       <td className="py-1 pr-3">{market.market}</td>
                       <td className="py-1 pr-3 tabular-nums">
-                        {market.hhiBefore.toLocaleString('en-US')} → {market.hhiAfter.toLocaleString('en-US')}
+                        {formatNumber(market.hhiBefore)} → {formatNumber(market.hhiAfter)}
                       </td>
-                      <td className="py-1 pr-3 tabular-nums">+{market.delta.toLocaleString('en-US')}</td>
+                      <td className="py-1 pr-3 tabular-nums">+{formatNumber(market.delta)}</td>
                       <td className="py-1 pr-3 tabular-nums">{pct(market.mergedShare)}</td>
                       <td className="py-1 pr-3 tabular-nums">{market.firmsAfter}</td>
                       <td className="py-1 pr-3">{market.presumed ? <Badge variant="danger">Met</Badge> : <Badge variant="neutral">Not met</Badge>}</td>
@@ -278,7 +279,7 @@ export default async function RegulatoryPage({ params, searchParams }: { params:
                 </thead>
                 <tbody>
                   <Row label="Verdict" cells={view.packages.map((row) => <Badge key={row.id} variant={VERDICT[row.verdict].tone}>{VERDICT[row.verdict].label}</Badge>)} />
-                  <Row label="Sites divested" cells={view.packages.map((row) => row.sites.toLocaleString('en-US'))} />
+                  <Row label="Sites divested" cells={view.packages.map((row) => formatNumber(row.sites))} />
                   <Row label="Remedy buyer" cells={view.packages.map((row) => row.remedyBuyer || '—')} />
                   <Row
                     label="Presumed markets left"

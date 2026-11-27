@@ -1,3 +1,4 @@
+import { formatDate } from '@pactlab/domain';
 /** How a report's status reads to the person who filed it (Bugs submitted). */
 export const STATUS_LABELS: Record<string, string> = { NEW: 'New', TRIAGED: 'Triaged', IN_PROGRESS: 'In progress', RESOLVED: 'Resolved', WONT_FIX: 'Won’t fix' };
 
@@ -26,7 +27,7 @@ export const TRIGGER_LABELS: Record<string, string> = {
 };
 
 /** "2026-11-02T15:42:00Z" → "2 Nov 2026". */
-export const day = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+export const day = (iso: string) => formatDate(iso, { locale: 'en-GB' });
 
 /** The app page without its query string (which can carry search terms). */
 export const pagePath = (page: string | null) => (page ? page.split('?')[0] : null);

@@ -3,6 +3,8 @@
  * JavaScript numbers: grouping and percent shifts are pure string operations.
  */
 
+import { formatMoney as formatSharedMoney } from '@pactlab/domain';
+
 const DECIMAL = /^(-?)(\d+)(?:\.(\d+))?$/;
 
 function group(digits: string): string {
@@ -16,10 +18,11 @@ export function formatDecimal(value: string): string {
   return `${sign}${group(whole)}${fraction ? `.${fraction}` : ''}`;
 }
 
+/** Money through the one shared formatter (T-170): ISO code, the currency's minor unit, locale grouping. */
 export function formatMoney(
   value: { amount: string; currency: string } | null | undefined,
 ): string {
-  return value ? `${value.currency} ${formatDecimal(value.amount)}` : '—';
+  return formatSharedMoney(value);
 }
 
 /** `'1.1201'` → `'112.01%'`; `null` → `'—'`. */

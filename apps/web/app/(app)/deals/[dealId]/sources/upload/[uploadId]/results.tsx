@@ -5,10 +5,11 @@ import { formatDecimal, formatMoney, formatRatio } from '../../../../../metrics/
 import type { MetricsSummaryView, PackMetricsView } from '../../../../../metrics/_lib/api';
 import { AskSellerButton } from '../../../../_lib/ask-seller';
 import { missingImports, needsLabel, requestNote } from '../../../../_lib/property-metrics';
+import { formatNumber, formatMonth } from '@pactlab/domain';
 
-const count = new Intl.NumberFormat('en-US');
+const count = { format: (value: number | bigint) => formatNumber(value) };
 /** A month as "Jan 2026"; a year (a statement by year) as itself. */
-const monthName = (period: string) => (/^\d{4}$/.test(period) ? period : new Date(`${period}-01T00:00:00Z`).toLocaleString('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' }));
+const monthName = (period: string) => (/^\d{4}$/.test(period) ? period : formatMonth(period));
 
 /** The subscription figures worth a first look, in order. */
 const SUBSCRIPTION_HEADLINE = ['ARR', 'MRR', 'ACTIVE_CUSTOMERS', 'NRR', 'GRR', 'ARPA'];

@@ -5,6 +5,7 @@ import { apiGet } from '../../../_lib/api';
 import { isUuidParam } from '../../../_lib/filters';
 import { ApiState } from '../../../_lib/states';
 import { PrintButton } from './print-button';
+import { formatAmount } from '@pactlab/domain';
 
 export const dynamic = 'force-dynamic';
 
@@ -57,7 +58,7 @@ export default async function InvestorViewPage({ params, searchParams }: { param
           <CardContent className="text-sm">
             {view.round ? (
               <p>
-                Raising {view.round.currency} {view.round.raiseAmount}.
+                Raising {formatAmount(view.round.raiseAmount, view.round.currency)}.
               </p>
             ) : null}
             {view.offer ? (
@@ -85,7 +86,7 @@ export default async function InvestorViewPage({ params, searchParams }: { param
           </ul>
           {view.revenue ? (
             <p className="mt-3">
-              Billed revenue, {view.revenue.month}: MRR {view.revenue.currency} {view.revenue.mrr} (ARR {view.revenue.currency} {view.revenue.arr}).
+              Billed revenue, {view.revenue.month}: MRR {formatAmount(view.revenue.mrr, view.revenue.currency)} (ARR {formatAmount(view.revenue.arr, view.revenue.currency)}).
             </p>
           ) : null}
         </CardContent>

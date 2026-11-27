@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { signHereMarker } from '@pactlab/connectors';
+import { formatAmount } from '@pactlab/domain';
 import { PDFDocument, rgb, StandardFonts, type PDFFont, type PDFPage } from 'pdf-lib';
 
 /** Where each signatory signs: the seam's marker for signer 1 (buyer) and 2 (seller), which every signing adapter places a signature on (T-136). */
@@ -28,10 +29,8 @@ export interface TermSheetInput {
   readonly signatories: { readonly buyer: string; readonly seller: string };
 }
 
-const money = (amount: string, currency: string) => {
-  const [whole = '0', fraction = '00'] = amount.split('.');
-  return `${currency} ${whole.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}.${fraction.padEnd(2, '0').slice(0, 2)}`;
-};
+/** At the currency's minor unit (JPY whole yen), through the shared formatter (T-170). */
+const money = (amount: string, currency: string) => formatAmount(amount, currency, { fraction: 'minor' });
 
 /** Standard fonts encode WinAnsi only: anything else is replaced, never dropped silently. */
 const safe = (text: string) => text.replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/[–—]/g, '-').replace(/[^\x20-\x7E\xA0-\xFF]/g, '?');

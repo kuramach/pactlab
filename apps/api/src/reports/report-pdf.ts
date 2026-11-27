@@ -5,6 +5,7 @@ import { resolve } from 'node:path';
 import fontkit from '@pdf-lib/fontkit';
 import { PDFDocument, rgb, type PDFFont, type PDFImage, type PDFPage } from 'pdf-lib';
 import { brandFontFile, documentColors, POWERED_BY, type DocumentBrand } from '../brand/document-brand';
+import { formatMoney as formatSharedMoney, formatMoneyRange } from '@pactlab/domain';
 import { phaseLabel, type ExecutiveReportModel, type Money, type PactReportModel } from './report-model';
 
 /**
@@ -36,14 +37,9 @@ const RULE = rgb(0.86, 0.87, 0.9);
 const STRIPE = rgb(0.965, 0.97, 0.98);
 
 const stamp = (date: Date) => `${date.toISOString().slice(0, 16).replace('T', ' ')} UTC`;
-export const formatMoney = (money: Money | null | undefined): string => {
-  if (!money) return '—';
-  const [whole = '0', fraction = ''] = money.amount.replace('-', '').split('.');
-  const grouped = whole.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-  const cents = fraction.replace(/0+$/, '') ? `.${(fraction + '00').slice(0, 2)}` : '';
-  return `${money.amount.startsWith('-') ? '−' : ''}${money.currency} ${grouped}${cents}`;
-};
-const range = (low: string, high: string, currency: string) => `${formatMoney({ amount: low, currency })} – ${formatMoney({ amount: high, currency }).replace(`${currency} `, '')}`;
+/** Documents show money by ISO code (`USD 1,234.50`, `JPY 1,000`), through the shared formatter (T-170). */
+export const formatMoney = (money: Money | null | undefined): string => formatSharedMoney(money);
+const range = (low: string, high: string, currency: string) => formatMoneyRange(low, high, currency);
 
 class ReportWriter {
   private page!: PDFPage;

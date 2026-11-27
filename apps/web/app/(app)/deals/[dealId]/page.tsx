@@ -1,6 +1,6 @@
 import type { FinancingView } from '@pactlab/contracts';
 import { redirect } from 'next/navigation';
-import { COMPANY_TYPE_LABELS, DEAL_PHASE_LABELS, DEAL_STAGES } from '@pactlab/domain';
+import { COMPANY_TYPE_LABELS, DEAL_PHASE_LABELS, DEAL_STAGES, formatNumber } from '@pactlab/domain';
 import { moveStage } from './stage-actions';
 import { Badge, buttonVariants, Card, CardContent, CardHeader, CardTitle, Glossed, IconTile, Section, Stat, type Accent, Button } from '@pactlab/ui';
 import {
@@ -44,7 +44,7 @@ import { PipelineCard, pipelineSteps } from '../_lib/pipeline';
 // Per-user data: never prerender.
 export const dynamic = 'force-dynamic';
 
-const number = new Intl.NumberFormat('en-US');
+const number = { format: (value: number | bigint) => formatNumber(value) };
 
 const SOURCE_ICONS = { BILLING: Receipt, CODE: GitBranch, DELIVERY: ListChecks, DOCUMENTS: FileText, INDUSTRY: Factory } as const;
 const AREAS: { path: string; title: string; body: string; icon: typeof TrendingUp; accent: Accent }[] = [

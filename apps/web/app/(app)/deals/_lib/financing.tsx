@@ -1,5 +1,6 @@
 import type { FinancingPlanView, FinancingPostureView, TrancheKindView, TrancheStatusView } from '@pactlab/contracts';
 import { Badge } from '@pactlab/ui';
+import { formatAmount } from '@pactlab/domain';
 
 /** Buyer financing (T-117): the labels and the read-only summary both sides see. */
 export const TRANCHE_KIND_LABELS: Readonly<Record<TrancheKindView, string>> = {
@@ -36,10 +37,8 @@ const LEVEL: Record<FinancingPostureView['level'], 'neutral' | 'draft' | 'calcul
   CLEARED: 'reviewed',
 };
 
-export const money = (amount: string, currency: string) => {
-  const [whole = '0', fraction = ''] = amount.split('.');
-  return `${currency} ${whole.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}.${(fraction + '00').slice(0, 2)}`;
-};
+/** At the currency's minor unit (JPY whole yen), through the shared formatter (T-170). */
+export const money = (amount: string, currency: string) => formatAmount(amount, currency, { fraction: 'minor' });
 
 /** The posture in one line: what a seller asks first. Buyer-provided, and labelled so. */
 export function FinancingPosture({ posture, compact = false }: { posture: FinancingPostureView; compact?: boolean }) {

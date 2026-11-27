@@ -4,9 +4,11 @@ import { formatDecimal, formatMoney, formatRatio, parseMonthParam } from './form
 describe('metrics formatting', () => {
   it('groups money without converting to floating point', () => {
     expect(formatMoney({ amount: '1450000.00', currency: 'USD' })).toBe('USD 1,450,000.00');
-    expect(formatMoney({ amount: '-1273881.29', currency: 'USD' })).toBe('USD -1,273,881.29');
+    expect(formatMoney({ amount: '-1273881.29', currency: 'USD' })).toBe('-USD 1,273,881.29');
     expect(formatDecimal('90071992547409931.01')).toBe('90,071,992,547,409,931.01');
     expect(formatMoney(null)).toBe('—');
+    expect(formatMoney({ amount: '150000000', currency: 'JPY' })).toBe('JPY 150,000,000');
+    expect(formatMoney({ amount: '123456789.50', currency: 'INR' })).toBe('INR 12,34,56,789.50');
   });
 
   it('shifts ratios to percentages as strings', () => {

@@ -7,6 +7,7 @@ import { OutcomeBanner } from '../../_lib/outcome';
 import { ApiState } from '../../_lib/states';
 import { acceptNda, askQuestion, attachFile, commentOnDocument, passBid, startLinkedPact, submitOffer } from './actions';
 import { BidFiles, CommentThreads, type BidFileView, type CommentView } from './threads';
+import { formatAmount } from '@pactlab/domain';
 
 interface OfferView {
   id: string;
@@ -62,7 +63,7 @@ const STANDING: Record<string, string> = {
   WON: 'Selected by the seller',
 };
 
-const money = (currency: string, value: string) => `${currency} ${Number(value).toLocaleString('en-US', { maximumFractionDigits: 2 })}`;
+const money = (currency: string, value: string) => formatAmount(value, currency, { fraction: 'trim' });
 const inputClass = 'w-full rounded-md border border-border bg-background px-2 py-1 text-sm';
 
 interface SharedDocument {

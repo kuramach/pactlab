@@ -1,3 +1,4 @@
+import { formatNumber } from '@pactlab/domain';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export interface EvidenceFilters {
@@ -75,7 +76,7 @@ export function evidencePager(filters: EvidenceFilters, page: { itemCount: numbe
   const trail = filters.trail ?? [];
   const before = filters.cursor ? trail.length + 1 : 0;
   const first = before * page.limit + 1;
-  const count = new Intl.NumberFormat('en-US');
+  const count = { format: (value: number | bigint) => formatNumber(value) };
   return {
     totalLabel: `${count.format(page.total)} ${page.total === 1 ? 'record' : 'records'}`,
     windowLabel: page.itemCount === 0 ? null : `${count.format(first)}–${count.format(first + page.itemCount - 1)} of ${count.format(page.total)}`,

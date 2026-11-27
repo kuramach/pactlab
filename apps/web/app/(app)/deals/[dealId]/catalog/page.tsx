@@ -1,5 +1,5 @@
 import type { Page } from '@pactlab/contracts';
-import { MUSIC_ITEM_KINDS, MUSIC_ITEM_REGISTRY, type MusicItemKind } from '@pactlab/domain';
+import { MUSIC_ITEM_KINDS, MUSIC_ITEM_REGISTRY, type MusicItemKind, formatAmount } from '@pactlab/domain';
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from '@pactlab/ui';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
@@ -93,11 +93,6 @@ const outcomeMessage = (outcome: string | undefined): Record<string, string> => 
   if (checks) return { [checks[0]]: `Checks ran. ${checks[1]} new draft${checks[1] === '1' ? '' : 's'} on Findings. A person decides each one.` };
   return OUTCOMES;
 };
-const grouped = (value: string) => {
-  const negative = value.startsWith('-');
-  const [whole = '', fraction] = value.replace('-', '').split('.');
-  return `${negative ? '−' : ''}${whole.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}${fraction && /[1-9]/.test(fraction) ? `.${fraction}` : ''}`;
-};
 const percent = (fraction: string | null) => formatRatio(fraction);
 const inputClass = 'rounded-md border border-border bg-background px-2 py-1 text-sm';
 const HOLD_SOURCES = { CHOSEN: 'the hold you chose', STATED: 'the hold a document states', DEFAULT: 'the pack’s default hold' } as const;
@@ -125,7 +120,7 @@ export default async function CatalogPage({ params, searchParams }: { params: Pr
   ]);
   if (result.kind !== 'ok') return <ApiState result={result} />;
   const view = result.data;
-  const money = (value: string | null) => (value === null ? '—' : `${view.currency} ${grouped(value)}`);
+  const money = (value: string | null) => (value === null ? '—' : formatAmount(value, view.currency, { fraction: 'trim' }));
   const base = `/deals/${dealId}/catalog`;
   const proposed = proposedResult.kind === 'ok' ? proposedResult.data.items : [];
   const source = (item: Item) => (

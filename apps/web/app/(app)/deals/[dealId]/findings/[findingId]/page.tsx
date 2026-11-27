@@ -1,5 +1,5 @@
 import type { ClaimView } from '@pactlab/contracts';
-import { PRICED_RISK_TYPES, type Finding, type FindingReview, type SourceWithdrawnFlag } from '@pactlab/domain';
+import { PRICED_RISK_TYPES, type Finding, type FindingReview, type SourceWithdrawnFlag, formatMoneyRange, formatDateTime } from '@pactlab/domain';
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from '@pactlab/ui';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
@@ -22,6 +22,7 @@ import { can, dealViewer } from '../../../_lib/viewer';
 import { decideFinding, priceFinding, setFindingDirection } from '../actions';
 import { claimsFor, SellerClaims } from '../../../_lib/seller-claims';
 import { SourceWithdrawnBadge, SourceWithdrawnNotice } from '../../../_lib/source-withdrawn';
+import { pactCurrency } from '../../../_lib/pact-currency';
 
 // Per-user data: never prerender.
 export const dynamic = 'force-dynamic';
@@ -51,7 +52,7 @@ const DECISION_TEXT: Record<FindingReview['decision'], string> = {
 };
 
 const inputClass = 'w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring';
-const when = new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'UTC' });
+const when = { format: (value: Date | string) => formatDateTime(value, { locale: 'en-GB' }) };
 
 /** One finding: what it says, what it cites, what it is worth, and who decided what. */
 export default async function FindingPage({
@@ -64,10 +65,11 @@ export default async function FindingPage({
   const { dealId, findingId } = await params;
   const { outcome } = await searchParams;
   if (!isUuidParam(dealId) || !isUuidParam(findingId)) notFound();
-  const [result, viewer, claimsResult] = await Promise.all([
+  const [result, viewer, claimsResult, currency] = await Promise.all([
     apiGet<{ finding: Finding; reviews: FindingReview[]; sourceWithdrawn?: SourceWithdrawnFlag[] }>(`/v1/deals/${dealId}/findings/${findingId}`),
     dealViewer(dealId),
     apiGet<{ items: ClaimView[] }>(`/v1/deals/${dealId}/claims`),
+    pactCurrency(dealId),
   ]);
   const linkedClaims = claimsResult.kind === 'ok' ? claimsFor(claimsResult.data.items, findingId) : [];
   if (result.kind !== 'ok') return <ApiState result={result} />;
@@ -183,7 +185,7 @@ export default async function FindingPage({
                 <p>
                   Confirms <b>{confirmation.valueDriver}</b>
                   {confirmation.impliedValue
-                    ? ` · implied ${confirmation.impliedValue.currency} ${confirmation.impliedValue.low}–${confirmation.impliedValue.high}`
+                    ? ` · implied ${formatMoneyRange(confirmation.impliedValue.low, confirmation.impliedValue.high, confirmation.impliedValue.currency)}`
                     : ' · no implied value'}{' '}
                   — {confirmation.basis}
                 </p>
@@ -209,7 +211,7 @@ export default async function FindingPage({
                     <input name="valueBasis" defaultValue={confirmation?.basis ?? ''} placeholder="Cushion: basis" className={inputClass} />
                     <input name="valueLow" inputMode="decimal" defaultValue={confirmation?.impliedValue?.low ?? ''} placeholder="Implied value low (optional)" className={inputClass} />
                     <input name="valueHigh" inputMode="decimal" defaultValue={confirmation?.impliedValue?.high ?? ''} placeholder="Implied value high (optional)" className={inputClass} />
-                    <input name="valueCurrency" defaultValue={confirmation?.impliedValue?.currency ?? 'USD'} maxLength={3} className={`${inputClass} uppercase`} />
+                    <input name="valueCurrency" defaultValue={confirmation?.impliedValue?.currency ?? currency} maxLength={3} className={`${inputClass} uppercase`} />
                   </div>
                   <textarea name="directionRationale" rows={2} defaultValue={finding.directionRationale ?? ''} placeholder="Neutral: why it moves no value" className={inputClass} />
                   <div>
@@ -253,7 +255,7 @@ export default async function FindingPage({
                   <div className="grid grid-cols-3 gap-2">
                     <label className="flex flex-col gap-1 font-medium">
                       Currency
-                      <input name="currency" defaultValue={finding.pricedRisk?.currency ?? 'USD'} maxLength={3} className={`${inputClass} uppercase`} />
+                      <input name="currency" defaultValue={finding.pricedRisk?.currency ?? currency} maxLength={3} className={`${inputClass} uppercase`} />
                     </label>
                     <label className="flex flex-col gap-1 font-medium">
                       Low

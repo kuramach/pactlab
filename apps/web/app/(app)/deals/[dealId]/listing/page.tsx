@@ -9,6 +9,7 @@ import { embedUrl, Teaser } from '../../../../listings/_lib/teaser';
 import { apiGet, apiSend } from '../../_lib/api';
 import { ApiState } from '../../_lib/states';
 import { addImages, addVideo, approveInterest, captionMedia, declineInterest, moveMedia, removeMedia, saveListing, saveProperty, setListingStatus } from './actions';
+import { pactCurrency } from '../../_lib/pact-currency';
 
 export const dynamic = 'force-dynamic';
 
@@ -253,6 +254,7 @@ export default async function ListingTab({ params, searchParams }: { params: Pro
   if (result.kind !== 'ok') return <ApiState result={result} />;
   const listing = result.data.listing;
   const link = listing ? new URL(`/listings/${listing.slug}`, serverEnv().APP_BASE_URL ?? 'http://localhost:3000').toString() : null;
+  const currency = await pactCurrency(dealId);
   const draft = {
     visibility: listing?.visibility ?? 'ANONYMOUS',
     codename: listing?.codename ?? '',
@@ -360,7 +362,7 @@ export default async function ListingTab({ params, searchParams }: { params: Pro
                   <input name="askingHigh" inputMode="decimal" defaultValue={draft.asking?.high ?? ''} className={inputClass} />
                 </Field>
                 <Field label="Currency">
-                  <input name="askingCurrency" maxLength={3} defaultValue={draft.asking?.currency ?? 'USD'} className={inputClass} />
+                  <input name="askingCurrency" maxLength={3} defaultValue={draft.asking?.currency ?? currency} className={inputClass} />
                 </Field>
               </div>
               <Field label="Summary">

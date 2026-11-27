@@ -171,7 +171,7 @@ describe('synthetic decision-loop seed', () => {
       [CHARLIE],
     );
     expect(runs.map((run) => run['equity'])).toEqual([runs[0]!['equity'], runs[0]!['equity']]);
-    expect(runs.at(-1)!['engine']).toBe('valuation-2');
+    expect(runs.at(-1)!['engine']).toBe('valuation-3');
   });
 
   it('proposes directions: drags on Troubled, an accepted engineering-continuity cushion on Healthy', async () => {

@@ -7,6 +7,7 @@ import { addChosenFiles, connectSource, disconnectSource, pickerFor, signInForFo
 import { FolderChooser } from './folder-chooser';
 import { chooseDriveFiles } from './google-picker';
 import { sortDocument } from './sorting';
+import { formatNumber } from '@pactlab/domain';
 
 export interface DocumentSourceView {
   readonly id: string;
@@ -131,7 +132,7 @@ export function SourcesPanel({ dealId, sources, aiOn, justConnected = null }: { 
     setProgress(
       [
         result.waiting > 0 ? `${result.waiting} more file${result.waiting === 1 ? '' : 's'} to read — sync again to continue (up to 200 are read each time).` : null,
-        result.complete ? null : `This room has more than ${result.listedLimit.toLocaleString('en-US')} files; only the first ${result.listedLimit.toLocaleString('en-US')} are listed, and nothing is marked removed until a sync can list it all.`,
+        result.complete ? null : `This room has more than ${formatNumber(result.listedLimit)} files; only the first ${formatNumber(result.listedLimit)} are listed, and nothing is marked removed until a sync can list it all.`,
       ]
         .filter(Boolean)
         .join(' ') || null,

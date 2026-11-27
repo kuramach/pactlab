@@ -56,9 +56,11 @@ export default async function HomePage() {
   const items = deals.kind === 'ok' ? deals.data.items : [];
   const counts = summary.kind === 'ok' ? summary.data : { total: items.length, active: 0, byStage: {} as Record<string, number> };
   const firstName = session.displayName.replace(/\(.*?\)/g, '').trim().split(/\s+/)[0] ?? '';
-  // One chart, one currency: the first priced deal's.
+  // One chart, one currency (T-170): the first priced deal's. Pacts priced in other currencies are named, never
+  // converted or plotted on the same axis.
   const currency = items.find((deal) => deal.askingPrice)?.askingPrice?.currency ?? 'USD';
   const priced = items.filter((deal) => deal.askingPrice?.currency === currency).slice(0, 8);
+  const otherCurrencies = [...new Set(items.flatMap((deal) => (deal.askingPrice && deal.askingPrice.currency !== currency ? [deal.askingPrice.currency] : [])))];
   const sextant = await Promise.all(priced.map(sextantValue));
   const stages = Object.entries(counts.byStage);
 
@@ -103,7 +105,10 @@ export default async function HomePage() {
               </IconTile>
               <div>
                 <CardTitle>Asking price vs Sextant</CardTitle>
-                <p className="text-sm text-muted-foreground">Sextant’s value after accepted risks, on each price’s basis.</p>
+                <p className="text-sm text-muted-foreground">
+                  Sextant’s value after accepted risks, on each price’s basis, in {currency}.
+                  {otherCurrencies.length > 0 ? ` Pacts priced in ${otherCurrencies.join(', ')} are not shown here: amounts are never converted between currencies.` : ''}
+                </p>
               </div>
             </CardHeader>
             <CardContent>

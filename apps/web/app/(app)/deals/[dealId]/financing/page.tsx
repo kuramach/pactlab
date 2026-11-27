@@ -6,6 +6,7 @@ import { FinancingPosture, money, PURPOSE_LABELS, TRANCHE_KIND_LABELS, TRANCHE_S
 import { OutcomeBanner } from '../../_lib/outcome';
 import { ApiState } from '../../_lib/states';
 import { addTranche, attachDocument, confirmDeposit, disputeDeposit, recordDeposit, recordDisposition, removeTranche, saveEscrow, savePlan, shareDocument, updateTranche } from './actions';
+import { pactCurrency } from '../../_lib/pact-currency';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,7 +35,7 @@ const KINDS = Object.keys(TRANCHE_KIND_LABELS) as (keyof typeof TRANCHE_KIND_LAB
 const STATUSES = Object.keys(TRANCHE_STATUS_LABELS) as (keyof typeof TRANCHE_STATUS_LABELS)[];
 const HOLDERS = { TITLE_COMPANY: 'Title company', ATTORNEY: 'Attorney', BROKER: 'Broker', OTHER: 'Other third party' } as const;
 
-function TrancheFields({ values }: { values?: FinancingPlanView['tranches'][number] }) {
+function TrancheFields({ values, currency }: { values?: FinancingPlanView['tranches'][number]; currency: string }) {
   return (
     <div className="grid gap-2 sm:grid-cols-6">
       <label className="flex flex-col gap-1 text-xs font-medium sm:col-span-2">
@@ -53,7 +54,7 @@ function TrancheFields({ values }: { values?: FinancingPlanView['tranches'][numb
       </label>
       <label className="flex flex-col gap-1 text-xs font-medium">
         Currency
-        <input name="currency" maxLength={3} defaultValue={values?.currency ?? 'USD'} className={field} />
+        <input name="currency" maxLength={3} defaultValue={values?.currency ?? currency} className={field} />
       </label>
       <label className="flex flex-col gap-1 text-xs font-medium">
         Status
@@ -151,7 +152,7 @@ function Documents({ dealId, plan, side, canEdit }: { dealId: string; plan: Fina
   );
 }
 
-function Escrow({ dealId, plan, side, canEdit }: { dealId: string; plan: FinancingPlanView; side: 'BUYER' | 'SELLER'; canEdit: boolean }) {
+function Escrow({ dealId, plan, side, canEdit, currency }: { dealId: string; plan: FinancingPlanView; side: 'BUYER' | 'SELLER'; canEdit: boolean; currency: string }) {
   const escrow = plan.escrow;
   const shared = plan.documents.filter((document) => document.shared);
   const editable = side === 'BUYER' && canEdit && (!escrow || escrow.status === 'COMMITTED' || escrow.status === 'NOT_COMMITTED');
@@ -190,7 +191,7 @@ function Escrow({ dealId, plan, side, canEdit }: { dealId: string; plan: Financi
       {editable ? (
         <form action={saveEscrow.bind(null, dealId)} className="grid gap-2 rounded-lg border border-dashed border-border p-3 sm:grid-cols-4">
           <label className="flex flex-col gap-1 text-xs font-medium">Amount<input name="amount" inputMode="decimal" required defaultValue={escrow?.amount ?? ''} className={field} /></label>
-          <label className="flex flex-col gap-1 text-xs font-medium">Currency<input name="currency" maxLength={3} defaultValue={escrow?.currency ?? 'USD'} className={field} /></label>
+          <label className="flex flex-col gap-1 text-xs font-medium">Currency<input name="currency" maxLength={3} defaultValue={escrow?.currency ?? currency} className={field} /></label>
           <label className="flex flex-col gap-1 text-xs font-medium">
             Held by
             <select name="holderKind" defaultValue={escrow?.holderKind ?? 'TITLE_COMPANY'} className={field}>
@@ -255,7 +256,7 @@ function Escrow({ dealId, plan, side, canEdit }: { dealId: string; plan: Financi
 export default async function FinancingPage({ params, searchParams }: { params: Promise<{ dealId: string }>; searchParams: Promise<{ outcome?: string }> }) {
   const { dealId } = await params;
   const { outcome } = await searchParams;
-  const result = await apiGet<FinancingView>(`/v1/deals/${dealId}/financing`);
+  const [result, currency] = await Promise.all([apiGet<FinancingView>(`/v1/deals/${dealId}/financing`), pactCurrency(dealId)]);
   if (result.kind !== 'ok') return <ApiState result={result} />;
   const { side, canEdit, plans } = result.data;
   if (!side) return <EmptyState icon={<Landmark />} title="Financing" description="Financing is between the buyer and the seller of this pact." />;
@@ -303,7 +304,7 @@ export default async function FinancingPage({ params, searchParams }: { params: 
                 {plan.tranches.map((tranche) => (
                   <div key={tranche.id} className="flex flex-col gap-2 rounded-lg border border-border p-3">
                     <form action={updateTranche.bind(null, dealId, tranche.id)} className="flex flex-col gap-2">
-                      <TrancheFields values={tranche} />
+                      <TrancheFields values={tranche} currency={currency} />
                       <div className="flex flex-wrap items-center gap-2">
                         <Button type="submit" size="sm" variant="outline">Save</Button>
                         {tranche.needsDocument && !tranche.documented ? <span className="text-xs text-amber-900">From pre-qualification up, attach the letter or proof behind this status.</span> : null}
@@ -314,7 +315,7 @@ export default async function FinancingPage({ params, searchParams }: { params: 
                 ))}
                 <form action={addTranche.bind(null, dealId)} className="flex flex-col gap-2 rounded-lg border border-dashed border-border p-3">
                   <p className="text-sm font-semibold">Add a source of funds</p>
-                  <TrancheFields />
+                  <TrancheFields currency={currency} />
                   <div><Button type="submit" size="sm">Add</Button></div>
                 </form>
                 <form action={savePlan.bind(null, dealId)} className="grid gap-2 sm:grid-cols-3">
@@ -335,7 +336,7 @@ export default async function FinancingPage({ params, searchParams }: { params: 
             </section>
             <section aria-label="Earnest money" className="flex flex-col gap-2">
               <h3 className="text-sm font-bold text-navy">Earnest money in escrow</h3>
-              <Escrow dealId={dealId} plan={plan} side={side} canEdit={canEdit} />
+              <Escrow dealId={dealId} plan={plan} side={side} canEdit={canEdit} currency={currency} />
             </section>
           </CardContent>
         </Card>
