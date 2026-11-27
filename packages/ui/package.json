@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./chat-mark": "./src/components/chat-mark.tsx",
     "./styles.css": "./src/styles.css"
   },
   "scripts": {
