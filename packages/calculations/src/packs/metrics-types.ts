@@ -28,6 +28,8 @@ export interface PackMetric {
   readonly history?: readonly { readonly period: string; readonly value: string | null }[];
   /** How much of the expected history the figure rests on, e.g. "FY2022–FY2026 (5 of 5 years)" (T-183). */
   readonly coverage?: string;
+  /** Show the history as a strip under the figure on Home (T-184); multifamily names its strips on the screen. */
+  readonly historyStrip?: boolean;
 }
 
 /**

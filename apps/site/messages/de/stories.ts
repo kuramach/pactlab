@@ -56,6 +56,7 @@ export const stories: Catalog['stories'] = {
       { title: 'Das TPV der Präsentation zählt einen Prozessormonat doppelt', evidence: 'Die Zahl der Präsentation gegen die Prozessorexporte', term: 'Ein Abschlag auf das Volumen, das der Preis voraussetzt' },
       { title: 'Bundesstaatliche Lizenz für Geldübermittlung vor vier Monaten abgelaufen', evidence: 'Das angegebene Ablaufdatum der Lizenz gegen das Register', term: 'Wiedererteilung als Closing-Bedingung oder ein Treuhandeinbehalt' },
       { title: 'Chargeback-Quote über der Schwelle der Sponsorvereinbarung', evidence: 'Quartalsquoten aus den Exporten gegen die Klausel', term: 'Ein Reserveeinbehalt' },
+      { title: 'Take Rate sinkt fünf Jahre in Folge', evidence: 'Nettoumsatz ÷ Volumen je Jahr aus den Prozessorexporten', term: 'Eine niedrigere Take Rate in den Szenarien, nicht die heutige' },
     ],
     deliverables: [
       { title: 'Volumen und Take Rate, die Sie nachverfolgen können', body: 'TPV, Transaktionen und Take Rate aus den Exporten neu berechnet, mit den Zeilen hinter jeder Zahl.' },
@@ -65,6 +66,7 @@ export const stories: Catalog['stories'] = {
     faq: [
       { q: 'Läuft die Software-Due-Diligence bei einem Fintech-Ziel trotzdem?', a: 'Ja. Fintech-Ziele sind Technologieunternehmen, also laufen Umsatz-, Code-, Liefer-, Sicherheits- und Vertragsprüfung wie bei jedem Softwaredeal. Das Fintech-Paket ergänzt darauf die Prüfungen zu Zahlungen, Lizenzen, Verlustquoten und Compliance.' },
       { q: 'Welche Evidenz liest das Fintech-Paket?', a: 'Abrechnungsexporte von Prozessoren oder Banken, das Lizenz- und Sponsorregister, den Kreditbestand, AML-Warnmeldungen und die GuV je Jahr, dazu Präsentation, Lizenzen, Sponsorvereinbarung und Compliance-Dokumente. Jede Feststellung zitiert die Zeilen oder die Seite, auf der sie beruht.' },
+      { q: 'Wie viel Historie liest es?', a: 'Bis zu fünf Jahre GuV und Prozessorexporte, dazu die letzten zwölf Monate. Weniger wird angenommen: Jede Zahl sagt, auf wie vielen Jahren sie beruht, und ein fehlendes Jahr wird beim Verkäufer angefragt, nie geschätzt. Es markiert eine Take Rate, die jedes Jahr sinkt, oder eine Verlustquote, die jedes Jahr steigt.' },
       { q: 'Sagt es mir, ob eine Lizenz erforderlich ist oder ob ein Programm konform ist?', a: 'Nein. Es berichtet Lizenzstatus und Daten so, wie Register und Dokumente sie angeben, und Compliance-Nachweise als vorhanden oder fehlend. Ob eine Lizenz nötig ist und was ein Ablauf bedeutet, beurteilt Ihre Rechtsberatung.' },
       { q: 'Woher kommen die Schwellenwerte?', a: 'Nur aus den Dokumenten selbst, etwa der Überwachungsklausel der Sponsorvereinbarung. Ohne angegebene Schwelle werden die Quoten wie berechnet gezeigt und nichts wird verglichen.' },
     ],
@@ -254,8 +256,8 @@ export const stories: Catalog['stories'] = {
       { title: 'Zahlungsrückstände in wenigen Gebäuden', body: 'Eine gemischte Einzugsquote kann verbergen, wo die Rückstände wirklich liegen.' },
     ],
     walkthrough: [
-      { text: 'Mieterliste, T-12, Mietvertragsakten, Rückstandsberichte, Versorgerrechnungen und Wohnungsbegehungen werden für den Deal angebunden und mit ihrer Quelle aufbewahrt.' },
-      { text: 'Mietdifferenz zum Markt, aufgeschobene Instandhaltung je Einheit und die Konzentration der Rückstände werden mit den Zeilen und Begehungen dahinter entworfen.' },
+      { text: 'Mieterliste, T-12, bis zu fünf Jahre Erträge, Kosten, Mieten und Belegung, Mietvertragsakten, Rückstandsberichte, Versorgerrechnungen und Wohnungsbegehungen werden für den Deal angebunden und mit ihrer Quelle aufbewahrt.' },
+      { text: 'Mietdifferenz zum Markt, aufgeschobene Instandhaltung je Einheit, die Konzentration der Rückstände, sinkende Belegung, Kosten, die schneller wachsen als die Mieten, und ein Sprung des NOI im letzten Jahr werden mit den Zeilen und Begehungen dahinter entworfen.' },
       { text: 'Eine prüfende Person akzeptiert die Instandhaltungsfeststellung mit ihrer Kostenspanne und fordert zur Entwicklung der Rückstände Belege an.' },
       { text: 'Nettobetriebsergebnis und Cap Rate laufen in der Szenario-Engine; Investitionen je Einheit landen als Sanierung.' },
       { text: 'Aufgeschobene Instandhaltung wird zu einer Kaufpreisanpassung oder einem Reparatur-Treuhandeinbehalt. Potenzial aus der Mietdifferenz wird als bestätigter Wert erfasst, nie auf den Preis aufgeschlagen.' },
@@ -264,6 +266,8 @@ export const stories: Catalog['stories'] = {
       { title: 'Aufgeschobene Instandhaltung über dem Investitionsbudget', evidence: 'Zustandsbegehungen der Wohnungen gegen den Investitionsplan', term: 'Reparatur-Treuhandeinbehalt oder Kaufpreisanpassung' },
       { title: 'Zahlungsrückstände in einem Gebäude konzentriert', evidence: 'Rückstandsberichte, abgestimmt mit der Mieterliste', term: 'Auflage zum Forderungseinzug und Abwärtsszenario' },
       { title: 'Bestandsmieten in der ganzen Anlage unter dem Markt', evidence: 'Mieterliste gegen die aktuellen Mietvertragsakten', term: 'Bestätigter Wert im Hauptbuch, kein gezahlter Preis' },
+      { title: 'Belegung sinkt über drei Jahre', evidence: 'Fünf Jahre Belegung nach Monat', term: 'Ein Abschlag auf die in den Szenarien angenommene Belegung' },
+      { title: 'Ein NOI-Sprung im letzten Jahr', evidence: 'Fünf Jahre Betriebsabrechnungen', term: 'Einmaleffekte und aufgeschobene Reparaturen prüfen, bevor auf dem letzten Jahr bepreist wird' },
     ],
     deliverables: [
       { title: 'Eine Ertragsüberleitung', body: 'Vom Memorandum zur Mieterliste, mit abgezeichneter Differenz.' },
@@ -272,6 +276,7 @@ export const stories: Catalog['stories'] = {
     ],
     faq: [
       { q: 'Was liest das Mehrfamilienhaus-Paket?', a: 'Die Mieterliste und die T-12, Mietvertragsakten, Rückstandsberichte, Versorgerrechnungen und Zustandsbegehungen der Wohnungen. Die Mieterliste lässt sich auf dasselbe Umsatzhauptbuch abbilden, das Pactlab für wiederkehrenden Umsatz nutzt.' },
+      { q: 'Wie viel Historie liest es?', a: 'Bis zu fünf Jahre Erträge, Kosten, Mieten und Belegung, dazu die T-12. Weniger wird angenommen: Jede Zahl sagt, auf wie vielen Jahren sie beruht, und ein fehlendes Jahr wird beim Verkäufer angefragt, nie geschätzt. Es markiert sinkende Belegung, Kosten, die schneller wachsen als die Mieten, und einen Sprung des NOI im letzten Jahr.' },
       { q: 'Erhöht die Mietdifferenz den Preis, den wir zahlen?', a: 'Nein. Potenzial aus Mieten unter Marktniveau wird als bestätigter Wert erfasst – als Evidenz, die den Preis stützt – und nie als Grund, mehr zu zahlen.' },
       { q: 'Wie werden Investitionen behandelt?', a: 'Aufgeschobene Instandhaltung je Einheit ist eine bepreiste Feststellung. Sobald eine prüfende Person sie akzeptiert, wird sie zur Sanierung in der Bewertung und zu einer Kaufpreisanpassung oder einem Treuhandeinbehalt in den Konditionen.' },
     ],

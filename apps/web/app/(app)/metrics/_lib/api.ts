@@ -146,6 +146,8 @@ export interface PackMetricsView {
     history?: { period: string; value: string | null }[];
     /** e.g. "FY2022–FY2026 (5 of 5 years)". */
     coverage?: string;
+    /** Show the history as a strip on Home (T-184). */
+    historyStrip?: boolean;
   }[];
   /** Five years side by side (T-183). */
   history?: PackHistoryView;

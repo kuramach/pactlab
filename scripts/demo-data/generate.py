@@ -601,7 +601,31 @@ This agreement, reference {sponsor_ref}, expires on 31 March 2028 unless renewed
     cb_rates = [D('0.0042'), D('0.0045'), D('0.0049'), D('0.0053'), D('0.0058'), D('0.0066'), D('0.0078'), D('0.0094')]   # by quarter; the last breaches 0.90%
     fraud_rates = [D('0.00062'), D('0.00058'), D('0.00065'), D('0.00060'), D('0.00066'), D('0.00061'), D('0.00067'), D('0.00063')]
     vol_rows, by_key = [], {}
+    # Five years (T-184): the export runs back to January 2021 so every calendar year FY2021–FY2025 is whole. The
+    # earlier months come from their own random generator, so the last 24 months are unchanged; take rate
+    # compresses every year (planted (e)).
+    hrng = random.Random(f'fintech-history:{ds.cur}')
+    hist_months = []
+    hy, hm = 2021, 1
+    while (hy, hm) < (2024, 10):
+        hist_months.append(f'{hy}-{hm:02d}'); hm += 1
+        if hm == 13: hy, hm = hy + 1, 1
+    hist_take = {'2021': D('0.0110'), '2022': D('0.0102'), '2023': D('0.0096'), '2024': D('0.0091')}
+    hist_cb = {'2021': D('0.0050'), '2022': D('0.0054'), '2023': D('0.0049'), '2024': D('0.0046')}
+    hist_fraud = {'2021': D('0.00060'), '2022': D('0.00064'), '2023': D('0.00059'), '2024': D('0.00062')}
     for pi, (pname, base, growth) in enumerate(procs):
+        back = D('1.016') if pi == 0 else D('1.018')
+        for k, mo in enumerate(hist_months):
+            v = base / back ** (len(hist_months) - k)
+            vol = whole(ds.amt(v) * (D(1) + D(hrng.randint(-10, 10)) / 1000))
+            ticket = D(62) + D(hrng.randint(-20, 20)) / 10
+            tx = whole(vol / ds.amt(ticket))
+            net = q(vol * (hist_take[mo[:4]] + D(hrng.randint(-4, 4)) / 100000))
+            cbs = whole(tx * hist_cb[mo[:4]])
+            cba = q(cbs * ds.amt(ticket))
+            fraud = q(vol * hist_fraud[mo[:4]])
+            vol_rows.append([mo, pname, f'{vol:.2f}', f'{tx:.0f}', f'{net:.2f}', f'{cbs:.0f}', f'{cba:.2f}', f'{fraud:.2f}'])
+            by_key[(mo, pname)] = (vol, net)
         v = base
         for i, mo in enumerate(MONTHS):
             vol = whole(ds.amt(v) * (D(1) + D(rng.randint(-10, 10)) / 1000))
@@ -615,7 +639,7 @@ This agreement, reference {sponsor_ref}, expires on 31 March 2028 unless renewed
             by_key[(mo, pname)] = (vol, net)
             v = v * (D(1) + growth)
     ds.ext('processor-volume', ['month', 'processor', 'gross_volume', 'transactions', 'net_revenue', 'chargeback_count', 'chargeback_amount', 'fraud_losses'], vol_rows,
-           'Processor settlement exports by month: volume, transactions, net revenue, chargebacks and fraud losses')
+           'Processor settlement exports by month, January 2021 to September 2026: volume, transactions, net revenue, chargebacks and fraud losses')
     trailing = sum((by_key[(mo, p)][0] for mo in LAST12 for p, _, _ in procs), D(0))
     prior = sum((by_key[(mo, p)][0] for mo in MONTHS[:12] for p, _, _ in procs), D(0))
     net12 = sum((by_key[(mo, p)][1] for mo in LAST12 for p, _, _ in procs), D(0))
@@ -652,34 +676,39 @@ This agreement, reference {sponsor_ref}, expires on 31 March 2028 unless renewed
     lapsed = LIC[1]
     kind_word = {'money_transmitter': 'money transmitter licence', 'payment_institution': 'payment institution authorisation', 'e_money': 'e-money authorisation', 'lending': 'lending licence'}
 
-    # Three fiscal years of P&L, by year across the columns. Fraud losses grow faster than revenue every year (planted (d)).
-    proc_2025 = sum((by_key[(mo, p)][1] for mo in MONTHS if mo.startswith('2025-') for p, _, _ in procs), D(0))
+    # Five fiscal years of P&L (T-184), by year across the columns; payments revenue is the exports' net revenue
+    # for each calendar year. Fraud losses grow faster than revenue every year (planted (d)).
     fees_2025 = sum((mo.get(m, D(0)) for _, _, mo in ds.customers for m in MONTHS if m.startswith('2025-')), D(0))
     loans_2025 = ds.amt(1200000)
-    years = ['FY2023', 'FY2024', 'FY2025']
-    proc = [q(proc_2025 / D('1.52') / D('1.45')), q(proc_2025 / D('1.45')), q(proc_2025)]
-    fees = [q(fees_2025 * D('0.62')), q(fees_2025 * D('0.81')), q(fees_2025)]
-    loan_rev = [q(loans_2025 * D('0.58')), q(loans_2025 * D('0.79')), q(loans_2025)]
-    rev = [proc[i] + fees[i] + loan_rev[i] for i in range(3)]
+    fy = ['2021', '2022', '2023', '2024', '2025']
+    years = [f'FY{y}' for y in fy]
+    proc = [q(sum((D(r[4]) for r in vol_rows if r[0].startswith(y)), D(0))) for y in fy]
+    fees = [q(fees_2025 * f) for f in (D('0.38'), D('0.49'), D('0.62'), D('0.81'), D('1'))]
+    loan_rev = [q(loans_2025 * f) for f in (D('0.30'), D('0.42'), D('0.58'), D('0.79'), D('1'))]
+    rev = [proc[i] + fees[i] + loan_rev[i] for i in range(5)]
     ratios = {
-        'Cost of processing (processor platform fees)': ([D('0.180'), D('0.175'), D('0.182')], proc),
-        'Fraud losses': ([D('0.006'), D('0.010'), D('0.017')], rev),
-        'Credit losses on merchant loans': ([D('0.030'), D('0.028'), D('0.031')], rev),
-        'Staff costs': ([D('0.32'), D('0.30'), D('0.29')], rev),
-        'Technology': ([D('0.10'), D('0.10'), D('0.09')], rev),
-        'Sales and marketing': ([D('0.12'), D('0.13'), D('0.12')], rev),
-        'General and administrative': ([D('0.07'), D('0.065'), D('0.06')], rev),
+        'Cost of processing (processor platform fees)': ([D('0.178'), D('0.181'), D('0.180'), D('0.175'), D('0.182')], proc),
+        'Fraud losses': ([D('0.004'), D('0.005'), D('0.006'), D('0.010'), D('0.017')], rev),
+        'Credit losses on merchant loans': ([D('0.029'), D('0.031'), D('0.030'), D('0.028'), D('0.031')], rev),
+        'Staff costs': ([D('0.33'), D('0.32'), D('0.32'), D('0.30'), D('0.29')], rev),
+        'Technology': ([D('0.10'), D('0.10'), D('0.10'), D('0.10'), D('0.09')], rev),
+        'Sales and marketing': ([D('0.12'), D('0.12'), D('0.12'), D('0.13'), D('0.12')], rev),
+        'General and administrative': ([D('0.075'), D('0.07'), D('0.07'), D('0.065'), D('0.06')], rev),
     }
     pnl_rows = [['Payment processing revenue'] + [f'{x:.2f}' for x in proc], ['Platform fee revenue'] + [f'{x:.2f}' for x in fees], ['Merchant loan revenue'] + [f'{x:.2f}' for x in loan_rev]]
     for name, (rs, base) in ratios.items():
-        pnl_rows.append([name] + [f'{q(base[i] * rs[i]):.2f}' for i in range(3)])
-    fraud = [q(rev[i] * ratios['Fraud losses'][0][i]) for i in range(3)]
-    ds.ext('pnl', ['Line'] + years, pnl_rows, 'Profit and loss by fiscal year, FY2023 to FY2025')
+        pnl_rows.append([name] + [f'{q(base[i] * rs[i]):.2f}' for i in range(5)])
+    fraud = [q(rev[i] * ratios['Fraud losses'][0][i]) for i in range(5)]
+    ds.ext('pnl', ['Line'] + years, pnl_rows, 'Profit and loss by fiscal year, FY2021 to FY2025')
     ds.pnl_step = ['Open the **Sources** tab, scroll to **Industry data** and click **Upload profit and loss (p&l)**.', '',
-                   '1. Choose `pnl.csv` → **Upload and map columns**. Pactlab reads the three years across the columns (FY2023, FY2024, FY2025).',
+                   '1. Choose `pnl.csv` → **Upload and map columns**. Pactlab reads the five years across the columns (FY2021 to FY2025).',
                    '2. Say what each line is: the three lines ending in *revenue* are **Revenue**, `Cost of processing (processor platform fees)` is **Cost of revenue**, and the rest are **Operating expenses**.',
-                   f'3. **Check every row**, then **Import {len(pnl_rows) * 3} rows**.', '',
-                   '**You should see:** the import succeed. The **Payments** tab now shows the P&L year by year, and the checks in the next step read every year.', '']
+                   f'3. **Check every row**, then **Import {len(pnl_rows) * 5} rows**.', '',
+                   '**You should see:** the import succeed. The **Payments** tab now shows the P&L year by year, **Finances** shows the five years side by side, and the checks in the next step read every year.', '']
+    def take_of(y):
+        rows = [r for r in vol_rows if r[0].startswith(y)]
+        return sum((D(r[4]) for r in rows), D(0)) / sum((D(r[2]) for r in rows), D(0))
+    takes = [take_of(y) for y in fy]
 
     ds.doc('04-investor-presentation', f'''
 {ds.company} — investor presentation, September 2026 (synthetic demo data).
@@ -715,8 +744,9 @@ The examination reviewed the money-services programme, complaint handling and re
         ('Claim not verified: Retention', 'net revenue retention of 116%: the processor exports carry no merchant identities to recompute it from.'),
         (f'Lapsed: {lapsed[2]} {KIND_TITLE[lapsed[1]]} ({lapsed[0]})', f'`documents/05-licence-{lapsed[2].lower().replace(" ", "-")}.pdf` — it expired on 31 May 2026, four months before the latest processor month; `licence-register.csv` still records it as active.'),
         ('Chargeback rate breaches the stated threshold, 2026-Q3', f'{(cb_q3 * 100).quantize(D("0.01"), ROUND_HALF_UP)}% of settled transactions in July–September 2026, against the 0.90% in clause 8.2 of `documents/03-partner-bank-agreement.pdf` (page 3).'),
-        ('P&L trend, 2023–2025', 'every imported year side by side: revenue, growth, margins and the fraud, credit-loss and processing ratios.'),
-        ('Fraud losses growing faster than revenue, 2023–2025', f'`pnl.csv` — fraud losses rise from {pct(ratios["Fraud losses"][0][0])} of revenue in FY2023 to {pct(ratios["Fraud losses"][0][2])} in FY2025 ({money(c, fraud[0])} to {money(c, fraud[2])}); FY2025 alone looks small.'),
+        ('P&L trend, 2021–2025', 'every imported year side by side: revenue, growth, margins and the fraud, credit-loss and processing ratios.'),
+        ('Fraud losses growing faster than revenue, 2021–2025', f'`pnl.csv` — fraud losses rise from {pct(ratios["Fraud losses"][0][0])} of revenue in FY2021 to {pct(ratios["Fraud losses"][0][4])} in FY2025 ({money(c, fraud[0])} to {money(c, fraud[4])}); FY2025 alone looks small.'),
+        ('Effective take rate falling every year, FY2021–FY2025', f'`processor-volume.csv` — net revenue ÷ volume by calendar year: ' + ', '.join(f'FY{y} {(t * 100).quantize(D("0.01"), ROUND_HALF_UP)}%' for y, t in zip(fy, takes)) + '. Volume grows; each dollar of it earns less (five-year history, T-184).'),
     ]
     ds.notes = ds.notes + ['The P&L (`pnl.csv`) imports through Sources like any extract; the multi-year checks read every year it holds. A single year still imports: the trend then reports that year alone.']
 

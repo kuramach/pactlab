@@ -56,6 +56,7 @@ export const stories: Catalog['stories'] = {
       { title: 'Le TPV de la présentation compte deux fois un mois de processeur', evidence: 'Le chiffre de la présentation face aux exports des processeurs', term: 'Une décote sur le volume que suppose le prix' },
       { title: 'Agrément d’État de transmetteur de fonds expiré depuis quatre mois', evidence: 'L’échéance indiquée sur l’agrément face au registre', term: 'Restauration en condition suspensive, ou un séquestre' },
       { title: 'Taux de rétrofacturation au-dessus du seuil de l’accord de partenariat', evidence: 'Taux trimestriels tirés des exports face à la clause', term: 'Une retenue de réserve' },
+      { title: 'Un take rate en baisse chaque année depuis cinq ans', evidence: 'Revenu net ÷ volume par année, d’après les exports des processeurs', term: 'Un take rate plus bas dans les scénarios, pas celui d’aujourd’hui' },
     ],
     deliverables: [
       { title: 'Un volume et un taux de commission traçables', body: 'TPV, transactions et taux de commission recalculés à partir des exports, avec les lignes derrière chaque chiffre.' },
@@ -65,6 +66,7 @@ export const stories: Catalog['stories'] = {
     faq: [
       { q: 'La due diligence logicielle s’applique-t-elle quand même à une cible fintech ?', a: 'Oui. Les cibles fintech sont des entreprises technologiques : la revue des revenus, du code, de la livraison, de la sécurité et des contrats se fait comme pour tout deal logiciel. Le pack fintech y ajoute les contrôles sur les paiements, les agréments, les taux de pertes et la conformité.' },
       { q: 'Quelles preuves le pack fintech lit-il ?', a: 'Les exports de règlement des processeurs ou des banques, le registre des agréments et des partenariats bancaires, le fichier de prêts, les alertes LCB-FT et le compte de résultat par année, ainsi que la présentation, les agréments, l’accord de partenariat et les documents de conformité. Chaque constat cite les lignes ou la page sur lesquelles il repose.' },
+      { q: 'Quel historique lit-il ?', a: 'Jusqu’à cinq ans de compte de résultat et d’exports des processeurs, plus les douze derniers mois. Moins est accepté : chaque chiffre dit sur combien d’années il repose, et une année manquante est demandée au vendeur, jamais estimée. Il signale un take rate qui baisse, ou un taux de pertes qui monte, chaque année.' },
       { q: 'Me dit-il si un agrément est nécessaire, ou si un programme est conforme ?', a: 'Non. Il rapporte le statut et les dates des agréments tels que les énoncent le registre et les documents, et les preuves de conformité comme présentes ou absentes. La nécessité d’un agrément, et ce qu’implique une expiration, relèvent de vos conseils juridiques.' },
       { q: 'D’où viennent les seuils ?', a: 'Uniquement des documents eux-mêmes, comme la clause de surveillance de l’accord de partenariat. Sans seuil stipulé, les taux sont présentés tels que calculés et rien n’est comparé.' },
     ],
@@ -254,8 +256,8 @@ export const stories: Catalog['stories'] = {
       { title: 'Des impayés dans quelques bâtiments', body: 'Un taux de recouvrement global peut masquer où se trouvent réellement les arriérés.' },
     ],
     walkthrough: [
-      { text: 'L’état locatif, le T-12, les dossiers de baux, les rapports d’impayés, les factures de fluides et les inspections des logements sont connectés pour le deal et conservés avec leur source.' },
-      { text: 'L’écart aux loyers du marché, l’entretien différé par logement et la concentration des impayés sont rédigés avec les lignes et les inspections qui les sous-tendent.' },
+      { text: 'L’état locatif, le T-12, jusqu’à cinq ans de revenus, de charges, de loyers et d’occupation, les dossiers de baux, les rapports d’impayés, les factures de fluides et les inspections des logements sont reliés au deal et conservés avec leur source.' },
+      { text: 'L’écart aux loyers du marché, l’entretien différé par logement, la concentration des impayés, une occupation qui recule, des charges qui progressent plus vite que les loyers et un bond du NOI la dernière année sont rédigés avec les lignes et les inspections qui les fondent.' },
       { text: 'Un réviseur accepte le constat d’entretien avec sa fourchette de coûts et demande des justificatifs sur l’évolution des impayés.' },
       { text: 'Le résultat net d’exploitation et le taux de capitalisation tournent dans le moteur de scénarios ; les travaux par logement s’inscrivent comme remise en état.' },
       { text: 'L’entretien différé devient un ajustement de prix ou un séquestre pour travaux. Le potentiel d’écart aux loyers du marché est enregistré comme valeur confirmée, jamais ajouté au prix.' },
@@ -264,6 +266,8 @@ export const stories: Catalog['stories'] = {
       { title: 'Entretien différé supérieur au budget de travaux', evidence: 'Inspections de l’état des logements face au plan d’investissement', term: 'Séquestre pour travaux ou ajustement de prix' },
       { title: 'Impayés concentrés dans un bâtiment', evidence: 'Rapports d’impayés rapprochés de l’état locatif', term: 'Engagement de recouvrement et scénario défavorable' },
       { title: 'Loyers en place inférieurs au marché sur l’ensemble du bien', evidence: 'État locatif face aux dossiers de baux en cours', term: 'Valeur confirmée dans le grand livre, pas prix payé' },
+      { title: 'Une occupation qui recule sur trois ans', evidence: 'Cinq ans d’occupation par mois', term: 'Une décote sur l’occupation retenue dans les scénarios' },
+      { title: 'Un bond du NOI la dernière année', evidence: 'Cinq ans de comptes d’exploitation', term: 'Vérifier les éléments ponctuels et les réparations différées avant de fixer le prix sur la dernière année' },
     ],
     deliverables: [
       { title: 'Un pont de revenus', body: 'Du mémorandum à l’état locatif, avec l’écart validé.' },
@@ -272,6 +276,7 @@ export const stories: Catalog['stories'] = {
     ],
     faq: [
       { q: 'Que lit le pack résidentiel collectif ?', a: 'L’état locatif et le T-12, les dossiers de baux, les rapports d’impayés, les factures de fluides et les inspections de l’état des logements. L’état locatif se transpose dans le même grand livre des revenus que Pactlab utilise pour les revenus récurrents.' },
+      { q: 'Quel historique lit-il ?', a: 'Jusqu’à cinq ans de revenus, de charges, de loyers et d’occupation, plus le T-12. Moins est accepté : chaque chiffre dit sur combien d’années il repose, et une année manquante est demandée au vendeur, jamais estimée. Il signale une occupation qui recule, des charges qui progressent plus vite que les loyers et un bond du NOI la dernière année.' },
       { q: 'L’écart aux loyers du marché augmente-t-il le prix que nous payons ?', a: 'Non. Le potentiel des loyers inférieurs au marché est enregistré comme valeur confirmée, une preuve qui soutient le prix, et jamais comme une raison de payer plus.' },
       { q: 'Comment les travaux sont-ils traités ?', a: 'L’entretien différé par logement est un constat chiffré. Une fois accepté par un réviseur, il devient une remise en état dans l’évaluation et un ajustement de prix ou un séquestre dans les conditions.' },
     ],

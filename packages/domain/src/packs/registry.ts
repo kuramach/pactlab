@@ -137,6 +137,8 @@ export const PACKS: Readonly<Record<PackId, PackDefinition>> = {
       'fintech-pnl-trend',
       'fintech-pnl-margin-drift',
       'fintech-pnl-expense-outpacing',
+      'fintech-take-rate-trend',
+      'fintech-loss-rate-trend',
     ],
     documentCategories: ['REGULATORY_LICENCE', 'SPONSOR_BANK_AGREEMENT', 'PCI_ATTESTATION', 'AML_PROGRAM', 'REGULATORY_EXAM'],
   },

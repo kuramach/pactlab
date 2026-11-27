@@ -136,10 +136,10 @@ describe('demo organization (batch 2)', () => {
     const energy = await deal(pactName('ENERGY_GENERATION'));
     expect(await count('energy_register_items', energy.id, `AND status = 'CONFIRMED'`)).toBeGreaterThanOrEqual(5);
     expect(await count('findings', energy.id, `AND title = 'ARO shortfall: Cinder Ridge Station (synthetic)'`)).toBe(1);
-    // The fintech pact imports its processor exports, licence register and three years of P&L; the planted defects are drafted (T-159).
+    // The fintech pact imports its processor exports, licence register and five years of P&L; the planted defects are drafted (T-159, T-184).
     const fintech = await deal(pactName('FINTECH'));
-    expect(await count('evidence_items', fintech.id, `AND evidence_type = 'finance.pnl_line'`)).toBe(30);
-    for (const title of ['Claim contradicted: Total payment volume', 'Chargeback rate breaches the stated threshold, 2026-Q3', 'Fraud losses growing faster than revenue, 2023–2025']) {
+    expect(await count('evidence_items', fintech.id, `AND evidence_type = 'finance.pnl_line'`)).toBe(50);
+    for (const title of ['Claim contradicted: Total payment volume', 'Chargeback rate breaches the stated threshold, 2026-Q3', 'Fraud losses growing faster than revenue, 2021–2025', 'Effective take rate falling every year, FY2021–FY2025']) {
       expect(await count('findings', fintech.id, `AND title = '${title}'`), title).toBe(1);
     }
     expect(await count('findings', fintech.id, `AND title LIKE 'Lapsed: %'`)).toBe(1);

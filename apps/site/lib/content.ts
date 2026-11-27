@@ -404,8 +404,8 @@ export const INDUSTRIES: readonly Industry[] = [
     order: 1,
     pack: {
       cluster: 'technology',
-      evidence: ['Processor and bank settlement exports: volume, transactions, net revenue, chargebacks and fraud losses', 'The licence and sponsor-bank register, with the licences and agreements themselves', 'The loan tape and transaction-monitoring alerts', 'The P&L for every fiscal year imported', 'The deck, the AML procedure, the PCI attestation and exam reports'],
-      findings: ['A deck claim for TPV, growth or take rate the processor exports contradict, or that nothing supports', 'A licence or sponsor agreement that has lapsed, or expires within 90 days', 'A quarter’s chargeback or fraud-loss rate over the threshold the sponsor agreement states', 'P&L payments revenue that does not reconcile to the processor exports', 'Fraud losses or another key cost growing faster than revenue across the years', 'An allowance below observed loan losses, and alerts closed without review evidence', 'A PCI attestation more than a year old, or a consent order on file'],
+      evidence: ['Processor and bank settlement exports: volume, transactions, net revenue, chargebacks and fraud losses', 'The licence and sponsor-bank register, with the licences and agreements themselves', 'The loan tape and transaction-monitoring alerts', 'Up to five years of the P&L and of the processor exports', 'The deck, the AML procedure, the PCI attestation and exam reports'],
+      findings: ['A deck claim for TPV, growth or take rate the processor exports contradict, or that nothing supports', 'A licence or sponsor agreement that has lapsed, or expires within 90 days', 'A quarter’s chargeback or fraud-loss rate over the threshold the sponsor agreement states', 'P&L payments revenue that does not reconcile to the processor exports', 'Fraud losses or another key cost growing faster than revenue across the years', 'A take rate falling, or a loss rate rising, every year across five years', 'An allowance below observed loan losses, and alerts closed without review evidence', 'A PCI attestation more than a year old, or a consent order on file'],
       valuation: ['ARR multiple and DCF, as for any software business', 'Contradicted claims, loss-threshold breaches and lapsed licences as reviewer-priced drags or closing conditions', 'Verified claims recorded as confirmed value only, never as a price increase'],
     },
     summary: 'Payments and lending economics checked against processor and licence evidence, on top of the software baseline.',
@@ -428,6 +428,7 @@ export const INDUSTRIES: readonly Industry[] = [
       { icon: 'ClipboardList', title: 'A claims register', body: 'TPV, growth, take-rate and retention claims marked verified, contradicted or unverified against the evidence.' },
       { icon: 'Landmark', title: 'Licences and sponsor agreements', body: 'Each with its status and expiry from the register and the documents; a lapse or near expiry becomes a finding.' },
       { icon: 'ShieldAlert', title: 'Loss rates and compliance evidence', body: 'Chargeback and fraud-loss rates by quarter against stated thresholds; PCI, AML and exam evidence shown as present or absent.' },
+      { icon: 'TrendingUp', title: 'Five years of history', body: 'The P&L, volume, take rate and loss rate by year, with how many years each figure rests on; a missing year is asked of the seller.' },
     ],
   },
   {

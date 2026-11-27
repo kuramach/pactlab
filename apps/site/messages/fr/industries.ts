@@ -45,6 +45,7 @@ export const industries: Catalog['industries'] = {
       { title: 'Un registre des affirmations', body: 'Les affirmations sur le TPV, la croissance, le taux de commission et la rétention, marquées vérifiées, contredites ou non vérifiées au regard des preuves.' },
       { title: 'Agréments et accords de partenariat', body: 'Chacun avec son statut et son échéance, tirés du registre et des documents ; une expiration ou une échéance proche devient un constat.' },
       { title: 'Taux de pertes et preuves de conformité', body: 'Taux de rétrofacturation et de pertes pour fraude par trimestre face aux seuils stipulés ; preuves PCI, LCB-FT et d’inspection présentées comme présentes ou absentes.' },
+      { title: 'Cinq ans d’historique', body: 'Le compte de résultat, le volume, le take rate et le taux de pertes par année, avec le nombre d’années sur lequel repose chaque chiffre ; une année manquante est demandée au vendeur.' },
     ],
   },
   healthcare: {
@@ -174,6 +175,7 @@ export const industries: Catalog['industries'] = {
       'De combien les loyers en place sont-ils inférieurs au marché, et ce potentiel est-il réel ?',
       'Quel entretien différé accompagne chaque logement ?',
       'Les impayés sont-ils dispersés ou concentrés ?',
+      'L’occupation a-t-elle tenu sur cinq ans, et les loyers ont-ils suivi les charges ?',
     ],
     transfers: [
       { title: 'Grand livre des revenus', body: 'Un état locatif et un T-12 se transposent presque à l’identique dans l’import de facturation et le grand livre des revenus.' },
@@ -182,6 +184,7 @@ export const industries: Catalog['industries'] = {
     ],
     adds: [
       { title: 'Données d’exploitation du bien', body: 'Des adaptateurs pour les états locatifs, les T-12, les rapports d’impayés, les factures de fluides et les inspections.' },
+      { title: 'Cinq ans d’historique', body: 'Revenus, charges, loyers et occupation par année, avec le nombre d’années sur lequel repose chaque chiffre ; une année manquante est demandée au vendeur.' },
       { title: 'Constats d’écart aux loyers du marché et d’impayés', body: 'Les loyers en place face au marché, et l’endroit où se concentrent les impayés.' },
       { title: 'Évaluation par le NOI et le taux de capitalisation', body: 'Résultat net d’exploitation et taux de capitalisation, avec les travaux par logement comme remise en état.' },
     ],

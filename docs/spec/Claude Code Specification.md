@@ -1384,6 +1384,12 @@ Five further packs in two clusters. Hotels, multifamily and commercial property 
 - **Guardrail:** status and dates only; never whether a licence is required or a programme compliant.
 - **Fixtures and acceptance:** `pactlab-demo-data/fintech/{USD,EUR,GBP}` — planted (a) a deck TPV double-counting one processor month, (b) a state licence lapsed four months ago, (c) the latest quarter's chargeback rate over the sponsor agreement's threshold, (d) fraud losses growing faster than revenue across FY2023–FY2025 surface as cited drafts once (`apps/api/src/packs/fintech.acceptance.api.test.ts`).
 
+**1c. Fintech — five years of history amendment (T-184, ADR 0057, 2026-11-26)**
+
+- **History:** the processor export (`FINTECH_PROCESSOR_VOLUME`) read back five calendar years and the P&L by fiscal year, side by side on Finances (`pack-history-1`): revenue, growth, margins, the fraud, credit and processing ratios, TPV, take rate and loss rate; TPV and take rate carry a History strip on Home. Coverage is stated; a missing year is an ask of the seller.
+- **Finding rules (drafts only, cited):** `fintech-take-rate-trend` (−1, take rate falling every year by 0.10 points or more) and `fintech-loss-rate-trend` (−1, chargebacks and fraud ÷ volume rising every year by 0.05 points or more).
+- **Fixtures and acceptance:** `pactlab-demo-data/fintech/{USD,EUR,GBP}` — the export from January 2021 and FY2021–FY2025 P&L; planted (e) the take rate falling from about 1.10% to 0.85% surfaces as a cited draft once; one year of P&L reads as "1 of 5 years" with an ask (`apps/api/src/packs/fintech.acceptance.api.test.ts`).
+
 **2. Healthcare services / healthtech**
 
 - PE roll-ups of practices, clinics, and payer-adjacent services are the dominant deal shape; healthtech software targets reuse the baseline tech path.
