@@ -108,7 +108,7 @@ describe('pack registry', () => {
       expect(clinics.findingRules).toContain(rule);
     }
     expect(clinics.findingRules).not.toContain('healthcare-clinician-concentration');
-    expect(clinics.findingRules.slice(-6)).toEqual(['clinics-owner-dependence', 'clinics-referral-concentration', 'clinics-premises', 'clinics-pnl-trend', 'clinics-pnl-margin-drift', 'clinics-pnl-expense-outpacing']);
+    expect(clinics.findingRules.slice(-7)).toEqual(['clinics-owner-dependence', 'clinics-referral-concentration', 'clinics-premises', 'clinics-pnl-trend', 'clinics-pnl-margin-drift', 'clinics-pnl-expense-outpacing', 'healthcare-visits-trend']);
     expect(expectedInputs(clinics).find((input) => input.id === 'LEASE')).toEqual({ id: 'LEASE', need: 'REQUIRED' });
     expect(expectedInputs(PACKS.HEALTHCARE).find((input) => input.id === 'LEASE')).toEqual({ id: 'LEASE', need: 'OPTIONAL' });
     // Providers and referral sources: pseudonymous references and organisations only.
