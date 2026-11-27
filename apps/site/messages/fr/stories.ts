@@ -254,8 +254,8 @@ export const stories: Catalog['stories'] = {
       { title: 'Des impayés dans quelques bâtiments', body: 'Un taux de recouvrement global peut masquer où se trouvent réellement les arriérés.' },
     ],
     walkthrough: [
-      { text: 'L’état locatif, le T-12, les dossiers de baux, les rapports d’impayés, les factures de fluides et les inspections des logements sont connectés pour le deal et conservés avec leur source.' },
-      { text: 'L’écart aux loyers du marché, l’entretien différé par logement et la concentration des impayés sont rédigés avec les lignes et les inspections qui les sous-tendent.' },
+      { text: 'L’état locatif, le T-12, jusqu’à cinq ans de revenus, de charges, de loyers et d’occupation, les baux, les rapports d’impayés, les factures de services et les inspections des logements sont reliés à l’opération et conservés avec leur source.' },
+      { text: 'L’écart au marché, l’entretien différé par logement, la concentration des impayés, l’érosion de l’occupation, des charges qui progressent plus vite que les loyers et un bond du NOI la dernière année sont rédigés avec les lignes et les inspections qui les fondent.' },
       { text: 'Un réviseur accepte le constat d’entretien avec sa fourchette de coûts et demande des justificatifs sur l’évolution des impayés.' },
       { text: 'Le résultat net d’exploitation et le taux de capitalisation tournent dans le moteur de scénarios ; les travaux par logement s’inscrivent comme remise en état.' },
       { text: 'L’entretien différé devient un ajustement de prix ou un séquestre pour travaux. Le potentiel d’écart aux loyers du marché est enregistré comme valeur confirmée, jamais ajouté au prix.' },
@@ -264,6 +264,8 @@ export const stories: Catalog['stories'] = {
       { title: 'Entretien différé supérieur au budget de travaux', evidence: 'Inspections de l’état des logements face au plan d’investissement', term: 'Séquestre pour travaux ou ajustement de prix' },
       { title: 'Impayés concentrés dans un bâtiment', evidence: 'Rapports d’impayés rapprochés de l’état locatif', term: 'Engagement de recouvrement et scénario défavorable' },
       { title: 'Loyers en place inférieurs au marché sur l’ensemble du bien', evidence: 'État locatif face aux dossiers de baux en cours', term: 'Valeur confirmée dans le grand livre, pas prix payé' },
+      { title: 'Une occupation qui recule depuis trois ans', evidence: 'Cinq ans d’occupation par mois', term: 'Une décote sur l’occupation retenue dans les scénarios' },
+      { title: 'Un bond du NOI la dernière année', evidence: 'Cinq ans de comptes d’exploitation', term: 'Vérifier les éléments exceptionnels et les réparations différées avant de fixer le prix sur la dernière année' },
     ],
     deliverables: [
       { title: 'Un pont de revenus', body: 'Du mémorandum à l’état locatif, avec l’écart validé.' },
@@ -272,6 +274,7 @@ export const stories: Catalog['stories'] = {
     ],
     faq: [
       { q: 'Que lit le pack résidentiel collectif ?', a: 'L’état locatif et le T-12, les dossiers de baux, les rapports d’impayés, les factures de fluides et les inspections de l’état des logements. L’état locatif se transpose dans le même grand livre des revenus que Pactlab utilise pour les revenus récurrents.' },
+      { q: 'Quel historique lit-il ?', a: 'Jusqu’à cinq ans de revenus, de charges, de loyers et d’occupation, plus le T-12. Moins est accepté : chaque chiffre indique sur combien d’années il repose, et une année manquante est demandée au vendeur, jamais estimée. Il signale l’érosion de l’occupation, des charges qui progressent plus vite que les loyers et un bond du NOI la dernière année.' },
       { q: 'L’écart aux loyers du marché augmente-t-il le prix que nous payons ?', a: 'Non. Le potentiel des loyers inférieurs au marché est enregistré comme valeur confirmée, une preuve qui soutient le prix, et jamais comme une raison de payer plus.' },
       { q: 'Comment les travaux sont-ils traités ?', a: 'L’entretien différé par logement est un constat chiffré. Une fois accepté par un réviseur, il devient une remise en état dans l’évaluation et un ajustement de prix ou un séquestre dans les conditions.' },
     ],

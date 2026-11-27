@@ -254,8 +254,8 @@ export const stories: Catalog['stories'] = {
       { title: 'Zahlungsrückstände in wenigen Gebäuden', body: 'Eine gemischte Einzugsquote kann verbergen, wo die Rückstände wirklich liegen.' },
     ],
     walkthrough: [
-      { text: 'Mieterliste, T-12, Mietvertragsakten, Rückstandsberichte, Versorgerrechnungen und Wohnungsbegehungen werden für den Deal angebunden und mit ihrer Quelle aufbewahrt.' },
-      { text: 'Mietdifferenz zum Markt, aufgeschobene Instandhaltung je Einheit und die Konzentration der Rückstände werden mit den Zeilen und Begehungen dahinter entworfen.' },
+      { text: 'Mieterliste, T-12, bis zu fünf Jahre Erträge, Kosten, Mieten und Belegung, Mietvertragsakten, Rückstandsberichte, Versorgerrechnungen und Wohnungsbegehungen werden für den Deal angebunden und mit ihrer Quelle aufbewahrt.' },
+      { text: 'Mietdifferenz zum Markt, aufgeschobene Instandhaltung je Einheit, die Konzentration der Rückstände, sinkende Belegung, Kosten, die schneller wachsen als die Mieten, und ein NOI-Sprung im letzten Jahr werden mit den Zeilen und Begehungen dahinter entworfen.' },
       { text: 'Eine prüfende Person akzeptiert die Instandhaltungsfeststellung mit ihrer Kostenspanne und fordert zur Entwicklung der Rückstände Belege an.' },
       { text: 'Nettobetriebsergebnis und Cap Rate laufen in der Szenario-Engine; Investitionen je Einheit landen als Sanierung.' },
       { text: 'Aufgeschobene Instandhaltung wird zu einer Kaufpreisanpassung oder einem Reparatur-Treuhandeinbehalt. Potenzial aus der Mietdifferenz wird als bestätigter Wert erfasst, nie auf den Preis aufgeschlagen.' },
@@ -264,6 +264,8 @@ export const stories: Catalog['stories'] = {
       { title: 'Aufgeschobene Instandhaltung über dem Investitionsbudget', evidence: 'Zustandsbegehungen der Wohnungen gegen den Investitionsplan', term: 'Reparatur-Treuhandeinbehalt oder Kaufpreisanpassung' },
       { title: 'Zahlungsrückstände in einem Gebäude konzentriert', evidence: 'Rückstandsberichte, abgestimmt mit der Mieterliste', term: 'Auflage zum Forderungseinzug und Abwärtsszenario' },
       { title: 'Bestandsmieten in der ganzen Anlage unter dem Markt', evidence: 'Mieterliste gegen die aktuellen Mietvertragsakten', term: 'Bestätigter Wert im Hauptbuch, kein gezahlter Preis' },
+      { title: 'Belegung sinkt seit drei Jahren', evidence: 'Fünf Jahre Belegung nach Monaten', term: 'Abschlag auf die in den Szenarien angenommene Belegung' },
+      { title: 'Ein NOI-Sprung im letzten Jahr', evidence: 'Fünf Jahre Betriebsrechnungen', term: 'Einmaleffekte und aufgeschobene Reparaturen prüfen, bevor auf das letzte Jahr gepreist wird' },
     ],
     deliverables: [
       { title: 'Eine Ertragsüberleitung', body: 'Vom Memorandum zur Mieterliste, mit abgezeichneter Differenz.' },
@@ -272,6 +274,7 @@ export const stories: Catalog['stories'] = {
     ],
     faq: [
       { q: 'Was liest das Mehrfamilienhaus-Paket?', a: 'Die Mieterliste und die T-12, Mietvertragsakten, Rückstandsberichte, Versorgerrechnungen und Zustandsbegehungen der Wohnungen. Die Mieterliste lässt sich auf dasselbe Umsatzhauptbuch abbilden, das Pactlab für wiederkehrenden Umsatz nutzt.' },
+      { q: 'Wie viel Historie liest es?', a: 'Bis zu fünf Jahre Erträge, Kosten, Mieten und Belegung, dazu die T-12. Weniger wird akzeptiert: Jede Zahl nennt, auf wie vielen Jahren sie beruht, und ein fehlendes Jahr wird beim Verkäufer angefragt, nie geschätzt. Es markiert sinkende Belegung, Kosten, die schneller wachsen als die Mieten, und einen NOI-Sprung im letzten Jahr.' },
       { q: 'Erhöht die Mietdifferenz den Preis, den wir zahlen?', a: 'Nein. Potenzial aus Mieten unter Marktniveau wird als bestätigter Wert erfasst – als Evidenz, die den Preis stützt – und nie als Grund, mehr zu zahlen.' },
       { q: 'Wie werden Investitionen behandelt?', a: 'Aufgeschobene Instandhaltung je Einheit ist eine bepreiste Feststellung. Sobald eine prüfende Person sie akzeptiert, wird sie zur Sanierung in der Bewertung und zu einer Kaufpreisanpassung oder einem Treuhandeinbehalt in den Konditionen.' },
     ],
