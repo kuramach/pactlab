@@ -1,6 +1,6 @@
 # ADR 0063: Hibernate dev, qa and stage: delete what bills by the hour, keep what holds data and names, rebuild on demand (T-189)
 
-**Status:** proposed (2026-11-27). This is the plan, for Kumar's approval; nothing is built yet. It amends ADR 0019 (idle pause; cheaper non-live environments).
+**Status:** accepted (2026-11-27), with Kumar's decisions below; where the proposal differs, the decisions win. It amends ADR 0019 (idle pause; cheaper non-live environments).
 
 ## Context
 - Kumar (2026-11-27): *"stage is still using hosting $. can we minimize it to zero?"* He chose **hibernate**, for **dev, qa and stage**. Live is untouched.
@@ -254,6 +254,19 @@
 6. **Scope:** the queue check (`apps/api/src/ops`) and the Hosting cost page (`apps/api`, `apps/web`) fall outside this task's `Touches:`. Widen `Touches:` to those paths, or file them as T-189b (proposed), with hibernate refusing until the queue check exists unless `--drop-queues` is given.
 7. **Stage database:** `db.t4g.medium` Single-AZ, matching live; storage stays at 50 GiB.
 8. **Snapshots kept:** the last two hibernations per environment (proposed).
+
+## Kumar's decisions (2026-11-27)
+1. **When they sleep:** dev, qa and stage **hibernate after 3 hours without use** (not days), and come up only when asked.
+   - Today's 60-minute pause stays as the first step.
+   - At 3 idle hours the environment hibernates.
+   - The idle check counts real requests to the API, as the pause does.
+2. **Waking:** the sleep page's **Wake up** button starts the wake **straight away, with no approval.** That's the `<env>-power` GitHub Environment whose role trusts only `env-power.yml` on `main`. The page says it takes about 30–40 minutes.
+3. **DNS:** Route 53 zones for `app.dev`, `app.qa` and `app.stage` (the proposal). Kumar adds the NS records at Namecheap once; the runbook gives the exact records.
+4. **Deploying to a hibernated environment** is refused, with "wake it first" (the proposal).
+5. **The 13 provider-configuration secrets fold into one secret per environment.** It's done as its own PR within this task: values already set are copied over, and the `scripts/*-key.sh` helpers write fields.
+6. **Scope widened:** the "still processing" queue check (`apps/api/src/ops`) and the Hosting cost page's awake, paused or hibernated state (`apps/api`, `apps/web`) are built **in this task** (T-189's Touches widened).
+7. **Stage database:** `db.t4g.medium` Single-AZ, with storage kept at 50 GiB (the proposal).
+8. **Snapshots kept:** the last two hibernations per environment (the proposal).
 
 ## Build, once approved
 - **PR 1 (CDK):**
