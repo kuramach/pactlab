@@ -14,6 +14,14 @@ export function RinseImport({ dealId, seller }: { dealId: string; seller: boolea
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<RinseArchiveResult | null>(null);
+  // Closed until asked for: the page's one file input stays the uploader's.
+  const [open, setOpen] = useState(false);
+  if (!open)
+    return (
+      <Button variant="link" size="sm" className="self-start" type="button" onClick={() => setOpen(true)}>
+        Import a set finished in Pactlab Rinse (zip)
+      </Button>
+    );
   return (
     <form
       className="flex flex-col gap-3 text-sm"
