@@ -1,7 +1,8 @@
 import { D } from '../../metrics/decimal';
 import { documentClauseRule, grouped, INVOICE_LINE, percent, revenueConcentrationRule } from '../common';
+import { driverTrendRule, type DriverSpec, type PackHistorySpec } from '../history';
 import { PNL_LINE, pnlTrendRules } from '../pnl-trend';
-import { findSentence, MAX_CITED, type PackRule, type PackRuleProposal } from '../rule-types';
+import { findSentence, MAX_CITED, type PackRule, type PackRuleEvidence, type PackRuleProposal } from '../rule-types';
 import {
   holdWindow,
   keyScientists,
@@ -383,6 +384,65 @@ export const PHARMA_BURN_VS_TIMELINE: PackRule = {
 /** The multi-year P&L trend (Kumar, 2026-11-26): R&D, manufacturing and supply, and royalties paid against revenue. */
 export const [PHARMA_PNL_TREND, PHARMA_PNL_MARGIN_DRIFT, PHARMA_PNL_EXPENSE_OUTPACING] = pnlTrendRules('pharma', PHARMA_KEY_EXPENSES) as [PackRule, PackRule, PackRule];
 
+/**
+ * Five years of history (T-184b, ADR 0057): the P&L by year (R&D among its key expenses) and each product's
+ * billed revenue by calendar year: the billing lines whose counterparty names the product ("royalties on
+ * Product A"), as productCliffs reads them. The products are those the patent schedule names.
+ */
+export function pharmaProducts(evidence: readonly PackRuleEvidence[]): string[] {
+  return [...new Set(evidence.filter((row) => row.evidenceType === PATENT).map((row) => (row.canonical['product'] ?? '').trim()).filter(Boolean))].sort();
+}
+
+export function productRevenueDriver(product: string): DriverSpec {
+  return {
+    key: `product_${product.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')}`,
+    label: `${product} revenue`,
+    unit: 'MONEY',
+    evidenceType: INVOICE_LINE,
+    monthField: 'period_start',
+    mode: 'SUM',
+    numerator: ['amount'],
+    numeratorWhere: { field: 'customer_name', values: [product], contains: true },
+    formula: `Σ billed in the year on the lines whose counterparty names ${product}`,
+  };
+}
+
+export function pharmaHistory(evidence: readonly PackRuleEvidence[]): PackHistorySpec {
+  return {
+    drivers: pharmaProducts(evidence).map(productRevenueDriver),
+    keyExpenses: PHARMA_KEY_EXPENSES,
+    driverImport: 'BILLING_INVOICE_LINE',
+    driverLabel: 'Billing by product',
+    driverWhat: 'billing history',
+  };
+}
+
+/** A product's billed revenue falling every year by this share or more, first year to last (10%). */
+export const PRODUCT_DECLINE_SHARE = '0.1';
+
+/** A product whose billed revenue fell every year across the history: erosion the latest twelve months can hide. */
+export const PHARMA_PRODUCT_REVENUE_TREND: PackRule = {
+  id: 'pharma-product-revenue-trend',
+  version: '1',
+  evidenceTypes: [INVOICE_LINE, PATENT, PNL_LINE],
+  detect: (context) => {
+    const spec = pharmaHistory(context.evidence);
+    return spec.drivers.flatMap((driver) =>
+      driverTrendRule(
+        {
+          id: 'pharma-product-revenue-trend',
+          driver,
+          adverse: 'DOWN',
+          threshold: PRODUCT_DECLINE_SHARE,
+          domain: 'COMMERCIAL',
+          advice: 'The product is eroding year on year: check competitor entry, pricing and the partner\'s own forecast before carrying the trailing twelve months into the scenarios.',
+        },
+        spec,
+      ).detect(context),
+    );
+  },
+};
+
 export const PHARMA_RULES: readonly PackRule[] = [
   PHARMA_PATENT_BEFORE_FORECAST,
   PHARMA_SUPPLIER_OBSERVATIONS,
@@ -396,5 +456,6 @@ export const PHARMA_RULES: readonly PackRule[] = [
   PHARMA_PNL_TREND,
   PHARMA_PNL_MARGIN_DRIFT,
   PHARMA_PNL_EXPENSE_OUTPACING,
+  PHARMA_PRODUCT_REVENUE_TREND,
 ];
 export const PHARMA_EVIDENCE = { PATENT, PROGRAMME, REGISTRY_TRIAL, OBLIGATION, SCIENTIST } as const;

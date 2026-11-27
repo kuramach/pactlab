@@ -28,6 +28,19 @@ type Decimal = InstanceType<typeof D>;
 const MONTH = /^(\d{4})-(0[1-9]|1[0-2])$/;
 const fiscal = (year: string) => `FY${year}`;
 
+/** Rows whose field (trimmed, case-insensitive) is one of the values, or contains one when `contains` is set. */
+export interface RowFilter {
+  readonly field: string;
+  readonly values: readonly string[];
+  readonly contains?: boolean;
+}
+
+const matches = (filter: RowFilter | undefined) => (row: PackRuleEvidence) => {
+  if (!filter) return true;
+  const actual = (row.canonical[filter.field] ?? '').trim().toLowerCase();
+  return filter.values.some((value) => (filter.contains ? actual.includes(value.toLowerCase()) : actual === value.toLowerCase()));
+};
+
 /** One operating driver read by year from a monthly export. */
 export interface DriverSpec {
   readonly key: string;
@@ -39,17 +52,29 @@ export interface DriverSpec {
   /** SUM: Σ numerator; RATIO: Σ numerator ÷ Σ denominator; LAST: Σ numerator in the year's last month. */
   readonly mode: 'SUM' | 'RATIO' | 'LAST';
   readonly numerator: readonly string[];
+  /** Fields taken off the numerator's sum: net sales are gross sales less discounts and returns. */
+  readonly numeratorLess?: readonly string[];
   readonly denominator?: readonly string[];
+  /** Only rows whose field holds one of these values count in the numerator (a payer class's share, T-184b). */
+  readonly numeratorWhere?: RowFilter;
+  /** Only these rows count in the denominator; without it, every row of the year does. */
+  readonly denominatorWhere?: RowFilter;
+  /** Multiplies the value: 2 when the denominator sums opening and closing counts for subscriber-months. */
+  readonly multiplier?: string;
+  /** The ratio's complement, 1 − ratio: a repeat rate from new customers ÷ orders. */
+  readonly complement?: boolean;
   /** Digits kept: money 2, ratios 4 (6 for rates under a percent), counts 0. */
   readonly scale?: number;
   readonly formula: string;
+  /** A driver no sum expresses (ARR and retention from recurring revenue, T-184b): its years, computed. */
+  readonly compute?: (evidence: readonly PackRuleEvidence[]) => readonly DriverYear[];
 }
 
 export interface PackHistorySpec {
   readonly drivers: readonly DriverSpec[];
   readonly keyExpenses: readonly KeyExpense[];
-  /** The import that holds the drivers, asked of the seller for missing years. */
-  readonly driverImport: string;
+  /** The import (or imports) that hold the drivers, asked of the seller for missing years. */
+  readonly driverImport: string | readonly string[];
   /** e.g. "Processor volume" → coverage label; and "processor volume history" in the ask. */
   readonly driverLabel: string;
   readonly driverWhat: string;
@@ -62,6 +87,7 @@ export interface DriverYear {
 }
 
 function driverYears(spec: DriverSpec, evidence: readonly PackRuleEvidence[]): { years: DriverYear[]; partial: string[] } {
+  if (spec.compute) return { years: [...spec.compute(evidence)], partial: [] };
   const field = spec.monthField ?? 'month';
   const byMonth = new Map<string, PackRuleEvidence[]>();
   for (const row of evidence) {
@@ -82,13 +108,17 @@ function driverYears(spec: DriverSpec, evidence: readonly PackRuleEvidence[]): {
       continue;
     }
     const rows = months.flatMap((month) => byMonth.get(month) ?? []);
+    const top = (counted: readonly PackRuleEvidence[]) => sum(counted, spec.numerator).minus(sum(counted, spec.numeratorLess ?? []));
+    const counted = rows.filter(matches(spec.numeratorWhere));
     let value: Decimal | null;
-    if (spec.mode === 'LAST') value = sum(byMonth.get(`${year}-12`) ?? [], spec.numerator);
-    else if (spec.mode === 'SUM') value = sum(rows, spec.numerator);
+    if (spec.mode === 'LAST') value = top((byMonth.get(`${year}-12`) ?? []).filter(matches(spec.numeratorWhere)));
+    else if (spec.mode === 'SUM') value = top(counted);
     else {
-      const denominator = sum(rows, spec.denominator ?? []);
-      value = denominator.isZero() ? null : sum(rows, spec.numerator).div(denominator);
+      const denominator = sum(rows.filter(matches(spec.denominatorWhere)), spec.denominator ?? []);
+      value = denominator.isZero() ? null : top(counted).div(denominator);
     }
+    if (value && spec.complement) value = new D(1).minus(value);
+    if (value && spec.multiplier) value = value.times(spec.multiplier);
     years.push({ year, value: value ? value.toFixed(scale) : null, evidenceIds: rows.map((row) => row.id) });
   }
   return { years, partial };
@@ -148,7 +178,7 @@ export function packHistory(spec: PackHistorySpec, evidence: readonly PackRuleEv
     asks: cover
       .filter((entry) => entry.missingYears.length > 0)
       .map((entry) => ({
-        needs: [entry.key === 'operating' ? 'INCOME_STATEMENT' : spec.driverImport],
+        needs: entry.key === 'operating' ? ['INCOME_STATEMENT'] : [spec.driverImport].flat(),
         note: `Ask the seller for ${yearRanges(entry.missingYears)} ${entry.key === 'operating' ? 'income statements' : spec.driverWhat}.`,
       })),
     conventions: PACK_HISTORY_CONVENTIONS,

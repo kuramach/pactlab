@@ -5,6 +5,8 @@ import { join, resolve } from 'node:path';
 import { PHARMA_RULES, type PackRuleEvidence, type PackRulePage } from '@pactlab/calculations';
 import {
   defaultDirectionFor,
+  DRIVER_TREND_SIGNAL,
+  INVOICE_LINE_EVIDENCE_TYPE,
   DOCUMENT_FINDING_EVIDENCE_TYPE,
   PHARMA_OBLIGATION_EVIDENCE_TYPE,
   PHARMA_PATENT_EVIDENCE_TYPE,
@@ -34,6 +36,7 @@ const SIGNALS: Readonly<Record<string, (key: string) => readonly [string, string
   'pharma-pnl-trend': () => [PNL_LINE_EVIDENCE_TYPE, 'trend'],
   'pharma-pnl-margin-drift': () => [PNL_LINE_EVIDENCE_TYPE, 'margin-drift'],
   'pharma-pnl-expense-outpacing': () => [PNL_LINE_EVIDENCE_TYPE, 'expense-outpacing'],
+  'pharma-product-revenue-trend': () => [INVOICE_LINE_EVIDENCE_TYPE, DRIVER_TREND_SIGNAL],
 };
 const RULES = new Map(PHARMA_RULES.map((rule) => [rule.id, rule]));
 
@@ -102,6 +105,7 @@ describe('pharma rules and the valuation direction map (T-163)', () => {
       'pharma-key-scientist:key-scientist-concentration',
       'pharma-burn-vs-timeline:rd-flat-timeline-accelerated',
       'pharma-pnl-trend:trend',
+      'pharma-product-revenue-trend:driver-trend',
     ]) {
       expect(seen, outcome).toContain(outcome);
     }

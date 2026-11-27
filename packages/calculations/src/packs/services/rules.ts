@@ -2,6 +2,7 @@ import { D, parseDecimal } from '../../metrics/decimal';
 import type { KeyExpense } from '../../pnl/trend';
 import { amountOf, grouped, INVOICE_LINE, latestMonthRevenue, monthName, percent } from '../common';
 import { billingCurrency } from '../ecommerce/channels';
+import { driverTrendRule, type DriverSpec, type PackHistorySpec } from '../history';
 import { PNL_LINE, pnlTrendRules } from '../pnl-trend';
 import { findSentence, MAX_CITED, type PackRule, type PackRuleEvidence, type PackRuleProposal } from '../rule-types';
 import {
@@ -422,6 +423,40 @@ export const SERVICES_KEY_EXPENSES: readonly KeyExpense[] = [
 
 export const [SERVICES_PNL_TREND, SERVICES_PNL_MARGIN_DRIFT, SERVICES_PNL_EXPENSE_OUTPACING] = pnlTrendRules('services', SERVICES_KEY_EXPENSES) as [PackRule, PackRule, PackRule];
 
+/**
+ * Five years of history (T-184b, ADR 0057): the P&L by year, utilization and headcount from the timesheets and
+ * realization from the time-and-billing export, by calendar year. Realization falling every year is
+ * services-realization-trend's; utilization falling every year is the driver trend below.
+ */
+export const SERVICES_DRIVERS = {
+  utilization: { key: 'utilization', label: 'Utilization', unit: 'RATIO', evidenceType: TIMESHEETS, mode: 'RATIO', numerator: ['billable_hours'], denominator: ['available_hours'], formula: 'Σ billable hours ÷ Σ available hours in the year, every team' },
+  realization: { key: 'realization', label: 'Realization', unit: 'RATIO', evidenceType: BILLING_MONTH, mode: 'RATIO', numerator: ['billed'], denominator: ['standard_value'], formula: 'Σ fees billed ÷ Σ standard value of the time worked in the year' },
+  headcount: { key: 'headcount', label: 'Headcount (December)', unit: 'COUNT', evidenceType: TIMESHEETS, mode: 'LAST', numerator: ['headcount'], formula: 'Σ headcount across the teams in the year\'s last month' },
+} as const satisfies Record<string, DriverSpec>;
+
+export const SERVICES_HISTORY: PackHistorySpec = {
+  drivers: [SERVICES_DRIVERS.utilization, SERVICES_DRIVERS.realization, SERVICES_DRIVERS.headcount],
+  keyExpenses: SERVICES_KEY_EXPENSES,
+  driverImport: ['SERVICES_TIMESHEETS', 'SERVICES_TIME_BILLING'],
+  driverLabel: 'Timesheets and billing',
+  driverWhat: 'timesheet and time-and-billing history',
+};
+
+/** Utilization falling every year by this much or more, first year to last (3 points). */
+export const UTILIZATION_DECLINE_POINTS = '0.03';
+
+export const SERVICES_UTILIZATION_TREND = driverTrendRule(
+  {
+    id: 'services-utilization-trend',
+    driver: SERVICES_DRIVERS.utilization,
+    adverse: 'DOWN',
+    threshold: UTILIZATION_DECLINE_POINTS,
+    domain: 'FINANCIAL',
+    advice: 'Fewer of the hours available are billed each year: check the bench, the pipeline and hiring ahead of demand before carrying today\'s utilization into the scenarios.',
+  },
+  SERVICES_HISTORY,
+);
+
 export const SERVICES_RULES: readonly PackRule[] = [
   SERVICES_UTILIZATION_GAP,
   SERVICES_CLIENT_TERMINATION,
@@ -435,5 +470,6 @@ export const SERVICES_RULES: readonly PackRule[] = [
   SERVICES_PNL_TREND,
   SERVICES_PNL_MARGIN_DRIFT,
   SERVICES_PNL_EXPENSE_OUTPACING,
+  SERVICES_UTILIZATION_TREND,
 ];
 export const SERVICES_EVIDENCE = { TIMESHEETS, HEADCOUNT, BILLING_MONTH, AGEING_BAND } as const;

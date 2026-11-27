@@ -2,6 +2,8 @@ import { D } from '../../metrics/decimal';
 import type { KeyExpense } from '../../pnl/trend';
 import { amountOf, grouped, INVOICE_LINE, monthName, percent, rowMonth } from '../common';
 import { CLINICIAN_MONTH } from '../healthcare/practice';
+import type { PackHistorySpec } from '../history';
+import { HEALTHCARE_HISTORY } from '../healthcare/rules';
 import { pnlTrendRules } from '../pnl-trend';
 import { findSentence, MAX_CITED, type PackRule, type PackRuleEvidence, type PackRuleProposal, type PackRuleQuote } from '../rule-types';
 import {
@@ -329,6 +331,9 @@ export const CLINICS_KEY_EXPENSES: readonly KeyExpense[] = [
 ];
 
 export const [CLINICS_PNL_TREND, CLINICS_PNL_MARGIN_DRIFT, CLINICS_PNL_EXPENSE_OUTPACING] = pnlTrendRules('clinics', CLINICS_KEY_EXPENSES) as [PackRule, PackRule, PackRule];
+
+/** Five years of history (T-184b): the healthcare drivers (visits, commercial share, denial rate) with the clinic's key expenses. */
+export const CLINICS_HISTORY: PackHistorySpec = { ...HEALTHCARE_HISTORY, keyExpenses: CLINICS_KEY_EXPENSES };
 
 export const CLINICS_RULES: readonly PackRule[] = [
   CLINICS_PROVIDER_CARRIES_SITE,

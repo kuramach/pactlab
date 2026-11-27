@@ -13,15 +13,15 @@ test('a billing export uploads, maps, validates and imports; importing again cha
     await expect(page.getByText('2. Map columns to the standard invoice line')).toBeVisible();
     await page.getByRole('button', { name: 'Check every row' }).click();
     await expect(page.getByText('3. Validation report')).toBeVisible();
-    await expect(page.getByText(/302 of 302 lines are ready to import/)).toBeVisible();
-    await page.getByRole('button', { name: 'Import 302 lines' }).click();
+    await expect(page.getByText(/571 of 571 lines are ready to import/)).toBeVisible();
+    await page.getByRole('button', { name: 'Import 571 lines' }).click();
     // A fresh import lands on its own page, showing what it picked up; the same file again goes back to Sources.
     await expect(page).toHaveURL(first ? /\/sources\/upload\/[^?]+\?imported=1/ : /\/sources\?imported=BILLING_INVOICE_LINE/);
   };
 
   await upload(true);
   await expect(page.getByRole('heading', { name: 'What Pactlab picked up' })).toBeVisible();
-  await expect(page.getByRole('status')).toContainText('Invoice lines imported: 302 new records, 0 already known');
+  await expect(page.getByRole('status')).toContainText('Invoice lines imported: 571 new records, 0 already known');
   await expect(page.getByRole('region', { name: 'What Pactlab picked up' }).getByRole('link', { name: 'Finances' })).toBeVisible();
 
   await upload(false);
@@ -32,7 +32,7 @@ test('a billing export uploads, maps, validates and imports; importing again cha
   await page.getByLabel('Why are you deleting it?').fill('Columns read wrongly');
   await page.getByRole('button', { name: 'Delete import' }).click();
   await expect(page.getByRole('heading', { name: 'This import was deleted' })).toBeVisible();
-  await expect(page.getByRole('status')).toContainText('302 records no longer count');
+  await expect(page.getByRole('status')).toContainText('571 records no longer count');
   await page.getByRole('button', { name: 'Import again' }).click();
   await expect(page.getByText('2. Map columns to the standard invoice line')).toBeVisible();
 });

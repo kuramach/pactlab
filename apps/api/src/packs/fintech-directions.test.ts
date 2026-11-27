@@ -3,7 +3,7 @@ import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { FINTECH_RULES, type PackRuleEvidence, type PackRulePage } from '@pactlab/calculations';
-import { defaultDirectionFor, FINTECH_LICENCE_EVIDENCE_TYPE, FINTECH_PROCESSOR_MONTH_EVIDENCE_TYPE, PNL_LINE_EVIDENCE_TYPE } from '@pactlab/connectors';
+import { defaultDirectionFor, DRIVER_TREND_SIGNAL, FINTECH_LICENCE_EVIDENCE_TYPE, FINTECH_PROCESSOR_MONTH_EVIDENCE_TYPE, PNL_LINE_EVIDENCE_TYPE } from '@pactlab/connectors';
 import { applyMapping, IMPORT_TARGET_DEFINITIONS, PACKS, parseCsv, suggestFields, type ImportMapping } from '@pactlab/domain';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
@@ -25,10 +25,9 @@ const SIGNALS: Readonly<Record<string, (key: string) => readonly [string, string
   'fintech-pnl-trend': () => [PNL_LINE_EVIDENCE_TYPE, 'trend'],
   'fintech-pnl-margin-drift': () => [PNL_LINE_EVIDENCE_TYPE, 'margin-drift'],
   'fintech-pnl-expense-outpacing': () => [PNL_LINE_EVIDENCE_TYPE, 'expense-outpacing'],
-  // Driver trends over five years (T-184): the direction map (packages/connectors) has no driver-trend signal yet,
-  // so these are checked by their own tests (−1, a drag a person prices); the map entry is T-184b's.
-  'fintech-take-rate-trend': () => null,
-  'fintech-loss-rate-trend': () => null,
+  // Driver trends over five years (T-184, T-184b): one driver-trend signal per evidence type.
+  'fintech-take-rate-trend': () => [FINTECH_PROCESSOR_MONTH_EVIDENCE_TYPE, DRIVER_TREND_SIGNAL],
+  'fintech-loss-rate-trend': () => [FINTECH_PROCESSOR_MONTH_EVIDENCE_TYPE, DRIVER_TREND_SIGNAL],
 };
 
 describe('fintech rules and the valuation direction map (T-159)', () => {
@@ -83,7 +82,7 @@ describe('fintech rules and the valuation direction map (T-159)', () => {
       }
     }
     // The planted outcomes are among those checked.
-    for (const outcome of ['fintech-volume-claims:claim-contradicted', 'fintech-volume-claims:claim-verified', 'fintech-volume-claims:claim-unverified', 'fintech-licence-status:licence-lapsed', 'fintech-loss-thresholds:loss-threshold-breach', 'fintech-pnl-trend:trend', 'fintech-pnl-expense-outpacing:expense-outpacing']) {
+    for (const outcome of ['fintech-volume-claims:claim-contradicted', 'fintech-volume-claims:claim-verified', 'fintech-volume-claims:claim-unverified', 'fintech-licence-status:licence-lapsed', 'fintech-loss-thresholds:loss-threshold-breach', 'fintech-pnl-trend:trend', 'fintech-pnl-expense-outpacing:expense-outpacing', 'fintech-take-rate-trend:driver-trend']) {
       expect(seen, outcome).toContain(outcome);
     }
   });

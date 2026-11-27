@@ -233,7 +233,7 @@ async function spvVehicle(app: App, buyer: TenantContext, dealId: string): Promi
  */
 export const FINTECH_PNL_FILE = 'pnl.csv';
 /** The packs whose demo data carries a P&L by year. */
-export const PNL_BY_YEAR_PACKS: readonly CompanyType[] = ['FINTECH', 'HEALTHCARE', 'SMALL_CLINICS', 'PHARMA_BIOTECH', 'ECOMMERCE_DTC', 'PROFESSIONAL_SERVICES', 'TELECOM_MEDIA', 'MULTIFAMILY', 'MULTIFAMILY_SYNDICATION'];
+export const PNL_BY_YEAR_PACKS: readonly CompanyType[] = ['SOFTWARE_SAAS', 'FINTECH', 'HEALTHCARE', 'SMALL_CLINICS', 'PHARMA_BIOTECH', 'ECOMMERCE_DTC', 'PROFESSIONAL_SERVICES', 'TELECOM_MEDIA', 'MULTIFAMILY', 'MULTIFAMILY_SYNDICATION'];
 export const pnlLineKind = (account: string) => (/revenue/i.test(account) ? 'REVENUE' : /^cost of/i.test(account) ? 'COGS' : 'OPEX');
 async function packPnl(app: App, buyer: TenantContext, dealId: string, data: DemoDataSource, type: CompanyType): Promise<string> {
   const imports = app.get(ImportsService, { strict: false });

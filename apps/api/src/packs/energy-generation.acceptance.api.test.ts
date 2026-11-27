@@ -1,7 +1,7 @@
 import { defaultPromptRegistry, ScriptedModelTransport, TransportClaudeGateway } from '@pactlab/ai';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { demoModelResponse } from '../demo-seed/seed';
-import { ACCEPTANCE_CURRENCIES, acceptAndValue, startAcceptanceDeal, type AcceptanceDeal } from './acceptance-kit';
+import { ACCEPTANCE_CURRENCIES, type AcceptanceDeal, acceptAndValue, csvRows, HISTORY_YEARS as YEARS, type PackMetricsBody, startAcceptanceDeal } from './acceptance-kit';
 
 type FindingView = {
   id: string;
@@ -105,6 +105,19 @@ describe.each(ACCEPTANCE_CURRENCIES)('energy generation & rights pack acceptance
     expect(byTitle[decimalTitle ?? '']).toMatchObject({ domain: 'FINANCIAL', direction: -1 });
     expect(byTitle[decimalTitle ?? '']?.description).toMatch(/overpaid by 0\.03125000/);
     expect(byTitle[`PPA cliff: ${PLANT}`]).toMatchObject({ direction: 0 });
+  });
+
+  it('five years of production: generation, oil and gas by year, hand-computed, with the plant\'s decline drafted (T-184b)', async () => {
+    const metrics = (await deal.call('GET', `/v1/deals/${deal.dealId}/metrics/pack`, 'lead')).body as PackMetricsBody;
+    const rows = csvRows(deal.folder, 'production-history.csv');
+    const volumeOf = (product: string) => (year: string) => String(rows.filter((row) => row[2]?.startsWith(year) && row[3] === product).reduce((total, row) => total + BigInt(row[4] ?? '0'), 0n));
+    expect(metrics.history?.years).toEqual(YEARS.map((year) => `FY${year}`));
+    expect(metrics.history?.rows.find((row) => row.key === 'power_mwh')?.values).toEqual(YEARS.map(volumeOf('power')));
+    expect(metrics.history?.rows.find((row) => row.key === 'oil_bbl')?.values).toEqual(YEARS.map(volumeOf('oil')));
+    expect(metrics.history?.coverage.find((entry) => entry.key === 'drivers')?.summary).toBe('FY2021–FY2025 (5 of 5 years)');
+    expect(metrics.metrics.find((metric) => metric.key === 'generation_mwh')?.history?.map((point) => point.period)).toEqual(YEARS.map((year) => `FY${year}`));
+    const trend = (await findings()).find((finding) => finding.title === 'Net generation (MWh) falling every year, FY2021–FY2025');
+    expect(trend).toMatchObject({ domain: 'OPERATIONAL', direction: -1 });
   });
 
   it('AI reads the reports; nothing counts until a person confirms, and the energy checks add nothing new', async () => {

@@ -1,7 +1,7 @@
 import { defaultPromptRegistry, ScriptedModelTransport, TransportClaudeGateway } from '@pactlab/ai';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { demoModelResponse } from '../demo-seed/seed';
-import { ACCEPTANCE_CURRENCIES, acceptAndValue, startAcceptanceDeal, type AcceptanceDeal } from './acceptance-kit';
+import { ACCEPTANCE_CURRENCIES, type AcceptanceDeal, acceptAndValue, centsOf, csvRows, HISTORY_YEARS as YEARS, type PackMetricsBody, startAcceptanceDeal } from './acceptance-kit';
 
 type FindingView = {
   id: string;
@@ -47,7 +47,7 @@ describe.each(ACCEPTANCE_CURRENCIES)('music rights pack acceptance (%s)', { time
     const view = await catalog();
     expect(view.currency).toBe(currency);
     expect(view.register.works).toBe(120);
-    expect(view.income).toMatchObject({ latestPeriodEnd: '2026-06-30', periods: ['2024-12-31', '2025-06-30', '2025-12-31', '2026-06-30'], gaps: [] });
+    expect(view.income).toMatchObject({ latestPeriodEnd: '2026-06-30', periods: ['2021-06-30', '2021-12-31', '2022-06-30', '2022-12-31', '2023-06-30', '2023-12-31', '2024-06-30', '2024-12-31', '2025-06-30', '2025-12-31', '2026-06-30'], gaps: [] });
     expect(deal.readme).toContain(`trailing net income of ${currency} ${grouped(view.income.trailing)}`);
     expect(new Number(view.income.decayAdjusted).valueOf()).toBeLessThan(Number(view.income.trailing));
     const [, share] = deal.readme.match(/grants behind ([0-9.]+%) of trailing income/) ?? [];
@@ -90,6 +90,22 @@ describe.each(ACCEPTANCE_CURRENCIES)('music rights pack acceptance (%s)', { time
     // The lien the summary does not disclose feeds an indemnity.
     expect(byTitle['Undisclosed encumbrance: Northgate Credit Partners (synthetic)']).toMatchObject({ direction: -1, pricedRisk: { type: 'INDEMNITY' } });
     expect(byTitle['Income concentration: Harbour Lights']).toMatchObject({ direction: 0 });
+  });
+
+  it('five years of statement income: by year, hand-computed, with the decline drafted (T-184b)', async () => {
+    const metrics = (await deal.call('GET', `/v1/deals/${deal.dealId}/metrics/pack`, 'lead')).body as PackMetricsBody;
+    const lines = csvRows(deal.folder, 'royalty-statements.csv');
+    const incomeOf = (year: string) => {
+      const cents = centsOf(lines.filter((row) => row[1]?.startsWith(year)), 5);
+      return `${cents / 100n}.${String(cents % 100n).padStart(2, '0')}`;
+    };
+    expect(metrics.history?.years).toEqual(YEARS.map((year) => `FY${year}`));
+    expect(metrics.history?.rows.find((row) => row.key === 'income')?.values).toEqual(YEARS.map(incomeOf));
+    expect(metrics.history?.coverage.find((entry) => entry.key === 'drivers')?.summary).toBe('FY2021–FY2025 (5 of 5 years)');
+    // A catalog has no P&L in the data room: the income statements are asked of the seller, the statements are not.
+    expect(metrics.history?.asks).toEqual([{ needs: ['INCOME_STATEMENT'], note: 'Ask the seller for FY2021–FY2025 income statements.' }]);
+    const trend = (await findings()).find((finding) => finding.title === 'Royalty income falling every year, FY2021–FY2025');
+    expect(trend).toMatchObject({ domain: 'FINANCIAL', direction: -1 });
   });
 
   it('AI reads the rights documents; nothing counts until a person confirms, and the catalog checks add nothing new', async () => {

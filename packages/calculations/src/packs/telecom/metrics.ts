@@ -2,7 +2,9 @@ import type { D } from '../../metrics/decimal';
 import type { MetricCalculator } from '../calculators';
 import { INVOICE_LINE, monthName } from '../common';
 import type { PackMetric, PackMetricsInput, PackMetricsReport } from '../metrics-types';
+import { packHistory, withHistory } from '../history';
 import { PNL_LINE } from '../pnl-trend';
+import { TELECOM_HISTORY } from './rules';
 import { agreementRows, AGREEMENT, CAPEX_YEAR, MOVEMENT, movementMonths, REVENUE_MONTH, squeezeYears, streamWindows, TELECOM_SUBSCRIBERS_VERSION, trailingRevenue, trailingSubscribers } from './subscribers';
 
 type Decimal = InstanceType<typeof D>;
@@ -71,7 +73,16 @@ export function telecomMetrics(input: PackMetricsInput): PackMetricsReport {
       ...(latestYear?.capexIntensity ? { value: ratio(latestYear.capexIntensity) } : missing('capital expenditure by year and the P&L for the same years', ['TELECOM_CAPEX', 'FINANCIAL_PNL'])),
     },
   ];
-  return { calculator: 'telecom-subscribers', version: TELECOM_SUBSCRIBERS_VERSION, currency: input.currency, metrics };
+  // Five years (T-184b): the P&L and the movements by year; subscribers, churn and ARPU carry a History strip.
+  const history = packHistory(TELECOM_HISTORY, input.evidence);
+  const strips = new Set(['subscribers', 'monthly_churn', 'arpu']);
+  return {
+    calculator: 'telecom-subscribers',
+    version: TELECOM_SUBSCRIBERS_VERSION,
+    currency: input.currency,
+    metrics: metrics.map((metric) => (strips.has(metric.key) ? withHistory(metric, history, metric.key) : metric)),
+    history: history.table,
+  };
 }
 
 export const TELECOM_METRICS_CALCULATOR: MetricCalculator<PackMetricsInput, PackMetricsReport> = {

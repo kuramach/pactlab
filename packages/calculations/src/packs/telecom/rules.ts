@@ -1,5 +1,6 @@
 import { D, parseDecimal } from '../../metrics/decimal';
 import { amountOf, documentClauseRule, grouped, INVOICE_LINE, monthName, percent, revenueConcentrationRule } from '../common';
+import { driverTrendRule, type DriverSpec, type PackHistorySpec } from '../history';
 import { PNL_LINE, pnlTrendRules } from '../pnl-trend';
 import { findSentence, MAX_CITED, type PackRule, type PackRuleEvidence, type PackRuleProposal } from '../rule-types';
 import {
@@ -383,6 +384,50 @@ export const TELECOM_CAPEX_SQUEEZE: PackRule = {
 
 export const [TELECOM_PNL_TREND, TELECOM_PNL_MARGIN_DRIFT, TELECOM_PNL_EXPENSE_OUTPACING] = pnlTrendRules('telecom', TELECOM_KEY_EXPENSES) as [PackRule, PackRule, PackRule];
 
+/**
+ * Five years of history (T-184b, ADR 0057): the P&L by year and the subscriber movements export by calendar
+ * year: closing subscribers, monthly churn and ARPU. The export is a period series already, so more months is
+ * more history.
+ */
+export const TELECOM_DRIVERS = {
+  subscribers: { key: 'subscribers', label: 'Subscribers (December closing)', unit: 'COUNT', evidenceType: MOVEMENT, mode: 'LAST', numerator: ['closing_subscribers'], formula: 'Σ closing subscribers in the year\'s last month, every region and plan' },
+  churn: { key: 'monthly_churn', label: 'Monthly churn', unit: 'RATIO', evidenceType: MOVEMENT, mode: 'RATIO', numerator: ['disconnects'], denominator: ['opening_subscribers'], scale: 6, formula: 'Σ disconnects ÷ Σ opening subscribers in the year (the average monthly rate)' },
+  arpu: {
+    key: 'arpu',
+    label: 'ARPU (a month)',
+    unit: 'MONEY',
+    evidenceType: MOVEMENT,
+    mode: 'RATIO',
+    numerator: ['service_revenue'],
+    denominator: ['opening_subscribers', 'closing_subscribers'],
+    multiplier: '2',
+    formula: 'Σ service revenue ÷ the year\'s subscriber-months (the average of opening and closing)',
+  },
+} as const satisfies Record<string, DriverSpec>;
+
+export const TELECOM_HISTORY: PackHistorySpec = {
+  drivers: [TELECOM_DRIVERS.subscribers, TELECOM_DRIVERS.churn, TELECOM_DRIVERS.arpu],
+  keyExpenses: TELECOM_KEY_EXPENSES,
+  driverImport: 'TELECOM_SUBSCRIBER_MOVEMENTS',
+  driverLabel: 'Subscriber movements',
+  driverWhat: 'subscriber movements history',
+};
+
+/** Monthly churn climbing every year by this much or more, first year to last (0.10 points a month). */
+export const CHURN_CLIMB_POINTS = '0.001';
+
+export const TELECOM_CHURN_TREND = driverTrendRule(
+  {
+    id: 'telecom-churn-trend',
+    driver: TELECOM_DRIVERS.churn,
+    adverse: 'UP',
+    threshold: CHURN_CLIMB_POINTS,
+    domain: 'COMMERCIAL',
+    advice: 'More of the base is leaving each year: check retention offers, competitor entry by region and plan, and whether the scenarios carry today\'s churn or a lower one.',
+  },
+  TELECOM_HISTORY,
+);
+
 export const TELECOM_RULES: readonly PackRule[] = [
   TELECOM_REPORTED_SUBSCRIBERS,
   TELECOM_CHURN_TURNING,
@@ -396,5 +441,6 @@ export const TELECOM_RULES: readonly PackRule[] = [
   TELECOM_PNL_TREND,
   TELECOM_PNL_MARGIN_DRIFT,
   TELECOM_PNL_EXPENSE_OUTPACING,
+  TELECOM_CHURN_TREND,
 ];
 export const TELECOM_EVIDENCE = { SUBSCRIBERS, MOVEMENT, AGREEMENT, REVENUE_MONTH, CAPEX_YEAR } as const;

@@ -192,7 +192,7 @@ describe('healthcare rules (T-160)', () => {
 
   it('keeps the T-061 rules first, unchanged, and every rule id unique', () => {
     expect(HEALTHCARE_RULES.slice(0, 4).map((rule) => rule.id)).toEqual(['healthcare-government-concentration', 'healthcare-director-fee', 'healthcare-privacy-assessment', 'healthcare-credentials-expiring']);
-    expect(new Set(HEALTHCARE_RULES.map((rule) => rule.id)).size).toBe(15);
+    expect(new Set(HEALTHCARE_RULES.map((rule) => rule.id)).size).toBe(16);
   });
 });
 

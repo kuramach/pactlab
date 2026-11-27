@@ -1,6 +1,9 @@
 import type { D } from '../../metrics/decimal';
 import type { MetricCalculator } from '../calculators';
+import { packHistory, withHistory, type PackHistorySpec } from '../history';
 import type { PackMetric, PackMetricsInput, PackMetricsReport } from '../metrics-types';
+import { PNL_LINE } from '../pnl-trend';
+import { HEALTHCARE_HISTORY } from './rules';
 import { monthName } from '../common';
 import {
   CLINICIAN_MONTH,
@@ -33,7 +36,7 @@ const count = (value: number) => String(value);
  * credentialing and payer contract registers at the analysis date. The verification documents can move
  * a credential's date; that is read on the Practice tab and by the rules.
  */
-export function healthcareMetrics(input: PackMetricsInput): PackMetricsReport {
+export function healthcareMetrics(input: PackMetricsInput, historySpec: PackHistorySpec = HEALTHCARE_HISTORY): PackMetricsReport {
   const rows = remittanceMonths(input.evidence);
   const window = trailingCollections(rows);
   const trailing = window && window.missing.length === 0 ? window : null;
@@ -89,12 +92,21 @@ export function healthcareMetrics(input: PackMetricsInput): PackMetricsReport {
       ...(contracts.length && contractStatuses.length ? { value: count(contractStatuses.filter((status) => status.state === 'EXPIRING' || status.state === 'EXPIRED').length) } : missing('payer contract register and the remittance export', ['HEALTHCARE_PAYER_CONTRACTS', 'HEALTHCARE_REMITTANCES'])),
     },
   ];
-  return { calculator: 'healthcare-collections', version: HEALTHCARE_COLLECTIONS_VERSION, currency: input.currency, metrics };
+  // Five years (T-184b): the P&L, visits, the commercial share and the denial rate by year; the two rates carry a History strip.
+  const history = packHistory(historySpec, input.evidence);
+  const strips = new Set(['commercial_share', 'denial_rate']);
+  return {
+    calculator: 'healthcare-collections',
+    version: HEALTHCARE_COLLECTIONS_VERSION,
+    currency: input.currency,
+    metrics: metrics.map((metric) => (strips.has(metric.key) ? withHistory(metric, history, metric.key) : metric)),
+    history: history.table,
+  };
 }
 
 export const HEALTHCARE_METRICS_CALCULATOR: MetricCalculator<PackMetricsInput, PackMetricsReport> = {
   id: 'healthcare-collections',
   version: HEALTHCARE_COLLECTIONS_VERSION,
-  evidenceTypes: [REMITTANCE, CLINICIAN_MONTH, CREDENTIAL, PAYER_CONTRACT],
+  evidenceTypes: [REMITTANCE, CLINICIAN_MONTH, CREDENTIAL, PAYER_CONTRACT, PNL_LINE],
   compute: healthcareMetrics,
 };
