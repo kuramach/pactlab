@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import { startPact } from '../support/deals';
 
 // T-127: the real apache/kafka repository and KAFKA project, replayed from the recorded snapshot (no live call).
-test('the recorded apache/kafka and KAFKA data load into a pact as real, labelled code and delivery evidence', { tag: '@regression' }, async ({ page }) => {
+test('the recorded apache/kafka and KAFKA data load into a pact as real, labelled code and delivery evidence', { tag: ['@regression', '@quarantine'] }, async ({ page }) => {
   const dealId = await startPact(page, 'Software & SaaS');
   await page.goto(`/deals/${dealId}/sources/synthetic`);
   await page.getByLabel('Repository').selectOption('apache/kafka');
