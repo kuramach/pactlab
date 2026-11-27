@@ -87,6 +87,37 @@ export async function uploadArchive(dealId: string, formData: FormData): Promise
   return { kind: 'error', message: 'The zip was not accepted. It may be over 10 MB, hold more than 200 files or unpack to more than 100 MB. Nothing was uploaded.' };
 }
 
+export type RinseArchiveResult = { kind: 'ok'; files: SourceSyncFile[]; rinse: RinseSyncSummary } | { kind: 'error'; message: string };
+
+const RINSE_ARCHIVE_PROBLEMS: Readonly<Record<string, string>> = {
+  RINSE_MANIFEST_MISSING: 'This zip has no pactlab-manifest.json at its top, so it is not a set finished in Pactlab Rinse. Upload it as an ordinary zip instead. Nothing was imported.',
+  RINSE_MANIFEST_INVALID: 'The zip’s Pactlab Rinse manifest cannot be read. Ask the seller to rinse the set again. Nothing was imported.',
+  ARCHIVE_NOT_A_ZIP: 'This is not a zip file Pactlab can open. Nothing was imported.',
+  ARCHIVE_EMPTY: 'The zip has no files in it. Nothing was imported.',
+};
+
+/**
+ * Import a folder finished in Pactlab Rinse once, as a zip with its manifest (T-178d). The same manifest
+ * checks as a connected folder: every file is matched to the manifest by path and SHA-256.
+ */
+export async function importRinsedArchive(dealId: string, formData: FormData): Promise<RinseArchiveResult> {
+  if (!uuid.safeParse(dealId).success) return { kind: 'error', message: 'Unknown deal.' };
+  const file = formData.get('file');
+  if (!(file instanceof File) || !isArchive(file.name)) return { kind: 'error', message: 'Choose the zip of the finished set.' };
+  const checked = checkFile(file.name, file.size);
+  if ('problem' in checked) return { kind: 'error', message: UPLOAD_PROBLEMS[checked.problem] };
+  const result = await apiSend<{ files: SourceSyncFile[]; rinse: RinseSyncSummary }>('POST', `/v1/deals/${dealId}/rinse-archives`, {
+    fileName: file.name,
+    contentBase64: Buffer.from(await file.arrayBuffer()).toString('base64'),
+    shared: formData.get('shared') === 'on',
+  });
+  if (result.kind === 'ok') return { kind: 'ok', files: result.data.files, rinse: result.data.rinse };
+  if (result.kind === 'invalid') return { kind: 'error', message: (result.code && RINSE_ARCHIVE_PROBLEMS[result.code]) ?? UPLOAD_PROBLEMS.rejected };
+  if (result.kind === 'unavailable') return { kind: 'error', message: UPLOAD_PROBLEMS.unavailable };
+  if (result.kind === 'forbidden') return { kind: 'error', message: 'You do not have permission to add documents to this deal.' };
+  return { kind: 'error', message: 'The zip was not accepted. It may be over 10 MB, hold more than 200 files or unpack to more than 100 MB. Nothing was imported.' };
+}
+
 /** Where a filed document goes next (mirrors the API's route). */
 export type IntakeRoute = { kind: 'IMPORT'; target: string } | { kind: 'BALANCE_SHEET' } | { kind: 'EXTRACT' } | { kind: 'FILE' };
 

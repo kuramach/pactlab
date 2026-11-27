@@ -1,8 +1,10 @@
 import { AiBadge, Card, CardContent, CardHeader, CardTitle, EmptyState, Glossed } from '@pactlab/ui';
-import type { Page } from '@pactlab/contracts';
+import type { DocumentProvenanceView, Page, RinseSetView } from '@pactlab/contracts';
 import Link from 'next/link';
 import { keepParams, pageApiQuery, Pager, pagerLinks, readPage } from '../../../../_components/pager';
 import { apiGet, dealsApi } from '../../_lib/api';
+import { RinseImport } from './rinse-import';
+import { RinseProvenance, RinseSets } from './rinse-provenance';
 import { OutcomeBanner } from '../../_lib/outcome';
 import { ApiState } from '../../_lib/states';
 import { can, dealViewer } from '../../_lib/viewer';
@@ -71,6 +73,7 @@ export default async function DocumentsPage({
   const library = libraryQuery(search);
   const docsAt = readPage(search, 'docs');
   const queueAt = readPage(search, 'queue');
+  const setsAt = readPage(search, 'sets');
   const decidedTab = search['queue'] === 'decided';
   if (!view.dealId) {
     return (
@@ -102,7 +105,12 @@ export default async function DocumentsPage({
     dealsApi.get(dealId),
   ]);
   // The open document, wherever it sits in the library's pages.
-  const opened = view.documentId ? await apiGet<DocumentListItem>(`${deal(dealId)}/documents/${encodeURIComponent(view.documentId)}`) : null;
+  const [opened, provenance, rinseSets] = await Promise.all([
+    view.documentId ? apiGet<DocumentListItem>(`${deal(dealId)}/documents/${encodeURIComponent(view.documentId)}`) : null,
+    // Where it came from, when it arrived in a set finished in Pactlab Rinse (T-178d).
+    view.documentId ? apiGet<{ items: DocumentProvenanceView[] }>(`${deal(dealId)}/document-provenance?documentId=${encodeURIComponent(view.documentId)}`) : null,
+    apiGet<Page<RinseSetView>>(`${deal(dealId)}/rinse-sets?${pageApiQuery(setsAt)}`),
+  ]);
   const hasSeller = viewer.members.some((member) => member.role === 'TARGET_CONTRIBUTOR' && member.status === 'ACTIVE');
   const categoryLabels = intake.kind === 'ok' ? Object.fromEntries(intake.data.categories.map((category) => [category.id, category.label])) : {};
   const aiOn = ai.kind === 'ok' && ai.data.enabled;
@@ -202,6 +210,25 @@ export default async function DocumentsPage({
         </Card>
       ) : null}
 
+      {sources.kind === 'ok' && (writer || sources.data.seller) ? (
+        <Card id="rinse">
+          <CardHeader>
+            <CardTitle className="text-base">Sets finished in Pactlab Rinse</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-6">
+            {rinseSets.kind === 'ok' ? (
+              <div className="flex flex-col gap-2">
+                <RinseSets dealId={dealId} sets={rinseSets.data.items} />
+                <Pager label="Rinsed set pages" base={`/deals/${dealId}/documents`} links={pagerLinks({ ...rinseSets.data, itemCount: rinseSets.data.items.length }, setsAt, keepParams(search), 'sets')} />
+              </div>
+            ) : (
+              <ApiState result={rinseSets} />
+            )}
+            <RinseImport dealId={dealId} seller={sources.data.seller ?? false} />
+          </CardContent>
+        </Card>
+      ) : null}
+
       {intake.kind === 'ok' ? (
         <Card>
           <CardHeader>
@@ -247,6 +274,7 @@ export default async function DocumentsPage({
             </CardTitle>
           </CardHeader>
           <CardContent>
+            {provenance?.kind === 'ok' ? <RinseProvenance items={provenance.data.items} /> : null}
             {page?.kind === 'ok' && writer && openDocument && openDocument.status === 'AVAILABLE' && !openDocument.aiExcluded ? (
               <div className="mb-4">
                 {TABLE_TYPES.has(openDocument.contentType) ? (

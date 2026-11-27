@@ -1,4 +1,4 @@
-import type { ClaimView } from '@pactlab/contracts';
+import { isHandSourcedOrigin, type ClaimView } from '@pactlab/contracts';
 import { Badge } from '@pactlab/ui';
 
 /** Plain words for a claim's state (T-094 B7): what the seller said, against what the evidence shows. */
@@ -18,6 +18,22 @@ export function ClaimVerdictBadge({ claims }: { claims: readonly ClaimView[] }) 
   return <Badge variant={CLAIM_VERDICT[status].variant}>{CLAIM_VERDICT[status].short}</Badge>;
 }
 
+/** What a hand-sourced claim is, wherever it is used (T-178d): the seller's word, entered by hand. */
+export const HAND_SOURCED_HELP = 'Entered by hand in Pactlab Rinse: the seller’s word, not documentary evidence.';
+
+/** Whether a finding rests on anything the seller entered by hand rather than a document. */
+export const restsOnHandSourced = (claims: readonly ClaimView[]) => claims.some((claim) => isHandSourcedOrigin(claim.origin));
+
+/** Shown on a finding (or a Deal Critical, T-179) that rests on a hand-sourced claim. */
+export function HandSourcedBadge({ claims }: { claims: readonly ClaimView[] }) {
+  if (!restsOnHandSourced(claims)) return null;
+  return (
+    <Badge variant="draft" title={HAND_SOURCED_HELP}>
+      Rests on a hand-sourced claim
+    </Badge>
+  );
+}
+
 /** On a finding: each thing the seller said that it supports or contradicts, in plain words. */
 export function SellerClaims({ claims }: { claims: readonly ClaimView[] }) {
   if (claims.length === 0) return <p className="text-sm text-muted-foreground">This finding is not linked to anything the seller said.</p>;
@@ -30,6 +46,11 @@ export function SellerClaims({ claims }: { claims: readonly ClaimView[] }) {
           </span>
           <span className="flex flex-wrap items-center gap-2">
             <Badge variant={CLAIM_VERDICT[claim.status].variant}>{CLAIM_VERDICT[claim.status].label}</Badge>
+            {isHandSourcedOrigin(claim.origin) ? (
+              <Badge variant="draft" title={HAND_SOURCED_HELP}>
+                Hand-sourced
+              </Badge>
+            ) : null}
             {claim.rationale ? <span className="text-muted-foreground">{claim.rationale}</span> : null}
           </span>
         </li>

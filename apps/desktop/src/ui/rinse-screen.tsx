@@ -14,6 +14,62 @@ export interface RinseScreenActions {
   readonly onExclude?: (fileId: string) => void;
   readonly onRerun?: (fileId: string) => void;
   readonly onUpload?: () => void;
+  readonly onChooseDestination?: (kind: DestinationKind) => void;
+  /** The seller's own sign-in to their drive (T-178d): never the Pactlab login. */
+  readonly onSignIn?: (kind: Exclude<DestinationKind, 'FOLDER'>) => void;
+  readonly onSignOut?: (kind: Exclude<DestinationKind, 'FOLDER'>) => void;
+}
+
+export type DestinationKind = 'FOLDER' | 'ONEDRIVE' | 'GOOGLE_DRIVE' | 'BOX';
+
+/** Where the finished set goes, and who it is signed in as there (null: not signed in yet). */
+export interface DestinationChoice {
+  readonly kind: DestinationKind;
+  readonly signedInAs: string | null;
+}
+
+export const DESTINATION_LABELS: Readonly<Record<DestinationKind, string>> = { FOLDER: 'A folder', ONEDRIVE: 'OneDrive', GOOGLE_DRIVE: 'Google Drive', BOX: 'Box' };
+
+/** Ready to upload: the set is clean, and a cloud destination is signed in. */
+export const canUpload = (ready: boolean, destination: DestinationChoice) => ready && (destination.kind === 'FOLDER' || destination.signedInAs !== null);
+
+function Destination({ destination, actions }: { destination: DestinationChoice; actions: RinseScreenActions }) {
+  const cloud = destination.kind === 'FOLDER' ? null : destination.kind;
+  return (
+    <section aria-labelledby="destination" className="mt-6 rounded-2xl bg-white/10 p-5">
+      <h3 id="destination" className="font-semibold">
+        Where it goes
+      </h3>
+      <div className="mt-3 flex flex-wrap gap-2" role="group" aria-label="Destination">
+        {(Object.keys(DESTINATION_LABELS) as DestinationKind[]).map((kind) => (
+          <Button key={kind} variant={kind === destination.kind ? 'default' : 'outline'} aria-pressed={kind === destination.kind} onClick={() => actions.onChooseDestination?.(kind)}>
+            {DESTINATION_LABELS[kind]}
+          </Button>
+        ))}
+      </div>
+      {cloud ? (
+        <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-slate-300">
+          {destination.signedInAs ? (
+            <>
+              <span>
+                Signed in to {DESTINATION_LABELS[cloud]} as {destination.signedInAs}.
+              </span>
+              <Button variant="outline" onClick={() => actions.onSignOut?.(cloud)}>
+                Sign out of {DESTINATION_LABELS[cloud]}
+              </Button>
+            </>
+          ) : (
+            <Button onClick={() => actions.onSignIn?.(cloud)}>Sign in to {DESTINATION_LABELS[cloud]}</Button>
+          )}
+          <p className="w-full">
+            Your own {DESTINATION_LABELS[cloud]} sign-in, not your Pactlab login. The set is written to your account from this machine; Pactlab never gets access to your drive.
+          </p>
+        </div>
+      ) : (
+        <p className="mt-3 text-sm text-slate-300">A local or network folder. The set goes into a new folder of its own; nothing is overwritten.</p>
+      )}
+    </section>
+  );
 }
 
 const GAP_LABELS: Readonly<Record<RinseGap['state'], string>> = {
@@ -119,7 +175,7 @@ function ReviewItem({ file, actions }: { file: FileView; actions: RinseScreenAct
 }
 
 /** The bench: the flask, the checklist of what the pact expects, the review queue, and the upload. */
-export function RinseScreen({ name, view, running, actions = {} }: { name: string; view: View; running: boolean; actions?: RinseScreenActions }) {
+export function RinseScreen({ name, view, running, destination = { kind: 'FOLDER', signedInAs: null }, actions = {} }: { name: string; view: View; running: boolean; destination?: DestinationChoice; actions?: RinseScreenActions }) {
   const state: FlaskState = running ? 'working' : view.readiness.ready ? 'clean' : 'launch';
   return (
     <main className="mx-auto max-w-4xl px-10 py-12 font-[Manrope] text-navy">
@@ -143,9 +199,10 @@ export function RinseScreen({ name, view, running, actions = {} }: { name: strin
               : `${view.readiness.openErrors} to fix, ${view.readiness.openGaps.length} expected document${view.readiness.openGaps.length === 1 ? '' : 's'} missing.`}
           {view.aiWaiting > 0 ? ` ${view.aiWaiting} AI step${view.aiWaiting === 1 ? '' : 's'} wait until you are online and signed in.` : ''}
         </p>
+        <Destination destination={destination} actions={actions} />
         <div className="mt-6">
-          <Button disabled={!view.readiness.ready || running} onClick={() => actions.onUpload?.()}>
-            Upload the finished set
+          <Button disabled={!canUpload(view.readiness.ready, destination) || running} onClick={() => actions.onUpload?.()}>
+            {destination.kind === 'FOLDER' ? 'Upload the finished set' : `Upload the finished set to ${DESTINATION_LABELS[destination.kind]}`}
           </Button>
         </div>
       </section>
