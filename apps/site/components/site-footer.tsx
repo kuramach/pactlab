@@ -23,6 +23,7 @@ export function SiteFooter({ locale = 'en' }: { locale?: Locale }) {
         ...content.nav.filter((n) => n.href !== '/product' && n.href !== '/industries').map((n) => ({ href: href(n.href), label: n.label })),
         { href: href('/guides'), label: words.guides },
         { href: href('/faq'), label: words.faq },
+        { href: href('/rinse'), label: words.rinse },
         { href: href('/compare/valuation-software'), label: words.compare },
         ...account,
       ],
