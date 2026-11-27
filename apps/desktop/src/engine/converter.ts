@@ -103,3 +103,62 @@ export function bundledTools(resources: string, os: NodeJS.Platform = process.pl
   const soffice = os === 'darwin' ? `${resources}/vendor/libreoffice/LibreOffice.app/Contents/MacOS/soffice` : `${resources}/vendor/libreoffice/program/soffice${exe}`;
   return { soffice, tesseract: `${resources}/vendor/tesseract/bin/tesseract${exe}`, tessdata: `${resources}/vendor/tesseract/tessdata` };
 }
+
+function capture(command: string, args: readonly string[], env: NodeJS.ProcessEnv, timeoutMs: number): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, { stdio: ['ignore', 'pipe', 'ignore'], timeout: timeoutMs, env });
+    const out: Buffer[] = [];
+    child.stdout.on('data', (chunk: Buffer) => out.push(chunk));
+    child.on('error', (error: NodeJS.ErrnoException) => reject(new ConversionError(error.code === 'ENOENT' ? 'TOOL_MISSING' : 'FAILED')));
+    child.on('exit', (code) => (code === 0 ? resolve(Buffer.concat(out).toString('utf8')) : reject(new ConversionError('FAILED'))));
+  });
+}
+
+/** Tesseract (bundled) reading an image to text, offline. Pages are separated by form feeds. */
+export class TesseractOcr {
+  readonly tool = 'tesseract';
+
+  constructor(private readonly tesseract: string, private readonly tessdata: string, private readonly timeoutMs = 120_000) {}
+
+  async read(name: string, bytes: Uint8Array): Promise<string[]> {
+    const workdir = await mkdtemp(join(tmpdir(), 'pactlab-rinse-ocr-'));
+    try {
+      const input = join(workdir, `input${extname(name).toLowerCase()}`);
+      await writeFile(input, bytes);
+      const text = await capture(this.tesseract, [input, 'stdout'], { ...process.env, TESSDATA_PREFIX: this.tessdata }, this.timeoutMs);
+      return text.split('\f').filter((page) => page.trim().length > 0);
+    } finally {
+      await rm(workdir, { recursive: true, force: true });
+    }
+  }
+}
+
+const OFFICE = new Set(['doc', 'docx', 'odt', 'rtf', 'xls', 'ods', 'ppt', 'pptx', 'odp']);
+const IMAGES = new Set(['png', 'jpg', 'jpeg', 'tif', 'tiff']);
+
+/**
+ * The converter the app runs (T-178e): office files through the bundled LibreOffice, images through the
+ * bundled Tesseract, PDFs and text re-laid deterministically. When a bundled tool is absent, Word and
+ * text fall back to the deterministic writer (recorded as its own tool in the conversion log); anything
+ * else fails closed with TOOL_MISSING. Every conversion is still audited against the original.
+ */
+export class BundledConverter implements Converter {
+  readonly tool = 'rinse-bundled-1';
+  private readonly lines = new LinesConverter();
+
+  constructor(private readonly office: Converter | null, private readonly ocr: TesseractOcr | null) {}
+
+  async convert(name: string, bytes: Uint8Array): Promise<Conversion> {
+    const extension = extensionOf(name);
+    if (OFFICE.has(extension) && this.office) return this.office.convert(name, bytes);
+    if (IMAGES.has(extension)) {
+      if (!this.ocr) throw new ConversionError('TOOL_MISSING');
+      const pages = await this.ocr.read(name, bytes);
+      if (pages.length === 0) throw new ConversionError('NO_TEXT');
+      const pdf = await writeLinesPdf(pages.join('\n').split('\n'), { title: basename(name, extname(name)) });
+      return { pdf: pdf.bytes, pageTexts: pdf.pageTexts, anchors: pdf.anchors, tool: this.ocr.tool };
+    }
+    if (extension === 'docx' || extension === 'txt' || extension === 'md' || extension === 'pdf') return this.lines.convert(name, bytes);
+    throw new ConversionError('TOOL_MISSING');
+  }
+}
