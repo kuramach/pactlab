@@ -18,7 +18,7 @@ import type { ModelAlias, ModelProvider, ReasoningEffort } from './models';
  * On a deployment with only its Claude provider (every environment until other keys and terms are
  * set), each job's Claude lane is the alias its prompts already run on, so nothing changes there.
  */
-export const JOB_TYPES = ['deep_review', 'contract_scrub', 'extraction', 'classification', 'document_qa', 'vision', 'import_mapping'] as const;
+export const JOB_TYPES = ['deep_review', 'contract_scrub', 'extraction', 'classification', 'document_qa', 'vision', 'import_mapping', 'support_chat'] as const;
 export type JobType = (typeof JOB_TYPES)[number];
 
 export type Lane =
@@ -95,6 +95,16 @@ export const JOB_MODEL_MAP: Readonly<Record<JobType, JobDefinition>> = {
     lanes: [
       { kind: 'claude', alias: 'deep_review', tier: 'flagship' },
       { kind: 'claude', alias: 'balanced', tier: 'economy' },
+    ],
+  },
+  // Product help on the site and in the app (T-175): the fast lane first (Haiku/Flash class), answering only from
+  // Pactlab's own published corpus. Short, high-volume and cheap per message; Sonnet 5.5 is the quality fallback.
+  support_chat: {
+    label: 'Product help chat (site and app)',
+    lanes: [
+      { kind: 'claude', alias: 'fast', tier: 'economy' },
+      { kind: 'model', provider: 'google', modelId: GEMINI_FLASH, effort: 'low', tier: 'economy' },
+      { kind: 'claude', alias: 'balanced', tier: 'flagship' },
     ],
   },
   // Keep Gemini 3.1 Pro until a successor passes; Opus 5.5 scores 80.6 on the multimodal board (§6).

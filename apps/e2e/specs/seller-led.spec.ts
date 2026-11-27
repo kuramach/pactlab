@@ -107,7 +107,7 @@ test('a seller-led pact: invite a bidder, answer their question, compare and awa
   await expect(guest.getByRole('link', { name: 'SPA markup.txt' })).toBeVisible();
 
   await guest.getByLabel('Question for the seller').fill('What is net revenue retention?');
-  await guest.getByRole('button', { name: 'Ask' }).click();
+  await guest.getByRole('button', { name: 'Ask', exact: true }).click();
   await expect(guest.getByText('Waiting for the seller’s answer.')).toBeVisible();
 
   await guest.getByLabel('Price').fill('52,000,000');

@@ -5,7 +5,7 @@
  * models (one organization).
  */
 
-export type JobType = 'deep_review' | 'contract_scrub' | 'extraction' | 'classification' | 'document_qa' | 'vision' | 'import_mapping';
+export type JobType = 'deep_review' | 'contract_scrub' | 'extraction' | 'classification' | 'document_qa' | 'vision' | 'import_mapping' | 'support_chat';
 export type RoleAlias = 'fast' | 'balanced' | 'deep_review';
 export type JobSource = 'ORGANIZATION' | 'PLATFORM' | 'DEPLOYMENT' | 'REGISTRY';
 
@@ -39,6 +39,7 @@ export const JOB_TITLES: Record<JobType, { title: string; help: string }> = {
   deep_review: { title: 'Deep review', help: 'judgment on agreement findings' },
   document_qa: { title: 'Questions and drafting', help: 'document Q&A, Foresight, briefs' },
   import_mapping: { title: 'Reading spreadsheets', help: 'header, layout and columns of an import' },
+  support_chat: { title: 'Product help chat', help: 'how Pactlab works, from its published guides only' },
 };
 
 export const ROLE_TITLES: Record<RoleAlias, string> = { fast: 'Claude · Fast', balanced: 'Claude · Balanced', deep_review: 'Claude · Deep review' };
@@ -84,7 +85,7 @@ export interface GraphEdge {
 }
 
 /** The kind of material each job mostly works on (its box's accent). */
-const JOB_FLOW: Record<JobType, Flow> = { classification: 'text', vision: 'image', extraction: 'text', contract_scrub: 'draft', deep_review: 'draft', document_qa: 'question', import_mapping: 'text' };
+const JOB_FLOW: Record<JobType, Flow> = { classification: 'text', vision: 'image', extraction: 'text', contract_scrub: 'draft', deep_review: 'draft', document_qa: 'question', import_mapping: 'text', support_chat: 'question' };
 
 /** Inputs on the left, the jobs in the middle, what people receive on the right. */
 const POSITIONS: Record<string, { x: number; y: number }> = {
@@ -103,6 +104,9 @@ const POSITIONS: Record<string, { x: number; y: number }> = {
   findings: { x: 1180, y: 60 },
   review: { x: 1400, y: 60 },
   answer: { x: 870, y: 470 },
+  help_question: { x: 0, y: 680 },
+  support_chat: { x: 250, y: 680 },
+  help_answer: { x: 560, y: 680 },
 };
 
 export function buildRoutingGraph(view: RoutingView): { nodes: GraphNode[]; edges: GraphEdge[] } {
@@ -127,6 +131,9 @@ export function buildRoutingGraph(view: RoutingView): { nodes: GraphNode[]; edge
     { id: 'findings', kind: 'output', flow: 'draft', title: 'Draft findings', note: 'every one cited to a page', position: POSITIONS['findings'] as { x: number; y: number } },
     { id: 'review', kind: 'output', flow: 'review', title: 'A person reviews', note: 'accepts or rejects; AI never decides', position: POSITIONS['review'] as { x: number; y: number } },
     { id: 'answer', kind: 'output', flow: 'answer', title: 'Cited answer', position: POSITIONS['answer'] as { x: number; y: number } },
+    { id: 'help_question', kind: 'input', flow: 'question', title: 'A question about Pactlab', note: 'site or app chat; never pact data', position: POSITIONS['help_question'] as { x: number; y: number } },
+    job('support_chat'),
+    { id: 'help_answer', kind: 'output', flow: 'answer', title: 'Answer from the guides', note: 'cited to the page it came from', position: POSITIONS['help_answer'] as { x: number; y: number } },
   ];
   const edges: GraphEdge[] = [
     { id: 'spreadsheet-import_mapping', source: 'spreadsheet', target: 'import_mapping', label: 'a new layout', flow: 'text' },
@@ -145,6 +152,8 @@ export function buildRoutingGraph(view: RoutingView): { nodes: GraphNode[]; edge
     { id: 'question-document_qa', source: 'question', target: 'document_qa', label: 'question', flow: 'question' },
     { id: 'classification-document_qa', source: 'classification', target: 'document_qa', label: 'document pages', flow: 'text' },
     { id: 'document_qa-answer', source: 'document_qa', target: 'answer', label: 'answer with citations', flow: 'answer' },
+    { id: 'help_question-support_chat', source: 'help_question', target: 'support_chat', label: 'question', flow: 'question' },
+    { id: 'support_chat-help_answer', source: 'support_chat', target: 'help_answer', label: 'answer citing a guide', flow: 'answer' },
   ];
   return { nodes, edges };
 }

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Manrope } from 'next/font/google';
 import type { ReactNode } from 'react';
+import { HelpLauncher } from '../components/help-launcher';
 import { SiteFooter } from '../components/site-footer';
 import { SiteHeader, type Menus } from '../components/site-header';
 import { siteConfig } from '../lib/config';
@@ -71,7 +72,7 @@ function menus(locale: Locale): Menus {
 
 /** The document for one language: `<html lang>`, header with the language switcher, footer and organization JSON-LD. */
 export function SiteShell({ locale, children }: { locale: Locale; children: ReactNode }) {
-  const { loginUrl, signUpUrl, contactHref } = siteConfig();
+  const { loginUrl, signUpUrl, contactHref, assistantUrl } = siteConfig();
   const { content, ui } = site(locale);
   return (
     <html lang={HTML_LANG[locale]} className={manrope.variable}>
@@ -96,6 +97,7 @@ export function SiteShell({ locale, children }: { locale: Locale; children: Reac
         />
         <main id="main">{children}</main>
         <SiteFooter locale={locale} />
+        {assistantUrl ? <HelpLauncher assistantUrl={assistantUrl} /> : null}
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdScript(organizationJsonLd(locale)) }} />
       </body>
     </html>

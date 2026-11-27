@@ -32,6 +32,11 @@ describe('the job-type registry (T-132)', () => {
     expect(defaultPromptRegistry().list().filter((prompt) => defaultPromptRegistry().get(prompt.id, prompt.version)?.jobType === 'import_mapping').map((prompt) => prompt.id)).toEqual(['import.map']);
   });
 
+  it('answers product-help chat on the fast lane first, with Sonnet as the quality fallback (T-175)', () => {
+    expect(JOB_MODEL_MAP.support_chat.lanes[0]).toEqual({ kind: 'claude', alias: 'fast', tier: 'economy' });
+    expect(JOB_MODEL_MAP.support_chat.lanes.at(-1)).toEqual({ kind: 'claude', alias: 'balanced', tier: 'flagship' });
+  });
+
   it('reads MODEL_JOB_<JOB> overrides as provider:model, and refuses anything else', () => {
     expect(parseJobOverride('anthropic:claude-opus-5-5')).toEqual({ provider: 'anthropic', modelId: 'claude-opus-5-5' });
     expect(parseJobOverride('openai:gpt-5.5')).toEqual({ provider: 'openai', modelId: 'gpt-5.5' });

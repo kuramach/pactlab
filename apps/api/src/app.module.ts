@@ -65,6 +65,8 @@ import { TelecomModule } from './telecom/telecom.module';
 import { SpvModule } from './spv/spv.module';
 import { BrandModule } from './brand/brand.module';
 import { FeatureCardsModule } from './feature-cards/feature-cards.module';
+import { SupportChatModule } from './support-chat/support-chat.module';
+import { EmailFeatureRequestIntake, type FeatureRequestIntake } from './support-chat/feature-request-intake';
 import { EmailEventsModule } from './email-events/email-events.module';
 import type { SnsVerifier } from './email-events/sns';
 import { HttpsWebFetcher, type WebFetcher } from './common/safe-fetch';
@@ -167,6 +169,11 @@ export interface AppDependencies {
    * local runs). Omitted (tests): the inbox works and nothing is sent until the dispatcher is run directly.
    */
   notifications?: { dispatch: boolean; intervalMs?: number };
+  /**
+   * Product-help chat (T-175): where handed-off questions and confirmed feature requests go. Omitted: no team
+   * address, so the panel offers the contact address instead; `featureIntake` defaults to emailing the team.
+   */
+  supportChat?: { teamEmail: string | null; featureIntake?: FeatureRequestIntake };
   /** Pack and finding-rule registries. Omitted: the domain registries (tests inject a test-only rule). */
   packs?: PackRegistry;
 }
@@ -348,6 +355,14 @@ export class AppModule {
         IcModule.register({ reports: reportsModule }),
         BrandModule.register({ store: deps.documents?.objectStore ?? new UnavailableObjectStore(), fetcher: deps.webFetcher ?? new HttpsWebFetcher() }),
         FeatureCardsModule,
+        SupportChatModule.register({
+          gateway: deps.documents?.gateway ?? new NotConfiguredClaudeGateway(),
+          emailSender: deps.emailLogin?.emailSender ?? null,
+          teamEmail: deps.supportChat?.teamEmail ?? null,
+          featureIntake:
+            deps.supportChat?.featureIntake ??
+            (deps.emailLogin?.emailSender && deps.supportChat?.teamEmail ? new EmailFeatureRequestIntake(deps.emailLogin.emailSender, deps.supportChat.teamEmail) : null),
+        }),
         NotificationsModule.register({
           emailSender: deps.emailLogin?.emailSender ?? null,
           suppression: deps.emailLogin?.tokenSecret ? new DatabaseSuppressionList(deps.prisma, deps.emailLogin.tokenSecret) : null,
