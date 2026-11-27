@@ -162,7 +162,7 @@ describe('pack registry', () => {
     expect(telecom.importTargets).toEqual(['BILLING_INVOICE_LINE', 'TELECOM_SUBSCRIBERS', 'TELECOM_SUBSCRIBER_MOVEMENTS', 'TELECOM_AGREEMENTS', 'TELECOM_REVENUE_STREAMS', 'TELECOM_CAPEX']);
     // The T-062 rules stay, first and unchanged.
     expect(telecom.findingRules.slice(0, 4)).toEqual(['telecom-reported-subscribers', 'telecom-churn-turning', 'telecom-regional-concentration', 'telecom-wholesale-review']);
-    expect(telecom.findingRules).toHaveLength(12);
+    expect(telecom.findingRules).toHaveLength(13);
     expect(telecom.documentCategories).toEqual(['RIGHTS_AGREEMENT']);
     for (const target of ['TELECOM_SUBSCRIBER_MOVEMENTS', 'TELECOM_AGREEMENTS', 'TELECOM_REVENUE_STREAMS', 'TELECOM_CAPEX'] as const) expect(IMPORT_TARGET_DEFINITIONS[target]).toMatchObject({ people: 'NONE', refusesPeopleColumns: true });
     expect(peopleColumnProblems(IMPORT_TARGET_DEFINITIONS.TELECOM_SUBSCRIBER_MOVEMENTS, ['month', 'region', 'subscriber_email', 'full_name'])).toHaveLength(2);

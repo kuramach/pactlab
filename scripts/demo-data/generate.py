@@ -976,13 +976,15 @@ def telecom(ds):
     c = ds.cur
     regions = [('North', 5200), ('Central', 3100), ('Lakes', 1900), ('Valley', 1450)]
     plans = [('Fibre 500', 42), ('Fibre 1000', 58), ('Fibre + TV', 79)]
-    # Subscriber movements (T-168) run January 2023 to September 2026, so FY2023–FY2025 are complete years.
+    # Subscriber movements (T-168) run January 2021 to September 2026 (five years, T-184b), so FY2021–FY2025 are
+    # complete years. Churn before October 2024 climbs every year (planted (e)); from October 2024 it is unchanged.
     OM = []
-    yy, mm = 2023, 1
+    yy, mm = 2021, 1
     while (yy, mm) <= (2026, 9):
         OM.append(f'{yy}-{mm:02d}'); mm += 1
         if mm == 13: yy, mm = yy + 1, 1
-    def churn_of(mo): return D('0.009') if mo < '2026-01' else D('0.017')
+    HIST_CHURN = {'2021': D('0.0066'), '2022': D('0.0073'), '2023': D('0.0079'), '2024': D('0.0084')}
+    def churn_of(mo): return D('0.017') if mo >= '2026-01' else D('0.009') if mo >= '2024-10' else HIST_CHURN[mo[:4]]
     subs_rows, move_rows, billed_last = [], [], 0
     for r, (reg, n0) in enumerate(regions):
         for p, (plan, arpu) in enumerate(plans):
@@ -1058,14 +1060,14 @@ def telecom(ds):
     ds.ext('rights-register', ['agreement_id', 'counterparty', 'kind', 'flow', 'annual_value', 'starts_on', 'ends_on', 'auto_renews'], register,
            'Rights and carriage register: content, affiliate, carriage and sports-rights agreements with their annual value and dates')
 
-    # Three fiscal years of P&L. Revenue ties to the movements and the statements; content costs climb while ARPU
-    # stays flat (planted (d)).
-    years = ['2023', '2024', '2025']
+    # Five fiscal years of P&L (T-184b). Revenue ties to the movements and the statements; content costs climb
+    # while ARPU stays flat (planted (d)).
+    years = ['2021', '2022', '2023', '2024', '2025']
     sub_rev = {y: sum((D(row[7]) for row in move_rows if row[0].startswith(y)), D(0)) for y in years}
     ad_rev = {y: sum((v for mo, v in ad_total.items() if mo.startswith(y)), D(0)) for y in years}
     aff_rev = {y: sum((v for mo, v in aff_total.items() if mo.startswith(y)), D(0)) for y in years}
     rev = {y: sub_rev[y] + ad_rev[y] + aff_rev[y] for y in years}
-    CONTENT = {'2023': D('0.20'), '2024': D('0.245'), '2025': D('0.29')}
+    CONTENT = {'2021': D('0.16'), '2022': D('0.18'), '2023': D('0.20'), '2024': D('0.245'), '2025': D('0.29')}
     content = {y: q(rev[y] * CONTENT[y]) for y in years}
     network = {y: q(rev[y] * D('0.17')) for y in years}
     carriage = {y: q(rev[y] * D('0.08')) for y in years}
@@ -1079,24 +1081,25 @@ def telecom(ds):
                 ['Cost of carriage and retransmission fees'] + [f'{carriage[y]:.2f}' for y in years],
                 ['Marketing and subscriber acquisition'] + [f'{marketing[y]:.2f}' for y in years],
                 ['General and administrative'] + [f'{general[y]:.2f}' for y in years]]
-    ds.ext('pnl', ['Line'] + [f'FY{y}' for y in years], pnl_rows, 'Profit and loss by fiscal year, FY2023 to FY2025')
+    ds.ext('pnl', ['Line'] + [f'FY{y}' for y in years], pnl_rows, 'Profit and loss by fiscal year, FY2021 to FY2025')
     def gm(y): return (rev[y] - content[y] - network[y] - carriage[y]) / rev[y]
     def om(y): return (rev[y] - content[y] - network[y] - carriage[y] - marketing[y] - general[y]) / rev[y]
     def year_rows(y): return [row for row in move_rows if row[0].startswith(y)]
     def sub_months(y): return sum((D(row[3] + row[6]) / 2 for row in year_rows(y)), D(0))
     def year_arpu(y): return sum((D(row[7]) for row in year_rows(y)), D(0)) / sub_months(y)
     def content_per_sub(y): return content[y] / sub_months(y)
+    def year_churn(y): return D(sum(row[5] for row in year_rows(y))) / D(sum(row[3] for row in year_rows(y)))
     # Capital expenditure by year, steady against revenue (no planted defect).
     capex_rows = []
     for y in years:
         for category, part in (('network', D('0.14')), ('customer_premises', D('0.04')), ('it', D('0.015')), ('content', D('0.01'))):
             capex_rows.append([y, category, f'{q(rev[y] * part):.2f}'])
-    ds.ext('capex-by-year', ['year', 'category', 'amount'], capex_rows, 'Capital expenditure by fiscal year and category, FY2023 to FY2025')
+    ds.ext('capex-by-year', ['year', 'category', 'amount'], capex_rows, 'Capital expenditure by fiscal year and category, FY2021 to FY2025')
     ds.pnl_step = ['Open the **Sources** tab, scroll to **Industry data** and click **Upload profit and loss (p&l)**.', '',
-                   '1. Choose `pnl.csv` → **Upload and map columns**. Pactlab reads the three years across the columns (FY2023, FY2024, FY2025).',
+                   '1. Choose `pnl.csv` → **Upload and map columns**. Pactlab reads the five years across the columns (FY2021 to FY2025).',
                    '2. Say what each line is: the three lines ending in *revenue* are **Revenue**, the three lines starting *Cost of* are **Cost of revenue**, and the rest are **Operating expenses**.',
-                   f'3. **Check every row**, then **Import {len(pnl_rows) * 3} rows**.', '',
-                   '**You should see:** the import succeed. The **Subscribers** tab now shows the P&L year by year and content cost per subscriber against ARPU, and the checks in the next step read every year.', '']
+                   f'3. **Check every row**, then **Import {len(pnl_rows) * 5} rows**.', '',
+                   '**You should see:** the import succeed. The **Subscribers** tab now shows the P&L year by year and content cost per subscriber against ARPU; **Finances** shows the five years side by side with subscribers, churn and ARPU, and the checks in the next step read every year.', '']
 
     ds.doc('01-kpi-pack-2026-09', f'''
 {ds.company} — investor KPI pack, September 2026 (synthetic)
@@ -1134,13 +1137,14 @@ Affiliation agreement AF-01 — Northlake Sports Network ({ds.company}) and Rive
         ('Claim verified: ARPU', f'the investor presentation says {c} {arpu:.2f} a month; `subscriber-movements.csv` gives the same over the twelve months to September 2026.'),
         ('Material agreement ends within 12 months of the closing: AF-01', f'`documents/04-affiliation-agreement-rivermark.pdf` page 2 — AF-01 expires on 30 September 2027 and does not renew automatically, nine months after the 31 December 2026 closing (the register says 2028). It is {pct(rivermark / base_revenue)} of trailing revenue.'),
         ('Advertising revenue concentrated in one counterparty: Brightline Motors (synthetic)', f'`revenue-by-counterparty.csv` — Brightline Motors is {pct(bright / ad_trailing)} of advertising revenue over the twelve months to September 2026.'),
-        ('Content costs rising against flat ARPU, 2023–2025', f'`pnl.csv` and `subscriber-movements.csv` — content cost per subscriber a month {", ".join(f"{y} {content_per_sub(y):.2f}" for y in years)} against ARPU {", ".join(f"{y} {year_arpu(y):.2f}" for y in years)}. A single year shows only that year.'),
-        ('P&L trend, 2023–2025', 'every imported year side by side: revenue, growth, margins and the content, network, carriage and marketing ratios.'),
-        ('Gross margin and Operating margin down across 2023–2025', f'`pnl.csv` — gross margin {pct(gm("2023"))} to {pct(gm("2025"))}, operating margin {pct(om("2023"))} to {pct(om("2025"))}.'),
-        ('Content and programming costs growing faster than revenue, 2023–2025', f'`pnl.csv` — {pct(CONTENT["2023"])} of revenue in FY2023 to {pct(CONTENT["2025"])} in FY2025.'),
+        ('Content costs rising against flat ARPU, 2021–2025', f'`pnl.csv` and `subscriber-movements.csv` — content cost per subscriber a month {", ".join(f"{y} {content_per_sub(y):.2f}" for y in years)} against ARPU {", ".join(f"{y} {year_arpu(y):.2f}" for y in years)}. A single year shows only that year.'),
+        ('Monthly churn rising every year, FY2021–FY2025', f'`subscriber-movements.csv` — disconnects ÷ opening subscribers by calendar year: {", ".join(f"FY{y} {year_churn(y) * 100:.2f}%" for y in years)}. The trailing twelve months alone do not show it.'),
+        ('P&L trend, 2021–2025', 'every imported year side by side: revenue, growth, margins and the content, network, carriage and marketing ratios.'),
+        ('Gross margin and Operating margin down across 2021–2025', f'`pnl.csv` — gross margin {pct(gm("2021"))} to {pct(gm("2025"))}, operating margin {pct(om("2021"))} to {pct(om("2025"))}.'),
+        ('Content and programming costs growing faster than revenue, 2021–2025', f'`pnl.csv` — {pct(CONTENT["2021"])} of revenue in FY2021 to {pct(CONTENT["2025"])} in FY2025.'),
     ]
     ds.notes = ['Subscribers appear only as counts by region and plan, never as people; advertisers and distributors are businesses.',
-                '`subscriber-movements.csv` runs January 2023 to September 2026, so each of FY2023–FY2025 is a complete year; its service revenue ties to the P&L\'s subscription revenue year by year.',
+                '`subscriber-movements.csv` runs January 2021 to September 2026, so each of FY2021–FY2025 is a complete year (five years of history, read side by side on **Finances**); its service revenue ties to the P&L\'s subscription revenue year by year.',
                 'The agreement governs over the register: `rights-register.csv` gives AF-01 an end of 2028-09-30, the agreement itself 30 September 2027.',
                 'The P&L (`pnl.csv`) imports through Sources like any extract; the multi-year checks read every year it holds. A single year still imports: the trend then reports that year alone.']
 

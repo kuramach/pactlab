@@ -5,6 +5,7 @@ import { join, resolve } from 'node:path';
 import { TELECOM_RULES, type PackRuleEvidence, type PackRulePage } from '@pactlab/calculations';
 import {
   defaultDirectionFor,
+  DRIVER_TREND_SIGNAL,
   PNL_LINE_EVIDENCE_TYPE,
   TELECOM_AGREEMENT_EVIDENCE_TYPE,
   TELECOM_CAPEX_YEAR_EVIDENCE_TYPE,
@@ -35,6 +36,7 @@ const SIGNALS: Readonly<Record<string, (key: string) => readonly [string, string
   'telecom-pnl-trend': () => [PNL_LINE_EVIDENCE_TYPE, 'trend'],
   'telecom-pnl-margin-drift': () => [PNL_LINE_EVIDENCE_TYPE, 'margin-drift'],
   'telecom-pnl-expense-outpacing': () => [PNL_LINE_EVIDENCE_TYPE, 'expense-outpacing'],
+  'telecom-churn-trend': () => [TELECOM_SUBSCRIBER_MOVEMENT_EVIDENCE_TYPE, DRIVER_TREND_SIGNAL],
 };
 
 describe('telecom and media rules and the valuation direction map (T-168)', () => {

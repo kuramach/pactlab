@@ -200,6 +200,7 @@ export const PACKS: Readonly<Record<PackId, PackDefinition>> = {
       'telecom-pnl-trend',
       'telecom-pnl-margin-drift',
       'telecom-pnl-expense-outpacing',
+      'telecom-churn-trend',
     ],
     documentCategories: ['RIGHTS_AGREEMENT'],
     // Subscriber revenue runs the SaaS metrics as they are (ARPU ≈ MRR per account, churn ≈ logo churn).

@@ -70,6 +70,14 @@ export const TELECOM_REVENUE_MONTH_EVIDENCE_TYPE = 'telecom.revenue_month';
 export const TELECOM_CAPEX_YEAR_EVIDENCE_TYPE = 'telecom.capex_year';
 
 /**
+ * Five years of history (T-184, T-184b, ADR 0057): an operating driver moving the adverse way every year (take
+ * rate falling, churn rising, utilization falling) is a drag on the scenario's assumption, never a priced term:
+ * a person decides how much of the trend to carry forward. One entry per evidence type a driver reads.
+ */
+export const DRIVER_TREND_SIGNAL = 'driver-trend';
+const driverTrend = (findingDomain: DirectionRule['findingDomain']): DirectionRule => ({ signal: DRIVER_TREND_SIGNAL, findingDomain, defaultDirection: -1, channel: 'ASSUMPTION' });
+
+/**
  * Every evidence type the adapters and engines emit, with the direction each
  * of its signals proposes. Proposals only: a person confirms or overrides the
  * direction when accepting a finding. There is no price-increase channel —
@@ -201,6 +209,7 @@ export const VALUATION_DIRECTION_MAP: Readonly<Record<string, readonly Direction
       channel: 'INFORMATIONAL',
       rationale: 'Absent or stale compliance evidence, or a consent order for counsel to read: requested and reviewed, never priced as if known.',
     },
+    driverTrend('FINANCIAL'),
   ],
   [FINTECH_LICENCE_EVIDENCE_TYPE]: [
     { signal: 'licence-lapsed', findingDomain: 'REGULATORY', defaultDirection: -1, channel: 'PRICED_TERM' },
@@ -394,6 +403,7 @@ export const VALUATION_DIRECTION_MAP: Readonly<Record<string, readonly Direction
       rationale: 'A subscriber claim the exports cannot check is a gap to close, neither priced nor relied on.',
     },
     { signal: 'content-squeeze', findingDomain: 'FINANCIAL', defaultDirection: -1, channel: 'ASSUMPTION' },
+    driverTrend('COMMERCIAL'),
   ],
   [TELECOM_AGREEMENT_EVIDENCE_TYPE]: [{ signal: 'agreement-ends-near-closing', findingDomain: 'COMMERCIAL', defaultDirection: -1, channel: 'PRICED_TERM' }],
   [TELECOM_REVENUE_MONTH_EVIDENCE_TYPE]: [{ signal: 'counterparty-concentration', findingDomain: 'COMMERCIAL', defaultDirection: -1, channel: 'ASSUMPTION' }],

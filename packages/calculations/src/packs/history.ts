@@ -28,6 +28,15 @@ type Decimal = InstanceType<typeof D>;
 const MONTH = /^(\d{4})-(0[1-9]|1[0-2])$/;
 const fiscal = (year: string) => `FY${year}`;
 
+/** Rows whose field (trimmed, case-insensitive) is one of the values. */
+export interface RowFilter {
+  readonly field: string;
+  readonly values: readonly string[];
+}
+
+const matches = (filter: RowFilter | undefined) => (row: PackRuleEvidence) =>
+  !filter || filter.values.some((value) => value.toLowerCase() === (row.canonical[filter.field] ?? '').trim().toLowerCase());
+
 /** One operating driver read by year from a monthly export. */
 export interface DriverSpec {
   readonly key: string;
@@ -40,6 +49,12 @@ export interface DriverSpec {
   readonly mode: 'SUM' | 'RATIO' | 'LAST';
   readonly numerator: readonly string[];
   readonly denominator?: readonly string[];
+  /** Only rows whose field holds one of these values count in the numerator (a payer class's share, T-184b). */
+  readonly numeratorWhere?: RowFilter;
+  /** Only these rows count in the denominator; without it, every row of the year does. */
+  readonly denominatorWhere?: RowFilter;
+  /** Multiplies the value: 2 when the denominator sums opening and closing counts for subscriber-months. */
+  readonly multiplier?: string;
   /** Digits kept: money 2, ratios 4 (6 for rates under a percent), counts 0. */
   readonly scale?: number;
   readonly formula: string;
@@ -82,13 +97,15 @@ function driverYears(spec: DriverSpec, evidence: readonly PackRuleEvidence[]): {
       continue;
     }
     const rows = months.flatMap((month) => byMonth.get(month) ?? []);
+    const counted = rows.filter(matches(spec.numeratorWhere));
     let value: Decimal | null;
-    if (spec.mode === 'LAST') value = sum(byMonth.get(`${year}-12`) ?? [], spec.numerator);
-    else if (spec.mode === 'SUM') value = sum(rows, spec.numerator);
+    if (spec.mode === 'LAST') value = sum((byMonth.get(`${year}-12`) ?? []).filter(matches(spec.numeratorWhere)), spec.numerator);
+    else if (spec.mode === 'SUM') value = sum(counted, spec.numerator);
     else {
-      const denominator = sum(rows, spec.denominator ?? []);
-      value = denominator.isZero() ? null : sum(rows, spec.numerator).div(denominator);
+      const denominator = sum(rows.filter(matches(spec.denominatorWhere)), spec.denominator ?? []);
+      value = denominator.isZero() ? null : sum(counted, spec.numerator).div(denominator);
     }
+    if (value && spec.multiplier) value = value.times(spec.multiplier);
     years.push({ year, value: value ? value.toFixed(scale) : null, evidenceIds: rows.map((row) => row.id) });
   }
   return { years, partial };
