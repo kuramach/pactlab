@@ -32,6 +32,7 @@ import { D } from '@pactlab/calculations';
 import { createApp } from '../app';
 import { DisabledIdentityVerifier } from '../auth/identity';
 import { CloseService } from '../close/close.service';
+import { CriticalsService } from '../criticals/criticals.service';
 import { DEFAULT_LOI_FIELDS } from '../close/loi-content';
 import { demoBuildVersion } from './demo-coverage';
 import { LoiService } from '../close/loi.service';
@@ -217,6 +218,30 @@ const SPV_SEATS = [
   ['INV-04', 'Rowan Okafor (synthetic)', '250000', 'SELF_CERTIFIED'],
   ['INV-05', 'Sable Point Capital (synthetic)', '150000', 'THIRD_PARTY_VERIFIED'],
 ] as const;
+/**
+ * Deal Criticals (T-179) on the Multifamily demo: three org standards written in words, their structure
+ * proposed (scripted, no model) and confirmed, then the pact rated. The occupancy floor fails on the planted
+ * trend (Bad, with the per-year figures); the expense ratio clears it (Good); the cap rate floor reads the
+ * recomputed NOI against the banker's ask. Standards are the organization's, so they are written once.
+ */
+const DEMO_CRITICALS = [
+  'Cap rate must be at least 5%',
+  'Occupancy at or above 90% in each of the last 3 years',
+  'Expense ratio at most 55% in each of the last 3 years',
+] as const;
+async function demoCriticals(app: App, buyer: TenantContext, dealId: string): Promise<string> {
+  const criticals = app.get(CriticalsService, { strict: false });
+  const library = await criticals.library(buyer, { companyType: 'MULTIFAMILY', limit: 100 }, REQUEST_ID);
+  for (const words of DEMO_CRITICALS) {
+    if (library.items.some((item) => item.words === words && item.evaluates)) continue;
+    const proposed = library.items.find((item) => item.words === words) ?? (await criticals.createStandard(buyer, { companyType: 'MULTIFAMILY', words }, REQUEST_ID));
+    if (!proposed.structure) throw new Error(`No structure proposed for "${words}"`);
+    await criticals.confirmStandard(buyer, proposed.key, { version: proposed.version, structure: proposed.structure }, REQUEST_ID);
+  }
+  const run = await criticals.evaluate(buyer, dealId, REQUEST_ID);
+  return `criticals (${run.rated} rated, ${run.panel.summary.policyBreaches} policy breaches)`;
+}
+
 async function spvVehicle(app: App, buyer: TenantContext, dealId: string): Promise<string> {
   const service = app.get(SpvService, { strict: false });
   await service.saveVehicle(buyer, dealId, { vehicleName: 'Halyard Lumen Seed SPV LLC (synthetic)', downsideMultiple: '0.5', baseMultiple: '3', upsideMultiple: '10' }, REQUEST_ID);
@@ -452,6 +477,7 @@ export async function buildPact(app: App, owner: OwnerSession, people: People, t
   if (type === 'MULTIFAMILY_SYNDICATION') await step('syndication', () => syndication(app, buyer, dealId, data, uploaded));
   if (type === 'MUSIC_RIGHTS') await step('catalog', () => catalog(app, buyer, dealId, uploaded));
   if (type === 'ENERGY_GENERATION') await step('energy', () => energy(app, buyer, dealId, uploaded));
+  if (type === 'MULTIFAMILY') await step('criticals', () => demoCriticals(app, buyer, dealId));
   await step('claims', () => claims(app, buyer, dealId, pricedIds));
   await step('finances', () => finances(app, buyer, dealId));
   await step('regulatory', () => regulatory(app, buyer, dealId));

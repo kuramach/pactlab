@@ -25,7 +25,7 @@ export interface PackMetric {
   /** Evidence the figure cites beyond its rows, e.g. the market estimates it uses (T-158); each opens on its citation view. */
   readonly evidenceIds?: readonly string[];
   /** The figure year by year (T-183), oldest first, for the History strip; a year not imported is null. */
-  readonly history?: readonly { readonly period: string; readonly value: string | null }[];
+  readonly history?: readonly { readonly period: string; readonly value: string | null; readonly evidenceIds?: readonly string[] }[];
   /** How much of the expected history the figure rests on, e.g. "FY2022–FY2026 (5 of 5 years)" (T-183). */
   readonly coverage?: string;
   /** Show the history as a strip under the figure on Home (T-184); multifamily names its strips on the screen. */

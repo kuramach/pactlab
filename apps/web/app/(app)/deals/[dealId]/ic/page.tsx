@@ -1,6 +1,7 @@
 import type { IcStateView, IcView } from '@pactlab/contracts';
 import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, EmptyState } from '@pactlab/ui';
 import { Gavel } from 'lucide-react';
+import Link from 'next/link';
 import { apiGet } from '../../_lib/api';
 import { OutcomeBanner } from '../../_lib/outcome';
 import { ApiState } from '../../_lib/states';
@@ -40,7 +41,12 @@ const field = 'w-full rounded-md border border-border bg-background px-3 py-2 te
 export default async function IcPage({ params, searchParams }: { params: Promise<{ dealId: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const { dealId } = await params;
   const outcome = (await searchParams)['outcome'];
-  const result = await apiGet<IcView>(`/v1/deals/${dealId}/ic`);
+  const [result, criticals] = await Promise.all([
+    apiGet<IcView>(`/v1/deals/${dealId}/ic`),
+    // Deal Criticals (T-179): a Bad on an org standard is a policy breach the committee sees before it decides.
+    apiGet<{ rows: { key: string; words: string | null; structureText: string | null; evaluation: { policyBreach: boolean; rationale: string; findingId: string | null } | null }[] }>(`/v1/deals/${dealId}/criticals`),
+  ]);
+  const breaches = criticals.kind === 'ok' ? criticals.data.rows.filter((row) => row.evaluation?.policyBreach) : [];
   if (result.kind === 'forbidden') return <EmptyState title="Not available" description="This part of the pact belongs to the buying team." />;
   if (result.kind !== 'ok') return <ApiState result={result} />;
   const view = result.data;
@@ -48,6 +54,23 @@ export default async function IcPage({ params, searchParams }: { params: Promise
   return (
     <div className="flex flex-col gap-6">
       <OutcomeBanner outcome={typeof outcome === 'string' ? outcome : undefined} messages={OUTCOMES} />
+      {breaches.length > 0 ? (
+        <div role="alert" className="flex flex-col gap-1 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900">
+          <strong>
+            {breaches.length} policy breach{breaches.length === 1 ? '' : 'es'}: this pact misses {breaches.length === 1 ? 'a red line' : 'red lines'} your organization set.
+          </strong>
+          <ul className="list-disc pl-5">
+            {breaches.map((row) => (
+              <li key={row.key}>
+                {row.words ?? row.structureText} ({row.structureText}). {row.evaluation?.rationale}
+              </li>
+            ))}
+          </ul>
+          <Link className="w-fit underline" href={`/deals/${dealId}/criticals`}>
+            See the ratings and their evidence
+          </Link>
+        </div>
+      ) : null}
       <Card>
         <CardHeader className="flex flex-row flex-wrap items-start gap-3">
           <Gavel aria-hidden className="mt-0.5 h-5 w-5 text-indigo-ink" />

@@ -18,10 +18,11 @@ function historyMetrics(history: MultifamilyHistory): PackMetric[] {
   const occ = history.occupancy;
   const opCoverage = history.coverage.operating.summary;
   const occCoverage = history.coverage.occupancy.summary;
-  const series = <T extends { year: string }>(years: readonly T[], value: (year: T) => string | null) =>
+  // Each year names the rows it rests on (T-179), so a critical rated on the year can cite them.
+  const series = <T extends { year: string; evidenceIds: readonly string[] }>(years: readonly T[], value: (year: T) => string | null) =>
     history.expected.map((year) => {
       const found = years.find((entry) => entry.year === year);
-      return { period: `FY${year}`, value: found ? value(found) : null };
+      return { period: `FY${year}`, value: found ? value(found) : null, ...(found ? { evidenceIds: found.evidenceIds } : {}) };
     });
   const lastOp = op.at(-1);
   const lastOcc = occ.at(-1);

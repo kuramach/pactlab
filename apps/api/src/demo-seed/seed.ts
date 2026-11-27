@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { criticalModelResponse, isCriticalPrompt } from '../criticals/demo-model';
 import { join, resolve } from 'node:path';
 import type { INestApplicationContext } from '@nestjs/common';
 import { neutralizeMarkup, type ModelRequest } from '@pactlab/ai';
@@ -259,6 +260,8 @@ function energyExtraction(request: ModelRequest) {
  * id `synthetic-fixture`, never as a real model.
  */
 export function demoModelResponse(request: ModelRequest): string {
+  // Deal Criticals (T-179): the words' structure and document figures, rule-based.
+  if (isCriticalPrompt(request)) return criticalModelResponse(request);
   if (request.system.includes('offering documents of a multifamily real-estate syndication')) return JSON.stringify(offeringExtraction(request));
   if (request.system.includes('rights documents of a music catalog')) return JSON.stringify(musicExtraction(request));
   if (request.system.includes('documents of an energy acquisition')) return JSON.stringify(energyExtraction(request));

@@ -297,6 +297,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
               ...(audit ? [{ href: '/audit', title: 'Audit log', body: 'Every sensitive read, change, approval and denial.' }] : []),
               ...(admin
                 ? [
+                    { href: '/settings/criticals', title: 'Deal criticals', body: 'Your red lines, written once and rated on every pact of the type. Sellers never see them.' },
                     { href: '/settings/ai-models', title: 'AI models', body: 'How your AI work is routed, job by job, and which approved model each job uses.' },
                     { href: '/settings/controls', title: 'Pilot controls', body: 'Controls, audit export and rollback paths for the pilot.' },
                   ]

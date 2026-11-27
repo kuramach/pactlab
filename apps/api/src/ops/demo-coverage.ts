@@ -25,6 +25,7 @@ export const DEMO_SECTION_COVERAGE: Readonly<Record<string, SectionProbe>> = {
   '/finances': { table: 'balance_sheet_items' },
   // Follow-up: seed cited QoE entries once the pinned demo-data repository carries an income statement and monthly balance sheets to quote.
   '/qoe': { exempt: 'Quality of earnings (T-135) is new; the demo pacts have no cited income statement or monthly balance sheets to quote yet, so the tab shows how to start.' },
+  '/criticals': { exempt: 'Deal Criticals (T-179) are the organization’s own policy: the demo writes three Multifamily standards and rates the Multifamily pact; other demo pacts show how to add one.' },
   '/engineering': { table: 'connections', where: `provider IN ('github', 'jira')` },
   '/regulatory': { table: 'regulatory_entries' },
   '/claims': { table: 'deal_claims' },

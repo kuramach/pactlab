@@ -9,3 +9,4 @@ export * from './regulatory';
 export * from './financing';
 export * from './syndication';
 export * from './pnl';
+export * from './criticals';

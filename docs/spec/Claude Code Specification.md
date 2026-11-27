@@ -2133,3 +2133,13 @@ Most of the time the seller has the documents. **Pactlab Rinse** is a desktop ap
 - **Destinations** are the seller's own folder or their own cloud account.
 - **Follow-ups:** T-178b (accounts, invites, AI jobs, signed builds), T-178c (`pactlab.ai/rinse`), T-178d (cloud destinations, one-time import, provenance records).
 
+## 32. Deal Criticals: the buyer's red lines, rated on every pact (T-179, ADR 0060)
+
+The buyer organization writes its critical parameters once, in its own words, and every pact of the type is rated against them: **Good**, **Even**, **Bad** or **No evidence**, with the evidence shown.
+
+- **Two levels.** Org standards (Settings → Deal criticals) are the firm's policy, by company type or all types. Pact criticals belong to one deal: pact-only criticals, and overrides of a standard (tighten, loosen or switch off) with a required reason, shown next to the standard they replace. A pact is rated on the org set as overridden plus its own.
+- **Words, then a confirmed structure.** AI proposes the metric, comparator, threshold, lookback and Even band; a person confirms them. An unconfirmed critical rates nothing. The metric vocabulary comes from what the packs can evidence.
+- **Evidence or nothing.** Calculable metrics are recomputed deterministically (trend criticals read every imported year); text metrics are read from documents with page citations verified on the page. No evidence is its own state and names the document that would settle it.
+- **Consequences.** Bad → a −1 draft finding (a **policy breach** on an org standard, flagged to the investment committee); Good → +1 confirmed value, never price; Even and No evidence → informational. Ratings are re-run explicitly, stamped with the critical's version, and marked stale when evidence changes.
+- **Buyer-confidential.** The seller never sees criticals, thresholds or ratings (RLS).
+

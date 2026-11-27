@@ -31,3 +31,4 @@ export * from './spv/registry';
 export * from './notifications';
 export * from './money';
 export * from './rinse';
+export * from './criticals/registry';

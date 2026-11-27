@@ -3935,3 +3935,77 @@ model NotificationPreference {
 
   @@map("notification_preferences")
 }
+
+/// T-179 (ADR 0060): a Deal Critical version. Org standards have no deal; pact criticals belong to one pact
+/// (pact-only, or an override of an org standard named by overridesKey). Append-only; the latest version counts,
+/// and only a CONFIRMED version evaluates. Buyer-confidential (RLS).
+model DealCritical {
+  id               String   @id @db.Uuid
+  organizationId   String   @map("organization_id") @db.Uuid
+  dealId           String?  @map("deal_id") @db.Uuid
+  criticalKey      String   @map("critical_key") @db.Uuid
+  version          Int
+  /// ORG | PACT
+  scope            String
+  /// ORG only: the company type the standard applies to; null = all types.
+  companyType      String?  @map("company_type")
+  /// PACT only: the org standard this version overrides for the pact.
+  overridesKey     String?  @map("overrides_key") @db.Uuid
+  /// The organization's own words.
+  words            String?
+  metric           String?
+  /// AT_LEAST | AT_MOST
+  comparator       String?
+  /// In the metric's unit (6% is 0.06).
+  threshold        Decimal? @db.Decimal(24, 6)
+  lookbackYears    Int?     @map("lookback_years")
+  evenBand         Decimal? @map("even_band") @db.Decimal(24, 6)
+  /// PROPOSED | CONFIRMED | DISABLED | RETIRED
+  state            String
+  /// AI | PERSON: who wrote the structured form.
+  structureSource  String?  @map("structure_source")
+  /// Why this version exists; required on an override.
+  reason           String?
+  /// An org standard promoted from a pact critical: the pact critical's key.
+  promotedFromKey  String?  @map("promoted_from_key") @db.Uuid
+  createdBy        String   @map("created_by") @db.Uuid
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@unique([organizationId, criticalKey, version], map: "deal_criticals_key_version_key")
+  @@index([organizationId, scope, dealId, createdAt], map: "deal_criticals_org_scope_idx")
+  @@map("deal_criticals")
+}
+
+/// T-179: one critical's rating in one evaluation run, with its receipts and the version it ran under.
+model CriticalEvaluation {
+  id              String   @id @db.Uuid
+  organizationId  String   @map("organization_id") @db.Uuid
+  dealId          String   @map("deal_id") @db.Uuid
+  runId           String   @map("run_id") @db.Uuid
+  criticalKey     String   @map("critical_key") @db.Uuid
+  criticalVersion Int      @map("critical_version")
+  /// ORG | PACT: an org standard (possibly overridden) or a pact-only critical.
+  origin          String
+  overrideKey     String?  @map("override_key") @db.Uuid
+  overrideVersion Int?     @map("override_version")
+  /// The critical as it was rated: words, structure and what it overrode.
+  snapshot        Json
+  /// GOOD | EVEN | BAD | NO_EVIDENCE
+  rating          String
+  /// The figures used, by period, with their recomputation or cited pages.
+  receipts        Json
+  rationale       String
+  /// NO_EVIDENCE only: what document would settle it.
+  missing         String?
+  policyBreach    Boolean  @default(false) @map("policy_breach")
+  findingId       String?  @map("finding_id") @db.Uuid
+  /// The pact's evidence when rated; a different mark now means the rating is stale.
+  evidenceMark    String   @map("evidence_mark")
+  engineVersion   String   @map("engine_version")
+  evaluatedBy     String   @map("evaluated_by") @db.Uuid
+  evaluatedAt     DateTime @default(now()) @map("evaluated_at") @db.Timestamptz(3)
+
+  @@unique([organizationId, dealId, runId, criticalKey], map: "critical_evaluations_run_critical_key")
+  @@index([organizationId, dealId, evaluatedAt], map: "critical_evaluations_deal_idx")
+  @@map("critical_evaluations")
+}

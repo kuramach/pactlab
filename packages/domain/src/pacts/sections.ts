@@ -72,6 +72,8 @@ export const DEAL_SECTION_RULES: Readonly<Record<string, (context: SectionContex
   '/terms': buyerLedAcquisition,
   // A letter of intent from the agreed terms (T-119): buyer-led pacts, both sides.
   '/loi': buyerLedAcquisition,
+  // The buyer organization's own red lines, rated Good, Even, Bad or No evidence (T-179): a buyer-led pact's own side.
+  '/criticals': buyerLedAcquisition,
   // The buyer's investment committee (T-118): a buyer-led pact's own side.
   '/ic': buyerLedAcquisition,
   // How the buyer funds the deal (T-117): every acquisition; each bidder keeps their own on a seller-led one.

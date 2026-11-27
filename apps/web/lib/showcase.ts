@@ -164,6 +164,11 @@ export const SHOWCASE: Readonly<Record<string, ShowcaseEntry>> = {
     why: 'The price and each escrow or indemnity proposed, countered and agreed in one place, each term traceable to the finding behind it.',
     lookFor: ['The seller’s counter on the headline price', 'The revised version, accepted', 'Terms linked to findings'],
   },
+  '/criticals': {
+    title: 'Your red lines, rated on this pact’s evidence',
+    why: 'The organization’s criticals, and this deal’s own, each rated Good, Even, Bad or No evidence from recomputed figures or cited pages. A missed org standard is a policy breach. Sellers never see it.',
+    lookFor: ['The occupancy floor missed in the latest year, with each year’s figure', 'An override shown next to the org standard it replaces', 'No evidence naming the document that would settle it'],
+  },
   '/ic': {
     title: 'The committee decides, on the record',
     why: 'The deal team submits a versioned pack; the investment committee approves, declines or sets conditions, and signing can wait for it. The seller never sees any of it.',

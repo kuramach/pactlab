@@ -73,6 +73,8 @@ export const DEAL_GROUPS: readonly DealGroup[] = [
       { path: '/engineering', label: 'Engineering' },
       { path: '/regulatory', label: 'Regulatory' },
       { path: '/claims', label: 'Seller statements' },
+      // The buyer organization's red lines, rated on this pact's evidence (T-179). Buyer-confidential.
+      { path: '/criticals', label: 'Criticals' },
     ],
   },
   {
@@ -123,7 +125,7 @@ const visible = (sections: readonly DealSection[], companyType: CompanyType | nu
 
 /** Four tabs across the deal, and the open tab's sections beneath them; sub-pages keep their section highlighted. */
 /** Sections only the pact's own side ever sees, not even as a tab name (T-118). */
-const OWN_SIDE_ONLY = new Set(['/ic', '/suggestions', '/qoe', '/syndication', '/catalog', '/energy', '/fintech', '/healthcare', '/clinics', '/pharma', '/ecommerce', '/services', '/telecom', '/spv']);
+const OWN_SIDE_ONLY = new Set(['/ic', '/criticals', '/suggestions', '/qoe', '/syndication', '/catalog', '/energy', '/fintech', '/healthcare', '/clinics', '/pharma', '/ecommerce', '/services', '/telecom', '/spv']);
 
 export function DealTabs({
   dealId,
