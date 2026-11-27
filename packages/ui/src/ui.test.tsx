@@ -1,8 +1,24 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { AiBadge, AiMark, AppShell, Badge, Breadcrumbs, Button, cn, EmptyState, FileDrop, Glossed, HumanBadge, HumanMark, TabNav, Term } from './index';
+import { ChatMark, chatMarkFacing, AiBadge, AiMark, AppShell, Badge, Breadcrumbs, Button, cn, EmptyState, FileDrop, Glossed, HumanBadge, HumanMark, TabNav, Term } from './index';
 
 describe('ui', () => {
+  it('chat icon: one drawing, mirrored by placement (T-186)', () => {
+    expect(chatMarkFacing('right')).toBe('left');
+    expect(chatMarkFacing('left')).toBe('right');
+    const onRight = renderToStaticMarkup(<ChatMark placement="right" />);
+    const onLeft = renderToStaticMarkup(<ChatMark placement="left" />);
+    expect(onRight).toContain('data-facing="left"');
+    expect(onRight).toContain('scale(-1 1)');
+    expect(onLeft).toContain('data-facing="right"');
+    expect(onLeft).not.toContain('scale(-1 1)');
+    // Decorative unless titled; the compact drawing drops the brow and highlight, and no raster ships.
+    expect(onLeft).toContain('aria-hidden="true"');
+    expect(renderToStaticMarkup(<ChatMark placement="left" title="Help" />)).toContain('aria-label="Help"');
+    expect(renderToStaticMarkup(<ChatMark placement="left" compact />).length).toBeLessThan(onLeft.length);
+    expect(onLeft).not.toMatch(/<img|webp|png/);
+  });
+
   it('merges conflicting Tailwind classes', () => {
     expect(cn('px-2', 'px-4', undefined, { hidden: false })).toBe('px-4');
   });
