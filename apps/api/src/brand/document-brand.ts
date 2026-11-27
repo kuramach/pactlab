@@ -1,9 +1,10 @@
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { resolve } from 'node:path';
 import { withTenant, type PrismaClient } from '@pactlab/db';
 import { contrast, readableOnWhite, type BrandFont, type TenantContext } from '@pactlab/domain';
-import { rgb, type RGB } from 'pdf-lib';
+import { rgb, type PDFFont, type PDFImage, type PDFPage, type RGB } from 'pdf-lib';
 import type { DocumentObjectStore } from '../documents/documents.repository';
 
 /**
@@ -71,4 +72,14 @@ export function documentColors(brand: DocumentBrand | null, fallback: { ink: RGB
   return { ink, accent };
 }
 
-export const POWERED_BY = 'Powered by Pactlab';
+/** A customer-branded document still says where it was made (Kumar, 2026-11-27): the Pactlab icon, then this line. */
+export const POWERED_BY = 'Prepared with Pactlab';
+/** The Pactlab app icon (the flask on navy), the same art as the site's apple-icon. */
+export const PACTLAB_ICON = resolve(import.meta.dirname, '../../assets/brand/pactlab-icon.png');
+
+/** Draws the icon and "Prepared with Pactlab" at (x, y): the icon a little taller than the text, its baseline aligned. */
+export function drawPreparedWith(page: PDFPage, at: { x: number; y: number; size: number; font: PDFFont; color: RGB; icon: PDFImage }): void {
+  const side = at.size + 3;
+  page.drawImage(at.icon, { x: at.x, y: at.y - 2, width: side, height: side });
+  page.drawText(POWERED_BY, { x: at.x + side + 4, y: at.y, size: at.size, font: at.font, color: at.color });
+}

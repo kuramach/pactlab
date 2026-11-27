@@ -126,7 +126,7 @@ describe('reports', () => {
     expect(text).toMatch(/Page 1 of \d+/);
     expect(text).toContain('v1');
     // On the Pactlab kit, a report says nothing about being powered by anything.
-    expect(text).not.toContain('Powered by Pactlab');
+    expect(text).not.toContain('Prepared with Pactlab');
   });
 
   it('a branded organization’s report carries its brand, stamped: a rebrand never changes an earlier version (T-123)', async () => {
@@ -152,8 +152,9 @@ describe('reports', () => {
     const branded = await generate(token, { scope: 'EXECUTIVE' });
     const bytes = await download(token, branded.id);
     const text = await pdfText(bytes);
-    expect(text).toContain('Powered by Pactlab');
-    expect(await coverImages(bytes)).toBe(1);
+    expect(text).toContain('Prepared with Pactlab');
+    // The organization's logo on the cover, and the Pactlab icon beside "Prepared with Pactlab" in the footer.
+    expect(await coverImages(bytes)).toBe(2);
     const document = await PDFDocument.load(bytes);
     expect(document.getAuthor()).toBe(org.name);
     const history = (await call('GET', '/v1/reports?scope=EXECUTIVE', undefined, token)).body['items'] as { id: string; captured: { brand: { font: string; accentColor: string; logoSha256: string | null } } }[];
@@ -167,7 +168,8 @@ describe('reports', () => {
     // No logo now: the organization's name prints as a wordmark on the cover.
     const afterBytes = await download(token, after.id);
     expect(await pdfText(afterBytes)).toContain(org.name);
-    expect(await coverImages(afterBytes)).toBe(0);
+    // No organization logo: only the footer's Pactlab icon is an image.
+    expect(await coverImages(afterBytes)).toBe(1);
     await db.owner.query(`DELETE FROM organization_brand_kits WHERE organization_id = $1`, [org.organization_id]);
   });
 

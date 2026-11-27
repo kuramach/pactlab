@@ -173,7 +173,7 @@ describe('letters of intent (T-119)', () => {
     const pdf = await call('target_contributor', 'GET', deal(`/loi/${id}/pdf`));
     expect(pdf.status).toBe(200);
     const text = await pdfText(pdf.raw);
-    for (const expected of ['Non-binding provisions', 'Binding provisions', 'USD 61,000,000.00', 'the State of Delaware', 'Not legal advice', 'agrees to be bound only by', 'Powered by Pactlab']) expect(text, expected).toContain(expected);
+    for (const expected of ['Non-binding provisions', 'Binding provisions', 'USD 61,000,000.00', 'the State of Delaware', 'Not legal advice', 'agrees to be bound only by', 'Prepared with Pactlab']) expect(text, expected).toContain(expected);
     for (const secret of ['persona', 'Priced as', 'committee', 'confirmed value']) expect(text.toLowerCase(), secret).not.toContain(secret.toLowerCase());
   });
 
