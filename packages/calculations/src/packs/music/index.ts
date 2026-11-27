@@ -1,3 +1,4 @@
 export * from './catalog';
 export * from './metrics';
 export * from './rules';
+export * from './history';

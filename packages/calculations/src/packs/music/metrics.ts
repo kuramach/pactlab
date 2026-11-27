@@ -1,6 +1,9 @@
 import { D } from '../../metrics/decimal';
 import type { MetricCalculator } from '../calculators';
+import { packHistory, withHistory } from '../history';
 import type { PackMetric, PackMetricsInput, PackMetricsReport } from '../metrics-types';
+import { PNL_LINE } from '../pnl-trend';
+import { MUSIC_HISTORY } from './history';
 import { catalogRows, incomeModel, MUSIC_DEFAULT_HOLD_YEARS, MUSIC_EVIDENCE_TYPES, terminationExposure } from './catalog';
 
 export const MUSIC_METRICS_VERSION = 'music-royalties-1';
@@ -62,12 +65,20 @@ export function musicMetrics(input: PackMetricsInput): PackMetricsReport {
     },
     { key: 'statement_periods', label: 'Statement periods', unit: 'COUNT', formula: 'Distinct statement period ends', sourceCount: rows.lines.length, value: String(income.periods.length) },
   ];
-  return { calculator: 'music-royalties', version: MUSIC_METRICS_VERSION, currency: input.currency, metrics };
+  // Five years (T-184b): statement income by year beside any imported P&L; trailing_income carries a History strip.
+  const history = packHistory(MUSIC_HISTORY, input.evidence);
+  return {
+    calculator: 'music-royalties',
+    version: MUSIC_METRICS_VERSION,
+    currency: input.currency,
+    metrics: metrics.map((metric) => (metric.key === 'trailing_income' ? withHistory(metric, history, 'income') : metric)),
+    history: history.table,
+  };
 }
 
 export const MUSIC_METRICS_CALCULATOR: MetricCalculator<PackMetricsInput, PackMetricsReport> = {
   id: 'music-royalties',
   version: MUSIC_METRICS_VERSION,
-  evidenceTypes: MUSIC_EVIDENCE_TYPES,
+  evidenceTypes: [...MUSIC_EVIDENCE_TYPES, PNL_LINE],
   compute: musicMetrics,
 };

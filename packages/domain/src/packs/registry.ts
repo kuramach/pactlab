@@ -388,6 +388,7 @@ export const PACKS: Readonly<Record<PackId, PackDefinition>> = {
       'music-undisclosed-encumbrance',
       'music-statement-gap',
       'music-verified-growth',
+      'music-income-trend',
     ],
     valuationMethods: ['ARR_MULTIPLE', 'DCF'],
     methodLabels: {
@@ -416,6 +417,7 @@ export const PACKS: Readonly<Record<PackId, PackDefinition>> = {
       'energy-title-defect',
       'energy-compliance-capex-gap',
       'energy-reserve-report-missing',
+      'energy-generation-trend',
     ],
     valuationMethods: ['DCF', 'ARR_MULTIPLE'],
     methodLabels: {

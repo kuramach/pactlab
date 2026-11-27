@@ -34,7 +34,7 @@ describe('pack registry', () => {
     const music = PACKS.MUSIC_RIGHTS;
     expect(music).toMatchObject({ slug: 'music-rights', label: 'Music rights', cluster: 'media-rights', metricCalculator: 'music-royalties', built: true });
     expect(music.importTargets).toEqual(['BILLING_INVOICE_LINE', 'MUSIC_WORKS', 'MUSIC_SPLITS', 'MUSIC_TITLE_CHAIN', 'MUSIC_ROYALTY_STATEMENTS']);
-    expect(music.findingRules).toHaveLength(9);
+    expect(music.findingRules).toHaveLength(10);
     expect(music.methodLabels?.ARR_MULTIPLE?.label).toBe('Royalty multiple');
     expect(music.documentCategories).toContain('LIEN_SEARCH');
     for (const target of music.importTargets.slice(1)) expect(IMPORT_TARGET_DEFINITIONS[target].refusesPeopleColumns, target).toBe(true);
@@ -46,7 +46,7 @@ describe('pack registry', () => {
     const energy = PACKS.ENERGY_GENERATION;
     expect(energy).toMatchObject({ slug: 'energy-generation', label: 'Energy generation & rights', cluster: 'energy', metricCalculator: 'energy-assets', built: true });
     expect(energy.importTargets).toEqual(['BILLING_INVOICE_LINE', 'ENERGY_PLANTS', 'ENERGY_INTERESTS', 'ENERGY_LEASES', 'ENERGY_PRODUCTION', 'ENERGY_LIABILITIES']);
-    expect(energy.findingRules).toHaveLength(9);
+    expect(energy.findingRules).toHaveLength(10);
     expect(energy.methodLabels?.DCF?.label).toBe('Reserve-based DCF');
     expect(energy.methodLabels?.ARR_MULTIPLE?.label).toBe('Capacity value ($/kW)');
     expect(energy.documentCategories).toContain('RESERVE_REPORT');

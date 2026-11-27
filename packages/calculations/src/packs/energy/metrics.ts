@@ -1,6 +1,9 @@
 import { D } from '../../metrics/decimal';
 import type { MetricCalculator } from '../calculators';
+import { packHistory, withHistory } from '../history';
 import type { PackMetric, PackMetricsInput, PackMetricsReport } from '../metrics-types';
+import { PNL_LINE } from '../pnl-trend';
+import { ENERGY_HISTORY } from './history';
 import { analysisDate, computedCapacityFactor, decimalChecks, ENERGY_DEFAULT_HOLD_YEARS, ENERGY_EVIDENCE_TYPES, energyRows, leaseExposure, productionModel } from './assets';
 
 export const ENERGY_METRICS_VERSION = 'energy-assets-1';
@@ -74,12 +77,20 @@ export function energyMetrics(input: PackMetricsInput): PackMetricsReport {
     { key: 'booked_liabilities', label: 'Booked liabilities', unit: 'MONEY', formula: 'Σ the seller’s liability schedule', sourceCount: rows.liabilities.length, ...(rows.liabilities.length ? { value: cash(booked) } : missing('liability schedule', ['ENERGY_LIABILITIES'])) },
     { key: 'booked_aro', label: 'Booked asset-retirement obligation', unit: 'MONEY', formula: 'Σ schedule lines of kind aro', sourceCount: rows.liabilities.length, ...(rows.liabilities.length ? { value: cash(bookedAro) } : missing('liability schedule', ['ENERGY_LIABILITIES'])) },
   ];
-  return { calculator: 'energy-assets', version: ENERGY_METRICS_VERSION, currency: input.currency, metrics };
+  // Five years (T-184b): production by year beside any imported P&L; generation_mwh carries a History strip.
+  const history = packHistory(ENERGY_HISTORY, input.evidence);
+  return {
+    calculator: 'energy-assets',
+    version: ENERGY_METRICS_VERSION,
+    currency: input.currency,
+    metrics: metrics.map((metric) => (metric.key === 'generation_mwh' ? withHistory(metric, history, 'power_mwh') : metric)),
+    history: history.table,
+  };
 }
 
 export const ENERGY_METRICS_CALCULATOR: MetricCalculator<PackMetricsInput, PackMetricsReport> = {
   id: 'energy-assets',
   version: ENERGY_METRICS_VERSION,
-  evidenceTypes: ENERGY_EVIDENCE_TYPES,
+  evidenceTypes: [...ENERGY_EVIDENCE_TYPES, PNL_LINE],
   compute: energyMetrics,
 };

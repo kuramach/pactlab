@@ -2540,6 +2540,9 @@ def music(ds):
     ds.summary = f'{ds.company} owns a catalog of 120 song copyrights and recorded masters, administered by a third party and sold for its royalty income.'
     rng, c = ds.rng, ds.cur
     periods = ['2024-12-31', '2025-06-30', '2025-12-31', '2026-06-30']
+    # Five years of statements (T-184b): seven earlier half-years from June 2021, each work decaying as it does
+    # since, so catalog income falls every calendar year (planted (e)); a work earns nothing before its release.
+    hist_periods = [f'{y}-{md}' for y in (2021, 2022, 2023, 2024) for md in ('06-30', '12-31')][:-1]
     words_a = ['Harbour', 'Silver', 'Northern', 'Paper', 'Velvet', 'Midnight', 'Copper', 'Glass', 'Summer', 'Hollow', 'Neon', 'River', 'Quiet', 'Golden', 'Wild', 'Distant', 'Amber', 'Static', 'Lantern', 'Open']
     words_b = ['Lights', 'Roads', 'Hearts', 'Skies', 'Lines', 'Rooms', 'Waves', 'Fields', 'Echoes', 'Signals', 'Gardens', 'Streets', 'Letters', 'Shores', 'Engines', 'Hours']
     societies = ['Cardinal PRS (synthetic)', 'Northbeam Rights (synthetic)']
@@ -2584,7 +2587,8 @@ def music(ds):
         age = 2026 - year
         base = D(60000) if wid == hit else D(rng.randint(900, 2600)) * (D('1.6') if age <= 10 else D('1'))
         decay = D('0.94') if age <= 10 else D('0.985')
-        for p, period in enumerate(periods):
+        for p, period in enumerate(hist_periods + periods, start=-len(hist_periods)):
+            if int(period[:4]) < year: continue
             amount = base * decay ** p
             if recording:
                 lines.append([f'L-{wid}-{period}-st', period, wid, 'streaming', 'Lattice Digital Distribution (synthetic)', amount * D('0.7')])
@@ -2632,7 +2636,7 @@ Rights and income
 The seller owns the copyrights and masters outright, by assignment from the writers and under recording agreements.
 There are no unrecouped advances outstanding against the catalog.
 The catalog is sold free of liens and encumbrances.
-Income is reported semi-annually by the administrator; statements for the last two years are in the data room.
+Income is reported semi-annually by the administrator; statements since the first half of 2021 are in the data room.
 """, 'The seller\'s catalog sale summary')
     ds.doc('02-split-sheet-w0077', f"""
 Split sheet — {over} {works[76][1]} (synthetic)
@@ -2665,6 +2669,7 @@ Results
 
 One record found. A UCC-1 financing statement was filed in favour of Northgate Credit Partners (synthetic), securing obligations up to {money(c, lien)} against the catalog and its income.
 """, 'Lien and UCC search over the selling entity')
+    income_by_year = {y: sum((D(r[5]) for r in rows if r[1].startswith(y)), D(0)) for y in ('2021', '2022', '2023', '2024', '2025')}
     ds.findings = [
         ('Chain-of-title gap: Harbour Lights', f'planted defect (a): {hit} earned {money(c, hit_income)} in the year to June 2026 ({pct(hit_income / total)} of trailing income), but `chain-of-title.csv` holds a registration and no assignment for it.'),
         ('Termination exposure inside the hold period', f'planted defect (b): grants behind {pct(exposed_income / total)} of trailing income ({len(exposed)} works, {money(c, exposed_income)} a year) become terminable under §203 before a 10-year hold ends.'),
@@ -2673,6 +2678,7 @@ One record found. A UCC-1 financing statement was filed in favour of Northgate C
         ('Income concentration: Harbour Lights', f'{hit} is {pct(hit_income / total)} of trailing income — above the 15% the pack flags.'),
         ('Royalty leakage: registered works with no performance income', f'{leaks[0]} and {leaks[1]} earn mechanicals but no performance income while works of the same age do.'),
         ('Undisclosed encumbrance: Northgate Credit Partners (synthetic)', f'`documents/05-lien-search.pdf` page 2: a UCC-1 filing securing {money(c, lien)}; the catalog summary says the catalog is free of liens. An indemnity.'),
+        ('Royalty income falling every year, FY2021–FY2025', f'`royalty-statements.csv` — net statement income by calendar year: {", ".join(f"FY{y} {money(c, v)}" for y, v in income_by_year.items())}; the catalog decays every year.'),
     ]
     ds.music_step = [
         'Open the **Catalog** tab (it appears only on a music rights pact).', '',
@@ -2706,6 +2712,17 @@ def energy(ds):
            [['PL-001', plant_name, 'coal', '600', '1981', '52', offtaker, ppa_end]], 'Plant register: capacity, fuel, age, capacity factor and PPA')
     # Plant production: about half capacity, 80% sold under the PPA; and the billing export of the same sales.
     plant_rows, ppa_sales, pool_sales = [], {}, {}
+    # Five years of production (T-184b): the plant ran harder before October 2024 and its output falls every
+    # calendar year (planted (e)); earlier months come from their own random generator, so the last 24 are unchanged.
+    hrng = random.Random(f'energy-history:{ds.cur}')
+    HIST_CF = {'2021': D('0.62'), '2022': D('0.59'), '2023': D('0.56'), '2024': D('0.53')}
+    for mo in HIST_MONTHS:
+        mwh = whole(D(600) * D(730) * (HIST_CF[mo[:4]] + D(hrng.randint(-2, 2)) / D(100)))
+        contracted, merchant = whole(mwh * D('0.8')), mwh - whole(mwh * D('0.8'))
+        rev_c, rev_m = ds.amt(contracted * D('42')), ds.amt(merchant * D(hrng.randint(30, 55)))
+        end = month_end(mo)
+        plant_rows.append([f'PR-PL001-{mo}-C', 'PL-001', end, 'power', f'{contracted}', f'{rev_c:.2f}', 'contracted'])
+        plant_rows.append([f'PR-PL001-{mo}-M', 'PL-001', end, 'power', f'{merchant}', f'{rev_m:.2f}', 'merchant'])
     for i, mo in enumerate(MONTHS):
         mwh = whole(D(600) * D(730) * (D('0.50') + D(rng.randint(-3, 3)) / D(100)))
         contracted, merchant = whole(mwh * D('0.8')), mwh - whole(mwh * D('0.8'))
@@ -2736,7 +2753,7 @@ def energy(ds):
         leases.append([lid, f'LR-{i:03d}', f'{acres}', f'{royalty}', f'{orri}' if orri else '', f'{2008 + i % 10}-04-01', f'{2013 + i % 10}-04-01', 'yes'])
         # Production: oil and gas declining about 10% a year (gross, 8/8ths).
         oil0, gas0 = D(rng.randint(900, 2200)), D(rng.randint(4000, 12000))
-        for k, mo in enumerate(MONTHS):
+        for k, mo in enumerate(HIST_MONTHS + MONTHS, start=-len(HIST_MONTHS)):
             f = D('0.9') ** (D(k) / D(12))
             oil, gas = whole(oil0 * f), whole(gas0 * f)
             end = month_end(mo)
@@ -2754,7 +2771,7 @@ def energy(ds):
     exposed_acres = sum((D(l[2]) for l in leases if l[7] == 'no'), D(0))
     ds.ext('interest-register', ['interest_id', 'name', 'legal_description', 'lease_id', 'interest_type', 'interest_share', 'division_order_nri', 'operator'], interests, 'Interest register: mineral, royalty and working interests with the division-order decimal')
     ds.ext('lease-schedule', ['lease_id', 'lessor_ref', 'net_acres', 'royalty_rate', 'overriding_royalty', 'effective_on', 'expires_on', 'held_by_production'], leases, 'Lease schedule: net acres, royalty chain, primary term and whether production holds each lease')
-    ds.ext('production-history', ['record_id', 'asset_id', 'period_end', 'product', 'volume', 'gross_revenue', 'sales_type'], plant_rows + prod, 'Production history: plant generation and revenue by contract type, and well volumes and gross revenue')
+    ds.ext('production-history', ['record_id', 'asset_id', 'period_end', 'product', 'volume', 'gross_revenue', 'sales_type'], plant_rows + prod, 'Production history, January 2021 to September 2026: plant generation and revenue by contract type, and well volumes and gross revenue')
     # The seller's liability schedule: the ARO is booked at 60% of the study, and the ash pond is not on it.
     aro, booked_aro, ash = ds.amt(42000000), ds.amt(25200000), ds.amt(18400000)
     liabilities = [['LB-001', 'PL-001', 'aro', 'Plant retirement obligation', f'{booked_aro:.2f}'],
@@ -2827,12 +2844,14 @@ Cost to retire
 
 The decommissioning study for {plant_name} estimates the cost to retire and decommission the plant at {money(c, aro)}.
 """, 'Decommissioning study for the plant')
+    def gen(y): return sum(int(r[4]) for r in plant_rows if r[2].startswith(y))
     ds.findings = [
         (f'Unbooked environmental liability: Coal ash (CCR) closure at {plant_name}', f'planted defect (a): `documents/06-ash-pond-closure-plan.pdf` page 2 estimates {money(c, ash)}; `liability-schedule.csv` books nothing for the ash pond. A remediation cost.'),
         (f'ARO shortfall: {plant_name}', f'planted defect (b): the decommissioning study estimates {money(c, aro)}; the schedule books {money(c, booked_aro)} (60%), {money(c, aro - booked_aro)} short — underfunded by 40%. An escrow.'),
         ('Lease expiry risk: acreage not held by production', f'planted defect (c): {pct(exposed_acres / total_acres)} of the net acres ({exposed_acres:.0f} of {total_acres:.0f}) are not held by production and expire by 31 March 2028, within 18 months.'),
         (f'Royalty decimal error: {err[1]}', f'planted defect (d): the division order for {error_id} pays 0.12500000; the lease chain (0.5 × 3/16) supports 0.09375000 — overpaid by about {money(c, yearly)} a year.'),
         (f'PPA cliff: {plant_name}', f'the PPA with {offtaker} ends on {ppa_end}, inside the 5-year hold: 80% of the plant\'s revenue turns merchant.'),
+        ('Net generation (MWh) falling every year, FY2021–FY2025', f'`production-history.csv` — the plant\'s net generation by calendar year: {", ".join(f"FY{y} {gen(y):,} MWh" for y in ("2021", "2022", "2023", "2024", "2025"))}; the trailing twelve months alone show one year.'),
     ]
     ds.energy_step = [
         'Open the **Assets** tab (it appears only on an energy generation & rights pact).', '',
@@ -2841,6 +2860,7 @@ The decommissioning study for {plant_name} estimates the cost to retire and deco
         '2. Under **To confirm**, check each proposed entry against its quote, then **Confirm** it (or correct it first, or **Reject** it). Only confirmed entries count: the reserves appear under **Reserves** as the report states them.',
         '3. Click **Run energy checks**: it runs the same rules as Findings, over the confirmed entries too, and adds nothing already drafted.', '']
     ds.notes = [
+        '`production-history.csv` runs January 2021 to September 2026, so each of FY2021–FY2025 is a complete year (five years of history, read side by side on **Finances**): the plant\'s generation and the wells\' oil and gas by year.',
         'Buyer-side pack: you are buying the plant and the interests. Registers, the lease schedule, production and the liability schedule are CSV imports; the reserve report and environmental reports are read on the **Assets** tab, where a person confirms each entry before it counts.',
         'For the **Valuation** tab: **Reserve-based DCF** for the interests (the reserve report\'s categories and values on the **Assets** tab), or **Capacity value ($/kW)** for the plant — enter the net capacity in kW (600000) and a price per kW.',
         'Reserves are the third-party engineer\'s, cited as such; Pactlab never estimates reserves. A missing report is a gap finding.',

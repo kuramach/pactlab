@@ -68,6 +68,9 @@ export const TELECOM_SUBSCRIBER_MOVEMENT_EVIDENCE_TYPE = 'telecom.subscriber_mov
 export const TELECOM_AGREEMENT_EVIDENCE_TYPE = 'telecom.agreement';
 export const TELECOM_REVENUE_MONTH_EVIDENCE_TYPE = 'telecom.revenue_month';
 export const TELECOM_CAPEX_YEAR_EVIDENCE_TYPE = 'telecom.capex_year';
+/** Music rights (T-140) and energy (T-142): statement lines and production, read by year for the history (T-184b). */
+export const MUSIC_ROYALTY_LINE_EVIDENCE_TYPE = 'music.royalty_line';
+export const ENERGY_PRODUCTION_EVIDENCE_TYPE = 'energy.production';
 
 /**
  * Five years of history (T-184, T-184b, ADR 0057): an operating driver moving the adverse way every year (take
@@ -410,6 +413,8 @@ export const VALUATION_DIRECTION_MAP: Readonly<Record<string, readonly Direction
   [TELECOM_AGREEMENT_EVIDENCE_TYPE]: [{ signal: 'agreement-ends-near-closing', findingDomain: 'COMMERCIAL', defaultDirection: -1, channel: 'PRICED_TERM' }],
   [TELECOM_REVENUE_MONTH_EVIDENCE_TYPE]: [{ signal: 'counterparty-concentration', findingDomain: 'COMMERCIAL', defaultDirection: -1, channel: 'ASSUMPTION' }],
   [TELECOM_CAPEX_YEAR_EVIDENCE_TYPE]: [{ signal: 'capex-squeeze', findingDomain: 'FINANCIAL', defaultDirection: -1, channel: 'ASSUMPTION' }],
+  [MUSIC_ROYALTY_LINE_EVIDENCE_TYPE]: [driverTrend('FINANCIAL')],
+  [ENERGY_PRODUCTION_EVIDENCE_TYPE]: [driverTrend('OPERATIONAL')],
   [DOCUMENT_FINDING_EVIDENCE_TYPE]: [
     // A product one manufacturer makes, with no second source described (T-163).
     {
