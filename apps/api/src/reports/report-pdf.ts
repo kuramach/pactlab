@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import fontkit from '@pdf-lib/fontkit';
 import { PDFDocument, rgb, type PDFFont, type PDFImage, type PDFPage } from 'pdf-lib';
-import { brandFontFile, documentColors, POWERED_BY, type DocumentBrand } from '../brand/document-brand';
+import { brandFontFile, documentColors, drawPreparedWith, PACTLAB_ICON, type DocumentBrand } from '../brand/document-brand';
 import { formatMoney as formatSharedMoney, formatMoneyRange } from '@pactlab/domain';
 import { phaseLabel, type ExecutiveReportModel, type Money, type PactReportModel } from './report-model';
 
@@ -226,12 +226,13 @@ class ReportWriter {
 
   /** Footers last, once the page count is known. */
   async finish(): Promise<{ bytes: Uint8Array; sha256: string }> {
+    const icon = this.meta.brand ? await this.pdf.embedPng(readFileSync(PACTLAB_ICON)) : null;
     for (const [index, page] of this.pages.entries()) {
       const footer = `${this.meta.title} · v${this.meta.version} · Data as of ${stamp(this.meta.dataAsOf)} · Confidential: ${this.meta.organizationName} · Page ${index + 1} of ${this.pages.length}`;
       page.drawLine({ start: { x: MARGIN, y: MARGIN }, end: { x: A4.width - MARGIN, y: MARGIN }, thickness: 0.5, color: RULE });
       page.drawText(this.wrap(footer, this.fonts.regular, 7, A4.width - 2 * MARGIN)[0] ?? '', { x: MARGIN, y: MARGIN - 12, size: 7, font: this.fonts.regular, color: MUTED });
       // A branded document still says where it was made (T-123), on its own line so it is never cut.
-      if (this.meta.brand) page.drawText(POWERED_BY, { x: MARGIN, y: MARGIN - 22, size: 7, font: this.fonts.semibold, color: MUTED });
+      if (this.meta.brand && icon) drawPreparedWith(page, { x: MARGIN, y: MARGIN - 24, size: 7, font: this.fonts.semibold, color: MUTED, icon });
     }
     // Deterministic bytes for the same content: no random document id.
     const bytes = await this.pdf.save({ useObjectStreams: true });

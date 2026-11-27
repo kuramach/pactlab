@@ -1,7 +1,8 @@
 import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import fontkit from '@pdf-lib/fontkit';
 import { PDFDocument, rgb, StandardFonts, type PDFFont, type PDFImage, type PDFPage } from 'pdf-lib';
-import { brandFontFile, documentColors, POWERED_BY, type DocumentBrand } from '../brand/document-brand';
+import { brandFontFile, documentColors, drawPreparedWith, PACTLAB_ICON, type DocumentBrand } from '../brand/document-brand';
 import type { LoiContent } from './loi-content';
 import { SIGN_ANCHORS } from './term-sheet';
 
@@ -107,9 +108,10 @@ export async function loiPdf(
     page.drawLine({ start: { x: 50, y: y - 4 }, end: { x: 300, y: y - 4 }, thickness: 0.5, color: rgb(0.5, 0.5, 0.5) });
     y -= 40;
   }
+  const icon = brand ? await pdf.embedPng(readFileSync(PACTLAB_ICON)) : null;
   for (const each of pages) {
     each.drawText(safe(content.notice), { x: 50, y: 40, size: 8, font: regular, color: rgb(0.4, 0.4, 0.45) });
-    if (brand) each.drawText(POWERED_BY, { x: 50, y: 28, size: 7, font: bold, color: rgb(0.4, 0.4, 0.45) });
+    if (icon) drawPreparedWith(each, { x: 50, y: 26, size: 7, font: bold, color: rgb(0.4, 0.4, 0.45), icon });
   }
   const bytes = await pdf.save({ useObjectStreams: false });
   return { bytes, sha256: createHash('sha256').update(bytes).digest('hex') };
