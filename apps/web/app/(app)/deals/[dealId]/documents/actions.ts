@@ -5,6 +5,7 @@ import type { CreatedPrepInvite, PrepInviteView } from '@pactlab/contracts';
 import { z } from 'zod';
 import { AI_UNAVAILABLE, aiOutcome } from './ai-messages';
 import { apiGet, apiSend } from '../../_lib/api';
+import { getI18n } from '../../../../../lib/i18n/server';
 import { checkFile, isArchive, UPLOAD_PROBLEMS } from './upload-rules';
 
 const uuid = z.uuid();
@@ -307,6 +308,8 @@ export type AskState =
       coverage: AskCoverage | null;
       /** The documents the question was narrowed to, if it was. */
       narrowedTo: string[];
+      /** T-174b: shown beside the answer when it was written in another language than the reader's. */
+      languageLabel: string | null;
     };
 
 /** Ask a question across the deal's documents; only cited claims come back. */
@@ -322,7 +325,13 @@ export async function askQuestion(dealId: string, _previous: AskState, formData:
     rejectedClaims: unknown[];
     generatedBy: { resolvedModelId: string } | null;
     coverage?: AskCoverage;
-  }>('POST', `/v1/deals/${dealId}/questions`, documentIds.length > 0 ? { question, documentIds } : { question });
+    outputLanguage?: { fallback: boolean; label: string | null } | null;
+  }>('POST', `/v1/deals/${dealId}/questions`, {
+    question,
+    ...(documentIds.length > 0 ? { documentIds } : {}),
+    // The reader's language (T-174b): the answer is written in it where the model is evaluated in it.
+    language: (await getI18n()).locale,
+  });
   if (result.kind === 'unavailable') return { kind: 'error', message: AI_UNAVAILABLE[aiOutcome(result.code)] };
   if (result.kind === 'invalid') return { kind: 'error', message: 'There are no documents the AI may read in this deal.' };
   if (result.kind !== 'ok') return { kind: 'error', message: 'The question could not be answered. Try again.' };
@@ -336,6 +345,7 @@ export async function askQuestion(dealId: string, _previous: AskState, formData:
     model: result.data.generatedBy?.resolvedModelId ?? null,
     coverage: result.data.coverage ?? null,
     narrowedTo: documentIds,
+    languageLabel: result.data.outputLanguage?.fallback ? result.data.outputLanguage.label : null,
   };
 }
 

@@ -18,7 +18,7 @@ import type { EmailSender } from '../email-login/email-sender';
 import { EmailSuppressedError, type SuppressionList } from '../email-login/ses-email-sender';
 import { chatMessage, type ChatSender } from '../contacts/chat-sender';
 import { LOGGER, PRISMA } from '../tokens';
-import { digestEmail, immediateEmail } from './notification-emails';
+import { digestEmail, emailLocaleOf, immediateEmail } from './notification-emails';
 
 export const NOTIFICATION_SETTINGS = Symbol('NOTIFICATION_SETTINGS');
 
@@ -278,7 +278,8 @@ export class NotificationDispatcher implements OnApplicationBootstrap, OnApplica
     }
     const origin = this.settings.appOrigin;
     const [single] = items;
-    const message = kind === 'IMMEDIATE' && single ? immediateEmail(email, single, origin) : digestEmail(email, items, origin);
+    const locale = emailLocaleOf(items);
+    const message = kind === 'IMMEDIATE' && single ? immediateEmail(email, single, origin, locale) : digestEmail(email, items, origin, locale);
     try {
       await sender.send(message);
       await finish('SENT', null);

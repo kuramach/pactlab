@@ -1,3 +1,4 @@
+import { workingLanguageOf } from '@pactlab/contracts';
 import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import type {
   AskingPriceInput,
@@ -142,7 +143,7 @@ export class PactsService {
         });
       },
     );
-    return { ...deal, phase: phaseOf(deal.stage), createdAt: deal.createdAt.toISOString() };
+    return { ...deal, phase: phaseOf(deal.stage), workingLanguage: workingLanguageOf(deal.workingLanguage), createdAt: deal.createdAt.toISOString() };
   }
 
   /** The current asking price and its history. Buyer-side analysis only. */

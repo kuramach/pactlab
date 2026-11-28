@@ -2,6 +2,7 @@
 
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
+import { getI18n } from '../../../lib/i18n/server';
 import { authApi, clearNativeSession, forgetPendingEmail, nativeSessionToken, pendingEmail, rememberPendingEmail, storeNativeSession, type IssuedSession } from '../../../lib/native-session';
 
 const tokenSchema = z.string().regex(/^[A-Za-z0-9_-]{43}$/);
@@ -32,7 +33,7 @@ export async function startInviteSignup(token: string, email: string, formData: 
   if (!tokenSchema.safeParse(token).success) redirect('/');
   const parsed = details.safeParse({ displayName: formData.get('displayName'), organizationName: formData.get('organizationName') });
   if (!parsed.success) redirect(here(token, { error: 'details' }));
-  const started = await authApi('/v1/signup/start', { email, ...parsed.data, invitationToken: token });
+  const started = await authApi('/v1/signup/start', { email, ...parsed.data, invitationToken: token, locale: (await getI18n()).locale });
   if (started.status !== 202) redirect(here(token, { error: 'unavailable' }));
   await rememberPendingEmail(email, 'invite');
   redirect(here(token, { step: 'code' }));
@@ -74,7 +75,7 @@ export async function confirmInviteSignup(token: string, formData: FormData): Pr
     await storeNativeSession(session);
     await acceptInvitation(token);
   }
-  const started = await authApi('/v1/auth/email/start', { email });
+  const started = await authApi('/v1/auth/email/start', { email, locale: (await getI18n()).locale });
   if (started.status !== 202) redirect(`/login?${new URLSearchParams({ returnTo: here(token) })}`);
   await rememberPendingEmail(email, 'login');
   redirect(`/login?${new URLSearchParams({ returnTo: here(token), step: 'code', created: '1' })}`);

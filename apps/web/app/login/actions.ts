@@ -2,6 +2,7 @@
 
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
+import { getI18n } from '../../lib/i18n/server';
 import { safeReturnTo, SELECT_ORGANIZATION_PATH, SIGN_IN_PATH } from '../../lib/auth-flow';
 import { trustChoice } from '../../lib/device-label';
 import {
@@ -43,7 +44,7 @@ export async function requestCode(formData: FormData): Promise<void> {
   const returnTo = safeReturnTo(formData.get('returnTo'));
   const email = emailSchema.safeParse(formData.get('email'));
   if (!email.success) redirect(loginUrl(formData, { returnTo, ...reauthOf(formData), error: 'email' }));
-  const started = await authApi('/v1/auth/email/start', { email: email.data });
+  const started = await authApi('/v1/auth/email/start', { email: email.data, locale: (await getI18n()).locale });
   if (started.status !== 202) redirect(loginUrl(formData, { returnTo, ...reauthOf(formData), error: 'unavailable' }));
   await rememberPendingEmail(email.data);
   await rememberPendingTrust(trustChoice(formData.get('trust')));

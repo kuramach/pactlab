@@ -144,6 +144,13 @@ function toReview(row: ReviewRow): DocumentFindingReview {
   };
 }
 
+/** T-174b: the language a run asked for and wrote in, as its columns; nothing when the job named none. */
+export function outputLanguageColumns(run: Pick<AiRunRecord, 'outputLanguage'>) {
+  const language = run.outputLanguage;
+  if (!language) return {};
+  return { outputLanguage: language.requested, outputLanguageWritten: language.written, outputLanguageFallback: language.fallback };
+}
+
 /** Spec `ai_runs`: hashes, counts and model only — never content. */
 function createAiRun(tx: Prisma.TransactionClient, run: AiRunRecord) {
   return tx.aiRun.create({
@@ -171,6 +178,7 @@ function createAiRun(tx: Prisma.TransactionClient, run: AiRunRecord) {
       latencyMs: run.latencyMs,
       createdAt: new Date(run.createdAt),
       ...(run.retrieval ? { retrieval: run.retrieval as unknown as Prisma.InputJsonValue } : {}),
+      ...outputLanguageColumns(run),
     },
   });
 }

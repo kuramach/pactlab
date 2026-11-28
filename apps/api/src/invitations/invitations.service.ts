@@ -9,6 +9,7 @@ import type { Logger } from '@pactlab/observability';
 import { DealAccess } from '../deals/deal-access';
 import type { EmailSender } from '../email-login/email-sender';
 import { emails } from '../email-login/emails';
+import { resolveEmailLocale } from '../email-login/email-catalog';
 import { LOGGER, PRISMA } from '../tokens';
 import type { CreateInvitationBody, InvitationPreview, InvitationView } from './invitations.schemas';
 
@@ -100,19 +101,20 @@ export class InvitationsService {
         data: { organizationId: tenant.organizationId, dealId, email: body.email, side: body.side, role: body.role, bidId: body.bidId ?? null, investorId: body.investorId ?? null, tokenHash: hashToken(token), invitedBy: tenant.userId, expiresAt: new Date(Date.now() + VALID_DAYS * 86_400_000) },
       });
       const [deal, inviter, organization, kit] = await Promise.all([
-        tx.deal.findFirst({ where: { id: dealId }, select: { name: true } }),
+        tx.deal.findFirst({ where: { id: dealId }, select: { name: true, workingLanguage: true } }),
         tx.user.findFirst({ where: { id: tenant.userId }, select: { displayName: true } }),
         tx.organization.findUnique({ where: { id: tenant.organizationId }, select: { name: true, slug: true } }),
         tx.organizationBrandKit.findUnique({ where: { organizationId: tenant.organizationId }, select: { source: true, accentColor: true, logoContentType: true } }),
       ]);
       await appendAuditEvent(tx, { organizationId: tenant.organizationId, dealId, actorUserId: tenant.userId, action: 'deal.invitation.created', targetType: 'deal_invitation', targetId: invitation.id, outcome: 'SUCCEEDED', requestId });
-      return { kind: 'INVITED' as const, invitationId: invitation.id, token, dealName: deal?.name ?? 'a pact', inviterName: inviter?.displayName ?? 'A colleague', organization, kit };
+      return { kind: 'INVITED' as const, invitationId: invitation.id, token, dealName: deal?.name ?? 'a pact', workingLanguage: deal?.workingLanguage ?? null, inviterName: inviter?.displayName ?? 'A colleague', organization, kit };
     });
     if (result.kind === 'INVITED') {
       const link = new URL(`/invite/${result.token}`, this.deps.appOrigin).toString();
       // The inviting organization's brand (T-123), except where the pact goes by a codename: a logo would name the seller.
       const brand = options.dealLabel ? null : emailBrand(result.organization, result.kit, this.deps.appOrigin);
-      const message = emails.dealInvitation(body.email, { inviterName: result.inviterName, dealName: options.dealLabel ?? result.dealName, side: body.side, role: body.role, link, days: VALID_DAYS });
+      // The invitee has no stored language yet: the pact's working language (T-174b), else English.
+      const message = emails.dealInvitation(body.email, { inviterName: result.inviterName, dealName: options.dealLabel ?? result.dealName, side: body.side, role: body.role, link, days: VALID_DAYS }, resolveEmailLocale(result.workingLanguage));
       // handled: the outcome is stored on the invitation and returned, so the inviter sees it (T-125).
       const problem = await this.deps.emailSender.send(brand ? { ...message, brand } : message).then(
         () => null,

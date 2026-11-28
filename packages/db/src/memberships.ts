@@ -116,6 +116,7 @@ export async function createDealWithLead(
         status: true,
         baseCurrency: true,
         initiatedBy: true,
+        workingLanguage: true,
         createdAt: true,
       },
     });

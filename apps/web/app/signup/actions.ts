@@ -3,6 +3,7 @@
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
+import { getI18n } from '../../lib/i18n/server';
 import { authApi, forgetPendingEmail, pendingEmail, rememberPendingEmail, storeNativeSession, type IssuedSession } from '../../lib/native-session';
 
 const details = z.strictObject({
@@ -42,7 +43,7 @@ export async function startSignup(formData: FormData): Promise<void> {
   const store = await cookies();
   if (promo?.success) store.set(PROMO_COOKIE.name, promo.data, { httpOnly: true, sameSite: 'lax', path: PROMO_COOKIE.path, maxAge: 15 * 60 });
   else store.delete({ name: PROMO_COOKIE.name, path: PROMO_COOKIE.path });
-  const started = await authApi('/v1/signup/start', parsed.data);
+  const started = await authApi('/v1/signup/start', { ...parsed.data, locale: (await getI18n()).locale });
   if (started.status === 422) redirect(signupUrl({ error: 'sso-work-email' }));
   if (started.status !== 202) redirect(signupUrl({ error: 'unavailable' }));
   await rememberPendingEmail(parsed.data.email, 'signup');
