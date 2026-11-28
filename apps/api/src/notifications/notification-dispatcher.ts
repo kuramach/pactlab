@@ -1,6 +1,7 @@
 import { Inject, Injectable, type OnApplicationBootstrap, type OnApplicationShutdown } from '@nestjs/common';
-import { notificationDispatch, type DeliveryKind, type PendingNotification, type PrismaClient } from '@pactlab/db';
-import { planEmail, resolveEmailMode } from '@pactlab/domain';
+import { ChannelSendError, type TelegramBot, type WhatsAppSender } from '@pactlab/connectors';
+import { contactDispatch, contacts, notificationDispatch, type DeliveryKind, type PendingNotification, type PrismaClient } from '@pactlab/db';
+import { channelMessage, planEmail, resolveEmailMode } from '@pactlab/domain';
 import type { Logger } from '@pactlab/observability';
 import type { EmailSender } from '../email-login/email-sender';
 import { EmailSuppressedError, type SuppressionList } from '../email-login/ses-email-sender';
@@ -15,6 +16,11 @@ export interface NotificationModuleSettings {
   readonly suppression: SuppressionList | null;
   /** The web origin links point into. */
   readonly appOrigin: string;
+  /**
+   * Message channels (T-180, ADR 0064): "act now" items also go, content-free, to the person's verified
+   * Telegram chat and WhatsApp number. Null or absent: email and the inbox only.
+   */
+  readonly channels?: { readonly telegram: TelegramBot | null; readonly whatsapp: WhatsAppSender | null } | null;
   /** Run the dispatcher on a timer (the API process; ADR 0046). Off in tests, which call run(). */
   readonly scheduled: boolean;
   readonly intervalMs: number;
@@ -29,6 +35,9 @@ export interface DispatchOutcome {
   noAddress: number;
   waiting: number;
   deadlines: number;
+  /** Messages sent on Telegram or WhatsApp, and those that failed. */
+  channelSent: number;
+  channelFailed: number;
 }
 
 const PAGE = 200;
@@ -52,7 +61,8 @@ export class NotificationDispatcher implements OnApplicationBootstrap, OnApplica
   ) {}
 
   onApplicationBootstrap(): void {
-    if (!this.settings.scheduled || !this.settings.emailSender) return;
+    const channels = this.settings.channels;
+    if (!this.settings.scheduled || (!this.settings.emailSender && !channels?.telegram && !channels?.whatsapp)) return;
     const tick = () => {
       this.timer = setTimeout(() => {
         // handled: each delivery's outcome is stored on it and shown on the person's items; this only logs a run that could not start.
@@ -77,7 +87,7 @@ export class NotificationDispatcher implements OnApplicationBootstrap, OnApplica
   }
 
   private async pass(now: Date): Promise<DispatchOutcome> {
-    const outcome: DispatchOutcome = { sent: 0, digests: 0, suppressed: 0, failed: 0, inAppOnly: 0, noAddress: 0, waiting: 0, deadlines: 0 };
+    const outcome: DispatchOutcome = { sent: 0, digests: 0, suppressed: 0, failed: 0, inAppOnly: 0, noAddress: 0, waiting: 0, deadlines: 0, channelSent: 0, channelFailed: 0 };
     outcome.deadlines = await notificationDispatch.deadlines(this.prisma, now);
     const digests = new Map<string, { email: string; items: PendingNotification[] }>();
     let after: string | null = null;
@@ -87,11 +97,14 @@ export class NotificationDispatcher implements OnApplicationBootstrap, OnApplica
       const settings = await notificationDispatch.settings(this.prisma, items.map((item) => item.userId));
       const inApp: string[] = [];
       const noAddress: string[] = [];
+      const toChannels: PendingNotification[] = [];
       for (const item of items) {
         const recipient = settings.get(item.userId);
         if (!recipient) continue;
         const mode = resolveEmailMode(item.urgency, recipient.person, recipient.pacts.get(item.dealId) ?? null);
         const plan = planEmail({ urgency: item.urgency, mode, createdAt: item.createdAt }, recipient.person, now, recipient.lastDigestAt);
+        // Channels follow the same plan: only "act now", only when it is due now (quiet hours honoured).
+        if (plan === 'SEND_NOW' && item.urgency === 'ACT_NOW') toChannels.push(item);
         if (plan === 'IN_APP_ONLY') inApp.push(item.id);
         else if (plan === 'WAIT') outcome.waiting += 1;
         else if (!item.email || !this.settings.emailSender) noAddress.push(item.id);
@@ -102,6 +115,7 @@ export class NotificationDispatcher implements OnApplicationBootstrap, OnApplica
           digests.set(item.userId, entry);
         }
       }
+      await this.toChannels(toChannels, outcome);
       outcome.inAppOnly += await notificationDispatch.settle(this.prisma, { ids: inApp, status: 'IN_APP_ONLY' });
       outcome.noAddress += await notificationDispatch.settle(this.prisma, { ids: noAddress, status: 'NO_ADDRESS' });
       if (items.length < PAGE) break;
@@ -109,6 +123,40 @@ export class NotificationDispatcher implements OnApplicationBootstrap, OnApplica
     }
     for (const [userId, digest] of digests) await this.deliver(userId, digest.email, 'DIGEST', digest.items, outcome);
     return outcome;
+  }
+
+  /**
+   * One content-free message per item on each verified channel: the shared "Pactlab:" words and a link to
+   * the inbox, never the pact's name or any deal content (a lock screen shows it). Each is claimed first,
+   * so it is sent at most once per channel; a channel stopped since is no longer returned.
+   */
+  private async toChannels(items: readonly PendingNotification[], outcome: DispatchOutcome): Promise<void> {
+    const channels = this.settings.channels;
+    if (items.length === 0 || (!channels?.telegram && !channels?.whatsapp)) return;
+    const live = await contactDispatch.channels(this.prisma, [...new Set(items.map((item) => item.userId))]);
+    const link = new URL('/notifications', this.settings.appOrigin).toString();
+    for (const item of items) {
+      for (const channel of live.filter((row) => row.userId === item.userId)) {
+        const telegram = channel.kind === 'TELEGRAM' ? channels.telegram : null;
+        const whatsapp = channel.kind === 'WHATSAPP' ? channels.whatsapp : null;
+        if (!telegram && !whatsapp) continue;
+        const deliveryId = await contactDispatch.claim(this.prisma, { channelId: channel.channelId, notificationId: item.id });
+        if (!deliveryId) continue;
+        try {
+          if (telegram) await telegram.sendMessage(channel.handle, channelMessage('ACT_NOW', { link }));
+          else if (whatsapp) await whatsapp.sendTemplate(channel.handle, 'ACT_NOW', link);
+          await contactDispatch.finish(this.prisma, { deliveryId, outcome: 'SENT', errorClass: null });
+          outcome.channelSent += 1;
+        } catch (error) {
+          const errorClass = error instanceof ChannelSendError ? error.errorClass : error instanceof Error ? error.name : 'unknown';
+          await contactDispatch.finish(this.prisma, { deliveryId, outcome: 'FAILED', errorClass });
+          outcome.channelFailed += 1;
+          // The person can no longer be reached there: stop the channel rather than fail every time.
+          if (error instanceof ChannelSendError && error.recipientGone) await contacts.stop(this.prisma, { kind: channel.kind, handle: channel.handle, reason: 'BLOCKED' });
+          this.logger.warn({ channel: channel.kind, errorClass }, 'notification message failed');
+        }
+      }
+    }
   }
 
   private async deliver(userId: string, email: string, kind: DeliveryKind, items: readonly PendingNotification[], outcome: DispatchOutcome): Promise<void> {

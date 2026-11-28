@@ -18,6 +18,7 @@ import { loadFeatureCards } from './_lib/feature-cards/load';
 import { FeatureCardTrayMount } from './_lib/feature-cards/tray';
 import { DemoBlockedNotice } from './_lib/demo-blocked';
 import { PasskeyOffer } from './settings/passkeys-card';
+import { EmailBanner } from './_lib/email-banner';
 
 /** The active organization's brand kit (T-123); null for a guest, signed out, or on Pactlab's kit. */
 const activeBrand = cache(async () => {
@@ -70,6 +71,12 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
       ) : null}
       {/* Right after an email sign-in: the one-time passkey offer (T-108). */}
       {session.kind === 'signed-in' ? <PasskeyOffer /> : null}
+      {/* Until the person has a verified email (T-180): ask once, at the top, with a link to their profile. Not in a shared demo. */}
+      {session.kind === 'signed-in' && !session.demo ? (
+        <Suspense fallback={null}>
+          <EmailBanner />
+        </Suspense>
+      ) : null}
       <div data-app-root>{children}</div>
       {/* Which release this is, on every page (T-100). */}
       <footer className="mt-12 pb-2 text-xs text-muted-foreground" aria-label="Version">

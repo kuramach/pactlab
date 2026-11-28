@@ -16,5 +16,6 @@ export * from './people';
 export * from './lookback';
 export * from './market/macro-forecasts';
 export * from './signing';
+export * from './messaging';
 export * from './property';
 export * from './billing';

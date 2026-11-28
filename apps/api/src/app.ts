@@ -27,7 +27,8 @@ export async function createApp(deps: AppDependencies, options: { webOrigin?: st
       },
     );
   // E-signature (T-107), Stripe (T-087) and SES-via-SNS (T-109, sent as text/plain) webhooks are read raw, as a buffer.
-  const RAW_WEBHOOKS = new Set(['/v1/webhooks/signing/docusign', '/v1/webhooks/signing/boldsign', '/v1/webhooks/stripe', '/v1/email-events/sns']);
+  // Telegram and WhatsApp (T-180): Meta signs the raw body.
+  const RAW_WEBHOOKS = new Set(['/v1/webhooks/signing/docusign', '/v1/webhooks/signing/boldsign', '/v1/webhooks/stripe', '/v1/email-events/sns', '/v1/webhooks/telegram', '/v1/webhooks/whatsapp']);
   adapter.getInstance().addHook('onRequest', async (request) => {
     if (request.method === 'POST' && RAW_WEBHOOKS.has(request.url.split('?')[0] ?? '')) request.headers['content-type'] = 'application/octet-stream';
   });
