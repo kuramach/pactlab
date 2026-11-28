@@ -63,11 +63,10 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
       {css ? <style>{css}</style> : null}
       {/* A shared demo (T-113): say so, and that changes don't last. */}
       {session.kind === 'signed-in' && session.demo ? (
-        <aside aria-label="Shared demo" className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900">
-          <span className="font-semibold">Shared demo.</span> Explore freely: every pact and figure is synthetic, and the demo is reset when the share ends. Sending invitations, e-signature, billing and
-          connecting outside systems are switched off here.
+        <aside aria-label={t.m.notices.demo.label} className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900">
+          <span className="font-semibold">{t.m.notices.demo.title}</span> {t.m.notices.demo.body}
           <Suspense fallback={null}>
-            <DemoBlockedNotice />
+            <DemoBlockedNotice message={t.m.notices.demo.blocked} />
           </Suspense>
         </aside>
       ) : null}
@@ -84,7 +83,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
       <footer className="mt-12 pb-2 text-xs text-muted-foreground" aria-label="Version">
         Pactlab {version}
       </footer>
-      <FeatureCardTrayMount cards={featureCards?.tray ?? null} />
+      <FeatureCardTrayMount cards={featureCards?.tray ?? null} copy={t.m.notices.featureCards} />
       {/* Product help (T-175): how Pactlab works, from its guides; signed in only, never pact data. */}
       {session.kind === 'signed-in' ? <HelpChatLauncher /> : null}
       <BugReporter appVersion={version} environment={env.NEXT_PUBLIC_APP_ENV} />

@@ -1,10 +1,6 @@
 {
-  "apps/web/app/(app)/_lib/brand-prompt.tsx": 4,
   "apps/web/app/(app)/_lib/bugs/bug-reporter.tsx": 18,
   "apps/web/app/(app)/_lib/criticals/fields.tsx": 5,
-  "apps/web/app/(app)/_lib/demo-blocked.tsx": 1,
-  "apps/web/app/(app)/_lib/feature-cards/carousel.tsx": 4,
-  "apps/web/app/(app)/_lib/feature-cards/tray.tsx": 1,
   "apps/web/app/(app)/audit/page.tsx": 14,
   "apps/web/app/(app)/comparables/batch-import.tsx": 23,
   "apps/web/app/(app)/comparables/page.tsx": 48,
@@ -108,7 +104,7 @@
   "apps/web/app/(app)/developers/api/reference.tsx": 8,
   "apps/web/app/(app)/developers/mcp/page.tsx": 42,
   "apps/web/app/(app)/error.tsx": 6,
-  "apps/web/app/(app)/layout.tsx": 5,
+  "apps/web/app/(app)/layout.tsx": 2,
   "apps/web/app/(app)/notifications/page.tsx": 14,
   "apps/web/app/(app)/pacts/new/page.tsx": 2,
   "apps/web/app/(app)/pacts/new/wizard.tsx": 42,
@@ -160,7 +156,6 @@
   "packages/ui/src/components/brand.tsx": 1,
   "packages/ui/src/components/file-drop.tsx": 3,
   "packages/ui/src/components/page-header.tsx": 1,
-  "apps/web/app/(app)/_lib/email-banner.tsx": 3,
   "apps/web/app/(app)/settings/profile/page.tsx": 52,
   "apps/web/app/(app)/settings/chat-apps-card.tsx": 7
 }

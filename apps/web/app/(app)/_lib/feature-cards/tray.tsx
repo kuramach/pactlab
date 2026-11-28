@@ -1,9 +1,10 @@
 'use client';
 
+import { fill } from '@pactlab/ui';
 import { Sparkles } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { markFeatureCardsRead } from './actions';
-import { FeatureCardStepper } from './carousel';
+import { FeatureCardStepper, type FeatureCardCopy } from './carousel';
 import type { FeatureCardView } from './types';
 
 /** The badge: unread cards in the list, until it has been opened. */
@@ -15,7 +16,7 @@ export function badgeCount(cards: readonly FeatureCardView[], opened: boolean): 
  * The "What's new" icon, fixed immediately left of the bug icon (which does not move). It holds the
  * cards dismissed from the home and those waiting behind it; opening it marks them read.
  */
-export function FeatureCardTray({ cards }: { cards: readonly FeatureCardView[] }) {
+export function FeatureCardTray({ cards, copy }: { cards: readonly FeatureCardView[]; copy: FeatureCardCopy }) {
   const [open, setOpen] = useState(false);
   const [opened, setOpened] = useState(false);
   const root = useRef<HTMLDivElement>(null);
@@ -53,10 +54,10 @@ export function FeatureCardTray({ cards }: { cards: readonly FeatureCardView[] }
     <div ref={root}>
       <button
         type="button"
-        aria-label={count > 0 ? `What’s new, ${count} unread` : 'What’s new'}
+        aria-label={count > 0 ? fill(copy.titleUnread, { count }) : copy.title}
         aria-expanded={open}
         aria-controls="feature-card-list"
-        title="What’s new"
+        title={copy.title}
         onClick={toggle}
         className="fixed bottom-4 right-[4.5rem] z-30 flex h-11 w-11 items-center justify-center rounded-full bg-navy text-white shadow-lg ring-1 ring-white/20 hover:bg-navy/90 focus:outline-none focus:ring-2 focus:ring-indigo"
       >
@@ -69,7 +70,7 @@ export function FeatureCardTray({ cards }: { cards: readonly FeatureCardView[] }
       </button>
       {open ? (
         <div id="feature-card-list" className="fixed bottom-20 right-4 z-40 w-[min(32rem,calc(100vw-2rem))] rounded-xl bg-card shadow-xl">
-          <FeatureCardStepper cards={cards} dismissible={false} onFollow={() => setOpen(false)} />
+          <FeatureCardStepper copy={copy} cards={cards} dismissible={false} onFollow={() => setOpen(false)} />
         </div>
       ) : null}
     </div>
@@ -77,6 +78,6 @@ export function FeatureCardTray({ cards }: { cards: readonly FeatureCardView[] }
 }
 
 /** The shell's mount: only for a signed-in person with something behind the icon. */
-export function FeatureCardTrayMount({ cards }: { cards: readonly FeatureCardView[] | null }) {
-  return cards && cards.length > 0 ? <FeatureCardTray cards={cards} /> : null;
+export function FeatureCardTrayMount({ cards, copy }: { cards: readonly FeatureCardView[] | null; copy: FeatureCardCopy }) {
+  return cards && cards.length > 0 ? <FeatureCardTray cards={cards} copy={copy} /> : null;
 }

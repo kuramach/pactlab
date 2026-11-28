@@ -1,6 +1,7 @@
 import { common } from './common';
 import { findings } from './findings';
 import { home } from './home';
+import { notices } from './notices';
 import { pact } from './pact';
 import { settings } from './settings';
 import { shell } from './shell';
@@ -10,5 +11,5 @@ import { shell } from './shell';
  * the no-literal check (`lib/i18n/no-literals.test.ts`) keeps new strings from being written inline. A translation
  * is a `Localized<Messages>` overlay, so a renamed or missing key fails typecheck.
  */
-export const en = { common, pact, home, findings, settings, shell };
+export const en = { common, pact, home, findings, settings, shell, notices };
 export type Messages = typeof en;
