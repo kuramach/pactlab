@@ -1,0 +1,63 @@
+import type { Localized } from '@pactlab/ui';
+import type { common as source } from '../en/common';
+
+export const common: Localized<typeof source> = {
+  states: {
+    signedOut: { title: 'Connexion requise', description: 'Connectez-vous pour voir les deals et les éléments de preuve auxquels vous participez.' },
+    forbidden: { title: 'Accès refusé', description: 'Votre rôle sur ce deal n’inclut pas l’accès aux éléments de preuve.' },
+    notFound: { title: 'Introuvable', description: 'Cet élément n’existe pas ou vous n’y avez pas accès.' },
+    error: { title: 'Une erreur s’est produite', description: 'La requête n’a pas pu aboutir.', reference: 'Référence {id}.' },
+  },
+  outcomes: {
+    forbidden: 'Votre rôle sur ce deal ne le permet pas.',
+    conflict: 'Quelqu’un a modifié cet élément entre-temps. Rechargez la page et réessayez.',
+    invalid: 'Certaines informations n’ont pas été acceptées. Vérifiez-les et réessayez.',
+    unavailable: 'Ce service n’est pas disponible pour le moment.',
+    'signed-out': 'Votre session a pris fin. Reconnectez-vous.',
+    'not-found': 'Cet élément n’existe plus.',
+    error: 'Une erreur s’est produite. Réessayez.',
+  },
+  pager: { window: '{start}–{end} sur {total}', previous: '← Précédent', next: 'Suivant →' },
+  phases: { PRE: 'Pré-diligence', DILIGENCE: 'Due diligence', POST: 'Post-closing' },
+  stages: { SCREENING: 'Présélection', DILIGENCE: 'Due diligence', NEGOTIATION: 'Négociation', SIGNED: 'Signé', CLOSED: 'Clôturé' },
+  dealTypes: { PUBLIC_ACQUIRER: 'Acquéreur coté', PRIVATE_ACQUIRER: 'Acquisition privée', TAKE_PRIVATE: 'Retrait de la cote' },
+  companyTypes: {
+    SOFTWARE_SAAS: 'Logiciels et SaaS',
+    FINTECH: 'Fintech',
+    HEALTHCARE: 'Santé et santé numérique',
+    TELECOM_MEDIA: 'Télécoms et médias',
+    PROFESSIONAL_SERVICES: 'Services professionnels',
+    PHARMA_BIOTECH: 'Pharma et biotech',
+    ECOMMERCE_DTC: 'E-commerce et DTC',
+    MULTIFAMILY: 'Immeubles collectifs',
+    COMMERCIAL_PROPERTY: 'Immobilier commercial',
+    HOTELS: 'Hôtels et hôtellerie',
+    SMALL_CLINICS: 'Petites cliniques',
+    HOSPITALS: 'Hôpitaux',
+    VENTURE_RAISE: 'Levée de fonds Venture',
+    MULTIFAMILY_SYNDICATION: 'Syndication d’immeubles collectifs',
+    MUSIC_RIGHTS: 'Droits musicaux',
+    ENERGY_GENERATION: 'Production d’énergie et droits',
+    STARTUP_SPV: 'SPV de participation en startup',
+    OTHER: 'Autre',
+  },
+  claims: {
+    verdicts: {
+      UNVERIFIED: { label: 'Pas encore vérifié', short: 'Affirmation du vendeur non vérifiée' },
+      VERIFIED: { label: 'Confirmé par les éléments de preuve', short: 'Confirme ce que le vendeur a affirmé' },
+      CONTRADICTED: { label: 'Contredit par les éléments de preuve', short: 'Contredit ce que le vendeur a affirmé' },
+    },
+    handSourcedHelp: 'Saisi à la main dans Pactlab Rinse : la parole du vendeur, pas une preuve documentaire.',
+    restsOnHandSourced: 'Repose sur une affirmation saisie à la main',
+    handSourced: 'Saisi à la main',
+    none: 'Ce constat n’est lié à aucune affirmation du vendeur.',
+    listLabel: 'Ce que le vendeur a affirmé',
+    sellerSaid: 'Le vendeur a affirmé :',
+  },
+  withdrawn: {
+    badge: 'Source retirée',
+    notice: 'Source retirée : {subject} repose sur des données d’un import qui a été retiré depuis. Il est conservé tel quel.',
+    item: 'retiré le {date} : « {reason} »',
+  },
+  evidence: { documentPage: 'document p. {page}', record: 'élément de preuve', open: 'ouvrir l’élément de preuve' },
+};

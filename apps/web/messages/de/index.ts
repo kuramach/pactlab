@@ -4,7 +4,8 @@ import { common } from './common';
 import { findings } from './findings';
 import { home } from './home';
 import { pact } from './pact';
+import { profile } from './profile';
 import { settings } from './settings';
 
 /** German (T-172 pilot): machine-made, awaiting a native speaker's review (docs/runbooks/app-translations.md). */
-export const de: Localized<Messages> = { common, pact, home, findings, settings };
+export const de: Localized<Messages> = { common, pact, home, findings, settings, profile };

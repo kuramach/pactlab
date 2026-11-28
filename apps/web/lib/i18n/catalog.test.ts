@@ -1,7 +1,7 @@
 import { CatalogError, localize, placeholders, stringPaths, type Localized } from '@pactlab/ui';
 import { describe, expect, it } from 'vitest';
 import { en, type Messages } from '../../messages/en';
-import { EN, i18nFor, OFFERED_LOCALES, resolveLocale, TRANSLATIONS } from './index';
+import { APP_LOCALES, EN, i18nFor, OFFERED_LOCALES, resolveLocale, TRANSLATIONS } from './index';
 
 const at = (value: unknown, path: string): unknown =>
   path
@@ -10,16 +10,30 @@ const at = (value: unknown, path: string): unknown =>
     .reduce<unknown>((node, key) => (node as Record<string, unknown> | undefined)?.[key], value);
 
 describe('the app catalogs (T-172)', () => {
-  it('offers a language only when its catalog covers every English string, with the same placeholders', () => {
-    for (const locale of OFFERED_LOCALES) {
+  it('has a complete catalog for every language, with the same placeholders (T-173)', () => {
+    // Every language the app knows, offered or not: a catalog behind the pilot flag must still be whole, so enabling it is a config flip.
+    for (const locale of APP_LOCALES) {
       if (locale === 'en') continue;
       const overlay = TRANSLATIONS[locale];
-      expect(overlay, `${locale} is offered without a catalog`).toBeDefined();
+      expect(overlay, `${locale} has no catalog`).toBeDefined();
       expect(() => localize(en, overlay as Localized<Messages>, locale)).not.toThrow();
       for (const path of stringPaths(en)) {
         const source = at(en, path) as string;
         const translated = at(overlay, path) as string;
         expect(placeholders(translated), `${locale} ${path}`).toEqual(placeholders(source));
+      }
+    }
+  });
+
+  it('offers a language only when it has a catalog', () => {
+    for (const locale of OFFERED_LOCALES) if (locale !== 'en') expect(TRANSLATIONS[locale], `${locale} is offered without a catalog`).toBeDefined();
+  });
+
+  it('keeps ICU-style tokens other than {name} out of every catalog', () => {
+    for (const locale of ['de', 'fr', 'ja'] as const) {
+      for (const path of stringPaths(TRANSLATIONS[locale])) {
+        const text = at(TRANSLATIONS[locale], path) as string;
+        expect(text, `${locale} ${path}`).not.toMatch(/\{[^}\w][^}]*\}|\{\w+,/);
       }
     }
   });
