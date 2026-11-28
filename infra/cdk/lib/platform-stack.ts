@@ -56,7 +56,9 @@ function requireSleepPage(sleep: SleepPage | undefined) {
  * moving it to the stack (ADR 0063) keeps the very same resource, password and attachment.
  */
 export function legacyOwnerSecretIds(stackId: string): { secret: string; attachment: string } {
-  const scratch = new Stack(new App(), stackId);
+  // Never auto-synthesized: inside `cdk` (CDK_OUTDIR set) every App writes its manifest on exit, and this scratch
+  // one would overwrite the real app's, leaving only the last environment's stack visible (site deploy, 2026-11-28).
+  const scratch = new Stack(new App({ autoSynth: false }), stackId);
   const holder = new Construct(scratch, 'Postgres');
   const secret = new rds.DatabaseSecret(holder, 'Secret', { username: 'pactlab_owner', replaceOnPasswordCriteriaChanges: true });
   const attachment = new CfnResource(new Construct(secret, 'Attachment'), 'Resource', { type: 'AWS::SecretsManager::SecretTargetAttachment' });

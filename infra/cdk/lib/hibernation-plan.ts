@@ -1,3 +1,6 @@
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { App } from 'aws-cdk-lib';
 import { ENVIRONMENTS, type EnvironmentName, type PowerShape } from '../config';
 import { hibernatedCost } from './hibernation-cost';
@@ -78,7 +81,8 @@ const stackId = (name: EnvironmentName) => `Pactlab${name.charAt(0).toUpperCase(
 /** Synthesize one environment (and the shared base) in a shape, as the CDK app does, with placeholder images. */
 export function synthesizeShape(name: EnvironmentName, power: PowerShape, others: Partial<Record<EnvironmentName, PowerShape>> = {}) {
   const config = ENVIRONMENTS[name];
-  const app = new App();
+  // Its own temporary output, never the real app's (`cdk` sets CDK_OUTDIR for every App in the process).
+  const app = new App({ autoSynth: false, outdir: mkdtempSync(join(tmpdir(), 'pactlab-plan-')) });
   const shared = Object.values(ENVIRONMENTS).filter((environment) => environment.shared);
   const powerOf = (env: EnvironmentName) => (env === name ? power : (others[env] ?? 'awake'));
   const base = config.shared
