@@ -41,6 +41,7 @@ export const IMPORT_TARGETS = [
   'ECOMMERCE_INVENTORY',
   'CRE_RENT_ROLL',
   'CRE_CAM_RECONCILIATION',
+  'CRE_CAPEX_SCHEDULE',
   'HOTELS_OPERATING_HISTORY',
   'HOTELS_STR_BENCHMARK',
   'CLINICS_PATIENT_VOLUME',
@@ -954,6 +955,30 @@ export const CRE_CAM_RECONCILIATION: TargetDefinition = {
   ],
 };
 
+/**
+ * Commercial property (T-165): the seller's capital expenditure schedule, one row per item — the building element
+ * it addresses, the amount and whether it is committed or planned. Read against the condition reports and, for
+ * committed lines, into the obligations the buyer inherits.
+ */
+export const CRE_CAPEX_SCHEDULE: TargetDefinition = {
+  target: 'CRE_CAPEX_SCHEDULE',
+  label: 'Capex schedule',
+  fileName: 'capex-schedule.csv',
+  people: 'NONE',
+  refusesPeopleColumns: true,
+  evidenceType: 'cre.capex_item',
+  recordIdField: 'item',
+  recordIdFields: ['year', 'item'],
+  observedAtFields: [],
+  fields: [
+    { name: 'year', label: 'Year', kind: 'text', required: true, hint: 'YYYY, the year the work is scheduled.' },
+    { name: 'item', label: 'Item', kind: 'text', required: true, hint: 'What the work is, e.g. Rooftop HVAC unit replacement.' },
+    { name: 'category', label: 'Building element', kind: 'code', required: true, hint: 'roof, hvac, paving, elevators, envelope, fire, electrical, plumbing, structure or other.' },
+    { name: 'amount', label: 'Amount', kind: 'money', required: true, hint: IN_BASE_CURRENCY },
+    { name: 'status', label: 'Status', kind: 'code', required: false, hint: 'committed (contracted or under way) or planned.' },
+  ],
+};
+
 /** Hotels (T-067): monthly operating history from the property-management system — no guest data. */
 export const HOTELS_OPERATING_HISTORY: TargetDefinition = {
   target: 'HOTELS_OPERATING_HISTORY',
@@ -1585,6 +1610,7 @@ export const IMPORT_TARGET_DEFINITIONS: Readonly<Record<ImportTarget, TargetDefi
   ECOMMERCE_INVENTORY,
   CRE_RENT_ROLL,
   CRE_CAM_RECONCILIATION,
+  CRE_CAPEX_SCHEDULE,
   HOTELS_OPERATING_HISTORY,
   HOTELS_STR_BENCHMARK,
   CLINICS_PATIENT_VOLUME,

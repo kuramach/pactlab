@@ -439,7 +439,7 @@ PACK_IMPORTS = {
     'professional-services': {'timesheets-summary': 'Timesheets summary', 'headcount-movements': 'Headcount movements', 'time-billing': 'Time and billing', 'wip-ar-ageing': 'WIP and debtor ageing'},
     'pharma-biotech': {'patent-schedule': 'Patent schedule', 'trial-registry': 'Trial registry records', 'pipeline': 'Pipeline', 'obligations-model': 'Payment obligations model', 'rd-roster': 'R&D roster'},
     'ecommerce-dtc': {'orders-by-cohort': 'Orders by cohort', 'ad-spend': 'Ad spend', 'channel-orders': 'Orders by channel', 'inventory': 'Stock report'},
-    'commercial-property': {'rent-roll': 'Commercial rent roll', 'cam-reconciliation': 'CAM reconciliation'},
+    'commercial-property': {'rent-roll': 'Commercial rent roll', 'cam-reconciliation': 'CAM reconciliation', 'capex-schedule': 'Capex schedule'},
     'hotels': {'operating-history': 'Operating history', 'str-benchmark': 'STR benchmark'},
     'small-clinics': {'patient-volume': 'Patient volume', 'equipment-schedule': 'Equipment schedule', 'coding-summary': 'Coding summary', 'remittances': 'Remittances by payer',
                       'clinician-collections': 'Collections by clinician', 'credentialing-register': 'Credentialing register', 'payer-contracts': 'Payer contract register',
@@ -2041,41 +2041,163 @@ Rents are shown at pro-forma market levels.
 
 def commercial(ds):
     ds.kind, ds.kind_label = 'base_rent', 'tenant base-rent charge'
-    ds.summary = f'{ds.company} owns Quayside Business Park, a 210,000 sq ft mixed office and light-industrial park with eleven tenants.'
-    tenants = [('Corvane Logistics', 80000, 165000, '2027-06-30', 0.94), ('Pellham Engineering', 22000, 41000, '2031-03-31', 1.02), ('Brightwater Analytics', 16000, 29000, '2029-12-31', 1.0),
-               ('Ashgrove Print', 9000, 18000, '2026-12-31', 1.08), ('Moorland Medical Supplies', 14000, 24000, '2030-09-30', 0.97), ('Teal Harbor Software', 11000, 16000, '2028-05-31', 1.0),
-               ('Northlight Studios', 7000, 12000, '2027-01-31', 1.05), ('Fernbank Foods', 12500, 21000, '2032-06-30', 0.99), ('Cinder Path Fitness', 6000, 9000, '2026-11-30', 1.0),
-               ('Haldon Insurance Brokers', 8000, 11000, '2029-02-28', 1.0), ('Gullwing Robotics', 9500, 15000, '2033-10-31', 1.0)]
-    rr = []
-    walt_num, total_rent = D(0), D(0)
-    for i, (n, rent, sqft, end, mkt_ratio) in enumerate(tenants):
-        r = ds.amt(rent)
-        ds.customer(f'{ds.prefix}-ten-{i + 1:03d}', f'{n} (synthetic)', flat(r))
-        yrs = (int(end[:4]) - 2026) + (int(end[5:7]) - 9) / 12
-        walt_num += r * D(str(round(yrs, 2))); total_rent += r
-        rr.append([n + ' (synthetic)', f'Unit {i + 1}', sqft, '2021-07-01', end, f'{r:.2f}', f'{q(r / D(str(mkt_ratio))):.2f}'])
-    ds.ext('rent-roll', ['tenant', 'suite', 'sqft', 'lease_start', 'lease_end', 'monthly_base_rent', 'monthly_market_rent'], rr, 'Commercial rent roll with expiries and market rents')
-    cam = [['2025', 'Repairs and maintenance', f'{ds.amt(212000):.2f}', f'{ds.amt(171000):.2f}'], ['2025', 'Insurance', f'{ds.amt(88000):.2f}', f'{ds.amt(88000):.2f}'], ['2025', 'Security', f'{ds.amt(64000):.2f}', f'{ds.amt(41000):.2f}']]
-    ds.ext('cam-reconciliation', ['year', 'category', 'expenses', 'recoveries'], cam, 'Common-area-maintenance expenses against tenant recoveries')
-    top, share = ds.share_top()
-    walt = walt_num / total_rent
     c = ds.cur
-    ds.doc('01-phase-i-environmental-site-assessment', f'''
+    # (tenant, initial monthly rent in USD, sq ft, start, end, annual escalation, market-rent ratio, what the rent roll carries).
+    # The rent roll overstates two tenants against their leases (planted (a)): Pellham's roll escalates at 3% where the
+    # lease says 2%, and Brightwater's roll shows a 10% step its fixed-rent lease never granted.
+    tenants = [('Corvane Logistics', 69450, 165000, '2021-07-01', '2027-06-30', '0.03', 0.94, None),
+               ('Pellham Engineering', 20000, 41000, '2021-07-01', '2031-03-31', '0.02', 1.02, ('escalation', '0.03')),
+               ('Brightwater Analytics', 15000, 29000, '2021-07-01', '2029-12-31', '0', 1.0, ('step', '1.10')),
+               ('Ashgrove Print', 7800, 18000, '2021-07-01', '2026-12-31', '0.03', 1.08, None),
+               ('Moorland Medical Supplies', 12000, 24000, '2021-07-01', '2030-09-30', '0.03', 0.97, None),
+               ('Teal Harbor Software', 9500, 16000, '2021-07-01', '2028-05-31', '0.03', 1.0, None),
+               ('Northlight Studios', 6000, 12000, '2021-07-01', '2027-01-31', '0.03', 1.05, None),
+               ('Fernbank Foods', 10800, 21000, '2021-07-01', '2032-06-30', '0.03', 0.99, None),
+               ('Cinder Path Fitness', 5200, 9000, '2021-07-01', '2026-11-30', '0.03', 1.0, None),
+               ('Haldon Insurance Brokers', 6900, 11000, '2021-07-01', '2029-02-28', '0.03', 1.0, None),
+               ('Gullwing Robotics', 8200, 15000, '2023-11-01', '2033-10-31', '0.03', 1.0, None)]
+    total_sqft = sum(t[2] for t in tenants)
+    ds.summary = f'{ds.company} owns Quayside Business Park, a {total_sqft:,} sq ft mixed office and light-industrial park, fully let to eleven tenants on triple-net leases.'
+    as_of = '2026-09-30'
+
+    def anniversaries(start, date):
+        sy, sm, sd = map(int, start.split('-')); yy, mm, dd = map(int, date.split('-'))
+        return max(0, yy - sy - (1 if (mm, dd) < (sm, sd) else 0))
+
+    def rent_on(t, date, esc=None):
+        _, base, _, start, end, e, _, _ = t
+        if date < start or date > end: return None
+        r = ds.amt(base)
+        for _ in range(anniversaries(start, date)): r = q(r * (1 + D(esc if esc is not None else e)))
+        return r
+
+    def due_in_year(t, y): return sum((rent_on(t, f'{y}-{m:02d}-01') or D(0) for m in range(1, 13)), D(0))
+    # Proportionate shares by area, to two decimals, summing to exactly 100%.
+    raw = [D(t[2]) * 100 / D(total_sqft) for t in tenants]
+    shares = [x.quantize(CENT, rounding='ROUND_DOWN') for x in raw]
+    for i in sorted(range(len(raw)), key=lambda i: raw[i] - shares[i], reverse=True)[:int((D(100) - sum(shares)) / CENT)]:
+        shares[i] += CENT
+    rr, lease_rent = [], {}
+    for i, t in enumerate(tenants):
+        n, _, sqft, start, end, _, mkt_ratio, roll = t
+        ds.customer(f'{ds.prefix}-ten-{i + 1:03d}', f'{n} (synthetic)', {mo: rent_on(t, f'{mo}-01') or D(0) for mo in MONTHS})
+        lease_rent[n] = rent_on(t, as_of)
+        on_roll = lease_rent[n]
+        if roll and roll[0] == 'escalation': on_roll = rent_on(t, as_of, roll[1])
+        if roll and roll[0] == 'step': on_roll = q(lease_rent[n] * D(roll[1]))
+        rr.append([n + ' (synthetic)', f'Unit {i + 1}', sqft, start, end, f'{on_roll:.2f}', f'{q(on_roll / D(str(mkt_ratio))):.2f}'])
+    ds.ext('rent-roll', ['tenant', 'suite', 'sqft', 'lease_start', 'lease_end', 'monthly_base_rent', 'monthly_market_rent'], rr, 'Commercial rent roll with expiries and market rents')
+    roll_total = sum(D(r[5]) for r in rr)
+    top, share = rr[0][0], D(rr[0][5]) / roll_total
+
+    def years_left(end): return (D(int(end[:4]) - 2026) + D(int(end[5:7]) - 9) / 12)
+    walt_old = sum(D(r[5]) * D(str(round(float(years_left(r[4])), 2))) for r in rr) / roll_total
+    over = [(t[0] + ' (synthetic)', D(r[5]) - lease_rent[t[0]]) for r, t in zip(rr, tenants) if t[7]]
+
+    # CAM reconciliations, three statement years: repairs and security recover less than the triple-net leases allow every year (planted (c)).
+    cam_years = {'2023': [(150000, 128000), (79000, 79000), (58000, 44000), (240000, 240000)],
+                 '2024': [(182000, 151000), (83000, 83000), (61000, 42000), (250000, 250000)],
+                 '2025': [(212000, 171000), (88000, 88000), (64000, 41000), (260000, 260000)]}
+    cats = ['Repairs and maintenance', 'Insurance', 'Security', 'Real estate taxes']
+    cam = [[y, cat, f'{ds.amt(e):.2f}', f'{ds.amt(r):.2f}'] for y, rows in cam_years.items() for cat, (e, r) in zip(cats, rows)]
+    ds.ext('cam-reconciliation', ['year', 'category', 'expenses', 'recoveries'], cam, 'Recoverable expenses against tenant recoveries billed, by year and category')
+
+    def cam_sum(y, col): return sum((D(r[col]) for r in cam if r[0] == y), D(0))
+    shortfall = {y: cam_sum(y, 2) - cam_sum(y, 3) for y in cam_years}
+
+    # The seller's capex schedule: HVAC and lighting committed, paving planned; no line for the roof the PCA flags (planted (d)).
+    capex = [['2026', 'Rooftop HVAC unit replacement, Buildings A and B', 'hvac', f'{ds.amt(420000):.2f}', 'committed'],
+             ['2026', 'LED lighting retrofit, common areas', 'electrical', f'{ds.amt(90000):.2f}', 'committed'],
+             ['2027', 'Car park resurfacing', 'paving', f'{ds.amt(260000):.2f}', 'planned']]
+    ds.ext('capex-schedule', ['year', 'item', 'category', 'amount', 'status'], capex, 'The seller’s capital expenditure schedule: item, element, amount and status')
+
+    # The P&L by fiscal year: base rent as the leases make it due, recoveries as billed, the recoverable expenses as reconciled.
+    years = ['2023', '2024', '2025']
+    rent_year = {y: sum((due_in_year(t, y) for t in tenants), D(0)) for y in years}
+    pnl_rows = [['Base rent revenue'] + [f'{rent_year[y]:.2f}' for y in years],
+                ['Expense recovery revenue'] + [f'{cam_sum(y, 3):.2f}' for y in years]]
+    for k, cat in enumerate(cats):
+        pnl_rows.append([cat] + [f'{D(cam[years.index(y) * 4 + k][2]):.2f}' for y in years])
+    pnl_rows.append(['Property management fees'] + [f'{q(rent_year[y] * D("0.03")):.2f}' for y in years])
+    pnl_rows.append(['General and administrative'] + [f'{ds.amt(x):.2f}' for x in (95000, 98000, 101000)])
+    ds.ext('pnl', ['Line'] + [f'FY{y}' for y in years], pnl_rows, 'Profit and loss by fiscal year, FY2023 to FY2025')
+    ds.pnl_step = ['Open the **Sources** tab, scroll to **Industry data** and click **Upload profit and loss (p&l)**.', '',
+                   '1. Choose `pnl.csv` → **Upload and map columns**. Pactlab reads the three years across the columns (FY2023 to FY2025).',
+                   '2. Say what each line is: the two lines ending in *revenue* are **Revenue**, and the rest are **Operating expenses**.',
+                   f'3. **Check every row**, then **Import {len(pnl_rows) * 3} rows**.', '',
+                   '**You should see:** the import succeed. **Finances** shows the three years side by side with the recovery ratio, and asks the seller for FY2021 and FY2022.', '']
+
+    def repairs_ratio(y): return D(pnl_rows[2][1 + years.index(y)]) / (rent_year[y] + cam_sum(y, 3))
+
+    # The landlord's unpaid obligations the leases state: Pellham's tenant improvements and Gullwing's leasing commission.
+    ti_total, ti_unpaid, lc = ds.amt(300000), ds.amt(180000), ds.amt(64000)
+
+    def spoken(iso):
+        yy, mm, dd = iso.split('-')
+        return f'{int(dd)} {MONTH_NAME[int(mm) - 1]} {yy}'
+    for i, t in enumerate(tenants):
+        n, base, _, start, end, esc, _, _ = t
+        rent_line = 'Base rent is fixed for the term.' if D(esc) == 0 else f'Base rent increases by {(D(esc) * 100).normalize()}% on each anniversary of the commencement date.'
+        extra = ''
+        if n == 'Pellham Engineering':
+            extra = f'\nThe landlord shall pay a tenant improvement allowance of {money(c, ti_total, True)}, of which {money(c, ti_unpaid, True)} remains unpaid.'
+        if n == 'Gullwing Robotics':
+            extra = f'\nA leasing commission of {money(c, lc, True)} for this lease remains unpaid to Harbourline Realty (synthetic).'
+        ds.doc(f'03-lease-unit-{i + 1:02d}', f"""
+Lease agreement for Unit {i + 1} at Quayside Business Park between {ds.company} as landlord and {n} (synthetic) as tenant.
+
+The term runs from {spoken(start)} to {spoken(end)}.
+The initial base rent is {money(c, ds.amt(base), True)} per month.
+{rent_line}
+The lease is triple net: the tenant pays its proportionate share of {shares[i]:.2f}% of the park's recoverable operating expenses, real estate taxes and insurance.{extra}
+""", f'Lease for Unit {i + 1}: term, rent, escalation and recoveries')
+
+    ds.doc('01-phase-i-environmental-site-assessment', """
 Phase I environmental site assessment — Quayside Business Park (synthetic)
 ---page---
 Findings: a recognized environmental condition (REC) is identified at Unit 9, the former location of a dry-cleaning operation (1988–2004). A Phase II investigation is recommended.
-''', 'Phase I environmental site assessment')
-    ds.doc('02-lease-abstract-corvane', f'''
+""", 'Phase I environmental site assessment')
+    ds.doc('02-lease-abstract-corvane', """
 Lease abstract — Corvane Logistics at Quayside Business Park (synthetic)
 
 Term ends 30 June 2027. Tenant option to renew for five years at 95% of market rent, notice due by 31 December 2026.
-''', 'Lease abstract for the anchor tenant')
+""", 'Lease abstract for the anchor tenant')
+    roof = ds.amt(1850000)
+    ds.doc('04-property-condition-assessment', f"""
+Property condition assessment of Quayside Business Park, August 2026 (synthetic).
+
+The engineer inspected the buildings, roofs, building services and site works.
+Roof: the membrane roof over Buildings A and B is at the end of its useful life, and replacement is recommended within two years at an estimated cost of {money(c, roof)}.
+HVAC: eleven rooftop units are past their expected life, and replacement is recommended in 2026 at an estimated cost of {money(c, ds.amt(400000))}.
+Paving: the car park surface needs resurfacing within three years at an estimated cost of {money(c, ds.amt(240000))}.
+""", 'Engineer’s property condition assessment: flagged items and estimated costs')
+    ds.doc('05-offering-memorandum', f"""
+Offering memorandum for the sale of Quayside Business Park by {ds.company}, September 2026 (synthetic demo data).
+
+The park is fully let to eleven tenants on triple-net leases.
+The parties have agreed a target closing date of 31 December 2026.
+The buyer's business plan assumes a hold period of 5 years.
+""", 'Offering memorandum: occupancy, the closing date and the hold')
+
+    obligations_total = ti_unpaid + lc + ds.amt(420000) + ds.amt(90000)
     ds.findings = [
-        ('Anchor tenant concentration and near-term expiry', f'{top} is {pct(share)} of base rent and its lease ends 30 June 2027 (`rent-roll.csv`, `documents/02-lease-abstract-corvane.pdf`). Weighted average lease term is {walt.quantize(D("0.1"))} years.'),
+        ('Anchor tenant concentration and near-term expiry', f'{top} is {pct(share)} of base rent and its lease ends 30 June 2027 (`rent-roll.csv`, `documents/02-lease-abstract-corvane.pdf`). Weighted average lease term is {walt_old.quantize(D("0.1"))} years.'),
         ('Recognized environmental condition', '`documents/01-phase-i-environmental-site-assessment.pdf` page 2 — former dry cleaner at Unit 9; Phase II recommended.'),
-        ('CAM recoveries below expenses', '`cam-reconciliation.csv` — repairs and security recover less than they cost.'),
+        ('CAM recoveries below expenses', '`cam-reconciliation.csv` — repairs and security recover less than they cost in 2025.'),
         ('Below-market anchor rent', 'Corvane pays about 6% below market rent in `rent-roll.csv` — the deepest discount on the rent roll, on the largest lease.'),
+        ('Rent roll overstates rent against the leases: 2 tenants', '`rent-roll.csv` against `documents/03-lease-unit-02.pdf` and `documents/03-lease-unit-03.pdf` — ' + ' and '.join(f'{n} by {money(c, g, True)} a month' for n, g in over) + f'; the FY2025 statements in `pnl.csv` carry the leases’ rent, {money(c, rent_year["2025"])}.'),
+        ('NNN recoveries short of the leases in every year, 2023–2025', '`cam-reconciliation.csv` against the leases’ proportionate shares (100% triple net) — ' + ', '.join(f'{y}: {money(c, shortfall[y])} short' for y in years) + '. A single year looks like timing; three in a row is a leak.'),
+        ('Landlord obligations the buyer inherits: tenant improvements, leasing commissions and committed capex', f'the unpaid tenant improvements on Unit 2, the Gullwing leasing commission and the committed lines of `capex-schedule.csv`: {money(c, obligations_total)} in all, priced as a credit at closing.'),
+        (f'Rent cliff: {top} ({pct(share)} of rent) expires in year 1 of the hold', f'`rent-roll.csv` and `documents/03-lease-unit-01.pdf` — the largest tenant ends on 30 June 2027, six months after the 31 December 2026 closing in `documents/05-offering-memorandum.pdf`.'),
+        ('Roof work flagged by the condition report is not in the seller’s capex schedule', f'`documents/04-property-condition-assessment.pdf` — roof replacement within two years at {money(c, roof)}; `capex-schedule.csv` has no roof line. Priced as remediation.'),
+        ('P&L trend, 2023–2025', 'every imported year side by side: revenue, growth, margins and the repairs, taxes and insurance ratios.'),
+        ('Repairs and maintenance growing faster than revenue, 2023–2025', f'repairs and maintenance rise from {pct(repairs_ratio("2023"))} to {pct(repairs_ratio("2025"))} of revenue — FY2025 alone looks ordinary.'),
     ]
+    assert D('0.4095') <= share < D('0.4105'), share
+    ds.notes = ['Tenants are businesses; the rent roll is lease data, never people data.',
+                'The eleven leases in `documents/` are what the rent roll is checked against: initial rent, escalation, term and each tenant’s proportionate share of recoverable expenses.',
+                '`pnl.csv` and `cam-reconciliation.csv` hold FY2023–FY2025, read side by side on **Finances**; Pactlab asks the seller for FY2021 and FY2022.',
+                'Diligence support only: the pack reconciles documents and arithmetic. It never values the property.']
 
 def hotels(ds):
     ds.kind, ds.kind_label = 'room_revenue', 'revenue-channel settlement'

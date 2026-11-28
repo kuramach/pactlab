@@ -263,7 +263,7 @@ export const content: Catalog['content'] = {
     'pharma-biotech': { name: 'Pharma et biotech', line: 'Contrôler les affirmations sur le pipeline, les dates des brevets et les paiements de licence au regard des documents.' },
     'ecommerce-dtc': { name: 'E-commerce et DTC', line: 'Contrôler la LTV sur marge de contribution, les revenus par canal et qui détient chaque compte au regard des exports.' },
     multifamily: { name: 'Résidentiel collectif', line: 'Rapprocher l’état locatif et le T-12 du mémorandum d’offre, logement par logement.' },
-    'commercial-property': { name: 'Immobilier commercial', line: 'Voir la concentration des locataires, les échéances des baux et les refacturations avant de fixer le prix.' },
+    'commercial-property': { name: 'Immobilier commercial', line: 'Vérifier l’état locatif face aux baux, les refacturations et la falaise d’échéances avant de fixer le prix.' },
     hotels: { name: 'Hôtellerie', line: 'Mettre en balance le RevPAR, les conditions de franchise et les travaux du PIP face au prix demandé.' },
     'small-clinics': { name: 'Petits cabinets', line: 'Contrôler le propriétaire, les prescripteurs et le bail derrière un cabinet de quelques sites.' },
     hospitals: { name: 'Hôpitaux', line: 'Évaluer sur l’EBITDA ajusté du mix payeurs, avec l’activité et l’accréditation en vue.' },
@@ -305,6 +305,14 @@ export const content: Catalog['content'] = {
       points: ['Refus et mix payeurs recalculés par année', 'Praticiens qui facturent après l’expiration de leur autorisation', 'Concentration sans clause de non-concurrence au dossier'],
       imageAlt: 'Services de santé : un cabinet, une ligne de battement de cœur et une check-list de facturation',
       linkLabel: 'Lancer un pacte santé',
+    },
+    'commercial-property': {
+      short: 'Commercial',
+      title: 'Ce sont les baux qui fixent le loyer, pas l’état locatif.',
+      body: 'Pactlab recalcule le loyer de chaque locataire à partir de son bail, vérifie année par année les refacturations NNN et de charges communes que les baux permettent, montre la part du loyer qui arrive à échéance chaque année de la détention et lit le rapport d’état face au plan de travaux du vendeur.',
+      points: ['L’état locatif recalculé bail par bail', 'Des refacturations insuffisantes chaque année de reddition', 'Les points du rapport d’état omis par le plan de travaux, valorisés'],
+      imageAlt: 'Immobilier commercial : un parc de bureaux et d’activités, une frise des échéances de baux et un rapport d’état',
+      linkLabel: 'Lancer un pacte immobilier commercial',
     },
     'pharma-biotech': {
       short: 'Pharma',

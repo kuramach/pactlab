@@ -1,6 +1,36 @@
 import { D } from '../../metrics/decimal';
-import { amountOf, documentClauseRule, grouped, latestMonthRevenue, percent } from '../common';
-import { findSentence, MAX_CITED, type PackRule, type PackRuleEvidence } from '../rule-types';
+import { pnlPeriods } from '../../pnl/pnl';
+import { fiscalYears, pnlLinesFromRecords } from '../../pnl/trend';
+import { wholeMonths } from '../clinics/practice';
+import { amountOf, documentClauseRule, grouped, INVOICE_LINE, latestMonthRevenue, monthName, percent } from '../common';
+import { recentRunRule, type DriverSpec, type PackHistorySpec } from '../history';
+import { PNL_LINE, pnlTrendRules } from '../pnl-trend';
+import { findSentence, MAX_CITED, type PackRule, type PackRuleEvidence, type PackRuleProposal, type PackRuleQuote } from '../rule-types';
+import {
+  anniversariesBy,
+  CAPEX_ITEM,
+  capexSchedule,
+  conditionChecks,
+  creAnalysisDate,
+  creHoldWindow,
+  CRE_KEY_EXPENSES,
+  DOMINANT_TENANT_SHARE,
+  EARLY_HOLD_YEARS,
+  expiryProfile,
+  holdYearOf,
+  leaseReadings,
+  obligations,
+  persistentShortfall,
+  RECOVERY_TREND_MIN_YEARS,
+  recoverableShare,
+  recoveryYears,
+  rentChecks,
+  rentRoll,
+  STATEMENT_RENT_TOLERANCE,
+  statementRent,
+  tenantShares,
+  type CreLeaseReading,
+} from './leases';
 
 /**
  * Commercial property pack rules (T-066, spec §19). Tenants are businesses;
@@ -146,5 +176,330 @@ export const CRE_BELOW_MARKET_ANCHOR: PackRule = {
   },
 };
 
-export const COMMERCIAL_PROPERTY_RULES: readonly PackRule[] = [CRE_ANCHOR_ROLLOVER, CRE_ENVIRONMENTAL_CONDITION, CRE_CAM_UNDER_RECOVERY, CRE_BELOW_MARKET_ANCHOR];
-export const COMMERCIAL_PROPERTY_EVIDENCE = { LEASE, CAM } as const;
+// ---------------------------------------------------------------- rent roll against the leases, recoveries, obligations, the cliff and condition (T-165, ADR 0068)
+
+const cite = (ids: readonly string[]) => [...new Set(ids)].slice(0, MAX_CITED);
+const quotesOf = (quotes: readonly (PackRuleQuote | null | undefined)[]) => quotes.filter((quote): quote is PackRuleQuote => Boolean(quote)).slice(0, MAX_CITED);
+const longDate = (iso: string) => {
+  const [year, month, day] = iso.split('-');
+  return `${Number(day)} ${monthName(`${year}-${month}`)}`;
+};
+const span = (years: readonly { year: string }[]) => (years.length === 1 ? (years[0]?.year ?? '') : `${years[0]?.year ?? ''}–${years.at(-1)?.year ?? ''}`);
+const rollTenants = (evidence: readonly PackRuleEvidence[]) => rentRoll(evidence).map((entry) => entry.tenant);
+const money2 = (value: Decimal) => value.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+
+/**
+ * Rent-roll verification: every suite's rent recomputed from its lease — the initial base rent stepped up by the
+ * lease's escalation on each anniversary reached by the analysis date — against the rent roll; and every fiscal
+ * year of the imported P&L against the rent the leases make due in it. A rent roll above the leases overstates
+ * NOI (−1); statements above the leases likewise. A tenant with no lease on file, or a roll expiry the lease does
+ * not give, is recorded for the reviewer (0). The leases govern, so the check waits until documents are read.
+ */
+export const CRE_RENT_ROLL_VERIFICATION: PackRule = {
+  id: 'cre-rent-roll-verification',
+  version: '1',
+  evidenceTypes: [LEASE, INVOICE_LINE, PNL_LINE],
+  readsDocuments: true,
+  detect: ({ evidence, pages }) => {
+    const asOf = creAnalysisDate(evidence);
+    if (pages.length === 0 || !asOf || !evidence.some((row) => row.evidenceType === LEASE)) return [];
+    const checks = rentChecks(evidence, pages, asOf);
+    const statements = statementRent(evidence, checks);
+    const latest = statements.at(-1);
+    const statementLine = latest
+      ? ` The FY${latest.year} statements carry ${grouped(latest.statements)} of base rental income; the leases on file make ${grouped(latest.leases)} due in the year${latest.gap.abs().lt(1) ? ', so the statements follow the leases' : ` (${latest.gap.gte(0) ? '+' : '−'}${grouped(latest.gap.abs())})`}.`
+      : '';
+    const out: PackRuleProposal[] = [];
+    const over = checks.filter((check) => check.state === 'OVERSTATED');
+    if (over.length) {
+      const monthly = over.reduce((total, check) => total.plus(check.gap as Decimal), new D(0));
+      const rollAnnual = checks.reduce((total, check) => total.plus(check.roll.monthlyRent), new D(0)).times(12);
+      out.push({
+        key: `overstated:${asOf}:${over.map((check) => check.roll.suite).join(',')}`,
+        domain: 'PROPERTY',
+        title: `Rent roll overstates rent against the leases: ${over.length} tenant${over.length === 1 ? '' : 's'}`,
+        description:
+          over
+            .map((check) => {
+              const lease = check.lease as CreLeaseReading;
+              const steps = lease.start ? anniversariesBy(lease.start, asOf) : 0;
+              const basis = lease.escalation?.isZero() ? 'fixed for the term' : `${grouped(lease.initialRent ?? new D(0))} from ${longDate(lease.start ?? asOf)}, up ${percent(lease.escalation ?? new D(0))} on each of ${steps} anniversar${steps === 1 ? 'y' : 'ies'}`;
+              return `${check.roll.tenant}, ${check.roll.suite}: the rent roll says ${money2(check.roll.monthlyRent)} a month; the lease makes ${money2(check.leaseRent as Decimal)} due on ${longDate(asOf)} (${basis}), ${money2(check.gap as Decimal)} a month over`;
+            })
+            .join('. ') +
+          `. Together the rent roll carries ${grouped(monthly.times(12))} a year more than the leases, ${percent(monthly.times(12).div(rollAnnual))} of in-place rent.${statementLine} Carry the leases’ rent in NOI, not the rent roll’s.`,
+        severity: 'HIGH',
+        confidence: 'HIGH',
+        direction: -1,
+        pricedRisk: null,
+        directionRationale: 'NOI on the rent roll is overstated against the leases; at the cap rate that is a price adjustment the reviewer sets.',
+        evidenceIds: cite([...over.map((check) => check.roll.row.id), ...(latest?.evidenceIds ?? [])]),
+        quotes: quotesOf(over.flatMap((check) => [check.lease?.rentQuote, check.lease?.escalationQuote])),
+      });
+    }
+    const high = statements.filter((year) => year.gap.gt(0) && (year.share?.gt(STATEMENT_RENT_TOLERANCE) ?? false));
+    if (high.length)
+      out.push({
+        key: `statements:${high.map((year) => year.year).join(',')}`,
+        domain: 'FINANCIAL',
+        title: `Rental income in the statements exceeds the leases, FY${span(high)}`,
+        description: `${high.map((year) => `FY${year.year}: ${grouped(year.statements)} of base rental income against ${grouped(year.leases)} the leases on file make due (${percent(year.share ?? new D(0))} over)`).join('; ')}. Ask the seller what the rest is before relying on the statements’ rent.`,
+        severity: 'HIGH',
+        confidence: 'HIGH',
+        direction: -1,
+        pricedRisk: null,
+        directionRationale: 'Income the leases do not support: the reviewer normalises NOI to the leases and prices the gap.',
+        evidenceIds: cite(high.flatMap((year) => year.evidenceIds)),
+      });
+    const missing = checks.filter((check) => check.state === 'NO_LEASE' || check.state === 'NOT_COMPUTABLE');
+    if (missing.length)
+      out.push({
+        key: `missing:${missing.map((check) => check.roll.suite).join(',')}`,
+        domain: 'PROPERTY',
+        title: `${missing.length} rent-roll tenant${missing.length === 1 ? ' has' : 's have'} no lease that states the rent`,
+        description: `${missing.map((check) => `${check.roll.tenant}, ${check.roll.suite}: ${check.state === 'NO_LEASE' ? 'no lease agreement on file' : 'the lease on file does not state the initial rent, the commencement date and the escalation'}`).join('; ')}. Absence is shown as absence: ask the seller for the leases before relying on these rents.`,
+        severity: 'MEDIUM',
+        confidence: 'HIGH',
+        direction: 0,
+        directionRationale: 'A gap in the lease file to close, not a price term until the lease is read.',
+        evidenceIds: cite(missing.map((check) => check.roll.row.id)),
+      });
+    const differs = checks.filter((check) => check.expiryDiffers);
+    if (differs.length)
+      out.push({
+        key: `expiry:${differs.map((check) => `${check.roll.suite}-${check.lease?.end}`).join(',')}`,
+        domain: 'PROPERTY',
+        title: `Rent roll expiry dates differ from the leases: ${differs.length} tenant${differs.length === 1 ? '' : 's'}`,
+        description: `${differs.map((check) => `${check.roll.tenant}: the rent roll says ${check.roll.end}, the lease’s term runs to ${check.lease?.end}`).join('; ')}. The lease governs: the expiry profile and the rollover schedule should follow it.`,
+        severity: 'MEDIUM',
+        confidence: 'HIGH',
+        direction: 0,
+        directionRationale: 'A correction to the rent roll; the expiry checks read the lease.',
+        evidenceIds: cite(differs.map((check) => check.roll.row.id)),
+        quotes: quotesOf(differs.map((check) => check.lease?.termQuote)),
+      });
+    return out;
+  },
+};
+
+/**
+ * Recovery reconciliation: by statement year, NNN and CAM recoveries billed (the CAM reconciliation) against what
+ * the leases make recoverable — the year's recoverable pool × the triple-net tenants' proportionate shares the
+ * leases state. A shortfall of 2% or more in every one of three or more consecutive years is a persistent leak a
+ * single year’s view would call noise (−1). The P&L’s recovery line is shown beside each year.
+ */
+export const CRE_RECOVERY_RECONCILIATION: PackRule = {
+  id: 'cre-recovery-reconciliation',
+  version: '1',
+  evidenceTypes: [CAM, LEASE, PNL_LINE],
+  readsDocuments: true,
+  detect: ({ evidence, pages }) => {
+    if (pages.length === 0) return [];
+    const leases = leaseReadings(pages, rollTenants(evidence));
+    const { share, leases: nnn } = recoverableShare(leases);
+    if (nnn.length === 0) return [];
+    const run = persistentShortfall(recoveryYears(evidence, share));
+    if (run.length < RECOVERY_TREND_MIN_YEARS) return [];
+    const { years } = fiscalYears(pnlPeriods(pnlLinesFromRecords(evidence.filter((row) => row.evidenceType === PNL_LINE))));
+    const pnlRecoveries = (year: string) => {
+      const rows = years.find((entry) => entry.period === year)?.sources.filter((row) => row.kind === 'REVENUE' && /\brecover/i.test(row.account)) ?? [];
+      return rows.length ? rows.reduce((total, row) => total.plus(row.amount), new D(0)) : null;
+    };
+    const total = run.reduce((sum, year) => sum.plus(year.shortfall as Decimal), new D(0));
+    const last = run.at(-1) as (typeof run)[number];
+    return [
+      {
+        key: `${span(run)}:${share.toFixed(4)}`,
+        domain: 'PROPERTY',
+        title: `NNN recoveries short of the leases in every year, ${span(run)}`,
+        description:
+          `The leases on file make ${nnn.length} tenant${nnn.length === 1 ? '' : 's'} triple net, with proportionate shares summing to ${percent(share)} of the recoverable expenses. ` +
+          run
+            .map((year) => {
+              const pnl = pnlRecoveries(year.year);
+              return `${year.year}: ${grouped(year.pool)} recoverable expenses, ${grouped(year.recoverable as Decimal)} recoverable under the leases, ${grouped(year.billed)} billed${pnl ? ` (the P&L carries ${grouped(pnl)})` : ''}, ${grouped(year.shortfall as Decimal)} short (${percent(year.shortfallShare as Decimal)})`;
+            })
+            .join('; ') +
+          `. ${grouped(total)} unrecovered over ${run.length} years: a persistent leak out of NOI, not a one-year timing difference. Normalise NOI to the leases’ recoveries, or price the leak and ask the seller why the reconciliations under-bill.`,
+        severity: (last.shortfallShare as Decimal).gte('0.05') ? 'HIGH' : 'MEDIUM',
+        confidence: 'HIGH',
+        direction: -1,
+        pricedRisk: null,
+        directionRationale: 'NOI carries expenses the leases let the landlord recover and it did not: the reviewer prices the leak at the cap rate.',
+        evidenceIds: cite(run.flatMap((year) => year.evidenceIds)),
+        quotes: quotesOf(nnn.map((lease) => lease.recoveryQuote)),
+      },
+    ];
+  },
+};
+
+/**
+ * The obligations register: tenant improvement allowances and leasing commissions the leases say the landlord
+ * still owes, and the committed lines of the seller's capex schedule. The buyer inherits them at closing, so
+ * they are priced into the bridge as a price reduction at their sum (−1). Waits for the leases.
+ */
+export const CRE_OBLIGATIONS: PackRule = {
+  id: 'cre-obligations',
+  version: '1',
+  evidenceTypes: [LEASE, CAPEX_ITEM, INVOICE_LINE],
+  readsDocuments: true,
+  detect: ({ evidence, pages }) => {
+    if (pages.length === 0) return [];
+    const list = obligations(evidence, pages);
+    if (list.length === 0) return [];
+    const base = latestMonthRevenue(evidence)?.currency ?? null;
+    const currencies = new Set(list.map((entry) => entry.currency ?? base));
+    const currency = currencies.size === 1 ? ([...currencies][0] ?? null) : null;
+    const total = list.reduce((sum, entry) => sum.plus(entry.amount), new D(0));
+    return [
+      {
+        key: list.map((entry) => `${entry.kind}:${entry.amount.toFixed(2)}`).join(','),
+        domain: 'PROPERTY',
+        title: 'Landlord obligations the buyer inherits: tenant improvements, leasing commissions and committed capex',
+        description:
+          `${list.map((entry) => `${entry.label}: ${grouped(entry.amount)}`).join('; ')}. ` +
+          `${grouped(total)} in all${currency ? ` (${currency})` : ''}, from the leases’ own sentences and the committed lines of the seller’s capex schedule. Price it as a credit at closing, or have the seller settle it before.`,
+        severity: 'MEDIUM',
+        confidence: 'HIGH',
+        direction: -1,
+        pricedRisk: currency ? { type: 'PRICE_REDUCTION', currency, low: total.toFixed(2), high: total.toFixed(2), basis: 'Unpaid tenant improvements and leasing commissions the leases state, and committed capex on the seller’s schedule.' } : null,
+        directionRationale: 'Cash the buyer pays after closing for obligations the seller incurred: a price reduction at their sum.',
+        evidenceIds: cite([...list.flatMap((entry) => (entry.evidenceId ? [entry.evidenceId] : [])), ...rentRoll(evidence).map((entry) => entry.row.id)]),
+        quotes: quotesOf(list.map((entry) => entry.quote)),
+      },
+    ];
+  },
+};
+
+/**
+ * Concentration and the expiry cliff: rent share by tenant from the rent roll, and the share of rent expiring in
+ * each year of the hold — measured from the expected closing a document states (else the analysis date), for the
+ * hold a document states (else five years); a lease's own term governs its end date. A dominant tenant (25% of
+ * rent or more) whose lease ends before the closing or in the first two years of the hold is a cliff (−1).
+ */
+export const CRE_RENT_CLIFF: PackRule = {
+  id: 'cre-rent-cliff',
+  version: '1',
+  evidenceTypes: [LEASE, INVOICE_LINE],
+  readsDocuments: true,
+  detect: ({ evidence, pages }) => {
+    if (pages.length === 0) return [];
+    const hold = creHoldWindow(evidence, pages);
+    const { shares } = tenantShares(evidence);
+    const top = shares[0];
+    if (!hold || !top || top.share.lt(DOMINANT_TENANT_SHARE)) return [];
+    const lease = leaseReadings(pages, shares.map((entry) => entry.entry.tenant)).find((reading) => reading.tenant === top.entry.tenant) ?? null;
+    const end = lease?.end ?? top.entry.end;
+    if (!end) return [];
+    const year = holdYearOf(end, hold);
+    if (year > EARLY_HOLD_YEARS) return [];
+    const profile = expiryProfile(evidence, hold).filter((bucket) => bucket.share.gt(0));
+    const months = end < hold.from ? null : wholeMonths(hold.from, end);
+    const measured = hold.basis === 'EXPECTED_CLOSING' ? `the expected closing on ${longDate(hold.from)}` : `${longDate(hold.from)}, the end of the latest billed month (no closing date is stated)`;
+    const when = year === 0 ? 'before the closing' : `in year ${year} of the hold`;
+    return [
+      {
+        key: `${top.entry.suite}:${end}:${hold.from}:${hold.years}`,
+        domain: 'PROPERTY',
+        title: `Rent cliff: ${top.entry.tenant} (${percent(top.share)} of rent) expires ${when}`,
+        description:
+          `${top.entry.tenant} pays ${percent(top.share)} of base rent on the rent roll, and its lease ends on ${longDate(end)} (${lease?.end ? 'as the lease states' : 'from the rent roll'}), ${months === null ? 'before the closing' : `${months} month${months === 1 ? '' : 's'} after ${measured}`}. ` +
+          `Share of rent expiring over the ${hold.years}-year hold${hold.yearsStated ? ' the documents state' : ' (none is stated; five years assumed)'}: ${profile.map((bucket) => `${bucket.label} ${percent(bucket.share)}`).join(', ')}. ` +
+          'A vacancy here removes that share of income early in ownership: carry the renewal probability, downtime, leasing costs and re-letting rent in the scenarios, or make a renewal a closing condition. Documents and arithmetic only; no view on whether the tenant renews.',
+        severity: 'HIGH',
+        confidence: 'HIGH',
+        direction: -1,
+        pricedRisk: null,
+        directionRationale: 'Income concentrated in one lease that ends early in the hold: a rollover assumption the reviewer sets in the scenarios.',
+        evidenceIds: cite(shares.map((entry) => entry.entry.row.id)),
+        quotes: quotesOf([lease?.termQuote, hold.closingQuote]),
+      },
+    ];
+  },
+};
+
+/**
+ * Condition evidence: items a property condition assessment or environmental report flags with an estimated cost,
+ * by building element, against the seller's capex schedule. An item the schedule omits is a drag priced as
+ * remediation at the report's estimate; one the schedule budgets below 90% of it is priced at the difference.
+ * Nothing is drafted until the schedule is imported and the reports are read.
+ */
+export const CRE_CONDITION_CAPEX: PackRule = {
+  id: 'cre-condition-capex',
+  version: '1',
+  evidenceTypes: [CAPEX_ITEM],
+  readsDocuments: true,
+  detect: ({ evidence, pages }) => {
+    if (pages.length === 0 || !evidence.some((row) => row.evidenceType === CAPEX_ITEM)) return [];
+    return conditionChecks(evidence, pages).flatMap((check): PackRuleProposal[] => {
+      if (check.state === 'COVERED') return [];
+      const { item } = check;
+      const omitted = check.state === 'OMITTED';
+      const gap = omitted ? item.amount : item.amount.minus(check.scheduledAmount);
+      return [
+        {
+          key: `${item.element.key}:${check.state.toLowerCase()}:${item.amount.toFixed(2)}`,
+          domain: 'PROPERTY',
+          title: omitted ? `${item.element.label} work flagged by the condition report is not in the seller’s capex schedule` : `${item.element.label} work under-budgeted in the seller’s capex schedule`,
+          description:
+            `The condition report says: “${item.quote.quote}” ` +
+            (omitted
+              ? 'The seller’s capex schedule has no line for it. '
+              : `The schedule carries ${grouped(check.scheduledAmount)} for it (${check.scheduled.map((line) => `${line.item}, ${line.year}`).join('; ')}), ${grouped(gap)} short of the estimate. `) +
+            'The buyer funds it after closing: price it into the bridge as remediation, or have the seller complete it before closing.',
+          severity: omitted && gap.gte(new D(500000)) ? 'HIGH' : 'MEDIUM',
+          confidence: 'HIGH',
+          direction: -1,
+          pricedRisk: { type: 'REMEDIATION_COST', currency: item.currency, low: gap.toFixed(2), high: gap.toFixed(2), basis: omitted ? 'The condition report’s estimate for work the capex schedule omits.' : 'The condition report’s estimate less what the capex schedule budgets.' },
+          directionRationale: 'Capital work the evidence says is due and the seller’s schedule does not fund: a remediation cost on the bridge.',
+          evidenceIds: cite(check.scheduled.length ? check.scheduled.map((line) => line.row.id) : capexSchedule(evidence).map((line) => line.row.id)),
+          quotes: [item.quote],
+        },
+      ];
+    });
+  },
+};
+
+export const [CRE_PNL_TREND, CRE_PNL_MARGIN_DRIFT, CRE_PNL_EXPENSE_OUTPACING] = pnlTrendRules('cre', CRE_KEY_EXPENSES) as [PackRule, PackRule, PackRule];
+
+/** Five years of history (ADR 0057): the P&L by year beside the recovery ratio the CAM reconciliations give. */
+export const CRE_DRIVERS = {
+  recoveryRatio: {
+    key: 'recovery_ratio',
+    label: 'Recoveries billed ÷ recoverable expenses',
+    unit: 'RATIO',
+    evidenceType: CAM,
+    mode: 'RATIO',
+    numerator: ['recoveries'],
+    denominator: ['expenses'],
+    formula: 'Σ recoveries billed ÷ Σ recoverable expenses, from the year’s CAM reconciliation',
+    compute: (evidence) =>
+      recoveryYears(evidence, null).map((year) => ({ year: year.year, value: year.pool.gt(0) ? year.billed.div(year.pool).toFixed(4) : null, evidenceIds: year.evidenceIds })),
+  },
+} as const satisfies Record<string, DriverSpec>;
+
+export const CRE_HISTORY: PackHistorySpec = {
+  drivers: [CRE_DRIVERS.recoveryRatio],
+  keyExpenses: CRE_KEY_EXPENSES,
+  driverImport: 'CRE_CAM_RECONCILIATION',
+  driverLabel: 'CAM reconciliation',
+  driverWhat: 'CAM reconciliations',
+};
+
+export const COMMERCIAL_PROPERTY_RULES: readonly PackRule[] = [
+  CRE_ANCHOR_ROLLOVER,
+  CRE_ENVIRONMENTAL_CONDITION,
+  CRE_CAM_UNDER_RECOVERY,
+  CRE_BELOW_MARKET_ANCHOR,
+  CRE_RENT_ROLL_VERIFICATION,
+  CRE_RECOVERY_RECONCILIATION,
+  CRE_OBLIGATIONS,
+  CRE_RENT_CLIFF,
+  CRE_CONDITION_CAPEX,
+  CRE_PNL_TREND,
+  CRE_PNL_MARGIN_DRIFT,
+  CRE_PNL_EXPENSE_OUTPACING,
+  // The recent run against the long run (T-185): quiet until ten years or more are read.
+  recentRunRule('cre', CRE_HISTORY),
+];
+export const COMMERCIAL_PROPERTY_EVIDENCE = { LEASE, CAM, CAPEX_ITEM } as const;

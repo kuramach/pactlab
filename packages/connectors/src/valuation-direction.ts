@@ -50,6 +50,10 @@ export const CLINICS_REFERRAL_MONTH_EVIDENCE_TYPE = 'clinics.referral_month';
 export const HOSPITALS_COST_REPORT_YEAR_EVIDENCE_TYPE = 'hospitals.cost_report_year';
 export const HOSPITALS_CAPEX_YEAR_EVIDENCE_TYPE = 'hospitals.capex_year';
 export const HOSPITALS_CENSUS_MONTH_EVIDENCE_TYPE = 'hospitals.census_month';
+/** Commercial property (T-066, T-165): the rent roll by suite, the CAM reconciliation by year and the seller's capex schedule. */
+export const CRE_LEASE_EVIDENCE_TYPE = 'cre.lease';
+export const CRE_CAM_CATEGORY_EVIDENCE_TYPE = 'cre.cam_category';
+export const CRE_CAPEX_ITEM_EVIDENCE_TYPE = 'cre.capex_item';
 /** Pharma and biotech (T-064, T-163): the pipeline schedule, trial-registry records, patent schedule, obligations model and R&D roster. */
 export const PHARMA_PROGRAMME_EVIDENCE_TYPE = 'pharma.programme';
 export const PHARMA_REGISTRY_TRIAL_EVIDENCE_TYPE = 'pharma.registry_trial';
@@ -341,6 +345,34 @@ export const VALUATION_DIRECTION_MAP: Readonly<Record<string, readonly Direction
     },
   ],
   [HOSPITALS_CENSUS_MONTH_EVIDENCE_TYPE]: [driverTrend('COMMERCIAL')],
+  // Commercial property (T-165, ADR 0068): the rent roll read against the leases, recoveries against the leases'
+  // shares, the landlord's obligations, the expiry cliff over the hold and the condition reports against the
+  // seller's capex schedule. Documents and arithmetic only: never an appraisal of the property.
+  [CRE_LEASE_EVIDENCE_TYPE]: [
+    { signal: 'rent-overstated', findingDomain: 'PROPERTY', defaultDirection: -1, channel: 'ASSUMPTION' },
+    { signal: 'statement-rent-exceeds-leases', findingDomain: 'FINANCIAL', defaultDirection: -1, channel: 'ASSUMPTION' },
+    {
+      signal: 'lease-missing',
+      findingDomain: 'PROPERTY',
+      defaultDirection: 0,
+      channel: 'INFORMATIONAL',
+      rationale: 'A rent-roll tenant with no lease that states the rent: evidence to request, not a defect to price.',
+    },
+    {
+      signal: 'expiry-differs',
+      findingDomain: 'PROPERTY',
+      defaultDirection: 0,
+      channel: 'INFORMATIONAL',
+      rationale: 'A rent-roll expiry the lease does not give is a correction to the roll; the expiry checks read the lease.',
+    },
+    { signal: 'rent-cliff', findingDomain: 'PROPERTY', defaultDirection: -1, channel: 'ASSUMPTION' },
+    { signal: 'landlord-obligations', findingDomain: 'PROPERTY', defaultDirection: -1, channel: 'PRICED_TERM' },
+  ],
+  [CRE_CAM_CATEGORY_EVIDENCE_TYPE]: [{ signal: 'recovery-shortfall-persistent', findingDomain: 'PROPERTY', defaultDirection: -1, channel: 'ASSUMPTION' }],
+  [CRE_CAPEX_ITEM_EVIDENCE_TYPE]: [
+    { signal: 'condition-item-omitted', findingDomain: 'PROPERTY', defaultDirection: -1, channel: 'PRICED_TERM' },
+    { signal: 'condition-item-under-budgeted', findingDomain: 'PROPERTY', defaultDirection: -1, channel: 'PRICED_TERM' },
+  ],
   // Small clinics (T-161, ADR 0052): the owner-operator's share and each service line's providers recomputed from the
   // schedule and billing exports; visits by referral source. Retention and volume risks, never a ranking or a legal view.
   [CLINICS_SERVICE_LINE_MONTH_EVIDENCE_TYPE]: [
@@ -522,6 +554,9 @@ export const ADAPTER_EVIDENCE_TYPES = [
   HOSPITALS_COST_REPORT_YEAR_EVIDENCE_TYPE,
   HOSPITALS_CAPEX_YEAR_EVIDENCE_TYPE,
   HOSPITALS_CENSUS_MONTH_EVIDENCE_TYPE,
+  CRE_LEASE_EVIDENCE_TYPE,
+  CRE_CAM_CATEGORY_EVIDENCE_TYPE,
+  CRE_CAPEX_ITEM_EVIDENCE_TYPE,
   PHARMA_PROGRAMME_EVIDENCE_TYPE,
   PHARMA_REGISTRY_TRIAL_EVIDENCE_TYPE,
   PHARMA_PATENT_EVIDENCE_TYPE,
