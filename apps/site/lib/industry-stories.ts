@@ -355,34 +355,34 @@ export const INDUSTRY_STORIES: Readonly<Record<string, IndustryStory>> = {
   hotels: {
     headline: 'A hotel is an operating business on a property.',
     subhead:
-      'Room revenue, brand obligations and the capex the brand will demand decide what a hotel is worth. Pactlab reads the operating history and the agreements, and prices the property-improvement plan before you sign.',
+      'A hotel’s price rests on its flag and how it performs against its competitive set. Pactlab reads the franchise agreement and the brand’s property improvement plan against the hold and the seller’s capex budget, checks the deck’s RevPAR and index claims against the STR benchmark, and shows what the management agreement binds a buyer to. It never values the flag.',
     illustrationAlt: 'Illustration of a hotel building, a RevPAR chart and a brand agreement.',
     pains: [
-      { icon: 'ChartLine', title: 'RevPAR read without the competitive set', body: 'Growth that trails the market is decline in disguise.' },
-      { icon: 'Stamp', title: 'A brand renovation plan waiting at closing', body: 'Property-improvement plans can land on the buyer the day the deal closes.' },
-      { icon: 'Snowflake', title: 'Demand that lives in one season', body: 'A strong year can rest on a few months or a single demand source.' },
+      { icon: 'ChartLine', title: 'A RevPAR index the STR report does not support', body: 'A deck that says 112 against a benchmark that says 97 sets the price on share the hotel does not have.' },
+      { icon: 'Stamp', title: 'A renovation due six months after closing', body: 'PIP items fall due on the brand’s timetable, whether or not the seller budgeted them.' },
+      { icon: 'Hourglass', title: 'A flag that ends inside the hold', body: 'A franchise term three years from closing turns renewal, re-flagging and liquidated damages into the buyer’s problem.' },
     ],
     walkthrough: [
-      { step: 'Evidence', text: 'PMS and STR reports, franchise and brand agreements, management contracts, occupancy, ADR and RevPAR history, and food-and-beverage P&Ls.' },
-      { step: 'Finding', text: 'Deferred PIP capex, franchise encumbrances and termination windows, and demand seasonality, each citing its source.' },
-      { step: 'Review', text: 'Reviewers decide each finding with the agreement clause or operating rows in view.' },
-      { step: 'Valuation', text: 'RevPAR and GOP-margin trends feed the scenarios; PIP capex lands as remediation.' },
-      { step: 'Deal terms', text: 'PIP capex as a price adjustment or escrow, and brand consents as closing conditions.' },
+      { step: 'Evidence', text: 'The franchise agreement, the property improvement plan, the management agreement, the deck, the seller’s capex schedule, the monthly operating history, the STR benchmark and the P&L by year.' },
+      { step: 'Finding', text: 'A franchise term ending inside the hold, PIP items due unfunded, contradicted RevPAR and index claims, a management agreement that binds the buyer and brand fees outgrowing rooms revenue, each citing its sentence or rows.' },
+      { step: 'Review', text: 'Reviewers decide each finding with the agreement sentence, the STR rows or the P&L lines in view.' },
+      { step: 'Valuation', text: 'NOI ÷ cap rate with a DCF alongside; the PIP lands as remediation or an escrow, and contradicted claims become scenario inputs.' },
+      { step: 'Deal terms', text: 'A PIP escrow or price adjustment, a franchise renewal as a closing condition, and the management agreement’s termination negotiated before closing.' },
     ],
     findings: [
-      { title: 'Brand PIP required on change of ownership', severity: 'High', evidence: 'Clause cited from the franchise agreement', term: 'Price adjustment or PIP escrow' },
-      { title: 'RevPAR growth trailing the competitive set', severity: 'Medium', evidence: 'STR reports against the operating history', term: 'Downside case in the valuation' },
-      { title: 'Management contract terminable only with a fee', severity: 'Medium', evidence: 'Termination clause cited from the management contract', term: 'Termination cost in the purchase-price bridge' },
+      { title: 'RevPAR index contradicted by the STR benchmark', severity: 'High', evidence: 'The deck’s claim, quoted, against the benchmark’s trailing twelve months', term: 'Scenarios on the benchmark’s figure, the gap priced' },
+      { title: 'PIP item due within a year of closing, unbudgeted', severity: 'High', evidence: 'The PIP item and its date against the seller’s capex schedule', term: 'An escrow at what is unfunded' },
+      { title: 'Franchise term ends inside the hold', severity: 'High', evidence: 'The term and the liquidated damages, quoted from the franchise agreement', term: 'Renewal as a closing condition, or a re-flagging scenario' },
     ],
     deliverables: [
-      { icon: 'ChartLine', title: 'RevPAR and margin trends', body: 'From the operating history, set against the competitive set.' },
-      { icon: 'Stamp', title: 'A brand obligations register', body: 'PIP, encumbrances and termination windows, each with its clause.' },
-      { icon: 'Handshake', title: 'Terms that carry the capex', body: 'PIP costs priced into the deal rather than discovered after it.' },
+      { icon: 'ChartLine', title: 'A performance claims register', body: 'Every RevPAR, ADR, occupancy and index claim marked verified, contradicted or unverified against the exports.' },
+      { icon: 'Stamp', title: 'A franchise and PIP register', body: 'The term, termination rights, fees and each PIP item with its date and whether the budget funds it.' },
+      { icon: 'Handshake', title: 'The fees and terms that come with the flag', body: 'Brand fees against rooms revenue by year, and what the management agreement binds a buyer to.' },
     ],
     faq: [
-      { q: 'What does the hotels pack read?', a: 'PMS and STR reports, franchise and brand agreements, management contracts, occupancy, ADR and RevPAR history, and food-and-beverage P&Ls.' },
-      { q: 'How is the property-improvement plan priced?', a: 'As a priced finding. Once accepted, PIP capex is remediation in the valuation and a price adjustment or escrow in the terms.' },
-      { q: 'Does it cover independent hotels?', a: 'Yes. Without a brand there are no franchise findings; operating, demand and management-contract findings still apply.' },
+      { q: 'What does the hotels pack read?', a: 'The franchise and management agreements, the brand’s property improvement plan, the deck, the seller’s capex schedule, the monthly operating history, the STR benchmark and the P&L by year.' },
+      { q: 'How is the property-improvement plan priced?', a: 'The whole plan as remediation, from the estimate the franchise agreement states; and the items due in the first year that the capex schedule does not fund as an escrow. A person accepts one or the other, never both.' },
+      { q: 'Does Pactlab value the hotel or its flag?', a: 'No. It checks documents, dates and arithmetic — the agreements, the PIP, the STR benchmark and the P&L — and the reviewer sets the cap rate and the price. Independent hotels run the same checks without the franchise and PIP findings.' },
     ],
   },
 
@@ -632,10 +632,10 @@ export const WRITTEN_INDUSTRIES = INDUSTRIES.filter((industry) => industry.slug 
  * The packs on sale (Kumar, 2026-11-01): Software & SaaS and Multifamily, then
  * Venture Raise (2026-11-09), with the others released one at a time after testing (Fintech with its
  * payments and licence checks, T-159, 2026-11-26; Healthcare, T-160; Small clinics with its owner, referral and
- * lease checks, T-161, 2026-11-26; IT & professional services with its realization, concentration and covenant checks, T-167; Telecom & media with its subscriber, rights-window and concentration checks, T-168; Hospitals with its cost-report, payer-contract, medical-staff, plant and quality checks, T-162). Same list as the
+ * lease checks, T-161, 2026-11-26; IT & professional services with its realization, concentration and covenant checks, T-167; Telecom & media with its subscriber, rights-window and concentration checks, T-168; Hospitals with its cost-report, payer-contract, medical-staff, plant and quality checks, T-162; Commercial property with its lease, recovery and condition checks, T-165; Hotels with its franchise, PIP, performance-claims and management-contract checks, T-166). Same list as the
  * app's RELEASED_COMPANY_TYPES (packages/domain/src/packs/release.ts).
  */
-export const RELEASED_INDUSTRY_SLUGS: readonly string[] = ['software-saas', 'multifamily', 'venture-raise', 'music-rights', 'energy-generation', 'startup-spv', 'fintech', 'healthcare', 'small-clinics', 'pharma-biotech', 'ecommerce-dtc', 'professional-services', 'telecom-media', 'hospitals', 'commercial-property'];
+export const RELEASED_INDUSTRY_SLUGS: readonly string[] = ['software-saas', 'multifamily', 'venture-raise', 'music-rights', 'energy-generation', 'startup-spv', 'fintech', 'healthcare', 'small-clinics', 'pharma-biotech', 'ecommerce-dtc', 'professional-services', 'telecom-media', 'hospitals', 'commercial-property', 'hotels'];
 
 /** An environment's copy of the site (dev, qa) previews every written pack, for testing before release. */
 export const PACK_PREVIEW = process.env['NEXT_PUBLIC_PACK_PREVIEW'] === 'true';

@@ -973,7 +973,7 @@ export const CRE_CAPEX_SCHEDULE: TargetDefinition = {
   fields: [
     { name: 'year', label: 'Year', kind: 'text', required: true, hint: 'YYYY, the year the work is scheduled.' },
     { name: 'item', label: 'Item', kind: 'text', required: true, hint: 'What the work is, e.g. Rooftop HVAC unit replacement.' },
-    { name: 'category', label: 'Building element', kind: 'code', required: true, hint: 'roof, hvac, paving, elevators, envelope, fire, electrical, plumbing, structure or other.' },
+    { name: 'category', label: 'Building element', kind: 'code', required: true, hint: 'roof, hvac, paving, elevators, envelope, fire, electrical, plumbing, structure or other; for a hotel also guestrooms, bathrooms, public_areas, fitness, pool, restaurant or signage.' },
     { name: 'amount', label: 'Amount', kind: 'money', required: true, hint: IN_BASE_CURRENCY },
     { name: 'status', label: 'Status', kind: 'code', required: false, hint: 'committed (contracted or under way) or planned.' },
   ],
@@ -1017,6 +1017,9 @@ export const HOTELS_STR_BENCHMARK: TargetDefinition = {
     { name: 'adr', label: 'ADR', kind: 'money', required: true, hint: IN_BASE_CURRENCY },
     { name: 'revpar', label: 'RevPAR', kind: 'money', required: true, hint: IN_BASE_CURRENCY },
     { name: 'comp_set_revpar', label: 'Competitive-set RevPAR', kind: 'money', required: true, hint: IN_BASE_CURRENCY },
+    // Optional (T-166): the competitive set's occupancy and ADR, for the occupancy (MPI) and ADR (ARI) indices.
+    { name: 'comp_set_occupancy', label: 'Competitive-set occupancy', kind: 'decimal', required: false, hint: 'A fraction, e.g. 0.761.' },
+    { name: 'comp_set_adr', label: 'Competitive-set ADR', kind: 'money', required: false, hint: IN_BASE_CURRENCY },
   ],
 };
 

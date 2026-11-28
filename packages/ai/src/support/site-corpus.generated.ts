@@ -332,6 +332,14 @@ export const SITE_CORPUS: readonly HelpArticle[] = [
     "locale": "en"
   },
   {
+    "id": "industry:hotels",
+    "kind": "INDUSTRY",
+    "title": "Hotels and hospitality in Pactlab",
+    "url": "https://pactlab.ai/industries/hotels/",
+    "text": "An operating business on a property: its flag, the capex the brand demands and how it performs against its competitive set.\nAcquisitions of branded and independent hotels by hospitality funds, owner-operators and REITs.\nWhen does the franchise end, and what does leaving early cost?\nWhich PIP items fall due after closing, and does the seller’s budget fund them?\nDo the deck’s RevPAR and index figures match the STR benchmark?\nWhat does the management agreement bind a buyer to, and what do the brand’s fees do to NOI over the years?\nPerformance against the comp set: The STR benchmark’s RevPAR, occupancy and ADR indices, and every performance claim checked against them.\nFranchise, PIP and management findings: The term against the hold, each PIP item against the capex budget and what survives a sale.\nFees and demand over time: Brand fees against rooms revenue by year, channel concentration and seasonality.\nEvidence: The franchise or brand agreement: term, termination rights, liquidated damages and fees; The brand’s property improvement plan and the seller’s capex schedule; The management agreement: term, fees and what binds a purchaser; The monthly operating history and the STR benchmark against the competitive set; The deck or memorandum, and the P&L by year\nFindings: A franchise term that ends inside the hold, with what leaving early costs; PIP items due in the first year after closing that the capex schedule does not fund; RevPAR, ADR, occupancy and comp-set index claims the STR benchmark or the operating history contradicts; A management agreement that binds the buyer, with the cost to end it; Franchise and brand fees growing faster than rooms revenue across the years; RevPAR trailing the competitive set, channel concentration and seasonal demand\nValuation: NOI ÷ cap rate with a DCF alongside; The PIP as remediation, or an escrow for what falls due unfunded; Contradicted claims and the brand-fee trend as scenario inputs",
+    "locale": "en"
+  },
+  {
     "id": "industry:small-clinics",
     "kind": "INDUSTRY",
     "title": "Small clinics in Pactlab",

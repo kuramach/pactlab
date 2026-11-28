@@ -254,7 +254,7 @@ export const content: Catalog['content'] = {
     'ecommerce-dtc': { name: 'EC と D2C', line: '貢献利益ベースの LTV、チャネル別売上、各アカウントの保有者をエクスポートと照合。' },
     multifamily: { name: '集合住宅', line: 'レントロールと T-12 を、オファリング・メモランダムと一戸ずつ照合。' },
     'commercial-property': { name: '商業不動産', line: 'レントロールを契約と照合し、経費回収と満了の崖を、価格を決める前に確認。' },
-    hotels: { name: 'ホテル・ホスピタリティ', line: 'RevPAR、フランチャイズ条件、PIP の設備投資を、提示価格と比べて評価。' },
+    hotels: { name: 'ホテル・ホスピタリティ', line: '価格を決める前に、フランチャイズ、PIP、STR の主張を確認。' },
     'small-clinics': { name: '小規模クリニック', line: '数拠点のクリニックを支えるオーナー、紹介元、賃貸借契約を確認。' },
     hospitals: { name: '病院', line: '支払者構成調整後 EBITDA で評価し、病床稼働と認定も視野に。' },
     'multifamily-syndication': { name: '集合住宅シンジケーション', line: '物件と募集内容を確認：リターン、手数料、実績。' },
@@ -303,6 +303,14 @@ export const content: Catalog['content'] = {
       points: ['契約ごとにレントロールを再計算', 'すべての精算年度にわたる回収不足', '資本的支出計画が漏らす調査の指摘項目を価格に反映'],
       imageAlt: '商業不動産：オフィスと産業施設の団地、賃貸借契約の満了タイムライン、建物状況調査',
       linkLabel: '商業不動産のパクトを実行する',
+    },
+    hotels: {
+      short: 'ホテル',
+      title: 'ブランドと競合セットを、価格を決める前に確認。',
+      body: 'Pactlab はフランチャイズの期間とブランドの改装計画を保有期間と売り手の設備投資予算に照らして読み、プレゼン資料の RevPAR と指数の主張を STR ベンチマークで確認し、運営委託契約が買い手を何に縛るかを示します。',
+      points: ['保有期間に対するフランチャイズ期間と PIP 項目', 'STR ベンチマークに対する RevPAR 指数の主張', '客室売上に対するブランドフィー、年ごとに'],
+      imageAlt: 'ホテル：ホテルの建物、競合セットに対する RevPAR のグラフ、ブランド契約',
+      linkLabel: 'ホテルのパクトを実行',
     },
     'pharma-biotech': {
       short: '製薬',

@@ -440,7 +440,7 @@ PACK_IMPORTS = {
     'pharma-biotech': {'patent-schedule': 'Patent schedule', 'trial-registry': 'Trial registry records', 'pipeline': 'Pipeline', 'obligations-model': 'Payment obligations model', 'rd-roster': 'R&D roster'},
     'ecommerce-dtc': {'orders-by-cohort': 'Orders by cohort', 'ad-spend': 'Ad spend', 'channel-orders': 'Orders by channel', 'inventory': 'Stock report'},
     'commercial-property': {'rent-roll': 'Commercial rent roll', 'cam-reconciliation': 'CAM reconciliation', 'capex-schedule': 'Capex schedule'},
-    'hotels': {'operating-history': 'Operating history', 'str-benchmark': 'STR benchmark'},
+    'hotels': {'operating-history': 'Operating history', 'str-benchmark': 'STR benchmark', 'capex-schedule': 'Capex schedule'},
     'small-clinics': {'patient-volume': 'Patient volume', 'equipment-schedule': 'Equipment schedule', 'coding-summary': 'Coding summary', 'remittances': 'Remittances by payer',
                       'clinician-collections': 'Collections by clinician', 'credentialing-register': 'Credentialing register', 'payer-contracts': 'Payer contract register',
                       'service-lines': 'Service lines by provider', 'referrals': 'Visits by referral source'},
@@ -2201,47 +2201,170 @@ The buyer's business plan assumes a hold period of 5 years.
 
 def hotels(ds):
     ds.kind, ds.kind_label = 'room_revenue', 'revenue-channel settlement'
-    ds.summary = f'{ds.company} owns and operates the 180-room Harbourview Hotel, a branded upscale hotel under a franchise agreement.'
-    rng = ds.rng
+    ds.summary = f'{ds.company} owns and operates the 180-room Harbourview Hotel, a branded upscale hotel under a franchise agreement and a third-party management agreement.'
+    c = ds.cur
     season = {1: 0.72, 2: 0.76, 3: 0.84, 4: 0.9, 5: 1.0, 6: 1.18, 7: 1.32, 8: 1.3, 9: 1.08, 10: 0.95, 11: 0.8, 12: 0.78}
     chans = [('BookNest online travel agency', 0.41), ('Direct web and phone', 0.27), ('Corporate accounts', 0.18), ('Groups and events', 0.09), ('Food and beverage', 0.05)]
+    # The hotel's months back to January 2023, so the P&L's FY2023–FY2025 rooms revenue comes from the same series;
+    # the operating-history export is the 24 months from October 2024, as T-067 built them.
     hist, str_rows = [], []
-    for i, mo in enumerate(MONTHS):
+    offset = len(HIST_MONTHS)
+    for k, mo in enumerate(HIST_MONTHS + MONTHS):
+        i = k - offset
+        if mo < '2023-01': continue
         s = D(str(season[int(mo[5:])]))
         occ = min(D('0.93'), D('0.68') * s)
         adr = ds.amt(168) * (D('0.92') + s / 10) * (D('1.015') ** (i // 12))
         sold = int(D(180 * 30) * occ)
         room_rev = q(adr * sold)
         hist.append([mo, 180 * 30, sold, f'{q(adr):.2f}', f'{q(room_rev / (180 * 30)):.2f}', f'{room_rev:.2f}', f'{q(room_rev * D("0.19")):.2f}', f'{q(room_rev * D("0.34")):.2f}'])
-        if mo >= '2025-10':
-            comp = q(room_rev / (180 * 30) * D('1.07') * (D('1.006') ** (i - 12)))
-            str_rows.append([mo, f'{occ:.3f}', f'{q(adr):.2f}', f'{q(room_rev / (180 * 30)):.2f}', f'{comp:.2f}'])
+    recent = [r for r in hist if r[0] in MONTHS]
+    # The STR benchmark, October 2025 to September 2026: the RevPAR index slides from about 99.8 to about 94.8, so the
+    # trailing twelve months read 97.0 (planted (b): the deck says 112). The competitive set's occupancy index holds at 101.
+    bench = [r for r in recent if r[0] >= '2025-10']
+    target = D('0.970')
+
+    def comp_rows(start):
+        rows = []
+        for j, r in enumerate(bench):
+            idx = start - D('0.0045') * j
+            revpar = D(r[4])
+            comp = q(revpar / idx)
+            occ = D(r[2]) / D(r[1])
+            comp_occ = (occ / D('1.01')).quantize(D('0.001'), ROUND_HALF_UP)
+            rows.append([r[0], f'{occ:.3f}', r[3], r[4], f'{comp:.2f}', f'{comp_occ:.3f}', f'{q(comp / comp_occ):.2f}'])
+        return rows
+    lo, hi = D('0.9'), D('1.05')
+    for _ in range(60):
+        mid = (lo + hi) / 2
+        rows = comp_rows(mid)
+        rgi = sum(D(r[3]) for r in rows) / sum(D(r[4]) for r in rows)
+        lo, hi = (mid, hi) if rgi < target else (lo, mid)
+    str_rows = comp_rows((lo + hi) / 2)
+    rgi = sum(D(r[3]) for r in str_rows) / sum(D(r[4]) for r in str_rows) * 100
+    assert rgi.quantize(D('0.1'), ROUND_HALF_UP) == D('97.0'), rgi
+    gap_first = 1 - D(str_rows[0][3]) / D(str_rows[0][4])
+    gap_last = 1 - D(str_rows[-1][3]) / D(str_rows[-1][4])
+    assert gap_last >= D('0.05') and gap_last - gap_first >= D('0.02'), (gap_first, gap_last)
     for j, (n, sh) in enumerate(chans):
-        monthly = {row[0]: D(row[5]) * D(str(sh)) for row in hist}
+        monthly = {row[0]: D(row[5]) * D(str(sh)) for row in recent}
         ds.customer(f'{ds.prefix}-chn-{j + 1:03d}', f'{n} (synthetic)', monthly)
-    ds.ext('operating-history', ['month', 'rooms_available', 'rooms_sold', 'adr', 'revpar', 'room_revenue', 'fb_revenue', 'gross_operating_profit'], hist, 'Monthly operating history from the property-management system')
-    ds.ext('str-benchmark', ['month', 'occupancy', 'adr', 'revpar', 'comp_set_revpar'], str_rows, 'STR-style benchmark against the competitive set')
+    ds.ext('operating-history', ['month', 'rooms_available', 'rooms_sold', 'adr', 'revpar', 'room_revenue', 'fb_revenue', 'gross_operating_profit'], recent, 'Monthly operating history from the property-management system')
+    ds.ext('str-benchmark', ['month', 'occupancy', 'adr', 'revpar', 'comp_set_revpar', 'comp_set_occupancy', 'comp_set_adr'], str_rows, 'STR-style benchmark against the competitive set')
     top, share = ds.share_top()
-    c = ds.cur
+    ttm = hist[-12:]
+    occ_ttm = sum(D(r[2]) for r in ttm) / sum(D(r[1]) for r in ttm)
+    gor_ttm = sum(D(r[5]) + D(r[6]) for r in ttm)
+
+    # The seller's capex schedule: the boiler is committed and PIP item 2 is planned; nothing funds PIP item 1, the
+    # guest-room renovation due six months after closing (planted (a)), or item 3, due in 2028.
+    pip_items = [('1', 'guest room soft goods renovation, all 180 rooms', '30 June 2027', ds.amt(1450000)),
+                 ('2', 'lobby and public areas refresh', '31 March 2028', ds.amt(1150000)),
+                 ('3', 'guest bathroom upgrade, all 180 rooms', '31 December 2028', ds.amt(1000000))]
     pip = ds.amt(3600000)
+    assert sum(x[3] for x in pip_items) == pip
+    capex = [['2026', 'Boiler and hot-water plant replacement', 'hvac', f'{ds.amt(380000):.2f}', 'committed'],
+             ['2027', 'Car park resurfacing', 'paving', f'{ds.amt(140000):.2f}', 'planned'],
+             ['2028', 'Lobby and public areas refresh (PIP item 2)', 'public_areas', f'{ds.amt(1150000):.2f}', 'planned']]
+    ds.ext('capex-schedule', ['year', 'item', 'category', 'amount', 'status'], capex, 'The seller’s capital expenditure schedule: item, element, amount and status')
+
+    # The P&L by fiscal year, FY2023–FY2025: rooms and F&B revenue as the operating history gives them; the royalty
+    # holds at 5% of rooms revenue while the brand's marketing, reservation and loyalty fees climb (planted (d)).
+    years = ['2023', '2024', '2025']
+
+    def year_sum(y, col): return sum((D(r[col]) for r in hist if r[0].startswith(y)), D(0))
+    rooms = {y: year_sum(y, 5) for y in years}
+    fb = {y: year_sum(y, 6) for y in years}
+    gor = {y: rooms[y] + fb[y] for y in years}
+    brand_rate = {'2023': D('0.025'), '2024': D('0.035'), '2025': D('0.046')}
+    pnl_rows = [['Rooms revenue'] + [f'{rooms[y]:.2f}' for y in years],
+                ['Food and beverage revenue'] + [f'{fb[y]:.2f}' for y in years],
+                ['Rooms department expenses'] + [f'{q(rooms[y] * D("0.25")):.2f}' for y in years],
+                ['Food and beverage costs'] + [f'{q(fb[y] * D("0.70")):.2f}' for y in years],
+                ['Franchise royalty fees'] + [f'{q(rooms[y] * D("0.05")):.2f}' for y in years],
+                ['Brand marketing and reservation fees'] + [f'{q(rooms[y] * brand_rate[y]):.2f}' for y in years],
+                ['Base management fee'] + [f'{q(gor[y] * D("0.03")):.2f}' for y in years],
+                ['Utilities and energy'] + [f'{q(gor[y] * D("0.05")):.2f}' for y in years],
+                ['Repairs and maintenance'] + [f'{q(gor[y] * D("0.04")):.2f}' for y in years],
+                ['Property taxes and insurance'] + [f'{ds.amt(x):.2f}' for x in (610000, 622000, 634000)],
+                ['Administrative and general'] + [f'{q(gor[y] * D("0.08")):.2f}' for y in years]]
+    ds.ext('pnl', ['Line'] + [f'FY{y}' for y in years], pnl_rows, 'Profit and loss by fiscal year, FY2023 to FY2025')
+    ds.pnl_step = ['Open the **Sources** tab, scroll to **Industry data** and click **Upload profit and loss (p&l)**.', '',
+                   '1. Choose `pnl.csv` → **Upload and map columns**. Pactlab reads the three years across the columns (FY2023 to FY2025).',
+                   '2. Say what each line is: the two lines ending in *revenue* are **Revenue**, and the rest are **Operating expenses**.',
+                   f'3. **Check every row**, then **Import {len(pnl_rows) * 3} rows**.', '',
+                   '**You should see:** the import succeed. **Finances** shows the three years side by side with occupancy, ADR and RevPAR, and asks the seller for FY2021 and FY2022.', '']
+
+    def fee_share(y): return (D(pnl_rows[4][1 + years.index(y)]) + D(pnl_rows[5][1 + years.index(y)])) / rooms[y]
+
+    def margin(y):
+        i = 1 + years.index(y)
+        revenue = D(pnl_rows[0][i]) + D(pnl_rows[1][i])
+        return (revenue - sum(D(r[i]) for r in pnl_rows[2:])) / revenue
+    # Only the brand fees drift: the margin slips under three points and no other key expense outpaces revenue.
+    assert margin('2023') - margin('2025') < D('0.03'), (margin('2023'), margin('2025'))
+
+    penalty = ds.amt(2160000)
     ds.doc('01-franchise-agreement', f'''
 Franchise agreement — Harbourview Hotel (synthetic brand: Meridale Hotels)
 ---page---
+3.1 The term runs from 1 January 2010 to 31 December 2029.
+3.2 If the Franchisee ends this agreement before the end of the term, it shall pay liquidated damages of {money(c, penalty)}.
+9.1 The Franchisee pays a royalty fee of 5.0% of gross rooms revenue.
+9.2 The Franchisee pays a marketing fee of 2.5% of gross rooms revenue, and the reservation, loyalty and technology fees the Franchisor sets each year.
 16.4 Transfer. On any change of ownership the transferee must complete a property improvement plan (PIP) specified by the Franchisor. The current estimate of the PIP is {money(c, pip)}.
 21.1 The Franchisor may terminate on transfer without consent.
-''', 'Franchise agreement with transfer and PIP clauses')
+''', 'Franchise agreement: term, liquidated damages, fees, transfer and PIP clauses')
     ds.doc('02-management-contract', f'''
 Hotel management agreement — {ds.company} and Coastline Hospitality Management (synthetic)
 ---page---
+2.1 The term runs from 1 January 2019 to 31 December 2038.
+7.1 The Operator receives a base management fee of 3.0% of gross operating revenue and an incentive fee of 10% of gross operating profit above the Owner's priority return.
 12.2 Termination on sale. The Owner may terminate on sale of the hotel on payment of a termination fee equal to three times the prior year's base management fee.
-''', 'Third-party management contract')
+12.5 Successors. This agreement runs with the hotel and binds any purchaser of it, unless the Owner ends it under clause 12.2.
+''', 'Third-party management contract: term, fees and what binds a purchaser')
+    pip_lines = '\n'.join(f'Item {n}: {what}, to be completed by {due}, estimated at {money(c, cost)}.' for n, what, due, cost in pip_items)
+    ds.doc('03-property-improvement-plan', f'''
+Property improvement plan — Harbourview Hotel (synthetic brand: Meridale Hotels), issued September 2026.
+
+The Franchisor requires the following work to keep the hotel in the system.
+{pip_lines}
+''', 'The brand’s property improvement plan: items, completion dates and estimates')
+    ds.doc('04-investor-presentation', f'''
+Investor presentation — Harbourview Hotel, September 2026 (synthetic).
+
+The hotel achieved a RevPAR index of 112 against its competitive set in the twelve months to September 2026.
+Occupancy was {(occ_ttm * 100).quantize(D("0.1"), ROUND_HALF_UP)}% in the twelve months to September 2026.
+The parties have agreed a target closing date of 31 December 2026.
+The buyer's business plan assumes a hold period of 5 years.
+''', 'Investor presentation: performance claims, the closing date and the hold')
+    bench_occ = sum(D(r[1]) for r in str_rows) / sum(D(r[5]) for r in str_rows) * 100
+    ds.doc('05-str-trend-report', f'''
+STR trend report — Harbourview Hotel against its competitive set, twelve months to September 2026 (synthetic).
+
+RevPAR index (RGI): {rgi.quantize(D("0.1"), ROUND_HALF_UP)}
+Occupancy index (MPI): {bench_occ.quantize(D("0.1"), ROUND_HALF_UP)}
+''', 'STR trend report: the hotel’s indices against the competitive set')
+    near = pip_items[0]
+    exit_fee = 3 * D('0.03') * gor_ttm
     ds.findings = [
         ('Brand PIP required on change of ownership', f'`documents/01-franchise-agreement.pdf` page 2, clause 16.4 — PIP estimated at {money(c, pip)}. Price as remediation or escrow.'),
-        ('RevPAR trailing the competitive set', 'in `str-benchmark.csv` the hotel\'s RevPAR trails the competitive set by about 7% in October 2025, widening to about 12% by September 2026.'),
+        ('RevPAR trailing the competitive set', f'in `str-benchmark.csv` the hotel\'s RevPAR trails the competitive set by about {pct(gap_first)} in October 2025, widening to about {pct(gap_last)} by September 2026.'),
         ('Channel concentration', f'{top} is {pct(share)} of revenue — commission cost and ranking risk.'),
         ('Seasonal demand', 'July and August room revenue is about twice January\'s in `operating-history.csv`.'),
         ('Management contract termination fee', '`documents/02-management-contract.pdf` page 2, clause 12.2 — three times the prior year\'s base fee on sale.'),
+        ('Franchise term ends in year 3 of the hold', f'`documents/01-franchise-agreement.pdf` clause 3.1 — the term ends on 31 December 2029, three years after the 31 December 2026 closing in `documents/04-investor-presentation.pdf`, with liquidated damages of {money(c, penalty)} to leave early.'),
+        ('PIP work due within 12 months of closing is not in the seller’s capex budget', f'`documents/03-property-improvement-plan.pdf` item 1 — {near[1]}, due {near[2]}, estimated at {money(c, near[3])}; `capex-schedule.csv` has no line for it. Priced as an escrow.'),
+        ('The STR benchmark contradicts the deck: RevPAR index against the competitive set', f'`documents/04-investor-presentation.pdf` claims a RevPAR index of 112; `str-benchmark.csv` gives {rgi.quantize(D("0.1"), ROUND_HALF_UP)} for October 2025 to September 2026 (as `documents/05-str-trend-report.pdf` reports).'),
+        ('Performance claim verified: Occupancy', f'the deck\'s {pct(occ_ttm)} occupancy holds against `operating-history.csv` (confirmed value, never a price increase).'),
+        ('Management agreement survives a sale: runs to 31 December 2038', f'`documents/02-management-contract.pdf` clause 12.5 — it binds any purchaser; ending it on the sale costs about {money(c, exit_fee)} (three times a 3% base fee).'),
+        ('Franchise and brand fees growing faster than rooms revenue, FY2023–FY2025', f'`pnl.csv` — franchise and brand fees rise from {pct(fee_share("2023"))} to {pct(fee_share("2025"))} of rooms revenue; FY2025 alone looks ordinary.'),
+        ('P&L trend, 2023–2025', 'every imported year side by side: revenue, growth, margins and the rooms, food and beverage, utilities and repairs ratios.'),
     ]
+    ds.notes = ['No guest data: the operating history and the STR benchmark are property aggregates.',
+                '`capex-schedule.csv` uses the commercial property capex schedule import; the PIP check matches each PIP item against it.',
+                '`pnl.csv` holds FY2023–FY2025 and `operating-history.csv` the 24 months from October 2024, read side by side on **Finances**; Pactlab asks the seller for FY2021 and FY2022 statements and the earlier operating history.',
+                'Diligence support only: the pack checks documents, dates and arithmetic. It never values the hotel or its flag.']
 
 def hospitals(ds):
     ds.kind, ds.kind_label = 'net_patient_revenue', 'payer net-revenue settlement'

@@ -117,8 +117,16 @@ export type TelecomCategory = (typeof TELECOM_CATEGORIES)[number];
  */
 export const HOSPITALS_CATEGORIES = ['COST_REPORT', 'PROPERTY_CONDITION_REPORT', 'QUALITY_REPORT'] as const;
 export type HospitalsCategory = (typeof HOSPITALS_CATEGORIES)[number];
+/**
+ * A hotel (T-166) is diligenced on its flag and its comp-set performance: the franchise agreement (term,
+ * termination rights and fees), the brand's property improvement plan (each item, its due date and estimate),
+ * the third-party management agreement (term, fees and what survives a sale) and the STR or performance
+ * reports the RevPAR and index claims are checked against. Absence is shown as absence.
+ */
+export const HOTELS_CATEGORIES = ['FRANCHISE_AGREEMENT', 'PROPERTY_IMPROVEMENT_PLAN', 'HOTEL_MANAGEMENT_AGREEMENT', 'STR_REPORT'] as const;
+export type HotelsCategory = (typeof HOTELS_CATEGORIES)[number];
 /** Every category a pack may add on top of the common ones. */
-export type PackDocumentCategory = OfferingCategory | MusicCategory | EnergyCategory | SpvCategory | FintechCategory | HealthcareCategory | PharmaCategory | EcommerceCategory | ServicesCategory | TelecomCategory | HospitalsCategory;
+export type PackDocumentCategory = OfferingCategory | MusicCategory | EnergyCategory | SpvCategory | FintechCategory | HealthcareCategory | PharmaCategory | EcommerceCategory | ServicesCategory | TelecomCategory | HospitalsCategory | HotelsCategory;
 
 export type DocumentCategory = (typeof DOCUMENT_CATEGORIES)[number] | PackDocumentCategory;
 
@@ -497,6 +505,35 @@ const DOCUMENT_DEFINITIONS: Readonly<Record<DocumentCategory, CategoryDefinition
     id: 'QUALITY_REPORT',
     label: 'Quality reporting',
     description: 'A published quality report or rating extract for the hospital, such as a star-rating report or a safety-grade report, with its measures and date.',
+    route: { kind: 'FILE' },
+    people: false,
+  },
+  // Hotel documents (T-166): kept and listed; the hotels checks read their sentences.
+  FRANCHISE_AGREEMENT: {
+    id: 'FRANCHISE_AGREEMENT',
+    label: 'Franchise or brand agreement',
+    description: 'A hotel franchise, licence or brand agreement: the term, termination rights, liquidated damages, royalty, marketing and reservation fees, and the brand standards.',
+    route: { kind: 'FILE' },
+    people: false,
+  },
+  PROPERTY_IMPROVEMENT_PLAN: {
+    id: 'PROPERTY_IMPROVEMENT_PLAN',
+    label: 'Property improvement plan (PIP)',
+    description: 'The brand’s property improvement plan for a hotel: each required item, the date it must be completed by and its estimated cost.',
+    route: { kind: 'FILE' },
+    people: false,
+  },
+  HOTEL_MANAGEMENT_AGREEMENT: {
+    id: 'HOTEL_MANAGEMENT_AGREEMENT',
+    label: 'Hotel management agreement',
+    description: 'A third-party hotel management agreement or operator contract: the term, base and incentive fees, termination rights and what binds a purchaser of the hotel.',
+    route: { kind: 'FILE' },
+    people: false,
+  },
+  STR_REPORT: {
+    id: 'STR_REPORT',
+    label: 'STR or hotel performance report',
+    description: 'An STR or other hotel benchmarking report: occupancy, ADR and RevPAR against the competitive set, with the occupancy, ADR and RevPAR indices.',
     route: { kind: 'FILE' },
     people: false,
   },

@@ -122,6 +122,19 @@ describe('pack registry', () => {
     expect(IMPORT_TARGET_DEFINITIONS.CRE_CAPEX_SCHEDULE).toMatchObject({ evidenceType: 'cre.capex_item', people: 'NONE', refusesPeopleColumns: true });
   });
 
+  it('Hotels adds the franchise, PIP, performance-claims and management-contract checks (T-166)', () => {
+    const hotels = PACKS.HOTELS;
+    expect(hotels).toMatchObject({ slug: 'hotels', cluster: 'real-estate', metricCalculator: 'hotels-performance', built: true });
+    // The T-067 targets and rules stay first and unchanged; the seller's capex schedule is reused from commercial property by reference.
+    expect(hotels.importTargets).toEqual(['BILLING_INVOICE_LINE', 'HOTELS_OPERATING_HISTORY', 'HOTELS_STR_BENCHMARK', 'CRE_CAPEX_SCHEDULE']);
+    expect(hotels.findingRules.slice(0, 5)).toEqual(['hotels-brand-pip', 'hotels-revpar-gap', 'hotels-channel-concentration', 'hotels-seasonal-demand', 'hotels-management-termination-fee']);
+    expect(hotels.findingRules).toEqual(expect.arrayContaining(['hotels-franchise-term', 'hotels-pip-schedule', 'hotels-performance-claims', 'hotels-management-contract', 'hotels-brand-fee-trend', 'hotels-pnl-trend', 'hotels-recent-run']));
+    expect(hotels.documentCategories).toEqual(['FRANCHISE_AGREEMENT', 'PROPERTY_IMPROVEMENT_PLAN', 'HOTEL_MANAGEMENT_AGREEMENT', 'STR_REPORT']);
+    expect(hotels.valuationMethods).toEqual(['NOI_CAP_RATE', 'DCF']);
+    // The STR benchmark grows optional columns only: files without them import as they did.
+    for (const name of ['comp_set_occupancy', 'comp_set_adr']) expect(IMPORT_TARGET_DEFINITIONS.HOTELS_STR_BENCHMARK.fields.find((field) => field.name === name)?.required, name).toBe(false);
+  });
+
   it('Small clinics reuses the T-160 evidence set and adds service lines, referrals and the lease (T-161)', () => {
     const clinics = PACKS.SMALL_CLINICS;
     expect(clinics).toMatchObject({ slug: 'small-clinics', cluster: 'healthcare', metricCalculator: 'clinics-practice', built: true });

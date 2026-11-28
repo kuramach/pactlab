@@ -54,6 +54,9 @@ export const HOSPITALS_CENSUS_MONTH_EVIDENCE_TYPE = 'hospitals.census_month';
 export const CRE_LEASE_EVIDENCE_TYPE = 'cre.lease';
 export const CRE_CAM_CATEGORY_EVIDENCE_TYPE = 'cre.cam_category';
 export const CRE_CAPEX_ITEM_EVIDENCE_TYPE = 'cre.capex_item';
+/** Hotels (T-067, T-166): the operating history and the STR benchmark by month. */
+export const HOTELS_OPERATING_MONTH_EVIDENCE_TYPE = 'hotels.operating_month';
+export const HOTELS_BENCHMARK_MONTH_EVIDENCE_TYPE = 'hotels.benchmark_month';
 /** Pharma and biotech (T-064, T-163): the pipeline schedule, trial-registry records, patent schedule, obligations model and R&D roster. */
 export const PHARMA_PROGRAMME_EVIDENCE_TYPE = 'pharma.programme';
 export const PHARMA_REGISTRY_TRIAL_EVIDENCE_TYPE = 'pharma.registry_trial';
@@ -249,6 +252,8 @@ export const VALUATION_DIRECTION_MAP: Readonly<Record<string, readonly Direction
     { signal: 'expense-outpacing', findingDomain: 'FINANCIAL', defaultDirection: -1, channel: 'ASSUMPTION' },
     // R&D flat across the imported years while a document says the timeline was brought forward (T-163).
     { signal: 'rd-flat-timeline-accelerated', findingDomain: 'FINANCIAL', defaultDirection: -1, channel: 'ASSUMPTION' },
+    // A hotel's franchise and brand fees rising faster than the rooms revenue they are charged on (T-166).
+    { signal: 'brand-fee-outpacing', findingDomain: 'FINANCIAL', defaultDirection: -1, channel: 'ASSUMPTION' },
   ],
   // Healthcare services (T-160, ADR 0051). Payer mix, denials and days in AR are recomputed from the remittances;
   // credentials and payer contracts are read at the analysis date. Dates and arithmetic only, never a clinical or legal judgment.
@@ -372,6 +377,33 @@ export const VALUATION_DIRECTION_MAP: Readonly<Record<string, readonly Direction
   [CRE_CAPEX_ITEM_EVIDENCE_TYPE]: [
     { signal: 'condition-item-omitted', findingDomain: 'PROPERTY', defaultDirection: -1, channel: 'PRICED_TERM' },
     { signal: 'condition-item-under-budgeted', findingDomain: 'PROPERTY', defaultDirection: -1, channel: 'PRICED_TERM' },
+    // A hotel's PIP items due within twelve months of closing that the seller's capex schedule does not fund (T-166).
+    { signal: 'pip-unfunded-near-term', findingDomain: 'PROPERTY', defaultDirection: -1, channel: 'PRICED_TERM' },
+  ],
+  // Hotels (T-166, ADR 0069): RevPAR, ADR and occupancy claims against the operating history, the comp-set index
+  // claims against the STR benchmark, and occupancy by year. Documents, dates and arithmetic; never a view on the flag.
+  [HOTELS_OPERATING_MONTH_EVIDENCE_TYPE]: [
+    { signal: 'claim-contradicted', findingDomain: 'COMMERCIAL', defaultDirection: -1, channel: 'ASSUMPTION' },
+    { signal: 'claim-verified', findingDomain: 'COMMERCIAL', defaultDirection: 1, channel: 'CONFIRMATION' },
+    {
+      signal: 'claim-unverified',
+      findingDomain: 'COMMERCIAL',
+      defaultDirection: 0,
+      channel: 'INFORMATIONAL',
+      rationale: 'A performance claim no operating export checks is a gap to close, neither priced nor relied on.',
+    },
+    driverTrend('COMMERCIAL'),
+  ],
+  [HOTELS_BENCHMARK_MONTH_EVIDENCE_TYPE]: [
+    { signal: 'claim-contradicted', findingDomain: 'COMMERCIAL', defaultDirection: -1, channel: 'ASSUMPTION' },
+    { signal: 'claim-verified', findingDomain: 'COMMERCIAL', defaultDirection: 1, channel: 'CONFIRMATION' },
+    {
+      signal: 'claim-unverified',
+      findingDomain: 'COMMERCIAL',
+      defaultDirection: 0,
+      channel: 'INFORMATIONAL',
+      rationale: 'A comp-set index claim no STR benchmark checks is a gap to close, neither priced nor relied on.',
+    },
   ],
   // Small clinics (T-161, ADR 0052): the owner-operator's share and each service line's providers recomputed from the
   // schedule and billing exports; visits by referral source. Retention and volume risks, never a ranking or a legal view.
@@ -511,6 +543,9 @@ export const VALUATION_DIRECTION_MAP: Readonly<Record<string, readonly Direction
       channel: 'INFORMATIONAL',
       rationale: 'A rating no reporting document supplied states is a gap to close, neither priced nor relied on.',
     },
+    // A hotel's franchise term ending inside the hold, and a management agreement that binds a purchaser (T-166).
+    { signal: 'franchise-term-in-hold', findingDomain: 'LEGAL', defaultDirection: -1, channel: 'ASSUMPTION' },
+    { signal: 'management-survives-sale', findingDomain: 'LEGAL', defaultDirection: -1, channel: 'ASSUMPTION' },
     { signal: 'CHANGE_OF_CONTROL', findingDomain: 'CONTRACT', defaultDirection: -1, channel: 'PRICED_TERM' },
     { signal: 'ASSIGNMENT', findingDomain: 'CONTRACT', defaultDirection: -1, channel: 'PRICED_TERM' },
     { signal: 'EXCLUSIVITY', findingDomain: 'CONTRACT', defaultDirection: -1, channel: 'PRICED_TERM' },
@@ -557,6 +592,8 @@ export const ADAPTER_EVIDENCE_TYPES = [
   CRE_LEASE_EVIDENCE_TYPE,
   CRE_CAM_CATEGORY_EVIDENCE_TYPE,
   CRE_CAPEX_ITEM_EVIDENCE_TYPE,
+  HOTELS_OPERATING_MONTH_EVIDENCE_TYPE,
+  HOTELS_BENCHMARK_MONTH_EVIDENCE_TYPE,
   PHARMA_PROGRAMME_EVIDENCE_TYPE,
   PHARMA_REGISTRY_TRIAL_EVIDENCE_TYPE,
   PHARMA_PATENT_EVIDENCE_TYPE,

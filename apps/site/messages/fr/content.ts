@@ -264,7 +264,7 @@ export const content: Catalog['content'] = {
     'ecommerce-dtc': { name: 'E-commerce et DTC', line: 'Contrôler la LTV sur marge de contribution, les revenus par canal et qui détient chaque compte au regard des exports.' },
     multifamily: { name: 'Résidentiel collectif', line: 'Rapprocher l’état locatif et le T-12 du mémorandum d’offre, logement par logement.' },
     'commercial-property': { name: 'Immobilier commercial', line: 'Vérifier l’état locatif face aux baux, les refacturations et la falaise d’échéances avant de fixer le prix.' },
-    hotels: { name: 'Hôtellerie', line: 'Mettre en balance le RevPAR, les conditions de franchise et les travaux du PIP face au prix demandé.' },
+    hotels: { name: 'Hôtellerie', line: 'Vérifier la franchise, le PIP et les affirmations STR avant de fixer un prix.' },
     'small-clinics': { name: 'Petits cabinets', line: 'Contrôler le propriétaire, les prescripteurs et le bail derrière un cabinet de quelques sites.' },
     hospitals: { name: 'Hôpitaux', line: 'Évaluer sur l’EBITDA ajusté du mix payeurs, avec l’activité et l’accréditation en vue.' },
     'multifamily-syndication': { name: 'Syndication résidentielle', line: 'Contrôler le bien et l’offre : rendements, frais et historique de performance.' },
@@ -313,6 +313,14 @@ export const content: Catalog['content'] = {
       points: ['L’état locatif recalculé bail par bail', 'Des refacturations insuffisantes chaque année de reddition', 'Les points du rapport d’état omis par le plan de travaux, valorisés'],
       imageAlt: 'Immobilier commercial : un parc de bureaux et d’activités, une frise des échéances de baux et un rapport d’état',
       linkLabel: 'Lancer un pacte immobilier commercial',
+    },
+    hotels: {
+      short: 'Hôtels',
+      title: 'L’enseigne et le jeu concurrentiel, vérifiés avant de fixer le prix.',
+      body: 'Pactlab lit la durée de la franchise et le plan de rénovation de la marque face à la période de détention et au budget de travaux du vendeur, vérifie les affirmations de RevPAR et d’indices de la présentation par rapport au benchmark STR et montre à quoi le contrat de gestion engage un acquéreur.',
+      points: ['Durée de la franchise et postes du PIP face à la détention', 'Indices de RevPAR annoncés face au benchmark STR', 'Redevances de marque face à l’hébergement, année par année'],
+      imageAlt: 'Hôtellerie : un bâtiment hôtelier, un graphique de RevPAR face au jeu concurrentiel et un contrat de marque',
+      linkLabel: 'Lancer un pacte hôtelier',
     },
     'pharma-biotech': {
       short: 'Pharma',

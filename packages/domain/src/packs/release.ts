@@ -15,13 +15,14 @@ import { COMPANY_TYPES, type CompanyType } from '../pacts/types';
  * Telecom & media released with its subscriber claims, rights-window and concentration checks (T-168, Kumar 2026-11-26).
  * Hospitals released with its cost-report, payer-contract, medical-staff, plant and quality checks (T-162, Kumar 2026-11-26).
  * Commercial property released with its lease, recovery, obligations, expiry-cliff and condition checks (T-165, Kumar 2026-11-26).
+ * Hotels released with its franchise, PIP, performance-claims, management-contract and brand-fee checks (T-166, Kumar 2026-11-26).
  * Releasing a pack is adding it here, in a reviewed change. The public site
  * keeps the same list (apps/site/lib/industry-stories.ts, RELEASED_INDUSTRY_SLUGS).
  *
  * Preview (dev, qa, local and tests) shows every company type, so the next
  * pack can be tested before release; stage and production show only these.
  */
-export const RELEASED_COMPANY_TYPES: readonly CompanyType[] = ['SOFTWARE_SAAS', 'MULTIFAMILY', 'VENTURE_RAISE', 'MUSIC_RIGHTS', 'ENERGY_GENERATION', 'STARTUP_SPV', 'FINTECH', 'HEALTHCARE', 'SMALL_CLINICS', 'PHARMA_BIOTECH', 'ECOMMERCE_DTC', 'PROFESSIONAL_SERVICES', 'TELECOM_MEDIA', 'HOSPITALS', 'COMMERCIAL_PROPERTY'];
+export const RELEASED_COMPANY_TYPES: readonly CompanyType[] = ['SOFTWARE_SAAS', 'MULTIFAMILY', 'VENTURE_RAISE', 'MUSIC_RIGHTS', 'ENERGY_GENERATION', 'STARTUP_SPV', 'FINTECH', 'HEALTHCARE', 'SMALL_CLINICS', 'PHARMA_BIOTECH', 'ECOMMERCE_DTC', 'PROFESSIONAL_SERVICES', 'TELECOM_MEDIA', 'HOSPITALS', 'COMMERCIAL_PROPERTY', 'HOTELS'];
 
 export function isReleasedCompanyType(type: CompanyType): boolean {
   return RELEASED_COMPANY_TYPES.includes(type);

@@ -267,7 +267,7 @@ export const content: Catalog['content'] = {
     'ecommerce-dtc': { name: 'E-Commerce und DTC', line: 'LTV auf Deckungsbeitragsbasis, Kanalumsatz und wer jedes Konto hält, an den Exporten prüfen.' },
     multifamily: { name: 'Mehrfamilienhäuser', line: 'Mieterliste und T-12 Wohnung für Wohnung mit dem Angebotsmemorandum abgleichen.' },
     'commercial-property': { name: 'Gewerbeimmobilien', line: 'Die Mieterliste gegen die Mietverträge, die Umlagen und die Auslaufklippe prüfen, bevor Sie bepreisen.' },
-    hotels: { name: 'Hotels und Gastgewerbe', line: 'RevPAR, Franchisebedingungen und PIP-Investitionen gegen den Angebotspreis abwägen.' },
+    hotels: { name: 'Hotels und Gastgewerbe', line: 'Franchise, PIP und STR-Aussagen prüfen, bevor Sie einen Preis nennen.' },
     'small-clinics': { name: 'Kleine Praxen', line: 'Inhaber, Zuweiser und Mietvertrag hinter einer Praxis mit wenigen Standorten prüfen.' },
     hospitals: { name: 'Krankenhäuser', line: 'Auf Basis des kostenträgermix-bereinigten EBITDA bewerten, mit Belegung und Akkreditierung im Blick.' },
     'multifamily-syndication': { name: 'Mehrfamilienhaus-Syndizierung', line: 'Immobilie und Angebot prüfen: Renditen, Gebühren und Erfolgsbilanz.' },
@@ -316,6 +316,14 @@ export const content: Catalog['content'] = {
       points: ['Mieterliste Vertrag für Vertrag neu berechnet', 'Fehlbeträge bei Umlagen über jedes Abrechnungsjahr', 'Zustandspunkte, die der Investitionsplan auslässt, bepreist'],
       imageAlt: 'Gewerbeimmobilien: ein Büro- und Gewerbepark, eine Zeitachse der auslaufenden Mietverträge und ein Zustandsgutachten',
       linkLabel: 'Einen Gewerbeimmobilien-Pakt durchführen',
+    },
+    hotels: {
+      short: 'Hotels',
+      title: 'Die Marke und das Wettbewerbsumfeld, geprüft, bevor Sie bepreisen.',
+      body: 'Pactlab liest die Franchiselaufzeit und den Modernisierungsplan der Marke gegen die Haltedauer und das Investitionsbudget des Verkäufers, prüft die RevPAR- und Indexaussagen der Präsentation gegen den STR-Benchmark und zeigt, woran der Managementvertrag einen Käufer bindet.',
+      points: ['Franchiselaufzeit und PIP-Positionen gegen die Haltedauer', 'RevPAR-Indexaussagen gegen den STR-Benchmark', 'Markengebühren gegen den Logisumsatz, Jahr für Jahr'],
+      imageAlt: 'Hotels: ein Hotelgebäude, ein RevPAR-Diagramm gegen das Wettbewerbsumfeld und ein Markenvertrag',
+      linkLabel: 'Einen Hotel-Pakt durchführen',
     },
     'pharma-biotech': {
       short: 'Pharma',
