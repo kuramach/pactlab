@@ -25,6 +25,7 @@ export function SiteFooter({ locale = 'en' }: { locale?: Locale }) {
         { href: href('/faq'), label: words.faq },
         { href: href('/rinse'), label: words.rinse },
         { href: href('/compare/valuation-software'), label: words.compare },
+        { href: '/api', label: words.api },
         ...account,
       ],
     },

@@ -26,6 +26,7 @@ export const ui: Catalog['ui'] = {
     faq: 'よくある質問',
     rinse: 'Pactlab Rinse',
     compare: 'バリュエーション・ソフトウェアとの比較',
+    api: 'API',
     legal: '法的情報',
     trust: 'セキュリティと信頼（英語）',
     privacy: 'プライバシーポリシー（英語）',

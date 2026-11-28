@@ -30,6 +30,7 @@ export const en = {
     faq: 'Questions and answers',
     rinse: 'Pactlab Rinse',
     compare: 'Compared with valuation software',
+    api: 'API',
     legal: 'Legal',
     trust: 'Security and trust',
     privacy: 'Privacy policy',
