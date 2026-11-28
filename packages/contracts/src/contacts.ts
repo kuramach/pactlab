@@ -28,7 +28,7 @@ export const contactChannelParamsSchema = z.object({ channelId: z.uuid() }).stri
 
 export const contactAdminQuerySchema = pageQuerySchema;
 
-export type ContactChannelKindView = 'TELEGRAM' | 'WHATSAPP';
+export type ContactChannelKindView = 'TELEGRAM' | 'WHATSAPP' | 'SLACK' | 'TEAMS';
 
 export interface ContactChannelView {
   readonly id: string;
@@ -46,7 +46,9 @@ export interface ContactProfileView {
   readonly askForEmail: boolean;
   readonly channels: readonly ContactChannelView[];
   /** What this deployment offers; a channel that is off cannot be connected. */
-  readonly available: { readonly telegram: boolean; readonly whatsapp: boolean };
+  readonly available: { readonly telegram: boolean; readonly whatsapp: boolean; readonly slack: boolean; readonly teams: boolean };
+  /** Slack and Teams (T-181): whether the organization's admin has installed Pactlab; until then the card asks the admin. */
+  readonly chatInstalled: { readonly slack: boolean; readonly teams: boolean };
   /** The consent text shown before a WhatsApp number is verified. */
   readonly whatsappConsentText: string;
 }
@@ -64,4 +66,49 @@ export interface MaskedMemberContactView {
   readonly emailVerified: boolean;
   readonly telegram: string | null;
   readonly whatsapp: string | null;
+}
+
+/**
+ * Slack and Microsoft Teams (T-181, ADR 0065): an organization admin installs Pactlab once; each person
+ * links by their verified email and confirms in Slack or Teams. Workspace, tenant and platform user ids
+ * never appear in any response.
+ */
+export const chatProviderSchema = z.enum(['slack', 'teams']);
+export type ChatProviderParam = z.infer<typeof chatProviderSchema>;
+export const chatProviderParamsSchema = z.object({ provider: chatProviderSchema }).strict();
+
+export const chatInstallCallbackSchema = z
+  .object({
+    code: z.string().min(1).max(2048),
+    state: z.string().min(1).max(2048),
+  })
+  .strict();
+export type ChatInstallCallbackBody = z.infer<typeof chatInstallCallbackSchema>;
+
+export const chatMembersQuerySchema = pageQuerySchema;
+
+export interface ChatAppView {
+  /** This Pactlab has the platform configured (the app or bot registered by Kumar, runbook). */
+  readonly available: boolean;
+  readonly installed: boolean;
+  readonly installedAt: string | null;
+  /** Owners and admins: how many members are linked. Null for everyone else. */
+  readonly linkedCount: number | null;
+}
+
+export interface ChatAppsView {
+  readonly slack: ChatAppView;
+  readonly teams: ChatAppView;
+}
+
+export interface ChatInstallStartView {
+  /** Slack's OAuth page, or Microsoft's sign-in page: the browser goes there next. */
+  readonly url: string;
+}
+
+/** Owners and admins: which members are linked, by name; never their Slack or Teams user id. */
+export interface ChatMemberLinkView {
+  readonly userId: string;
+  readonly displayName: string;
+  readonly linked: boolean;
 }

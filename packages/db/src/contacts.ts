@@ -8,7 +8,7 @@ import { APP_DB_ROLE, withTenant } from './tenant';
  * Every write is a SECURITY DEFINER function acting on the signed-in person; the runtime role reads
  * only its own rows. Values here are personal data: never log them, never send them to a model.
  */
-export type ContactChannelKind = 'TELEGRAM' | 'WHATSAPP';
+export type ContactChannelKind = 'TELEGRAM' | 'WHATSAPP' | 'SLACK' | 'TEAMS';
 export type ContactVerificationKind = 'EMAIL' | ContactChannelKind;
 
 export interface ContactEmail {

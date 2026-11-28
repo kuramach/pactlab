@@ -68,7 +68,7 @@ export const CHANNEL_PREFIX = 'Pactlab:';
 /** The profile description every provider holds: the tagline (EMAIL_BLURB). */
 export const CHANNEL_ABOUT = 'Test the pact before you sign it.';
 
-export type ChannelMessageKind = 'ACT_NOW' | 'TEST' | 'LINKED' | 'LINK_EXPIRED' | 'DISCONNECTED' | 'STOPPED';
+export type ChannelMessageKind = 'ACT_NOW' | 'TEST' | 'LINKED' | 'LINK_EXPIRED' | 'DISCONNECTED' | 'STOPPED' | 'CHAT_CONFIRM' | 'CHAT_LINKED';
 
 /**
  * The words every channel sends, in one place, per locale. Content-free by rule: never a pact name,
@@ -83,6 +83,9 @@ const CHANNEL_WORDS = {
     LINK_EXPIRED: 'This link has expired or was already used. Open your Pactlab profile for a new one.',
     DISCONNECTED: 'You are disconnected. Pactlab will not message you here again.',
     STOPPED: 'You will get no more messages from Pactlab here. You can reconnect from your profile.',
+    // Slack and Teams (T-181): the one-time "is this you?" before a link, and the reply once confirmed.
+    CHAT_CONFIRM: 'Someone signed in to Pactlab with your email asked to get Pactlab alerts here. Is this you? Confirm to connect. The request expires in 10 minutes.',
+    CHAT_LINKED: 'You are connected. Pactlab will tell you here when a pact needs you, with no deal details. You can disconnect from your Pactlab profile at any time.',
   },
 } as const satisfies Record<string, Record<ChannelMessageKind, string>>;
 
@@ -94,6 +97,9 @@ export function channelMessage(kind: ChannelMessageKind, options: { link?: strin
   const text = words[kind].replace('{link}', options.link ?? '').trim();
   return `${CHANNEL_PREFIX} ${text}`;
 }
+
+/** The button labels Slack and Teams messages carry (T-181): one per message, in the same words everywhere. */
+export const CHAT_BUTTONS = { OPEN: 'Open Pactlab', CONFIRM: 'Yes, connect me' } as const;
 
 /** The consent shown before a WhatsApp number is verified; stored with its time on the channel. */
 export const WHATSAPP_CONSENT_TEXT =

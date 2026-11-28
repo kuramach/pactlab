@@ -55,6 +55,9 @@ Everything here is off by default. Agents never set these values or touch AWS; t
 7. **Check:** Your profile → WhatsApp → number, consent, code → **Send a test message**. Reply `STOP` from the phone: the channel ends at once (`contact.whatsapp_stopped` in the audit log).
 - **Turning off:** `WHATSAPP_ENABLED=false` and redeploy.
 
+## Slack and Microsoft Teams
+See `docs/runbooks/chat-apps.md` (T-181, ADR 0065).
+
 ## Local runs and tests
 - `CONTACT_CHANNELS=fixture` (never in production) runs both channels with the fixture adapters: nothing leaves the machine.
 - CI never calls Telegram or Meta: tests use the fixtures and stubbed responses shaped from the official docs.

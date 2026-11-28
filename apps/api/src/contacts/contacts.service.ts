@@ -10,6 +10,7 @@ import { keyedHash } from '../email-login/client-address';
 import type { EmailSender } from '../email-login/email-sender';
 import { LOGGER, PRISMA } from '../tokens';
 import type { IdentityEmailSource } from './auth0-userinfo';
+import { ChatService } from './chat.service';
 import { contactEmails } from './contact-emails';
 
 export const CONTACT_SETTINGS = Symbol('CONTACT_SETTINGS');
@@ -50,6 +51,7 @@ export class ContactsService {
     @Inject(PRISMA) private readonly prisma: PrismaClient,
     @Inject(CONTACT_SETTINGS) private readonly settings: ContactModuleSettings,
     @Inject(LOGGER) private readonly logger: Logger,
+    @Inject(ChatService) private readonly chat: ChatService,
   ) {}
 
   private codeHash(tenant: TenantContext, kind: 'EMAIL' | 'WHATSAPP', code: string): string {
@@ -77,7 +79,12 @@ export class ContactsService {
 
   async profile(tenant: TenantContext, principal: Principal, accessToken: string | null): Promise<ContactProfileView> {
     await this.syncIdentityEmail(tenant, principal, accessToken);
-    const [email, channels, displayName] = await Promise.all([contacts.email(this.prisma, tenant), contacts.channels(this.prisma, tenant), contacts.displayName(this.prisma, tenant)]);
+    const [email, channels, displayName, chatInstalled] = await Promise.all([
+      contacts.email(this.prisma, tenant),
+      contacts.channels(this.prisma, tenant),
+      contacts.displayName(this.prisma, tenant),
+      this.chat.installed(tenant),
+    ]);
     return {
       displayName: displayName ?? '',
       email: email ? { address: email.email, verified: true, source: email.source } : null,
@@ -85,12 +92,13 @@ export class ContactsService {
       channels: channels.map((channel) => ({
         id: channel.id,
         kind: channel.kind,
-        // The person's own profile shows their own number; a Telegram chat id means nothing to them.
+        // The person's own profile shows their own number; a Telegram chat id, or a Slack or Teams id, means nothing to them.
         label: channel.kind === 'WHATSAPP' ? channel.handle : 'Connected',
         verifiedAt: channel.verifiedAt.toISOString(),
         consentedAt: channel.consentedAt?.toISOString() ?? null,
       })),
-      available: { telegram: this.settings.telegram !== null, whatsapp: this.settings.whatsapp !== null },
+      available: { telegram: this.settings.telegram !== null, whatsapp: this.settings.whatsapp !== null, slack: this.chat.sender.slack !== null, teams: this.chat.sender.teams !== null },
+      chatInstalled,
       whatsappConsentText: WHATSAPP_CONSENT_TEXT,
     };
   }
@@ -211,6 +219,7 @@ export class ContactsService {
     if (!channel) throw new NotFoundException();
     // Telegram messages are free, so the chat hears that it is disconnected; WhatsApp is paid per message, so it does not.
     if (channel.kind === 'TELEGRAM' && this.settings.telegram) await this.say(this.settings.telegram, channel.handle, channelMessage('DISCONNECTED'));
+    if (channel.kind === 'SLACK' || channel.kind === 'TEAMS') await this.chat.afterDisconnect(channel.kind, channel.handle);
     return { disconnected: true };
   }
 
@@ -220,6 +229,10 @@ export class ContactsService {
     if (!channel) throw new NotFoundException();
     const deliveryId = await contactDispatch.claimTest(this.prisma, tenant, channelId);
     if (!deliveryId) throw new HttpException({ code: 'RATE_LIMITED' }, 429);
+    if (channel.kind === 'SLACK' || channel.kind === 'TEAMS') {
+      await this.chat.test(tenant, channelId, deliveryId);
+      return { sent: true };
+    }
     const link = this.link('/settings/profile');
     try {
       if (channel.kind === 'TELEGRAM') {

@@ -4372,19 +4372,22 @@ model UserContactChannel {
   id             String    @id @db.Uuid
   organizationId String    @map("organization_id") @db.Uuid
   userId         String    @map("user_id") @db.Uuid
-  /// TELEGRAM or WHATSAPP.
+  /// TELEGRAM, WHATSAPP, SLACK or TEAMS (T-181).
   kind           String
-  /// The Telegram chat id, or the WhatsApp number in E.164.
+  /// The Telegram chat id, the WhatsApp number in E.164, `<team>:<member>` (Slack) or `<tenant>:<object id>` (Teams).
   handle         String
   verifiedAt     DateTime  @map("verified_at") @db.Timestamptz(3)
   consentText    String?   @map("consent_text")
   consentedAt    DateTime? @map("consented_at") @db.Timestamptz(3)
   revokedAt      DateTime? @map("revoked_at") @db.Timestamptz(3)
-  /// USER, BLOCKED (Telegram), STOP (/stop or WhatsApp STOP) or REPLACED.
+  /// USER, BLOCKED (Telegram), STOP (/stop, WhatsApp STOP, Slack or Teams disconnect), REPLACED or UNINSTALLED.
   revokedReason  String?   @map("revoked_reason")
   createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  /// T-181: the Slack or Teams install a link belongs to; ending the install ends the link.
+  installId      String?   @map("install_id") @db.Uuid
 
   @@index([organizationId, userId], map: "user_contact_channels_org_idx")
+  @@index([installId], map: "user_contact_channels_install_idx")
   @@map("user_contact_channels")
 }
 
@@ -4403,4 +4406,41 @@ model ContactChannelDelivery {
 
   @@index([channelId, createdAt], map: "contact_channel_deliveries_channel_idx")
   @@map("contact_channel_deliveries")
+}
+
+/// T-181: Pactlab installed in an organization's Slack workspace or Microsoft Teams tenant, once, by an
+/// admin. The workspace or tenant id and the bot token's reference are credential data: reached only
+/// through SECURITY DEFINER functions owned by pactlab_auth; the runtime role reads nothing here.
+model ChatInstall {
+  id             String    @id @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  /// SLACK or TEAMS.
+  provider       String
+  externalTenant String    @map("external_tenant")
+  /// Slack: the bot token's secretref. Teams: none.
+  credentialRef  String?   @map("credential_ref")
+  installedBy    String    @map("installed_by") @db.Uuid
+  installedAt    DateTime  @default(now()) @map("installed_at") @db.Timestamptz(3)
+  revokedAt      DateTime? @map("revoked_at") @db.Timestamptz(3)
+  /// ADMIN, UNINSTALLED, TOKENS_REVOKED or REPLACED.
+  revokedReason  String?   @map("revoked_reason")
+
+  @@map("chat_installs")
+}
+
+/// T-181: where a person's personal chat with the Teams bot lives, captured from the verified install
+/// activity; matched to a Pactlab person only by a keyed hash of their email. pactlab_auth only.
+model TeamsConversationRef {
+  id             String    @id @db.Uuid
+  tenantId       String    @map("tenant_id")
+  aadObjectId    String    @map("aad_object_id")
+  emailHash      String?   @map("email_hash") @db.Char(64)
+  serviceUrl     String    @map("service_url")
+  conversationId String    @map("conversation_id")
+  capturedAt     DateTime  @default(now()) @map("captured_at") @db.Timestamptz(3)
+  removedAt      DateTime? @map("removed_at") @db.Timestamptz(3)
+
+  @@unique([tenantId, aadObjectId], map: "teams_conversation_refs_member")
+  @@index([tenantId, emailHash], map: "teams_conversation_refs_email_idx")
+  @@map("teams_conversation_refs")
 }
