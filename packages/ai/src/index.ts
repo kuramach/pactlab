@@ -18,5 +18,6 @@ export * from './voice';
 export * from './http-providers';
 export * from './provider-router';
 export * from './jobs';
+export * from './languages';
 export * from './retrieval';
 export * from './support';

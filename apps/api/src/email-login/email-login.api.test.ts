@@ -39,6 +39,7 @@ describe('email one-time-code sign-in', () => {
   const logLines: string[] = [];
   const charlie = { organizationId: newId(), userId: newId(), dealId: newId(), email: 'lead@charlie.example' };
   const multi = { userId: newId(), email: 'multi@charlie.example', second: newId() };
+  const japanese = { userId: newId(), email: 'kenji@charlie.example' };
 
   async function call(method: 'GET' | 'POST', url: string, payload?: Body, bearer?: string) {
     const response = await app.inject({
@@ -101,6 +102,7 @@ describe('email one-time-code sign-in', () => {
       [newId(), charlie.organizationId, charlie.dealId, charlie.userId],
     );
     await member(multi.userId, multi.email, charlie.organizationId);
+    await member(japanese.userId, japanese.email, charlie.organizationId);
     await emailCodeOrganization(multi.second, 'Golf');
     await member(multi.userId, multi.email, multi.second);
 
@@ -136,6 +138,18 @@ describe('email one-time-code sign-in', () => {
     expect(me.body['organizations']).toEqual([
       expect.objectContaining({ id: charlie.organizationId, authMethod: 'EMAIL_CODE', auth0OrganizationId: null }),
     ]);
+  });
+
+  it('writes the code email in the sign-in page’s language, English for anything else (T-174)', async () => {
+    const before = mail.sent.length;
+    expect(await call('POST', '/v1/auth/email/start', { email: japanese.email, locale: 'ja-JP' })).toEqual({ status: 202, body: { sent: true } });
+    for (let i = 0; i < 50 && mail.sent.length === before; i += 1) await new Promise((r) => setTimeout(r, 10));
+    expect(mail.sent.at(-1)).toMatchObject({ locale: 'ja', subject: 'Pactlabのサインインコード' });
+    const english = mail.sent.length;
+    expect(await call('POST', '/v1/auth/email/start', { email: japanese.email, locale: 'pt-BR' })).toEqual({ status: 202, body: { sent: true } });
+    for (let i = 0; i < 50 && mail.sent.length === english; i += 1) await new Promise((r) => setTimeout(r, 10));
+    expect(mail.sent.at(-1)).toMatchObject({ locale: 'en', subject: 'Your Pactlab sign-in code' });
+    expect((await call('POST', '/v1/auth/email/start', { email: japanese.email, locale: '<script>' })).status).toBe(400);
   });
 
   it('answers identically for unknown, Auth0-only and real addresses', async () => {

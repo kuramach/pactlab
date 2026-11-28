@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { requestLocaleSchema } from '../email-login/email-login.schemas';
 
 const email = z.string().trim().max(254).pipe(z.email());
 
@@ -9,6 +10,8 @@ export const startSignupSchema = z.strictObject({
   ssoRequested: z.boolean().default(false),
   /** Signing up from a pact invitation (T-094 B12): operator approval does not apply. */
   invitationToken: z.string().regex(/^[A-Za-z0-9_-]{43}$/).optional(),
+  /** The sign-up page's language (T-174): the code email is written in it. */
+  locale: requestLocaleSchema,
 });
 export type StartSignupBody = z.infer<typeof startSignupSchema>;
 

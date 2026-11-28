@@ -1,0 +1,20 @@
+# ADR 0067: Emails, generated documents and AI output in the reader's language (T-174)
+
+**Status:** accepted for the first slice (emails and the AI language parameter). Generated documents, stored languages and storing the run's language wait for schema work outside T-174's paths (T-174b).
+
+## Context
+- Kumar (2026-11-26): the target markets need the digest, sign-in and notification emails and the artifacts a deal team circulates in the recipient's language and the pact's currency.
+- The app has typed catalogs (ADR 0064) and one money formatter (ADR 0056); emails and the API had neither languages nor a stored language to read. `users.locale` and an organization default are T-172b; a pact's working language and a language column on `ai_runs` do not exist.
+
+## Decision
+1. **Email catalogs on the app's convention.** `apps/api/src/email-login/email-catalog.ts`: one typed `EmailCopy` per language (en source; de, fr, ja), `satisfies` so a missing string fails typecheck and nothing falls back to English string by string. Templates take a `locale` (default `en`, so English emails are unchanged word for word).
+2. **One branded layout in every language.** `renderEmailHtml` takes the locale: `<html lang>`, the footer tagline and note (`EMAIL_BLURB` is the English entry), "Learn more", the paste-link line, the default reason and, with an organization brand kit (T-123), "Sent with Pactlab for …" are all read from the catalog; the logo, colours and sender stay as they are. Pactlab is never translated. The tagline uses the site's renderings (T-171), pending Kumar's approval.
+3. **Covered now:** sign-in and sign-up codes, pact invitations, "act now" notification emails and the digest (the five highest-volume emails), with notification event titles per language (the English ones tested equal to the domain catalogue).
+4. **Which language.** `resolveEmailLocale(person, organization, request)`: the first offered language, a region tag counting as its language, else English. Until T-172b stores the person's and organization's choice, the only signal is the language of the page a sign-in or sign-up came from: an optional `locale` (BCP 47 shape, validated) on `POST /v1/auth/email/start` and the sign-up start. Notification emails and invitations stay English until a stored language exists.
+5. **AI output language is an explicit job parameter** (`GatewayRequest.outputLanguage`, `packages/ai/src/languages.ts`). The gateway writes in it only on a model evaluated in that language (`MODEL_LANGUAGE_EVALUATIONS`, empty today: every model is evaluated in English only), by adding one instruction to the system text that keeps JSON keys, enums, figures and quotes untouched (a quote must still match its page). Otherwise it writes in English and the run record carries `outputLanguage: { requested, written, fallback, label }`. The ADR 0034 gates apply unchanged per model; the prompt hash stays the registered prompt's, and the language is recorded beside it. `docs/runbooks/ai-models.md` lists the languages each serving model is evaluated in.
+6. **Never translate the record** (for the follow-up): executed documents and stored evidence are never machine-translated in place; only generated drafts and views are, labelled as translations with their source language.
+
+## Consequences
+- A Japanese sign-in page gets a Japanese code email today; Japanese notifications and digests need T-172b's stored language.
+- **T-174b (blocked on schema):** `deals.working_language` (default the organization's), `ai_runs.output_language` columns (expand-only, `packages/db`); notification and invitation emails reading the stored language; reports, IC pack, term sheet and LOI in the pact's language with an embedded CJK-capable font (e.g. Noto Sans JP, OFL) and per-language document tests in de and ja with EUR and JPY pacts; the AI jobs a person reads (Q&A, briefs, triage verdicts) passing the reader's language; translated-draft labelling.
+- **Rollback:** a code revert; no migration. An earlier release's strict schema refuses a `locale` field (400), so the web starts sending it only after this release is live.

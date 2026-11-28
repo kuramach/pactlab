@@ -1,4 +1,5 @@
 import { readableOnWhite } from '@pactlab/domain';
+import { EMAIL_COPY, type EmailLocale } from './email-catalog';
 import type { EmailBrand, EmailContent, EmailSender, OutboundEmail } from './email-sender';
 
 /**
@@ -13,11 +14,8 @@ const MUTED = '#5b6478';
 const PAGE = '#f7f9fc';
 const FONT = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
 
-/** The short note about Pactlab at the bottom of every email. */
-export const EMAIL_BLURB = {
-  tagline: 'Test the pact before you sign it.',
-  text: 'Pactlab checks every claim in an M&A deal against the evidence: revenue, code, contracts, people. Every finding is cited, and the decisions stay with you.',
-};
+/** The short note about Pactlab at the bottom of every email, in English; each language's is in its catalog. */
+export const EMAIL_BLURB = { tagline: EMAIL_COPY.en.layout.tagline, text: EMAIL_COPY.en.layout.blurb };
 
 export const escapeHtml = (value: string) =>
   value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;');
@@ -35,7 +33,8 @@ export function emailAssets(appOrigin: string): { logoUrl: string; siteUrl: stri
   return { logoUrl: `${site}/brand/pactlab-logo-email.png`, siteUrl: site };
 }
 
-export function renderEmailHtml(subject: string, content: EmailContent, assets: { logoUrl: string; siteUrl: string }, brand?: EmailBrand): string {
+export function renderEmailHtml(subject: string, content: EmailContent, assets: { logoUrl: string; siteUrl: string }, brand?: EmailBrand, locale: EmailLocale = 'en'): string {
+  const copy = EMAIL_COPY[locale].layout;
   // An organization's email (T-123): its logo or name on top, its accent on buttons (darkened until white reads on it).
   const INDIGO = brand?.accentColor ? readableOnWhite(brand.accentColor).color : PACTLAB_INDIGO;
   const brandLogo = brand?.logoUrl ? safeUrl(brand.logoUrl) : null;
@@ -47,7 +46,7 @@ export function renderEmailHtml(subject: string, content: EmailContent, assets: 
   const paragraph = (text: string) => `<p style="margin:0 0 16px;font:15px/1.6 ${FONT};color:${NAVY}">${escapeHtml(text)}</p>`;
   const action = content.action ? safeUrl(content.action.url) : null;
   return `<!doctype html>
-<html lang="en">
+<html lang="${locale}">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><title>${escapeHtml(subject)}</title></head>
 <body style="margin:0;padding:0;background:${PAGE}">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${PAGE}">
@@ -58,7 +57,7 @@ export function renderEmailHtml(subject: string, content: EmailContent, assets: 
 <h1 style="margin:0 0 20px;font:700 22px/1.3 ${FONT};color:${NAVY}">${escapeHtml(content.heading)}</h1>
 ${content.paragraphs.map(paragraph).join('\n')}
 ${content.code ? `<p style="margin:8px 0 24px;font:700 32px/1 ${FONT};letter-spacing:8px;color:${NAVY};background:#f0f2ff;border-radius:8px;padding:16px;text-align:center">${escapeHtml(content.code)}</p>` : ''}
-${action && content.action ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:8px 0 24px"><tr><td style="background:${INDIGO};border-radius:8px"><a href="${action}" style="display:inline-block;padding:12px 22px;font:600 15px/1 ${FONT};color:#ffffff;text-decoration:none">${escapeHtml(content.action.label)}</a></td></tr></table><p style="margin:0 0 16px;font:13px/1.5 ${FONT};color:${MUTED}">Or paste this link into your browser: <a href="${action}" style="color:${INDIGO};word-break:break-all">${action}</a></p>` : ''}
+${action && content.action ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:8px 0 24px"><tr><td style="background:${INDIGO};border-radius:8px"><a href="${action}" style="display:inline-block;padding:12px 22px;font:600 15px/1 ${FONT};color:#ffffff;text-decoration:none">${escapeHtml(content.action.label)}</a></td></tr></table><p style="margin:0 0 16px;font:13px/1.5 ${FONT};color:${MUTED}">${escapeHtml(copy.pasteLink)} <a href="${action}" style="color:${INDIGO};word-break:break-all">${action}</a></p>` : ''}
 ${(content.links ?? [])
   .map((link) => ({ link, url: safeUrl(link.url) }))
   .filter((entry) => entry.url)
@@ -71,9 +70,9 @@ ${content.list ? `<p style="margin:16px 0 8px;font:700 15px/1.4 ${FONT};color:${
 ${content.footnote ? `<p style="margin:16px 0 0;font:13px/1.5 ${FONT};color:${MUTED}">${escapeHtml(content.footnote)}</p>` : ''}
 </td></tr>
 <tr><td style="padding:24px 8px 0">
-${brand ? `<p style="margin:0 0 8px;font:600 12px/1.4 ${FONT};color:${MUTED}">Sent with Pactlab for ${escapeHtml(brand.name)}</p>` : ''}<p style="margin:0 0 6px;font:700 14px/1.4 ${FONT};color:${NAVY}">${escapeHtml(EMAIL_BLURB.tagline)}</p>
-<p style="margin:0 0 12px;font:13px/1.6 ${FONT};color:${MUTED}">${escapeHtml(EMAIL_BLURB.text)} <a href="${escapeHtml(assets.siteUrl)}" style="color:${INDIGO}">Learn more</a></p>
-<p style="margin:0;font:12px/1.5 ${FONT};color:${MUTED}">${escapeHtml(content.reason ?? 'You received this email because of an action on your Pactlab account.')}</p>
+${brand ? `<p style="margin:0 0 8px;font:600 12px/1.4 ${FONT};color:${MUTED}">${escapeHtml(copy.sentFor(brand.name))}</p>` : ''}<p style="margin:0 0 6px;font:700 14px/1.4 ${FONT};color:${NAVY}">${escapeHtml(copy.tagline)}</p>
+<p style="margin:0 0 12px;font:13px/1.6 ${FONT};color:${MUTED}">${escapeHtml(copy.blurb)} <a href="${escapeHtml(assets.siteUrl)}" style="color:${INDIGO}">${escapeHtml(copy.learnMore)}</a></p>
+<p style="margin:0;font:12px/1.5 ${FONT};color:${MUTED}">${escapeHtml(content.reason ?? copy.defaultReason)}</p>
 </td></tr>
 </table>
 </td></tr>
@@ -95,6 +94,6 @@ export class BrandedEmailSender implements EmailSender {
 
   send(message: OutboundEmail): Promise<void> {
     if (!message.content || message.html) return this.inner.send(message);
-    return this.inner.send({ ...message, html: renderEmailHtml(message.subject, message.content, this.assets, message.brand) });
+    return this.inner.send({ ...message, html: renderEmailHtml(message.subject, message.content, this.assets, message.brand, message.locale) });
   }
 }

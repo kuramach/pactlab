@@ -7,6 +7,7 @@ import { ModelProviderError, type ModelProviderErrorKind } from './bedrock';
 import { detectInjection } from './injection';
 import { DEFAULT_MODEL_ROUTES, isClaudeModelId, resolveModel, type ModelAlias, type ModelRoute, type ModelProvider } from './models';
 import type { JobType } from './jobs';
+import { evaluatedLanguagesOf, resolveOutputLanguage, withOutputLanguage, type AiOutputLanguage, type OutputLanguageRecord } from './languages';
 import type { PromptDefinition, PromptRegistry } from './prompts/registry';
 import type { ModelImage, ModelMessage, ModelTransport } from './transport';
 
@@ -50,6 +51,11 @@ export interface GatewayRequest {
   readonly images?: readonly ModelImage[];
   /** The images' data classification: required with images, checked like every other input. */
   readonly imagesClassification?: GatewayInput['classification'];
+  /**
+   * The language the reader reads the output in (T-174): an explicit job parameter, recorded on the
+   * run. Written in only on a model evaluated in it; otherwise the evaluated default, labelled.
+   */
+  readonly outputLanguage?: AiOutputLanguage;
 }
 
 export type AiRunStatus = 'SUCCEEDED' | 'SCHEMA_INVALID' | 'PROVIDER_ERROR';
@@ -87,6 +93,8 @@ export interface AiRunRecord {
   readonly createdAt: string;
   /** Pact-wide runs (T-139): how the pages sent were chosen; set by the caller, never by the gateway. */
   readonly retrieval?: RetrievalRecord | null;
+  /** The language asked for and the language written (T-174); absent when the job named none. */
+  readonly outputLanguage?: OutputLanguageRecord;
 }
 
 export interface GatewayResponse<TOutput = unknown> {
@@ -175,6 +183,8 @@ export interface ClaudeGatewayOptions {
    * (the first that answers serves). Takes precedence over `routeFor`. 'BLOCKED': none is allowed.
    */
   readonly lanesFor?: (request: { organizationId: string; dealId: string; jobType: JobType; alias: ModelAlias }) => Promise<readonly ModelRoute[] | 'BLOCKED'>;
+  /** Languages each model is evaluated in (T-174); defaults to the registry, English only today. */
+  readonly evaluatedLanguages?: (modelId: string) => readonly AiOutputLanguage[];
   /** Persists the run record (spec `ai_runs`). */
   readonly onRun?: (run: AiRunRecord) => Promise<void> | void;
   readonly newId?: () => string;
@@ -229,14 +239,18 @@ export class TransportClaudeGateway implements ClaudeGateway {
     let answered = false;
     // One lane at a time: a lane that is unreachable (access) or down after its own retries passes the job
     // to the next, and the run says so. Once a lane has answered, the repair attempt stays on it.
+    // The language each lane writes in (T-174): the one asked for only where that model is evaluated in it.
+    const evaluatedOf = this.options.evaluatedLanguages ?? ((modelId: string) => evaluatedLanguagesOf(modelId));
+    const languageOn = (modelId: string) => (request.outputLanguage ? resolveOutputLanguage(request.outputLanguage, evaluatedOf(modelId)) : null);
     const call = async (history: readonly ModelMessage[]) => {
       for (;;) {
         try {
+          const language = languageOn(route.modelId);
           const response = await this.options.transport.complete({
             modelId: route.modelId,
             provider,
             effort: route.effort,
-            system: prompt.system,
+            system: language ? withOutputLanguage(prompt.system, language.written) : prompt.system,
             messages: history,
             maxOutputTokens: prompt.maxOutputTokens,
             fallbackModelId: fallbackOf(route),
@@ -329,6 +343,7 @@ export class TransportClaudeGateway implements ClaudeGateway {
       outputTokens,
       latencyMs: now().getTime() - started.getTime(),
       createdAt: started.toISOString(),
+      ...(request.outputLanguage ? { outputLanguage: languageOn(route.modelId) as OutputLanguageRecord } : {}),
     };
     await this.options.onRun?.(run);
     return { aiRunId: run.id, status, output, run, providerError };

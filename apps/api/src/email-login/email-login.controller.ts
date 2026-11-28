@@ -17,10 +17,10 @@ export class EmailLoginController {
   @Post('email/start')
   @HttpCode(202)
   async start(
-    @Body(new ZodValidationPipe(startBodySchema)) body: { email: string },
+    @Body(new ZodValidationPipe(startBodySchema)) body: { email: string; locale?: string },
     @Req() request: FastifyRequest,
   ): Promise<{ sent: true }> {
-    await this.service.start(body.email, rateLimitAddress(request));
+    await this.service.start(body.email, rateLimitAddress(request), body.locale);
     return { sent: true };
   }
 

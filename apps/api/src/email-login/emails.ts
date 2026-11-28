@@ -1,63 +1,56 @@
+import { EMAIL_COPY, type EmailCopy, type EmailLocale, type InvitationRole, type InvitationSide } from './email-catalog';
 import type { OutboundEmail } from './email-sender';
+
+/** A one-time code email (sign-in or sign-up) in the recipient's language. */
+function codeEmail(to: string, code: string, minutes: number, locale: EmailLocale, copy: EmailCopy['signInCode']): OutboundEmail {
+  return {
+    to,
+    subject: copy.subject,
+    locale,
+    text: [copy.textCode(code), copy.expires(minutes), copy.ignore].join('\n'),
+    content: { heading: copy.heading, paragraphs: [copy.enter], code, footnote: `${copy.expires(minutes)} ${copy.ignore}` },
+  };
+}
 
 /**
  * Message templates. Plain, direct, no tracking links. `text` is what is said; `content`
  * mirrors it for the branded HTML version (BrandedEmailSender adds the logo and footer).
  */
 export const emails = {
-  signInCode(to: string, code: string, minutes: number): OutboundEmail {
-    return {
-      to,
-      subject: 'Your Pactlab sign-in code',
-      text: [
-        `Your Pactlab sign-in code is ${code}.`,
-        `It expires in ${minutes} minutes and works once.`,
-        'If you did not try to sign in, ignore this email.',
-      ].join('\n'),
-      content: {
-        heading: 'Your sign-in code',
-        paragraphs: ['Enter this code on the Pactlab sign-in page:'],
-        code,
-        footnote: `It expires in ${minutes} minutes and works once. If you did not try to sign in, ignore this email.`,
-      },
-    };
+  signInCode(to: string, code: string, minutes: number, locale: EmailLocale = 'en'): OutboundEmail {
+    return codeEmail(to, code, minutes, locale, EMAIL_COPY[locale].signInCode);
   },
 
-  signupCode(to: string, code: string, minutes: number): OutboundEmail {
-    return {
-      to,
-      subject: 'Confirm your Pactlab sign-up',
-      text: [
-        `Your Pactlab sign-up code is ${code}.`,
-        `It expires in ${minutes} minutes and works once.`,
-        'If you did not sign up for Pactlab, ignore this email.',
-      ].join('\n'),
-      content: {
-        heading: 'Confirm your sign-up',
-        paragraphs: ['Enter this code to finish creating your Pactlab account:'],
-        code,
-        footnote: `It expires in ${minutes} minutes and works once. If you did not sign up for Pactlab, ignore this email.`,
-      },
-    };
+  signupCode(to: string, code: string, minutes: number, locale: EmailLocale = 'en'): OutboundEmail {
+    return codeEmail(to, code, minutes, locale, EMAIL_COPY[locale].signupCode);
   },
 
-  /** An invitation to one pact (T-094 B12): who, which pact, which side and role; the link expires. */
-  dealInvitation(to: string, invite: { inviterName: string; dealName: string; side: string; role: string; link: string; days: number }): OutboundEmail {
-    const side = invite.side === 'SELLER' ? 'the seller side' : invite.side === 'ADVISOR' ? 'as an advisor' : invite.side === 'BIDDER' ? 'as a bidder' : invite.side === 'INVESTOR' ? 'as an investor in the vehicle' : 'the buyer side';
+  /** An invitation to one pact (T-094 B12): who, which pact, which side and role; the link expires. In the invitee's language (T-174). */
+  dealInvitation(
+    to: string,
+    invite: { inviterName: string; dealName: string; side: string; role: string; link: string; days: number },
+    locale: EmailLocale = 'en',
+  ): OutboundEmail {
+    const copy = EMAIL_COPY[locale].invitation;
+    const side = copy.sides[invite.side as InvitationSide] ?? copy.sides.BUYER;
+    const role = copy.roles[invite.role as InvitationRole] ?? invite.role.toLowerCase().replaceAll('_', ' ');
+    // Bidders and investors are named by their side alone.
+    const shownRole = invite.role === 'BIDDER' || invite.role === 'INVESTOR' ? null : role;
     return {
       to,
-      subject: `${invite.inviterName} invited you to a pact on Pactlab`,
+      subject: copy.subject(invite.inviterName),
+      locale,
       text: [
-        `${invite.inviterName} invited you to “${invite.dealName}” on Pactlab, ${side} (${invite.role.toLowerCase().replaceAll('_', ' ')}).`,
-        `Open the invitation: ${invite.link}`,
-        `You join this pact only — not the inviting company. The link works once and expires in ${invite.days} days.`,
-        'If you were not expecting this, ignore this email.',
+        copy.body(invite.inviterName, invite.dealName, side, role),
+        `${copy.open}: ${invite.link}`,
+        `${copy.onlyThisPact} ${copy.expires(invite.days)}`,
+        copy.ignore,
       ].join('\n'),
       content: {
-        heading: `You're invited to “${invite.dealName}”`,
-        paragraphs: [`${invite.inviterName} invited you to this pact on Pactlab, ${side}${invite.role === 'BIDDER' || invite.role === 'INVESTOR' ? '' : ` (${invite.role.toLowerCase().replaceAll('_', ' ')})`}.`, 'You join this pact only — not the inviting company.'],
-        action: { label: 'Open the invitation', url: invite.link },
-        footnote: `The link works once and expires in ${invite.days} days. If you were not expecting this, ignore this email.`,
+        heading: copy.heading(invite.dealName),
+        paragraphs: [copy.body(invite.inviterName, invite.dealName, side, shownRole), copy.onlyThisPact],
+        action: { label: copy.open, url: invite.link },
+        footnote: `${copy.expires(invite.days)} ${copy.ignore}`,
       },
     };
   },

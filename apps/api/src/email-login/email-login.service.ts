@@ -7,6 +7,7 @@ import type { PactlabTokens } from '../auth/pactlab-token';
 import { LOGGER, PRISMA } from '../tokens';
 import { keyedHash, normalizeEmail as normalize } from './client-address';
 import type { EmailSender } from './email-sender';
+import { resolveEmailLocale } from './email-catalog';
 import { emails } from './emails';
 import type { WebAuthnRelyingParty } from './passkeys.service';
 import type { TrustChoice } from './email-login.schemas';
@@ -56,7 +57,8 @@ export class EmailLoginService {
     return this.hmac(`code:${normalize(email)}:${code}`);
   }
 
-  async start(email: string, ip: string): Promise<void> {
+  /** `locale`: the sign-in page's language (T-174); the code email is written in it. */
+  async start(email: string, ip: string, locale?: string): Promise<void> {
     const code = randomInt(0, 1_000_000).toString().padStart(6, '0');
     const challenge = await emailLogin.begin(this.prisma, {
       email: normalize(email),
@@ -66,7 +68,7 @@ export class EmailLoginService {
     if (!challenge) return;
     // Not awaited: response time must not reveal whether a code was sent.
     void this.deps.emailSender
-      .send(emails.signInCode(normalize(email), code, CODE_TTL_MINUTES))
+      .send(emails.signInCode(normalize(email), code, CODE_TTL_MINUTES, resolveEmailLocale(locale)))
       // silent-ok: a sign-in code's reply must not differ by account (no enumeration); the page says what to do when no email arrives
       .catch((error: unknown) => {
         // Never log the code or the address.
