@@ -1,4 +1,4 @@
-import { DIGEST_CADENCES, EMAIL_MODES } from '@pactlab/domain';
+import { ALERT_CHANNELS, DIGEST_CADENCES, EMAIL_MODES } from '@pactlab/domain';
 import { z } from 'zod';
 import { pageQuerySchema } from './pagination';
 
@@ -36,3 +36,29 @@ export const pactNotificationOverrideSchema = z
   })
   .strict();
 export type PactNotificationOverrideBody = z.infer<typeof pactNotificationOverrideSchema>;
+
+/**
+ * Urgent alerts (T-146): which channels an "act now" item also reaches, and this browser's web push
+ * subscription (PushSubscription.toJSON from the Push API, plus a readable device label).
+ */
+export const alertChannelsSchema = z
+  .object({
+    off: z.array(z.enum(ALERT_CHANNELS)).max(ALERT_CHANNELS.length),
+  })
+  .strict();
+export type AlertChannelsBody = z.infer<typeof alertChannelsSchema>;
+
+export const pushSubscriptionSchema = z
+  .object({
+    endpoint: z.url({ protocol: /^https$/ }).max(2048),
+    keys: z
+      .object({
+        p256dh: z.string().regex(/^[A-Za-z0-9_-]{86,88}={0,2}$/),
+        auth: z.string().regex(/^[A-Za-z0-9_-]{21,24}={0,2}$/),
+      })
+      .strict(),
+    /** "Safari on iPhone": derived by the web app from the user agent; the raw user agent is never stored. */
+    label: z.string().trim().min(1).max(80),
+  })
+  .strict();
+export type PushSubscriptionBody = z.infer<typeof pushSubscriptionSchema>;

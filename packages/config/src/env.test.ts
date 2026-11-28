@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ConfigError, apiEnvSchema, loadConfig, webServerEnvSchema, workerEnvSchema } from './env';
+import { ConfigError, apiEnvSchema, loadConfig, messagingEnvSchema, webServerEnvSchema, workerEnvSchema } from './env';
 
 const validApi = {
   APP_ENV: 'test',
@@ -139,5 +139,30 @@ describe('webServerEnvSchema', () => {
   it('allows the fixture AI provider only in local and test runs (T-113)', () => {
     expect(loadConfig(apiEnvSchema, { ...validApi, AI_PROVIDER: 'fixture', AI_FIXTURE_LOG: '/tmp/ai.jsonl' }).AI_PROVIDER).toBe('fixture');
     expect(() => loadConfig(apiEnvSchema, { ...validApi, APP_ENV: 'production', AI_PROVIDER: 'fixture' })).toThrow(/AI_PROVIDER/);
+  });
+});
+
+describe('messagingEnvSchema (T-146)', () => {
+  const vapid = { VAPID_PUBLIC_KEY: `B${'a'.repeat(86)}`, VAPID_PRIVATE_KEY: 'b'.repeat(43), VAPID_SUBJECT: 'mailto:alerts@pactlab.ai' };
+
+  it('is all off by default, and `unset` (a fresh deployed secret) is off too', () => {
+    const value = loadConfig(messagingEnvSchema, { TELEGRAM_BOT_TOKEN: 'unset', VAPID_PUBLIC_KEY: 'unset' });
+    expect([value.TELEGRAM_BOT_TOKEN, value.VAPID_PUBLIC_KEY, value.WHATSAPP_ENABLED]).toEqual([undefined, undefined, 'false']);
+  });
+
+  it('takes web push only with its whole key pair and contact, naming what is missing and never a value', () => {
+    expect(loadConfig(messagingEnvSchema, vapid).VAPID_SUBJECT).toBe('mailto:alerts@pactlab.ai');
+    try {
+      loadConfig(messagingEnvSchema, { VAPID_PRIVATE_KEY: vapid.VAPID_PRIVATE_KEY });
+      expect.unreachable();
+    } catch (error) {
+      expect(String(error)).toMatch(/VAPID_PUBLIC_KEY[\s\S]*VAPID_SUBJECT/);
+      expect(String(error)).not.toContain(vapid.VAPID_PRIVATE_KEY);
+    }
+    expect(() => loadConfig(messagingEnvSchema, { TELEGRAM_BOT_TOKEN: 'secret-token' })).toThrow(/TELEGRAM_BOT_USERNAME/);
+  });
+
+  it('refuses fixture channels in production', () => {
+    expect(() => loadConfig(messagingEnvSchema, { APP_ENV: 'production', CONTACT_CHANNELS: 'fixture' })).toThrow(/CONTACT_CHANNELS/);
   });
 });

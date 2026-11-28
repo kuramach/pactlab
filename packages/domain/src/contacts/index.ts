@@ -68,7 +68,7 @@ export const CHANNEL_PREFIX = 'Pactlab:';
 /** The profile description every provider holds: the tagline (EMAIL_BLURB). */
 export const CHANNEL_ABOUT = 'Test the pact before you sign it.';
 
-export type ChannelMessageKind = 'ACT_NOW' | 'TEST' | 'LINKED' | 'LINK_EXPIRED' | 'DISCONNECTED' | 'STOPPED' | 'CHAT_CONFIRM' | 'CHAT_LINKED';
+export type ChannelMessageKind = 'ACT_NOW' | 'TEST' | 'PUSH_ACT_NOW' | 'PUSH_TEST' | 'LINKED' | 'LINK_EXPIRED' | 'DISCONNECTED' | 'STOPPED' | 'CHAT_CONFIRM' | 'CHAT_LINKED';
 
 /**
  * The words every channel sends, in one place, per locale. Content-free by rule: never a pact name,
@@ -79,6 +79,9 @@ const CHANNEL_WORDS = {
   en: {
     ACT_NOW: 'A pact needs you. Open Pactlab to see what: {link}',
     TEST: 'This is a test message. Notifications will arrive here, with no deal details. {link}',
+    // Web push (T-146): the notification itself opens the inbox, so the words carry no link.
+    PUSH_ACT_NOW: 'A pact needs you. Open Pactlab to see what.',
+    PUSH_TEST: 'This is a test alert. Alerts will arrive on this device, with no deal details.',
     LINKED: 'You are connected. Pactlab will tell you here when a pact needs you, with no deal details. Send /stop to disconnect.',
     LINK_EXPIRED: 'This link has expired or was already used. Open your Pactlab profile for a new one.',
     DISCONNECTED: 'You are disconnected. Pactlab will not message you here again.',

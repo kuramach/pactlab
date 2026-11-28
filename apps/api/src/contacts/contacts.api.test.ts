@@ -5,7 +5,7 @@ import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import type { ClaudeGateway } from '@pactlab/ai';
 import { FixtureTelegramBot, type FixtureWhatsAppSender } from '@pactlab/connectors';
 import { addSyntheticDealMember, createSyntheticTenant, startTestDatabase, type SyntheticTenant, type TestDatabase } from '@pactlab/db/testing';
-import { CHANNEL_PREFIX, CHANNEL_SENDER, newId } from '@pactlab/domain';
+import { ALERT_FOLD_MINUTES, CHANNEL_PREFIX, CHANNEL_SENDER, newId } from '@pactlab/domain';
 import { createLogger } from '@pactlab/observability';
 import { createLocalJWKSet, exportJWK, generateKeyPair, SignJWT, type CryptoKey } from 'jose';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -58,6 +58,9 @@ type Profile = {
  * an admin sees masked values; no contact detail reaches a log line or the AI gateway.
  */
 describe('contact details in the profile (T-180)', () => {
+  // Each dispatch is a later round than the last: a pact gets one alert per 15 minutes (T-146).
+  let round = 0;
+  const nextRound = () => new Date(Date.now() + ++round * (ALERT_FOLD_MINUTES + 1) * 60_000);
   let db: TestDatabase;
   let app: NestFastifyApplication;
   let off: NestFastifyApplication;
@@ -142,7 +145,7 @@ describe('contact details in the profile (T-180)', () => {
     const lead = await profile('lead');
     expect(lead).toMatchObject({ email: { address: 'lead@contact.test', verified: true, source: 'AUTH0_CLAIM' }, askForEmail: false });
     await actNowFor(a.userId);
-    await dispatcher.run();
+    await dispatcher.run(nextRound());
     expect(sender.to('lead@contact.test')).toHaveLength(1);
   });
 
@@ -150,7 +153,7 @@ describe('contact details in the profile (T-180)', () => {
     expect(await profile('member')).toMatchObject({ email: null, askForEmail: true });
     // Nothing to send to yet.
     await actNowFor(member.userId);
-    await dispatcher.run();
+    await dispatcher.run(nextRound());
     expect(sender.sent.filter((message) => message.to.startsWith('member'))).toHaveLength(0);
 
     expect((await call('member', 'POST', '/v1/me/contact/email', { email: 'Member@Contact.test' })).status).toBe(202);
@@ -160,7 +163,7 @@ describe('contact details in the profile (T-180)', () => {
     expect(await profile('member')).toMatchObject({ email: { address: 'member@contact.test', source: 'CODE' }, askForEmail: false });
 
     await actNowFor(member.userId);
-    await dispatcher.run();
+    await dispatcher.run(nextRound());
     expect(sender.to('member@contact.test').filter((message) => message.subject !== 'Confirm your email for Pactlab')).toHaveLength(1);
   });
 
@@ -191,7 +194,7 @@ describe('contact details in the profile (T-180)', () => {
     expect(channel.label).toBe('Connected');
     expect((await call('lead', 'POST', `/v1/me/contact/channels/${channel.id}/test`)).status).toBe(200);
     await actNowFor(a.userId);
-    await dispatcher.run();
+    await dispatcher.run(nextRound());
     const toChat = telegram.outbox.filter((message) => message.to === CHAT);
     for (const message of toChat) {
       expect(message.sender).toBe(CHANNEL_SENDER);
@@ -209,7 +212,7 @@ describe('contact details in the profile (T-180)', () => {
     expect(telegram.outbox.at(-1)?.text).toMatch(/^Pactlab: You are disconnected\./);
     const before = telegram.outbox.length;
     await actNowFor(a.userId);
-    await dispatcher.run();
+    await dispatcher.run(nextRound());
     expect(telegram.outbox.length).toBe(before);
   });
 
@@ -244,7 +247,7 @@ describe('contact details in the profile (T-180)', () => {
     expect(consent.rows[0]?.consent_text).toMatch(/Reply STOP/);
 
     await actNowFor(a.userId);
-    await dispatcher.run();
+    await dispatcher.run(nextRound());
     const sent = whatsapp.outbox.filter((message) => message.template === 'ACT_NOW');
     expect(sent).toHaveLength(1);
     expect(sent[0]?.text.startsWith(`${CHANNEL_PREFIX} `)).toBe(true);
@@ -254,7 +257,7 @@ describe('contact details in the profile (T-180)', () => {
     expect((await whatsappInbound(NUMBER, 'STOP', 'forged')).statusCode).toBe(403);
     expect((await whatsappInbound(NUMBER, 'STOP')).statusCode).toBe(200);
     await actNowFor(a.userId);
-    await dispatcher.run();
+    await dispatcher.run(nextRound());
     expect(whatsapp.outbox.filter((message) => message.template === 'ACT_NOW')).toHaveLength(1);
     const stopped = await db.owner.query<{ n: number }>(`SELECT count(*)::int AS n FROM audit_events WHERE action = 'contact.whatsapp_stopped' AND actor_user_id = $1`, [a.userId]);
     expect(stopped.rows[0]?.n).toBe(1);
