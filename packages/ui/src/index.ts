@@ -12,3 +12,4 @@ export * from './components/file-drop';
 export * from './components/marks';
 export * from './components/step-panel';
 export * from './section-accents';
+export * from './i18n';

@@ -28,15 +28,14 @@ import { apiGet, dealsApi } from '../../_lib/api';
 import { ApiState } from '../../_lib/states';
 import { FindingEvidenceChip } from '../../_lib/finding-evidence';
 import { bringInDocumentFindings, runIndustryChecks } from './actions';
+import { getI18n } from '../../../../../lib/i18n/server';
 import {
-  DOMAIN_LABELS,
   fromDocumentReview,
   needsPricing,
   findingsQuery,
   formatPricedRisk,
   groupByDomain,
   parseFindingFilters,
-  PRICED_RISK_LABELS,
   statusVariant,
   directionText,
   directionVariant,
@@ -87,6 +86,9 @@ export default async function FindingsPage({
   params: Promise<{ dealId: string }>;
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  const t = await getI18n();
+  const words = t.m.findings;
+  const list = words.list;
   // The deal comes from the route; filters from the query string.
   const search = await searchParams;
   const filters = parseFindingFilters({ ...search, deal: (await params).dealId });
@@ -118,136 +120,125 @@ export default async function FindingsPage({
   const pack = plan?.kind === 'ok' && plan.data.companyType && plan.data.companyType !== 'OTHER' ? PACKS[plan.data.companyType] : null;
   const checks = typeof search['checks'] === 'string' ? search['checks'] : undefined;
   const count = (key: string) => (typeof search[key] === 'string' ? Number(search[key]) || 0 : 0);
+  const packName = pack && plan?.kind === 'ok' && plan.data.companyType ? t.inText(t.m.common.companyTypes[plan.data.companyType]) : '';
 
   return (
     <div className="flex max-w-6xl flex-col gap-6">
       <div className="flex flex-col gap-1">
-        <h2 className="text-lg font-semibold tracking-tight">Findings</h2>
+        <h2 className="text-lg font-semibold tracking-tight">{list.title}</h2>
         {dealId ? (
           <Link href={`/deals/${dealId}/claims`} className="text-sm font-semibold text-indigo-ink hover:underline">
-            Seller statements ({claims.length}) — what the seller said, checked against the evidence →
+            {t.fill(list.sellerStatements, { count: t.number(claims.length) })}
           </Link>
         ) : null}
-        <p className="text-sm text-muted-foreground">
-          Drafts from scanners and heuristics stay drafts until a reviewer accepts or rejects them.
-        </p>
+        <p className="text-sm text-muted-foreground">{list.intro}</p>
       </div>
 
       {dealId && pack && pack.findingRules.length > 0 ? (
         <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-navy/10 p-4 text-sm">
           <form action={runIndustryChecks.bind(null, dealId)}>
-            <Button type="submit" size="sm">Run {pack.label.toLowerCase()} checks</Button>
+            <Button type="submit" size="sm">{t.fill(list.runChecks, { pack: packName })}</Button>
           </form>
-          <span className="text-slate-text">
-            {pack.findingRules.length} deterministic checks over the imported {pack.label.toLowerCase()} data and documents. They only draft findings; a reviewer decides.
-          </span>
+          <span className="text-slate-text">{t.plural(pack.findingRules.length, list.checksHelp, { pack: packName })}</span>
         </div>
       ) : null}
       {dealId && pendingFromDocuments > 0 ? (
         <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
-          <span>
-            {pendingFromDocuments} document-review {pendingFromDocuments === 1 ? 'finding was' : 'findings were'} accepted but {pendingFromDocuments === 1 ? 'is' : 'are'} not in this register yet, so {pendingFromDocuments === 1 ? 'it has' : 'they have'} no price or valuation direction.
-          </span>
+          <span>{t.plural(pendingFromDocuments, list.pendingDocuments)}</span>
           <form action={bringInDocumentFindings.bind(null, dealId)}>
             <Button type="submit" size="sm">
-              Bring {pendingFromDocuments === 1 ? 'it' : 'them'} in
+              {t.plural(pendingFromDocuments, list.bringIn)}
             </Button>
           </form>
         </div>
       ) : null}
       {broughtIn !== null ? (
         <p role="status" className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
-          {broughtIn} document-review {broughtIn === 1 ? 'finding is' : 'findings are'} now drafts in this register. Open each to decide its valuation direction and price.
+          {t.plural(broughtIn, list.broughtIn)}
         </p>
       ) : null}
       {checks === 'ok' ? (
         <p role="status" className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
-          Checks run: {count('created')} new draft {count('created') === 1 ? 'finding' : 'findings'}, {count('existing')} already drafted.
-          {count('unresolved') > 0 ? ` ${count('unresolved')} could not be cited exactly and were not drafted.` : ''}
+          {t.plural(count('created'), list.checksRun, { existing: t.number(count('existing')) })}
+          {count('unresolved') > 0 ? t.plural(count('unresolved'), list.unresolved) : ''}
         </p>
       ) : checks ? (
         <p role="alert" className="rounded-md border border-border bg-muted px-3 py-2 text-sm">
-          {checks === 'forbidden' ? 'Your role cannot draft findings on this deal.' : 'The checks could not run. Try again.'}
+          {checks === 'forbidden' ? list.checksForbidden : list.checksFailed}
         </p>
       ) : null}
 
       {!dealId ? (
-        <EmptyState
-          title="Choose a deal"
-          description="Open findings from a deal to review its technology diligence."
-        />
+        <EmptyState title={list.chooseDeal.title} description={list.chooseDeal.description} />
       ) : (
         <>
           <form
             method="get"
             className="flex flex-wrap items-end gap-3 text-sm"
-            aria-label="Filter findings"
+            aria-label={list.filters.label}
           >
             <input type="hidden" name="deal" value={dealId} />
             <label className="flex flex-col gap-1">
-              <span className="text-muted-foreground">Status</span>
+              <span className="text-muted-foreground">{list.filters.status}</span>
               <select
                 name="status"
                 defaultValue={filters.status ?? ''}
                 className="rounded-md border border-border bg-background px-2 py-1"
               >
-                <option value="">Any</option>
+                <option value="">{list.filters.any}</option>
                 {FINDING_STATUSES.map((status) => (
                   <option key={status} value={status}>
-                    {status.replace('_', ' ').toLowerCase()}
+                    {words.statuses[status]}
                   </option>
                 ))}
               </select>
             </label>
             <label className="flex flex-col gap-1">
-              <span className="text-muted-foreground">Domain</span>
+              <span className="text-muted-foreground">{list.filters.domain}</span>
               <select
                 name="domain"
                 defaultValue={filters.domain ?? ''}
                 className="rounded-md border border-border bg-background px-2 py-1"
               >
-                <option value="">All domains</option>
+                <option value="">{list.filters.allDomains}</option>
                 {FINDING_DOMAINS.map((domain) => (
                   <option key={domain} value={domain}>
-                    {DOMAIN_LABELS[domain]}
+                    {words.domains[domain]}
                   </option>
                 ))}
               </select>
             </label>
             <label className="flex flex-col gap-1">
-              <span className="text-muted-foreground">Source</span>
+              <span className="text-muted-foreground">{list.filters.source}</span>
               <select
                 name="source"
                 defaultValue={filters.source ?? ''}
                 className="rounded-md border border-border bg-background px-2 py-1"
               >
-                <option value="">All sources</option>
-                <option value="document-review">Document review</option>
+                <option value="">{list.filters.allSources}</option>
+                <option value="document-review">{list.filters.documentReview}</option>
               </select>
             </label>
             <label className="flex flex-col gap-1">
-              <span className="text-muted-foreground">Pricing</span>
+              <span className="text-muted-foreground">{list.filters.pricing}</span>
               <select
                 name="pricing"
                 defaultValue={filters.pricing ?? ''}
                 className="rounded-md border border-border bg-background px-2 py-1"
               >
-                <option value="">Any</option>
-                <option value="needed">Needs pricing{unpriced > 0 ? ` (${unpriced})` : ''}</option>
+                <option value="">{list.filters.any}</option>
+                <option value="needed">{unpriced > 0 ? t.fill(list.filters.needsPricingCount, { count: t.number(unpriced) }) : list.filters.needsPricing}</option>
               </select>
             </label>
             <Button variant="outline" size="sm" type="submit">
-              Apply
+              {list.filters.apply}
             </Button>
           </form>
 
           {result && result.kind !== 'ok' ? (
-            <ApiState result={result} />
+            <ApiState result={result} t={t} />
           ) : !result || result.data.items.length === 0 ? (
-            <EmptyState
-              title="No findings"
-              description="No findings match these filters. Run a repository scan to draft technology findings."
-            />
+            <EmptyState title={list.empty.title} description={list.empty.description} />
           ) : (
             <>
               <div className="grid gap-6 lg:grid-cols-2">
@@ -256,15 +247,15 @@ export default async function FindingsPage({
                     <IconTile accent="rose">
                       <AlertOctagon />
                     </IconTile>
-                    <CardTitle>By severity</CardTitle>
+                    <CardTitle>{list.bySeverity}</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <DonutChart
-                      label="Findings by severity"
-                      centerLabel={String(counts?.total ?? result.data.total)}
+                      label={list.bySeverityChart}
+                      centerLabel={t.number(counts?.total ?? result.data.total)}
                       slices={(['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'INFO'] as const)
                         .map((severity) => ({
-                          name: severity.charAt(0) + severity.slice(1).toLowerCase(),
+                          name: words.severityNames[severity],
                           value: counts?.bySeverity[severity] ?? 0,
                           color: SEVERITY_COLORS[severity],
                         }))
@@ -277,17 +268,17 @@ export default async function FindingsPage({
                     <IconTile accent="indigo">
                       <ClipboardCheck />
                     </IconTile>
-                    <CardTitle>Review progress</CardTitle>
+                    <CardTitle>{list.progress}</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <BarChart
-                      label="Findings by review status"
+                      label={list.progressChart}
                       format="count"
                       height={240}
-                      categories={['Draft', 'In review', 'Accepted', 'Rejected']}
+                      categories={[list.progressCategories.DRAFT, list.progressCategories.IN_REVIEW, list.progressCategories.ACCEPTED, list.progressCategories.REJECTED]}
                       series={[
                         {
-                          name: 'Findings',
+                          name: list.progressSeries,
                           values: (['DRAFT', 'IN_REVIEW', 'ACCEPTED', 'REJECTED'] as const).map(
                             (status) => counts?.byStatus[status] ?? 0,
                           ),
@@ -304,18 +295,18 @@ export default async function FindingsPage({
                     <DomainIcon domain={domain} />
                   </IconTile>
                   <CardTitle>
-                    <Glossed text={DOMAIN_LABELS[domain]} />
+                    <Glossed text={words.domains[domain]} />
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="p-0">
                   <table className="w-full text-sm">
                     <thead className="text-left text-muted-foreground">
                       <tr className="border-b border-border">
-                        <th className="px-4 py-2 font-medium">Finding</th>
-                        <th className="px-4 py-2 font-medium">Severity</th>
-                        <th className="px-4 py-2 font-medium">Status</th>
-                        <th className="px-4 py-2 font-medium">Evidence</th>
-                        <th className="px-4 py-2 font-medium">Priced risk</th>
+                        <th className="px-4 py-2 font-medium">{list.columns.finding}</th>
+                        <th className="px-4 py-2 font-medium">{list.columns.severity}</th>
+                        <th className="px-4 py-2 font-medium">{list.columns.status}</th>
+                        <th className="px-4 py-2 font-medium">{list.columns.evidence}</th>
+                        <th className="px-4 py-2 font-medium">{list.columns.pricedRisk}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border">
@@ -325,41 +316,38 @@ export default async function FindingsPage({
                             <Link href={`/deals/${dealId}/findings/${finding.id}`} className="font-medium text-indigo-ink hover:underline">
                               {finding.title}
                             </Link>
-                            <div className="text-muted-foreground">
-                              {finding.origin.toLowerCase()} · confidence{' '}
-                              {finding.confidence.toLowerCase()}
-                            </div>
+                            <div className="text-muted-foreground">{t.fill(list.meta, { origin: words.origins[finding.origin], confidence: words.confidences[finding.confidence] })}</div>
                             <div className="mt-1">
-                              <ClaimVerdictBadge claims={claimsFor(claims, finding.id)} />
-                              <HandSourcedBadge claims={claimsFor(claims, finding.id)} />
-                              <SourceWithdrawnBadge flags={withdrawnFlags.get(finding.id)} />
+                              <ClaimVerdictBadge claims={claimsFor(claims, finding.id)} t={t} />
+                              <HandSourcedBadge claims={claimsFor(claims, finding.id)} t={t} />
+                              <SourceWithdrawnBadge flags={withdrawnFlags.get(finding.id)} t={t} />
                             </div>
                             {fromDocumentReview(finding) ? (
                               <Link href={`/deals/${dealId}/documents`} className="mt-1 inline-flex">
-                                <Badge variant="evidence">From document review</Badge>
+                                <Badge variant="evidence">{list.fromDocumentReview}</Badge>
                               </Link>
                             ) : null}
                           </td>
-                          <td className="px-4 py-2">{finding.severity.toLowerCase()}</td>
+                          <td className="px-4 py-2">{words.severities[finding.severity]}</td>
                           <td className="px-4 py-2">
                             <Badge variant={statusVariant(finding.status)}>
-                              {finding.status.replace('_', ' ').toLowerCase()}
+                              {words.statuses[finding.status]}
                             </Badge>{' '}
-                            <Badge variant={directionVariant(finding.direction)}>{directionText(finding.direction)}</Badge>
+                            <Badge variant={directionVariant(finding.direction)}>{directionText(finding.direction, t)}</Badge>
                             {needsPricing(finding) ? (
-                              <Badge variant="danger" title="A drag needs a price before it can be accepted">
-                                Needs pricing
+                              <Badge variant="danger" title={list.needsPricingTitle}>
+                                {list.filters.needsPricing}
                               </Badge>
                             ) : null}
                           </td>
                           <td className="px-4 py-2">
                             {finding.evidence.length === 0 ? (
-                              <span className="text-muted-foreground">Needs evidence</span>
+                              <span className="text-muted-foreground">{list.needsEvidence}</span>
                             ) : (
                               <ul className="flex flex-col gap-1">
                                 {finding.evidence.map((link) => (
                                   <li key={`${link.evidenceItemId ?? link.documentCitation?.quoteHash}-${link.toolName}`}>
-                                    <FindingEvidenceChip link={link} dealId={dealId} from={here} />{' '}
+                                    <FindingEvidenceChip link={link} dealId={dealId} from={here} t={t} />{' '}
                                     {link.commitSha ? <><span className="font-mono">{link.commitSha.slice(0, 12)}</span>{' '}</> : null}
                                     <span className="text-muted-foreground">
                                       {link.toolName}@{link.toolVersion}
@@ -372,10 +360,10 @@ export default async function FindingsPage({
                             )}
                           </td>
                           <td className="px-4 py-2">
-                            <div className="font-mono">{formatPricedRisk(finding.pricedRisk)}</div>
+                            <div className="font-mono">{formatPricedRisk(finding.pricedRisk, t)}</div>
                             {finding.pricedRisk ? (
                               <div className="text-muted-foreground">
-                                {PRICED_RISK_LABELS[finding.pricedRisk.type]}
+                                {words.pricedRiskTypes[finding.pricedRisk.type]}
                               </div>
                             ) : null}
                           </td>
@@ -386,7 +374,7 @@ export default async function FindingsPage({
                 </CardContent>
               </Card>
               ))}
-              <Pager label="Finding pages" base={`/deals/${dealId ?? ''}/findings`} links={pagerLinks({ ...result.data, itemCount: result.data.items.length }, position, keepParams(search))} />
+              <Pager label={list.pages} base={`/deals/${dealId ?? ''}/findings`} links={pagerLinks({ ...result.data, itemCount: result.data.items.length }, position, keepParams(search), '', t)} t={t} />
             </>
           )}
         </>

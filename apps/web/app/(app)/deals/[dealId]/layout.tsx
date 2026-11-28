@@ -1,4 +1,4 @@
-import { DEAL_PHASE_LABELS, type CompanyType } from '@pactlab/domain';
+import type { CompanyType } from '@pactlab/domain';
 import { Badge, Button, PageHeader } from '@pactlab/ui';
 import { FileText } from 'lucide-react';
 import { generateReport } from '../../reports/actions';
@@ -9,7 +9,8 @@ import { guideHidden } from '../../_lib/guide-actions';
 import { DealTabs } from '../_lib/deal-tabs';
 import { Showcase } from '../_lib/showcase';
 import { isUuidParam } from '../_lib/filters';
-import { DEAL_TYPE_LABELS, partyLabel, STAGE_LABELS } from '../_lib/labels';
+import { partyLabel } from '../_lib/labels';
+import { getI18n } from '../../../../lib/i18n/server';
 import { ApiState } from '../_lib/states';
 import { TeamButton } from '../_lib/team-button';
 import { dealViewer } from '../_lib/viewer';
@@ -21,6 +22,9 @@ import { dealViewer } from '../_lib/viewer';
 export default async function DealLayout({ children, params }: { children: ReactNode; params: Promise<{ dealId: string }> }) {
   const { dealId } = await params;
   if (!isUuidParam(dealId)) notFound();
+  const t = await getI18n();
+  const words = t.m.pact;
+  const crumbs = words.breadcrumbs;
   const [deal, parties, members, viewer, suggestions] = await Promise.all([
     dealsApi.get(dealId),
     dealsApi.parties(dealId),
@@ -34,8 +38,8 @@ export default async function DealLayout({ children, params }: { children: React
   if (deal.kind !== 'ok') {
     return (
       <div className="flex flex-col gap-6">
-        <PageHeader breadcrumbs={[{ href: '/', label: 'Home' }, { href: '/deals', label: 'My deals' }, { label: 'Deal' }]} title="Deal" />
-        <ApiState result={deal} />
+        <PageHeader breadcrumbs={[{ href: '/', label: crumbs.home }, { href: '/deals', label: crumbs.deals }, { label: crumbs.deal }]} title={crumbs.deal} />
+        <ApiState result={deal} t={t} />
       </div>
     );
   }
@@ -49,7 +53,7 @@ export default async function DealLayout({ children, params }: { children: React
   if (viewer.role === 'INVESTOR') {
     return (
       <div className="flex flex-col gap-6">
-        <PageHeader tone="navy" eyebrow="Your investment" breadcrumbs={[{ href: '/', label: 'Home' }, { label: deal.data.name }]} title={deal.data.name} description={<>{deal.data.targetName} — through a pooled vehicle</>} />
+        <PageHeader tone="navy" eyebrow={words.eyebrow.investment} breadcrumbs={[{ href: '/', label: crumbs.home }, { label: deal.data.name }]} title={deal.data.name} description={t.fill(words.description.pooled, { target: deal.data.targetName })} />
         {children}
       </div>
     );
@@ -61,10 +65,10 @@ export default async function DealLayout({ children, params }: { children: React
       <div className="flex flex-col gap-6">
         <PageHeader
           tone="navy"
-          eyebrow="Your bid"
-          breadcrumbs={[{ href: '/', label: 'Home' }, { label: deal.data.name }]}
+          eyebrow={words.eyebrow.bid}
+          breadcrumbs={[{ href: '/', label: crumbs.home }, { label: deal.data.name }]}
           title={deal.data.name}
-          description={<>{deal.data.targetName} — {venture ? 'raising a round' : 'for sale'}</>}
+          description={t.fill(venture ? words.description.raisingRound : words.description.forSale, { target: deal.data.targetName })}
         />
         {children}
       </div>
@@ -76,21 +80,21 @@ export default async function DealLayout({ children, params }: { children: React
       <div>
         <PageHeader
           tone="navy"
-          eyebrow="Deal workspace"
-          breadcrumbs={[{ href: '/', label: 'Home' }, { href: '/deals', label: 'My deals' }, { label: deal.data.name }]}
+          eyebrow={words.eyebrow.workspace}
+          breadcrumbs={[{ href: '/', label: crumbs.home }, { href: '/deals', label: crumbs.deals }, { label: deal.data.name }]}
           title={deal.data.name}
           description={
             sellerLed && seller ? (
               <>
-                <span className="font-semibold text-white">{partyLabel(seller)}</span> {venture ? 'raising a round from invited investors' : 'for sale to invited bidders'}
+                <span className="font-semibold text-white">{partyLabel(seller)}</span> {venture ? words.description.raisingFromInvestors : words.description.forSaleToBidders}
               </>
             ) : venture && seller ? (
               <>
-                <span className="font-semibold text-white">{partyLabel(seller)}</span> raising a round
+                <span className="font-semibold text-white">{partyLabel(seller)}</span> {words.description.raising}
               </>
             ) : buyer && seller ? (
               <>
-                <span className="font-semibold text-white">{partyLabel(buyer)}</span> acquiring{' '}
+                <span className="font-semibold text-white">{partyLabel(buyer)}</span> {words.description.acquiring}{' '}
                 <span className="font-semibold text-white">{partyLabel(seller)}</span>
               </>
             ) : (
@@ -102,7 +106,7 @@ export default async function DealLayout({ children, params }: { children: React
               {/* The complete record of this pact as a versioned PDF (T-110). */}
               <form action={generateReport.bind(null, 'PACT', dealId)}>
                 <Button type="submit" variant="outline" size="sm">
-                  <FileText aria-hidden className="h-4 w-4" /> Report
+                  <FileText aria-hidden className="h-4 w-4" /> {words.report}
                 </Button>
               </form>
               {members.kind === 'ok' ? <TeamButton dealId={dealId} members={members.data.items.filter((member) => member.status === 'ACTIVE')} /> : null}
@@ -110,16 +114,16 @@ export default async function DealLayout({ children, params }: { children: React
           }
           meta={
             <>
-              <Badge className="border-white/20 bg-white/10 text-white">{DEAL_TYPE_LABELS[deal.data.transactionType] ?? deal.data.transactionType}</Badge>
-              <Badge className="border-teal/40 bg-teal/20 text-white" title="Phase of the pact">
-                {DEAL_PHASE_LABELS[deal.data.phase]}
+              <Badge className="border-white/20 bg-white/10 text-white">{(t.m.common.dealTypes as Record<string, string>)[deal.data.transactionType] ?? deal.data.transactionType}</Badge>
+              <Badge className="border-teal/40 bg-teal/20 text-white" title={words.phaseTitle}>
+                {t.m.common.phases[deal.data.phase]}
               </Badge>
-              <Badge className="border-indigo/40 bg-indigo/20 text-white">{STAGE_LABELS[deal.data.stage] ?? deal.data.stage}</Badge>
-              {deal.data.status === 'ARCHIVED' ? <Badge className="border-white/20 bg-white/10 text-white">Archived</Badge> : null}
+              <Badge className="border-indigo/40 bg-indigo/20 text-white">{(t.m.common.stages as Record<string, string>)[deal.data.stage] ?? deal.data.stage}</Badge>
+              {deal.data.status === 'ARCHIVED' ? <Badge className="border-white/20 bg-white/10 text-white">{words.archived}</Badge> : null}
             </>
           }
         />
-        <DealTabs dealId={dealId} companyType={(seller?.companyType as CompanyType | null | undefined) ?? null} sellerLed={sellerLed} counterparty={viewer.role === 'TARGET_CONTRIBUTOR'} pendingSuggestions={pendingSuggestions} />
+        <DealTabs dealId={dealId} companyType={(seller?.companyType as CompanyType | null | undefined) ?? null} sellerLed={sellerLed} counterparty={viewer.role === 'TARGET_CONTRIBUTOR'} pendingSuggestions={pendingSuggestions} words={words.tabs} />
       </div>
       {/* The guided tour and "Why this matters" (2026-11-13); each person can hide it. */}
       {(await guideHidden()) ? null : <Showcase dealId={dealId} companyType={(seller?.companyType as CompanyType | null | undefined) ?? null} sellerLed={sellerLed} />}
