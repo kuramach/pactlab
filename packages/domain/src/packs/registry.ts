@@ -17,7 +17,7 @@ export const PACK_IDS = COMPANY_TYPES.filter((type): type is PackId => type !== 
 export type PackCluster = 'technology' | 'healthcare' | 'real-estate' | 'services' | 'life-sciences' | 'consumer' | 'capital' | 'media-rights' | 'energy';
 
 /** Calculator ids in `@pactlab/calculations` (`metricCalculator`). */
-export const METRIC_CALCULATOR_IDS = ['saas-metrics', 'multifamily-metrics', 'music-royalties', 'energy-assets', 'spv-round', 'fintech-payments', 'healthcare-collections', 'clinics-practice', 'pharma-pipeline', 'ecommerce-channels', 'services-practice', 'telecom-subscribers', 'hospitals-operations'] as const;
+export const METRIC_CALCULATOR_IDS = ['saas-metrics', 'multifamily-metrics', 'music-royalties', 'energy-assets', 'spv-round', 'fintech-payments', 'healthcare-collections', 'clinics-practice', 'pharma-pipeline', 'ecommerce-channels', 'services-practice', 'telecom-subscribers', 'hospitals-operations', 'hotels-performance'] as const;
 export type MetricCalculatorId = (typeof METRIC_CALCULATOR_IDS)[number];
 
 /** Valuation method ids in `@pactlab/calculations` (`VALUATION_METHODS`). */
@@ -302,10 +302,32 @@ export const PACKS: Readonly<Record<PackId, PackDefinition>> = {
     // Income property values on NOI ÷ cap rate (T-059), with a DCF of the rollover schedule alongside.
     valuationMethods: ['NOI_CAP_RATE', 'DCF'],
   },
+  // Branded and independent hotels (T-067, extended by T-166, ADR 0068): the price rests on the flag and the comp
+  // set. The T-067 rules stay first; the pack adds the franchise and management agreements register, the brand's
+  // PIP items against the owner's capex budget, the deck's performance claims against the operating history and
+  // the STR benchmark, brand fees against rooms revenue across the P&L years and the multi-year P&L trend.
   HOTELS: {
     ...pack('HOTELS', 'hotels', 'real-estate', true),
-    importTargets: ['BILLING_INVOICE_LINE', 'HOTELS_OPERATING_HISTORY', 'HOTELS_STR_BENCHMARK'],
-    findingRules: ['hotels-brand-pip', 'hotels-revpar-gap', 'hotels-channel-concentration', 'hotels-seasonal-demand', 'hotels-management-termination-fee'],
+    importTargets: ['BILLING_INVOICE_LINE', 'HOTELS_OPERATING_HISTORY', 'HOTELS_STR_BENCHMARK', 'HOTELS_AGREEMENTS', 'HOTELS_PIP_SCHEDULE', 'HOTELS_CAPEX_BUDGET'],
+    metricCalculator: 'hotels-performance',
+    findingRules: [
+      'hotels-brand-pip',
+      'hotels-revpar-gap',
+      'hotels-channel-concentration',
+      'hotels-seasonal-demand',
+      'hotels-management-termination-fee',
+      'hotels-performance-claims',
+      'hotels-franchise-term',
+      'hotels-pip-schedule',
+      'hotels-management-survival',
+      'hotels-brand-fee-trend',
+      'hotels-pnl-trend',
+      'hotels-pnl-margin-drift',
+      'hotels-pnl-expense-outpacing',
+      'hotels-revpar-trend',
+      'hotels-recent-run',
+    ],
+    documentCategories: ['FRANCHISE_AGREEMENT', 'PIP_REPORT', 'MANAGEMENT_AGREEMENT', 'STR_REPORT'],
     // Hotels value on NOI ÷ cap rate (T-059) with a DCF of RevPAR and GOP-margin trends.
     valuationMethods: ['NOI_CAP_RATE', 'DCF'],
   },

@@ -328,6 +328,14 @@ export const content: Catalog['content'] = {
       imageAlt: 'EC と D2C：店舗、リピートの矢印付きのショッピングバッグ、コホート別のリピート購入',
       linkLabel: 'EC パクトを実行する',
     },
+    hotels: {
+      short: 'ホテル',
+      title: 'RevPARインデックスは主張です。STRレポートと照合しましょう。',
+      body: 'Pactlabは、プレゼン資料のRevPARインデックス、稼働率、ADRをSTRベンチマークと運営履歴に照らして確認し、フランチャイズの期間と違約金をクロージング日と照合し、各PIP項目をオーナーの設備投資予算と比べます。入札の前に。',
+      points: ['RevPARインデックスとSTRベンチマークの照合', '保有期間中に終わるフランチャイズとその違約金', '予算のない初年度のPIPを価格に反映'],
+      imageAlt: 'ホテル：ホテルの建物、RevPARのグラフ、ブランド契約',
+      linkLabel: 'ホテルのパクトを実行',
+    },
     'startup-spv': {
       short: 'スタートアップ SPV',
       title: '数字が合うラウンドで、資金をまとめる。',

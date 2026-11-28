@@ -324,6 +324,14 @@ export const SITE_CORPUS: readonly HelpArticle[] = [
     "locale": "en"
   },
   {
+    "id": "industry:hotels",
+    "kind": "INDUSTRY",
+    "title": "Hotels and hospitality in Pactlab",
+    "url": "https://pactlab.ai/industries/hotels/",
+    "text": "An operating business on a property, priced on its flag and its comp set: the franchise, the PIP and the performance claims, checked against the documents.\nAcquisitions of branded and independent hotels by hospitality funds, owner-operators and REITs.\nDoes the STR report support the RevPAR index and occupancy in the deck?\nHow long does the franchise run after closing, and what does leaving it early cost?\nWhich PIP items fall due in the first year, and are they in the capex budget?\nAre brand fees growing faster than rooms revenue?\nPerformance claims register: The deck’s RevPAR index against the STR benchmark, and its occupancy, ADR and RevPAR against the operating history: verified, contradicted or unverified.\nFranchise and PIP register: The franchise term against the expected closing, and each PIP item against the capex budget, priced as remediation and escrow.\nBrand fees against rooms revenue: Franchise, royalty, marketing and reservation fees as a share of rooms revenue, across every imported year.\nEvidence: Operating history by month from the property-management system, and the STR benchmark against the competitive set; The franchise and management agreements register: term, fees and the penalty for leaving early; The brand’s property improvement plan (PIP) by item, and the owner’s capex budget; The franchise agreement, the management agreement and the deck, read sentence by sentence; The P&L by year, with rooms revenue and the brand fee lines\nFindings: The deck’s RevPAR index, occupancy or ADR contradicted by the STR benchmark or the operating history; A franchise ending within five years of closing, with its penalty for leaving early; PIP items due within a year of closing that the capex budget does not fund; Management-agreement terms that survive a sale; Brand fees growing faster than rooms revenue across the P&L years\nValuation: NOI ÷ cap rate and a DCF; The PIP as remediation, and the unbudgeted near-term PIP as an escrow on the purchase-price bridge",
+    "locale": "en"
+  },
+  {
     "id": "industry:small-clinics",
     "kind": "INDUSTRY",
     "title": "Small clinics in Pactlab",

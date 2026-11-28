@@ -341,6 +341,14 @@ export const content: Catalog['content'] = {
       imageAlt: 'E-Commerce und DTC: ein Ladengeschäft, eine Einkaufstasche mit Wiederholungspfeil und Wiederkäufe je Kohorte',
       linkLabel: 'Einen E-Commerce-Pakt durchführen',
     },
+    hotels: {
+      short: 'Hotels',
+      title: 'Der RevPAR-Index ist eine Behauptung. Prüfen Sie ihn am STR-Bericht.',
+      body: 'Pactlab prüft RevPAR-Index, Belegung und ADR der Präsentation gegen den STR-Vergleich und die Betriebshistorie, liest Laufzeit und Vertragsstrafe des Franchise gegen das Closing und hält jede PIP-Position gegen das Investitionsbudget des Eigentümers – bevor Sie bieten.',
+      points: ['Der RevPAR-Index gegen den STR-Vergleich', 'Ein Franchise, das in der Haltedauer endet, mit seiner Strafe', 'PIP im ersten Jahr ohne Budget, bepreist'],
+      imageAlt: 'Hotels: ein Hotelgebäude, ein RevPAR-Diagramm und ein Markenvertrag',
+      linkLabel: 'Einen Hotel-Pakt durchführen',
+    },
     'startup-spv': {
       short: 'Start-up-SPV',
       title: 'Bündeln Sie das Geld in einer Runde, deren Zahlen aufgehen.',

@@ -353,36 +353,36 @@ export const INDUSTRY_STORIES: Readonly<Record<string, IndustryStory>> = {
   },
 
   hotels: {
-    headline: 'A hotel is an operating business on a property.',
+    headline: 'A hotel is priced on its flag and its comp set.',
     subhead:
-      'Room revenue, brand obligations and the capex the brand will demand decide what a hotel is worth. Pactlab reads the operating history and the agreements, and prices the property-improvement plan before you sign.',
+      'The franchise’s term and penalty, the brand’s property improvement plan and the performance in the deck decide what a hotel is worth. Pactlab reads the agreements, the PIP, the STR benchmark and the P&L, and checks each claim before you sign.',
     illustrationAlt: 'Illustration of a hotel building, a RevPAR chart and a brand agreement.',
     pains: [
-      { icon: 'ChartLine', title: 'RevPAR read without the competitive set', body: 'Growth that trails the market is decline in disguise.' },
-      { icon: 'Stamp', title: 'A brand renovation plan waiting at closing', body: 'Property-improvement plans can land on the buyer the day the deal closes.' },
-      { icon: 'Snowflake', title: 'Demand that lives in one season', body: 'A strong year can rest on a few months or a single demand source.' },
+      { icon: 'ChartLine', title: 'A RevPAR index the STR report does not show', body: 'A deck can claim the hotel beats its comp set while the benchmark says it trails it.' },
+      { icon: 'Stamp', title: 'A PIP due in the first year, with no budget', body: 'Brand-required work can fall due months after closing, funded by nobody.' },
+      { icon: 'Snowflake', title: 'A franchise that ends inside the hold', body: 'A short remaining term means a renewal, a new PIP or a re-flag, and a penalty for leaving early.' },
     ],
     walkthrough: [
-      { step: 'Evidence', text: 'PMS and STR reports, franchise and brand agreements, management contracts, occupancy, ADR and RevPAR history, and food-and-beverage P&Ls.' },
-      { step: 'Finding', text: 'Deferred PIP capex, franchise encumbrances and termination windows, and demand seasonality, each citing its source.' },
-      { step: 'Review', text: 'Reviewers decide each finding with the agreement clause or operating rows in view.' },
-      { step: 'Valuation', text: 'RevPAR and GOP-margin trends feed the scenarios; PIP capex lands as remediation.' },
-      { step: 'Deal terms', text: 'PIP capex as a price adjustment or escrow, and brand consents as closing conditions.' },
+      { step: 'Evidence', text: 'The operating history and STR benchmark by month, the franchise and management agreements register, the PIP schedule, the capex budget, the agreements themselves, the deck and the P&L by year.' },
+      { step: 'Finding', text: 'Contradicted performance claims, a franchise ending within five years of closing, unbudgeted near-term PIP items, management terms that survive a sale and brand fees outgrowing rooms revenue, each citing its rows or the sentence it rests on.' },
+      { step: 'Review', text: 'Reviewers decide each finding with the agreement clause, the STR months or the P&L years in view.' },
+      { step: 'Valuation', text: 'NOI ÷ cap rate and a DCF; the PIP lands as remediation and the measured RevPAR, not the deck’s, feeds the scenarios.' },
+      { step: 'Deal terms', text: 'The unbudgeted PIP as an escrow, a franchise extension or the release of surviving operator rights as closing conditions.' },
     ],
     findings: [
-      { title: 'Brand PIP required on change of ownership', severity: 'High', evidence: 'Clause cited from the franchise agreement', term: 'Price adjustment or PIP escrow' },
-      { title: 'RevPAR growth trailing the competitive set', severity: 'Medium', evidence: 'STR reports against the operating history', term: 'Downside case in the valuation' },
-      { title: 'Management contract terminable only with a fee', severity: 'Medium', evidence: 'Termination clause cited from the management contract', term: 'Termination cost in the purchase-price bridge' },
+      { title: 'PIP due within 12 months of closing and unbudgeted', severity: 'High', evidence: 'The PIP schedule against the owner’s capex budget', term: 'Escrow of the unbudgeted amount' },
+      { title: 'STR report contradicts the deck: RevPAR index', severity: 'High', evidence: 'The deck’s sentence against the STR benchmark’s twelve months', term: 'Measured RevPAR in the valuation' },
+      { title: 'The franchise ends 3 years after closing', severity: 'High', evidence: 'The franchise agreement’s expiry and liquidated damages, quoted', term: 'Franchise extension as a closing condition' },
     ],
     deliverables: [
-      { icon: 'ChartLine', title: 'RevPAR and margin trends', body: 'From the operating history, set against the competitive set.' },
-      { icon: 'Stamp', title: 'A brand obligations register', body: 'PIP, encumbrances and termination windows, each with its clause.' },
-      { icon: 'Handshake', title: 'Terms that carry the capex', body: 'PIP costs priced into the deal rather than discovered after it.' },
+      { icon: 'ChartLine', title: 'A performance claims register', body: 'Each RevPAR, ADR, occupancy and index claim, verified, contradicted or unverified against the reports.' },
+      { icon: 'Stamp', title: 'A franchise and PIP register', body: 'The franchise term and penalty, and each PIP item with its due date and budget, each with its source.' },
+      { icon: 'Handshake', title: 'Terms that carry the capex', body: 'PIP costs and franchise risk priced into the deal rather than discovered after it.' },
     ],
     faq: [
-      { q: 'What does the hotels pack read?', a: 'PMS and STR reports, franchise and brand agreements, management contracts, occupancy, ADR and RevPAR history, and food-and-beverage P&Ls.' },
-      { q: 'How is the property-improvement plan priced?', a: 'As a priced finding. Once accepted, PIP capex is remediation in the valuation and a price adjustment or escrow in the terms.' },
-      { q: 'Does it cover independent hotels?', a: 'Yes. Without a brand there are no franchise findings; operating, demand and management-contract findings still apply.' },
+      { q: 'What does the hotels pack read?', a: 'The monthly operating history and STR benchmark, the franchise and management agreements register, the PIP schedule, the capex budget, the agreements themselves, the deck and the P&L by year.' },
+      { q: 'How is the property-improvement plan priced?', a: 'As priced findings: the PIP the franchise agreement estimates as remediation, and the items due within a year of closing that the budget does not fund as an escrow. A person accepts each.' },
+      { q: 'Does it judge the brand or the market?', a: 'No. It checks documents, dates and arithmetic: what the agreements and reports say against what the deck claims. It never opines on the flag’s worth.' },
     ],
   },
 
@@ -635,7 +635,7 @@ export const WRITTEN_INDUSTRIES = INDUSTRIES.filter((industry) => industry.slug 
  * lease checks, T-161, 2026-11-26; IT & professional services with its realization, concentration and covenant checks, T-167; Telecom & media with its subscriber, rights-window and concentration checks, T-168; Hospitals with its cost-report, payer-contract, medical-staff, plant and quality checks, T-162). Same list as the
  * app's RELEASED_COMPANY_TYPES (packages/domain/src/packs/release.ts).
  */
-export const RELEASED_INDUSTRY_SLUGS: readonly string[] = ['software-saas', 'multifamily', 'venture-raise', 'music-rights', 'energy-generation', 'startup-spv', 'fintech', 'healthcare', 'small-clinics', 'pharma-biotech', 'ecommerce-dtc', 'professional-services', 'telecom-media', 'hospitals'];
+export const RELEASED_INDUSTRY_SLUGS: readonly string[] = ['software-saas', 'multifamily', 'venture-raise', 'music-rights', 'energy-generation', 'startup-spv', 'fintech', 'healthcare', 'small-clinics', 'pharma-biotech', 'ecommerce-dtc', 'professional-services', 'telecom-media', 'hospitals', 'hotels'];
 
 /** An environment's copy of the site (dev, qa) previews every written pack, for testing before release. */
 export const PACK_PREVIEW = process.env['NEXT_PUBLIC_PACK_PREVIEW'] === 'true';

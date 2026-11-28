@@ -78,6 +78,16 @@ export const FEATURE_CARDS: readonly FeatureCardDefinition[] = [
     icon: 'check',
   },
   {
+    id: 'hotels-pack',
+    version: 1,
+    addedOn: '2026-11-28',
+    title: 'Hotels: the flag, the PIP and the comp set, checked against the claims',
+    body: 'On a hotels pact, Pactlab reads the franchise agreement’s term, termination penalty and fees against the expected closing, sets each item of the brand’s property improvement plan against the owner’s capex budget, flags management-agreement terms that survive a sale, checks the deck’s RevPAR index, occupancy and ADR against the STR benchmark and the operating history, and sets brand fees against rooms revenue across every imported P&L year. Documents, dates and arithmetic only; a person decides every finding.',
+    href: '/pacts/new',
+    linkLabel: 'Start a hotels pact',
+    icon: 'layers',
+  },
+  {
     id: 'hospitals-pack',
     version: 1,
     addedOn: '2026-11-27',

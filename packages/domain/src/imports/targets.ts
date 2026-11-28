@@ -43,6 +43,9 @@ export const IMPORT_TARGETS = [
   'CRE_CAM_RECONCILIATION',
   'HOTELS_OPERATING_HISTORY',
   'HOTELS_STR_BENCHMARK',
+  'HOTELS_AGREEMENTS',
+  'HOTELS_PIP_SCHEDULE',
+  'HOTELS_CAPEX_BUDGET',
   'CLINICS_PATIENT_VOLUME',
   'CLINICS_EQUIPMENT',
   'CLINICS_CODING_SUMMARY',
@@ -995,6 +998,70 @@ export const HOTELS_STR_BENCHMARK: TargetDefinition = {
   ],
 };
 
+/**
+ * Hotels (T-166): the hotel's agreements register — the franchise (brand) agreement and the management
+ * (operator) agreement, one row each, with term, fees and the penalty for leaving early. A sentence in the
+ * agreement itself naming its reference governs the dates. Businesses only; never a guest or an employee.
+ */
+export const HOTELS_AGREEMENTS: TargetDefinition = {
+  target: 'HOTELS_AGREEMENTS',
+  label: 'Franchise and management agreements',
+  fileName: 'agreements-register.csv',
+  people: 'NONE',
+  refusesPeopleColumns: true,
+  evidenceType: 'hotels.agreement',
+  recordIdField: 'agreement_id',
+  observedAtFields: [],
+  fields: [
+    { name: 'agreement_id', label: 'Agreement reference', kind: 'text', required: true, hint: 'The register’s reference, such as MER-2009.' },
+    { name: 'kind', label: 'Kind', kind: 'code', required: true, hint: 'franchise (the brand or licence agreement) or management (the operator agreement).' },
+    { name: 'counterparty', label: 'Counterparty', kind: 'text', required: true, hint: 'The franchisor (brand) or the operator.' },
+    { name: 'effective_on', label: 'Effective', kind: 'date', required: false, hint: 'When the agreement took effect.' },
+    { name: 'expires_on', label: 'Expires', kind: 'date', required: false, hint: 'When its term ends; blank when it runs until terminated.' },
+    { name: 'fee_rate', label: 'Fee rate', kind: 'decimal', required: false, hint: 'The royalty (franchise) or base management fee, as a fraction of the revenue it is charged on, e.g. 0.05.' },
+    { name: 'other_fee_rate', label: 'Other fee rate', kind: 'decimal', required: false, hint: 'Marketing and reservation fees (franchise) or the incentive fee (management), as a fraction.' },
+    { name: 'termination_fee', label: 'Early termination fee', kind: 'money', required: false, hint: `Liquidated damages or the fee to end the agreement early. ${IN_BASE_CURRENCY}` },
+  ],
+};
+
+/** Hotels (T-166): the brand's property improvement plan, one row per item, with its estimated cost and due date. */
+export const HOTELS_PIP_SCHEDULE: TargetDefinition = {
+  target: 'HOTELS_PIP_SCHEDULE',
+  label: 'Property improvement plan (PIP) items',
+  fileName: 'pip-schedule.csv',
+  people: 'NONE',
+  refusesPeopleColumns: true,
+  evidenceType: 'hotels.pip_item',
+  recordIdField: 'item_id',
+  observedAtFields: [],
+  fields: [
+    { name: 'item_id', label: 'PIP item', kind: 'text', required: true, hint: 'The PIP’s own item reference, such as PIP-01.' },
+    { name: 'area', label: 'Area', kind: 'text', required: false, hint: 'Guestrooms, public areas, exterior, systems and so on.' },
+    { name: 'description', label: 'Description', kind: 'text', required: false, hint: 'What the brand requires, as the PIP states it.' },
+    { name: 'estimated_cost', label: 'Estimated cost', kind: 'money', required: true, hint: IN_BASE_CURRENCY },
+    { name: 'due_on', label: 'Due', kind: 'date', required: true, hint: 'When the brand requires the item complete.' },
+  ],
+};
+
+/** Hotels (T-166): the owner's capital expenditure budget by year, each line naming the PIP item it funds, if any. */
+export const HOTELS_CAPEX_BUDGET: TargetDefinition = {
+  target: 'HOTELS_CAPEX_BUDGET',
+  label: 'Capital expenditure budget',
+  fileName: 'capex-budget.csv',
+  people: 'NONE',
+  refusesPeopleColumns: true,
+  evidenceType: 'hotels.capex_budget_line',
+  recordIdField: 'line',
+  recordIdFields: ['fiscal_year', 'line'],
+  observedAtFields: [],
+  fields: [
+    { name: 'fiscal_year', label: 'Fiscal year', kind: 'text', required: true, hint: 'YYYY, the budget year.' },
+    { name: 'line', label: 'Budget line', kind: 'text', required: true, hint: 'The budget’s own line name.' },
+    { name: 'pip_ref', label: 'PIP item funded', kind: 'text', required: false, hint: 'The PIP item reference the line funds, such as PIP-02; blank when it funds none.' },
+    { name: 'amount', label: 'Budgeted amount', kind: 'money', required: true, hint: IN_BASE_CURRENCY },
+  ],
+};
+
 /** Small clinics (T-068): visits and revenue by month, site and pseudonymous provider — never patients. */
 export const CLINICS_PATIENT_VOLUME: TargetDefinition = {
   target: 'CLINICS_PATIENT_VOLUME',
@@ -1587,6 +1654,9 @@ export const IMPORT_TARGET_DEFINITIONS: Readonly<Record<ImportTarget, TargetDefi
   CRE_CAM_RECONCILIATION,
   HOTELS_OPERATING_HISTORY,
   HOTELS_STR_BENCHMARK,
+  HOTELS_AGREEMENTS,
+  HOTELS_PIP_SCHEDULE,
+  HOTELS_CAPEX_BUDGET,
   CLINICS_PATIENT_VOLUME,
   CLINICS_EQUIPMENT,
   CLINICS_CODING_SUMMARY,

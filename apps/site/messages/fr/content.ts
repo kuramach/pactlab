@@ -338,6 +338,14 @@ export const content: Catalog['content'] = {
       imageAlt: 'E-commerce et DTC : une vitrine, un sac de courses avec une flèche de rachat et les rachats par cohorte',
       linkLabel: 'Lancer un pacte e-commerce',
     },
+    hotels: {
+      short: 'Hôtels',
+      title: 'L’indice RevPAR est une affirmation. Vérifiez-le sur le rapport STR.',
+      body: 'Pactlab confronte l’indice RevPAR, l’occupation et l’ADR de la présentation au benchmark STR et à l’historique d’exploitation, lit la durée et la pénalité de la franchise au regard du closing et rapproche chaque poste du PIP du budget d’investissement du propriétaire, avant votre offre.',
+      points: ['L’indice RevPAR face au benchmark STR', 'Une franchise qui s’achève pendant la détention, avec sa pénalité', 'Un PIP dû la première année sans budget, chiffré'],
+      imageAlt: 'Hôtellerie : un bâtiment hôtelier, un graphique de RevPAR et un contrat de marque',
+      linkLabel: 'Lancer un pacte hôtellerie',
+    },
     'startup-spv': {
       short: 'SPV start-up',
       title: 'Mettez l’argent en commun sur un tour dont les chiffres tiennent.',

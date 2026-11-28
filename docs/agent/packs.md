@@ -92,6 +92,8 @@ The source plan then adds **Industry data** (`pack_upload` connections) automati
   | Music rights | `INCOME_DECLINE_SHARE` | 0.1 | statement income falls every year, 10% or more |
   | Energy | `GENERATION_DECLINE_SHARE` | 0.1 | a plant's net generation falls every year, 10% or more |
   | Hospitals | `ADMISSIONS_DECLINE_SHARE` | 0.05 | admissions in the census fall every year, 5% or more (T-162) |
+  | Hotels | `REVPAR_DECLINE_SHARE` | 0.05 | RevPAR in the operating history falls every year, 5% or more (T-166) |
+  | Hotels | `BRAND_FEE_OUTPACING_FACTOR` | 1.15 | brand fees ÷ rooms revenue rises every year to 1.15× its first year (T-166) |
 
 - **Driver options (T-184b):** `numeratorWhere` / `denominatorWhere` (a field's value, or `contains`: a payer class's share, consumer channels, a product's billing lines), `numeratorLess` (net = gross − discounts − returns), `multiplier` (subscriber-months from opening + closing), `complement` (repeat orders = 1 − new ÷ orders), and `compute` for a driver no sum expresses (ARR and retention from recurring revenue; income from half-year statements). A pack may build its spec from its evidence (pharma: one driver per product the patent schedule names).
 - **Software:** the SaaS engine keeps 36 months, so ARR at each December, NRR, GRR and logo churn by year come from the month-by-month recurring revenue the pack's rules read (`software/history.ts`); `GET …/metrics/pack` returns them as the history beside the P&L, and Finances shows the years card.
@@ -151,6 +153,8 @@ The source plan then adds **Industry data** (`pack_upload` connections) automati
 - **One draft per independent signal (T-164).** A trend that reads two imports (the orders export and the P&L) drafts each part on its own key: rules run after every import, and a combined draft keyed on what was present at the time is left stale when the second import arrives.
 
 - **Extending a shared register in place (T-162).** A child pack that needs one more column on a reused target (a hospital privilege's department, a payer agreement's rate basis) adds it as an optional field in code; the parent's files keep importing as they are, and no migration is needed.
+
+- **Two priced findings on one obligation (T-166).** When an existing rule already prices a whole obligation (the PIP as remediation), a new rule on part of it (the PIP due in the first year, unbudgeted) prices as a different term (an escrow, a holdback), so accepting both never subtracts twice.
 
 - **Pseudonymous people, reused helpers (T-167).** A target that carries people by reference declares `people: 'PSEUDONYMOUS'`; whole-token matching of a reference in a document reuses `refPattern` (healthcare). A sentence that names the person with "no" covenant is shown as stated, never read as cover.
 

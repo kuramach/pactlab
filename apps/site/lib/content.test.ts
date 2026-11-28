@@ -191,7 +191,7 @@ describe('industry stories', () => {
   });
 
   it('publishes only the released packs: Software & SaaS, Multifamily and Venture Raise (Kumar, 2026-11-01 and 2026-11-09)', () => {
-    expect(PUBLISHED_INDUSTRIES.map((industry) => industry.slug)).toEqual(['software-saas', 'fintech', 'healthcare', 'telecom-media', 'professional-services', 'pharma-biotech', 'ecommerce-dtc', 'multifamily', 'small-clinics', 'hospitals', 'venture-raise', 'music-rights', 'energy-generation', 'startup-spv']);
+    expect(PUBLISHED_INDUSTRIES.map((industry) => industry.slug)).toEqual(['software-saas', 'fintech', 'healthcare', 'telecom-media', 'professional-services', 'pharma-biotech', 'ecommerce-dtc', 'multifamily', 'hotels', 'small-clinics', 'hospitals', 'venture-raise', 'music-rights', 'energy-generation', 'startup-spv']);
     expect(isPublishedHref('/industries/fintech')).toBe(true);
     expect(isPublishedHref('/industries/healthcare')).toBe(true);
     expect(isPublishedHref('/industries/small-clinics')).toBe(true);
@@ -200,7 +200,8 @@ describe('industry stories', () => {
     expect(isPublishedHref('/industries/professional-services')).toBe(true);
     expect(isPublishedHref('/industries/telecom-media')).toBe(true);
     expect(isPublishedHref('/industries/hospitals')).toBe(true);
-    expect(isPublishedHref('/industries/hotels')).toBe(false);
+    expect(isPublishedHref('/industries/hotels')).toBe(true);
+    expect(isPublishedHref('/industries/commercial-property')).toBe(false);
     expect(isPublishedHref('/industries/multifamily')).toBe(true);
     expect(isPublishedHref('/product')).toBe(true);
   });

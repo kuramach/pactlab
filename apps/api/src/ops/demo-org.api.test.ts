@@ -25,7 +25,7 @@ describe('demo organization (batch 2)', () => {
   let first: string[] = [];
   const demoData = generatedDemoData();
   const rows = async (sql: string, params: unknown[] = []) => ((await db.owner.query(sql, params)) as { rows: Row[] }).rows;
-  const types = ['SOFTWARE_SAAS', 'MULTIFAMILY', 'VENTURE_RAISE', 'MULTIFAMILY_SYNDICATION', 'MUSIC_RIGHTS', 'ENERGY_GENERATION', 'STARTUP_SPV', 'FINTECH', 'HEALTHCARE', 'SMALL_CLINICS', 'PHARMA_BIOTECH', 'ECOMMERCE_DTC', 'PROFESSIONAL_SERVICES', 'TELECOM_MEDIA', 'HOSPITALS'] as const;
+  const types = ['SOFTWARE_SAAS', 'MULTIFAMILY', 'VENTURE_RAISE', 'MULTIFAMILY_SYNDICATION', 'MUSIC_RIGHTS', 'ENERGY_GENERATION', 'STARTUP_SPV', 'FINTECH', 'HEALTHCARE', 'SMALL_CLINICS', 'PHARMA_BIOTECH', 'ECOMMERCE_DTC', 'PROFESSIONAL_SERVICES', 'TELECOM_MEDIA', 'HOSPITALS', 'HOTELS'] as const;
   const run = (reset = false, only: readonly (typeof types)[number][] = types) => runDemoOrg(app as never, db.owner as never, db.prisma, { types: only, reset, data: demoData.source });
 
   beforeAll(async () => {
@@ -230,6 +230,18 @@ describe('demo organization (batch 2)', () => {
       'Orthopaedics: 4 physicians’ privileges lapsed together on 30 June 2026',
     ]) {
       expect(await count('findings', hospitals.id, `AND title = '${title}'`), title).toBe(1);
+    }
+    // The hotels pact imports the agreements register, the PIP schedule, the capex budget and five years of P&L; the planted defects are drafted (T-166).
+    const hotels = await deal(pactName('HOTELS'));
+    expect(await count('evidence_items', hotels.id, `AND evidence_type = 'finance.pnl_line'`)).toBe(50);
+    expect(await count('evidence_items', hotels.id, `AND evidence_type = 'hotels.pip_item'`)).toBe(4);
+    for (const title of [
+      'PIP due within 12 months of closing and unbudgeted: PIP-01',
+      'STR report contradicts the deck: RevPAR index',
+      'The franchise ends 3 years after closing: Meridale Hotels (synthetic)',
+      'Brand fees growing faster than rooms revenue, 2021–2025',
+    ]) {
+      expect(await count('findings', hotels.id, `AND title = '${title}'`), title).toBe(1);
     }
     // The software pact imports five years of billing and of P&L; net revenue retention falling every year is drafted (T-184b).
     const software = await deal(pactName('SOFTWARE_SAAS'));

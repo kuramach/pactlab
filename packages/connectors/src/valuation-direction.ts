@@ -50,6 +50,11 @@ export const CLINICS_REFERRAL_MONTH_EVIDENCE_TYPE = 'clinics.referral_month';
 export const HOSPITALS_COST_REPORT_YEAR_EVIDENCE_TYPE = 'hospitals.cost_report_year';
 export const HOSPITALS_CAPEX_YEAR_EVIDENCE_TYPE = 'hospitals.capex_year';
 export const HOSPITALS_CENSUS_MONTH_EVIDENCE_TYPE = 'hospitals.census_month';
+/** Hotels (T-166): the operating history and STR benchmark by month, the agreements register and the PIP items. */
+export const HOTELS_OPERATING_MONTH_EVIDENCE_TYPE = 'hotels.operating_month';
+export const HOTELS_BENCHMARK_MONTH_EVIDENCE_TYPE = 'hotels.benchmark_month';
+export const HOTELS_AGREEMENT_EVIDENCE_TYPE = 'hotels.agreement';
+export const HOTELS_PIP_ITEM_EVIDENCE_TYPE = 'hotels.pip_item';
 /** Pharma and biotech (T-064, T-163): the pipeline schedule, trial-registry records, patent schedule, obligations model and R&D roster. */
 export const PHARMA_PROGRAMME_EVIDENCE_TYPE = 'pharma.programme';
 export const PHARMA_REGISTRY_TRIAL_EVIDENCE_TYPE = 'pharma.registry_trial';
@@ -245,6 +250,8 @@ export const VALUATION_DIRECTION_MAP: Readonly<Record<string, readonly Direction
     { signal: 'expense-outpacing', findingDomain: 'FINANCIAL', defaultDirection: -1, channel: 'ASSUMPTION' },
     // R&D flat across the imported years while a document says the timeline was brought forward (T-163).
     { signal: 'rd-flat-timeline-accelerated', findingDomain: 'FINANCIAL', defaultDirection: -1, channel: 'ASSUMPTION' },
+    // A hotel's franchise, royalty, marketing and reservation fees growing faster than rooms revenue every year (T-166).
+    { signal: 'brand-fees-outpacing-rooms', findingDomain: 'FINANCIAL', defaultDirection: -1, channel: 'ASSUMPTION' },
   ],
   // Healthcare services (T-160, ADR 0051). Payer mix, denials and days in AR are recomputed from the remittances;
   // credentials and payer contracts are read at the analysis date. Dates and arithmetic only, never a clinical or legal judgment.
@@ -341,6 +348,40 @@ export const VALUATION_DIRECTION_MAP: Readonly<Record<string, readonly Direction
     },
   ],
   [HOSPITALS_CENSUS_MONTH_EVIDENCE_TYPE]: [driverTrend('COMMERCIAL')],
+  // Hotels (T-166, ADR 0068): the deck's RevPAR, ADR, occupancy and index claims against the operating history and the
+  // STR benchmark; the franchise and management agreements against the closing; the PIP against the capex budget.
+  // Documents, dates and arithmetic only: never a view on the flag's worth or the market.
+  [HOTELS_OPERATING_MONTH_EVIDENCE_TYPE]: [
+    { signal: 'claim-contradicted', findingDomain: 'COMMERCIAL', defaultDirection: -1, channel: 'ASSUMPTION' },
+    { signal: 'claim-verified', findingDomain: 'COMMERCIAL', defaultDirection: 1, channel: 'CONFIRMATION' },
+    {
+      signal: 'claim-unverified',
+      findingDomain: 'COMMERCIAL',
+      defaultDirection: 0,
+      channel: 'INFORMATIONAL',
+      rationale: 'A performance claim no report supplied checks is a gap to close, neither priced nor relied on.',
+    },
+    driverTrend('COMMERCIAL'),
+  ],
+  [HOTELS_BENCHMARK_MONTH_EVIDENCE_TYPE]: [
+    { signal: 'claim-contradicted', findingDomain: 'COMMERCIAL', defaultDirection: -1, channel: 'ASSUMPTION' },
+    { signal: 'claim-verified', findingDomain: 'COMMERCIAL', defaultDirection: 1, channel: 'CONFIRMATION' },
+    {
+      signal: 'claim-unverified',
+      findingDomain: 'COMMERCIAL',
+      defaultDirection: 0,
+      channel: 'INFORMATIONAL',
+      rationale: 'A performance claim no report supplied checks is a gap to close, neither priced nor relied on.',
+    },
+  ],
+  [HOTELS_AGREEMENT_EVIDENCE_TYPE]: [
+    // A franchise ending inside five years of the closing, with a penalty for leaving early: re-licensing inside the hold.
+    { signal: 'franchise-ends-in-hold', findingDomain: 'LEGAL', defaultDirection: -1, channel: 'PRICED_TERM' },
+    // Operator rights or terms that survive a sale and bind the buyer.
+    { signal: 'management-survives-sale', findingDomain: 'LEGAL', defaultDirection: -1, channel: 'PRICED_TERM' },
+  ],
+  // Brand-required PIP work due within twelve months of the closing that the capex budget does not fund: a holdback.
+  [HOTELS_PIP_ITEM_EVIDENCE_TYPE]: [{ signal: 'pip-due-unbudgeted', findingDomain: 'PROPERTY', defaultDirection: -1, channel: 'PRICED_TERM' }],
   // Small clinics (T-161, ADR 0052): the owner-operator's share and each service line's providers recomputed from the
   // schedule and billing exports; visits by referral source. Retention and volume risks, never a ranking or a legal view.
   [CLINICS_SERVICE_LINE_MONTH_EVIDENCE_TYPE]: [
@@ -522,6 +563,10 @@ export const ADAPTER_EVIDENCE_TYPES = [
   HOSPITALS_COST_REPORT_YEAR_EVIDENCE_TYPE,
   HOSPITALS_CAPEX_YEAR_EVIDENCE_TYPE,
   HOSPITALS_CENSUS_MONTH_EVIDENCE_TYPE,
+  HOTELS_OPERATING_MONTH_EVIDENCE_TYPE,
+  HOTELS_BENCHMARK_MONTH_EVIDENCE_TYPE,
+  HOTELS_AGREEMENT_EVIDENCE_TYPE,
+  HOTELS_PIP_ITEM_EVIDENCE_TYPE,
   PHARMA_PROGRAMME_EVIDENCE_TYPE,
   PHARMA_REGISTRY_TRIAL_EVIDENCE_TYPE,
   PHARMA_PATENT_EVIDENCE_TYPE,

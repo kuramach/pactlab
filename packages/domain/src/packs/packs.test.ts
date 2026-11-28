@@ -95,6 +95,17 @@ describe('pack registry', () => {
     expect(PACKS.HOSPITALS.findingRules).not.toContain('healthcare-credentialing');
   });
 
+  it('Hotels adds the agreements register, the PIP schedule and the capex budget (T-166)', () => {
+    const hotels = PACKS.HOTELS;
+    expect(hotels).toMatchObject({ slug: 'hotels', cluster: 'real-estate', metricCalculator: 'hotels-performance', built: true });
+    // The T-067 rules stay first and unchanged.
+    expect(hotels.findingRules.slice(0, 5)).toEqual(['hotels-brand-pip', 'hotels-revpar-gap', 'hotels-channel-concentration', 'hotels-seasonal-demand', 'hotels-management-termination-fee']);
+    expect(hotels.importTargets).toEqual(['BILLING_INVOICE_LINE', 'HOTELS_OPERATING_HISTORY', 'HOTELS_STR_BENCHMARK', 'HOTELS_AGREEMENTS', 'HOTELS_PIP_SCHEDULE', 'HOTELS_CAPEX_BUDGET']);
+    expect(hotels.findingRules).toEqual(expect.arrayContaining(['hotels-performance-claims', 'hotels-franchise-term', 'hotels-pip-schedule', 'hotels-management-survival', 'hotels-brand-fee-trend', 'hotels-pnl-trend']));
+    expect(hotels.documentCategories).toEqual(['FRANCHISE_AGREEMENT', 'PIP_REPORT', 'MANAGEMENT_AGREEMENT', 'STR_REPORT']);
+    for (const target of hotels.importTargets.slice(1)) expect(IMPORT_TARGET_DEFINITIONS[target].refusesPeopleColumns, target).toBe(true);
+  });
+
   it('Hospitals reuses the T-160 registers and adds cost reports, capex and quality reporting (T-162)', () => {
     const hospitals = PACKS.HOSPITALS;
     expect(hospitals).toMatchObject({ slug: 'hospitals', cluster: 'healthcare', metricCalculator: 'hospitals-operations', built: true });
