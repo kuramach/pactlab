@@ -130,7 +130,7 @@
   "apps/web/app/(app)/settings/document-sources-card.tsx": 8,
   "apps/web/app/(app)/settings/ic-card.tsx": 15,
   "apps/web/app/(app)/settings/notifications/page.tsx": 28,
-  "apps/web/app/(app)/settings/page.tsx": 47,
+  "apps/web/app/(app)/settings/page.tsx": 50,
   "apps/web/app/(app)/settings/passkey-add.tsx": 2,
   "apps/web/app/(app)/settings/passkeys-card.tsx": 12,
   "apps/web/app/(app)/settings/signing-card.tsx": 6,
@@ -161,5 +161,7 @@
   "packages/ui/src/components/app-shell.tsx": 1,
   "packages/ui/src/components/brand.tsx": 1,
   "packages/ui/src/components/file-drop.tsx": 3,
-  "packages/ui/src/components/page-header.tsx": 1
+  "packages/ui/src/components/page-header.tsx": 1,
+  "apps/web/app/(app)/_lib/email-banner.tsx": 3,
+  "apps/web/app/(app)/settings/profile/page.tsx": 41
 }
