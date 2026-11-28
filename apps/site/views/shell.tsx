@@ -45,6 +45,17 @@ export function shellMetadata(locale: Locale): Metadata {
   };
 }
 
+/** Cloudflare's beacon origin; the site's Content-Security-Policy must allow it (docs/runbooks/site-analytics.md). */
+export const ANALYTICS_BEACON_SRC = 'https://static.cloudflareinsights.com/beacon.min.js';
+
+/**
+ * Cloudflare Web Analytics (Kumar, 2026-11-28): no cookies, no personal data, marketing site only.
+ * The embed as Cloudflare documents it for a site not proxied through Cloudflare, before </body>.
+ */
+function AnalyticsBeacon({ token }: { token: string }) {
+  return <script type="module" src={ANALYTICS_BEACON_SRC} data-cf-beacon={JSON.stringify({ token })} />;
+}
+
 /** The menus, in the page's language. Hrefs are English paths; the header prefixes them. */
 function menus(locale: Locale): Menus {
   const { content, ui, modules, industries } = site(locale);
@@ -75,7 +86,7 @@ function menus(locale: Locale): Menus {
 const TOP_NAV: readonly string[] = ['/product', '/industries', '/how-it-works', '/pricing'];
 
 export function SiteShell({ locale, children }: { locale: Locale; children: ReactNode }) {
-  const { loginUrl, signUpUrl, contactHref, assistantUrl } = siteConfig();
+  const { loginUrl, signUpUrl, contactHref, assistantUrl, analyticsToken } = siteConfig();
   const { content, ui } = site(locale);
   return (
     <html lang={HTML_LANG[locale]} className={manrope.variable}>
@@ -102,6 +113,7 @@ export function SiteShell({ locale, children }: { locale: Locale; children: Reac
         <SiteFooter locale={locale} />
         {assistantUrl ? <HelpLauncher assistantUrl={assistantUrl} /> : null}
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdScript(organizationJsonLd(locale)) }} />
+        {analyticsToken ? <AnalyticsBeacon token={analyticsToken} /> : null}
       </body>
     </html>
   );

@@ -26,6 +26,7 @@ export const ui: Catalog['ui'] = {
     faq: 'Questions et réponses',
     rinse: 'Pactlab Rinse',
     compare: 'Comparé aux logiciels d’évaluation',
+    api: 'API',
     legal: 'Mentions légales',
     trust: 'Sécurité et confiance (en anglais)',
     privacy: 'Politique de confidentialité (en anglais)',

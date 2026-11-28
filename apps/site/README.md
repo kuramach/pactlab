@@ -18,6 +18,12 @@ pnpm --filter @pactlab/site build   # writes apps/site/out/ — upload to any st
 - `NEXT_PUBLIC_APP_URL` and `NEXT_PUBLIC_CONTACT_EMAIL` (build time) turn on
   the Sign in link and the Request a pilot button. Unset, they are hidden —
   the site never ships a placeholder address.
+- `NEXT_PUBLIC_CF_BEACON_TOKEN` (build time) turns on Cloudflare Web Analytics
+  (cookieless, marketing site only). Unset, there is no analytics script at
+  all. Setup: `docs/runbooks/site-analytics.md`.
+- `/api` is the public description of the REST API and MCP server
+  (`lib/api-docs.ts`); `lib/api-docs.test.ts` fails when a route opened to
+  API tokens or an MCP tool is missing from the page.
 - Languages (T-171, ADR 0057): English unprefixed (`app/(en)`), German, French
   and Japanese under `/de`, `/fr`, `/ja` (`app/[locale]`); pages are shared
   views in `views/`. Interface words live in `messages/en/ui.ts`, translations

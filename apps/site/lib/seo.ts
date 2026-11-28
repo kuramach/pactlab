@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { TRY_PACKS } from './try';
 import { DESCRIPTOR, HOME, INDUSTRY_CORE, MODULES, PILOT, PLANS, PRICING, TAGLINE, TRUST } from './content';
 import { COMPARISONS, FAQS, GUIDES } from './answers';
+import { API_ORIGIN, API_PAGE } from './api-docs';
 import { CASE_STUDIES } from './cases';
 import { INDUSTRY_STORIES, PUBLISHED_INDUSTRIES } from './industry-stories';
 import { site } from './i18n/catalog';
@@ -35,6 +36,7 @@ export const SITE_ROUTES: readonly string[] = [
   ...FAQS.map((page) => `/faq/${page.slug}`),
   ...COMPARISONS.map((comparison) => `/compare/${comparison.slug}`),
   '/trust',
+  '/api',
   '/pricing',
   '/try',
   ...TRY_PACKS.map((pack) => `/try/${pack.slug}`),
@@ -210,6 +212,7 @@ export function llmsText(): string {
     '',
     `- [How it works](${absolute('/how-it-works')}): from source evidence to deal terms, with a person deciding at every step that matters.`,
     `- [Trust](${absolute('/trust')}): ${TRUST.intro}`,
+    `- [API and MCP server](${absolute('/api')}): ${API_PAGE.metaDescription} Per-person OAuth (device flow or authorization code with PKCE), no shared keys; reference at ${API_ORIGIN}/v1/openapi.json.`,
     `- [Try it with synthetic data](${absolute('/try')}): pick a pact (${TRY_PACKS.map((pack) => pack.name).join(', ')}), download a synthetic data room and extracts, and follow the steps.`,
     `- [Pricing](${absolute('/pricing')}): ${PRICING.title} ${PLANS.map((plan) => `${plan.name}: ${plan.price ? `${plan.price} ${plan.cadence}` : 'talk to us'}`).join('; ')}. Counterparty guests are free.`,
     `- [Pilot](${absolute('/pilot')}): ${PILOT.body}`,

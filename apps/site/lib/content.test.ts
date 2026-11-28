@@ -144,8 +144,8 @@ describe('navigation', () => {
 
 describe('siteConfig', () => {
   it('hides calls to action that are not configured', () => {
-    expect(siteConfig({})).toEqual({ loginUrl: null, signUpUrl: null, contactHref: null, indexed: true, assistantUrl: null });
-    expect(siteConfig({ NEXT_PUBLIC_APP_URL: ' ', NEXT_PUBLIC_CONTACT_EMAIL: '' })).toEqual({ loginUrl: null, signUpUrl: null, contactHref: null, indexed: true, assistantUrl: null });
+    expect(siteConfig({})).toEqual({ loginUrl: null, signUpUrl: null, contactHref: null, indexed: true, assistantUrl: null, analyticsToken: null });
+    expect(siteConfig({ NEXT_PUBLIC_APP_URL: ' ', NEXT_PUBLIC_CONTACT_EMAIL: '' })).toEqual({ loginUrl: null, signUpUrl: null, contactHref: null, indexed: true, assistantUrl: null, analyticsToken: null });
   });
 
   it('builds sign-in and mailto links when configured', () => {
@@ -155,7 +155,15 @@ describe('siteConfig', () => {
       contactHref: 'mailto:pilots@example.test?subject=Pactlab%20pilot',
       indexed: true,
       assistantUrl: 'https://app.example.test/assistant',
+      analyticsToken: null,
     });
+  });
+
+  it('turns on Cloudflare Web Analytics only with a well-formed token (T-085)', () => {
+    expect(siteConfig({ NEXT_PUBLIC_CF_BEACON_TOKEN: '0123456789abcdef0123456789abcdef' }).analyticsToken).toBe('0123456789abcdef0123456789abcdef');
+    expect(siteConfig({ NEXT_PUBLIC_CF_BEACON_TOKEN: ' ' }).analyticsToken).toBeNull();
+    // Written into an HTML attribute as JSON: anything but letters and digits is refused at build time.
+    expect(() => siteConfig({ NEXT_PUBLIC_CF_BEACON_TOKEN: 'abc"}<script>0123456789' })).toThrow();
   });
 
   it('closes an environment copy of the site to search engines; production stays open', async () => {
