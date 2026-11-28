@@ -9,6 +9,7 @@ import { DemoLinks, DemoShareForm } from './demo-share';
 import { endDemoShare, resetDemoSlot } from './demo-actions';
 import { AiModels } from './ai-models';
 import { HostingCost } from './hosting-cost';
+import { LineUsage } from './line-usage';
 import { compPact, createPromoCode, deactivatePromoCode, decideOrganization, resyncBilling, setMemberStatus, setOrganizationFlags, setOrganizationStatus, setOrganizationMcp } from './actions';
 import { SourceStatusTable, type SourceStatus } from './source-status';
 import type { AdminBillingAccountView, PromoCodeView } from '@pactlab/contracts';
@@ -299,6 +300,7 @@ async function Health({ search }: { search: Search }) {
           {number.format(mail.data.counts.REJECT + mail.data.counts.RENDERING_FAILURE)} rejected or failed · {number.format(mail.data.suppressed)} addresses on the do-not-send list
         </p>
       ) : null}
+      <LineUsage />
       {sources.kind === 'ok' ? <SourceStatusTable items={sources.data.items} /> : <ApiState result={sources} />}
       {connections.kind !== 'ok' ? (
         <ApiState result={connections} />

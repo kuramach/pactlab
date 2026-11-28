@@ -1,11 +1,12 @@
 import { Inject, Injectable, type OnApplicationBootstrap, type OnApplicationShutdown } from '@nestjs/common';
-import { ChannelSendError, type TelegramBot, type WhatsAppSender } from '@pactlab/connectors';
+import { ChannelSendError, type LineBot, type TelegramBot, type WhatsAppSender } from '@pactlab/connectors';
 import { chatInstalls, contactDispatch, contacts, notificationDispatch, type DeliveryKind, type PendingNotification, type PrismaClient } from '@pactlab/db';
-import { channelMessage, planEmail, resolveEmailMode } from '@pactlab/domain';
+import { channelMessage, lineMessage, planEmail, resolveEmailMode } from '@pactlab/domain';
 import type { Logger } from '@pactlab/observability';
 import type { EmailSender } from '../email-login/email-sender';
 import { EmailSuppressedError, type SuppressionList } from '../email-login/ses-email-sender';
 import { chatMessage, type ChatSender } from '../contacts/chat-sender';
+import { LINE_FREE_MONTHLY_ALLOWANCE, LineSender } from '../contacts/line-sender';
 import { LOGGER, PRISMA } from '../tokens';
 import { digestEmail, immediateEmail } from './notification-emails';
 
@@ -21,7 +22,14 @@ export interface NotificationModuleSettings {
    * Message channels (T-180, ADR 0064): "act now" items also go, content-free, to the person's verified
    * Telegram chat and WhatsApp number. Null or absent: email and the inbox only.
    */
-  readonly channels?: { readonly telegram: TelegramBot | null; readonly whatsapp: WhatsAppSender | null; readonly chat?: ChatSender | null } | null;
+  readonly channels?: {
+    readonly telegram: TelegramBot | null;
+    readonly whatsapp: WhatsAppSender | null;
+    readonly chat?: ChatSender | null;
+    /** LINE (T-182): pushes within the monthly allowance; at the allowance, email only. */
+    readonly line?: LineBot | null;
+    readonly lineAllowance?: number;
+  } | null;
   /** Run the dispatcher on a timer (the API process; ADR 0046). Off in tests, which call run(). */
   readonly scheduled: boolean;
   readonly intervalMs: number;
@@ -54,16 +62,20 @@ const MAX_PAGES = 20;
 export class NotificationDispatcher implements OnApplicationBootstrap, OnApplicationShutdown {
   private timer: NodeJS.Timeout | null = null;
   private running: Promise<DispatchOutcome> | null = null;
+  private readonly line: LineSender | null;
 
   constructor(
     @Inject(PRISMA) private readonly prisma: PrismaClient,
     @Inject(NOTIFICATION_SETTINGS) private readonly settings: NotificationModuleSettings,
     @Inject(LOGGER) private readonly logger: Logger,
-  ) {}
+  ) {
+    const bot = settings.channels?.line ?? null;
+    this.line = bot ? new LineSender(bot, prisma, logger, settings.channels?.lineAllowance ?? LINE_FREE_MONTHLY_ALLOWANCE) : null;
+  }
 
   onApplicationBootstrap(): void {
     const channels = this.settings.channels;
-    if (!this.settings.scheduled || (!this.settings.emailSender && !channels?.telegram && !channels?.whatsapp && !channels?.chat?.enabled)) return;
+    if (!this.settings.scheduled || (!this.settings.emailSender && !channels?.telegram && !channels?.whatsapp && !channels?.chat?.enabled && !this.line)) return;
     const tick = () => {
       this.timer = setTimeout(() => {
         // handled: each delivery's outcome is stored on it and shown on the person's items; this only logs a run that could not start.
@@ -135,19 +147,23 @@ export class NotificationDispatcher implements OnApplicationBootstrap, OnApplica
     const channels = this.settings.channels;
     if (items.length === 0) return;
     await this.toChats(items, outcome);
-    if (!channels?.telegram && !channels?.whatsapp) return;
+    if (!channels?.telegram && !channels?.whatsapp && !this.line) return;
     const live = await contactDispatch.channels(this.prisma, [...new Set(items.map((item) => item.userId))]);
     const link = new URL('/notifications', this.settings.appOrigin).toString();
     for (const item of items) {
       for (const channel of live.filter((row) => row.userId === item.userId)) {
-        const telegram = channel.kind === 'TELEGRAM' ? channels.telegram : null;
-        const whatsapp = channel.kind === 'WHATSAPP' ? channels.whatsapp : null;
-        if (!telegram && !whatsapp) continue;
+        const telegram = channel.kind === 'TELEGRAM' ? (channels?.telegram ?? null) : null;
+        const whatsapp = channel.kind === 'WHATSAPP' ? (channels?.whatsapp ?? null) : null;
+        const line = channel.kind === 'LINE' ? this.line : null;
+        if (!telegram && !whatsapp && !line) continue;
         const deliveryId = await contactDispatch.claim(this.prisma, { channelId: channel.channelId, notificationId: item.id });
         if (!deliveryId) continue;
         try {
           if (telegram) await telegram.sendMessage(channel.handle, channelMessage('ACT_NOW', { link }));
           else if (whatsapp) await whatsapp.sendTemplate(channel.handle, 'ACT_NOW', link);
+          // The delivery's own id is LINE's retry key: accepted at most once. At the monthly allowance this throws
+          // `LineAllowanceReached` and nothing is sent; the email for the same item goes as planned.
+          else if (line) await line.push(channel.handle, lineMessage('ACT_NOW', { link }), deliveryId);
           await contactDispatch.finish(this.prisma, { deliveryId, outcome: 'SENT', errorClass: null });
           outcome.channelSent += 1;
         } catch (error) {

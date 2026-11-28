@@ -38,6 +38,8 @@ export async function createApp(deps: AppDependencies, options: { webOrigin?: st
     '/v1/webhooks/slack/events',
     '/v1/webhooks/slack/interactions',
     '/v1/webhooks/teams/messages',
+    // LINE (T-182): `x-line-signature` is over the raw body.
+    '/v1/webhooks/line',
   ]);
   adapter.getInstance().addHook('onRequest', async (request) => {
     if (request.method === 'POST' && RAW_WEBHOOKS.has(request.url.split('?')[0] ?? '')) request.headers['content-type'] = 'application/octet-stream';

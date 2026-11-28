@@ -4,7 +4,7 @@
  * fixture, never sent to a model.
  */
 
-export type ContactKind = 'EMAIL' | 'TELEGRAM' | 'WHATSAPP';
+export type ContactKind = 'EMAIL' | 'TELEGRAM' | 'WHATSAPP' | 'LINE';
 
 /** E.164 country codes of one and two digits; everything else is three (ITU-T E.164 assignments). */
 const TWO_DIGIT_CODES = new Set([
@@ -46,13 +46,14 @@ export function toE164(input: string, dial?: string): string | null {
   return `+${digits}`;
 }
 
-/** The value as an admin sees it: `+91 •••• ••12`, `k•••@example.com`, `Telegram ••42`. Same rule as `app_contact_mask`. */
+/** The value as an admin sees it: `+91 •••• ••12`, `k•••@example.com`, `Telegram ••42`, `LINE ••3f`. Same rule as `app_contact_mask`. */
 export function maskContact(kind: ContactKind, value: string): string {
   if (kind === 'EMAIL') return `${value.slice(0, 1)}•••@${value.split('@')[1] ?? ''}`;
   if (kind === 'WHATSAPP') {
     const digits = value.replace(/^\+/, '');
     return `+${digits.slice(0, countryCodeLength(digits))} •••• ••${digits.slice(-2)}`;
   }
+  if (kind === 'LINE') return `LINE ••${value.slice(-2)}`;
   return `Telegram ••${value.slice(-2)}`;
 }
 
@@ -68,12 +69,23 @@ export const CHANNEL_PREFIX = 'Pactlab:';
 /** The profile description every provider holds: the tagline (EMAIL_BLURB). */
 export const CHANNEL_ABOUT = 'Test the pact before you sign it.';
 
-export type ChannelMessageKind = 'ACT_NOW' | 'TEST' | 'LINKED' | 'LINK_EXPIRED' | 'DISCONNECTED' | 'STOPPED' | 'CHAT_CONFIRM' | 'CHAT_LINKED';
+export type ChannelMessageKind =
+  | 'ACT_NOW'
+  | 'TEST'
+  | 'LINKED'
+  | 'LINK_EXPIRED'
+  | 'DISCONNECTED'
+  | 'STOPPED'
+  | 'CHAT_CONFIRM'
+  | 'CHAT_LINKED'
+  | 'LINE_LINKED'
+  | 'LINE_NOT_LINKED';
 
 /**
  * The words every channel sends, in one place, per locale. Content-free by rule: never a pact name,
  * an amount, a document or a person; only that something needs you, and a link (T-146's lock-screen rule).
- * English only until the app's catalogs arrive (T-172); a new locale is a new entry here.
+ * English, and Japanese for LINE (T-182; to be reviewed by a native speaker, runbook `line.md`). A new locale
+ * is a new entry here, with every kind.
  */
 const CHANNEL_WORDS = {
   en: {
@@ -86,6 +98,21 @@ const CHANNEL_WORDS = {
     // Slack and Teams (T-181): the one-time "is this you?" before a link, and the reply once confirmed.
     CHAT_CONFIRM: 'Someone signed in to Pactlab with your email asked to get Pactlab alerts here. Is this you? Confirm to connect. The request expires in 10 minutes.',
     CHAT_LINKED: 'You are connected. Pactlab will tell you here when a pact needs you, with no deal details. You can disconnect from your Pactlab profile at any time.',
+    // LINE (T-182): after the person adds Pactlab as a friend, and when someone adds it without connecting first.
+    LINE_LINKED: 'You are connected. Pactlab will tell you here when a pact needs you, with no deal details. Send STOP or block Pactlab to disconnect.',
+    LINE_NOT_LINKED: 'To get Pactlab alerts here, choose Connect LINE on your Pactlab profile.',
+  },
+  ja: {
+    ACT_NOW: '対応が必要なパクトがあります。内容は Pactlab でご確認ください: {link}',
+    TEST: 'これはテストメッセージです。通知はここに届きます。取引の詳細は含まれません。{link}',
+    LINKED: '接続しました。パクトで対応が必要なときに、ここでお知らせします。取引の詳細は含まれません。接続を解除するには /stop と送信してください。',
+    LINK_EXPIRED: 'このリンクは有効期限が切れているか、すでに使用されています。Pactlab のプロフィールから新しいリンクを開いてください。',
+    DISCONNECTED: '接続を解除しました。Pactlab からここにメッセージが届くことはありません。',
+    STOPPED: 'Pactlab からのメッセージはここに届かなくなりました。プロフィールから再度接続できます。',
+    CHAT_CONFIRM: 'あなたのメールアドレスで Pactlab にサインインした方が、ここで Pactlab の通知を受け取るよう依頼しました。ご本人ですか？確認すると接続されます。この依頼は10分で期限切れになります。',
+    CHAT_LINKED: '接続しました。パクトで対応が必要なときに、ここでお知らせします。取引の詳細は含まれません。接続は Pactlab のプロフィールからいつでも解除できます。',
+    LINE_LINKED: '接続しました。パクトで対応が必要なときに、ここでお知らせします。取引の詳細は含まれません。接続を解除するには STOP と送信するか、Pactlab をブロックしてください。',
+    LINE_NOT_LINKED: 'ここで Pactlab の通知を受け取るには、Pactlab のプロフィールで「LINE を接続」を選んでください。',
   },
 } as const satisfies Record<string, Record<ChannelMessageKind, string>>;
 
@@ -98,6 +125,16 @@ export function channelMessage(kind: ChannelMessageKind, options: { link?: strin
   return `${CHANNEL_PREFIX} ${text}`;
 }
 
+/**
+ * LINE (T-182): Japanese for a person whose language is Japanese; otherwise both, English first, then Japanese
+ * (Pactlab does not yet know a person's language on the server: T-172b). One "Pactlab:" prefix, the link last.
+ */
+export function lineMessage(kind: ChannelMessageKind, options: { link?: string; locale?: string } = {}): string {
+  if (options.locale === 'ja') return channelMessage(kind, options);
+  const words = (locale: ChannelLocale) => CHANNEL_WORDS[locale][kind].replace('{link}', '').trim();
+  return [`${CHANNEL_PREFIX} ${words('en')}`, words('ja'), options.link ?? ''].filter(Boolean).join('\n');
+}
+
 /** The button labels Slack and Teams messages carry (T-181): one per message, in the same words everywhere. */
 export const CHAT_BUTTONS = { OPEN: 'Open Pactlab', CONFIRM: 'Yes, connect me' } as const;
 
@@ -105,7 +142,7 @@ export const CHAT_BUTTONS = { OPEN: 'Open Pactlab', CONFIRM: 'Yes, connect me' }
 export const WHATSAPP_CONSENT_TEXT =
   'I agree that Pactlab may send me WhatsApp messages when a pact needs me. Messages carry no deal details, only a link. Reply STOP at any time to end them.';
 
-/** What a STOP reply looks like on WhatsApp (case and spaces ignored). */
+/** What a STOP reply looks like on WhatsApp and LINE (case and spaces ignored; Japanese for LINE). */
 export function isStopWord(text: string): boolean {
-  return /^(stop|stopp|arrêt|arret|unsubscribe|cancel|end|quit)$/i.test(text.trim());
+  return /^(stop|stopp|arrêt|arret|unsubscribe|cancel|end|quit|停止|ストップ|配信停止)$/i.test(text.trim());
 }

@@ -1,6 +1,7 @@
-import { BotFrameworkTeamsBot, FixtureSlackApp, FixtureTeamsBot, FixtureTelegramBot, FixtureWhatsAppSender, SlackWebApi, TelegramBotApi, WhatsAppCloudApi, type SlackApp, type TeamsBot, type TelegramBot, type WhatsAppSender } from '@pactlab/connectors';
+import { BotFrameworkTeamsBot, FixtureLineBot, FixtureSlackApp, LineApi, type LineBot, FixtureTeamsBot, FixtureTelegramBot, FixtureWhatsAppSender, SlackWebApi, TelegramBotApi, WhatsAppCloudApi, type SlackApp, type TeamsBot, type TelegramBot, type WhatsAppSender } from '@pactlab/connectors';
 import { channelMessage } from '@pactlab/domain';
 import { z } from 'zod';
+import { LINE_FREE_MONTHLY_ALLOWANCE } from './line-sender';
 
 /**
  * Message-channel configuration (T-180). Read here rather than in @pactlab/config until that package
@@ -29,6 +30,18 @@ const channelsEnvSchema = z.object({
   TEAMS_BOT_APP_ID: optional,
   TEAMS_BOT_APP_PASSWORD: optional,
   TEAMS_BOT_TOKEN_TENANT: optional,
+  /** LINE (T-182, ADR 0066): the Messaging API channel of the Pactlab LINE Official Account, and the LINE Login channel under the same provider. All four or none. */
+  LINE_CHANNEL_SECRET: optional,
+  LINE_CHANNEL_ACCESS_TOKEN: optional,
+  LINE_LOGIN_CHANNEL_ID: optional,
+  LINE_LOGIN_CHANNEL_SECRET: optional,
+  /** The official account's add-friend link from LINE Official Account Manager (`https://lin.ee/…`). Optional. */
+  LINE_ADD_FRIEND_URL: optional,
+  /**
+   * Pushes a month before sends stop. At most the free plan's 200: a paid plan is a paid dependency, approved by Kumar
+   * in the task file first, and raising this ceiling is then a code change (`LINE_FREE_MONTHLY_ALLOWANCE`).
+   */
+  LINE_MONTHLY_ALLOWANCE: z.preprocess(unset, z.coerce.number().int().min(0).max(LINE_FREE_MONTHLY_ALLOWANCE).default(LINE_FREE_MONTHLY_ALLOWANCE)),
   /** Outside production only: `fixture` runs both channels without Telegram or Meta (local runs, e2e). */
   CONTACT_CHANNELS: z.preprocess(unset, z.enum(['fixture']).optional()),
 });
@@ -38,6 +51,8 @@ export interface ChannelAdapters {
   readonly whatsapp: WhatsAppSender | null;
   readonly slack: SlackApp | null;
   readonly teams: TeamsBot | null;
+  readonly line: LineBot | null;
+  readonly lineAllowance: number;
 }
 
 /** The fixture WhatsApp renders the shared words, so what a test reads is what a person would read. */
@@ -49,7 +64,7 @@ export function channelAdapters(env: NodeJS.ProcessEnv, appEnv: string): Channel
   const value = channelsEnvSchema.parse(env);
   if (value.CONTACT_CHANNELS === 'fixture') {
     if (appEnv === 'production') throw new Error('CONTACT_CHANNELS=fixture is refused in production');
-    return { telegram: new FixtureTelegramBot(), whatsapp: fixtureWhatsApp(), slack: new FixtureSlackApp(), teams: new FixtureTeamsBot() };
+    return { telegram: new FixtureTelegramBot(), whatsapp: fixtureWhatsApp(), slack: new FixtureSlackApp(), teams: new FixtureTeamsBot(), line: new FixtureLineBot(), lineAllowance: value.LINE_MONTHLY_ALLOWANCE };
   }
   const telegramParts = [value.TELEGRAM_BOT_TOKEN, value.TELEGRAM_BOT_USERNAME, value.TELEGRAM_WEBHOOK_SECRET];
   if (telegramParts.some(Boolean) && !telegramParts.every(Boolean)) throw new Error('Telegram needs TELEGRAM_BOT_TOKEN, TELEGRAM_BOT_USERNAME and TELEGRAM_WEBHOOK_SECRET together');
@@ -81,5 +96,17 @@ export function channelAdapters(env: NodeJS.ProcessEnv, appEnv: string): Channel
     value.TEAMS_BOT_APP_ID && value.TEAMS_BOT_APP_PASSWORD
       ? new BotFrameworkTeamsBot({ appId: value.TEAMS_BOT_APP_ID, appPassword: value.TEAMS_BOT_APP_PASSWORD, ...(value.TEAMS_BOT_TOKEN_TENANT ? { tokenTenant: value.TEAMS_BOT_TOKEN_TENANT } : {}) })
       : null;
-  return { telegram, whatsapp, slack, teams };
+  const lineParts = [value.LINE_CHANNEL_SECRET, value.LINE_CHANNEL_ACCESS_TOKEN, value.LINE_LOGIN_CHANNEL_ID, value.LINE_LOGIN_CHANNEL_SECRET];
+  if (lineParts.some(Boolean) && !lineParts.every(Boolean)) throw new Error('LINE needs LINE_CHANNEL_SECRET, LINE_CHANNEL_ACCESS_TOKEN, LINE_LOGIN_CHANNEL_ID and LINE_LOGIN_CHANNEL_SECRET together');
+  const line =
+    value.LINE_CHANNEL_SECRET && value.LINE_CHANNEL_ACCESS_TOKEN && value.LINE_LOGIN_CHANNEL_ID && value.LINE_LOGIN_CHANNEL_SECRET
+      ? new LineApi({
+          channelSecret: value.LINE_CHANNEL_SECRET,
+          channelAccessToken: value.LINE_CHANNEL_ACCESS_TOKEN,
+          loginChannelId: value.LINE_LOGIN_CHANNEL_ID,
+          loginChannelSecret: value.LINE_LOGIN_CHANNEL_SECRET,
+          addFriendUrl: value.LINE_ADD_FRIEND_URL ?? null,
+        })
+      : null;
+  return { telegram, whatsapp, slack, teams, line, lineAllowance: value.LINE_MONTHLY_ALLOWANCE };
 }

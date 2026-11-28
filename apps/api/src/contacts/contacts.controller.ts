@@ -4,7 +4,9 @@ import {
   contactChannelParamsSchema,
   contactCodeSchema,
   contactEmailStartSchema,
+  lineCallbackSchema,
   whatsappStartSchema,
+  type LineCallbackBody,
   type ContactCodeBody,
   type ContactEmailStartBody,
   type PageQuery,
@@ -17,6 +19,7 @@ import { NoDemo, Public, type AuthenticatedRequest } from '../auth/auth.guard';
 import { Tenant } from '../auth/tenant.decorator';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { ContactsService } from './contacts.service';
+import { LineService } from './line.service';
 
 /** The request's headers as a WHATWG Headers (repeated headers joined). */
 function headersOf(request: FastifyRequest): Headers {
@@ -37,7 +40,10 @@ function bearer(request: FastifyRequest): string | null {
 /** "Your profile" (T-180): the signed-in person's own contact details, whichever organization is active. */
 @Controller('v1/me/contact')
 export class ContactsController {
-  constructor(@Inject(ContactsService) private readonly service: ContactsService) {}
+  constructor(
+    @Inject(ContactsService) private readonly service: ContactsService,
+    @Inject(LineService) private readonly line: LineService,
+  ) {}
 
   @Get()
   profile(@Tenant() tenant: TenantContext, @Req() request: AuthenticatedRequest) {
@@ -82,6 +88,21 @@ export class ContactsController {
     return this.service.confirmWhatsApp(tenant, body.code);
   }
 
+  /** Connect LINE (T-182): LINE Login's page; the person then adds Pactlab as a friend. */
+  @Post('line')
+  @HttpCode(200)
+  @NoDemo()
+  startLine(@Tenant() tenant: TenantContext) {
+    return this.line.start(tenant);
+  }
+
+  @Post('line/callback')
+  @HttpCode(200)
+  @NoDemo()
+  lineCallback(@Tenant() tenant: TenantContext, @Body(new ZodValidationPipe(lineCallbackSchema)) body: LineCallbackBody) {
+    return this.line.callback(tenant, body);
+  }
+
   @Post('channels/:channelId/test')
   @HttpCode(200)
   @NoDemo()
@@ -109,10 +130,21 @@ export class OrganizationContactsController {
 
 const subscriptionQuery = z.object({ 'hub.mode': z.string().max(32).optional(), 'hub.verify_token': z.string().max(256).optional(), 'hub.challenge': z.string().max(128).optional() });
 
-/** Provider webhooks. Public: Telegram's secret-token header and Meta's body signature are the proof. */
+/** Provider webhooks. Public: Telegram's secret-token header, and Meta's and LINE's body signatures, are the proof. */
 @Controller('v1/webhooks')
 export class ContactWebhooksController {
-  constructor(@Inject(ContactsService) private readonly service: ContactsService) {}
+  constructor(
+    @Inject(ContactsService) private readonly service: ContactsService,
+    @Inject(LineService) private readonly lineService: LineService,
+  ) {}
+
+  @Public()
+  @Post('line')
+  @HttpCode(200)
+  line(@Req() request: FastifyRequest) {
+    const body = request.body;
+    return this.lineService.webhook(Buffer.isBuffer(body) ? body : Buffer.alloc(0), headersOf(request));
+  }
 
   @Public()
   @Post('telegram')
@@ -141,5 +173,16 @@ export class ContactWebhooksController {
   whatsapp(@Req() request: FastifyRequest) {
     const body = request.body;
     return this.service.whatsappWebhook(Buffer.isBuffer(body) ? body : Buffer.alloc(0), headersOf(request));
+  }
+}
+
+/** Operators (T-182): LINE pushes this month against the free allowance. 403 to anyone who is not a platform operator (checked in the database). */
+@Controller('v1/admin/line')
+export class AdminLineController {
+  constructor(@Inject(LineService) private readonly line: LineService) {}
+
+  @Get('usage')
+  usage(@Tenant() tenant: TenantContext) {
+    return this.line.usage(tenant);
   }
 }

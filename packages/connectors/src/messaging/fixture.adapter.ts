@@ -1,3 +1,4 @@
+import { lineLoginUrl, parseLineEvents, safeAddFriendUrl, verifyLineSignature } from './line.adapter';
 import { parseTelegramUpdate } from './telegram.adapter';
 import { plainText } from './chat-common';
 import { parseSlackInbound, SLACK_BOT_SCOPES, slackBlocks, verifySlackSignature } from './slack.adapter';
@@ -5,6 +6,9 @@ import { parseTeamsActivity, safeServiceUrl, teamsCard } from './teams.adapter';
 import {
   ChannelSendError,
   type ChatMessage,
+  type LineBot,
+  type LineInbound,
+  type LineLoginResult,
   type SlackApp,
   type SlackInbound,
   type SlackInstall,
@@ -243,5 +247,69 @@ export class FixtureTeamsBot implements TeamsBot {
     const tenantId = this.signIns.get(code);
     if (!tenantId) throw new ChannelSendError('TeamsSignIn400');
     return { tenantId };
+  }
+}
+
+/** One message the fixture LINE account "sent": a push (counted) or a reply (free), with its exact body. */
+export interface FixtureLineMessage {
+  readonly kind: 'PUSH' | 'REPLY';
+  /** The user ID for a push; the reply token for a reply. */
+  readonly to: string;
+  readonly sender: 'Pactlab';
+  readonly text: string;
+  /** The exact JSON body the live adapter would send. */
+  readonly payload: { readonly to?: string; readonly replyToken?: string; readonly messages: readonly { readonly type: 'text'; readonly text: string }[] };
+  readonly retryKey: string | null;
+}
+
+/** LINE without LINE: the same signature check and parsing; logins by code; friends; messages in `outbox`. */
+export class FixtureLineBot implements LineBot {
+  readonly name = 'FIXTURE' as const;
+  readonly addFriendUrl: string | null;
+  readonly outbox: FixtureLineMessage[] = [];
+  /** `code` → the LINE user a LINE Login with that code signs in as. */
+  readonly logins = new Map<string, string>();
+  /** Users who are friends of the official account (and have not blocked it). */
+  readonly friends = new Set<string>();
+  /** LINE answers 429 "You have reached your monthly limit." while this is set. */
+  monthlyLimitReached = false;
+  private readonly acceptedRetryKeys = new Set<string>();
+
+  constructor(
+    readonly channelSecret = 'fixture-line-channel-secret',
+    addFriendUrl = 'https://lin.ee/fixturePactlab',
+  ) {
+    this.addFriendUrl = safeAddFriendUrl(addFriendUrl);
+  }
+
+  async push(userId: string, text: string, retryKey: string): Promise<void> {
+    if (this.acceptedRetryKeys.has(retryKey)) return;
+    if (this.monthlyLimitReached) throw new ChannelSendError('LineMonthlyLimit');
+    // LINE does not deliver to a user who blocked the account (and does not count it); Pactlab hears of it by `unfollow`.
+    if (!this.friends.has(userId)) throw new ChannelSendError('Line400');
+    this.acceptedRetryKeys.add(retryKey);
+    this.outbox.push({ kind: 'PUSH', to: userId, sender: 'Pactlab', text, payload: { to: userId, messages: [{ type: 'text', text }] }, retryKey });
+  }
+
+  async reply(replyToken: string, text: string): Promise<void> {
+    this.outbox.push({ kind: 'REPLY', to: replyToken, sender: 'Pactlab', text, payload: { replyToken, messages: [{ type: 'text', text }] }, retryKey: null });
+  }
+
+  verifySignature(rawBody: Uint8Array, headers: Headers): boolean {
+    return verifyLineSignature(this.channelSecret, rawBody, headers.get('x-line-signature'));
+  }
+
+  parseEvents(rawBody: Uint8Array): LineInbound[] {
+    return parseLineEvents(rawBody);
+  }
+
+  loginUrl(state: string, nonce: string, redirectUri: string): string {
+    return lineLoginUrl('https://access.line.fixture.test', '1234567890', state, nonce, redirectUri);
+  }
+
+  async completeLogin(code: string): Promise<LineLoginResult> {
+    const userId = this.logins.get(code);
+    if (!userId) throw new ChannelSendError('LineLoginToken400');
+    return { userId, friend: this.friends.has(userId) };
   }
 }

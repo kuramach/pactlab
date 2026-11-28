@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CHANNEL_PREFIX, channelMessage, countryCodeLength, isStopWord, maskContact, normalizeEmail, toE164 } from './index';
+import { CHANNEL_PREFIX, channelMessage, countryCodeLength, isStopWord, lineMessage, maskContact, normalizeEmail, toE164, type ChannelMessageKind } from './index';
 
 describe('contact details (T-180)', () => {
   it('reads numbers into E.164, with or without the picker', () => {
@@ -42,5 +42,27 @@ describe('contact details (T-180)', () => {
   it('recognizes STOP replies', () => {
     expect(['STOP', ' stop ', 'Unsubscribe'].every(isStopWord)).toBe(true);
     expect(isStopWord('please stop the deal')).toBe(false);
+  });
+});
+
+describe('LINE wording (T-182)', () => {
+  const kinds: ChannelMessageKind[] = ['ACT_NOW', 'TEST', 'LINKED', 'LINK_EXPIRED', 'DISCONNECTED', 'STOPPED', 'CHAT_CONFIRM', 'CHAT_LINKED', 'LINE_LINKED', 'LINE_NOT_LINKED'];
+
+  it('is Japanese for a Japanese reader, and English then Japanese otherwise, always prefixed once', () => {
+    const ja = lineMessage('ACT_NOW', { link: 'https://app.pactlab.ai/notifications', locale: 'ja' });
+    expect(ja).toBe('Pactlab: 対応が必要なパクトがあります。内容は Pactlab でご確認ください: https://app.pactlab.ai/notifications');
+    const both = lineMessage('ACT_NOW', { link: 'https://app.pactlab.ai/notifications' });
+    expect(both.split('\n')).toEqual(['Pactlab: A pact needs you. Open Pactlab to see what:', '対応が必要なパクトがあります。内容は Pactlab でご確認ください:', 'https://app.pactlab.ai/notifications']);
+    for (const kind of kinds) {
+      const text = lineMessage(kind, { link: 'https://x.test' });
+      expect(text.startsWith(CHANNEL_PREFIX)).toBe(true);
+      expect(text.split(CHANNEL_PREFIX)).toHaveLength(2);
+      expect(channelMessage(kind, { locale: 'ja' }).startsWith(CHANNEL_PREFIX)).toBe(true);
+    }
+  });
+
+  it('masks a LINE user ID and recognizes Japanese stop words', () => {
+    expect(maskContact('LINE', `U${'0'.repeat(30)}9f`)).toBe('LINE ••9f');
+    expect(['停止', 'ストップ', '配信停止'].every(isStopWord)).toBe(true);
   });
 });

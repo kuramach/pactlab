@@ -3,31 +3,17 @@ import { ForbiddenException, HttpException, Inject, Injectable, NotFoundExceptio
 import type { ContactProfileView, MaskedMemberContactView, Page, TelegramLinkView, WhatsAppStartBody } from '@pactlab/contracts';
 import { contactDispatch, contacts, type PrismaClient } from '@pactlab/db';
 import { channelMessage, CHANNEL_ABOUT, CHANNEL_SENDER, isStopWord, normalizeEmail, toE164, WHATSAPP_CONSENT_TEXT, type TenantContext } from '@pactlab/domain';
-import { ChannelSendError, type TelegramBot, type WhatsAppSender } from '@pactlab/connectors';
+import { ChannelSendError, type TelegramBot } from '@pactlab/connectors';
 import type { Logger } from '@pactlab/observability';
 import type { Principal } from '../auth/auth.guard';
 import { keyedHash } from '../email-login/client-address';
-import type { EmailSender } from '../email-login/email-sender';
 import { LOGGER, PRISMA } from '../tokens';
-import type { IdentityEmailSource } from './auth0-userinfo';
 import { ChatService } from './chat.service';
+import { CONTACT_SETTINGS, type ContactModuleSettings } from './contact-settings';
+import { LineService } from './line.service';
 import { contactEmails } from './contact-emails';
 
-export const CONTACT_SETTINGS = Symbol('CONTACT_SETTINGS');
-
-export interface ContactModuleSettings {
-  /** Null: confirmation codes are never delivered (tests inject a recording sender). */
-  readonly emailSender: EmailSender | null;
-  readonly hashSecret: string;
-  /** The web origin links point into. */
-  readonly appOrigin: string;
-  /** Auth0's `/userinfo` for the verified email claim; null where Auth0 is not configured. */
-  readonly identityEmails: IdentityEmailSource | null;
-  /** The Telegram bot (T-180): off (null) unless a bot token is set; the fixture outside production. */
-  readonly telegram: TelegramBot | null;
-  /** WhatsApp: off (null) unless enabled after Kumar's approval (ADR 0064); the fixture in tests. */
-  readonly whatsapp: WhatsAppSender | null;
-}
+export { CONTACT_SETTINGS, type ContactModuleSettings } from './contact-settings';
 
 const CODE_MINUTES = 10;
 const LINK_MINUTES = 10;
@@ -52,6 +38,7 @@ export class ContactsService {
     @Inject(CONTACT_SETTINGS) private readonly settings: ContactModuleSettings,
     @Inject(LOGGER) private readonly logger: Logger,
     @Inject(ChatService) private readonly chat: ChatService,
+    @Inject(LineService) private readonly line: LineService,
   ) {}
 
   private codeHash(tenant: TenantContext, kind: 'EMAIL' | 'WHATSAPP', code: string): string {
@@ -79,11 +66,12 @@ export class ContactsService {
 
   async profile(tenant: TenantContext, principal: Principal, accessToken: string | null): Promise<ContactProfileView> {
     await this.syncIdentityEmail(tenant, principal, accessToken);
-    const [email, channels, displayName, chatInstalled] = await Promise.all([
+    const [email, channels, displayName, chatInstalled, linePending] = await Promise.all([
       contacts.email(this.prisma, tenant),
       contacts.channels(this.prisma, tenant),
       contacts.displayName(this.prisma, tenant),
       this.chat.installed(tenant),
+      this.line.pending(tenant),
     ]);
     return {
       displayName: displayName ?? '',
@@ -92,13 +80,14 @@ export class ContactsService {
       channels: channels.map((channel) => ({
         id: channel.id,
         kind: channel.kind,
-        // The person's own profile shows their own number; a Telegram chat id, or a Slack or Teams id, means nothing to them.
+        // The person's own profile shows their own number; a Telegram chat id, a Slack or Teams id, or a LINE user ID means nothing to them.
         label: channel.kind === 'WHATSAPP' ? channel.handle : 'Connected',
         verifiedAt: channel.verifiedAt.toISOString(),
         consentedAt: channel.consentedAt?.toISOString() ?? null,
       })),
-      available: { telegram: this.settings.telegram !== null, whatsapp: this.settings.whatsapp !== null, slack: this.chat.sender.slack !== null, teams: this.chat.sender.teams !== null },
+      available: { telegram: this.settings.telegram !== null, whatsapp: this.settings.whatsapp !== null, slack: this.chat.sender.slack !== null, teams: this.chat.sender.teams !== null, line: this.line.bot !== null },
       chatInstalled,
+      linePending: channels.some((channel) => channel.kind === 'LINE') ? null : linePending,
       whatsappConsentText: WHATSAPP_CONSENT_TEXT,
     };
   }
@@ -220,6 +209,7 @@ export class ContactsService {
     // Telegram messages are free, so the chat hears that it is disconnected; WhatsApp is paid per message, so it does not.
     if (channel.kind === 'TELEGRAM' && this.settings.telegram) await this.say(this.settings.telegram, channel.handle, channelMessage('DISCONNECTED'));
     if (channel.kind === 'SLACK' || channel.kind === 'TEAMS') await this.chat.afterDisconnect(channel.kind, channel.handle);
+    // LINE: no message (a push would count toward the monthly allowance); the chat simply goes quiet.
     return { disconnected: true };
   }
 
@@ -235,7 +225,9 @@ export class ContactsService {
     }
     const link = this.link('/settings/profile');
     try {
-      if (channel.kind === 'TELEGRAM') {
+      if (channel.kind === 'LINE') {
+        await this.line.test(channel.handle, deliveryId, link);
+      } else if (channel.kind === 'TELEGRAM') {
         if (!this.settings.telegram) throw new ChannelSendError('TelegramOff');
         await this.settings.telegram.sendMessage(channel.handle, channelMessage('TEST', { link }));
       } else {
@@ -243,7 +235,8 @@ export class ContactsService {
         await this.settings.whatsapp.sendTemplate(channel.handle, 'TEST', link);
       }
     } catch (error) {
-      await contactDispatch.finish(this.prisma, { deliveryId, outcome: 'FAILED', errorClass: errorClass(error) });
+      await contactDispatch.finish(this.prisma, { deliveryId, outcome: 'FAILED', errorClass: error instanceof HttpException ? 'LineAllowanceReached' : errorClass(error) });
+      if (error instanceof HttpException) throw error;
       throw new ServiceUnavailableException({ code: 'MESSAGE_NOT_SENT' });
     }
     await contactDispatch.finish(this.prisma, { deliveryId, outcome: 'SENT', errorClass: null });
@@ -256,7 +249,7 @@ export class ContactsService {
     const page = await contacts.adminPage(this.prisma, tenant, query);
     return {
       ...page,
-      items: page.items.map((row) => ({ userId: row.userId, displayName: row.displayName, email: row.emailMasked, emailVerified: row.emailVerified, telegram: row.telegramMasked, whatsapp: row.whatsappMasked })),
+      items: page.items.map((row) => ({ userId: row.userId, displayName: row.displayName, email: row.emailMasked, emailVerified: row.emailVerified, telegram: row.telegramMasked, whatsapp: row.whatsappMasked, line: row.lineMasked })),
     };
   }
 

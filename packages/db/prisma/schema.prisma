@@ -4372,9 +4372,9 @@ model UserContactChannel {
   id             String    @id @db.Uuid
   organizationId String    @map("organization_id") @db.Uuid
   userId         String    @map("user_id") @db.Uuid
-  /// TELEGRAM, WHATSAPP, SLACK or TEAMS (T-181).
+  /// TELEGRAM, WHATSAPP, SLACK or TEAMS (T-181), or LINE (T-182).
   kind           String
-  /// The Telegram chat id, the WhatsApp number in E.164, `<team>:<member>` (Slack) or `<tenant>:<object id>` (Teams).
+  /// The Telegram chat id, the WhatsApp number in E.164, `<team>:<member>` (Slack), `<tenant>:<object id>` (Teams) or the LINE user ID.
   handle         String
   verifiedAt     DateTime  @map("verified_at") @db.Timestamptz(3)
   consentText    String?   @map("consent_text")
@@ -4443,4 +4443,15 @@ model TeamsConversationRef {
   @@unique([tenantId, aadObjectId], map: "teams_conversation_refs_member")
   @@index([tenantId, emailHash], map: "teams_conversation_refs_email_idx")
   @@map("teams_conversation_refs")
+}
+
+/// T-182: pushes from the Pactlab LINE Official Account by calendar month in Japan time, against the
+/// monthly allowance. Counts only, never a person. pactlab_auth writes it; operators read it.
+model LineMonthlyUsage {
+  month     DateTime  @id @db.Date
+  sent      Int       @default(0)
+  reachedAt DateTime? @map("reached_at") @db.Timestamptz(3)
+  updatedAt DateTime  @default(now()) @map("updated_at") @db.Timestamptz(3)
+
+  @@map("line_monthly_usage")
 }

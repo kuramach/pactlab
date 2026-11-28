@@ -1,10 +1,12 @@
 import type { ContactProfileView, MaskedMemberContactView, Page } from '@pactlab/contracts';
 import { PHONE_COUNTRIES } from '@pactlab/domain';
 import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle, PageHeader } from '@pactlab/ui';
+import { getI18n } from '../../../../lib/i18n/server';
 import { getSessionContext } from '../../../../lib/session';
 import { keepParams, pageApiQuery, Pager, pagerLinks, readPage } from '../../../_components/pager';
 import { apiGet } from '../../deals/_lib/api';
 import { ApiState } from '../../deals/_lib/states';
+import { LineCard } from './line-card';
 import { confirmEmail, confirmWhatsApp, connectChat, connectTelegram, disconnectChannel, startEmail, startWhatsApp, testChannel } from './actions';
 
 // Per-user data: never prerender.
@@ -21,6 +23,8 @@ const DONE: Record<string, string> = {
   disconnected: 'Disconnected. Pactlab will not message you there again.',
   'slack-sent': 'Pactlab sent you a direct message in Slack. Open it and choose "Yes, connect me". It expires in 10 minutes.',
   'teams-sent': 'Pactlab sent you a message in Microsoft Teams. Open it and choose "Yes, connect me". It expires in 10 minutes.',
+  'line-connected': 'LINE is connected.',
+  'line-add-friend': 'Signed in with LINE. Add Pactlab as a friend on LINE to finish connecting.',
 };
 
 const ERRORS: Record<string, string> = {
@@ -38,6 +42,11 @@ const ERRORS: Record<string, string> = {
   NOT_FOUND_IN_WORKSPACE: 'No one with your email was found there. In Teams, open the Pactlab app first; in Slack, check your workspace uses the same email.',
   SLACK_OFF: 'Slack is not set up on this Pactlab yet.',
   TEAMS_OFF: 'Microsoft Teams is not set up on this Pactlab yet.',
+  LINE_OFF: 'LINE is not set up on this Pactlab yet.',
+  LINE_CANCELLED: 'LINE Login was cancelled. Nothing was connected.',
+  LINE_STATE_INVALID: 'That LINE sign-in has expired or was not started here. Choose Connect LINE again.',
+  LINE_LOGIN_FAILED: 'LINE Login did not finish. Try Connect LINE again.',
+  LINE_ALLOWANCE_REACHED: 'Pactlab has used this month’s LINE messages. Alerts reach you by email until next month.',
   ERROR: 'That did not work. If you tried several times, wait 15 minutes and try again.',
 };
 
@@ -52,7 +61,7 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
   const step = typeof params['step'] === 'string' ? params['step'] : null;
   const done = typeof params['done'] === 'string' ? DONE[params['done']] : undefined;
   const error = typeof params['error'] === 'string' ? (ERRORS[params['error']] ?? ERRORS['ERROR']) : undefined;
-  const session = await getSessionContext();
+  const [session, t] = await Promise.all([getSessionContext(), getI18n()]);
   const admin = session.kind === 'signed-in' && (session.organization?.role === 'ORG_OWNER' || session.organization?.role === 'ORG_ADMIN');
   const position = readPage(params, 'members');
   const [profile, members] = await Promise.all([
@@ -244,6 +253,8 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
         </CardContent>
       </Card>
 
+      <LineCard t={t} me={me} />
+
       {chats.map((chat) => (
         <Card key={chat.provider} id={chat.provider}>
           <CardHeader>
@@ -304,7 +315,7 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
                     <li key={row.userId} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm">
                       <span className="font-medium">{row.displayName}</span>
                       <span className="text-muted-foreground">
-                        {[row.email ?? 'No email', row.telegram ? 'Telegram' : null, row.whatsapp].filter(Boolean).join(' · ')}
+                        {[row.email ?? 'No email', row.telegram ? 'Telegram' : null, row.whatsapp, row.line].filter(Boolean).join(' · ')}
                       </span>
                     </li>
                   ))}

@@ -1,6 +1,6 @@
 'use server';
 
-import { chatProviderSchema, contactCodeSchema, contactEmailStartSchema, whatsappStartSchema, type TelegramLinkView } from '@pactlab/contracts';
+import { chatProviderSchema, contactCodeSchema, contactEmailStartSchema, whatsappStartSchema, type LineConnectStartView, type TelegramLinkView } from '@pactlab/contracts';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
@@ -69,4 +69,11 @@ export async function connectChat(provider: string): Promise<void> {
   const parsed = chatProviderSchema.safeParse(provider);
   if (!parsed.success) return;
   back(await apiSend('POST', `/v1/me/contact/chat/${parsed.data}`, {}), `${parsed.data}-sent`);
+}
+
+/** Connect LINE (T-182): LINE Login's page, on LINE's own host only. */
+export async function connectLine(): Promise<void> {
+  const result = await apiSend<LineConnectStartView>('POST', '/v1/me/contact/line', {});
+  if (result.kind !== 'ok' || !/^https:\/\/access\.line\.(?:me|fixture\.test)\/oauth2\/v2\.1\/authorize\?/.test(result.data.url)) back(result, 'line');
+  redirect(result.data.url);
 }

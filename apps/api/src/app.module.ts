@@ -11,7 +11,7 @@ import { AiModule } from './ai/ai.module';
 import { BalanceSheetModule } from './balance-sheet/balance-sheet.module';
 import { PhasesModule } from './phases/phases.module';
 import { CloseModule } from './close/close.module';
-import { FixtureMarketRentProvider, FixturePhotoProvider, FixturePropertyProvider, FixturePropertyRecordProvider, FixtureSigningProvider, type DocuSignOAuth, type MarketRentProvider, type PropertyDataProvider, type PropertyPhotoProvider, type PropertyRecordProvider, type SigningProvider, type SigningWebhook } from '@pactlab/connectors';
+import { FixtureMarketRentProvider, FixturePhotoProvider, FixturePropertyProvider, FixturePropertyRecordProvider, FixtureSigningProvider, type DocuSignOAuth, type MarketRentProvider, type PropertyDataProvider, type PropertyPhotoProvider, type PropertyRecordProvider, type SigningProvider, type SigningWebhook, type LineBot } from '@pactlab/connectors';
 import { VentureModule } from './venture/venture.module';
 import { AdminModule } from './admin/admin.module';
 import { SourceHealthModule } from './sources/source-health.module';
@@ -187,7 +187,7 @@ export interface AppDependencies {
    * Contact details (T-180, ADR 0064): Auth0's `/userinfo` for the verified email claim, the Telegram bot and
    * the WhatsApp sender. Omitted or null: that part is off (Telegram and WhatsApp are off by default).
    */
-  contacts?: { identityEmails?: IdentityEmailSource | null; telegram?: TelegramBot | null; whatsapp?: WhatsAppSender | null; slack?: SlackApp | null; teams?: TeamsBot | null };
+  contacts?: { identityEmails?: IdentityEmailSource | null; telegram?: TelegramBot | null; whatsapp?: WhatsAppSender | null; slack?: SlackApp | null; teams?: TeamsBot | null; line?: LineBot | null; lineAllowance?: number };
   /**
    * Product-help chat (T-175): where handed-off questions and confirmed feature requests go. Omitted: no team
    * address, so the panel offers the contact address instead; `featureIntake` defaults to emailing the team.
@@ -403,6 +403,9 @@ export class AppModule {
             whatsapp: deps.contacts?.whatsapp ?? null,
             // Slack and Teams (T-181): direct messages from the Pactlab bot, off unless configured.
             chat: new ChatSender(deps.contacts?.slack ?? null, deps.contacts?.teams ?? null, deps.providers?.secrets ?? null),
+            // LINE (T-182): pushes from the Pactlab LINE Official Account, within the monthly allowance.
+            line: deps.contacts?.line ?? null,
+            ...(deps.contacts?.lineAllowance !== undefined ? { lineAllowance: deps.contacts.lineAllowance } : {}),
           },
         }),
         ContactsModule.register({
@@ -413,6 +416,8 @@ export class AppModule {
           identityEmails: deps.contacts?.identityEmails ?? null,
           telegram: deps.contacts?.telegram ?? null,
           whatsapp: deps.contacts?.whatsapp ?? null,
+          line: deps.contacts?.line ?? null,
+          ...(deps.contacts?.lineAllowance !== undefined ? { lineAllowance: deps.contacts.lineAllowance } : {}),
         }, {
           slack: deps.contacts?.slack ?? null,
           teams: deps.contacts?.teams ?? null,

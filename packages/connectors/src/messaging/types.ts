@@ -165,3 +165,42 @@ export interface TeamsBot {
   tenantSignInUrl(state: string, redirectUri: string): string;
   exchangeTenantCode(code: string, redirectUri: string): Promise<{ readonly tenantId: string }>;
 }
+
+/**
+ * LINE (T-182, ADR 0066): the Pactlab LINE Official Account, through its Messaging API channel, and a
+ * LINE Login channel under the same provider (so both see the same user ID). A LINE user ID is personal
+ * data: adapters never log it or put it in errors.
+ */
+
+/** What a verified LINE webhook tells Pactlab, reduced to what Pactlab acts on. One-to-one chats only. */
+export type LineInbound =
+  | { readonly kind: 'FOLLOW'; readonly userId: string; readonly replyToken: string | null }
+  | { readonly kind: 'UNFOLLOW'; readonly userId: string }
+  | { readonly kind: 'TEXT'; readonly userId: string; readonly text: string; readonly replyToken: string | null }
+  | { readonly kind: 'IGNORED' };
+
+/** LINE Login, completed: the person's user ID, and whether they are a friend of the official account now. */
+export interface LineLoginResult {
+  readonly userId: string;
+  readonly friend: boolean;
+}
+
+export interface LineBot {
+  readonly name: 'LINE' | 'FIXTURE';
+  /** The official account's add-friend link, as LINE Official Account Manager shows it (runbook); null when not set. */
+  readonly addFriendUrl: string | null;
+  /**
+   * A push message (counted toward the monthly allowance). `retryKey` is a UUID sent as `X-Line-Retry-Key`,
+   * so LINE accepts it at most once. The monthly limit fails as `LineMonthlyLimit`.
+   */
+  push(userId: string, text: string, retryKey: string): Promise<void>;
+  /** A reply to a webhook event (not counted toward the allowance). */
+  reply(replyToken: string, text: string): Promise<void>;
+  /** `x-line-signature`: Base64 HMAC-SHA256 of the raw body with the channel secret. */
+  verifySignature(rawBody: Uint8Array, headers: Headers): boolean;
+  parseEvents(rawBody: Uint8Array): LineInbound[];
+  /** LINE Login's authorization URL: `openid profile`, the add-friend screen after consent (`bot_prompt=aggressive`). */
+  loginUrl(state: string, nonce: string, redirectUri: string): string;
+  /** Code → tokens → the verified ID token's `sub`, then the friendship status. No token is kept. */
+  completeLogin(code: string, redirectUri: string, nonce: string): Promise<LineLoginResult>;
+}

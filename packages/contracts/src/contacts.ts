@@ -28,7 +28,7 @@ export const contactChannelParamsSchema = z.object({ channelId: z.uuid() }).stri
 
 export const contactAdminQuerySchema = pageQuerySchema;
 
-export type ContactChannelKindView = 'TELEGRAM' | 'WHATSAPP' | 'SLACK' | 'TEAMS';
+export type ContactChannelKindView = 'TELEGRAM' | 'WHATSAPP' | 'SLACK' | 'TEAMS' | 'LINE';
 
 export interface ContactChannelView {
   readonly id: string;
@@ -46,7 +46,9 @@ export interface ContactProfileView {
   readonly askForEmail: boolean;
   readonly channels: readonly ContactChannelView[];
   /** What this deployment offers; a channel that is off cannot be connected. */
-  readonly available: { readonly telegram: boolean; readonly whatsapp: boolean; readonly slack: boolean; readonly teams: boolean };
+  readonly available: { readonly telegram: boolean; readonly whatsapp: boolean; readonly slack: boolean; readonly teams: boolean; readonly line: boolean };
+  /** LINE (T-182): connected through LINE Login but not yet a friend of the Pactlab account; the add-friend link, if set. */
+  readonly linePending: { readonly addFriendUrl: string | null } | null;
   /** Slack and Teams (T-181): whether the organization's admin has installed Pactlab; until then the card asks the admin. */
   readonly chatInstalled: { readonly slack: boolean; readonly teams: boolean };
   /** The consent text shown before a WhatsApp number is verified. */
@@ -66,6 +68,8 @@ export interface MaskedMemberContactView {
   readonly emailVerified: boolean;
   readonly telegram: string | null;
   readonly whatsapp: string | null;
+  /** LINE (T-182), masked: `LINE ••3f`. */
+  readonly line: string | null;
 }
 
 /**
@@ -111,4 +115,40 @@ export interface ChatMemberLinkView {
   readonly userId: string;
   readonly displayName: string;
   readonly linked: boolean;
+}
+
+/**
+ * LINE (T-182, ADR 0066): Connect LINE signs in with LINE Login (to learn the person's LINE user ID) and asks
+ * them to add the Pactlab LINE Official Account as a friend. The user ID is stored only after both.
+ */
+export interface LineConnectStartView {
+  /** LINE Login's authorization page, with a signed 10-minute state. */
+  readonly url: string;
+}
+
+export const lineCallbackSchema = z
+  .object({
+    code: z.string().min(1).max(2048),
+    state: z.string().min(1).max(2048),
+  })
+  .strict();
+export type LineCallbackBody = z.infer<typeof lineCallbackSchema>;
+
+export interface LineCallbackView {
+  /** LINKED: connected now. ADD_FRIEND: add Pactlab as a friend on LINE to finish (the follow completes it). */
+  readonly status: 'LINKED' | 'ADD_FRIEND';
+  readonly addFriendUrl: string | null;
+}
+
+/** Operators: LINE pushes this month against the free monthly allowance (Japan time). */
+export interface LineUsageView {
+  readonly available: boolean;
+  /** `YYYY-MM`, Japan time. */
+  readonly month: string;
+  readonly sent: number;
+  readonly allowance: number;
+  /** When sends stopped this month, or null. */
+  readonly reachedAt: string | null;
+  /** "LINE monthly allowance reached", or null. */
+  readonly notice: string | null;
 }
