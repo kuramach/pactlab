@@ -1,18 +1,24 @@
 'use client';
 
-import { PactlabLockup, cn } from '@pactlab/ui';
+import { PactlabLockup, cn, fill } from '@pactlab/ui';
 import { ArrowLeftRight } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { isActive, type NavSection } from '../../../lib/navigation';
+import type { Messages } from '../../../lib/i18n';
 import { NAV_ICONS } from './nav-icons';
 
 /** Main menu links; shared by the desktop sidebar and the mobile menu. */
+/** The shell's words, read on the server and passed down: this file is a client component. */
+export type ShellCopy = Messages['shell'];
+
 export function NavLinks({
+  copy,
   sections,
   onNavigate,
   tone = 'light',
 }: {
+  copy: ShellCopy;
   sections: readonly NavSection[];
   onNavigate?: () => void;
   tone?: 'light' | 'dark';
@@ -20,12 +26,12 @@ export function NavLinks({
   const dark = tone === 'dark';
   const pathname = usePathname();
   return (
-    <nav aria-label="Main" className="flex flex-col gap-6">
+    <nav aria-label={copy.mainMenu} className="flex flex-col gap-6">
       {sections.map((section) => (
-        <div key={section.label ?? 'main'} className="flex flex-col gap-1">
-          {section.label ? (
+        <div key={section.id ?? 'main'} className="flex flex-col gap-1">
+          {section.id ? (
             <span className={cn('px-3 pb-1 text-xs font-bold uppercase tracking-wider', dark ? 'text-white/45' : 'text-muted-foreground')}>
-              {section.label}
+              {copy.sections[section.id]}
             </span>
           ) : null}
           {section.items.map((item) => {
@@ -49,7 +55,7 @@ export function NavLinks({
                 )}
               >
                 <Icon aria-hidden className="h-4 w-4 shrink-0" />
-                {item.label}
+                {copy.nav[item.icon]}
               </Link>
             );
           })}
@@ -67,7 +73,7 @@ export interface ShellBrand {
   logoLight?: boolean;
 }
 
-export function OrgMark({ brand, tone }: { brand: ShellBrand; tone: 'light' | 'dark' }) {
+export function OrgMark({ brand, tone, copy }: { brand: ShellBrand; tone: 'light' | 'dark'; copy: ShellCopy }) {
   const dark = tone === 'dark';
   return (
     <span className="flex min-w-0 flex-col gap-0.5">
@@ -78,20 +84,20 @@ export function OrgMark({ brand, tone }: { brand: ShellBrand; tone: 'light' | 'd
       ) : (
         <span className="truncate text-lg font-extrabold tracking-tight">{brand.name}</span>
       )}
-      <span className={cn('text-[0.7rem] font-medium', dark ? 'text-white/55' : 'text-muted-foreground')}>on Pactlab</span>
+      <span className={cn('text-[0.7rem] font-medium', dark ? 'text-white/55' : 'text-muted-foreground')}>{copy.onPactlab}</span>
     </span>
   );
 }
 
 /** Left sidebar: logo (always back to Home), main menu, active organization. */
-export function Sidebar({ sections, organizationName, brand = null }: { sections: readonly NavSection[]; organizationName: string | null; brand?: ShellBrand | null }) {
+export function Sidebar({ copy, sections, organizationName, brand = null }: { copy: ShellCopy; sections: readonly NavSection[]; organizationName: string | null; brand?: ShellBrand | null }) {
   return (
     <div className="flex h-full flex-col">
-      <Link href="/" className="flex h-20 items-center border-b border-white/10 px-5" aria-label={brand ? `${brand.name} home` : 'Pactlab home'}>
-        {brand ? <OrgMark brand={brand} tone="dark" /> : <PactlabLockup tone="onDark" />}
+      <Link href="/" className="flex h-20 items-center border-b border-white/10 px-5" aria-label={brand ? fill(copy.brandHome, { name: brand.name }) : copy.home}>
+        {brand ? <OrgMark brand={brand} tone="dark" copy={copy} /> : <PactlabLockup tone="onDark" />}
       </Link>
       <div className="flex-1 overflow-y-auto px-3 py-6">
-        <NavLinks sections={sections} tone="dark" />
+        <NavLinks copy={copy} sections={sections} tone="dark" />
       </div>
       {organizationName ? (
         <Link
@@ -99,10 +105,10 @@ export function Sidebar({ sections, organizationName, brand = null }: { sections
           className="m-3 flex items-center justify-between gap-2 rounded-xl border border-white/15 bg-white/5 px-3 py-2.5 text-sm hover:bg-white/10"
         >
           <span className="flex min-w-0 flex-col">
-            <span className="text-xs text-white/55">Organization</span>
+            <span className="text-xs text-white/55">{copy.organization}</span>
             <span className="truncate font-medium">{organizationName}</span>
           </span>
-          <ArrowLeftRight aria-label="Switch organization" className="h-4 w-4 shrink-0 text-white/60" />
+          <ArrowLeftRight aria-label={copy.switchOrganization} className="h-4 w-4 shrink-0 text-white/60" />
         </Link>
       ) : null}
     </div>

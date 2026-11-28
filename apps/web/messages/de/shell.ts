@@ -1,0 +1,35 @@
+import type { Localized } from '@pactlab/ui';
+import type { shell as source } from '../en/shell';
+
+export const shell: Localized<typeof source> = {
+  mainMenu: 'Hauptmenü',
+  sections: { organization: 'Organisation', developers: 'Entwickler', pactlab: 'Pactlab' },
+  nav: {
+    home: 'Start',
+    deals: 'Meine Deals',
+    start: 'Pact starten',
+    comparables: 'Vergleichswerte',
+    reports: 'Berichte',
+    audit: 'Prüfprotokoll',
+    controls: 'Pilot-Kontrollen',
+    api: 'API',
+    claude: 'Mit Claude nutzen',
+    settings: 'Einstellungen',
+    admin: 'Admin-Konsole',
+  },
+  onPactlab: 'auf Pactlab',
+  home: 'Pactlab-Startseite',
+  brandHome: 'Startseite von {name}',
+  organization: 'Organisation',
+  switchOrganization: 'Organisation wechseln',
+  notifications: 'Benachrichtigungen',
+  notificationsUnread: 'Benachrichtigungen, {count} ungelesen',
+  openMenu: 'Menü öffnen',
+  signIn: 'Anmelden',
+  startPact: 'Pact starten',
+  settings: 'Einstellungen',
+  accountMenu: 'Kontomenü',
+  noOrganization: 'Keine aktive Organisation',
+  bugsSubmitted: 'Gemeldete Fehler',
+  signOut: 'Abmelden',
+};

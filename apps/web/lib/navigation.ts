@@ -4,7 +4,7 @@ export type NavIcon = 'home' | 'deals' | 'start' | 'comparables' | 'reports' | '
 
 export interface NavItem {
   readonly href: string;
-  readonly label: string;
+  /** Also the key of its label in the catalog (`shell.nav`). */
   readonly icon: NavIcon;
   /** Hidden unless the session holds this permission. UI visibility is never authorization. */
   readonly requires?: Permission;
@@ -16,43 +16,46 @@ export interface NavItem {
   readonly operatorOnly?: boolean;
 }
 
+export type NavSectionId = 'organization' | 'developers' | 'pactlab';
+
 export interface NavSection {
-  readonly label: string | null;
+  /** Its heading is `shell.sections[id]`; the first section has none. */
+  readonly id: NavSectionId | null;
   readonly items: readonly NavItem[];
 }
 
 /** Main menu. Home and My deals are always there, so every page has a way back. */
 export const NAV_SECTIONS: readonly NavSection[] = [
   {
-    label: null,
+    id: null,
     items: [
-      { href: '/', label: 'Home', icon: 'home', match: 'exact' },
-      { href: '/deals', label: 'My deals', icon: 'deals' },
-      { href: '/pacts/new', label: 'Start a Pact', icon: 'start', membersOnly: true },
+      { href: '/', icon: 'home', match: 'exact' },
+      { href: '/deals', icon: 'deals' },
+      { href: '/pacts/new', icon: 'start', membersOnly: true },
       // The firm's comparables; the API refuses target contributors.
-      { href: '/comparables', label: 'Comparables', icon: 'comparables', membersOnly: true },
+      { href: '/comparables', icon: 'comparables', membersOnly: true },
       // Executive and pact reports as versioned PDFs (T-110).
-      { href: '/reports', label: 'Reports', icon: 'reports' },
+      { href: '/reports', icon: 'reports' },
     ],
   },
   {
-    label: 'Organization',
+    id: 'organization',
     items: [
-      { href: '/audit', label: 'Audit log', icon: 'audit', requires: 'AUDIT_READ' },
-      { href: '/settings/controls', label: 'Pilot controls', icon: 'controls', requires: 'ORG_ADMIN' },
+      { href: '/audit', icon: 'audit', requires: 'AUDIT_READ' },
+      { href: '/settings/controls', icon: 'controls', requires: 'ORG_ADMIN' },
     ],
   },
   {
     // Your own scripts and AI apps, as you (T-128): the API and the MCP server for Claude.
-    label: 'Developers',
+    id: 'developers',
     items: [
-      { href: '/developers/api', label: 'API', icon: 'api', membersOnly: true },
-      { href: '/developers/mcp', label: 'Use with Claude', icon: 'claude', membersOnly: true },
+      { href: '/developers/api', icon: 'api', membersOnly: true },
+      { href: '/developers/mcp', icon: 'claude', membersOnly: true },
     ],
   },
   {
-    label: 'Pactlab',
-    items: [{ href: '/admin', label: 'Admin console', icon: 'admin', operatorOnly: true }],
+    id: 'pactlab',
+    items: [{ href: '/admin', icon: 'admin', operatorOnly: true }],
   },
 ];
 
