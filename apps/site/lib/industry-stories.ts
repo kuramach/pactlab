@@ -591,36 +591,36 @@ export const INDUSTRY_STORIES: Readonly<Record<string, IndustryStory>> = {
   },
 
   hospitals: {
-    headline: 'Hospital earnings are only as good as the payer mix.',
+    headline: 'A hospital is its cost reports, its payer contracts, its medical staff and its plant.',
     subhead:
-      'Payer concentration, licensure and the physicians who carry service lines decide what a hospital is worth. The hospitals pack builds on the healthcare pack and reads the cost reports, census and accreditation record.',
+      'Hospitals carry evidence no other business does. Pactlab reconciles the filed cost reports against the deck and the financial statements, reads every material payer agreement against the closing, checks the medical staff’s licences and privileges department by department, and sets capex against revenue across every year — documents, dates and arithmetic, never a survey prediction or a view on care.',
     illustrationAlt: 'Illustration of a hospital building, a payer-mix chart and an accreditation certificate.',
     pains: [
-      { icon: 'ChartPie', title: 'One payer behind most of the earnings', body: 'A rate change at a single payer reprices the hospital.' },
-      { icon: 'BadgeCheck', title: 'Licensure that may not transfer cleanly', body: 'Licences and accreditation have conditions that a change of ownership can trigger.' },
-      { icon: 'UserRound', title: 'Service lines built on a few physicians', body: 'Key-physician dependence is revenue risk at closing.' },
+      { icon: 'Activity', title: 'A deck the cost reports do not support', body: 'The deck’s occupancy is well above what the filed cost report’s patient days and bed days give.' },
+      { icon: 'CalendarRange', title: 'The largest payer’s contract ends after closing', body: 'The agreement behind most of the revenue expires months into the first year of ownership.' },
+      { icon: 'Building2', title: 'Deferred capex behind a modern-plant claim', body: 'Capex falls a little every year, so no single year looks wrong, while the deck calls the plant modern.' },
     ],
     walkthrough: [
-      { step: 'Evidence', text: 'Payer mix, census and average daily census, Medicare cost reports, licensure and accreditation records, and malpractice history.' },
-      { step: 'Finding', text: 'Payer concentration, licensure and accreditation gaps, and key-physician dependence, each citing its record — physician data in aggregate.' },
-      { step: 'Review', text: 'Clinical, regulatory and financial reviewers decide in one workflow.' },
-      { step: 'Valuation', text: 'Payer-mix-adjusted EBITDA and regulatory capex run in the same scenario engine.' },
-      { step: 'Deal terms', text: 'Regulatory approvals as closing conditions, indemnities and capex escrows tied to the findings.' },
+      { step: 'Evidence', text: 'The filed cost reports, payer mix, the payer contract register, the medical-staff roster and register, census, capex by year and the P&L by year arrive as imports; the deck, accreditation record, payer agreements, credential verifications, facility condition assessment and quality reports are read with their source.' },
+      { step: 'Finding', text: 'Deterministic checks draft cost-report claims contradicted or verified, a material payer agreement ending within a year of closing, a department whose privileges lapse together, capex falling against a modern-plant claim and quality claims against the reports, each cited to the rows or the page.' },
+      { step: 'Review', text: 'A named reviewer accepts, rejects or asks for support on every finding; the claims register shows each deck claim as verified, contradicted or unverified.' },
+      { step: 'Valuation', text: 'Payer-mix-adjusted EBITDA and DCF scenarios, with committed regulatory capex and deferred plant work on the purchase-price bridge.' },
+      { step: 'Deal terms', text: 'A payer renewal or re-credentialing as closing conditions, the accreditation application on a change of ownership, and capex escrows, each traced to its source.' },
     ],
     findings: [
-      { title: 'Earnings concentrated in one payer', severity: 'High', evidence: 'Payer mix from the cost reports and remittance data', term: 'Payer-mix-adjusted EBITDA in the valuation' },
-      { title: 'Accreditation condition triggered by change of ownership', severity: 'High', evidence: 'Accreditation record, cited', term: 'Regulatory approval as a closing condition' },
-      { title: 'Cardiology line depends on two physicians', severity: 'Medium', evidence: 'Census by service line, aggregated', term: 'Retention arrangement in the integration plan' },
+      { title: 'The largest payer’s contract ends 7 months after closing', severity: 'High', evidence: 'The payer contract register and the agreement’s own expiry, against the stated closing date', term: 'A rate sensitivity priced, or a renewal as a closing condition' },
+      { title: 'Cost report contradicts the deck on occupancy', severity: 'High', evidence: 'Patient days on bed days available from the filed cost report, against the deck’s figure', term: 'Carry the cost report’s figure in the scenarios' },
+      { title: 'Orthopaedics: four physicians’ privileges lapsed together', severity: 'High', evidence: 'The medical-staff register and the verification report, by pseudonymous reference', term: 'Re-credentialing as a closing condition' },
     ],
     deliverables: [
-      { icon: 'ChartPie', title: 'A payer-mix picture', body: 'Concentration and rate exposure from the cost reports.' },
-      { icon: 'BadgeCheck', title: 'A licensure and accreditation register', body: 'Gaps and conditions, each with its record.' },
-      { icon: 'Coins', title: 'Payer-mix-adjusted EBITDA', body: 'Earnings adjusted with the basis stated, and regulatory capex as remediation.' },
+      { icon: 'Activity', title: 'A cost-report reconciliation', body: 'Occupancy, payer mix and costs from the filed reports, against the deck and the P&L, year by year.' },
+      { icon: 'BadgeCheck', title: 'A medical-staff register', body: 'Licences and privileges by department at the analysis date, with the departments that lapse together.' },
+      { icon: 'Coins', title: 'Payer-mix-adjusted EBITDA', body: 'Earnings adjusted for payer mix, with regulatory capex and deferred plant work as remediation.' },
     ],
     faq: [
-      { q: 'How does this relate to the healthcare pack?', a: 'It extends it. Reimbursement and regulatory findings from the healthcare pack apply; the hospitals pack adds census, cost-report, licensure and accreditation evidence.' },
-      { q: 'Does this involve patient data?', a: 'The pack works from payer, census, cost-report and licensure evidence, in aggregate. Sensitive personal data is gated and never sent to a model.' },
-      { q: 'How is regulatory capex handled?', a: 'As a priced finding. Once accepted, it is remediation in the valuation and an escrow or price adjustment in the terms.' },
+      { q: 'How does this relate to the healthcare pack?', a: 'It extends it. The medical-staff and payer contract registers are the healthcare pack’s, read at hospital scale; the hospitals pack adds the cost reports, the plant’s capex trend and published quality ratings.' },
+      { q: 'Does this involve patient data or judge the quality of care?', a: 'No. The pack works from cost reports, payer, census and register evidence in aggregate, with physicians by pseudonymous reference only. It compares quality ratings with the reports supplied; it never predicts a survey outcome or assesses care.' },
+      { q: 'How are regulatory capex and deferred plant work handled?', a: 'As priced findings. Once accepted, they are remediation in the valuation and an escrow or price adjustment in the terms.' },
     ],
   },
 };
@@ -632,10 +632,10 @@ export const WRITTEN_INDUSTRIES = INDUSTRIES.filter((industry) => industry.slug 
  * The packs on sale (Kumar, 2026-11-01): Software & SaaS and Multifamily, then
  * Venture Raise (2026-11-09), with the others released one at a time after testing (Fintech with its
  * payments and licence checks, T-159, 2026-11-26; Healthcare, T-160; Small clinics with its owner, referral and
- * lease checks, T-161, 2026-11-26; IT & professional services with its realization, concentration and covenant checks, T-167; Telecom & media with its subscriber, rights-window and concentration checks, T-168). Same list as the
+ * lease checks, T-161, 2026-11-26; IT & professional services with its realization, concentration and covenant checks, T-167; Telecom & media with its subscriber, rights-window and concentration checks, T-168; Hospitals with its cost-report, payer-contract, medical-staff, plant and quality checks, T-162). Same list as the
  * app's RELEASED_COMPANY_TYPES (packages/domain/src/packs/release.ts).
  */
-export const RELEASED_INDUSTRY_SLUGS: readonly string[] = ['software-saas', 'multifamily', 'venture-raise', 'music-rights', 'energy-generation', 'startup-spv', 'fintech', 'healthcare', 'small-clinics', 'pharma-biotech', 'ecommerce-dtc', 'professional-services', 'telecom-media'];
+export const RELEASED_INDUSTRY_SLUGS: readonly string[] = ['software-saas', 'multifamily', 'venture-raise', 'music-rights', 'energy-generation', 'startup-spv', 'fintech', 'healthcare', 'small-clinics', 'pharma-biotech', 'ecommerce-dtc', 'professional-services', 'telecom-media', 'hospitals'];
 
 /** An environment's copy of the site (dev, qa) previews every written pack, for testing before release. */
 export const PACK_PREVIEW = process.env['NEXT_PUBLIC_PACK_PREVIEW'] === 'true';

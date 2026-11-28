@@ -37,7 +37,8 @@ describe('machine-readable site (T-085 Part 1)', () => {
     expect(SITE_ROUTES).toContain('/industries/software-saas');
     expect(SITE_ROUTES).toContain('/industries/multifamily');
     expect(SITE_ROUTES).toContain('/industries/venture-raise');
-    expect(SITE_ROUTES).not.toContain('/industries/hospitals');
+    expect(SITE_ROUTES).toContain('/industries/hospitals');
+    expect(SITE_ROUTES).not.toContain('/industries/hotels');
     expect(new Set(SITE_ROUTES).size).toBe(SITE_ROUTES.length);
   });
 

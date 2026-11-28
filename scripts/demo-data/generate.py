@@ -444,7 +444,8 @@ PACK_IMPORTS = {
     'small-clinics': {'patient-volume': 'Patient volume', 'equipment-schedule': 'Equipment schedule', 'coding-summary': 'Coding summary', 'remittances': 'Remittances by payer',
                       'clinician-collections': 'Collections by clinician', 'credentialing-register': 'Credentialing register', 'payer-contracts': 'Payer contract register',
                       'service-lines': 'Service lines by provider', 'referrals': 'Visits by referral source'},
-    'hospitals': {'census': 'Census', 'payer-mix': 'Payer mix'},
+    'hospitals': {'census': 'Census', 'payer-mix': 'Payer mix', 'cost-reports': 'Filed cost reports', 'hospital-capex': 'Capital expenditure by year',
+                  'provider-roster': 'Provider roster', 'credentialing-register': 'Credentialing register', 'payer-contracts': 'Payer contract register'},
     'venture-raise': {'cap-table': 'Cap table', 'monthly-financials': 'Monthly financials'},
     'multifamily-syndication': {'rent-roll': 'Rent roll', 't12': 'T-12 operating statement', 'delinquency': 'Delinquency report', 'unit-inspections': 'Unit inspections',
                                 'occupancy-history': 'Occupancy and rent history', 'rent-roll-history': 'Rent roll snapshots', 'track-record': 'Sponsor track record'},
@@ -2126,15 +2127,97 @@ def hospitals(ds):
     payers = [('Government programme A', 1850000), ('Commercial plan Keystone', 610000), ('Government programme B', 420000), ('Commercial plan Riverbend', 280000), ('Self-pay and other', 120000)]
     for i, (n, base) in enumerate(payers):
         ds.customer(f'{ds.prefix}-pay-{i + 1:03d}', f'{n} (synthetic)', ramp(ds.rng, ds.amt(base), '0.003', noise=D('0.02')))
+    # Census by month and service line, the last twelve months (T-069).
+    lines = (('Cardiology', 310, 4.1), ('Orthopaedics', 260, 3.2), ('Maternity', 190, 2.4), ('General medicine', 520, 3.8))
     census = []
     for mo in LAST12:
-        for line, adm, los in (('Cardiology', 310, 4.1), ('Orthopaedics', 260, 3.2), ('Maternity', 190, 2.4), ('General medicine', 520, 3.8)):
+        for line, adm, los in lines:
             days = int(adm * los); census.append([mo, line, adm, days, f'{days / 30:.1f}'])
     ds.ext('census', ['month', 'service_line', 'admissions', 'patient_days', 'average_daily_census'], census, 'Admissions and census by service line')
     pm = [[mo, n, f'{q(m2[mo] * D("2.9")):.2f}', f'{m2[mo]:.2f}'] for mo in LAST12 for _, n, m2 in ds.customers]
     ds.ext('payer-mix', ['month', 'payer', 'gross_charges', 'net_revenue'], pm, 'Gross charges and net revenue by payer')
     top, share = ds.share_top()
     c = ds.cur
+
+    # --- T-162: five fiscal years of P&L, cost reports and capex. FY2025's total costs are the cost report summary's 36,200,000.
+    years = ['FY2021', 'FY2022', 'FY2023', 'FY2024', 'FY2025']
+    patient = [ds.amt(x) for x in (34000000, 35400000, 36800000, 38300000, 39800000)]
+    other = [ds.amt(x) for x in (1100000, 1150000, 1200000, 1250000, 1300000)]
+    rev = [patient[i] + other[i] for i in range(5)]
+    total_cost = [q(rev[i] * ds.amt(36200000) / rev[4]) for i in range(4)] + [ds.amt(36200000)]
+    shares = [('Cost of care: salaries and benefits', D('0.545')), ('Medical supplies and drugs', D('0.19')), ('Purchased services', D('0.095')),
+              ('Repairs and maintenance', D('0.03')), ('Depreciation and amortization', D('0.05'))]
+    pnl_rows = [['Net patient service revenue'] + [f'{x:.2f}' for x in patient], ['Other operating revenue'] + [f'{x:.2f}' for x in other]]
+    given = [D(0)] * 5
+    for name, sh in shares:
+        amounts = [q(total_cost[i] * sh) for i in range(5)]
+        given = [given[i] + amounts[i] for i in range(5)]
+        pnl_rows.append([name] + [f'{x:.2f}' for x in amounts])
+    pnl_rows.append(['General and administrative'] + [f'{total_cost[i] - given[i]:.2f}' for i in range(5)])
+    ds.ext('pnl', ['Line'] + years, pnl_rows, 'Profit and loss by fiscal year, FY2021 to FY2025')
+    ds.pnl_step = ['Open the **Sources** tab, scroll to **Industry data** and click **Upload profit and loss (p&l)**.', '',
+                   '1. Choose `pnl.csv` → **Upload and map columns**. Pactlab reads the five years across the columns (FY2021 to FY2025).',
+                   '2. Say what each line is: the two lines ending in *revenue* are **Revenue**, `Cost of care: salaries and benefits` is **Cost of revenue**, and the rest are **Operating expenses**.',
+                   f'3. **Check every row**, then **Import {len(pnl_rows) * 5} rows**.', '',
+                   '**You should see:** the import succeed. **Finances** shows the five years side by side with admissions and patient days, and the checks in the next step read every year.', '']
+    # Filed cost reports: patient days from the census (calendar fiscal years), 220 beds, Medicare about 41% of days.
+    beds = 220
+    medicare_share = D('0.41')
+    cost_rows = []
+    for i, y in enumerate(years):
+        yr = y[2:]
+        days = 12 * sum(int(adm * los) for _, adm, los in lines)  # a steady census: every year as the last twelve months
+        medicare = int(whole(days * medicare_share))
+        medicaid = int(whole(days * D('0.17')))
+        cost_rows.append([yr, f'{yr}-12-31', beds, beds * 365, days, medicare, medicaid, f'{total_cost[i]:.2f}', f'{patient[i]:.2f}'])
+    ds.ext('cost-reports', ['fiscal_year', 'period_end', 'beds', 'bed_days_available', 'patient_days', 'medicare_days', 'medicaid_days', 'total_costs', 'net_patient_revenue'],
+           cost_rows, 'Filed cost reports: beds, bed days, patient days by programme, total costs and net patient revenue by fiscal year')
+    occupancy = D(cost_rows[-1][4]) / D(cost_rows[-1][3])
+    medicare_fy25 = D(cost_rows[-1][5]) / D(cost_rows[-1][4])
+    # Capex falls from 7.2% to 2.8% of revenue across five years: no single year looks wrong (planted (c)).
+    capex_ratio = [D('0.072'), D('0.061'), D('0.050'), D('0.039'), D('0.028')]
+    capex_rows = []
+    capex = []
+    for i, y in enumerate(years):
+        total = q(rev[i] * capex_ratio[i])
+        capex.append(total)
+        parts = [('buildings', D('0.5')), ('medical_equipment', D('0.35'))]
+        allotted = D(0)
+        for cat, sh in parts:
+            amount = q(total * sh); allotted += amount
+            capex_rows.append([y[2:], cat, f'{amount:.2f}'])
+        capex_rows.append([y[2:], 'it', f'{total - allotted:.2f}'])
+    ds.ext('hospital-capex', ['fiscal_year', 'category', 'amount'], capex_rows, 'Capital expenditure by fiscal year and category, from the fixed-asset register')
+
+    # The payer contract register: the largest payer's agreement ends seven months after the 31 December 2026 closing (planted (a)).
+    ds.ext('payer-contracts', ['contract_id', 'payer', 'payer_class', 'effective_on', 'expires_on', 'auto_renews', 'rate_basis'], [
+        ['GPA-2021', 'Government programme A (synthetic)', 'medicare', '2021-08-01', '2027-07-31', 'no', 'DRG case rates'],
+        ['KEY-2022', 'Commercial plan Keystone (synthetic)', 'commercial', '2022-01-01', '2029-12-31', 'no', 'percent of charges'],
+        ['GPB-2020', 'Government programme B (synthetic)', 'medicaid', '2020-07-01', '2028-06-30', 'yes', 'per diem'],
+        ['RIV-2023', 'Commercial plan Riverbend (synthetic)', 'commercial', '2023-04-01', '2028-03-31', 'no', 'per diem']], 'Payer contract register: term, renewal and rate basis')
+
+    # The medical staff: sixteen physicians, a licence and clinical privileges each. Orthopaedics' four share a lapsed privilege renewal date (planted (d)).
+    juris = {'USD': 'Ohio', 'EUR': 'Netherlands', 'GBP': 'England'}[c]
+    month_names = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+    depts = ['Cardiology', 'Orthopaedics', 'Maternity', 'General medicine']
+    roster, creds, verify = [], [], []
+    def spoken(iso):
+        y_, m_, d_ = iso.split('-')
+        return f'{int(d_)} {month_names[int(m_) - 1]} {y_}'
+    for i in range(16):
+        ref = f'PH-{i + 1:02d}'
+        dept = depts[i // 4]
+        roster.append([ref, dept, '1.0', f'{2027 + i % 2}-{(i % 12) + 1:02d}-28'])
+        licence = f'{2027 + i % 2}-{(i % 12) + 1:02d}-28'
+        privileges = '2026-06-30' if dept == 'Orthopaedics' else f'2027-{(i % 12) + 1:02d}-15'
+        creds.append([f'CR-{i + 1:02d}01', ref, 'state_licence', juris, f'{juris} medical board (synthetic)', 'active', licence, ''])
+        creds.append([f'CR-{i + 1:02d}02', ref, 'hospital_privileges', 'St. Brennan Regional Medical Center', 'Medical staff office (synthetic)', 'active', privileges, dept])
+        verify.append(f'{ref}: medical licence, {juris} — active, expires on {spoken(licence)}.')
+        verify.append(f'{ref}: {dept.lower()} clinical privileges — ' + (f'expired on {spoken(privileges)}; reappointment not completed.' if dept == 'Orthopaedics' else f'current, expires on {spoken(privileges)}.'))
+    ds.ext('provider-roster', ['provider_ref', 'specialty', 'fte', 'credential_expiry'], roster, 'Medical staff roster: sixteen physicians by pseudonymous reference and department')
+    ds.ext('credentialing-register', ['credential_ref', 'provider_ref', 'kind', 'jurisdiction', 'issuer', 'status', 'expires_on', 'department'], creds,
+           'Medical-staff register: each physician’s licence and clinical privileges, with department and renewal date')
+
     ds.doc('01-accreditation-record', f'''
 St. Brennan Regional Medical Center — accreditation status (synthetic)
 
@@ -2153,13 +2236,63 @@ Service-line staffing summary (synthetic, aggregate)
 
 Cardiology: two interventional cardiologists perform about 80% of procedures.
 ''', 'Aggregate physician dependence by service line')
+    deck_occupancy = D('0.82')
+    ds.doc('04-management-presentation', f"""
+Management presentation for the sale of {ds.company}, September 2026 (synthetic demo data).
+
+Average occupancy of {pct(deck_occupancy)} in fiscal year 2025 reflects strong demand across every service line.
+Medicare accounts for {pct(medicare_fy25)} of patient days.
+The hospital runs a modern, recently renovated plant that needs no major investment.
+The medical center holds a CMS Overall Hospital Quality Star Rating of 4 stars.
+It also holds a Hospital Safety Grade of A.
+The parties have agreed a target closing date of 31 December 2026.
+""", 'Management presentation: occupancy, payer mix, the plant, quality ratings and the closing date')
+    ds.doc('05-medical-staff-verification', f"""
+Medical staff credential verification report for {ds.company} (synthetic).
+
+Verified on 28 September 2026 against the issuing boards and the medical staff office. Physicians are listed by pseudonymous reference.
+---page---
+{chr(10).join(verify)}
+""", 'Primary-source verification of every physician’s licence and clinical privileges, by pseudonymous reference')
+    ds.doc('06-payer-agreement-gpa', f"""
+Provider agreement GPA-2021 between Government programme A (synthetic) and {ds.company}.
+
+Inpatient services are reimbursed on DRG case rates and outpatient services on the programme's fee schedule.
+The agreement GPA-2021 expires on 31 July 2027 and does not renew automatically.
+""", 'The largest payer’s provider agreement: rate basis and term')
+    backlog = ds.amt(6400000)
+    ds.doc('07-facility-condition-assessment', f"""
+Facility condition assessment of the medical center's buildings and central plant, June 2026 (synthetic).
+
+The central plant chillers and boilers are past their useful lives.
+The assessment estimates a deferred maintenance backlog of {money(c, backlog)} across the roof, the central plant and the operating theatres.
+""", 'Engineer’s facility condition assessment of the plant', 'Financial')
+    ds.doc('08-quality-ratings-report', f"""
+Quality ratings report for the medical center, published July 2026 (synthetic).
+
+Overall Hospital Quality Star Rating: 4 stars out of 5.
+Ratings as published by the reporting programme; Pactlab compares them with the claims made and never assesses care.
+""", 'The published quality ratings the deck’s claims are checked against')
+
     ds.findings = [
         ('Earnings concentrated in one payer', f'{top} is {pct(share)} of September 2026 net revenue.'),
         ('Accreditation does not transfer automatically', '`documents/01-accreditation-record.pdf` page 2 — make it a closing condition.'),
         ('Key-physician dependence in cardiology', '`documents/03-service-line-dependence.pdf` — two physicians perform about 80% of cardiology procedures (aggregate data only).'),
         ('Committed regulatory capex', f'`documents/02-medicare-cost-report-summary.pdf` — {money(c, ds.amt(4100000))} committed. Price as remediation.'),
+        ('The largest payer’s contract ends 7 months after closing: Government programme A (synthetic)', '`payer-contracts.csv` and `documents/06-payer-agreement-gpa.pdf` — GPA-2021 ends on 31 July 2027, seven months after the 31 December 2026 closing in `documents/04-management-presentation.pdf`; it pays on DRG case rates and does not renew automatically.'),
+        ('Cost report contradicts the deck: Occupancy', f'the deck claims {pct(deck_occupancy)} occupancy in FY2025; the filed cost report in `cost-reports.csv` gives {pct(occupancy)} ({cost_rows[-1][4]:,} patient days on {cost_rows[-1][3]:,} bed days).'),
+        ('Claim verified: Medicare share of patient days', f'{pct(medicare_fy25)} of FY2025 patient days, as the cost report states.'),
+        ('Capex falling while the deck claims a modern plant, FY2021–2025', f'`hospital-capex.csv` over `pnl.csv` — capex falls from {pct(capex_ratio[0])} to {pct(capex_ratio[4])} of revenue while the deck claims a modern plant; `documents/07-facility-condition-assessment.pdf` states a deferred backlog of {money(c, backlog)}. FY2025 alone looks ordinary.'),
+        ('Orthopaedics: 4 physicians’ privileges lapsed together on 30 June 2026', '`credentialing-register.csv` and `documents/05-medical-staff-verification.pdf` — PH-05 to PH-08 share a lapsed renewal date.'),
+        ('Quality claim verified: Overall star rating', '`documents/08-quality-ratings-report.pdf` states the same 4 stars.'),
+        ('Quality claim not verified: Hospital safety grade', 'no reporting document supplied states the safety grade the deck claims.'),
+        ('P&L trend, 2021–2025', 'every imported year side by side: revenue, growth, margins and the staff, supplies, purchased services and repairs ratios.'),
     ]
-    ds.notes = ['Physician data is aggregate only; Pactlab never sends people data to a model.']
+    assert abs(occupancy - deck_occupancy) > D('0.03'), occupancy
+    ds.notes = ['Physician data is aggregate or pseudonymous (PH-01 … PH-16); Pactlab never sends people data to a model.',
+                'The medical-staff register, roster and payer contract register are the healthcare pack’s own imports, reused as they are; the hospital adds the department of each privilege and each contract’s rate basis.',
+                '`pnl.csv`, `cost-reports.csv` and `hospital-capex.csv` hold FY2021–FY2025, read side by side on **Finances**; the census holds the last twelve months, so admissions history asks the seller for earlier years.',
+                'Diligence support only: the pack reconciles documents, dates and arithmetic. It never predicts a survey outcome or assesses the quality of care.']
 
 def clinics(ds):
     ds.kind, ds.kind_label = 'clinic_revenue', 'payer remittance'

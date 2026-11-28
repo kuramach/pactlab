@@ -50,6 +50,8 @@ export const IMPORT_TARGETS = [
   'CLINICS_REFERRALS',
   'HOSPITALS_CENSUS',
   'HOSPITALS_PAYER_MIX',
+  'HOSPITALS_COST_REPORT',
+  'HOSPITALS_CAPEX',
   'VENTURE_CAP_TABLE',
   'VENTURE_FINANCIALS',
   'SYNDICATION_TRACK_RECORD',
@@ -468,11 +470,12 @@ export const HEALTHCARE_CREDENTIALS: TargetDefinition = {
   fields: [
     { name: 'credential_ref', label: 'Credential reference', kind: 'text', required: true, hint: 'The register’s own reference for the row, such as CR-0701 — never the licence number.' },
     { name: 'provider_ref', label: 'Provider reference', kind: 'text', required: true, hint: 'The roster’s pseudonymous reference such as PR-07.' },
-    { name: 'kind', label: 'Kind', kind: 'code', required: true, hint: 'state_licence, controlled_substance, board_certification or payer_enrollment.' },
+    { name: 'kind', label: 'Kind', kind: 'code', required: true, hint: 'state_licence, controlled_substance, board_certification, payer_enrollment or, in a hospital, hospital_privileges.' },
     { name: 'jurisdiction', label: 'Jurisdiction', kind: 'text', required: true, hint: 'The state or country it covers.' },
     { name: 'issuer', label: 'Issued by', kind: 'text', required: true, hint: 'The board, agency or payer that issued it.' },
     { name: 'status', label: 'Status', kind: 'code', required: true, hint: 'active, pending, expired, suspended or revoked, as the register records it.' },
     { name: 'expires_on', label: 'Expires', kind: 'date', required: false, hint: 'When it expires or must be renewed.' },
+    { name: 'department', label: 'Department', kind: 'text', required: false, hint: 'For hospital privileges (T-162): the department or service line they are held in, such as Orthopaedics.' },
   ],
 };
 
@@ -493,6 +496,7 @@ export const HEALTHCARE_PAYER_CONTRACTS: TargetDefinition = {
     { name: 'effective_on', label: 'Effective', kind: 'date', required: false, hint: 'When the contract took effect.' },
     { name: 'expires_on', label: 'Expires', kind: 'date', required: false, hint: 'When it ends; blank when it runs until terminated.' },
     { name: 'auto_renews', label: 'Renews automatically', kind: 'code', required: false, hint: 'yes or no.' },
+    { name: 'rate_basis', label: 'Rate basis', kind: 'text', required: false, hint: 'How the payer pays (T-162), such as DRG case rates, per diem or percent of charges.' },
   ],
 };
 
@@ -1137,6 +1141,51 @@ export const HOSPITALS_PAYER_MIX: TargetDefinition = {
 };
 
 /**
+ * Hospitals (T-162): the statistics and costs of each filed cost report, one row per fiscal year — beds,
+ * bed days available, patient days in total and by programme, total costs and net patient revenue, as the
+ * report's worksheets state them. Aggregates only; never a patient.
+ */
+export const HOSPITALS_COST_REPORT: TargetDefinition = {
+  target: 'HOSPITALS_COST_REPORT',
+  label: 'Filed cost reports',
+  fileName: 'cost-reports.csv',
+  people: 'NONE',
+  refusesPeopleColumns: true,
+  evidenceType: 'hospitals.cost_report_year',
+  recordIdField: 'fiscal_year',
+  observedAtFields: [],
+  fields: [
+    { name: 'fiscal_year', label: 'Fiscal year', kind: 'text', required: true, hint: 'YYYY, the year the report’s period ends in.' },
+    { name: 'period_end', label: 'Period end', kind: 'date', required: false, hint: 'The last day of the reporting period.' },
+    { name: 'beds', label: 'Beds', kind: 'decimal', required: false, hint: 'Licensed or available beds as the report states them.' },
+    { name: 'bed_days_available', label: 'Bed days available', kind: 'decimal', required: true, hint: 'Beds × days in the period, from the statistics worksheet.' },
+    { name: 'patient_days', label: 'Patient days', kind: 'decimal', required: true, hint: 'Inpatient days, every payer.' },
+    { name: 'medicare_days', label: 'Medicare days', kind: 'decimal', required: false, hint: 'Of those, Medicare (or the national programme’s) days.' },
+    { name: 'medicaid_days', label: 'Medicaid days', kind: 'decimal', required: false, hint: 'Of those, Medicaid (or the state programme’s) days.' },
+    { name: 'total_costs', label: 'Total costs', kind: 'money', required: false, hint: `Total operating costs as filed. ${IN_BASE_CURRENCY}` },
+    { name: 'net_patient_revenue', label: 'Net patient revenue', kind: 'money', required: false, hint: `As filed. ${IN_BASE_CURRENCY}` },
+  ],
+};
+
+/** Hospitals (T-162): capital expenditure by fiscal year and category, from the fixed-asset register or cash-flow statement. */
+export const HOSPITALS_CAPEX: TargetDefinition = {
+  target: 'HOSPITALS_CAPEX',
+  label: 'Capital expenditure by year',
+  fileName: 'hospital-capex.csv',
+  people: 'NONE',
+  refusesPeopleColumns: true,
+  evidenceType: 'hospitals.capex_year',
+  recordIdField: 'fiscal_year',
+  recordIdFields: ['fiscal_year', 'category'],
+  observedAtFields: [],
+  fields: [
+    { name: 'fiscal_year', label: 'Fiscal year', kind: 'text', required: true, hint: 'YYYY, the same years as the P&L.' },
+    { name: 'category', label: 'Category', kind: 'code', required: true, hint: 'buildings, medical_equipment, it, regulatory or other.' },
+    { name: 'amount', label: 'Capital expenditure', kind: 'money', required: true, hint: IN_BASE_CURRENCY },
+  ],
+};
+
+/**
  * Venture Raise (T-083): the cap table in a Carta/Pulley-like export shape,
  * one row per security. Holders are pseudonymous references and a holder
  * type — never names (rule 7).
@@ -1545,6 +1594,8 @@ export const IMPORT_TARGET_DEFINITIONS: Readonly<Record<ImportTarget, TargetDefi
   CLINICS_REFERRALS,
   HOSPITALS_CENSUS,
   HOSPITALS_PAYER_MIX,
+  HOSPITALS_COST_REPORT,
+  HOSPITALS_CAPEX,
   VENTURE_CAP_TABLE,
   VENTURE_FINANCIALS,
   SYNDICATION_TRACK_RECORD,
