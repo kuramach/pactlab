@@ -266,7 +266,7 @@ export const content: Catalog['content'] = {
     'pharma-biotech': { name: 'Pharma und Biotech', line: 'Pipeline-Angaben, Patentdaten und Lizenzzahlungen an den Dokumenten prüfen.' },
     'ecommerce-dtc': { name: 'E-Commerce und DTC', line: 'LTV auf Deckungsbeitragsbasis, Kanalumsatz und wer jedes Konto hält, an den Exporten prüfen.' },
     multifamily: { name: 'Mehrfamilienhäuser', line: 'Mieterliste und T-12 Wohnung für Wohnung mit dem Angebotsmemorandum abgleichen.' },
-    'commercial-property': { name: 'Gewerbeimmobilien', line: 'Mieterkonzentration, auslaufende Mietverträge und Nebenkostenumlagen sehen, bevor Sie bepreisen.' },
+    'commercial-property': { name: 'Gewerbeimmobilien', line: 'Die Mieterliste gegen die Mietverträge, die Umlagen und die Auslaufklippe prüfen, bevor Sie bepreisen.' },
     hotels: { name: 'Hotels und Gastgewerbe', line: 'RevPAR, Franchisebedingungen und PIP-Investitionen gegen den Angebotspreis abwägen.' },
     'small-clinics': { name: 'Kleine Praxen', line: 'Inhaber, Zuweiser und Mietvertrag hinter einer Praxis mit wenigen Standorten prüfen.' },
     hospitals: { name: 'Krankenhäuser', line: 'Auf Basis des kostenträgermix-bereinigten EBITDA bewerten, mit Belegung und Akkreditierung im Blick.' },
@@ -308,6 +308,14 @@ export const content: Catalog['content'] = {
       points: ['Ablehnungen und Kostenträgermix je Jahr neu berechnet', 'Behandler, die nach Ablauf der Zulassung abrechnen', 'Konzentration ohne hinterlegtes Wettbewerbsverbot'],
       imageAlt: 'Gesundheitsdienstleistungen: ein Praxisgebäude, eine Herzschlaglinie und eine Abrechnungs-Checkliste',
       linkLabel: 'Einen Gesundheits-Pakt durchführen',
+    },
+    'commercial-property': {
+      short: 'Gewerbe',
+      title: 'Die Mietverträge bestimmen die Miete, nicht die Mieterliste.',
+      body: 'Pactlab berechnet die Miete jedes Mieters aus seinem Mietvertrag neu, prüft Jahr für Jahr die NNN- und Nebenkostenumlagen, die die Mietverträge erlauben, zeigt, wie viel Miete in jedem Jahr der Haltedauer ausläuft, und liest das Zustandsgutachten gegen den Investitionsplan des Verkäufers.',
+      points: ['Mieterliste Vertrag für Vertrag neu berechnet', 'Fehlbeträge bei Umlagen über jedes Abrechnungsjahr', 'Zustandspunkte, die der Investitionsplan auslässt, bepreist'],
+      imageAlt: 'Gewerbeimmobilien: ein Büro- und Gewerbepark, eine Zeitachse der auslaufenden Mietverträge und ein Zustandsgutachten',
+      linkLabel: 'Einen Gewerbeimmobilien-Pakt durchführen',
     },
     'pharma-biotech': {
       short: 'Pharma',

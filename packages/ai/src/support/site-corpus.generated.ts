@@ -324,6 +324,14 @@ export const SITE_CORPUS: readonly HelpArticle[] = [
     "locale": "en"
   },
   {
+    "id": "industry:commercial-property",
+    "kind": "INDUSTRY",
+    "title": "Commercial property in Pactlab",
+    "url": "https://pactlab.ai/industries/commercial-property/",
+    "text": "Office, retail and industrial assets, where the leases, the recoveries and how long the income lasts decide what the rent roll is worth.\nAcquisitions of single assets and portfolios by real-estate funds and REITs.\nDoes the rent roll match what the leases make due?\nAre NNN and CAM recoveries billed in full under the leases?\nHow much of the rent expires early in the hold, and with which tenant?\nWhat does the condition report flag that the seller’s capex schedule leaves out?\nRent roll against the leases: Rent recomputed lease by lease and reconciled to the rent roll and the statements.\nRecoveries and the expiry cliff: Recoveries billed against what the leases make recoverable, by year, and rent expiring in each year of the hold.\nObligations and condition: Unpaid tenant improvements, commissions and committed capex, and condition-report items the capex schedule omits.\nEvidence: The rent roll, and every lease: term, initial rent, escalation and recovery share; CAM and NNN reconciliations by year; The seller’s capex schedule and the property condition assessment; Phase I environmental site assessments and lease abstracts; The offering memorandum and the P&L by year\nFindings: A rent roll or statement carrying more rent than the leases make due; NNN recoveries short of what the leases allow, year after year; A dominant tenant whose lease ends early in the hold; Condition-report items the seller’s capex schedule omits; Tenant improvements, leasing commissions and committed capex the buyer inherits; Recognized environmental conditions and below-market anchor rent\nValuation: NOI ÷ cap rate with a DCF alongside; The expiry profile over the hold as a scenario input; Obligations and omitted capex on the purchase-price bridge",
+    "locale": "en"
+  },
+  {
     "id": "industry:small-clinics",
     "kind": "INDUSTRY",
     "title": "Small clinics in Pactlab",

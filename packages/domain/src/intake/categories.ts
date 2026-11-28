@@ -489,7 +489,7 @@ const DOCUMENT_DEFINITIONS: Readonly<Record<DocumentCategory, CategoryDefinition
   PROPERTY_CONDITION_REPORT: {
     id: 'PROPERTY_CONDITION_REPORT',
     label: 'Property or facility condition assessment',
-    description: 'An engineer’s property, facility or building condition assessment of the hospital plant: systems at the end of their life, deferred maintenance and its estimated cost.',
+    description: 'An engineer’s property, facility or building condition assessment (a hospital plant, an office or industrial park): systems at the end of their life, deferred maintenance and its estimated cost.',
     route: { kind: 'FILE' },
     people: false,
   },

@@ -109,6 +109,19 @@ describe('pack registry', () => {
     expect(IMPORT_TARGET_DEFINITIONS.HEALTHCARE_PAYER_CONTRACTS.fields.find((field) => field.name === 'rate_basis')?.required).toBe(false);
   });
 
+  it('Commercial property reads the rent roll against the leases, recoveries, obligations and the capex schedule (T-165)', () => {
+    const cre = PACKS.COMMERCIAL_PROPERTY;
+    expect(cre).toMatchObject({ slug: 'commercial-property', cluster: 'real-estate', metricCalculator: 'cre-leases', built: true });
+    // The T-066 rules stay first and unchanged.
+    expect(cre.findingRules.slice(0, 4)).toEqual(['cre-anchor-rollover', 'cre-environmental-condition', 'cre-cam-under-recovery', 'cre-below-market-anchor']);
+    expect(cre.importTargets).toEqual(['BILLING_INVOICE_LINE', 'CRE_RENT_ROLL', 'CRE_CAM_RECONCILIATION', 'CRE_CAPEX_SCHEDULE']);
+    expect(cre.findingRules).toEqual(expect.arrayContaining(['cre-rent-roll-verification', 'cre-recovery-reconciliation', 'cre-obligations', 'cre-rent-cliff', 'cre-condition-capex', 'cre-pnl-trend', 'cre-recent-run']));
+    expect(cre.documentCategories).toEqual(['PROPERTY_CONDITION_REPORT', 'ENVIRONMENTAL_REPORT']);
+    expect(cre.requiredInputs).toEqual(['LEASE']);
+    expect(cre.valuationMethods).toEqual(['NOI_CAP_RATE', 'DCF']);
+    expect(IMPORT_TARGET_DEFINITIONS.CRE_CAPEX_SCHEDULE).toMatchObject({ evidenceType: 'cre.capex_item', people: 'NONE', refusesPeopleColumns: true });
+  });
+
   it('Small clinics reuses the T-160 evidence set and adds service lines, referrals and the lease (T-161)', () => {
     const clinics = PACKS.SMALL_CLINICS;
     expect(clinics).toMatchObject({ slug: 'small-clinics', cluster: 'healthcare', metricCalculator: 'clinics-practice', built: true });

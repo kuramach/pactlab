@@ -268,13 +268,13 @@ async function spvVehicle(app: App, buyer: TenantContext, dealId: string): Promi
 }
 
 /**
- * A pack's P&L by year (fintech T-159, healthcare T-160, small clinics T-161, pharma T-163, e-commerce T-164, professional services T-167, telecom T-168, hospitals T-162; multifamily and syndication five years, T-183): the statement imported through the
+ * A pack's P&L by year (fintech T-159, healthcare T-160, small clinics T-161, pharma T-163, e-commerce T-164, professional services T-167, telecom T-168, hospitals T-162, commercial property T-165; multifamily and syndication five years, T-183): the statement imported through the
  * P&L target, its line kinds confirmed as a person would (revenue lines as revenue, "cost of" lines as
  * cost of revenue, the rest operating costs), so the multi-year trend checks read every year.
  */
 export const FINTECH_PNL_FILE = 'pnl.csv';
 /** The packs whose demo data carries a P&L by year. */
-export const PNL_BY_YEAR_PACKS: readonly CompanyType[] = ['SOFTWARE_SAAS', 'FINTECH', 'HEALTHCARE', 'SMALL_CLINICS', 'PHARMA_BIOTECH', 'ECOMMERCE_DTC', 'PROFESSIONAL_SERVICES', 'TELECOM_MEDIA', 'HOSPITALS', 'MULTIFAMILY', 'MULTIFAMILY_SYNDICATION', 'VENTURE_RAISE'];
+export const PNL_BY_YEAR_PACKS: readonly CompanyType[] = ['SOFTWARE_SAAS', 'FINTECH', 'HEALTHCARE', 'SMALL_CLINICS', 'PHARMA_BIOTECH', 'ECOMMERCE_DTC', 'PROFESSIONAL_SERVICES', 'TELECOM_MEDIA', 'HOSPITALS', 'COMMERCIAL_PROPERTY', 'MULTIFAMILY', 'MULTIFAMILY_SYNDICATION', 'VENTURE_RAISE'];
 /**
  * The year each demo business started, where its history is shorter than five years (T-185): Loopwise, the venture
  * raise, began trading in January 2024, so its two years read "2 of 2 years since the business started".
