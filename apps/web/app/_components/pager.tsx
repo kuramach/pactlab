@@ -1,6 +1,6 @@
 import { PAGE_CURSOR_PATTERN, type Page } from '@pactlab/contracts';
 import Link from 'next/link';
-import { formatNumber } from '@pactlab/domain';
+import { EN, type I18n } from '../../lib/i18n';
 
 /**
  * The one pager for every list (T-126, CLAUDE.md "Lists are paginated"): "51–100 of 342" with
@@ -48,10 +48,9 @@ export interface PagerLinks {
  * Position and neighbours of the current page. Pages before this one were full, so the window
  * starts at (pages before) × limit + 1. `keep` is every other parameter of the URL (filters, other lists).
  */
-export function pagerLinks(page: Pick<Page<unknown>, 'nextCursor' | 'total' | 'limit'> & { itemCount: number }, position: PagePosition, keep: Record<string, string>, prefix = ''): PagerLinks {
+export function pagerLinks(page: Pick<Page<unknown>, 'nextCursor' | 'total' | 'limit'> & { itemCount: number }, position: PagePosition, keep: Record<string, string>, prefix = '', t: I18n = EN): PagerLinks {
   const before = position.cursor ? position.trail.length + 1 : 0;
   const start = before * page.limit + 1;
-  const count = { format: (value: number | bigint) => formatNumber(value) };
   const at = (cursor: string | undefined, trail: readonly string[]) => {
     const query = new URLSearchParams(Object.entries(keep).filter(([key]) => key !== keyOf(prefix, 'cursor') && key !== keyOf(prefix, 'trail')));
     if (cursor) {
@@ -61,7 +60,7 @@ export function pagerLinks(page: Pick<Page<unknown>, 'nextCursor' | 'total' | 'l
     return query.toString();
   };
   return {
-    windowLabel: page.itemCount === 0 ? null : `${count.format(start)}–${count.format(start + page.itemCount - 1)} of ${count.format(page.total)}`,
+    windowLabel: page.itemCount === 0 ? null : t.fill(t.m.common.pager.window, { start: t.number(start), end: t.number(start + page.itemCount - 1), total: t.number(page.total) }),
     previous: position.cursor ? at(position.trail.at(-1), position.trail.slice(0, -1)) : null,
     next: page.nextCursor ? at(page.nextCursor, position.cursor ? [...position.trail, position.cursor] : []) : null,
   };
@@ -73,7 +72,8 @@ export function keepParams(params: SearchParams): Record<string, string> {
 }
 
 /** "51–100 of 342" with Previous and Next; an unavailable direction is shown disabled, never hidden. */
-export function Pager({ label, links, base }: { label: string; links: PagerLinks; base: string }) {
+export function Pager({ label, links, base, t = EN }: { label: string; links: PagerLinks; base: string; t?: I18n }) {
+  const words = t.m.common.pager;
   if (!links.windowLabel) return null;
   const href = (query: string) => (query ? `${base}?${query}` : base);
   return (
@@ -83,20 +83,20 @@ export function Pager({ label, links, base }: { label: string; links: PagerLinks
       </span>
       {links.previous !== null ? (
         <Link href={href(links.previous)} className="font-medium hover:underline">
-          ← Previous
+          {words.previous}
         </Link>
       ) : (
         <span aria-disabled="true" className="cursor-not-allowed text-muted-foreground/60">
-          ← Previous
+          {words.previous}
         </span>
       )}
       {links.next !== null ? (
         <Link href={href(links.next)} className="font-medium hover:underline">
-          Next →
+          {words.next}
         </Link>
       ) : (
         <span aria-disabled="true" className="cursor-not-allowed text-muted-foreground/60">
-          Next →
+          {words.next}
         </span>
       )}
     </nav>

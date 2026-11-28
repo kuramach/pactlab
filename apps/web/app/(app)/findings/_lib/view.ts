@@ -1,4 +1,5 @@
-import { FINDING_DOMAINS, FINDING_STATUSES, type Finding, type FindingDomain, type FindingStatus, type PricedRisk, formatMoneyRange } from '@pactlab/domain';
+import { FINDING_DOMAINS, FINDING_STATUSES, type Finding, type FindingDomain, type FindingStatus, type PricedRisk } from '@pactlab/domain';
+import { EN, type I18n } from '../../../../lib/i18n';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -55,23 +56,8 @@ export function findingsQuery(filters: FindingFilters): string {
   return query.toString();
 }
 
-export const DOMAIN_LABELS: Readonly<Record<FindingDomain, string>> = {
-  ARCHITECTURE: 'Architecture',
-  MAINTAINABILITY: 'Maintainability',
-  SECURITY: 'Security',
-  OSS_LICENSE: 'Open-source & licensing',
-  TEST_QUALITY: 'Test quality',
-  OPERATIONS: 'Operations',
-  CODE_PROVENANCE: 'Code provenance',
-  KEY_PERSON: 'Key-person risk',
-  FINANCIAL: 'Financial',
-  COMMERCIAL: 'Commercial',
-  OPERATIONAL: 'Operational',
-  REGULATORY: 'Regulatory & compliance',
-  LEGAL: 'Legal & contracts',
-  PROPERTY: 'Property & assets',
-  PEOPLE: 'People (aggregate)',
-};
+/** The English labels; a reader's come from `t.m.findings.domains`. */
+export const DOMAIN_LABELS: Readonly<Record<FindingDomain, string>> = EN.m.findings.domains;
 
 /** Findings grouped by domain (technology review, then pack domains), in a fixed order, empty groups omitted. */
 export function groupByDomain(findings: readonly Finding[]): [FindingDomain, Finding[]][] {
@@ -85,17 +71,12 @@ export function groupByDomain(findings: readonly Finding[]): [FindingDomain, Fin
 }
 
 /** Thousands separators on a decimal string, without converting to a number. */
-export function formatPricedRisk(risk: PricedRisk | null): string {
-  if (!risk) return 'Not priced';
-  return formatMoneyRange(risk.low, risk.high, risk.currency);
+export function formatPricedRisk(risk: PricedRisk | null, t: I18n = EN): string {
+  if (!risk) return t.m.findings.notPriced;
+  return t.moneyRange(risk.low, risk.high, risk.currency);
 }
 
-export const PRICED_RISK_LABELS: Readonly<Record<PricedRisk['type'], string>> = {
-  PRICE_REDUCTION: 'Price reduction',
-  ESCROW: 'Escrow',
-  INDEMNITY: 'Indemnity',
-  REMEDIATION_COST: 'Remediation cost',
-};
+export const PRICED_RISK_LABELS: Readonly<Record<PricedRisk['type'], string>> = EN.m.findings.pricedRiskTypes;
 
 export function statusVariant(status: FindingStatus): 'draft' | 'reviewed' | 'danger' | 'neutral' {
   if (status === 'ACCEPTED') return 'reviewed';
@@ -107,25 +88,17 @@ export function statusVariant(status: FindingStatus): 'draft' | 'reviewed' | 'da
 export type Direction = -1 | 0 | 1;
 
 /** Drag reprices, cushion confirms (never raises the price), neutral is a recorded decision. */
-export const DIRECTION_LABELS: Readonly<Record<string, { label: string; short: string; help: string }>> = {
-  '-1': { label: 'Drag', short: 'drag', help: 'Reprices the deal or hardens terms. Must be priced before it is accepted.' },
-  '0': { label: 'Neutral', short: 'neutral', help: 'Moves no value. Needs a reason — neutral is a decision, not missing data.' },
-  '1': { label: 'Cushion', short: 'cushion', help: 'Confirms the thesis. Value confirmed — not price paid; it never raises the price.' },
-};
+export const DIRECTION_LABELS: Readonly<Record<string, { label: string; word: string; help: string }>> = EN.m.findings.directions;
 
 export function directionVariant(direction: Direction | null): 'danger' | 'calculation' | 'neutral' | 'draft' {
   return direction === -1 ? 'danger' : direction === 1 ? 'calculation' : direction === 0 ? 'neutral' : 'draft';
 }
 
-export function directionText(direction: Direction | null): string {
-  return direction === null ? 'direction not decided' : (DIRECTION_LABELS[String(direction)]?.label ?? 'unknown').toLowerCase();
+export function directionText(direction: Direction | null, t: I18n = EN): string {
+  if (direction === null) return t.m.findings.directionUndecided;
+  // The running-text form ("drag" in English; German nouns keep their capital).
+  return t.m.findings.directions[String(direction) as '-1' | '0' | '1'].word;
 }
 
 /** Plain-language reasons the API refuses an acceptance (422 rule codes). */
-export const RULE_MESSAGES: Readonly<Record<string, string>> = {
-  DIRECTION_REQUIRED: 'Choose whether this finding is a drag, a cushion or neutral before accepting it.',
-  DRAG_NEEDS_PRICE: 'A drag must be priced before it is accepted. Ask for support to send it back so the analyst can price it.',
-  CUSHION_NEEDS_DRIVER: 'A cushion must say which value driver it confirms. Ask for support so the analyst can add it.',
-  NEUTRAL_NEEDS_RATIONALE: 'Say why this finding does not move value.',
-  RATIONALE_REQUIRED: 'You changed the proposed direction — say why.',
-};
+export const RULE_MESSAGES: Readonly<Record<string, string>> = EN.m.findings.rules;

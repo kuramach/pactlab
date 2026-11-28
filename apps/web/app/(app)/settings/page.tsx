@@ -22,6 +22,8 @@ import { ApiAccessCard } from './api-access-card';
 import { oauthOrigins } from '../../../lib/oauth-metadata';
 import type { PersonaOption } from '../valuation/_lib/pricing';
 import { PersonaCard } from '../valuation/_lib/persona-card';
+import { LanguageCard } from './language-card';
+import { getI18n } from '../../../lib/i18n/server';
 
 // Per-user data: never prerender.
 export const dynamic = 'force-dynamic';
@@ -243,6 +245,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
         </CardContent>
       </Card>
 
+      <LanguageCard t={await getI18n()} outcome={typeof outcome === 'string' ? outcome : undefined} />
       {organization?.authMethod === 'EMAIL_CODE' ? <PasskeysCard /> : null}
 
       {organization?.authMethod === 'EMAIL_CODE' ? <DevicesCard /> : null}

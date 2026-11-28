@@ -1,0 +1,63 @@
+import type { Localized } from '@pactlab/ui';
+import type { common as source } from '../en/common';
+
+export const common: Localized<typeof source> = {
+  states: {
+    signedOut: { title: 'Anmeldung erforderlich', description: 'Melden Sie sich an, um die Deals und Nachweise zu sehen, an denen Sie beteiligt sind.' },
+    forbidden: { title: 'Kein Zugriff', description: 'Ihre Rolle in diesem Deal umfasst keinen Zugriff auf Nachweise.' },
+    notFound: { title: 'Nicht gefunden', description: 'Dieses Element existiert nicht oder Sie haben keinen Zugriff darauf.' },
+    error: { title: 'Etwas ist schiefgelaufen', description: 'Die Anfrage konnte nicht abgeschlossen werden.', reference: 'Referenz {id}.' },
+  },
+  outcomes: {
+    forbidden: 'Ihre Rolle in diesem Deal erlaubt das nicht.',
+    conflict: 'Jemand hat dies inzwischen geändert. Laden Sie neu und versuchen Sie es erneut.',
+    invalid: 'Einige Angaben wurden nicht akzeptiert. Prüfen Sie sie und versuchen Sie es erneut.',
+    unavailable: 'Dieser Dienst ist gerade nicht verfügbar.',
+    'signed-out': 'Ihre Sitzung ist abgelaufen. Melden Sie sich erneut an.',
+    'not-found': 'Dieses Element existiert nicht mehr.',
+    error: 'Etwas ist schiefgelaufen. Versuchen Sie es erneut.',
+  },
+  pager: { window: '{start}–{end} von {total}', previous: '← Zurück', next: 'Weiter →' },
+  phases: { PRE: 'Vorprüfung', DILIGENCE: 'Due Diligence', POST: 'Nach dem Closing' },
+  stages: { SCREENING: 'Screening', DILIGENCE: 'Due Diligence', NEGOTIATION: 'Verhandlung', SIGNED: 'Unterzeichnet', CLOSED: 'Abgeschlossen' },
+  dealTypes: { PUBLIC_ACQUIRER: 'Börsennotierter Käufer', PRIVATE_ACQUIRER: 'Private Übernahme', TAKE_PRIVATE: 'Take-Private' },
+  companyTypes: {
+    SOFTWARE_SAAS: 'Software & SaaS',
+    FINTECH: 'Fintech',
+    HEALTHCARE: 'Gesundheitswesen & Health-Tech',
+    TELECOM_MEDIA: 'Telekommunikation & Medien',
+    PROFESSIONAL_SERVICES: 'Professionelle Dienstleistungen',
+    PHARMA_BIOTECH: 'Pharma & Biotech',
+    ECOMMERCE_DTC: 'E-Commerce & DTC',
+    MULTIFAMILY: 'Mehrfamilienhäuser',
+    COMMERCIAL_PROPERTY: 'Gewerbeimmobilien',
+    HOTELS: 'Hotels & Gastgewerbe',
+    SMALL_CLINICS: 'Kleine Praxen und Kliniken',
+    HOSPITALS: 'Krankenhäuser',
+    VENTURE_RAISE: 'Venture-Finanzierungsrunde',
+    MULTIFAMILY_SYNDICATION: 'Mehrfamilienhaus-Syndizierung',
+    MUSIC_RIGHTS: 'Musikrechte',
+    ENERGY_GENERATION: 'Energieerzeugung & Rechte',
+    STARTUP_SPV: 'Startup-Beteiligungs-SPV',
+    OTHER: 'Sonstige',
+  },
+  claims: {
+    verdicts: {
+      UNVERIFIED: { label: 'Noch nicht geprüft', short: 'Verkäuferangabe nicht geprüft' },
+      VERIFIED: { label: 'Durch die Nachweise bestätigt', short: 'Bestätigt die Angabe des Verkäufers' },
+      CONTRADICTED: { label: 'Durch die Nachweise widerlegt', short: 'Widerspricht der Angabe des Verkäufers' },
+    },
+    handSourcedHelp: 'Von Hand in Pactlab Rinse erfasst: das Wort des Verkäufers, kein dokumentarischer Nachweis.',
+    restsOnHandSourced: 'Beruht auf einer von Hand erfassten Angabe',
+    handSourced: 'Von Hand erfasst',
+    none: 'Dieser Befund ist mit keiner Angabe des Verkäufers verknüpft.',
+    listLabel: 'Was der Verkäufer angegeben hat',
+    sellerSaid: 'Der Verkäufer gab an:',
+  },
+  withdrawn: {
+    badge: 'Quelle zurückgezogen',
+    notice: 'Quelle zurückgezogen: {subject} beruht auf Daten aus einem Import, der inzwischen zurückgezogen wurde. Er bleibt unverändert erhalten.',
+    item: 'zurückgezogen am {date}: „{reason}“',
+  },
+  evidence: { documentPage: 'Dokument S. {page}', record: 'Nachweis', open: 'Nachweis öffnen' },
+};
