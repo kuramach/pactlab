@@ -332,6 +332,25 @@ describe('documents API (document AI)', () => {
       expect((asked.body['claims'] as { citations: Citation[] }[])[0]?.citations[0]).toMatchObject({ pageNumber: 2, documentName: 'Reseller agreement.pdf' });
     });
 
+    it('records the reader language on the run and labels an answer written in English (T-174b)', async () => {
+      respond = (request) => ({
+        unanswerable: false,
+        answer: 'Yes, on a Vendor change of control.',
+        claims: [
+          {
+            statement: 'Customer may terminate on a Vendor change of control.',
+            citations: [{ citationId: citationIdFor(request, 'Customer may terminate this Agreement'), quote: "Customer may terminate this Agreement upon thirty (30) days' written notice" }],
+          },
+        ],
+      });
+      const asked = await call('lead', 'POST', '/questions', { question: 'Can the customer terminate on a change of control?', documentIds: [msaId], language: 'ja' });
+      expect(asked.body).toMatchObject({ status: 'ANSWERED', outputLanguage: { requested: 'ja', written: 'en', fallback: true } });
+      expect((asked.body['outputLanguage'] as { label: string }).label).toContain('Japanese');
+      const run = (await lastAiRun()) as unknown as Record<string, unknown>;
+      expect(run).toMatchObject({ output_language: 'ja', output_language_written: 'en', output_language_fallback: true });
+      expect((await call('lead', 'POST', '/questions', { question: 'Any change of control?', language: 'xx' })).status).toBe(400);
+    });
+
     it('answers with exact page citations and records the AI run without content', async () => {
       respond = (request) => ({
         unanswerable: false,

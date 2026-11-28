@@ -13,6 +13,8 @@ export interface DealRecord {
   baseCurrency: string;
   /** BUYER: buyer-led diligence. SELLER: the seller runs a bid process (T-097). */
   initiatedBy: string;
+  /** T-174b: the pact's working language (`en | de | fr | ja`); null follows the organization. */
+  workingLanguage: string | null;
   createdAt: Date;
 }
 
@@ -26,6 +28,7 @@ const dealSelect = {
   stage: true,
   status: true,
   baseCurrency: true,
+  workingLanguage: true,
   createdAt: true,
 } as const;
 
@@ -82,7 +85,7 @@ export const deals = {
   async update(
     tx: TransactionClient,
     dealId: string,
-    input: Partial<Pick<DealRecord, 'name' | 'targetName' | 'stage' | 'status'>>,
+    input: Partial<Pick<DealRecord, 'name' | 'targetName' | 'stage' | 'status' | 'workingLanguage'>>,
   ): Promise<DealRecord | null> {
     const updated = await tx.deal.updateMany({ where: { id: dealId }, data: input });
     return updated.count === 0 ? null : deals.get(tx, dealId);

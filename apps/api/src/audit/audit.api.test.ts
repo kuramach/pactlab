@@ -89,4 +89,22 @@ describe('audit log API', () => {
     expect(denied.rows[0]!.n).toBe(1);
     expect((await get('/v1/audit-events?limit=500', await token(a.subject, a))).status).toBe(400);
   });
+
+  it('sets and clears a pact working language, audited, and refuses an unknown one (T-174b)', async () => {
+    const lead = await token(a.subject, a);
+    const patch = (payload: Body) => app.inject({ method: 'PATCH', url: `/v1/deals/${a.dealId}`, headers: { authorization: `Bearer ${lead}` }, payload });
+    const set = await patch({ workingLanguage: 'ja' });
+    expect(set.statusCode).toBe(200);
+    expect(set.json()).toMatchObject({ workingLanguage: 'ja' });
+    expect((await get(`/v1/deals/${a.dealId}`, lead)).body).toMatchObject({ workingLanguage: 'ja' });
+    expect((await patch({ workingLanguage: 'xx' })).statusCode).toBe(400);
+    expect((await patch({ workingLanguage: null })).json()).toMatchObject({ workingLanguage: null });
+    const events = (await db.owner.query(
+      `SELECT action FROM audit_events WHERE deal_id = $1 AND action LIKE 'deal.working_language_%' ORDER BY chain_seq`,
+      [a.dealId],
+    )) as { rows: { action: string }[] };
+    expect(events.rows.map((row) => row.action)).toEqual(['deal.working_language_set', 'deal.working_language_cleared']);
+    // Another tenant cannot set it.
+    expect((await app.inject({ method: 'PATCH', url: `/v1/deals/${a.dealId}`, headers: { authorization: `Bearer ${await token(b.subject, b)}` }, payload: { workingLanguage: 'de' } })).statusCode).toBe(404);
+  });
 });

@@ -686,6 +686,7 @@ export class DocumentsService {
         claims: [],
         rejectedClaims: [],
         generatedBy: null,
+        outputLanguage: null,
         documentIds: eligible.map((d) => d.id),
         coverage,
       };
@@ -698,6 +699,7 @@ export class DocumentsService {
         dealId,
         question: { classification: 'BUSINESS', text: body.question },
         sources,
+        ...(body.language ? { outputLanguage: body.language } : {}),
       });
     } catch (error) {
       gatewayError(error);
@@ -733,6 +735,8 @@ export class DocumentsService {
         modelAlias: run.modelAlias,
         resolvedModelId: run.resolvedModelId,
       },
+      // T-174b: the language asked for and written; the label is shown beside the answer when it fell back.
+      outputLanguage: run.outputLanguage ?? null,
       documentIds: eligible.map((d) => d.id),
       coverage,
     };

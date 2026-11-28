@@ -634,6 +634,8 @@ model Deal {
   propertyAddress      String?         @map("property_address")
   /// The year the business started (or the property was built or acquired, or the earliest year the seller can provide); never ask for years before it (T-185). Audited.
   historyStartYear     Int?            @map("history_start_year")
+  /// T-174b: the language the pact's emails and documents are written in when the reader chose none; null follows the organization.
+  workingLanguage      String?         @map("working_language")
   /// Set when the deal lead deletes the deal (status DELETED); one-way.
   deletedAt            DateTime?       @map("deleted_at") @db.Timestamptz(3)
   deletedBy            String?         @map("deleted_by") @db.Uuid
@@ -1528,6 +1530,10 @@ model AiRun {
   requestedBy      String?     @default(dbgenerated("app_current_user_id()")) @map("requested_by") @db.Uuid
   /// T-139: how a pact-wide run's pages were chosen (FULL or KEYWORD, page ids and checksums; never content).
   retrieval        Json?
+  /// T-174b: the language asked for, the language written and whether it fell back (ADR 0034); null when none was asked.
+  outputLanguage         String?  @map("output_language")
+  outputLanguageWritten  String?  @map("output_language_written")
+  outputLanguageFallback Boolean? @map("output_language_fallback")
 
   organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   deal         Deal              @relation(fields: [organizationId, dealId], references: [organizationId, id], onDelete: Restrict)

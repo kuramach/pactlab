@@ -5,6 +5,14 @@ import { isoCurrencySchema, uuidSchema } from './common';
 
 export const transactionTypeSchema = z.enum(TRANSACTION_TYPES);
 
+/** The languages a pact can work in (T-174b): its emails and generated documents when the reader chose none. */
+export const WORKING_LANGUAGES = ['en', 'de', 'fr', 'ja'] as const;
+export type WorkingLanguage = (typeof WORKING_LANGUAGES)[number];
+export const workingLanguageSchema = z.enum(WORKING_LANGUAGES);
+/** A stored working language as the contract's type; anything else (never written: a CHECK holds it) reads as none. */
+export const workingLanguageOf = (value: string | null | undefined): WorkingLanguage | null =>
+  (WORKING_LANGUAGES as readonly string[]).includes(value ?? '') ? (value as WorkingLanguage) : null;
+
 export const dealSummarySchema = z.object({
   id: uuidSchema,
   organizationId: uuidSchema,
@@ -16,6 +24,8 @@ export const dealSummarySchema = z.object({
   phase: z.enum(DEAL_PHASES),
   status: z.string(),
   baseCurrency: isoCurrencySchema,
+  /** T-174b: null follows the organization's default (English until one is stored). */
+  workingLanguage: workingLanguageSchema.nullable().optional(),
   createdAt: z.iso.datetime(),
   /** Buyer and seller, when the deal was started as a Pact (list responses only). */
   parties: z

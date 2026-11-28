@@ -1,3 +1,4 @@
+import { workingLanguageOf } from '@pactlab/contracts';
 import { ConflictException, Inject, Injectable, NotFoundException, Optional, ForbiddenException } from '@nestjs/common';
 import type { DealSummary, Page } from '@pactlab/contracts';
 import {
@@ -26,7 +27,7 @@ import type {
 } from './deals.schemas';
 
 function toSummary(deal: DealRecord): DealSummary {
-  return { ...deal, phase: phaseOf(deal.stage), createdAt: deal.createdAt.toISOString() };
+  return { ...deal, phase: phaseOf(deal.stage), workingLanguage: workingLanguageOf(deal.workingLanguage), createdAt: deal.createdAt.toISOString() };
 }
 
 function toMemberView(member: DealMemberRecord): DealMemberView {
@@ -132,6 +133,18 @@ export class DealsService {
           outcome: 'SUCCEEDED',
           requestId,
         });
+        if (command.workingLanguage !== undefined) {
+          await appendAuditEvent(tx, {
+            organizationId: tenant.organizationId,
+            dealId,
+            actorUserId: tenant.userId,
+            action: command.workingLanguage === null ? 'deal.working_language_cleared' : 'deal.working_language_set',
+            targetType: 'deal',
+            targetId: dealId,
+            outcome: 'SUCCEEDED',
+            requestId,
+          });
+        }
       }
       return updated;
     });

@@ -1,5 +1,5 @@
 import { DOCUMENT_KINDS, pageQuerySchema } from '@pactlab/contracts';
-import { DATA_CLASSIFICATIONS } from '@pactlab/ai';
+import { AI_OUTPUT_LANGUAGES, DATA_CLASSIFICATIONS } from '@pactlab/ai';
 import { DOCUMENT_SOURCE_PROVIDERS, documentSourceConfigSchema, driveFileIdSchema, MAX_PICKED_FILES } from '@pactlab/connectors';
 import { z } from 'zod';
 import { DOCUMENT_FINDING_STATUSES, RETENTION_CLASSES } from './documents.types';
@@ -28,6 +28,8 @@ export const pageParamsSchema = documentParamsSchema.extend({
 export const askQuestionBodySchema = z.strictObject({
   question: z.string().trim().min(3).max(2000),
   documentIds: z.array(z.uuid()).min(1).max(50).optional(),
+  /** T-174b: the reader's language; the answer is written in it where the model is evaluated in it. */
+  language: z.enum(AI_OUTPUT_LANGUAGES).optional(),
 });
 export type AskQuestionBody = z.infer<typeof askQuestionBodySchema>;
 

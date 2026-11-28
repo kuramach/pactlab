@@ -2,6 +2,7 @@ import { groundItems, SourceIndex, type CitationFailure, type ResolvedCitation }
 import type { CitableSource } from './context';
 import type { ModelProviderErrorKind } from './bedrock';
 import type { AiRunRecord, ClaudeGateway, GatewayInput } from './gateway';
+import type { AiOutputLanguage } from './languages';
 import type { ModelAlias } from './models';
 import { contractExtractionPrompt, contractScrubPrompt, criticalExtractionPrompt, criticalStructurePrompt, documentQaPrompt, documentUnderstandingPrompt, energyExtractionPrompt, musicExtractionPrompt, offeringExtractionPrompt, type ContractExtraction, type CriticalStructureProposal, type DocumentUnderstanding, type EnergyExtraction, type MusicExtraction, type OfferingExtraction } from './prompts';
 
@@ -37,7 +38,7 @@ export interface GroundedAnswer {
  */
 export async function askDocuments(
   gateway: ClaudeGateway,
-  request: Scope & { readonly question: GatewayInput; readonly sources: readonly CitableSource[] },
+  request: Scope & { readonly question: GatewayInput; readonly sources: readonly CitableSource[]; readonly outputLanguage?: AiOutputLanguage },
 ): Promise<{ run: AiRunRecord; result: GroundedAnswer; providerError: ModelProviderErrorKind | null }> {
   const response = await gateway.invoke(documentQaPrompt, {
     organizationId: request.organizationId,
@@ -45,6 +46,7 @@ export async function askDocuments(
     modelAlias: request.modelAlias,
     inputs: [{ ...request.question, name: 'question' }],
     sources: request.sources,
+    ...(request.outputLanguage ? { outputLanguage: request.outputLanguage } : {}),
   });
   const empty = { answer: null, claims: [], rejectedClaims: [] };
   if (!response.output) return { run: response.run, result: { status: 'FAILED', ...empty }, providerError: response.providerError };

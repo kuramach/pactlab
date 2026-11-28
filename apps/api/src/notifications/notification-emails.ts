@@ -1,5 +1,5 @@
 import type { NotificationEventType } from '@pactlab/domain';
-import { EMAIL_COPY, type EmailLocale } from '../email-login/email-catalog';
+import { EMAIL_COPY, resolveEmailLocale, type EmailLocale } from '../email-login/email-catalog';
 import type { OutboundEmail } from '../email-login/email-sender';
 
 /** What one notification email names: the pact, the event in plain words, and the link back. Never more (T-145 content rules). */
@@ -7,6 +7,17 @@ export interface EmailItem {
   readonly type: NotificationEventType;
   readonly dealName: string;
   readonly link: string;
+}
+
+/**
+ * The language one email is written in (T-174b): the recipient's own choice, then their organization's default, then
+ * the pact's working language. The person's and organization's are stored with T-172b and slot in ahead of the pact's;
+ * until then the pact's is the signal. A digest across pacts in different languages is written in English.
+ */
+export function emailLocaleOf(items: readonly { readonly workingLanguage: string | null }[], person: string | null = null, organization: string | null = null): EmailLocale {
+  const pacts = new Set(items.map((item) => resolveEmailLocale(item.workingLanguage)));
+  const pact = pacts.size === 1 ? [...pacts][0] : null;
+  return resolveEmailLocale(person, organization, pact);
 }
 
 /** Items listed in one digest; the rest are counted and wait in the inbox. */

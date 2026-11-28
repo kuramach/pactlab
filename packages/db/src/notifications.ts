@@ -185,6 +185,8 @@ export interface PendingNotification {
   readonly createdAt: Date;
   /** The person's sign-in address; null when they sign in with Auth0 and none is held. */
   readonly email: string | null;
+  /** T-174b: the pact's working language (`en | de | fr | ja`); null follows the organization. */
+  readonly workingLanguage: string | null;
 }
 
 export interface RecipientSettings {
@@ -207,6 +209,15 @@ export const notificationDispatch = {
         SELECT notification_id::text, user_id::text, organization_id::text, deal_id::text, deal_name, type, urgency, link_path, created_at, email
           FROM app_notification_pending_page(${input.after}::uuid, ${input.limit}::int)`,
     );
+    const dealIds = [...new Set(rows.map((row) => row.deal_id))];
+    const languages = new Map<string, string>();
+    if (dealIds.length > 0) {
+      const found = await asApp(prisma, (tx) =>
+        tx.$queryRaw<{ deal_id: string; working_language: string }[]>`
+          SELECT deal_id::text, working_language FROM app_notification_deal_languages(${dealIds}::uuid[])`,
+      );
+      for (const row of found) languages.set(row.deal_id, row.working_language);
+    }
     return rows.map((row) => ({
       id: row.notification_id,
       userId: row.user_id,
@@ -218,6 +229,7 @@ export const notificationDispatch = {
       link: row.link_path,
       createdAt: new Date(row.created_at),
       email: row.email,
+      workingLanguage: languages.get(row.deal_id) ?? null,
     }));
   },
 

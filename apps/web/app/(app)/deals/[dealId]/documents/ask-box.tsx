@@ -65,6 +65,7 @@ export function AskBox({ dealId, choices = [] }: { dealId: string; choices?: rea
           <p className="text-xs text-muted-foreground">
             {state.model ? `AI-generated, requires human review · ${state.model}` : 'No pages matched, so nothing was sent to the AI'}
             {state.withheld > 0 ? ` · ${state.withheld} unsupported statement(s) withheld` : ''}
+            {state.languageLabel ? ` · ${state.languageLabel}` : ''}
           </p>
         </div>
       ) : null}

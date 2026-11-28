@@ -48,7 +48,7 @@ describe('pact activity notifications (T-145)', () => {
 
   const token = (subject: string, org: string) =>
     new SignJWT({ org_id: org }).setProtectedHeader({ alg: 'RS256', kid: 'test' }).setSubject(subject).setIssuer(ISSUER).setAudience(AUDIENCE).setIssuedAt().setExpirationTime('5m').sign(key);
-  async function call(who: string, method: 'GET' | 'POST' | 'PUT', url: string, payload?: unknown) {
+  async function call(who: string, method: 'GET' | 'POST' | 'PUT' | 'PATCH', url: string, payload?: unknown) {
     const response = await app.inject({ method, url, headers: { authorization: `Bearer ${tokens[who]!}`, ...(payload ? { 'content-type': 'application/json' } : {}) }, ...(payload ? { payload: JSON.stringify(payload) } : {}) });
     return { status: response.statusCode, body: response.json() as Record<string, unknown>, text: response.body };
   }
@@ -172,6 +172,18 @@ describe('pact activity notifications (T-145)', () => {
     expect(await types('seller')).not.toContain('FINDING_DRAFTED');
     await dispatcher.run(tomorrowAt(23));
     expect(sender.to(address.seller).some((message) => message.text.includes('finding'))).toBe(false);
+  });
+
+  it('writes the email in the pact working language when it has one (T-174b)', async () => {
+    expect((await call('lead', 'PATCH', `/v1/deals/${a.dealId}`, { workingLanguage: 'ja' })).status).toBe(200);
+    const before = sender.to(address.lead).length;
+    await call('seller', 'POST', deal('/documents'), { fileName: 'third.txt', contentType: 'text/plain', contentBase64: Buffer.from('Third file').toString('base64') });
+    await dispatcher.run();
+    const email = sender.to(address.lead).at(-1);
+    expect(sender.to(address.lead)).toHaveLength(before + 1);
+    expect(email).toMatchObject({ locale: 'ja' });
+    expect(email!.subject).toContain('相手方が文書を追加しました');
+    expect((await call('lead', 'PATCH', `/v1/deals/${a.dealId}`, { workingLanguage: null })).status).toBe(200);
   });
 
   it('quiet hours delay an act-now email until they end', async () => {

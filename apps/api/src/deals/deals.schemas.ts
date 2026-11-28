@@ -1,4 +1,5 @@
 import { DEAL_ROLES, TRANSACTION_TYPES } from '@pactlab/domain';
+import { WORKING_LANGUAGES } from '@pactlab/contracts';
 import { z } from 'zod';
 
 export const createDealSchema = z.strictObject({
@@ -19,6 +20,8 @@ export const updateDealSchema = z
     targetName: z.string().trim().min(1).max(200).optional(),
     stage: z.enum(['SCREENING', 'DILIGENCE', 'NEGOTIATION', 'SIGNED', 'CLOSED']).optional(),
     status: z.enum(['ACTIVE', 'ON_HOLD', 'ARCHIVED']).optional(),
+    /** T-174b: the pact's working language; null returns it to the organization's default. */
+    workingLanguage: z.enum(WORKING_LANGUAGES).nullable().optional(),
   })
   .refine((value) => Object.keys(value).length > 0, 'Provide at least one field');
 export type UpdateDealCommand = z.infer<typeof updateDealSchema>;
