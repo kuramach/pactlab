@@ -95,6 +95,20 @@ describe('pack registry', () => {
     expect(PACKS.HOSPITALS.findingRules).not.toContain('healthcare-credentialing');
   });
 
+  it('Hospitals reuses the T-160 registers and adds cost reports, capex and quality reporting (T-162)', () => {
+    const hospitals = PACKS.HOSPITALS;
+    expect(hospitals).toMatchObject({ slug: 'hospitals', cluster: 'healthcare', metricCalculator: 'hospitals-operations', built: true });
+    // The T-069 rules stay first and unchanged; the T-160 registers are reused by reference, never copied.
+    expect(hospitals.findingRules.slice(0, 6)).toEqual(['hospitals-payer-concentration', 'hospitals-accreditation-transfer', 'hospitals-physician-dependence', 'hospitals-regulatory-capex', 'healthcare-director-fee', 'healthcare-privacy-assessment']);
+    expect(hospitals.importTargets).toEqual(expect.arrayContaining(['HOSPITALS_COST_REPORT', 'HOSPITALS_CAPEX', 'HEALTHCARE_CREDENTIALS', 'HEALTHCARE_PAYER_CONTRACTS', 'HEALTHCARE_PROVIDER_ROSTER']));
+    expect(hospitals.findingRules).toEqual(expect.arrayContaining(['hospitals-cost-report-claims', 'hospitals-payer-contracts', 'hospitals-medical-staff', 'hospitals-capex-trend', 'hospitals-quality-claims', 'hospitals-pnl-trend']));
+    expect(hospitals.documentCategories).toEqual(['COST_REPORT', 'PROPERTY_CONDITION_REPORT', 'QUALITY_REPORT', 'LICENCE_VERIFICATION', 'PAYER_CONTRACT']);
+    for (const target of hospitals.importTargets.slice(1)) expect(IMPORT_TARGET_DEFINITIONS[target].refusesPeopleColumns, target).toBe(true);
+    // The shared registers grow optional columns only: the healthcare pack's files still import as they are.
+    expect(IMPORT_TARGET_DEFINITIONS.HEALTHCARE_CREDENTIALS.fields.find((field) => field.name === 'department')?.required).toBe(false);
+    expect(IMPORT_TARGET_DEFINITIONS.HEALTHCARE_PAYER_CONTRACTS.fields.find((field) => field.name === 'rate_basis')?.required).toBe(false);
+  });
+
   it('Small clinics reuses the T-160 evidence set and adds service lines, referrals and the lease (T-161)', () => {
     const clinics = PACKS.SMALL_CLINICS;
     expect(clinics).toMatchObject({ slug: 'small-clinics', cluster: 'healthcare', metricCalculator: 'clinics-practice', built: true });

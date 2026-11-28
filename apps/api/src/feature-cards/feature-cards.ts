@@ -78,6 +78,16 @@ export const FEATURE_CARDS: readonly FeatureCardDefinition[] = [
     icon: 'check',
   },
   {
+    id: 'hospitals-pack',
+    version: 1,
+    addedOn: '2026-11-27',
+    title: 'Hospitals: cost reports, payer contracts, medical staff and the plant, checked against the evidence',
+    body: 'On a hospitals pact, Pactlab reconciles occupancy and payer mix in the filed cost reports against the deck and the financial statements, reads each material payer agreement’s rate basis and end date against the expected closing, checks every physician’s licence and privileges and flags a department whose privileges lapse together, sets capex against revenue across every imported P&L year beside the condition assessment, and maps published quality ratings to the reports supplied. Documents, dates and arithmetic only; a person decides every finding.',
+    href: '/pacts/new',
+    linkLabel: 'Start a hospitals pact',
+    icon: 'layers',
+  },
+  {
     id: 'telecom-media-pack',
     version: 1,
     addedOn: '2026-11-26',

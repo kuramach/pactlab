@@ -25,7 +25,7 @@ describe('demo organization (batch 2)', () => {
   let first: string[] = [];
   const demoData = generatedDemoData();
   const rows = async (sql: string, params: unknown[] = []) => ((await db.owner.query(sql, params)) as { rows: Row[] }).rows;
-  const types = ['SOFTWARE_SAAS', 'MULTIFAMILY', 'VENTURE_RAISE', 'MULTIFAMILY_SYNDICATION', 'MUSIC_RIGHTS', 'ENERGY_GENERATION', 'STARTUP_SPV', 'FINTECH', 'HEALTHCARE', 'SMALL_CLINICS', 'PHARMA_BIOTECH', 'ECOMMERCE_DTC', 'PROFESSIONAL_SERVICES', 'TELECOM_MEDIA'] as const;
+  const types = ['SOFTWARE_SAAS', 'MULTIFAMILY', 'VENTURE_RAISE', 'MULTIFAMILY_SYNDICATION', 'MUSIC_RIGHTS', 'ENERGY_GENERATION', 'STARTUP_SPV', 'FINTECH', 'HEALTHCARE', 'SMALL_CLINICS', 'PHARMA_BIOTECH', 'ECOMMERCE_DTC', 'PROFESSIONAL_SERVICES', 'TELECOM_MEDIA', 'HOSPITALS'] as const;
   const run = (reset = false, only: readonly (typeof types)[number][] = types) => runDemoOrg(app as never, db.owner as never, db.prisma, { types: only, reset, data: demoData.source });
 
   beforeAll(async () => {
@@ -125,7 +125,7 @@ describe('demo organization (batch 2)', () => {
     expect(await count('deal_memberships', teaser.id, `AND role = 'BIDDER'`)).toBe(3);
     expect(await rows(`SELECT scope, status FROM report_versions WHERE organization_id = $1 AND scope <> 'IC' ORDER BY scope`, [DEMO_ORG.id])).toEqual([{ scope: 'EXECUTIVE', status: 'READY' }, { scope: 'PACT', status: 'READY' }]);
     // Each buyer-led acquisition pact has its committee pack (T-124 demo coverage).
-    expect((await rows(`SELECT count(*)::int AS n FROM report_versions WHERE organization_id = $1 AND scope = 'IC'`, [DEMO_ORG.id]))[0]).toEqual({ n: 24 });
+    expect((await rows(`SELECT count(*)::int AS n FROM report_versions WHERE organization_id = $1 AND scope = 'IC'`, [DEMO_ORG.id]))[0]).toEqual({ n: 26 });
     // The syndication pact reads its offering, and the seller sees none of the sponsor's offering documents (T-106).
     const syndication = await deal(pactName('MULTIFAMILY_SYNDICATION'));
     expect(await count('syndication_offerings', syndication.id)).toBe(1);
@@ -218,6 +218,18 @@ describe('demo organization (batch 2)', () => {
       'Monthly churn rising every year, FY2021–FY2025',
     ]) {
       expect(await count('findings', telecom.id, `AND title = '${title}'`), title).toBe(1);
+    }
+    // The hospitals pact imports the cost reports, capex, the reused medical-staff and payer-contract registers and five years of P&L; the planted defects are drafted (T-162).
+    const hospitals = await deal(pactName('HOSPITALS'));
+    expect(await count('evidence_items', hospitals.id, `AND evidence_type = 'finance.pnl_line'`)).toBe(40);
+    expect(await count('evidence_items', hospitals.id, `AND evidence_type = 'hospitals.cost_report_year'`)).toBe(5);
+    for (const title of [
+      'The largest payer’s contract ends 7 months after closing: Government programme A (synthetic)',
+      'Cost report contradicts the deck: Occupancy',
+      'Capex falling while the deck claims a modern plant, FY2021–2025',
+      'Orthopaedics: 4 physicians’ privileges lapsed together on 30 June 2026',
+    ]) {
+      expect(await count('findings', hospitals.id, `AND title = '${title}'`), title).toBe(1);
     }
     // The software pact imports five years of billing and of P&L; net revenue retention falling every year is drafted (T-184b).
     const software = await deal(pactName('SOFTWARE_SAAS'));

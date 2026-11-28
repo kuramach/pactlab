@@ -17,7 +17,7 @@ export const PACK_IDS = COMPANY_TYPES.filter((type): type is PackId => type !== 
 export type PackCluster = 'technology' | 'healthcare' | 'real-estate' | 'services' | 'life-sciences' | 'consumer' | 'capital' | 'media-rights' | 'energy';
 
 /** Calculator ids in `@pactlab/calculations` (`metricCalculator`). */
-export const METRIC_CALCULATOR_IDS = ['saas-metrics', 'multifamily-metrics', 'music-royalties', 'energy-assets', 'spv-round', 'fintech-payments', 'healthcare-collections', 'clinics-practice', 'pharma-pipeline', 'ecommerce-channels', 'services-practice', 'telecom-subscribers'] as const;
+export const METRIC_CALCULATOR_IDS = ['saas-metrics', 'multifamily-metrics', 'music-royalties', 'energy-assets', 'spv-round', 'fintech-payments', 'healthcare-collections', 'clinics-practice', 'pharma-pipeline', 'ecommerce-channels', 'services-practice', 'telecom-subscribers', 'hospitals-operations'] as const;
 export type MetricCalculatorId = (typeof METRIC_CALCULATOR_IDS)[number];
 
 /** Valuation method ids in `@pactlab/calculations` (`VALUATION_METHODS`). */
@@ -358,11 +358,44 @@ export const PACKS: Readonly<Record<PackId, PackDefinition>> = {
     requiredInputs: ['LEASE'],
     valuationMethods: ['DCF'],
   },
+  // Acute-care and specialty hospitals (T-069, extended by T-162, ADR 0067): the healthcare pack at hospital
+  // scale. The T-069 rules stay first; the T-160 medical-staff and payer-contract registers are reused by
+  // reference (their targets, never copied); the pack adds the filed cost reports, the plant's capex trend,
+  // published quality ratings and the multi-year P&L trend.
   HOSPITALS: {
     ...pack('HOSPITALS', 'hospitals', 'healthcare', true),
-    importTargets: ['BILLING_INVOICE_LINE', 'HOSPITALS_CENSUS', 'HOSPITALS_PAYER_MIX'],
+    importTargets: [
+      'BILLING_INVOICE_LINE',
+      'HOSPITALS_CENSUS',
+      'HOSPITALS_PAYER_MIX',
+      'HOSPITALS_COST_REPORT',
+      'HOSPITALS_CAPEX',
+      'HEALTHCARE_PROVIDER_ROSTER',
+      'HEALTHCARE_CREDENTIALS',
+      'HEALTHCARE_PAYER_CONTRACTS',
+    ],
+    metricCalculator: 'hospitals-operations',
     // Extends healthcare (T-061): its compliance rules run too; payer concentration reads the payer mix instead of billing.
-    findingRules: ['hospitals-payer-concentration', 'hospitals-accreditation-transfer', 'hospitals-physician-dependence', 'hospitals-regulatory-capex', 'healthcare-director-fee', 'healthcare-privacy-assessment'],
+    findingRules: [
+      'hospitals-payer-concentration',
+      'hospitals-accreditation-transfer',
+      'hospitals-physician-dependence',
+      'hospitals-regulatory-capex',
+      'healthcare-director-fee',
+      'healthcare-privacy-assessment',
+      'hospitals-cost-report-claims',
+      'hospitals-cost-report-reconciliation',
+      'hospitals-payer-contracts',
+      'hospitals-medical-staff',
+      'hospitals-capex-trend',
+      'hospitals-quality-claims',
+      'hospitals-pnl-trend',
+      'hospitals-pnl-margin-drift',
+      'hospitals-pnl-expense-outpacing',
+      'hospitals-admissions-trend',
+      'hospitals-recent-run',
+    ],
+    documentCategories: ['COST_REPORT', 'PROPERTY_CONDITION_REPORT', 'QUALITY_REPORT', 'LICENCE_VERIFICATION', 'PAYER_CONTRACT'],
     valuationMethods: ['PAYER_MIX_EBITDA', 'DCF'],
   },
   VENTURE_RAISE,

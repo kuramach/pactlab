@@ -247,6 +247,8 @@ export interface CredentialRow {
   readonly issuer: string;
   readonly status: string;
   readonly expiresOn: string | null;
+  /** The department or service line a hospital privilege is held in (T-162); empty when the register has none. */
+  readonly department: string;
 }
 
 export function credentialRows(evidence: readonly PackRuleEvidence[]): CredentialRow[] {
@@ -261,6 +263,7 @@ export function credentialRows(evidence: readonly PackRuleEvidence[]): Credentia
       issuer: text(row, 'issuer'),
       status: text(row, 'status').toLowerCase(),
       expiresOn: dateOf(row, 'expires_on'),
+      department: text(row, 'department'),
     }))
     .filter((row) => row.credentialRef && row.providerRef)
     .sort((a, b) => a.providerRef.localeCompare(b.providerRef) || a.credentialRef.localeCompare(b.credentialRef));
@@ -272,6 +275,8 @@ const KIND_WORDS: Readonly<Record<string, RegExp>> = {
   controlled_substance: /\b(?:DEA|controlled[- ]substance)\b/i,
   board_certification: /\bboard[- ]certif\w*/i,
   payer_enrollment: /\benrol(?:l)?ment\b/i,
+  // A hospital's medical staff (T-162): clinical privileges, renewed on the medical staff's own cycle.
+  hospital_privileges: /\bprivileges?\b/i,
 };
 const EXPIRY_WORD = /\bexpir(?:es|ed|e|y|ing)\b/i;
 
@@ -366,6 +371,8 @@ export interface PayerContract {
   readonly effectiveOn: string | null;
   readonly expiresOn: string | null;
   readonly autoRenews: boolean;
+  /** How the payer pays (a DRG case rate, per diem, percent of charges), when the register says (T-162). */
+  readonly rateBasis: string | null;
 }
 
 export function payerContracts(evidence: readonly PackRuleEvidence[]): PayerContract[] {
@@ -379,6 +386,7 @@ export function payerContracts(evidence: readonly PackRuleEvidence[]): PayerCont
       effectiveOn: dateOf(row, 'effective_on'),
       expiresOn: dateOf(row, 'expires_on'),
       autoRenews: /^(?:yes|y|true)$/i.test(text(row, 'auto_renews')),
+      rateBasis: text(row, 'rate_basis') || null,
     }))
     .filter((row) => row.contractId && row.payer)
     .sort((a, b) => a.payer.localeCompare(b.payer) || a.contractId.localeCompare(b.contractId));

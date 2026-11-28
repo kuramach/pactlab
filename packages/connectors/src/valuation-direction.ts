@@ -46,6 +46,10 @@ export const HEALTHCARE_PAYER_CONTRACT_EVIDENCE_TYPE = 'healthcare.payer_contrac
 /** Small clinics (T-161): collections and direct costs by service line and provider, and visits by referral source. */
 export const CLINICS_SERVICE_LINE_MONTH_EVIDENCE_TYPE = 'clinics.service_line_month';
 export const CLINICS_REFERRAL_MONTH_EVIDENCE_TYPE = 'clinics.referral_month';
+/** Hospitals (T-162): the filed cost reports, capital expenditure by year and the census by month. */
+export const HOSPITALS_COST_REPORT_YEAR_EVIDENCE_TYPE = 'hospitals.cost_report_year';
+export const HOSPITALS_CAPEX_YEAR_EVIDENCE_TYPE = 'hospitals.capex_year';
+export const HOSPITALS_CENSUS_MONTH_EVIDENCE_TYPE = 'hospitals.census_month';
 /** Pharma and biotech (T-064, T-163): the pipeline schedule, trial-registry records, patent schedule, obligations model and R&D roster. */
 export const PHARMA_PROGRAMME_EVIDENCE_TYPE = 'pharma.programme';
 export const PHARMA_REGISTRY_TRIAL_EVIDENCE_TYPE = 'pharma.registry_trial';
@@ -289,6 +293,8 @@ export const VALUATION_DIRECTION_MAP: Readonly<Record<string, readonly Direction
       channel: 'INFORMATIONAL',
       rationale: 'No licence on file for a rostered clinician: evidence to request, not a defect to price.',
     },
+    // A hospital department whose physicians' privileges lapse on one date (T-162): the service line cannot be staffed until re-credentialed.
+    { signal: 'privileges-lapse-together', findingDomain: 'REGULATORY', defaultDirection: -1, channel: 'PRICED_TERM' },
   ],
   [HEALTHCARE_CLINICIAN_MONTH_EVIDENCE_TYPE]: [{ signal: 'clinician-concentration', findingDomain: 'PEOPLE', defaultDirection: -1, channel: 'PRICED_TERM' }, driverTrend('COMMERCIAL')],
   [HEALTHCARE_PAYER_CONTRACT_EVIDENCE_TYPE]: [
@@ -307,7 +313,34 @@ export const VALUATION_DIRECTION_MAP: Readonly<Record<string, readonly Direction
       channel: 'INFORMATIONAL',
       rationale: 'A payer remitting with no contract on the register: evidence to request, not a defect to price.',
     },
+    // A material hospital payer's agreement ending before or within 12 months of the expected closing (T-162).
+    { signal: 'contract-ends-near-closing', findingDomain: 'COMMERCIAL', defaultDirection: -1, channel: 'ASSUMPTION' },
   ],
+  // Hospitals (T-162, ADR 0067): the filed cost reports against the deck and the P&L, the plant's capex trend and the
+  // census history. Documents, dates and arithmetic only: never a survey prediction or a view on the quality of care.
+  [HOSPITALS_COST_REPORT_YEAR_EVIDENCE_TYPE]: [
+    { signal: 'claim-contradicted', findingDomain: 'FINANCIAL', defaultDirection: -1, channel: 'ASSUMPTION' },
+    { signal: 'claim-verified', findingDomain: 'FINANCIAL', defaultDirection: 1, channel: 'CONFIRMATION' },
+    {
+      signal: 'claim-unverified',
+      findingDomain: 'FINANCIAL',
+      defaultDirection: 0,
+      channel: 'INFORMATIONAL',
+      rationale: 'An occupancy or payer-mix claim no filed cost report checks is a gap to close, neither priced nor relied on.',
+    },
+    { signal: 'cost-report-unreconciled', findingDomain: 'FINANCIAL', defaultDirection: -1, channel: 'ASSUMPTION' },
+  ],
+  [HOSPITALS_CAPEX_YEAR_EVIDENCE_TYPE]: [
+    { signal: 'capex-falling-modern-claim', findingDomain: 'PROPERTY', defaultDirection: -1, channel: 'PRICED_TERM' },
+    {
+      signal: 'capex-falling',
+      findingDomain: 'PROPERTY',
+      defaultDirection: 0,
+      channel: 'INFORMATIONAL',
+      rationale: 'Falling capex with no claim to the contrary may be a completed programme: a watch item until the plant’s condition is confirmed.',
+    },
+  ],
+  [HOSPITALS_CENSUS_MONTH_EVIDENCE_TYPE]: [driverTrend('COMMERCIAL')],
   // Small clinics (T-161, ADR 0052): the owner-operator's share and each service line's providers recomputed from the
   // schedule and billing exports; visits by referral source. Retention and volume risks, never a ranking or a legal view.
   [CLINICS_SERVICE_LINE_MONTH_EVIDENCE_TYPE]: [
@@ -436,6 +469,16 @@ export const VALUATION_DIRECTION_MAP: Readonly<Record<string, readonly Direction
       channel: 'INFORMATIONAL',
       rationale: 'The landlord’s consent to assign (or a new lease) is a closing condition, not a price adjustment.',
     },
+    // Published quality ratings the deck claims, against the reporting documents supplied (T-162). Never a view on care.
+    { signal: 'quality-claim-verified', findingDomain: 'REGULATORY', defaultDirection: 1, channel: 'CONFIRMATION' },
+    { signal: 'quality-claim-contradicted', findingDomain: 'REGULATORY', defaultDirection: -1, channel: 'ASSUMPTION' },
+    {
+      signal: 'quality-claim-unverified',
+      findingDomain: 'REGULATORY',
+      defaultDirection: 0,
+      channel: 'INFORMATIONAL',
+      rationale: 'A rating no reporting document supplied states is a gap to close, neither priced nor relied on.',
+    },
     { signal: 'CHANGE_OF_CONTROL', findingDomain: 'CONTRACT', defaultDirection: -1, channel: 'PRICED_TERM' },
     { signal: 'ASSIGNMENT', findingDomain: 'CONTRACT', defaultDirection: -1, channel: 'PRICED_TERM' },
     { signal: 'EXCLUSIVITY', findingDomain: 'CONTRACT', defaultDirection: -1, channel: 'PRICED_TERM' },
@@ -476,6 +519,9 @@ export const ADAPTER_EVIDENCE_TYPES = [
   HEALTHCARE_PAYER_CONTRACT_EVIDENCE_TYPE,
   CLINICS_SERVICE_LINE_MONTH_EVIDENCE_TYPE,
   CLINICS_REFERRAL_MONTH_EVIDENCE_TYPE,
+  HOSPITALS_COST_REPORT_YEAR_EVIDENCE_TYPE,
+  HOSPITALS_CAPEX_YEAR_EVIDENCE_TYPE,
+  HOSPITALS_CENSUS_MONTH_EVIDENCE_TYPE,
   PHARMA_PROGRAMME_EVIDENCE_TYPE,
   PHARMA_REGISTRY_TRIAL_EVIDENCE_TYPE,
   PHARMA_PATENT_EVIDENCE_TYPE,

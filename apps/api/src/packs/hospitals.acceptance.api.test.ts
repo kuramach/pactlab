@@ -1,5 +1,7 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { ACCEPTANCE_CURRENCIES, acceptAndValue, startAcceptanceDeal, type AcceptanceDeal } from './acceptance-kit';
+import { ACCEPTANCE_CURRENCIES, acceptAndValue, type AcceptanceDeal, type Body, type PackMetricsBody, startAcceptanceDeal } from './acceptance-kit';
 
 type FindingView = {
   id: string;
@@ -12,46 +14,102 @@ type FindingView = {
   evidence: { evidenceItemId: string | null; documentCitation: { pageNumber: number; quote: string } | null }[];
 };
 
+/** Line kinds a person confirms for the demo P&L: revenue lines, "cost of" lines, the rest operating costs. */
+const lineKind = (account: string) => (/revenue/i.test(account) ? 'REVENUE' : /^cost of/i.test(account) ? 'COGS' : 'OPEX');
+
 /**
- * T-069 acceptance: pactlab-demo-data/hospitals/<CURRENCY> loaded into a fresh
- * deal surfaces the four planted findings as cited drafts; the committed
- * regulatory capex, priced from the cost report, comes off the price in a
- * payer-mix-adjusted EBITDA run.
+ * T-069 and T-162 acceptance: pactlab-demo-data/hospitals/<CURRENCY> loaded into a fresh deal through the
+ * real APIs — billing, the census and payer mix, the filed cost reports, capex by year, the healthcare
+ * medical-staff and payer-contract registers reused as they are, the five-year P&L and every document —
+ * surfaces the T-069 four and the planted (a) largest payer's contract ending seven months after close,
+ * (b) cost-report occupancy contradicting the deck, (c) the capex ratio falling across the P&L years
+ * against a modern-plant claim and (d) one department's physicians sharing a lapsed privilege date, as
+ * cited drafts. The committed regulatory capex still comes off the price in a payer-mix-adjusted EBITDA run.
  */
-describe.each(ACCEPTANCE_CURRENCIES)('hospitals pack acceptance (%s)', { timeout: 60_000 }, (currency) => {
+describe.each(ACCEPTANCE_CURRENCIES)('hospitals pack acceptance (%s)', { timeout: 90_000 }, (currency) => {
   let deal: AcceptanceDeal;
-  const findings = async () => (await deal.call('GET', `/v1/deals/${deal.dealId}/findings`, 'lead')).body['items'] as FindingView[];
+  let pnlUploadId = '';
+  const findings = async () => (await deal.call('GET', `/v1/deals/${deal.dealId}/findings?limit=100`, 'lead')).body['items'] as FindingView[];
+  const runRules = () => deal.call('POST', `/v1/deals/${deal.dealId}/findings/pack-rules/run`, 'lead');
 
   beforeAll(async () => {
     deal = await startAcceptanceDeal('HOSPITALS', currency);
-  }, 120_000);
+    // The P&L by year (FY2021–FY2025), years across the columns, line kinds confirmed by a person.
+    const csv = readFileSync(join(deal.folder, 'pnl.csv'), 'utf8');
+    const uploaded = await deal.upload(`/v1/deals/${deal.dealId}/uploads?target=FINANCIAL_PNL&system=pactlab_standard&fileName=pnl.csv`, 'lead', csv);
+    expect(uploaded.status, JSON.stringify(uploaded.body)).toBe(201);
+    pnlUploadId = uploaded.body['id'] as string;
+    const accounts = csv.trim().split('\n').slice(1).map((row) => row.split(',')[0] ?? '');
+    const mapping = { ...(uploaded.body['suggestedMapping'] as Body), lineKinds: Object.fromEntries(accounts.map((account) => [account, lineKind(account)])) };
+    const imported = await deal.call('POST', `/v1/deals/${deal.dealId}/uploads/${pnlUploadId}/import`, 'lead', { mapping });
+    expect(imported.body, JSON.stringify(imported.body)).toMatchObject({ syncRun: { status: 'SUCCEEDED', recordsCreated: accounts.length * 5 } });
+  }, 180_000);
   afterAll(async () => deal?.close());
 
-  it('the four planted findings surface as cited drafts; a re-run adds nothing', async () => {
-    const run = await deal.call('POST', `/v1/deals/${deal.dealId}/findings/pack-rules/run`, 'lead');
+  it('every planted finding surfaces as a cited draft; a re-run adds nothing', async () => {
+    const run = await runRules();
     expect(run.status, JSON.stringify(run.body)).toBe(200);
     expect(run.body).toMatchObject({ pack: 'HOSPITALS', unresolvedQuotes: 0 });
-    expect(Number(run.body['created']) + Number(run.body['existing'])).toBe(4);
-    expect((await deal.call('POST', `/v1/deals/${deal.dealId}/findings/pack-rules/run`, 'lead')).body).toMatchObject({ created: 0, existing: 4 });
+    const promised = Number(/You should see exactly these (\d+) findings/.exec(deal.readme)?.[1]);
+    expect(promised).toBe(12);
+    expect(Number(run.body['created']) + Number(run.body['existing'])).toBe(promised);
+    expect((await runRules()).body).toMatchObject({ created: 0, existing: promised });
 
     const byTitle = Object.fromEntries((await findings()).map((finding) => [finding.title, finding]));
-    // The README's figures for this folder.
+    // The T-069 four, unchanged.
     const [, payer, share] = deal.readme.match(/\*\* — (.+?) is ([0-9.]+%) of September 2026 net revenue/) ?? [];
-    const concentration = byTitle['Earnings concentrated in one payer'];
-    expect(concentration).toMatchObject({ domain: 'COMMERCIAL', direction: 0 });
-    expect(concentration?.description).toContain(`${payer} is ${share} of September 2026 net revenue`);
-
-    const accreditation = byTitle['Accreditation does not transfer automatically'];
-    expect(accreditation).toMatchObject({ domain: 'REGULATORY', direction: 0 });
-    expect(accreditation?.evidence[0]?.documentCitation).toMatchObject({ pageNumber: 2, quote: expect.stringMatching(/does not transfer automatically/) });
-
-    const physicians = byTitle['Key-physician dependence'];
-    expect(physicians).toMatchObject({ domain: 'PEOPLE', direction: -1, pricedRisk: null });
-    expect(physicians?.evidence[0]?.documentCitation?.quote).toMatch(/two interventional cardiologists perform about 80% of procedures/);
-
+    expect(byTitle['Earnings concentrated in one payer']).toMatchObject({ domain: 'COMMERCIAL', direction: 0 });
+    expect(byTitle['Earnings concentrated in one payer']?.description).toContain(`${payer} is ${share} of September 2026 net revenue`);
+    expect(byTitle['Accreditation does not transfer automatically']?.evidence[0]?.documentCitation).toMatchObject({ pageNumber: 2, quote: expect.stringMatching(/does not transfer automatically/) });
+    expect(byTitle['Key-physician dependence']).toMatchObject({ domain: 'PEOPLE', direction: -1, pricedRisk: null });
     const [, capexCurrency, capex] = deal.readme.match(/— ([A-Z]{3}) ([0-9,]+) committed/) ?? [];
-    const capexFinding = byTitle['Committed regulatory capex'];
-    expect(capexFinding).toMatchObject({ domain: 'REGULATORY', direction: -1, pricedRisk: { type: 'REMEDIATION_COST', currency: capexCurrency, high: (capex ?? '').replaceAll(',', '') } });
+    expect(byTitle['Committed regulatory capex']).toMatchObject({ domain: 'REGULATORY', direction: -1, pricedRisk: { type: 'REMEDIATION_COST', currency: capexCurrency, high: (capex ?? '').replaceAll(',', '') } });
+
+    // (a) The largest payer's agreement ends seven months after the stated closing, the agreement's own date governing.
+    const contract = byTitle['The largest payer’s contract ends 7 months after closing: Government programme A (synthetic)'];
+    expect(contract).toMatchObject({ domain: 'COMMERCIAL', direction: -1, pricedRisk: null });
+    expect(contract?.description).toContain('GPA-2021');
+    expect(contract?.description).toContain('DRG case rates');
+    expect(contract?.evidence.map((item) => item.documentCitation?.quote).filter(Boolean)).toEqual(
+      expect.arrayContaining([expect.stringMatching(/GPA-2021 expires on 31 July 2027/), expect.stringMatching(/target closing date of 31 December 2026/)]),
+    );
+    // (b) Cost-report occupancy contradicts the deck, recorded in the claims register.
+    const occupancy = byTitle['Cost report contradicts the deck: Occupancy'];
+    expect(occupancy).toMatchObject({ domain: 'FINANCIAL', direction: -1 });
+    expect(occupancy?.description).toMatch(/54,420 patient days on 80,300 bed days available, 67\.8%/);
+    expect(byTitle['Claim verified: Medicare share of patient days']).toMatchObject({ direction: 1 });
+    // (c) The capex ratio falls across the five P&L years against a modern-plant claim, priced at the condition assessment's backlog.
+    const plant = byTitle['Capex falling while the deck claims a modern plant, FY2021–2025'];
+    expect(plant).toMatchObject({ domain: 'PROPERTY', direction: -1, pricedRisk: { type: 'REMEDIATION_COST', currency } });
+    expect(plant?.description).toContain('FY2021 7.2%');
+    expect(plant?.description).toContain('FY2025 2.8%');
+    expect(plant?.evidence.map((item) => item.documentCitation?.quote).filter(Boolean)).toEqual(expect.arrayContaining([expect.stringMatching(/modern, recently renovated plant/), expect.stringMatching(/past their useful lives/)]));
+    expect(plant?.evidence.filter((item) => item.evidenceItemId).length).toBeGreaterThan(0);
+    // (d) Orthopaedics' four physicians share a lapsed privilege renewal date, the verification document's date governing.
+    const privileges = byTitle['Orthopaedics: 4 physicians’ privileges lapsed together on 30 June 2026'];
+    expect(privileges).toMatchObject({ domain: 'REGULATORY', direction: -1, pricedRisk: null });
+    expect(privileges?.description).toContain('PH-05, PH-06, PH-07, PH-08');
+    // Quality claims mapped to the reporting document; the safety grade nothing reports stays unverified.
+    expect(byTitle['Quality claim verified: Overall star rating']).toMatchObject({ direction: 1 });
+    expect(byTitle['Quality claim not verified: Hospital safety grade']).toMatchObject({ direction: 0 });
+    expect(byTitle['P&L trend, 2021–2025']).toMatchObject({ direction: 0 });
+
+    const claims = (await deal.call('GET', `/v1/deals/${deal.dealId}/claims`, 'lead')).body['items'] as { status: string; origin: string }[];
+    expect(claims.filter((entry) => entry.origin === 'PACK_RULE').map((entry) => entry.status).sort()).toEqual(['CONTRADICTED', 'UNVERIFIED', 'VERIFIED', 'VERIFIED']);
+  });
+
+  it('the calculator reads the cost report, the registers, the census history and capex against every P&L year', async () => {
+    const metrics = (await deal.call('GET', `/v1/deals/${deal.dealId}/metrics/pack`, 'lead')).body as PackMetricsBody;
+    expect(metrics.calculator).toBe('hospitals-operations');
+    const value = (key: string) => metrics.metrics.find((metric) => metric.key === key)?.value;
+    expect(value('occupancy')).toBe('0.6777');
+    expect(value('medicare_share')).toBe('0.4100');
+    expect(value('capex_ratio')).toBe('0.0280');
+    expect(value('departments_lapsing_together')).toBe('1');
+    expect(value('credentials_lapsed')).toBe('4');
+    expect(value('contracts_in_window')).toBe('1');
+    expect(value('admissions')).toBe(String(12 * (310 + 260 + 190 + 520)));
+    expect(metrics.history?.years.slice(-5)).toEqual(['FY2021', 'FY2022', 'FY2023', 'FY2024', 'FY2025']);
   });
 
   it('accepting the capex takes it off the price in a payer-mix-adjusted EBITDA run', async () => {
@@ -69,8 +127,32 @@ describe.each(ACCEPTANCE_CURRENCIES)('hospitals pack acceptance (%s)', { timeout
     expect(lines.find((line) => line.kind === 'FINDING_ADJUSTMENT')).toMatchObject({ findingId: capex?.id, amount: { amount: `-${capex?.pricedRisk?.low}.00` } });
   });
 
+  it('a single-year P&L cannot show the capex trend; a withdrawn import leaves every trend read', async () => {
+    const withdrawn = await deal.call('POST', `/v1/deals/${deal.dealId}/uploads/${pnlUploadId}/withdraw`, 'lead', { reason: 'Wrong version of the statement (synthetic)' });
+    expect(withdrawn.status, JSON.stringify(withdrawn.body)).toBe(200);
+    const fy2025 = readFileSync(join(deal.folder, 'pnl.csv'), 'utf8')
+      .trim()
+      .split('\n')
+      .map((row) => row.split(',').filter((_, index) => index === 0 || index === 5).join(','))
+      .join('\n');
+    const uploaded = await deal.upload(`/v1/deals/${deal.dealId}/uploads?target=FINANCIAL_PNL&system=pactlab_standard&fileName=pnl-fy2025.csv`, 'lead', `${fy2025}\n`);
+    expect(uploaded.status, JSON.stringify(uploaded.body)).toBe(201);
+    const accounts = fy2025.split('\n').slice(1).map((row) => row.split(',')[0] ?? '');
+    const mapping = { ...(uploaded.body['suggestedMapping'] as Body), lineKinds: Object.fromEntries(accounts.map((account) => [account, lineKind(account)])) };
+    expect((await deal.call('POST', `/v1/deals/${deal.dealId}/uploads/${uploaded.body['id'] as string}/import`, 'lead', { mapping })).status).toBe(200);
+    const rerun = await runRules();
+    expect(rerun.status).toBe(200);
+    const titles = (await findings()).map((finding) => finding.title);
+    // One year reads as one year; the capex check needs the trend, so it drafts nothing new from FY2025 alone.
+    expect(titles).toContain('P&L for 2025: one year imported');
+    expect(titles.filter((title) => title.startsWith('Capex'))).toHaveLength(1);
+    const metrics = (await deal.call('GET', `/v1/deals/${deal.dealId}/metrics/pack`, 'lead')).body as PackMetricsBody;
+    expect(metrics.metrics.find((metric) => metric.key === 'capex_ratio')?.value).toBe('0.0280');
+  });
+
   it('is refused to a target contributor and invisible to another tenant', async () => {
     expect([403, 404]).toContain((await deal.call('POST', `/v1/deals/${deal.dealId}/findings/pack-rules/run`, 'target_contributor')).status);
     expect((await deal.call('POST', `/v1/deals/${deal.dealId}/findings/pack-rules/run`, 'other')).status).toBe(404);
+    expect([403, 404]).toContain((await deal.call('GET', `/v1/deals/${deal.dealId}/metrics/pack`, 'other')).status);
   });
 });

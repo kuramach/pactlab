@@ -332,6 +332,14 @@ export const SITE_CORPUS: readonly HelpArticle[] = [
     "locale": "en"
   },
   {
+    "id": "industry:hospitals",
+    "kind": "INDUSTRY",
+    "title": "Hospitals in Pactlab",
+    "url": "https://pactlab.ai/industries/hospitals/",
+    "text": "Hospital acquisitions, where the cost reports, the payer contracts, the medical staff and the plant decide what the earnings are worth.\nAcquisitions of acute-care and specialty hospitals by health systems and healthcare private equity. Extends the healthcare services pack.\nDo the filed cost reports support the occupancy and payer mix in the deck?\nWhich payer agreements end within a year of closing, and on what rate basis?\nAre the medical staff’s licences and privileges current, department by department?\nHas capex kept pace with the plant the deck describes?\nCost-report reconciliation: Occupancy and the Medicare and Medicaid shares of patient days from the filed cost reports, against the deck; total costs against the P&L.\nPlant and capex trend: Capex against revenue across every imported year, beside the facility condition assessment and what the deck claims about the plant.\nQuality claims, mapped to the reports: Published star ratings and safety grades the deck claims, checked against the reporting documents supplied.\nEvidence: Filed cost reports: beds, patient days by programme and total costs, by fiscal year; Payer mix and the payer contract register, with each agreement’s rate basis and end date; Medical-staff roster and the register of licences and clinical privileges (from the healthcare pack); Census by service line and capital expenditure by year; The deck, accreditation record, facility condition assessment, quality reports and the P&L by year\nFindings: Cost-report occupancy or payer mix contradicting the deck; A material payer agreement ending within a year of closing; A department whose physicians’ privileges lapse together; Capex falling across the P&L years against a modern-plant claim; Payer concentration, accreditation that does not transfer and key-physician dependence\nValuation: Payer-mix-adjusted EBITDA; Committed regulatory capex and deferred plant work as remediation on the purchase-price bridge",
+    "locale": "en"
+  },
+  {
     "id": "industry:venture-raise",
     "kind": "INDUSTRY",
     "title": "Venture Raise in Pactlab",

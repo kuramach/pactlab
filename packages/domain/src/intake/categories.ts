@@ -110,8 +110,15 @@ export type ServicesCategory = (typeof SERVICES_CATEGORIES)[number];
  */
 export const TELECOM_CATEGORIES = ['RIGHTS_AGREEMENT'] as const;
 export type TelecomCategory = (typeof TELECOM_CATEGORIES)[number];
+/**
+ * A hospital (T-162) is diligenced from its filed cost reports (statistics and costs, reconciled against the
+ * deck and the financial statements), property or facility condition assessments (the plant's state beside
+ * its capex trend) and the quality reporting its published ratings come from. Absence is shown as absence.
+ */
+export const HOSPITALS_CATEGORIES = ['COST_REPORT', 'PROPERTY_CONDITION_REPORT', 'QUALITY_REPORT'] as const;
+export type HospitalsCategory = (typeof HOSPITALS_CATEGORIES)[number];
 /** Every category a pack may add on top of the common ones. */
-export type PackDocumentCategory = OfferingCategory | MusicCategory | EnergyCategory | SpvCategory | FintechCategory | HealthcareCategory | PharmaCategory | EcommerceCategory | ServicesCategory | TelecomCategory;
+export type PackDocumentCategory = OfferingCategory | MusicCategory | EnergyCategory | SpvCategory | FintechCategory | HealthcareCategory | PharmaCategory | EcommerceCategory | ServicesCategory | TelecomCategory | HospitalsCategory;
 
 export type DocumentCategory = (typeof DOCUMENT_CATEGORIES)[number] | PackDocumentCategory;
 
@@ -468,6 +475,28 @@ const DOCUMENT_DEFINITIONS: Readonly<Record<DocumentCategory, CategoryDefinition
     id: 'RESTRICTIVE_COVENANTS',
     label: 'Non-compete and retention schedule',
     description: 'A schedule of the clinicians, by pseudonymous provider reference, bound by a non-compete, non-solicitation or retention agreement, with each term. Not the agreements\' pay terms.',
+    route: { kind: 'FILE' },
+    people: false,
+  },
+  // Hospital documents (T-162): kept and listed; the hospitals checks read their sentences.
+  COST_REPORT: {
+    id: 'COST_REPORT',
+    label: 'Filed cost report',
+    description: 'A hospital cost report as filed with the payer programme (e.g. the Medicare cost report): beds, patient days by programme, costs and revenue for a fiscal year.',
+    route: { kind: 'FILE' },
+    people: false,
+  },
+  PROPERTY_CONDITION_REPORT: {
+    id: 'PROPERTY_CONDITION_REPORT',
+    label: 'Property or facility condition assessment',
+    description: 'An engineer’s property, facility or building condition assessment of the hospital plant: systems at the end of their life, deferred maintenance and its estimated cost.',
+    route: { kind: 'FILE' },
+    people: false,
+  },
+  QUALITY_REPORT: {
+    id: 'QUALITY_REPORT',
+    label: 'Quality reporting',
+    description: 'A published quality report or rating extract for the hospital, such as a star-rating report or a safety-grade report, with its measures and date.',
     route: { kind: 'FILE' },
     people: false,
   },
