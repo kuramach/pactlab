@@ -25,3 +25,9 @@ German (pilot surface) is machine-made and awaiting this review.
 
 ## Switching languages
 Settings → Language. The choice is stored on the device (`pactlab_locale` cookie) and applies on the next page; it changes nothing the API does. Following the person across devices and an organization default arrive with T-172b.
+
+## Emails (T-174, ADR 0067)
+- **Where:** `apps/api/src/email-login/email-catalog.ts`, one typed catalog per language (`satisfies EmailCopy`, so a missing string fails typecheck). The branded layout (logo, colours, footer tagline and note) is shared; its words are in the catalog's `layout`.
+- **Covered:** sign-in and sign-up codes, pact invitations, "act now" notification emails and the digest, in en, de, fr and ja. Other emails (listing interest, passkeys, demo invites, operator emails, contact verification) are English until they move.
+- **Which language:** the first offered of the person's choice, the organization's default and the page the request came from (`resolveEmailLocale`); today only the sign-in and sign-up pages' language is sent (`locale` on the start request), since no language is stored on the person or organization yet (T-172b).
+- **Review:** the German, French and Japanese emails are machine-made and need the same native review as the app; the tagline uses the site's renderings, which await Kumar's approval (`docs/runbooks/site-translations.md`).

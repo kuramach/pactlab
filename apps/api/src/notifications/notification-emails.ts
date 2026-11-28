@@ -1,4 +1,5 @@
-import { NOTIFICATION_EVENTS, type NotificationEventType } from '@pactlab/domain';
+import type { NotificationEventType } from '@pactlab/domain';
+import { EMAIL_COPY, type EmailLocale } from '../email-login/email-catalog';
 import type { OutboundEmail } from '../email-login/email-sender';
 
 /** What one notification email names: the pact, the event in plain words, and the link back. Never more (T-145 content rules). */
@@ -11,47 +12,53 @@ export interface EmailItem {
 /** Items listed in one digest; the rest are counted and wait in the inbox. */
 export const DIGEST_LIST_LIMIT = 20;
 
-const reason = (origin: string) => `You are on this pact in Pactlab. Choose what you are emailed about in Settings → Notifications: ${origin}/settings/notifications`;
+const settings = (origin: string) => `${origin}/settings/notifications`;
 
-/** "Act now": one email per event, at once. */
-export function immediateEmail(to: string, item: EmailItem, origin: string): OutboundEmail {
-  const title = NOTIFICATION_EVENTS[item.type].title;
+/** "Act now": one email per event, at once, in the recipient's language (T-174). */
+export function immediateEmail(to: string, item: EmailItem, origin: string, locale: EmailLocale = 'en'): OutboundEmail {
+  const copy = EMAIL_COPY[locale].notification;
+  const title = copy.titles[item.type];
   const url = `${origin}${item.link}`;
+  const reason = copy.reason(settings(origin));
   return {
     to,
     subject: `${title} — ${item.dealName}`,
-    text: [`${title}, on ${item.dealName}.`, '', `Open it in Pactlab: ${url}`, '', reason(origin), ''].join('\n'),
-    content: { heading: title, paragraphs: [`On ${item.dealName}.`], action: { label: 'Open in Pactlab', url }, reason: reason(origin) },
+    locale,
+    text: [`${title}. ${copy.onPact(item.dealName)}`, '', copy.openText(url), '', reason, ''].join('\n'),
+    content: { heading: title, paragraphs: [copy.onPact(item.dealName)], action: { label: copy.open, url }, reason },
   };
 }
 
 /** "For your information": one digest per person per slot, sent only when there is something new. */
-export function digestEmail(to: string, items: readonly EmailItem[], origin: string): OutboundEmail {
+export function digestEmail(to: string, items: readonly EmailItem[], origin: string, locale: EmailLocale = 'en'): OutboundEmail {
+  const copy = EMAIL_COPY[locale];
   const listed = items.slice(0, DIGEST_LIST_LIMIT);
   const more = items.length - listed.length;
-  const lines = listed.map((item) => `${item.dealName}: ${NOTIFICATION_EVENTS[item.type].title}`);
+  const title = (item: EmailItem) => copy.notification.titles[item.type];
+  const lines = listed.map((item) => `${item.dealName}: ${title(item)}`);
   const inbox = `${origin}/notifications`;
-  const count = items.length === 1 ? '1 update' : `${items.length} updates`;
+  const reason = copy.notification.reason(settings(origin));
   return {
     to,
-    subject: `Your Pactlab digest: ${count}`,
+    subject: copy.digest.subject(items.length),
+    locale,
     text: [
-      `What changed on your pacts since your last digest (${count}):`,
+      copy.digest.intro(items.length),
       '',
-      ...listed.map((item) => `- ${item.dealName}: ${NOTIFICATION_EVENTS[item.type].title}\n  ${origin}${item.link}`),
-      ...(more > 0 ? ['', `And ${more} more in Pactlab.`] : []),
+      ...listed.map((item) => `- ${item.dealName}: ${title(item)}\n  ${origin}${item.link}`),
+      ...(more > 0 ? ['', copy.digest.more(more)] : []),
       '',
-      `See everything in Pactlab: ${inbox}`,
+      copy.digest.seeAll(inbox),
       '',
-      reason(origin),
+      reason,
       '',
     ].join('\n'),
     content: {
-      heading: 'Your Pactlab digest',
-      paragraphs: [`What changed on your pacts since your last digest (${count}).`, ...(more > 0 ? [`And ${more} more in Pactlab.`] : [])],
-      list: { heading: 'What changed', items: lines },
-      action: { label: 'Open your notifications', url: inbox },
-      reason: reason(origin),
+      heading: copy.digest.heading,
+      paragraphs: [copy.digest.intro(items.length), ...(more > 0 ? [copy.digest.more(more)] : [])],
+      list: { heading: copy.digest.listHeading, items: lines },
+      action: { label: copy.digest.open, url: inbox },
+      reason,
     },
   };
 }

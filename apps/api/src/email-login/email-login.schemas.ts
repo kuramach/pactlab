@@ -2,7 +2,13 @@ import { z } from 'zod';
 
 const email = z.string().trim().max(254).pipe(z.email());
 
-export const startBodySchema = z.strictObject({ email });
+/**
+ * The language of the page the request came from (T-174): the code email is written in it. A BCP 47
+ * tag; anything Pactlab does not write is read as English.
+ */
+export const requestLocaleSchema = z.string().trim().max(35).regex(/^[A-Za-z]{2,3}([-_][A-Za-z0-9]{1,8})*$/).optional();
+
+export const startBodySchema = z.strictObject({ email, locale: requestLocaleSchema });
 /** "Stay signed in on this device" (T-112): 8 hours unless the person trusts the device. */
 export const trustSchema = z.enum(['8h', '1d', '1w', '30d']).default('8h');
 export type TrustChoice = z.infer<typeof trustSchema>;

@@ -4,6 +4,7 @@ import { invitationLinks, signup, type PrismaClient } from '@pactlab/db';
 import type { Logger } from '@pactlab/observability';
 import { keyedHash, normalizeEmail } from '../email-login/client-address';
 import type { EmailSender, OutboundEmail } from '../email-login/email-sender';
+import { resolveEmailLocale } from '../email-login/email-catalog';
 import { emails } from '../email-login/emails';
 import { hashToken } from '../invitations/invitations.service';
 import type { PactlabTokens } from '../auth/pactlab-token';
@@ -88,7 +89,7 @@ export class SignupService {
       codeHash: this.codeHash(email, code),
       ipHash: keyedHash(this.deps.hashSecret, `ip:${clientAddress}`),
     });
-    if (begun.kind === 'code') this.deliver(emails.signupCode(email, code, CODE_TTL_MINUTES), 'signup-code');
+    if (begun.kind === 'code') this.deliver(emails.signupCode(email, code, CODE_TTL_MINUTES, resolveEmailLocale(body.locale)), 'signup-code');
     if (begun.kind === 'existing-user') this.deliver(emails.signupExistingAccount(email, this.deps.loginUrl), 'signup-existing');
   }
 

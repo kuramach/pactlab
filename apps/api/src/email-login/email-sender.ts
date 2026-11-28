@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
+import type { EmailLocale } from './email-catalog';
 
 /**
  * What a message says, for its branded HTML version (BrandedEmailSender). The plain
@@ -39,6 +40,8 @@ export interface OutboundEmail {
   readonly html?: string;
   readonly content?: EmailContent;
   readonly brand?: EmailBrand;
+  /** The recipient's language (T-174): the branded HTML's chrome and `<html lang>`. English when absent. */
+  readonly locale?: EmailLocale;
 }
 
 /** Delivery port for sign-in, sign-up and operator emails. */

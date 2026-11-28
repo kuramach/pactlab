@@ -115,3 +115,14 @@ Each evaluation records the prompt hashes it ran against. When prompts change, r
 - **The run log** is attached to each run as the `scorecard-run` artifact, kept 30 days.
 - **CI doesn't start on its own:** GitHub doesn't run CI for PRs opened by the workflow token. To run the checks, use **Update branch** on the PR (or push to it).
 - **Sources the run can't reach** (Bedrock agents fetch pages; they can't run open-ended web searches) are named in the PR. To add a new board, add it to the doc's Sources line first.
+
+## Languages each serving model is evaluated in (T-174, ADR 0067)
+An AI job whose output a person reads may ask for a target language (`GatewayRequest.outputLanguage`: en, de, fr, ja). The gateway writes in it only on a model evaluated in that language; otherwise it writes in English and the run says so (`outputLanguage.fallback`, with a label for the reader). An evaluation passed in English never blesses another language.
+
+| Serving model | Evaluated in |
+|---|---|
+| Every model in the catalog today (Claude on Bedrock and the Anthropic API, OpenAI, Google) | English only: the golden set and injection probes are English |
+
+- **Adding a language for a model:** run the evaluation suite with a translated golden set and injection probes in that language against the model; when it passes, add the model ID and language to `MODEL_LANGUAGE_EVALUATIONS` (`packages/ai/src/languages.ts`) and a row here, in the same PR, naming the run.
+- **Withdrawing one:** remove the entry; runs fall back to English, labelled, from the next request.
+- **Not yet stored:** the run's language is on the in-memory run record only. Storing it on `ai_runs` needs a column (T-174b).
