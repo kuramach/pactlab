@@ -69,7 +69,7 @@ import { SpvModule } from './spv/spv.module';
 import { BrandModule } from './brand/brand.module';
 import { FeatureCardsModule } from './feature-cards/feature-cards.module';
 import { SupportChatModule } from './support-chat/support-chat.module';
-import { EmailFeatureRequestIntake, type FeatureRequestIntake } from './support-chat/feature-request-intake';
+import { ProposalFeatureRequestIntake, type FeatureRequestIntake } from './support-chat/feature-request-intake';
 import { EmailEventsModule } from './email-events/email-events.module';
 import type { SnsVerifier } from './email-events/sns';
 import { HttpsWebFetcher, type WebFetcher } from './common/safe-fetch';
@@ -190,9 +190,11 @@ export interface AppDependencies {
   contacts?: { identityEmails?: IdentityEmailSource | null; telegram?: TelegramBot | null; whatsapp?: WhatsAppSender | null; slack?: SlackApp | null; teams?: TeamsBot | null; push?: WebPushSender | null };
   /**
    * Product-help chat (T-175): where handed-off questions and confirmed feature requests go. Omitted: no team
-   * address, so the panel offers the contact address instead; `featureIntake` defaults to emailing the team.
+   * address, so the panel offers the contact address instead; `featureIntake` defaults to the proposal store (T-176).
    */
   supportChat?: { teamEmail: string | null; featureIntake?: FeatureRequestIntake };
+  /** Feature-request triage (T-176): the `owner/repo` an approved request's task issue opens in. Omitted: no link is offered. */
+  featureRequests?: { issueRepository: string | null };
   /** Pack and finding-rule registries. Omitted: the domain registries (tests inject a test-only rule). */
   packs?: PackRegistry;
 }
@@ -331,6 +333,7 @@ export class AppModule {
           appVersion: deps.appVersion ?? process.env['npm_package_version'] ?? '0.0.0',
           environment: deps.environment ?? 'local',
           linkSealSecret: deps.emailLogin?.tokenSecret ?? null,
+          issueRepository: deps.featureRequests?.issueRepository ?? null,
         }, {
           source: deps.hostingCost?.source ?? null,
           power: deps.hostingCost?.power ?? null,
@@ -388,9 +391,8 @@ export class AppModule {
           gateway: deps.documents?.gateway ?? new NotConfiguredClaudeGateway(),
           emailSender: deps.emailLogin?.emailSender ?? null,
           teamEmail: deps.supportChat?.teamEmail ?? null,
-          featureIntake:
-            deps.supportChat?.featureIntake ??
-            (deps.emailLogin?.emailSender && deps.supportChat?.teamEmail ? new EmailFeatureRequestIntake(deps.emailLogin.emailSender, deps.supportChat.teamEmail) : null),
+          // A confirmed feature request is filed as a proposal for triage (T-176); the email route stays for a deployment with no store.
+          featureIntake: deps.supportChat?.featureIntake ?? new ProposalFeatureRequestIntake(deps.prisma),
         }),
         NotificationsModule.register({
           emailSender: deps.emailLogin?.emailSender ?? null,

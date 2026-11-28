@@ -1,4 +1,4 @@
-import type { BugReportSummaryView } from '@pactlab/contracts';
+import type { BugReportSummaryView, FeatureRequestSummaryView } from '@pactlab/contracts';
 import { Badge, Card, CardContent, Button } from '@pactlab/ui';
 import Link from 'next/link';
 import { apiGet } from '../(app)/deals/_lib/api';
@@ -12,7 +12,8 @@ import { HostingCost } from './hosting-cost';
 import { compPact, createPromoCode, deactivatePromoCode, decideOrganization, resyncBilling, setMemberStatus, setOrganizationFlags, setOrganizationStatus, setOrganizationMcp } from './actions';
 import { SourceStatusTable, type SourceStatus } from './source-status';
 import type { AdminBillingAccountView, PromoCodeView } from '@pactlab/contracts';
-import { COMPANY_TYPES, COMPANY_TYPE_LABELS, formatNumber } from '@pactlab/domain';
+import { COMPANY_TYPES, COMPANY_TYPE_LABELS, FEATURE_REQUEST_STATUSES, formatNumber } from '@pactlab/domain';
+import { getI18n } from '../../lib/i18n/server';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,6 +24,7 @@ const TABS = [
   ['health', 'Usage & health'],
   ['audit', 'Audit log'],
   ['bugs', 'Bug inbox'],
+  ['features', 'Feature requests'],
   ['promo', 'Promo codes'],
   ['demos', 'Demos'],
   ['cost', 'Hosting cost'],
@@ -128,6 +130,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
           organizationQuery={typeof search['aiq'] === 'string' ? search['aiq'].trim().slice(0, 120) : ''}
         />
       ) : null}
+      {tab === 'features' ? <FeatureRequests status={typeof search['status'] === 'string' ? search['status'] : ''} q={q} search={search} /> : null}
       {tab === 'bugs' ? <Bugs status={typeof search['status'] === 'string' ? search['status'] : ''} severity={typeof search['severity'] === 'string' ? search['severity'] : ''} search={search} /> : null}
     </>
   );
@@ -398,6 +401,48 @@ async function Bugs({ status, severity, search }: { status: string; severity: st
             </tbody>
           </table>
           <ConsolePager label="Bug pages" page={result.data} search={search} />
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+/** Feature requests from the help chat (T-176): who asked, how many, where from, and where each stands. */
+async function FeatureRequests({ status, q, search }: { status: string; q: string; search: Search }) {
+  const { m, fill } = await getI18n();
+  const t = m.features.admin;
+  const result = await apiGet<Page<FeatureRequestSummaryView>>(`/v1/admin/feature-requests?${listQuery(search, { status, q })}`);
+  if (result.kind !== 'ok') return <ApiState result={result} />;
+  return (
+    <div className="flex flex-col gap-3">
+      <form method="get" className="flex flex-wrap gap-2 text-sm">
+        <input type="hidden" name="tab" value="features" />
+        <input name="q" defaultValue={q} placeholder={t.search} aria-label={t.searchLabel} className="rounded-md border border-border px-2 py-1.5" />
+        <select name="status" defaultValue={status} aria-label={t.status} className="rounded-md border border-border px-2 py-1.5">
+          <option value="">{t.anyStatus}</option>
+          {FEATURE_REQUEST_STATUSES.map((value) => <option key={value} value={value}>{m.features.status[value].label}</option>)}
+        </select>
+        <Button variant="outline" size="sm" type="submit">{t.filter}</Button>
+      </form>
+      <Card section="admin-bugs">
+        <CardContent className="p-0">
+          <table className="w-full text-left text-sm" aria-label={t.table}>
+            <thead className="text-xs uppercase text-muted-foreground"><tr><th className={cell}>{t.reference}</th><th className={cell}>{t.request}</th><th className={cell}>{t.source}</th><th className={cell}>{t.supporters}</th><th className={cell}>{t.status}</th><th className={cell}>{t.updated}</th></tr></thead>
+            <tbody className="divide-y divide-border">
+              {result.data.items.map((request) => (
+                <tr key={request.id}>
+                  <td className={`${cell} font-mono text-xs`}><Link href={`/admin/feature-requests/${request.id}`} className="text-indigo-ink underline">{request.reference}</Link></td>
+                  <td className={cell}>{request.title}{request.hasEarlierDecision ? <span className="block text-xs text-amber-800">{t.askedBefore}</span> : null}{request.declineReason ? <span className="block text-xs text-muted-foreground">{request.declineReason}</span> : null}</td>
+                  <td className={cell}>{request.surface === 'SITE' ? t.site : t.app} · {request.page}</td>
+                  <td className={cell}>{request.supporters}{request.suggested > 0 ? <span className="text-xs text-muted-foreground"> {fill(t.toConfirm, { count: request.suggested })}</span> : null}</td>
+                  <td className={cell}>{m.features.status[request.status].label}{request.taskId ? <span className="block font-mono text-xs">{request.taskId}</span> : null}</td>
+                  <td className={cell}>{request.updatedAt.slice(0, 10)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {result.data.items.length === 0 ? <p className="p-4 text-sm text-muted-foreground">{t.empty}</p> : null}
+          <ConsolePager label={t.pages} page={result.data} search={search} />
         </CardContent>
       </Card>
     </div>

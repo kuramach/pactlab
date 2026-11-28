@@ -66,7 +66,19 @@ function Handoff({ reply, question, surface, labels, onSend }: { reply: SupportC
   const [declined, setDeclined] = useState(false);
   const [pending, start] = useTransition();
   if (declined) return null;
-  if (result?.kind === 'sent') return <p className="text-xs font-semibold text-emerald-800">{HANDOFF_TEXT(labels, result, feature)}</p>;
+  if (result?.kind === 'sent') {
+    return (
+      <div className="flex flex-col gap-1">
+        <p className="text-xs font-semibold text-emerald-800">{HANDOFF_TEXT(labels, result, feature)}</p>
+        {result.declinedBefore ? (
+          <p className="text-xs text-muted-foreground">
+            {labels.declinedBefore}
+            {result.declinedBefore.reason ? ` ${result.declinedBefore.reason}` : ''}
+          </p>
+        ) : null}
+      </div>
+    );
+  }
   const submit = (event: FormEvent) => {
     event.preventDefault();
     start(async () => setResult(await onSend(feature ? 'FEATURE_REQUEST' : 'QUESTION', feature ? (reply.featureRequest?.summary ?? question) : question, email.trim() || undefined)));

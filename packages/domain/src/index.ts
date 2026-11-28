@@ -11,6 +11,7 @@ export * from './tenancy';
 export * from './transaction-type';
 export * from './deal-phases';
 export * from './bugs';
+export * from './feature-requests';
 export * from './foresight';
 export * from './foresight-metrics';
 export * from './regulatory/registry';

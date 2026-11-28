@@ -19,6 +19,7 @@ export interface HelpLabels {
   logIt: string;
   noThanks: string;
   logged: string;
+  declinedBefore: string;
   failed: string;
   unavailable: string;
   limited: string;
@@ -42,6 +43,7 @@ export const HELP_LABELS: Readonly<Record<SupportChatLocale, HelpLabels>> = {
     logIt: 'Yes, log it',
     noThanks: 'No, thanks',
     logged: 'Logged for the team, with this conversation. Nothing is promised about whether or when it is built.',
+    declinedBefore: 'The team looked at something like this before and decided not to build it.',
     failed: 'The help assistant could not be reached. Try again in a moment.',
     unavailable: 'This can’t be passed on from here right now.',
     limited: 'Too many messages from here; try again in an hour.',
@@ -63,6 +65,7 @@ export const HELP_LABELS: Readonly<Record<SupportChatLocale, HelpLabels>> = {
     logIt: 'Ja, festhalten',
     noThanks: 'Nein, danke',
     logged: 'Mit diesem Gespräch für das Team festgehalten. Ob oder wann es umgesetzt wird, ist nicht zugesagt.',
+    declinedBefore: 'Das Team hat sich etwas Ähnliches schon einmal angesehen und beschlossen, es nicht umzusetzen.',
     failed: 'Der Hilfe-Assistent ist nicht erreichbar. Bitte versuchen Sie es gleich noch einmal.',
     unavailable: 'Das kann von hier aus gerade nicht weitergeleitet werden.',
     limited: 'Zu viele Nachrichten von hier; versuchen Sie es in einer Stunde erneut.',
@@ -84,6 +87,7 @@ export const HELP_LABELS: Readonly<Record<SupportChatLocale, HelpLabels>> = {
     logIt: 'Oui, transmettre',
     noThanks: 'Non, merci',
     logged: 'Transmis à l’équipe avec cette conversation. Rien n’est promis quant à sa réalisation ni à sa date.',
+    declinedBefore: 'L’équipe a déjà étudié une demande similaire et a décidé de ne pas la réaliser.',
     failed: 'L’assistant d’aide est injoignable. Réessayez dans un instant.',
     unavailable: 'Ce message ne peut pas être transmis d’ici pour le moment.',
     limited: 'Trop de messages depuis ici ; réessayez dans une heure.',
@@ -105,6 +109,7 @@ export const HELP_LABELS: Readonly<Record<SupportChatLocale, HelpLabels>> = {
     logIt: 'はい、記録してください',
     noThanks: 'いいえ',
     logged: 'この会話とともにチームに記録しました。実現の有無や時期はお約束できません。',
+    declinedBefore: 'チームは以前に似たご要望を検討し、実現しないと決めました。',
     failed: 'ヘルプアシスタントに接続できませんでした。少し待ってから再度お試しください。',
     unavailable: '現在、ここからはお送りできません。',
     limited: 'ここからのメッセージが多すぎます。1 時間後に再度お試しください。',

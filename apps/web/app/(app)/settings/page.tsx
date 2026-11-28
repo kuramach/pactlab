@@ -1,5 +1,5 @@
 import { Badge, buttonVariants, Card, CardContent, CardDescription, CardHeader, CardTitle, EmptyState, PageHeader, Button } from '@pactlab/ui';
-import type { MyBugReportView } from '@pactlab/contracts';
+import type { MyBugReportView, MyFeatureRequestView, Page } from '@pactlab/contracts';
 import { ArrowRight, Bug, LogOut } from 'lucide-react';
 import Link from 'next/link';
 import { getSessionContext } from '../../../lib/session';
@@ -167,6 +167,27 @@ async function BugsSubmittedCard() {
   );
 }
 
+/** Feature requests made in the help chat (T-176): one line and a link; the list is its own page. */
+async function FeatureRequestsCard() {
+  const { m, fill } = await getI18n();
+  const t = m.features.mine;
+  const result = await apiGet<Page<MyFeatureRequestView>>('/v1/feature-requests/mine?limit=1');
+  const total = result.kind === 'ok' ? result.data.total : 0;
+  return (
+    <Card section="bugs">
+      <CardHeader className="flex flex-row items-start justify-between gap-3">
+        <div className="flex flex-col gap-1.5">
+          <CardTitle>{t.title}</CardTitle>
+          <CardDescription>{total === 0 ? t.card.none : fill(t.card.some, { count: total })}</CardDescription>
+        </div>
+        <Link href="/settings/feature-requests" className={buttonVariants({ variant: 'outline', size: 'sm' })}>
+          {t.card.seeAll} <ArrowRight aria-hidden className="h-4 w-4" />
+        </Link>
+      </CardHeader>
+    </Card>
+  );
+}
+
 /** Which release of Pactlab this is (T-100): the version tag and the build. */
 async function AboutCard() {
   const release = await currentRelease();
@@ -258,6 +279,8 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
       {organization ? <BillingCard outcome={typeof billingOutcome === 'string' ? billingOutcome : undefined} /> : null}
 
       <BugsSubmittedCard />
+
+      <FeatureRequestsCard />
 
       {organization ? <DealStyleCard /> : null}
 

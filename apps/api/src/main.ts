@@ -157,6 +157,7 @@ const app = await createApp(
     // Sign-in codes: Amazon SES when deployed (EMAIL_PROVIDER=ses), a local mail folder on a laptop.
     // Product-help chat (T-175): handed-off questions go here. (Read directly until packages/config lists it.)
     supportChat: { teamEmail: process.env['SUPPORT_TEAM_EMAIL']?.trim() || config.OPERATOR_EMAIL || null },
+    featureRequests: { issueRepository: /^[\w.-]+\/[\w.-]+$/.test(process.env['TASK_ISSUE_REPOSITORY'] ?? '') ? (process.env['TASK_ISSUE_REPOSITORY'] ?? null) : null },
     signup: {
       requiresApproval: config.SIGNUP_REQUIRES_APPROVAL,
       operatorEmail: config.OPERATOR_EMAIL ?? null,

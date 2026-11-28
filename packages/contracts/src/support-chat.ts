@@ -60,6 +60,10 @@ export type SupportChatHandoff = z.infer<typeof supportChatHandoffSchema>;
 
 export interface SupportChatHandoffView {
   status: 'SENT';
+  /** A feature request that was already decided: what the team said, so the visitor is not left guessing (T-176). */
+  earlierDecision?: { status: 'DECLINED'; reason: string | null };
+  /** True when the request was grouped under one already filed rather than starting a new proposal. */
+  groupedWithExisting?: boolean;
 }
 
 /**

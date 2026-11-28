@@ -35,6 +35,7 @@ of what a pilot partner gets, which controls protect them, and how we roll back.
 | [notifications.md](notifications.md)                                 | Someone was not told of a pact change, or emails failed |
 | [chat-apps.md](chat-apps.md)                                         | Setting up Slack or Teams alerts, or a member gets none |
 | [log-triage.md](log-triage.md)                                       | A triage digest (live, dev, qa, stage), an approved issue, the dev Bedrock flip, or pausing triage |
+| [feature-requests.md](feature-requests.md)                           | A feature request confirmed in the help chat: triage, approve into a task, decline with a reason |
 | [currencies.md](currencies.md)                                       | Adding a currency, or an import refused for its currency |
 
 ## Conventions

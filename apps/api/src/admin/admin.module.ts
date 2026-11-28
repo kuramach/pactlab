@@ -4,6 +4,8 @@ import { ADMIN_SETTINGS, AdminService, type AdminSettings } from './admin.servic
 import type { AiModelsRuntime } from '../ai/ai-provider';
 import { AiModelsController } from './ai-models/ai-models.controller';
 import { AI_MODELS, AiModelsService } from './ai-models/ai-models.service';
+import { FeatureRequestsAdminController, FeatureRequestsMineController } from './feature-requests.controller';
+import { FeatureRequestsService } from './feature-requests.service';
 import { HostingCostController } from './cost/hosting-cost.controller';
 import { HOSTING_COST_SETTINGS, HostingCostService, type HostingCostSettings } from './cost/hosting-cost.service';
 
@@ -13,8 +15,8 @@ export class AdminModule {
   static register(settings: AdminSettings, cost: HostingCostSettings, models: AiModelsRuntime | null = null): DynamicModule {
     return {
       module: AdminModule,
-      controllers: [AdminController, BugReportsController, OrganizationFlagsController, HostingCostController, AiModelsController],
-      providers: [AdminService, { provide: ADMIN_SETTINGS, useValue: settings }, HostingCostService, { provide: HOSTING_COST_SETTINGS, useValue: cost }, AiModelsService, { provide: AI_MODELS, useValue: models }],
+      controllers: [AdminController, BugReportsController, OrganizationFlagsController, HostingCostController, AiModelsController, FeatureRequestsAdminController, FeatureRequestsMineController],
+      providers: [AdminService, FeatureRequestsService, { provide: ADMIN_SETTINGS, useValue: settings }, HostingCostService, { provide: HOSTING_COST_SETTINGS, useValue: cost }, AiModelsService, { provide: AI_MODELS, useValue: models }],
       exports: [AdminService],
     };
   }

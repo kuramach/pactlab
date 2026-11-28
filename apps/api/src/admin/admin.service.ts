@@ -16,6 +16,8 @@ export interface AdminSettings {
   readonly environment: string;
   /** The API's token secret, to seal shared-demo links so they can be opened again; null keeps them show-once. */
   readonly linkSealSecret: string | null;
+  /** The `owner/repo` where an approved feature request's task issue is opened (T-176); null offers no link. */
+  readonly issueRepository?: string | null;
 }
 
 const summary = (row: BugListRow): BugReportSummaryView => ({

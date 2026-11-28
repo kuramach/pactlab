@@ -128,9 +128,11 @@ export class SupportChatService {
 
   private async handOff(surface: SupportSurface, handoff: SupportChatHandoff, requester: { kind: 'VISITOR'; email: string } | { kind: 'USER'; userId: string; organizationId: string; email: string | null }): Promise<SupportChatHandoffView> {
     const { emailSender, teamEmail, featureIntake } = this.deps;
+    let view: SupportChatHandoffView = { status: 'SENT' };
     if (handoff.kind === 'FEATURE_REQUEST') {
       if (!featureIntake) throw new UnprocessableEntityException({ code: 'HANDOFF_UNAVAILABLE' });
-      await featureIntake.submit({ summary: handoff.summary, surface, locale: handoff.locale, page: handoff.page, transcript: handoff.transcript, requester });
+      const filed = await featureIntake.submit({ summary: handoff.summary, surface, locale: handoff.locale, page: handoff.page, transcript: handoff.transcript, requester });
+      if (filed) view = { status: 'SENT', ...(filed.earlierDecision ? { earlierDecision: filed.earlierDecision } : {}), ...(filed.groupedWithExisting ? { groupedWithExisting: true } : {}) };
     } else {
       if (!emailSender || !teamEmail) throw new UnprocessableEntityException({ code: 'HANDOFF_UNAVAILABLE' });
       const from = requester.kind === 'VISITOR' ? `a site visitor (${requester.email})` : `a signed-in user (user ${requester.userId}, organization ${requester.organizationId}${requester.email ? `, ${requester.email}` : ''})`;
@@ -139,6 +141,6 @@ export class SupportChatService {
     }
     // Who asked stays in the email; the log carries the kind and surface only.
     this.logger.info({ event: 'support_chat.handoff', kind: handoff.kind, surface }, 'help chat handed a conversation to the team');
-    return { status: 'SENT' };
+    return view;
   }
 }
