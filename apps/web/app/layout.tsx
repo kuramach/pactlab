@@ -2,6 +2,7 @@ import { PACTLAB_TAGLINE } from '@pactlab/ui';
 import type { Metadata } from 'next';
 import { Inter, Manrope, Source_Serif_4 } from 'next/font/google';
 import type { ReactNode } from 'react';
+import { getI18n } from '../lib/i18n/server';
 import './globals.css';
 
 // Brand typeface. Self-hosted at build time by next/font; no runtime request to Google.
@@ -22,9 +23,11 @@ export const metadata: Metadata = {
   description: PACTLAB_TAGLINE,
 };
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default async function RootLayout({ children }: { children: ReactNode }) {
+  // The reader's language (T-172), so assistive technology reads German text as German.
+  const { lang } = await getI18n();
   return (
-    <html lang="en" className={`${manrope.variable} ${inter.variable} ${sourceSerif.variable}`}>
+    <html lang={lang} className={`${manrope.variable} ${inter.variable} ${sourceSerif.variable}`}>
       <body className="font-sans antialiased">{children}</body>
     </html>
   );

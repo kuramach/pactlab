@@ -1,7 +1,10 @@
-/** One-line result of the last action, carried in the `outcome` query parameter. */
-export function OutcomeBanner({ outcome, messages }: { outcome: string | undefined; messages: Readonly<Record<string, string>> }) {
+import { EN, type I18n } from '../../../../lib/i18n';
+
+/** One-line result of the last action, carried in the `outcome` query parameter; the shared outcomes come from the catalog. */
+export function OutcomeBanner({ outcome, messages, t = EN }: { outcome: string | undefined; messages: Readonly<Record<string, string>>; t?: I18n }) {
   if (!outcome) return null;
-  const text = messages[outcome] ?? COMMON[outcome];
+  const common: Readonly<Record<string, string>> = t.m.common.outcomes;
+  const text = messages[outcome] ?? common[outcome];
   if (!text) return null;
   const ok = outcome.startsWith('ok');
   return (
@@ -14,12 +17,3 @@ export function OutcomeBanner({ outcome, messages }: { outcome: string | undefin
   );
 }
 
-const COMMON: Readonly<Record<string, string>> = {
-  forbidden: 'Your role on this deal does not allow that.',
-  conflict: 'Someone changed this in the meantime. Reload and try again.',
-  invalid: 'Some details were not accepted. Check them and try again.',
-  unavailable: 'That service is not available right now.',
-  'signed-out': 'Your session ended. Log in again.',
-  'not-found': 'That item no longer exists.',
-  error: 'Something went wrong. Try again.',
-};

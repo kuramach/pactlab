@@ -1,6 +1,6 @@
 import type { FinancingView } from '@pactlab/contracts';
 import { redirect } from 'next/navigation';
-import { COMPANY_TYPE_LABELS, DEAL_PHASE_LABELS, DEAL_STAGES, formatNumber } from '@pactlab/domain';
+import { DEAL_STAGES } from '@pactlab/domain';
 import { moveStage } from './stage-actions';
 import { Badge, buttonVariants, Card, CardContent, CardHeader, CardTitle, Glossed, IconTile, Section, Stat, type Accent, Button } from '@pactlab/ui';
 import {
@@ -21,7 +21,6 @@ import {
 } from 'lucide-react';
 import { BarChart, CHART_COLORS, DonutChart } from '../../_lib/charts';
 import Link from 'next/link';
-import { formatMoney } from '../../metrics/_lib/format';
 import { metricsApi } from '../../metrics/_lib/api';
 import type { DocumentRequestView } from './documents/requests-card';
 import { PropertyMetricsCard } from '../_lib/property-metrics';
@@ -36,22 +35,21 @@ import { BENCHMARK_OUTCOMES, MultipleContext } from '../_lib/multiple-context';
 import { ANCHOR_OUTCOMES, NegotiationAnchors } from '../_lib/negotiation-anchors';
 import { OutcomeBanner } from '../_lib/outcome';
 import { SextantExplanation } from '../_lib/sextant-explanation';
-import { STAGE_LABELS } from '../_lib/labels';
 import { can, dealViewer } from '../_lib/viewer';
 import { partyLabel } from '../_lib/labels';
 import { PipelineCard, pipelineSteps } from '../_lib/pipeline';
+import { getI18n } from '../../../../lib/i18n/server';
 
 // Per-user data: never prerender.
 export const dynamic = 'force-dynamic';
 
-const number = { format: (value: number | bigint) => formatNumber(value) };
-
 const SOURCE_ICONS = { BILLING: Receipt, CODE: GitBranch, DELIVERY: ListChecks, DOCUMENTS: FileText, INDUSTRY: Factory } as const;
-const AREAS: { path: string; title: string; body: string; icon: typeof TrendingUp; accent: Accent }[] = [
-  { path: 'finances', title: 'Finances', body: 'ARR, retention and reconciliation from billing evidence.', icon: TrendingUp, accent: 'teal' },
-  { path: 'findings', title: 'Findings', body: 'Technology findings awaiting review.', icon: SearchCheck, accent: 'rose' },
-  { path: 'valuation', title: 'Valuation', body: 'Sextant scenarios, the bridge and the asking price.', icon: Compass, accent: 'indigo' },
-  { path: 'documents', title: 'Documents', body: 'Contracts and filings with exact citations.', icon: FileText, accent: 'amber' },
+/** The diligence areas; their words are in the catalog (`home.diligence`). */
+const AREAS: { path: 'finances' | 'findings' | 'valuation' | 'documents'; icon: typeof TrendingUp; accent: Accent }[] = [
+  { path: 'finances', icon: TrendingUp, accent: 'teal' },
+  { path: 'findings', icon: SearchCheck, accent: 'rose' },
+  { path: 'valuation', icon: Compass, accent: 'indigo' },
+  { path: 'documents', icon: FileText, accent: 'amber' },
 ];
 
 /** Deal overview: the parties, how far evidence collection has come, and where to go next. */
@@ -63,6 +61,8 @@ export default async function DealOverviewPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { dealId } = await params;
+  const t = await getI18n();
+  const words = t.m.home;
   const outcome = (await searchParams)['outcome'];
   // A bidder's pact is their bid (T-097).
   const role = (await dealViewer(dealId)).role;
@@ -99,7 +99,7 @@ export default async function DealOverviewPage({
     accepted: accepted.kind === 'ok' ? accepted.data.items.length : 0,
     scenarios: scenarioItems.length,
     staleScenarios: scenarioItems.filter((view) => view.stale === true).length,
-  });
+  }, t);
   const current = asking.kind === 'ok' ? asking.data.current : null;
   // Headline scenario: the approved one if there is one, else the latest that has run.
   const compared = (scenarios.kind === 'ok' ? scenarios.data.items : []).filter((view) => view.askingComparison?.comparable);
@@ -121,41 +121,36 @@ export default async function DealOverviewPage({
     <div className="flex flex-col gap-8">
       <OutcomeBanner
         outcome={typeof outcome === 'string' ? outcome : undefined}
-        messages={{
-          ...BENCHMARK_OUTCOMES,
-          ...ANCHOR_OUTCOMES,
-          'ok-stage': 'Pipeline stage updated.',
-          'stage-forbidden': 'Your role cannot move this pact along its pipeline.',
-          'stage-error': 'The stage could not be changed. Try again.',
-        }}
+        messages={{ ...BENCHMARK_OUTCOMES, ...ANCHOR_OUTCOMES, ...words.outcomes }}
+        t={t}
       />
       {deal.kind === 'ok' && can.draft(viewer.role) ? (
-        <form action={moveStage.bind(null, dealId)} className="flex flex-wrap items-end gap-3 text-sm" aria-label="Pipeline stage">
+        <form action={moveStage.bind(null, dealId)} className="flex flex-wrap items-end gap-3 text-sm" aria-label={words.stage.form}>
           <label className="flex flex-col gap-1 font-medium">
-            Pipeline stage <span className="text-xs font-normal text-muted-foreground">Phase: {DEAL_PHASE_LABELS[deal.data.phase]} · Screening → Pre-Diligence, Diligence to Signed → Diligence, Closed → Post-Close</span>
+            {words.stage.label} <span className="text-xs font-normal text-muted-foreground">{t.fill(words.stage.phase, { phase: t.m.common.phases[deal.data.phase] })}</span>
             <select name="stage" defaultValue={deal.data.stage} className="rounded-md border border-border bg-background px-2 py-1">
               {DEAL_STAGES.map((stage) => (
                 <option key={stage} value={stage}>
-                  {STAGE_LABELS[stage] ?? stage}
+                  {t.m.common.stages[stage]}
                 </option>
               ))}
             </select>
           </label>
           <Button variant="outline" size="sm" type="submit">
-            Move
+            {words.stage.move}
           </Button>
         </form>
       ) : null}
-      <PipelineCard steps={pipeline} />
+      <PipelineCard steps={pipeline} t={t} />
       {packMetrics.kind === 'ok' ? <PropertyMetricsCard dealId={dealId} report={packMetrics.data} canAsk={can.draft(viewer.role) && hasSeller} requested={requested} marketRents={marketRents} /> : null}
       {/* Certainty of close (T-117): how the buyer funds the deal, as attested; the seller's first question. */}
       {financing.kind === 'ok' && financing.data.side && financing.data.plans.some((entry) => entry.tranches.length > 0 || entry.escrow) ? (
         <Card>
           <CardContent className="flex flex-col gap-2 p-5">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="font-semibold">{financing.data.plans.length > 1 ? 'Bidders’ financing' : 'Buyer financing'}</p>
+              <p className="font-semibold">{financing.data.plans.length > 1 ? words.financing.bidders : words.financing.buyer}</p>
               <Link href={`/deals/${dealId}/financing`} className="text-sm underline underline-offset-4">
-                Open
+                {words.financing.open}
               </Link>
             </div>
             {financing.data.plans.map((entry) => (
@@ -173,30 +168,30 @@ export default async function DealOverviewPage({
             {current ? (
               <div className="flex flex-wrap items-baseline gap-x-6 gap-y-2" data-numeric>
                 <span>
-                  <span className="text-xs uppercase tracking-wide text-muted-foreground">Asking</span>
-                  <span className="ml-2 font-mono text-xl font-semibold">{formatMoney({ amount: current.amount, currency: current.currency })}</span>
+                  <span className="text-xs uppercase tracking-wide text-muted-foreground">{words.asking.asking}</span>
+                  <span className="ml-2 font-mono text-xl font-semibold">{t.money({ amount: current.amount, currency: current.currency })}</span>
                   <span className="ml-1 text-sm text-muted-foreground">{BASIS_LABELS[current.basis]}</span>
                 </span>
                 {comparison && headline ? (
                   <>
                     <span>
-                      <span className="text-xs uppercase tracking-wide text-muted-foreground">Sextant</span>
-                      <span className="ml-2 font-mono text-xl font-semibold">{formatMoney(comparison.afterRisks.value)}</span>
+                      <span className="text-xs uppercase tracking-wide text-muted-foreground">{words.asking.sextant}</span>
+                      <span className="ml-2 font-mono text-xl font-semibold">{t.money(comparison.afterRisks.value)}</span>
                       <span className="ml-1 text-sm text-muted-foreground">
-                        <Glossed text={`after accepted risks · ${headline.scenario.name}`} />
+                        <Glossed text={t.fill(words.asking.afterRisks, { scenario: headline.scenario.name })} />
                       </span>
                     </span>
                     <Badge variant={comparison.afterRisks.verdict === 'BELOW' ? 'danger' : 'calculation'}>{describeGap(comparison.afterRisks)}</Badge>
                   </>
                 ) : (
-                  <span className="text-sm text-muted-foreground">Run a Sextant scenario to test this price.</span>
+                  <span className="text-sm text-muted-foreground">{words.asking.runScenario}</span>
                 )}
               </div>
             ) : (
-              <span className="text-sm text-muted-foreground">No asking price yet. Record the seller’s price to test it in Sextant.</span>
+              <span className="text-sm text-muted-foreground">{words.asking.none}</span>
             )}
             <Link href={`/deals/${dealId}/valuation`} className={buttonVariants({ size: 'sm', variant: 'outline' })}>
-              Open valuation <ArrowRight aria-hidden className="h-4 w-4" />
+              {words.asking.openValuation} <ArrowRight aria-hidden className="h-4 w-4" />
             </Link>
           </CardContent>
         </Card>
@@ -221,12 +216,12 @@ export default async function DealOverviewPage({
       ) : null}
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <Stat label="Sources connected" value={`${connected} of ${planned.length}`} icon={<Plug />} accent="indigo" />
-        <Stat label="Evidence records" value={number.format(evidence)} hint="Every record traces back to its source" icon={<Database />} accent="teal" />
+        <Stat label={words.stats.connected} value={t.fill(words.stats.connectedValue, { connected: t.number(connected), planned: t.number(planned.length) })} icon={<Plug />} accent="indigo" />
+        <Stat label={words.stats.evidence} value={t.number(evidence)} hint={words.stats.evidenceHint} icon={<Database />} accent="teal" />
         <Stat
-          label="Sources needing attention"
-          value={failing}
-          hint={failing > 0 ? 'Last sync failed' : 'All syncs healthy'}
+          label={words.stats.attention}
+          value={t.number(failing)}
+          hint={failing > 0 ? words.stats.failed : words.stats.healthy}
           icon={<AlertTriangle />}
           accent={failing > 0 ? 'rose' : 'amber'}
         />
@@ -239,21 +234,21 @@ export default async function DealOverviewPage({
               <Compass />
             </IconTile>
             <div>
-              <CardTitle>Asking price vs Sextant</CardTitle>
+              <CardTitle>{words.chart.title}</CardTitle>
               <p className="text-sm text-muted-foreground">
-                <Glossed text={`${headline ? `${headline.scenario.name} · ` : ''}before and after accepted priced risks`} />
+                <Glossed text={headline ? t.fill(words.chart.subtitleScenario, { scenario: headline.scenario.name }) : words.chart.subtitle} />
               </p>
             </div>
           </CardHeader>
           <CardContent>
             {current && comparison ? (
               <BarChart
-                label="Asking price compared with Sextant before and after risks"
-                categories={['Asking price', 'Sextant before risks', 'Sextant after risks']}
+                label={words.chart.label}
+                categories={[words.chart.categories.asking, words.chart.categories.before, words.chart.categories.after]}
                 currency={current.currency}
                 series={[
                   {
-                    name: 'Value',
+                    name: words.chart.series,
                     values: [current.amount, comparison.beforeRisks.value.amount, comparison.afterRisks.value.amount],
                   },
                 ]}
@@ -261,7 +256,7 @@ export default async function DealOverviewPage({
               />
             ) : (
               <p className="py-10 text-center text-sm text-muted-foreground">
-                {current ? 'Run a Sextant scenario to compare it with the asking price.' : 'Record the asking price to compare it with Sextant.'}
+                {current ? words.chart.runScenario : words.chart.recordAsking}
               </p>
             )}
           </CardContent>
@@ -271,15 +266,15 @@ export default async function DealOverviewPage({
             <IconTile accent="teal">
               <Plug />
             </IconTile>
-            <CardTitle>Evidence collection</CardTitle>
+            <CardTitle>{words.collection.title}</CardTitle>
           </CardHeader>
           <CardContent>
             <DonutChart
-              label="Sources connected and still to connect"
+              label={words.collection.donut}
               centerLabel={`${connected}/${planned.length}`}
               slices={[
                 {
-                  name: 'Connected',
+                  name: words.collection.connected,
                   value: connected,
                   color: CHART_COLORS.teal,
                   items: planned
@@ -287,7 +282,7 @@ export default async function DealOverviewPage({
                     .map((source) => `${source.label} · ${source.connections.map((connection) => connection.displayName).join(', ') || source.providerLabel}`),
                 },
                 {
-                  name: 'To connect',
+                  name: words.collection.toConnect,
                   value: planned.length - connected,
                   color: '#cbd5e1',
                   items: planned
@@ -307,7 +302,7 @@ export default async function DealOverviewPage({
                     {source.label} · {source.providerLabel}
                   </span>
                   <span className={source.status === 'CONNECTED' ? 'font-semibold text-teal' : 'text-muted-foreground'}>
-                    {source.status === 'CONNECTED' ? 'Connected' : 'To connect'}
+                    {source.status === 'CONNECTED' ? words.collection.connected : words.collection.toConnect}
                   </span>
                 </li>
               ))}
@@ -318,18 +313,18 @@ export default async function DealOverviewPage({
 
       <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
         <Section
-          title="Evidence collection"
-          description="The sources this deal needs. Connect each one through its API, or upload billing exports."
+          title={words.collection.title}
+          description={words.collection.description}
           actions={
             <Link href={`/deals/${dealId}/sources`} className={buttonVariants({ size: 'sm', variant: 'outline' })}>
-              Open sources <ArrowRight aria-hidden className="h-4 w-4" />
+              {words.collection.openSources} <ArrowRight aria-hidden className="h-4 w-4" />
             </Link>
           }
         >
           <Card>
             <CardContent className="divide-y divide-border p-0">
               {planned.length === 0 ? (
-                <p className="p-4 text-sm text-muted-foreground">No sources planned yet.</p>
+                <p className="p-4 text-sm text-muted-foreground">{words.collection.none}</p>
               ) : (
                 planned.map((source) => (
                   <div key={source.kind} className="flex items-center justify-between gap-3 px-4 py-3 text-sm">
@@ -343,9 +338,9 @@ export default async function DealOverviewPage({
                         );
                       })()}
                       {source.status === 'CONNECTED' ? (
-                        <CheckCircle2 aria-label="Connected" className="h-5 w-5 text-teal" />
+                        <CheckCircle2 aria-label={words.collection.connected} className="h-5 w-5 text-teal" />
                       ) : (
-                        <Circle aria-label="Not connected" className="h-5 w-5 text-muted-foreground" />
+                        <Circle aria-label={words.collection.notConnected} className="h-5 w-5 text-muted-foreground" />
                       )}
                       <span className="flex flex-col">
                         <span className="font-medium">
@@ -355,7 +350,7 @@ export default async function DealOverviewPage({
                       </span>
                     </span>
                     <Badge variant={source.status === 'CONNECTED' ? 'calculation' : 'neutral'}>
-                      {source.status === 'CONNECTED' ? 'Connected' : 'Not connected'}
+                      {source.status === 'CONNECTED' ? words.collection.connected : words.collection.notConnected}
                     </Badge>
                   </div>
                 ))
@@ -364,36 +359,36 @@ export default async function DealOverviewPage({
           </Card>
         </Section>
 
-        <Section title="Parties">
+        <Section title={words.parties.title}>
           <Card>
             <CardContent className="flex flex-col gap-4 p-4 text-sm">
               {parties.kind === 'ok' && parties.data.items.length > 0 ? (
                 parties.data.items.map((party) => (
                   <div key={party.role} className="flex flex-col gap-0.5">
                     <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                      {party.role === 'BUYER' ? 'Buyer' : 'Seller'}
+                      {party.role === 'BUYER' ? words.parties.buyer : words.parties.seller}
                     </span>
                     <span className="font-medium">{partyLabel(party)}</span>
                     <span className="text-muted-foreground">
-                      {party.ownership === 'PUBLIC' ? `Public${party.exchange ? ` · ${party.exchange}` : ''}` : 'Private'}
+                      {party.ownership === 'PUBLIC' ? (party.exchange ? t.fill(words.parties.publicOn, { exchange: party.exchange }) : words.parties.public) : words.parties.private}
                       {party.companyType ? (
                         <>
                           {' · '}
-                          <Glossed text={COMPANY_TYPE_LABELS[party.companyType]} />
+                          <Glossed text={t.m.common.companyTypes[party.companyType]} />
                         </>
                       ) : null}
                     </span>
                   </div>
                 ))
               ) : (
-                <p className="text-muted-foreground">This deal was created before Pacts recorded buyer and seller.</p>
+                <p className="text-muted-foreground">{words.parties.legacy}</p>
               )}
             </CardContent>
           </Card>
         </Section>
       </div>
 
-      <Section title="Diligence">
+      <Section title={words.diligence.title}>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {AREAS.map((item) => (
             <Link key={item.path} href={`/deals/${dealId}/${item.path}`} className="group">
@@ -403,11 +398,11 @@ export default async function DealOverviewPage({
                     <item.icon />
                   </IconTile>
                   <CardTitle className="flex items-center justify-between text-base">
-                    {item.title}
+                    {words.diligence[item.path].title}
                     <ArrowRight aria-hidden className="h-4 w-4 text-muted-foreground group-hover:text-indigo-ink" />
                   </CardTitle>
                   <p className="text-sm text-muted-foreground">
-                    <Glossed text={item.body} />
+                    <Glossed text={words.diligence[item.path].body} />
                   </p>
                 </CardHeader>
               </Card>

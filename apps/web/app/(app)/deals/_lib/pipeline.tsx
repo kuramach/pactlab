@@ -1,5 +1,6 @@
 import { AiMark, Badge, Card, CardContent, CardHeader, CardTitle, HumanMark } from '@pactlab/ui';
 import Link from 'next/link';
+import { EN, type I18n } from '../../../../lib/i18n';
 
 export interface PipelineCounts {
   documents: number;
@@ -23,55 +24,52 @@ export interface PipelineStep {
  * marks dependent scenarios stale, so this reads live state rather than
  * asking anyone to tick stations off.
  */
-export function pipelineSteps(dealId: string, counts: PipelineCounts): PipelineStep[] {
+export function pipelineSteps(dealId: string, counts: PipelineCounts, t: I18n = EN): PipelineStep[] {
   const base = `/deals/${dealId}`;
+  const words = t.m.home.pipeline;
   return [
     {
       key: 'documents',
-      label: 'Documents in',
-      detail: counts.documents === 0 ? 'No documents yet' : `${counts.documents} document${counts.documents === 1 ? '' : 's'}; AI extraction starts on upload`,
+      label: words.steps.documents,
+      detail: counts.documents === 0 ? words.noDocuments : t.plural(counts.documents, words.documents),
       state: counts.documents > 0 ? 'done' : 'next',
       href: `${base}/documents`,
     },
     {
       key: 'review',
-      label: 'Drafts reviewed',
-      detail: counts.drafts > 0 ? `${counts.drafts} AI draft${counts.drafts === 1 ? '' : 's'} waiting for a person` : counts.documents > 0 ? 'Nothing waiting' : 'After documents',
+      label: words.steps.review,
+      detail: counts.drafts > 0 ? t.plural(counts.drafts, words.drafts) : counts.documents > 0 ? words.nothingWaiting : words.afterDocuments,
       state: counts.drafts > 0 ? 'waiting' : counts.documents > 0 ? 'done' : 'next',
       href: `${base}/documents`,
     },
     {
       key: 'findings',
-      label: 'Findings accepted',
-      detail: `${counts.accepted} accepted`,
+      label: words.steps.findings,
+      detail: t.fill(words.accepted, { count: t.number(counts.accepted) }),
       state: counts.accepted > 0 ? 'done' : 'next',
       href: `${base}/findings`,
     },
     {
       key: 'valuation',
-      label: 'Valuation current',
-      detail:
-        counts.scenarios === 0
-          ? 'No scenario yet'
-          : counts.staleScenarios > 0
-            ? `${counts.staleScenarios} scenario${counts.staleScenarios === 1 ? '' : 's'} need a re-run after new findings`
-            : `${counts.scenarios} scenario${counts.scenarios === 1 ? '' : 's'} up to date`,
+      label: words.steps.valuation,
+      detail: counts.scenarios === 0 ? words.noScenario : counts.staleScenarios > 0 ? t.plural(counts.staleScenarios, words.stale) : t.plural(counts.scenarios, words.current),
       state: counts.scenarios === 0 ? 'next' : counts.staleScenarios > 0 ? 'waiting' : 'done',
       href: `${base}/valuation`,
     },
   ];
 }
 
-const LOOK = { done: { label: 'Done', variant: 'reviewed' }, waiting: { label: 'Needs you', variant: 'draft' }, next: { label: 'Next', variant: 'neutral' } } as const;
+const LOOK = { done: 'reviewed', waiting: 'draft', next: 'neutral' } as const;
 
-export function PipelineCard({ steps }: { steps: readonly PipelineStep[] }) {
+export function PipelineCard({ steps, t = EN }: { steps: readonly PipelineStep[]; t?: I18n }) {
+  const words = t.m.home.pipeline;
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Pipeline</CardTitle>
+        <CardTitle>{words.title}</CardTitle>
       </CardHeader>
       <CardContent>
-        <ol className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4" aria-label="Pipeline">
+        <ol className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4" aria-label={words.title}>
           {steps.map((step, index) => (
             <li key={step.key}>
               <Link href={step.href} className="flex h-full flex-col gap-1 rounded-lg border border-border p-3 text-sm hover:bg-muted">
@@ -81,7 +79,7 @@ export function PipelineCard({ steps }: { steps: readonly PipelineStep[] }) {
                     {/* Drafts come from the AI; acceptance is a person's call. */}
                     {step.key === 'review' ? <AiMark /> : step.key === 'findings' ? <HumanMark /> : null}
                   </span>
-                  <Badge variant={LOOK[step.state].variant}>{LOOK[step.state].label}</Badge>
+                  <Badge variant={LOOK[step.state]}>{words.states[step.state]}</Badge>
                 </span>
                 <span className="text-muted-foreground">{step.detail}</span>
               </Link>
