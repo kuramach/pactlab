@@ -36,4 +36,15 @@ export const contactEmails = {
       },
     };
   },
+
+  /** To operators, once a month (T-182): the LINE official account's allowance is used up. Counts only. */
+  lineAllowanceReached(to: string, month: string, allowance: number, adminUrl: string): OutboundEmail {
+    const line = `LINE sends have stopped for ${month}: the official account's ${allowance} messages for the month are used. People still get email and the inbox; LINE resumes next month.`;
+    return {
+      to,
+      subject: 'LINE monthly allowance reached',
+      text: [line, `See the operator console: ${adminUrl}`].join('\n'),
+      content: { heading: 'LINE monthly allowance reached', paragraphs: [line], action: { label: 'Open the operator console', url: adminUrl } },
+    };
+  },
 };

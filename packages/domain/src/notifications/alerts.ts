@@ -16,14 +16,15 @@ import { inQuietHours } from './schedule';
 /**
  * The channels, in the order the settings page lists them. WhatsApp is deferred indefinitely (Kumar,
  * 2026-11-27): it stays listed so an existing T-180 channel keeps its preference, but nothing enables it.
- * LINE (T-182) joins here when its link is built.
+ * LINE (T-182) is the Japan channel: free up to the official account's monthly allowance, then email only.
  */
-export const ALERT_CHANNELS = ['WEB_PUSH', 'TELEGRAM', 'SLACK', 'TEAMS', 'WHATSAPP'] as const;
+export const ALERT_CHANNELS = ['WEB_PUSH', 'TELEGRAM', 'LINE', 'SLACK', 'TEAMS', 'WHATSAPP'] as const;
 export type AlertChannel = (typeof ALERT_CHANNELS)[number];
 
 export const ALERT_CHANNEL_LABELS = {
   WEB_PUSH: 'Alerts on your devices (web push)',
   TELEGRAM: 'Telegram',
+  LINE: 'LINE',
   SLACK: 'Slack',
   TEAMS: 'Microsoft Teams',
   WHATSAPP: 'WhatsApp',

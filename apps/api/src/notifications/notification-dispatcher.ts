@@ -1,5 +1,5 @@
 import { Inject, Injectable, type OnApplicationBootstrap, type OnApplicationShutdown } from '@nestjs/common';
-import { ChannelSendError, type TelegramBot, type WebPushSender, type WhatsAppSender } from '@pactlab/connectors';
+import { ChannelSendError, LINE_MONTHLY_LIMIT, type TelegramBot, type WebPushSender, type WhatsAppSender } from '@pactlab/connectors';
 import { alertDispatch, chatInstalls, contactDispatch, contacts, notificationDispatch, pushSubscriptions, type ChatTarget, type DeliveryKind, type DispatchChannel, type PendingAlertItem, type PendingNotification, type PrismaClient, type PushTarget } from '@pactlab/db';
 import {
   ALERT_DAILY_CAP,
@@ -7,6 +7,7 @@ import {
   DEFAULT_ALERT_CHANNELS,
   alertChannelOn,
   channelMessage,
+  lineMessage,
   planAlert,
   planEmail,
   pushPayload,
@@ -16,7 +17,9 @@ import {
 import type { Logger } from '@pactlab/observability';
 import type { EmailSender } from '../email-login/email-sender';
 import { EmailSuppressedError, type SuppressionList } from '../email-login/ses-email-sender';
+import type { LineSettings } from '../contacts/channels-config';
 import { chatMessage, type ChatSender } from '../contacts/chat-sender';
+import { contactEmails } from '../contacts/contact-emails';
 import { LOGGER, PRISMA } from '../tokens';
 import { digestEmail, immediateEmail } from './notification-emails';
 
@@ -32,7 +35,16 @@ export interface NotificationModuleSettings {
    * Message channels (T-180, ADR 0064): "act now" items also go, content-free, to the person's verified
    * Telegram chat and WhatsApp number. Null or absent: email and the inbox only.
    */
-  readonly channels?: { readonly telegram: TelegramBot | null; readonly whatsapp: WhatsAppSender | null; readonly chat?: ChatSender | null; readonly push?: WebPushSender | null } | null;
+  readonly channels?: {
+    readonly telegram: TelegramBot | null;
+    readonly whatsapp: WhatsAppSender | null;
+    readonly chat?: ChatSender | null;
+    readonly push?: WebPushSender | null;
+    /** LINE (T-182): the official account, within its monthly allowance. */
+    readonly line?: LineSettings | null;
+  } | null;
+  /** Operators, told once a month when LINE's allowance is reached (T-182). Null: the console only. */
+  readonly operatorEmail?: string | null;
   /** Run the dispatcher on a timer (the API process; ADR 0046). Off in tests, which call run(). */
   readonly scheduled: boolean;
   readonly intervalMs: number;
@@ -56,6 +68,8 @@ export interface DispatchOutcome {
   capped: number;
   /** Devices whose push service said the subscription is gone; they are ended. */
   pushExpired: number;
+  /** LINE messages not sent because the month's allowance is used up (email still went). */
+  lineCapped: number;
 }
 
 const PAGE = 200;
@@ -80,7 +94,7 @@ export class NotificationDispatcher implements OnApplicationBootstrap, OnApplica
 
   onApplicationBootstrap(): void {
     const channels = this.settings.channels;
-    if (!this.settings.scheduled || (!this.settings.emailSender && !channels?.telegram && !channels?.whatsapp && !channels?.chat?.enabled && !channels?.push)) return;
+    if (!this.settings.scheduled || (!this.settings.emailSender && !channels?.telegram && !channels?.whatsapp && !channels?.chat?.enabled && !channels?.push && !channels?.line)) return;
     const tick = () => {
       this.timer = setTimeout(() => {
         // handled: each delivery's outcome is stored on it and shown on the person's items; this only logs a run that could not start.
@@ -105,7 +119,7 @@ export class NotificationDispatcher implements OnApplicationBootstrap, OnApplica
   }
 
   private async pass(now: Date): Promise<DispatchOutcome> {
-    const outcome: DispatchOutcome = { sent: 0, digests: 0, suppressed: 0, failed: 0, inAppOnly: 0, noAddress: 0, waiting: 0, deadlines: 0, channelSent: 0, channelFailed: 0, alerts: 0, folded: 0, capped: 0, pushExpired: 0 };
+    const outcome: DispatchOutcome = { sent: 0, digests: 0, suppressed: 0, failed: 0, inAppOnly: 0, noAddress: 0, waiting: 0, deadlines: 0, channelSent: 0, channelFailed: 0, alerts: 0, folded: 0, capped: 0, pushExpired: 0, lineCapped: 0 };
     outcome.deadlines = await notificationDispatch.deadlines(this.prisma, now);
     const digests = new Map<string, { email: string; items: PendingNotification[] }>();
     let after: string | null = null;
@@ -150,7 +164,7 @@ export class NotificationDispatcher implements OnApplicationBootstrap, OnApplica
    */
   private async alerts(now: Date, outcome: DispatchOutcome): Promise<void> {
     const channels = this.settings.channels;
-    if (!channels || (!channels.telegram && !channels.whatsapp && !channels.chat?.enabled && !channels.push)) return;
+    if (!channels || (!channels.telegram && !channels.whatsapp && !channels.chat?.enabled && !channels.push && !channels.line)) return;
     const link = new URL('/notifications', this.settings.appOrigin).toString();
     let after: string | null = null;
     for (let page = 0; page < MAX_PAGES; page += 1) {
@@ -160,7 +174,7 @@ export class NotificationDispatcher implements OnApplicationBootstrap, OnApplica
       const [settings, preferences, direct, chats, devices] = await Promise.all([
         notificationDispatch.settings(this.prisma, users),
         alertDispatch.preferences(this.prisma, users),
-        channels.telegram || channels.whatsapp ? contactDispatch.channels(this.prisma, users) : Promise.resolve([] as DispatchChannel[]),
+        channels.telegram || channels.whatsapp || channels.line ? contactDispatch.channels(this.prisma, users) : Promise.resolve([] as DispatchChannel[]),
         channels.chat?.enabled ? chatInstalls.targets(this.prisma, users) : Promise.resolve([] as ChatTarget[]),
         channels.push ? pushSubscriptions.targets(this.prisma, users) : Promise.resolve([] as PushTarget[]),
       ]);
@@ -181,7 +195,9 @@ export class NotificationDispatcher implements OnApplicationBootstrap, OnApplica
         const chosen = preferences.get(group.userId) ?? DEFAULT_ALERT_CHANNELS;
         const on = (kind: AlertChannel) => alertChannelOn(chosen, kind);
         const mine = {
-          direct: direct.filter((row) => row.userId === group.userId && on(row.kind as AlertChannel) && ((row.kind === 'TELEGRAM' && channels.telegram) || (row.kind === 'WHATSAPP' && channels.whatsapp))),
+          direct: direct.filter(
+            (row) => row.userId === group.userId && on(row.kind as AlertChannel) && ((row.kind === 'TELEGRAM' && channels.telegram) || (row.kind === 'WHATSAPP' && channels.whatsapp) || (row.kind === 'LINE' && channels.line)),
+          ),
           chats: chats.filter((row) => row.userId === group.userId && on(row.kind)),
           devices: on('WEB_PUSH') ? devices.filter((row) => row.userId === group.userId) : [],
         };
@@ -200,6 +216,10 @@ export class NotificationDispatcher implements OnApplicationBootstrap, OnApplica
         if (!lead) continue;
         const { telegram, whatsapp, chat } = channels;
         for (const channel of mine.direct) {
+          if (channel.kind === 'LINE') {
+            await this.line(channel, lead, link, now, outcome);
+            continue;
+          }
           await this.sendClaimed(channel.kind, channel.handle, () => contactDispatch.claim(this.prisma, { channelId: channel.channelId, notificationId: lead }), outcome, async () => {
             if (channel.kind === 'TELEGRAM' && telegram) await telegram.sendMessage(channel.handle, channelMessage('ACT_NOW', { link }));
             else if (channel.kind === 'WHATSAPP' && whatsapp) await whatsapp.sendTemplate(channel.handle, 'ACT_NOW', link);
@@ -232,6 +252,55 @@ export class NotificationDispatcher implements OnApplicationBootstrap, OnApplica
       // The person can no longer be reached there: stop the channel rather than fail every time.
       if (error instanceof ChannelSendError && error.recipientGone) await contacts.stop(this.prisma, { kind, handle, reason: 'BLOCKED' });
       this.logger.warn({ channel: kind, errorClass }, 'notification message failed');
+    }
+  }
+
+  /**
+   * One LINE push (T-182), claimed within the official account's monthly allowance. At the allowance — by
+   * Pactlab's own count, or LINE's "monthly limit" answer — nothing is sent for the rest of the month;
+   * the person still had the email, and operators are told once. Japanese and English together until the
+   * person's language is stored (T-172b); never the pact's name or any deal content.
+   */
+  private async line(channel: DispatchChannel, notificationId: string, link: string, now: Date, outcome: DispatchOutcome): Promise<void> {
+    const line = this.settings.channels?.line;
+    if (!line) return;
+    const claim = await contactDispatch.claimLine(this.prisma, { channelId: channel.channelId, notificationId, now, allowance: line.allowance });
+    if (claim.reached) {
+      outcome.lineCapped += 1;
+      await this.lineReached(now, line.allowance);
+      return;
+    }
+    if (!claim.deliveryId) return;
+    try {
+      // The delivery id is a UUID: LINE's retry key, so a repeated push is sent once.
+      await line.channel.push(channel.handle, lineMessage('ACT_NOW', { link }), claim.deliveryId);
+      await contactDispatch.finish(this.prisma, { deliveryId: claim.deliveryId, outcome: 'SENT', errorClass: null });
+      outcome.channelSent += 1;
+    } catch (error) {
+      const errorClass = error instanceof ChannelSendError ? error.errorClass : error instanceof Error ? error.name : 'unknown';
+      await contactDispatch.finish(this.prisma, { deliveryId: claim.deliveryId, outcome: 'FAILED', errorClass });
+      if (errorClass === LINE_MONTHLY_LIMIT) {
+        outcome.lineCapped += 1;
+        await contactDispatch.lineAllowanceReached(this.prisma, { now, allowance: line.allowance });
+        await this.lineReached(now, line.allowance);
+      } else outcome.channelFailed += 1;
+      this.logger.warn({ channel: 'LINE', errorClass }, 'notification message failed');
+    }
+  }
+
+  /** "LINE monthly allowance reached": the operator console shows it; operators are emailed once a month. */
+  private async lineReached(now: Date, allowance: number): Promise<void> {
+    const to = this.settings.operatorEmail;
+    const sender = this.settings.emailSender;
+    if (!(await contactDispatch.lineAllowanceNotify(this.prisma, now))) return;
+    this.logger.warn({ channel: 'LINE', allowance }, 'line monthly allowance reached');
+    if (!to || !sender) return;
+    const month = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit' }).format(now);
+    try {
+      await sender.send(contactEmails.lineAllowanceReached(to, month, allowance, new URL('/admin', this.settings.appOrigin).toString()));
+    } catch (error) {
+      // handled: the operator console shows the reached month whatever happens to this email.
+      this.logger.warn({ errorClass: error instanceof Error ? error.name : 'unknown' }, 'line allowance notice not delivered');
     }
   }
 

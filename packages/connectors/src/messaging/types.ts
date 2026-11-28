@@ -165,3 +165,42 @@ export interface TeamsBot {
   tenantSignInUrl(state: string, redirectUri: string): string;
   exchangeTenantCode(code: string, redirectUri: string): Promise<{ readonly tenantId: string }>;
 }
+
+/**
+ * LINE (T-182, ADR 0069): Pactlab's official account messages people who signed in with LINE Login
+ * and added it as a friend. A LINE user id is personal data: adapters never log it or put it in errors.
+ */
+export type LineEvent =
+  | { readonly kind: 'FOLLOW'; readonly userId: string; readonly replyToken: string | null }
+  | { readonly kind: 'UNFOLLOW'; readonly userId: string }
+  | { readonly kind: 'IGNORED' };
+
+/** What LINE Login proves: the person's LINE user id, and whether they are a friend of the official account. */
+export interface LineLogin {
+  readonly userId: string;
+  readonly isFriend: boolean;
+}
+
+/** LINE's own count for the month: the limit (null when the plan has none) and messages used. */
+export interface LineQuota {
+  readonly limit: number | null;
+  readonly used: number;
+}
+
+export interface LineChannel {
+  readonly name: 'LINE' | 'FIXTURE';
+  /** The official account's add-friend link (from LINE Official Account Manager). */
+  readonly addFriendUrl: string;
+  /** LINE Login: code flow with state, nonce, PKCE S256 and `bot_prompt=aggressive`. */
+  authorizeUrl(input: { state: string; nonce: string; codeChallenge: string; redirectUri: string; locale?: string | null }): string;
+  /** Exchange the code, verify the ID token (nonce, audience) and read the friendship status. */
+  completeLogin(input: { code: string; redirectUri: string; codeVerifier: string; nonce: string }): Promise<LineLogin>;
+  /** A push message; `retryKey` (a UUID) makes it safe to repeat. Counts toward the monthly allowance. */
+  push(userId: string, text: string, retryKey: string): Promise<void>;
+  /** A reply to a webhook event (free: replies do not count toward the allowance). */
+  reply(replyToken: string, text: string): Promise<void>;
+  /** `x-line-signature`: Base64(HMAC-SHA256(channel secret, raw body)). */
+  verifySignature(rawBody: Uint8Array, headers: Headers): boolean;
+  parseEvents(rawBody: Uint8Array): LineEvent[];
+  quota(): Promise<LineQuota>;
+}

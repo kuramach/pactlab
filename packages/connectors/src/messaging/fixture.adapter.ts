@@ -1,3 +1,5 @@
+import { createHmac } from 'node:crypto';
+import { LINE_MONTHLY_LIMIT, LINE_USER_ID, parseLineEvents, pkceChallenge, verifyLineSignature } from './line.adapter';
 import { parseTelegramUpdate } from './telegram.adapter';
 import { plainText } from './chat-common';
 import { parseSlackInbound, SLACK_BOT_SCOPES, slackBlocks, verifySlackSignature } from './slack.adapter';
@@ -5,6 +7,10 @@ import { parseTeamsActivity, safeServiceUrl, teamsCard } from './teams.adapter';
 import {
   ChannelSendError,
   type ChatMessage,
+  type LineChannel,
+  type LineEvent,
+  type LineLogin,
+  type LineQuota,
   type SlackApp,
   type SlackInbound,
   type SlackInstall,
@@ -243,5 +249,101 @@ export class FixtureTeamsBot implements TeamsBot {
     const tenantId = this.signIns.get(code);
     if (!tenantId) throw new ChannelSendError('TeamsSignIn400');
     return { tenantId };
+  }
+}
+
+/** One message the fixture LINE account "sent": a push (counted) or a reply (free). */
+export interface FixtureLineMessage {
+  readonly channel: 'LINE';
+  readonly via: 'PUSH' | 'REPLY';
+  /** The LINE user id for a push; the reply token for a reply. */
+  readonly to: string;
+  readonly sender: 'Pactlab';
+  /** The exact message objects the live adapter would send. */
+  readonly payload: { readonly to?: string; readonly replyToken?: string; readonly messages: readonly { readonly type: 'text'; readonly text: string }[] };
+  readonly text: string;
+}
+
+/**
+ * LINE without LINE: the same signature check and event parsing; LINE Login by code (each code names a
+ * user id and whether they are already a friend, and checks the PKCE challenge and nonce like LINE);
+ * pushes kept in `outbox`, refused as LINE would once `monthlyLimit` pushes were sent.
+ */
+export class FixtureLineChannel implements LineChannel {
+  readonly name = 'FIXTURE' as const;
+  readonly addFriendUrl = 'https://line.fixture.test/add-friend/pactlab';
+  readonly outbox: FixtureLineMessage[] = [];
+  /** `code` → the login it completes. */
+  readonly logins = new Map<string, { userId: string; isFriend: boolean }>();
+  /** Authorize requests seen: `state` → challenge and nonce, as LINE keeps them for the code. */
+  readonly authorized = new Map<string, { codeChallenge: string; nonce: string; redirectUri: string }>();
+  readonly friends = new Set<string>();
+  /** Pushes LINE accepts before it answers "monthly limit"; null: no limit. */
+  monthlyLimit: number | null = null;
+  private pushed = 0;
+  private readonly retryKeys = new Set<string>();
+
+  constructor(readonly channelSecret = 'fixture-line-channel-secret') {}
+
+  /** Arrange a LINE Login: the browser comes back with `code` for this `state`. */
+  addLogin(code: string, userId: string, isFriend: boolean): void {
+    if (!LINE_USER_ID.test(userId)) throw new Error('not a LINE user id');
+    this.logins.set(code, { userId, isFriend });
+    if (isFriend) this.friends.add(userId);
+  }
+
+  /** Sign a webhook body as LINE would. */
+  sign(rawBody: string): string {
+    return createHmac('sha256', this.channelSecret).update(rawBody).digest('base64');
+  }
+
+  authorizeUrl(input: { state: string; nonce: string; codeChallenge: string; redirectUri: string; locale?: string | null }): string {
+    this.authorized.set(input.state, { codeChallenge: input.codeChallenge, nonce: input.nonce, redirectUri: input.redirectUri });
+    const url = new URL('https://access.line.fixture.test/oauth2/v2.1/authorize');
+    url.searchParams.set('state', input.state);
+    url.searchParams.set('bot_prompt', 'aggressive');
+    url.searchParams.set('redirect_uri', input.redirectUri);
+    return url.toString();
+  }
+
+  async completeLogin(input: { code: string; redirectUri: string; codeVerifier: string; nonce: string }): Promise<LineLogin> {
+    const login = this.logins.get(input.code);
+    const asked = [...this.authorized.values()].find((entry) => entry.nonce === input.nonce);
+    // LINE refuses a code it did not issue, a wrong verifier or redirect, and a mismatched nonce.
+    if (!login || !asked || asked.redirectUri !== input.redirectUri || asked.codeChallenge !== pkceChallenge(input.codeVerifier)) throw new ChannelSendError('LineToken400');
+    this.logins.delete(input.code);
+    return { userId: login.userId, isFriend: this.friends.has(login.userId) };
+  }
+
+  async push(userId: string, text: string, retryKey: string): Promise<void> {
+    if (this.retryKeys.has(retryKey)) return;
+    if (this.monthlyLimit !== null && this.pushed >= this.monthlyLimit) throw new ChannelSendError(LINE_MONTHLY_LIMIT);
+    this.retryKeys.add(retryKey);
+    this.pushed += 1;
+    // Blocked friends: LINE accepts the push and delivers nothing.
+    if (!this.friends.has(userId)) return;
+    this.outbox.push({ channel: 'LINE', via: 'PUSH', to: userId, sender: 'Pactlab', payload: { to: userId, messages: [{ type: 'text', text }] }, text });
+  }
+
+  async reply(replyToken: string, text: string): Promise<void> {
+    this.outbox.push({ channel: 'LINE', via: 'REPLY', to: replyToken, sender: 'Pactlab', payload: { replyToken, messages: [{ type: 'text', text }] }, text });
+  }
+
+  verifySignature(rawBody: Uint8Array, headers: Headers): boolean {
+    return verifyLineSignature(this.channelSecret, rawBody, headers.get('x-line-signature'));
+  }
+
+  parseEvents(rawBody: Uint8Array): LineEvent[] {
+    const events = parseLineEvents(rawBody);
+    // The fixture's friend list follows the webhook it is shown, as LINE's does.
+    for (const event of events) {
+      if (event.kind === 'FOLLOW') this.friends.add(event.userId);
+      if (event.kind === 'UNFOLLOW') this.friends.delete(event.userId);
+    }
+    return events;
+  }
+
+  async quota(): Promise<LineQuota> {
+    return { limit: this.monthlyLimit, used: this.pushed };
   }
 }

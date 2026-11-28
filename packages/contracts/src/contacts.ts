@@ -28,7 +28,7 @@ export const contactChannelParamsSchema = z.object({ channelId: z.uuid() }).stri
 
 export const contactAdminQuerySchema = pageQuerySchema;
 
-export type ContactChannelKindView = 'TELEGRAM' | 'WHATSAPP' | 'SLACK' | 'TEAMS';
+export type ContactChannelKindView = 'TELEGRAM' | 'WHATSAPP' | 'SLACK' | 'TEAMS' | 'LINE';
 
 export interface ContactChannelView {
   readonly id: string;
@@ -46,7 +46,12 @@ export interface ContactProfileView {
   readonly askForEmail: boolean;
   readonly channels: readonly ContactChannelView[];
   /** What this deployment offers; a channel that is off cannot be connected. */
-  readonly available: { readonly telegram: boolean; readonly whatsapp: boolean; readonly slack: boolean; readonly teams: boolean };
+  readonly available: { readonly telegram: boolean; readonly whatsapp: boolean; readonly slack: boolean; readonly teams: boolean; readonly line: boolean };
+  /**
+   * LINE (T-182): the person signed in with LINE and has yet to add Pactlab as a friend (`pending`),
+   * and the official account's add-friend link. Null when LINE is off.
+   */
+  readonly line: { readonly pending: boolean; readonly addFriendUrl: string } | null;
   /** Slack and Teams (T-181): whether the organization's admin has installed Pactlab; until then the card asks the admin. */
   readonly chatInstalled: { readonly slack: boolean; readonly teams: boolean };
   /** The consent text shown before a WhatsApp number is verified. */
@@ -57,6 +62,38 @@ export interface TelegramLinkView {
   /** `https://t.me/<bot>?start=<token>`: single use, 10 minutes. */
   readonly url: string;
   readonly expiresAt: string;
+}
+
+/** LINE (T-182): LINE Login's page, where the browser goes next; the state in it works once, for 10 minutes. */
+export interface LineLinkView {
+  readonly url: string;
+  readonly expiresAt: string;
+}
+
+/** Back from LINE Login: what LINE put on the callback. An `error` (the person cancelled) has no code. */
+export const lineCallbackSchema = z
+  .object({
+    code: z.string().min(1).max(512),
+    state: z.string().regex(/^[A-Za-z0-9_-]{32}$/),
+  })
+  .strict();
+export type LineCallbackBody = z.infer<typeof lineCallbackSchema>;
+
+export interface LineCallbackView {
+  /** LINKED: connected now. AWAITING_FRIEND: add Pactlab as a friend in LINE to finish. */
+  readonly status: 'LINKED' | 'AWAITING_FRIEND';
+}
+
+/** Operator console (T-182): this month's LINE use, counts only. */
+export interface LineAllowanceView {
+  readonly available: boolean;
+  /** `YYYY-MM`, Japan time. */
+  readonly month: string;
+  readonly used: number;
+  readonly allowance: number;
+  readonly reachedAt: string | null;
+  /** LINE's own figures, when it answered; null otherwise. */
+  readonly lineReports: { readonly limit: number | null; readonly used: number } | null;
 }
 
 export interface MaskedMemberContactView {

@@ -1,4 +1,4 @@
-import type { BugReportSummaryView } from '@pactlab/contracts';
+import type { BugReportSummaryView, LineAllowanceView } from '@pactlab/contracts';
 import { Badge, Card, CardContent, Button } from '@pactlab/ui';
 import Link from 'next/link';
 import { apiGet } from '../(app)/deals/_lib/api';
@@ -8,6 +8,7 @@ import { ApiState } from '../(app)/deals/_lib/states';
 import { DemoLinks, DemoShareForm } from './demo-share';
 import { endDemoShare, resetDemoSlot } from './demo-actions';
 import { AiModels } from './ai-models';
+import { getI18n } from '../../lib/i18n/server';
 import { HostingCost } from './hosting-cost';
 import { compPact, createPromoCode, deactivatePromoCode, decideOrganization, resyncBilling, setMemberStatus, setOrganizationFlags, setOrganizationStatus, setOrganizationMcp } from './actions';
 import { SourceStatusTable, type SourceStatus } from './source-status';
@@ -276,12 +277,15 @@ async function Users({ q, search }: { q: string; search: Search }) {
 }
 
 async function Health({ search }: { search: Search }) {
-  const [usage, connections, mail, sources] = await Promise.all([
+  const [usage, connections, mail, sources, line, t] = await Promise.all([
     apiGet<{ organizations: number; aiTokens: { input: number; output: number } }>('/v1/admin/usage'),
     apiGet<Page<Connection>>(`/v1/admin/connections?${listQuery(search, {})}`),
     apiGet<{ days: number; counts: Record<'DELIVERY' | 'BOUNCE' | 'COMPLAINT' | 'REJECT' | 'RENDERING_FAILURE', number>; suppressed: number }>('/v1/admin/email-health'),
     apiGet<{ items: SourceStatus[] }>('/v1/admin/source-status'),
+    apiGet<LineAllowanceView>('/v1/admin/line-allowance'),
+    getI18n(),
   ]);
+  const lineWords = t.m.settings.line.console;
   if (usage.kind !== 'ok') return <ApiState result={usage} />;
   const tokens = usage.data.aiTokens;
   return (
@@ -297,6 +301,14 @@ async function Health({ search }: { search: Search }) {
         <p className="text-sm" aria-label="Email health" data-numeric>
           <span className="font-semibold">Email, last {mail.data.days} days:</span> {number.format(mail.data.counts.DELIVERY)} delivered · {number.format(mail.data.counts.BOUNCE)} bounced · {number.format(mail.data.counts.COMPLAINT)} complaints ·{' '}
           {number.format(mail.data.counts.REJECT + mail.data.counts.RENDERING_FAILURE)} rejected or failed · {number.format(mail.data.suppressed)} addresses on the do-not-send list
+        </p>
+      ) : null}
+      {/* LINE (T-182): the official account's month (Japan time) against its allowance; counts only. */}
+      {line.kind === 'ok' && line.data.available ? (
+        <p className="text-sm" aria-label={lineWords.label} data-numeric>
+          <span className="font-semibold">{t.fill(lineWords.month, { month: line.data.month })}</span> {t.fill(lineWords.used, { used: number.format(line.data.used), allowance: number.format(line.data.allowance) })}
+          {line.data.lineReports ? <> {line.data.lineReports.limit !== null ? t.fill(lineWords.lineReportsOf, { used: number.format(line.data.lineReports.used), limit: number.format(line.data.lineReports.limit) }) : t.fill(lineWords.lineReports, { used: number.format(line.data.lineReports.used) })}</> : null}
+          {line.data.reachedAt ? <span className="font-semibold text-red-800"> · {lineWords.reached}</span> : null}
         </p>
       ) : null}
       {sources.kind === 'ok' ? <SourceStatusTable items={sources.data.items} /> : <ApiState result={sources} />}

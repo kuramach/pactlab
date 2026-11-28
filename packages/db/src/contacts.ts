@@ -8,7 +8,7 @@ import { APP_DB_ROLE, withTenant } from './tenant';
  * Every write is a SECURITY DEFINER function acting on the signed-in person; the runtime role reads
  * only its own rows. Values here are personal data: never log them, never send them to a model.
  */
-export type ContactChannelKind = 'TELEGRAM' | 'WHATSAPP' | 'SLACK' | 'TEAMS';
+export type ContactChannelKind = 'TELEGRAM' | 'WHATSAPP' | 'SLACK' | 'TEAMS' | 'LINE';
 export type ContactVerificationKind = 'EMAIL' | ContactChannelKind;
 
 export interface ContactEmail {
@@ -137,6 +137,39 @@ export const contacts = {
     });
   },
 
+  /**
+   * Back from LINE Login (T-182): the signed-in person's own open LINE verification, by its state's hash.
+   * A friend is linked now; otherwise only a keyed hash of the LINE user id is kept until the follow arrives.
+   */
+  async completeLineLogin(
+    prisma: PrismaClient,
+    tenant: TenantContext,
+    input: { stateHash: string; userHash: string; lineUserId: string; isFriend: boolean },
+  ): Promise<{ status: 'LINKED' | 'AWAITING_FRIEND' | 'INVALID'; channelId: string | null }> {
+    return withTenant(prisma, tenant, async (tx) => {
+      const [row] = await tx.$queryRaw<{ status: string; channel_id: string | null }[]>`
+        SELECT status, channel_id::text FROM app_line_login_complete(${input.stateHash}, ${input.userHash}, ${input.isFriend ? input.lineUserId : null}, ${input.isFriend})`;
+      const status = row?.status === 'LINKED' && row.channel_id ? 'LINKED' : row?.status === 'AWAITING_FRIEND' ? 'AWAITING_FRIEND' : 'INVALID';
+      return { status, channelId: status === 'LINKED' ? (row?.channel_id ?? null) : null };
+    });
+  },
+
+  /** From the verified LINE `follow` webhook: the friend a person was waiting to add. The channel id, or null. */
+  async lineFollow(prisma: PrismaClient, input: { userHash: string; lineUserId: string }): Promise<string | null> {
+    return asApp(prisma, async (tx) => {
+      const [row] = await tx.$queryRaw<{ id: string | null }[]>`SELECT app_line_follow(${input.userHash}, ${input.lineUserId})::text AS id`;
+      return row?.id ?? null;
+    });
+  },
+
+  /** The person signed in with LINE and has yet to add Pactlab as a friend. */
+  async linePending(prisma: PrismaClient, tenant: TenantContext): Promise<boolean> {
+    return withTenant(prisma, tenant, async (tx) => {
+      const [row] = await tx.$queryRaw<{ pending: boolean }[]>`SELECT app_line_pending() AS pending`;
+      return row?.pending === true;
+    });
+  },
+
   /** From a verified provider webhook: blocked, /stop or STOP. How many channels ended. */
   async stop(prisma: PrismaClient, input: { kind: ContactChannelKind; handle: string; reason: 'BLOCKED' | 'STOP' }): Promise<number> {
     return asApp(prisma, async (tx) => {
@@ -174,6 +207,16 @@ export const contacts = {
     });
   },
 
+  /** Operator console: this month's LINE use (Japan time) and whether the allowance was reached. Throws for a non-operator. */
+  async lineAllowance(prisma: PrismaClient, actor: string, now: Date): Promise<{ month: string; used: number; reachedAt: Date | null }> {
+    return asApp(prisma, async (tx) => {
+      const [row] = await tx.$queryRaw<{ month: Date; used: number; reached_at: Date | null }[]>`
+        SELECT month, used, reached_at FROM app_ops_line_allowance(${actor}::uuid, ${now}::timestamptz)`;
+      if (!row) throw new Error('app_ops_line_allowance returned no row');
+      return { month: new Date(row.month).toISOString().slice(0, 7), used: Number(row.used), reachedAt: row.reached_at ? new Date(row.reached_at) : null };
+    });
+  },
+
   /** The same mask the database applies (for tests that compare both). */
   async mask(prisma: PrismaClient, kind: 'EMAIL' | ContactChannelKind, value: string): Promise<string> {
     return asApp(prisma, async (tx) => {
@@ -200,6 +243,38 @@ export const contactDispatch = {
     return asApp(prisma, async (tx) => {
       const [row] = await tx.$queryRaw<{ id: string | null }[]>`SELECT app_contact_delivery_claim(${input.channelId}::uuid, ${input.notificationId}::uuid)::text AS id`;
       return row?.id ?? null;
+    });
+  },
+
+  /**
+   * LINE (T-182): claim within the official account's monthly allowance, platform-wide. A notification
+   * (no tenant: the dispatcher) or the person's own test (tenant). `reached` when the allowance is used up.
+   */
+  async claimLine(
+    prisma: PrismaClient,
+    input: { channelId: string; notificationId: string | null; now: Date; allowance: number; tenant?: TenantContext },
+  ): Promise<{ deliveryId: string | null; reached: boolean }> {
+    const run = async (tx: TransactionClient) => {
+      const [row] = await tx.$queryRaw<{ delivery_id: string | null; reached: boolean }[]>`
+        SELECT delivery_id::text, reached FROM app_line_delivery_claim(${input.channelId}::uuid, ${input.notificationId}::uuid, ${input.now}::timestamptz, ${input.allowance}::int)`;
+      return { deliveryId: row?.delivery_id ?? null, reached: row?.reached === true };
+    };
+    return input.tenant ? withTenant(prisma, input.tenant, run) : asApp(prisma, run);
+  },
+
+  /** LINE answered "monthly limit": the month is reached. True the first time this month. */
+  async lineAllowanceReached(prisma: PrismaClient, input: { now: Date; allowance: number }): Promise<boolean> {
+    return asApp(prisma, async (tx) => {
+      const [row] = await tx.$queryRaw<{ ok: boolean }[]>`SELECT app_line_allowance_reached(${input.now}::timestamptz, ${input.allowance}::int) AS ok`;
+      return row?.ok === true;
+    });
+  },
+
+  /** Operators are told once a month: true for the first caller after the allowance is reached. */
+  async lineAllowanceNotify(prisma: PrismaClient, now: Date): Promise<boolean> {
+    return asApp(prisma, async (tx) => {
+      const [row] = await tx.$queryRaw<{ ok: boolean }[]>`SELECT app_line_allowance_notify(${now}::timestamptz) AS ok`;
+      return row?.ok === true;
     });
   },
 

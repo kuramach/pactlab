@@ -4,9 +4,11 @@ import {
   contactChannelParamsSchema,
   contactCodeSchema,
   contactEmailStartSchema,
+  lineCallbackSchema,
   whatsappStartSchema,
   type ContactCodeBody,
   type ContactEmailStartBody,
+  type LineCallbackBody,
   type PageQuery,
   type WhatsAppStartBody,
 } from '@pactlab/contracts';
@@ -68,6 +70,22 @@ export class ContactsController {
     return this.service.telegramLink(tenant);
   }
 
+  /** Connect LINE (T-182): LINE Login's page, single use for 10 minutes. */
+  @Post('line')
+  @HttpCode(200)
+  @NoDemo()
+  line(@Tenant() tenant: TenantContext) {
+    return this.service.lineLink(tenant);
+  }
+
+  /** Back from LINE Login, as the same signed-in person who started it. */
+  @Post('line/callback')
+  @HttpCode(200)
+  @NoDemo()
+  lineCallback(@Tenant() tenant: TenantContext, @Body(new ZodValidationPipe(lineCallbackSchema)) body: LineCallbackBody) {
+    return this.service.lineCallback(tenant, body);
+  }
+
   @Post('whatsapp')
   @HttpCode(202)
   @NoDemo()
@@ -109,7 +127,7 @@ export class OrganizationContactsController {
 
 const subscriptionQuery = z.object({ 'hub.mode': z.string().max(32).optional(), 'hub.verify_token': z.string().max(256).optional(), 'hub.challenge': z.string().max(128).optional() });
 
-/** Provider webhooks. Public: Telegram's secret-token header and Meta's body signature are the proof. */
+/** Provider webhooks. Public: Telegram's secret-token header, and Meta's and LINE's body signatures, are the proof. */
 @Controller('v1/webhooks')
 export class ContactWebhooksController {
   constructor(@Inject(ContactsService) private readonly service: ContactsService) {}
@@ -128,6 +146,15 @@ export class ContactWebhooksController {
     return this.service.telegramWebhook(headersOf(request), update);
   }
 
+  /** LINE (T-182): signed with `x-line-signature` over the raw body. */
+  @Public()
+  @Post('line')
+  @HttpCode(200)
+  line(@Req() request: FastifyRequest) {
+    const body = request.body;
+    return this.service.lineWebhook(Buffer.isBuffer(body) ? body : Buffer.alloc(0), headersOf(request));
+  }
+
   @Public()
   @Get('whatsapp')
   @Header('content-type', 'text/plain')
@@ -141,5 +168,16 @@ export class ContactWebhooksController {
   whatsapp(@Req() request: FastifyRequest) {
     const body = request.body;
     return this.service.whatsappWebhook(Buffer.isBuffer(body) ? body : Buffer.alloc(0), headersOf(request));
+  }
+}
+
+/** Operator console (T-182): LINE's monthly allowance. Every non-operator gets 403. */
+@Controller('v1/admin/line-allowance')
+export class LineAllowanceController {
+  constructor(@Inject(ContactsService) private readonly service: ContactsService) {}
+
+  @Get()
+  allowance(@Tenant() tenant: TenantContext) {
+    return this.service.lineAllowance(tenant);
   }
 }

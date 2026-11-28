@@ -25,6 +25,7 @@ export class AlertsService {
     const available: Record<AlertChannel, boolean> = {
       WEB_PUSH: Boolean(channels?.push),
       TELEGRAM: Boolean(channels?.telegram),
+      LINE: Boolean(channels?.line),
       SLACK: Boolean(channels?.chat?.slack),
       TEAMS: Boolean(channels?.chat?.teams),
       // Deferred (Kumar, 2026-11-27): offered only where an earlier deployment turned it on.

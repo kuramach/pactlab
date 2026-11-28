@@ -218,6 +218,7 @@ const app = await createApp(
     contacts: {
       identityEmails: config.AUTH0_DOMAIN && config.AUTH0_AUDIENCE ? new Auth0UserInfo(config.AUTH0_DOMAIN) : null,
       ...channelAdapters(process.env, config.APP_ENV),
+      operatorEmail: config.OPERATOR_EMAIL ?? null,
     },
     webFetcher,
     emailLogin: {

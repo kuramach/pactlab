@@ -1,10 +1,12 @@
 import type { ContactProfileView, MaskedMemberContactView, Page } from '@pactlab/contracts';
 import { PHONE_COUNTRIES } from '@pactlab/domain';
 import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle, PageHeader } from '@pactlab/ui';
+import { getI18n } from '../../../../lib/i18n/server';
 import { getSessionContext } from '../../../../lib/session';
 import { keepParams, pageApiQuery, Pager, pagerLinks, readPage } from '../../../_components/pager';
 import { apiGet } from '../../deals/_lib/api';
 import { ApiState } from '../../deals/_lib/states';
+import { LineCard } from './line-card';
 import { confirmEmail, confirmWhatsApp, connectChat, connectTelegram, disconnectChannel, startEmail, startWhatsApp, testChannel } from './actions';
 
 // Per-user data: never prerender.
@@ -20,6 +22,8 @@ const DONE: Record<string, string> = {
   'test-sent': 'Test message sent. Check your phone.',
   disconnected: 'Disconnected. Pactlab will not message you there again.',
   'slack-sent': 'Pactlab sent you a direct message in Slack. Open it and choose "Yes, connect me". It expires in 10 minutes.',
+  'line-connected': 'LINE is connected. Pactlab will message you there when a pact needs you.',
+  'line-add-friend': 'Signed in with LINE. Now add Pactlab as a friend in LINE to finish: you are connected the moment you do.',
   'teams-sent': 'Pactlab sent you a message in Microsoft Teams. Open it and choose "Yes, connect me". It expires in 10 minutes.',
 };
 
@@ -36,6 +40,11 @@ const ERRORS: Record<string, string> = {
   EMAIL_REQUIRED: 'Add and confirm your email first: Pactlab finds you in Slack or Teams by it.',
   NOT_INSTALLED: 'Your organization has not connected this app yet. Ask your admin.',
   NOT_FOUND_IN_WORKSPACE: 'No one with your email was found there. In Teams, open the Pactlab app first; in Slack, check your workspace uses the same email.',
+  LINE_OFF: 'LINE is not set up on this Pactlab yet.',
+  LINE_CANCELLED: 'LINE sign-in was cancelled. Nothing was changed.',
+  LINE_LOGIN_FAILED: 'LINE could not confirm your sign-in. Try Connect LINE again.',
+  LINE_LINK_EXPIRED: 'That LINE sign-in has expired or was already used. Try Connect LINE again.',
+  LINE_ALLOWANCE_REACHED: 'Pactlab’s LINE messages for this month are used up, so no test was sent. Alerts reach you by email until next month.',
   SLACK_OFF: 'Slack is not set up on this Pactlab yet.',
   TEAMS_OFF: 'Microsoft Teams is not set up on this Pactlab yet.',
   ERROR: 'That did not work. If you tried several times, wait 15 minutes and try again.',
@@ -44,7 +53,7 @@ const ERRORS: Record<string, string> = {
 const when = (iso: string) => new Date(iso).toISOString().slice(0, 10);
 
 /**
- * Settings → Your profile (T-180): your name, the email Pactlab writes to, and Telegram and WhatsApp
+ * Settings → Your profile (T-180): your name, the email Pactlab writes to, and Telegram, LINE (T-182) and WhatsApp
  * as message channels, each with whether it is verified. Messages never carry deal details, only a link.
  */
 export default async function ProfilePage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
@@ -55,14 +64,16 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
   const session = await getSessionContext();
   const admin = session.kind === 'signed-in' && (session.organization?.role === 'ORG_OWNER' || session.organization?.role === 'ORG_ADMIN');
   const position = readPage(params, 'members');
-  const [profile, members] = await Promise.all([
+  const [profile, members, t] = await Promise.all([
     apiGet<ContactProfileView>('/v1/me/contact'),
     admin ? apiGet<Page<MaskedMemberContactView>>(`/v1/organization/contacts?${pageApiQuery(position, 25)}`) : null,
+    getI18n(),
   ]);
   if (profile.kind !== 'ok') return <ApiState result={profile} />;
   const me = profile.data;
   const telegram = me.channels.find((channel) => channel.kind === 'TELEGRAM');
   const whatsapp = me.channels.find((channel) => channel.kind === 'WHATSAPP');
+  const line = me.channels.find((channel) => channel.kind === 'LINE');
   const chats = [
     { provider: 'slack' as const, name: 'Slack', link: me.channels.find((channel) => channel.kind === 'SLACK'), available: me.available.slack, installed: me.chatInstalled.slack },
     { provider: 'teams' as const, name: 'Microsoft Teams', link: me.channels.find((channel) => channel.kind === 'TEAMS'), available: me.available.teams, installed: me.chatInstalled.teams },
@@ -173,6 +184,8 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
           )}
         </CardContent>
       </Card>
+
+      <LineCard t={t} channel={line} line={me.available.line ? me.line : null} />
 
       <Card id="whatsapp">
         <CardHeader>

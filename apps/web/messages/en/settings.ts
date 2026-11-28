@@ -8,6 +8,31 @@ export const settings = {
     saved: 'Language saved.',
     pilot: 'German covers the pact home and Findings so far; other screens are still in English.',
   },
+  /** Your profile → LINE (T-182), and its line in the operator console. */
+  line: {
+    title: 'LINE',
+    description: 'Free. Pactlab messages you in LINE when a pact needs you, with no deal details, only a link. Messages are in Japanese and English.',
+    connected: 'Connected',
+    verified: 'Verified',
+    since: 'since {date}',
+    test: 'Send a test message',
+    disconnect: 'Disconnect LINE',
+    disconnectHint: 'You can also disconnect from LINE: block Pactlab there.',
+    off: 'LINE is not set up on this Pactlab yet.',
+    pending: 'You signed in with LINE. Add Pactlab as a friend to finish; you are connected the moment you do.',
+    addFriend: 'Add Pactlab as a friend',
+    startAgain: 'Start again',
+    connect: 'Connect LINE',
+    connectHint: 'Sign in with LINE, then add Pactlab as a friend. Pactlab stores your LINE account only once both are done.',
+    console: {
+      label: 'LINE allowance',
+      month: 'LINE, {month}:',
+      used: '{used} of {allowance} messages',
+      lineReports: '(LINE reports {used})',
+      lineReportsOf: '(LINE reports {used} of {limit})',
+      reached: 'LINE monthly allowance reached. LINE sends stopped; people get email instead.',
+    },
+  },
   /** Settings → Notifications → urgent alerts (T-146): channels for "act now" items, and web push on this device. */
   alerts: {
     title: 'Urgent alerts on your phone and chat apps',
@@ -16,7 +41,7 @@ export const settings = {
     limits: 'At most {cap} alerts a day across every channel, and one per pact every {fold} minutes; later events on that pact go out together in the next one.',
     channelsLegend: 'Send urgent alerts to',
     notLinked: 'not connected',
-    linkOnProfile: 'Connect Telegram, Slack or Teams on your profile.',
+    linkOnProfile: 'Connect Telegram, LINE, Slack or Teams on your profile.',
     profileLink: 'Your profile',
     save: 'Save channels',
     saved: 'Channels saved.',
@@ -24,6 +49,7 @@ export const settings = {
     channels: {
       WEB_PUSH: 'Alerts on your devices',
       TELEGRAM: 'Telegram',
+      LINE: 'LINE',
       SLACK: 'Slack',
       TEAMS: 'Microsoft Teams',
       WHATSAPP: 'WhatsApp',

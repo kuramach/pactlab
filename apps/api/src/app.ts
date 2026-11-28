@@ -35,6 +35,8 @@ export async function createApp(deps: AppDependencies, options: { webOrigin?: st
     '/v1/email-events/sns',
     '/v1/webhooks/telegram',
     '/v1/webhooks/whatsapp',
+    // LINE (T-182): the signature is over the raw body exactly as received.
+    '/v1/webhooks/line',
     '/v1/webhooks/slack/events',
     '/v1/webhooks/slack/interactions',
     '/v1/webhooks/teams/messages',

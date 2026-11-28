@@ -76,6 +76,7 @@ import { HttpsWebFetcher, type WebFetcher } from './common/safe-fetch';
 import { IcModule } from './ic/ic.module';
 import { BillingModule } from './billing/billing.module';
 import { PactPricingModule } from './pact-pricing/pact-pricing.module';
+import type { LineSettings } from './contacts/channels-config';
 import { FixtureBillingProvider, type BillingProvider, type SlackApp, type TeamsBot, type TelegramBot, type WebPushSender, type WhatsAppSender } from '@pactlab/connectors';
 import { McpModule } from './mcp/mcp.module';
 import type { CostSource } from './admin/cost/cost-explorer';
@@ -187,7 +188,18 @@ export interface AppDependencies {
    * Contact details (T-180, ADR 0064): Auth0's `/userinfo` for the verified email claim, the Telegram bot and
    * the WhatsApp sender. Omitted or null: that part is off (Telegram and WhatsApp are off by default).
    */
-  contacts?: { identityEmails?: IdentityEmailSource | null; telegram?: TelegramBot | null; whatsapp?: WhatsAppSender | null; slack?: SlackApp | null; teams?: TeamsBot | null; push?: WebPushSender | null };
+  contacts?: {
+    identityEmails?: IdentityEmailSource | null;
+    telegram?: TelegramBot | null;
+    whatsapp?: WhatsAppSender | null;
+    slack?: SlackApp | null;
+    teams?: TeamsBot | null;
+    push?: WebPushSender | null;
+    /** LINE (T-182): the official account and its monthly allowance; off when absent. */
+    line?: LineSettings | null;
+    /** Who hears that LINE's monthly allowance was reached (once a month). */
+    operatorEmail?: string | null;
+  };
   /**
    * Product-help chat (T-175): where handed-off questions and confirmed feature requests go. Omitted: no team
    * address, so the panel offers the contact address instead; `featureIntake` defaults to emailing the team.
@@ -405,7 +417,10 @@ export class AppModule {
             chat: new ChatSender(deps.contacts?.slack ?? null, deps.contacts?.teams ?? null, deps.providers?.secrets ?? null),
             // Web push on a person's devices (T-146): VAPID, off unless configured.
             push: deps.contacts?.push ?? null,
+            // LINE for Japan (T-182): the official account, within its monthly free allowance.
+            line: deps.contacts?.line ?? null,
           },
+          operatorEmail: deps.contacts?.operatorEmail ?? null,
         }),
         ContactsModule.register({
           emailSender: deps.emailLogin?.emailSender ?? null,
@@ -415,6 +430,7 @@ export class AppModule {
           identityEmails: deps.contacts?.identityEmails ?? null,
           telegram: deps.contacts?.telegram ?? null,
           whatsapp: deps.contacts?.whatsapp ?? null,
+          line: deps.contacts?.line ?? null,
         }, {
           slack: deps.contacts?.slack ?? null,
           teams: deps.contacts?.teams ?? null,

@@ -4,7 +4,7 @@
  * fixture, never sent to a model.
  */
 
-export type ContactKind = 'EMAIL' | 'TELEGRAM' | 'WHATSAPP';
+export type ContactKind = 'EMAIL' | 'TELEGRAM' | 'WHATSAPP' | 'LINE';
 
 /** E.164 country codes of one and two digits; everything else is three (ITU-T E.164 assignments). */
 const TWO_DIGIT_CODES = new Set([
@@ -53,6 +53,7 @@ export function maskContact(kind: ContactKind, value: string): string {
     const digits = value.replace(/^\+/, '');
     return `+${digits.slice(0, countryCodeLength(digits))} •••• ••${digits.slice(-2)}`;
   }
+  if (kind === 'LINE') return `LINE ••${value.slice(-2)}`;
   return `Telegram ••${value.slice(-2)}`;
 }
 
@@ -68,7 +69,18 @@ export const CHANNEL_PREFIX = 'Pactlab:';
 /** The profile description every provider holds: the tagline (EMAIL_BLURB). */
 export const CHANNEL_ABOUT = 'Test the pact before you sign it.';
 
-export type ChannelMessageKind = 'ACT_NOW' | 'TEST' | 'PUSH_ACT_NOW' | 'PUSH_TEST' | 'LINKED' | 'LINK_EXPIRED' | 'DISCONNECTED' | 'STOPPED' | 'CHAT_CONFIRM' | 'CHAT_LINKED';
+export type ChannelMessageKind =
+  | 'ACT_NOW'
+  | 'TEST'
+  | 'PUSH_ACT_NOW'
+  | 'PUSH_TEST'
+  | 'LINKED'
+  | 'LINK_EXPIRED'
+  | 'DISCONNECTED'
+  | 'STOPPED'
+  | 'CHAT_CONFIRM'
+  | 'CHAT_LINKED'
+  | 'LINE_LINKED';
 
 /**
  * The words every channel sends, in one place, per locale. Content-free by rule: never a pact name,
@@ -89,6 +101,22 @@ const CHANNEL_WORDS = {
     // Slack and Teams (T-181): the one-time "is this you?" before a link, and the reply once confirmed.
     CHAT_CONFIRM: 'Someone signed in to Pactlab with your email asked to get Pactlab alerts here. Is this you? Confirm to connect. The request expires in 10 minutes.',
     CHAT_LINKED: 'You are connected. Pactlab will tell you here when a pact needs you, with no deal details. You can disconnect from your Pactlab profile at any time.',
+    // LINE (T-182): the reply when the friend added completes the link (a reply is free).
+    LINE_LINKED: 'You are connected. Pactlab will tell you here when a pact needs you, with no deal details. Block Pactlab, or disconnect from your Pactlab profile, to stop.',
+  },
+  // Japanese (T-182): machine-made, pending a native review (docs/runbooks/contact-channels.md). Pactlab is never translated.
+  ja: {
+    ACT_NOW: '対応が必要なパクトがあります。Pactlabを開いてご確認ください：{link}',
+    TEST: 'これはテストメッセージです。通知はここに届きます。取引の詳細は含まれません。{link}',
+    PUSH_ACT_NOW: '対応が必要なパクトがあります。Pactlabを開いてご確認ください。',
+    PUSH_TEST: 'これはテスト通知です。通知はこの端末に届きます。取引の詳細は含まれません。',
+    LINKED: '接続しました。パクトで対応が必要になると、Pactlabがここでお知らせします。取引の詳細は含まれません。解除するには /stop を送信してください。',
+    LINK_EXPIRED: 'このリンクは期限切れか、すでに使用されています。Pactlabのプロフィールから新しいリンクを取得してください。',
+    DISCONNECTED: '接続を解除しました。Pactlabからここにメッセージが届くことはありません。',
+    STOPPED: 'Pactlabからここにメッセージが届くことはありません。プロフィールから再接続できます。',
+    CHAT_CONFIRM: 'あなたのメールアドレスでPactlabにサインインした方が、ここでPactlabの通知を受け取るよう依頼しました。ご本人ですか？確認すると接続されます。この依頼は10分で期限切れになります。',
+    CHAT_LINKED: '接続しました。パクトで対応が必要になると、Pactlabがここでお知らせします。取引の詳細は含まれません。Pactlabのプロフィールからいつでも解除できます。',
+    LINE_LINKED: '接続しました。パクトで対応が必要になると、Pactlabがここでお知らせします。取引の詳細は含まれません。停止するには、Pactlabをブロックするか、Pactlabのプロフィールから解除してください。',
   },
 } as const satisfies Record<string, Record<ChannelMessageKind, string>>;
 
@@ -100,6 +128,25 @@ export function channelMessage(kind: ChannelMessageKind, options: { link?: strin
   const text = words[kind].replace('{link}', options.link ?? '').trim();
   return `${CHANNEL_PREFIX} ${text}`;
 }
+
+/**
+ * LINE (T-182): the same template in the reader's language. A Japanese reader gets Japanese; with no
+ * language known for the person (stored languages arrive with T-172b), English and Japanese together,
+ * the link once at the end. Always starts "Pactlab:".
+ */
+export function lineMessage(kind: ChannelMessageKind, options: { link?: string; locale?: string | null } = {}): string {
+  const lang = options.locale?.toLowerCase().split('-')[0];
+  if (lang === 'ja' || lang === 'en') return channelMessage(kind, { ...(options.link ? { link: options.link } : {}), locale: lang });
+  const words = (locale: ChannelLocale) => CHANNEL_WORDS[locale][kind].replace(/[:：]?\s*\{link\}/, '').trim();
+  return [`${CHANNEL_PREFIX} ${words('en')}`, words('ja'), options.link ?? ''].filter(Boolean).join('\n');
+}
+
+/**
+ * The LINE official account's free monthly allowance (Communication plan, Japan, read 2026-11-28 on
+ * lycbiz.com): 200 messages, with no additional messages. Sends stop there; a paid plan is a paid
+ * dependency and needs Kumar's approval recorded in T-182 before this is raised.
+ */
+export const LINE_FREE_MONTHLY_MESSAGES = 200;
 
 /** The button labels Slack and Teams messages carry (T-181): one per message, in the same words everywhere. */
 export const CHAT_BUTTONS = { OPEN: 'Open Pactlab', CONFIRM: 'Yes, connect me' } as const;

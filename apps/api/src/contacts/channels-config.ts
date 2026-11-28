@@ -1,6 +1,6 @@
 import { loadConfig, messagingEnvSchema } from '@pactlab/config';
-import { BotFrameworkTeamsBot, FixtureSlackApp, FixtureTeamsBot, FixtureTelegramBot, FixtureWebPush, FixtureWhatsAppSender, SlackWebApi, TelegramBotApi, VapidWebPush, WhatsAppCloudApi, type SlackApp, type TeamsBot, type TelegramBot, type WebPushSender, type WhatsAppSender } from '@pactlab/connectors';
-import { channelMessage } from '@pactlab/domain';
+import { BotFrameworkTeamsBot, FixtureLineChannel, FixtureSlackApp, LineApi, type LineChannel, FixtureTeamsBot, FixtureTelegramBot, FixtureWebPush, FixtureWhatsAppSender, SlackWebApi, TelegramBotApi, VapidWebPush, WhatsAppCloudApi, type SlackApp, type TeamsBot, type TelegramBot, type WebPushSender, type WhatsAppSender } from '@pactlab/connectors';
+import { channelMessage, LINE_FREE_MONTHLY_MESSAGES } from '@pactlab/domain';
 
 /**
  * Message-channel and web-push adapters (T-180, T-181, T-146). The variables are validated by
@@ -15,6 +15,41 @@ export interface ChannelAdapters {
   readonly teams: TeamsBot | null;
   /** Web push on a person's devices (T-146): VAPID, no third-party service. */
   readonly push: WebPushSender | null;
+  /** LINE (T-182): Pactlab's official account, within its monthly allowance. */
+  readonly line: LineSettings | null;
+}
+
+export interface LineSettings {
+  readonly channel: LineChannel;
+  /** Messages a month the official account may send; sends stop there (email still goes). */
+  readonly allowance: number;
+}
+
+const LINE_VARIABLES = ['LINE_CHANNEL_ACCESS_TOKEN', 'LINE_CHANNEL_SECRET', 'LINE_LOGIN_CHANNEL_ID', 'LINE_LOGIN_CHANNEL_SECRET', 'LINE_ADD_FRIEND_URL'] as const;
+
+/**
+ * LINE (T-182, ADR 0069). Off unless all five are set; partly set fails at startup. The allowance
+ * defaults to the free plan's and may not exceed it: a paid plan needs Kumar's approval recorded in
+ * T-182 first, then this limit raised in code. (Read here, as T-180's channels first were; moving them
+ * into `messagingEnvSchema` in @pactlab/config is a follow-up outside T-182's paths.)
+ */
+export function lineSettings(env: NodeJS.ProcessEnv): LineSettings | null {
+  // `unset` is how a deployed secret reads before Kumar sets it: the same as absent.
+  const values = LINE_VARIABLES.map((name) => { const value = env[name]?.trim() ?? ''; return value === 'unset' ? '' : value; });
+  if (values.every((value) => !value)) return null;
+  const missing = LINE_VARIABLES.filter((_name, index) => !values[index]);
+  if (missing.length > 0) throw new Error(`LINE is partly configured: set ${missing.join(', ')} too, or none of them`);
+  const [channelAccessToken, channelSecret, loginChannelId, loginChannelSecret, addFriendUrl] = values as [string, string, string, string, string];
+  return { channel: new LineApi({ channelAccessToken, channelSecret, loginChannelId, loginChannelSecret, addFriendUrl }), allowance: lineAllowance(env['LINE_MONTHLY_ALLOWANCE']) };
+}
+
+export function lineAllowance(value: string | undefined): number {
+  if (!value?.trim() || value.trim() === 'unset') return LINE_FREE_MONTHLY_MESSAGES;
+  const allowance = Number(value);
+  if (!Number.isInteger(allowance) || allowance < 1 || allowance > LINE_FREE_MONTHLY_MESSAGES) {
+    throw new Error(`LINE_MONTHLY_ALLOWANCE must be a whole number from 1 to ${LINE_FREE_MONTHLY_MESSAGES} (the free plan); a paid plan needs approval first`);
+  }
+  return allowance;
 }
 
 /** The fixture WhatsApp renders the shared words, so what a test reads is what a person would read. */
@@ -25,7 +60,7 @@ export function fixtureWhatsApp(): FixtureWhatsAppSender {
 export function channelAdapters(env: NodeJS.ProcessEnv, appEnv: string): ChannelAdapters {
   const value = loadConfig(messagingEnvSchema, { ...env, APP_ENV: appEnv });
   if (value.CONTACT_CHANNELS === 'fixture') {
-    return { telegram: new FixtureTelegramBot(), whatsapp: fixtureWhatsApp(), slack: new FixtureSlackApp(), teams: new FixtureTeamsBot(), push: new FixtureWebPush() };
+    return { telegram: new FixtureTelegramBot(), whatsapp: fixtureWhatsApp(), slack: new FixtureSlackApp(), teams: new FixtureTeamsBot(), push: new FixtureWebPush(), line: { channel: new FixtureLineChannel(), allowance: lineAllowance(env['LINE_MONTHLY_ALLOWANCE']) } };
   }
   const telegram =
     value.TELEGRAM_BOT_TOKEN && value.TELEGRAM_BOT_USERNAME && value.TELEGRAM_WEBHOOK_SECRET
@@ -54,5 +89,5 @@ export function channelAdapters(env: NodeJS.ProcessEnv, appEnv: string): Channel
     value.VAPID_PUBLIC_KEY && value.VAPID_PRIVATE_KEY && value.VAPID_SUBJECT
       ? new VapidWebPush({ publicKey: value.VAPID_PUBLIC_KEY, privateKey: value.VAPID_PRIVATE_KEY, subject: value.VAPID_SUBJECT })
       : null;
-  return { telegram, whatsapp, slack, teams, push };
+  return { telegram, whatsapp, slack, teams, push, line: lineSettings(env) };
 }
