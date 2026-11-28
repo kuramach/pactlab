@@ -21,7 +21,7 @@ The translations are machine-made. Before adding a language to `OFFERED_LOCALES`
 - [ ] Long strings fit: the pact home, the findings table and one finding at desktop and mobile widths.
 - [ ] Nothing reads as a promise or legal advice that the English does not make.
 
-German (pilot surface) is machine-made and awaiting this review.
+German (pilot surface and the app shell: menu, top bar, account menu) is machine-made and awaiting this review.
 
 ## Switching languages
 Settings → Language. The choice is stored on the device (`pactlab_locale` cookie) and applies on the next page; it changes nothing the API does. Following the person across devices and an organization default arrive with T-172b.

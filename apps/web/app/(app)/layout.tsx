@@ -9,6 +9,7 @@ import { visibleSections } from '../../lib/navigation';
 import { currentRelease, releaseLabel } from '../../lib/release';
 import { appBrand, themeCss } from '../../lib/brand';
 import { getSessionContext } from '../../lib/session';
+import { getI18n } from '../../lib/i18n/server';
 import { apiGet } from './deals/_lib/api';
 import { Sidebar } from './_lib/sidebar';
 import { Topbar } from './_lib/topbar';
@@ -43,6 +44,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   const session = await getSessionContext();
   // The cookie outlived its session (signed out from another device, idle, or a lower limit): clear it and sign in again.
   if (session.kind === 'signed-out' && session.ended) redirect(SESSION_ENDED_PATH);
+  const t = await getI18n();
   const sections = visibleSections(session.permissions, undefined, session.kind === 'signed-in' && session.guest, session.kind === 'signed-in' && session.operator);
   const version = releaseLabel(await currentRelease());
   const brand = await activeBrand();
@@ -54,8 +56,8 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   return (
     <AppShell
       environmentLabel={env.NEXT_PUBLIC_APP_ENV === 'production' ? undefined : env.NEXT_PUBLIC_APP_ENV}
-      sidebar={<Sidebar sections={sections} organizationName={session.kind === 'signed-in' ? (session.organization?.name ?? null) : null} brand={brand} />}
-      topbar={<Topbar session={session} sections={sections} brand={brand} unread={unread?.kind === 'ok' ? unread.data.count : null} />}
+      sidebar={<Sidebar copy={t.m.shell} sections={sections} organizationName={session.kind === 'signed-in' ? (session.organization?.name ?? null) : null} brand={brand} />}
+      topbar={<Topbar copy={t.m.shell} session={session} sections={sections} brand={brand} unread={unread?.kind === 'ok' ? unread.data.count : null} />}
     >
       {/* The organization's accent and font over Pactlab's theme (T-123): hex colors and fixed font stacks only. */}
       {css ? <style>{css}</style> : null}

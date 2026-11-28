@@ -5,8 +5,6 @@
   "apps/web/app/(app)/_lib/demo-blocked.tsx": 1,
   "apps/web/app/(app)/_lib/feature-cards/carousel.tsx": 4,
   "apps/web/app/(app)/_lib/feature-cards/tray.tsx": 1,
-  "apps/web/app/(app)/_lib/sidebar.tsx": 4,
-  "apps/web/app/(app)/_lib/topbar.tsx": 10,
   "apps/web/app/(app)/audit/page.tsx": 14,
   "apps/web/app/(app)/comparables/batch-import.tsx": 23,
   "apps/web/app/(app)/comparables/page.tsx": 48,
