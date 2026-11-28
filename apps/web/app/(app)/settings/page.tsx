@@ -221,6 +221,18 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
 
       <GuideCard hidden={await guideHidden()} />
 
+      <Card id="profile">
+        <CardHeader>
+          <CardTitle>Your profile</CardTitle>
+          <CardDescription>Your email, and Telegram or WhatsApp, so Pactlab can tell you when a pact needs you. Each shows whether it is verified.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Link href="/settings/profile" className={buttonVariants({ variant: 'outline', size: 'sm' })}>
+            Your profile <ArrowRight aria-hidden className="h-4 w-4" />
+          </Link>
+        </CardContent>
+      </Card>
+
       <Card id="notifications">
         <CardHeader>
           <CardTitle>Notifications</CardTitle>

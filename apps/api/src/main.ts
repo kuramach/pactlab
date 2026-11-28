@@ -13,6 +13,8 @@ import { AwsCostExplorerSource } from './admin/cost/cost-explorer';
 import { powerRolesFrom, SsmEnvironmentPowerSource } from './admin/cost/environment-power';
 import { relyingParty } from './app.module';
 import { createAuth0Verifier, DisabledIdentityVerifier } from './auth/identity';
+import { Auth0UserInfo } from './contacts/auth0-userinfo';
+import { channelAdapters } from './contacts/channels-config';
 import { FileSystemObjectStore } from './documents/storage-adapters';
 import { BullMqImportQueue } from './imports/bullmq-import-queue';
 import { LocalFileEmailSender } from './email-login/email-sender';
@@ -212,6 +214,11 @@ const app = await createApp(
     emailEvents: { verifier: snsVerifier },
     // Pact activity notifications (T-145): the dispatcher sends due emails every minute (claims keep it at most once across tasks).
     notifications: { dispatch: true },
+    // Contact details (T-180): Auth0's verified email claim; Telegram and WhatsApp, both off unless configured.
+    contacts: {
+      identityEmails: config.AUTH0_DOMAIN && config.AUTH0_AUDIENCE ? new Auth0UserInfo(config.AUTH0_DOMAIN) : null,
+      ...channelAdapters(process.env, config.APP_ENV),
+    },
     webFetcher,
     emailLogin: {
       tokenSecret: config.AUTH_TOKEN_SECRET,

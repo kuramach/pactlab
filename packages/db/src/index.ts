@@ -39,3 +39,4 @@ export * from './import-formats';
 export * from './page-search';
 export * from './notifications';
 export * from './rinse-preparers';
+export * from './contacts';

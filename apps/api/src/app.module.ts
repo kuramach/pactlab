@@ -76,7 +76,7 @@ import { HttpsWebFetcher, type WebFetcher } from './common/safe-fetch';
 import { IcModule } from './ic/ic.module';
 import { BillingModule } from './billing/billing.module';
 import { PactPricingModule } from './pact-pricing/pact-pricing.module';
-import { FixtureBillingProvider, type BillingProvider } from '@pactlab/connectors';
+import { FixtureBillingProvider, type BillingProvider, type TelegramBot, type WhatsAppSender } from '@pactlab/connectors';
 import { McpModule } from './mcp/mcp.module';
 import type { CostSource } from './admin/cost/cost-explorer';
 import type { EnvironmentPowerSource } from './admin/cost/environment-power';
@@ -85,6 +85,8 @@ import { ApiAccessTokens, McpAccessTokens } from './oauth/access-tokens';
 import { HttpsClientMetadataFetcher, type ClientMetadataFetcher } from './oauth/client-metadata';
 import { OAuthModule } from './oauth/oauth.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { ContactsModule } from './contacts/contacts.module';
+import type { IdentityEmailSource } from './contacts/auth0-userinfo';
 import { DatabaseSuppressionList } from './email-events/email-events.service';
 
 export interface AppDependencies {
@@ -180,6 +182,11 @@ export interface AppDependencies {
    * local runs). Omitted (tests): the inbox works and nothing is sent until the dispatcher is run directly.
    */
   notifications?: { dispatch: boolean; intervalMs?: number };
+  /**
+   * Contact details (T-180, ADR 0064): Auth0's `/userinfo` for the verified email claim, the Telegram bot and
+   * the WhatsApp sender. Omitted or null: that part is off (Telegram and WhatsApp are off by default).
+   */
+  contacts?: { identityEmails?: IdentityEmailSource | null; telegram?: TelegramBot | null; whatsapp?: WhatsAppSender | null };
   /**
    * Product-help chat (T-175): where handed-off questions and confirmed feature requests go. Omitted: no team
    * address, so the panel offers the contact address instead; `featureIntake` defaults to emailing the team.
@@ -390,6 +397,16 @@ export class AppModule {
           appOrigin: webOrigin,
           scheduled: deps.notifications?.dispatch ?? false,
           intervalMs: deps.notifications?.intervalMs ?? 60_000,
+          channels: { telegram: deps.contacts?.telegram ?? null, whatsapp: deps.contacts?.whatsapp ?? null },
+        }),
+        ContactsModule.register({
+          emailSender: deps.emailLogin?.emailSender ?? null,
+          // Without the token secret (some tests), a per-process key: codes then hold within one process.
+          hashSecret: deps.emailLogin?.tokenSecret ?? randomBytes(32).toString('hex'),
+          appOrigin: webOrigin,
+          identityEmails: deps.contacts?.identityEmails ?? null,
+          telegram: deps.contacts?.telegram ?? null,
+          whatsapp: deps.contacts?.whatsapp ?? null,
         }),
         EmailEventsModule.register({ verifier: deps.emailEvents?.verifier ?? null, fetcher: deps.webFetcher ?? new HttpsWebFetcher(), hashSecret: deps.emailLogin?.tokenSecret ?? randomBytes(32).toString('hex') }),
         ...(tokens && deps.emailLogin

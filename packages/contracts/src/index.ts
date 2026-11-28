@@ -23,6 +23,7 @@ export * from './brand';
 export * from './financing';
 export * from './pagination';
 export * from './notifications';
+export * from './contacts';
 export * from './support-chat';
 export * from './rinse';
 export * from './criticals';
