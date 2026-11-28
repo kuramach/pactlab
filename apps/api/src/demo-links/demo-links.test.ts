@@ -16,7 +16,9 @@ describe('sealed demo links', () => {
     const sealed = sealDemoToken(secret, newDemoToken());
     expect(openDemoToken('another-secret-'.padEnd(48, 'y'), sealed)).toBeNull();
     const [version, iv, body, tag] = sealed.split('.');
-    const flipped = `${body!.slice(0, -2)}${body!.endsWith('AA') ? 'AB' : 'AA'}`;
+    // Change the first character: in base64url the last one carries padding bits a decoder ignores, so
+    // rewriting the end could leave the bytes unchanged and the test flaky (#363, 2026-11-27).
+    const flipped = `${body!.startsWith('A') ? 'B' : 'A'}${body!.slice(1)}`;
     expect(openDemoToken(secret, [version, iv, flipped, tag].join('.'))).toBeNull();
     expect(openDemoToken(secret, 'v2.a.b.c')).toBeNull();
     expect(openDemoToken(secret, 'nonsense')).toBeNull();
