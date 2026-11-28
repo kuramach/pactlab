@@ -5,7 +5,7 @@ import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import type { ClaudeGateway } from '@pactlab/ai';
 import { FixtureSlackApp, FixtureTeamsBot, type FixtureChatMessage, type SecretStore } from '@pactlab/connectors';
 import { addSyntheticDealMember, createSyntheticTenant, startTestDatabase, type SyntheticTenant, type TestDatabase } from '@pactlab/db/testing';
-import { CHANNEL_PREFIX, CHANNEL_SENDER, newId } from '@pactlab/domain';
+import { ALERT_FOLD_MINUTES, CHANNEL_PREFIX, CHANNEL_SENDER, newId } from '@pactlab/domain';
 import { createLogger } from '@pactlab/observability';
 import { createLocalJWKSet, exportJWK, generateKeyPair, SignJWT, type CryptoKey } from 'jose';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -65,6 +65,9 @@ class RecordingGateway implements ClaudeGateway {
  * another organization cannot link to this organization's install, nor install the same workspace.
  */
 describe('Slack and Microsoft Teams (T-181)', () => {
+  // Each dispatch is a later round than the last: a pact gets one alert per 15 minutes (T-146).
+  let round = 0;
+  const nextRound = () => new Date(Date.now() + ++round * (ALERT_FOLD_MINUTES + 1) * 60_000);
   let db: TestDatabase;
   let app: NestFastifyApplication;
   let off: NestFastifyApplication;
@@ -237,7 +240,7 @@ describe('Slack and Microsoft Teams (T-181)', () => {
     const before = slack.outbox.length;
     expect((await call('lead', 'POST', `/v1/me/contact/channels/${link.id}/test`)).status).toBe(200);
     await actNowFor(a.userId);
-    await dispatcher.run();
+    await dispatcher.run(nextRound());
     const sent = slack.outbox.slice(before);
     expect(sent.map((message) => message.message.text.split('.')[0])).toEqual(['Pactlab: This is a test message', 'Pactlab: A pact needs you']);
     expect(sent[1]?.message.action).toMatchObject({ kind: 'LINK', label: 'Open Pactlab', url: expect.stringMatching(/\/notifications$/) });
@@ -286,7 +289,7 @@ describe('Slack and Microsoft Teams (T-181)', () => {
     expect((await call('lead', 'GET', '/v1/organization/chat-apps')).body).toMatchObject({ slack: { installed: false } });
     let before = slack.outbox.length;
     await actNowFor(a.userId);
-    await dispatcher.run();
+    await dispatcher.run(nextRound());
     expect(slack.outbox.length).toBe(before);
     // The token is destroyed, not kept.
     expect([...secrets.values.values()]).not.toContain(`xoxb-fixture-${TEAM}`);
@@ -296,7 +299,7 @@ describe('Slack and Microsoft Teams (T-181)', () => {
     expect((await slackEvent({ type: 'tokens_revoked', tokens: { bot: ['B1'] } })).statusCode).toBe(200);
     before = slack.outbox.length;
     await actNowFor(a.userId);
-    await dispatcher.run();
+    await dispatcher.run(nextRound());
     expect(slack.outbox.length).toBe(before);
     const audit = await db.owner.query<{ action: string }>(`SELECT action FROM audit_events WHERE organization_id = $1 AND action IN ('contact.slack_uninstalled', 'contact.slack_tokens_revoked')`, [a.organizationId]);
     expect(audit.rows.map((row) => row.action).sort()).toEqual(['contact.slack_tokens_revoked', 'contact.slack_uninstalled']);
@@ -336,7 +339,7 @@ describe('Slack and Microsoft Teams (T-181)', () => {
     const before = teams.outbox.length;
     expect((await call('lead', 'POST', `/v1/me/contact/channels/${link.id}/test`)).status).toBe(200);
     await actNowFor(a.userId);
-    await dispatcher.run();
+    await dispatcher.run(nextRound());
     expect(teams.outbox.slice(before).map((message) => message.message.text.split('.')[0])).toEqual(['Pactlab: This is a test message', 'Pactlab: A pact needs you']);
     expectContentFree(teams.outbox);
 
@@ -361,7 +364,7 @@ describe('Slack and Microsoft Teams (T-181)', () => {
     expect(await channels('lead')).toEqual([]);
     const before = teams.outbox.length;
     await actNowFor(a.userId);
-    await dispatcher.run();
+    await dispatcher.run(nextRound());
     expect(teams.outbox.length).toBe(before);
   });
 

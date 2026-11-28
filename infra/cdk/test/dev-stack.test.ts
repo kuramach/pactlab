@@ -17,7 +17,8 @@ describe('dev on the shared non-live base', () => {
     // + the document sources' OAuth client id and secret, for Google and Microsoft (T-147), and Google's picker key and project number.
     // + the RentCast key for market rents (T-158).
     // + the GitHub token for pre-production log triage issues (T-157).
-    template.resourceCountIs('AWS::SecretsManager::Secret', 17);
+    // + one each for web push's VAPID keys and the Telegram bot (T-146).
+    template.resourceCountIs('AWS::SecretsManager::Secret', 19);
   });
 
   it('creates no network, load balancer or Redis of its own: the base has them, with a NAT instance and no NAT gateway', () => {

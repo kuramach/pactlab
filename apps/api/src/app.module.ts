@@ -76,7 +76,7 @@ import { HttpsWebFetcher, type WebFetcher } from './common/safe-fetch';
 import { IcModule } from './ic/ic.module';
 import { BillingModule } from './billing/billing.module';
 import { PactPricingModule } from './pact-pricing/pact-pricing.module';
-import { FixtureBillingProvider, type BillingProvider, type SlackApp, type TeamsBot, type TelegramBot, type WhatsAppSender } from '@pactlab/connectors';
+import { FixtureBillingProvider, type BillingProvider, type SlackApp, type TeamsBot, type TelegramBot, type WebPushSender, type WhatsAppSender } from '@pactlab/connectors';
 import { McpModule } from './mcp/mcp.module';
 import type { CostSource } from './admin/cost/cost-explorer';
 import type { EnvironmentPowerSource } from './admin/cost/environment-power';
@@ -187,7 +187,7 @@ export interface AppDependencies {
    * Contact details (T-180, ADR 0064): Auth0's `/userinfo` for the verified email claim, the Telegram bot and
    * the WhatsApp sender. Omitted or null: that part is off (Telegram and WhatsApp are off by default).
    */
-  contacts?: { identityEmails?: IdentityEmailSource | null; telegram?: TelegramBot | null; whatsapp?: WhatsAppSender | null; slack?: SlackApp | null; teams?: TeamsBot | null };
+  contacts?: { identityEmails?: IdentityEmailSource | null; telegram?: TelegramBot | null; whatsapp?: WhatsAppSender | null; slack?: SlackApp | null; teams?: TeamsBot | null; push?: WebPushSender | null };
   /**
    * Product-help chat (T-175): where handed-off questions and confirmed feature requests go. Omitted: no team
    * address, so the panel offers the contact address instead; `featureIntake` defaults to emailing the team.
@@ -403,6 +403,8 @@ export class AppModule {
             whatsapp: deps.contacts?.whatsapp ?? null,
             // Slack and Teams (T-181): direct messages from the Pactlab bot, off unless configured.
             chat: new ChatSender(deps.contacts?.slack ?? null, deps.contacts?.teams ?? null, deps.providers?.secrets ?? null),
+            // Web push on a person's devices (T-146): VAPID, off unless configured.
+            push: deps.contacts?.push ?? null,
           },
         }),
         ContactsModule.register({

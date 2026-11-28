@@ -203,6 +203,19 @@ export class PactlabCompute extends Construct {
       secretStringValue: SecretValue.unsafePlainText('unset'),
       removalPolicy: statefulRemoval,
     });
+    // Urgent alerts (T-146): one JSON secret per channel, each field `unset` until set (the channel is off until then).
+    // Web push's VAPID key pair and contact (scripts/vapid-key.sh) and the Telegram bot (scripts/telegram-key.sh).
+    // One secret per group keeps the hibernated cost down (ADR 0063); only the API reads them. WhatsApp is deferred.
+    const messagingSecret = (id: string, name: string, description: string, fields: readonly string[]) =>
+      new secretsmanager.Secret(this, id, {
+        secretName: `pactlab/${config.name}/messaging/${name}`,
+        description: `Pactlab ${config.name}: ${description} (unset: off)`,
+        encryptionKey: dataKey,
+        secretStringValue: SecretValue.unsafePlainText(JSON.stringify(Object.fromEntries(fields.map((field) => [field, 'unset'])))),
+        removalPolicy: statefulRemoval,
+      });
+    const vapidKeys = messagingSecret('MessagingVapid', 'vapid', 'web push VAPID key pair and contact', ['publicKey', 'privateKey', 'subject']);
+    const telegramBot = messagingSecret('MessagingTelegram', 'telegram', 'Telegram bot token, username and webhook secret', ['token', 'username', 'webhookSecret']);
     const logGroup = (this.logGroup = new logs.LogGroup(this, 'Logs', {
       logGroupName: `/pactlab/${config.name}/app`,
       // Hibernated: 7 days, and back to the usual retention on wake (ADR 0063).
@@ -332,6 +345,12 @@ export class PactlabCompute extends Construct {
           GOOGLE_PICKER_API_KEY: ecs.Secret.fromSecretsManager(googlePickerKey),
           GOOGLE_PROJECT_NUMBER: ecs.Secret.fromSecretsManager(googleProjectNumber),
           RENTCAST_API_KEY: ecs.Secret.fromSecretsManager(rentcastKey),
+          VAPID_PUBLIC_KEY: ecs.Secret.fromSecretsManager(vapidKeys, 'publicKey'),
+          VAPID_PRIVATE_KEY: ecs.Secret.fromSecretsManager(vapidKeys, 'privateKey'),
+          VAPID_SUBJECT: ecs.Secret.fromSecretsManager(vapidKeys, 'subject'),
+          TELEGRAM_BOT_TOKEN: ecs.Secret.fromSecretsManager(telegramBot, 'token'),
+          TELEGRAM_BOT_USERNAME: ecs.Secret.fromSecretsManager(telegramBot, 'username'),
+          TELEGRAM_WEBHOOK_SECRET: ecs.Secret.fromSecretsManager(telegramBot, 'webhookSecret'),
         },
       });
     }

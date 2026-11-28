@@ -4408,6 +4408,77 @@ model ContactChannelDelivery {
   @@map("contact_channel_deliveries")
 }
 
+/// T-146: a person's alert channel choices. Every channel is on unless listed here.
+model NotificationChannelPreference {
+  userId      String   @id @map("user_id") @db.Uuid
+  /// WEB_PUSH, TELEGRAM, SLACK, TEAMS, WHATSAPP or LINE.
+  channelsOff String[] @default([]) @map("channels_off")
+  updatedAt   DateTime @default(now()) @map("updated_at") @db.Timestamptz(3)
+
+  @@map("notification_channel_preferences")
+}
+
+/// T-146: one browser on one device, subscribed with the Push API (VAPID). The endpoint and keys are
+/// personal data: the runtime role cannot read them; the dispatcher reads them through a function.
+model PushSubscription {
+  id             String    @id @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  userId         String    @map("user_id") @db.Uuid
+  endpoint       String
+  p256dh         String
+  auth           String
+  deviceLabel    String    @map("device_label")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  lastSentAt     DateTime? @map("last_sent_at") @db.Timestamptz(3)
+  revokedAt      DateTime? @map("revoked_at") @db.Timestamptz(3)
+  /// USER, EXPIRED (the push service said 404 or 410) or REPLACED.
+  revokedReason  String?   @map("revoked_reason")
+
+  @@index([userId, organizationId], map: "push_subscriptions_user_idx")
+  @@map("push_subscriptions")
+}
+
+/// T-146: one alert to one person about one pact, delivered once on each channel they chose. The daily
+/// cap and the 15-minute fold count these.
+model ChannelAlert {
+  id             String   @id @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  userId         String   @map("user_id") @db.Uuid
+  dealId         String   @map("deal_id") @db.Uuid
+  createdAt      DateTime @map("created_at") @db.Timestamptz(3)
+
+  @@index([userId, createdAt], map: "channel_alerts_user_idx")
+  @@map("channel_alerts")
+}
+
+/// T-146: what became of each "act now" item on the channels: ALERTED, CAPPED or SKIPPED.
+model ChannelAlertItem {
+  notificationId String   @id @map("notification_id") @db.Uuid
+  alertId        String?  @map("alert_id") @db.Uuid
+  outcome        String
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([alertId], map: "channel_alert_items_alert_idx")
+  @@map("channel_alert_items")
+}
+
+/// T-146: each web push sent, claimed before it is sent (at most once per alert and device).
+model PushDelivery {
+  id             String    @id @db.Uuid
+  subscriptionId String    @map("subscription_id") @db.Uuid
+  alertId        String?   @map("alert_id") @db.Uuid
+  /// ALERT or TEST.
+  purpose        String
+  /// CLAIMED, SENT, FAILED or EXPIRED.
+  outcome        String    @default("CLAIMED")
+  errorClass     String?   @map("error_class")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  finishedAt     DateTime? @map("finished_at") @db.Timestamptz(3)
+
+  @@index([subscriptionId, createdAt], map: "push_deliveries_subscription_idx")
+  @@map("push_deliveries")
+}
+
 /// T-181: Pactlab installed in an organization's Slack workspace or Microsoft Teams tenant, once, by an
 /// admin. The workspace or tenant id and the bot token's reference are credential data: reached only
 /// through SECURITY DEFINER functions owned by pactlab_auth; the runtime role reads nothing here.

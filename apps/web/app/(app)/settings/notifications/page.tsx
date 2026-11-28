@@ -1,11 +1,13 @@
-import { DIGEST_CADENCE_LABELS, DIGEST_CADENCES, EMAIL_MODE_LABELS, EMAIL_MODES, type NotificationSettings, type PactNotificationOverride } from '@pactlab/domain';
+import { DIGEST_CADENCE_LABELS, DIGEST_CADENCES, EMAIL_MODE_LABELS, EMAIL_MODES, type AlertChannel, type NotificationSettings, type PactNotificationOverride } from '@pactlab/domain';
 import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle, PageHeader } from '@pactlab/ui';
 import Link from 'next/link';
 import { z } from 'zod';
 import { keepParams, Pager, pagerLinks, readPage } from '../../../_components/pager';
 import { apiGet, dealsApi } from '../../deals/_lib/api';
 import { ApiState } from '../../deals/_lib/states';
+import { getI18n } from '../../../../lib/i18n/server';
 import { saveNotificationSettings, savePactNotificationSettings } from './actions';
+import { AlertsCard, type AlertDevice, type AlertsConfig } from './alerts-card';
 
 // Per-user data: never prerender.
 export const dynamic = 'force-dynamic';
@@ -47,14 +49,22 @@ export default async function NotificationSettingsPage({ searchParams }: { searc
   const query = typeof params['q'] === 'string' ? params['q'].trim().slice(0, 200) : '';
   const saved = params['saved'];
   const position = readPage(params);
-  const [settings, pacts, chosen, override] = await Promise.all([
+  const [settings, pacts, chosen, override, alertsConfig, alertChannels, devices, contact, t] = await Promise.all([
     apiGet<NotificationSettings>('/v1/notification-settings'),
     dealsApi.list({ ...(query ? { q: query } : {}), ...(position.cursor ? { cursor: position.cursor } : {}), limit: 20 }),
     dealParam ? dealsApi.get(dealParam) : null,
     dealParam ? apiGet<PactNotificationOverride>(`/v1/deals/${dealParam}/notification-settings`) : null,
+    // Urgent alerts (T-146): what this Pactlab offers, the person's channel choices, their devices and linked channels.
+    apiGet<AlertsConfig>('/v1/alerts/config'),
+    apiGet<{ on: AlertChannel[] }>('/v1/notification-settings/channels'),
+    apiGet<{ items: AlertDevice[] }>('/v1/me/push-subscriptions'),
+    apiGet<{ channels: { kind: string }[] }>('/v1/me/contact'),
+    getI18n(),
   ]);
   if (settings.kind !== 'ok') return <ApiState result={settings} />;
   const person = settings.data;
+  const myDevices = devices.kind === 'ok' ? devices.data.items : [];
+  const linked = new Set<AlertChannel>([...(contact.kind === 'ok' ? contact.data.channels.map((channel) => channel.kind as AlertChannel) : []), ...(myDevices.length > 0 ? (['WEB_PUSH'] as const) : [])]);
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
@@ -121,6 +131,16 @@ export default async function NotificationSettingsPage({ searchParams }: { searc
           </form>
         </CardContent>
       </Card>
+      {alertsConfig.kind === 'ok' && alertChannels.kind === 'ok' ? (
+        <AlertsCard
+          t={t}
+          config={alertsConfig.data}
+          on={alertChannels.data.on}
+          linked={linked}
+          devices={myDevices}
+          outcome={{ alerts: typeof params['alerts'] === 'string' ? params['alerts'] : undefined, device: typeof params['device'] === 'string' ? params['device'] : undefined }}
+        />
+      ) : null}
       <Card id="pact">
         <CardHeader>
           <CardTitle>For one pact</CardTitle>

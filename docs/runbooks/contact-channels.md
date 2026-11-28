@@ -17,11 +17,17 @@ Everything here is off by default. Agents never set these values or touch AWS; t
 ## Telegram (free)
 1. **Create the bot:** in Telegram, open `@BotFather` → `/newbot`. Name: `Pactlab`. Username: e.g. `PactlabBot` (must end in `bot`). Keep the token BotFather gives you; never paste it in chat or a ticket.
 2. **Picture:** `@BotFather` → `/setuserpic` → choose the bot → send `apps/api/assets/brand/pactlab-icon.png` (the icon the emails use; never a new drawing).
-3. **Store the three values** in the environment's secrets (Secrets Manager wiring is a follow-up in `infra/cdk`, T-146; until then set them as the API task's environment):
+3. **Store the three values** in the environment's Secrets Manager secret `pactlab/<env>/messaging/telegram` (T-146; one JSON secret, every field `unset` until set), then restart the API (`aws ecs update-service … --force-new-deployment`, or the next deploy). The fields map to:
    - `TELEGRAM_BOT_TOKEN`: from BotFather;
    - `TELEGRAM_BOT_USERNAME`: without `@`;
    - `TELEGRAM_WEBHOOK_SECRET`: generate with `openssl rand -base64 48 | tr -d '=+/' | cut -c1-64` (letters and digits only).
-   All three or none: a partial set stops the API at startup.
+   All three or none: a partial set stops the API at startup. To write them without the values reaching a command line (signed in with `scripts/aws.sh login`):
+   ```bash
+   read -rs TOKEN; read -r USERNAME; read -rs SECRET
+   jq -n --arg t "$TOKEN" --arg u "$USERNAME" --arg s "$SECRET" '{token:$t, username:$u, webhookSecret:$s}' \
+     | aws secretsmanager put-secret-value --secret-id pactlab/<env>/messaging/telegram --secret-string file:///dev/stdin --query VersionId --output text
+   unset TOKEN SECRET
+   ```
 4. **Profile and webhook** (once, after deploy), from a machine with the token, in a shell that does not log history:
    ```bash
    TOKEN=...; SECRET=...; HOST=app.pactlab.ai
@@ -35,7 +41,7 @@ Everything here is off by default. Agents never set these values or touch AWS; t
    Each answers `{"ok":true,...}`. The same calls are `TelegramBotApi.setProfile` and `setWebhook` in `@pactlab/connectors`.
 5. **Check:** Your profile → **Connect Telegram** → Start in the chat → "Pactlab: You are connected." → **Send a test message**.
 - **Rotating:** BotFather `/revoke` gives a new token; set it, redeploy. A new webhook secret needs `setWebhook` again.
-- **Turning off:** unset the three values and redeploy; `deleteWebhook` on the bot. Linked channels stay recorded but nothing is sent.
+- **Turning off:** set the three fields back to `unset` and restart the API; `deleteWebhook` on the bot. Linked channels stay recorded but nothing is sent.
 
 ## WhatsApp (paid per message: needs Kumar's approval first)
 **Do not enable until the approval line below is filled in and committed.**

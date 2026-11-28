@@ -317,6 +317,57 @@ export const scannerEnvSchema = baseEnvSchema.extend({
 });
 export type ScannerEnv = z.infer<typeof scannerEnvSchema>;
 
+/** `unset` (the placeholder a deployed secret starts as) or blank means "not set". */
+const unsetValue = (value: unknown) => (value === '' || value === 'unset' ? undefined : value);
+const optionalSecret = z.preprocess(unsetValue, z.string().min(1).optional());
+
+/**
+ * Message channels and web push for the API (T-180, T-181, T-146; ADR 0064, ADR 0065). Every channel is
+ * off unless configured, and never half-configured: a partly set group fails startup, naming the missing
+ * variables (never their values). Deployed, the values come from Secrets Manager.
+ */
+export const messagingEnvSchema = z
+  .object({
+    APP_ENV: z.enum(appEnvironments).default('local'),
+    TELEGRAM_BOT_TOKEN: optionalSecret,
+    TELEGRAM_BOT_USERNAME: optionalSecret,
+    TELEGRAM_WEBHOOK_SECRET: optionalSecret,
+    /** WhatsApp is deferred (Kumar, 2026-11-27): it stays `false`. */
+    WHATSAPP_ENABLED: z.preprocess(unsetValue, z.enum(['true', 'false']).default('false')),
+    WHATSAPP_ACCESS_TOKEN: optionalSecret,
+    WHATSAPP_PHONE_NUMBER_ID: optionalSecret,
+    WHATSAPP_APP_SECRET: optionalSecret,
+    WHATSAPP_VERIFY_TOKEN: optionalSecret,
+    WHATSAPP_API_VERSION: z.preprocess(unsetValue, z.string().regex(/^v\d+\.\d+$/).default('v27.0')),
+    /** Slack (T-181): Pactlab's Slack app. All three or none. */
+    SLACK_CLIENT_ID: optionalSecret,
+    SLACK_CLIENT_SECRET: optionalSecret,
+    SLACK_SIGNING_SECRET: optionalSecret,
+    /** Microsoft Teams (T-181): the Azure bot's app ID and secret; the token tenant (`botframework.com` for multi-tenant). */
+    TEAMS_BOT_APP_ID: optionalSecret,
+    TEAMS_BOT_APP_PASSWORD: optionalSecret,
+    TEAMS_BOT_TOKEN_TENANT: optionalSecret,
+    /** Web push (T-146): the VAPID key pair, base64url (`scripts/vapid-key.sh`), and the contact the push services see. All three or none. */
+    VAPID_PUBLIC_KEY: z.preprocess(unsetValue, z.string().regex(/^[A-Za-z0-9_-]{86,88}$/, 'a base64url P-256 public key (scripts/vapid-key.sh)').optional()),
+    VAPID_PRIVATE_KEY: z.preprocess(unsetValue, z.string().regex(/^[A-Za-z0-9_-]{42,44}$/, 'a base64url P-256 private key (scripts/vapid-key.sh)').optional()),
+    VAPID_SUBJECT: z.preprocess(unsetValue, z.string().regex(/^(mailto:\S+@\S+|https:\/\/\S+)$/, 'mailto: or https: contact').optional()),
+    /** Outside production only: `fixture` runs every channel and web push without a provider (local runs, e2e). */
+    CONTACT_CHANNELS: z.preprocess(unsetValue, z.enum(['fixture']).optional()),
+  })
+  .superRefine(allOrNone(['TELEGRAM_BOT_TOKEN', 'TELEGRAM_BOT_USERNAME', 'TELEGRAM_WEBHOOK_SECRET']))
+  .superRefine(allOrNone(['SLACK_CLIENT_ID', 'SLACK_CLIENT_SECRET', 'SLACK_SIGNING_SECRET']))
+  .superRefine(allOrNone(['TEAMS_BOT_APP_ID', 'TEAMS_BOT_APP_PASSWORD']))
+  .superRefine(allOrNone(['VAPID_PUBLIC_KEY', 'VAPID_PRIVATE_KEY', 'VAPID_SUBJECT']))
+  .superRefine((value, context) => {
+    if (value.CONTACT_CHANNELS === 'fixture' && value.APP_ENV === 'production') context.addIssue({ code: 'custom', path: ['CONTACT_CHANNELS'], message: 'fixture channels are refused in production' });
+    if (value.WHATSAPP_ENABLED === 'true') {
+      for (const key of ['WHATSAPP_ACCESS_TOKEN', 'WHATSAPP_PHONE_NUMBER_ID', 'WHATSAPP_APP_SECRET', 'WHATSAPP_VERIFY_TOKEN'] as const) {
+        if (!value[key]) context.addIssue({ code: 'custom', path: [key], message: 'required when WHATSAPP_ENABLED is true' });
+      }
+    }
+  });
+export type MessagingEnv = z.infer<typeof messagingEnvSchema>;
+
 /** Public web settings only. Never put server secrets in this schema. */
 export const webPublicEnvSchema = z.object({
   NEXT_PUBLIC_APP_ENV: z.enum(appEnvironments),
