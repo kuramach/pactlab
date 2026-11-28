@@ -163,5 +163,6 @@
   "packages/ui/src/components/file-drop.tsx": 3,
   "packages/ui/src/components/page-header.tsx": 1,
   "apps/web/app/(app)/_lib/email-banner.tsx": 3,
-  "apps/web/app/(app)/settings/profile/page.tsx": 41
+  "apps/web/app/(app)/settings/profile/page.tsx": 52,
+  "apps/web/app/(app)/settings/chat-apps-card.tsx": 7
 }
