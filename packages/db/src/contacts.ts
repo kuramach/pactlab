@@ -4,11 +4,11 @@ import { decodeCursor, toPage, type PageRequest, type PageResult } from './pagin
 import { APP_DB_ROLE, withTenant } from './tenant';
 
 /**
- * Contact details (T-180, ADR 0064): the person's verified email and their message channels.
+ * Contact details (T-180, T-182; ADR 0064): the person's verified email and their message channels.
  * Every write is a SECURITY DEFINER function acting on the signed-in person; the runtime role reads
  * only its own rows. Values here are personal data: never log them, never send them to a model.
  */
-export type ContactChannelKind = 'TELEGRAM' | 'WHATSAPP';
+export type ContactChannelKind = 'TELEGRAM' | 'WHATSAPP' | 'LINE';
 export type ContactVerificationKind = 'EMAIL' | ContactChannelKind;
 
 export interface ContactEmail {
@@ -33,6 +33,7 @@ export interface MaskedMemberContact {
   readonly emailVerified: boolean;
   readonly telegramMasked: string | null;
   readonly whatsappMasked: string | null;
+  readonly lineMasked: string | null;
 }
 
 export interface DispatchChannel {
@@ -112,6 +113,31 @@ export const contacts = {
     });
   },
 
+  /**
+   * Back from LINE Login (T-182): the person's own login state, used once. A friend already: connected now.
+   * Not yet: a 15-minute wait for the follow event, keyed by `lineUserHash`; the LINE user id is not stored.
+   * Null: the state is not theirs, already used, or expired.
+   */
+  async lineLogin(
+    prisma: PrismaClient,
+    tenant: TenantContext,
+    input: { stateHash: string; lineUserHash: string; lineUserId: string; friend: boolean },
+  ): Promise<'CONNECTED' | 'AWAITING_FRIEND' | null> {
+    return withTenant(prisma, tenant, async (tx) => {
+      const [row] = await tx.$queryRaw<{ status: string | null }[]>`
+        SELECT app_contact_line_login(${input.stateHash}, ${input.lineUserHash}, ${input.lineUserId}, ${input.friend}) AS status`;
+      return row?.status === 'CONNECTED' || row?.status === 'AWAITING_FRIEND' ? row.status : null;
+    });
+  },
+
+  /** From the verified LINE webhook: a follow event completes a wait. The channel id, or null. */
+  async lineFollow(prisma: PrismaClient, input: { lineUserHash: string; lineUserId: string }): Promise<string | null> {
+    return asApp(prisma, async (tx) => {
+      const [row] = await tx.$queryRaw<{ id: string | null }[]>`SELECT app_contact_line_follow(${input.lineUserHash}, ${input.lineUserId})::text AS id`;
+      return row?.id ?? null;
+    });
+  },
+
   async channels(prisma: PrismaClient, tenant: TenantContext): Promise<ContactChannel[]> {
     return withTenant(prisma, tenant, async (tx) => {
       // bounded: at most one live channel per kind per person (unique index)
@@ -153,9 +179,9 @@ export const contacts = {
     const after = decodeCursor(request.cursor)?.id ?? null;
     return withTenant(prisma, tenant, async (tx) => {
       const rows = await tx.$queryRaw<
-        { user_id: string; display_name: string; email_masked: string | null; email_verified: boolean; telegram_masked: string | null; whatsapp_masked: string | null }[]
-      >`SELECT user_id::text, display_name, email_masked, email_verified, telegram_masked, whatsapp_masked
-          FROM app_contact_admin_list(${after}::uuid, ${request.limit + 1}::int)`;
+        { user_id: string; display_name: string; email_masked: string | null; email_verified: boolean; telegram_masked: string | null; whatsapp_masked: string | null; line_masked: string | null }[]
+      >`SELECT user_id::text, display_name, email_masked, email_verified, telegram_masked, whatsapp_masked, line_masked
+          FROM app_contact_admin_list_v2(${after}::uuid, ${request.limit + 1}::int)`;
       const total = rows.length === 0 && after === null ? 0 : await tx.organizationMembership.count({ where: { organizationId: tenant.organizationId, status: 'ACTIVE' } });
       return toPage(
         rows.map((row) => ({ ...row, id: row.user_id })),
@@ -169,6 +195,7 @@ export const contacts = {
           emailVerified: row.email_verified,
           telegramMasked: row.telegram_masked,
           whatsappMasked: row.whatsapp_masked,
+          lineMasked: row.line_masked,
         }),
       );
     });
@@ -188,7 +215,7 @@ export const contactDispatch = {
   async channels(prisma: PrismaClient, userIds: readonly string[]): Promise<DispatchChannel[]> {
     if (userIds.length === 0) return [];
     return asApp(prisma, async (tx) => {
-      // bounded: at most two live channels for each person in a dispatcher page
+      // bounded: at most three live channels (one per kind) for each person in a dispatcher page
       const rows = await tx.$queryRaw<{ channel_id: string; user_id: string; kind: string; handle: string }[]>`
         SELECT channel_id::text, user_id::text, kind, handle FROM app_contact_dispatch_channels(${[...userIds]}::uuid[])`;
       return rows.map((row) => ({ channelId: row.channel_id, userId: row.user_id, kind: row.kind as ContactChannelKind, handle: row.handle }));
@@ -208,6 +235,14 @@ export const contactDispatch = {
     return withTenant(prisma, tenant, async (tx) => {
       const [row] = await tx.$queryRaw<{ id: string | null }[]>`SELECT app_contact_delivery_claim(${channelId}::uuid, NULL)::text AS id`;
       return row?.id ?? null;
+    });
+  },
+
+  /** Operators (T-182): this month's LINE messages as Pactlab counted them. Throws for a non-operator. */
+  async lineMonth(prisma: PrismaClient, actorUserId: string): Promise<{ sent: number; heldBack: number; failed: number }> {
+    return asApp(prisma, async (tx) => {
+      const [row] = await tx.$queryRaw<{ sent: bigint; held_back: bigint; failed: bigint }[]>`SELECT sent, held_back, failed FROM app_ops_line_month(${actorUserId}::uuid)`;
+      return { sent: Number(row?.sent ?? 0), heldBack: Number(row?.held_back ?? 0), failed: Number(row?.failed ?? 0) };
     });
   },
 

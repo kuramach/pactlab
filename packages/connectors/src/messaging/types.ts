@@ -1,6 +1,6 @@
 /**
- * Message channels (T-180, ADR 0064): Telegram and WhatsApp behind one seam each, with fixture
- * adapters for tests and local runs. Both are off by default. Pact code sees only these types.
+ * Message channels (T-180, T-182; ADR 0064): Telegram, WhatsApp and LINE behind one seam each, with fixture
+ * adapters for tests and local runs. All are off by default. Pact code sees only these types.
  * Handles (chat ids, numbers) are personal data: adapters never log them or put them in errors.
  */
 
@@ -75,4 +75,42 @@ export interface WhatsAppSender {
   /** The verification GET: the challenge to echo, or null. */
   verifySubscription(query: { mode?: string; token?: string; challenge?: string }): string | null;
   parseInbound(rawBody: Uint8Array): WhatsAppInbound[];
+}
+
+/** What the LINE webhook tells Pactlab, reduced to what Pactlab acts on. One-on-one chats only. */
+export type LineEvent =
+  | { readonly kind: 'FOLLOW'; readonly userId: string; readonly replyToken: string | null }
+  | { readonly kind: 'UNFOLLOW'; readonly userId: string }
+  | { readonly kind: 'IGNORED' };
+
+/** A LINE Login result: the person's LINE user id (the ID token's `sub`) and whether they are a friend of the account. */
+export interface LineLoginResult {
+  readonly userId: string;
+  readonly friend: boolean;
+}
+
+/** This month's push messages, as LINE counts them (Messaging API quota endpoints). */
+export interface LineMonthlyUsage {
+  /** Messages sent this month (`totalUsage`), including those sent from LINE Official Account Manager. */
+  readonly used: number;
+  /** The target limit set on the account (`value` when `type` is `limited`), else null. */
+  readonly accountLimit: number | null;
+}
+
+export interface LineMessenger {
+  readonly name: 'LINE' | 'FIXTURE';
+  /** The LINE Login authorization URL: OpenID Connect, PKCE (S256), and the add-friend prompt after consent. */
+  authorizeUrl(input: { state: string; nonce: string; codeChallenge: string; redirectUri: string }): string;
+  /** Exchange the code, verify the ID token (nonce checked by LINE) and read the friendship status. */
+  completeLogin(input: { code: string; codeVerifier: string; nonce: string; redirectUri: string }): Promise<LineLoginResult>;
+  /** The URL that opens the account's add-friend screen. */
+  readonly addFriendUrl: string;
+  /** A push message: counts towards the month's allowance. */
+  push(userId: string, text: string): Promise<void>;
+  /** A reply to a webhook event (its `replyToken`): does not count towards the allowance. */
+  reply(replyToken: string, text: string): Promise<void>;
+  monthlyUsage(): Promise<LineMonthlyUsage>;
+  /** `x-line-signature`: base64 HMAC-SHA256 of the raw body with the channel secret. */
+  verifySignature(rawBody: Uint8Array, headers: Headers): boolean;
+  parseEvents(rawBody: Uint8Array): LineEvent[];
 }

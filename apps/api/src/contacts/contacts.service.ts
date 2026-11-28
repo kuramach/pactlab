@@ -1,9 +1,9 @@
 import { createHash, randomBytes, randomInt } from 'node:crypto';
 import { ForbiddenException, HttpException, Inject, Injectable, NotFoundException, ServiceUnavailableException, UnprocessableEntityException } from '@nestjs/common';
-import type { ContactProfileView, MaskedMemberContactView, Page, TelegramLinkView, WhatsAppStartBody } from '@pactlab/contracts';
+import type { ContactProfileView, LineAllowanceView, LineCallbackBody, LineCallbackView, LineLinkView, MaskedMemberContactView, Page, TelegramLinkView, WhatsAppStartBody } from '@pactlab/contracts';
 import { contactDispatch, contacts, type PrismaClient } from '@pactlab/db';
-import { channelMessage, CHANNEL_ABOUT, CHANNEL_SENDER, isStopWord, normalizeEmail, toE164, WHATSAPP_CONSENT_TEXT, type TenantContext } from '@pactlab/domain';
-import { ChannelSendError, type TelegramBot, type WhatsAppSender } from '@pactlab/connectors';
+import { channelMessage, CHANNEL_ABOUT, CHANNEL_SENDER, isStopWord, lineMessage, normalizeEmail, toE164, WHATSAPP_CONSENT_TEXT, type TenantContext } from '@pactlab/domain';
+import { ChannelSendError, type LineMessenger, type TelegramBot, type WhatsAppSender } from '@pactlab/connectors';
 import type { Logger } from '@pactlab/observability';
 import type { Principal } from '../auth/auth.guard';
 import { keyedHash } from '../email-login/client-address';
@@ -11,6 +11,7 @@ import type { EmailSender } from '../email-login/email-sender';
 import { LOGGER, PRISMA } from '../tokens';
 import type { IdentityEmailSource } from './auth0-userinfo';
 import { contactEmails } from './contact-emails';
+import { LINE_ALLOWANCE_REACHED, LineAllowance } from './line-allowance';
 
 export const CONTACT_SETTINGS = Symbol('CONTACT_SETTINGS');
 
@@ -26,7 +27,14 @@ export interface ContactModuleSettings {
   readonly telegram: TelegramBot | null;
   /** WhatsApp: off (null) unless enabled after Kumar's approval (ADR 0064); the fixture in tests. */
   readonly whatsapp: WhatsAppSender | null;
+  /** LINE (T-182): off (null) unless its channels are set; the fixture in tests. */
+  readonly line?: LineMessenger | null;
+  /** LINE pushes allowed each month: the free allowance unless a paid plan is approved. */
+  readonly lineMonthlyAllowance?: number;
 }
+
+/** Where LINE Login returns (registered as the LINE Login channel's callback URL; runbook). */
+export const LINE_CALLBACK_PATH = '/settings/profile/line/callback';
 
 const CODE_MINUTES = 10;
 const LINK_MINUTES = 10;
@@ -37,20 +45,38 @@ const sha256 = (value: string) => createHash('sha256').update(value, 'utf8').dig
 const errorClass = (error: unknown) => (error instanceof ChannelSendError ? error.errorClass : error instanceof Error ? error.name : 'unknown');
 
 /**
- * Contact details in the profile (T-180, ADR 0064). A verified email for everyone, Telegram (free, the
- * default phone channel) and WhatsApp (opt-in, paid per message). Every value is personal data: it is
+ * Contact details in the profile (T-180, T-182; ADR 0064). A verified email for everyone, Telegram (free, the
+ * default phone channel), WhatsApp (opt-in, paid per message) and LINE (Japan; pushes capped at the free allowance). Every value is personal data: it is
  * never logged, never in an error, never sent to a model; a channel is used only once verified, and
  * the verified state lives in the database. Every message is the shared, content-free template.
  */
 @Injectable()
 export class ContactsService {
   private readonly claimTried = new Map<string, number>();
+  private readonly lineAllowance: LineAllowance | null;
 
   constructor(
     @Inject(PRISMA) private readonly prisma: PrismaClient,
     @Inject(CONTACT_SETTINGS) private readonly settings: ContactModuleSettings,
     @Inject(LOGGER) private readonly logger: Logger,
-  ) {}
+  ) {
+    this.lineAllowance = settings.line ? new LineAllowance(settings.line, settings.lineMonthlyAllowance ?? 0, logger) : null;
+  }
+
+  /** A LINE user id as the pending verification keeps it: keyed, so the id itself is never stored before both steps. */
+  private lineUserHash(lineUserId: string): string {
+    return keyedHash(this.settings.hashSecret, `contact:LINE:user:${lineUserId}`);
+  }
+
+  /** PKCE and nonce from the state, keyed: nothing but the state's hash is stored. */
+  private lineSecrets(state: string): { codeVerifier: string; codeChallenge: string; nonce: string } {
+    const codeVerifier = keyedHash(this.settings.hashSecret, `contact:LINE:pkce:${state}`);
+    return {
+      codeVerifier,
+      codeChallenge: createHash('sha256').update(codeVerifier, 'ascii').digest('base64url'),
+      nonce: keyedHash(this.settings.hashSecret, `contact:LINE:nonce:${state}`).slice(0, 32),
+    };
+  }
 
   private codeHash(tenant: TenantContext, kind: 'EMAIL' | 'WHATSAPP', code: string): string {
     return keyedHash(this.settings.hashSecret, `contact:${kind}:${tenant.userId}:${code}`);
@@ -90,7 +116,8 @@ export class ContactsService {
         verifiedAt: channel.verifiedAt.toISOString(),
         consentedAt: channel.consentedAt?.toISOString() ?? null,
       })),
-      available: { telegram: this.settings.telegram !== null, whatsapp: this.settings.whatsapp !== null },
+      available: { telegram: this.settings.telegram !== null, whatsapp: this.settings.whatsapp !== null, line: Boolean(this.settings.line) },
+      lineAddFriendUrl: this.settings.line?.addFriendUrl ?? null,
       whatsappConsentText: WHATSAPP_CONSENT_TEXT,
     };
   }
@@ -206,10 +233,80 @@ export class ContactsService {
     return { ok: true };
   }
 
+  /** Connect LINE, step 1: LINE Login (OpenID Connect, PKCE), which offers the account as a friend after consent. */
+  async lineLink(tenant: TenantContext): Promise<LineLinkView> {
+    const line = this.settings.line;
+    if (!line) throw new UnprocessableEntityException({ code: 'LINE_OFF' });
+    const state = randomBytes(32).toString('base64url');
+    const id = await contacts.beginVerification(this.prisma, tenant, { kind: 'LINE', target: null, secretHash: sha256(state), minutes: LINK_MINUTES, consentText: null });
+    if (!id) throw new HttpException({ code: 'RATE_LIMITED' }, 429);
+    const { codeChallenge, nonce } = this.lineSecrets(state);
+    return { url: line.authorizeUrl({ state, nonce, codeChallenge, redirectUri: this.link(LINE_CALLBACK_PATH) }), expiresAt: new Date(Date.now() + LINK_MINUTES * 60_000).toISOString() };
+  }
+
+  /**
+   * Back from LINE Login: the code exchanged, the ID token verified (LINE checks the nonce), the friendship read.
+   * A friend already: connected. Not yet: the person adds the account and the follow event finishes it.
+   */
+  async lineCallback(tenant: TenantContext, body: LineCallbackBody): Promise<LineCallbackView> {
+    const line = this.settings.line;
+    if (!line) throw new UnprocessableEntityException({ code: 'LINE_OFF' });
+    const { codeVerifier, nonce } = this.lineSecrets(body.state);
+    let login;
+    try {
+      login = await line.completeLogin({ code: body.code, codeVerifier, nonce, redirectUri: this.link(LINE_CALLBACK_PATH) });
+    } catch (error) {
+      this.logger.warn({ errorClass: errorClass(error) }, 'LINE Login not completed');
+      throw new UnprocessableEntityException({ code: 'LINE_LOGIN_FAILED' });
+    }
+    const status = await contacts.lineLogin(this.prisma, tenant, { stateHash: sha256(body.state), lineUserHash: this.lineUserHash(login.userId), lineUserId: login.userId, friend: login.friend });
+    if (!status) throw new UnprocessableEntityException({ code: 'LINE_LINK_EXPIRED' });
+    return { status: status === 'CONNECTED' ? 'CONNECTED' : 'ADD_FRIEND', addFriendUrl: line.addFriendUrl };
+  }
+
+  /** The LINE webhook: every request verified by `x-line-signature`. Follow finishes a link; unfollow disconnects at once. */
+  async lineWebhook(rawBody: Uint8Array, headers: Headers): Promise<{ ok: true }> {
+    const line = this.settings.line;
+    if (!line) throw new NotFoundException();
+    if (!line.verifySignature(rawBody, headers)) throw new ForbiddenException();
+    for (const event of line.parseEvents(rawBody)) {
+      if (event.kind === 'FOLLOW') {
+        const linked = await contacts.lineFollow(this.prisma, { lineUserHash: this.lineUserHash(event.userId), lineUserId: event.userId });
+        // A reply is free (it does not count towards the month's allowance); a push would.
+        if (event.replyToken) await this.lineReply(line, event.replyToken, lineMessage(linked ? 'LINE_LINKED' : 'LINE_CONNECT_FROM_PROFILE'));
+      } else if (event.kind === 'UNFOLLOW') {
+        await contacts.stop(this.prisma, { kind: 'LINE', handle: event.userId, reason: 'BLOCKED' });
+      }
+    }
+    return { ok: true };
+  }
+
+  private async lineReply(line: LineMessenger, replyToken: string, text: string): Promise<void> {
+    try {
+      await line.reply(replyToken, text);
+    } catch (error) {
+      this.logger.warn({ errorClass: errorClass(error) }, 'LINE reply not delivered');
+    }
+  }
+
+  /** Operators: this month's LINE allowance, LINE's count beside Pactlab's. "Reached" is the console's notice. */
+  async lineAllowanceView(tenant: TenantContext): Promise<LineAllowanceView> {
+    let month;
+    try {
+      month = await contactDispatch.lineMonth(this.prisma, tenant.userId);
+    } catch {
+      throw new ForbiddenException();
+    }
+    const allowance = this.settings.lineMonthlyAllowance ?? 0;
+    if (!this.lineAllowance) return { configured: false, allowance, used: null, reached: false, ...month };
+    const state = await this.lineAllowance.state();
+    return { configured: true, allowance: state.limit, used: state.used, reached: state.used !== null && state.remaining === 0, ...month };
+  }
+
   async disconnect(tenant: TenantContext, channelId: string): Promise<{ disconnected: true }> {
     const channel = await contacts.revoke(this.prisma, tenant, channelId);
     if (!channel) throw new NotFoundException();
-    // Telegram messages are free, so the chat hears that it is disconnected; WhatsApp is paid per message, so it does not.
+    // Telegram messages are free, so the chat hears that it is disconnected; WhatsApp and LINE pushes count, so they do not.
     if (channel.kind === 'TELEGRAM' && this.settings.telegram) await this.say(this.settings.telegram, channel.handle, channelMessage('DISCONNECTED'));
     return { disconnected: true };
   }
@@ -225,11 +322,20 @@ export class ContactsService {
       if (channel.kind === 'TELEGRAM') {
         if (!this.settings.telegram) throw new ChannelSendError('TelegramOff');
         await this.settings.telegram.sendMessage(channel.handle, channelMessage('TEST', { link }));
+      } else if (channel.kind === 'LINE') {
+        if (!this.settings.line || !this.lineAllowance) throw new ChannelSendError('LineOff');
+        const allowance = await this.lineAllowance.state();
+        if (allowance.remaining === 0) {
+          await contactDispatch.finish(this.prisma, { deliveryId, outcome: 'FAILED', errorClass: allowance.used === null ? 'LineQuotaUnreadable' : LINE_ALLOWANCE_REACHED });
+          throw new UnprocessableEntityException({ code: 'LINE_ALLOWANCE_REACHED' });
+        }
+        await this.settings.line.push(channel.handle, lineMessage('TEST', { link }));
       } else {
         if (!this.settings.whatsapp) throw new ChannelSendError('WhatsAppOff');
         await this.settings.whatsapp.sendTemplate(channel.handle, 'TEST', link);
       }
     } catch (error) {
+      if (error instanceof UnprocessableEntityException) throw error;
       await contactDispatch.finish(this.prisma, { deliveryId, outcome: 'FAILED', errorClass: errorClass(error) });
       throw new ServiceUnavailableException({ code: 'MESSAGE_NOT_SENT' });
     }
@@ -243,7 +349,7 @@ export class ContactsService {
     const page = await contacts.adminPage(this.prisma, tenant, query);
     return {
       ...page,
-      items: page.items.map((row) => ({ userId: row.userId, displayName: row.displayName, email: row.emailMasked, emailVerified: row.emailVerified, telegram: row.telegramMasked, whatsapp: row.whatsappMasked })),
+      items: page.items.map((row) => ({ userId: row.userId, displayName: row.displayName, email: row.emailMasked, emailVerified: row.emailVerified, telegram: row.telegramMasked, whatsapp: row.whatsappMasked, line: row.lineMasked })),
     };
   }
 

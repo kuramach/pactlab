@@ -1,9 +1,9 @@
-# Contact channels: email, Telegram and WhatsApp (T-180, ADR 0064)
+# Contact channels: email, Telegram, WhatsApp and LINE (T-180, T-182, ADR 0064)
 
 Everything here is off by default. Agents never set these values or touch AWS; these are Kumar's steps.
 
 ## What people see
-- **Settings → Your profile** (`/settings/profile`): name, email (verified), Telegram, WhatsApp, each with its verified state; a test message and disconnect per channel.
+- **Settings → Your profile** (`/settings/profile`): name, email (verified), Telegram, LINE, WhatsApp, each with its verified state; a test message and disconnect per channel.
 - **Banner** on every page until the person has a verified email.
 - **Admins** see members' contact details masked on the same page; every view is audited (`contact.admin_viewed`).
 
@@ -37,6 +37,45 @@ Everything here is off by default. Agents never set these values or touch AWS; t
 - **Rotating:** BotFather `/revoke` gives a new token; set it, redeploy. A new webhook secret needs `setWebhook` again.
 - **Turning off:** unset the three values and redeploy; `deleteWebhook` on the bot. Linked channels stay recorded but nothing is sent.
 
+## LINE (Japan; free up to 200 pushes a month)
+LINE pushes stop at the free allowance. A paid plan is a paid dependency: **do not raise the cap until the approval line below is filled in and committed.**
+
+> Paid-plan approval: _not given_ — date, plan, and who. Until then `LINE_MONTHLY_ALLOWANCE` cannot exceed 200 (the API refuses to start).
+
+**Plans in Japan** (LINE Yahoo for Business, `lycbiz.com/jp/service/line-official-account/plan/`, read 2026-11-27; prices excl. tax):
+
+| Plan | Monthly fee | Messages included | Beyond that |
+|---|---|---|---|
+| Communication (free) | ¥0 | 200 | not possible |
+| Light | ¥5,000 | 5,000 | not possible |
+| Standard | ¥15,000 | 30,000 | pay per message, tiered by volume |
+
+- **What counts** (developers.line.biz, "Messaging API pricing"): push messages count, one per recipient; **reply messages do not**. Pactlab replies (free) to follow events, and pushes only the test message and "act now" alerts.
+- **At the cap:** the dispatcher holds LINE pushes (recorded as `LineAllowanceReached`), the person still gets the email, and Admin → Health shows **"LINE monthly allowance reached"**. The cap is the lower of `LINE_MONTHLY_ALLOWANCE` and any target limit set on the account; LINE's own count (`/v2/bot/message/quota/consumption`, which includes messages sent from LINE Official Account Manager) is read before each batch. If LINE cannot be asked, LINE pushes are held (fail closed).
+- **Also set in OA Manager** (Settings → messaging limits, if offered): a target limit of 200, so LINE itself refuses beyond it.
+
+### One-time setup (Kumar)
+1. **Provider and official account:** LINE Developers console (`developers.line.biz/console`) → create a provider `Pactlab` → create a **Messaging API channel**; this creates the LINE Official Account. Plan: Communication (free).
+2. **Branding** (LINE Official Account Manager → Settings → Account settings):
+   - account name **Pactlab**;
+   - profile image `apps/api/assets/brand/pactlab-icon.png` (the icon the emails use; never a new drawing);
+   - status message: the tagline `Test the pact before you sign it.`; if OA Manager's length limit refuses it, the Japanese tagline `署名する前に、パクトを検証する。` (`CHANNEL_ABOUT_JA`).
+   - Response settings: chat off, greeting message off, auto-response off, **webhooks on** (Pactlab replies itself, in the shared "Pactlab:" words).
+3. **Messaging API channel** (console → the channel):
+   - Basic settings → **channel secret** → `LINE_CHANNEL_SECRET`;
+   - Messaging API → issue a **long-lived channel access token** → `LINE_CHANNEL_ACCESS_TOKEN`;
+   - Messaging API → **bot basic ID** (`@…`) → `LINE_BOT_BASIC_ID`;
+   - Webhook URL `https://<host>/v1/webhooks/line`, **Use webhook** on, then **Verify** (Pactlab answers 200 to a signed request with no events).
+4. **LINE Login channel** in the **same provider** (so the LINE user id is the same in both): console → create a LINE Login channel (web app).
+   - Basic settings → **Linked LINE Official Account** → the Pactlab account (this is what makes the add-friend prompt and the friendship status work);
+   - LINE Login → callback URL `https://<host>/settings/profile/line/callback`;
+   - **channel ID** → `LINE_LOGIN_CHANNEL_ID`, **channel secret** → `LINE_LOGIN_CHANNEL_SECRET`;
+   - publish the channel (Developing → Published).
+5. **Secrets:** put the five values in Secrets Manager for the environment (CDK wiring is a follow-up with T-146; until then the API task's environment). All five or none: a partial set stops the API at startup. Leave `LINE_MONTHLY_ALLOWANCE` unset (200).
+6. **Check:** Your profile → **Connect LINE** → sign in → add Pactlab as a friend → the chat says "Pactlab: You are connected." → **Send a test message**. Then block the account in LINE: the profile shows LINE disconnected (`contact.line_stopped` in the audit log).
+- **Rotating:** reissue the channel access token or channel secret in the console; set it and redeploy. Webhooks signed with the old secret are refused (403) until then.
+- **Turning off:** unset the five values and redeploy; switch **Use webhook** off. Linked channels stay recorded but nothing is sent.
+
 ## WhatsApp (paid per message: needs Kumar's approval first)
 **Do not enable until the approval line below is filled in and committed.**
 
@@ -56,11 +95,13 @@ Everything here is off by default. Agents never set these values or touch AWS; t
 - **Turning off:** `WHATSAPP_ENABLED=false` and redeploy.
 
 ## Local runs and tests
-- `CONTACT_CHANNELS=fixture` (never in production) runs both channels with the fixture adapters: nothing leaves the machine.
-- CI never calls Telegram or Meta: tests use the fixtures and stubbed responses shaped from the official docs.
+- `CONTACT_CHANNELS=fixture` (never in production) runs every channel with the fixture adapters: nothing leaves the machine.
+- CI never calls Telegram, LINE or Meta: tests use the fixtures and stubbed responses shaped from the official docs.
 
 ## When something is wrong
 - **"Telegram is not set up":** the three `TELEGRAM_*` values are not set in this environment.
 - **Links say "expired or already used":** the link lasts 10 minutes and works once; connect again.
-- **Messages stopped arriving:** the person blocked the bot or sent `/stop` (Telegram), or replied STOP (WhatsApp). They reconnect from their profile.
-- **Never** copy a chat id, number or address into a ticket, log or chat. Use the person's user id.
+- **"LINE sign-in has expired":** the sign-in lasts 10 minutes and works once; the add-friend step has 15 minutes. Connect again.
+- **LINE connected but nothing arrives:** check Admin → Health for "LINE monthly allowance reached"; the person still gets the email.
+- **Messages stopped arriving:** the person blocked the bot or sent `/stop` (Telegram), blocked the account (LINE), or replied STOP (WhatsApp). They reconnect from their profile.
+- **Never** copy a chat id, LINE user id, number or address into a ticket, log or chat. Use the person's user id.

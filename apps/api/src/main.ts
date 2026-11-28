@@ -214,7 +214,7 @@ const app = await createApp(
     emailEvents: { verifier: snsVerifier },
     // Pact activity notifications (T-145): the dispatcher sends due emails every minute (claims keep it at most once across tasks).
     notifications: { dispatch: true },
-    // Contact details (T-180): Auth0's verified email claim; Telegram and WhatsApp, both off unless configured.
+    // Contact details (T-180, T-182): Auth0's verified email claim; Telegram, WhatsApp and LINE, each off unless configured.
     contacts: {
       identityEmails: config.AUTH0_DOMAIN && config.AUTH0_AUDIENCE ? new Auth0UserInfo(config.AUTH0_DOMAIN) : null,
       ...channelAdapters(process.env, config.APP_ENV),

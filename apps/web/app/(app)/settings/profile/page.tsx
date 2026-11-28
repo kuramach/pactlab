@@ -1,11 +1,12 @@
 import type { ContactProfileView, MaskedMemberContactView, Page } from '@pactlab/contracts';
 import { PHONE_COUNTRIES } from '@pactlab/domain';
-import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle, PageHeader } from '@pactlab/ui';
+import { Button, buttonVariants, Card, CardContent, CardDescription, CardHeader, CardTitle, PageHeader } from '@pactlab/ui';
+import { getI18n } from '../../../../lib/i18n/server';
 import { getSessionContext } from '../../../../lib/session';
 import { keepParams, pageApiQuery, Pager, pagerLinks, readPage } from '../../../_components/pager';
 import { apiGet } from '../../deals/_lib/api';
 import { ApiState } from '../../deals/_lib/states';
-import { confirmEmail, confirmWhatsApp, connectTelegram, disconnectChannel, startEmail, startWhatsApp, testChannel } from './actions';
+import { confirmEmail, confirmWhatsApp, connectLine, connectTelegram, disconnectChannel, startEmail, startWhatsApp, testChannel } from './actions';
 
 // Per-user data: never prerender.
 export const dynamic = 'force-dynamic';
@@ -37,14 +38,17 @@ const ERRORS: Record<string, string> = {
 const when = (iso: string) => new Date(iso).toISOString().slice(0, 10);
 
 /**
- * Settings → Your profile (T-180): your name, the email Pactlab writes to, and Telegram and WhatsApp
- * as message channels, each with whether it is verified. Messages never carry deal details, only a link.
+ * Settings → Your profile (T-180, T-182): your name, the email Pactlab writes to, and Telegram, LINE and
+ * WhatsApp as message channels, each with whether it is verified. Messages never carry deal details, only a link.
  */
 export default async function ProfilePage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const params = await searchParams;
   const step = typeof params['step'] === 'string' ? params['step'] : null;
-  const done = typeof params['done'] === 'string' ? DONE[params['done']] : undefined;
-  const error = typeof params['error'] === 'string' ? (ERRORS[params['error']] ?? ERRORS['ERROR']) : undefined;
+  const t = await getI18n();
+  const lineWords = t.m.settings.line;
+  const lineErrors: Record<string, string> = lineWords.errors;
+  const done = typeof params['done'] === 'string' ? (params['done'] === 'line-connected' ? lineWords.done.connected : DONE[params['done']]) : undefined;
+  const error = typeof params['error'] === 'string' ? (lineErrors[params['error']] ?? ERRORS[params['error']] ?? ERRORS['ERROR']) : undefined;
   const session = await getSessionContext();
   const admin = session.kind === 'signed-in' && (session.organization?.role === 'ORG_OWNER' || session.organization?.role === 'ORG_ADMIN');
   const position = readPage(params, 'members');
@@ -56,6 +60,7 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
   const me = profile.data;
   const telegram = me.channels.find((channel) => channel.kind === 'TELEGRAM');
   const whatsapp = me.channels.find((channel) => channel.kind === 'WHATSAPP');
+  const line = me.channels.find((channel) => channel.kind === 'LINE');
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
@@ -163,6 +168,58 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
         </CardContent>
       </Card>
 
+      <Card id="line">
+        <CardHeader>
+          <CardTitle>{lineWords.title}</CardTitle>
+          <CardDescription>{lineWords.description}</CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3">
+          {line ? (
+            <>
+              <p className="text-sm">
+                <span className="font-medium">{lineWords.connected}</span> · <span className="text-emerald-800">{lineWords.verified}</span>{' '}
+                <span className="text-muted-foreground">{t.fill(lineWords.since, { date: when(line.verifiedAt) })}</span>
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <form action={testChannel.bind(null, line.id)}>
+                  <Button type="submit" size="sm" variant="outline">
+                    {lineWords.test}
+                  </Button>
+                </form>
+                <form action={disconnectChannel.bind(null, line.id)}>
+                  <Button type="submit" size="sm" variant="ghost">
+                    {lineWords.disconnect}
+                  </Button>
+                </form>
+              </div>
+              <p className="text-xs text-muted-foreground">{lineWords.disconnectHint}</p>
+            </>
+          ) : !me.available.line ? (
+            <p className="text-sm text-muted-foreground">{lineWords.off}</p>
+          ) : step === 'line-add-friend' && me.lineAddFriendUrl ? (
+            <div className="flex flex-col gap-2">
+              <p className="text-sm font-medium">{lineWords.addFriendTitle}</p>
+              <p className="text-sm">{lineWords.addFriendBody}</p>
+              <div>
+                <a href={me.lineAddFriendUrl} rel="noopener noreferrer" className={buttonVariants({ size: 'sm' })}>
+                  {lineWords.addFriend}
+                </a>
+              </div>
+            </div>
+          ) : (
+            <>
+              <form action={connectLine}>
+                <Button type="submit" size="sm">
+                  {lineWords.connect}
+                </Button>
+              </form>
+              <p className="text-xs text-muted-foreground">{lineWords.connectHint}</p>
+            </>
+          )}
+          {me.available.line ? <p className="text-xs text-muted-foreground">{lineWords.allowanceNote}</p> : null}
+        </CardContent>
+      </Card>
+
       <Card id="whatsapp">
         <CardHeader>
           <CardTitle>WhatsApp</CardTitle>
@@ -249,7 +306,7 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
                     <li key={row.userId} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm">
                       <span className="font-medium">{row.displayName}</span>
                       <span className="text-muted-foreground">
-                        {[row.email ?? 'No email', row.telegram ? 'Telegram' : null, row.whatsapp].filter(Boolean).join(' · ')}
+                        {[row.email ?? 'No email', row.telegram ? 'Telegram' : null, row.line ? lineWords.title : null, row.whatsapp].filter(Boolean).join(' · ')}
                       </span>
                     </li>
                   ))}

@@ -136,4 +136,45 @@ describe('contact details', () => {
     expect(results.filter((id) => id === null)).toHaveLength(1);
     expect(results.at(-1)).toBeNull();
   });
+  it('links LINE only after both steps, stores no user id while waiting, and unfollow stops it (T-182)', async () => {
+    const lineUser = `U${'1'.repeat(30)}ab`;
+    const userHash = hash(`line:${lineUser}`);
+    await contacts.beginVerification(db.prisma, b.context, { kind: 'LINE', target: null, secretHash: hash('line-state-b'), minutes: 10, consentText: null });
+    // Another person cannot use b's login state.
+    expect(await contacts.lineLogin(db.prisma, a.context, { stateHash: hash('line-state-b'), lineUserHash: userHash, lineUserId: lineUser, friend: true })).toBeNull();
+    expect(await contacts.lineLogin(db.prisma, b.context, { stateHash: hash('line-state-b'), lineUserHash: userHash, lineUserId: lineUser, friend: false })).toBe('AWAITING_FRIEND');
+    // Used once.
+    expect(await contacts.lineLogin(db.prisma, b.context, { stateHash: hash('line-state-b'), lineUserHash: userHash, lineUserId: lineUser, friend: true })).toBeNull();
+    // Not a friend yet: no channel and no LINE user id anywhere in the tables.
+    expect((await contacts.channels(db.prisma, b.context)).filter((row) => row.kind === 'LINE')).toEqual([]);
+    const stored = await db.owner.query(`SELECT count(*)::int AS n FROM contact_verifications WHERE target = $1 OR secret_hash = $1`, [lineUser]);
+    expect(stored.rows[0]).toEqual({ n: 0 });
+    // A follow from someone nobody waits for does nothing; the right one connects, once.
+    expect(await contacts.lineFollow(db.prisma, { lineUserHash: hash('line:other'), lineUserId: `U${'2'.repeat(32)}` })).toBeNull();
+    expect(await contacts.lineFollow(db.prisma, { lineUserHash: userHash, lineUserId: lineUser })).not.toBeNull();
+    expect(await contacts.lineFollow(db.prisma, { lineUserHash: userHash, lineUserId: lineUser })).toBeNull();
+    expect((await contacts.channels(db.prisma, b.context)).map((row) => [row.kind, row.handle])).toContainEqual(['LINE', lineUser]);
+    expect(await audits('contact.line_connected', b.userId)).toEqual(['SUCCEEDED']);
+    // RLS: another person never reads it.
+    expect((await contacts.channels(db.prisma, a.context)).some((row) => row.kind === 'LINE')).toBe(false);
+    expect(await contacts.mask(db.prisma, 'LINE', lineUser)).toBe(maskContact('LINE', lineUser));
+    // Unfollow (block) stops it at once.
+    expect(await contacts.stop(db.prisma, { kind: 'LINE', handle: lineUser, reason: 'BLOCKED' })).toBe(1);
+    expect((await contactDispatch.channels(db.prisma, [b.userId])).some((row) => row.kind === 'LINE')).toBe(false);
+    expect(await audits('contact.line_stopped', b.userId)).toEqual(['SUCCEEDED']);
+  });
+
+  it('connects LINE at once when the person is already a friend, and counts LINE sends for operators only', async () => {
+    const lineUser = `U${'3'.repeat(32)}`;
+    await contacts.beginVerification(db.prisma, member.context, { kind: 'LINE', target: null, secretHash: hash('line-state-m'), minutes: 10, consentText: null });
+    expect(await contacts.lineLogin(db.prisma, member.context, { stateHash: hash('line-state-m'), lineUserHash: hash(`line:${lineUser}`), lineUserId: lineUser, friend: true })).toBe('CONNECTED');
+    const [channel] = (await contactDispatch.channels(db.prisma, [member.userId])).filter((row) => row.kind === 'LINE');
+    const delivery = await contactDispatch.claimTest(db.prisma, member.context, channel!.channelId);
+    await contactDispatch.finish(db.prisma, { deliveryId: delivery!, outcome: 'FAILED', errorClass: 'LineAllowanceReached' });
+    await expect(contactDispatch.lineMonth(db.prisma, member.userId)).rejects.toThrow();
+    await db.owner.query(`UPDATE users SET platform_operator = true WHERE id = $1`, [b.userId]);
+    expect(await contactDispatch.lineMonth(db.prisma, b.userId)).toMatchObject({ heldBack: 1 });
+    const page = await contacts.adminPage(db.prisma, a.context, { limit: 25 });
+    expect(page.items.find((row) => row.userId === member.userId)?.lineMasked).toBe(maskContact('LINE', lineUser));
+  });
 });

@@ -62,3 +62,11 @@
   - an email-code person's sign-in address does not change when their contact email does;
   - per-channel preferences, daily caps, the 15-minute fold and WhatsApp metering in Hosting cost are T-146.
 - **New UI:** the profile page is built from `Card`, `Button`, `PageHeader` and `Pager`; the add-your-email banner reuses the shared-demo notice's look. Both await Kumar's approval (`docs/ui-patterns.md`).
+
+## Addendum (T-182, 2026-11-27): LINE for Japan
+- **Seam:** `LineMessenger` in `@pactlab/connectors` (`LineMessagingApi`, `FixtureLineMessenger`); off unless its five `LINE_*` values are set. Endpoints, events, headers and limits checked against developers.line.biz on 2026-11-27 (LINE Login v2.1, Messaging API reference, webhook signature).
+- **Linking takes two steps, and the user id is stored only after both:** **Connect LINE** runs LINE Login (OpenID Connect, `scope=openid profile`, PKCE S256, `bot_prompt=aggressive`). The API exchanges the code, has LINE verify the ID token and nonce (`/oauth2/v2.1/verify`), and reads `/friendship/v1/status`. Already a friend: connected. Not yet: a 15-minute wait keyed by an HMAC of the LINE user id (the id itself is not stored); the `follow` webhook completes it. The PKCE verifier and nonce are derived from the state with the server secret, so only the state's hash is stored.
+- **Webhooks** are verified with `x-line-signature` (base64 HMAC-SHA256 of the raw body, channel secret); `unfollow` (block) disconnects at once (`contact.line_stopped`).
+- **Sending:** the shared content-free template, prefixed "Pactlab:". Japanese for `ja` readers; until a person's language is stored on the server (T-172b), English and Japanese together. Follow events are answered with a reply (free); the test message and "act now" alerts are pushes.
+- **The monthly cap:** pushes stop at the free Communication plan's 200 a month (`LINE_MONTHLY_ALLOWANCE`, at most 200 until Kumar approves a paid plan), checked against LINE's own count before each batch and failing closed. A held message is recorded (`LineAllowanceReached`), the email still goes, and Admin → Health says "LINE monthly allowance reached".
+- **Migration** `20270122000000_line_channel`, expand-only; rollback in its header.

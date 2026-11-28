@@ -44,3 +44,29 @@ describe('contact details (T-180)', () => {
     expect(isStopWord('please stop the deal')).toBe(false);
   });
 });
+
+describe('LINE wording (T-182)', () => {
+  const link = 'https://app.pactlab.ai/notifications';
+  it('is Japanese for ja readers and English plus Japanese otherwise, one "Pactlab:" prefix', async () => {
+    const { lineMessage, CHANNEL_PREFIX: prefix } = await import('./index');
+    const ja = lineMessage('ACT_NOW', { link, locale: 'ja' });
+    expect(ja).toBe(`${prefix} 対応が必要なパクトがあります。Pactlabを開いてご確認ください: ${link}`);
+    const both = lineMessage('ACT_NOW', { link });
+    expect(both.startsWith(`${prefix} A pact needs you.`)).toBe(true);
+    expect(both).toContain('対応が必要なパクトがあります');
+    expect(both.split(prefix).length - 1).toBe(1);
+  });
+
+  it('has every message kind in both languages, content-free', async () => {
+    const { lineMessage } = await import('./index');
+    for (const kind of ['ACT_NOW', 'TEST', 'LINKED', 'LINK_EXPIRED', 'DISCONNECTED', 'STOPPED', 'LINE_LINKED', 'LINE_CONNECT_FROM_PROFILE'] as const) {
+      const text = lineMessage(kind, { link });
+      expect(text.startsWith('Pactlab:')).toBe(true);
+      expect(text).not.toMatch(/\{link\}/);
+    }
+  });
+
+  it('masks a LINE user id', () => {
+    expect(maskContact('LINE', `U${'0'.repeat(30)}7f`)).toBe('LINE ••7f');
+  });
+});

@@ -76,7 +76,7 @@ import { HttpsWebFetcher, type WebFetcher } from './common/safe-fetch';
 import { IcModule } from './ic/ic.module';
 import { BillingModule } from './billing/billing.module';
 import { PactPricingModule } from './pact-pricing/pact-pricing.module';
-import { FixtureBillingProvider, type BillingProvider, type TelegramBot, type WhatsAppSender } from '@pactlab/connectors';
+import { FixtureBillingProvider, type BillingProvider, type LineMessenger, type TelegramBot, type WhatsAppSender } from '@pactlab/connectors';
 import { McpModule } from './mcp/mcp.module';
 import type { CostSource } from './admin/cost/cost-explorer';
 import type { EnvironmentPowerSource } from './admin/cost/environment-power';
@@ -184,9 +184,9 @@ export interface AppDependencies {
   notifications?: { dispatch: boolean; intervalMs?: number };
   /**
    * Contact details (T-180, ADR 0064): Auth0's `/userinfo` for the verified email claim, the Telegram bot and
-   * the WhatsApp sender. Omitted or null: that part is off (Telegram and WhatsApp are off by default).
+   * the WhatsApp sender and LINE (T-182) with its monthly cap. Omitted or null: that part is off (every channel is off by default).
    */
-  contacts?: { identityEmails?: IdentityEmailSource | null; telegram?: TelegramBot | null; whatsapp?: WhatsAppSender | null };
+  contacts?: { identityEmails?: IdentityEmailSource | null; telegram?: TelegramBot | null; whatsapp?: WhatsAppSender | null; line?: LineMessenger | null; lineMonthlyAllowance?: number };
   /**
    * Product-help chat (T-175): where handed-off questions and confirmed feature requests go. Omitted: no team
    * address, so the panel offers the contact address instead; `featureIntake` defaults to emailing the team.
@@ -397,7 +397,7 @@ export class AppModule {
           appOrigin: webOrigin,
           scheduled: deps.notifications?.dispatch ?? false,
           intervalMs: deps.notifications?.intervalMs ?? 60_000,
-          channels: { telegram: deps.contacts?.telegram ?? null, whatsapp: deps.contacts?.whatsapp ?? null },
+          channels: { telegram: deps.contacts?.telegram ?? null, whatsapp: deps.contacts?.whatsapp ?? null, line: deps.contacts?.line ?? null, lineMonthlyAllowance: deps.contacts?.lineMonthlyAllowance ?? 0 },
         }),
         ContactsModule.register({
           emailSender: deps.emailLogin?.emailSender ?? null,
@@ -407,6 +407,8 @@ export class AppModule {
           identityEmails: deps.contacts?.identityEmails ?? null,
           telegram: deps.contacts?.telegram ?? null,
           whatsapp: deps.contacts?.whatsapp ?? null,
+          line: deps.contacts?.line ?? null,
+          lineMonthlyAllowance: deps.contacts?.lineMonthlyAllowance ?? 0,
         }),
         EmailEventsModule.register({ verifier: deps.emailEvents?.verifier ?? null, fetcher: deps.webFetcher ?? new HttpsWebFetcher(), hashSecret: deps.emailLogin?.tokenSecret ?? randomBytes(32).toString('hex') }),
         ...(tokens && deps.emailLogin

@@ -11,7 +11,9 @@ import { AiModels } from './ai-models';
 import { HostingCost } from './hosting-cost';
 import { compPact, createPromoCode, deactivatePromoCode, decideOrganization, resyncBilling, setMemberStatus, setOrganizationFlags, setOrganizationStatus, setOrganizationMcp } from './actions';
 import { SourceStatusTable, type SourceStatus } from './source-status';
-import type { AdminBillingAccountView, PromoCodeView } from '@pactlab/contracts';
+import { LineAllowanceNotice } from './line-allowance';
+import { getI18n } from '../../lib/i18n/server';
+import type { AdminBillingAccountView, LineAllowanceView, PromoCodeView } from '@pactlab/contracts';
 import { COMPANY_TYPES, COMPANY_TYPE_LABELS, formatNumber } from '@pactlab/domain';
 
 export const dynamic = 'force-dynamic';
@@ -276,11 +278,14 @@ async function Users({ q, search }: { q: string; search: Search }) {
 }
 
 async function Health({ search }: { search: Search }) {
-  const [usage, connections, mail, sources] = await Promise.all([
+  const [usage, connections, mail, sources, line, t] = await Promise.all([
     apiGet<{ organizations: number; aiTokens: { input: number; output: number } }>('/v1/admin/usage'),
     apiGet<Page<Connection>>(`/v1/admin/connections?${listQuery(search, {})}`),
     apiGet<{ days: number; counts: Record<'DELIVERY' | 'BOUNCE' | 'COMPLAINT' | 'REJECT' | 'RENDERING_FAILURE', number>; suppressed: number }>('/v1/admin/email-health'),
     apiGet<{ items: SourceStatus[] }>('/v1/admin/source-status'),
+    // LINE's monthly allowance (T-182): the console's notice when it is reached.
+    apiGet<LineAllowanceView>('/v1/admin/line-allowance'),
+    getI18n(),
   ]);
   if (usage.kind !== 'ok') return <ApiState result={usage} />;
   const tokens = usage.data.aiTokens;
@@ -299,6 +304,7 @@ async function Health({ search }: { search: Search }) {
           {number.format(mail.data.counts.REJECT + mail.data.counts.RENDERING_FAILURE)} rejected or failed · {number.format(mail.data.suppressed)} addresses on the do-not-send list
         </p>
       ) : null}
+      {line.kind === 'ok' ? <LineAllowanceNotice t={t} view={line.data} /> : null}
       {sources.kind === 'ok' ? <SourceStatusTable items={sources.data.items} /> : <ApiState result={sources} />}
       {connections.kind !== 'ok' ? (
         <ApiState result={connections} />

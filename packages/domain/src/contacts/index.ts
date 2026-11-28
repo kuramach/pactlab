@@ -4,7 +4,7 @@
  * fixture, never sent to a model.
  */
 
-export type ContactKind = 'EMAIL' | 'TELEGRAM' | 'WHATSAPP';
+export type ContactKind = 'EMAIL' | 'TELEGRAM' | 'WHATSAPP' | 'LINE';
 
 /** E.164 country codes of one and two digits; everything else is three (ITU-T E.164 assignments). */
 const TWO_DIGIT_CODES = new Set([
@@ -46,13 +46,14 @@ export function toE164(input: string, dial?: string): string | null {
   return `+${digits}`;
 }
 
-/** The value as an admin sees it: `+91 •••• ••12`, `k•••@example.com`, `Telegram ••42`. Same rule as `app_contact_mask`. */
+/** The value as an admin sees it: `+91 •••• ••12`, `k•••@example.com`, `Telegram ••42`, `LINE ••7f`. Same rule as `app_contact_mask`. */
 export function maskContact(kind: ContactKind, value: string): string {
   if (kind === 'EMAIL') return `${value.slice(0, 1)}•••@${value.split('@')[1] ?? ''}`;
   if (kind === 'WHATSAPP') {
     const digits = value.replace(/^\+/, '');
     return `+${digits.slice(0, countryCodeLength(digits))} •••• ••${digits.slice(-2)}`;
   }
+  if (kind === 'LINE') return `LINE ••${value.slice(-2)}`;
   return `Telegram ••${value.slice(-2)}`;
 }
 
@@ -67,13 +68,16 @@ export const CHANNEL_SENDER = 'Pactlab';
 export const CHANNEL_PREFIX = 'Pactlab:';
 /** The profile description every provider holds: the tagline (EMAIL_BLURB). */
 export const CHANNEL_ABOUT = 'Test the pact before you sign it.';
+/** The tagline in Japanese, from the site's catalog (`apps/site/messages/ja/ui.ts`): the LINE account's status message. */
+export const CHANNEL_ABOUT_JA = '署名する前に、パクトを検証する。';
 
-export type ChannelMessageKind = 'ACT_NOW' | 'TEST' | 'LINKED' | 'LINK_EXPIRED' | 'DISCONNECTED' | 'STOPPED';
+export type ChannelMessageKind = 'ACT_NOW' | 'TEST' | 'LINKED' | 'LINK_EXPIRED' | 'DISCONNECTED' | 'STOPPED' | 'LINE_LINKED' | 'LINE_CONNECT_FROM_PROFILE';
 
 /**
  * The words every channel sends, in one place, per locale. Content-free by rule: never a pact name,
  * an amount, a document or a person; only that something needs you, and a link (T-146's lock-screen rule).
- * English only until the app's catalogs arrive (T-172); a new locale is a new entry here.
+ * English and Japanese (T-182: Japanese for LINE). The app's catalog (T-172) holds no channel words, so they
+ * live here; a new locale is a new entry, and every entry must have every kind (checked by `satisfies`).
  */
 const CHANNEL_WORDS = {
   en: {
@@ -83,6 +87,18 @@ const CHANNEL_WORDS = {
     LINK_EXPIRED: 'This link has expired or was already used. Open your Pactlab profile for a new one.',
     DISCONNECTED: 'You are disconnected. Pactlab will not message you here again.',
     STOPPED: 'You will get no more messages from Pactlab here. You can reconnect from your profile.',
+    LINE_LINKED: 'You are connected. Pactlab will tell you here when a pact needs you, with no deal details. Block this account to disconnect.',
+    LINE_CONNECT_FROM_PROFILE: 'To get notifications here, connect LINE from your Pactlab profile.',
+  },
+  ja: {
+    ACT_NOW: '対応が必要なパクトがあります。Pactlabを開いてご確認ください: {link}',
+    TEST: 'これはテストメッセージです。通知はここに届きます。ディールの詳細は含まれません。{link}',
+    LINKED: '接続しました。パクトで対応が必要なときに、ここでお知らせします。ディールの詳細は含まれません。/stop を送ると接続を解除します。',
+    LINK_EXPIRED: 'このリンクは期限切れか、すでに使用されています。Pactlabのプロフィールから新しいリンクを取得してください。',
+    DISCONNECTED: '接続を解除しました。Pactlabからここにメッセージが届くことはありません。',
+    STOPPED: 'Pactlabからのメッセージはここに届かなくなります。プロフィールから再接続できます。',
+    LINE_LINKED: '接続しました。パクトで対応が必要なときに、ここでお知らせします。ディールの詳細は含まれません。接続を解除するには、このアカウントをブロックしてください。',
+    LINE_CONNECT_FROM_PROFILE: 'ここで通知を受け取るには、Pactlabのプロフィールから LINE を接続してください。',
   },
 } as const satisfies Record<string, Record<ChannelMessageKind, string>>;
 
@@ -93,6 +109,17 @@ export function channelMessage(kind: ChannelMessageKind, options: { link?: strin
   const words = CHANNEL_WORDS[(options.locale ?? 'en') as ChannelLocale] ?? CHANNEL_WORDS.en;
   const text = words[kind].replace('{link}', options.link ?? '').trim();
   return `${CHANNEL_PREFIX} ${text}`;
+}
+
+/**
+ * LINE (T-182): Japanese for `ja` readers; otherwise English and Japanese together, since a LINE reader's
+ * language is not yet stored on the server (T-172b). Still one "Pactlab:" prefix and the same words.
+ */
+export function lineMessage(kind: ChannelMessageKind, options: { link?: string; locale?: string | null } = {}): string {
+  if (options.locale === 'ja') return channelMessage(kind, { ...(options.link ? { link: options.link } : {}), locale: 'ja' });
+  const en = channelMessage(kind, { ...(options.link ? { link: options.link } : {}), locale: 'en' });
+  const ja = channelMessage(kind, { ...(options.link ? { link: options.link } : {}), locale: 'ja' }).slice(CHANNEL_PREFIX.length + 1);
+  return `${en}\n${ja}`;
 }
 
 /** The consent shown before a WhatsApp number is verified; stored with its time on the channel. */

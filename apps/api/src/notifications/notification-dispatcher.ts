@@ -1,7 +1,8 @@
 import { Inject, Injectable, type OnApplicationBootstrap, type OnApplicationShutdown } from '@nestjs/common';
-import { ChannelSendError, type TelegramBot, type WhatsAppSender } from '@pactlab/connectors';
+import { ChannelSendError, type LineMessenger, type TelegramBot, type WhatsAppSender } from '@pactlab/connectors';
 import { contactDispatch, contacts, notificationDispatch, type DeliveryKind, type PendingNotification, type PrismaClient } from '@pactlab/db';
-import { channelMessage, planEmail, resolveEmailMode } from '@pactlab/domain';
+import { channelMessage, lineMessage, planEmail, resolveEmailMode } from '@pactlab/domain';
+import { LINE_ALLOWANCE_REACHED, LineAllowance } from '../contacts/line-allowance';
 import type { Logger } from '@pactlab/observability';
 import type { EmailSender } from '../email-login/email-sender';
 import { EmailSuppressedError, type SuppressionList } from '../email-login/ses-email-sender';
@@ -17,10 +18,16 @@ export interface NotificationModuleSettings {
   /** The web origin links point into. */
   readonly appOrigin: string;
   /**
-   * Message channels (T-180, ADR 0064): "act now" items also go, content-free, to the person's verified
-   * Telegram chat and WhatsApp number. Null or absent: email and the inbox only.
+   * Message channels (T-180, T-182; ADR 0064): "act now" items also go, content-free, to the person's verified
+   * Telegram chat, WhatsApp number and LINE. LINE pushes stop at the monthly allowance (the email still goes).
+   * Null or absent: email and the inbox only.
    */
-  readonly channels?: { readonly telegram: TelegramBot | null; readonly whatsapp: WhatsAppSender | null } | null;
+  readonly channels?: {
+    readonly telegram: TelegramBot | null;
+    readonly whatsapp: WhatsAppSender | null;
+    readonly line?: LineMessenger | null;
+    readonly lineMonthlyAllowance?: number;
+  } | null;
   /** Run the dispatcher on a timer (the API process; ADR 0046). Off in tests, which call run(). */
   readonly scheduled: boolean;
   readonly intervalMs: number;
@@ -35,9 +42,11 @@ export interface DispatchOutcome {
   noAddress: number;
   waiting: number;
   deadlines: number;
-  /** Messages sent on Telegram or WhatsApp, and those that failed. */
+  /** Messages sent on Telegram, WhatsApp or LINE, and those that failed. */
   channelSent: number;
   channelFailed: number;
+  /** LINE messages held back at the monthly allowance (the person still gets the email). */
+  lineHeldBack: number;
 }
 
 const PAGE = 200;
@@ -53,16 +62,20 @@ const MAX_PAGES = 20;
 export class NotificationDispatcher implements OnApplicationBootstrap, OnApplicationShutdown {
   private timer: NodeJS.Timeout | null = null;
   private running: Promise<DispatchOutcome> | null = null;
+  private readonly lineAllowance: LineAllowance | null;
 
   constructor(
     @Inject(PRISMA) private readonly prisma: PrismaClient,
     @Inject(NOTIFICATION_SETTINGS) private readonly settings: NotificationModuleSettings,
     @Inject(LOGGER) private readonly logger: Logger,
-  ) {}
+  ) {
+    const line = settings.channels?.line;
+    this.lineAllowance = line ? new LineAllowance(line, settings.channels?.lineMonthlyAllowance ?? 0, logger) : null;
+  }
 
   onApplicationBootstrap(): void {
     const channels = this.settings.channels;
-    if (!this.settings.scheduled || (!this.settings.emailSender && !channels?.telegram && !channels?.whatsapp)) return;
+    if (!this.settings.scheduled || (!this.settings.emailSender && !channels?.telegram && !channels?.whatsapp && !channels?.line)) return;
     const tick = () => {
       this.timer = setTimeout(() => {
         // handled: each delivery's outcome is stored on it and shown on the person's items; this only logs a run that could not start.
@@ -87,7 +100,7 @@ export class NotificationDispatcher implements OnApplicationBootstrap, OnApplica
   }
 
   private async pass(now: Date): Promise<DispatchOutcome> {
-    const outcome: DispatchOutcome = { sent: 0, digests: 0, suppressed: 0, failed: 0, inAppOnly: 0, noAddress: 0, waiting: 0, deadlines: 0, channelSent: 0, channelFailed: 0 };
+    const outcome: DispatchOutcome = { sent: 0, digests: 0, suppressed: 0, failed: 0, inAppOnly: 0, noAddress: 0, waiting: 0, deadlines: 0, channelSent: 0, channelFailed: 0, lineHeldBack: 0 };
     outcome.deadlines = await notificationDispatch.deadlines(this.prisma, now);
     const digests = new Map<string, { email: string; items: PendingNotification[] }>();
     let after: string | null = null;
@@ -132,19 +145,34 @@ export class NotificationDispatcher implements OnApplicationBootstrap, OnApplica
    */
   private async toChannels(items: readonly PendingNotification[], outcome: DispatchOutcome): Promise<void> {
     const channels = this.settings.channels;
-    if (items.length === 0 || (!channels?.telegram && !channels?.whatsapp)) return;
+    if (items.length === 0 || (!channels?.telegram && !channels?.whatsapp && !channels?.line)) return;
     const live = await contactDispatch.channels(this.prisma, [...new Set(items.map((item) => item.userId))]);
     const link = new URL('/notifications', this.settings.appOrigin).toString();
+    // LINE's count is read once a pass, and only when someone is on LINE; each push then uses one.
+    let lineRemaining: { remaining: number; used: number | null } | null = null;
     for (const item of items) {
       for (const channel of live.filter((row) => row.userId === item.userId)) {
         const telegram = channel.kind === 'TELEGRAM' ? channels.telegram : null;
         const whatsapp = channel.kind === 'WHATSAPP' ? channels.whatsapp : null;
-        if (!telegram && !whatsapp) continue;
+        const line = channel.kind === 'LINE' ? (channels.line ?? null) : null;
+        if (!telegram && !whatsapp && !line) continue;
         const deliveryId = await contactDispatch.claim(this.prisma, { channelId: channel.channelId, notificationId: item.id });
         if (!deliveryId) continue;
+        if (line && this.lineAllowance) {
+          lineRemaining ??= await this.lineAllowance.state();
+          if (lineRemaining.remaining <= 0) {
+            // At the cap: no LINE send. Recorded, never retried; the email for this item goes as planned.
+            await contactDispatch.finish(this.prisma, { deliveryId, outcome: 'FAILED', errorClass: lineRemaining.used === null ? 'LineQuotaUnreadable' : LINE_ALLOWANCE_REACHED });
+            if (lineRemaining.used !== null) this.lineAllowance.reached();
+            outcome.lineHeldBack += 1;
+            continue;
+          }
+          lineRemaining = { ...lineRemaining, remaining: lineRemaining.remaining - 1 };
+        }
         try {
           if (telegram) await telegram.sendMessage(channel.handle, channelMessage('ACT_NOW', { link }));
           else if (whatsapp) await whatsapp.sendTemplate(channel.handle, 'ACT_NOW', link);
+          else if (line) await line.push(channel.handle, lineMessage('ACT_NOW', { link }));
           await contactDispatch.finish(this.prisma, { deliveryId, outcome: 'SENT', errorClass: null });
           outcome.channelSent += 1;
         } catch (error) {
