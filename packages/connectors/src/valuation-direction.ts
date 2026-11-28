@@ -54,6 +54,8 @@ export const HOSPITALS_CENSUS_MONTH_EVIDENCE_TYPE = 'hospitals.census_month';
 export const CRE_LEASE_EVIDENCE_TYPE = 'cre.lease';
 export const CRE_CAM_CATEGORY_EVIDENCE_TYPE = 'cre.cam_category';
 export const CRE_CAPEX_ITEM_EVIDENCE_TYPE = 'cre.capex_item';
+/** Commercial property leasing history by month (T-184c): occupancy, rent per square foot and expiries by year. */
+export const CRE_LEASING_MONTH_EVIDENCE_TYPE = 'cre.leasing_month';
 /** Pharma and biotech (T-064, T-163): the pipeline schedule, trial-registry records, patent schedule, obligations model and R&D roster. */
 export const PHARMA_PROGRAMME_EVIDENCE_TYPE = 'pharma.programme';
 export const PHARMA_REGISTRY_TRIAL_EVIDENCE_TYPE = 'pharma.registry_trial';
@@ -373,6 +375,7 @@ export const VALUATION_DIRECTION_MAP: Readonly<Record<string, readonly Direction
     { signal: 'condition-item-omitted', findingDomain: 'PROPERTY', defaultDirection: -1, channel: 'PRICED_TERM' },
     { signal: 'condition-item-under-budgeted', findingDomain: 'PROPERTY', defaultDirection: -1, channel: 'PRICED_TERM' },
   ],
+  [CRE_LEASING_MONTH_EVIDENCE_TYPE]: [driverTrend('PROPERTY')],
   // Small clinics (T-161, ADR 0052): the owner-operator's share and each service line's providers recomputed from the
   // schedule and billing exports; visits by referral source. Retention and volume risks, never a ranking or a legal view.
   [CLINICS_SERVICE_LINE_MONTH_EVIDENCE_TYPE]: [
@@ -557,6 +560,7 @@ export const ADAPTER_EVIDENCE_TYPES = [
   CRE_LEASE_EVIDENCE_TYPE,
   CRE_CAM_CATEGORY_EVIDENCE_TYPE,
   CRE_CAPEX_ITEM_EVIDENCE_TYPE,
+  CRE_LEASING_MONTH_EVIDENCE_TYPE,
   PHARMA_PROGRAMME_EVIDENCE_TYPE,
   PHARMA_REGISTRY_TRIAL_EVIDENCE_TYPE,
   PHARMA_PATENT_EVIDENCE_TYPE,

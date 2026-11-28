@@ -3,7 +3,7 @@ import { pnlPeriods } from '../../pnl/pnl';
 import { fiscalYears, pnlLinesFromRecords } from '../../pnl/trend';
 import { wholeMonths } from '../clinics/practice';
 import { amountOf, documentClauseRule, grouped, INVOICE_LINE, latestMonthRevenue, monthName, percent } from '../common';
-import { recentRunRule, type DriverSpec, type PackHistorySpec } from '../history';
+import { driverTrendRule, recentRunRule, type DriverSpec, type PackHistorySpec } from '../history';
 import { PNL_LINE, pnlTrendRules } from '../pnl-trend';
 import { findSentence, MAX_CITED, type PackRule, type PackRuleEvidence, type PackRuleProposal, type PackRuleQuote } from '../rule-types';
 import {
@@ -462,8 +462,45 @@ export const CRE_CONDITION_CAPEX: PackRule = {
 
 export const [CRE_PNL_TREND, CRE_PNL_MARGIN_DRIFT, CRE_PNL_EXPENSE_OUTPACING] = pnlTrendRules('cre', CRE_KEY_EXPENSES) as [PackRule, PackRule, PackRule];
 
-/** Five years of history (ADR 0057): the P&L by year beside the recovery ratio the CAM reconciliations give. */
+/** Leasing history by month (T-184c): rentable and leased area, base rent in force and area expiring. */
+export const LEASING_MONTH = 'cre.leasing_month';
+
+/**
+ * Five years of history (ADR 0057, T-184c): the P&L by year beside occupancy, rent per square foot and lease
+ * expiries from the leasing history, and the recovery ratio the CAM reconciliations give. The multifamily
+ * occupancy reader counts units; a commercial park lets square feet, so the drivers here read area.
+ */
 export const CRE_DRIVERS = {
+  occupancy: {
+    key: 'occupancy',
+    label: 'Occupancy (leased ÷ rentable area)',
+    unit: 'RATIO',
+    evidenceType: LEASING_MONTH,
+    mode: 'RATIO',
+    numerator: ['leased_sqft'],
+    denominator: ['rentable_sqft'],
+    formula: 'Σ leased square feet ÷ Σ rentable square feet over the year’s months (the average occupancy)',
+  },
+  rentPerSqft: {
+    key: 'rent_per_sqft',
+    label: 'Base rent per leased sq ft (a year)',
+    unit: 'MONEY',
+    evidenceType: LEASING_MONTH,
+    mode: 'RATIO',
+    numerator: ['base_rent'],
+    denominator: ['leased_sqft'],
+    multiplier: '12',
+    formula: 'Σ base rent in force ÷ Σ leased square feet over the year’s months, × 12',
+  },
+  expiries: {
+    key: 'expiring_sqft',
+    label: 'Leased area expiring (sq ft)',
+    unit: 'COUNT',
+    evidenceType: LEASING_MONTH,
+    mode: 'SUM',
+    numerator: ['expiring_sqft'],
+    formula: 'Σ square feet whose lease ended in the year, renewed or not',
+  },
   recoveryRatio: {
     key: 'recovery_ratio',
     label: 'Recoveries billed ÷ recoverable expenses',
@@ -479,12 +516,28 @@ export const CRE_DRIVERS = {
 } as const satisfies Record<string, DriverSpec>;
 
 export const CRE_HISTORY: PackHistorySpec = {
-  drivers: [CRE_DRIVERS.recoveryRatio],
+  drivers: [CRE_DRIVERS.occupancy, CRE_DRIVERS.rentPerSqft, CRE_DRIVERS.expiries, CRE_DRIVERS.recoveryRatio],
   keyExpenses: CRE_KEY_EXPENSES,
-  driverImport: 'CRE_CAM_RECONCILIATION',
-  driverLabel: 'CAM reconciliation',
-  driverWhat: 'CAM reconciliations',
+  driverImport: ['CRE_LEASING_HISTORY', 'CRE_CAM_RECONCILIATION'],
+  driverLabel: 'Leasing history and CAM reconciliations',
+  driverWhat: 'leasing history and CAM reconciliations',
+  keyDriver: 'occupancy',
 };
+
+/** Average occupancy down every year by this much or more, first year to last (3 points). */
+export const OCCUPANCY_DECLINE_POINTS = '0.03';
+
+export const CRE_OCCUPANCY_TREND = driverTrendRule(
+  {
+    id: 'cre-occupancy-trend',
+    driver: CRE_DRIVERS.occupancy,
+    adverse: 'DOWN',
+    threshold: OCCUPANCY_DECLINE_POINTS,
+    domain: 'PROPERTY',
+    advice: 'Space is being given back faster than it is let: check which tenants left, the re-letting time and incentives, and whether the scenarios carry today’s occupancy or a lower one.',
+  },
+  CRE_HISTORY,
+);
 
 export const COMMERCIAL_PROPERTY_RULES: readonly PackRule[] = [
   CRE_ANCHOR_ROLLOVER,
@@ -499,7 +552,8 @@ export const COMMERCIAL_PROPERTY_RULES: readonly PackRule[] = [
   CRE_PNL_TREND,
   CRE_PNL_MARGIN_DRIFT,
   CRE_PNL_EXPENSE_OUTPACING,
+  CRE_OCCUPANCY_TREND,
   // The recent run against the long run (T-185): quiet until ten years or more are read.
   recentRunRule('cre', CRE_HISTORY),
 ];
-export const COMMERCIAL_PROPERTY_EVIDENCE = { LEASE, CAM, CAPEX_ITEM } as const;
+export const COMMERCIAL_PROPERTY_EVIDENCE = { LEASE, CAM, CAPEX_ITEM, LEASING_MONTH } as const;

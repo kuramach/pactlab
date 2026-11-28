@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { ACCEPTANCE_CURRENCIES, acceptAndValue, type AcceptanceDeal, type Body, type PackMetricsBody, startAcceptanceDeal } from './acceptance-kit';
+import { ACCEPTANCE_CURRENCIES, acceptAndValue, type AcceptanceDeal, type Body, centsOf, csvRows, HISTORY_YEARS, type PackMetricsBody, ratioOf, startAcceptanceDeal } from './acceptance-kit';
 
 type FindingView = {
   id: string;
@@ -23,8 +23,8 @@ const lineKind = (account: string) => (/revenue/i.test(account) ? 'REVENUE' : /^
  * medical-staff and payer-contract registers reused as they are, the five-year P&L and every document —
  * surfaces the T-069 four and the planted (a) largest payer's contract ending seven months after close,
  * (b) cost-report occupancy contradicting the deck, (c) the capex ratio falling across the P&L years
- * against a modern-plant claim and (d) one department's physicians sharing a lapsed privilege date, as
- * cited drafts. The committed regulatory capex still comes off the price in a payer-mix-adjusted EBITDA run.
+ * against a modern-plant claim, (d) one department's physicians sharing a lapsed privilege date and (e)
+ * admissions falling every year across five years of census (T-184c), as cited drafts. The committed regulatory capex still comes off the price in a payer-mix-adjusted EBITDA run.
  */
 describe.each(ACCEPTANCE_CURRENCIES)('hospitals pack acceptance (%s)', { timeout: 90_000 }, (currency) => {
   let deal: AcceptanceDeal;
@@ -51,7 +51,7 @@ describe.each(ACCEPTANCE_CURRENCIES)('hospitals pack acceptance (%s)', { timeout
     expect(run.status, JSON.stringify(run.body)).toBe(200);
     expect(run.body).toMatchObject({ pack: 'HOSPITALS', unresolvedQuotes: 0 });
     const promised = Number(/You should see exactly these (\d+) findings/.exec(deal.readme)?.[1]);
-    expect(promised).toBe(12);
+    expect(promised).toBe(13);
     expect(Number(run.body['created']) + Number(run.body['existing'])).toBe(promised);
     expect((await runRules()).body).toMatchObject({ created: 0, existing: promised });
 
@@ -93,6 +93,10 @@ describe.each(ACCEPTANCE_CURRENCIES)('hospitals pack acceptance (%s)', { timeout
     expect(byTitle['Quality claim verified: Overall star rating']).toMatchObject({ direction: 1 });
     expect(byTitle['Quality claim not verified: Hospital safety grade']).toMatchObject({ direction: 0 });
     expect(byTitle['P&L trend, 2021–2025']).toMatchObject({ direction: 0 });
+    // (e) Admissions fall every year across the five census years while revenue rises (T-184c).
+    const admissions = byTitle['Admissions falling every year, FY2021–FY2025'];
+    expect(admissions).toMatchObject({ domain: 'COMMERCIAL', direction: -1, pricedRisk: null });
+    expect(admissions?.evidence.filter((link) => link.evidenceItemId).length).toBeGreaterThan(0);
 
     const claims = (await deal.call('GET', `/v1/deals/${deal.dealId}/claims`, 'lead')).body['items'] as { status: string; origin: string }[];
     expect(claims.filter((entry) => entry.origin === 'PACK_RULE').map((entry) => entry.status).sort()).toEqual(['CONTRADICTED', 'UNVERIFIED', 'VERIFIED', 'VERIFIED']);
@@ -109,7 +113,22 @@ describe.each(ACCEPTANCE_CURRENCIES)('hospitals pack acceptance (%s)', { timeout
     expect(value('credentials_lapsed')).toBe('4');
     expect(value('contracts_in_window')).toBe('1');
     expect(value('admissions')).toBe(String(12 * (310 + 260 + 190 + 520)));
-    expect(metrics.history?.years.slice(-5)).toEqual(['FY2021', 'FY2022', 'FY2023', 'FY2024', 'FY2025']);
+    // Five years side by side (T-184c), hand-computed from the exports by calendar year: admissions; the average
+    // daily census as patient days ÷ the days in the year; the government programmes' share of net revenue.
+    const census = csvRows(deal.folder, 'census.csv');
+    const payerMix = csvRows(deal.folder, 'payer-mix.csv');
+    const total = (rows: string[][], year: string, index: number) => rows.filter((row) => row[0]?.startsWith(year)).reduce((sum, row) => sum + BigInt(row[index] ?? '0'), 0n);
+    const days = (year: string) => (Number(year) % 4 === 0 ? 366n : 365n);
+    const inYear = (year: string) => payerMix.filter((row) => row[0]?.startsWith(year));
+    expect(metrics.history?.years).toEqual(HISTORY_YEARS.map((year) => `FY${year}`));
+    const row = (key: string) => metrics.history?.rows.find((entry) => entry.key === key)?.values;
+    expect(row('admissions')).toEqual(HISTORY_YEARS.map((year) => String(total(census, year, 2))));
+    expect(row('average_daily_census')).toEqual(HISTORY_YEARS.map((year) => ratioOf(total(census, year, 3), days(year), 1)));
+    expect(row('government_share')).toEqual(HISTORY_YEARS.map((year) => ratioOf(centsOf(inYear(year).filter((entry) => /government/i.test(entry[1] ?? '')), 3), centsOf(inYear(year), 3))));
+    expect(metrics.history?.coverage.map((entry) => entry.summary)).toEqual(['FY2021–FY2025 (5 years; earlier years not provided)', 'FY2021–FY2025 (5 years; earlier years not provided)']);
+    expect(metrics.history?.asks).toEqual([]);
+    expect(value('average_daily_census')).toBe(ratioOf(BigInt(12 * (Math.trunc(310 * 4.1) + Math.trunc(260 * 3.2) + Math.trunc(190 * 2.4) + Math.trunc(520 * 3.8))), 365n, 1));
+    expect(metrics.metrics.find((metric) => metric.key === 'government_share')?.history?.map((point) => point.period)).toEqual(HISTORY_YEARS.map((year) => `FY${year}`));
   });
 
   it('accepting the capex takes it off the price in a payer-mix-adjusted EBITDA run', async () => {
@@ -148,6 +167,9 @@ describe.each(ACCEPTANCE_CURRENCIES)('hospitals pack acceptance (%s)', { timeout
     expect(titles.filter((title) => title.startsWith('Capex'))).toHaveLength(1);
     const metrics = (await deal.call('GET', `/v1/deals/${deal.dealId}/metrics/pack`, 'lead')).body as PackMetricsBody;
     expect(metrics.metrics.find((metric) => metric.key === 'capex_ratio')?.value).toBe('0.0280');
+    // Partial history states its coverage and asks the seller for the missing years.
+    expect(metrics.history?.coverage.find((entry) => entry.key === 'operating')?.summary).toBe('FY2025 (1 of 5 years): ask the seller for FY2021–FY2024 income statements, or tell us the business started later');
+    expect(metrics.history?.asks).toEqual([{ needs: ['INCOME_STATEMENT'], note: 'Ask the seller for FY2021–FY2024 income statements, or tell us the business started later.' }]);
   });
 
   it('is refused to a target contributor and invisible to another tenant', async () => {

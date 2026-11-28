@@ -1396,6 +1396,12 @@ Five further packs in two clusters. Hotels, multifamily and commercial property 
 - **Finding rules (drafts only, cited, −1 through the `driver-trend` signal):** `telecom-churn-trend`, `services-utilization-trend`, `healthcare-visits-trend` (clinics by reference), `ecommerce-discount-trend`, `pharma-product-revenue-trend`, `saas-nrr-trend`, `music-income-trend`, `energy-generation-trend`; thresholds in `docs/agent/packs.md` §4d.
 - **Fixtures and acceptance:** each pack's demo data runs back to January 2021 with FY2021–FY2025 P&L and one planted trend; each acceptance test checks the history against hand-computed values, the planted trend as a cited draft, and partial history stating its coverage with an ask.
 
+**1e. Five years of history for hospitals and commercial property (T-184c, ADR 0057 addendum, 2026-11-28)**
+
+- **History:** hospitals (admissions, patient days, the average daily census and the government programmes' share of net revenue by year, from the census and payer mix) and commercial property (occupancy, base rent per square foot and lease expiries from a new monthly `CRE_LEASING_HISTORY` import, with the CAM recovery ratio), beside the P&L by year; coverage stated and a missing year an ask of the seller. Hotels follows its rebuild (T-166).
+- **Finding rules (drafts only, cited):** `hospitals-admissions-trend` (T-162) now reads five years; `cre-occupancy-trend` (−1, occupancy falling every year by 3 points or more). A P&L year is compared with the leases on file only when every one was in force all year.
+- **Fixtures and acceptance:** the census and payer mix run from January 2021 with admissions falling every year (planted); the park's leasing history runs from January 2021 and its P&L and CAM reconciliations span FY2021–FY2025, with the operating margin falling across the five years while the park stays let (planted). Each acceptance test checks the history against hand-computed values, the planted trend as a cited draft, and partial history stating its coverage with an ask.
+
 **2. Healthcare services / healthtech**
 
 - PE roll-ups of practices, clinics, and payer-adjacent services are the dominant deal shape; healthtech software targets reuse the baseline tech path.

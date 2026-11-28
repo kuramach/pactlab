@@ -3,7 +3,7 @@ import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { COMMERCIAL_PROPERTY_RULES, type PackRuleEvidence, type PackRulePage } from '@pactlab/calculations';
-import { CRE_CAM_CATEGORY_EVIDENCE_TYPE, CRE_CAPEX_ITEM_EVIDENCE_TYPE, CRE_LEASE_EVIDENCE_TYPE, defaultDirectionFor, PNL_LINE_EVIDENCE_TYPE } from '@pactlab/connectors';
+import { CRE_CAM_CATEGORY_EVIDENCE_TYPE, CRE_CAPEX_ITEM_EVIDENCE_TYPE, CRE_LEASE_EVIDENCE_TYPE, CRE_LEASING_MONTH_EVIDENCE_TYPE, defaultDirectionFor, DRIVER_TREND_SIGNAL, PNL_LINE_EVIDENCE_TYPE } from '@pactlab/connectors';
 import { applyMapping, IMPORT_TARGET_DEFINITIONS, PACKS, parseCsv, suggestFields, type ImportMapping } from '@pactlab/domain';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
@@ -33,6 +33,7 @@ const SIGNALS: Readonly<Record<string, (key: string) => readonly [string, string
   'cre-pnl-trend': () => [PNL_LINE_EVIDENCE_TYPE, 'trend'],
   'cre-pnl-margin-drift': () => [PNL_LINE_EVIDENCE_TYPE, 'margin-drift'],
   'cre-pnl-expense-outpacing': () => [PNL_LINE_EVIDENCE_TYPE, 'expense-outpacing'],
+  'cre-occupancy-trend': () => [CRE_LEASING_MONTH_EVIDENCE_TYPE, DRIVER_TREND_SIGNAL],
   'cre-recent-run': () => [PNL_LINE_EVIDENCE_TYPE, 'recent-run'],
 };
 const RULES = new Map(COMMERCIAL_PROPERTY_RULES.map((rule) => [rule.id, rule]));

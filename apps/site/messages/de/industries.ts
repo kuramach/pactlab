@@ -219,6 +219,7 @@ export const industries: Catalog['industries'] = {
       { title: 'Mieterliste gegen die Mietverträge', body: 'Miete Vertrag für Vertrag neu berechnet und mit der Mieterliste und den Abschlüssen abgeglichen.' },
       { title: 'Umlagen und die Auslaufklippe', body: 'Abgerechnete Umlagen gegen das, was die Mietverträge umlagefähig machen, je Jahr, und die Miete, die in jedem Jahr der Haltedauer ausläuft.' },
       { title: 'Verpflichtungen und Zustand', body: 'Offene Mieterausbauten, Provisionen und beauftragte Investitionen sowie Punkte des Zustandsgutachtens, die der Investitionsplan auslässt.' },
+      { title: 'Fünf Jahre Historie', body: 'Belegung, Grundmiete je Quadratfuß, auslaufende Mietverträge und die Umlagequote je Jahr aus der Vermietungshistorie und den Nebenkostenabrechnungen neben der GuV, jeweils mit der Zahl der Jahre, auf denen eine Zahl beruht; ein fehlendes Jahr wird beim Verkäufer angefragt.' },
     ],
   },
   hotels: {
@@ -283,6 +284,7 @@ export const industries: Catalog['industries'] = {
       { title: 'Abgleich der Kostenberichte', body: 'Belegung sowie die Anteile von Medicare und Medicaid an den Pflegetagen aus den eingereichten Kostenberichten, gegen die Präsentation; Gesamtkosten gegen die GuV.' },
       { title: 'Anlagen und Investitionstrend', body: 'Investitionen im Verhältnis zum Umsatz über jedes importierte Jahr, neben dem Gebäudezustandsgutachten und dem, was die Präsentation über die Anlagen behauptet.' },
       { title: 'Qualitätsangaben, den Berichten zugeordnet', body: 'Veröffentlichte Sternebewertungen und Sicherheitsnoten aus der Präsentation, geprüft an den vorgelegten Berichtsunterlagen.' },
+      { title: 'Fünf Jahre Historie', body: 'Aufnahmen, die durchschnittliche tägliche Belegung und der Anteil staatlicher Programme am Nettoerlös je Jahr aus Belegungsstatistik und Kostenträgermix neben der GuV, jeweils mit der Zahl der Jahre, auf denen eine Zahl beruht; ein fehlendes Jahr wird beim Verkäufer angefragt.' },
     ],
   },
   'venture-raise': {

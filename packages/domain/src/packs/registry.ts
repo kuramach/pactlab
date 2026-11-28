@@ -301,7 +301,7 @@ export const PACKS: Readonly<Record<PackId, PackDefinition>> = {
   // the hold, the condition reports against the seller's capex schedule and the multi-year P&L trend.
   COMMERCIAL_PROPERTY: {
     ...pack('COMMERCIAL_PROPERTY', 'commercial-property', 'real-estate', true),
-    importTargets: ['BILLING_INVOICE_LINE', 'CRE_RENT_ROLL', 'CRE_CAM_RECONCILIATION', 'CRE_CAPEX_SCHEDULE'],
+    importTargets: ['BILLING_INVOICE_LINE', 'CRE_RENT_ROLL', 'CRE_CAM_RECONCILIATION', 'CRE_CAPEX_SCHEDULE', 'CRE_LEASING_HISTORY'],
     metricCalculator: 'cre-leases',
     findingRules: [
       'cre-anchor-rollover',
@@ -316,6 +316,7 @@ export const PACKS: Readonly<Record<PackId, PackDefinition>> = {
       'cre-pnl-trend',
       'cre-pnl-margin-drift',
       'cre-pnl-expense-outpacing',
+      'cre-occupancy-trend',
       'cre-recent-run',
     ],
     documentCategories: ['PROPERTY_CONDITION_REPORT', 'ENVIRONMENTAL_REPORT'],

@@ -114,12 +114,14 @@ describe('pack registry', () => {
     expect(cre).toMatchObject({ slug: 'commercial-property', cluster: 'real-estate', metricCalculator: 'cre-leases', built: true });
     // The T-066 rules stay first and unchanged.
     expect(cre.findingRules.slice(0, 4)).toEqual(['cre-anchor-rollover', 'cre-environmental-condition', 'cre-cam-under-recovery', 'cre-below-market-anchor']);
-    expect(cre.importTargets).toEqual(['BILLING_INVOICE_LINE', 'CRE_RENT_ROLL', 'CRE_CAM_RECONCILIATION', 'CRE_CAPEX_SCHEDULE']);
-    expect(cre.findingRules).toEqual(expect.arrayContaining(['cre-rent-roll-verification', 'cre-recovery-reconciliation', 'cre-obligations', 'cre-rent-cliff', 'cre-condition-capex', 'cre-pnl-trend', 'cre-recent-run']));
+    // The leasing history (T-184c) reads occupancy, rent per square foot and expiries by year.
+    expect(cre.importTargets).toEqual(['BILLING_INVOICE_LINE', 'CRE_RENT_ROLL', 'CRE_CAM_RECONCILIATION', 'CRE_CAPEX_SCHEDULE', 'CRE_LEASING_HISTORY']);
+    expect(cre.findingRules).toEqual(expect.arrayContaining(['cre-rent-roll-verification', 'cre-recovery-reconciliation', 'cre-obligations', 'cre-rent-cliff', 'cre-condition-capex', 'cre-pnl-trend', 'cre-occupancy-trend', 'cre-recent-run']));
     expect(cre.documentCategories).toEqual(['PROPERTY_CONDITION_REPORT', 'ENVIRONMENTAL_REPORT']);
     expect(cre.requiredInputs).toEqual(['LEASE']);
     expect(cre.valuationMethods).toEqual(['NOI_CAP_RATE', 'DCF']);
     expect(IMPORT_TARGET_DEFINITIONS.CRE_CAPEX_SCHEDULE).toMatchObject({ evidenceType: 'cre.capex_item', people: 'NONE', refusesPeopleColumns: true });
+    expect(IMPORT_TARGET_DEFINITIONS.CRE_LEASING_HISTORY).toMatchObject({ evidenceType: 'cre.leasing_month', recordIdField: 'month', people: 'NONE', refusesPeopleColumns: true });
   });
 
   it('Small clinics reuses the T-160 evidence set and adds service lines, referrals and the lease (T-161)', () => {

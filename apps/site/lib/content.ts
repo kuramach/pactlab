@@ -732,6 +732,7 @@ export const INDUSTRIES: readonly Industry[] = [
       { icon: 'ClipboardList', title: 'Rent roll against the leases', body: 'Rent recomputed lease by lease and reconciled to the rent roll and the statements.' },
       { icon: 'Hourglass', title: 'Recoveries and the expiry cliff', body: 'Recoveries billed against what the leases make recoverable, by year, and rent expiring in each year of the hold.' },
       { icon: 'ShieldAlert', title: 'Obligations and condition', body: 'Unpaid tenant improvements, commissions and committed capex, and condition-report items the capex schedule omits.' },
+      { icon: 'TrendingUp', title: 'Five years of history', body: 'Occupancy, base rent per square foot, lease expiries and the recovery ratio by year from the leasing history and CAM reconciliations, beside the P&L, with how many years each figure rests on; a missing year is asked of the seller.' },
     ],
   },
   {
@@ -844,6 +845,7 @@ export const INDUSTRIES: readonly Industry[] = [
       { icon: 'Activity', title: 'Cost-report reconciliation', body: 'Occupancy and the Medicare and Medicaid shares of patient days from the filed cost reports, against the deck; total costs against the P&L.' },
       { icon: 'Building2', title: 'Plant and capex trend', body: 'Capex against revenue across every imported year, beside the facility condition assessment and what the deck claims about the plant.' },
       { icon: 'BadgeCheck', title: 'Quality claims, mapped to the reports', body: 'Published star ratings and safety grades the deck claims, checked against the reporting documents supplied.' },
+      { icon: 'TrendingUp', title: 'Five years of history', body: 'Admissions, the average daily census and the government programmes’ share of net revenue by year from the census and payer mix, beside the P&L, with how many years each figure rests on; a missing year is asked of the seller.' },
     ],
   },
   {

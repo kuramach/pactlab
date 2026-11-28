@@ -4,8 +4,8 @@ import { importPackExtract } from '../support/imports';
 
 test('a hospital payer mix imports and drafts the payer-concentration finding', { tag: '@regression' }, async ({ page }) => {
   const dealId = await startPact(page, 'Hospitals');
-  await importPackExtract(page, dealId, 'Payer mix', demoFile('hospitals', 'USD', 'payer-mix.csv'), 60);
-  await importPackExtract(page, dealId, 'Census', demoFile('hospitals', 'USD', 'census.csv'), 48);
+  await importPackExtract(page, dealId, 'Payer mix', demoFile('hospitals', 'USD', 'payer-mix.csv'), 345);
+  await importPackExtract(page, dealId, 'Census', demoFile('hospitals', 'USD', 'census.csv'), 276);
 
   await page.goto(`/deals/${dealId}/findings`);
   await page.getByRole('link', { name: 'Earnings concentrated in one payer' }).click();

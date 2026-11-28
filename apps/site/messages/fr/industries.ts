@@ -219,6 +219,7 @@ export const industries: Catalog['industries'] = {
       { title: 'L’état locatif face aux baux', body: 'Le loyer recalculé bail par bail et rapproché de l’état locatif et des comptes.' },
       { title: 'Refacturations et falaise d’échéances', body: 'Les charges refacturées face à ce que les baux rendent récupérable, année par année, et le loyer qui arrive à échéance chaque année de la détention.' },
       { title: 'Engagements et état du bâti', body: 'Travaux preneur, commissions et investissements engagés restant dus, et les points du rapport d’état que le plan de travaux omet.' },
+      { title: 'Cinq ans d’historique', body: 'Le taux d’occupation, le loyer de base au pied carré, les baux arrivant à échéance et le taux de refacturation par année, tirés de l’historique locatif et des redditions de charges, à côté du compte de résultat, avec le nombre d’années sur lequel repose chaque chiffre ; une année manquante est demandée au vendeur.' },
     ],
   },
   hotels: {
@@ -283,6 +284,7 @@ export const industries: Catalog['industries'] = {
       { title: 'Rapprochement des rapports de coûts', body: 'Le taux d’occupation et les parts de Medicare et Medicaid dans les journées d’hospitalisation, tirés des rapports déposés, face à la présentation ; les coûts totaux face au compte de résultat.' },
       { title: 'Installations et tendance des investissements', body: 'Les investissements rapportés au chiffre d’affaires sur chaque année importée, à côté de l’état des bâtiments et de ce que la présentation affirme sur les installations.' },
       { title: 'Indicateurs qualité, rapprochés des rapports', body: 'Les notes en étoiles et les notes de sécurité publiées que revendique la présentation, vérifiées face aux documents de reporting fournis.' },
+      { title: 'Cinq ans d’historique', body: 'Les admissions, le recensement quotidien moyen et la part des programmes publics dans le revenu net par année, tirés du recensement et du mix de payeurs, à côté du compte de résultat, avec le nombre d’années sur lequel repose chaque chiffre ; une année manquante est demandée au vendeur.' },
     ],
   },
   'venture-raise': {

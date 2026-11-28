@@ -439,7 +439,7 @@ PACK_IMPORTS = {
     'professional-services': {'timesheets-summary': 'Timesheets summary', 'headcount-movements': 'Headcount movements', 'time-billing': 'Time and billing', 'wip-ar-ageing': 'WIP and debtor ageing'},
     'pharma-biotech': {'patent-schedule': 'Patent schedule', 'trial-registry': 'Trial registry records', 'pipeline': 'Pipeline', 'obligations-model': 'Payment obligations model', 'rd-roster': 'R&D roster'},
     'ecommerce-dtc': {'orders-by-cohort': 'Orders by cohort', 'ad-spend': 'Ad spend', 'channel-orders': 'Orders by channel', 'inventory': 'Stock report'},
-    'commercial-property': {'rent-roll': 'Commercial rent roll', 'cam-reconciliation': 'CAM reconciliation', 'capex-schedule': 'Capex schedule'},
+    'commercial-property': {'rent-roll': 'Commercial rent roll', 'cam-reconciliation': 'CAM reconciliation', 'capex-schedule': 'Capex schedule', 'leasing-history': 'Leasing history'},
     'hotels': {'operating-history': 'Operating history', 'str-benchmark': 'STR benchmark'},
     'small-clinics': {'patient-volume': 'Patient volume', 'equipment-schedule': 'Equipment schedule', 'coding-summary': 'Coding summary', 'remittances': 'Remittances by payer',
                       'clinician-collections': 'Collections by clinician', 'credentialing-register': 'Credentialing register', 'payer-contracts': 'Payer contract register',
@@ -2094,8 +2094,37 @@ def commercial(ds):
     walt_old = sum(D(r[5]) * D(str(round(float(years_left(r[4])), 2))) for r in rr) / roll_total
     over = [(t[0] + ' (synthetic)', D(r[5]) - lease_rent[t[0]]) for r, t in zip(rr, tenants) if t[7]]
 
-    # CAM reconciliations, three statement years: repairs and security recover less than the triple-net leases allow every year (planted (c)).
-    cam_years = {'2023': [(150000, 128000), (79000, 79000), (58000, 44000), (240000, 240000)],
+    # Five years of history (T-184c), from its own random generator: before July 2021 the ten original tenants paid
+    # under earlier leases (one escalation below the current ones; not on file), and Unit 11 was let to a printer until
+    # June 2022, then vacant until Gullwing moved in in November 2023. 2023 onwards is the leases on file, unchanged.
+    hrng = random.Random(f'commercial-history:{c}')
+    prior_unit11 = ds.amt(7400 + hrng.randint(-200, 200))
+
+    def rent_in_force(mo):
+        total = D(0)
+        for t in tenants:
+            current = rent_on(t, f'{mo}-01')
+            if current is not None: total += current
+            elif t[0] != 'Gullwing Robotics' and mo < t[3][:7]: total += q(ds.amt(t[1]) / (1 + D(t[5])))
+        return total + (prior_unit11 if mo <= '2022-06' else D(0))
+
+    def leased_in(mo): return total_sqft - (tenants[10][2] if '2022-07' <= mo <= '2023-10' else 0)
+    leasing = [[mo, total_sqft, leased_in(mo), f'{rent_in_force(mo):.2f}',
+                sum(t[2] for t in tenants[:10]) if mo == '2021-06' else tenants[10][2] if mo == '2022-06' else 0] for mo in HIST_MONTHS + MONTHS]
+    ds.ext('leasing-history', ['month', 'rentable_sqft', 'leased_sqft', 'base_rent', 'expiring_sqft'], leasing, 'Leasing history by month: rentable and leased area, base rent in force and area whose leases ended, January 2021 to September 2026')
+
+    def occupancy_of(y):
+        rows = [r for r in leasing if r[0][:4] == y]
+        return D(sum(r[2] for r in rows)) / D(sum(r[1] for r in rows))
+
+    def rent_psf(y):
+        rows = [r for r in leasing if r[0][:4] == y]
+        return q(sum(D(r[3]) for r in rows) / D(sum(r[2] for r in rows)) * 12)
+
+    # CAM reconciliations, five statement years: from 2023 repairs and security recover less than the triple-net leases allow every year (planted (c)).
+    cam_years = {'2021': [(104000, 103000), (72000, 72000), (52000, 51500), (225000, 225000)],
+                 '2022': [(124000, 122000), (75000, 75000), (55000, 54000), (232000, 232000)],
+                 '2023': [(150000, 128000), (79000, 79000), (58000, 44000), (240000, 240000)],
                  '2024': [(182000, 151000), (83000, 83000), (61000, 42000), (250000, 250000)],
                  '2025': [(212000, 171000), (88000, 88000), (64000, 41000), (260000, 260000)]}
     cats = ['Repairs and maintenance', 'Insurance', 'Security', 'Real estate taxes']
@@ -2111,21 +2140,27 @@ def commercial(ds):
              ['2027', 'Car park resurfacing', 'paving', f'{ds.amt(260000):.2f}', 'planned']]
     ds.ext('capex-schedule', ['year', 'item', 'category', 'amount', 'status'], capex, 'The seller’s capital expenditure schedule: item, element, amount and status')
 
-    # The P&L by fiscal year: base rent as the leases make it due, recoveries as billed, the recoverable expenses as reconciled.
-    years = ['2023', '2024', '2025']
-    rent_year = {y: sum((due_in_year(t, y) for t in tenants), D(0)) for y in years}
+    # The P&L by fiscal year: base rent as it was in force, recoveries as billed, the recoverable expenses as reconciled.
+    years = ['2021', '2022', '2023', '2024', '2025']
+    rent_year = {y: sum((rent_in_force(f'{y}-{m:02d}') for m in range(1, 13)), D(0)) for y in years}
+    assert all(rent_year[y] == sum((due_in_year(t, y) for t in tenants), D(0)) for y in ('2023', '2024', '2025'))
     pnl_rows = [['Base rent revenue'] + [f'{rent_year[y]:.2f}' for y in years],
                 ['Expense recovery revenue'] + [f'{cam_sum(y, 3):.2f}' for y in years]]
     for k, cat in enumerate(cats):
         pnl_rows.append([cat] + [f'{D(cam[years.index(y) * 4 + k][2]):.2f}' for y in years])
     pnl_rows.append(['Property management fees'] + [f'{q(rent_year[y] * D("0.03")):.2f}' for y in years])
-    pnl_rows.append(['General and administrative'] + [f'{ds.amt(x):.2f}' for x in (95000, 98000, 101000)])
-    ds.ext('pnl', ['Line'] + [f'FY{y}' for y in years], pnl_rows, 'Profit and loss by fiscal year, FY2023 to FY2025')
+    pnl_rows.append(['General and administrative'] + [f'{ds.amt(x):.2f}' for x in (89000, 92000, 95000, 98000, 101000)])
+    ds.ext('pnl', ['Line'] + [f'FY{y}' for y in years], pnl_rows, 'Profit and loss by fiscal year, FY2021 to FY2025')
     ds.pnl_step = ['Open the **Sources** tab, scroll to **Industry data** and click **Upload profit and loss (p&l)**.', '',
-                   '1. Choose `pnl.csv` → **Upload and map columns**. Pactlab reads the three years across the columns (FY2023 to FY2025).',
+                   '1. Choose `pnl.csv` → **Upload and map columns**. Pactlab reads the five years across the columns (FY2021 to FY2025).',
                    '2. Say what each line is: the two lines ending in *revenue* are **Revenue**, and the rest are **Operating expenses**.',
-                   f'3. **Check every row**, then **Import {len(pnl_rows) * 3} rows**.', '',
-                   '**You should see:** the import succeed. **Finances** shows the three years side by side with the recovery ratio, and asks the seller for FY2021 and FY2022.', '']
+                   f'3. **Check every row**, then **Import {len(pnl_rows) * 5} rows**.', '',
+                   '**You should see:** the import succeed. **Finances** shows the five years side by side with occupancy, rent per square foot, lease expiries and the recovery ratio.', '']
+
+    def op_margin(y):
+        k = years.index(y) + 1
+        revenue = D(pnl_rows[0][k]) + D(pnl_rows[1][k])
+        return (revenue - sum(D(r[k]) for r in pnl_rows[2:])) / revenue
 
     def repairs_ratio(y): return D(pnl_rows[2][1 + years.index(y)]) / (rent_year[y] + cam_sum(y, 3))
 
@@ -2190,13 +2225,17 @@ The buyer's business plan assumes a hold period of 5 years.
         ('Landlord obligations the buyer inherits: tenant improvements, leasing commissions and committed capex', f'the unpaid tenant improvements on Unit 2, the Gullwing leasing commission and the committed lines of `capex-schedule.csv`: {money(c, obligations_total)} in all, priced as a credit at closing.'),
         (f'Rent cliff: {top} ({pct(share)} of rent) expires in year 1 of the hold', f'`rent-roll.csv` and `documents/03-lease-unit-01.pdf` — the largest tenant ends on 30 June 2027, six months after the 31 December 2026 closing in `documents/05-offering-memorandum.pdf`.'),
         ('Roof work flagged by the condition report is not in the seller’s capex schedule', f'`documents/04-property-condition-assessment.pdf` — roof replacement within two years at {money(c, roof)}; `capex-schedule.csv` has no roof line. Priced as remediation.'),
-        ('P&L trend, 2023–2025', 'every imported year side by side: revenue, growth, margins and the repairs, taxes and insurance ratios.'),
-        ('Repairs and maintenance growing faster than revenue, 2023–2025', f'repairs and maintenance rise from {pct(repairs_ratio("2023"))} to {pct(repairs_ratio("2025"))} of revenue — FY2025 alone looks ordinary.'),
+        ('P&L trend, 2021–2025', 'every imported year side by side: revenue, growth, margins and the repairs, taxes and insurance ratios, beside occupancy, rent per square foot and expiries from `leasing-history.csv`.'),
+        ('Repairs and maintenance growing faster than revenue, 2021–2025', f'repairs and maintenance rise from {pct(repairs_ratio("2021"))} to {pct(repairs_ratio("2025"))} of revenue — FY2025 alone looks ordinary.'),
+        ('Operating margin down across 2021–2025', f'`pnl.csv` — the operating margin falls from {pct(op_margin("2021"))} in FY2021 to {pct(op_margin("2025"))} in FY2025 while the park stays let (occupancy {pct(occupancy_of("2021"))} in FY2021 and {pct(occupancy_of("2025"))} in FY2025 in `leasing-history.csv`): costs, not vacancy. The last three years alone move less than three points.'),
     ]
     assert D('0.4095') <= share < D('0.4105'), share
+    assert all(repairs_ratio(a) < repairs_ratio(b) for a, b in zip(years, years[1:])), [repairs_ratio(y) for y in years]
+    assert op_margin('2021') - op_margin('2025') >= D('0.03') > op_margin('2023') - op_margin('2025'), [op_margin(y) for y in years]
+    assert all(cam_sum(y, 2) - cam_sum(y, 3) < cam_sum(y, 2) * D('0.02') for y in ('2021', '2022'))
     ds.notes = ['Tenants are businesses; the rent roll is lease data, never people data.',
                 'The eleven leases in `documents/` are what the rent roll is checked against: initial rent, escalation, term and each tenant’s proportionate share of recoverable expenses.',
-                '`pnl.csv` and `cam-reconciliation.csv` hold FY2023–FY2025, read side by side on **Finances**; Pactlab asks the seller for FY2021 and FY2022.',
+                '`pnl.csv` and `cam-reconciliation.csv` hold FY2021–FY2025 and `leasing-history.csv` runs from January 2021, read side by side on **Finances**: occupancy ' + ', '.join(f'FY{y} {pct(occupancy_of(y))}' for y in years) + '; base rent per leased sq ft ' + ', '.join(f'FY{y} {money(c, rent_psf(y), True)}' for y in years) + '. Unit 11 stood empty from July 2022 until Gullwing moved in in November 2023; the ten original leases were renewed on 1 July 2021.',
                 'Diligence support only: the pack reconciles documents and arithmetic. It never values the property.']
 
 def hotels(ds):
@@ -2249,15 +2288,30 @@ def hospitals(ds):
     payers = [('Government programme A', 1850000), ('Commercial plan Keystone', 610000), ('Government programme B', 420000), ('Commercial plan Riverbend', 280000), ('Self-pay and other', 120000)]
     for i, (n, base) in enumerate(payers):
         ds.customer(f'{ds.prefix}-pay-{i + 1:03d}', f'{n} (synthetic)', ramp(ds.rng, ds.amt(base), '0.003', noise=D('0.02')))
-    # Census by month and service line, the last twelve months (T-069).
+    # Census by month and service line (T-069), back to January 2021 (T-184c) from its own random generator, so
+    # the months from January 2025 are the T-069 census as it was. Admissions fall every year to today's level (planted (e)).
     lines = (('Cardiology', 310, 4.1), ('Orthopaedics', 260, 3.2), ('Maternity', 190, 2.4), ('General medicine', 520, 3.8))
+    hrng = random.Random(f'hospitals-history:{ds.cur}')
+    level = {'2021': D('1.12'), '2022': D('1.085'), '2023': D('1.055'), '2024': D('1.025')}
     census = []
-    for mo in LAST12:
+    for mo in HIST_MONTHS + MONTHS:
         for line, adm, los in lines:
-            days = int(adm * los); census.append([mo, line, adm, days, f'{days / 30:.1f}'])
-    ds.ext('census', ['month', 'service_line', 'admissions', 'patient_days', 'average_daily_census'], census, 'Admissions and census by service line')
-    pm = [[mo, n, f'{q(m2[mo] * D("2.9")):.2f}', f'{m2[mo]:.2f}'] for mo in LAST12 for _, n, m2 in ds.customers]
-    ds.ext('payer-mix', ['month', 'payer', 'gross_charges', 'net_revenue'], pm, 'Gross charges and net revenue by payer')
+            a = int(whole(D(adm) * level[mo[:4]] * (D(1) + D(hrng.randint(-10, 10)) / 1000))) if mo[:4] in level else adm
+            days = int(a * los); census.append([mo, line, a, days, f'{days / 30:.1f}'])
+    ds.ext('census', ['month', 'service_line', 'admissions', 'patient_days', 'average_daily_census'], census, 'Admissions and census by service line, January 2021 to September 2026')
+    census_year = {y: (sum(r[2] for r in census if r[0][:4] == y), sum(r[3] for r in census if r[0][:4] == y)) for y in ('2021', '2022', '2023', '2024', '2025')}
+    assert all(census_year[a][0] > census_year[b][0] for a, b in (('2021', '2022'), ('2022', '2023'), ('2023', '2024'), ('2024', '2025'))), census_year
+    # Payer mix by month: the billing settlements from October 2024, and before them the same payers from the history generator.
+    pm = []
+    for k, mo in enumerate(HIST_MONTHS):
+        for n, base in payers:
+            net = q(ds.amt(base) / (D('1.003') ** (len(HIST_MONTHS) - k)) * (D(1) + D(hrng.randint(-20, 20)) / 1000))
+            pm.append([mo, f'{n} (synthetic)', f'{q(net * D("2.9")):.2f}', f'{net:.2f}'])
+    pm += [[mo, n, f'{q(m2[mo] * D("2.9")):.2f}', f'{m2[mo]:.2f}'] for mo in MONTHS for _, n, m2 in ds.customers]
+    ds.ext('payer-mix', ['month', 'payer', 'gross_charges', 'net_revenue'], pm, 'Gross charges and net revenue by payer, January 2021 to September 2026')
+    def government_share(y):
+        rows = [r for r in pm if r[0][:4] == y]
+        return sum(D(r[3]) for r in rows if 'Government' in r[1]) / sum(D(r[3]) for r in rows)
     top, share = ds.share_top()
     c = ds.cur
 
@@ -2281,14 +2335,14 @@ def hospitals(ds):
                    '1. Choose `pnl.csv` → **Upload and map columns**. Pactlab reads the five years across the columns (FY2021 to FY2025).',
                    '2. Say what each line is: the two lines ending in *revenue* are **Revenue**, `Cost of care: salaries and benefits` is **Cost of revenue**, and the rest are **Operating expenses**.',
                    f'3. **Check every row**, then **Import {len(pnl_rows) * 5} rows**.', '',
-                   '**You should see:** the import succeed. **Finances** shows the five years side by side with admissions and patient days, and the checks in the next step read every year.', '']
+                   '**You should see:** the import succeed. **Finances** shows the five years side by side with admissions, patient days, the average daily census and the payer mix, and the checks in the next step read every year.', '']
     # Filed cost reports: patient days from the census (calendar fiscal years), 220 beds, Medicare about 41% of days.
     beds = 220
     medicare_share = D('0.41')
     cost_rows = []
     for i, y in enumerate(years):
         yr = y[2:]
-        days = 12 * sum(int(adm * los) for _, adm, los in lines)  # a steady census: every year as the last twelve months
+        days = census_year[yr][1]  # the census's patient days for the calendar year
         medicare = int(whole(days * medicare_share))
         medicaid = int(whole(days * D('0.17')))
         cost_rows.append([yr, f'{yr}-12-31', beds, beds * 365, days, medicare, medicaid, f'{total_cost[i]:.2f}', f'{patient[i]:.2f}'])
@@ -2409,11 +2463,13 @@ Ratings as published by the reporting programme; Pactlab compares them with the 
         ('Quality claim verified: Overall star rating', '`documents/08-quality-ratings-report.pdf` states the same 4 stars.'),
         ('Quality claim not verified: Hospital safety grade', 'no reporting document supplied states the safety grade the deck claims.'),
         ('P&L trend, 2021–2025', 'every imported year side by side: revenue, growth, margins and the staff, supplies, purchased services and repairs ratios.'),
+        ('Admissions falling every year, FY2021–FY2025', f'`census.csv` by calendar year — admissions fall from {census_year["2021"][0]:,} in FY2021 to {census_year["2025"][0]:,} in FY2025 ({pct(1 - D(census_year["2025"][0]) / D(census_year["2021"][0]))} first year to last) while revenue in `pnl.csv` rises: growth is coming from rate and mix, not volume. The last twelve months alone look steady.'),
     ]
     assert abs(occupancy - deck_occupancy) > D('0.03'), occupancy
     ds.notes = ['Physician data is aggregate or pseudonymous (PH-01 … PH-16); Pactlab never sends people data to a model.',
                 'The medical-staff register, roster and payer contract register are the healthcare pack’s own imports, reused as they are; the hospital adds the department of each privilege and each contract’s rate basis.',
-                '`pnl.csv`, `cost-reports.csv` and `hospital-capex.csv` hold FY2021–FY2025, read side by side on **Finances**; the census holds the last twelve months, so admissions history asks the seller for earlier years.',
+                '`pnl.csv`, `cost-reports.csv` and `hospital-capex.csv` hold FY2021–FY2025, and `census.csv` and `payer-mix.csv` run from January 2021: **Finances** shows the five years side by side with admissions, the average daily census and the government programmes’ share of net revenue ('
+                + ', '.join(f'FY{y} {pct(government_share(y))}' for y in ('2021', '2022', '2023', '2024', '2025')) + '). The cost reports’ patient days are the census’s, year by year.',
                 'Diligence support only: the pack reconciles documents, dates and arithmetic. It never predicts a survey outcome or assesses the quality of care.']
 
 def clinics(ds):

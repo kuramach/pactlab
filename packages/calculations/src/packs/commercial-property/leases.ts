@@ -14,7 +14,7 @@ import { sentences, type PackRuleEvidence, type PackRulePage, type PackRuleQuote
  * names the rows or the sentence it rests on. Documents and arithmetic only: it never values the property.
  * Changing a rule is a new CRE_LEASES_VERSION.
  */
-export const CRE_LEASES_VERSION = 'cre-leases-1';
+export const CRE_LEASES_VERSION = 'cre-leases-2';
 export const LEASE = 'cre.lease';
 export const CAM = 'cre.cam_category';
 export const CAPEX_ITEM = 'cre.capex_item';
@@ -242,6 +242,8 @@ export interface StatementRent {
 /**
  * Each fiscal year of the imported P&L against the rent the leases on file make due in it. Only computed when
  * every rent-roll tenant has a lease whose rent can be recomputed; otherwise the leases cannot explain the year.
+ * A year is compared only when every lease on file was in force for all of it (T-184c): before a lease began, or
+ * after one ended, the space earned rent under a lease that is not on file, which these leases cannot explain.
  */
 export function statementRent(evidence: readonly PackRuleEvidence[], checks: readonly RentCheck[]): StatementRent[] {
   if (checks.length === 0 || checks.some((check) => !check.lease || check.state === 'NOT_COMPUTABLE')) return [];
@@ -250,6 +252,7 @@ export function statementRent(evidence: readonly PackRuleEvidence[], checks: rea
   return years.flatMap((year): StatementRent[] => {
     const rows = year.sources.filter((row) => row.kind === 'REVENUE' && RENT_LINE.test(row.account) && !RECOVERY_LINE.test(row.account));
     if (rows.length === 0 || !YEAR.test(year.period)) return [];
+    if (leases.some((lease) => !lease.start || lease.start > `${year.period}-01-01` || (lease.end !== null && lease.end < `${year.period}-12-31`))) return [];
     const statements = sum(rows, (row) => new D(row.amount));
     const due = sum(leases, (lease) => rentDueInYear(lease, year.period));
     const gap = statements.minus(due);

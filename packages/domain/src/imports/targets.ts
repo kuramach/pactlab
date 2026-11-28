@@ -42,6 +42,7 @@ export const IMPORT_TARGETS = [
   'CRE_RENT_ROLL',
   'CRE_CAM_RECONCILIATION',
   'CRE_CAPEX_SCHEDULE',
+  'CRE_LEASING_HISTORY',
   'HOTELS_OPERATING_HISTORY',
   'HOTELS_STR_BENCHMARK',
   'CLINICS_PATIENT_VOLUME',
@@ -979,6 +980,29 @@ export const CRE_CAPEX_SCHEDULE: TargetDefinition = {
   ],
 };
 
+/**
+ * Commercial property (T-184c, ADR 0057): leasing history by month — rentable and leased area, the base rent in
+ * force and the area whose leases ended in the month. Read by calendar year beside the P&L: occupancy, rent per
+ * square foot and lease expiries. Tenants are businesses; no people data.
+ */
+export const CRE_LEASING_HISTORY: TargetDefinition = {
+  target: 'CRE_LEASING_HISTORY',
+  label: 'Leasing history',
+  fileName: 'leasing-history.csv',
+  people: 'NONE',
+  refusesPeopleColumns: true,
+  evidenceType: 'cre.leasing_month',
+  recordIdField: 'month',
+  observedAtFields: [],
+  fields: [
+    { name: 'month', label: 'Month', kind: 'text', required: true, hint: 'YYYY-MM.' },
+    { name: 'rentable_sqft', label: 'Rentable square feet', kind: 'decimal', required: true, hint: 'The property’s rentable area in the month.' },
+    { name: 'leased_sqft', label: 'Leased square feet', kind: 'decimal', required: true, hint: 'Area under a lease in force in the month.' },
+    { name: 'base_rent', label: 'Base rent in force', kind: 'money', required: true, hint: `Σ monthly base rent of the leases in force in the month. ${IN_BASE_CURRENCY}` },
+    { name: 'expiring_sqft', label: 'Square feet expiring', kind: 'decimal', required: false, hint: 'Area whose lease ended in the month, renewed or not.' },
+  ],
+};
+
 /** Hotels (T-067): monthly operating history from the property-management system — no guest data. */
 export const HOTELS_OPERATING_HISTORY: TargetDefinition = {
   target: 'HOTELS_OPERATING_HISTORY',
@@ -1611,6 +1635,7 @@ export const IMPORT_TARGET_DEFINITIONS: Readonly<Record<ImportTarget, TargetDefi
   CRE_RENT_ROLL,
   CRE_CAM_RECONCILIATION,
   CRE_CAPEX_SCHEDULE,
+  CRE_LEASING_HISTORY,
   HOTELS_OPERATING_HISTORY,
   HOTELS_STR_BENCHMARK,
   CLINICS_PATIENT_VOLUME,

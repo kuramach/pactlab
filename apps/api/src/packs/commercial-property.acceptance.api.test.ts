@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { ACCEPTANCE_CURRENCIES, acceptAndValue, type AcceptanceDeal, type Body, type PackMetricsBody, startAcceptanceDeal } from './acceptance-kit';
+import { ACCEPTANCE_CURRENCIES, acceptAndValue, type AcceptanceDeal, type Body, centsOf, csvRows, HISTORY_YEARS, type PackMetricsBody, ratioOf, startAcceptanceDeal } from './acceptance-kit';
 
 type FindingView = {
   id: string;
@@ -20,11 +20,13 @@ const lineKind = (account: string) => (/revenue/i.test(account) ? 'REVENUE' : 'O
 
 /**
  * T-066 and T-165 acceptance: pactlab-demo-data/commercial-property/<CURRENCY> loaded into a fresh deal through
- * the real APIs — billing, the rent roll, three years of CAM reconciliations, the seller's capex schedule, the
- * three-year P&L and every document, the eleven leases among them — surfaces the T-066 four and the planted
+ * the real APIs — billing, the rent roll, five years of CAM reconciliations, the seller's capex schedule, the
+ * leasing history from January 2021, the five-year P&L and every document, the eleven leases among them —
+ * surfaces the T-066 four and the planted
  * (a) the rent roll overstating two tenants' rent against their leases, (b) 41% of rent from one tenant whose
  * lease ends in year one of the hold, (c) an NNN recovery shortfall in every one of the three statement years and
- * (d) a PCA-flagged roof liability absent from the seller's capex schedule, as cited drafts. The environmental
+ * (d) a PCA-flagged roof liability absent from the seller's capex schedule and (e) the operating margin falling
+ * across the five P&L years (T-184c, three years move less), as cited drafts. The environmental
  * escrow is still held back in an NOI ÷ cap-rate run, and the roof reaches the bridge as remediation.
  */
 describe.each(ACCEPTANCE_CURRENCIES)('commercial property pack acceptance (%s)', { timeout: 90_000 }, (currency) => {
@@ -35,7 +37,7 @@ describe.each(ACCEPTANCE_CURRENCIES)('commercial property pack acceptance (%s)',
 
   beforeAll(async () => {
     deal = await startAcceptanceDeal('COMMERCIAL_PROPERTY', currency);
-    // The P&L by year (FY2023–FY2025), years across the columns, line kinds confirmed by a person.
+    // The P&L by year (FY2021–FY2025), years across the columns, line kinds confirmed by a person.
     const csv = readFileSync(join(deal.folder, 'pnl.csv'), 'utf8');
     const uploaded = await deal.upload(`/v1/deals/${deal.dealId}/uploads?target=FINANCIAL_PNL&system=pactlab_standard&fileName=pnl.csv`, 'lead', csv);
     expect(uploaded.status, JSON.stringify(uploaded.body)).toBe(201);
@@ -43,7 +45,7 @@ describe.each(ACCEPTANCE_CURRENCIES)('commercial property pack acceptance (%s)',
     const accounts = csv.trim().split('\n').slice(1).map((row) => row.split(',')[0] ?? '');
     const mapping = { ...(uploaded.body['suggestedMapping'] as Body), lineKinds: Object.fromEntries(accounts.map((account) => [account, lineKind(account)])) };
     const imported = await deal.call('POST', `/v1/deals/${deal.dealId}/uploads/${pnlUploadId}/import`, 'lead', { mapping });
-    expect(imported.body, JSON.stringify(imported.body)).toMatchObject({ syncRun: { status: 'SUCCEEDED', recordsCreated: accounts.length * 3 } });
+    expect(imported.body, JSON.stringify(imported.body)).toMatchObject({ syncRun: { status: 'SUCCEEDED', recordsCreated: accounts.length * 5 } });
   }, 180_000);
   afterAll(async () => deal?.close());
 
@@ -52,7 +54,7 @@ describe.each(ACCEPTANCE_CURRENCIES)('commercial property pack acceptance (%s)',
     expect(run.status, JSON.stringify(run.body)).toBe(200);
     expect(run.body).toMatchObject({ pack: 'COMMERCIAL_PROPERTY', unresolvedQuotes: 0 });
     const promised = Number(/You should see exactly these (\d+) findings/.exec(deal.readme)?.[1]);
-    expect(promised).toBe(11);
+    expect(promised).toBe(12);
     expect(Number(run.body['created']) + Number(run.body['existing'])).toBe(promised);
     expect((await runRules()).body).toMatchObject({ created: 0, existing: promised });
 
@@ -99,19 +101,37 @@ describe.each(ACCEPTANCE_CURRENCIES)('commercial property pack acceptance (%s)',
     expect(roof?.evidence.find((link) => link.documentCitation)?.documentCitation?.quote).toMatch(/^Roof: the membrane roof/);
     // The obligations register is priced into the bridge at its sum; the P&L trend reads every year.
     expect(byTitle['Landlord obligations the buyer inherits: tenant improvements, leasing commissions and committed capex']).toMatchObject({ direction: -1, pricedRisk: { type: 'PRICE_REDUCTION', currency } });
-    expect(byTitle['P&L trend, 2023–2025']).toMatchObject({ direction: 0 });
-    expect(byTitle['Repairs and maintenance growing faster than revenue, 2023–2025']).toMatchObject({ direction: -1 });
+    expect(byTitle['P&L trend, 2021–2025']).toMatchObject({ direction: 0 });
+    expect(byTitle['Repairs and maintenance growing faster than revenue, 2021–2025']).toMatchObject({ direction: -1 });
+    // (e) Five years show the operating margin falling while the park stays let (T-184c); the statement years the
+    // leases do not cover (before July 2021, and before Gullwing moved in) are not compared with them.
+    const margin = byTitle['Operating margin down across 2021–2025'];
+    expect(margin).toMatchObject({ domain: 'FINANCIAL', direction: -1, pricedRisk: null });
+    expect(margin?.evidence.filter((link) => link.evidenceItemId).length).toBeGreaterThan(0);
+    expect(Object.keys(byTitle).filter((title) => title.startsWith('Rental income in the statements'))).toEqual([]);
   });
 
-  it('the calculator reads the rent roll, the CAM years and the capex schedule; history asks for the missing years', async () => {
+  it('the calculator reads the rent roll, the CAM years, the capex schedule and five years of leasing history', async () => {
     const metrics = (await deal.call('GET', `/v1/deals/${deal.dealId}/metrics/pack`, 'lead')).body as PackMetricsBody;
     expect(metrics.calculator).toBe('cre-leases');
     const value = (key: string) => metrics.metrics.find((metric) => metric.key === key)?.value;
     expect(value('largest_tenant_share')?.slice(0, 4)).toBe('0.41');
     expect(value('recovery_ratio')).toBe('0.8974'); // 560,000 ÷ 624,000 in 2025
     expect(Number(value('committed_capex'))).toBeGreaterThan(0);
-    expect(metrics.history?.years.slice(-3)).toEqual(['FY2023', 'FY2024', 'FY2025']);
-    expect(JSON.stringify(metrics.history?.asks)).toContain('FY2021');
+    // Five years side by side (T-184c), hand-computed from the leasing history: Σ leased ÷ Σ rentable, and Σ base
+    // rent ÷ Σ leased × 12, by calendar year.
+    const rows = csvRows(deal.folder, 'leasing-history.csv');
+    const inYear = (year: string) => rows.filter((row) => row[0]?.startsWith(year));
+    const sum = (year: string, index: number) => inYear(year).reduce((total, row) => total + BigInt(row[index] ?? '0'), 0n);
+    expect(metrics.history?.years).toEqual(HISTORY_YEARS.map((year) => `FY${year}`));
+    expect(metrics.history?.rows.find((row) => row.key === 'occupancy')?.values).toEqual(HISTORY_YEARS.map((year) => ratioOf(sum(year, 2), sum(year, 1))));
+    expect(metrics.history?.rows.find((row) => row.key === 'rent_per_sqft')?.values).toEqual(HISTORY_YEARS.map((year) => ratioOf(centsOf(inYear(year), 3) * 12n, sum(year, 2) * 100n, 2)));
+    expect(metrics.history?.rows.find((row) => row.key === 'expiring_sqft')?.values).toEqual(HISTORY_YEARS.map((year) => String(sum(year, 4))));
+    expect(metrics.history?.rows.find((row) => row.key === 'occupancy')?.values.slice(0, 3)).not.toEqual(['1.0000', '1.0000', '1.0000']);
+    expect(metrics.history?.coverage.map((entry) => entry.summary)).toEqual(['FY2021–FY2025 (5 years; earlier years not provided)', 'FY2021–FY2025 (5 years; earlier years not provided)']);
+    expect(metrics.history?.asks).toEqual([]);
+    expect(metrics.metrics.find((metric) => metric.key === 'occupancy')?.history?.map((point) => point.period)).toEqual(HISTORY_YEARS.map((year) => `FY${year}`));
+    expect(value('occupancy')).toBe('1.0000');
   });
 
   it('the reviewer prices the environmental condition as an escrow; accepted, it is held back in an NOI ÷ cap-rate run', async () => {
@@ -135,7 +155,7 @@ describe.each(ACCEPTANCE_CURRENCIES)('commercial property pack acceptance (%s)',
     const fy2025 = readFileSync(join(deal.folder, 'pnl.csv'), 'utf8')
       .trim()
       .split('\n')
-      .map((row) => row.split(',').filter((_, index) => index === 0 || index === 3).join(','))
+      .map((row) => row.split(',').filter((_, index) => index === 0 || index === 5).join(','))
       .join('\n');
     const uploaded = await deal.upload(`/v1/deals/${deal.dealId}/uploads?target=FINANCIAL_PNL&system=pactlab_standard&fileName=pnl-fy2025.csv`, 'lead', `${fy2025}\n`);
     expect(uploaded.status, JSON.stringify(uploaded.body)).toBe(201);
@@ -145,8 +165,13 @@ describe.each(ACCEPTANCE_CURRENCIES)('commercial property pack acceptance (%s)',
     expect((await runRules()).status).toBe(200);
     const titles = (await findings()).map((finding) => finding.title);
     expect(titles).toContain('P&L for 2025: one year imported');
-    // The repairs trend needs every year: FY2025 alone drafts nothing new.
+    // The repairs and margin trends need every year: FY2025 alone drafts nothing new.
     expect(titles.filter((title) => title.startsWith('Repairs and maintenance growing'))).toHaveLength(1);
+    expect(titles.filter((title) => title.startsWith('Operating margin down'))).toHaveLength(1);
+    // Partial history states its coverage and asks the seller for the missing years.
+    const partial = (await deal.call('GET', `/v1/deals/${deal.dealId}/metrics/pack`, 'lead')).body as PackMetricsBody;
+    expect(partial.history?.coverage.find((entry) => entry.key === 'operating')?.summary).toBe('FY2025 (1 of 5 years): ask the seller for FY2021–FY2024 income statements, or tell us the business started later');
+    expect(partial.history?.asks).toEqual([{ needs: ['INCOME_STATEMENT'], note: 'Ask the seller for FY2021–FY2024 income statements, or tell us the business started later.' }]);
   });
 
   it('is refused to a target contributor and invisible to another tenant', async () => {

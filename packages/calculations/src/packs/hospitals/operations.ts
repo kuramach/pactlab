@@ -16,7 +16,7 @@ import type { KeyExpense } from '../../pnl/trend';
  * figure names the rows or the sentence it rests on. Documents, dates and arithmetic only: never a view on
  * the quality of care or the outcome of a survey. Changing a rule is a new HOSPITALS_OPERATIONS_VERSION.
  */
-export const HOSPITALS_OPERATIONS_VERSION = 'hospitals-operations-1';
+export const HOSPITALS_OPERATIONS_VERSION = 'hospitals-operations-2';
 export const HOSPITAL_CENSUS = 'hospitals.census_month';
 export const HOSPITAL_PAYER = 'hospitals.payer_month';
 export const COST_REPORT = 'hospitals.cost_report_year';

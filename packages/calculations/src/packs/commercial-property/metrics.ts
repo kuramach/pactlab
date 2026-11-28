@@ -1,11 +1,11 @@
-import { D } from '../../metrics/decimal';
+import { D, parseDecimal } from '../../metrics/decimal';
 import type { MetricCalculator } from '../calculators';
-import { INVOICE_LINE } from '../common';
+import { INVOICE_LINE, monthName } from '../common';
 import { packHistory, withHistory } from '../history';
 import type { PackMetric, PackMetricsInput, PackMetricsReport } from '../metrics-types';
 import { PNL_LINE } from '../pnl-trend';
 import { CAM, CAPEX_ITEM, capexSchedule, creAnalysisDate, CRE_LEASES_VERSION, LEASE, recoveryYears, rentRoll, tenantShares, walt } from './leases';
-import { CRE_HISTORY } from './rules';
+import { CRE_HISTORY, LEASING_MONTH } from './rules';
 
 type Decimal = InstanceType<typeof D>;
 const ratio = (value: Decimal) => value.toFixed(4);
@@ -32,6 +32,14 @@ export function commercialPropertyMetrics(input: PackMetricsInput): PackMetricsR
   const needRoll = needs('rent roll', ['CRE_RENT_ROLL']);
   const inYear = asOf ? shares.filter(({ entry }) => entry.end && entry.end > asOf && entry.end <= `${Number(asOf.slice(0, 4)) + 1}${asOf.slice(4)}`) : [];
   const waltYears = asOf ? walt(input.evidence, asOf) : null;
+  // The leasing history's trailing twelve months (T-184c): occupancy and rent per leased square foot.
+  const leasing = input.evidence.filter((row) => row.evidenceType === LEASING_MONTH && /^\d{4}-(0[1-9]|1[0-2])$/.test((row.canonical['month'] ?? '').trim()));
+  const leasingMonths = [...new Set(leasing.map((row) => (row.canonical['month'] ?? '').trim()))].sort().slice(-12);
+  const trailing = leasing.filter((row) => leasingMonths.includes((row.canonical['month'] ?? '').trim()));
+  const sumOfField = (field: string) => trailing.reduce((sum, row) => sum.plus(parseDecimal(row.canonical[field] ?? null) ?? 0), new D(0));
+  const leased = sumOfField('leased_sqft');
+  const needLeasing = needs('leasing history by month (twelve complete months)', ['CRE_LEASING_HISTORY']);
+  const lastMonth = leasingMonths.at(-1) ?? '';
   const metrics: PackMetric[] = [
     { key: 'in_place_rent', label: 'In-place base rent, annual', unit: 'MONEY', formula: 'Σ monthly base rent on the rent roll × 12', sourceCount: roll.length, ...(roll.length ? { value: cash(total.times(12)) } : needRoll) },
     {
@@ -57,6 +65,22 @@ export function commercialPropertyMetrics(input: PackMetricsInput): PackMetricsR
       formula: 'Share of base rent whose rent-roll lease end falls within 12 months of the analysis date (the rules measure the hold from the expected closing)',
       sourceCount: roll.length,
       ...(roll.length && asOf ? { value: ratio(inYear.reduce((sum, entry) => sum.plus(entry.share), new D(0))) } : needRoll),
+    },
+    {
+      key: 'occupancy',
+      label: 'Occupancy, trailing (leased ÷ rentable area)',
+      unit: 'RATIO',
+      formula: `Σ leased square feet ÷ Σ rentable square feet over ${leasingMonths.length === 12 ? `the twelve months to ${monthName(lastMonth)}` : 'twelve complete months'}, from the leasing history`,
+      sourceCount: trailing.length,
+      ...(leasingMonths.length === 12 && sumOfField('rentable_sqft').gt(0) ? { value: ratio(leased.div(sumOfField('rentable_sqft'))) } : needLeasing),
+    },
+    {
+      key: 'rent_per_sqft',
+      label: 'Base rent per leased sq ft (a year), trailing',
+      unit: 'MONEY',
+      formula: 'Σ base rent in force ÷ Σ leased square feet over the trailing twelve months, × 12, from the leasing history',
+      sourceCount: trailing.length,
+      ...(leasingMonths.length === 12 && leased.gt(0) ? { value: cash(sumOfField('base_rent').div(leased).times(12)) } : needLeasing),
     },
     {
       key: 'recovery_ratio',
@@ -91,13 +115,15 @@ export function commercialPropertyMetrics(input: PackMetricsInput): PackMetricsR
       ...(schedule.length ? { value: cash(sumOf(schedule)) } : needs('seller’s capex schedule', ['CRE_CAPEX_SCHEDULE'])),
     },
   ];
-  // The years side by side (ADR 0057): the P&L and the recovery ratio by year; the ratio carries a History strip.
+  // The years side by side (ADR 0057, T-184c): the P&L, occupancy, rent per square foot, expiries and the recovery
+  // ratio by year; occupancy, rent per square foot and the recovery ratio carry a History strip.
   const history = packHistory(CRE_HISTORY, input.evidence, input);
+  const strips = new Set(['occupancy', 'rent_per_sqft', 'recovery_ratio']);
   return {
     calculator: 'cre-leases',
     version: CRE_LEASES_VERSION,
     currency: input.currency,
-    metrics: metrics.map((metric) => (metric.key === 'recovery_ratio' ? withHistory(metric, history, 'recovery_ratio') : metric)),
+    metrics: metrics.map((metric) => (strips.has(metric.key) ? withHistory(metric, history, metric.key) : metric)),
     history: history.table,
   };
 }
@@ -105,6 +131,6 @@ export function commercialPropertyMetrics(input: PackMetricsInput): PackMetricsR
 export const CRE_METRICS_CALCULATOR: MetricCalculator<PackMetricsInput, PackMetricsReport> = {
   id: 'cre-leases',
   version: CRE_LEASES_VERSION,
-  evidenceTypes: [LEASE, CAM, CAPEX_ITEM, INVOICE_LINE, PNL_LINE],
+  evidenceTypes: [LEASE, CAM, CAPEX_ITEM, LEASING_MONTH, INVOICE_LINE, PNL_LINE],
   compute: commercialPropertyMetrics,
 };

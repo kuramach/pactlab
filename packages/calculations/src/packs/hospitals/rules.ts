@@ -1,9 +1,9 @@
-import { D } from '../../metrics/decimal';
+import { D, parseDecimal } from '../../metrics/decimal';
 import { amountOf, documentClauseRule, grouped, monthName, percent } from '../common';
 import { CREDENTIAL, PAYER_CONTRACT, ROSTER } from '../healthcare/practice';
-import { driverTrendRule, recentRunRule, type DriverSpec, type PackHistorySpec } from '../history';
+import { driverTrendRule, recentRunRule, type DriverSpec, type DriverYear, type PackHistorySpec } from '../history';
 import { PNL_LINE, pnlTrendRules } from '../pnl-trend';
-import { MAX_CITED, type PackRule, type PackRuleProposal, type PackRuleQuote } from '../rule-types';
+import { MAX_CITED, type PackRule, type PackRuleEvidence, type PackRuleProposal, type PackRuleQuote } from '../rule-types';
 import {
   amountAfter,
   CAPEX_DECLINE_FACTOR,
@@ -455,18 +455,70 @@ export const HOSPITALS_QUALITY_CLAIMS: PackRule = {
 
 export const [HOSPITALS_PNL_TREND, HOSPITALS_PNL_MARGIN_DRIFT, HOSPITALS_PNL_EXPENSE_OUTPACING] = pnlTrendRules('hospitals', HOSPITALS_KEY_EXPENSES) as [PackRule, PackRule, PackRule];
 
-/** Five years of history (T-184c): admissions and patient days by calendar year from the census, beside the P&L. */
+/**
+ * The average daily census by calendar year: Σ patient days in the census ÷ the days in the year, for years with
+ * all twelve months imported (a part year is left out, never scaled up). The census's own average column is a
+ * monthly figure per service line, so it is never summed.
+ */
+export function averageDailyCensusYears(evidence: readonly PackRuleEvidence[]): DriverYear[] {
+  const byMonth = new Map<string, PackRuleEvidence[]>();
+  for (const row of evidence) {
+    if (row.evidenceType !== HOSPITAL_CENSUS) continue;
+    const month = (row.canonical['month'] ?? '').trim().slice(0, 7);
+    if (/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) byMonth.set(month, [...(byMonth.get(month) ?? []), row]);
+  }
+  return [...new Set([...byMonth.keys()].map((month) => month.slice(0, 4)))].sort().flatMap((year): DriverYear[] => {
+    const months = Array.from({ length: 12 }, (_, index) => `${year}-${String(index + 1).padStart(2, '0')}`);
+    if (!months.every((month) => byMonth.has(month))) return [];
+    const rows = months.flatMap((month) => byMonth.get(month) ?? []);
+    const days = rows.reduce((total, row) => total.plus(parseDecimal(row.canonical['patient_days'] ?? null) ?? 0), new D(0));
+    const inYear = new Date(Date.UTC(Number(year) + 1, 0, 1)).getTime() - new Date(Date.UTC(Number(year), 0, 1)).getTime();
+    return [{ year, value: days.div(inYear / 86_400_000).toFixed(1), evidenceIds: rows.map((row) => row.id) }];
+  });
+}
+
+/** Payers in the payer mix that are government programmes (T-184c): their names say so. */
+export const GOVERNMENT_PAYER = { field: 'payer', values: ['government', 'medicare', 'medicaid'], contains: true } as const;
+
+/**
+ * Five years of history (T-184c): admissions, patient days and the average daily census by calendar year from
+ * the census, and the government programmes' share of net revenue from the payer mix, beside the P&L.
+ */
 export const HOSPITALS_DRIVERS = {
   admissions: { key: 'admissions', label: 'Admissions', unit: 'COUNT', evidenceType: HOSPITAL_CENSUS, mode: 'SUM', numerator: ['admissions'], formula: 'Σ admissions in the year, every service line' },
   patientDays: { key: 'patient_days', label: 'Patient days', unit: 'COUNT', evidenceType: HOSPITAL_CENSUS, mode: 'SUM', numerator: ['patient_days'], formula: 'Σ inpatient days in the year, every service line' },
+  averageDailyCensus: {
+    key: 'average_daily_census',
+    label: 'Average daily census',
+    unit: 'COUNT',
+    evidenceType: HOSPITAL_CENSUS,
+    mode: 'SUM',
+    numerator: ['patient_days'],
+    scale: 1,
+    formula: 'Σ inpatient days in the year ÷ the days in the year',
+    compute: averageDailyCensusYears,
+  },
+  governmentShare: {
+    key: 'government_share',
+    label: 'Government programmes’ share of net revenue',
+    unit: 'RATIO',
+    evidenceType: HOSPITAL_PAYER,
+    mode: 'RATIO',
+    numerator: ['net_revenue'],
+    numeratorWhere: GOVERNMENT_PAYER,
+    denominator: ['net_revenue'],
+    formula: 'Σ net revenue from payers named as government programmes (Medicare, Medicaid) ÷ Σ net revenue in the payer mix, the year',
+  },
 } as const satisfies Record<string, DriverSpec>;
 
 export const HOSPITALS_HISTORY: PackHistorySpec = {
-  drivers: [HOSPITALS_DRIVERS.admissions, HOSPITALS_DRIVERS.patientDays],
+  drivers: [HOSPITALS_DRIVERS.admissions, HOSPITALS_DRIVERS.patientDays, HOSPITALS_DRIVERS.averageDailyCensus, HOSPITALS_DRIVERS.governmentShare],
   keyExpenses: HOSPITALS_KEY_EXPENSES,
-  driverImport: 'HOSPITALS_CENSUS',
-  driverLabel: 'Census',
-  driverWhat: 'census history',
+  driverImport: ['HOSPITALS_CENSUS', 'HOSPITALS_PAYER_MIX'],
+  driverLabel: 'Census and payer mix',
+  driverWhat: 'census and payer mix history',
+  // Volume is what the long run reads: a rising government share is not a better recent run.
+  keyDriver: 'admissions',
 };
 
 /** Admissions falling every year by this share or more, first year to last (5%). */

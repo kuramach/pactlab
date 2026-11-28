@@ -228,18 +228,21 @@ describe('demo organization (batch 2)', () => {
       'Cost report contradicts the deck: Occupancy',
       'Capex falling while the deck claims a modern plant, FY2021–2025',
       'Orthopaedics: 4 physicians’ privileges lapsed together on 30 June 2026',
+      'Admissions falling every year, FY2021–FY2025',
     ]) {
       expect(await count('findings', hospitals.id, `AND title = '${title}'`), title).toBe(1);
     }
-    // The commercial property pact imports the capex schedule, three years of CAM reconciliations and of P&L, and every lease; the planted defects are drafted (T-165).
+    // The commercial property pact imports the capex schedule, five years of CAM reconciliations, of P&L and of leasing history, and every lease; the planted defects are drafted (T-165, T-184c).
     const cre = await deal(pactName('COMMERCIAL_PROPERTY'));
-    expect(await count('evidence_items', cre.id, `AND evidence_type = 'finance.pnl_line'`)).toBe(24);
+    expect(await count('evidence_items', cre.id, `AND evidence_type = 'finance.pnl_line'`)).toBe(40);
+    expect(await count('evidence_items', cre.id, `AND evidence_type = 'cre.leasing_month'`)).toBe(69);
     expect(await count('evidence_items', cre.id, `AND evidence_type = 'cre.capex_item'`)).toBe(3);
     for (const title of [
       'Rent roll overstates rent against the leases: 2 tenants',
       'Rent cliff: Corvane Logistics (synthetic) (41.0% of rent) expires in year 1 of the hold',
       'NNN recoveries short of the leases in every year, 2023–2025',
       'Roof work flagged by the condition report is not in the seller’s capex schedule',
+      'Operating margin down across 2021–2025',
     ]) {
       expect(await count('findings', cre.id, `AND title = '${title}'`), title).toBe(1);
     }

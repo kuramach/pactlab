@@ -1,4 +1,4 @@
-import type { D } from '../../metrics/decimal';
+import { D } from '../../metrics/decimal';
 import type { MetricCalculator } from '../calculators';
 import { monthName } from '../common';
 import { CREDENTIAL, PAYER_CONTRACT, ROSTER } from '../healthcare/practice';
@@ -19,7 +19,7 @@ import {
   privilegeClusters,
   staffCredentials,
 } from './operations';
-import { HOSPITALS_HISTORY } from './rules';
+import { GOVERNMENT_PAYER, HOSPITALS_HISTORY } from './rules';
 
 type Decimal = InstanceType<typeof D>;
 const ratio = (value: Decimal) => value.toFixed(4);
@@ -43,6 +43,9 @@ export function hospitalsMetrics(input: PackMetricsInput): PackMetricsReport {
   const months = [...new Set(census.map((row) => (row.canonical['month'] ?? '').trim()))].filter((month) => /^\d{4}-\d{2}$/.test(month)).sort().slice(-12);
   const trailing = census.filter((row) => months.includes((row.canonical['month'] ?? '').trim()));
   const admissions = trailing.reduce((total, row) => total + Number(row.canonical['admissions'] ?? 0), 0);
+  const patientDays = trailing.reduce((total, row) => total + Number(row.canonical['patient_days'] ?? 0), 0);
+  const daysInMonths = months.reduce((total, month) => total + new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0)).getUTCDate(), 0);
+  const governmentRows = (payerWindow(input.evidence)?.payers ?? []).filter((entry) => GOVERNMENT_PAYER.values.some((word) => entry.payer.toLowerCase().includes(word)));
   const payers = payerWindow(input.evidence);
   const top = payers && payers.missing.length === 0 ? (payers.payers[0] ?? null) : null;
   const asOf = hospitalsAnalysisDate(input.evidence);
@@ -63,6 +66,24 @@ export function hospitalsMetrics(input: PackMetricsInput): PackMetricsReport {
       formula: `Σ admissions in ${months.length === 12 ? `the twelve months to ${monthName(months.at(-1) ?? '')}` : 'twelve complete months'}, every service line`,
       sourceCount: trailing.length,
       ...(months.length === 12 ? { value: count(admissions) } : needs('census by month and service line (twelve complete months)', ['HOSPITALS_CENSUS'])),
+    },
+    {
+      key: 'average_daily_census',
+      label: 'Average daily census, trailing',
+      unit: 'COUNT',
+      formula: `Σ inpatient days in ${months.length === 12 ? `the twelve months to ${monthName(months.at(-1) ?? '')}` : 'twelve complete months'} ÷ the days in them, every service line`,
+      sourceCount: trailing.length,
+      ...(months.length === 12 ? { value: (patientDays / daysInMonths).toFixed(1) } : needs('census by month and service line (twelve complete months)', ['HOSPITALS_CENSUS'])),
+    },
+    {
+      key: 'government_share',
+      label: 'Government programmes’ share of net revenue',
+      unit: 'RATIO',
+      formula: 'Net revenue from payers named as government programmes (Medicare, Medicaid) ÷ all net revenue in the payer mix, trailing twelve months',
+      sourceCount: governmentRows.reduce((total, entry) => total + entry.rows.length, 0),
+      ...(payers && payers.missing.length === 0 && payers.total.gt(0)
+        ? { value: ratio(governmentRows.reduce((total, entry) => total.plus(entry.netRevenue), new D(0)).div(payers.total)) }
+        : needs('payer mix by month (twelve complete months)', ['HOSPITALS_PAYER_MIX'])),
     },
     {
       key: 'top_payer_share',
@@ -107,13 +128,14 @@ export function hospitalsMetrics(input: PackMetricsInput): PackMetricsReport {
       ...(capex?.ratio ? { value: ratio(capex.ratio) } : needs('capital expenditure by fiscal year and the P&L', ['HOSPITALS_CAPEX', 'FINANCIAL_PNL'])),
     },
   ];
-  // Five years (T-184c): the P&L, admissions and patient days by year; admissions carries a History strip.
+  // Five years (T-184c): the P&L, the census and the payer mix by year; admissions, the average daily census and the government share carry a History strip.
   const history = packHistory(HOSPITALS_HISTORY, input.evidence, input);
+  const strips = new Set(['admissions', 'average_daily_census', 'government_share']);
   return {
     calculator: 'hospitals-operations',
     version: HOSPITALS_OPERATIONS_VERSION,
     currency: input.currency,
-    metrics: metrics.map((metric) => (metric.key === 'admissions' ? withHistory(metric, history, 'admissions') : metric)),
+    metrics: metrics.map((metric) => (strips.has(metric.key) ? withHistory(metric, history, metric.key) : metric)),
     history: history.table,
   };
 }
