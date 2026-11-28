@@ -1,6 +1,7 @@
 import type { ContactProfileView, MaskedMemberContactView, Page } from '@pactlab/contracts';
 import { PHONE_COUNTRIES } from '@pactlab/domain';
 import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle, PageHeader } from '@pactlab/ui';
+import { getI18n } from '../../../../lib/i18n/server';
 import { getSessionContext } from '../../../../lib/session';
 import { keepParams, pageApiQuery, Pager, pagerLinks, readPage } from '../../../_components/pager';
 import { apiGet } from '../../deals/_lib/api';
@@ -12,35 +13,6 @@ export const dynamic = 'force-dynamic';
 
 const fieldClass = 'rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring';
 
-const DONE: Record<string, string> = {
-  'email-sent': 'We sent a code to that address. Enter it below to confirm it.',
-  'email-confirmed': 'Your email is confirmed. Pactlab will notify you there.',
-  'whatsapp-sent': 'We sent a code to that number on WhatsApp. Enter it below.',
-  'whatsapp-connected': 'WhatsApp is connected.',
-  'test-sent': 'Test message sent. Check your phone.',
-  disconnected: 'Disconnected. Pactlab will not message you there again.',
-  'slack-sent': 'Pactlab sent you a direct message in Slack. Open it and choose "Yes, connect me". It expires in 10 minutes.',
-  'teams-sent': 'Pactlab sent you a message in Microsoft Teams. Open it and choose "Yes, connect me". It expires in 10 minutes.',
-};
-
-const ERRORS: Record<string, string> = {
-  INVALID_EMAIL: 'That does not look like an email address.',
-  INVALID_CODE: 'That code is not right, or it has expired. Check it, or ask for a new one.',
-  INVALID_NUMBER: 'That number could not be read. Choose the country and enter the number as you would dial it.',
-  CONSENT_REQUIRED: 'Tick the box to agree to WhatsApp messages first.',
-  TELEGRAM_OFF: 'Telegram is not set up on this Pactlab yet.',
-  WHATSAPP_OFF: 'WhatsApp is not switched on for this Pactlab.',
-  EMAIL_NOT_SENT: 'The code email could not be sent just now. Try again in a minute.',
-  WHATSAPP_NOT_SENT: 'The WhatsApp code could not be sent just now. Try again in a minute.',
-  MESSAGE_NOT_SENT: 'The test message could not be sent. Try again, or disconnect and connect again.',
-  EMAIL_REQUIRED: 'Add and confirm your email first: Pactlab finds you in Slack or Teams by it.',
-  NOT_INSTALLED: 'Your organization has not connected this app yet. Ask your admin.',
-  NOT_FOUND_IN_WORKSPACE: 'No one with your email was found there. In Teams, open the Pactlab app first; in Slack, check your workspace uses the same email.',
-  SLACK_OFF: 'Slack is not set up on this Pactlab yet.',
-  TEAMS_OFF: 'Microsoft Teams is not set up on this Pactlab yet.',
-  ERROR: 'That did not work. If you tried several times, wait 15 minutes and try again.',
-};
-
 const when = (iso: string) => new Date(iso).toISOString().slice(0, 10);
 
 /**
@@ -49,9 +21,11 @@ const when = (iso: string) => new Date(iso).toISOString().slice(0, 10);
  */
 export default async function ProfilePage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const params = await searchParams;
+  const t = await getI18n();
+  const p = t.m.profile;
   const step = typeof params['step'] === 'string' ? params['step'] : null;
-  const done = typeof params['done'] === 'string' ? DONE[params['done']] : undefined;
-  const error = typeof params['error'] === 'string' ? (ERRORS[params['error']] ?? ERRORS['ERROR']) : undefined;
+  const done = typeof params['done'] === 'string' ? (p.done as Record<string, string>)[params['done']] : undefined;
+  const error = typeof params['error'] === 'string' ? ((p.errors as Record<string, string>)[params['error']] ?? p.errors.ERROR) : undefined;
   const session = await getSessionContext();
   const admin = session.kind === 'signed-in' && (session.organization?.role === 'ORG_OWNER' || session.organization?.role === 'ORG_ADMIN');
   const position = readPage(params, 'members');
@@ -64,16 +38,16 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
   const telegram = me.channels.find((channel) => channel.kind === 'TELEGRAM');
   const whatsapp = me.channels.find((channel) => channel.kind === 'WHATSAPP');
   const chats = [
-    { provider: 'slack' as const, name: 'Slack', link: me.channels.find((channel) => channel.kind === 'SLACK'), available: me.available.slack, installed: me.chatInstalled.slack },
-    { provider: 'teams' as const, name: 'Microsoft Teams', link: me.channels.find((channel) => channel.kind === 'TEAMS'), available: me.available.teams, installed: me.chatInstalled.teams },
+    { provider: 'slack' as const, name: 'Slack', short: 'Slack', link: me.channels.find((channel) => channel.kind === 'SLACK'), available: me.available.slack, installed: me.chatInstalled.slack },
+    { provider: 'teams' as const, name: 'Microsoft Teams', short: 'Teams', link: me.channels.find((channel) => channel.kind === 'TEAMS'), available: me.available.teams, installed: me.chatInstalled.teams },
   ];
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
         tone="navy"
-        breadcrumbs={[{ href: '/', label: 'Home' }, { href: '/settings', label: 'Settings' }, { label: 'Your profile' }]}
-        title="Your profile"
-        description="How Pactlab reaches you when a pact needs you. Only you see these details; your organization's admins see them masked."
+        breadcrumbs={[{ href: '/', label: p.breadcrumbs.home }, { href: '/settings', label: p.breadcrumbs.settings }, { label: p.title }]}
+        title={p.title}
+        description={p.description}
       />
       {done ? (
         <p role="status" className="text-sm text-emerald-800">
@@ -88,8 +62,8 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
 
       <Card>
         <CardHeader>
-          <CardTitle>Name</CardTitle>
-          <CardDescription>How you appear on reviews, approvals and the audit log.</CardDescription>
+          <CardTitle>{p.name.title}</CardTitle>
+          <CardDescription>{p.name.description}</CardDescription>
         </CardHeader>
         <CardContent>
           <p className="text-sm">{me.displayName}</p>
@@ -98,36 +72,36 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
 
       <Card id="email">
         <CardHeader>
-          <CardTitle>Email</CardTitle>
-          <CardDescription>Where Pactlab emails you when a pact needs you. A new address is confirmed with a code sent to it, and your current address is told.</CardDescription>
+          <CardTitle>{p.email.title}</CardTitle>
+          <CardDescription>{p.email.description}</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           {me.email ? (
             <p className="text-sm">
-              <span className="font-medium">{me.email.address}</span> · <span className="text-emerald-800">Verified</span>
-              {me.email.source === 'AUTH0_CLAIM' ? <span className="text-muted-foreground"> (from your company sign-in)</span> : me.email.source === 'SIGN_IN' ? <span className="text-muted-foreground"> (your sign-in address)</span> : null}
+              <span className="font-medium">{me.email.address}</span> · <span className="text-emerald-800">{p.shared.verified}</span>
+              {me.email.source === 'AUTH0_CLAIM' ? <span className="text-muted-foreground">{p.email.fromCompanySignIn}</span> : me.email.source === 'SIGN_IN' ? <span className="text-muted-foreground">{p.email.fromSignIn}</span> : null}
             </p>
           ) : (
-            <p className="text-sm">No email on file yet. Add one so Pactlab can tell you when a pact needs you.</p>
+            <p className="text-sm">{p.email.none}</p>
           )}
           {step === 'email-code' ? (
             <form action={confirmEmail} className="flex flex-wrap items-end gap-2">
               <label className="flex flex-col gap-1 text-sm">
-                <span className="font-medium">Code from the email</span>
+                <span className="font-medium">{p.email.code}</span>
                 <input name="code" inputMode="numeric" autoComplete="one-time-code" pattern="\d{6}" maxLength={6} required className={`${fieldClass} w-32`} />
               </label>
               <Button type="submit" size="sm">
-                Confirm
+                {p.email.confirm}
               </Button>
             </form>
           ) : (
             <form action={startEmail} className="flex flex-wrap items-end gap-2">
               <label className="flex flex-col gap-1 text-sm">
-                <span className="font-medium">{me.email ? 'Change to' : 'Your email'}</span>
+                <span className="font-medium">{me.email ? p.email.changeTo : p.email.yourEmail}</span>
                 <input name="email" type="email" autoComplete="email" maxLength={254} required className={`${fieldClass} w-72`} />
               </label>
               <Button type="submit" size="sm" variant={me.email ? 'outline' : 'default'}>
-                Send a code
+                {p.email.sendCode}
               </Button>
             </form>
           )}
@@ -136,88 +110,88 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
 
       <Card id="telegram">
         <CardHeader>
-          <CardTitle>Telegram</CardTitle>
-          <CardDescription>Free. Pactlab messages you in Telegram when a pact needs you, with no deal details, only a link. No phone number is needed.</CardDescription>
+          <CardTitle>{t.m.settings.alerts.channels.TELEGRAM}</CardTitle>
+          <CardDescription>{p.telegram.description}</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
           {telegram ? (
             <>
               <p className="text-sm">
-                <span className="font-medium">Connected</span> · <span className="text-emerald-800">Verified</span> <span className="text-muted-foreground">since {when(telegram.verifiedAt)}</span>
+                <span className="font-medium">{p.shared.connected}</span> · <span className="text-emerald-800">{p.shared.verified}</span> <span className="text-muted-foreground">{t.fill(p.shared.since, { date: when(telegram.verifiedAt) })}</span>
               </p>
               <div className="flex flex-wrap gap-2">
                 <form action={testChannel.bind(null, telegram.id)}>
                   <Button type="submit" size="sm" variant="outline">
-                    Send a test message
+                    {p.shared.sendTest}
                   </Button>
                 </form>
                 <form action={disconnectChannel.bind(null, telegram.id)}>
                   <Button type="submit" size="sm" variant="ghost">
-                    Disconnect Telegram
+                    {p.telegram.disconnect}
                   </Button>
                 </form>
               </div>
-              <p className="text-xs text-muted-foreground">You can also disconnect from Telegram: send /stop to the bot, or block it.</p>
+              <p className="text-xs text-muted-foreground">{p.telegram.alsoDisconnect}</p>
             </>
           ) : me.available.telegram ? (
             <>
               <form action={connectTelegram}>
                 <Button type="submit" size="sm">
-                  Connect Telegram
+                  {p.telegram.connect}
                 </Button>
               </form>
-              <p className="text-xs text-muted-foreground">Opens Telegram. Tap Start in the chat with the Pactlab bot. The link works once, for 10 minutes.</p>
+              <p className="text-xs text-muted-foreground">{p.telegram.connectHelp}</p>
             </>
           ) : (
-            <p className="text-sm text-muted-foreground">Telegram is not set up on this Pactlab yet.</p>
+            <p className="text-sm text-muted-foreground">{p.telegram.off}</p>
           )}
         </CardContent>
       </Card>
 
       <Card id="whatsapp">
         <CardHeader>
-          <CardTitle>WhatsApp</CardTitle>
-          <CardDescription>Optional. Pactlab messages you on WhatsApp when a pact needs you, with no deal details, only a link. Reply STOP at any time to end them.</CardDescription>
+          <CardTitle>{t.m.settings.alerts.channels.WHATSAPP}</CardTitle>
+          <CardDescription>{p.whatsapp.description}</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
           {whatsapp ? (
             <>
               <p className="text-sm">
-                <span className="font-medium">{whatsapp.label}</span> · <span className="text-emerald-800">Verified</span>
-                {whatsapp.consentedAt ? <span className="text-muted-foreground"> · agreed {when(whatsapp.consentedAt)}</span> : null}
+                <span className="font-medium">{whatsapp.label}</span> · <span className="text-emerald-800">{p.shared.verified}</span>
+                {whatsapp.consentedAt ? <span className="text-muted-foreground"> · {t.fill(p.whatsapp.agreed, { date: when(whatsapp.consentedAt) })}</span> : null}
               </p>
               <div className="flex flex-wrap gap-2">
                 <form action={testChannel.bind(null, whatsapp.id)}>
                   <Button type="submit" size="sm" variant="outline">
-                    Send a test message
+                    {p.shared.sendTest}
                   </Button>
                 </form>
                 <form action={disconnectChannel.bind(null, whatsapp.id)}>
                   <Button type="submit" size="sm" variant="ghost">
-                    Disconnect WhatsApp
+                    {p.whatsapp.disconnect}
                   </Button>
                 </form>
               </div>
             </>
           ) : !me.available.whatsapp ? (
-            <p className="text-sm text-muted-foreground">WhatsApp is not switched on for this Pactlab.</p>
+            <p className="text-sm text-muted-foreground">{p.whatsapp.off}</p>
           ) : step === 'whatsapp-code' ? (
             <form action={confirmWhatsApp} className="flex flex-wrap items-end gap-2">
               <label className="flex flex-col gap-1 text-sm">
-                <span className="font-medium">Code from WhatsApp</span>
+                <span className="font-medium">{p.whatsapp.code}</span>
                 <input name="code" inputMode="numeric" autoComplete="one-time-code" pattern="\d{6}" maxLength={6} required className={`${fieldClass} w-32`} />
               </label>
               <Button type="submit" size="sm">
-                Confirm
+                {p.email.confirm}
               </Button>
             </form>
           ) : (
             <form action={startWhatsApp} className="flex flex-col gap-3">
               <div className="flex flex-wrap items-end gap-2">
                 <label className="flex flex-col gap-1 text-sm">
-                  <span className="font-medium">Country</span>
+                  <span className="font-medium">{p.whatsapp.country}</span>
                   <select name="dial" defaultValue="" className={fieldClass}>
-                    <option value="">Number starts with +</option>
+                    <option value="">{p.whatsapp.numberStartsWith}</option>
                     {PHONE_COUNTRIES.map((country) => (
                       <option key={country.iso} value={country.dial}>
                         {country.name} (+{country.dial})
@@ -226,7 +200,7 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
                   </select>
                 </label>
                 <label className="flex flex-col gap-1 text-sm">
-                  <span className="font-medium">WhatsApp number</span>
+                  <span className="font-medium">{p.whatsapp.number}</span>
                   <input name="number" type="tel" autoComplete="tel" maxLength={32} required className={`${fieldClass} w-56`} />
                 </label>
               </div>
@@ -236,7 +210,7 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
               </label>
               <div>
                 <Button type="submit" size="sm">
-                  Send a code on WhatsApp
+                  {p.whatsapp.sendCode}
                 </Button>
               </div>
             </form>
@@ -248,40 +222,40 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
         <Card key={chat.provider} id={chat.provider}>
           <CardHeader>
             <CardTitle>{chat.name}</CardTitle>
-            <CardDescription>A direct message from the Pactlab bot when a pact needs you, with no deal details, only a link that needs sign-in. Never posted in a channel.</CardDescription>
+            <CardDescription>{p.chat.description}</CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
             {chat.link ? (
               <>
                 <p className="text-sm">
-                  <span className="font-medium">Connected</span> · <span className="text-emerald-800">Verified</span> <span className="text-muted-foreground">since {when(chat.link.verifiedAt)}</span>
+                  <span className="font-medium">{p.shared.connected}</span> · <span className="text-emerald-800">{p.shared.verified}</span> <span className="text-muted-foreground">{t.fill(p.shared.since, { date: when(chat.link.verifiedAt) })}</span>
                 </p>
                 <div className="flex flex-wrap gap-2">
                   <form action={testChannel.bind(null, chat.link.id)}>
                     <Button type="submit" size="sm" variant="outline">
-                      Send a test message
+                      {p.shared.sendTest}
                     </Button>
                   </form>
                   <form action={disconnectChannel.bind(null, chat.link.id)}>
                     <Button type="submit" size="sm" variant="ghost">
-                      Disconnect {chat.name}
+                      {t.fill(p.chat.disconnect, { name: chat.name })}
                     </Button>
                   </form>
                 </div>
-                <p className="text-xs text-muted-foreground">{chat.provider === 'slack' ? 'You can also disconnect from the Pactlab app’s Home tab in Slack.' : 'You can also disconnect by sending “stop” to the Pactlab app in Teams.'}</p>
+                <p className="text-xs text-muted-foreground">{chat.provider === 'slack' ? p.chat.alsoDisconnectSlack : p.chat.alsoDisconnectTeams}</p>
               </>
             ) : !chat.available ? (
-              <p className="text-sm text-muted-foreground">{chat.name} is not set up on this Pactlab yet.</p>
+              <p className="text-sm text-muted-foreground">{t.fill(p.chat.off, { name: chat.name })}</p>
             ) : !chat.installed ? (
-              <p className="text-sm text-muted-foreground">Ask your admin to connect {chat.name} for your organization.</p>
+              <p className="text-sm text-muted-foreground">{t.fill(p.chat.askAdmin, { name: chat.name })}</p>
             ) : (
               <>
                 <form action={connectChat.bind(null, chat.provider)}>
                   <Button type="submit" size="sm">
-                    Connect {chat.provider === 'slack' ? 'Slack' : 'Teams'}
+                    {t.fill(p.chat.connect, { name: chat.short })}
                   </Button>
                 </form>
-                <p className="text-xs text-muted-foreground">Pactlab finds you by your confirmed email and sends one message asking “Is this you?”. You are connected only once you confirm there.</p>
+                <p className="text-xs text-muted-foreground">{p.chat.connectHelp}</p>
               </>
             )}
           </CardContent>
@@ -291,25 +265,25 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
       {members ? (
         <Card id="members">
           <CardHeader>
-            <CardTitle>Your organization&apos;s members</CardTitle>
-            <CardDescription>Masked contact details, so you can see who can be reached. Each time this list is shown, it is recorded in the audit log.</CardDescription>
+            <CardTitle>{p.members.title}</CardTitle>
+            <CardDescription>{p.members.description}</CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
             {members.kind !== 'ok' ? (
               <ApiState result={members} />
             ) : (
               <>
-                <ul className="divide-y divide-border rounded-lg border border-border" aria-label="Members' contact details">
+                <ul className="divide-y divide-border rounded-lg border border-border" aria-label={p.members.listLabel}>
                   {members.data.items.map((row) => (
                     <li key={row.userId} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm">
                       <span className="font-medium">{row.displayName}</span>
                       <span className="text-muted-foreground">
-                        {[row.email ?? 'No email', row.telegram ? 'Telegram' : null, row.whatsapp].filter(Boolean).join(' · ')}
+                        {[row.email ?? p.members.noEmail, row.telegram ? 'Telegram' : null, row.whatsapp].filter(Boolean).join(' · ')}
                       </span>
                     </li>
                   ))}
                 </ul>
-                <Pager label="Member pages" base="/settings/profile" links={pagerLinks({ ...members.data, itemCount: members.data.items.length }, position, keepParams(params), 'members')} />
+                <Pager label={p.members.pagerLabel} base="/settings/profile" links={pagerLinks({ ...members.data, itemCount: members.data.items.length }, position, keepParams(params), 'members')} />
               </>
             )}
           </CardContent>

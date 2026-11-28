@@ -1,0 +1,63 @@
+import type { Localized } from '@pactlab/ui';
+import type { common as source } from '../en/common';
+
+export const common: Localized<typeof source> = {
+  states: {
+    signedOut: { title: 'ログインが必要です', description: '参加しているディールとエビデンスを表示するには、ログインしてください。' },
+    forbidden: { title: 'アクセスできません', description: 'このディールでのあなたのロールには、エビデンスへのアクセスが含まれていません。' },
+    notFound: { title: '見つかりません', description: 'この項目は存在しないか、アクセス権がありません。' },
+    error: { title: '問題が発生しました', description: 'リクエストを完了できませんでした。', reference: '参照番号 {id}。' },
+  },
+  outcomes: {
+    forbidden: 'このディールでのあなたのロールでは実行できません。',
+    conflict: '他の人が先に変更しました。再読み込みしてもう一度お試しください。',
+    invalid: '受け付けられなかった内容があります。確認してもう一度お試しください。',
+    unavailable: 'このサービスは現在利用できません。',
+    'signed-out': 'セッションが終了しました。もう一度ログインしてください。',
+    'not-found': 'この項目はすでに存在しません。',
+    error: '問題が発生しました。もう一度お試しください。',
+  },
+  pager: { window: '{start}–{end} / {total}', previous: '← 前へ', next: '次へ →' },
+  phases: { PRE: 'デューデリジェンス前', DILIGENCE: 'デューデリジェンス', POST: 'クロージング後' },
+  stages: { SCREENING: 'スクリーニング', DILIGENCE: 'デューデリジェンス', NEGOTIATION: '交渉', SIGNED: '署名済み', CLOSED: 'クローズ済み' },
+  dealTypes: { PUBLIC_ACQUIRER: '上場の買い手', PRIVATE_ACQUIRER: '非公開の買収', TAKE_PRIVATE: '非公開化(MBO等)' },
+  companyTypes: {
+    SOFTWARE_SAAS: 'ソフトウェア・SaaS',
+    FINTECH: 'フィンテック',
+    HEALTHCARE: 'ヘルスケア・ヘルステック',
+    TELECOM_MEDIA: '通信・メディア',
+    PROFESSIONAL_SERVICES: 'プロフェッショナルサービス',
+    PHARMA_BIOTECH: '製薬・バイオテック',
+    ECOMMERCE_DTC: 'EC・D2C',
+    MULTIFAMILY: '集合住宅',
+    COMMERCIAL_PROPERTY: '商業不動産',
+    HOTELS: 'ホテル・宿泊',
+    SMALL_CLINICS: '小規模クリニック',
+    HOSPITALS: '病院',
+    VENTURE_RAISE: 'ベンチャー資金調達',
+    MULTIFAMILY_SYNDICATION: '集合住宅シンジケーション',
+    MUSIC_RIGHTS: '音楽権利',
+    ENERGY_GENERATION: '発電・権利',
+    STARTUP_SPV: 'スタートアップ出資SPV',
+    OTHER: 'その他',
+  },
+  claims: {
+    verdicts: {
+      UNVERIFIED: { label: '未検証', short: '売り手の主張は未検証' },
+      VERIFIED: { label: 'エビデンスにより検証済み', short: '売り手の主張を裏付ける' },
+      CONTRADICTED: { label: 'エビデンスと矛盾', short: '売り手の主張と矛盾する' },
+    },
+    handSourcedHelp: 'Pactlab Rinseで手入力されたもの:売り手の言い分であり、文書による裏付けではありません。',
+    restsOnHandSourced: '手入力の主張に基づく',
+    handSourced: '手入力',
+    none: 'この所見は、売り手の主張とは関連付けられていません。',
+    listLabel: '売り手の主張',
+    sellerSaid: '売り手の主張:',
+  },
+  withdrawn: {
+    badge: 'ソース撤回済み',
+    notice: 'ソース撤回済み:{subject}は、その後撤回されたインポートのデータに基づいています。作成時のまま保持されます。',
+    item: '{date}に撤回:「{reason}」',
+  },
+  evidence: { documentPage: '文書 {page}ページ', record: 'エビデンス', open: 'エビデンスを開く' },
+};

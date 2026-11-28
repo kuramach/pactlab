@@ -1,6 +1,8 @@
 import { formatAmount, formatDate, formatDateTime, formatMoney, formatMoneyRange, formatNumber, type MoneyFormatOptions, type MoneyLike } from '@pactlab/domain';
 import { fill, localize, plural, type Localized, type PluralForms } from '@pactlab/ui';
 import { de } from '../../messages/de';
+import { fr } from '../../messages/fr';
+import { ja } from '../../messages/ja';
 import { en, type Messages } from '../../messages/en';
 import { FORMAT_LOCALE, HTML_LANG, LOWER_NAMES_IN_TEXT, type AppLocale, type TranslatedAppLocale } from './locales';
 
@@ -8,7 +10,7 @@ export * from './locales';
 export type { Messages } from '../../messages/en';
 
 /** Every translation the app has. A locale without one is not offered (`OFFERED_LOCALES`). */
-export const TRANSLATIONS: Partial<Readonly<Record<TranslatedAppLocale, Localized<Messages>>>> = { de };
+export const TRANSLATIONS: Partial<Readonly<Record<TranslatedAppLocale, Localized<Messages>>>> = { de, fr, ja };
 
 /**
  * A reader's words and formats (T-172). Words come from the catalog; numbers, dates and money go through the one

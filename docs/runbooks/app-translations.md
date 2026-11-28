@@ -15,13 +15,18 @@ How the web app's languages are added, reviewed and switched on (T-172, ADR 0064
 
 ## Native review before a language is offered
 The translations are machine-made. Before adding a language to `OFFERED_LOCALES` (or widening what it covers), a native speaker checks, in the PR:
-- [ ] Deal terms match the glossary (T-173): escrow, indemnity, holdback, bridge, finding, drag, cushion.
+- [ ] Deal terms match the glossary (`docs/translation-glossary.md`): escrow, indemnity, holdback, bridge, finding, drag, cushion; the glossary's open differences are settled.
 - [ ] Plurals read correctly at 0, 1, 2 and 1,000.
 - [ ] Dates and numbers are in the language's format; amounts keep the pact's currency code.
 - [ ] Long strings fit: the pact home, the findings table and one finding at desktop and mobile widths.
 - [ ] Nothing reads as a promise or legal advice that the English does not make.
 
-German (pilot surface) is machine-made and awaiting this review.
+German, French and Japanese are machine-made and awaiting this review. The checklist is completed once per language, in the PR that adds it to `OFFERED_LOCALES`. French and Japanese catalogs exist and are tested (`lib/i18n/catalog.test.ts`) but stay out of `OFFERED_LOCALES` until their checklist is done; they cover the same namespaces as German (pact home, findings, settings, profile and chat apps), and the rest of the app's copy arrives with T-172c.
+
+Per-language checklist (copy into the PR):
+- [ ] German: glossary terms, plurals at 0/1/2/1,000, formats, fit, no stronger claim than English.
+- [ ] French: the same five.
+- [ ] Japanese: the same five, plus line breaks (no clipped phrases at 390 px and 1,280 px).
 
 ## Switching languages
 Settings → Language. The choice is stored on the device (`pactlab_locale` cookie) and applies on the next page; it changes nothing the API does. Following the person across devices and an organization default arrive with T-172b.
