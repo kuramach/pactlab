@@ -76,7 +76,7 @@ import { HttpsWebFetcher, type WebFetcher } from './common/safe-fetch';
 import { IcModule } from './ic/ic.module';
 import { BillingModule } from './billing/billing.module';
 import { PactPricingModule } from './pact-pricing/pact-pricing.module';
-import { FixtureBillingProvider, type BillingProvider, type TelegramBot, type WhatsAppSender } from '@pactlab/connectors';
+import { FixtureBillingProvider, type BillingProvider, type SlackApp, type TeamsBot, type TelegramBot, type WhatsAppSender } from '@pactlab/connectors';
 import { McpModule } from './mcp/mcp.module';
 import type { CostSource } from './admin/cost/cost-explorer';
 import type { EnvironmentPowerSource } from './admin/cost/environment-power';
@@ -85,6 +85,7 @@ import { ApiAccessTokens, McpAccessTokens } from './oauth/access-tokens';
 import { HttpsClientMetadataFetcher, type ClientMetadataFetcher } from './oauth/client-metadata';
 import { OAuthModule } from './oauth/oauth.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { ChatSender } from './contacts/chat-sender';
 import { ContactsModule } from './contacts/contacts.module';
 import type { IdentityEmailSource } from './contacts/auth0-userinfo';
 import { DatabaseSuppressionList } from './email-events/email-events.service';
@@ -186,7 +187,7 @@ export interface AppDependencies {
    * Contact details (T-180, ADR 0064): Auth0's `/userinfo` for the verified email claim, the Telegram bot and
    * the WhatsApp sender. Omitted or null: that part is off (Telegram and WhatsApp are off by default).
    */
-  contacts?: { identityEmails?: IdentityEmailSource | null; telegram?: TelegramBot | null; whatsapp?: WhatsAppSender | null };
+  contacts?: { identityEmails?: IdentityEmailSource | null; telegram?: TelegramBot | null; whatsapp?: WhatsAppSender | null; slack?: SlackApp | null; teams?: TeamsBot | null };
   /**
    * Product-help chat (T-175): where handed-off questions and confirmed feature requests go. Omitted: no team
    * address, so the panel offers the contact address instead; `featureIntake` defaults to emailing the team.
@@ -397,7 +398,12 @@ export class AppModule {
           appOrigin: webOrigin,
           scheduled: deps.notifications?.dispatch ?? false,
           intervalMs: deps.notifications?.intervalMs ?? 60_000,
-          channels: { telegram: deps.contacts?.telegram ?? null, whatsapp: deps.contacts?.whatsapp ?? null },
+          channels: {
+            telegram: deps.contacts?.telegram ?? null,
+            whatsapp: deps.contacts?.whatsapp ?? null,
+            // Slack and Teams (T-181): direct messages from the Pactlab bot, off unless configured.
+            chat: new ChatSender(deps.contacts?.slack ?? null, deps.contacts?.teams ?? null, deps.providers?.secrets ?? null),
+          },
         }),
         ContactsModule.register({
           emailSender: deps.emailLogin?.emailSender ?? null,
@@ -407,6 +413,12 @@ export class AppModule {
           identityEmails: deps.contacts?.identityEmails ?? null,
           telegram: deps.contacts?.telegram ?? null,
           whatsapp: deps.contacts?.whatsapp ?? null,
+        }, {
+          slack: deps.contacts?.slack ?? null,
+          teams: deps.contacts?.teams ?? null,
+          secrets: deps.providers?.secrets ?? null,
+          hashSecret: deps.emailLogin?.tokenSecret ?? randomBytes(32).toString('hex'),
+          appOrigin: webOrigin,
         }),
         EmailEventsModule.register({ verifier: deps.emailEvents?.verifier ?? null, fetcher: deps.webFetcher ?? new HttpsWebFetcher(), hashSecret: deps.emailLogin?.tokenSecret ?? randomBytes(32).toString('hex') }),
         ...(tokens && deps.emailLogin

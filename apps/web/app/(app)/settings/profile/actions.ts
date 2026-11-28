@@ -1,6 +1,6 @@
 'use server';
 
-import { contactCodeSchema, contactEmailStartSchema, whatsappStartSchema, type TelegramLinkView } from '@pactlab/contracts';
+import { chatProviderSchema, contactCodeSchema, contactEmailStartSchema, whatsappStartSchema, type TelegramLinkView } from '@pactlab/contracts';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
@@ -62,4 +62,11 @@ export async function testChannel(channelId: string): Promise<void> {
 export async function disconnectChannel(channelId: string): Promise<void> {
   if (!z.uuid().safeParse(channelId).success) return;
   back(await apiSend('DELETE', `/v1/me/contact/channels/${encodeURIComponent(channelId)}`, {}), 'disconnected');
+}
+
+/** Connect Slack / Connect Teams (T-181): Pactlab finds you by your verified email and asks you to confirm there. */
+export async function connectChat(provider: string): Promise<void> {
+  const parsed = chatProviderSchema.safeParse(provider);
+  if (!parsed.success) return;
+  back(await apiSend('POST', `/v1/me/contact/chat/${parsed.data}`, {}), `${parsed.data}-sent`);
 }

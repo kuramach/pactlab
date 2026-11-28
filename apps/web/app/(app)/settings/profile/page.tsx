@@ -5,7 +5,7 @@ import { getSessionContext } from '../../../../lib/session';
 import { keepParams, pageApiQuery, Pager, pagerLinks, readPage } from '../../../_components/pager';
 import { apiGet } from '../../deals/_lib/api';
 import { ApiState } from '../../deals/_lib/states';
-import { confirmEmail, confirmWhatsApp, connectTelegram, disconnectChannel, startEmail, startWhatsApp, testChannel } from './actions';
+import { confirmEmail, confirmWhatsApp, connectChat, connectTelegram, disconnectChannel, startEmail, startWhatsApp, testChannel } from './actions';
 
 // Per-user data: never prerender.
 export const dynamic = 'force-dynamic';
@@ -19,6 +19,8 @@ const DONE: Record<string, string> = {
   'whatsapp-connected': 'WhatsApp is connected.',
   'test-sent': 'Test message sent. Check your phone.',
   disconnected: 'Disconnected. Pactlab will not message you there again.',
+  'slack-sent': 'Pactlab sent you a direct message in Slack. Open it and choose "Yes, connect me". It expires in 10 minutes.',
+  'teams-sent': 'Pactlab sent you a message in Microsoft Teams. Open it and choose "Yes, connect me". It expires in 10 minutes.',
 };
 
 const ERRORS: Record<string, string> = {
@@ -31,6 +33,11 @@ const ERRORS: Record<string, string> = {
   EMAIL_NOT_SENT: 'The code email could not be sent just now. Try again in a minute.',
   WHATSAPP_NOT_SENT: 'The WhatsApp code could not be sent just now. Try again in a minute.',
   MESSAGE_NOT_SENT: 'The test message could not be sent. Try again, or disconnect and connect again.',
+  EMAIL_REQUIRED: 'Add and confirm your email first: Pactlab finds you in Slack or Teams by it.',
+  NOT_INSTALLED: 'Your organization has not connected this app yet. Ask your admin.',
+  NOT_FOUND_IN_WORKSPACE: 'No one with your email was found there. In Teams, open the Pactlab app first; in Slack, check your workspace uses the same email.',
+  SLACK_OFF: 'Slack is not set up on this Pactlab yet.',
+  TEAMS_OFF: 'Microsoft Teams is not set up on this Pactlab yet.',
   ERROR: 'That did not work. If you tried several times, wait 15 minutes and try again.',
 };
 
@@ -56,6 +63,10 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
   const me = profile.data;
   const telegram = me.channels.find((channel) => channel.kind === 'TELEGRAM');
   const whatsapp = me.channels.find((channel) => channel.kind === 'WHATSAPP');
+  const chats = [
+    { provider: 'slack' as const, name: 'Slack', link: me.channels.find((channel) => channel.kind === 'SLACK'), available: me.available.slack, installed: me.chatInstalled.slack },
+    { provider: 'teams' as const, name: 'Microsoft Teams', link: me.channels.find((channel) => channel.kind === 'TEAMS'), available: me.available.teams, installed: me.chatInstalled.teams },
+  ];
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
@@ -232,6 +243,50 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
           )}
         </CardContent>
       </Card>
+
+      {chats.map((chat) => (
+        <Card key={chat.provider} id={chat.provider}>
+          <CardHeader>
+            <CardTitle>{chat.name}</CardTitle>
+            <CardDescription>A direct message from the Pactlab bot when a pact needs you, with no deal details, only a link that needs sign-in. Never posted in a channel.</CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3">
+            {chat.link ? (
+              <>
+                <p className="text-sm">
+                  <span className="font-medium">Connected</span> · <span className="text-emerald-800">Verified</span> <span className="text-muted-foreground">since {when(chat.link.verifiedAt)}</span>
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <form action={testChannel.bind(null, chat.link.id)}>
+                    <Button type="submit" size="sm" variant="outline">
+                      Send a test message
+                    </Button>
+                  </form>
+                  <form action={disconnectChannel.bind(null, chat.link.id)}>
+                    <Button type="submit" size="sm" variant="ghost">
+                      Disconnect {chat.name}
+                    </Button>
+                  </form>
+                </div>
+                <p className="text-xs text-muted-foreground">{chat.provider === 'slack' ? 'You can also disconnect from the Pactlab app’s Home tab in Slack.' : 'You can also disconnect by sending “stop” to the Pactlab app in Teams.'}</p>
+              </>
+            ) : !chat.available ? (
+              <p className="text-sm text-muted-foreground">{chat.name} is not set up on this Pactlab yet.</p>
+            ) : !chat.installed ? (
+              <p className="text-sm text-muted-foreground">Ask your admin to connect {chat.name} for your organization.</p>
+            ) : (
+              <>
+                <form action={connectChat.bind(null, chat.provider)}>
+                  <Button type="submit" size="sm">
+                    Connect {chat.provider === 'slack' ? 'Slack' : 'Teams'}
+                  </Button>
+                </form>
+                <p className="text-xs text-muted-foreground">Pactlab finds you by your confirmed email and sends one message asking “Is this you?”. You are connected only once you confirm there.</p>
+              </>
+            )}
+          </CardContent>
+        </Card>
+      ))}
 
       {members ? (
         <Card id="members">

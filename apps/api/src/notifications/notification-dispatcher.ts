@@ -1,10 +1,11 @@
 import { Inject, Injectable, type OnApplicationBootstrap, type OnApplicationShutdown } from '@nestjs/common';
 import { ChannelSendError, type TelegramBot, type WhatsAppSender } from '@pactlab/connectors';
-import { contactDispatch, contacts, notificationDispatch, type DeliveryKind, type PendingNotification, type PrismaClient } from '@pactlab/db';
+import { chatInstalls, contactDispatch, contacts, notificationDispatch, type DeliveryKind, type PendingNotification, type PrismaClient } from '@pactlab/db';
 import { channelMessage, planEmail, resolveEmailMode } from '@pactlab/domain';
 import type { Logger } from '@pactlab/observability';
 import type { EmailSender } from '../email-login/email-sender';
 import { EmailSuppressedError, type SuppressionList } from '../email-login/ses-email-sender';
+import { chatMessage, type ChatSender } from '../contacts/chat-sender';
 import { LOGGER, PRISMA } from '../tokens';
 import { digestEmail, immediateEmail } from './notification-emails';
 
@@ -20,7 +21,7 @@ export interface NotificationModuleSettings {
    * Message channels (T-180, ADR 0064): "act now" items also go, content-free, to the person's verified
    * Telegram chat and WhatsApp number. Null or absent: email and the inbox only.
    */
-  readonly channels?: { readonly telegram: TelegramBot | null; readonly whatsapp: WhatsAppSender | null } | null;
+  readonly channels?: { readonly telegram: TelegramBot | null; readonly whatsapp: WhatsAppSender | null; readonly chat?: ChatSender | null } | null;
   /** Run the dispatcher on a timer (the API process; ADR 0046). Off in tests, which call run(). */
   readonly scheduled: boolean;
   readonly intervalMs: number;
@@ -62,7 +63,7 @@ export class NotificationDispatcher implements OnApplicationBootstrap, OnApplica
 
   onApplicationBootstrap(): void {
     const channels = this.settings.channels;
-    if (!this.settings.scheduled || (!this.settings.emailSender && !channels?.telegram && !channels?.whatsapp)) return;
+    if (!this.settings.scheduled || (!this.settings.emailSender && !channels?.telegram && !channels?.whatsapp && !channels?.chat?.enabled)) return;
     const tick = () => {
       this.timer = setTimeout(() => {
         // handled: each delivery's outcome is stored on it and shown on the person's items; this only logs a run that could not start.
@@ -132,7 +133,9 @@ export class NotificationDispatcher implements OnApplicationBootstrap, OnApplica
    */
   private async toChannels(items: readonly PendingNotification[], outcome: DispatchOutcome): Promise<void> {
     const channels = this.settings.channels;
-    if (items.length === 0 || (!channels?.telegram && !channels?.whatsapp)) return;
+    if (items.length === 0) return;
+    await this.toChats(items, outcome);
+    if (!channels?.telegram && !channels?.whatsapp) return;
     const live = await contactDispatch.channels(this.prisma, [...new Set(items.map((item) => item.userId))]);
     const link = new URL('/notifications', this.settings.appOrigin).toString();
     for (const item of items) {
@@ -154,6 +157,35 @@ export class NotificationDispatcher implements OnApplicationBootstrap, OnApplica
           // The person can no longer be reached there: stop the channel rather than fail every time.
           if (error instanceof ChannelSendError && error.recipientGone) await contacts.stop(this.prisma, { kind: channel.kind, handle: channel.handle, reason: 'BLOCKED' });
           this.logger.warn({ channel: channel.kind, errorClass }, 'notification message failed');
+        }
+      }
+    }
+  }
+
+  /**
+   * Slack and Teams (T-181): one direct message from the Pactlab bot per item and link, the same words as
+   * every channel and an Open Pactlab button that needs sign-in. Only links whose install is live are
+   * returned, so an uninstall or token revocation stops sends at once. Claimed first: at most once.
+   */
+  private async toChats(items: readonly PendingNotification[], outcome: DispatchOutcome): Promise<void> {
+    const chat = this.settings.channels?.chat;
+    if (!chat?.enabled) return;
+    const targets = await chatInstalls.targets(this.prisma, [...new Set(items.map((item) => item.userId))]);
+    const message = chatMessage('ACT_NOW', new URL('/notifications', this.settings.appOrigin).toString());
+    for (const item of items) {
+      for (const target of targets.filter((row) => row.userId === item.userId)) {
+        const deliveryId = await contactDispatch.claim(this.prisma, { channelId: target.channelId, notificationId: item.id });
+        if (!deliveryId) continue;
+        try {
+          await chat.send(target, message);
+          await contactDispatch.finish(this.prisma, { deliveryId, outcome: 'SENT', errorClass: null });
+          outcome.channelSent += 1;
+        } catch (error) {
+          const errorClass = error instanceof ChannelSendError ? error.errorClass : error instanceof Error ? error.name : 'unknown';
+          await contactDispatch.finish(this.prisma, { deliveryId, outcome: 'FAILED', errorClass });
+          outcome.channelFailed += 1;
+          if (error instanceof ChannelSendError && error.recipientGone) await contacts.stop(this.prisma, { kind: target.kind, handle: target.handle, reason: 'BLOCKED' });
+          this.logger.warn({ channel: target.kind, errorClass }, 'notification message failed');
         }
       }
     }

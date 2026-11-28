@@ -1,4 +1,4 @@
-import { FixtureTelegramBot, FixtureWhatsAppSender, TelegramBotApi, WhatsAppCloudApi, type TelegramBot, type WhatsAppSender } from '@pactlab/connectors';
+import { BotFrameworkTeamsBot, FixtureSlackApp, FixtureTeamsBot, FixtureTelegramBot, FixtureWhatsAppSender, SlackWebApi, TelegramBotApi, WhatsAppCloudApi, type SlackApp, type TeamsBot, type TelegramBot, type WhatsAppSender } from '@pactlab/connectors';
 import { channelMessage } from '@pactlab/domain';
 import { z } from 'zod';
 
@@ -21,6 +21,14 @@ const channelsEnvSchema = z.object({
   WHATSAPP_APP_SECRET: optional,
   WHATSAPP_VERIFY_TOKEN: optional,
   WHATSAPP_API_VERSION: z.preprocess(unset, z.string().regex(/^v\d+\.\d+$/).default('v27.0')),
+  /** Slack (T-181, ADR 0065): Pactlab's Slack app. All three or none. */
+  SLACK_CLIENT_ID: optional,
+  SLACK_CLIENT_SECRET: optional,
+  SLACK_SIGNING_SECRET: optional,
+  /** Microsoft Teams: the Azure bot's Microsoft App ID and client secret; the token tenant (`botframework.com` for multi-tenant). */
+  TEAMS_BOT_APP_ID: optional,
+  TEAMS_BOT_APP_PASSWORD: optional,
+  TEAMS_BOT_TOKEN_TENANT: optional,
   /** Outside production only: `fixture` runs both channels without Telegram or Meta (local runs, e2e). */
   CONTACT_CHANNELS: z.preprocess(unset, z.enum(['fixture']).optional()),
 });
@@ -28,6 +36,8 @@ const channelsEnvSchema = z.object({
 export interface ChannelAdapters {
   readonly telegram: TelegramBot | null;
   readonly whatsapp: WhatsAppSender | null;
+  readonly slack: SlackApp | null;
+  readonly teams: TeamsBot | null;
 }
 
 /** The fixture WhatsApp renders the shared words, so what a test reads is what a person would read. */
@@ -39,7 +49,7 @@ export function channelAdapters(env: NodeJS.ProcessEnv, appEnv: string): Channel
   const value = channelsEnvSchema.parse(env);
   if (value.CONTACT_CHANNELS === 'fixture') {
     if (appEnv === 'production') throw new Error('CONTACT_CHANNELS=fixture is refused in production');
-    return { telegram: new FixtureTelegramBot(), whatsapp: fixtureWhatsApp() };
+    return { telegram: new FixtureTelegramBot(), whatsapp: fixtureWhatsApp(), slack: new FixtureSlackApp(), teams: new FixtureTeamsBot() };
   }
   const telegramParts = [value.TELEGRAM_BOT_TOKEN, value.TELEGRAM_BOT_USERNAME, value.TELEGRAM_WEBHOOK_SECRET];
   if (telegramParts.some(Boolean) && !telegramParts.every(Boolean)) throw new Error('Telegram needs TELEGRAM_BOT_TOKEN, TELEGRAM_BOT_USERNAME and TELEGRAM_WEBHOOK_SECRET together');
@@ -60,5 +70,16 @@ export function channelAdapters(env: NodeJS.ProcessEnv, appEnv: string): Channel
       apiVersion: value.WHATSAPP_API_VERSION,
     });
   }
-  return { telegram, whatsapp };
+  const slackParts = [value.SLACK_CLIENT_ID, value.SLACK_CLIENT_SECRET, value.SLACK_SIGNING_SECRET];
+  if (slackParts.some(Boolean) && !slackParts.every(Boolean)) throw new Error('Slack needs SLACK_CLIENT_ID, SLACK_CLIENT_SECRET and SLACK_SIGNING_SECRET together');
+  const slack =
+    value.SLACK_CLIENT_ID && value.SLACK_CLIENT_SECRET && value.SLACK_SIGNING_SECRET
+      ? new SlackWebApi({ clientId: value.SLACK_CLIENT_ID, clientSecret: value.SLACK_CLIENT_SECRET, signingSecret: value.SLACK_SIGNING_SECRET })
+      : null;
+  if (Boolean(value.TEAMS_BOT_APP_ID) !== Boolean(value.TEAMS_BOT_APP_PASSWORD)) throw new Error('Teams needs TEAMS_BOT_APP_ID and TEAMS_BOT_APP_PASSWORD together');
+  const teams =
+    value.TEAMS_BOT_APP_ID && value.TEAMS_BOT_APP_PASSWORD
+      ? new BotFrameworkTeamsBot({ appId: value.TEAMS_BOT_APP_ID, appPassword: value.TEAMS_BOT_APP_PASSWORD, ...(value.TEAMS_BOT_TOKEN_TENANT ? { tokenTenant: value.TEAMS_BOT_TOKEN_TENANT } : {}) })
+      : null;
+  return { telegram, whatsapp, slack, teams };
 }

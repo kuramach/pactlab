@@ -9,6 +9,7 @@ import { currentRelease, releaseLabel } from '../../../lib/release';
 import { isOpen, STATUS_LABELS, statusBadge } from './bug-reports/_lib/status';
 import { setDefaultPersona } from './persona-actions';
 import { connectDocuSign, disconnectDocuSign } from './docusign-actions';
+import { ChatAppsCard } from './chat-apps-card';
 import { DocumentSourcesCard } from './document-sources-card';
 import { SigningCard } from './signing-card';
 import { DevicesCard } from './devices-card';
@@ -222,7 +223,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
       <Card id="profile">
         <CardHeader>
           <CardTitle>Your profile</CardTitle>
-          <CardDescription>Your email, and Telegram or WhatsApp, so Pactlab can tell you when a pact needs you. Each shows whether it is verified.</CardDescription>
+          <CardDescription>Your email, and Telegram, WhatsApp, Slack or Teams, so Pactlab can tell you when a pact needs you. Each shows whether it is verified.</CardDescription>
         </CardHeader>
         <CardContent>
           <Link href="/settings/profile" className={buttonVariants({ variant: 'outline', size: 'sm' })}>
@@ -264,6 +265,8 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
       {organization && !session.guest ? <SigningCard outcome={typeof signingOutcome === 'string' ? signingOutcome : undefined} /> : null}
 
       {organization ? <DocuSignCard /> : null}
+
+      {organization && !session.guest ? <ChatAppsCard outcome={typeof outcome === 'string' && outcome.startsWith('chat-') ? outcome : undefined} canEdit={admin} /> : null}
 
       {organization && !session.guest ? <DocumentSourcesCard outcome={typeof outcome === 'string' && outcome.startsWith('document-source') ? outcome : undefined} /> : null}
 
